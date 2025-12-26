@@ -80,6 +80,5 @@ async fn test_degradation_logic() {
     let val: Option<String> = client.get("degraded_key").await.unwrap();
     assert_eq!(val, Some("value".to_string()));
 
-    // 清理WAL文件
-    let _ = std::fs::remove_file(format!("{}_wal.db", service_name));
+    cleanup_service(&service_name).await;
 }

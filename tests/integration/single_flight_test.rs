@@ -113,4 +113,5 @@ async fn test_single_flight_deduplication() {
 
     // 清理
     let _ = l2.delete("hot_key").await;
+    common::cleanup_service(&service_name).await;
 }

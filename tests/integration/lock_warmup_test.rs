@@ -4,7 +4,9 @@
 //!
 //! 锁预热功能集成测试
 
-use crate::common::{generate_unique_service_name, is_redis_available, setup_cache};
+use crate::common::{
+    cleanup_service, generate_unique_service_name, is_redis_available, setup_cache,
+};
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use oxcache::client::two_level::TwoLevelClient;
@@ -109,6 +111,8 @@ async fn test_distributed_lock() {
         .await
         .expect("Failed to acquire lock");
     assert!(locked_after_expire, "Should acquire lock after expiration");
+
+    cleanup_service(&service_name).await;
 }
 
 #[tokio::test]
@@ -175,4 +179,6 @@ async fn test_cache_preheating() {
 
     let val2: Option<String> = client.get("warm_2").await.expect("Get failed");
     assert_eq!(val2, Some("value_of_warm_2".to_string()));
+
+    cleanup_service(&service_name).await;
 }

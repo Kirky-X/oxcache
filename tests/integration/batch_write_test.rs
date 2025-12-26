@@ -4,7 +4,7 @@
 //!
 //! 批量写入集成测试
 
-use crate::common::{generate_unique_service_name, is_redis_available, setup_cache};
+use crate::common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{
     CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
@@ -88,4 +88,6 @@ async fn test_batch_write_performance() {
 
     let val: Option<i32> = client.get("batch_key_99").await.unwrap();
     assert_eq!(val, Some(99));
+
+    cleanup_service(&service_name).await;
 }
