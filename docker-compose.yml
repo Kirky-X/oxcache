@@ -1,0 +1,198 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Redis Standalone
+  # ==========================================
+  redis-standalone:
+    image: redis:7-alpine
+    container_name: oxcache-redis-standalone
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # Redis Sentinel Topology
+  # ==========================================
+  # Master Node
+  redis-master:
+    image: redis:7-alpine
+    container_name: oxcache-redis-master
+    command: redis-server --port 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16379
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Slave Node 1
+  redis-slave-1:
+    image: redis:7-alpine
+    container_name: oxcache-redis-slave-1
+    command: redis-server --port 6379 --replicaof redis-master 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16380
+    ports:
+      - "16380:6379"
+    depends_on:
+      - redis-master
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Slave Node 2
+  redis-slave-2:
+    image: redis:7-alpine
+    container_name: oxcache-redis-slave-2
+    command: redis-server --port 6379 --replicaof redis-master 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16381
+    ports:
+      - "16381:6379"
+    depends_on:
+      - redis-master
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Sentinel Node 1
+  sentinel-1:
+    image: redis:7-alpine
+    container_name: oxcache-sentinel-1
+    command: >
+      sh -c "echo 'port 26379' > /tmp/sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 60000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-ip 127.0.0.1' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-port 26379' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26379:26379"
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+
+  # Sentinel Node 2
+  sentinel-2:
+    image: redis:7-alpine
+    container_name: oxcache-sentinel-2
+    command: >
+      sh -c "echo 'port 26379' > /tmp/sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> /tmp/sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-ip 127.0.0.1' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-port 26380' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26380:26379"
+    depends_on:
+      - redis-master
+
+  # Sentinel Node 3
+  sentinel-3:
+    image: redis:7-alpine
+    container_name: oxcache-sentinel-3
+    command: >
+      sh -c "echo 'port 26379' > /tmp/sentinel.conf &&
+             echo 'sentinel monitor mymaster redis-master 6379 2' >> /tmp/sentinel.conf &&
+             echo 'sentinel resolve-hostnames yes' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-ip 127.0.0.1' >> /tmp/sentinel.conf &&
+             echo 'sentinel announce-port 26381' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26381:26379"
+    depends_on:
+      - redis-master
+
+  # ==========================================
+  # Redis Cluster (Simplified for Testing)
+  # ==========================================
+  # Using grokzen/redis-cluster for easy setup of 6 nodes
+  redis-cluster:
+    image: grokzen/redis-cluster:7.0.0
+    container_name: oxcache-cluster
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7002:7002"
+      - "7003:7003"
+      - "7004:7004"
+      - "7005:7005"
+    environment:
+      - IP=0.0.0.0
+      - INITIAL_PORT=7000
+
+  # ==========================================
+  # PostgreSQL for Partition Testing
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: oxcache-postgres
+    environment:
+      POSTGRES_DB: oxcache_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # MySQL for Partition Testing
+  # ==========================================
+  mysql:
+    image: mysql:8.0
+    container_name: oxcache-mysql
+    environment:
+      MYSQL_DATABASE: oxcache_test
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # SQLite (File-based, mounted volume)
+  # ==========================================
+  sqlite:
+    image: alpine:latest
+    container_name: oxcache-sqlite
+    command: >
+      sh -c "apk add --no-cache sqlite &&
+             mkdir -p /data &&
+             sqlite3 /data/oxcache_test.db 'VACUUM;' &&
+             tail -f /dev/null"
+    volumes:
+      - sqlite_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /data/oxcache_test.db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  mysql_data:
+  sqlite_data:
