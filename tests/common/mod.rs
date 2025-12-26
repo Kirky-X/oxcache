@@ -104,3 +104,26 @@ pub async fn wait_for_sentinel() -> bool {
 pub fn generate_unique_service_name(base: &str) -> String {
     format!("{}_{}", base, uuid::Uuid::new_v4().simple())
 }
+
+/// 清理测试服务资源
+///
+/// 测试结束后清理WAL数据库文件和缓存数据
+///
+/// # 参数
+///
+/// * `service_name` - 服务名称
+#[allow(dead_code)]
+pub async fn cleanup_service(service_name: &str) {
+    tokio::fs::remove_file(format!("{}_wal.db", service_name))
+        .await
+        .ok();
+    tokio::fs::remove_file(format!("{}.db", service_name))
+        .await
+        .ok();
+
+    if let Ok(client) = oxcache::get_client(service_name) {
+        let _ = client.clear_wal().await;
+        let _ = client.clear_l1().await;
+        let _ = client.clear_l2().await;
+    }
+}
