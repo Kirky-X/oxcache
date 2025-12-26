@@ -1,0 +1,169 @@
+# Redis Cluster模式测试配置
+# 用于真实环境下的分布式测试
+
+version: '3.8'
+
+services:
+  # Redis Cluster节点1
+  redis-cluster-node1:
+    image: redis:7-alpine
+    container_name: redis-cluster-node1
+    ports:
+      - "7000:6379"
+      - "17000:16379"
+    volumes:
+      - ./configs/redis-cluster-node1.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node1-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.2
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster节点2
+  redis-cluster-node2:
+    image: redis:7-alpine
+    container_name: redis-cluster-node2
+    ports:
+      - "7001:6379"
+      - "17001:16379"
+    volumes:
+      - ./configs/redis-cluster-node2.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node2-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.3
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster节点3
+  redis-cluster-node3:
+    image: redis:7-alpine
+    container_name: redis-cluster-node3
+    ports:
+      - "7002:6379"
+      - "17002:16379"
+    volumes:
+      - ./configs/redis-cluster-node3.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node3-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.4
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster节点4
+  redis-cluster-node4:
+    image: redis:7-alpine
+    container_name: redis-cluster-node4
+    ports:
+      - "7003:6379"
+      - "17003:16379"
+    volumes:
+      - ./configs/redis-cluster-node4.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node4-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.5
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster节点5
+  redis-cluster-node5:
+    image: redis:7-alpine
+    container_name: redis-cluster-node5
+    ports:
+      - "7004:6379"
+      - "17004:16379"
+    volumes:
+      - ./configs/redis-cluster-node5.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node5-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.6
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Redis Cluster节点6
+  redis-cluster-node6:
+    image: redis:7-alpine
+    container_name: redis-cluster-node6
+    ports:
+      - "7005:6379"
+      - "17005:16379"
+    volumes:
+      - ./configs/redis-cluster-node6.conf:/usr/local/etc/redis/redis.conf
+      - redis-cluster-node6-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Cluster配置器
+  redis-cluster-config:
+    image: redis:7-alpine
+    container_name: redis-cluster-config
+    depends_on:
+      - redis-cluster-node1
+      - redis-cluster-node2
+      - redis-cluster-node3
+      - redis-cluster-node4
+      - redis-cluster-node5
+      - redis-cluster-node6
+    command: |
+      sh -c '
+        echo "等待所有节点启动..."
+        sleep 10
+        
+        echo "创建Redis Cluster..."
+        redis-cli --cluster create \\
+          172.21.0.2:6379 172.21.0.3:6379 172.21.0.4:6379 \\
+          172.21.0.5:6379 172.21.0.6:6379 172.21.0.7:6379 \\
+          --cluster-replicas 1 --cluster-yes
+        
+        echo "集群创建完成，检查状态..."
+        redis-cli -c -h 172.21.0.2 -p 6379 cluster nodes
+      '
+    networks:
+      redis-cluster:
+        ipv4_address: 172.21.0.10
+
+networks:
+  redis-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+volumes:
+  redis-cluster-node1-data:
+  redis-cluster-node2-data:
+  redis-cluster-node3-data:
+  redis-cluster-node4-data:
+  redis-cluster-node5-data:
+  redis-cluster-node6-data:

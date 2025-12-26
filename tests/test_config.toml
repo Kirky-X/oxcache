@@ -1,0 +1,30 @@
+# Test configuration for database partitioning
+[database]
+# PostgreSQL connection for testing
+postgres_url = "postgresql://postgres:postgres@localhost:5432/oxcache_test"
+
+# MySQL connection for testing  
+mysql_url = "mysql://mysql:mysql@localhost:3306/oxcache_test"
+
+# SQLite connection for testing
+sqlite_path = "/tmp/oxcache_test.db"
+
+[partitioning]
+# Enable partitioning for testing
+enabled = true
+
+# Partition strategy: monthly, weekly, daily
+strategy = "monthly"
+
+# Number of partitions to keep
+retention_partitions = 12
+
+# Partition size for different databases (in days)
+[partitioning.postgres]
+partition_days = 30
+
+[partitioning.mysql]
+partition_days = 30
+
+[partitioning.sqlite]
+partition_days = 30
