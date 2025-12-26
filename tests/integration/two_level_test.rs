@@ -4,7 +4,7 @@
 //!
 //! 双层缓存集成测试
 
-use crate::common::{generate_unique_service_name, is_redis_available, setup_cache};
+use crate::common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{
     CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
@@ -88,4 +88,6 @@ async fn test_two_level_cache_flow() {
     client.delete("key1").await.unwrap();
     let val: Option<String> = client.get("key1").await.unwrap();
     assert!(val.is_none());
+
+    cleanup_service(&service_name).await;
 }

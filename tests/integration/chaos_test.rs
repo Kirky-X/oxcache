@@ -56,8 +56,9 @@ async fn test_chaos_redis_outage_and_recovery() {
     let l1 = Arc::new(L1Backend::new(l1_config.max_capacity));
     let l2_backend = Arc::new(L2Backend::new(&l2_config).await.unwrap());
 
+    let service_name = common::generate_unique_service_name("chaos");
     let client = TwoLevelClient::new(
-        "chaos_outage_test".to_string(),
+        service_name.clone(),
         two_level_config,
         l1,
         l2_backend,
@@ -118,4 +119,6 @@ async fn test_chaos_redis_outage_and_recovery() {
 
     println!("5. 测试完成");
     println!("=== Chaos 测试成功完成 ===");
+
+    common::cleanup_service(&service_name).await;
 }

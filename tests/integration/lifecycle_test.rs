@@ -15,6 +15,8 @@ use std::time::Duration;
 #[path = "../common/mod.rs"]
 mod common;
 
+use common::cleanup_service;
+
 #[tokio::test]
 async fn test_client_lifecycle_shutdown() {
     common::setup_logging();
@@ -66,11 +68,10 @@ async fn test_client_lifecycle_shutdown() {
 
     // Wait a bit to ensure no crashes occur after drop
     tokio::time::sleep(Duration::from_millis(200)).await;
+
+    cleanup_service(&service_name).await;
 }
 
-/// 测试TwoLevelClient的优雅关闭功能
-///
-/// 验证shutdown方法能正确停止后台任务并释放资源
 #[tokio::test]
 async fn test_two_level_client_shutdown() {
     common::setup_logging();

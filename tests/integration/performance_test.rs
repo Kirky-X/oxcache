@@ -7,7 +7,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 
-use common::{generate_unique_service_name, is_redis_available, setup_cache};
+use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{
     CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
@@ -121,6 +121,8 @@ async fn test_backfill_latency() {
     } else {
         assert!(duration.as_millis() < 5, "Backfill latency too high");
     }
+
+    cleanup_service(&service_name).await;
 }
 
 /// 测试异常场景：Redis宕机时的降级处理

@@ -27,6 +27,7 @@ async fn test_manual_control_api() {
     }
 
     let service_name = common::generate_unique_service_name("manual_control");
+    let service_name_for_cleanup = service_name.clone();
 
     let l1 = Arc::new(L1Backend::new(100));
     let l2_config = L2Config {
@@ -58,6 +59,7 @@ async fn test_manual_control_api() {
         .unwrap();
 
     let config = TwoLevelConfig::default();
+
     let client = TwoLevelClient::new(
         service_name,
         config,
@@ -111,4 +113,5 @@ async fn test_manual_control_api() {
 
     // Cleanup
     let _ = l2.delete("manual_key").await;
+    common::cleanup_service(&service_name_for_cleanup).await;
 }

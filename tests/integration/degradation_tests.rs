@@ -13,6 +13,9 @@ use secrecy::SecretString;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+#[path = "../common/mod.rs"]
+mod common;
+
 #[derive(Clone)]
 pub struct FailingL2Backend {
     pub command_timeout_ms: u64,
@@ -488,14 +491,15 @@ mod health_checker_tests {
         let config = create_test_l2_config();
         let l2_backend = create_failing_l2_backend(&config).await;
 
+        let service_name = common::generate_unique_service_name("degradation");
         let health_state = Arc::new(tokio::sync::RwLock::new(HealthState::Healthy));
-        let wal = Arc::new(WalManager::new("test_service").expect("Failed to create WAL"));
+        let wal = Arc::new(WalManager::new(&service_name).expect("Failed to create WAL"));
 
         let checker = HealthChecker::new(
             l2_backend.clone(),
             health_state.clone(),
             wal,
-            "test_service".to_string(),
+            service_name.clone(),
             100,
         );
 
@@ -536,5 +540,6 @@ mod health_checker_tests {
         }
 
         println!("降级状态转换测试完成");
+        common::cleanup_service(&service_name).await;
     }
 }

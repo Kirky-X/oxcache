@@ -172,4 +172,6 @@ async fn test_multi_instance_invalidation() {
         result.is_none(),
         "Key should be invalidated from L1 and not found in L2"
     );
+
+    common::cleanup_service(&service_name).await;
 }
