@@ -5,6 +5,13 @@ members = [".", "macros"]
 name = "oxcache"
 version = "0.1.0"
 edition = "2021"
+description = "A high-performance, production-ready Rust multi-level cache library providing L1 (Moka) and L2 (Redis) caching."
+license = "MIT"
+repository = "https://github.com/your-org/oxcache"
+homepage = "https://github.com/your-org/oxcache"
+documentation = "https://docs.rs/oxcache"
+keywords = ["cache", "redis", "moka", "distributed-cache", "two-level-cache"]
+categories = ["caching", "database-interface"]
 
 [dependencies]
 tokio = { version = "1.42", features = ["full"] }
