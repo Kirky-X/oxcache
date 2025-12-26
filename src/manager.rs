@@ -166,7 +166,7 @@ pub fn get_typed_client(service: &str) -> Result<Arc<TwoLevelClient>> {
     match client.into_any_arc().downcast::<TwoLevelClient>() {
         Ok(typed) => Ok(typed),
         Err(_) => Err(CacheError::NotSupported(format!(
-            "Service {} is not a TwoLevelClient",
+            "服务 {} 不是 TwoLevelClient",
             service
         ))),
     }
