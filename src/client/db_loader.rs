@@ -6,7 +6,67 @@ use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
+
+/// 安全的SQL标识符验证
+/// 验证SQL标识符（表名、列名等）
+/// 只允许字母、数字、下划线，且不以数字开头
+#[allow(dead_code)]
+pub fn validate_sql_identifier(identifier: &str) -> bool {
+    if identifier.is_empty() {
+        return false;
+    }
+
+    let mut chars = identifier.chars();
+    let first = chars.next().unwrap();
+
+    if !first.is_ascii_alphabetic() && first != '_' {
+        return false;
+    }
+
+    for c in chars {
+        if !c.is_ascii_alphanumeric() && c != '_' {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// 验证缓存键格式
+/// 键可以包含字母、数字、连字符、下划线、点号、冒号
+pub fn validate_cache_key(key: &str) -> bool {
+    if key.is_empty() || key.len() > 1024 {
+        return false;
+    }
+
+    for c in key.chars() {
+        if !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != ':' && c != '/' {
+            return false;
+        }
+    }
+
+    true
+}
+
+/// SQL转义函数 - 用于字符串值转义
+/// 将特殊字符转义为SQL安全的表示形式
+fn escape_sql_string(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len() * 2);
+    for c in value.chars() {
+        match c {
+            '\'' => escaped.push_str("''"),
+            '\\' => escaped.push_str("\\\\"),
+            '\0' => escaped.push_str("\\0"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
 
 /// 数据库加载器trait
 /// 定义从数据库加载数据的接口
@@ -223,18 +283,82 @@ impl DbFallbackManager {
 pub struct SqlDbLoader {
     /// 数据库连接池
     pool: Arc<dyn DbConnectionPool>,
-    /// 查询语句模板
-    query_template: String,
+    /// 表名（已验证）
+    table_name: String,
+    /// 列名（已验证）
+    key_column: String,
+    /// 值列名（已验证）
+    value_column: String,
+}
+
+impl SqlDbLoader {
+    /// 创建新的SQL数据库加载器
+    ///
+    /// # 参数
+    ///
+    /// * `pool` - 数据库连接池
+    /// * `table_name` - 缓存表名
+    /// * `key_column` - 键列名
+    /// * `value_column` - 值列名
+    ///
+    /// # 返回值
+    ///
+    /// 返回新的SQL数据库加载器实例
+    pub fn new(
+        pool: Arc<dyn DbConnectionPool>,
+        table_name: String,
+        key_column: String,
+        value_column: String,
+    ) -> Result<Self> {
+        if !validate_sql_identifier(&table_name) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid table name: {}. Table name must be a valid SQL identifier.",
+                table_name
+            )));
+        }
+
+        if !validate_sql_identifier(&key_column) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid key column name: {}. Column name must be a valid SQL identifier.",
+                key_column
+            )));
+        }
+
+        if !validate_sql_identifier(&value_column) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid value column name: {}. Column name must be a valid SQL identifier.",
+                value_column
+            )));
+        }
+
+        Ok(Self {
+            pool,
+            table_name,
+            key_column,
+            value_column,
+        })
+    }
 }
 
 #[async_trait]
 impl DbLoader for SqlDbLoader {
     #[instrument(skip(self), level = "debug")]
     async fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        let query = self.query_template.replace("{key}", key);
+        if !validate_cache_key(key) {
+            warn!("Invalid cache key format: {}", key);
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid cache key format: {}. Key must be alphanumeric or contain -_.:/ and be <= 1024 characters.",
+                key
+            )));
+        }
+
+        let escaped_key = escape_sql_string(key);
+        let query = format!(
+            "SELECT {} FROM {} WHERE {} = '{}'",
+            self.value_column, self.table_name, self.key_column, escaped_key
+        );
         debug!("Executing database query: {}", query);
 
-        // 执行查询并返回结果
         self.pool.execute_query(&query).await
     }
 
@@ -244,16 +368,26 @@ impl DbLoader for SqlDbLoader {
             return Ok(Vec::new());
         }
 
-        // 构建IN查询
-        let key_list = keys
+        for key in &keys {
+            if !validate_cache_key(key) {
+                warn!("Invalid cache key in batch: {}", key);
+                return Err(CacheError::InvalidInput(format!(
+                    "Invalid cache key format: {}. Key must be alphanumeric or contain -_.:/ and be <= 1024 characters.",
+                    key
+                )));
+            }
+        }
+
+        let escaped_keys: Vec<String> = keys
             .iter()
-            .map(|k| format!("'{}'", k))
-            .collect::<Vec<_>>()
-            .join(",");
+            .map(|k| format!("'{}'", escape_sql_string(k)))
+            .collect();
+
+        let key_list = escaped_keys.join(",");
 
         let query = format!(
-            "SELECT cache_key, cache_value FROM cache_table WHERE cache_key IN ({})",
-            key_list
+            "SELECT {}, {} FROM {} WHERE {} IN ({})",
+            self.key_column, self.value_column, self.table_name, self.key_column, key_list
         );
 
         debug!("Executing batch database query for {} keys", keys.len());
@@ -289,8 +423,12 @@ pub struct DbFallbackConfig {
     pub max_retries: u32,
     /// 数据库连接字符串
     pub connection_string: String,
-    /// 查询语句模板
-    pub query_template: String,
+    /// 缓存表名
+    pub table_name: String,
+    /// 键列名
+    pub key_column: String,
+    /// 值列名
+    pub value_column: String,
 }
 
 impl Default for DbFallbackConfig {
@@ -300,8 +438,9 @@ impl Default for DbFallbackConfig {
             timeout_ms: 5000,
             max_retries: 3,
             connection_string: String::new(),
-            query_template: "SELECT cache_value FROM cache_table WHERE cache_key = '{key}'"
-                .to_string(),
+            table_name: "cache_table".to_string(),
+            key_column: "cache_key".to_string(),
+            value_column: "cache_value".to_string(),
         }
     }
 }

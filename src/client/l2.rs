@@ -372,4 +372,12 @@ impl CacheOps for L2Client {
             }
         }
     }
+
+    /// 清空 L2 缓存
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn clear_l2(&self) -> Result<()> {
+        self.l2.clear(&self.service_name).await?;
+        GLOBAL_METRICS.record_request(&self.service_name, "L2", "clear", "success");
+        Ok(())
+    }
 }

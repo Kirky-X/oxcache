@@ -98,4 +98,12 @@ impl CacheOps for L1Client {
     async fn delete(&self, key: &str) -> Result<()> {
         self.l1.delete(key).await
     }
+
+    /// 清空 L1 缓存
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn clear_l1(&self) -> Result<()> {
+        self.l1.clear()?;
+        GLOBAL_METRICS.record_request(&self.service_name, "L1", "clear", "success");
+        Ok(())
+    }
 }
