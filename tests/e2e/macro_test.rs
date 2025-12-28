@@ -28,6 +28,7 @@ struct User {
 /// 初始化缓存管理器，配置用于测试缓存宏的环境
 async fn setup_macro_env() {
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 5,
@@ -42,7 +43,10 @@ async fn setup_macro_env() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(300),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: std::env::var("REDIS_URL")
@@ -55,6 +59,8 @@ async fn setup_macro_env() {
                         cluster: None,
                         password: None,
                         enable_tls: false,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         invalidation_channel: None,
@@ -62,6 +68,10 @@ async fn setup_macro_env() {
                         enable_batch_write: false,
                         batch_size: 10,
                         batch_interval_ms: 100,
+                        bloom_filter: None,
+                        warmup: None,
+                        max_key_length: Some(1024),
+                        max_value_size: Some(1024 * 1024),
                     }),
                 },
             );
