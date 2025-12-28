@@ -127,6 +127,8 @@ fn create_l2_config() -> L2Config {
         sentinel: None,
         cluster: None,
         default_ttl: None,
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
@@ -307,6 +309,8 @@ fn bench_two_level_cache(c: &mut Criterion) {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(256),
+        max_value_size: Some(1024 * 1024 * 10),
     };
 
     let cache = rt.block_on(async {
@@ -376,6 +380,8 @@ fn bench_cache_hit_ratio(c: &mut Criterion) {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(256),
+        max_value_size: Some(1024 * 1024 * 10),
     };
 
     let cache = rt.block_on(async {
@@ -415,7 +421,7 @@ fn bench_cache_hit_ratio(c: &mut Criterion) {
     group.bench_function("hit_ratio_10", |b| {
         b.to_async(&rt).iter(|| async {
             let key_num: u32 = rand::random();
-            let key = if key_num % 10 == 0 {
+            let key = if key_num.is_multiple_of(10) {
                 "hot_key_1".to_string()
             } else {
                 format!("cold_key_{}", key_num)
@@ -460,6 +466,8 @@ fn bench_l1_size_impact(c: &mut Criterion) {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(256),
+        max_value_size: Some(1024 * 1024 * 10),
     };
 
     let l1_empty = Arc::new(L1Backend::new(10000));
@@ -569,6 +577,8 @@ fn benchmark_latency(c: &mut Criterion) {
         sentinel: None,
         cluster: None,
         default_ttl: None,
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     };
     let l2 = rt.block_on(async {
         Arc::new(
@@ -586,6 +596,8 @@ fn benchmark_latency(c: &mut Criterion) {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(256),
+        max_value_size: Some(1024 * 1024 * 10),
     };
 
     let client = rt.block_on(async {
