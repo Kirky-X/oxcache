@@ -6,6 +6,7 @@
 
 use crate::error::Result;
 use moka::future::Cache;
+use std::time::{Duration, Instant};
 use tracing::{debug, instrument};
 
 /// L1缓存后端实现
@@ -13,8 +14,8 @@ use tracing::{debug, instrument};
 /// 基于内存的高速缓存实现，使用Moka作为底层缓存库
 #[derive(Clone)]
 pub struct L1Backend {
-    // 值: (数据, 版本/时间戳)
-    cache: Cache<String, (Vec<u8>, u64)>,
+    // 值: (数据, 版本/时间戳, 过期时间)
+    cache: Cache<String, (Vec<u8>, u64, Option<Instant>)>,
 }
 
 impl L1Backend {
@@ -45,12 +46,23 @@ impl L1Backend {
     #[instrument(skip(self), level = "debug")]
     pub async fn get_with_metadata(&self, key: &str) -> Result<Option<(Vec<u8>, u64)>> {
         let result = self.cache.get(key).await;
-        debug!(
-            "L1 get_with_metadata: key={}, found={}",
-            key,
-            result.is_some()
-        );
-        Ok(result)
+        match result {
+            Some((bytes, version, expire_at)) => {
+                if let Some(expire_time) = expire_at {
+                    if Instant::now() >= expire_time {
+                        self.cache.remove(key).await;
+                        debug!("L1 get_with_metadata: key={}, expired=true, removed", key);
+                        return Ok(None);
+                    }
+                }
+                debug!("L1 get_with_metadata: key={}, found=true", key);
+                Ok(Some((bytes, version)))
+            }
+            None => {
+                debug!("L1 get_with_metadata: key={}, found=false", key);
+                Ok(None)
+            }
+        }
     }
 
     /// 获取缓存值（字节形式）
@@ -65,8 +77,23 @@ impl L1Backend {
     #[instrument(skip(self), level = "debug")]
     pub async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let result = self.cache.get(key).await;
-        debug!("L1 get_bytes: key={}, found={}", key, result.is_some());
-        Ok(result.map(|(value, _version)| value))
+        match result {
+            Some((bytes, _, expire_at)) => {
+                if let Some(expire_time) = expire_at {
+                    if Instant::now() >= expire_time {
+                        self.cache.remove(key).await;
+                        debug!("L1 get_bytes: key={}, expired=true, removed", key);
+                        return Ok(None);
+                    }
+                }
+                debug!("L1 get_bytes: key={}, found=true", key);
+                Ok(Some(bytes))
+            }
+            None => {
+                debug!("L1 get_bytes: key={}, found=false", key);
+                Ok(None)
+            }
+        }
     }
 
     /// 设置缓存值（字节形式）
@@ -88,7 +115,6 @@ impl L1Backend {
             value.len(),
             ttl
         );
-        // 简单设置的默认版本为0
         self.set_with_metadata(key, value, ttl.unwrap_or(300), 0)
             .await
     }
@@ -110,16 +136,24 @@ impl L1Backend {
         &self,
         key: &str,
         value: Vec<u8>,
-        _ttl: u64,
+        ttl: u64,
         version: u64,
     ) -> Result<()> {
         debug!(
-            "L1 set_with_metadata: key={}, value_len={}, version={}",
+            "L1 set_with_metadata: key={}, value_len={}, ttl={}, version={}",
             key,
             value.len(),
+            ttl,
             version
         );
-        self.cache.insert(key.to_string(), (value, version)).await;
+        let expire_at = if ttl > 0 {
+            Some(Instant::now() + Duration::from_secs(ttl))
+        } else {
+            None
+        };
+        self.cache
+            .insert(key.to_string(), (value, version, expire_at))
+            .await;
         debug!("L1 set_with_metadata: key={} 插入完成", key);
         Ok(())
     }
