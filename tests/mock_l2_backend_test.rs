@@ -1,7 +1,7 @@
 //! 测试真实L2Backend与Redis的集成
 
 use common::redis_test_utils::{
-    create_standalone_config, is_redis_available, test_redis_connection,
+    create_standalone_config, is_redis_available, test_redis_connection, wait_for_redis,
 };
 use oxcache::backend::l2::L2Backend;
 
@@ -13,6 +13,11 @@ async fn test_real_l2_backend_creation() {
 
     if !is_redis_available() {
         println!("跳过测试: Redis不可用");
+        return;
+    }
+
+    if !wait_for_redis("redis://127.0.0.1:6379").await {
+        println!("跳过测试: Redis连接超时");
         return;
     }
 
@@ -50,6 +55,11 @@ async fn test_real_l2_backend_ping() {
         return;
     }
 
+    if !wait_for_redis("redis://127.0.0.1:6379").await {
+        println!("跳过测试: Redis连接超时");
+        return;
+    }
+
     match test_redis_connection().await {
         Ok(()) => {
             println!("Redis连接成功");
@@ -79,6 +89,11 @@ async fn test_real_l2_backend_with_tls() {
 
     if !is_redis_available() {
         println!("跳过测试: Redis不可用");
+        return;
+    }
+
+    if !wait_for_redis("redis://127.0.0.1:6379").await {
+        println!("跳过测试: Redis连接超时");
         return;
     }
 

@@ -7,6 +7,7 @@ use oxcache::error::{CacheError, Result};
 use redis::{aio::ConnectionManager, Client, ConnectionAddr, ConnectionInfo, RedisConnectionInfo};
 
 /// 模拟Redis提供者，用于测试降级策略而不依赖外部Redis
+#[derive(Default)]
 pub struct MockRedisProvider;
 
 impl MockRedisProvider {
@@ -33,7 +34,7 @@ impl RedisProvider for MockRedisProvider {
         };
 
         // 创建一个客户端，虽然它无法真正连接，但允许我们创建结构
-        let client = Client::open(connection_info).map_err(|e| CacheError::RedisError(e))?;
+        let client = Client::open(connection_info).map_err(CacheError::RedisError)?;
 
         // 创建一个连接管理器，接受可能的失败
         // 我们使用expect而不是unwrap_or_else，因为我们需要这个测试能够继续
@@ -50,7 +51,7 @@ impl RedisProvider for MockRedisProvider {
                 client
                     .get_connection_manager()
                     .await
-                    .map_err(|e| CacheError::RedisError(e))?
+                    .map_err(CacheError::RedisError)?
             }
         };
 

@@ -16,6 +16,7 @@ async fn test_l1_only_mode() {
     let service_name = common::generate_unique_service_name("l1_only_test");
 
     let config = Config {
+        config_version: Some(1),
         global: Default::default(),
         services: {
             let mut map = HashMap::new();
@@ -26,7 +27,10 @@ async fn test_l1_only_mode() {
                     ttl: Some(60),
                     serialization: None,
                     two_level: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: None,
                 },
             );
@@ -71,6 +75,7 @@ async fn test_l2_only_mode() {
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let config = Config {
+        config_version: Some(1),
         global: Default::default(),
         services: {
             let mut map = HashMap::new();
@@ -92,6 +97,7 @@ async fn test_l2_only_mode() {
                         cluster: None,
                         password: None,
                         enable_tls: false,
+                        ..Default::default()
                     }),
                 },
             );
