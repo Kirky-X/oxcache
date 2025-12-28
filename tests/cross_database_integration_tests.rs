@@ -8,8 +8,10 @@ async fn setup_partition_manager(
     database_url: &str,
 ) -> Result<Arc<dyn PartitionManager + Send + Sync>, Box<dyn std::error::Error>> {
     let db_type = DatabaseType::from_url(database_url);
-    let mut config = PartitionConfig::default();
-    config.table_prefix = "test_".to_string();
+    let config = PartitionConfig {
+        table_prefix: "test_".to_string(),
+        ..Default::default()
+    };
 
     let manager = PartitionManagerFactory::create_manager(db_type, database_url, config).await?;
 
@@ -25,7 +27,7 @@ async fn test_cross_database_partition_consistency() -> Result<(), Box<dyn std::
     }
     println!("=== Cross-Database Partition Consistency Test ===");
 
-    let test_configs = vec![
+    let test_configs = [
         ("MySQL", "mysql://root:password@localhost:3307/oxcache_test"),
         (
             "PostgreSQL",

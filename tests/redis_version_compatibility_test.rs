@@ -25,7 +25,7 @@ impl RedisVersion {
         // 解析版本字符串，格式如: 7.2.3 或 6.0.16
         let parts: Vec<&str> = version_string.split('.').collect();
         if parts.len() >= 2 {
-            let major = parts.get(0)?.parse().ok()?;
+            let major = parts.first()?.parse().ok()?;
             let minor = parts.get(1)?.parse().ok()?;
             let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
 
@@ -229,7 +229,7 @@ async fn test_redis_version_standalone(
         .map_err(|e| format!("Redis {} TTL failed: {}", version, e))?;
 
     if let Some(ttl_value) = ttl {
-        if ttl_value <= 0 || ttl_value > 60 {
+        if ttl_value == 0 || ttl_value > 60 {
             return Err(format!("Redis {} TTL invalid: {}", version, ttl_value));
         }
     }
@@ -458,7 +458,7 @@ async fn test_comprehensive_redis_version_compatibility() {
     println!("🚀 Starting comprehensive Redis version compatibility tests...");
 
     // 检查是否有Redis实例可用
-    if !std::env::var("REDIS_VERSION_TEST_ENABLED").is_ok() {
+    if std::env::var("REDIS_VERSION_TEST_ENABLED").is_err() {
         println!("⚠️  Redis version compatibility tests are disabled.");
         println!("Set REDIS_VERSION_TEST_ENABLED=1 to enable these tests.");
         println!("You also need to configure the following environment variables:");
@@ -901,7 +901,7 @@ async fn test_redis_serialization_compatibility() {
 #[tokio::test]
 async fn test_redis_cluster_advanced_features() {
     // 检查是否有可用的Redis集群实例
-    if !std::env::var("ENABLE_ADVANCED_CLUSTER_TEST").is_ok() {
+    if std::env::var("ENABLE_ADVANCED_CLUSTER_TEST").is_err() {
         println!("高级Redis集群测试未启用");
         return;
     }
@@ -1094,7 +1094,7 @@ async fn test_redis_cluster_advanced_features() {
 #[tokio::test]
 async fn test_cross_version_cluster_sync() {
     // 检查是否有可用的跨版本Redis集群实例
-    if !std::env::var("ENABLE_CROSS_VERSION_CLUSTER_SYNC").is_ok() {
+    if std::env::var("ENABLE_CROSS_VERSION_CLUSTER_SYNC").is_err() {
         println!("跨版本Redis集群同步测试未启用");
         return;
     }
