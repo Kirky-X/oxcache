@@ -4,14 +4,38 @@ use crate::error::{CacheError, Result};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 
 use super::{common::*, PartitionConfig, PartitionInfo, PartitionManager};
+
+/// 连接池统计信息
+#[derive(Debug, Clone, Default)]
+pub struct PoolStats {
+    pub active_connections: u32,
+    pub idle_connections: u32,
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub connection_acquire_ms: f64,
+    pub last_acquire: Option<Instant>,
+}
+
+impl PoolStats {
+    pub fn utilization_rate(&self) -> f64 {
+        if self.max_connections > 0 {
+            self.active_connections as f64 / self.max_connections as f64
+        } else {
+            0.0
+        }
+    }
+}
 
 /// PostgreSQL分区管理器
 pub struct PostgresPartitionManager {
     config: PartitionConfig,
-    connection: Arc<Mutex<DatabaseConnection>>,
+    connection: Arc<DatabaseConnection>,
+    pool_stats: Arc<Mutex<PoolStats>>,
 }
 
 impl PostgresPartitionManager {
@@ -20,22 +44,107 @@ impl PostgresPartitionManager {
         let mut opt = ConnectOptions::new(connection_string.to_string());
         opt.max_connections(10)
             .min_connections(2)
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .idle_timeout(std::time::Duration::from_secs(8));
+            .connect_timeout(Duration::from_secs(5))
+            .idle_timeout(Duration::from_secs(8))
+            .max_lifetime(Duration::from_secs(1800))
+            .acquire_timeout(Duration::from_secs(10));
 
+        let start = Instant::now();
         let connection = Database::connect(opt)
             .await
-            .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+            .map_err(|e| CacheError::DatabaseError(format!(
+                "Failed to connect to PostgreSQL: {}. Please check your connection string and ensure the database server is running.",
+                e
+            )))?;
+
+        let acquire_duration = start.elapsed();
+        info!(
+            "PostgreSQL connection established in {:?}",
+            acquire_duration
+        );
+
+        if acquire_duration > Duration::from_secs(3) {
+            warn!(
+                "PostgreSQL connection took longer than expected: {:?}",
+                acquire_duration
+            );
+        }
 
         Ok(Self {
             config,
-            connection: Arc::new(Mutex::new(connection)),
+            connection: Arc::new(connection),
+            pool_stats: Arc::new(Mutex::new(PoolStats {
+                active_connections: 1,
+                idle_connections: 1,
+                max_connections: 10,
+                min_connections: 2,
+                connection_acquire_ms: acquire_duration.as_secs_f64() * 1000.0,
+                last_acquire: Some(Instant::now()),
+            })),
         })
+    }
+
+    /// 获取连接池统计信息
+    pub async fn get_pool_stats(&self) -> PoolStats {
+        self.pool_stats.lock().await.clone()
+    }
+
+    /// 验证连接健康状态
+    pub async fn health_check(&self) -> bool {
+        if let Err(e) = self.ping().await {
+            warn!("PostgreSQL health check failed: {}", e);
+            return false;
+        }
+        true
+    }
+
+    /// Ping数据库以验证连接
+    async fn ping(&self) -> Result<()> {
+        let conn = self.connection.as_ref();
+        conn.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT 1".to_string(),
+        ))
+            .await?;
+        Ok(())
+    }
+
+    /// 重新建立连接（用于恢复）
+    pub async fn reconnect(&mut self, connection_string: &str) -> Result<()> {
+        info!("Attempting to reconnect to PostgreSQL...");
+
+        let mut opt = ConnectOptions::new(connection_string.to_string());
+        opt.max_connections(10)
+            .min_connections(2)
+            .connect_timeout(Duration::from_secs(10))
+            .idle_timeout(Duration::from_secs(8));
+
+        let start = Instant::now();
+        let connection = Database::connect(opt).await.map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Failed to reconnect to PostgreSQL: {}. Please check your database server.",
+                e
+            ))
+        })?;
+
+        let acquire_duration = start.elapsed();
+        info!(
+            "PostgreSQL reconnection established in {:?}",
+            acquire_duration
+        );
+
+        self.connection = Arc::new(connection);
+
+        let mut stats = self.pool_stats.lock().await;
+        stats.connection_acquire_ms = acquire_duration.as_secs_f64() * 1000.0;
+        stats.last_acquire = Some(Instant::now());
+
+        Ok(())
     }
 
     /// 创建分区表的主表（使用声明式分区）
     async fn create_partitioned_table(&self, table_name: &str, schema: &str) -> Result<()> {
-        let conn = self.connection.lock().await;
+        let conn = self.connection.as_ref();
 
         // 修改schema为分区表格式
         let partition_schema = schema;
@@ -65,13 +174,19 @@ impl PostgresPartitionManager {
             )
         };
 
-        println!("Generated partition SQL: {}", partition_sql);
+        debug!("Generated partition SQL: {}", partition_sql);
 
         conn.execute(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             partition_sql,
         ))
-        .await?;
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to create partitioned table: {}. Please check if the table schema is valid.",
+                    e
+                ))
+            })?;
 
         // 创建默认分区
         let default_partition_sql = format!(
@@ -83,7 +198,10 @@ impl PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             default_partition_sql,
         ))
-        .await?;
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to create default partition: {}", e))
+            })?;
 
         Ok(())
     }
@@ -95,36 +213,34 @@ impl PartitionManager for PostgresPartitionManager {
         if self.config.enabled {
             self.create_partitioned_table(table_name, schema).await
         } else {
-            let conn = self.connection.lock().await;
+            let conn = self.connection.as_ref();
             conn.execute(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 schema.to_string(),
             ))
-            .await?;
+                .await
+                .map_err(|e| {
+                    CacheError::DatabaseError(format!(
+                        "Failed to initialize table: {}. Please check the table schema.",
+                        e
+                    ))
+                })?;
             Ok(())
         }
     }
 
     async fn create_partition(&self, partition: &PartitionInfo) -> Result<()> {
-        let conn = self.connection.lock().await;
+        let conn = self.connection.as_ref();
 
-        println!("DEBUG: Creating partition with name: {}", partition.name);
-        println!("DEBUG: Partition table_name: {}", partition.table_name);
-        println!("DEBUG: Start date: {}", partition.start_date);
-        println!("DEBUG: End date: {}", partition.end_date);
+        debug!("Creating partition with name: {}", partition.name);
+        debug!("Partition table_name: {}", partition.table_name);
 
-        // PostgreSQL分区命名约定 - 使用分区名称中的基础表名
-        // Split the partition name to extract the base table name
         let parts: Vec<&str> = partition.name.rsplitn(3, '_').collect();
-        println!("DEBUG: Parts after rsplitn: {:?}", parts);
         let base_table_name = if parts.len() >= 3 {
-            // For format like "test_cache_entries_2025_12", the base name is "test_cache_entries"
             parts[2..].join("_")
         } else {
-            // Fallback to the full name if we can't parse it
             partition.name.clone()
         };
-        println!("DEBUG: Base table name: {}", base_table_name);
 
         let partition_table_name = format!(
             "{}_p{:04}{:02}",
@@ -133,10 +249,7 @@ impl PartitionManager for PostgresPartitionManager {
             partition.start_date.month()
         );
 
-        println!(
-            "DEBUG: Final partition table name: {}",
-            partition_table_name
-        );
+        debug!("Final partition table name: {}", partition_table_name);
 
         let sql = format!(
             "CREATE TABLE IF NOT EXISTS {} PARTITION OF {} FOR VALUES FROM ('{}') TO ('{}')",
@@ -146,47 +259,48 @@ impl PartitionManager for PostgresPartitionManager {
             partition.end_date.format("%Y-%m-%d")
         );
 
-        println!("DEBUG: SQL: {}", sql);
+        debug!("SQL: {}", sql);
 
         conn.execute(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
-        .await?;
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to create partition {}: {}",
+                    partition_table_name, e
+                ))
+            })?;
 
         Ok(())
     }
 
     async fn get_partitions(&self, table_name: &str) -> Result<Vec<PartitionInfo>> {
-        let conn = self.connection.lock().await;
+        let conn = self.connection.as_ref();
 
-        let sql = format!(
-            "SELECT 
+        let sql = "SELECT
                 child.relname AS partition_name,
                 pg_get_expr(child.relpartbound, child.oid) AS partition_range
-             FROM pg_inherits 
+             FROM pg_inherits
              JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
              JOIN pg_class child ON pg_inherits.inhrelid = child.oid
-             WHERE parent.relname = '{}'",
-            table_name
-        );
-
-        println!("DEBUG: get_partitions SQL: {}", sql);
+             WHERE parent.relname = $1"
+            .to_string();
 
         let statement = Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql);
-        let result = conn.query_all(statement).await?;
-
-        println!("DEBUG: Found {} partition rows", result.len());
+        let result = conn.query_all(statement).await.map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Failed to get partitions: {}. Please check if the table exists.",
+                e
+            ))
+        })?;
 
         let mut partitions = Vec::new();
         for row in result {
             let partition_name: String = row.try_get("", "partition_name")?;
             let partition_range: Option<String> = row.try_get("", "partition_range")?;
 
-            println!("DEBUG: Partition name: {}", partition_name);
-            println!("DEBUG: Partition range: {:?}", partition_range);
-
-            // 解析分区范围信息
             if let Some(range_str) = partition_range {
                 if let Some(info) =
                     self.parse_postgres_partition_range(&partition_name, &range_str, table_name)
@@ -196,29 +310,28 @@ impl PartitionManager for PostgresPartitionManager {
             }
         }
 
-        println!("DEBUG: Total partitions parsed: {}", partitions.len());
         Ok(partitions)
     }
 
     async fn drop_partition(&self, _table_name: &str, partition_name: &str) -> Result<()> {
-        let conn = self.connection.lock().await;
+        let conn = self.connection.as_ref();
 
         let sql = format!("DROP TABLE IF EXISTS {}", partition_name);
-        println!("DEBUG: Executing drop SQL: {}", sql);
+        debug!("Executing drop SQL: {}", sql);
 
-        let result = conn
-            .execute(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                sql,
-            ))
-            .await;
+        conn.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            sql,
+        ))
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to drop partition {}: {}",
+                    partition_name, e
+                ))
+            })?;
 
-        match &result {
-            Ok(_) => println!("DEBUG: Successfully dropped partition: {}", partition_name),
-            Err(e) => println!("DEBUG: Failed to drop partition {}: {}", partition_name, e),
-        }
-
-        result?;
+        debug!("Successfully dropped partition: {}", partition_name);
         Ok(())
     }
 
