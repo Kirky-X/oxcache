@@ -34,6 +34,7 @@ async fn test_distributed_lock() {
 
     // 初始化配置
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -43,7 +44,10 @@ async fn test_distributed_lock() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: "redis://127.0.0.1:6379".to_string().into(),
@@ -54,6 +58,8 @@ async fn test_distributed_lock() {
                         cluster: None,
                         password: None,
                         enable_tls: false,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -139,6 +145,8 @@ async fn test_cache_preheating() {
         cluster: None,
         password: None,
         enable_tls: false,
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     };
     let l2 = Arc::new(
         L2Backend::new(&l2_config)

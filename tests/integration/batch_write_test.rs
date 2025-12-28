@@ -10,8 +10,6 @@ use oxcache::config::{
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
-use std::collections::HashMap;
-use std::time::Duration;
 use secrecy::SecretBox;
 
 #[path = "../common/mod.rs"]
@@ -29,6 +27,7 @@ async fn test_batch_write_performance() {
     let service_name = generate_unique_service_name("batch_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 5,
@@ -43,7 +42,10 @@ async fn test_batch_write_performance() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 1000 }),
+                    l1: Some(L1Config {
+                        max_capacity: 1000,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -54,13 +56,19 @@ async fn test_batch_write_performance() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: false,
-                        enable_batch_write: true, // 启用
+                        enable_batch_write: true,
                         batch_size: 50,
                         batch_interval_ms: 200,
                         invalidation_channel: None,
+                        bloom_filter: None,
+                        warmup: None,
+                        max_key_length: Some(1024),
+                        max_value_size: Some(1024 * 1024),
                     }),
                 },
             );

@@ -29,7 +29,10 @@ async fn test_chaos_redis_outage_and_recovery() {
 
     println!("Redis 可用，执行完整的 chaos 测试");
 
-    let l1_config = L1Config { max_capacity: 1000 };
+    let l1_config = L1Config {
+        max_capacity: 1000,
+        ..Default::default()
+    };
 
     let l2_config = L2Config {
         mode: RedisMode::Standalone,
@@ -41,6 +44,8 @@ async fn test_chaos_redis_outage_and_recovery() {
         sentinel: None,
         cluster: None,
         default_ttl: Some(300),
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     };
 
     let two_level_config = TwoLevelConfig {
@@ -51,6 +56,8 @@ async fn test_chaos_redis_outage_and_recovery() {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(1024),
+        max_value_size: Some(1024 * 1024),
     };
 
     let l1 = Arc::new(L1Backend::new(l1_config.max_capacity));

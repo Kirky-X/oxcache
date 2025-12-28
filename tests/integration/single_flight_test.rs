@@ -61,6 +61,8 @@ async fn test_single_flight_deduplication() {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(1024),
+        max_value_size: Some(1024 * 1024),
     };
 
     let client = Arc::new(

@@ -13,8 +13,6 @@ use oxcache::config::{
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
-use std::collections::HashMap;
-use std::time::Instant;
 
 /// 测试NF2：缓存回填延迟 < 5ms
 ///
@@ -30,6 +28,7 @@ async fn test_backfill_latency() {
 
     let service_name = generate_unique_service_name("perf_backfill");
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 3600,
             health_check_interval: 60,
@@ -44,7 +43,10 @@ async fn test_backfill_latency() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(3600),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 1000 }),
+                    l1: Some(L1Config {
+                        max_capacity: 1000,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: std::env::var("REDIS_URL")
@@ -57,6 +59,8 @@ async fn test_backfill_latency() {
                         cluster: None,
                         password: None,
                         enable_tls: false,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         invalidation_channel: None,
@@ -64,6 +68,10 @@ async fn test_backfill_latency() {
                         enable_batch_write: false,
                         batch_size: 10,
                         batch_interval_ms: 100,
+                        bloom_filter: None,
+                        warmup: None,
+                        max_key_length: Some(1024),
+                        max_value_size: Some(1024 * 1024),
                     }),
                 },
             );
@@ -134,6 +142,7 @@ async fn test_redis_outage_resilience() {
     
     // 配置一个错误的 Redis 地址来模拟不可用
     let config = Config {
+        config_version: Some(1),
         global: Default::default(),
         services: {
             let mut map = HashMap::new();
@@ -143,18 +152,22 @@ async fn test_redis_outage_resilience() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
-                        // 使用一个不可连接的端口
                         connection_string: "redis://127.0.0.1:12345".to_string().into(),
-                        connection_timeout_ms: 100, // 快速超时
+                        connection_timeout_ms: 100,
                         command_timeout_ms: 100,
                         sentinel: None,
                         default_ttl: None,
                         cluster: None,
                         password: None,
                         enable_tls: false,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(Default::default()),
                 },

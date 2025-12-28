@@ -7,7 +7,7 @@
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use oxcache::client::two_level::TwoLevelClient;
-use oxcache::config::{L2Config, TwoLevelConfig};
+use oxcache::config::{L1Config, L2Config, TwoLevelConfig};
 use oxcache::serialization::SerializerEnum;
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,7 +28,11 @@ async fn test_client_lifecycle_shutdown() {
 
     let service_name = common::generate_unique_service_name("lifecycle");
 
-    let l1 = Arc::new(L1Backend::new(1000));
+    let l1_config = L1Config {
+        max_capacity: 1000,
+        ..Default::default()
+    };
+    let l1 = Arc::new(L1Backend::new(l1_config.max_capacity));
     let l2_config = L2Config {
         connection_string: std::env::var("REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
@@ -45,6 +49,8 @@ async fn test_client_lifecycle_shutdown() {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(1024),
+        max_value_size: Some(1024 * 1024),
     };
 
     {
@@ -100,6 +106,8 @@ async fn test_two_level_client_shutdown() {
         invalidation_channel: None,
         bloom_filter: None,
         warmup: None,
+        max_key_length: Some(1024),
+        max_value_size: Some(1024 * 1024),
     };
 
     let client = TwoLevelClient::new(
