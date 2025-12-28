@@ -8,13 +8,15 @@ use secrecy::SecretString;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-/// 缓存服务配置
+pub const CONFIG_VERSION: u32 = 1;
+pub const CONFIG_VERSION_FIELD: &str = "config_version";
+
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Config {
-    /// 全局配置
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_version: Option<u32>,
     #[serde(default)]
     pub global: GlobalConfig,
-    /// 各个服务的配置映射
     pub services: HashMap<String, ServiceConfig>,
 }
 
@@ -108,15 +110,25 @@ pub enum CacheType {
 ///
 /// 定义内存缓存的相关配置
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct L1Config {
     /// 最大缓存容量（字节）
     pub max_capacity: u64,
+    /// 键的最大长度
+    pub max_key_length: usize,
+    /// 值的最大大小（字节）
+    pub max_value_size: usize,
+    /// 过期清理间隔（秒），0表示禁用自动清理
+    pub cleanup_interval_secs: u64,
 }
 
 impl Default for L1Config {
     fn default() -> Self {
         Self {
             max_capacity: 10000,
+            max_key_length: 256,
+            max_value_size: 1024 * 1024, // 1MB
+            cleanup_interval_secs: 300,  // 5 minutes
         }
     }
 }
@@ -125,11 +137,12 @@ impl Default for L1Config {
 ///
 /// 定义分布式缓存（如Redis）的相关配置
 #[derive(Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct L2Config {
     /// Redis模式
     pub mode: RedisMode,
     /// 连接字符串
-    pub connection_string: SecretString, // Simplified for example, real world parses hosts
+    pub connection_string: SecretString,
     /// 连接超时时间（毫秒）
     pub connection_timeout_ms: u64,
     /// 命令执行超时时间（毫秒）
@@ -144,6 +157,28 @@ pub struct L2Config {
     pub cluster: Option<ClusterConfig>,
     /// L2缓存默认TTL（可选）
     pub default_ttl: Option<u64>,
+    /// 键的最大长度
+    pub max_key_length: usize,
+    /// 值的最大大小（字节）
+    pub max_value_size: usize,
+}
+
+impl Default for L2Config {
+    fn default() -> Self {
+        Self {
+            mode: RedisMode::Standalone,
+            connection_string: SecretString::new("redis://localhost:6379".to_string().into()),
+            connection_timeout_ms: 5000,
+            command_timeout_ms: 3000,
+            password: None,
+            enable_tls: false,
+            sentinel: None,
+            cluster: None,
+            default_ttl: Some(3600),
+            max_key_length: 256,
+            max_value_size: 1024 * 1024 * 10, // 10MB
+        }
+    }
 }
 
 /// 哨兵配置
@@ -162,29 +197,29 @@ pub struct ClusterConfig {
     pub nodes: Vec<String>,
 }
 
-impl Default for L2Config {
-    fn default() -> Self {
-        Self {
-            mode: RedisMode::Standalone,
-            connection_string: SecretString::new(
-                std::env::var("REDIS_URL")
-                    .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
-                    .into(),
-            ),
-            connection_timeout_ms: 2000,
-            command_timeout_ms: 1000,
-            password: None,
-            enable_tls: false,
-            sentinel: None,
-            cluster: None,
-            default_ttl: None,
-        }
-    }
-}
-
 impl Config {
     /// 验证配置的合法性
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(version) = &self.config_version {
+            if *version > CONFIG_VERSION {
+                return Err(format!(
+                    "Configuration version {} is not supported. Maximum supported version is {}. Please upgrade oxcache or downgrade the configuration version.",
+                    version, CONFIG_VERSION
+                ));
+            }
+            if *version < CONFIG_VERSION {
+                tracing::warn!(
+                    "Configuration version {} is older than the current version {}. Some features may not be available or may behave differently. Consider updating the configuration file.",
+                    version, CONFIG_VERSION
+                );
+            }
+        } else {
+            tracing::warn!(
+                "No configuration version specified. Assuming version {}. For new configurations, it is recommended to add \"config_version: {}\" to enable future compatibility checks.",
+                CONFIG_VERSION, CONFIG_VERSION
+            );
+        }
+
         for (name, service) in &self.services {
             // 验证 L1 TTL <= L2 TTL
             // 逻辑：
@@ -242,6 +277,10 @@ pub struct TwoLevelConfig {
     pub bloom_filter: Option<BloomFilterConfig>,
     /// 缓存预热配置
     pub warmup: Option<CacheWarmupConfig>,
+    /// 键的最大长度
+    pub max_key_length: Option<usize>,
+    /// 值的最大大小（字节）
+    pub max_value_size: Option<usize>,
 }
 
 /// 缓存预热配置
@@ -360,6 +399,8 @@ impl Default for TwoLevelConfig {
             invalidation_channel: None,
             bloom_filter: None,
             warmup: None,
+            max_key_length: Some(256),
+            max_value_size: Some(1024 * 1024 * 10),
         }
     }
 }

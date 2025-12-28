@@ -15,9 +15,11 @@ pub mod debug_test;
 pub mod error;
 pub mod manager;
 pub mod metrics;
+pub mod rate_limiting;
 pub mod recovery;
 pub mod serialization;
 pub mod sync;
+pub mod utils;
 
 // Re-export commonly used items
 pub use client::{CacheExt, CacheOps};
