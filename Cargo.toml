@@ -5,13 +5,21 @@ members = [".", "macros", "tests/test_crate"]
 name = "oxcache"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 description = "A high-performance, production-ready Rust multi-level cache library providing L1 (Moka) and L2 (Redis) caching."
 license = "MIT"
-repository = "https://github.com/your-org/oxcache"
-homepage = "https://github.com/your-org/oxcache"
+repository = "https://github.com/Kirky-X/oxcache"
+homepage = "https://github.com/Kirky-X/oxcache"
 documentation = "https://docs.rs/oxcache"
 keywords = ["cache", "redis", "moka", "distributed-cache", "two-level-cache"]
 categories = ["caching", "database-interface"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.cargo-machete]
+ignored = ["macros"]
 
 [dependencies]
 tokio = { version = "1.42", features = ["full"] }
@@ -23,7 +31,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 moka = { version = "0.12", features = ["future"] }
 redis = { version = "0.27", features = ["tokio-comp", "cluster-async", "sentinel", "connection-manager"] }
-rusqlite = { version = "0.38", features = ["bundled"] }
+
 dashmap = "6.0"
 tracing = "0.1"
 uuid = { version = "1.0", features = ["v4"] }
@@ -36,7 +44,7 @@ tracing-opentelemetry = "0.23"
 opentelemetry-otlp = "0.15"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mcp-sdk-rs = "0.3.4"
-sea-orm = { version = "1.0.14", default-features = false, features = ["sqlx-postgres", "sqlx-mysql", "runtime-tokio-rustls"] }
+sea-orm = { version = "1.0.14", default-features = false, features = ["sqlx-postgres", "sqlx-mysql", "sqlx-sqlite", "runtime-tokio-rustls"] }
 regex = "1.10"
 chrono = { version = "0.4", features = ["serde"] }
 jemalloc-ctl = { version = "0.5", optional = true }
@@ -51,8 +59,12 @@ serial_test = "3.0"
 rand = "0.8"
 criterion = { version = "0.5", features = ["async_tokio"] }
 ctor = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mockall = "0.14.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
 
 [features]
 # 内存分析特性，用于内存泄漏测试
