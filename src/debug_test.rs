@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod debug_test {
+mod debug_partition_tests {
     use chrono::{Datelike, TimeZone, Timelike};
 
     #[test]
