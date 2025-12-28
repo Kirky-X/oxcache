@@ -51,6 +51,8 @@ pub fn create_standalone_config() -> L2Config {
         sentinel: None,
         cluster: None,
         default_ttl: Some(3600),
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
@@ -74,6 +76,8 @@ pub fn create_cluster_config() -> L2Config {
             ],
         }),
         default_ttl: Some(3600),
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
@@ -95,6 +99,8 @@ pub fn create_sentinel_config() -> L2Config {
         }),
         cluster: None,
         default_ttl: Some(3600),
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
@@ -133,13 +139,7 @@ pub async fn is_redis_available_url(url: &str) -> bool {
     .await
     {
         Ok(Ok(_)) => true,
-        Ok(Err(e)) => {
-            if e.is_connection_refusal() {
-                false
-            } else {
-                true
-            }
-        }
+        Ok(Err(e)) => !e.is_connection_refusal(),
         _ => false,
     }
 }
