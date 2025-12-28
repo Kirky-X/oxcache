@@ -52,6 +52,7 @@ async fn test_multi_instance_invalidation() {
     // - 独立的 Redis 发布者发送消息，验证 client1 的 L1 缓存被清除。
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -61,7 +62,10 @@ async fn test_multi_instance_invalidation() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 1000 }),
+                    l1: Some(L1Config {
+                        max_capacity: 1000,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: redis_url.to_string().into(),
@@ -71,7 +75,14 @@ async fn test_multi_instance_invalidation() {
                         invalidation_channel: Some(InvalidationChannelConfig::Custom(
                             channel_name.clone(),
                         )),
-                        ..Default::default()
+                        promote_on_hit: true,
+                        enable_batch_write: false,
+                        batch_size: 100,
+                        batch_interval_ms: 50,
+                        bloom_filter: None,
+                        warmup: None,
+                        max_key_length: Some(1024),
+                        max_value_size: Some(1024 * 1024),
                     }),
                 },
             );

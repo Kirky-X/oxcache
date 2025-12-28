@@ -761,6 +761,7 @@ async fn test_cluster_basic_operations() {
     let service_name = generate_unique_service_name("cluster_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -770,7 +771,10 @@ async fn test_cluster_basic_operations() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Cluster,
                         connection_string: "redis://127.0.0.1:7000".to_string().into(),
@@ -790,6 +794,8 @@ async fn test_cluster_basic_operations() {
                             ],
                         }),
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -845,6 +851,7 @@ async fn test_cluster_data_distribution() {
     let service_name = generate_unique_service_name("cluster_distribution_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -854,7 +861,10 @@ async fn test_cluster_data_distribution() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Cluster,
                         connection_string: "redis://127.0.0.1:7000".to_string().into(),
@@ -874,6 +884,8 @@ async fn test_cluster_data_distribution() {
                             ],
                         }),
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -935,6 +947,7 @@ async fn test_cluster_distributed_lock() {
     let service_name = generate_unique_service_name("cluster_lock_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -944,7 +957,10 @@ async fn test_cluster_distributed_lock() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Cluster,
                         connection_string: "redis://127.0.0.1:7000".to_string().into(),
@@ -964,6 +980,8 @@ async fn test_cluster_distributed_lock() {
                             ],
                         }),
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -1032,6 +1050,7 @@ async fn test_sentinel_basic_operations() {
     let service_name = generate_unique_service_name("sentinel_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -1041,7 +1060,10 @@ async fn test_sentinel_basic_operations() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Sentinel,
                         connection_string: "redis://127.0.0.1:26379".to_string().into(),
@@ -1059,6 +1081,8 @@ async fn test_sentinel_basic_operations() {
                         }),
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -1105,6 +1129,7 @@ async fn test_sentinel_failover() {
     let service_name = generate_unique_service_name("sentinel_failover_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -1114,7 +1139,10 @@ async fn test_sentinel_failover() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Sentinel,
                         connection_string: "redis://127.0.0.1:26379".to_string().into(),
@@ -1132,6 +1160,8 @@ async fn test_sentinel_failover() {
                         }),
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },
@@ -1176,6 +1206,7 @@ async fn test_sentinel_distributed_lock() {
     let service_name = generate_unique_service_name("sentinel_lock_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
             let mut map = HashMap::new();
@@ -1185,7 +1216,10 @@ async fn test_sentinel_distributed_lock() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Sentinel,
                         connection_string: "redis://127.0.0.1:26379".to_string().into(),
@@ -1203,6 +1237,8 @@ async fn test_sentinel_distributed_lock() {
                         }),
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig::default()),
                 },

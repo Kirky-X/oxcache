@@ -72,6 +72,8 @@ fn create_test_l2_config() -> L2Config {
         sentinel: None,
         cluster: None,
         default_ttl: None,
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
@@ -146,14 +148,11 @@ mod l2_failure_handling_tests {
 
         {
             let mut state_guard = health_state.write().await;
-            match *state_guard {
-                HealthState::Healthy => {
-                    *state_guard = HealthState::Degraded {
-                        since: std::time::Instant::now(),
-                        failure_count: 1,
-                    };
-                }
-                _ => {}
+            if let HealthState::Healthy = *state_guard {
+                *state_guard = HealthState::Degraded {
+                    since: std::time::Instant::now(),
+                    failure_count: 1,
+                };
             }
         }
 
@@ -169,17 +168,15 @@ mod l2_failure_handling_tests {
 
         {
             let mut state_guard = health_state.write().await;
-            match *state_guard {
-                HealthState::Degraded {
+            if let HealthState::Degraded {
+                since,
+                failure_count,
+            } = *state_guard
+            {
+                *state_guard = HealthState::Degraded {
                     since,
-                    failure_count,
-                } => {
-                    *state_guard = HealthState::Degraded {
-                        since,
-                        failure_count: failure_count + 1,
-                    };
-                }
-                _ => {}
+                    failure_count: failure_count + 1,
+                };
             }
         }
 
@@ -203,24 +200,20 @@ mod l2_failure_handling_tests {
 
         {
             let mut state_guard = health_state.write().await;
-            match *state_guard {
-                HealthState::Recovering { .. } => {
-                    *state_guard = HealthState::Degraded {
-                        since: std::time::Instant::now(),
-                        failure_count: 1,
-                    };
-                }
-                _ => {}
+            if let HealthState::Recovering { .. } = *state_guard {
+                *state_guard = HealthState::Degraded {
+                    since: std::time::Instant::now(),
+                    failure_count: 1,
+                };
             }
         }
 
         {
             let state = *health_state.read().await;
-            match state {
-                HealthState::Degraded { failure_count, .. } => {
-                    assert_eq!(failure_count, 1);
-                }
-                _ => panic!("Expected Degraded state after recovery failure"),
+            if let HealthState::Degraded { failure_count, .. } = state {
+                assert_eq!(failure_count, 1);
+            } else {
+                panic!("Expected Degraded state after recovery failure");
             }
         }
 
@@ -243,15 +236,12 @@ mod degradation_consistency_tests {
 
         {
             let mut state_guard = health_state.write().await;
-            match *state_guard {
-                HealthState::Healthy => {
-                    println!("服务从Healthy转换到Degraded");
-                    *state_guard = HealthState::Degraded {
-                        since: std::time::Instant::now(),
-                        failure_count: 1,
-                    };
-                }
-                _ => {}
+            if let HealthState::Healthy = *state_guard {
+                println!("服务从Healthy转换到Degraded");
+                *state_guard = HealthState::Degraded {
+                    since: std::time::Instant::now(),
+                    failure_count: 1,
+                };
             }
         }
 
