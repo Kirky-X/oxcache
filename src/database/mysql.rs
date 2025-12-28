@@ -98,13 +98,13 @@ impl MySQLPartitionManager {
             sea_orm::DatabaseBackend::MySql,
             "SELECT 1".to_string(),
         ))
-            .await
-            .map_err(|e| {
-                CacheError::DatabaseError(format!(
-                    "Connection health check failed: {}. The connection may have been lost.",
-                    e
-                ))
-            })?;
+        .await
+        .map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Connection health check failed: {}. The connection may have been lost.",
+                e
+            ))
+        })?;
         Ok(())
     }
 

@@ -45,17 +45,6 @@ pub enum CacheError {
 
     /// 数据库错误
     #[error("Database error: {0}. Please check database connectivity and query syntax.")]
-    DbError(#[from] rusqlite::Error),
-
-    /// Sea-ORM数据库错误
-    #[error(
-        "Database error: {0}. Please check database connection and ensure the database is running."
-    )]
-    SeaOrmError(#[from] sea_orm::DbErr),
-
-    /// 数据库连接错误
-    #[error("Database connection failed: {0}. Verify the database server is running and connection settings are correct."
-    )]
     DatabaseError(String),
 
     /// Redis错误
@@ -104,3 +93,9 @@ pub enum CacheError {
 ///
 /// 简化错误处理，所有缓存操作都返回此类型
 pub type Result<T> = std::result::Result<T, CacheError>;
+
+impl From<sea_orm::DbErr> for CacheError {
+    fn from(e: sea_orm::DbErr) -> Self {
+        CacheError::DatabaseError(e.to_string())
+    }
+}

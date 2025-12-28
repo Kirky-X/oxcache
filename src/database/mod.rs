@@ -8,11 +8,17 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub mod common;
+pub mod connection_string;
 pub mod mysql;
 pub mod partition;
 pub mod postgresql;
 pub mod sqlite;
 
+pub use connection_string::{
+    ensure_database_directory, extract_sqlite_path, get_recommended_connection_string,
+    is_test_connection_string, normalize_connection_string, validate_connection_string, DbType,
+    ParsedConnectionString, ValidationResult,
+};
 pub use mysql::MySQLPartitionManager;
 pub use partition::{PartitionManager, PartitionStrategy};
 pub use postgresql::PostgresPartitionManager;

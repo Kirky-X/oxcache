@@ -122,7 +122,7 @@ impl TwoLevelClient {
         serializer: SerializerEnum,
     ) -> Result<Self> {
         let health_state = Arc::new(RwLock::new(HealthState::Healthy));
-        let wal = Arc::new(WalManager::new(&service_name)?);
+        let wal = Arc::new(WalManager::new(&service_name).await?);
 
         // 创建L2客户端
         let l2 = Arc::new(

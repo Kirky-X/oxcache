@@ -1,79 +1,85 @@
-//! Copyright (c) 2025, Kirky.X
-//!
-//! MIT License
-//!
-//! 该模块定义了缓存系统的WAL（预写日志）机制。
-
+use crate::database::{is_test_connection_string, normalize_connection_string};
 use crate::error::Result;
-use rusqlite::{params, Connection};
-use std::sync::{Arc, Mutex};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, Value};
+use std::env;
+use std::path::Path;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// 定义WAL重放所需的trait
 #[allow(async_fn_in_trait)]
 pub trait WalReplayableBackend: Clone + Send + Sync + 'static {
     async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> Result<()>;
 }
 
-/// 为Arc<T>实现WalReplayableBackend（当T实现该trait时）
 impl<T: WalReplayableBackend> WalReplayableBackend for Arc<T> {
     async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> Result<()> {
         T::pipeline_replay(self, entries).await
     }
 }
 
-/// WAL条目
-///
-/// 表示一个预写日志条目
 #[derive(Debug)]
 pub struct WalEntry {
-    /// 时间戳
     pub timestamp: SystemTime,
-    /// 操作类型
     pub operation: Operation,
-    /// 缓存键
     pub key: String,
-    /// 缓存值（字节数组）
     pub value: Option<Vec<u8>>,
-    /// 过期时间（秒）
     pub ttl: Option<i64>,
 }
 
-/// 操作类型枚举
-///
-/// 定义WAL支持的操作类型
 #[derive(Debug, Clone, Copy)]
 pub enum Operation {
-    /// 设置操作
     Set,
-    /// 删除操作
     Delete,
 }
 
-/// WAL管理器
-///
-/// 负责管理预写日志（Write-Ahead Log）
 pub struct WalManager {
-    /// SQLite数据库连接
-    db: Arc<Mutex<Connection>>,
-    /// 服务名称
+    db: Arc<DatabaseConnection>,
     service_name: String,
 }
 
 impl WalManager {
-    /// 创建新的WAL管理器
-    ///
-    /// # 参数
-    ///
-    /// * `service_name` - 服务名称
-    ///
-    /// # 返回值
-    ///
-    /// 返回新的WAL管理器实例或错误
-    pub fn new(service_name: &str) -> Result<Self> {
-        let conn = Connection::open(format!("{}_wal.db", service_name))?;
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS wal_entries (
+    pub async fn new(service_name: &str) -> Result<Self> {
+        let is_test =
+            is_test_connection_string(service_name) || env::var("OXCACHE_TEST_USE_MEMORY").is_ok();
+
+        let raw_connection_string = if is_test {
+            "sqlite::memory:?cache=shared".to_string()
+        } else {
+            let wal_file = format!("{}_wal.db", service_name);
+            let wal_path = if wal_file.starts_with("/") {
+                Path::new(&wal_file).to_path_buf()
+            } else {
+                std::env::current_dir()?.join(&wal_file)
+            };
+
+            if let Some(parent) = wal_path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        crate::error::CacheError::DatabaseError(format!(
+                            "无法创建WAL目录 {}: {}",
+                            parent.display(),
+                            e
+                        ))
+                    })?;
+                }
+            }
+
+            format!("sqlite:{}", wal_file)
+        };
+
+        let normalized = normalize_connection_string(&raw_connection_string);
+
+        let mut opt = ConnectOptions::new(normalized.clone());
+        opt.max_connections(1)
+            .min_connections(1)
+            .connect_timeout(std::time::Duration::from_secs(30));
+
+        let db = Database::connect(opt)
+            .await
+            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+
+        let create_sql = r#"
+            CREATE TABLE IF NOT EXISTS wal_entries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp INTEGER NOT NULL,
                 operation TEXT NOT NULL,
@@ -81,128 +87,150 @@ impl WalManager {
                 value BLOB,
                 ttl INTEGER,
                 service_name TEXT NOT NULL
-            )",
-            [],
-        )?;
+            )
+        "#;
+
+        db.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            create_sql.to_string(),
+        ))
+        .await
+        .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
 
         Ok(Self {
-            db: Arc::new(Mutex::new(conn)),
+            db: Arc::new(db),
             service_name: service_name.to_string(),
         })
     }
 
-    /// 添加WAL条目
-    ///
-    /// # 参数
-    ///
-    /// * `entry` - 要添加的WAL条目
-    ///
-    /// # 返回值
-    ///
-    /// 返回操作结果
-    pub async fn append(&self, entry: WalEntry) -> Result<()> {
-        let db = self.db.clone();
-        let service = self.service_name.clone();
+    pub async fn add_entry(&self, entry: &WalEntry) -> Result<()> {
+        let timestamp = entry
+            .timestamp
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?
+            .as_secs() as i64;
 
-        tokio::task::spawn_blocking(move || {
-            let conn = db.lock().unwrap();
-            conn.execute(
-                "INSERT INTO wal_entries (timestamp, operation, key, value, ttl, service_name) 
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    entry
-                        .timestamp
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs() as i64,
-                    match entry.operation {
-                        Operation::Set => "set",
-                        Operation::Delete => "delete",
+        let operation = match entry.operation {
+            Operation::Set => "SET",
+            Operation::Delete => "DELETE",
+        };
+
+        let insert_sql = r#"
+            INSERT INTO wal_entries (timestamp, operation, key, value, ttl, service_name)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "#;
+
+        self.db
+            .execute(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Sqlite,
+                insert_sql.to_string(),
+                vec![
+                    Value::BigInt(Some(timestamp)),
+                    Value::String(Some(Box::new(operation.to_string()))),
+                    Value::String(Some(Box::new(entry.key.clone()))),
+                    Value::Bytes(entry.value.as_ref().map(|v| Box::new(v.clone()))),
+                    match entry.ttl {
+                        Some(v) => Value::BigInt(Some(v)),
+                        None => Value::BigInt(None),
                     },
-                    entry.key,
-                    entry.value,
-                    entry.ttl,
-                    service,
+                    Value::String(Some(Box::new(self.service_name.clone()))),
                 ],
-            )
-            .map_err(crate::error::CacheError::from)
-        })
-        .await
-        .map_err(|e| crate::error::CacheError::IoError(std::io::Error::other(e)))??;
+            ))
+            .await
+            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
 
         Ok(())
     }
 
-    /// 重放所有WAL条目
-    ///
-    /// # 参数
-    ///
-    /// * `l2` - L2缓存后端
-    ///
-    /// # 返回值
-    ///
-    /// 返回重放的条目数量或错误
-    pub async fn replay_all<T: WalReplayableBackend>(&self, l2: &T) -> Result<usize> {
-        let db = self.db.clone();
-        let service = self.service_name.clone();
+    pub async fn append(&self, entry: WalEntry) -> Result<()> {
+        self.add_entry(&entry).await
+    }
 
-        let entries = tokio::task::spawn_blocking(move || {
-            let conn = db.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT operation, key, value, ttl FROM wal_entries 
-                 WHERE service_name = ?1 ORDER BY timestamp",
-            )?;
+    pub async fn get_entries(&self) -> Result<Vec<WalEntry>> {
+        let query_sql = r#"
+            SELECT timestamp, operation, key, value, ttl FROM wal_entries
+            WHERE service_name = ?1
+            ORDER BY timestamp ASC
+        "#;
 
-            let rows = stmt.query_map([&service], |row| {
-                let op_str: String = row.get(0)?;
-                Ok(WalEntry {
-                    timestamp: SystemTime::now(), // Not strictly needed for replay
-                    operation: if op_str == "set" {
-                        Operation::Set
-                    } else {
-                        Operation::Delete
-                    },
-                    key: row.get(1)?,
-                    value: row.get(2)?,
-                    ttl: row.get(3)?,
-                })
-            })?;
+        let results = self
+            .db
+            .query_all(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Sqlite,
+                query_sql.to_string(),
+                vec![Value::String(Some(Box::new(self.service_name.clone())))],
+            ))
+            .await
+            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
 
-            let mut result = Vec::new();
-            for r in rows {
-                result.push(r?);
-            }
-            Ok::<Vec<WalEntry>, crate::error::CacheError>(result)
-        })
-        .await
-        .map_err(|e| crate::error::CacheError::IoError(std::io::Error::other(e)))??;
+        let mut entries = Vec::new();
+        for row in results {
+            let timestamp_secs: i64 = row
+                .try_get("", "timestamp")
+                .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+            let timestamp = UNIX_EPOCH + std::time::Duration::from_secs(timestamp_secs as u64);
 
-        let count = entries.len();
-        if count > 0 {
-            l2.pipeline_replay(entries).await?;
-            self.clear().await?;
+            let operation_str: String = row
+                .try_get("", "operation")
+                .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+            let operation = match operation_str.as_str() {
+                "SET" => Operation::Set,
+                _ => Operation::Delete,
+            };
+
+            let key: String = row
+                .try_get("", "key")
+                .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+
+            let value: Option<Vec<u8>> = row
+                .try_get("", "value")
+                .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+
+            let ttl: Option<i64> = row
+                .try_get("", "ttl")
+                .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+
+            entries.push(WalEntry {
+                timestamp,
+                operation,
+                key,
+                value,
+                ttl,
+            });
         }
 
-        Ok(count)
+        Ok(entries)
     }
 
-    /// 清空WAL
-    ///
-    /// # 返回值
-    ///
-    /// 返回操作结果
-    pub async fn clear(&self) -> Result<()> {
-        let db = self.db.clone();
-        let service = self.service_name.clone();
-        tokio::task::spawn_blocking(move || {
-            let conn = db.lock().unwrap();
-            conn.execute(
-                "DELETE FROM wal_entries WHERE service_name = ?1",
-                params![service],
-            )
-        })
-        .await
-        .map_err(|e| crate::error::CacheError::IoError(std::io::Error::other(e)))??;
+    pub async fn clear_entries(&self) -> Result<()> {
+        let delete_sql = format!(
+            "DELETE FROM wal_entries WHERE service_name = '{}'",
+            self.service_name
+        );
+
+        self.db
+            .execute(Statement::from_string(
+                sea_orm::DatabaseBackend::Sqlite,
+                delete_sql,
+            ))
+            .await
+            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
+
         Ok(())
+    }
+
+    pub async fn clear(&self) -> Result<()> {
+        self.clear_entries().await
+    }
+
+    pub async fn replay_all<B: WalReplayableBackend>(&self, backend: &B) -> Result<usize> {
+        let entries = self.get_entries().await?;
+        let count = entries.len();
+        if entries.is_empty() {
+            return Ok(0);
+        }
+        backend.pipeline_replay(entries).await?;
+        self.clear_entries().await?;
+        Ok(count)
     }
 }
