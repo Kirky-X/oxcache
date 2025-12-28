@@ -1,381 +1,196 @@
-# MokaCache 接入指南
+<div align="center">
 
-**版本**: 3.0
- **更新日期**: 2024-12-11
+# 📖 Oxcache 用户指南
 
-本文档提供 MokaCache 的完整接入指南，涵盖从环境准备到生产部署的全流程。
+### 高性能 Rust 双层缓存库完整使用指南
 
-------
+[🏠 首页](../README.md) • [📚 文档](README.md) • [🎯 示例](../examples/) • [❓ 常见问题](FAQ.md)
+
+---
+
+</div>
 
 ## 📋 目录
 
-1. [环境准备](#1-环境准备)
-2. [基础接入](#2-基础接入)
-3. [配置详解](#3-配置详解)
-4. [使用模式](#4-使用模式)
-5. [高级特性](#5-高级特性)
-6. [生产部署](#6-生产部署)
-7. [监控告警](#7-监控告警)
-8. [故障排查](#8-故障排查)
-9. [性能调优](#9-性能调优)
-10. [最佳实践](#10-最佳实践)
+- [简介](#简介)
+- [快速入门](#快速入门)
+    - [先决条件](#先决条件)
+    - [安装](#安装)
+    - [第一步](#第一步)
+- [核心概念](#核心概念)
+- [基础用法](#基础用法)
+    - [配置文件](#配置文件)
+    - [使用缓存宏](#使用缓存宏)
+    - [手动控制缓存](#手动控制缓存)
+    - [序列化配置](#序列化配置)
+- [高级用法](#高级用法)
+    - [Redis 模式配置](#redis-模式配置)
+    - [批量写入优化](#批量写入优化)
+    - [监控指标](#监控指标)
+    - [分布式追踪](#分布式追踪)
+    - [优雅关闭](#优雅关闭)
+- [最佳实践](#最佳实践)
+- [故障排除](#故障排除)
+- [后续步骤](#后续步骤)
 
-------
+---
 
-## 1. 环境准备
+## 简介
 
-### 1.1 系统要求
+<div align="center">
 
-| 组件     | 版本要求            | 说明                      |
-| -------- | ------------------- | ------------------------- |
-| Rust     | ≥ 1.75              | 支持最新 async/await 特性 |
-| Tokio    | ≥ 1.42              | 异步运行时                |
-| Redis    | ≥ 6.0               | 建议 7.0+ 以获得更好性能  |
-| 操作系统 | Linux/macOS/Windows | 生产环境推荐 Linux        |
+### 🎯 你将学到什么
 
-### 1.2 依赖安装
+</div>
 
-**步骤 1**: 在 `Cargo.toml` 中添加依赖
+<table>
+<tr>
+<td width="25%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="64"><br>
+<b>快速入门</b><br>
+5 分钟内完成环境搭建
+</td>
+<td width="25%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/settings.png" width="64"><br>
+<b>双层缓存</b><br>
+L1 内存 + L2 分布式
+</td>
+<td width="25%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/code.png" width="64"><br>
+<b>宏支持</b><br>
+一行代码启用缓存
+</td>
+<td width="25%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/rocket-take-off.png" width="64"><br>
+<b>高级特性</b><br>
+故障恢复与监控
+</td>
+</tr>
+</table>
+
+**oxcache** 是一个高性能、生产级可用的 Rust 双层缓存库，提供 L1（进程内内存缓存，使用 Moka）+ L2（分布式 Redis 缓存）的双层架构。它通过 `#[cached]` 宏实现零侵入式缓存，并通过 Pub/Sub 机制确保多实例缓存一致性。
+
+主要特性包括：
+- **🚀 极致性能**：L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
+- **🔄 自动故障恢复**：Redis 故障时自动降级，恢复后自动重放 WAL
+- **🌐 多实例同步**：基于 Pub/Sub + 版本号的失效同步机制
+- **🛡️ 生产级可靠**：完整的可观测性、健康检查、混沌测试验证
+
+> 💡 **提示**: 本指南假设你具备基本的 Rust 知识。如果你是 Rust
+> 新手，建议先阅读 [Rust 官方教程](https://doc.rust-lang.org/book/)。
+
+---
+
+## 快速入门
+
+### 先决条件
+
+在开始之前，请确保你已安装以下工具：
+
+<table>
+<tr>
+<td width="50%">
+
+**必选**
+
+- ✅ Rust 1.75+ (stable)
+- ✅ Cargo (随 Rust 一起安装)
+- ✅ Git
+
+</td>
+<td width="50%">
+
+**可选**
+
+- 🔧 支持 Rust 的 IDE (如 VS Code + rust-analyzer)
+- 🔧 Docker (用于容器化部署)
+- 🔧 Redis 6.0+ (用于 L2 缓存测试)
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>🔍 验证安装</b></summary>
+
+```bash
+# 检查 Rust 版本
+rustc --version
+# 预期: rustc 1.75.0 (或更高)
+
+# 检查 Cargo 版本
+cargo --version
+# 预期: cargo 1.75.0 (或更高)
+```
+
+</details>
+
+### 安装
+
+在你的 `Cargo.toml` 中添加 `oxcache`：
 
 ```toml
 [dependencies]
-# 核心依赖
-cache = { path = "crates/infra/cache" }
-tokio = { version = "1.42", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
+oxcache = "0.1"
 
-# 可选：序列化优化
-bincode = { version = "1.3", optional = true }
+# 如果需要数据库集成
+[dependencies]
+oxcache = { version = "0.1", features = ["database"] }
 
-# 可选：可观测性
-tracing = "0.1"
-tracing-subscriber = "0.3"
+# 如果需要完整特性
+[dependencies]
+oxcache = { version = "0.1", features = ["full"] }
 ```
 
-**步骤 2**: 启用 Feature Flags（如需要）
-
-```toml
-[features]
-default = ["json-serialization"]
-json-serialization = []
-bincode-serialization = ["bincode"]
-metrics = []
-```
-
-### 1.3 Redis 部署
-
-#### 选项 A: Docker 快速启动（开发环境）
+或者使用命令行：
 
 ```bash
-# Standalone 模式
-docker run -d --name redis \
-  -p 6379:6379 \
-  redis:7.2-alpine
-
-# Sentinel 模式
-docker-compose up -d
+cargo add oxcache
 ```
 
-`docker-compose.yml` 示例：
+### 第一步
 
-```yaml
-version: '3.8'
-services:
-  redis-master:
-    image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-
-  redis-slave:
-    image: redis:7.2-alpine
-    command: redis-server --slaveof redis-master 6379 --appendonly yes
-    depends_on:
-      - redis-master
-
-  redis-sentinel:
-    image: redis:7.2-alpine
-    command: >
-      bash -c "echo 'sentinel monitor mymaster redis-master 6379 2
-               sentinel down-after-milliseconds mymaster 5000
-               sentinel parallel-syncs mymaster 1
-               sentinel failover-timeout mymaster 10000' > /tmp/sentinel.conf &&
-               redis-sentinel /tmp/sentinel.conf"
-    ports:
-      - "26379:26379"
-    depends_on:
-      - redis-master
-```
-
-#### 选项 B: 生产环境部署
-
-参考 [Redis 官方文档](https://redis.io/docs/management/sentinel/) 配置 Sentinel 或 Cluster。
-
-------
-
-## 2. 基础接入
-
-### 2.1 最小化配置
-
-**步骤 1**: 创建配置文件 `config.toml`
-
-```toml
-[global]
-default_ttl = 3600
-
-[services.default]
-cache_type = "two-level"
-
-  [services.default.l1]
-  max_capacity = 1000
-  ttl = 300
-
-  [services.default.l2]
-  mode = "standalone"
-  key_prefix = "app"
-  
-    [services.default.l2.standalone]
-    host = "127.0.0.1"
-    port = 6379
-    db = 0
-
-  [services.default.two_level]
-  write_through = true
-  promote_on_hit = true
-```
-
-**步骤 2**: 初始化缓存
+让我们通过一个简单的例子来验证安装。我们将使用 `#[cached]` 宏来为函数添加缓存功能：
 
 ```rust
-use cache;
+use oxcache::macros::cached;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct User {
+    id: u64,
+    name: String,
+}
+
+// 使用 #[cached] 宏一行代码启用缓存
+#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // 模拟耗时的数据库查询
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    Ok(User {
+        id,
+        name: format!("User {}", id),
+    })
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 从文件加载配置
-    cache::init("config.toml").await?;
+    // 初始化缓存（从配置文件加载）
+    oxcache::init("config.toml").await?;
     
-    // 或使用 Builder 模式
-    use cache::{Config, CacheType};
-    cache::init_with_config(Config::builder()
-        .service("default")
-        .cache_type(CacheType::TwoLevel)
-        .l1_max_capacity(1000)
-        .l2_url("redis://127.0.0.1:6379")
-        .build()
-    ).await?;
+    // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
+    let user = get_user(1).await?;
+    println!("First call: {:?}", user);
     
-    // 启动应用逻辑
-    run_app().await?;
+    // 第二次调用：直接从缓存返回（~0.1ms）
+    let cached_user = get_user(1).await?;
+    println!("Cached call: {:?}", cached_user);
     
     Ok(())
 }
 ```
 
-**步骤 3**: 使用宏启用缓存
-
-```rust
-use cache::cached;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Product {
-    id: u64,
-    name: String,
-    price: f64,
-}
-
-#[cached(ttl = 600)]
-async fn get_product(id: u64) -> Result<Product, String> {
-    // 模拟数据库查询
-    database::find_product(id).await
-}
-
-// 使用
-let product = get_product(123).await?;
-```
-
-### 2.2 验证接入
-
-**测试代码**:
-
-```rust
-#[tokio::test]
-async fn test_cache_integration() {
-    cache::init("config.toml").await.unwrap();
-    
-    // 第一次调用（缓存未命中）
-    let start = std::time::Instant::now();
-    let result = get_product(1).await.unwrap();
-    let first_duration = start.elapsed();
-    
-    // 第二次调用（缓存命中）
-    let start = std::time::Instant::now();
-    let cached_result = get_product(1).await.unwrap();
-    let second_duration = start.elapsed();
-    
-    assert_eq!(result.id, cached_result.id);
-    assert!(second_duration < first_duration / 10); // 至少快 10 倍
-}
-```
-
-------
-
-## 3. 配置详解
-
-### 3.1 全局配置 (`[global]`)
-
-```toml
-[global]
-# 默认 TTL（秒），当服务未指定时使用
-default_ttl = 3600
-
-# 健康检查间隔（秒）
-health_check_interval = 30
-
-# 全局序列化方式："json" | "bincode"
-serialization = "json"
-
-# 是否启用 Metrics 收集
-enable_metrics = true
-```
-
-### 3.2 服务配置 (`[services.xxx]`)
-
-#### 3.2.1 缓存类型
-
-```toml
-[services.my_service]
-# 缓存类型："l1" | "l2" | "two-level"
-cache_type = "two-level"
-
-# 服务级默认 TTL（覆盖全局配置）
-ttl = 600
-
-# 服务级序列化方式（覆盖全局配置）
-serialization = "bincode"
-```
-
-#### 3.2.2 L1 配置
-
-```toml
-[services.my_service.l1]
-# 最大条目数（LRU 淘汰）
-max_capacity = 10000
-
-# 过期时间（秒）
-ttl = 300
-
-# 空闲淘汰时间（秒），超过此时间未访问则淘汰
-tti = 180
-
-# 初始容量（预分配，减少 rehash）
-initial_capacity = 1000
-```
-
-**容量规划建议**:
-
-- 小型应用: `max_capacity = 1000`
-- 中型应用: `max_capacity = 10000`
-- 大型应用: `max_capacity = 100000`
-- 内存估算: 平均每条目 ~500 bytes（含开销）
-
-#### 3.2.3 L2 配置
-
-**Standalone 模式**:
-
-```toml
-[services.my_service.l2]
-mode = "standalone"
-key_prefix = "myapp"  # Redis key 前缀，建议设置避免冲突
-connection_timeout_ms = 5000
-command_timeout_ms = 1000
-
-  [services.my_service.l2.standalone]
-  host = "127.0.0.1"
-  port = 6379
-  db = 0
-  password = "your-password"  # 可选
-```
-
-**Sentinel 模式**:
-
-```toml
-[services.my_service.l2]
-mode = "sentinel"
-key_prefix = "myapp"
-
-  [[services.my_service.l2.sentinel.nodes]]
-  host = "192.168.1.10"
-  port = 26379
-  
-  [[services.my_service.l2.sentinel.nodes]]
-  host = "192.168.1.11"
-  port = 26379
-  
-  [[services.my_service.l2.sentinel.nodes]]
-  host = "192.168.1.12"
-  port = 26379
-  
-  [services.my_service.l2.sentinel]
-  master_name = "mymaster"
-  db = 0
-  password = "your-password"
-```
-
-**Cluster 模式**:
-
-```toml
-[services.my_service.l2]
-mode = "cluster"
-key_prefix = "myapp"
-
-  [[services.my_service.l2.cluster.nodes]]
-  host = "192.168.1.20"
-  port = 7000
-  
-  [[services.my_service.l2.cluster.nodes]]
-  host = "192.168.1.21"
-  port = 7001
-  
-  # ... 更多节点
-```
-
-#### 3.2.4 双层缓存配置
-
-```toml
-[services.my_service.two_level]
-# 写操作是否同步写入 L2（true=强一致性，false=最终一致性）
-write_through = true
-
-# L2 命中时是否回填 L1
-promote_on_hit = true
-
-# 是否启用批量写入优化
-enable_batch_write = true
-
-# 批量写入缓冲区大小
-batch_size = 100
-
-# 批量写入时间窗口（毫秒）
-batch_interval_ms = 50
-
-# 是否启用多实例失效同步
-enable_invalidation_sync = true
-
-# 是否启用自动故障恢复
-enable_auto_recovery = true
-
-# 连续失败多少次后降级
-failure_threshold = 3
-
-# 连续成功多少次后恢复
-recovery_threshold = 3
-
-# WAL 文件路径
-wal_path = "/var/cache/my_service_wal"
-```
-
-### 3.3 完整配置示例
+创建对应的 `config.toml`：
 
 ```toml
 [global]
@@ -384,7 +199,6 @@ health_check_interval = 30
 serialization = "json"
 enable_metrics = true
 
-# 用户服务缓存（双层 + 高一致性）
 [services.user_cache]
 cache_type = "two-level"
 ttl = 600
@@ -393,866 +207,394 @@ ttl = 600
   max_capacity = 10000
   ttl = 300
   tti = 180
+  initial_capacity = 1000
 
   [services.user_cache.l2]
-  mode = "sentinel"
-  key_prefix = "user"
-  
-    [[services.user_cache.l2.sentinel.nodes]]
-    host = "127.0.0.1"
-    port = 26379
-    
-    [services.user_cache.l2.sentinel]
-    master_name = "mymaster"
-    db = 0
+  mode = "standalone"
+  connection_string = "redis://127.0.0.1:6379"
 
   [services.user_cache.two_level]
   write_through = true
   promote_on_hit = true
-  enable_batch_write = true
-  enable_invalidation_sync = true
-  enable_auto_recovery = true
-
-# 会话缓存（仅 L1）
-[services.session_cache]
-cache_type = "l1"
-ttl = 60
-
-  [services.session_cache.l1]
-  max_capacity = 50000
-  ttl = 60
-  tti = 30
-
-# 配置缓存（仅 L2）
-[services.config_cache]
-cache_type = "l2"
-ttl = 7200
-
-  [services.config_cache.l2]
-  mode = "standalone"
-  key_prefix = "config"
-  
-    [services.config_cache.l2.standalone]
-    host = "127.0.0.1"
-    port = 6379
-```
-
-------
-
-## 4. 使用模式
-
-### 4.1 基础宏用法
-
-#### 4.1.1 简单缓存
-
-```rust
-// 使用默认 service
-#[cached]
-async fn get_user(id: u64) -> Result<User, Error> {
-    database::query("SELECT * FROM users WHERE id = ?", id).await
-}
-```
-
-#### 4.1.2 指定 Service 和 TTL
-
-```rust
-#[cached(service = "user_cache", ttl = 600)]
-async fn get_user_profile(user_id: u64) -> Result<UserProfile, Error> {
-    database::query_user_profile(user_id).await
-}
-```
-
-#### 4.1.3 自定义 Key
-
-```rust
-// 单参数
-#[cached(service = "order_cache", key = "order_{order_id}")]
-async fn get_order(order_id: u64) -> Result<Order, Error> {
-    database::find_order(order_id).await
-}
-
-// 多参数
-#[cached(service = "product_cache", key = "product_{category}_{id}")]
-async fn get_product_by_category(category: String, id: u64) -> Result<Product, Error> {
-    database::find_product(category, id).await
-}
-```
-
-#### 4.1.4 指定缓存层
-
-```rust
-// 仅 L1（临时数据）
-#[cached(service = "temp_cache", cache_type = "l1", ttl = 60)]
-async fn get_temp_data(key: String) -> Result<Data, Error> {
-    compute_temp_data(key).await
-}
-
-// 仅 L2（共享数据）
-#[cached(service = "shared_cache", cache_type = "l2", ttl = 3600)]
-async fn get_shared_config(key: String) -> Result<Config, Error> {
-    fetch_from_config_center(key).await
-}
-```
-
-### 4.2 手动API 用法
-
-#### 4.2.1 获取 Client
-
-```rust
-use cache::{get_client, CacheOps};
-
-let client = get_client("user_cache")?;
-```
-
-#### 4.2.2 基础操作
-
-```rust
-// 写入
-client.set("user:123", &user, Some(600)).await?;
-
-// 读取
-let user: User = client.get("user:123").await?.unwrap();
-
-// 删除
-client.delete("user:123").await?;
-
-// 判断存在
-let exists = client.exists("user:123").await?;
-```
-
-#### 4.2.3 指定缓存层
-
-```rust
-// 仅写入 L1
-client.set_l1_only("session:abc", &session, Some(60)).await?;
-
-// 仅写入 L2
-client.set_l2_only("config:db", &db_config, Some(3600)).await?;
-
-// 同时写入，但使用不同 TTL
-client.set_both(
-    "key",
-    &value,
-    Some(300),  // L1 TTL
-    Some(3600), // L2 TTL
-).await?;
-```
-
-### 4.3 批量操作
-
-```rust
-use cache::{get_client, CacheOps};
-
-async fn batch_load_users(ids: Vec<u64>) -> Result<Vec<User>, Error> {
-    let client = get_client("user_cache")?;
-    let mut users = Vec::new();
-    
-        for id in ids {
-            let key = format!("user:{}", id);
-
-        // 尝试从缓存获取
-        if let Some(user) = client.get::<User>(&key).await? {
-            users.push(user);
-        } else {
-            // 缓存未命中，从数据库加载
-            let user = database::find_user(id).await?;
-
-            // 异步写入缓存（不阻塞）
-            let client_clone = client.clone();
-            let key_clone = key.clone();
-            let user_clone = user.clone();
-            tokio::spawn(async move {
-                let _ = client_clone.set(&key_clone, &user_clone, Some(600)).await;
-            });
-
-            users.push(user);
-        }
-    }
-    Ok(users)
-}
-
 ```
 
 ---
 
-## 5. 高级特性
+## 核心概念
 
-### 5.1 自定义序列化器
+理解这些核心概念将帮助你更有效地使用 `oxcache`。
 
-**实现 Serializer Trait**:
+### 1️⃣ 双层缓存架构
 
-```rust
-use cache::serialization::Serializer;
-use serde::{Serialize, de::DeserializeOwned};
-use cache::CacheError;
+`oxcache` 的核心是 L1 (Moka) + L2 (Redis) 两级缓存架构。L1 是本地内存缓存，访问速度极快；L2 是分布式缓存，支持多实例共享。
 
-pub struct MsgPackSerializer;
+- **L1 (Moka)**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
+- **L2 (Redis)**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
-impl Serializer for MsgPackSerializer {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>, CacheError> {
-        rmp_serde::to_vec(value)
-            .map_err(|e| CacheError::Serialization(e.to_string()))
-    }
-    
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T, CacheError> {
-        rmp_serde::from_slice(data)
-            .map_err(|e| CacheError::Serialization(e.to_string()))
-    }
-}
-```
+### 2️⃣ 缓存提升策略
 
-**注册并使用**:
+当 L2 缓存中的数据被频繁访问时，会自动"提升"到 L1 缓存，减少 L2 的访问压力，提升整体性能。
 
-```rust
-use std::sync::Arc;
+### 3️⃣ 灵活的缓存类型
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 注册自定义序列化器
-    cache::register_serializer("msgpack", Arc::new(MsgPackSerializer));
-    
-    // 在配置中使用
-    cache::init("config.toml").await?;
-    
-    Ok(())
-}
-```
+你可以配置不同的缓存类型：
 
-**配置文件**:
+- **two-level**: 双层缓存（L1 + L2）
+- **l1-only**: 仅 L1 内存缓存
+- **l2-only**: 仅 L2 分布式缓存
+
+### 4️⃣ 容错与恢复
+
+- **容错降级**: 当 L2 不可用时，自动降级到 L1 仅缓存模式
+- **WAL 恢复**: 通过预写日志确保数据持久化
+- **Single-Flight**: 防止缓存击穿（重复请求去重）
+
+### 5️⃣ 缓存一致性
+
+- **Pub/Sub 失效**: 基于 Redis Pub/Sub + 版本号的失效同步机制
+- **手动控制**: 支持单独操作 L1 或 L2 缓存层
+
+---
+
+## 基础用法
+
+### 配置文件
+
+`oxcache` 使用 TOML 配置文件来管理缓存服务配置：
 
 ```toml
+[global]
+default_ttl = 300
+health_check_interval = 60
+serialization = "json"
+enable_metrics = true
+
 [services.my_service]
-serialization = "msgpack"
-# ...
+cache_type = "two-level"
+promote_on_hit = true
+
+  [services.my_service.l1]
+  max_capacity = 10000
+  ttl = 60
+
+  [services.my_service.l2]
+  mode = "standalone"
+  connection_string = "redis://127.0.0.1:6379"
+
+  [services.my_service.two_level]
+  write_through = true
+  promote_on_hit = true
+  enable_batch_write = true
 ```
 
-### 5.2 条件缓存
+### 使用缓存宏
+
+使用 `#[cached]` 宏为函数添加缓存功能：
 
 ```rust
-#[cached(service = "product_cache", ttl = 600)]
-async fn get_product(id: u64, include_details: bool) -> Result<Product, Error> {
-    if include_details {
-        // 详细信息不缓存
-        return database::query_product_with_details(id).await;
-    }
-    
-    // 基础信息缓存
-    database::query_product_basic(id).await
+use oxcache::macros::cached;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct User {
+    id: u64,
+    name: String,
+}
+
+// 自动缓存结果，缓存键为 "user:{id}"
+#[cached(service = "user_cache", key = "user:{id}", ttl = 300)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // 这里写你的业务逻辑，比如数据库查询
+    database::query_user(id).await
 }
 ```
 
-### 5.3 缓存穿透防护
+### 手动控制缓存
+
+你也可以绕过宏，直接使用客户端进行缓存操作：
 
 ```rust
-use cache::{get_client, CacheOps};
-
-async fn get_user_safe(id: u64) -> Result<Option<User>, Error> {
-    let client = get_client("user_cache")?;
-    let key = format!("user:{}", id);
-    
-    // 尝试从缓存获取
-    if let Some(user) = client.get::<User>(&key).await? {
-        return Ok(Some(user));
-    }
-    
-    // 从数据库查询
-    let user_opt = database::find_user(id).await?;
-    
-    if let Some(ref user) = user_opt {
-        // 用户存在，缓存
-        client.set(&key, user, Some(600)).await?;
-    } else {
-        // 用户不存在，缓存空值（防止穿透）
-        client.set(&key, &Option::<User>::None, Some(60)).await?;
-    }
-    
-    Ok(user_opt)
-}
-```
-
-### 5.4 缓存预热
-
-```rust
-async fn warmup_cache() -> Result<(), Error> {
-    let client = get_client("product_cache")?;
-    
-    // 查询热门商品 ID
-    let hot_product_ids = database::query_hot_products(100).await?;
-    
-    // 批量预热
-    for id in hot_product_ids {
-        let product = database::find_product(id).await?;
-        client.set(&format!("product:{}", id), &product, Some(3600)).await?;
-    }
-    
-    Ok(())
-}
-```
-
----
-
-## 6. 生产部署
-
-### 6.1 容器化部署
-
-**Dockerfile**:
-
-```dockerfile
-FROM rust:1.75-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release -p your-app
-
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
-COPY --from=builder /app/target/release/your-app /usr/local/bin/
-COPY config.toml /etc/your-app/config.toml
-ENV CONFIG_PATH=/etc/your-app/config.toml
-CMD ["your-app"]
-```
-
-**docker-compose.yml**:
-
-```yaml
-version: '3.8'
-services:
-  app:
-    image: your-app:latest
-    environment:
-      - CONFIG_PATH=/etc/config.toml
-      - RUST_LOG=info
-    volumes:
-      - ./config.toml:/etc/config.toml:ro
-      - ./wal:/var/cache/wal
-    depends_on:
-      - redis
-      
-  redis:
-    image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-      
-volumes:
-  redis-data:
-```
-
-### 6.2 Kubernetes 部署
-
-**ConfigMap**:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cache-config
-data:
-  config.toml: |
-    [global]
-    default_ttl = 3600
-    
-    [services.user_cache]
-    cache_type = "two-level"
-    # ...
-```
-
-**Deployment**:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: your-app
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: your-app
-  template:
-    metadata:
-      labels:
-        app: your-app
-    spec:
-      containers:
-      - name: app
-        image: your-app:latest
-        env:
-        - name: CONFIG_PATH
-          value: /etc/config/config.toml
-        volumeMounts:
-        - name: config
-          mountPath: /etc/config
-          readOnly: true
-        - name: wal
-          mountPath: /var/cache/wal
-      volumes:
-      - name: config
-        configMap:
-          name: cache-config
-      - name: wal
-        emptyDir: {}
-```
-
-### 6.3 环境变量覆盖
-
-```rust
-use std::env;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config_path = env::var("CONFIG_PATH")
-        .unwrap_or_else(|_| "config.toml".to_string());
-    
-    cache::init(&config_path).await?;
-    
-    // 或使用环境变量直接构建配置
-    let redis_url = env::var("REDIS_URL")?;
-    cache::init_with_config(Config::builder()
-        .l2_url(&redis_url)
-        .build()
-    ).await?;
-    
-    Ok(())
-}
-```
-
----
-
-## 7. 监控告警
-
-### 7.1 Prometheus 集成
-
-**暴露指标端点**:
-
-```rust
-use axum::{Router, routing::get};
-
-async fn metrics_handler() -> String {
-    cache::export_prometheus()
-}
+use oxcache::{get_client, CacheOps};
 
 #[tokio::main]
 async fn main() {
-    cache::init("config.toml").await.unwrap();
+    oxcache::init("config.toml").await.unwrap();
     
-    let app = Router::new()
-        .route("/metrics", get(metrics_handler));
+    let client = get_client("my_service").unwrap();
     
-    axum::Server::bind(&"0.0.0.0:9090".parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // 标准操作：同时写入 L1 和 L2
+    client.set("key", &"value", None).await.unwrap();
+    
+    let val: Option<String> = client.get("key").await.unwrap();
+    assert_eq!(val, Some("value".to_string()));
+    
+    // 仅写入 L1（临时数据）
+    client.set_l1_only("temp_key", &temp_data, Some(60)).await?;
+    
+    // 仅写入 L2（共享数据）
+    client.set_l2_only("shared_key", &shared_data, Some(3600)).await?;
+    
+    // 删除缓存
+    client.delete("key").await?;
+    
+    // 检查键是否存在
+    let exists = client.exists("key").await?;
 }
 ```
 
-**Prometheus 配置** (`prometheus.yml`):
+### 序列化配置
 
-```yaml
-scrape_configs:
-  - job_name: 'your-app'
-    static_configs:
-      - targets: ['localhost:9090']
-    metrics_path: '/metrics'
-    scrape_interval: 15s
-```
+`oxcache` 支持多种序列化方式：
 
-### 7.2 关键指标
-
-| 指标名称                           | 类型      | 说明                                              |
-| ---------------------------------- | --------- | ------------------------------------------------- |
-| `cache_requests_total`             | Counter   | 请求总数 (按 service/layer/operation/result 分组) |
-| `cache_operation_duration_seconds` | Histogram | 操作延迟分布                                      |
-| `cache_l2_health_status`           | Gauge     | L2 健康状态 (1=健康, 0=降级)                      |
-| `cache_wal_entries`                | Gauge     | WAL 条目数量                                      |
-| `cache_batch_buffer_size`          | Gauge     | 批量写入缓冲区大小                                |
-
-### 7.3 Grafana Dashboard
-
-**示例 PromQL 查询**:
-
-```promql
-# L1 命中率
-sum(rate(cache_requests_total{layer="l1",result="hit"}[5m])) 
-/ 
-sum(rate(cache_requests_total{layer="l1"}[5m]))
-
-# P99 延迟
-histogram_quantile(0.99, sum(rate(cache_operation_duration_seconds_bucket[5m])) by (le, operation))
-
-# 降级实例数
-count(cache_l2_health_status == 0)
-```
-
-### 7.4 告警规则
-
-**Prometheus Alert Rules**:
-
-```yaml
-groups:
-- name: cache_alerts
-  rules:
-  - alert: CacheL1HitRateLow
-    expr: |
-      sum(rate(cache_requests_total{layer="l1",result="hit"}[5m])) 
-      / 
-      sum(rate(cache_requests_total{layer="l1"}[5m])) < 0.8
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "L1 缓存命中率低于 80%"
-      
-  - alert: CacheL2Degraded
-    expr: cache_l2_health_status == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Redis 缓存已降级"
-      
-  - alert: CacheWALBacklog
-    expr: cache_wal_entries > 1000
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "WAL 积压超过 1000 条"
+```toml
+[global]
+serialization = "json"  # 或 "bincode"
 ```
 
 ---
 
-## 8. 故障排查
+## 高级用法
 
-### 8.1 常见问题
+### Redis 模式配置
 
-#### 问题 1: 配置文件加载失败
+oxcache 支持多种 Redis 部署模式：
 
-**错误信息**:
-
-````
-Error: ConfigError("Failed to parse config.toml: ...")
-````
-
-**解决方法**:
-
-```bash
-# 验证 TOML 语法
-toml-fmt config.toml --check
-
-# 检查文件路径
-ls -l config.toml
-
-# 检查文件权限
-chmod 644 config.toml
-```
-
-#### 问题 2: Redis 连接失败
-
-**错误信息**:
-
-````
-Error: L2Error("Failed to connect to Redis: Connection refused")
-````
-
-**排查步骤**:
-
-```bash
-# 1. 检查 Redis 服务状态
-redis-cli ping
-
-# 2. 检查防火墙
-telnet 127.0.0.1 6379
-
-# 3. 检查配置中的地址和端口
-grep -A 5 "\[services.*.l2\]" config.toml
-
-# 4. 查看应用日志
-RUST_LOG=debug cargo run
-```
-
-#### 问题 3: 缓存命中率低
-
-**排查步骤**:
-
-```rust
-// 1. 检查 TTL 配置是否过短
-// 2. 查看是否频繁删除
-// 3. 检查 key 生成逻辑
-
-// 添加日志
-#[cached(service = "test", ttl = 600)]
-async fn get_data(id: u64) -> Result<Data, Error> {
-    tracing::info!("Cache miss for id: {}", id);
-    database::query(id).await
-}
-```
-
-#### 问题 4: 内存占用过高
-
-**解决方法**:
+#### Standalone 模式
 
 ```toml
-# 减小 L1 容量
-[services.xxx.l1]
-max_capacity = 1000  # 从 10000 减小到 1000
-
-# 启用 TTI 自动清理
-tti = 120
+[services.my_service.l2]
+mode = "standalone"
+connection_string = "redis://127.0.0.1:6379"
 ```
 
-### 8.2 调试模式
-
-**启用详细日志**:
-
-```bash
-RUST_LOG=cache=debug,your_app=info cargo run
-```
-
-**日志输出示例**:
-
-````
-[DEBUG cache::client::two_level] L1 miss for key: user:123 [DEBUG cache::client::two_level] L2 hit for key: user:123, promoting to L1 [INFO  cache::recovery::health] L2 health check passed
-````
-
-### 8.3 性能分析
-
-```bash
-# 使用 flamegraph 分析
-cargo flamegraph --bin your-app
-
-# 使用 perf
-cargo build --release
-perf record --call-graph dwarf ./target/release/your-app
-perf report
-```
-
----
-
-## 9. 性能调优
-
-### 9.1 L1 调优
-
-**场景 1: 高并发读取**
+#### Sentinel 模式
 
 ```toml
-[services.xxx.l1]
-max_capacity = 100000  # 增大容量
-initial_capacity = 50000  # 预分配
-ttl = 600  # 适度延长 TTL
+[services.my_service.l2]
+mode = "sentinel"
+
+  [services.my_service.l2.sentinel]
+  master_name = "mymaster"
+  db = 0
+  password = "your-password"
+
+  [[services.my_service.l2.sentinel.nodes]]
+  host = "127.0.0.1"
+  port = 26379
+
+  [[services.my_service.l2.sentinel.nodes]]
+  host = "127.0.0.1"
+  port = 26380
 ```
 
-**场景 2: 内存受限**
+#### Cluster 模式
 
 ```toml
-[services.xxx.l1]
-max_capacity = 1000  # 减小容量
-tti = 60  # 启用空闲淘汰
+[services.my_service.l2]
+mode = "cluster"
+
+  [[services.my_service.l2.cluster.nodes]]
+  host = "127.0.0.1"
+  port = 6379
+
+  [[services.my_service.l2.cluster.nodes]]
+  host = "127.0.0.1"
+  port = 6380
 ```
 
-### 9.2 L2 调优
+### 批量写入优化
 
-**场景 1: 高吞吐写入**
+启用批量写入可以显著提升写入性能：
 
 ```toml
-[services.xxx.two_level]
+[services.my_service.two_level]
 enable_batch_write = true
-batch_size = 500  # 增大批量大小
-batch_interval_ms = 100  # 延长时间窗口
+batch_size = 100
+batch_interval_ms = 50
 ```
 
-**场景 2: 低延迟要求**
+### 监控指标
 
-```toml
-[services.xxx.two_level]
-enable_batch_write = false  # 禁用批量写入
-promote_on_hit = false  # 禁用回填，减少写入
-
-[services.xxx.l2]
-command_timeout_ms = 500  # 减小超时
-```
-
-### 9.3 序列化调优
-
-**JSON vs Bincode 对比**:
-
-| 序列化方式 | 性能 | 空间 | 兼容性            |
-| ---------- | ---- | ---- | ----------------- |
-| JSON       | 中等 | 较大 | 优秀（跨语言）    |
-| Bincode    | 快   | 小   | 一般（Rust 专用） |
-
-**切换到 Bincode**:
-
-```toml
-[services.xxx]
-serialization = "bincode"
-```
-
-### 9.4 连接池调优
+启用 `metrics` 特性后，可以获取缓存的运行指标：
 
 ```rust
-// 自定义 Redis 连接池配置
-use cache::Config;
+use oxcache::metrics::MetricsCollector;
 
-let config = Config::builder()
-    .l2_pool_size(50)  // 连接池大小
-    .l2_pool_timeout_ms(1000)  // 获取连接超时
-    .build();
+let metrics = MetricsCollector::new();
+metrics.start_collection();
+
+// 获取指标
+let hit_rate = metrics.get_hit_rate()?;
+let ops_count = metrics.get_ops_count()?;
 ```
 
----
+**可用指标**:
+- `cache_requests_total{service, layer, operation, result}`
+- `cache_operation_duration_seconds{service, operation, layer}`
+- `cache_l2_health_status{service}`
+- `cache_wal_entries{service}`
+- `cache_batch_buffer_size{service}`
 
-## 10. 最佳实践
+### 分布式追踪
 
-### 10.1 Key 设计
-
-**推荐模式**:
-
-````
-{service}:{entity}:{id} {service}:{entity}:{id}:{field}
-````
-
-**示例**:
+启用 OpenTelemetry 追踪：
 
 ```rust
-// ✅ 好的设计
-"user:profile:123"
-"product:detail:456:price"
+use oxcache::telemetry::init_tracing;
 
-// ❌ 不好的设计
-"user_123"  // 缺少命名空间
-"very_long_key_with_redundant_information_123"  // 过长
+init_tracing("my_app", Some("http://localhost:4317"));
 ```
 
-### 10.2 TTL 设计
-
-| 数据类型 | 建议 TTL   | 说明             |
-| -------- | ---------- | ---------------- |
-| 用户信息 | 10-30 分钟 | 平衡一致性和性能 |
-| 商品详情 | 1-6 小时   | 较少变化         |
-| 配置信息 | 24 小时    | 极少变化         |
-| 会话数据 | 1-5 分钟   | 临时数据         |
-| 统计数据 | 5-15 分钟  | 允许延迟         |
-
-### 10.3 错误处理
+### 优雅关闭
 
 ```rust
-#[cached(service = "user_cache", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, AppError> {
-    database::find_user(id).await.map_err(|e| {
-        tracing::error!("Failed to load user {}: {}", id, e);
-        AppError::DatabaseError(e)
-    })
-}
+use oxcache::manager::shutdown_all;
 
-// 调用方
-match get_user(123).await {
-    Ok(user) => { /* ... */ }
-    Err(e) => {
-        // 缓存失败不影响业务逻辑
-        tracing::warn!("User load error: {}", e);
-        // 降级处理
-    }
-}
-```
-
-### 10.4 安全建议
-
-**1. 敏感数据加密**:
-
-```rust
-use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
-use cache::serialization::Serializer;
-
-pub struct EncryptedSerializer {
-    inner: Box<dyn Serializer>,
-    cipher: Aes256Gcm,
-}
-
-impl Serializer for EncryptedSerializer {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>, CacheError> {
-        let plaintext = self.inner.serialize(value)?;
-        // 加密逻辑
-        Ok(ciphertext)
-    }
+#[tokio::main]
+async fn main() {
+    // 初始化缓存
+    oxcache::init("config.toml").await.expect("Failed to init cache");
     
-    // ...
+    // 你的应用逻辑
+    
+    // 优雅关闭
+    shutdown_all().await.expect("Failed to shutdown cache clients");
 }
 ```
 
-**2. 访问控制**:
-
-```toml
-[services.sensitive_cache.l2.standalone]
-password = "${REDIS_PASSWORD}"  # 从环境变量读取
-```
-
-**3. TLS 连接**:
-
-```toml
-[services.xxx.l2]
-enable_tls = true
-tls_cert_path = "/etc/certs/redis.crt"
-```
-
-### 10.5 容量规划
-
-**估算公式**:
-
-```
-L1 内存占用 ≈ max_capacity × 平均 value 大小 × 1.5 (开销) L2 内存占用 ≈ 预期 key 数量 × 平均 value 大小 × 1.2 (开销)
-```
-
-**示例**:
-
-```
-假设：
-- L1 max_capacity = 10000
-- 平均 value 大小 = 500 bytes
-
-L1 内存 ≈ 10000 × 500 × 1.5 = 7.5 MB
-```
+关闭机制确保：
+- 正确清理所有缓存客户端
+- 资源释放
+- 后台任务终止
+- 错误聚合和报告
 
 ---
 
-## 附录
+## 最佳实践
 
-### A. 完整配置模板
+<div align="center">
 
-参见 `config.toml.example`
+### 🌟 推荐的设计模式
 
-### B. 故障排查清单
+</div>
 
-```
-□ 检查配置文件语法 
-□ 验证 Redis 连接 
-□ 查看应用日志 (RUST_LOG=debug) 
-□ 检查 Prometheus 指标 
-□ 验证 TTL 配置 
-□ 检查内存使用 
-□ 查看 WAL 文件大小
-□ 确认网络连接
-````
+### ✅ 推荐做法
 
-### C. 性能基准参考
+- **合理设置 TTL**: 根据数据更新频率设置缓存过期时间，避免数据不一致。
+- **使用批量操作**: 对于大量写入场景，启用批量写入优化。
+- **监控缓存命中率**: 定期检查缓存命中率，及时调整配置。
+- **配置健康检查**: 启用健康检查以实现自动故障恢复。
+- **分离冷热数据**: 使用 L1-only 缓存热数据，L2 缓存共享数据。
 
-运行本地基准测试：
+### ❌ 避免做法
 
-```bash
-cd crates/infra/cache
-cargo bench
-```
-
-查看报告：`target/criterion/report/index.html`
+- **缓存过大数据**: 避免缓存 large object，优先缓存元数据和 ID。
+- **忽略过期策略**: 合理设置 TTL，避免缓存脏数据。
+- **单点故障**: 生产环境务必使用 Sentinel 或 Cluster 模式。
+- **忽视监控**: 启用指标收集和监控，及时发现问题。
 
 ---
 
-**技术支持**:
+## 故障排除
 
-- 📖 完整文档: https://docs.rs/mokacache
-- 💬 讨论区: https://github.com/your-org/mokacache/discussions
-- 🐛 问题报告: https://github.com/your-org/mokacache/issues
+<details>
+<summary><b>❓ 问题：缓存未命中率高</b></summary>
 
-**版本历史**:
+**解决方案**：
 
-- v3.0 (2024-12-11): 初始发布
+1. 检查 TTL 设置是否过短
+2. 确认数据是否被频繁更新
+3. 检查 promote_on_hit 是否启用
+4. 调整 L1 缓存容量大小
+
+</details>
+
+<details>
+<summary><b>❓ 问题：Redis 连接失败</b></summary>
+
+**解决方案**：
+
+1. 检查连接字符串是否正确
+2. 确认 Redis 服务是否正常运行
+3. 检查网络连接和防火墙设置
+4. 验证用户名密码是否正确
+
+</details>
+
+<details>
+<summary><b>❓ 问题：缓存数据不一致</b></summary>
+
+**解决方案**：
+
+1. 确认 Pub/Sub 机制是否正常
+2. 检查版本号配置是否正确
+3. 考虑使用较短的 TTL
+4. 实现缓存更新时主动失效机制
+
+</details>
+
+<details>
+<summary><b>❓ 问题：性能下降</b></summary>
+
+**解决方案**：
+
+1. 检查是否存在内存泄漏
+2. 调整批量写入配置
+3. 检查 L1 缓存容量是否合理
+4. 分析慢查询日志
+
+</details>
+
+<div align="center">
+
+**💬 仍然需要帮助？** [提交 Issue](https://github.com/Kirky-X/oxcache/issues) 或 [访问文档中心](https://docs.rs/oxcache)
+
+</div>
+
+---
+
+## 后续步骤
+
+<div align="center">
+
+### 🎯 继续探索
+
+</div>
+
+<table>
+<tr>
+<td width="33%" align="center">
+<a href="API_REFERENCE.md">
+<img src="https://img.icons8.com/fluency/96/000000/graduation-cap.png" width="64"><br>
+<b>📚 API 参考</b>
+</a><br>
+详细的接口说明
+</td>
+<td width="33%" align="center">
+<a href="ARCHITECTURE.md">
+<img src="https://img.icons8.com/fluency/96/000000/settings.png" width="64"><br>
+<b>🔧 架构设计</b>
+</a><br>
+深入了解内部机制
+</td>
+<td width="33%" align="center">
+<a href="../examples/">
+<img src="https://img.icons8.com/fluency/96/000000/code.png" width="64"><br>
+<b>💻 示例代码</b>
+</a><br>
+真实场景的代码样例
+</td>
+</tr>
+</table>
+
+---
+
+<div align="center">
+
+**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](FAQ.md)** • **[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
+
+由 oxcache Team 用 ❤️ 制作
+
+[⬆ 回到顶部](#-用户指南)
+
+</div>

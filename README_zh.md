@@ -1,10 +1,48 @@
-# MokaCache
+<div align="center">
 
-[Show Image](https://crates.io/crates/mokacache) [Show Image](https://docs.rs/mokacache) [Show Image](LICENSE) [Show Image](https://github.com/your-org/mokacache/actions)
+# 🚀 Oxcache
 
-高性能、生产级的 Rust 多级缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
+[![Crates.io](https://img.shields.io/crates/v/oxcache)](https://crates.io/crates/oxcache)
+[![Docs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)
+[![License](https://img.shields.io/crates/l/oxcache)](LICENSE)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions)
+
+[English](../README.md) | 简体中文
+
+高性能、生产级的 Rust 双层缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
+
+</div>
 
 ## ✨ 核心特性
+
+<div align="center">
+
+<table>
+<tr>
+<td width="20%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
+<b>极致性能</b><br>L1 纳秒级响应
+</td>
+<td width="20%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
+<b>零侵入式</b><br>一行代码启用缓存
+</td>
+<td width="20%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
+<b>自动故障恢复</b><br>Redis 故障自动降级
+</td>
+<td width="20%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/synchronize.png" width="48"><br>
+<b>多实例同步</b><br>基于 Pub/Sub 机制
+</td>
+<td width="20%" align="center">
+<img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
+<b>批量优化</b><br>智能批量写入
+</td>
+</tr>
+</table>
+
+</div>
 
 - **🚀 极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
 - **🎯 零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
@@ -21,15 +59,15 @@
 
 ```toml
 [dependencies]
-cache = { path = "crates/infra/cache" }
-tokio = { version = "1.42", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
+oxcache = "0.1"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
 ```
 
 ### 最简示例
 
 ```rust
-use cache::cached;
+use oxcache::macros::cached;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -52,7 +90,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化缓存（从配置文件加载）
-    cache::init("config.toml").await?;
+    oxcache::init("config.toml").await?;
     
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
@@ -88,23 +126,8 @@ ttl = 600
   initial_capacity = 1000
 
   [services.user_cache.l2]
-  mode = "sentinel"  # "standalone" | "sentinel" | "cluster"
-  key_prefix = "user"
-  connection_timeout_ms = 5000
-  command_timeout_ms = 1000
-  
-    [[services.user_cache.l2.sentinel.nodes]]
-    host = "127.0.0.1"
-    port = 26379
-    
-    [[services.user_cache.l2.sentinel.nodes]]
-    host = "127.0.0.1"
-    port = 26380
-    
-    [services.user_cache.l2.sentinel]
-    master_name = "mymaster"
-    db = 0
-    password = "your-password"
+  mode = "standalone"  # "standalone" | "sentinel" | "cluster"
+  connection_string = "redis://127.0.0.1:6379"
 
   [services.user_cache.two_level]
   write_through = true
@@ -112,11 +135,6 @@ ttl = 600
   enable_batch_write = true
   batch_size = 100
   batch_interval_ms = 50
-  enable_invalidation_sync = true
-  enable_auto_recovery = true
-  failure_threshold = 3
-  recovery_threshold = 3
-  wal_path = "/var/cache/user_wal"
 ```
 
 ## 🎨 使用场景
@@ -155,7 +173,7 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 ### 场景 4: 手动控制缓存
 
 ```rust
-use cache::{get_client, CacheOps};
+use oxcache::{get_client, CacheOps};
 
 async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
     let client = get_client("custom_cache")?;
@@ -178,6 +196,7 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ## 🏗️ 架构设计
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Application Code                      │
@@ -198,150 +217,62 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
     │      │
     ↓      ↓
 ┌────────┐ ┌────────────────────────────────────────┐
-│   L1   │ │              L2 (Redis)                │
-│ (Moka) │ │  - Sentinel / Cluster Support          │
-│        │ │  - Pipeline Batch Write                │
-└────────┘ │  - Pub/Sub Invalidation                │
-           │  - WAL for Fault Recovery              │
-           └────────────────────────────────────────┘
+│  L1    │ │                L2                       │
+│ (Moka) │ │              (Redis)                    │
+│        │ │                                        │
+└────────┘ └────────────────────────────────────────┘
 ```
 
-### 核心组件
-
-| 组件                  | 功能               | 技术栈                   |
-| --------------------- | ------------------ | ------------------------ |
-| **L1 Cache**          | 进程内高速缓存     | Moka (LRU/TinyLFU)       |
-| **L2 Cache**          | 分布式共享缓存     | Redis (Sentinel/Cluster) |
-| **WAL**               | 故障期间持久化     | SQLite                   |
-| **Promotion Manager** | Single-flight 回填 | DashMap + Tokio Notify   |
-| **Batch Writer**      | 批量写入优化       | 时间窗口 + 容量触发      |
-| **Invalidation Sync** | 多实例失效同步     | Redis Pub/Sub + 版本号   |
-| **Health Checker**    | 自动故障恢复       | 状态机 + 定时心跳        |
+**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略  
+**L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
 ## 📊 性能基准
 
-**测试环境**: Intel i9-12900K, 32GB RAM, Redis 7.2
+> 测试环境: M1 Pro, 16GB RAM, macOS
 
-| 操作                   | 延迟 (P50) | 延迟 (P99) | 吞吐量     |
-| ---------------------- | ---------- | ---------- | ---------- |
-| L1 Get                 | 45ns       | 98ns       | 2M ops/s   |
-| L1 Set                 | 210ns      | 480ns      | 500k ops/s |
-| L2 Get (Standalone)    | 1.2ms      | 4.8ms      | 80k ops/s  |
-| L2 Set (Batch)         | 0.8ms      | 3.2ms      | 120k ops/s |
-| Two-Level Get (L1 Hit) | 50ns       | 105ns      | 1.8M ops/s |
-| Two-Level Get (L2 Hit) | 1.5ms      | 5.5ms      | 65k ops/s  |
+```
+单线程延迟测试 (P99):
+├── L1 缓存:  ~50ns
+├── L2 缓存:  ~1ms
+└── 数据库:   ~10ms
 
-运行基准测试：
-
-```bash
-cargo bench -p cache
+吞吐量测试 (batch_size=100):
+├── 单次写入:  ~10K ops/s
+└── 批量写入:  ~50K ops/s
 ```
 
-## 🛠️ 高级特性
+## 🛡️ 可靠性
 
-### 自定义序列化器
+- ✅ 单次请求去重 (Single-Flight)
+- ✅ 预写日志 (WAL) 持久化
+- ✅ Redis 故障自动降级
+- ✅ 优雅关闭机制
+- ✅ 健康检查与自动恢复
 
-```rust
-use cache::serialization::Serializer;
+## 📚 文档
 
-pub struct MsgPackSerializer;
-
-impl Serializer for MsgPackSerializer {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>, CacheError> {
-        rmp_serde::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))
-    }
-    
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T, CacheError> {
-        rmp_serde::from_slice(data).map_err(|e| CacheError::Serialization(e.to_string()))
-    }
-}
-
-// 在配置中使用
-cache::register_serializer("msgpack", Arc::new(MsgPackSerializer));
-```
-
-### 可观测性
-
-```rust
-// 获取 Prometheus 格式的指标
-let metrics = cache::export_prometheus();
-println!("{}", metrics);
-
-// 集成 OpenTelemetry Tracing
-use tracing_subscriber;
-
-tracing_subscriber::fmt::init();
-// 所有缓存操作会自动生成 span
-```
-
-**可用指标**:
-
-- `cache_requests_total{service, layer, operation, result}`
-- `cache_operation_duration_seconds{service, operation, layer}`
-- `cache_l2_health_status{service}`
-- `cache_wal_entries{service}`
-- `cache_batch_buffer_size{service}`
-
-## 🧪 测试
-
-```bash
-# 运行所有测试
-cargo test -p cache
-
-# 单元测试
-cargo test --lib -p cache
-
-# 集成测试
-cargo test --test '*' -p cache
-
-# 混沌测试（需要真实 Redis）
-cargo test --test chaos -- --ignored
-
-# 代码覆盖率
-cargo tarpaulin --out Html -p cache
-```
-
-## 📚 完整文档
-
-- [接入指南](docs/INTEGRATION_GUIDE.md) - 详细的集成步骤
-- [API 文档](https://docs.rs/mokacache) - 完整的 API 参考
-- [配置参考](docs/CONFIG_REFERENCE.md) - 所有配置项说明
-- [架构设计](docs/ARCHITECTURE.md) - 深入理解内部实现
-- [故障排查](docs/TROUBLESHOOTING.md) - 常见问题解决
+- [📖 用户指南](docs/zh/USER_GUIDE.md)
+- [📘 API 文档](https://docs.rs/oxcache)
+- [💻 示例代码](../examples/)
 
 ## 🤝 贡献
 
-欢迎贡献代码、报告问题或提出建议！
+欢迎提交 Pull Request 和 Issue！
 
-```bash
-# Fork 项目并克隆
-git clone https://github.com/your-username/mokacache.git
-cd mokacache
+## 📝 更新日志
 
-# 创建特性分支
-git checkout -b feature/amazing-feature
-
-# 提交更改
-git commit -m "Add amazing feature"
-git push origin feature/amazing-feature
-
-# 创建 Pull Request
-```
+详见 [CHANGELOG.md](../CHANGELOG.md)
 
 ## 📄 许可证
 
-本项目采用 [Apache-2.0](LICENSE) 许可证。
+本项目采用 MIT 许可证。详见 [LICENSE](../LICENSE) 文件。
 
-## 🙏 致谢
+---
 
-- [Moka](https://github.com/moka-rs/moka) - 高性能内存缓存
-- [Redis](https://redis.io/) - 分布式缓存基础设施
-- [Tokio](https://tokio.rs/) - 异步运行时
+<div align="center">
 
-------
+**如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
 
-**需要帮助？**
+Made with ❤️ by oxcache Team
 
-- 📖 阅读 [接入指南](docs/INTEGRATION_GUIDE.md)
-- 💬 加入 [讨论区](https://github.com/your-org/mokacache/discussions)
-- 🐛 报告 [问题](https://github.com/your-org/mokacache/issues)
+</div>
