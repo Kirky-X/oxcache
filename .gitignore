@@ -49,6 +49,7 @@ wal_*
 # ==================== Testing ====================
 coverage/
 .tarpaulin/
+tests/test_crate/
 
 # ==================== Project Specific ====================
 .cargo/
@@ -60,3 +61,26 @@ docs/task.md
 docs/tdd.md
 docs/test.md
 docs/uat.md
+
+# ==================== Language Specific ====================
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==================== Additional ====================
+.cache/
+*.pid
+*.seed
+*.pid.lock
