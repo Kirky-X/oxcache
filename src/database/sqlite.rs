@@ -1,100 +1,91 @@
-use super::{common::*, PartitionConfig, PartitionInfo, PartitionManager};
+use super::{
+    common::*,
+    connection_string::{ensure_database_directory, normalize_connection_string},
+    PartitionConfig, PartitionInfo, PartitionManager,
+};
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use rusqlite::{Connection, Row};
-use std::sync::{Arc, Mutex, MutexGuard};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
+use std::sync::Arc;
 
 pub struct SQLitePartitionManager {
     config: PartitionConfig,
-    connection: Arc<Mutex<Connection>>,
+    connection: Arc<DatabaseConnection>,
 }
 
 impl SQLitePartitionManager {
     pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self> {
-        Self::new_sync(connection_string, config)
-    }
+        let connection_string = ensure_database_directory(connection_string)?;
+        let normalized = normalize_connection_string(&connection_string);
+        let _parsed = super::ParsedConnectionString::parse(&normalized);
 
-    pub fn new_sync(connection_string: &str, config: PartitionConfig) -> Result<Self> {
-        let db_path = if connection_string.starts_with("sqlite:") {
-            connection_string
-                .strip_prefix("sqlite:")
-                .unwrap_or(connection_string)
-        } else {
-            connection_string
-        };
+        let mut opt = ConnectOptions::new(normalized.clone());
+        opt.max_connections(1)
+            .min_connections(1)
+            .connect_timeout(std::time::Duration::from_secs(30));
 
-        if !db_path.contains(":memory:") {
-            if let Some(parent) = std::path::Path::new(db_path).parent() {
-                if !parent.exists() {
-                    std::fs::create_dir_all(parent).map_err(|e| {
-                        CacheError::DatabaseError(format!("Failed to create directory: {}", e))
-                    })?;
-                }
-            }
-        }
-
-        let connection = Connection::open(db_path)
+        let connection = Database::connect(opt)
+            .await
             .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
 
         Ok(Self {
             config,
-            connection: Arc::new(Mutex::new(connection)),
+            connection: Arc::new(connection),
         })
     }
 
-    fn connection_lock(&self) -> Result<MutexGuard<'_, Connection>> {
-        self.connection
-            .lock()
-            .map_err(|e| CacheError::DatabaseError(format!("Mutex lock failed: {}", e)))
+    pub fn new_sync(connection_string: &str, config: PartitionConfig) -> Result<Self> {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(Self::new(connection_string, config))
     }
 
-    fn execute(&self, sql: &str) -> Result<()> {
-        let conn = self.connection_lock()?;
-        conn.execute(sql, [])
+    async fn execute(&self, sql: &str) -> Result<()> {
+        (*self.connection)
+            .execute(Statement::from_string(
+                sea_orm::DatabaseBackend::Sqlite,
+                sql.to_string(),
+            ))
+            .await
             .map_err(|e| CacheError::DatabaseError(format!("SQL execution failed: {}", e)))?;
         Ok(())
     }
 
-    fn query_one<T, F>(&self, sql: &str, mapper: F) -> Result<Option<T>>
+    async fn query_one<T, F>(&self, sql: &str, mapper: F) -> Result<Option<T>>
     where
-        F: Fn(&Row) -> Result<T>,
+        F: Fn(sea_orm::QueryResult) -> Result<T>,
     {
-        let conn = self.connection_lock()?;
-        let mut stmt = conn
-            .prepare(sql)
-            .map_err(|e| CacheError::DatabaseError(format!("SQL prepare failed: {}", e)))?;
-        let mut rows = stmt
-            .query([])
+        let result = (*self.connection)
+            .query_one(Statement::from_string(
+                sea_orm::DatabaseBackend::Sqlite,
+                sql.to_string(),
+            ))
+            .await
             .map_err(|e| CacheError::DatabaseError(format!("SQL query failed: {}", e)))?;
-        match rows
-            .next()
-            .map_err(|e| CacheError::DatabaseError(format!("SQL next row failed: {}", e)))?
-        {
+
+        match result {
             Some(row) => mapper(row).map(Some),
             None => Ok(None),
         }
     }
 
-    fn query_all<T, F>(&self, sql: &str, mapper: F) -> Result<Vec<T>>
+    async fn query_all<T, F>(&self, sql: &str, mapper: F) -> Result<Vec<T>>
     where
-        F: Fn(&Row) -> Result<T>,
+        F: Fn(sea_orm::QueryResult) -> Result<T>,
     {
-        let conn = self.connection_lock()?;
-        let mut stmt = conn
-            .prepare(sql)
-            .map_err(|e| CacheError::DatabaseError(format!("SQL prepare failed: {}", e)))?;
-        let mut rows = stmt
-            .query([])
+        let results = (*self.connection)
+            .query_all(Statement::from_string(
+                sea_orm::DatabaseBackend::Sqlite,
+                sql.to_string(),
+            ))
+            .await
             .map_err(|e| CacheError::DatabaseError(format!("SQL query failed: {}", e)))?;
-        let mut results = Vec::new();
-        while let Some(row) = rows
-            .next()
-            .map_err(|e| CacheError::DatabaseError(format!("SQL next row failed: {}", e)))?
-        {
-            results.push(mapper(row)?);
+
+        let mut items = Vec::new();
+        for row in results {
+            items.push(mapper(row)?);
         }
-        Ok(results)
+        Ok(items)
     }
 }
 
@@ -123,7 +114,7 @@ impl PartitionManager for SQLitePartitionManager {
             &format!("CREATE TABLE IF NOT EXISTS {}_main", table_name),
         );
 
-        self.execute(&main_table_sql)?;
+        self.execute(&main_table_sql).await?;
 
         let now = Utc::now();
         let partition_table = self.generate_partition_table_name(table_name, &now);
@@ -132,7 +123,7 @@ impl PartitionManager for SQLitePartitionManager {
             &format!("CREATE TABLE IF NOT EXISTS {}", partition_table),
         );
 
-        self.execute(&partition_schema)?;
+        self.execute(&partition_schema).await?;
 
         let view_check = format!(
             "SELECT name FROM sqlite_master WHERE type='view' AND name='{}'",
@@ -140,9 +131,10 @@ impl PartitionManager for SQLitePartitionManager {
         );
         let view_exists = self
             .query_one::<String, _>(&view_check, |row| {
-                row.get::<_, String>(0)
+                row.try_get::<String>("", "name")
                     .map_err(|e| CacheError::DatabaseError(e.to_string()))
-            })?
+            })
+            .await?
             .is_some();
 
         if !view_exists {
@@ -151,7 +143,7 @@ impl PartitionManager for SQLitePartitionManager {
                 table_name, table_name, partition_table
             );
 
-            self.execute(&view_sql)?;
+            self.execute(&view_sql).await?;
         }
 
         Ok(())
@@ -165,10 +157,12 @@ impl PartitionManager for SQLitePartitionManager {
             base_table
         );
 
-        let result = self.query_one::<String, _>(&main_table_check, |row| {
-            row.get::<_, String>(0)
-                .map_err(|e| CacheError::DatabaseError(e.to_string()))
-        })?;
+        let result = self
+            .query_one::<String, _>(&main_table_check, |row| {
+                row.try_get::<String>("", "name")
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))
+            })
+            .await?;
 
         if result.is_none() {
             let create_main_sql = format!(
@@ -180,7 +174,7 @@ impl PartitionManager for SQLitePartitionManager {
                 )",
                 base_table
             );
-            self.execute(&create_main_sql)?;
+            self.execute(&create_main_sql).await?;
         }
 
         let create_sql = format!(
@@ -188,7 +182,7 @@ impl PartitionManager for SQLitePartitionManager {
             partition.table_name, base_table
         );
 
-        self.execute(&create_sql)?;
+        self.execute(&create_sql).await?;
 
         let partition_tables_query = format!(
             "SELECT name FROM sqlite_master 
@@ -199,11 +193,12 @@ impl PartitionManager for SQLitePartitionManager {
             base_table, base_table
         );
 
-        let partition_tables: Vec<String> =
-            self.query_all::<String, _>(&partition_tables_query, |row| {
-                row.get::<_, String>(0)
+        let partition_tables: Vec<String> = self
+            .query_all::<String, _>(&partition_tables_query, |row| {
+                row.try_get::<String>("", "name")
                     .map_err(|e| CacheError::DatabaseError(e.to_string()))
-            })?;
+            })
+            .await?;
 
         if !partition_tables.is_empty() {
             let union_parts: Vec<String> = partition_tables
@@ -213,24 +208,24 @@ impl PartitionManager for SQLitePartitionManager {
             let union_sql = union_parts.join(" UNION ALL ");
 
             let drop_view_sql = format!("DROP VIEW IF EXISTS {}", base_table);
-            self.execute(&drop_view_sql)?;
+            self.execute(&drop_view_sql).await?;
 
             let create_view_sql = format!(
                 "CREATE VIEW IF NOT EXISTS {} AS SELECT * FROM {}_main UNION ALL {}",
                 base_table, base_table, union_sql
             );
 
-            self.execute(&create_view_sql)?;
+            self.execute(&create_view_sql).await?;
         } else {
             let drop_view_sql = format!("DROP VIEW IF EXISTS {}", base_table);
-            self.execute(&drop_view_sql)?;
+            self.execute(&drop_view_sql).await?;
 
             let create_view_sql = format!(
                 "CREATE VIEW IF NOT EXISTS {} AS SELECT * FROM {}_main",
                 base_table, base_table
             );
 
-            self.execute(&create_view_sql)?;
+            self.execute(&create_view_sql).await?;
         }
 
         Ok(())
@@ -246,10 +241,12 @@ impl PartitionManager for SQLitePartitionManager {
             table_name, table_name
         );
 
-        let results = self.query_all::<String, _>(&query_sql, |row| {
-            row.get::<_, String>(0)
-                .map_err(|e| CacheError::DatabaseError(e.to_string()))
-        })?;
+        let results = self
+            .query_all::<String, _>(&query_sql, |row| {
+                row.try_get::<String>("", "name")
+                    .map_err(|e| CacheError::DatabaseError(e.to_string()))
+            })
+            .await?;
 
         let mut partitions = Vec::new();
         for table_name in results {
@@ -271,7 +268,7 @@ impl PartitionManager for SQLitePartitionManager {
 
     async fn drop_partition(&self, _table_name: &str, partition_name: &str) -> Result<()> {
         let drop_sql = format!("DROP TABLE IF EXISTS {}", partition_name);
-        self.execute(&drop_sql)?;
+        self.execute(&drop_sql).await?;
         Ok(())
     }
 

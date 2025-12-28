@@ -289,7 +289,7 @@ impl OptimizedBatchWriter {
                 &stats,
                 &service_name,
             )
-                .await;
+            .await;
         });
     }
 
@@ -453,7 +453,7 @@ impl OptimizedBatchWriter {
                                             tokio::time::sleep(Duration::from_millis(
                                                 retry_delay_ms,
                                             ))
-                                                .await;
+                                            .await;
                                             priority_queue.write().await.push((
                                                 key.clone(),
                                                 255,

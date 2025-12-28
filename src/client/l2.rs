@@ -46,7 +46,7 @@ impl L2Client {
         serializer: SerializerEnum,
     ) -> Result<Self> {
         let health_state = Arc::new(RwLock::new(HealthState::Healthy));
-        let wal = Arc::new(WalManager::new(&service_name)?);
+        let wal = Arc::new(WalManager::new(&service_name).await?);
 
         // 启动健康检查器
         let command_timeout_ms = l2.command_timeout_ms();

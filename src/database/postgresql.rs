@@ -105,7 +105,8 @@ impl PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             "SELECT 1".to_string(),
         ))
-            .await?;
+        .await
+        .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
         Ok(())
     }
 
@@ -198,10 +199,10 @@ impl PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             default_partition_sql,
         ))
-            .await
-            .map_err(|e| {
-                CacheError::DatabaseError(format!("Failed to create default partition: {}", e))
-            })?;
+        .await
+        .map_err(|e| {
+            CacheError::DatabaseError(format!("Failed to create default partition: {}", e))
+        })?;
 
         Ok(())
     }
@@ -218,13 +219,13 @@ impl PartitionManager for PostgresPartitionManager {
                 sea_orm::DatabaseBackend::Postgres,
                 schema.to_string(),
             ))
-                .await
-                .map_err(|e| {
-                    CacheError::DatabaseError(format!(
-                        "Failed to initialize table: {}. Please check the table schema.",
-                        e
-                    ))
-                })?;
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Failed to initialize table: {}. Please check the table schema.",
+                    e
+                ))
+            })?;
             Ok(())
         }
     }
@@ -265,13 +266,13 @@ impl PartitionManager for PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
-            .await
-            .map_err(|e| {
-                CacheError::DatabaseError(format!(
-                    "Failed to create partition {}: {}",
-                    partition_table_name, e
-                ))
-            })?;
+        .await
+        .map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Failed to create partition {}: {}",
+                partition_table_name, e
+            ))
+        })?;
 
         Ok(())
     }
@@ -323,13 +324,13 @@ impl PartitionManager for PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             sql,
         ))
-            .await
-            .map_err(|e| {
-                CacheError::DatabaseError(format!(
-                    "Failed to drop partition {}: {}",
-                    partition_name, e
-                ))
-            })?;
+        .await
+        .map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Failed to drop partition {}: {}",
+                partition_name, e
+            ))
+        })?;
 
         debug!("Successfully dropped partition: {}", partition_name);
         Ok(())
