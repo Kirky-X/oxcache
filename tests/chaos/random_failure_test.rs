@@ -11,12 +11,8 @@ use oxcache::config::{
 };
 use oxcache::CacheExt;
 use rand::Rng;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::time::timeout;
 use secrecy::SecretBox;
+use tokio::time::timeout;
 
 #[path = "../common/mod.rs"]
 mod common;
@@ -34,6 +30,7 @@ async fn test_random_redis_failures() {
     let service_name = generate_unique_service_name("chaos_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 1,
@@ -48,7 +45,10 @@ async fn test_random_redis_failures() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 1000 }),
+                    l1: Some(L1Config {
+                        max_capacity: 1000,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -59,6 +59,8 @@ async fn test_random_redis_failures() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: true,
@@ -121,6 +123,7 @@ async fn test_distributed_lock_during_failures() {
     let service_name = generate_unique_service_name("lock_chaos");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 1,
@@ -135,7 +138,10 @@ async fn test_distributed_lock_during_failures() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -146,6 +152,8 @@ async fn test_distributed_lock_during_failures() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: true,
@@ -196,6 +204,7 @@ async fn test_concurrent_isolation_during_failures() {
     let service_name = generate_unique_service_name("isolation_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 1,
@@ -210,7 +219,10 @@ async fn test_concurrent_isolation_during_failures() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 1000 }),
+                    l1: Some(L1Config {
+                        max_capacity: 1000,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -221,6 +233,8 @@ async fn test_concurrent_isolation_during_failures() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: true,
@@ -306,6 +320,7 @@ async fn test_network_instability_handling() {
     let service_name = generate_unique_service_name("network_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 1,
@@ -320,7 +335,10 @@ async fn test_network_instability_handling() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -331,6 +349,8 @@ async fn test_network_instability_handling() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: true,
@@ -338,6 +358,10 @@ async fn test_network_instability_handling() {
                         batch_size: 10,
                         batch_interval_ms: 100,
                         invalidation_channel: None,
+                        bloom_filter: None,
+                        warmup: None,
+                        max_key_length: Some(1024),
+                        max_value_size: Some(1024 * 1024),
                     }),
                 },
             );
@@ -390,6 +414,7 @@ async fn test_data_consistency_after_recovery() {
     let service_name = generate_unique_service_name("consistency_test");
 
     let config = Config {
+        config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
             health_check_interval: 1,
@@ -404,7 +429,10 @@ async fn test_data_consistency_after_recovery() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
@@ -415,6 +443,8 @@ async fn test_data_consistency_after_recovery() {
                         sentinel: None,
                         cluster: None,
                         default_ttl: None,
+                        max_key_length: 256,
+                        max_value_size: 1024 * 1024 * 10,
                     }),
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: true,
