@@ -7,5 +7,6 @@
 pub mod batch_writer;
 pub mod common;
 pub mod invalidation;
+pub mod optimized_batch_writer;
 pub mod promotion;
 pub mod warmup;
