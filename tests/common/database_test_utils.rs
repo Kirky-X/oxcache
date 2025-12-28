@@ -59,7 +59,7 @@ pub fn cleanup_postgres_table(
     table_name: &str,
 ) -> bool {
     let cleanup_result = std::process::Command::new("docker")
-        .args(&[
+        .args([
             "exec",
             container_name,
             "psql",
