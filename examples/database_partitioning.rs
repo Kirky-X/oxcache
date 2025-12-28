@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
 
     // 1. 创建WAL管理器
     println!("1. 创建WAL管理器...");
-    let wal_manager = WalManager::new("partitioned_cache_service")?;
+    let wal_manager = WalManager::new("partitioned_cache_service").await?;
     println!("   WAL管理器创建成功");
 
     // 2. 模拟缓存操作并记录到WAL
