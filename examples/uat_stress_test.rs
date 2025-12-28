@@ -482,10 +482,10 @@ impl UatStressTester {
         _metrics: &Arc<UatMetrics>,
     ) -> bool {
         let value = format!("updated_value_{}", key);
-        match backend.set_bytes(key, value.into_bytes(), Some(3600)).await {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        backend
+            .set_bytes(key, value.into_bytes(), Some(3600))
+            .await
+            .is_ok()
     }
 
     /// 运行故障注入
