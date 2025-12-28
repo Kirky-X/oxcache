@@ -1,7 +1,7 @@
 use chrono::{TimeZone, Utc};
 use oxcache::database::sqlite::SQLitePartitionManager;
 use oxcache::database::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
-use oxcache::error::Result;
+use oxcache::error::{CacheError, Result};
 use std::fs::File;
 use tempfile::TempDir;
 
@@ -36,6 +36,17 @@ mod basic_functionality_tests {
 
         cleanup_partition_tables();
         let _ = std::fs::remove_file(&db_path);
+
+        match File::create(&db_path) {
+            Ok(_) => println!("✓ Database file pre-created: {}", db_path),
+            Err(e) => {
+                println!("✗ Failed to pre-create database file: {}", e);
+                return Err(CacheError::DatabaseError(format!(
+                    "Failed to create database file: {}",
+                    e
+                )));
+            }
+        }
 
         let partition_config = PartitionConfig {
             enabled: true,
@@ -100,6 +111,17 @@ mod basic_functionality_tests {
     async fn test_sqlite_without_partitioning() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test_no_partition.db");
+
+        match File::create(&db_path) {
+            Ok(_) => println!("✓ Database file pre-created: {}", db_path.display()),
+            Err(e) => {
+                println!("✗ Failed to pre-create database file: {}", e);
+                return Err(CacheError::DatabaseError(format!(
+                    "Failed to create database file: {}",
+                    e
+                )));
+            }
+        }
 
         let partition_config = PartitionConfig {
             enabled: false,
