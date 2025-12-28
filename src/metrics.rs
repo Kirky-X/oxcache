@@ -26,6 +26,10 @@ pub struct Metrics {
     pub operation_duration: Arc<Mutex<HashMap<String, (f64, u64)>>>,
     /// 批量写入缓冲区大小
     pub batch_buffer_size: Arc<Mutex<HashMap<String, usize>>>,
+    /// 批量写入成功率
+    pub batch_success_rate: Arc<Mutex<HashMap<String, f64>>>,
+    /// 批量写入吞吐量 (ops/sec)
+    pub batch_throughput: Arc<Mutex<HashMap<String, f64>>>,
 }
 
 lazy_static! {
@@ -86,6 +90,18 @@ impl Metrics {
         let mut map = self.batch_buffer_size.lock().unwrap();
         map.insert(service.to_string(), size);
     }
+
+    /// 设置批量写入成功率
+    pub fn set_batch_success_rate(&self, service: &str, rate: f64) {
+        let mut map = self.batch_success_rate.lock().unwrap();
+        map.insert(service.to_string(), rate);
+    }
+
+    /// 设置批量写入吞吐量
+    pub fn set_batch_throughput(&self, service: &str, throughput: f64) {
+        let mut map = self.batch_throughput.lock().unwrap();
+        map.insert(service.to_string(), throughput);
+    }
 }
 
 /// 获取指标字符串
@@ -102,6 +118,8 @@ pub fn get_metrics_string() -> String {
     let wal = metrics.wal_entries.lock().unwrap();
     let dur = metrics.operation_duration.lock().unwrap();
     let batch = metrics.batch_buffer_size.lock().unwrap();
+    let success = metrics.batch_success_rate.lock().unwrap();
+    let throughput = metrics.batch_throughput.lock().unwrap();
 
     let mut output = String::new();
     for (k, v) in reqs.iter() {
@@ -132,6 +150,18 @@ pub fn get_metrics_string() -> String {
     for (k, v) in batch.iter() {
         output.push_str(&format!(
             "cache_batch_write_buffer_size{{service=\"{}\"}} {}\n",
+            k, v
+        ));
+    }
+    for (k, v) in success.iter() {
+        output.push_str(&format!(
+            "cache_batch_write_success_rate{{service=\"{}\"}} {}\n",
+            k, v
+        ));
+    }
+    for (k, v) in throughput.iter() {
+        output.push_str(&format!(
+            "cache_batch_write_throughput{{service=\"{}\"}} {}\n",
             k, v
         ));
     }
