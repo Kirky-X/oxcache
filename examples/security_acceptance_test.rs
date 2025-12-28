@@ -652,14 +652,12 @@ impl SecurityAcceptanceTester {
         println!("🔍 Testing Configuration Security...");
 
         // 测试1: 验证配置验证
-        let invalid_configs = vec![
-            // 空连接字符串
+        let invalid_configs = [
             L2Config {
                 mode: RedisMode::Standalone,
                 connection_string: "".to_string().into(),
                 ..Default::default()
             },
-            // 无效端口
             L2Config {
                 mode: RedisMode::Standalone,
                 connection_string: "redis://127.0.0.1:99999".to_string().into(),
