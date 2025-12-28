@@ -55,6 +55,7 @@ fn test_config_load_from_toml() {
 #[test]
 fn test_config_structure_manual_creation() {
     let config = Config {
+        config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
             health_check_interval: 10,
@@ -69,7 +70,10 @@ fn test_config_structure_manual_creation() {
                     cache_type: CacheType::L1,
                     ttl: Some(600),
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: None,
                     two_level: None,
                 },
@@ -88,6 +92,7 @@ fn test_config_structure_manual_creation() {
 fn test_config_validation_ttl() {
     // 1. 正常情况：L1 TTL <= L2 TTL
     let config_ok = Config {
+        config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
             health_check_interval: 10,
@@ -102,7 +107,10 @@ fn test_config_validation_ttl() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(60), // L1 TTL
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         default_ttl: Some(100), // L2 TTL > L1 TTL
                         ..Default::default()
@@ -117,6 +125,7 @@ fn test_config_validation_ttl() {
 
     // 2. 异常情况：L1 TTL > L2 TTL
     let config_fail = Config {
+        config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
             health_check_interval: 10,
@@ -131,7 +140,10 @@ fn test_config_validation_ttl() {
                     cache_type: CacheType::TwoLevel,
                     ttl: Some(200), // L1 TTL
                     serialization: None,
-                    l1: Some(L1Config { max_capacity: 100 }),
+                    l1: Some(L1Config {
+                        max_capacity: 100,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         default_ttl: Some(100), // L2 TTL < L1 TTL
                         ..Default::default()

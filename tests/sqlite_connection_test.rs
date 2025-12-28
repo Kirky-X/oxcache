@@ -12,7 +12,7 @@ async fn test_sqlite_connection_absolute_path() {
     println!("Testing with absolute path: {:?}", db_path);
 
     // Test different connection string formats with absolute path
-    let connection_strings = vec![
+    let connection_strings = [
         format!("sqlite:{}", db_path.display()),
         format!("sqlite://{}", db_path.display()),
         format!("sqlite:///{}", db_path.display()),
@@ -60,7 +60,7 @@ async fn test_sqlite_connection_relative_path() {
     println!("Testing with relative path: {}", db_name);
 
     // Test different connection string formats with relative path
-    let connection_strings = vec![
+    let connection_strings = [
         format!("sqlite:{}", db_name),
         format!("sqlite:./{}", db_name),
     ];
