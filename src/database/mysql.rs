@@ -4,32 +4,153 @@ use crate::error::{CacheError, Result};
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
+use tokio::time::timeout;
+use tracing::{info, warn};
 
 use super::{common::*, PartitionConfig, PartitionInfo, PartitionManager};
+
+/// 连接池统计信息
+#[derive(Debug, Clone, Default)]
+pub struct PoolStats {
+    pub active_connections: u32,
+    pub idle_connections: u32,
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub connection_acquire_ms: f64,
+    pub last_acquire: Option<Instant>,
+    pub failed_attempts: u32,
+}
 
 /// MySQL分区管理器
 pub struct MySQLPartitionManager {
     config: PartitionConfig,
     connection: Arc<DatabaseConnection>,
+    pool_stats: Arc<Mutex<PoolStats>>,
 }
 
 impl MySQLPartitionManager {
     /// 创建新的MySQL分区管理器
     pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self> {
         let mut opt = ConnectOptions::new(connection_string.to_string());
-        opt.max_connections(3) // 减少连接数以避免资源竞争
-            .min_connections(1)
-            .connect_timeout(std::time::Duration::from_secs(15)) // 增加超时时间
-            .idle_timeout(std::time::Duration::from_secs(60));
+        opt.max_connections(10)
+            .min_connections(2)
+            .connect_timeout(Duration::from_secs(5))
+            .idle_timeout(Duration::from_secs(8))
+            .max_lifetime(Duration::from_secs(1800))
+            .acquire_timeout(Duration::from_secs(10));
 
-        let connection = Database::connect(opt)
-            .await
-            .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+        let start = Instant::now();
+        let connection = match timeout(Duration::from_secs(30), Database::connect(opt)).await {
+            Ok(Ok(conn)) => conn,
+            Ok(Err(e)) => {
+                return Err(CacheError::DatabaseError(format!(
+                    "Failed to connect to MySQL: {}. Please check your connection string and ensure the database server is running.",
+                    e
+                )));
+            }
+            Err(_) => {
+                return Err(CacheError::DatabaseError(
+                    "Connection timeout: MySQL server not responding within 30 seconds. Please check your connection string and ensure the database server is running.".to_string()
+                ));
+            }
+        };
+
+        let acquire_duration = start.elapsed();
+        info!("MySQL connection established in {:?}", acquire_duration);
+
+        if acquire_duration > Duration::from_secs(3) {
+            warn!(
+                "MySQL connection took longer than expected: {:?}",
+                acquire_duration
+            );
+        }
 
         Ok(Self {
             config,
             connection: Arc::new(connection),
+            pool_stats: Arc::new(Mutex::new(PoolStats {
+                active_connections: 1,
+                idle_connections: 1,
+                max_connections: 10,
+                min_connections: 2,
+                connection_acquire_ms: acquire_duration.as_secs_f64() * 1000.0,
+                last_acquire: Some(Instant::now()),
+                failed_attempts: 0,
+            })),
         })
+    }
+
+    /// 验证连接健康状态
+    pub async fn health_check(&self) -> bool {
+        if let Err(e) = self.ping().await {
+            warn!("MySQL health check failed: {}", e);
+            return false;
+        }
+        true
+    }
+
+    /// 测试连接是否活跃
+    pub async fn ping(&self) -> Result<()> {
+        let conn = self.connection.as_ref();
+        conn.execute(Statement::from_string(
+            sea_orm::DatabaseBackend::MySql,
+            "SELECT 1".to_string(),
+        ))
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!(
+                    "Connection health check failed: {}. The connection may have been lost.",
+                    e
+                ))
+            })?;
+        Ok(())
+    }
+
+    /// 获取连接池统计信息
+    pub async fn pool_stats(&self) -> PoolStats {
+        self.pool_stats.lock().await.clone()
+    }
+
+    /// 重新建立连接（用于恢复）
+    pub async fn reconnect(&mut self, connection_string: &str) -> Result<()> {
+        info!("Attempting to reconnect to MySQL...");
+
+        let mut opt = ConnectOptions::new(connection_string.to_string());
+        opt.max_connections(10)
+            .min_connections(2)
+            .connect_timeout(Duration::from_secs(10))
+            .idle_timeout(Duration::from_secs(8));
+
+        let start = Instant::now();
+        let connection = match timeout(Duration::from_secs(30), Database::connect(opt)).await {
+            Ok(Ok(conn)) => conn,
+            Ok(Err(e)) => {
+                return Err(CacheError::DatabaseError(format!(
+                    "Failed to reconnect to MySQL: {}. Please check your database server.",
+                    e
+                )));
+            }
+            Err(_) => {
+                return Err(CacheError::DatabaseError(
+                    "Reconnection timeout: MySQL server not responding within 30 seconds."
+                        .to_string(),
+                ));
+            }
+        };
+
+        let acquire_duration = start.elapsed();
+        info!("MySQL reconnection established in {:?}", acquire_duration);
+
+        self.connection = Arc::new(connection);
+
+        let mut stats = self.pool_stats.lock().await;
+        stats.connection_acquire_ms = acquire_duration.as_secs_f64() * 1000.0;
+        stats.last_acquire = Some(Instant::now());
+        stats.failed_attempts = 0;
+
+        Ok(())
     }
 }
 
