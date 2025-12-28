@@ -31,6 +31,8 @@ fn create_l2_config() -> L2Config {
         sentinel: None,
         cluster: None,
         default_ttl: None,
+        max_key_length: 256,
+        max_value_size: 1024 * 1024 * 10,
     }
 }
 
