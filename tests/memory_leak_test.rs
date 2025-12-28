@@ -1,3 +1,7 @@
+#[path = "common/mod.rs"]
+mod common;
+
+use common::is_redis_available;
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use std::sync::Arc;
@@ -48,6 +52,11 @@ async fn test_l1_cache_memory_leak() {
 
 #[tokio::test]
 async fn test_l2_cache_memory_leak() {
+    if !is_redis_available().await {
+        println!("跳过test_l2_cache_memory_leak：Redis不可用");
+        return;
+    }
+
     use oxcache::config::L2Config;
     use oxcache::config::RedisMode;
 
@@ -61,6 +70,7 @@ async fn test_l2_cache_memory_leak() {
         sentinel: None,
         cluster: None,
         default_ttl: Some(3600),
+        ..Default::default()
     };
 
     let l2_backend = L2Backend::new(&config)
@@ -96,6 +106,11 @@ async fn test_l2_cache_memory_leak() {
 
 #[tokio::test]
 async fn test_two_level_cache_memory_leak() {
+    if !is_redis_available().await {
+        println!("跳过test_two_level_cache_memory_leak：Redis不可用");
+        return;
+    }
+
     use oxcache::config::L2Config;
     use oxcache::config::RedisMode;
 
@@ -111,6 +126,7 @@ async fn test_two_level_cache_memory_leak() {
         sentinel: None,
         cluster: None,
         default_ttl: Some(3600),
+        ..Default::default()
     };
 
     let l2 = L2Backend::new(&config)
@@ -181,6 +197,11 @@ async fn test_two_level_cache_memory_leak() {
 
 #[tokio::test]
 async fn test_batch_operation_memory_leak() {
+    if !is_redis_available().await {
+        println!("跳过test_batch_operation_memory_leak：Redis不可用");
+        return;
+    }
+
     let l1 = Arc::new(L1Backend::new(500));
 
     use oxcache::config::L2Config;
@@ -196,6 +217,7 @@ async fn test_batch_operation_memory_leak() {
         sentinel: None,
         cluster: None,
         default_ttl: Some(3600),
+        ..Default::default()
     };
 
     let l2 = L2Backend::new(&config)
@@ -365,13 +387,26 @@ mod memory_profiling {
     use super::*;
 
     use jemalloc_ctl::{epoch, stats};
+    use std::fmt;
+
+    #[derive(Debug)]
+    struct JemallocWrapper(jemalloc_ctl::Error);
+
+    impl fmt::Display for JemallocWrapper {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "jemalloc error: {:?}", self.0)
+        }
+    }
+
+    impl std::error::Error for JemallocWrapper {}
 
     pub async fn get_memory_usage() -> Result<(usize, usize), Box<dyn std::error::Error>> {
-        // 更新统计信息
-        epoch::advance()?;
+        epoch::advance().map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
 
-        let allocated = stats::allocated::read()?;
-        let active = stats::active::read()?;
+        let allocated = stats::allocated::read()
+            .map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
+        let active = stats::active::read()
+            .map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
 
         Ok((allocated, active))
     }
