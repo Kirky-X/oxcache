@@ -208,12 +208,11 @@ fn test_uninitialized_memory_prevention() {
             let key = format!("uninit_{}", size);
 
             // 创建明确初始化的数据
-            let mut value = Vec::with_capacity(size);
-            value.resize(size, 0u8);
+            let mut value = vec![0u8; size];
 
             // 确保所有字节都被初始化
-            for i in 0..size {
-                value[i] = (i % 256) as u8;
+            for (i, byte) in value.iter_mut().enumerate() {
+                *byte = (i % 256) as u8;
             }
 
             cache
