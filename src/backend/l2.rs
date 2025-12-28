@@ -128,7 +128,7 @@ impl L2Backend {
 
         let manager = ConnectionManager::new(client.clone())
             .await
-            .map_err(|e| CacheError::RedisError(e))?;
+            .map_err(CacheError::RedisError)?;
 
         Ok(L2Backend::Standalone {
             client,
