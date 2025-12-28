@@ -483,7 +483,11 @@ mod health_checker_tests {
 
         let service_name = common::generate_unique_service_name("degradation");
         let health_state = Arc::new(tokio::sync::RwLock::new(HealthState::Healthy));
-        let wal = Arc::new(WalManager::new(&service_name).expect("Failed to create WAL"));
+        let wal = Arc::new(
+            WalManager::new(&service_name)
+                .await
+                .expect("Failed to create WAL"),
+        );
 
         let checker = HealthChecker::new(
             l2_backend.clone(),

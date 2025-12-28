@@ -190,15 +190,9 @@ async fn test_mysql_partitioning() -> Result<()> {
 /// Test SQLite partitioning
 #[tokio::test]
 async fn test_sqlite_partitioning() -> Result<()> {
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let db_path = format!("/tmp/test_oxcache_partitioning_{}.db", timestamp);
+    let db_path = "sqlite::memory:";
 
-    println!("Testing SQLite partitioning with database: {}", db_path);
-
-    let _ = std::fs::remove_file(&db_path);
+    println!("Testing SQLite partitioning with in-memory database");
 
     let partition_config = PartitionConfig {
         enabled: true,
@@ -207,8 +201,7 @@ async fn test_sqlite_partitioning() -> Result<()> {
         ..Default::default()
     };
 
-    let connection_string = format!("sqlite:{}", db_path);
-    let manager = SQLitePartitionManager::new(&connection_string, partition_config).await?;
+    let manager = SQLitePartitionManager::new(db_path, partition_config).await?;
 
     let test_table = "cache_entries";
     let schema = format!(
@@ -247,10 +240,6 @@ async fn test_sqlite_partitioning() -> Result<()> {
     let all_partitions = manager.get_partitions(test_table).await?;
     println!("✓ Total partitions: {}", all_partitions.len());
 
-    use std::path::Path;
-    assert!(Path::new(&db_path).exists(), "Database file should exist");
-
-    let _ = std::fs::remove_file(&db_path);
     println!("✓ SQLite partitioning test completed successfully");
 
     Ok(())

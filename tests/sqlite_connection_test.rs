@@ -6,12 +6,10 @@ async fn test_sqlite_connection_absolute_path() {
     let current_dir = std::env::current_dir().unwrap();
     let db_path = current_dir.join(db_name);
 
-    // Remove existing file
     let _ = std::fs::remove_file(&db_path);
 
     println!("Testing with absolute path: {:?}", db_path);
 
-    // Test different connection string formats with absolute path
     let connection_strings = [
         format!("sqlite:{}", db_path.display()),
         format!("sqlite://{}", db_path.display()),
@@ -29,7 +27,6 @@ async fn test_sqlite_connection_absolute_path() {
         match Database::connect(opt).await {
             Ok(db) => {
                 println!("✓ Connection {} succeeded!", i + 1);
-                // Test a simple query
                 let result = db
                     .execute(sea_orm::Statement::from_string(
                         sea_orm::DatabaseBackend::Sqlite,
@@ -45,7 +42,6 @@ async fn test_sqlite_connection_absolute_path() {
             Err(e) => println!("✗ Connection {} failed: {}", i + 1, e),
         }
 
-        // Clean up
         let _ = std::fs::remove_file(&db_path);
     }
 }
@@ -54,12 +50,10 @@ async fn test_sqlite_connection_absolute_path() {
 async fn test_sqlite_connection_relative_path() {
     let db_name = "test_relative.db";
 
-    // Remove existing file
     let _ = std::fs::remove_file(db_name);
 
     println!("Testing with relative path: {}", db_name);
 
-    // Test different connection string formats with relative path
     let connection_strings = [
         format!("sqlite:{}", db_name),
         format!("sqlite:./{}", db_name),
@@ -76,7 +70,6 @@ async fn test_sqlite_connection_relative_path() {
         match Database::connect(opt).await {
             Ok(db) => {
                 println!("✓ Connection {} succeeded!", i + 1);
-                // Test a simple query
                 let result = db
                     .execute(sea_orm::Statement::from_string(
                         sea_orm::DatabaseBackend::Sqlite,
@@ -92,7 +85,6 @@ async fn test_sqlite_connection_relative_path() {
             Err(e) => println!("✗ Connection {} failed: {}", i + 1, e),
         }
 
-        // Clean up
         let _ = std::fs::remove_file(db_name);
     }
 }
