@@ -59,7 +59,7 @@ async fn test_cluster_mode_success() {
     let config = L2Config {
         mode: RedisMode::Cluster,
         connection_string: "".to_string().into(),
-        connection_timeout_ms: 5000, // 增加超时时间，集群初始化可能较慢
+        connection_timeout_ms: 5000,
         command_timeout_ms: 5000,
         sentinel: None,
         cluster: Some(ClusterConfig {
@@ -68,6 +68,7 @@ async fn test_cluster_mode_success() {
         password: None,
         enable_tls: false,
         default_ttl: None,
+        ..Default::default()
     };
 
     // 重试几次，因为集群状态可能还没完全收敛
@@ -103,6 +104,7 @@ async fn test_sentinel_missing_config() {
         password: None,
         enable_tls: false,
         default_ttl: None,
+        ..Default::default()
     };
 
     // 这里我们直接调用 new，不再注入 provider
@@ -128,6 +130,7 @@ async fn test_cluster_missing_config() {
         password: None,
         enable_tls: false,
         default_ttl: None,
+        ..Default::default()
     };
 
     match L2Backend::new(&config).await {
