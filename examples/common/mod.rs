@@ -20,6 +20,7 @@ pub fn create_default_config(service_name: &str, max_capacity: usize) -> Config 
             serialization: None,
             l1: Some(L1Config {
                 max_capacity: max_capacity as u64,
+                ..Default::default()
             }),
             l2: Some(L2Config {
                 mode: RedisMode::Standalone,
@@ -34,6 +35,8 @@ pub fn create_default_config(service_name: &str, max_capacity: usize) -> Config 
                 invalidation_channel: None,
                 bloom_filter: None,
                 warmup: None,
+                max_key_length: Some(1024),
+                max_value_size: Some(1024 * 1024),
             }),
         },
     );
