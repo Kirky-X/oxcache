@@ -12,64 +12,92 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum CacheError {
     /// 序列化错误
-    #[error("Serialization error: {0}")]
+    #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible."
+    )]
     Serialization(String),
 
     /// L1缓存操作失败
-    #[error("L1 operation failed: {0}")]
+    #[error("L1 cache operation failed: {0}. This may indicate memory pressure or configuration issues."
+    )]
     L1Error(String),
 
     /// L2缓存操作失败
-    #[error("L2 operation failed: {0}")]
+    #[error("L2 cache operation failed: {0}. Please check Redis connection and server status.")]
     L2Error(String),
 
     /// 配置错误
-    #[error("Configuration error: {0}")]
+    #[error("Configuration error: {0}. Please review your configuration file and ensure all required settings are provided."
+    )]
     ConfigError(String),
 
     /// 配置错误（别名，为了兼容）
-    #[error("Configuration error: {0}")]
+    #[error("Configuration error: {0}. Please review your configuration file.")]
     Configuration(String),
 
     /// 操作不支持
-    #[error("Operation not supported: {0}")]
+    #[error("Operation not supported: {0}. This feature may not be available for the current cache type."
+    )]
     NotSupported(String),
 
     /// WAL（预写日志）操作失败
-    #[error("WAL operation failed: {0}")]
+    #[error("WAL (Write-Ahead Log) operation failed: {0}. Check disk space and file permissions.")]
     WalError(String),
 
     /// 数据库错误
-    #[error("Database error: {0}")]
+    #[error("Database error: {0}. Please check database connectivity and query syntax.")]
     DbError(#[from] rusqlite::Error),
 
     /// Sea-ORM数据库错误
-    #[error("Sea-ORM error: {0}")]
+    #[error(
+        "Database error: {0}. Please check database connection and ensure the database is running."
+    )]
     SeaOrmError(#[from] sea_orm::DbErr),
 
     /// 数据库连接错误
-    #[error("Database connection error: {0}")]
+    #[error("Database connection failed: {0}. Verify the database server is running and connection settings are correct."
+    )]
     DatabaseError(String),
 
     /// Redis错误
-    #[error("Redis error: {0}")]
+    #[error("Redis connection failed: {0}. Please ensure Redis server is running and the connection string is correct."
+    )]
     RedisError(#[from] redis::RedisError),
 
     /// IO错误
-    #[error("IO error: {0}")]
+    #[error("I/O error: {0}. Check file permissions and disk space.")]
     IoError(#[from] std::io::Error),
 
     /// 后端错误
-    #[error("Backend error: {0}")]
+    #[error("Backend error: {0}. This may be a transient issue, please retry.")]
     BackendError(String),
 
     /// 超时错误
-    #[error("Timeout error: {0}")]
+    #[error("Operation timed out: {0}. Consider increasing the timeout value or check system performance."
+    )]
     Timeout(String),
 
     /// 关闭错误
-    #[error("Shutdown error: {0}")]
+    #[error("Shutdown error: {0}. Some resources may not have been properly released.")]
     ShutdownError(String),
+
+    /// 键过长错误
+    #[error("Key too long: {0}. Maximum key length is {1} bytes.")]
+    KeyTooLong(usize, usize),
+
+    /// 值过大错误
+    #[error("Value too large: {0}. Maximum value size is {1} bytes.")]
+    ValueTooLarge(usize, usize),
+
+    /// 缓冲区已满错误
+    #[error("Buffer full: {0}. The batch write buffer has reached capacity. Please retry later or increase buffer size."
+    )]
+    BufferFull(String),
+
+    /// 无效输入错误
+    #[error(
+        "Invalid input: {0}. The provided input does not meet the required format or constraints."
+    )]
+    InvalidInput(String),
 }
 
 /// 缓存操作结果类型别名
