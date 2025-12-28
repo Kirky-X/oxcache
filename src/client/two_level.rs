@@ -16,12 +16,13 @@ use crate::recovery::{
 };
 use crate::serialization::{Serializer, SerializerEnum};
 use crate::sync::{
-    batch_writer::BatchWriter,
-    common::BatchWriterConfig,
+    common::{BatchOperation, BatchWriterConfig},
     invalidation::{InvalidationPublisher, InvalidationSubscriber},
+    optimized_batch_writer::OptimizedBatchWriter,
     promotion::PromotionManager,
     warmup::WarmupManager,
 };
+use crate::utils::{validate_cache_key, validate_key_length, validate_value_size};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -51,7 +52,7 @@ pub struct TwoLevelClient {
     /// 推广管理器
     promotion_mgr: Option<Arc<PromotionManager>>,
     /// 批量写入器
-    batch_writer: Option<Arc<BatchWriter>>,
+    batch_writer: Option<Arc<OptimizedBatchWriter>>,
     /// 失效发布器
     publisher: Option<Arc<InvalidationPublisher>>,
     /// 数据库回源管理器
@@ -170,14 +171,25 @@ impl TwoLevelClient {
         };
 
         let (batch_writer, batch_writer_handle) = if config.enable_batch_write {
-            let batch_config = BatchWriterConfig {
-                max_batch_size: config.batch_size,
-                flush_interval_ms: config.batch_interval_ms,
+            let batch_config = crate::sync::optimized_batch_writer::OptimizedBatchWriterConfig {
+                base: BatchWriterConfig {
+                    max_batch_size: config.batch_size,
+                    flush_interval_ms: config.batch_interval_ms,
+                },
+                max_retry_count: 3,
+                retry_delay_ms: 1000,
+                max_buffer_size: config.batch_size * 10,
+                high_water_mark: (config.batch_size as f64 * 0.8) as usize,
+                low_water_mark: (config.batch_size as f64 * 0.2) as usize,
+                enable_wal: true,
+                enable_compression: true,
+                compression_threshold: 1024,
             };
-            let bw = Arc::new(BatchWriter::new(
+            let bw = Arc::new(OptimizedBatchWriter::new(
                 service_name.clone(),
                 l2_backend.clone(),
                 batch_config,
+                wal.clone(),
             ));
             let bw_clone = bw.clone();
             let handle = tokio::spawn(async move { bw_clone.start().await });
@@ -489,26 +501,51 @@ impl CacheOps for TwoLevelClient {
 
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
     async fn lock(&self, key: &str, value: &str, ttl: u64) -> Result<bool> {
+        validate_cache_key(key)?;
+
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        if value.is_empty() {
+            return Err(crate::error::CacheError::InvalidInput(
+                "Lock value cannot be empty".to_string(),
+            ));
+        }
+
+        if ttl == 0 {
+            return Err(crate::error::CacheError::InvalidInput(
+                "Lock TTL must be greater than 0".to_string(),
+            ));
+        }
+
         debug!(
             "TwoLevelClient lock called: key={}, value={}, ttl={}",
             key, value, ttl
         );
         if let Some(l2) = &self.l2 {
             debug!("L2 backend available, attempting lock acquisition");
-            // 使用L2客户端的lock方法，它会处理健康状态检查
             let result = l2.lock(key, value, ttl).await;
             debug!("L2 lock result: {:?}", result);
             return result;
         }
-        // 如果 L2 不可用或未配置，无法获取分布式锁
         warn!("Cannot acquire lock, L2 unavailable or not configured");
         Ok(false)
     }
 
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
     async fn unlock(&self, key: &str, value: &str) -> Result<bool> {
+        validate_cache_key(key)?;
+
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        if value.is_empty() {
+            return Err(crate::error::CacheError::InvalidInput(
+                "Unlock value cannot be empty".to_string(),
+            ));
+        }
+
         if let Some(l2) = &self.l2 {
-            // 使用L2客户端的unlock方法，它会处理健康状态检查
             return l2.unlock(key, value).await;
         }
         warn!("Cannot release lock, L2 unavailable or not configured");
@@ -518,6 +555,11 @@ impl CacheOps for TwoLevelClient {
     /// 获取缓存值（字节）
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
     async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        validate_cache_key(key)?;
+
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
         // Two-level mode
         if let (Some(l1), Some(l2)) = (&self.l1, &self.l2) {
             // 布隆过滤器检查 - 防止缓存穿透
@@ -644,6 +686,14 @@ impl CacheOps for TwoLevelClient {
     /// 设置缓存值（字节）
     #[instrument(skip(self, value), level = "debug", fields(service = %self.service_name))]
     async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        validate_cache_key(key)?;
+
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        let max_value_size = self.config.max_value_size.unwrap_or(10 * 1024 * 1024);
+        validate_value_size(&value, max_value_size)?;
+
         let bytes = value;
 
         // 自动将键添加到布隆过滤器
@@ -672,7 +722,16 @@ impl CacheOps for TwoLevelClient {
                     drop(state);
                     if self.config.enable_batch_write {
                         if let Some(batch_writer) = &self.batch_writer {
-                            batch_writer.enqueue(key.to_string(), bytes, ttl).await?;
+                            batch_writer
+                                .enqueue_operation(
+                                    BatchOperation::Set {
+                                        key: key.to_string(),
+                                        value: bytes,
+                                        ttl,
+                                    },
+                                    100, // default priority
+                                )
+                                .await?;
                         }
                     } else {
                         // 使用L2客户端的set_bytes方法，它会处理健康状态检查
@@ -775,6 +834,11 @@ impl CacheOps for TwoLevelClient {
     /// 返回操作结果
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
     async fn delete(&self, key: &str) -> Result<()> {
+        validate_cache_key(key)?;
+
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
         // Two-level mode
         if let (Some(l1), Some(l2)) = (&self.l1, &self.l2) {
             // 1. 删除L1
