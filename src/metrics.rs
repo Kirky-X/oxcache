@@ -111,59 +111,86 @@ impl Metrics {
 /// # 返回值
 ///
 /// 返回包含所有指标的字符串
+///
+/// # 注意
+///
+/// 使用 try_lock() 避免死锁，如果获取锁失败则跳过该指标
 pub fn get_metrics_string() -> String {
     let metrics = &GLOBAL_METRICS;
-    let reqs = metrics.requests_total.lock().unwrap();
-    let health = metrics.l2_health_status.lock().unwrap();
-    let wal = metrics.wal_entries.lock().unwrap();
-    let dur = metrics.operation_duration.lock().unwrap();
-    let batch = metrics.batch_buffer_size.lock().unwrap();
-    let success = metrics.batch_success_rate.lock().unwrap();
-    let throughput = metrics.batch_throughput.lock().unwrap();
-
     let mut output = String::new();
-    for (k, v) in reqs.iter() {
-        output.push_str(&format!("cache_requests_total{{labels=\"{}\"}} {}\n", k, v));
+
+    // 使用 try_lock() 避免死锁
+    // 分别获取每个锁，避免同时持有多个锁
+    if let Ok(reqs) = metrics.requests_total.try_lock() {
+        for (k, v) in reqs.iter() {
+            output.push_str(&format!("cache_requests_total{{labels=\"{}\"}} {}\n", k, v));
+        }
+        drop(reqs); // 尽早释放锁
     }
-    for (k, v) in health.iter() {
-        output.push_str(&format!(
-            "cache_l2_health_status{{service=\"{}\"}} {}\n",
-            k, v
-        ));
-    }
-    for (k, v) in wal.iter() {
-        output.push_str(&format!("cache_wal_entries{{service=\"{}\"}} {}\n", k, v));
-    }
-    for (k, (total, count)) in dur.iter() {
-        let parts: Vec<&str> = k.split(':').collect();
-        if parts.len() == 3 {
+
+    if let Ok(health) = metrics.l2_health_status.try_lock() {
+        for (k, v) in health.iter() {
             output.push_str(&format!(
-                "cache_operation_duration_seconds_sum{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
-                parts[0], parts[1], parts[2], total
-            ));
-            output.push_str(&format!(
-                "cache_operation_duration_seconds_count{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
-                parts[0], parts[1], parts[2], count
+                "cache_l2_health_status{{service=\"{}\"}} {}\n",
+                k, v
             ));
         }
+        drop(health);
     }
-    for (k, v) in batch.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_buffer_size{{service=\"{}\"}} {}\n",
-            k, v
-        ));
+
+    if let Ok(wal) = metrics.wal_entries.try_lock() {
+        for (k, v) in wal.iter() {
+            output.push_str(&format!("cache_wal_entries{{service=\"{}\"}} {}\n", k, v));
+        }
+        drop(wal);
     }
-    for (k, v) in success.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_success_rate{{service=\"{}\"}} {}\n",
-            k, v
-        ));
+
+    if let Ok(dur) = metrics.operation_duration.try_lock() {
+        for (k, (total, count)) in dur.iter() {
+            let parts: Vec<&str> = k.split(':').collect();
+            if parts.len() == 3 {
+                output.push_str(&format!(
+                    "cache_operation_duration_seconds_sum{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
+                    parts[0], parts[1], parts[2], total
+                ));
+                output.push_str(&format!(
+                    "cache_operation_duration_seconds_count{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
+                    parts[0], parts[1], parts[2], count
+                ));
+            }
+        }
+        drop(dur);
     }
-    for (k, v) in throughput.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_throughput{{service=\"{}\"}} {}\n",
-            k, v
-        ));
+
+    if let Ok(batch) = metrics.batch_buffer_size.try_lock() {
+        for (k, v) in batch.iter() {
+            output.push_str(&format!(
+                "cache_batch_write_buffer_size{{service=\"{}\"}} {}\n",
+                k, v
+            ));
+        }
+        drop(batch);
     }
+
+    if let Ok(success) = metrics.batch_success_rate.try_lock() {
+        for (k, v) in success.iter() {
+            output.push_str(&format!(
+                "cache_batch_write_success_rate{{service=\"{}\"}} {}\n",
+                k, v
+            ));
+        }
+        drop(success);
+    }
+
+    if let Ok(throughput) = metrics.batch_throughput.try_lock() {
+        for (k, v) in throughput.iter() {
+            output.push_str(&format!(
+                "cache_batch_write_throughput{{service=\"{}\"}} {}\n",
+                k, v
+            ));
+        }
+        drop(throughput);
+    }
+
     output
 }
