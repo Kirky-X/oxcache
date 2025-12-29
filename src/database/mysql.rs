@@ -189,14 +189,16 @@ impl PartitionManager for MySQLPartitionManager {
         let _start_days = self.date_to_days(&partition.start_date);
         let end_days = self.date_to_days(&partition.end_date);
 
-        // 检查分区是否已存在
-        let check_sql = format!(
-            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PARTITIONS 
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{}' AND PARTITION_NAME = '{}'",
-            base_table, partition_name
-        );
+        // 验证表名和分区名，防止 SQL 注入
+        self.validate_identifier(&base_table)?;
+        self.validate_identifier(&partition_name)?;
 
-        let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, check_sql);
+        // 检查分区是否已存在 - 使用参数化查询
+        let check_sql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PARTITIONS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND PARTITION_NAME = ?";
+
+        let statement =
+            Statement::from_string(sea_orm::DatabaseBackend::MySql, check_sql.to_string());
 
         let result = self.connection.query_one(statement).await?;
         if let Some(row) = result {
@@ -225,6 +227,13 @@ impl PartitionManager for MySQLPartitionManager {
             .iter()
             .find(|p| p.end_date > partition.end_date);
 
+        // 验证所有标识符，防止 SQL 注入
+        self.validate_identifier(&base_table)?;
+        self.validate_identifier(&partition_name)?;
+        if let Some(target) = &target_partition {
+            self.validate_identifier(&target.name)?;
+        }
+
         let sql = if let Some(target) = target_partition {
             // 需要重组 target 分区
             println!(
@@ -240,10 +249,10 @@ impl PartitionManager for MySQLPartitionManager {
 
             format!(
                 "ALTER TABLE {} REORGANIZE PARTITION {} INTO (PARTITION {} VALUES LESS THAN ({}), PARTITION {} VALUES LESS THAN ({}))",
-                base_table,
-                target.name,
-                partition_name, end_days,
-                target.name, target_end_days_str
+                self.escape_identifier(&base_table),
+                self.escape_identifier(&target.name),
+                self.escape_identifier(&partition_name), end_days,
+                self.escape_identifier(&target.name), target_end_days_str
             )
         } else {
             // 没有更大的分区，直接添加
@@ -253,7 +262,9 @@ impl PartitionManager for MySQLPartitionManager {
             );
             format!(
                 "ALTER TABLE {} ADD PARTITION (PARTITION {} VALUES LESS THAN ({}))",
-                base_table, partition_name, end_days
+                self.escape_identifier(&base_table),
+                self.escape_identifier(&partition_name),
+                end_days
             )
         };
 
@@ -267,24 +278,26 @@ impl PartitionManager for MySQLPartitionManager {
     }
 
     async fn get_partitions(&self, table_name: &str) -> Result<Vec<PartitionInfo>> {
-        let sql = format!(
-            "SELECT 
+        // 验证表名，防止 SQL 注入
+        self.validate_identifier(table_name)?;
+
+        let sql = "SELECT
                 PARTITION_NAME,
                 PARTITION_DESCRIPTION,
                 PARTITION_ORDINAL_POSITION,
                 PARTITION_METHOD,
                 PARTITION_EXPRESSION
-             FROM INFORMATION_SCHEMA.PARTITIONS 
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{}' AND PARTITION_NAME IS NOT NULL",
-            table_name
+             FROM INFORMATION_SCHEMA.PARTITIONS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL";
+
+        println!(
+            "DEBUG: get_partitions SQL: {} with table_name={}",
+            sql, table_name
         );
 
-        println!("DEBUG: get_partitions SQL: {}", sql);
-
-        let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, sql);
+        let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, sql.to_string());
 
         let result = self.connection.query_all(statement).await?;
-
         println!("DEBUG: get_partitions found {} rows", result.len());
 
         let mut partitions = Vec::new();
@@ -316,9 +329,14 @@ impl PartitionManager for MySQLPartitionManager {
     }
 
     async fn drop_partition(&self, table_name: &str, partition_name: &str) -> Result<()> {
+        // 验证表名和分区名，防止 SQL 注入
+        self.validate_identifier(table_name)?;
+        self.validate_identifier(partition_name)?;
+
         let sql = format!(
             "ALTER TABLE {} DROP PARTITION {}",
-            table_name, partition_name
+            self.escape_identifier(table_name),
+            self.escape_identifier(partition_name)
         );
 
         self.connection
@@ -371,6 +389,63 @@ impl PartitionManagerExt for MySQLPartitionManager {
 }
 
 impl MySQLPartitionManager {
+    /// 验证 SQL 标识符是否安全（防止 SQL 注入）
+    fn validate_identifier(&self, identifier: &str) -> Result<()> {
+        // 标识符只能包含字母、数字、下划线，且必须以字母或下划线开头
+        if identifier.is_empty() {
+            return Err(CacheError::DatabaseError(
+                "Identifier cannot be empty".to_string(),
+            ));
+        }
+
+        // 检查长度限制
+        if identifier.len() > 64 {
+            return Err(CacheError::DatabaseError(
+                "Identifier exceeds maximum length of 64 characters".to_string(),
+            ));
+        }
+
+        // 检查字符集
+        if !identifier.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err(CacheError::DatabaseError(format!(
+                "Invalid identifier '{}': only alphanumeric characters and underscores are allowed",
+                identifier
+            )));
+        }
+
+        // 检查第一个字符
+        let first_char = identifier.chars().next().unwrap();
+        if !first_char.is_alphabetic() && first_char != '_' {
+            return Err(CacheError::DatabaseError(format!(
+                "Invalid identifier '{}': must start with a letter or underscore",
+                identifier
+            )));
+        }
+
+        // 检查是否是保留关键字
+        let reserved_keywords = [
+            "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TABLE", "INDEX",
+            "WHERE", "FROM", "JOIN", "UNION", "OR", "AND", "NOT", "NULL", "TRUE", "FALSE", "IS",
+            "IN", "LIKE", "BETWEEN", "ORDER", "BY", "GROUP", "HAVING", "LIMIT", "OFFSET",
+            "DISTINCT", "COUNT", "SUM", "AVG", "MAX", "MIN",
+        ];
+
+        let upper_identifier = identifier.to_uppercase();
+        if reserved_keywords.contains(&upper_identifier.as_str()) {
+            return Err(CacheError::DatabaseError(format!(
+                "Invalid identifier '{}': reserved keyword",
+                identifier
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// 转义 SQL 标识符（使用反引号）
+    fn escape_identifier(&self, identifier: &str) -> String {
+        format!("`{}`", identifier)
+    }
+
     /// 将分区子句添加到表结构
     fn add_partition_clause_to_schema(
         &self,
@@ -391,7 +466,13 @@ impl MySQLPartitionManager {
 
         let start_of_next_month = Utc
             .with_ymd_and_hms(next_year, next_month, 1, 0, 0, 0)
-            .unwrap();
+            .single()
+            .ok_or_else(|| {
+                CacheError::DatabaseError(format!(
+                    "Invalid date: {}-{}-01 is not a valid date",
+                    next_year, next_month
+                ))
+            })?;
         let next_month_days = self.date_to_days(&start_of_next_month);
 
         // 查找表结构中的分区列 - 优先使用DATE类型，避免使用TIMESTAMP（时区相关）
@@ -431,7 +512,10 @@ impl MySQLPartitionManager {
     /// 将日期转换为MySQL的TO_DAYS函数值
     fn date_to_days(&self, date: &DateTime<Utc>) -> i32 {
         // MySQL的TO_DAYS函数计算从0年到指定日期的天数
-        let epoch = Utc.with_ymd_and_hms(0, 1, 1, 0, 0, 0).unwrap();
+        let epoch = Utc
+            .with_ymd_and_hms(0, 1, 1, 0, 0, 0)
+            .single()
+            .expect("Year 0-01-01 00:00:00 should be a valid UTC date");
         let duration = date.signed_duration_since(epoch);
         duration.num_days() as i32
     }
@@ -451,7 +535,10 @@ impl MySQLPartitionManager {
         if partition_name == "p_future" {
             println!("DEBUG: Found p_future partition (MAXVALUE)");
             // 使用一个遥远的未来日期作为结束日期
-            let max_date = Utc.with_ymd_and_hms(9999, 12, 31, 23, 59, 59).unwrap();
+            let max_date = Utc
+                .with_ymd_and_hms(9999, 12, 31, 23, 59, 59)
+                .single()
+                .expect("Year 9999-12-31 23:59:59 should be a valid UTC date");
             let mut info = PartitionInfo::new(max_date, table_name);
             info.name = partition_name.to_string();
             info.start_date = max_date;
