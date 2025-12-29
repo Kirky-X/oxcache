@@ -198,62 +198,225 @@ pub struct ClusterConfig {
 }
 
 impl Config {
-    /// 验证配置的合法性
+    /// 验证配置
+    ///
+    /// 检查配置的有效性，确保所有必需的字段都已设置，并且值在合理范围内
     pub fn validate(&self) -> Result<(), String> {
+        // 验证配置版本
         if let Some(version) = &self.config_version {
             if *version > CONFIG_VERSION {
                 return Err(format!(
-                    "Configuration version {} is not supported. Maximum supported version is {}. Please upgrade oxcache or downgrade the configuration version.",
+                    "Configuration version {} is not supported. Current version is {}.",
                     version, CONFIG_VERSION
                 ));
             }
-            if *version < CONFIG_VERSION {
-                tracing::warn!(
-                    "Configuration version {} is older than the current version {}. Some features may not be available or may behave differently. Consider updating the configuration file.",
-                    version, CONFIG_VERSION
-                );
-            }
-        } else {
-            tracing::warn!(
-                "No configuration version specified. Assuming version {}. For new configurations, it is recommended to add \"config_version: {}\" to enable future compatibility checks.",
-                CONFIG_VERSION, CONFIG_VERSION
+        }
+
+        // 验证全局配置
+        if self.global.default_ttl == 0 {
+            return Err("Global default_ttl cannot be zero".to_string());
+        }
+
+        if self.global.default_ttl > 86400 * 30 {
+            return Err("Global default_ttl cannot exceed 30 days (2592000 seconds)".to_string());
+        }
+
+        if self.global.health_check_interval == 0 {
+            return Err("Global health_check_interval cannot be zero".to_string());
+        }
+
+        if self.global.health_check_interval < 1 || self.global.health_check_interval > 3600 {
+            return Err(
+                "Global health_check_interval must be between 1 and 3600 seconds".to_string(),
             );
         }
 
+        // 验证服务配置
         for (name, service) in &self.services {
-            // 验证 L1 TTL <= L2 TTL
-            // 逻辑：
-            // 1. 获取服务级别的 TTL，如果没有则使用全局默认 TTL
-            // 2. 如果 L1 配置了 max_capacity，我们假设它可能也有隐含的 TTL 策略，但 Config 中 L1Config 没有显式 TTL 字段，
-            //    通常 L1 的 TTL 由 ServiceConfig.ttl 控制，或者全局 default_ttl。
-            //    然而，PRD 要求 "L1 TTL <= L2 TTL"。
-            //    在当前配置结构中：
-            //    - ServiceConfig.ttl 适用于整个服务（通常同时作用于 L1 和 L2，或者作为默认值）。
-            //    - 如果 L1 和 L2 共享同一个 TTL，那么 L1 TTL == L2 TTL，满足 <= 条件。
-            //    - 如果我们需要支持分别配置，ServiceConfig 应该有 l1_ttl 和 l2_ttl，或者 L1Config/L2Config 应该有 ttl 字段。
-            //    - 目前 L2Config 刚刚添加了 default_ttl。
-            //
-            //    如果 ServiceConfig.ttl 被设置，它通常作为 L1 的 TTL。
-            //    如果 L2Config.default_ttl 被设置，它作为 L2 的 TTL。
-            //
-            //    验证逻辑：
-            //    let l1_ttl = service.ttl.unwrap_or(self.global.default_ttl);
-            //    let l2_ttl = service.l2.as_ref().and_then(|l2| l2.default_ttl).unwrap_or(l1_ttl); // 如果 L2 没有特定 TTL，通常继承服务的 TTL
-            //
-            //    如果 L2 有特定的 TTL，我们需要确保 l1_ttl <= l2_ttl。
+            // 验证服务名称
+            if name.is_empty() {
+                return Err("Service name cannot be empty".to_string());
+            }
 
+            if name.len() > 64 {
+                return Err(format!(
+                    "Service name '{}' exceeds maximum length of 64 characters",
+                    name
+                ));
+            }
+
+            // 验证 TTL 配置
+            let service_ttl = service.ttl.unwrap_or(self.global.default_ttl);
+            if service_ttl == 0 {
+                return Err(format!("Service '{}' TTL cannot be zero", name));
+            }
+
+            if service_ttl > 86400 * 30 {
+                return Err(format!("Service '{}' TTL cannot exceed 30 days", name));
+            }
+
+            // 验证 L1 TTL <= L2 TTL
             if let Some(l2_config) = &service.l2 {
                 if let Some(l2_specific_ttl) = l2_config.default_ttl {
-                    let l1_ttl = service.ttl.unwrap_or(self.global.default_ttl);
-                    if l1_ttl > l2_specific_ttl {
+                    if l2_specific_ttl == 0 {
+                        return Err(format!("Service '{}' L2 TTL cannot be zero", name));
+                    }
+
+                    if service_ttl > l2_specific_ttl {
                         return Err(format!(
                             "Service '{}' configuration error: L1 TTL ({}) must be <= L2 TTL ({})",
-                            name, l1_ttl, l2_specific_ttl
+                            name, service_ttl, l2_specific_ttl
+                        ));
+                    }
+                }
+
+                // 验证连接超时
+                let timeout = l2_config.connection_timeout_ms;
+                if !(100..=30000).contains(&timeout) {
+                    return Err(format!(
+                        "Service '{}' connection_timeout_ms must be between 100 and 30000 ms",
+                        name
+                    ));
+                }
+
+                // 验证命令超时
+                let timeout = l2_config.command_timeout_ms;
+                if !(100..=60000).contains(&timeout) {
+                    return Err(format!(
+                        "Service '{}' command_timeout_ms must be between 100 and 60000 ms",
+                        name
+                    ));
+                }
+            }
+
+            // 验证 L1 配置
+            if let Some(l1_config) = &service.l1 {
+                if l1_config.max_capacity == 0 {
+                    return Err(format!("Service '{}' L1 max_capacity cannot be zero", name));
+                }
+
+                if l1_config.max_capacity > 10_000_000 {
+                    return Err(format!(
+                        "Service '{}' L1 max_capacity cannot exceed 10,000,000",
+                        name
+                    ));
+                }
+
+                // L1 清理间隔必须小于等于服务 TTL
+                if l1_config.cleanup_interval_secs > 0
+                    && l1_config.cleanup_interval_secs > service_ttl
+                {
+                    return Err(format!(
+                        "Service '{}' L1 cleanup_interval_secs ({}) must be <= service TTL ({})",
+                        name, l1_config.cleanup_interval_secs, service_ttl
+                    ));
+                }
+            }
+
+            // 验证双层缓存配置
+            if let Some(two_level_config) = &service.two_level {
+                // 验证批量写入配置
+                if two_level_config.enable_batch_write {
+                    if two_level_config.batch_size == 0 {
+                        return Err(format!(
+                            "Service '{}' batch_size cannot be zero when batch_write is enabled",
+                            name
+                        ));
+                    }
+
+                    if two_level_config.batch_size > 10000 {
+                        return Err(format!("Service '{}' batch_size cannot exceed 10000", name));
+                    }
+
+                    if two_level_config.batch_interval_ms == 0 {
+                        return Err(format!(
+                            "Service '{}' batch_interval_ms cannot be zero when batch_write is enabled",
+                            name
+                        ));
+                    }
+
+                    if two_level_config.batch_interval_ms > 60000 {
+                        return Err(format!(
+                            "Service '{}' batch_interval_ms cannot exceed 60000 ms",
+                            name
+                        ));
+                    }
+                }
+
+                // 验证键和值的大小限制
+                if let Some(max_key_length) = two_level_config.max_key_length {
+                    if max_key_length == 0 || max_key_length > 1024 {
+                        return Err(format!(
+                            "Service '{}' max_key_length must be between 1 and 1024",
+                            name
+                        ));
+                    }
+                }
+
+                if let Some(max_value_size) = two_level_config.max_value_size {
+                    if max_value_size == 0 || max_value_size > 10 * 1024 * 1024 {
+                        return Err(format!(
+                            "Service '{}' max_value_size must be between 1 and 10MB",
+                            name
+                        ));
+                    }
+                }
+
+                // 验证布隆过滤器配置
+                if let Some(bloom_config) = &two_level_config.bloom_filter {
+                    if bloom_config.expected_elements == 0 {
+                        return Err(format!(
+                            "Service '{}' bloom_filter expected_elements cannot be zero",
+                            name
+                        ));
+                    }
+
+                    if bloom_config.false_positive_rate <= 0.0
+                        || bloom_config.false_positive_rate >= 1.0
+                    {
+                        return Err(format!(
+                            "Service '{}' bloom_filter false_positive_rate must be between 0 and 1",
+                            name
+                        ));
+                    }
+                }
+            }
+
+            // 验证预热配置
+            if let Some(warmup_config) = &service.two_level.as_ref().and_then(|c| c.warmup.as_ref())
+            {
+                if warmup_config.enabled {
+                    if warmup_config.timeout_seconds == 0 {
+                        return Err(format!(
+                            "Service '{}' warmup timeout_seconds cannot be zero",
+                            name
+                        ));
+                    }
+
+                    if warmup_config.timeout_seconds > 3600 {
+                        return Err(format!(
+                            "Service '{}' warmup timeout_seconds cannot exceed 3600 seconds",
+                            name
+                        ));
+                    }
+
+                    if warmup_config.batch_size == 0 {
+                        return Err(format!(
+                            "Service '{}' warmup batch_size cannot be zero",
+                            name
+                        ));
+                    }
+
+                    if warmup_config.batch_size > 10000 {
+                        return Err(format!(
+                            "Service '{}' warmup batch_size cannot exceed 10000",
+                            name
                         ));
                     }
                 }
             }
         }
+
         Ok(())
     }
 }
