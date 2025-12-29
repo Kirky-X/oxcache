@@ -9,7 +9,8 @@
 
 [English](../README.md) | [简体中文](README_zh.md)
 
-Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory cache) + L2 (Redis distributed cache) architecture.
+Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory
+cache) + L2 (Redis distributed cache) architecture.
 
 </div>
 
@@ -62,7 +63,8 @@ Add `oxcache` to your `Cargo.toml`:
 oxcache = "0.1"
 ```
 
-> **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use `oxcache = { version = "0.1", default-features = false }` and add them manually.
+> **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
+`oxcache = { version = "0.1", default-features = false }` and add them manually.
 
 ### 2. Configuration
 
