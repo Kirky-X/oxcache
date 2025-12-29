@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "macros", "tests/test_crate"]
+members = [".", "macros"]
 
 [package]
 name = "oxcache"
