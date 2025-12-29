@@ -12,7 +12,7 @@ repository = "https://github.com/Kirky-X/oxcache"
 homepage = "https://github.com/Kirky-X/oxcache"
 documentation = "https://docs.rs/oxcache"
 keywords = ["cache", "redis", "moka", "distributed-cache", "two-level-cache"]
-categories = ["caching", "database-interface"]
+categories = ["caching"]
 
 [package.metadata.docs.rs]
 all-features = true
