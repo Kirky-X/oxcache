@@ -11,7 +11,7 @@ use crate::error::Result;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 
 /// 缓冲区条目
 ///
@@ -36,6 +36,12 @@ pub struct BatchWriter {
 
     /// 服务名称
     service_name: String,
+
+    /// 背压信号量（防止 buffer 无限增长）
+    backpressure: Arc<Semaphore>,
+
+    /// 取消令牌（用于优雅关闭）
+    shutdown_token: Arc<tokio_util::sync::CancellationToken>,
 }
 
 impl BatchWriter {
@@ -52,18 +58,39 @@ impl BatchWriter {
     ///
     /// 返回新的批量写入器实例
     pub fn new(service_name: String, l2: Arc<L2Backend>, config: BatchWriterConfig) -> Self {
+        // 背压信号量的许可数是最大缓冲区大小的 2 倍
+        // 这样可以防止 buffer 无限增长
+        let backpressure_permits = config.max_buffer_size * 2;
+
         Self {
             buffer: Arc::new(DashMap::new()),
             l2,
             flush_trigger: Arc::new(Notify::new()),
             config,
             service_name,
+            backpressure: Arc::new(Semaphore::new(backpressure_permits)),
+            shutdown_token: Arc::new(tokio_util::sync::CancellationToken::new()),
         }
     }
 
     /// 创建带有默认配置的批量写入器
     pub fn new_with_default_config(service_name: String, l2: Arc<L2Backend>) -> Self {
         Self::new(service_name, l2, BatchWriterConfig::default())
+    }
+
+    /// 停止批量写入器
+    ///
+    /// 取消后台任务，等待所有缓冲区数据刷新完成
+    pub async fn shutdown(&self) {
+        self.shutdown_token.cancel();
+        self.flush_trigger.notify_one(); // 触发最后一次刷新
+
+        // 等待缓冲区清空
+        while !self.buffer.is_empty() {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        tracing::info!("批量写入器已停止: {}", self.service_name);
     }
 
     /// 启动批量写入器
@@ -75,12 +102,20 @@ impl BatchWriter {
         let trigger = self.flush_trigger.clone();
         let config = self.config.clone();
         let service_name = self.service_name.clone();
+        let shutdown_token = self.shutdown_token.clone();
 
         tokio::spawn(async move {
             let mut interval =
                 tokio::time::interval(Duration::from_millis(config.flush_interval_ms));
+
             loop {
                 tokio::select! {
+                    _ = shutdown_token.cancelled() => {
+                        // 收到取消信号，执行最后一次刷新后退出
+                        tracing::info!("批量写入器收到关闭信号，执行最后一次刷新");
+                        Self::flush(&buffer, &l2, &config, &service_name).await;
+                        break;
+                    }
                     _ = interval.tick() => {
                         Self::flush(&buffer, &l2, &config, &service_name).await;
                     }
@@ -89,6 +124,8 @@ impl BatchWriter {
                     }
                 }
             }
+
+            tracing::info!("批量写入器后台任务已退出: {}", service_name);
         });
     }
 
@@ -136,10 +173,36 @@ impl BatchWriter {
     ///
     /// 返回操作结果
     pub async fn enqueue_operation(&self, operation: BatchOperation) -> Result<()> {
+        // 检查是否已关闭
+        if self.shutdown_token.is_cancelled() {
+            return Err(crate::error::CacheError::L2Error(
+                "批量写入器已关闭".to_string(),
+            ));
+        }
+
+        // 背压机制：等待许可，防止 buffer 无限增长
+        let permit = tokio::time::timeout(Duration::from_secs(5), self.backpressure.acquire())
+            .await
+            .map_err(|_| {
+                crate::error::CacheError::L2Error("批量写入器背压超时：缓冲区已满".to_string())
+            })?
+            .map_err(|_| {
+                crate::error::CacheError::L2Error("批量写入器背压信号量已关闭".to_string())
+            })?;
+
         let key = match &operation {
             BatchOperation::Set { key, .. } => key.clone(),
             BatchOperation::Delete { key } => key.clone(),
         };
+
+        // 检查 buffer 大小限制
+        if self.buffer.len() >= self.config.max_buffer_size {
+            tracing::warn!(
+                "批量写入器缓冲区已达到最大限制 ({}), 立即触发刷新",
+                self.config.max_buffer_size
+            );
+            self.flush_trigger.notify_one();
+        }
 
         self.buffer.insert(key, BufferEntry { operation });
 
@@ -149,6 +212,10 @@ impl BatchWriter {
         if self.buffer.len() >= self.config.max_batch_size {
             self.flush_trigger.notify_one();
         }
+
+        // 释放许可
+        drop(permit);
+
         Ok(())
     }
 

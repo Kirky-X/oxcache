@@ -67,15 +67,15 @@ impl InvalidationSubscriber {
         let mut pubsub = conn.into_pubsub();
         pubsub.subscribe(&self.channel).await?;
 
-        let l1 = self.l1.clone();
-        let health_state = self.health_state.clone();
+        let _l1 = self.l1.clone();
+        let _health_state = self.health_state.clone();
         debug!("InvalidationSubscriber: 启动订阅者，频道={}", self.channel);
         tokio::spawn(async move {
             let mut stream = pubsub.on_message();
             while let Some(msg) = stream.next().await {
                 debug!("InvalidationSubscriber: 收到消息");
                 // 检查健康状态，只在Redis健康时处理失效消息
-                let state = health_state.read().await;
+                let state = _health_state.read().await;
                 debug!("InvalidationSubscriber: 当前健康状态={:?}", *state);
                 match *state {
                     HealthState::Healthy => {
@@ -89,14 +89,16 @@ impl InvalidationSubscriber {
                         };
                         debug!("InvalidationSubscriber: 处理失效消息，key={}", payload);
                         // 只有在Redis健康时才处理失效消息
-                        let _ = l1.delete(&payload).await;
+                        let _ = _l1.delete(&payload).await;
                         debug!("L1键已失效: {}", payload);
                     }
                     HealthState::Degraded { .. } | HealthState::Recovering { .. } => {
                         drop(state);
-                        // 在Redis故障期间，不处理失效消息，避免误删L1缓存
                         debug!("Skipping invalidation during Redis outage");
-                        // 可以选择将消息加入队列，待恢复后处理
+                    }
+                    HealthState::WalReplaying { .. } => {
+                        drop(state);
+                        debug!("Skipping invalidation during WAL replay");
                     }
                 }
             }

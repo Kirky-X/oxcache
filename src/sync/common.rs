@@ -31,6 +31,8 @@ pub struct BatchWriterConfig {
     pub max_batch_size: usize,
     /// 刷新间隔（毫秒）
     pub flush_interval_ms: u64,
+    /// 最大缓冲区大小（防止内存泄漏）
+    pub max_buffer_size: usize,
 }
 
 impl Default for BatchWriterConfig {
@@ -38,6 +40,7 @@ impl Default for BatchWriterConfig {
         Self {
             max_batch_size: 1000,
             flush_interval_ms: 100,
+            max_buffer_size: 10000, // 默认最大缓冲区大小为 10000
         }
     }
 }
