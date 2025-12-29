@@ -54,6 +54,8 @@ pub enum HealthState {
     Degraded { since: Instant, failure_count: u32 },
     /// 恢复中状态
     Recovering { since: Instant, success_count: u32 },
+    /// WAL 重放中状态（用于确保状态转换的原子性）
+    WalReplaying { since: Instant },
 }
 
 /// 健康检查器
@@ -230,24 +232,44 @@ impl<T: HealthCheckableBackend + WalReplayableBackend> HealthChecker<T> {
                             self.service_name,
                             success_count
                         );
+
+                        // 先将状态转换为 WalReplaying，确保原子性
+                        tracing::debug!(
+                            "服务 {} 状态转换: Recovering -> WalReplaying",
+                            self.service_name
+                        );
+                        *state_guard = HealthState::WalReplaying {
+                            since: Instant::now(),
+                        };
+
+                        // 释放锁后执行 WAL 重放（避免长时间持有锁）
+                        drop(state_guard);
+
                         // 重放WAL
-                        drop(state_guard); // 重放期间释放锁
-                        match self.wal.replay_all(&self.l2).await {
+                        let replay_result = self.wal.replay_all(&self.l2).await;
+
+                        // 重新获取锁并更新状态
+                        state_guard = self.state.write().await;
+
+                        match replay_result {
                             Ok(count) => {
                                 tracing::info!(
-                                    "服务 {} WAL已重放: {} 条目",
+                                    "服务 {} WAL已重放: {} 条目，状态转换: WalReplaying -> Healthy",
                                     self.service_name,
                                     count
                                 );
-                                state_guard = self.state.write().await;
                                 HealthState::Healthy
                             }
                             Err(e) => {
-                                tracing::error!("服务 {} WAL重放失败: {}", self.service_name, e);
-                                state_guard = self.state.write().await;
+                                tracing::error!(
+                                    "服务 {} WAL重放失败: {}，状态转换: WalReplaying -> Recovering",
+                                    self.service_name,
+                                    e
+                                );
+                                // WAL 重放失败，回到 Recovering 状态
                                 HealthState::Recovering {
-                                    since,
-                                    success_count,
+                                    since: Instant::now(),
+                                    success_count: 1, // 重置成功计数
                                 }
                             }
                         }
@@ -264,6 +286,12 @@ impl<T: HealthCheckableBackend + WalReplayableBackend> HealthChecker<T> {
                         }
                     }
                 }
+                HealthState::WalReplaying { .. } => {
+                    tracing::debug!("服务 {} 仍处于 WalReplaying 状态", self.service_name);
+                    HealthState::WalReplaying {
+                        since: Instant::now(),
+                    }
+                }
             };
 
             if *state_guard != new_state {
@@ -278,6 +306,7 @@ impl<T: HealthCheckableBackend + WalReplayableBackend> HealthChecker<T> {
                 let status_code = match new_state {
                     HealthState::Healthy => 1,
                     HealthState::Recovering { .. } => 2,
+                    HealthState::WalReplaying { .. } => 2,
                     HealthState::Degraded { .. } => 0,
                 };
                 crate::metrics::GLOBAL_METRICS.set_health(&self.service_name, status_code);
