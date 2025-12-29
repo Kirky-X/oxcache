@@ -2,10 +2,15 @@
 
 # 🚀 Oxcache
 
-[![Crates.io](https://img.shields.io/crates/v/oxcache)](https://crates.io/crates/oxcache)
-[![Docs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)
-[![License](https://img.shields.io/crates/l/oxcache)](LICENSE)
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)
+[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)
+[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)
+[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
+[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)
+[![Security Audit](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg?label=security)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
+[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)
+[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](../README.md) | [简体中文](README_zh.md)
 
