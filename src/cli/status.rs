@@ -58,6 +58,14 @@ fn print_service_status(service_name: &str, state: &HealthState, verbose: bool) 
                 "🔄 RECOVERING".to_string()
             }
         }
+        HealthState::WalReplaying { since } => {
+            if verbose {
+                let elapsed = since.elapsed().as_secs();
+                format!("🔄 WalReplaying ({}s ago)", elapsed)
+            } else {
+                "🔄 WalReplaying".to_string()
+            }
+        }
     };
 
     println!("Service: {}", service_name);
