@@ -175,6 +175,7 @@ impl TwoLevelClient {
                 base: BatchWriterConfig {
                     max_batch_size: config.batch_size,
                     flush_interval_ms: config.batch_interval_ms,
+                    max_buffer_size: config.batch_size * 10,
                 },
                 max_retry_count: 3,
                 retry_delay_ms: 1000,
@@ -285,6 +286,12 @@ impl TwoLevelClient {
                     failure_count: 1,
                 };
                 crate::metrics::GLOBAL_METRICS.set_health(&self.service_name, 0);
+            }
+            HealthState::WalReplaying { .. } => {
+                warn!(
+                    "Service {} is replaying WAL, ignoring failure during replay",
+                    self.service_name
+                );
             }
         }
 
@@ -752,6 +759,20 @@ impl CacheOps for TwoLevelClient {
                         .await?;
                     debug!("WAL write successful: key={}", key);
                 }
+                HealthState::WalReplaying { .. } => {
+                    drop(state);
+                    debug!("L2 is replaying WAL, writing to WAL: key={}", key);
+                    self.wal
+                        .append(WalEntry {
+                            timestamp: std::time::SystemTime::now(),
+                            operation: Operation::Set,
+                            key: key.to_string(),
+                            value: Some(bytes),
+                            ttl: ttl.map(|t| t as i64),
+                        })
+                        .await?;
+                    debug!("WAL write successful: key={}", key);
+                }
             }
         }
 
@@ -788,6 +809,11 @@ impl CacheOps for TwoLevelClient {
                     // 这里我们选择报错，因为用户明确要求 L2。
                     return Err(crate::error::CacheError::L2Error(
                         "L2 is degraded".to_string(),
+                    ));
+                }
+                HealthState::WalReplaying { .. } => {
+                    return Err(crate::error::CacheError::L2Error(
+                        "L2 is replaying WAL".to_string(),
                     ));
                 }
             }
@@ -872,6 +898,16 @@ impl CacheOps for TwoLevelClient {
                             ttl: None,
                         })
                         .await?;
+                }
+                HealthState::WalReplaying { .. } => {
+                    drop(state);
+                    tracing::warn!(
+                        "Cannot delete during WAL replay, service={}",
+                        self.service_name
+                    );
+                    return Err(crate::error::CacheError::L2Error(
+                        "L2 is replaying WAL".to_string(),
+                    ));
                 }
             }
         }

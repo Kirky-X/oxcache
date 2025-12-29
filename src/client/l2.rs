@@ -241,6 +241,24 @@ impl CacheOps for L2Client {
                 // Return success since operation was written to WAL
                 Ok(())
             }
+            HealthState::WalReplaying { .. } => {
+                tracing::info!(
+                    "set_bytes: L2 is replaying WAL, writing to WAL and returning success"
+                );
+                drop(state);
+                self.wal
+                    .append(WalEntry {
+                        timestamp: std::time::SystemTime::now(),
+                        operation: Operation::Set,
+                        key: key.to_string(),
+                        value: Some(value),
+                        ttl: ttl.map(|t| t as i64),
+                    })
+                    .await?;
+
+                // Return success since operation was written to WAL
+                Ok(())
+            }
         }
     }
 
@@ -294,6 +312,18 @@ impl CacheOps for L2Client {
                     })
                     .await
             }
+            HealthState::WalReplaying { .. } => {
+                drop(state);
+                self.wal
+                    .append(WalEntry {
+                        timestamp: std::time::SystemTime::now(),
+                        operation: Operation::Delete,
+                        key: key.to_string(),
+                        value: None,
+                        ttl: None,
+                    })
+                    .await
+            }
         }
     }
 
@@ -323,6 +353,14 @@ impl CacheOps for L2Client {
                 drop(state);
                 warn!(
                     "Cannot acquire lock in degraded state, service={}",
+                    self.service_name
+                );
+                Ok(false)
+            }
+            HealthState::WalReplaying { .. } => {
+                drop(state);
+                warn!(
+                    "Cannot acquire lock during WAL replay, service={}",
                     self.service_name
                 );
                 Ok(false)
@@ -366,6 +404,14 @@ impl CacheOps for L2Client {
                 drop(state);
                 warn!(
                     "Cannot release lock in degraded state, service={}",
+                    self.service_name
+                );
+                Ok(false)
+            }
+            HealthState::WalReplaying { .. } => {
+                drop(state);
+                warn!(
+                    "Cannot release lock during WAL replay, service={}",
                     self.service_name
                 );
                 Ok(false)
