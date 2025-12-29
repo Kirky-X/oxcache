@@ -8,7 +8,6 @@
 [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)
 [![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
 [![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)
-[![Security Audit](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg?label=security)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
 [![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
