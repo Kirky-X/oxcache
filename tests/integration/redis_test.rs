@@ -360,6 +360,12 @@ async fn test_redis_cluster_config() {
 #[tokio::test]
 async fn test_real_redis_standalone_connection() {
     println!("测试真实Redis Standalone连接...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
 
     match L2Backend::new(&config).await {
@@ -378,6 +384,12 @@ async fn test_real_redis_standalone_connection() {
 #[tokio::test]
 async fn test_real_redis_basic_operations() {
     println!("测试Redis基本操作...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -414,6 +426,12 @@ async fn test_real_redis_basic_operations() {
 #[tokio::test]
 async fn test_real_redis_ttl() {
     println!("测试Redis TTL功能...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -438,6 +456,12 @@ async fn test_real_redis_ttl() {
 #[tokio::test]
 async fn test_real_redis_exists() {
     println!("测试Redis EXISTS功能...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -464,7 +488,13 @@ async fn test_real_redis_exists() {
 
 #[tokio::test]
 async fn test_real_redis_keys() {
-    println!("测试Redis KEYS功能...");
+    println!("测试Redis KEYS操作...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -526,6 +556,12 @@ async fn test_real_redis_keys() {
 #[tokio::test]
 async fn test_real_redis_setnx() {
     println!("测试Redis SETNX功能...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -549,6 +585,12 @@ async fn test_real_redis_setnx() {
 #[tokio::test]
 async fn test_real_redis_incr() {
     println!("测试Redis INCR功能...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -572,6 +614,12 @@ async fn test_real_redis_incr() {
 #[tokio::test]
 async fn test_real_redis_expire() {
     println!("测试Redis EXPIRE功能...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -592,6 +640,12 @@ async fn test_real_redis_expire() {
 #[tokio::test]
 async fn test_real_redis_multiple_operations() {
     println!("测试Redis批量操作...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -622,6 +676,12 @@ async fn test_real_redis_multiple_operations() {
 #[tokio::test]
 async fn test_real_redis_health_check() {
     println!("测试Redis健康检查...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -635,6 +695,12 @@ async fn test_real_redis_health_check() {
 #[tokio::test]
 async fn test_real_redis_type_operations() {
     println!("测试Redis TYPE操作...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = L2Backend::new(&config).await.expect("创建L2Backend失败");
 
@@ -660,6 +726,11 @@ async fn test_real_redis_type_operations() {
 async fn test_l2_backend_with_real_provider() {
     println!("测试L2Backend使用真实Provider...");
 
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
 
     let result = L2Backend::new(&config).await;
@@ -680,6 +751,12 @@ async fn test_l2_backend_with_real_provider() {
 #[tokio::test]
 async fn test_concurrent_redis_operations() {
     println!("测试Redis并发操作...");
+
+    if !is_redis_available().await {
+        println!("跳过测试: Redis不可用");
+        return;
+    }
+
     let config = create_standalone_config();
     let backend = Arc::new(L2Backend::new(&config).await.expect("创建L2Backend失败"));
 
