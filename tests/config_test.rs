@@ -109,6 +109,7 @@ fn test_config_validation_ttl() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 0, // 禁用清理以专注测试TTL
                         ..Default::default()
                     }),
                     l2: Some(L2Config {
@@ -142,6 +143,7 @@ fn test_config_validation_ttl() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 0, // 禁用清理以专注测试TTL
                         ..Default::default()
                     }),
                     l2: Some(L2Config {
