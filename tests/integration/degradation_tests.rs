@@ -531,6 +531,9 @@ mod health_checker_tests {
                     success_count
                 );
             }
+            HealthState::WalReplaying { .. } => {
+                panic!("状态应该是降级，不应该是WAL重放中");
+            }
         }
 
         println!("降级状态转换测试完成");
