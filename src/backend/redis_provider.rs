@@ -109,13 +109,9 @@ impl RedisProvider for DefaultRedisProvider {
 
         tracing::info!("Initializing Sentinel client with automatic failover support");
 
-        // Construct the Sentinel URL: redis+sentinel://[:password@]host:port[,host:port][/service_name]
+        // Construct the Sentinel URL: redis+sentinel://host:port[,host:port][/service_name]
+        // 注意：不在 URL 中包含密码，避免密码泄露到日志中
         let mut url = "redis+sentinel://".to_string();
-
-        // Add password if present (for Redis authentication)
-        if let Some(password) = &config.password {
-            url.push_str(&format!(":{}@", password.expose_secret()));
-        }
 
         // Add sentinel nodes
         let nodes: Vec<String> = sentinel_config
@@ -140,6 +136,13 @@ impl RedisProvider for DefaultRedisProvider {
         url.push('/');
         url.push_str(&sentinel_config.master_name);
 
+        // 记录连接信息（不包含密码）
+        tracing::info!(
+            "Connecting to Sentinel: master={}, nodes={}",
+            sentinel_config.master_name,
+            nodes.len()
+        );
+
         // Note: We removed the manual map_addr logic because using redis+sentinel://
         // is required for automatic failover support in ConnectionManager.
         // In test environments with NAT/Docker, ensure Sentinels report reachable IPs
@@ -159,6 +162,18 @@ impl RedisProvider for DefaultRedisProvider {
                 config.connection_timeout_ms
             ))
         })??;
+
+        // 单独进行密码认证（如果配置了密码）
+        // 这样避免了将密码包含在 URL 中，防止密码泄露到日志
+        if let Some(password) = &config.password {
+            let mut conn = manager.clone();
+            let _: String = redis::cmd("AUTH")
+                .arg(password.expose_secret())
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| CacheError::L2Error(format!("Redis authentication failed: {}", e)))?;
+            tracing::info!("Redis authentication successful (sentinel mode)");
+        }
 
         // For slave/replica connection, we can create a separate connection if needed.
         // Currently we return None as the primary requirement is master failover.
