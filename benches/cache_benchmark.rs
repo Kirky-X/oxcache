@@ -421,7 +421,7 @@ fn bench_cache_hit_ratio(c: &mut Criterion) {
     group.bench_function("hit_ratio_10", |b| {
         b.to_async(&rt).iter(|| async {
             let key_num: u32 = rand::random();
-            let key = if key_num.is_multiple_of(10) {
+            let key = if key_num % 10 == 0 {
                 "hot_key_1".to_string()
             } else {
                 format!("cold_key_{}", key_num)

@@ -226,28 +226,28 @@ async fn test_cached_macro_with_cache_type() {
     }
 
     setup_macro_env().await;
-    
+
     // 测试L1-only模式
     let user1 = get_user_l1_only(100).await.unwrap();
     assert_eq!(user1.name, "L1User100");
-    
+
     // 测试L2-only模式
     let user2 = get_user_l2_only(200).await.unwrap();
     assert_eq!(user2.name, "L2User200");
-    
+
     // 验证缓存生效
     let start = std::time::Instant::now();
     let user1_cached = get_user_l1_only(100).await.unwrap();
     let duration_l1 = start.elapsed();
-    
+
     let start = std::time::Instant::now();
     let user2_cached = get_user_l2_only(200).await.unwrap();
     let duration_l2 = start.elapsed();
-    
+
     // 缓存命中应该比原始调用快
     assert!(duration_l1 < Duration::from_millis(5));
     assert!(duration_l2 < Duration::from_millis(5));
-    
+
     // 验证缓存内容
     assert_eq!(user1_cached.name, "L1User100");
     assert_eq!(user2_cached.name, "L2User200");
