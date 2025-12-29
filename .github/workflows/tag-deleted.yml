@@ -1,0 +1,67 @@
+name: Tag Deleted
+
+on:
+  delete:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Cleanup Release
+    if: github.event.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get tag name
+        id: get_tag
+        run: |
+          TAG_NAME="${{ github.event.ref }}"
+          VERSION="${TAG_NAME#v}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Delete GitHub Release
+        run: |
+          TAG_NAME="${{ steps.get_tag.outputs.tag_name }}"
+          
+          # 查找对应的 release
+          RELEASE_ID=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_NAME" \
+            | jq -r '.id')
+          
+          if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
+            echo "Deleting release $RELEASE_ID for tag $TAG_NAME"
+            curl -X DELETE \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
+            echo "✅ GitHub Release deleted successfully"
+          else
+            echo "⚠️ No release found for tag $TAG_NAME"
+          fi
+      
+      - name: Warning about crates.io
+        run: |
+          cat << 'EOF'
+          
+          ⚠️  IMPORTANT: crates.io Limitation
+          =====================================
+          
+          crates.io does NOT support deleting published versions.
+          The version ${{ steps.get_tag.outputs.version }} will remain published.
+          
+          Options:
+          1. Yank the version (marks it as not recommended):
+             cargo yank --version ${{ steps.get_tag.outputs.version }} <crate-name>
+          
+          2. Contact crates.io support for exceptional circumstances:
+             https://crates.io/policies
+          
+          Note: Yanking prevents new projects from depending on this version,
+          but existing projects can still use it.
+          
+          EOF
