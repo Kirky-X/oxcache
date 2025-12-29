@@ -29,6 +29,7 @@ async fn test_l1_only_mode() {
                     two_level: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 0,
                         ..Default::default()
                     }),
                     l2: None,
