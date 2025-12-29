@@ -60,9 +60,9 @@ Add `oxcache` to your `Cargo.toml`:
 ```toml
 [dependencies]
 oxcache = "0.1"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1", features = ["derive"] }
 ```
+
+> **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use `oxcache = { version = "0.1", default-features = false }` and add them manually.
 
 ### 2. Configuration
 

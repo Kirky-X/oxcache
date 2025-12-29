@@ -132,14 +132,15 @@ cargo --version
 ```toml
 [dependencies]
 oxcache = "0.1"
+```
 
-# 如果需要数据库集成
-[dependencies]
-oxcache = { version = "0.1", features = ["database"] }
+> **注意**：`tokio` 和 `serde` 已默认包含，无需单独添加。
 
-# 如果需要完整特性
+如果需要最小依赖或自定义特性：
+
+```toml
 [dependencies]
-oxcache = { version = "0.1", features = ["full"] }
+oxcache = { version = "0.1", default-features = false }
 ```
 
 或者使用命令行：

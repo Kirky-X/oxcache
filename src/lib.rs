@@ -5,6 +5,11 @@
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.1.0")]
 
+pub use serde;
+pub use serde::{Deserialize, Serialize};
+pub use serde_json;
+pub use tokio;
+
 pub mod backend;
 pub mod bloom_filter;
 pub mod cli;
