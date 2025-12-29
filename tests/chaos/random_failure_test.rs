@@ -269,7 +269,7 @@ async fn test_concurrent_isolation_during_failures() {
                     Duration::from_millis(50),
                     client_clone.set(&key, &value, Some(60)),
                 )
-                .await;
+                    .await;
 
                 match result {
                     Ok(Ok(())) => {

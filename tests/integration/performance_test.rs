@@ -104,7 +104,7 @@ async fn test_backfill_latency() {
         .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let redis_client = redis::Client::open(redis_url).unwrap();
     let mut con = redis_client.get_multiplexed_async_connection().await.unwrap();
-    
+
     // 手动写入 Redis，key 需要带前缀（oxcache 默认可能有前缀，也可能没有，看实现。
     // 查看 TwoLevelClient 实现，key 是直接使用的。
     // 序列化：oxcache 使用 JSON 序列化字符串会加上引号。
@@ -119,7 +119,7 @@ async fn test_backfill_latency() {
     let duration = start.elapsed();
 
     assert_eq!(res, Some(val));
-    
+
     println!("Backfill latency: {:?}", duration);
     // 验证延迟 < 5ms (NF2)
     // 注意：在 CI 环境或负载高的机器上，这可能会偶尔失败，所以作为警告而不是硬性失败可能更好，
@@ -139,7 +139,7 @@ async fn test_backfill_latency() {
 #[tokio::test]
 async fn test_redis_outage_resilience() {
     let service_name = generate_unique_service_name("resilience_test");
-    
+
     // 配置一个错误的 Redis 地址来模拟不可用
     let config = Config {
         config_version: Some(1),
@@ -180,10 +180,10 @@ async fn test_redis_outage_resilience() {
     // oxcache 的 init 会尝试连接 L2，如果连接失败，init 会返回错误。
     // 这是一个设计选择：启动时强依赖 L2。
     let init_res = oxcache::CacheManager::init(config).await;
-    
+
     // 如果初始化失败，说明系统正确地报告了错误，而不是 panic。
     assert!(init_res.is_err());
-    
+
     // 如果我们想测试"运行时"宕机，比较复杂，需要 Docker 或外部控制 Redis。
     // 这里至少验证了启动时的健壮性。
 }
