@@ -68,9 +68,11 @@ L1 内存 + L2 分布式
 </tr>
 </table>
 
-**oxcache** 是一个高性能、生产级可用的 Rust 双层缓存库，提供 L1（进程内内存缓存，使用 Moka）+ L2（分布式 Redis 缓存）的双层架构。它通过 `#[cached]` 宏实现零侵入式缓存，并通过 Pub/Sub 机制确保多实例缓存一致性。
+**oxcache** 是一个高性能、生产级可用的 Rust 双层缓存库，提供 L1（进程内内存缓存，使用 Moka）+ L2（分布式 Redis 缓存）的双层架构。它通过
+`#[cached]` 宏实现零侵入式缓存，并通过 Pub/Sub 机制确保多实例缓存一致性。
 
 主要特性包括：
+
 - **🚀 极致性能**：L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
 - **🔄 自动故障恢复**：Redis 故障时自动降级，恢复后自动重放 WAL
 - **🌐 多实例同步**：基于 Pub/Sub + 版本号的失效同步机制
@@ -430,6 +432,7 @@ let ops_count = metrics.get_ops_count()?;
 ```
 
 **可用指标**:
+
 - `cache_requests_total{service, layer, operation, result}`
 - `cache_operation_duration_seconds{service, operation, layer}`
 - `cache_l2_health_status{service}`
@@ -464,6 +467,7 @@ async fn main() {
 ```
 
 关闭机制确保：
+
 - 正确清理所有缓存客户端
 - 资源释放
 - 后台任务终止
@@ -592,7 +596,8 @@ async fn main() {
 
 <div align="center">
 
-**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](FAQ.md)** • **[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
+**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](FAQ.md)** • *
+*[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
 
 由 oxcache Team 用 ❤️ 制作
 

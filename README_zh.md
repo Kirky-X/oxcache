@@ -62,7 +62,8 @@
 oxcache = "0.1"
 ```
 
-> **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用 `oxcache = { version = "0.1", default-features = false }` 手动添加。
+> **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
+`oxcache = { version = "0.1", default-features = false }` 手动添加。
 
 ### 最简示例
 
