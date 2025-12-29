@@ -17,7 +17,7 @@ impl<T: WalReplayableBackend> WalReplayableBackend for Arc<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WalEntry {
     pub timestamp: SystemTime,
     pub operation: Operation,
@@ -223,14 +223,56 @@ impl WalManager {
         self.clear_entries().await
     }
 
+    /// 重放所有 WAL 条目到后端
+    ///
+    /// # 参数
+    ///
+    /// * `backend` - 可重放的后端实现
+    ///
+    /// # 返回值
+    ///
+    /// 返回成功重放的条目数量
+    ///
+    /// # 注意
+    ///
+    /// 实现事务性重放：只在确认所有条目都成功后才清空 WAL
+    /// 如果重放失败，WAL 条目将保留以便下次重试
     pub async fn replay_all<B: WalReplayableBackend>(&self, backend: &B) -> Result<usize> {
         let entries = self.get_entries().await?;
         let count = entries.len();
+
         if entries.is_empty() {
             return Ok(0);
         }
-        backend.pipeline_replay(entries).await?;
-        self.clear_entries().await?;
-        Ok(count)
+
+        // 记录开始重放
+        tracing::info!(
+            "Starting WAL replay for service '{}': {} entries",
+            self.service_name,
+            count
+        );
+
+        // 尝试重放所有条目
+        match backend.pipeline_replay(entries.clone()).await {
+            Ok(_) => {
+                // 只有在所有条目都成功重放后才清空 WAL
+                tracing::info!(
+                    "WAL replay successful for service '{}': clearing {} entries",
+                    self.service_name,
+                    count
+                );
+                self.clear_entries().await?;
+                Ok(count)
+            }
+            Err(e) => {
+                // 重放失败，保留 WAL 条目以便下次重试
+                tracing::error!(
+                    "WAL replay failed for service '{}': {}. WAL entries preserved for retry.",
+                    self.service_name,
+                    e
+                );
+                Err(e)
+            }
+        }
     }
 }
