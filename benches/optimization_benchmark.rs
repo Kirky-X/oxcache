@@ -231,12 +231,6 @@ fn bench_metrics_export(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("get_metrics_string_from_snapshot", |b| {
-        b.iter(|| {
-            let _ = oxcache::metrics::get_metrics_string_from_snapshot();
-        });
-    });
-
     group.finish();
 }
 
