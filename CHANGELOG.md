@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-12-31
+
+### Performance
+
+#### Compiler Optimization Enhancements
+
+This release introduces comprehensive compiler optimizations to significantly improve runtime performance and reduce binary size.
+
+##### Optimization Options Applied
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `opt-level` | `3` | Maximum optimization level (O3) for aggressive performance tuning |
+| `lto` | `fat` | Full Link-Time Optimization enabling cross-crate inlining and dead code elimination |
+| `codegen-units` | `1` | Single codegen unit for maximum optimization opportunities |
+| `strip` | `true` | Strip debug symbols from release binary to reduce size |
+| `panic` | `abort` | Abort on panic instead of unwinding for smaller binary and faster panic handling |
+| `overflow-checks` | `false` | Disable runtime overflow checks in release builds for performance |
+
+##### Optimization Objectives
+
+1. **Runtime Performance**: Achieve maximum throughput for high-concurrency cache operations
+   - L1 cache (Moka) operations targeting sub-microsecond latency
+   - L2 cache (Redis) operations optimized for network efficiency
+   - Batch write operations minimized overhead
+
+2. **Binary Size Reduction**: Minimize deployment footprint
+   - Symbol stripping removes debug information
+   - LTO eliminates unused code across crate boundaries
+   - Abort panic strategy reduces runtime overhead
+
+3. **Startup Time**: Improve application initialization performance
+   - Single codegen unit enables better whole-program analysis
+   - Aggressive inlining reduces function call overhead
+
+##### Implementation Steps
+
+1. Updated `[profile.release]` section in `Cargo.toml`:
+   ```toml
+   [profile.release]
+   opt-level = 3          # O3 optimization
+   lto = "fat"            # Full LTO for cross-crate optimization
+   codegen-units = 1      # Single codegen unit for max optimization
+   strip = true           # Strip debug symbols
+   panic = "abort"        # Smaller binary, faster panic
+   overflow-checks = false # Disable overflow checks in release
+   ```
+
+2. Added benchmark-specific profile for consistent benchmarking:
+   ```toml
+   [profile.bench]
+   opt-level = 3
+   lto = "fat"
+   codegen-units = 1
+   ```
+
+3. Preserved development and test configurations for fast iteration:
+   ```toml
+   [profile.dev]
+   debug = true
+   
+   [profile.test]
+   opt-level = 0
+   ```
+
+##### Expected Effects
+
+- **Cache Operations**: 10-30% improvement in L1 cache hit latency
+- **Memory Usage**: 15-25% reduction in release binary size
+- **Throughput**: Enhanced batch operation performance for high-throughput scenarios
+- **Cold Start**: Faster application initialization due to optimized code generation
+
+##### Compatibility Notes
+
+- These optimizations are applied to release builds only
+- Development builds retain full debug information for debugging
+- Benchmark profiles ensure consistent measurement conditions
+
+### Build System
+
+- Updated version from 0.1.0 to 0.1.1
+- Enhanced release profile with comprehensive optimization flags
+- Configured benchmark profile for performance testing consistency
+
 ## [0.1.0] - 2025-12-23
 
 ### Added
@@ -90,6 +174,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stress Testing**: Added UAT stress tests and comprehensive stress test suites
 - **Compatibility Testing**: Implemented Redis version compatibility and database partitioning tests
 
-[Unreleased]: https://github.com/your-org/oxcache/compare/v0.1.0...HEAD
-
-[0.1.0]: https://github.com/your-org/oxcache/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Kirky-X/oxcache/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Kirky-X/oxcache/releases/tag/v0.1.1
+[0.1.0]: https://github.com/Kirky-X/oxcache/releases/tag/v0.1.0
