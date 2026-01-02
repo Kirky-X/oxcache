@@ -11,22 +11,22 @@ use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub mod common;
-pub mod connection_string;
-pub mod mysql;
-pub mod partition;
-pub mod postgresql;
-pub mod sqlite;
+mod common;
+mod connection_string;
+mod mysql;
+mod partition;
+mod postgresql;
+mod sqlite;
 
-pub use connection_string::{
+pub(crate) use connection_string::{
     ensure_database_directory, extract_sqlite_path, get_recommended_connection_string,
     is_test_connection_string, normalize_connection_string, validate_connection_string, DbType,
     ParsedConnectionString, ValidationResult,
 };
-pub use mysql::MySQLPartitionManager;
-pub use partition::{PartitionManager, PartitionStrategy};
-pub use postgresql::PostgresPartitionManager;
-pub use sqlite::SQLitePartitionManager;
+pub(crate) use mysql::MySQLPartitionManager;
+pub(crate) use partition::{PartitionManager, PartitionStrategy};
+pub(crate) use postgresql::PostgresPartitionManager;
+pub(crate) use sqlite::SQLitePartitionManager;
 
 /// 数据库类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -4,10 +4,10 @@
 //!
 //! 该模块定义了缓存客户端的接口和实现。
 
-pub mod db_loader;
-pub mod l1;
-pub mod l2;
-pub mod two_level;
+pub(crate) mod db_loader;
+pub(crate) mod l1;
+pub(crate) mod l2;
+pub(crate) mod two_level;
 
 use crate::error::Result;
 use async_trait::async_trait;
