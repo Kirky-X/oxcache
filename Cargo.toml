@@ -94,6 +94,8 @@ full = [
 ]
 memory-profiling = ["jemalloc-ctl"]
 macros = []
+test = []  # Enable for testing, exposes internal modules
+cli = []  # Enable CLI binary
 
 [[bench]]
 name = "cache_benchmark"

@@ -4,17 +4,17 @@
 //!
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
-pub mod json;
+pub(crate) mod json;
 
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub use json::JsonSerializer;
+pub(crate) use json::JsonSerializer;
 
 /// 序列化器特征
 ///
 /// 定义序列化和反序列化操作的接口
-pub trait Serializer: Send + Sync {
+pub(crate) trait Serializer: Send + Sync {
     /// 序列化值为字节数组
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>>;
 
@@ -26,7 +26,7 @@ pub trait Serializer: Send + Sync {
 ///
 /// 用于支持 trait object 的序列化器
 #[derive(Clone)]
-pub enum SerializerEnum {
+pub(crate) enum SerializerEnum {
     Json(JsonSerializer),
 }
 
