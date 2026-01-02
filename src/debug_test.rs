@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块包含调试测试代码。
+
 #[cfg(test)]
 mod debug_partition_tests {
     use chrono::{Datelike, TimeZone, Timelike};

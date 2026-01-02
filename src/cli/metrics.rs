@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了指标查询命令的实现。
+
 use crate::cli::MetricsArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::metrics::get_metrics_string;
@@ -19,10 +25,6 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
     println!("=== Cache Metrics ===\n");
 
     let metrics = &crate::metrics::GLOBAL_METRICS;
-    let reqs = metrics.requests_total.lock().unwrap();
-    let health = metrics.l2_health_status.lock().unwrap();
-    let wal = metrics.wal_entries.lock().unwrap();
-    let batch = metrics.batch_buffer_size.lock().unwrap();
 
     if let Some(ref service_name) = args.service {
         let client = get_typed_client(service_name)?;
@@ -33,7 +35,10 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
         let mut total_requests = 0;
         let mut hits = 0;
 
-        for (key, count) in reqs.iter() {
+        // DashMap 无锁迭代
+        for entry in metrics.requests_total.iter() {
+            let key = entry.key();
+            let count = entry.value();
             if key.starts_with(service_name) {
                 total_requests += count;
                 if key.ends_with(":hit") {
@@ -50,8 +55,9 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
             println!("  Misses: {}", total_requests - hits);
         }
 
-        if let Some(&status) = health.get(service_name) {
-            let status_str = match status {
+        // DashMap 无锁获取
+        if let Some(status) = metrics.l2_health_status.get(service_name) {
+            let status_str = match *status {
                 0 => "Degraded",
                 1 => "Healthy",
                 2 => "Recovering",
@@ -60,12 +66,12 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
             println!("\nHealth: {}", status_str);
         }
 
-        if let Some(&wal_count) = wal.get(service_name) {
-            println!("\nWAL Entries: {}", wal_count);
+        if let Some(wal_count) = metrics.wal_entries.get(service_name) {
+            println!("\nWAL Entries: {}", *wal_count);
         }
 
-        if let Some(&batch_size) = batch.get(service_name) {
-            println!("Batch Buffer: {}", batch_size);
+        if let Some(batch_size) = metrics.batch_buffer_size.get(service_name) {
+            println!("Batch Buffer: {}", *batch_size);
         }
     } else {
         println!("All Services:\n");
@@ -76,7 +82,10 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
             let mut total_requests = 0;
             let mut hits = 0;
 
-            for (key, count) in reqs.iter() {
+            // DashMap 无锁迭代
+            for entry in metrics.requests_total.iter() {
+                let key = entry.key();
+                let count = entry.value();
                 if key.starts_with(&service_name) {
                     total_requests += count;
                     if key.ends_with(":hit") {

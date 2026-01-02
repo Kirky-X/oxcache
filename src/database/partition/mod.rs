@@ -1,9 +1,14 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! 分区管理器trait定义
 
 use crate::error::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use super::PartitionInfo;
 
@@ -50,14 +55,11 @@ pub trait PartitionManager: Send + Sync {
         let partitions = self.get_partitions(table_name).await?;
         let cutoff_date = Utc::now() - chrono::Duration::days((retention_months * 30) as i64);
 
-        println!(
-            "DEBUG: cleanup_old_partitions - cutoff_date: {}",
-            cutoff_date
-        );
-        println!("DEBUG: found {} partitions", partitions.len());
+        debug!("cleanup_old_partitions - cutoff_date: {}", cutoff_date);
+        debug!("found {} partitions", partitions.len());
         for (i, partition) in partitions.iter().enumerate() {
-            println!(
-                "DEBUG: partition[{}] - name: {}, end_date: {}, will_delete: {}",
+            debug!(
+                "partition[{}] - name: {}, end_date: {}, will_delete: {}",
                 i,
                 partition.name,
                 partition.end_date,
@@ -68,7 +70,7 @@ pub trait PartitionManager: Send + Sync {
         let mut dropped_count = 0;
         for partition in partitions {
             if partition.end_date < cutoff_date {
-                println!("DEBUG: dropping partition: {}", partition.name);
+                debug!("dropping partition: {}", partition.name);
                 self.drop_partition(table_name, &partition.name).await?;
                 dropped_count += 1;
             }

@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -8,7 +8,7 @@ use crate::backend::{l1::L1Backend, l2::L2Backend};
 use crate::client::{l1::L1Client, l2::L2Client, two_level::TwoLevelClient, CacheOps};
 use crate::config::{CacheType, Config, SerializationType};
 use crate::error::{CacheError, Result};
-use crate::serialization::{bincode::BincodeSerializer, json::JsonSerializer, SerializerEnum};
+use crate::serialization::{json::JsonSerializer, SerializerEnum};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::sync::Arc;
@@ -67,8 +67,12 @@ impl CacheManager {
                 .as_ref()
                 .unwrap_or(&config.global.serialization)
             {
-                SerializationType::Json => SerializerEnum::Json(JsonSerializer),
-                SerializationType::Bincode => SerializerEnum::Bincode(BincodeSerializer),
+                SerializationType::Json => SerializerEnum::Json(JsonSerializer::new()),
+                SerializationType::Bincode => {
+                    return Err(CacheError::ConfigError(
+                        "Bincode serialization is not currently supported.".to_string(),
+                    ))
+                }
             };
 
             let client: Arc<dyn CacheOps> =

@@ -1,15 +1,15 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
-pub mod bincode;
 pub mod json;
 
-use self::{bincode::BincodeSerializer, json::JsonSerializer};
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};
+
+pub use json::JsonSerializer;
 
 /// 序列化器特征
 ///
@@ -28,21 +28,18 @@ pub trait Serializer: Send + Sync {
 #[derive(Clone)]
 pub enum SerializerEnum {
     Json(JsonSerializer),
-    Bincode(BincodeSerializer),
 }
 
 impl Serializer for SerializerEnum {
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         match self {
             SerializerEnum::Json(s) => s.serialize(value),
-            SerializerEnum::Bincode(s) => s.serialize(value),
         }
     }
 
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         match self {
             SerializerEnum::Json(s) => s.deserialize(data),
-            SerializerEnum::Bincode(s) => s.deserialize(data),
         }
     }
 }

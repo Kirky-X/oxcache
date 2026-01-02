@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了数据库分区管理的公共工具函数。
+
 use super::{PartitionConfig, PartitionInfo, PartitionManager};
 use crate::error::Result;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
@@ -47,10 +53,12 @@ pub trait PartitionCommon {
     fn get_next_month_first_day(&self, date: &DateTime<Utc>) -> DateTime<Utc> {
         if date.month() == 12 {
             Utc.with_ymd_and_hms(date.year() + 1, 1, 1, 0, 0, 0)
-                .unwrap()
+                .single()
+                .expect("January 1st should be a valid date")
         } else {
             Utc.with_ymd_and_hms(date.year(), date.month() + 1, 1, 0, 0, 0)
-                .unwrap()
+                .single()
+                .expect("First day of month should be a valid date")
         }
     }
 

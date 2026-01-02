@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -572,7 +572,7 @@ impl CacheOps for TwoLevelClient {
             // 布隆过滤器检查 - 防止缓存穿透
             if let Some(bloom_filter) = &self.bloom_filter {
                 let key_bytes = key.as_bytes();
-                if !bloom_filter.contains(key_bytes).await {
+                if !bloom_filter.contains(key_bytes) {
                     GLOBAL_METRICS.record_request(&self.service_name, "BloomFilter", "get", "miss");
                     return Ok(None);
                 }

@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了管理员操作命令的实现。
+
 use crate::client::CacheOps;
 use crate::manager::get_typed_client;
 use crate::sync::warmup::WarmupStatus;

@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! SQLite分区测试
+
 use chrono::{TimeZone, Utc};
 use oxcache::database::sqlite::SQLitePartitionManager;
 use oxcache::database::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
@@ -74,6 +80,9 @@ mod basic_functionality_tests {
 
         let initial_partitions = manager.get_partitions(test_table).await?;
         println!("✓ Initial partitions: {}", initial_partitions.len());
+        for (i, p) in initial_partitions.iter().enumerate() {
+            println!("  Partition {}: {}", i, p.name);
+        }
 
         let partitions = manager.get_partitions(test_table).await?;
         println!("✓ SQLite partitions listed: {} found", partitions.len());

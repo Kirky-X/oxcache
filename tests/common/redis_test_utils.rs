@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! Redis测试工具（通用模块）
+
 #![allow(dead_code)]
 
 use oxcache::backend::l2::L2Backend;

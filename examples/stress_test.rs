@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config,
             l1.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await?,
     );

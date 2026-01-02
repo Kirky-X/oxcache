@@ -1,5 +1,11 @@
 //! MySQL分区管理器实现
 
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了MySQL分区管理器的实现。
+
 use crate::error::{CacheError, Result};
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
@@ -7,7 +13,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use super::{common::*, PartitionConfig, PartitionInfo, PartitionManager};
 
@@ -211,8 +217,8 @@ impl PartitionManager for MySQLPartitionManager {
 
         // 获取现有分区
         let existing_partitions = self.get_partitions(&base_table).await?;
-        println!(
-            "DEBUG: Creating partition {} for table {}, existing partitions: {}",
+        debug!(
+            "Creating partition {} for table {}, existing partitions: {}",
             partition_name,
             base_table,
             existing_partitions.len()
@@ -236,8 +242,8 @@ impl PartitionManager for MySQLPartitionManager {
 
         let sql = if let Some(target) = target_partition {
             // 需要重组 target 分区
-            println!(
-                "DEBUG: Reorganizing partition {} to insert {}",
+            debug!(
+                "Reorganizing partition {} to insert {}",
                 target.name, partition_name
             );
 
@@ -256,7 +262,7 @@ impl PartitionManager for MySQLPartitionManager {
             )
         } else {
             // 没有更大的分区，直接添加
-            println!(
+            debug!(
                 "DEBUG: Appending new partition {} at the end",
                 partition_name
             );
@@ -268,7 +274,7 @@ impl PartitionManager for MySQLPartitionManager {
             )
         };
 
-        println!("DEBUG: Generated SQL: {}", sql);
+        debug!("Generated SQL: {}", sql);
 
         self.connection
             .execute(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
@@ -290,23 +296,20 @@ impl PartitionManager for MySQLPartitionManager {
              FROM INFORMATION_SCHEMA.PARTITIONS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL";
 
-        println!(
-            "DEBUG: get_partitions SQL: {} with table_name={}",
-            sql, table_name
-        );
+        debug!("get_partitions SQL: {} with table_name={}", sql, table_name);
 
         let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, sql.to_string());
 
         let result = self.connection.query_all(statement).await?;
-        println!("DEBUG: get_partitions found {} rows", result.len());
+        debug!("get_partitions found {} rows", result.len());
 
         let mut partitions = Vec::new();
         for row in result {
             let partition_name: String = row.try_get("", "PARTITION_NAME")?;
             let partition_description: Option<String> = row.try_get("", "PARTITION_DESCRIPTION")?;
 
-            println!(
-                "DEBUG: Found partition: name={}, description={:?}",
+            debug!(
+                "Found partition: name={}, description={:?}",
                 partition_name, partition_description
             );
 
@@ -320,10 +323,7 @@ impl PartitionManager for MySQLPartitionManager {
             }
         }
 
-        println!(
-            "DEBUG: get_partitions returning {} partitions",
-            partitions.len()
-        );
+        debug!("get_partitions returning {} partitions", partitions.len());
 
         Ok(partitions)
     }
@@ -414,7 +414,10 @@ impl MySQLPartitionManager {
         }
 
         // 检查第一个字符
-        let first_char = identifier.chars().next().unwrap();
+        let first_char = identifier
+            .chars()
+            .next()
+            .ok_or_else(|| CacheError::DatabaseError("Invalid identifier: empty".to_string()))?;
         if !first_char.is_alphabetic() && first_char != '_' {
             return Err(CacheError::DatabaseError(format!(
                 "Invalid identifier '{}': must start with a letter or underscore",
@@ -505,7 +508,7 @@ impl MySQLPartitionManager {
             format!("{}{}", original_schema, partition_clause)
         };
 
-        println!("Modified schema: {}", modified_schema);
+        debug!("Modified schema: {}", modified_schema);
         Ok(modified_schema)
     }
 
@@ -526,14 +529,11 @@ impl MySQLPartitionManager {
         partition_name: &str,
         _description: Option<&str>,
     ) -> Option<PartitionInfo> {
-        println!(
-            "DEBUG: parse_mysql_partition called with name: {}",
-            partition_name
-        );
+        debug!("parse_mysql_partition called with name: {}", partition_name);
 
         // 处理特殊的p_future分区（MAXVALUE分区）
         if partition_name == "p_future" {
-            println!("DEBUG: Found p_future partition (MAXVALUE)");
+            debug!("Found p_future partition (MAXVALUE)");
             // 使用一个遥远的未来日期作为结束日期
             let max_date = Utc
                 .with_ymd_and_hms(9999, 12, 31, 23, 59, 59)
@@ -550,22 +550,22 @@ impl MySQLPartitionManager {
         // MySQL分区名格式: p2024_1, p2024_2等
         if let Some(stripped) = partition_name.strip_prefix('p') {
             let parts: Vec<&str> = stripped.split('_').collect();
-            println!("DEBUG: Parsed parts: {:?}", parts);
+            debug!("Parsed parts: {:?}", parts);
             if parts.len() == 2 {
                 if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                    println!("DEBUG: Parsed year={}, month={}", year, month);
+                    debug!("Parsed year={}, month={}", year, month);
                     if let Some(date) = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single() {
                         let mut info = PartitionInfo::new(date, table_name);
                         info.name = partition_name.to_string();
                         info.created = true;
-                        println!("DEBUG: Successfully parsed partition: {:?}", info.name);
+                        debug!("Successfully parsed partition: {:?}", info.name);
                         return Some(info);
                     }
                 }
             }
         }
 
-        println!("DEBUG: Failed to parse partition: {}", partition_name);
+        debug!("Failed to parse partition: {}", partition_name);
         None
     }
 }

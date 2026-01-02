@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -64,6 +64,7 @@ async fn test_multi_instance_invalidation() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 1000,
+                        cleanup_interval_secs: 30, // 必须小于 TTL (60)
                         ..Default::default()
                     }),
                     l2: Some(L2Config {

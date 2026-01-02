@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! MySQL调试测试
+
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::{PartitionConfig, PartitionManager, PartitionStrategy};
 use std::time::Duration;

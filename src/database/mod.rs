@@ -1,8 +1,12 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! 数据库分区管理模块
 //!
 //! 提供PostgreSQL和MySQL的按月分区功能
 
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -92,21 +96,23 @@ impl PartitionInfo {
     pub fn new(date: DateTime<Utc>, table_prefix: &str) -> Self {
         let start_date = date
             .with_day(1)
-            .unwrap()
+            .expect("Day 1 should exist")
             .with_hour(0)
-            .unwrap()
+            .expect("Hour 0 should exist")
             .with_minute(0)
-            .unwrap()
+            .expect("Minute 0 should exist")
             .with_second(0)
-            .unwrap();
+            .expect("Second 0 should exist");
         let end_date = if date.month() == 12 {
             // 12月，下一年1月
             Utc.with_ymd_and_hms(date.year() + 1, 1, 1, 0, 0, 0)
-                .unwrap()
+                .single()
+                .expect("January 1st should be a valid date")
         } else {
             // 其他月份，下月1日
             Utc.with_ymd_and_hms(date.year(), date.month() + 1, 1, 0, 0, 0)
-                .unwrap()
+                .single()
+                .expect("First day of month should be a valid date")
         };
 
         let name = format!("{}_{}_{:02}", table_prefix, date.year(), date.month());
@@ -158,14 +164,18 @@ impl PartitionManagerFactory {
         match db_type {
             DatabaseType::PostgreSQL => {
                 // PostgreSQL不支持同步创建，使用异步版本的阻塞调用
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    CacheError::DatabaseError(format!("Failed to create runtime: {}", e))
+                })?;
                 let manager =
                     rt.block_on(PostgresPartitionManager::new(connection_string, config))?;
                 Ok(Arc::new(manager))
             }
             DatabaseType::MySQL => {
                 // MySQL不支持同步创建，使用异步版本的阻塞调用
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    CacheError::DatabaseError(format!("Failed to create runtime: {}", e))
+                })?;
                 let manager = rt.block_on(MySQLPartitionManager::new(connection_string, config))?;
                 Ok(Arc::new(manager))
             }

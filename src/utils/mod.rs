@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -10,6 +10,9 @@
 //! - 日志设置工具
 //! - 服务名称生成工具
 //! - 输入验证工具
+//! - 敏感信息脱敏工具
+
+pub mod redaction;
 
 use crate::config::{
     CacheType, ClusterConfig, Config, L1Config, L2Config, RedisMode, SentinelConfig, ServiceConfig,

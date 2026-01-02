@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! 连接字符串规范化模块
 //!
 //! 提供数据库连接字符串的验证、解析和规范化功能。
@@ -131,7 +135,7 @@ impl<'a> ParsedConnectionString<'a> {
             let port_str = &_host_port[colon_pos + 1..];
             if port_str.parse::<u16>().is_ok() {
                 host = _host_port[..colon_pos].to_string();
-                port = Some(port_str.parse::<u16>().unwrap());
+                port = Some(port_str.parse::<u16>().expect("Port should be valid u16"));
             }
         }
 

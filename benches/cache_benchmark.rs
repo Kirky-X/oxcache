@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -319,7 +319,7 @@ fn bench_two_level_cache(c: &mut Criterion) {
             config,
             l1.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -390,7 +390,7 @@ fn bench_cache_hit_ratio(c: &mut Criterion) {
             config,
             l1.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -477,7 +477,7 @@ fn bench_l1_size_impact(c: &mut Criterion) {
             two_level_config.clone(),
             l1_empty.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -497,7 +497,7 @@ fn bench_l1_size_impact(c: &mut Criterion) {
             two_level_config.clone(),
             l1_small.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -510,7 +510,7 @@ fn bench_l1_size_impact(c: &mut Criterion) {
             two_level_config.clone(),
             l1_medium.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -523,7 +523,7 @@ fn bench_l1_size_impact(c: &mut Criterion) {
             two_level_config,
             l1_large.clone(),
             l2.clone(),
-            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+            SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
         )
         .await
         .unwrap()
@@ -607,7 +607,7 @@ fn benchmark_latency(c: &mut Criterion) {
                 config,
                 l1.clone(),
                 l2.clone(),
-                SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+                SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
             )
             .await
             .unwrap(),
