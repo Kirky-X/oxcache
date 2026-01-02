@@ -3,7 +3,7 @@ members = [".", "macros"]
 
 [package]
 name = "oxcache"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.75"
 description = "A high-performance, production-ready Rust multi-level cache library providing L1 (Moka) and L2 (Redis) caching."
