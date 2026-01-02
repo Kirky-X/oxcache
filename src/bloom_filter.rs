@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -6,9 +6,11 @@
 
 use murmur3::murmur3_32;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    RwLock, RwLockReadGuard, RwLockWriteGuard,
+};
 
 /// 布隆过滤器配置
 #[derive(Clone, Debug)]
@@ -53,6 +55,7 @@ impl BloomFilterOptions {
 ///
 /// 使用位数组和多个哈希函数实现的空间效率型概率数据结构
 /// 用于快速判断元素是否可能存在于集合中
+#[allow(clippy::type_complexity)]
 pub struct BloomFilter {
     options: BloomFilterOptions,
     bit_array: Vec<u8>,
@@ -60,6 +63,8 @@ pub struct BloomFilter {
     added_count: Arc<AtomicU64>,
     checked_count: Arc<AtomicU64>,
     false_positive_count: Arc<AtomicU64>,
+    /// 哈希缓存 - 使用 Arc<Vec<u8>> 作为键，避免重复内存分配
+    hash_cache: Arc<RwLock<HashMap<Arc<Vec<u8>>, Vec<usize>>>>,
 }
 
 impl BloomFilter {
@@ -75,6 +80,9 @@ impl BloomFilter {
             seed = seed.wrapping_mul(0xc13fa9a9u32);
         }
 
+        // 创建哈希缓存
+        let hash_cache = Arc::new(RwLock::new(HashMap::new()));
+
         Self {
             options,
             bit_array: vec![0; size],
@@ -82,6 +90,7 @@ impl BloomFilter {
             added_count: Arc::new(AtomicU64::new(0)),
             checked_count: Arc::new(AtomicU64::new(0)),
             false_positive_count: Arc::new(AtomicU64::new(0)),
+            hash_cache,
         }
     }
 
@@ -104,10 +113,48 @@ impl BloomFilter {
     pub fn contains(&self, item: &[u8]) -> bool {
         self.checked_count.fetch_add(1, Ordering::SeqCst);
 
+        // 尝试从缓存获取哈希位置
+        let item_key = Arc::new(item.to_vec());
+        if let Some(cached_positions) = {
+            let cache = self.hash_cache.read().expect("Hash cache lock poisoned");
+            cache.get(&item_key).cloned()
+        } {
+            // 使用缓存的位置进行检查
+            return self.check_positions(&cached_positions);
+        }
+
+        // 缓存未命中，计算新的位置
         let positions = self.calculate_positions(item);
+
+        // 将结果存入缓存（限制缓存大小以避免内存无限增长）
+        {
+            let mut cache = self.hash_cache.write().expect("Hash cache lock poisoned");
+
+            // 如果缓存过大，使用 LRU 策略移除部分条目
+            if cache.len() > 10000 {
+                let mut to_remove = Vec::new();
+                for entry in cache.iter() {
+                    to_remove.push(entry.0.clone());
+                    if to_remove.len() >= 1000 {
+                        break;
+                    }
+                }
+                for key in to_remove {
+                    cache.remove(&key);
+                }
+            }
+
+            cache.insert(item_key, positions.clone());
+        }
+
+        self.check_positions(&positions)
+    }
+
+    /// 检查位置是否都设置为1
+    fn check_positions(&self, positions: &[usize]) -> bool {
         let bit_array = &self.bit_array;
 
-        for pos in &positions {
+        for pos in positions {
             let byte_idx = pos / 8;
             let bit_idx = pos % 8;
 
@@ -125,7 +172,39 @@ impl BloomFilter {
     }
 
     pub fn add(&mut self, item: &[u8]) {
-        let positions = self.calculate_positions(item);
+        // 尝试从缓存获取哈希位置
+        let item_key = Arc::new(item.to_vec());
+        let positions = if let Some(cached_positions) = {
+            let cache = self.hash_cache.read().expect("Hash cache lock poisoned");
+            cache.get(&item_key).cloned()
+        } {
+            cached_positions
+        } else {
+            let positions = self.calculate_positions(item);
+
+            // 将结果存入缓存
+            {
+                let mut cache = self.hash_cache.write().expect("Hash cache lock poisoned");
+
+                // 如果缓存过大，使用 LRU 策略移除部分条目
+                if cache.len() > 10000 {
+                    let mut to_remove = Vec::new();
+                    for entry in cache.iter() {
+                        to_remove.push(entry.0.clone());
+                        if to_remove.len() >= 1000 {
+                            break;
+                        }
+                    }
+                    for key in to_remove {
+                        cache.remove(&key);
+                    }
+                }
+
+                cache.insert(item_key, positions.clone());
+            }
+
+            positions
+        };
 
         for pos in &positions {
             let byte_idx = pos / 8;
@@ -260,10 +339,12 @@ impl std::fmt::Display for BloomFilterStats {
     }
 }
 
-/// 线程安全的布隆过滤器包装器
+/// 布隆过滤器共享包装器
+///
+/// 使用Arc包装布隆过滤器，支持多线程共享
 #[derive(Clone)]
 pub struct BloomFilterShared {
-    filter: Arc<tokio::sync::RwLock<BloomFilter>>,
+    filter: Arc<RwLock<BloomFilter>>,
     name: String,
 }
 
@@ -271,25 +352,34 @@ impl BloomFilterShared {
     pub fn new(filter: BloomFilter) -> Self {
         let name = filter.options.name.clone();
         Self {
-            filter: Arc::new(tokio::sync::RwLock::new(filter)),
+            filter: Arc::new(RwLock::new(filter)),
             name,
         }
     }
 
-    pub async fn contains(&self, item: &[u8]) -> bool {
-        self.filter.read().await.contains(item)
+    pub fn contains(&self, item: &[u8]) -> bool {
+        self.filter
+            .read()
+            .expect("Filter lock poisoned")
+            .contains(item)
     }
 
     pub async fn add(&self, item: &[u8]) {
-        self.filter.write().await.add(item)
+        self.filter.write().expect("Filter lock poisoned").add(item)
     }
 
     pub async fn contains_and_add(&self, item: &[u8]) -> bool {
-        self.filter.write().await.contains_and_add(item)
+        self.filter
+            .write()
+            .expect("Filter lock poisoned")
+            .contains_and_add(item)
     }
 
-    pub async fn get_stats(&self) -> BloomFilterStats {
-        self.filter.read().await.get_stats()
+    pub fn get_stats(&self) -> BloomFilterStats {
+        self.filter
+            .read()
+            .expect("Filter lock poisoned")
+            .get_stats()
     }
 
     pub fn name(&self) -> &str {
@@ -313,10 +403,11 @@ impl BloomFilterManager {
     }
 
     pub async fn get_or_create(&self, options: BloomFilterOptions) -> BloomFilterShared {
-        let mut guard: tokio::sync::RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.write().await;
+        let mut guard: RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> =
+            self.filters.write().expect("Filters lock poisoned");
 
         if let Some(existing) = guard.get(&options.name) {
+            let existing: &BloomFilterShared = existing;
             return existing.clone();
         }
 
@@ -326,25 +417,39 @@ impl BloomFilterManager {
         shared
     }
 
-    pub async fn get(&self, name: &str) -> Option<BloomFilterShared> {
-        self.filters.read().await.get(name).cloned()
+    pub fn get(&self, name: &str) -> Option<BloomFilterShared> {
+        self.filters
+            .read()
+            .expect("Filters lock poisoned")
+            .get(name)
+            .cloned()
     }
 
-    pub async fn remove(&self, name: &str) -> bool {
-        self.filters.write().await.remove(name).is_some()
+    pub fn remove(&self, name: &str) -> bool {
+        self.filters
+            .write()
+            .expect("Filters lock poisoned")
+            .remove(name)
+            .is_some()
     }
 
-    pub async fn list_names(&self) -> Vec<String> {
-        self.filters.read().await.keys().cloned().collect()
+    pub fn list_names(&self) -> Vec<String> {
+        self.filters
+            .read()
+            .expect("Filters lock poisoned")
+            .keys()
+            .cloned()
+            .collect()
     }
 
     pub async fn get_all_stats(&self) -> Vec<BloomFilterStats> {
-        let guard: tokio::sync::RwLockReadGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.read().await;
+        let guard: RwLockReadGuard<'_, HashMap<String, BloomFilterShared>> =
+            self.filters.read().expect("Filters lock poisoned");
         let mut stats = Vec::with_capacity(guard.len());
 
         for filter in guard.values() {
-            stats.push(filter.get_stats().await);
+            let filter: &BloomFilterShared = filter;
+            stats.push(filter.get_stats());
         }
 
         stats

@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了状态查询命令的实现。
+
 use crate::cli::StatusArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::recovery::health::HealthState;
@@ -73,13 +79,15 @@ fn print_service_status(service_name: &str, state: &HealthState, verbose: bool) 
 
     if verbose {
         let metrics = &crate::metrics::GLOBAL_METRICS;
-        let reqs = metrics.requests_total.lock().unwrap();
 
         let mut total_requests = 0;
         let mut l1_hits = 0;
         let mut l2_hits = 0;
 
-        for (key, count) in reqs.iter() {
+        // DashMap 无锁迭代
+        for entry in metrics.requests_total.iter() {
+            let key = entry.key();
+            let count = entry.value();
             if key.starts_with(service_name) {
                 total_requests += count;
                 if key.ends_with(":hit") {
@@ -98,9 +106,9 @@ fn print_service_status(service_name: &str, state: &HealthState, verbose: bool) 
             println!("Hit Rate:      {}%", hit_rate);
         }
 
-        let wal = metrics.wal_entries.lock().unwrap();
-        if let Some(wal_count) = wal.get(service_name) {
-            println!("WAL Entries:   {}", wal_count);
+        // DashMap 无锁，直接获取并解引用
+        if let Some(wal_count) = metrics.wal_entries.get(service_name) {
+            println!("WAL Entries:   {}", *wal_count);
         }
     }
 }

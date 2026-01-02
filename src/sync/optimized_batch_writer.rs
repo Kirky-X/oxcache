@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -9,14 +9,44 @@ use crate::backend::l2::L2Backend;
 use crate::error::{CacheError, Result};
 use crate::recovery::wal::WalManager;
 use dashmap::DashMap;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Notify, RwLock};
 use tokio::time::interval;
 
-/// 优先级队列类型别名 - 简化复杂类型定义
-type PriorityQueue = Arc<RwLock<Vec<(String, u8, Instant)>>>;
+/// 优先级队列条目
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct PriorityItem {
+    key: String,
+    priority: u8,
+    timestamp: Instant,
+}
+
+// 实现Ord以支持BinaryHeap（最大堆）
+impl Ord for PriorityItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // 先按优先级降序（高优先级在前）
+        match other.priority.cmp(&self.priority) {
+            std::cmp::Ordering::Equal => {
+                // 优先级相同时，按时间升序（早的在前）
+                self.timestamp.cmp(&other.timestamp)
+            }
+            other => other,
+        }
+    }
+}
+
+impl PartialOrd for PriorityItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// 优先级队列类型别名 - 使用BinaryHeap优化
+type PriorityQueue = Arc<RwLock<BinaryHeap<Reverse<PriorityItem>>>>;
 
 /// 缓冲区条目 - 优化版本
 #[derive(Debug, Clone)]
@@ -131,7 +161,7 @@ impl OptimizedBatchWriter {
     ) -> Self {
         Self {
             buffer: Arc::new(DashMap::new()),
-            priority_queue: Arc::new(RwLock::new(Vec::new())),
+            priority_queue: Arc::new(RwLock::new(BinaryHeap::new())),
             l2,
             wal,
             flush_trigger: Arc::new(Notify::new()),
@@ -215,11 +245,15 @@ impl OptimizedBatchWriter {
         // 添加到缓冲区
         self.buffer.insert(key.clone(), entry);
 
-        // 添加到优先级队列
+        // 添加到优先级队列（O(log n)插入）
         {
             let mut queue = self.priority_queue.write().await;
-            queue.push((key, priority, Instant::now()));
-            queue.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.cmp(&b.2))); // 按优先级降序，时间升序
+            let item = PriorityItem {
+                key: key.clone(),
+                priority,
+                timestamp: Instant::now(),
+            };
+            queue.push(Reverse(item)); // Reverse使最大堆
         }
 
         // 更新统计
@@ -376,25 +410,30 @@ impl OptimizedBatchWriter {
             let mut queue = priority_queue.write().await;
 
             while !queue.is_empty() && batch.len() < config.base.max_batch_size {
-                if let Some((key, priority, _)) = queue.pop() {
-                    if let Some(entry) = buffer.get(&key) {
+                // pop返回Reverse<PriorityItem>，需要解包
+                if let Some(Reverse(item)) = queue.pop() {
+                    if let Some(entry) = buffer.get(&item.key) {
                         // 检查重试次数
                         if entry.get_retry_count() >= config.max_retry_count {
                             stats.dropped_operations.fetch_add(1, Ordering::Relaxed);
-                            keys_to_remove.push(key.clone());
+                            keys_to_remove.push(item.key);
                             continue;
                         }
 
                         let operation_size = Self::estimate_operation_size(&entry.operation);
                         if batch_size + operation_size > 1024 * 1024 {
                             // 1MB限制
-                            queue.push((key, priority, Instant::now()));
+                            // 重新推入队列
+                            queue.push(Reverse(item));
                             break;
                         }
 
-                        batch.push((key.clone(), entry.operation.clone()));
+                        // 克隆 key 以便后续使用
+                        let key = item.key.clone();
+                        // 直接使用所有权转移，避免克隆 operation
+                        batch.push((key, entry.operation.clone()));
                         batch_size += operation_size;
-                        keys_to_remove.push(key);
+                        keys_to_remove.push(item.key);
                     }
                 }
             }
@@ -409,15 +448,16 @@ impl OptimizedBatchWriter {
         let mut success_count = 0;
         let mut total_bytes = 0;
 
-        // 分离SET和DELETE操作
+        // 分离SET和DELETE操作，使用所有权转移
         let mut set_operations = Vec::new();
         let mut delete_operations = Vec::new();
 
         for (key, operation) in &batch {
-            match &operation {
+            match operation {
                 BatchOperation::Set { value, ttl, .. } => {
-                    set_operations.push((key.clone(), value.clone(), *ttl));
+                    // 在移动前先获取长度
                     total_bytes += value.len();
+                    set_operations.push((key.clone(), value.clone(), *ttl));
                 }
                 BatchOperation::Delete { .. } => {
                     delete_operations.push(key.clone());
@@ -454,10 +494,12 @@ impl OptimizedBatchWriter {
                                                 retry_delay_ms,
                                             ))
                                             .await;
-                                            priority_queue.write().await.push((
-                                                key.clone(),
-                                                255,
-                                                Instant::now(),
+                                            priority_queue.write().await.push(Reverse(
+                                                PriorityItem {
+                                                    key: key.clone(),
+                                                    priority: 255,
+                                                    timestamp: Instant::now(),
+                                                },
                                             ));
                                         }
                                     });

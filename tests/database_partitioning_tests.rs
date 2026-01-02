@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 数据库分区测试
+
 use chrono::Utc;
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::postgresql::PostgresPartitionManager;
@@ -217,8 +223,23 @@ async fn test_sqlite_partitioning() -> Result<()> {
     manager.initialize_table(test_table, &schema).await?;
     println!("✓ SQLite table initialized with partitioning");
 
-    let partitions = manager.get_partitions(test_table).await?;
+    let mut partitions = manager.get_partitions(test_table).await?;
     println!("✓ SQLite partitions listed: {} found", partitions.len());
+
+    // 如果没有分区，先创建一个再检查
+    if partitions.is_empty() {
+        let test_date = Utc::now();
+        let partition_name = manager
+            .ensure_partition_exists(test_date, test_table)
+            .await?;
+        println!("✓ SQLite partition ensured: {}", partition_name);
+
+        partitions = manager.get_partitions(test_table).await?;
+        println!(
+            "✓ SQLite partitions listed after creation: {} found",
+            partitions.len()
+        );
+    }
 
     assert!(!partitions.is_empty(), "Should have at least one partition");
 

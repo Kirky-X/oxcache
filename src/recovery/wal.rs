@@ -1,10 +1,20 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了WAL（Write-Ahead Log）日志管理机制。
+
 use crate::database::{is_test_connection_string, normalize_connection_string};
 use crate::error::Result;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, Value};
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait,
+    Value,
+};
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::{Mutex, Notify};
 
 #[allow(async_fn_in_trait)]
 pub trait WalReplayableBackend: Clone + Send + Sync + 'static {
@@ -35,6 +45,9 @@ pub enum Operation {
 pub struct WalManager {
     db: Arc<DatabaseConnection>,
     service_name: String,
+    pending_entries: Arc<Mutex<Vec<WalEntry>>>,
+    flush_trigger: Arc<Notify>,
+    batch_size: usize,
 }
 
 impl WalManager {
@@ -97,48 +110,65 @@ impl WalManager {
         .await
         .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
 
+        let db_arc = Arc::new(db);
+        let pending_entries = Arc::new(Mutex::new(Vec::new()));
+        let flush_trigger = Arc::new(Notify::new());
+        let batch_size = 100; // 批量写入大小
+
+        // 启动后台批量写入任务
+        let db_clone = Arc::clone(&db_arc);
+        let service_name_clone = service_name.to_string();
+        let pending_entries_clone = Arc::clone(&pending_entries);
+        let flush_trigger_clone = Arc::clone(&flush_trigger);
+        let batch_size_clone = batch_size;
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        // 定期刷新
+                        Self::flush_batch_internal(
+                            &db_clone,
+                            &service_name_clone,
+                            &pending_entries_clone,
+                            batch_size_clone
+                        ).await;
+                    }
+                    _ = flush_trigger_clone.notified() => {
+                        // 手动触发刷新
+                        Self::flush_batch_internal(
+                            &db_clone,
+                            &service_name_clone,
+                            &pending_entries_clone,
+                            batch_size_clone
+                        ).await;
+                    }
+                }
+            }
+        });
+
         Ok(Self {
-            db: Arc::new(db),
+            db: db_arc,
             service_name: service_name.to_string(),
+            pending_entries,
+            flush_trigger,
+            batch_size,
         })
     }
 
     pub async fn add_entry(&self, entry: &WalEntry) -> Result<()> {
-        let timestamp = entry
-            .timestamp
-            .duration_since(UNIX_EPOCH)
-            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?
-            .as_secs() as i64;
+        // 添加到缓冲区
+        {
+            let mut pending = self.pending_entries.lock().await;
+            pending.push(entry.clone());
 
-        let operation = match entry.operation {
-            Operation::Set => "SET",
-            Operation::Delete => "DELETE",
-        };
-
-        let insert_sql = r#"
-            INSERT INTO wal_entries (timestamp, operation, key, value, ttl, service_name)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-        "#;
-
-        self.db
-            .execute(Statement::from_sql_and_values(
-                sea_orm::DatabaseBackend::Sqlite,
-                insert_sql.to_string(),
-                vec![
-                    Value::BigInt(Some(timestamp)),
-                    Value::String(Some(Box::new(operation.to_string()))),
-                    Value::String(Some(Box::new(entry.key.clone()))),
-                    Value::Bytes(entry.value.as_ref().map(|v| Box::new(v.clone()))),
-                    match entry.ttl {
-                        Some(v) => Value::BigInt(Some(v)),
-                        None => Value::BigInt(None),
-                    },
-                    Value::String(Some(Box::new(self.service_name.clone()))),
-                ],
-            ))
-            .await
-            .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
-
+            // 如果达到批量大小，触发刷新
+            if pending.len() >= self.batch_size {
+                drop(pending); // 释放锁
+                self.flush_trigger.notify_one();
+            }
+        }
         Ok(())
     }
 
@@ -217,6 +247,115 @@ impl WalManager {
             .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
 
         Ok(())
+    }
+
+    /// 刷新缓冲区中的所有条目到数据库（使用事务批量提交）
+    pub async fn flush(&self) -> Result<()> {
+        Self::flush_batch_internal(
+            &self.db,
+            &self.service_name,
+            &self.pending_entries,
+            self.batch_size,
+        )
+        .await;
+        Ok(())
+    }
+
+    /// 内部批量刷新方法
+    async fn flush_batch_internal(
+        db: &Arc<DatabaseConnection>,
+        service_name: &str,
+        pending_entries: &Arc<Mutex<Vec<WalEntry>>>,
+        batch_size: usize,
+    ) {
+        let entries_to_flush = {
+            let mut pending = pending_entries.lock().await;
+            if pending.is_empty() {
+                return;
+            }
+            let count = pending.len().min(batch_size);
+            let entries: Vec<WalEntry> = pending.drain(..count).collect();
+            entries
+        };
+
+        if entries_to_flush.is_empty() {
+            return;
+        }
+
+        // 使用事务批量插入
+        let txn_result = db.begin().await;
+        if let Err(e) = txn_result {
+            tracing::error!("Failed to begin transaction for WAL batch write: {}", e);
+            return;
+        }
+
+        let txn = txn_result.expect("Transaction should be available after error check");
+
+        let insert_sql = r#"
+            INSERT INTO wal_entries (timestamp, operation, key, value, ttl, service_name)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "#;
+
+        let mut success = true;
+        for entry in &entries_to_flush {
+            let timestamp = match entry.timestamp.duration_since(UNIX_EPOCH) {
+                Ok(d) => d.as_secs() as i64,
+                Err(e) => {
+                    tracing::error!("Failed to convert timestamp: {}", e);
+                    success = false;
+                    break;
+                }
+            };
+
+            let operation = match entry.operation {
+                Operation::Set => "SET",
+                Operation::Delete => "DELETE",
+            };
+
+            let result = txn
+                .execute(Statement::from_sql_and_values(
+                    sea_orm::DatabaseBackend::Sqlite,
+                    insert_sql.to_string(),
+                    vec![
+                        Value::BigInt(Some(timestamp)),
+                        Value::String(Some(Box::new(operation.to_string()))),
+                        Value::String(Some(Box::new(entry.key.clone()))),
+                        Value::Bytes(entry.value.as_ref().map(|v| Box::new(v.clone()))),
+                        match entry.ttl {
+                            Some(v) => Value::BigInt(Some(v)),
+                            None => Value::BigInt(None),
+                        },
+                        Value::String(Some(Box::new(service_name.to_string()))),
+                    ],
+                ))
+                .await;
+
+            if let Err(e) = result {
+                tracing::error!("Failed to insert WAL entry: {}", e);
+                success = false;
+                break;
+            }
+        }
+
+        if success {
+            if let Err(e) = txn.commit().await {
+                tracing::error!("Failed to commit WAL batch transaction: {}", e);
+                // 回滚：将条目放回缓冲区
+                let mut pending = pending_entries.lock().await;
+                for entry in entries_to_flush {
+                    pending.push(entry);
+                }
+            }
+        } else {
+            if let Err(e) = txn.rollback().await {
+                tracing::error!("Failed to rollback WAL batch transaction: {}", e);
+            }
+            // 回滚：将条目放回缓冲区
+            let mut pending = pending_entries.lock().await;
+            for entry in entries_to_flush {
+                pending.push(entry);
+            }
+        }
     }
 
     pub async fn clear(&self) -> Result<()> {

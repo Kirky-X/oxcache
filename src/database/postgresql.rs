@@ -1,5 +1,11 @@
 //! PostgreSQL分区管理器实现
 
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了PostgreSQL分区管理器的实现。
+
 use crate::error::{CacheError, Result};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
@@ -87,6 +93,104 @@ impl PostgresPartitionManager {
     /// 获取连接池统计信息
     pub async fn get_pool_stats(&self) -> PoolStats {
         self.pool_stats.lock().await.clone()
+    }
+
+    /// 验证 PostgreSQL 标识符，防止 SQL 注入
+    fn validate_identifier(&self, identifier: &str) -> Result<()> {
+        if identifier.is_empty() {
+            return Err(CacheError::DatabaseError(
+                "Identifier cannot be empty".to_string(),
+            ));
+        }
+
+        // PostgreSQL 标识符规则：只能包含字母、数字、下划线
+        if !identifier.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err(CacheError::DatabaseError(format!(
+                "Invalid identifier '{}': only alphanumeric characters and underscores are allowed",
+                identifier
+            )));
+        }
+
+        // 检查长度限制（PostgreSQL 最大 63 字符）
+        if identifier.len() > 63 {
+            return Err(CacheError::DatabaseError(
+                "Identifier exceeds maximum length of 63 characters".to_string(),
+            ));
+        }
+
+        // 检查是否以数字开头（PostgreSQL 不允许）
+        if identifier
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
+            return Err(CacheError::DatabaseError(
+                "Identifier cannot start with a digit".to_string(),
+            ));
+        }
+
+        // 检查是否是 PostgreSQL 保留关键字
+        const RESERVED_KEYWORDS: &[&str] = &[
+            "select",
+            "from",
+            "where",
+            "insert",
+            "update",
+            "delete",
+            "create",
+            "drop",
+            "alter",
+            "table",
+            "index",
+            "view",
+            "grant",
+            "revoke",
+            "commit",
+            "rollback",
+            "union",
+            "intersect",
+            "except",
+            "join",
+            "inner",
+            "outer",
+            "left",
+            "right",
+            "order",
+            "by",
+            "group",
+            "having",
+            "limit",
+            "offset",
+            "distinct",
+            "all",
+            "exists",
+            "in",
+            "between",
+            "like",
+            "is",
+            "null",
+            "and",
+            "or",
+            "not",
+            "true",
+            "false",
+            "case",
+            "when",
+            "then",
+            "else",
+            "end",
+        ];
+
+        let lower_identifier = identifier.to_lowercase();
+        if RESERVED_KEYWORDS.contains(&lower_identifier.as_str()) {
+            return Err(CacheError::DatabaseError(format!(
+                "Identifier '{}' is a reserved keyword and cannot be used",
+                identifier
+            )));
+        }
+
+        Ok(())
     }
 
     /// 验证连接健康状态
@@ -252,8 +356,13 @@ impl PartitionManager for PostgresPartitionManager {
 
         debug!("Final partition table name: {}", partition_table_name);
 
+        // 验证所有标识符以防止 SQL 注入
+        self.validate_identifier(&base_table_name)?;
+        self.validate_identifier(&partition_table_name)?;
+
+        // 使用双引号包裹标识符以避免关键字冲突
         let sql = format!(
-            "CREATE TABLE IF NOT EXISTS {} PARTITION OF {} FOR VALUES FROM ('{}') TO ('{}')",
+            "CREATE TABLE IF NOT EXISTS \"{}\" PARTITION OF \"{}\" FOR VALUES FROM ('{}') TO ('{}')",
             partition_table_name,
             base_table_name,
             partition.start_date.format("%Y-%m-%d"),
@@ -317,7 +426,11 @@ impl PartitionManager for PostgresPartitionManager {
     async fn drop_partition(&self, _table_name: &str, partition_name: &str) -> Result<()> {
         let conn = self.connection.as_ref();
 
-        let sql = format!("DROP TABLE IF EXISTS {}", partition_name);
+        // 验证标识符以防止 SQL 注入
+        self.validate_identifier(partition_name)?;
+
+        // 使用双引号包裹标识符以避免关键字冲突
+        let sql = format!("DROP TABLE IF EXISTS \"{}\"", partition_name);
         debug!("Executing drop SQL: {}", sql);
 
         conn.execute(Statement::from_string(
@@ -386,7 +499,7 @@ impl PostgresPartitionManager {
         table_name: &str,
     ) -> Option<PartitionInfo> {
         // PostgreSQL分区范围格式: FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')
-        println!("DEBUG: Parsing partition range: {}", range_str);
+        debug!("Parsing partition range for: {}", partition_name);
 
         // More flexible regex to match various PostgreSQL date formats with optional time and timezone
         let re = regex::Regex::new(r"FROM\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)\s+TO\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)")
@@ -396,8 +509,8 @@ impl PostgresPartitionManager {
             let start_date_str = captures.get(1)?.as_str();
             let end_date_str = captures.get(2)?.as_str();
 
-            println!("DEBUG: Parsed start date: {}", start_date_str);
-            println!("DEBUG: Parsed end date: {}", end_date_str);
+            debug!("Parsed start date: {}", start_date_str);
+            debug!("Parsed end date: {}", end_date_str);
 
             // Parse the dates properly
             let start_date = NaiveDate::parse_from_str(start_date_str, "%Y-%m-%d")
@@ -410,8 +523,8 @@ impl PostgresPartitionManager {
                 .and_hms_opt(0, 0, 0)?
                 .and_utc();
 
-            println!("DEBUG: Parsed start date as DateTime: {}", start_date);
-            println!("DEBUG: Parsed end date as DateTime: {}", end_date);
+            debug!("Parsed start date as DateTime: {}", start_date);
+            debug!("Parsed end date as DateTime: {}", end_date);
 
             // Create PartitionInfo using the table name from the partition
             let mut info = PartitionInfo::new(start_date, table_name);
@@ -420,11 +533,11 @@ impl PostgresPartitionManager {
             info.end_date = end_date;
             info.created = true;
 
-            println!("DEBUG: Successfully created PartitionInfo");
+            debug!("Successfully created PartitionInfo");
             return Some(info);
         }
 
-        println!("DEBUG: Failed to parse partition range");
+        debug!("Failed to parse partition range");
         None
     }
 }

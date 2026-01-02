@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! Miri内存安全测试
 //! 这个文件包含专门用于Miri检测的内存安全测试
 //! 运行方式: cargo +nightly miri test --test miri_memory_test

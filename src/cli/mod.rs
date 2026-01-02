@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了CLI命令行接口。
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 

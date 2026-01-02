@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -87,6 +87,10 @@ pub enum CacheError {
         "Invalid input: {0}. The provided input does not meet the required format or constraints."
     )]
     InvalidInput(String),
+
+    /// 无效键错误
+    #[error("Invalid key: {0}. The provided key does not meet the required format or contains forbidden characters.")]
+    InvalidKey(String),
 }
 
 /// 缓存操作结果类型别名

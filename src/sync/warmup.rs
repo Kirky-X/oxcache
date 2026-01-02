@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! 该模块定义了缓存预热机制。
+
 use crate::config::{CacheWarmupConfig, WarmupDataSource};
 use crate::error::Result;
 use std::collections::HashMap;

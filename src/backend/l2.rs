@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -7,9 +7,92 @@
 use crate::backend::redis_provider::{DefaultRedisProvider, RedisProvider};
 use crate::config::{L2Config, RedisMode};
 use crate::error::{CacheError, Result};
+use dashmap::DashMap;
 use redis::{aio::ConnectionManager, AsyncCommands, Client};
 use std::sync::Arc;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
+
+/// 验证Redis缓存键是否安全
+/// 防止Redis命令注入和协议污染攻击
+///
+/// # 参数
+/// * `key` - 要验证的缓存键
+///
+/// # 返回值
+/// * `Ok(())` - 键是安全的
+/// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
+fn validate_redis_key(key: &str) -> Result<()> {
+    // 检查键长度
+    if key.is_empty() {
+        return Err(CacheError::InvalidInput(
+            "Redis key cannot be empty".to_string(),
+        ));
+    }
+
+    if key.len() > 512 * 1024 {
+        // Redis最大键长512MB，但我们限制为512KB以防止滥用
+        return Err(CacheError::InvalidInput(
+            "Redis key exceeds maximum length of 512KB".to_string(),
+        ));
+    }
+
+    // 检查是否包含危险字符
+    // Redis协议使用\r\n作为分隔符，我们必须防止注入
+    let dangerous_chars = ['\r', '\n', '\0'];
+
+    for c in key.chars() {
+        if dangerous_chars.contains(&c) {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains forbidden character: {:?}",
+                c
+            )));
+        }
+    }
+
+    // 检查是否包含Redis命令模式（防止命令注入）
+    let key_upper = key.to_uppercase();
+    let redis_commands = [
+        "FLUSHALL",
+        "FLUSHDB",
+        "SHUTDOWN",
+        "CONFIG",
+        "DEBUG",
+        "EVAL",
+        "SCRIPT",
+        "KEYS",
+        "SCAN",
+        "RANDOMKEY",
+        "TYPE",
+        "OBJECT",
+        "MIGRATE",
+        "DUMP",
+        "RESTORE",
+    ];
+
+    for cmd in &redis_commands {
+        if key_upper.contains(cmd) {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains potential command injection pattern: {}",
+                cmd
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// 验证并返回安全的Redis键
+///
+/// # 参数
+/// * `key` - 要验证的缓存键
+///
+/// # 返回值
+/// * `Ok(&str)` - 验证通过的键引用
+/// * `Err(CacheError)` - 键验证失败
+fn ensure_safe_key(key: &str) -> Result<&str> {
+    validate_redis_key(key)?;
+    Ok(key)
+}
 
 /// L2缓存后端实现
 ///
@@ -21,10 +104,12 @@ pub enum L2Backend {
         manager: ConnectionManager,
         read_manager: Box<Option<ConnectionManager>>,
         command_timeout_ms: u64,
+        version_cache: Arc<DashMap<String, u64>>,
     },
     Cluster {
         client: redis::cluster::ClusterClient,
         command_timeout_ms: u64,
+        version_cache: Arc<DashMap<String, u64>>,
     },
 }
 
@@ -88,6 +173,7 @@ impl L2Backend {
                     manager,
                     read_manager: Box::new(None),
                     command_timeout_ms: config.command_timeout_ms,
+                    version_cache: Arc::new(DashMap::new()),
                 })
             }
             RedisMode::Cluster => {
@@ -95,6 +181,7 @@ impl L2Backend {
                 Ok(L2Backend::Cluster {
                     client,
                     command_timeout_ms: config.command_timeout_ms,
+                    version_cache: Arc::new(DashMap::new()),
                 })
             }
             RedisMode::Sentinel => {
@@ -104,6 +191,7 @@ impl L2Backend {
                     manager,
                     read_manager: Box::new(read_manager),
                     command_timeout_ms: config.command_timeout_ms,
+                    version_cache: Arc::new(DashMap::new()),
                 })
             }
         }
@@ -135,6 +223,7 @@ impl L2Backend {
             manager,
             read_manager: Box::new(None),
             command_timeout_ms: config.command_timeout_ms,
+            version_cache: Arc::new(DashMap::new()),
         })
     }
 
@@ -244,6 +333,14 @@ impl L2Backend {
     /// 返回缓存值和版本号的元组，如果不存在则返回None
     #[instrument(skip(self), level = "debug")]
     pub async fn get_with_version(&self, key: &str) -> Result<Option<(Vec<u8>, u64)>> {
+        // 先尝试从缓存获取版本号（无锁读取）
+        let _cached_version = match self {
+            L2Backend::Standalone { version_cache, .. } => {
+                version_cache.get(key).map(|v| *v.value())
+            }
+            L2Backend::Cluster { version_cache, .. } => version_cache.get(key).map(|v| *v.value()),
+        };
+
         let script = redis::Script::new(
             r#"
             local val = redis.call('GET', KEYS[1])
@@ -280,7 +377,45 @@ impl L2Backend {
         };
 
         match result {
-            Some((v, s)) => Ok(Some((v, s.parse().unwrap_or(0)))),
+            Some((v, s)) => {
+                let version = s.parse().unwrap_or(0);
+                // 更新缓存（无锁写入）
+                match self {
+                    L2Backend::Standalone { version_cache, .. } => {
+                        // 使用 LRU 策略：如果缓存超过 10000，移除 1000 个最旧的条目
+                        if version_cache.len() > 10000 {
+                            let mut to_remove = Vec::new();
+                            for entry in version_cache.iter() {
+                                to_remove.push(entry.key().clone());
+                                if to_remove.len() >= 1000 {
+                                    break;
+                                }
+                            }
+                            for key in to_remove {
+                                version_cache.remove(&key);
+                            }
+                        }
+                        version_cache.insert(key.to_string(), version);
+                    }
+                    L2Backend::Cluster { version_cache, .. } => {
+                        // 使用 LRU 策略：如果缓存超过 10000，移除 1000 个最旧的条目
+                        if version_cache.len() > 10000 {
+                            let mut to_remove = Vec::new();
+                            for entry in version_cache.iter() {
+                                to_remove.push(entry.key().clone());
+                                if to_remove.len() >= 1000 {
+                                    break;
+                                }
+                            }
+                            for key in to_remove {
+                                version_cache.remove(&key);
+                            }
+                        }
+                        version_cache.insert(key.to_string(), version);
+                    }
+                }
+                Ok(Some((v, version)))
+            }
             None => Ok(None),
         }
     }
@@ -337,6 +472,44 @@ impl L2Backend {
             }
         };
 
+        // 更新版本缓存（无锁写入）
+        match self {
+            L2Backend::Standalone { version_cache, .. } => {
+                // 使用 LRU 策略：如果缓存超过 10000，移除 1000 个最旧的条目
+                if version_cache.len() > 10000 {
+                    let mut to_remove = Vec::new();
+                    for entry in version_cache.iter() {
+                        to_remove.push(entry.key().clone());
+                        if to_remove.len() >= 1000 {
+                            break;
+                        }
+                    }
+                    for key in to_remove {
+                        version_cache.remove(&key);
+                    }
+                }
+                let new_version = version_cache.get(key).map(|v| *v.value() + 1).unwrap_or(1);
+                version_cache.insert(key.to_string(), new_version);
+            }
+            L2Backend::Cluster { version_cache, .. } => {
+                // 使用 LRU 策略：如果缓存超过 10000，移除 1000 个最旧的条目
+                if version_cache.len() > 10000 {
+                    let mut to_remove = Vec::new();
+                    for entry in version_cache.iter() {
+                        to_remove.push(entry.key().clone());
+                        if to_remove.len() >= 1000 {
+                            break;
+                        }
+                    }
+                    for key in to_remove {
+                        version_cache.remove(&key);
+                    }
+                }
+                let new_version = version_cache.get(key).map(|v| *v.value() + 1).unwrap_or(1);
+                version_cache.insert(key.to_string(), new_version);
+            }
+        }
+
         Ok(())
     }
 
@@ -354,21 +527,33 @@ impl L2Backend {
         debug!("Deleting key: {}", key);
         let version_key = format!("{}:version", key);
         match self {
-            L2Backend::Standalone { manager, .. } => {
+            L2Backend::Standalone {
+                manager,
+                version_cache,
+                ..
+            } => {
                 let mut conn = manager.clone();
                 let _: () = redis::pipe()
                     .del(key)
                     .del(&version_key)
                     .query_async(&mut conn)
                     .await?;
+                // 从版本缓存中移除（无锁删除）
+                version_cache.remove(key);
             }
-            L2Backend::Cluster { client, .. } => {
+            L2Backend::Cluster {
+                client,
+                version_cache,
+                ..
+            } => {
                 let mut conn = client.get_async_connection().await?;
                 let _: () = redis::pipe()
                     .del(key)
                     .del(&version_key)
                     .query_async(&mut conn)
                     .await?;
+                // 从版本缓存中移除（无锁删除）
+                version_cache.remove(key);
             }
         }
         Ok(())
@@ -530,9 +715,18 @@ impl L2Backend {
                 crate::recovery::wal::Operation::Set => {
                     if let Some(val) = entry.value {
                         pipe.set(&entry.key, val).ignore();
+                        // 验证 TTL 范围，防止命令注入和 panic
                         if let Some(t) = entry.ttl {
-                            pipe.expire(&entry.key, (t as usize).try_into().unwrap())
-                                .ignore();
+                            // 检查 TTL 是否在合理范围内（1秒 - 30天）
+                            if !(0..=30 * 24 * 3600).contains(&t) {
+                                warn!(
+                                    "Invalid TTL value {} in WAL entry for key {}, skipping. TTL must be between 0 and {} seconds.",
+                                    t, entry.key, 30 * 24 * 3600
+                                );
+                                continue;
+                            }
+                            // 直接设置 TTL，忽略错误
+                            pipe.expire(&entry.key, t).ignore();
                         }
                         pipe.incr(format!("{}:version", entry.key), 1).ignore();
                     }
@@ -614,6 +808,9 @@ impl L2Backend {
     /// 返回键是否存在
     #[instrument(skip(self), level = "debug")]
     pub async fn exists(&self, key: &str) -> Result<bool> {
+        // 验证缓存键，防止命令注入
+        ensure_safe_key(key)?;
+
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();
@@ -641,6 +838,16 @@ impl L2Backend {
     /// 返回是否设置成功
     #[instrument(skip(self, value), level = "debug")]
     pub async fn set_nx(&self, key: &str, value: &str, ttl: Option<u64>) -> Result<bool> {
+        // 验证缓存键和值，防止命令注入
+        ensure_safe_key(key)?;
+
+        // 验证值中不包含危险字符
+        if value.contains('\r') || value.contains('\n') {
+            return Err(CacheError::InvalidInput(
+                "Redis value contains forbidden characters".to_string(),
+            ));
+        }
+
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();
@@ -698,6 +905,9 @@ impl L2Backend {
     /// 返回增加后的值
     #[instrument(skip(self), level = "debug")]
     pub async fn incr(&self, key: &str) -> Result<i64> {
+        // 验证缓存键，防止命令注入
+        ensure_safe_key(key)?;
+
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();
@@ -724,6 +934,9 @@ impl L2Backend {
     /// 返回是否设置成功
     #[instrument(skip(self), level = "debug")]
     pub async fn expire(&self, key: &str, ttl: u64) -> Result<bool> {
+        // 验证缓存键，防止命令注入
+        ensure_safe_key(key)?;
+
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();
@@ -757,6 +970,9 @@ impl L2Backend {
     /// 返回值类型字符串
     #[instrument(skip(self), level = "debug")]
     pub async fn get_type(&self, key: &str) -> Result<String> {
+        // 验证缓存键，防止命令注入
+        ensure_safe_key(key)?;
+
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();

@@ -1,3 +1,9 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! Chaos测试 - 测试系统在Redis故障时的恢复能力
+
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use oxcache::client::two_level::TwoLevelClient;
@@ -69,7 +75,7 @@ async fn test_chaos_redis_outage_and_recovery() {
         two_level_config,
         l1,
         l2_backend,
-        SerializerEnum::Json(oxcache::serialization::json::JsonSerializer),
+        SerializerEnum::Json(oxcache::serialization::json::JsonSerializer::new()),
     )
     .await
     .unwrap();

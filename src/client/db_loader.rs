@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! 数据库回源加载器
 //!
 //! 提供缓存未命中时自动从数据库加载数据的功能
@@ -18,7 +22,10 @@ pub fn validate_sql_identifier(identifier: &str) -> bool {
     }
 
     let mut chars = identifier.chars();
-    let first = chars.next().unwrap();
+    let first = match chars.next() {
+        Some(c) => c,
+        None => return false,
+    };
 
     if !first.is_ascii_alphabetic() && first != '_' {
         return false;

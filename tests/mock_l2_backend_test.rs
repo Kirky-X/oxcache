@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! 测试真实L2Backend与Redis的集成
 
 use common::redis_test_utils::{

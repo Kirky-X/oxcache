@@ -1,4 +1,4 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
@@ -68,7 +68,9 @@ async fn test_distributed_lock() {
         },
     };
 
-    setup_cache(config).await;
+    CacheManager::init(config)
+        .await
+        .expect("Failed to init CacheManager");
     let client = oxcache::get_client(&service_name).expect("Failed to get client");
 
     // 1. 测试获取锁
@@ -159,7 +161,7 @@ async fn test_cache_preheating() {
         TwoLevelConfig::default(),
         l1,
         l2,
-        SerializerEnum::Json(JsonSerializer),
+        SerializerEnum::Json(JsonSerializer::new()),
     )
     .await
     .expect("Failed to create client");

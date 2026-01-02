@@ -1,10 +1,10 @@
-//! Copyright (c) 2025, Kirky.X
+//! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
 //!
 //! 该模块定义了缓存系统的配置结构和解析逻辑。
 
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -286,6 +286,48 @@ impl Config {
                         "Service '{}' command_timeout_ms must be between 100 and 60000 ms",
                         name
                     ));
+                }
+
+                // 生产环境安全检查：强制使用认证
+                if l2_config.password.is_none() {
+                    // 检查是否是生产环境（通过连接字符串判断）
+                    let conn_str = l2_config.connection_string.expose_secret();
+                    let is_production = conn_str.contains("production")
+                        || conn_str.contains("prod")
+                        || (!conn_str.contains("localhost")
+                            && !conn_str.contains("127.0.0.1")
+                            && !conn_str.contains("192.168.")
+                            && !conn_str.contains("10."));
+
+                    if is_production {
+                        return Err(format!(
+                            "Service '{}' is in production environment but Redis password is not configured. \
+                            For security reasons, production Redis connections must use authentication. \
+                            Please set 'password' in L2Config.",
+                            name
+                        ));
+                    }
+                }
+
+                // 生产环境安全检查：强制使用TLS
+                if !l2_config.enable_tls {
+                    // 检查是否是生产环境
+                    let conn_str = l2_config.connection_string.expose_secret();
+                    let is_production = conn_str.contains("production")
+                        || conn_str.contains("prod")
+                        || (!conn_str.contains("localhost")
+                            && !conn_str.contains("127.0.0.1")
+                            && !conn_str.contains("192.168.")
+                            && !conn_str.contains("10."));
+
+                    if is_production {
+                        return Err(format!(
+                            "Service '{}' is in production environment but TLS is not enabled. \
+                            For security reasons, production Redis connections must use TLS encryption. \
+                            Please set 'enable_tls = true' in L2Config.",
+                            name
+                        ));
+                    }
                 }
             }
 
