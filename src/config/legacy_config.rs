@@ -3,13 +3,17 @@
 //! MIT License
 //!
 //! 该模块定义了缓存系统的配置结构和解析逻辑。
+//!
+//! # 新旧 API
+//!
+//! 推荐使用新的统一配置 API（OxcacheConfig），旧的 Config 类型已废弃。
 
 use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::collections::HashMap;
 
-pub const CONFIG_VERSION: u32 = 1;
+pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
 
 #[derive(Debug, Deserialize, Clone, Default)]

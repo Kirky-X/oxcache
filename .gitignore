@@ -85,3 +85,9 @@ yarn-error.log*
 *.pid
 *.seed
 *.pid.lock
+
+# Project specific
+.iflow/
+openspec/
+AGENTS.md
+requirements.db
