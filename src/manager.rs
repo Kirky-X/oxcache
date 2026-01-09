@@ -6,13 +6,13 @@
 
 use crate::backend::{l1::L1Backend, l2::L2Backend};
 use crate::client::{l1::L1Client, l2::L2Client, two_level::TwoLevelClient, CacheOps};
-use crate::config::{CacheType, Config, SerializationType};
+use crate::config::{CacheStrategy, CacheType, Config, DynamicConfig, EvictionPolicy, SerializationType};
 use crate::error::{CacheError, Result};
 use crate::serialization::{json::JsonSerializer, SerializerEnum};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::sync::Arc;
-use tracing::{info, instrument, warn};
+use tracing::{event, info, instrument, warn, Level};
 
 /// 缓存管理器
 ///
@@ -22,6 +22,8 @@ pub struct CacheManager {
     clients: DashMap<String, Arc<dyn CacheOps>>,
     #[allow(dead_code)]
     config: Config,
+    /// 动态配置管理
+    dynamic_config: DynamicConfig,
 }
 
 lazy_static! {
@@ -88,6 +90,7 @@ impl CacheManager {
                             CacheError::ConfigError(format!("缺少{}的TwoLevel配置", name))
                         })?;
 
+                        // 使用默认的 TinyLFU 策略
                         let l1 = Arc::new(L1Backend::new(l1_cfg.max_capacity));
                         let l2 = Arc::new(L2Backend::new(l2_cfg).await?);
 
@@ -216,4 +219,140 @@ pub async fn shutdown_all() -> Result<()> {
             errors.join(", ")
         )))
     }
+}
+
+// ============================================================================
+// 动态策略管理 API
+// ============================================================================
+
+/// 获取动态配置管理器实例
+pub fn get_dynamic_config() -> &'static DynamicConfig {
+    lazy_static! {
+        static ref DYNAMIC_CONFIG: DynamicConfig = DynamicConfig::new();
+    }
+    &DYNAMIC_CONFIG
+}
+
+/// 更新服务的缓存策略
+///
+/// 此方法允许在运行时动态调整缓存策略，包括 TTL、容量、淘汰策略等。
+/// 策略变更会触发事件通知。
+///
+/// # 参数
+///
+/// * `service_name` - 服务名称
+/// * `ttl` - 新的 TTL（秒），0 表示不修改
+/// * `l1_max_capacity` - 新的 L1 最大容量，0 表示不修改
+/// * `eviction_policy` - 新的淘汰策略，None 表示不修改
+///
+/// # 返回值
+///
+/// 成功返回 Ok(())，服务不存在返回错误
+pub fn update_strategy(
+    service_name: &str,
+    ttl: Option<u64>,
+    l1_max_capacity: Option<u64>,
+    eviction_policy: Option<EvictionPolicy>,
+) -> Result<()> {
+    let client = get_client(service_name)?;
+
+    // 获取或创建当前策略
+    let dynamic_config = get_dynamic_config();
+    let mut strategy = dynamic_config
+        .get_strategy(service_name)
+        .unwrap_or_else(|| CacheStrategy::new(service_name));
+
+    // 更新策略
+    if let Some(new_ttl) = ttl {
+        if new_ttl > 0 {
+            strategy = strategy.with_ttl(new_ttl);
+        }
+    }
+
+    if let Some(new_capacity) = l1_max_capacity {
+        if new_capacity > 0 {
+            strategy = strategy.with_l1_max_capacity(new_capacity);
+        }
+    }
+
+    if let Some(new_policy) = eviction_policy {
+        strategy = strategy.with_l1_eviction_policy(new_policy);
+    }
+
+    // 保存新策略
+    dynamic_config.update_strategy(strategy.clone());
+
+    // 发出策略变更事件
+    event!(
+        Level::INFO,
+        service = service_name,
+        ttl = strategy.ttl,
+        l1_max_capacity = strategy.l1_max_capacity,
+        eviction_policy = ?strategy.l1_eviction_policy,
+        "Cache strategy updated"
+    );
+
+    Ok(())
+}
+
+/// 获取服务的当前缓存策略
+///
+/// # 参数
+///
+/// * `service_name` - 服务名称
+///
+/// # 返回值
+///
+/// 返回服务的当前策略配置，如果服务没有动态策略则返回 None
+pub fn get_strategy(service_name: &str) -> Option<CacheStrategy> {
+    let dynamic_config = get_dynamic_config();
+    dynamic_config.get_strategy(service_name)
+}
+
+/// 更新 TTL
+///
+/// 便捷方法：仅更新服务的 TTL
+pub fn update_ttl(service_name: &str, ttl: u64) -> Result<()> {
+    update_strategy(service_name, Some(ttl), None, None)
+}
+
+/// 更新 L1 容量
+///
+/// 便捷方法：仅更新服务的 L1 最大容量
+pub fn update_l1_capacity(service_name: &str, capacity: u64) -> Result<()> {
+    update_strategy(service_name, None, Some(capacity), None)
+}
+
+/// 更新淘汰策略
+///
+/// 便捷方法：仅更新服务的 L1 淘汰策略
+pub fn update_eviction_policy(
+    service_name: &str,
+    policy: EvictionPolicy,
+) -> Result<()> {
+    update_strategy(service_name, None, None, Some(policy))
+}
+
+/// 删除服务的动态策略配置
+///
+/// 删除后，服务将回退到使用静态配置
+pub fn reset_strategy(service_name: &str) {
+    let dynamic_config = get_dynamic_config();
+    dynamic_config.remove_strategy(service_name);
+
+    event!(Level::INFO, service = service_name, "Cache strategy reset to static config");
+}
+
+/// 获取所有已配置动态策略的服务名称
+pub fn list_strategies() -> Vec<String> {
+    let dynamic_config = get_dynamic_config();
+    dynamic_config.service_names()
+}
+
+/// 清空所有动态策略配置
+pub fn clear_all_strategies() {
+    let dynamic_config = get_dynamic_config();
+    dynamic_config.clear();
+
+    event!(Level::INFO, "All cache strategies cleared");
 }

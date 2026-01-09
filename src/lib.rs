@@ -67,9 +67,13 @@ pub mod utils;
 
 // 重新导出公共 API
 pub use client::{CacheExt, CacheOps};
-pub use config::Config;
+pub use config::{CacheStrategy, Config, DynamicConfig, EvictionPolicy};
 pub use error::{CacheError, Result};
-pub use manager::{get_client, CacheManager};
+pub use manager::{
+    get_client, get_strategy, list_strategies, update_eviction_policy, update_l1_capacity,
+    update_strategy, update_ttl, CacheManager, clear_all_strategies, reset_strategy,
+};
+pub use utils::key_generator::KeyGenerator;
 
 // 重新导出预热功能（从内部模块导出）
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};

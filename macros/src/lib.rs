@@ -19,6 +19,8 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut service_name = "default".to_string();
     let mut ttl = quote! { None };
     let mut key_pattern = None;
+    let mut key_prefix = None;
+    let mut key_generator_type = "default".to_string();
     let mut cache_type = quote! { "two-level" };
 
     for arg in args {
@@ -42,6 +44,18 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         key_pattern = Some(lit.value());
                     }
                 }
+            } else if nv.path.is_ident("key_prefix") {
+                if let Expr::Lit(expr_lit) = nv.value {
+                    if let Lit::Str(lit) = expr_lit.lit {
+                        key_prefix = Some(lit.value());
+                    }
+                }
+            } else if nv.path.is_ident("key_generator") {
+                if let Expr::Lit(expr_lit) = nv.value {
+                    if let Lit::Str(lit) = expr_lit.lit {
+                        key_generator_type = lit.value();
+                    }
+                }
             } else if nv.path.is_ident("cache_type") {
                 if let Expr::Lit(expr_lit) = nv.value {
                     if let Lit::Str(lit) = expr_lit.lit {
@@ -59,28 +73,116 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let fn_block = &input.block;
     let vis = &input.vis;
 
-    // Generate key logic
+    // Generate argument names for key generation
+    let arg_names: Vec<_> = fn_args
+        .iter()
+        .filter_map(|arg| {
+            if let syn::FnArg::Typed(pat_type) = arg {
+                if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                    return Some(&pat_ident.ident);
+                }
+            }
+            None
+        })
+        .collect();
+
+    // Generate key logic using KeyGenerator
     let key_gen = if let Some(pattern) = key_pattern {
-        // We allow the user to use the format string syntax directly, e.g. "user_{id}" where id is an arg.
-        // This works because we are in the scope of the function arguments.
+        // Custom format string pattern: "user_{id}"
         quote! {
             format!(#pattern)
         }
-    } else {
-        // Default key generation: service:fn_name:arg1:arg2...
-        // We need to capture argument names.
-        let arg_names: Vec<_> = fn_args
-            .iter()
-            .filter_map(|arg| {
-                if let syn::FnArg::Typed(pat_type) = arg {
-                    if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
-                        return Some(&pat_ident.ident);
+    } else if key_generator_type != "default" {
+        // Use KeyGenerator for structured key generation
+        match key_generator_type.as_str() {
+            "simple" => {
+                if arg_names.is_empty() {
+                    quote! {
+                        oxcache::KeyGenerator::simple(#service_name, stringify!(#fn_name))
+                    }
+                } else {
+                    quote! {
+                        oxcache::KeyGenerator::simple_with_args(
+                            #service_name,
+                            stringify!(#fn_name),
+                            &(#(#arg_names),*)
+                        )
                     }
                 }
-                None
-            })
-            .collect();
-
+            }
+            "md5" => {
+                if arg_names.is_empty() {
+                    quote! {
+                        oxcache::KeyGenerator::md5(#service_name, stringify!(#fn_name), "")
+                    }
+                } else {
+                    quote! {
+                        oxcache::KeyGenerator::md5_with_args(
+                            #service_name,
+                            stringify!(#fn_name),
+                            &(#(#arg_names),*)
+                        )
+                    }
+                }
+            }
+            "murmur3" => {
+                if arg_names.is_empty() {
+                    quote! {
+                        oxcache::KeyGenerator::murmur3(#service_name, stringify!(#fn_name), "")
+                    }
+                } else {
+                    quote! {
+                        oxcache::KeyGenerator::murmur3_with_args(
+                            #service_name,
+                            stringify!(#fn_name),
+                            &(#(#arg_names),*)
+                        )
+                    }
+                }
+            }
+            "namespace" => {
+                if arg_names.is_empty() {
+                    quote! {
+                        oxcache::KeyGenerator::namespace(
+                            #service_name,
+                            #key_prefix.unwrap_or("default"),
+                            stringify!(#fn_name),
+                            ""
+                        )
+                    }
+                } else {
+                    quote! {
+                        oxcache::KeyGenerator::namespace_with_args(
+                            #service_name,
+                            #key_prefix.unwrap_or("default"),
+                            stringify!(#fn_name),
+                            &(#(#arg_names),*)
+                        )
+                    }
+                }
+            }
+            _ => {
+                // Fallback to default format
+                if arg_names.is_empty() {
+                    quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
+                } else {
+                    quote! {
+                        format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names),*))
+                    }
+                }
+            }
+        }
+    } else if let Some(prefix) = key_prefix {
+        // Use key_prefix with default generation
+        if arg_names.is_empty() {
+            quote! { format!("{}:{}:{}", #service_name, #prefix, stringify!(#fn_name)) }
+        } else {
+            quote! {
+                format!("{}:{}:{}:{:?}", #service_name, #prefix, stringify!(#fn_name), (#(#arg_names),*))
+            }
+        }
+    } else {
+        // Default key generation: service:fn_name:arg1:arg2...
         if arg_names.is_empty() {
             quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
         } else {
