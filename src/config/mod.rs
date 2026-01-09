@@ -57,6 +57,8 @@ pub const CONFIG_VERSION_FIELD: &str = "config_version";
 ///
 /// # 示例
 ///
+/// ## Builder 模式
+///
 /// ```rust
 /// use oxcache::{oxcache_config, CacheType, ServiceConfig};
 ///
@@ -64,6 +66,34 @@ pub const CONFIG_VERSION_FIELD: &str = "config_version";
 ///     .with_global(GlobalConfig::default())
 ///     .with_service("default", ServiceConfig::two_level())
 ///     .build();
+/// ```
+///
+/// ## 服务配置示例
+///
+/// ```rust
+/// use oxcache::{ServiceConfig, L2Config, RedisMode, CacheType};
+/// use secrecy::SecretString;
+///
+/// // 创建双层缓存服务配置
+/// let service = ServiceConfig::two_level()
+///     .with_ttl(3600)
+///     .with_l2_config(
+///         L2Config::new()
+///             .with_mode(RedisMode::Standalone)
+///             .with_connection_string("redis://localhost:6379")
+///             .with_password("secret_password")
+///     );
+/// ```
+///
+/// ## 从 TOML 文件加载（需要 confers 特性）
+///
+/// ```rust,ignore
+/// #[cfg(feature = "confers")]
+/// async fn load_config() -> anyhow::Result<()> {
+///     let config = confers_load("oxcache.toml")?;
+///     oxcache::init(config).await?;
+///     Ok(())
+/// }
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct OxcacheConfig {

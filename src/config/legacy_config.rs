@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt;
 
 pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
@@ -141,7 +142,7 @@ impl Default for L1Config {
 /// L2缓存配置
 ///
 /// 定义分布式缓存（如Redis）的相关配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone)]
 #[serde(default)]
 pub struct L2Config {
     /// Redis模式
@@ -166,6 +167,24 @@ pub struct L2Config {
     pub max_key_length: usize,
     /// 值的最大大小（字节）
     pub max_value_size: usize,
+}
+
+impl fmt::Debug for L2Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("L2Config")
+            .field("mode", &self.mode)
+            .field("connection_string", &"[REDACTED]")
+            .field("connection_timeout_ms", &self.connection_timeout_ms)
+            .field("command_timeout_ms", &self.command_timeout_ms)
+            .field("password", &"[REDACTED]")
+            .field("enable_tls", &self.enable_tls)
+            .field("sentinel", &self.sentinel)
+            .field("cluster", &self.cluster)
+            .field("default_ttl", &self.default_ttl)
+            .field("max_key_length", &self.max_key_length)
+            .field("max_value_size", &self.max_value_size)
+            .finish()
+    }
 }
 
 impl Default for L2Config {

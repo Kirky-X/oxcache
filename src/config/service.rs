@@ -35,7 +35,7 @@ impl fmt::Display for CacheType {
 /// 服务配置
 ///
 /// 定义单个服务的缓存配置。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 pub struct ServiceConfig {
     /// 缓存类型
     pub cache_type: CacheType,
@@ -49,6 +49,19 @@ pub struct ServiceConfig {
     pub l2: Option<L2Config>,
     /// 双层缓存配置
     pub two_level: Option<TwoLevelConfig>,
+}
+
+impl fmt::Debug for ServiceConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServiceConfig")
+            .field("cache_type", &self.cache_type)
+            .field("ttl", &self.ttl)
+            .field("serialization", &self.serialization)
+            .field("l1", &self.l1)
+            .field("l2", &self.l2)
+            .field("two_level", &self.two_level)
+            .finish()
+    }
 }
 
 impl ServiceConfig {
@@ -165,7 +178,7 @@ impl L1Config {
 /// L2 缓存配置
 ///
 /// 定义分布式缓存的相关配置。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct L2Config {
     /// Redis 模式
@@ -190,6 +203,24 @@ pub struct L2Config {
     pub max_key_length: usize,
     /// 值的最大大小（字节）
     pub max_value_size: usize,
+}
+
+impl fmt::Debug for L2Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("L2Config")
+            .field("mode", &self.mode)
+            .field("connection_string", &"[REDACTED]")
+            .field("connection_timeout_ms", &self.connection_timeout_ms)
+            .field("command_timeout_ms", &self.command_timeout_ms)
+            .field("password", &"[REDACTED]")
+            .field("enable_tls", &self.enable_tls)
+            .field("sentinel", &self.sentinel)
+            .field("cluster", &self.cluster)
+            .field("default_ttl", &self.default_ttl)
+            .field("max_key_length", &self.max_key_length)
+            .field("max_value_size", &self.max_value_size)
+            .finish()
+    }
 }
 
 impl L2Config {
