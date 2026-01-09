@@ -11,8 +11,10 @@
 //! - 服务名称生成工具
 //! - 输入验证工具
 //! - 敏感信息脱敏工具
+//! - 缓存键生成器
 
 pub(crate) mod redaction;
+pub(crate) mod key_generator;
 
 use crate::config::{
     CacheType, ClusterConfig, Config, L1Config, L2Config, RedisMode, SentinelConfig, ServiceConfig,

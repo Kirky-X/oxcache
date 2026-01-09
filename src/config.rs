@@ -4,6 +4,7 @@
 //!
 //! 该模块定义了缓存系统的配置结构和解析逻辑。
 
+use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -622,4 +623,217 @@ pub enum RedisMode {
     Sentinel,
     /// 集群模式
     Cluster,
+}
+
+/// L1 缓存淘汰策略枚举
+///
+/// 定义 L1 内存缓存使用的淘汰策略
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum EvictionPolicy {
+    /// 最近最少使用
+    Lru,
+    /// 最不经常使用
+    Lfu,
+    /// TinyLFU (Sampled LFU)
+    TinyLfu,
+    /// 随机淘汰
+    Random,
+}
+
+impl Default for EvictionPolicy {
+    fn default() -> Self {
+        Self::TinyLfu
+    }
+}
+
+/// 运行时缓存策略配置
+///
+/// 用于动态调整缓存策略，支持运行时更新
+#[derive(Debug, Clone, PartialEq)]
+pub struct CacheStrategy {
+    /// 服务名称
+    pub service_name: String,
+    /// 缓存过期时间（秒）
+    pub ttl: u64,
+    /// L1 最大容量
+    pub l1_max_capacity: u64,
+    /// L1 淘汰策略
+    pub l1_eviction_policy: EvictionPolicy,
+    /// L2 默认 TTL（秒）
+    pub l2_default_ttl: u64,
+    /// 是否启用批量写入
+    pub enable_batch_write: bool,
+    /// 批量写入大小
+    pub batch_size: usize,
+    /// 更新时间戳
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl CacheStrategy {
+    /// 创建新的缓存策略配置
+    pub fn new(service_name: &str) -> Self {
+        Self {
+            service_name: service_name.to_string(),
+            ttl: 300,
+            l1_max_capacity: 10000,
+            l1_eviction_policy: EvictionPolicy::default(),
+            l2_default_ttl: 3600,
+            enable_batch_write: true,
+            batch_size: 100,
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    /// 设置 TTL
+    pub fn with_ttl(mut self, ttl: u64) -> Self {
+        self.ttl = ttl;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+
+    /// 设置 L1 最大容量
+    pub fn with_l1_max_capacity(mut self, capacity: u64) -> Self {
+        self.l1_max_capacity = capacity;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+
+    /// 设置 L1 淘汰策略
+    pub fn with_l1_eviction_policy(mut self, policy: EvictionPolicy) -> Self {
+        self.l1_eviction_policy = policy;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+
+    /// 设置 L2 默认 TTL
+    pub fn with_l2_default_ttl(mut self, ttl: u64) -> Self {
+        self.l2_default_ttl = ttl;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+
+    /// 设置批量写入
+    pub fn with_enable_batch_write(mut self, enable: bool) -> Self {
+        self.enable_batch_write = enable;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+
+    /// 设置批量写入大小
+    pub fn with_batch_size(mut self, size: usize) -> Self {
+        self.batch_size = size;
+        self.updated_at = chrono::Utc::now();
+        self
+    }
+}
+
+/// 动态配置管理
+///
+/// 用于运行时配置更新和热重载
+#[derive(Debug, Clone, Default)]
+pub struct DynamicConfig {
+    /// 存储各服务的运行时策略配置
+    strategies: dashmap::DashMap<String, CacheStrategy>,
+}
+
+impl DynamicConfig {
+    /// 创建新的动态配置管理器
+    pub fn new() -> Self {
+        Self {
+            strategies: dashmap::DashMap::new(),
+        }
+    }
+
+    /// 获取服务的运行时策略配置
+    ///
+    /// 如果服务不存在，返回 None
+    pub fn get_strategy(&self, service_name: &str) -> Option<CacheStrategy> {
+        self.strategies.get(service_name).map(|s| s.clone())
+    }
+
+    /// 更新服务的运行时策略配置
+    ///
+    /// 如果服务不存在，会创建一个新的策略配置
+    pub fn update_strategy(&self, strategy: CacheStrategy) {
+        self.strategies
+            .insert(strategy.service_name.clone(), strategy);
+    }
+
+    /// 删除服务的运行时策略配置
+    ///
+    /// 删除后，服务将使用静态配置
+    pub fn remove_strategy(&self, service_name: &str) {
+        self.strategies.remove(service_name);
+    }
+
+    /// 检查服务是否有运行时策略配置
+    pub fn has_strategy(&self, service_name: &str) -> bool {
+        self.strategies.contains_key(service_name)
+    }
+
+    /// 获取所有已配置的服务名称
+    pub fn service_names(&self) -> Vec<String> {
+        self.strategies.iter().map(|s| s.key().clone()).collect()
+    }
+
+    /// 清空所有运行时策略配置
+    pub fn clear(&self) {
+        self.strategies.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_eviction_policy_default() {
+        assert_eq!(EvictionPolicy::default(), EvictionPolicy::TinyLfu);
+    }
+
+    #[test]
+    fn test_cache_strategy_builder() {
+        let strategy = CacheStrategy::new("test_service")
+            .with_ttl(600)
+            .with_l1_max_capacity(20000)
+            .with_l1_eviction_policy(EvictionPolicy::Lru);
+
+        assert_eq!(strategy.service_name, "test_service");
+        assert_eq!(strategy.ttl, 600);
+        assert_eq!(strategy.l1_max_capacity, 20000);
+        assert_eq!(strategy.l1_eviction_policy, EvictionPolicy::Lru);
+    }
+
+    #[test]
+    fn test_dynamic_config() {
+        let config = DynamicConfig::new();
+
+        // 初始状态
+        assert!(!config.has_strategy("test"));
+
+        // 添加策略
+        let strategy = CacheStrategy::new("test").with_ttl(500);
+        config.update_strategy(strategy.clone());
+
+        assert!(config.has_strategy("test"));
+        assert_eq!(config.get_strategy("test"), Some(strategy));
+
+        // 删除策略
+        config.remove_strategy("test");
+        assert!(!config.has_strategy("test"));
+    }
+
+    #[test]
+    fn test_dynamic_config_service_names() {
+        let config = DynamicConfig::new();
+
+        config.update_strategy(CacheStrategy::new("service1"));
+        config.update_strategy(CacheStrategy::new("service2"));
+
+        let names = config.service_names();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"service1".to_string()));
+        assert!(names.contains(&"service2".to_string()));
+    }
 }
