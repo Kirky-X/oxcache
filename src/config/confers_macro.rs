@@ -15,6 +15,8 @@ use std::collections::HashMap;
 #[cfg(feature = "confers")]
 use std::fs;
 #[cfg(feature = "confers")]
+use std::path::{Path, PathBuf};
+#[cfg(feature = "confers")]
 use toml;
 #[cfg(feature = "confers")]
 use super::ConfigSource;
@@ -171,12 +173,53 @@ impl Default for ServiceConfigItem {
 #[cfg(feature = "confers")]
 impl OxcacheConfigFile {
     /// 从 TOML 文件加载配置
+    ///
+    /// # 安全性
+    ///
+    /// 此方法会规范化路径，防止目录遍历攻击。
+    /// 只允许读取绝对路径或相对于当前工作目录的配置文件。
     pub fn from_toml(path: &str) -> anyhow::Result<Self> {
-        let content = fs::read_to_string(path)
+        // 规范化路径，防止目录遍历
+        let config_path = Self::validate_and_normalize_path(path)?;
+
+        let content = fs::read_to_string(&config_path)
             .with_context(|| format!("Failed to read config file: {}", path))?;
-        
+
         toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path))
+    }
+
+    /// 验证并规范化路径
+    ///
+    /// 防止目录遍历攻击，确保配置文件在允许的范围内。
+    fn validate_and_normalize_path(path: &str) -> anyhow::Result<PathBuf> {
+        let path = Path::new(path);
+
+        // 获取绝对路径
+        let absolute_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .context("Failed to get current directory")?
+                .join(path)
+        };
+
+        // 规范化路径（解析 .. 和 .）
+        let canonical_path = absolute_path
+            .canonicalize()
+            .with_context(|| format!("Invalid config path: {}", path.display()))?;
+
+        // 检查路径是否包含父目录引用（防止目录遍历）
+        if let Some(parent) = canonical_path.parent() {
+            if parent.exists() && !parent.starts_with(std::env::current_dir()?) {
+                return Err(anyhow!(
+                    "Config path '{}' is outside the allowed directory",
+                    path.display()
+                ));
+            }
+        }
+
+        Ok(canonical_path)
     }
 
     /// 转换为内部 OxcacheConfig
@@ -310,7 +353,7 @@ enable_metrics = true
 [[services]]
             name = "default"
 cache_type = "two_level"
-ttl = 3600
+            ttl = 3600
 
 [services.l1]
 max_capacity = 5000
@@ -319,23 +362,21 @@ max_capacity = 5000
 mode = "standalone"
 connection_string = "redis://localhost:6379"
 connection_timeout_ms = 5000
-"#;            
-            // 写入临时文件
-            let temp_dir = std::env::temp_dir();
-            let temp_file = temp_dir.join("oxcache_test_config.toml");
-            fs::write(&temp_file, toml_content).unwrap();
+"#;
+            // 写入临时文件到当前目录
+            let temp_file = "oxcache_test_config.toml";
+            fs::write(temp_file, toml_content).unwrap();
 
             // 加载配置
-            let config = confers_load(temp_file.to_str().unwrap()).unwrap();
-            
+            let config = confers_load(temp_file).unwrap();
+
             // 验证
             assert_eq!(config.global.default_ttl, 600);
             assert!(config.services.contains_key("default"));
-            
+
             // 清理
             let _ = fs::remove_file(temp_file);
         }
-
         #[test]
         fn test_config_source_code() {
             let mut config = super::super::OxcacheConfig::new();
