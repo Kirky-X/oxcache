@@ -6,12 +6,21 @@
 
 use crate::backend::{l1::L1Backend, l2::L2Backend};
 use crate::client::{l1::L1Client, l2::L2Client, two_level::TwoLevelClient, CacheOps};
-use crate::config::{CacheStrategy, CacheType, Config, DynamicConfig, EvictionPolicy, SerializationType};
+use crate::config::{CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, SerializationType};
+use crate::config::legacy_config::EvictionPolicy;
 use crate::error::{CacheError, Result};
 use crate::serialization::{json::JsonSerializer, SerializerEnum};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::sync::Arc;
+
+/// 初始化缓存系统
+///
+/// 这是一个便捷函数，调用 `CacheManager::init`。
+#[instrument(skip(config), level = "info", fields(service_count = config.services.len()))]
+pub async fn init(config: OxcacheConfig) -> Result<()> {
+    CacheManager::init(config).await
+}
 use tracing::{event, info, instrument, warn, Level};
 
 /// 缓存管理器
@@ -21,7 +30,7 @@ pub struct CacheManager {
     #[allow(dead_code)]
     clients: DashMap<String, Arc<dyn CacheOps>>,
     #[allow(dead_code)]
-    config: Config,
+    config: OxcacheConfig,
     /// 动态配置管理
     dynamic_config: DynamicConfig,
 }
@@ -42,8 +51,7 @@ impl CacheManager {
     /// # 返回值
     ///
     /// 返回初始化结果，成功时返回Ok(())，失败时返回相应的错误
-    #[instrument(skip(config), level = "info", fields(service_count = config.services.len()))]
-    pub async fn init(config: Config) -> Result<()> {
+    pub async fn init(config: OxcacheConfig) -> Result<()> {
         // 验证配置
         if let Err(e) = config.validate() {
             return Err(CacheError::ConfigError(e));

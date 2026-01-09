@@ -140,7 +140,7 @@ impl WarmupManager {
             let interval_ms = self.config.batch_interval_ms;
 
             for chunk in keys.chunks(batch_size) {
-                let chunk_keys: Vec<String> = chunk.to_vec();
+                let chunk_keys: Vec<String> = chunk.iter().cloned().collect();
 
                 match load_fn(chunk_keys.clone()).await {
                     Ok(data_map) => {
