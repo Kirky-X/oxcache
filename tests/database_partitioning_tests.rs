@@ -4,11 +4,11 @@
 //!
 //! 数据库分区测试
 
+use crate::database::partition::{PartitionConfig, PartitionManager};
 use chrono::Utc;
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::postgresql::PostgresPartitionManager;
 use oxcache::database::sqlite::SQLitePartitionManager;
-use oxcache::database::{PartitionConfig, PartitionManager, PartitionStrategy};
 use oxcache::error::Result;
 use std::sync::Arc;
 #[path = "./common/database_test_utils.rs"]

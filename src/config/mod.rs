@@ -8,6 +8,7 @@
 //! - 嵌入式/集成模式：使用 Builder 模式构建配置
 //! - confers 宏模式：使用声明式宏定义配置（需要 confers 特性）
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod builder;
@@ -32,7 +33,7 @@ pub use crate::config::legacy_config::{
 
 /// 配置来源枚举
 #[cfg(feature = "confers")]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum ConfigSource {
     /// 代码构建
     Code,
@@ -92,7 +93,7 @@ pub const CONFIG_VERSION_FIELD: &str = "config_version";
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct OxcacheConfig {
     /// 配置版本（向后兼容）
     #[serde(default, skip_serializing_if = "Option::is_none")]

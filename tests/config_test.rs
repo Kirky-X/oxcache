@@ -133,6 +133,12 @@ fn test_config_validation_ttl() {
             serialization: oxcache::config::SerializationType::Json,
             enable_metrics: false,
         },
+        services: std::collections::HashMap::new(),
+        layer: None,
+        #[cfg(feature = "confers")]
+        extensions: std::collections::HashMap::new(),
+        #[cfg(feature = "confers")]
+        source: None,
         services: {
             let mut map = HashMap::new();
             map.insert(

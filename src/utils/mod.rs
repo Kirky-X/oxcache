@@ -17,8 +17,8 @@ pub(crate) mod key_generator;
 pub(crate) mod redaction;
 
 use crate::config::{
-    CacheType, ClusterConfig, Config, L1Config, L2Config, RedisMode, SentinelConfig, ServiceConfig,
-    TwoLevelConfig,
+    CacheType, ClusterConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SentinelConfig,
+    ServiceConfig, TwoLevelConfig,
 };
 use crate::error::CacheError;
 use secrecy::SecretString;
@@ -108,7 +108,7 @@ pub(crate) fn create_sentinel_config() -> L2Config {
 }
 
 /// 创建默认的两级缓存配置
-pub(crate) fn create_default_config(service_name: &str, max_capacity: usize) -> Config {
+pub(crate) fn create_default_config(service_name: &str, max_capacity: usize) -> OxcacheConfig {
     let mut services = HashMap::new();
     services.insert(
         service_name.to_string(),
@@ -141,7 +141,7 @@ pub(crate) fn create_default_config(service_name: &str, max_capacity: usize) -> 
         },
     );
 
-    Config {
+    OxcacheConfig {
         services,
         ..Default::default()
     }

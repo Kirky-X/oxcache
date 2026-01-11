@@ -7,8 +7,8 @@
 use super::{
     common::*,
     connection_string::{ensure_database_directory, normalize_connection_string},
-    PartitionConfig, PartitionInfo, PartitionManager,
 };
+use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Timelike, Utc};

@@ -10,14 +10,14 @@
 
 use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
 pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_version: Option<u32>,
@@ -29,7 +29,7 @@ pub struct Config {
 /// 全局配置
 ///
 /// 定义适用于所有服务的默认配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GlobalConfig {
     /// 默认的缓存过期时间（秒）
     pub default_ttl: u64,
@@ -55,7 +55,7 @@ impl Default for GlobalConfig {
 /// 服务配置
 ///
 /// 定义单个服务的缓存配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ServiceConfig {
     /// 缓存类型
     pub cache_type: CacheType,
@@ -87,7 +87,7 @@ impl Default for ServiceConfig {
 /// 序列化类型枚举
 ///
 /// 支持JSON和Bincode两种序列化方式
-#[derive(Deserialize, Clone, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum SerializationType {
     /// JSON序列化
@@ -100,7 +100,7 @@ pub enum SerializationType {
 /// 缓存类型枚举
 ///
 /// 定义支持的缓存架构类型
-#[derive(Deserialize, Clone, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheType {
     /// 仅L1缓存
@@ -115,7 +115,7 @@ pub enum CacheType {
 /// L1缓存配置
 ///
 /// 定义内存缓存的相关配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct L1Config {
     /// 最大缓存容量（字节）
@@ -142,18 +142,20 @@ impl Default for L1Config {
 /// L2缓存配置
 ///
 /// 定义分布式缓存（如Redis）的相关配置
-#[derive(Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct L2Config {
     /// Redis模式
     pub mode: RedisMode,
     /// 连接字符串
+    #[serde(skip)]
     pub connection_string: SecretString,
     /// 连接超时时间（毫秒）
     pub connection_timeout_ms: u64,
     /// 命令执行超时时间（毫秒）
     pub command_timeout_ms: u64,
     /// Redis 密码（可选，使用 SecretString 保护）
+    #[serde(skip)]
     pub password: Option<SecretString>,
     /// 是否启用 TLS
     pub enable_tls: bool,
@@ -206,7 +208,7 @@ impl Default for L2Config {
 }
 
 /// 哨兵配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SentinelConfig {
     /// 主节点名称
     pub master_name: String,
@@ -215,7 +217,7 @@ pub struct SentinelConfig {
 }
 
 /// 集群配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ClusterConfig {
     /// 初始节点列表
     pub nodes: Vec<String>,
@@ -490,7 +492,7 @@ impl Config {
 /// 双层缓存配置
 ///
 /// 定义双层缓存特有的行为配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TwoLevelConfig {
     /// 是否在命中时提升到L1
     pub promote_on_hit: bool,
@@ -515,7 +517,7 @@ pub struct TwoLevelConfig {
 /// 缓存预热配置
 ///
 /// 定义缓存预热的行为配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CacheWarmupConfig {
     /// 是否启用自动预热
     pub enabled: bool,
@@ -532,7 +534,7 @@ pub struct CacheWarmupConfig {
 /// 预热数据源配置
 ///
 /// 定义预热数据的来源
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
 pub enum WarmupDataSource {
     /// 从配置文件加载预热键
@@ -580,7 +582,7 @@ impl Default for CacheWarmupConfig {
 /// 布隆过滤器配置
 ///
 /// 用于防止缓存穿透攻击
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BloomFilterConfig {
     /// 预期元素数量
     pub expected_elements: usize,
@@ -604,7 +606,7 @@ impl Default for BloomFilterConfig {
 }
 
 /// 缓存失效频道配置
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum InvalidationChannelConfig {
     /// 完整自定义频道名称
@@ -637,7 +639,7 @@ impl Default for TwoLevelConfig {
 /// Redis模式枚举
 ///
 /// 定义支持的Redis部署模式
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum RedisMode {
     /// 单机模式
@@ -651,7 +653,7 @@ pub enum RedisMode {
 /// L1 缓存淘汰策略枚举
 ///
 /// 定义 L1 内存缓存使用的淘汰策略
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum EvictionPolicy {
     /// 最近最少使用
@@ -673,7 +675,7 @@ impl Default for EvictionPolicy {
 /// 运行时缓存策略配置
 ///
 /// 用于动态调整缓存策略，支持运行时更新
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct CacheStrategy {
     /// 服务名称
     pub service_name: String,
@@ -754,9 +756,10 @@ impl CacheStrategy {
 /// 动态配置管理
 ///
 /// 用于运行时配置更新和热重载
-#[derive(Debug, Clone, Default)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct DynamicConfig {
     /// 存储各服务的运行时策略配置
+    #[serde(skip)]
     strategies: dashmap::DashMap<String, CacheStrategy>,
 }
 

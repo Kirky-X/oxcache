@@ -8,7 +8,7 @@ use chrono::{TimeZone, Utc};
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::postgresql::PostgresPartitionManager;
 use oxcache::database::sqlite::SQLitePartitionManager;
-use oxcache::database::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
+use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager, };
 use oxcache::error::{CacheError, Result};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 use std::fs::File;

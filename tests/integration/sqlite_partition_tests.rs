@@ -4,9 +4,9 @@
 //!
 //! SQLite分区测试
 
+use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use chrono::{TimeZone, Utc};
 use oxcache::database::sqlite::SQLitePartitionManager;
-use oxcache::database::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use oxcache::error::{CacheError, Result};
 use std::fs::File;
 use tempfile::TempDir;

@@ -4,7 +4,7 @@
 //!
 //! 层级配置模块
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// 层级化配置
@@ -206,7 +206,7 @@ impl Default for TwoLevelLayerConfig {
 }
 
 /// 淘汰策略
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum EvictionPolicy {
     /// 最近最少使用
@@ -232,7 +232,7 @@ impl fmt::Display for EvictionPolicy {
 }
 
 /// Redis 模式
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RedisMode {
     /// 单机模式

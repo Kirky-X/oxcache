@@ -3,6 +3,7 @@
 //! MIT License
 //!
 //! 分区管理器trait定义
+//!
 
 use crate::error::Result;
 use async_trait::async_trait;
@@ -10,7 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use super::PartitionInfo;
+pub use super::{PartitionConfig, PartitionInfo};
 
 /// 分区策略
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,12 +37,8 @@ pub trait PartitionManager: Send + Sync {
     /// 删除分区
     async fn drop_partition(&self, table_name: &str, partition_name: &str) -> Result<()>;
 
-    /// 确保分区存在（如果不存在则创建）
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String>;
+    /// 确保分区存在
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<()>;
 
     /// 预创建未来分区
     async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()>;
@@ -50,32 +47,9 @@ pub trait PartitionManager: Send + Sync {
     async fn cleanup_old_partitions(
         &self,
         table_name: &str,
-        retention_months: u32,
-    ) -> Result<usize> {
-        let partitions = self.get_partitions(table_name).await?;
-        let cutoff_date = Utc::now() - chrono::Duration::days((retention_months * 30) as i64);
+        cutoff_date: DateTime<Utc>,
+    ) -> Result<u32>;
 
-        debug!("cleanup_old_partitions - cutoff_date: {}", cutoff_date);
-        debug!("found {} partitions", partitions.len());
-        for (i, partition) in partitions.iter().enumerate() {
-            debug!(
-                "partition[{}] - name: {}, end_date: {}, will_delete: {}",
-                i,
-                partition.name,
-                partition.end_date,
-                partition.end_date < cutoff_date
-            );
-        }
-
-        let mut dropped_count = 0;
-        for partition in partitions {
-            if partition.end_date < cutoff_date {
-                debug!("dropping partition: {}", partition.name);
-                self.drop_partition(table_name, &partition.name).await?;
-                dropped_count += 1;
-            }
-        }
-
-        Ok(dropped_count)
-    }
+    /// 获取配置
+    fn get_config(&self) -> PartitionConfig;
 }
