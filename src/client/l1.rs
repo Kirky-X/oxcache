@@ -4,18 +4,29 @@
 //!
 //! 该模块定义了L1-only缓存客户端的实现。
 
+#[cfg(feature = "l1-moka")]
 use super::CacheOps;
+#[cfg(feature = "l1-moka")]
 use crate::backend::l1::L1Backend;
+#[cfg(feature = "l1-moka")]
 use crate::error::Result;
-use crate::metrics::GLOBAL_METRICS;
-use crate::serialization::SerializerEnum;
+#[cfg(feature = "l1-moka")]
 use async_trait::async_trait;
+#[cfg(feature = "l1-moka")]
 use std::sync::Arc;
+#[cfg(feature = "l1-moka")]
 use tracing::instrument;
+
+#[cfg(feature = "l1-moka")]
+use crate::serialization::SerializerEnum;
+
+#[cfg(feature = "l1-moka")]
+use crate::metrics::GLOBAL_METRICS;
 
 /// L1-only 缓存客户端实现
 ///
 /// 仅使用内存缓存，提供极高性能但无数据持久化
+#[cfg(feature = "l1-moka")]
 pub struct L1Client {
     /// 服务名称
     service_name: String,
@@ -25,6 +36,7 @@ pub struct L1Client {
     serializer: SerializerEnum,
 }
 
+#[cfg(feature = "l1-moka")]
 impl L1Client {
     /// 创建新的L1-only缓存客户端
     pub fn new(service_name: String, l1: Arc<L1Backend>, serializer: SerializerEnum) -> Self {
@@ -36,6 +48,7 @@ impl L1Client {
     }
 }
 
+#[cfg(feature = "l1-moka")]
 #[async_trait]
 impl CacheOps for L1Client {
     /// 获取序列化器

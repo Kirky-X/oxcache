@@ -3,17 +3,25 @@
 //! MIT License
 //!
 //! 该模块定义了缓存提升机制，负责将L2缓存数据推广到L1缓存。
+//! 通过 `batch-write` feature 控制启用/禁用
 
+#[cfg(feature = "batch-write")]
 use crate::backend::{l1::L1Backend, l2::L2Backend};
+#[cfg(feature = "batch-write")]
 use crate::error::Result;
+#[cfg(feature = "batch-write")]
 use crate::recovery::health::HealthState;
+#[cfg(feature = "batch-write")]
 use dashmap::DashMap;
+#[cfg(feature = "batch-write")]
 use std::sync::Arc;
+#[cfg(feature = "batch-write")]
 use tokio::sync::{Notify, RwLock};
 
 /// 推广管理器
 ///
 /// 负责将L2缓存中的数据推广到L1缓存
+#[cfg(feature = "batch-write")]
 pub struct PromotionManager {
     /// 正在处理的推广任务
     in_flight: DashMap<String, Arc<Notify>>,
@@ -26,6 +34,7 @@ pub struct PromotionManager {
     health_state: Arc<RwLock<HealthState>>,
 }
 
+#[cfg(feature = "batch-write")]
 impl PromotionManager {
     /// 创建新的推广管理器
     ///
@@ -96,3 +105,39 @@ impl PromotionManager {
         result
     }
 }
+
+// ============================================================================
+// 当 batch-write 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "batch-write"))]
+use crate::error::Result;
+#[cfg(not(feature = "batch-write"))]
+use std::sync::Arc;
+
+/// 推广管理器（空实现）
+#[cfg(not(feature = "batch-write"))]
+#[derive(Debug, Clone, Default)]
+pub struct PromotionManager;
+
+#[cfg(not(feature = "batch-write"))]
+impl PromotionManager {
+    pub fn new(
+        _l1: Arc<L1Backend>,
+        _l2: Arc<L2Backend>,
+        _health_state: Arc<tokio::sync::RwLock<HealthState>>,
+    ) -> Self {
+        Self
+    }
+
+    pub async fn promote(&self, _key: String, _value: Vec<u8>, _version: u64) -> Result<()> {
+        Ok(())
+    }
+}
+
+// 重新导出需要的类型
+#[cfg(not(feature = "batch-write"))]
+use crate::backend::{l1::L1Backend, l2::L2Backend};
+
+#[cfg(not(feature = "batch-write"))]
+use crate::recovery::health::HealthState;

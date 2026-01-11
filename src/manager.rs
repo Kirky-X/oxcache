@@ -4,17 +4,19 @@
 //!
 //! 该模块定义了缓存管理器，负责初始化和管理所有缓存客户端。
 
-use crate::backend::{l1::L1Backend, l2::L2Backend};
-use crate::client::{l1::L1Client, l2::L2Client, two_level::TwoLevelClient, CacheOps};
 use crate::config::legacy_config::EvictionPolicy;
 use crate::config::{
     CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, SerializationType,
 };
 use crate::error::{CacheError, Result};
+#[cfg(feature = "l1-moka")]
 use crate::serialization::{json::JsonSerializer, SerializerEnum};
+use crate::CacheOps;
+
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::sync::Arc;
+use tracing::{event, info, instrument, warn, Level};
 
 /// 初始化缓存系统
 ///
@@ -23,7 +25,149 @@ use std::sync::Arc;
 pub async fn init(config: OxcacheConfig) -> Result<()> {
     CacheManager::init(config).await
 }
-use tracing::{event, info, instrument, warn, Level};
+
+// ============================================================================
+// Feature-Gated Imports
+// ============================================================================
+
+#[cfg(feature = "l1-moka")]
+mod l1_backend {
+    use crate::backend::l1::L1Backend;
+    use crate::config::L1Config;
+    use crate::Result;
+    use std::sync::Arc;
+
+    /// 创建 L1 后端（需要 l1-moka feature）
+    pub async fn create_l1_backend(l1_cfg: &L1Config) -> Result<Arc<L1Backend>> {
+        Ok(Arc::new(L1Backend::new(l1_cfg.max_capacity)))
+    }
+
+    /// 检查 L1 功能是否可用
+    pub fn is_l1_available() -> bool {
+        true
+    }
+}
+
+#[cfg(not(feature = "l1-moka"))]
+mod l1_backend {
+    use crate::config::L1Config;
+    use crate::Result;
+    use std::sync::Arc;
+
+    /// 禁用状态下的 L1 后端桩实现
+    #[derive(Clone)]
+    pub struct DisabledL1Backend;
+
+    impl DisabledL1Backend {
+        pub fn new(_capacity: u64) -> Self {
+            Self
+        }
+    }
+
+    /// 创建 L1 后端（当 l1-moka feature 未启用时返回错误）
+    pub async fn create_l1_backend(l1_cfg: &L1Config) -> Result<Arc<DisabledL1Backend>> {
+        Err(CacheError::ConfigError(format!(
+            "L1 cache (Moka) is not available. Please enable the 'l1-moka' feature in your Cargo.toml: \
+             oxcache = {{ version = \"0.1\", features = [\"l1-moka\"] }}",
+        )))
+    }
+
+    /// 检查 L1 功能是否可用
+    pub fn is_l1_available() -> bool {
+        false
+    }
+}
+
+#[cfg(feature = "l2-redis")]
+mod l2_backend {
+    use crate::backend::l2::L2Backend;
+    use crate::config::L2Config;
+    use crate::Result;
+    use std::sync::Arc;
+
+    /// 创建 L2 后端（需要 l2-redis feature）
+    pub async fn create_l2_backend(l2_cfg: &L2Config) -> Result<Arc<L2Backend>> {
+        Ok(Arc::new(L2Backend::new(l2_cfg).await?))
+    }
+
+    /// 检查 L2 功能是否可用
+    pub fn is_l2_available() -> bool {
+        true
+    }
+}
+
+#[cfg(not(feature = "l2-redis"))]
+mod l2_backend {
+    use crate::error::CacheError;
+    use crate::Result;
+    use std::sync::Arc;
+
+    /// 禁用状态下的 L2 后端桩实现
+    #[derive(Clone)]
+    pub struct DisabledD2Backend;
+
+    impl DisabledD2Backend {
+        pub fn new() -> Self {
+            Self
+        }
+    }
+
+    /// 创建 L2 后端（当 l2-redis feature 未启用时返回错误）
+    pub async fn create_l2_backend(_cfg: &dyn std::any::Any) -> Result<Arc<DisabledD2Backend>> {
+        Err(CacheError::ConfigError(format!(
+            "L2 cache (Redis) is not available. Please enable the 'l2-redis' feature in your Cargo.toml: \
+             oxcache = {{ version = \"0.1\", features = [\"l2-redis\"] }}",
+        )))
+    }
+
+    /// 检查 L2 功能是否可用
+    pub fn is_l2_available() -> bool {
+        false
+    }
+}
+
+// ============================================================================
+// Feature Information Functions
+// ============================================================================
+
+/// 获取 L1 缓存功能状态信息
+pub fn get_l1_feature_info() -> &'static str {
+    #[cfg(feature = "l1-moka")]
+    {
+        "L1 Cache (Moka): Enabled"
+    }
+    #[cfg(not(feature = "l1-moka"))]
+    {
+        "L1 Cache (Moka): Disabled (enable with 'l1-moka' feature)"
+    }
+}
+
+/// 获取 L2 缓存功能状态信息
+pub fn get_l2_feature_info() -> &'static str {
+    #[cfg(feature = "l2-redis")]
+    {
+        "L2 Cache (Redis): Enabled"
+    }
+    #[cfg(not(feature = "l2-redis"))]
+    {
+        "L2 Cache (Redis): Disabled (enable with 'l2-redis' feature)"
+    }
+}
+
+/// 获取所有功能状态信息
+pub fn get_all_feature_info() -> Vec<&'static str> {
+    vec![get_l1_feature_info(), get_l2_feature_info()]
+}
+
+/// 检查 L1 功能是否启用
+pub fn is_l1_enabled() -> bool {
+    l1_backend::is_l1_available()
+}
+
+/// 检查 L2 功能是否启用
+pub fn is_l2_enabled() -> bool {
+    l2_backend::is_l2_available()
+}
 
 /// 缓存管理器
 ///
@@ -63,6 +207,11 @@ impl CacheManager {
             "Initializing CacheManager with {} services",
             config.services.len()
         );
+
+        // 记录功能状态
+        info!("Cache features: {}", get_l1_feature_info());
+        info!("Cache features: {}", get_l2_feature_info());
+
         let manager = MANAGER.clone();
 
         for (name, service_cfg) in &config.services {
@@ -87,53 +236,183 @@ impl CacheManager {
                 }
             };
 
-            let client: Arc<dyn CacheOps> =
-                match service_cfg.cache_type {
-                    CacheType::TwoLevel => {
-                        let l1_cfg = service_cfg.l1.as_ref().ok_or_else(|| {
-                            CacheError::ConfigError(format!("缺少{}的L1配置", name))
-                        })?;
-                        let l2_cfg = service_cfg.l2.as_ref().ok_or_else(|| {
-                            CacheError::ConfigError(format!("缺少{}的L2配置", name))
-                        })?;
-                        let two_level_cfg = service_cfg.two_level.as_ref().ok_or_else(|| {
-                            CacheError::ConfigError(format!("缺少{}的TwoLevel配置", name))
-                        })?;
-
-                        // 使用默认的 TinyLFU 策略
-                        let l1 = Arc::new(L1Backend::new(l1_cfg.max_capacity));
-                        let l2 = Arc::new(L2Backend::new(l2_cfg).await?);
-
-                        Arc::new(
-                            TwoLevelClient::new(
-                                name.clone(),
-                                two_level_cfg.clone(),
-                                l1,
-                                l2,
-                                serializer,
-                            )
-                            .await?,
-                        )
-                    }
-                    CacheType::L1 => {
-                        let l1_cfg = service_cfg.l1.as_ref().ok_or_else(|| {
-                            CacheError::ConfigError(format!("缺少{}的L1配置", name))
-                        })?;
-                        let l1 = Arc::new(L1Backend::new(l1_cfg.max_capacity));
-                        Arc::new(L1Client::new(name.clone(), l1, serializer))
-                    }
-                    CacheType::L2 => {
-                        let l2_cfg = service_cfg.l2.as_ref().ok_or_else(|| {
-                            CacheError::ConfigError(format!("缺少{}的L2配置", name))
-                        })?;
-                        let l2 = Arc::new(L2Backend::new(l2_cfg).await?);
-                        Arc::new(L2Client::new(name.clone(), l2, serializer).await?)
-                    }
-                };
-
+            // 初始化客户端（带 feature 检查）
+            let client = Self::init_client(name, service_cfg, &serializer).await?;
             manager.insert(name.clone(), client);
         }
+
+        info!("CacheManager initialization completed");
         Ok(())
+    }
+
+    /// 初始化单个客户端（带 feature 检查和优雅降级）
+    async fn init_client(
+        name: &str,
+        service_cfg: &crate::config::ServiceConfig,
+        serializer: &SerializerEnum,
+    ) -> Result<Arc<dyn CacheOps>> {
+        match service_cfg.cache_type {
+            #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
+            CacheType::TwoLevel => Self::init_two_level_client(name, service_cfg, serializer).await,
+            #[cfg(not(all(feature = "l1-moka", feature = "l2-redis")))]
+            CacheType::TwoLevel => Err(CacheError::ConfigError(
+                "Two-level cache requires both l1-moka and l2-redis features".to_string(),
+            )),
+            CacheType::L1 => Self::init_l1_only_client(name, service_cfg, serializer).await,
+            #[cfg(feature = "l2-redis")]
+            CacheType::L2 => Self::init_l2_only_client(name, service_cfg, serializer).await,
+            #[cfg(not(feature = "l2-redis"))]
+            CacheType::L2 => Err(CacheError::ConfigError(
+                "L2-only cache requires l2-redis feature".to_string(),
+            )),
+        }
+    }
+
+    /// 初始化双层缓存客户端（带优雅降级）
+    #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
+    async fn init_two_level_client(
+        name: &str,
+        service_cfg: &crate::config::ServiceConfig,
+        serializer: &SerializerEnum,
+    ) -> Result<Arc<dyn CacheOps>> {
+        #[cfg(feature = "l1-moka")]
+        use crate::client::two_level::TwoLevelClient;
+
+        let l1_cfg = service_cfg.l1.as_ref().ok_or_else(|| {
+            CacheError::ConfigError(format!("Service '{}' is missing L1 configuration", name))
+        })?;
+
+        let l2_cfg = service_cfg.l2.as_ref().ok_or_else(|| {
+            CacheError::ConfigError(format!("Service '{}' is missing L2 configuration", name))
+        })?;
+
+        let two_level_cfg = service_cfg.two_level.as_ref().ok_or_else(|| {
+            CacheError::ConfigError(format!(
+                "Service '{}' is missing TwoLevel configuration",
+                name
+            ))
+        })?;
+
+        // 检查 feature 可用性并创建后端
+        let l1_available = l1_backend::is_l1_available();
+        let l2_available = l2_backend::is_l2_available();
+
+        // 根据功能可用性选择降级策略
+        match (l1_available, l2_available) {
+            (true, true) => {
+                // 完整功能：创建完整的 TwoLevelClient
+                let l1 = l1_backend::create_l1_backend(l1_cfg).await?;
+                let l2 = l2_backend::create_l2_backend(l2_cfg).await?;
+
+                Ok(Arc::new(
+                    TwoLevelClient::new(
+                        name.to_string(),
+                        two_level_cfg.clone(),
+                        l1,
+                        l2,
+                        serializer.clone(),
+                    )
+                    .await?,
+                ))
+            }
+            (true, false) => {
+                // L1 可用，L2 不可用：降级为 L1 only
+                warn!(
+                    "Service '{}': L2 (Redis) not available, degrading to L1-only mode",
+                    name
+                );
+                let l1 = l1_backend::create_l1_backend(l1_cfg).await?;
+                let l1_client =
+                    crate::client::l1::L1Client::new(name.to_string(), l1, serializer.clone());
+                Ok(Arc::new(l1_client))
+            }
+            #[cfg(feature = "l2-redis")]
+            (false, true) => {
+                // L1 不可用，L2 可用：降级为 L2 only
+                warn!(
+                    "Service '{}': L1 (Moka) not available, degrading to L2-only mode",
+                    name
+                );
+                let l2 = l2_backend::create_l2_backend(l2_cfg).await?;
+                let l2_client =
+                    crate::client::l2::L2Client::new(name.to_string(), l2, serializer.clone())
+                        .await?;
+                Ok(Arc::new(l2_client))
+            }
+            #[cfg(not(feature = "l2-redis"))]
+            (false, _) => {
+                // L1 不可用，且 L2 不可用（因为 l2-redis 未启用）
+                Err(CacheError::ConfigError(format!(
+                    "Service '{}': L1 (Moka) is not available. \
+                     Please enable 'l1-moka' feature in Cargo.toml",
+                    name
+                )))
+            }
+            #[cfg(feature = "l2-redis")]
+            (false, false) => {
+                // 两层都不可用：返回错误
+                Err(CacheError::ConfigError(format!(
+                    "Service '{}': Both L1 and L2 cache backends are unavailable. \
+                     Please enable 'l1-moka' and/or 'l2-redis' features in Cargo.toml",
+                    name
+                )))
+            }
+        }
+    }
+
+    /// 初始化 L1 only 客户端
+    async fn init_l1_only_client(
+        name: &str,
+        service_cfg: &crate::config::ServiceConfig,
+        serializer: &SerializerEnum,
+    ) -> Result<Arc<dyn CacheOps>> {
+        use crate::client::l1::L1Client;
+
+        let l1_cfg = service_cfg.l1.as_ref().ok_or_else(|| {
+            CacheError::ConfigError(format!("Service '{}' is missing L1 configuration", name))
+        })?;
+
+        if !l1_backend::is_l1_available() {
+            return Err(CacheError::ConfigError(format!(
+                "Service '{}': L1 cache (Moka) is not available. \
+                 Please enable the 'l1-moka' feature in Cargo.toml",
+                name
+            )));
+        }
+
+        let l1 = l1_backend::create_l1_backend(l1_cfg).await?;
+        Ok(Arc::new(L1Client::new(
+            name.to_string(),
+            l1,
+            serializer.clone(),
+        )))
+    }
+
+    /// 初始化 L2 only 客户端
+    #[cfg(feature = "l2-redis")]
+    async fn init_l2_only_client(
+        name: &str,
+        service_cfg: &crate::config::ServiceConfig,
+        serializer: &SerializerEnum,
+    ) -> Result<Arc<dyn CacheOps>> {
+        use crate::client::l2::L2Client;
+
+        let l2_cfg = service_cfg.l2.as_ref().ok_or_else(|| {
+            CacheError::ConfigError(format!("Service '{}' is missing L2 configuration", name))
+        })?;
+
+        if !l2_backend::is_l2_available() {
+            return Err(CacheError::ConfigError(format!(
+                "Service '{}': L2 cache (Redis) is not available. \
+                 Please enable the 'l2-redis' feature in Cargo.toml",
+                name
+            )));
+        }
+
+        let l2 = l2_backend::create_l2_backend(l2_cfg).await?;
+        Ok(Arc::new(
+            L2Client::new(name.to_string(), l2, serializer.clone()).await?,
+        ))
     }
 
     /// 重置缓存管理器（仅用于测试）
@@ -176,17 +455,30 @@ pub fn get_client(service: &str) -> Result<Arc<dyn CacheOps>> {
 /// # 返回值
 ///
 /// 返回对应服务的缓存客户端，如果服务不存在则返回错误
-pub fn get_typed_client(service: &str) -> Result<Arc<TwoLevelClient>> {
+#[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
+pub fn get_typed_client(service: &str) -> Result<Arc<crate::client::two_level::TwoLevelClient>> {
     let client = get_client(service)?;
 
     // 使用 into_any_arc 进行安全的向下转型
-    match client.into_any_arc().downcast::<TwoLevelClient>() {
+    match client
+        .into_any_arc()
+        .downcast::<crate::client::two_level::TwoLevelClient>()
+    {
         Ok(typed) => Ok(typed),
         Err(_) => Err(CacheError::NotSupported(format!(
             "服务 {} 不是 TwoLevelClient",
             service
         ))),
     }
+}
+
+/// 获取指定服务的强类型缓存客户端（未启用功能时的桩实现）
+#[cfg(not(all(feature = "l1-moka", feature = "l2-redis")))]
+pub fn get_typed_client(_service: &str) -> Result<Arc<dyn crate::CacheOps>> {
+    Err(CacheError::NotSupported(
+        "TwoLevelClient is not available. Please enable both 'l1-moka' and 'l2-redis' features."
+            .to_string(),
+    ))
 }
 
 /// 优雅关闭所有缓存客户端

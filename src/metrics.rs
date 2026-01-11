@@ -3,16 +3,23 @@
 //! MIT License
 //!
 //! 该模块定义了缓存系统的指标收集和监控功能。
+//! 通过 `metrics` 或 `l1-moka` feature 控制启用/禁用。
 
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use dashmap::DashMap;
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use lazy_static::lazy_static;
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use std::sync::Arc;
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use tracing::{span, Level};
 
 /// 原子计数器集合
 ///
 /// 使用原子操作实现无锁的指标计数，大幅提升性能
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 #[derive(Debug)]
 pub struct AtomicCounters {
     /// L1缓存命中次数
@@ -35,6 +42,7 @@ pub struct AtomicCounters {
     pub total_operations: AtomicU64,
 }
 
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 impl Default for AtomicCounters {
     fn default() -> Self {
         Self {
@@ -55,6 +63,7 @@ impl Default for AtomicCounters {
 ///
 /// 用于收集和存储缓存系统的各种运行时指标
 /// 优化版本：高频指标使用原子计数器，低频指标使用DashMap
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 #[derive(Clone, Debug, Default)]
 pub struct Metrics {
     /// 原子计数器（高频指标，无锁）
@@ -77,11 +86,13 @@ pub struct Metrics {
     pub batch_throughput: Arc<DashMap<String, f64>>,
 }
 
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 lazy_static! {
     /// 全局指标实例
     pub static ref GLOBAL_METRICS: Metrics = Metrics::default();
 }
 
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 impl Metrics {
     /// 记录请求指标（优化版本）
     ///
@@ -246,6 +257,7 @@ impl Metrics {
 /// # 注意
 ///
 /// DashMap 无锁，无需担心死锁
+#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 pub fn get_metrics_string() -> String {
     let metrics = &GLOBAL_METRICS;
     let mut output = String::new();
@@ -327,4 +339,50 @@ pub fn get_metrics_string() -> String {
     }
 
     output
+}
+
+/// 当 metrics 和 l1-moka 功能都禁用时的空实现
+#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+#[derive(Debug, Clone, Default)]
+pub struct Metrics;
+
+#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+impl Metrics {
+    /// 记录请求指标（空实现）
+    pub fn record_request(&self, _service: &str, _layer: &str, _op: &str, _result: &str) {}
+
+    /// 记录操作耗时（空实现）
+    pub fn record_duration(&self, _service: &str, _layer: &str, _op: &str, _duration_secs: f64) {}
+
+    /// 设置健康状态（空实现）
+    pub fn set_health(&self, _service: &str, _status: u8) {}
+
+    /// 设置WAL大小（空实现）
+    pub fn set_wal_size(&self, _service: &str, _size: usize) {}
+
+    /// 设置批量写入缓冲区大小（空实现）
+    pub fn set_batch_buffer_size(&self, _service: &str, _size: usize) {}
+
+    /// 设置批量写入成功率（空实现）
+    pub fn set_batch_success_rate(&self, _service: &str, _rate: f64) {}
+
+    /// 设置批量写入吞吐量（空实现）
+    pub fn set_batch_throughput(&self, _service: &str, _throughput: f64) {}
+
+    /// 获取原子计数器的值（返回全0）
+    pub fn get_counters(&self) -> (u64, u64, u64, u64, u64, u64, u64, u64, u64) {
+        (0, 0, 0, 0, 0, 0, 0, 0, 0)
+    }
+}
+
+#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+lazy_static! {
+    /// 全局空指标实例
+    pub static ref GLOBAL_METRICS: Metrics = Metrics;
+}
+
+#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+/// 当 metrics 功能禁用时返回空字符串
+pub fn get_metrics_string() -> String {
+    String::new()
 }

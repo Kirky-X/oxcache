@@ -4,15 +4,25 @@
 //!
 //! 该模块定义了L1缓存后端的实现，基于内存的高速缓存。
 
+#[cfg(feature = "l1-moka")]
 use crate::config::EvictionPolicy;
+
+#[cfg(feature = "l1-moka")]
 use crate::error::Result;
+
+#[cfg(feature = "l1-moka")]
 use moka::future::Cache;
+
+#[cfg(feature = "l1-moka")]
 use std::time::{Duration, Instant};
+
+#[cfg(feature = "l1-moka")]
 use tracing::{debug, instrument};
 
 /// L1缓存后端实现
 ///
 /// 基于内存的高速缓存实现，使用Moka作为底层缓存库
+#[cfg(feature = "l1-moka")]
 #[derive(Clone)]
 pub struct L1Backend {
     // 值: (数据, 版本/时间戳, 过期时间)
@@ -21,6 +31,7 @@ pub struct L1Backend {
     eviction_policy: EvictionPolicy,
 }
 
+#[cfg(feature = "l1-moka")]
 impl L1Backend {
     /// 创建新的L1缓存后端实例（使用默认策略）
     ///

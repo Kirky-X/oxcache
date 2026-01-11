@@ -3,18 +3,27 @@
 //! MIT License
 //!
 //! 该模块定义了缓存失效机制，用于处理跨实例的缓存失效。
+//! 通过 `batch-write` feature 控制启用/禁用
 
+#[cfg(feature = "batch-write")]
 use crate::backend::l1::L1Backend;
+#[cfg(feature = "batch-write")]
 use crate::error::Result;
+#[cfg(feature = "batch-write")]
 use crate::recovery::health::HealthState;
+#[cfg(feature = "batch-write")]
 use futures::stream::StreamExt;
+#[cfg(feature = "batch-write")]
 use std::sync::Arc;
+#[cfg(feature = "batch-write")]
 use tokio::sync::RwLock;
+#[cfg(feature = "batch-write")]
 use tracing::{debug, instrument};
 
 /// 缓存失效订阅者
 ///
 /// 负责订阅Redis频道并处理缓存失效消息
+#[cfg(feature = "batch-write")]
 pub struct InvalidationSubscriber {
     /// Redis客户端
     client: redis::Client,
@@ -26,6 +35,7 @@ pub struct InvalidationSubscriber {
     health_state: Arc<RwLock<HealthState>>,
 }
 
+#[cfg(feature = "batch-write")]
 impl InvalidationSubscriber {
     /// 创建新的失效订阅者
     ///
@@ -111,6 +121,7 @@ impl InvalidationSubscriber {
 /// 缓存失效发布者
 ///
 /// 负责向Redis频道发布缓存失效消息
+#[cfg(feature = "batch-write")]
 pub struct InvalidationPublisher {
     /// 连接管理器
     manager: redis::aio::ConnectionManager,
@@ -118,6 +129,7 @@ pub struct InvalidationPublisher {
     channel: String,
 }
 
+#[cfg(feature = "batch-write")]
 impl InvalidationPublisher {
     /// 创建新的失效发布者
     ///
@@ -155,3 +167,56 @@ impl InvalidationPublisher {
         Ok(())
     }
 }
+
+// ============================================================================
+// 当 batch-write 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "batch-write"))]
+use crate::error::Result;
+#[cfg(not(feature = "batch-write"))]
+use std::sync::Arc;
+
+/// 缓存失效订阅者（空实现）
+#[cfg(not(feature = "batch-write"))]
+#[derive(Debug, Clone, Default)]
+pub struct InvalidationSubscriber;
+
+#[cfg(not(feature = "batch-write"))]
+impl InvalidationSubscriber {
+    pub fn new(
+        _client: redis::Client,
+        _l1: Arc<L1Backend>,
+        _channel: String,
+        _health_state: Arc<tokio::sync::RwLock<HealthState>>,
+    ) -> Self {
+        Self
+    }
+
+    pub async fn start(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// 缓存失效发布者（空实现）
+#[cfg(not(feature = "batch-write"))]
+#[derive(Debug, Clone, Default)]
+pub struct InvalidationPublisher;
+
+#[cfg(not(feature = "batch-write"))]
+impl InvalidationPublisher {
+    pub fn new(_manager: redis::aio::ConnectionManager, _channel: String) -> Self {
+        Self
+    }
+
+    pub async fn publish(&self, _key: &str) -> Result<()> {
+        Ok(())
+    }
+}
+
+// 重新导出需要的类型
+#[cfg(not(feature = "batch-write"))]
+use crate::backend::l1::L1Backend;
+
+#[cfg(not(feature = "batch-write"))]
+use crate::recovery::health::HealthState;

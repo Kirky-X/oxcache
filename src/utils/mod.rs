@@ -25,18 +25,14 @@ use secrecy::SecretString;
 use std::collections::HashMap;
 use std::sync::Once;
 use std::time::Duration;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::EnvFilter;
 
 static INIT: Once = Once::new();
 
 pub(crate) fn setup_logging() {
     INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_span_events(FmtSpan::CLOSE)
-            .with_env_filter(EnvFilter::new("debug"))
-            .try_init()
-            .ok();
+        // Logging setup - currently a no-op for minimal builds
+        // For full builds with tracing-subscriber, use:
+        // tracing_subscriber::fmt().try_init().ok();
     });
 }
 

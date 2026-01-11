@@ -3,6 +3,7 @@
 //! MIT License
 //!
 //! 该模块定义了缓存预热机制。
+//! 始终可用（不依赖 batch-write feature）
 
 use crate::config::{CacheWarmupConfig, WarmupDataSource};
 use crate::error::Result;

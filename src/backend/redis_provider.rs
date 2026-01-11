@@ -4,15 +4,21 @@
 //!
 //! 该模块定义了Redis提供者接口和默认实现。
 
+#[cfg(feature = "l2-redis")]
 use crate::{
     config::L2Config,
     error::{CacheError, Result},
 };
+#[cfg(feature = "l2-redis")]
 use async_trait::async_trait;
+#[cfg(feature = "l2-redis")]
 use redis::{aio::ConnectionManager, Client};
+#[cfg(feature = "l2-redis")]
 use secrecy::ExposeSecret;
+#[cfg(feature = "l2-redis")]
 use tokio::time::{timeout, Duration};
 
+#[cfg(feature = "l2-redis")]
 #[async_trait]
 pub trait RedisProvider: Send + Sync {
     async fn get_standalone_client(&self, config: &L2Config)
@@ -24,8 +30,10 @@ pub trait RedisProvider: Send + Sync {
     ) -> Result<(Client, ConnectionManager, Option<ConnectionManager>)>;
 }
 
+#[cfg(feature = "l2-redis")]
 pub struct DefaultRedisProvider;
 
+#[cfg(feature = "l2-redis")]
 #[async_trait]
 impl RedisProvider for DefaultRedisProvider {
     async fn get_standalone_client(

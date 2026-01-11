@@ -3,16 +3,22 @@
 //! MIT License
 //!
 //! 布隆过滤器实现 - 用于缓存穿透防护
+//! 通过 `bloom-filter` feature 控制启用/禁用
 
+#[cfg(feature = "bloom-filter")]
 use murmur3::murmur3_32;
+#[cfg(feature = "bloom-filter")]
 use std::collections::HashMap;
+#[cfg(feature = "bloom-filter")]
 use std::sync::Arc;
+#[cfg(feature = "bloom-filter")]
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
 
 /// 布隆过滤器配置
+#[cfg(feature = "bloom-filter")]
 #[derive(Clone, Debug)]
 pub struct BloomFilterOptions {
     pub expected_elements: usize,
@@ -20,6 +26,7 @@ pub struct BloomFilterOptions {
     pub name: String,
 }
 
+#[cfg(feature = "bloom-filter")]
 impl BloomFilterOptions {
     pub fn new(name: String, expected_elements: usize, false_positive_rate: f64) -> Self {
         Self {
@@ -55,6 +62,7 @@ impl BloomFilterOptions {
 ///
 /// 使用位数组和多个哈希函数实现的空间效率型概率数据结构
 /// 用于快速判断元素是否可能存在于集合中
+#[cfg(feature = "bloom-filter")]
 #[allow(clippy::type_complexity)]
 pub struct BloomFilter {
     options: BloomFilterOptions,
@@ -67,6 +75,7 @@ pub struct BloomFilter {
     hash_cache: Arc<RwLock<HashMap<Arc<Vec<u8>>, Vec<usize>>>>,
 }
 
+#[cfg(feature = "bloom-filter")]
 impl BloomFilter {
     /// 创建新的布隆过滤器
     pub fn new(options: BloomFilterOptions) -> Self {
@@ -307,6 +316,7 @@ impl BloomFilter {
 }
 
 /// 布隆过滤器统计信息
+#[cfg(feature = "bloom-filter")]
 #[derive(Clone, Debug)]
 pub struct BloomFilterStats {
     pub name: String,
@@ -321,6 +331,7 @@ pub struct BloomFilterStats {
     pub configured_fp_rate: f64,
 }
 
+#[cfg(feature = "bloom-filter")]
 impl std::fmt::Display for BloomFilterStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -342,12 +353,14 @@ impl std::fmt::Display for BloomFilterStats {
 /// 布隆过滤器共享包装器
 ///
 /// 使用Arc包装布隆过滤器，支持多线程共享
+#[cfg(feature = "bloom-filter")]
 #[derive(Clone)]
 pub struct BloomFilterShared {
     filter: Arc<RwLock<BloomFilter>>,
     name: String,
 }
 
+#[cfg(feature = "bloom-filter")]
 impl BloomFilterShared {
     pub fn new(filter: BloomFilter) -> Self {
         let name = filter.options.name.clone();
@@ -390,11 +403,13 @@ impl BloomFilterShared {
 /// 布隆过滤器管理器
 ///
 /// 管理和复用多个布隆过滤器实例
+#[cfg(feature = "bloom-filter")]
 #[derive(Clone, Default)]
 pub struct BloomFilterManager {
     filters: Arc<RwLock<HashMap<String, BloomFilterShared>>>,
 }
 
+#[cfg(feature = "bloom-filter")]
 impl BloomFilterManager {
     pub fn new() -> Self {
         Self {
@@ -456,7 +471,154 @@ impl BloomFilterManager {
     }
 }
 
+// ============================================================================
+// 当 bloom-filter 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "bloom-filter"))]
+/// 布隆过滤器配置（空实现）
+#[derive(Clone, Debug, Default)]
+pub struct BloomFilterOptions;
+
+#[cfg(not(feature = "bloom-filter"))]
+impl BloomFilterOptions {
+    pub fn new(_name: String, _expected_elements: usize, _false_positive_rate: f64) -> Self {
+        Self
+    }
+
+    pub fn default_with_name(_name: String) -> Self {
+        Self
+    }
+
+    pub fn optimal_size(&self) -> usize {
+        0
+    }
+
+    pub fn optimal_num_hashes(&self) -> usize {
+        0
+    }
+}
+
+/// 布隆过滤器（空实现）
+#[cfg(not(feature = "bloom-filter"))]
+#[derive(Clone, Debug)]
+pub struct BloomFilter;
+
+#[cfg(not(feature = "bloom-filter"))]
+impl BloomFilter {
+    pub fn new(_options: BloomFilterOptions) -> Self {
+        Self
+    }
+
+    pub fn contains(&self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn add(&mut self, _item: &[u8]) {}
+
+    pub fn add_checked(&mut self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn contains_and_add(&mut self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn remove(&self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn get_stats(&self) -> BloomFilterStats {
+        BloomFilterStats::default()
+    }
+
+    pub fn get_estimated_count(&self) -> usize {
+        0
+    }
+
+    pub fn clear(&mut self) {}
+}
+
+/// 布隆过滤器统计信息（空实现）
+#[cfg(not(feature = "bloom-filter"))]
+#[derive(Clone, Debug, Default)]
+pub struct BloomFilterStats {
+    pub name: String,
+    pub total_bits: u64,
+    pub used_bits: u64,
+    pub utilization: f64,
+    pub estimated_count: u64,
+    pub added_count: u64,
+    pub checked_count: u64,
+    pub false_positive_count: u64,
+    pub false_positive_rate: f64,
+    pub configured_fp_rate: f64,
+}
+
+/// 布隆过滤器共享包装器（空实现）
+#[cfg(not(feature = "bloom-filter"))]
+#[derive(Clone, Default)]
+pub struct BloomFilterShared;
+
+#[cfg(not(feature = "bloom-filter"))]
+impl BloomFilterShared {
+    pub fn new(_filter: BloomFilter) -> Self {
+        Self
+    }
+
+    pub fn contains(&self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub async fn add(&self, _item: &[u8]) {}
+
+    pub async fn contains_and_add(&self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn get_stats(&self) -> BloomFilterStats {
+        BloomFilterStats::default()
+    }
+
+    pub fn name(&self) -> &str {
+        ""
+    }
+}
+
+/// 布隆过滤器管理器（空实现）
+#[cfg(not(feature = "bloom-filter"))]
+#[derive(Clone, Default)]
+pub struct BloomFilterManager;
+
+#[cfg(not(feature = "bloom-filter"))]
+impl BloomFilterManager {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub async fn get_or_create(&self, _options: BloomFilterOptions) -> BloomFilterShared {
+        BloomFilterShared::new(BloomFilter::new(BloomFilterOptions::default()))
+    }
+
+    pub fn get(&self, _name: &str) -> Option<BloomFilterShared> {
+        None
+    }
+
+    pub fn remove(&self, _name: &str) -> bool {
+        false
+    }
+
+    pub fn list_names(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    pub async fn get_all_stats(&self) -> Vec<BloomFilterStats> {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
+#[cfg(feature = "bloom-filter")]
 mod tests {
     use super::*;
 

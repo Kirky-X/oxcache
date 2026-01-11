@@ -3,20 +3,31 @@
 //! MIT License
 //!
 //! 该模块定义了缓存系统的健康检查和状态恢复机制。
+//! 通过 `wal-recovery` feature 控制启用/禁用
 
+#[cfg(feature = "wal-recovery")]
 use crate::backend::l2::L2Backend;
+#[cfg(feature = "wal-recovery")]
 use crate::recovery::wal::WalEntry;
+#[cfg(feature = "wal-recovery")]
 use crate::recovery::wal::WalManager;
+#[cfg(feature = "wal-recovery")]
 use crate::recovery::wal::WalReplayableBackend;
+#[cfg(feature = "wal-recovery")]
 pub use crate::recovery::wal::WalReplayableBackend as WalReplayableBackendTrait;
+#[cfg(feature = "wal-recovery")]
 use std::sync::Arc;
+#[cfg(feature = "wal-recovery")]
 use std::time::{Duration, Instant};
+#[cfg(feature = "wal-recovery")]
 use tokio::sync::RwLock;
+#[cfg(feature = "wal-recovery")]
 use tokio::time::timeout;
 
 /// 可健康检查的后端Trait
 ///
 /// 定义健康检查所需的方法
+#[cfg(feature = "wal-recovery")]
 #[allow(async_fn_in_trait)]
 pub trait HealthCheckableBackend: Clone + Send + Sync + 'static {
     /// 检查连接是否正常
@@ -26,6 +37,7 @@ pub trait HealthCheckableBackend: Clone + Send + Sync + 'static {
 }
 
 /// 为L2Backend实现WalReplayableBackend
+#[cfg(feature = "wal-recovery")]
 impl WalReplayableBackend for L2Backend {
     async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> crate::error::Result<()> {
         L2Backend::pipeline_replay(self, entries).await
@@ -33,6 +45,7 @@ impl WalReplayableBackend for L2Backend {
 }
 
 /// 为L2Backend实现HealthCheckableBackend
+#[cfg(feature = "wal-recovery")]
 impl HealthCheckableBackend for L2Backend {
     async fn ping(&self) -> crate::error::Result<()> {
         L2Backend::ping(self).await
@@ -46,6 +59,7 @@ impl HealthCheckableBackend for L2Backend {
 /// 健康状态枚举
 ///
 /// 定义缓存系统的健康状态
+#[cfg(feature = "wal-recovery")]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HealthState {
     /// 健康状态
@@ -61,6 +75,7 @@ pub enum HealthState {
 /// 健康检查器
 ///
 /// 负责定期检查L2缓存的健康状态，并在必要时进行恢复
+#[cfg(feature = "wal-recovery")]
 pub struct HealthChecker<T: HealthCheckableBackend> {
     /// L2缓存后端
     l2: Arc<T>,
@@ -74,6 +89,7 @@ pub struct HealthChecker<T: HealthCheckableBackend> {
     command_timeout_ms: u64,
 }
 
+#[cfg(feature = "wal-recovery")]
 impl<T: HealthCheckableBackend + WalReplayableBackend> HealthChecker<T> {
     /// 创建新的健康检查器
     ///
@@ -320,4 +336,67 @@ impl<T: HealthCheckableBackend + WalReplayableBackend> HealthChecker<T> {
             }
         }
     }
+}
+
+// ============================================================================
+// 当 wal-recovery 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "wal-recovery"))]
+/// 可健康检查的后端Trait（空实现）
+#[allow(async_fn_in_trait)]
+pub trait HealthCheckableBackend: Clone + Send + Sync + 'static {}
+
+#[cfg(not(feature = "wal-recovery"))]
+impl<T: HealthCheckableBackend> HealthCheckableBackend for T {}
+
+/// 健康状态枚举（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum HealthState {
+    #[default]
+    Healthy,
+    Degraded {
+        since: std::time::Instant,
+        failure_count: u32,
+    },
+    Recovering {
+        since: std::time::Instant,
+        success_count: u32,
+    },
+    WalReplaying {
+        since: std::time::Instant,
+    },
+}
+
+/// 健康检查器（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[derive(Debug)]
+pub struct HealthChecker<T: HealthCheckableBackend> {
+    l2: Arc<T>,
+    state: Arc<tokio::sync::RwLock<HealthState>>,
+    wal: Arc<()>,
+    service_name: String,
+    command_timeout_ms: u64,
+}
+
+#[cfg(not(feature = "wal-recovery"))]
+impl<T: HealthCheckableBackend> HealthChecker<T> {
+    pub fn new(
+        l2: Arc<T>,
+        state: Arc<tokio::sync::RwLock<HealthState>>,
+        _wal: Arc<()>,
+        service_name: String,
+        command_timeout_ms: u64,
+    ) -> Self {
+        Self {
+            l2,
+            state,
+            wal: Arc::new(()),
+            service_name,
+            command_timeout_ms,
+        }
+    }
+
+    pub async fn start(self) {}
 }

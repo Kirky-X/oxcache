@@ -3,11 +3,13 @@
 //! MIT License
 //!
 //! 配置验证模块
+//!
+//! 提供 feature-gated 的配置验证。
 
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 
-use crate::config::{CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, ServiceConfig};
+use crate::config::{CacheType, GlobalConfig, OxcacheConfig, ServiceConfig};
 
 /// 配置验证trait
 pub trait ConfigValidation {
@@ -43,6 +45,16 @@ impl OxcacheConfig {
             return Err("Global default_ttl cannot exceed 30 days".to_string());
         }
 
+        if global.health_check_interval == 0 {
+            return Err("Global health_check_interval cannot be zero".to_string());
+        }
+
+        if global.health_check_interval < 1 || global.health_check_interval > 3600 {
+            return Err(
+                "Global health_check_interval must be between 1 and 3600 seconds".to_string(),
+            );
+        }
+
         Ok(())
     }
 
@@ -72,17 +84,20 @@ impl OxcacheConfig {
             return Err(format!("Service '{}' TTL cannot exceed 30 days", name));
         }
 
-        // 验证 L1 配置
+        // 验证 L1 配置（需要 l1-moka feature）
+        #[cfg(feature = "l1-moka")]
         if let Some(l1_config) = &service.l1 {
             Self::validate_l1_config(name, l1_config, service_ttl)?;
         }
 
-        // 验证 L2 配置
+        // 验证 L2 配置（需要 l2-redis feature）
+        #[cfg(feature = "l2-redis")]
         if let Some(l2_config) = &service.l2 {
             Self::validate_l2_config(name, l2_config, service_ttl)?;
         }
 
-        // 验证双层缓存配置
+        // 验证双层缓存配置（需要 l2-redis feature）
+        #[cfg(feature = "l2-redis")]
         if let Some(two_level_config) = &service.two_level {
             Self::validate_two_level_config(name, two_level_config)?;
         }
@@ -90,10 +105,11 @@ impl OxcacheConfig {
         Ok(())
     }
 
-    /// 验证 L1 配置
+    /// 验证 L1 配置（需要 l1-moka feature）
+    #[cfg(feature = "l1-moka")]
     fn validate_l1_config(
         name: &str,
-        l1_config: &L1Config,
+        l1_config: &crate::config::L1Config,
         service_ttl: u64,
     ) -> Result<(), String> {
         if l1_config.max_capacity == 0 {
@@ -117,10 +133,11 @@ impl OxcacheConfig {
         Ok(())
     }
 
-    /// 验证 L2 配置
+    /// 验证 L2 配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     fn validate_l2_config(
         name: &str,
-        l2_config: &L2Config,
+        l2_config: &crate::config::L2Config,
         service_ttl: u64,
     ) -> Result<(), String> {
         // 验证 L1 TTL <= L2 TTL
@@ -185,7 +202,8 @@ impl OxcacheConfig {
         Ok(())
     }
 
-    /// 验证双层缓存配置
+    /// 验证双层缓存配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     fn validate_two_level_config(
         name: &str,
         two_level_config: &crate::config::TwoLevelConfig,
@@ -242,7 +260,8 @@ impl OxcacheConfig {
     }
 }
 
-/// 从旧配置迁移验证逻辑
+/// 从旧配置迁移验证逻辑（向后兼容）
+#[deprecated(since = "0.2.0", note = "请使用 OxcacheConfig 的验证方法")]
 pub fn validate_service(
     name: &str,
     service: &ServiceConfig,
@@ -252,6 +271,7 @@ pub fn validate_service(
         config_version: None,
         global: global.clone(),
         services: HashMap::new(),
+        #[cfg(feature = "l1-moka")]
         layer: None,
         #[cfg(feature = "confers")]
         extensions: HashMap::new(),
@@ -265,7 +285,7 @@ pub fn validate_service(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{oxcache_config, GlobalConfig, L1Config, L2Config, ServiceConfig};
+    use crate::config::{oxcache_config, GlobalConfig, ServiceConfig};
 
     #[test]
     fn test_validate_empty_service_name() {
@@ -298,15 +318,38 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "l1-moka")]
     fn test_validate_l1_capacity() {
         let config = oxcache_config()
             .with_global(GlobalConfig::default())
             .build();
 
-        let mut l1 = L1Config::default();
+        let mut l1 = crate::config::L1Config::default();
         l1.max_capacity = 0;
         let service = ServiceConfig::l1_only().with_l1(l1);
 
         assert!(config.validate_service("test", &service).is_err());
+    }
+
+    #[test]
+    fn test_validate_global_config() {
+        let mut global = GlobalConfig::default();
+        global.default_ttl = 0;
+
+        let config = oxcache_config().with_global(global).build();
+
+        assert!(config.validate_global().is_err());
+    }
+
+    #[test]
+    fn test_validate_service_name_too_long() {
+        let config = oxcache_config()
+            .with_global(GlobalConfig::default())
+            .build();
+
+        let long_name = "a".repeat(65);
+        let service = ServiceConfig::l1_only();
+
+        assert!(config.validate_service(&long_name, &service).is_err());
     }
 }

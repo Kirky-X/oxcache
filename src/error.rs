@@ -48,9 +48,16 @@ pub enum CacheError {
     DatabaseError(String),
 
     /// Redis错误
+    #[cfg(feature = "l2-redis")]
     #[error("Redis connection failed: {0}. Please ensure Redis server is running and the connection string is correct."
     )]
     RedisError(#[from] redis::RedisError),
+
+    /// Redis错误（占位符，当 l2-redis feature 禁用时）
+    #[cfg(not(feature = "l2-redis"))]
+    #[error("Redis connection failed: {0}. Please enable l2-redis feature and ensure Redis server is running."
+    )]
+    RedisError(String),
 
     /// IO错误
     #[error("I/O error: {0}. Check file permissions and disk space.")]
@@ -98,6 +105,7 @@ pub enum CacheError {
 /// 简化错误处理，所有缓存操作都返回此类型
 pub type Result<T> = std::result::Result<T, CacheError>;
 
+#[cfg(feature = "database")]
 impl From<sea_orm::DbErr> for CacheError {
     fn from(e: sea_orm::DbErr) -> Self {
         CacheError::DatabaseError(e.to_string())

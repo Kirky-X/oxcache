@@ -3,15 +3,23 @@
 //! MIT License
 //!
 //! 该模块定义了批量写入器的公共功能
+//! 通过 `batch-write` feature 控制启用/禁用
 
+#[cfg(feature = "batch-write")]
 use crate::backend::l2::L2Backend;
+#[cfg(feature = "batch-write")]
 use crate::error::Result;
+#[cfg(feature = "batch-write")]
 use crate::recovery::wal::WalManager;
+#[cfg(feature = "batch-write")]
 use std::sync::Arc;
+#[cfg(feature = "batch-write")]
 use std::time::Duration;
+#[cfg(feature = "batch-write")]
 use tokio::sync::Notify;
 
 /// 批量写入操作类型
+#[cfg(feature = "batch-write")]
 #[derive(Debug, Clone)]
 pub enum BatchOperation {
     Set {
@@ -25,6 +33,7 @@ pub enum BatchOperation {
 }
 
 /// 批量写入器的基本配置
+#[cfg(feature = "batch-write")]
 #[derive(Debug, Clone)]
 pub struct BatchWriterConfig {
     /// 最大批量大小
@@ -35,6 +44,7 @@ pub struct BatchWriterConfig {
     pub max_buffer_size: usize,
 }
 
+#[cfg(feature = "batch-write")]
 impl Default for BatchWriterConfig {
     fn default() -> Self {
         Self {
@@ -46,6 +56,7 @@ impl Default for BatchWriterConfig {
 }
 
 /// 批量写入器的共享接口
+#[cfg(feature = "batch-write")]
 pub trait BatchWriterCommon {
     /// 获取服务名称
     fn get_service_name(&self) -> &str;
@@ -76,6 +87,7 @@ pub trait BatchWriterCommon {
 }
 
 /// 公共的批量刷新函数
+#[cfg(feature = "batch-write")]
 pub async fn common_flush_batch<F, G>(
     buffer_len: usize,
     max_batch_size: usize,
@@ -103,6 +115,7 @@ pub async fn common_flush_batch<F, G>(
 }
 
 /// 估算操作大小的工具函数
+#[cfg(feature = "batch-write")]
 pub fn estimate_operation_size(operation: &BatchOperation) -> usize {
     match operation {
         BatchOperation::Set { key, value, .. } => key.len() + value.len(),
@@ -111,7 +124,55 @@ pub fn estimate_operation_size(operation: &BatchOperation) -> usize {
 }
 
 /// 计算重试延迟的工具函数 (指数退避)
+#[cfg(feature = "batch-write")]
 pub fn calculate_retry_delay(attempt: usize, base_delay_ms: u64) -> Duration {
     let delay = base_delay_ms * (2_u64.pow(attempt as u32));
     Duration::from_millis(delay)
+}
+
+// ============================================================================
+// 当 batch-write 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "batch-write"))]
+/// 批量写入操作类型（空实现）
+#[derive(Debug, Clone, Default)]
+pub enum BatchOperation {
+    #[default]
+    Set,
+    Delete,
+}
+
+/// 批量写入器的基本配置（空实现）
+#[cfg(not(feature = "batch-write"))]
+#[derive(Debug, Clone, Default)]
+pub struct BatchWriterConfig;
+
+/// 批量写入器的共享接口（空实现）
+#[cfg(not(feature = "batch-write"))]
+pub trait BatchWriterCommon {}
+
+/// 公共的批量刷新函数（空实现）
+#[cfg(not(feature = "batch-write"))]
+pub async fn common_flush_batch<F, G>(
+    _buffer_len: usize,
+    _max_batch_size: usize,
+    _flush_operation: F,
+    _metrics_update: G,
+) where
+    F: Fn(usize) -> Result<()>,
+    G: Fn(usize),
+{
+}
+
+/// 估算操作大小的工具函数（空实现）
+#[cfg(not(feature = "batch-write"))]
+pub fn estimate_operation_size(_operation: &BatchOperation) -> usize {
+    0
+}
+
+/// 计算重试延迟的工具函数（空实现）
+#[cfg(not(feature = "batch-write"))]
+pub fn calculate_retry_delay(_attempt: usize, _base_delay_ms: u64) -> Duration {
+    Duration::ZERO
 }
