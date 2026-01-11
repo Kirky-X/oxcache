@@ -9,7 +9,7 @@
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 
-use crate::config::{CacheType, GlobalConfig, OxcacheConfig, ServiceConfig};
+use crate::config::{GlobalConfig, OxcacheConfig, ServiceConfig};
 
 /// 配置验证trait
 pub trait ConfigValidation {

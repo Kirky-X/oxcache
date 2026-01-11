@@ -11,7 +11,6 @@
 
 use crate::config::legacy_config::{
     CacheWarmupConfig, ClusterConfig, InvalidationChannelConfig, SentinelConfig, SerializationType,
-    WarmupDataSource,
 };
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};

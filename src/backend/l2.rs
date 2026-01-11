@@ -12,6 +12,10 @@ use redis::{aio::ConnectionManager, AsyncCommands, Client};
 use std::sync::Arc;
 use tracing::{debug, instrument, warn};
 
+// Version cache eviction constants
+const VERSION_CACHE_MAX_SIZE: usize = 10000;
+const VERSION_CACHE_EVICTION_BATCH: usize = 1000;
+
 /// 验证Redis缓存键是否安全
 /// 防止Redis命令注入和协议污染攻击
 ///
@@ -398,16 +402,14 @@ impl L2Backend {
                         version_cache.insert(key.to_string(), version);
                     }
                     L2Backend::Cluster { version_cache, .. } => {
-                        // 使用 LRU 策略：如果缓存超过 10000，移除 1000 个最旧的条目
-                        if version_cache.len() > 10000 {
-                            let mut to_remove = Vec::new();
-                            for entry in version_cache.iter() {
-                                to_remove.push(entry.key().clone());
-                                if to_remove.len() >= 1000 {
-                                    break;
-                                }
-                            }
-                            for key in to_remove {
+                        // 使用 LRU 策略：如果缓存超过阈值，移除一批最旧的条目
+                        if version_cache.len() > VERSION_CACHE_MAX_SIZE {
+                            let keys: Vec<_> = version_cache
+                                .iter()
+                                .take(VERSION_CACHE_EVICTION_BATCH)
+                                .map(|e| e.key().clone())
+                                .collect();
+                            for key in keys {
                                 version_cache.remove(&key);
                             }
                         }

@@ -6,7 +6,7 @@
 
 use crate::config::legacy_config::EvictionPolicy;
 use crate::config::{
-    CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, SerializationType,
+    CacheStrategy, CacheType, DynamicConfig, OxcacheConfig, SerializationType,
 };
 use crate::error::{CacheError, Result};
 #[cfg(feature = "l1-moka")]
@@ -556,7 +556,7 @@ pub fn update_strategy(
     l1_max_capacity: Option<u64>,
     eviction_policy: Option<EvictionPolicy>,
 ) -> Result<()> {
-    let client = get_client(service_name)?;
+    let _client = get_client(service_name)?;
 
     // 获取或创建当前策略
     let dynamic_config = get_dynamic_config();

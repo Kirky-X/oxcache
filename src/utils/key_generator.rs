@@ -10,9 +10,6 @@
 //! - 键验证和规范化
 //! - 长键的哈希指纹生成
 
-use crate::error::CacheError;
-use murmur3::murmur3_32;
-use std::sync::Arc;
 
 /// 默认键最大长度
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;

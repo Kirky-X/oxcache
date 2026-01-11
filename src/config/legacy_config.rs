@@ -8,7 +8,6 @@
 //!
 //! 推荐使用新的统一配置 API（OxcacheConfig），旧的 Config 类型已废弃。
 
-use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -655,22 +654,19 @@ pub enum RedisMode {
 /// 定义 L1 内存缓存使用的淘汰策略
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum EvictionPolicy {
     /// 最近最少使用
     Lru,
     /// 最不经常使用
     Lfu,
     /// TinyLFU (Sampled LFU)
+    #[default]
     TinyLfu,
     /// 随机淘汰
     Random,
 }
 
-impl Default for EvictionPolicy {
-    fn default() -> Self {
-        Self::TinyLfu
-    }
-}
 
 /// 运行时缓存策略配置
 ///

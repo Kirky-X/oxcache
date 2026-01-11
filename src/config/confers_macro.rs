@@ -5,10 +5,6 @@
 //! confers 宏模块
 
 #[cfg(feature = "confers")]
-use super::ConfigSource;
-#[cfg(feature = "confers")]
-use crate::OxcacheConfig;
-#[cfg(feature = "confers")]
 use serde::Deserialize;
 #[cfg(feature = "confers")]
 use std::collections::HashMap;
