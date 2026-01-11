@@ -3,30 +3,42 @@
 //! MIT License
 //!
 //! 该模块定义了WAL（Write-Ahead Log）日志管理机制。
+//! 通过 `wal-recovery` feature 控制启用/禁用
 
+#[cfg(feature = "wal-recovery")]
 use crate::database::{is_test_connection_string, normalize_connection_string};
+#[cfg(feature = "wal-recovery")]
 use crate::error::Result;
+#[cfg(feature = "wal-recovery")]
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait,
     Value,
 };
+#[cfg(feature = "wal-recovery")]
 use std::env;
+#[cfg(feature = "wal-recovery")]
 use std::path::Path;
+#[cfg(feature = "wal-recovery")]
 use std::sync::Arc;
+#[cfg(feature = "wal-recovery")]
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(feature = "wal-recovery")]
 use tokio::sync::{Mutex, Notify};
 
+#[cfg(feature = "wal-recovery")]
 #[allow(async_fn_in_trait)]
 pub trait WalReplayableBackend: Clone + Send + Sync + 'static {
     async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> Result<()>;
 }
 
+#[cfg(feature = "wal-recovery")]
 impl<T: WalReplayableBackend> WalReplayableBackend for Arc<T> {
     async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> Result<()> {
         T::pipeline_replay(self, entries).await
     }
 }
 
+#[cfg(feature = "wal-recovery")]
 #[derive(Debug, Clone)]
 pub struct WalEntry {
     pub timestamp: SystemTime,
@@ -36,12 +48,14 @@ pub struct WalEntry {
     pub ttl: Option<i64>,
 }
 
+#[cfg(feature = "wal-recovery")]
 #[derive(Debug, Clone, Copy)]
 pub enum Operation {
     Set,
     Delete,
 }
 
+#[cfg(feature = "wal-recovery")]
 pub struct WalManager {
     db: Arc<DatabaseConnection>,
     service_name: String,
@@ -50,6 +64,7 @@ pub struct WalManager {
     batch_size: usize,
 }
 
+#[cfg(feature = "wal-recovery")]
 impl WalManager {
     pub async fn new(service_name: &str) -> Result<Self> {
         let is_test =
@@ -99,8 +114,7 @@ impl WalManager {
                 key TEXT NOT NULL,
                 value BLOB,
                 ttl INTEGER,
-                service_name TEXT NOT NULL
-            )
+                service_name TEXT NOT NULL)
         "#;
 
         db.execute(Statement::from_string(
@@ -413,5 +427,86 @@ impl WalManager {
                 Err(e)
             }
         }
+    }
+}
+
+// ============================================================================
+// 当 wal-recovery 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "wal-recovery"))]
+use crate::error::Result;
+
+/// WAL条目（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[derive(Debug, Clone, Default)]
+pub struct WalEntry {
+    pub timestamp: std::time::SystemTime,
+    pub operation: Operation,
+    pub key: String,
+    pub value: Option<Vec<u8>>,
+    pub ttl: Option<i64>,
+}
+
+/// WAL操作类型（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[derive(Debug, Clone, Copy, Default)]
+pub enum Operation {
+    #[default]
+    Set,
+    Delete,
+}
+
+/// 可重放后端Trait（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[allow(async_fn_in_trait)]
+pub trait WalReplayableBackend: Clone + Send + Sync + 'static {
+    async fn pipeline_replay(&self, _entries: Vec<WalEntry>) -> Result<()>;
+}
+
+#[cfg(not(feature = "wal-recovery"))]
+impl<T: WalReplayableBackend> WalReplayableBackend for Arc<T> {
+    async fn pipeline_replay(&self, _entries: Vec<WalEntry>) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// WAL管理器（空实现）
+#[cfg(not(feature = "wal-recovery"))]
+#[derive(Debug, Clone, Default)]
+pub struct WalManager;
+
+#[cfg(not(feature = "wal-recovery"))]
+impl WalManager {
+    pub async fn new(_service_name: &str) -> Result<Self> {
+        Ok(Self)
+    }
+
+    pub async fn add_entry(&self, _entry: &WalEntry) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn append(&self, _entry: WalEntry) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn get_entries(&self) -> Result<Vec<WalEntry>> {
+        Ok(Vec::new())
+    }
+
+    pub async fn clear_entries(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn flush(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn clear(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn replay_all<B: WalReplayableBackend>(&self, _backend: &B) -> Result<usize> {
+        Ok(0)
     }
 }

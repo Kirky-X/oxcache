@@ -5,8 +5,14 @@
 //! 该模块定义了缓存客户端的接口和实现。
 
 pub(crate) mod db_loader;
+
+#[cfg(feature = "l1-moka")]
 pub(crate) mod l1;
+
+#[cfg(feature = "l2-redis")]
 pub(crate) mod l2;
+
+#[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
 pub(crate) mod two_level;
 
 use crate::error::Result;
@@ -48,24 +54,6 @@ pub trait CacheExt: CacheOps {
     }
 
     /// 仅设置 L1 缓存（如果支持）
-    /// 注意：此实现默认行为是 set_bytes，因为 CacheOps 没有区分 L1/L2。
-    /// 如果需要真正的 L1-only，需要底层支持或使用 L1OnlyClient。
-    /// 这里我们为了兼容示例代码，提供默认实现，但实际可能需要扩展 CacheOps。
-    /// 然而，CacheOps 是基础 trait，L1/L2 控制应该由具体 Client 类型或配置决定。
-    /// 如果用户想要手动控制，应该使用 set_bytes 并自己处理逻辑，或者我们在 CacheOps 中增加方法。
-    /// 鉴于 PRD F3 "独立缓存层支持"，可以通过 Client 类型实现。
-    /// 但示例代码中使用了 set_l1_only。
-    /// 我们这里先添加 set_l1_only 到 CacheExt，但行为可能只是 set。
-    /// 为了真正支持，我们需要在 CacheOps 中添加 set_l1_bytes 等，或者扩展 CacheExt 在特定实现中覆盖。
-    /// 但 CacheExt 是 trait default impl，无法访问私有字段。
-    ///
-    /// 既然 F3 已经实现（通过 L1OnlyClient），我们可以让用户获取特定类型的 client。
-    /// 但示例代码是在同一个 client 上调用 set_l1_only。这意味着 TwoLevelClient 应该支持这个。
-    ///
-    /// 让我们修改 CacheOps 增加 set_l1_bytes / set_l2_bytes 接口，默认实现可以是 no-op 或 fallback。
-    /// 或者，我们只在 CacheExt 中提供，但需要 CacheOps 支持。
-    ///
-    /// 考虑到接口稳定性，我们在 CacheOps 中添加 set_l1_bytes 和 set_l2_bytes，并在 TwoLevelClient 中实现。
     #[instrument(skip(self, value), level = "debug")]
     async fn set_l1_only<T: Serialize + Send + Sync>(
         &self,

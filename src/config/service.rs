@@ -3,6 +3,11 @@
 //! MIT License
 //!
 //! 服务配置模块
+//!
+//! 提供 feature-gated 的服务配置：
+//! - L1Config: 需要 l1-moka feature
+//! - L2Config: 需要 l2-redis feature
+//! - ServiceConfig: 始终可用，但内部配置字段是 feature-gated
 
 use crate::config::legacy_config::{
     CacheWarmupConfig, ClusterConfig, InvalidationChannelConfig, SentinelConfig, SerializationType,
@@ -16,11 +21,11 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheType {
-    /// 仅 L1 缓存
+    /// 仅 L1 缓存（需要 l1-moka feature）
     L1,
-    /// 仅 L2 缓存
+    /// 仅 L2 缓存（需要 l2-redis feature）
     L2,
-    /// 双层缓存（L1 + L2）
+    /// 双层缓存（L1 + L2，需要 l1-moka 和 l2-redis features）
     #[default]
     TwoLevel,
 }
@@ -35,9 +40,35 @@ impl fmt::Display for CacheType {
     }
 }
 
-/// 服务配置
+/// Redis 模式（始终可用，用于序列化）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RedisMode {
+    /// 单机模式
+    #[default]
+    Standalone,
+    /// 哨兵模式
+    Sentinel,
+    /// 集群模式
+    Cluster,
+}
+
+impl fmt::Display for RedisMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RedisMode::Standalone => write!(f, "standalone"),
+            RedisMode::Sentinel => write!(f, "sentinel"),
+            RedisMode::Cluster => write!(f, "cluster"),
+        }
+    }
+}
+
+/// 服务配置（始终可用）
 ///
-/// 定义单个服务的缓存配置。
+/// 定义单个服务的缓存配置。内部字段根据 feature 进行条件编译：
+/// - l1: Option<L1Config> - 需要 l1-moka feature
+/// - l2: Option<L2Config> - 需要 l2-redis feature
+/// - two_level: Option<TwoLevelConfig> - 需要 l2-redis feature
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ServiceConfig {
     /// 缓存类型
@@ -46,11 +77,14 @@ pub struct ServiceConfig {
     pub ttl: Option<u64>,
     /// 序列化类型
     pub serialization: Option<SerializationType>,
-    /// L1 缓存配置
+    /// L1 缓存配置（需要 l1-moka feature）
+    #[cfg(feature = "l1-moka")]
     pub l1: Option<L1Config>,
-    /// L2 缓存配置
+    /// L2 缓存配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     pub l2: Option<L2Config>,
-    /// 双层缓存配置
+    /// 双层缓存配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     pub two_level: Option<TwoLevelConfig>,
 }
 
@@ -61,26 +95,38 @@ impl fmt::Debug for ServiceConfig {
             .field("ttl", &self.ttl)
             .field("serialization", &self.serialization)
             .field("l1", &self.l1)
-            .field("l2", &self.l2)
-            .field("two_level", &self.two_level)
             .finish()
     }
 }
 
 impl ServiceConfig {
-    /// 创建 L1 仅缓存配置
+    /// 创建 L1 仅缓存配置（需要 l1-moka feature）
+    #[cfg(feature = "l1-moka")]
     pub fn l1_only() -> Self {
         Self {
             cache_type: CacheType::L1,
             ttl: None,
             serialization: None,
             l1: Some(L1Config::default()),
+            #[cfg(feature = "l2-redis")]
             l2: None,
+            #[cfg(feature = "l2-redis")]
             two_level: None,
         }
     }
 
-    /// 创建 L2 仅缓存配置
+    /// 创建 L1 仅缓存配置（无 feature 时的降级版本）
+    #[cfg(not(feature = "l1-moka"))]
+    pub fn l1_only() -> Self {
+        Self {
+            cache_type: CacheType::L1,
+            ttl: None,
+            serialization: None,
+        }
+    }
+
+    /// 创建 L2 仅缓存配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     pub fn l2_only() -> Self {
         Self {
             cache_type: CacheType::L2,
@@ -92,7 +138,29 @@ impl ServiceConfig {
         }
     }
 
-    /// 创建双层缓存配置
+    /// 创建 L2 仅缓存配置（无 l2-redis feature 时的降级版本）
+    #[cfg(all(not(feature = "l2-redis"), feature = "l1-moka"))]
+    pub fn l2_only() -> Self {
+        Self {
+            cache_type: CacheType::L2,
+            ttl: None,
+            serialization: None,
+            l1: None,
+        }
+    }
+
+    /// 创建 L2 仅缓存配置（无 l2-redis feature 且无 l1-moka 时的降级版本）
+    #[cfg(all(not(feature = "l2-redis"), not(feature = "l1-moka")))]
+    pub fn l2_only() -> Self {
+        Self {
+            cache_type: CacheType::L2,
+            ttl: None,
+            serialization: None,
+        }
+    }
+
+    /// 创建双层缓存配置（需要 l1-moka 和 l2-redis features）
+    #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
     pub fn two_level() -> Self {
         Self {
             cache_type: CacheType::TwoLevel,
@@ -101,6 +169,40 @@ impl ServiceConfig {
             l1: Some(L1Config::default()),
             l2: Some(L2Config::default()),
             two_level: Some(TwoLevelConfig::default()),
+        }
+    }
+
+    /// 创建双层缓存配置（仅 l2-redis，无 l1-moka）
+    #[cfg(all(feature = "l2-redis", not(feature = "l1-moka")))]
+    pub fn two_level() -> Self {
+        Self {
+            cache_type: CacheType::TwoLevel,
+            ttl: None,
+            serialization: None,
+            l1: None,
+            l2: Some(L2Config::default()),
+            two_level: Some(TwoLevelConfig::default()),
+        }
+    }
+
+    /// 创建双层缓存配置（仅 l1-moka，无 l2-redis）
+    #[cfg(all(feature = "l1-moka", not(feature = "l2-redis")))]
+    pub fn two_level() -> Self {
+        Self {
+            cache_type: CacheType::TwoLevel,
+            ttl: None,
+            serialization: None,
+            l1: Some(L1Config::default()),
+        }
+    }
+
+    /// 创建双层缓存配置（无 features 时的降级版本）
+    #[cfg(not(any(feature = "l1-moka", feature = "l2-redis")))]
+    pub fn two_level() -> Self {
+        Self {
+            cache_type: CacheType::TwoLevel,
+            ttl: None,
+            serialization: None,
         }
     }
 
@@ -119,28 +221,47 @@ impl ServiceConfig {
         self
     }
 
-    /// 设置 L1 配置
+    /// 设置 L1 配置（需要 l1-moka feature）
+    #[cfg(feature = "l1-moka")]
     pub fn with_l1(mut self, l1: L1Config) -> Self {
         self.l1 = Some(l1);
         self
     }
 
-    /// 设置 L2 配置
+    /// 设置 L2 配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     pub fn with_l2(mut self, l2: L2Config) -> Self {
         self.l2 = Some(l2);
         self
     }
 
-    /// 设置双层缓存配置
+    /// 设置双层缓存配置（需要 l2-redis feature）
+    #[cfg(feature = "l2-redis")]
     pub fn with_two_level(mut self, two_level: TwoLevelConfig) -> Self {
         self.two_level = Some(two_level);
         self
     }
+
+    /// 检查是否可以创建 L1 配置
+    pub fn can_use_l1(&self) -> bool {
+        cfg!(feature = "l1-moka")
+    }
+
+    /// 检查是否可以创建 L2 配置
+    pub fn can_use_l2(&self) -> bool {
+        cfg!(feature = "l2-redis")
+    }
+
+    /// 检查是否可以创建双层缓存配置
+    pub fn can_use_two_level(&self) -> bool {
+        cfg!(feature = "l1-moka") && cfg!(feature = "l2-redis")
+    }
 }
 
-/// L1 缓存配置
+/// L1 缓存配置（需要 l1-moka feature）
 ///
 /// 定义内存缓存的相关配置。
+#[cfg(feature = "l1-moka")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct L1Config {
@@ -154,6 +275,7 @@ pub struct L1Config {
     pub cleanup_interval_secs: u64,
 }
 
+#[cfg(feature = "l1-moka")]
 impl Default for L1Config {
     fn default() -> Self {
         Self {
@@ -165,6 +287,7 @@ impl Default for L1Config {
     }
 }
 
+#[cfg(feature = "l1-moka")]
 impl L1Config {
     /// 创建新的 L1 配置
     pub fn new() -> Self {
@@ -176,11 +299,30 @@ impl L1Config {
         self.max_capacity = capacity;
         self
     }
+
+    /// 设置键的最大长度
+    pub fn with_max_key_length(mut self, length: usize) -> Self {
+        self.max_key_length = length;
+        self
+    }
+
+    /// 设置值的最大大小
+    pub fn with_max_value_size(mut self, size: usize) -> Self {
+        self.max_value_size = size;
+        self
+    }
+
+    /// 设置清理间隔
+    pub fn with_cleanup_interval_secs(mut self, secs: u64) -> Self {
+        self.cleanup_interval_secs = secs;
+        self
+    }
 }
 
-/// L2 缓存配置
+/// L2 缓存配置（需要 l2-redis feature）
 ///
 /// 定义分布式缓存的相关配置。
+#[cfg(feature = "l2-redis")]
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct L2Config {
@@ -210,6 +352,7 @@ pub struct L2Config {
     pub max_value_size: usize,
 }
 
+#[cfg(feature = "l2-redis")]
 impl fmt::Debug for L2Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("L2Config")
@@ -228,6 +371,7 @@ impl fmt::Debug for L2Config {
     }
 }
 
+#[cfg(feature = "l2-redis")]
 impl L2Config {
     /// 创建新的 L2 配置
     pub fn new() -> Self {
@@ -257,34 +401,42 @@ impl L2Config {
         self.password = Some(SecretString::new(password.to_string().into()));
         self
     }
-}
 
-/// Redis 模式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum RedisMode {
-    /// 单机模式
-    #[default]
-    Standalone,
-    /// 哨兵模式
-    Sentinel,
-    /// 集群模式
-    Cluster,
-}
+    /// 设置连接超时
+    pub fn with_connection_timeout_ms(mut self, timeout: u64) -> Self {
+        self.connection_timeout_ms = timeout;
+        self
+    }
 
-impl fmt::Display for RedisMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RedisMode::Standalone => write!(f, "standalone"),
-            RedisMode::Sentinel => write!(f, "sentinel"),
-            RedisMode::Cluster => write!(f, "cluster"),
-        }
+    /// 设置命令超时
+    pub fn with_command_timeout_ms(mut self, timeout: u64) -> Self {
+        self.command_timeout_ms = timeout;
+        self
+    }
+
+    /// 设置是否启用 TLS
+    pub fn with_enable_tls(mut self, enable: bool) -> Self {
+        self.enable_tls = enable;
+        self
+    }
+
+    /// 设置哨兵配置
+    pub fn with_sentinel(mut self, sentinel: SentinelConfig) -> Self {
+        self.sentinel = Some(sentinel);
+        self
+    }
+
+    /// 设置集群配置
+    pub fn with_cluster(mut self, cluster: ClusterConfig) -> Self {
+        self.cluster = Some(cluster);
+        self
     }
 }
 
-/// 双层缓存配置
+/// 双层缓存配置（需要 l2-redis feature）
 ///
 /// 定义双层缓存特有的行为配置。
+#[cfg(feature = "l2-redis")]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TwoLevelConfig {
@@ -308,6 +460,7 @@ pub struct TwoLevelConfig {
     pub warmup: Option<CacheWarmupConfig>,
 }
 
+#[cfg(feature = "l2-redis")]
 impl TwoLevelConfig {
     /// 创建新的双层缓存配置
     pub fn new() -> Self {
@@ -325,9 +478,34 @@ impl TwoLevelConfig {
         self.batch_size = size;
         self
     }
+
+    /// 设置批量写入间隔
+    pub fn with_batch_interval_ms(mut self, ms: u64) -> Self {
+        self.batch_interval_ms = ms;
+        self
+    }
+
+    /// 设置是否在命中时提升到 L1
+    pub fn with_promote_on_hit(mut self, promote: bool) -> Self {
+        self.promote_on_hit = promote;
+        self
+    }
+
+    /// 设置键的最大长度
+    pub fn with_max_key_length(mut self, length: usize) -> Self {
+        self.max_key_length = Some(length);
+        self
+    }
+
+    /// 设置值的最大大小
+    pub fn with_max_value_size(mut self, size: usize) -> Self {
+        self.max_value_size = Some(size);
+        self
+    }
 }
 
-/// 布隆过滤器配置
+/// 布隆过滤器配置（需要 bloom-filter feature）
+#[cfg(all(feature = "l2-redis", feature = "bloom-filter"))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BloomFilterConfig {
     /// 预期元素数量
@@ -340,31 +518,63 @@ pub struct BloomFilterConfig {
     pub name: String,
 }
 
+#[cfg(all(feature = "l2-redis", feature = "bloom-filter"))]
+impl BloomFilterConfig {
+    /// 创建新的布隆过滤器配置
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 设置预期元素数量
+    pub fn with_expected_elements(mut self, elements: usize) -> Self {
+        self.expected_elements = elements;
+        self
+    }
+
+    /// 设置误判率
+    pub fn with_false_positive_rate(mut self, rate: f64) -> Self {
+        self.false_positive_rate = rate;
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_service_config_l1_only() {
-        let config = ServiceConfig::l1_only();
-        assert_eq!(config.cache_type, CacheType::L1);
-        assert!(config.l1.is_some());
-        assert!(config.l2.is_none());
+        #[cfg(feature = "l1-moka")]
+        {
+            let config = ServiceConfig::l1_only();
+            assert_eq!(config.cache_type, CacheType::L1);
+            assert!(config.l1.is_some());
+            #[cfg(feature = "l2-redis")]
+            assert!(config.l2.is_none());
+        }
     }
 
     #[test]
     fn test_service_config_l2_only() {
-        let config = ServiceConfig::l2_only();
-        assert_eq!(config.cache_type, CacheType::L2);
-        assert!(config.l1.is_none());
-        assert!(config.l2.is_some());
+        #[cfg(feature = "l2-redis")]
+        {
+            let config = ServiceConfig::l2_only();
+            assert_eq!(config.cache_type, CacheType::L2);
+            assert!(config.l2.is_some());
+            #[cfg(feature = "l1-moka")]
+            assert!(config.l1.is_none());
+        }
     }
 
     #[test]
     fn test_service_config_two_level() {
         let config = ServiceConfig::two_level();
         assert_eq!(config.cache_type, CacheType::TwoLevel);
+
+        #[cfg(feature = "l1-moka")]
         assert!(config.l1.is_some());
+
+        #[cfg(feature = "l2-redis")]
         assert!(config.l2.is_some());
     }
 
@@ -376,20 +586,37 @@ mod tests {
 
     #[test]
     fn test_l2_config_with_connection() {
-        let config = L2Config::new()
-            .with_connection_string("redis://localhost:6379")
-            .with_default_ttl(7200);
+        #[cfg(feature = "l2-redis")]
+        {
+            let config = L2Config::new()
+                .with_connection_string("redis://localhost:6379")
+                .with_default_ttl(7200);
 
-        assert_eq!(config.default_ttl, Some(7200));
+            assert_eq!(config.default_ttl, Some(7200));
+        }
     }
 
     #[test]
     fn test_two_level_config_batch() {
-        let config = TwoLevelConfig::new()
-            .with_enable_batch_write(true)
-            .with_batch_size(500);
+        #[cfg(feature = "l2-redis")]
+        {
+            let config = TwoLevelConfig::new()
+                .with_enable_batch_write(true)
+                .with_batch_size(500);
 
-        assert!(config.enable_batch_write);
-        assert_eq!(config.batch_size, 500);
+            assert!(config.enable_batch_write);
+            assert_eq!(config.batch_size, 500);
+        }
+    }
+
+    #[test]
+    fn test_service_config_feature_flags() {
+        let config = ServiceConfig::default();
+
+        #[cfg(feature = "l1-moka")]
+        assert!(config.can_use_l1());
+
+        #[cfg(feature = "l2-redis")]
+        assert!(config.can_use_l2());
     }
 }

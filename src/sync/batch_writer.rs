@@ -3,19 +3,28 @@
 //! MIT License
 //!
 //! 该模块定义了批量写入器，用于优化L2缓存的写入性能。
+//! 通过 `batch-write` feature 控制启用/禁用
 
+#[cfg(feature = "batch-write")]
 use super::common::*;
+#[cfg(feature = "batch-write")]
 use crate::backend::l2::L2Backend;
+#[cfg(feature = "batch-write")]
 use crate::error::Result;
 
+#[cfg(feature = "batch-write")]
 use dashmap::DashMap;
+#[cfg(feature = "batch-write")]
 use std::sync::Arc;
+#[cfg(feature = "batch-write")]
 use std::time::Duration;
+#[cfg(feature = "batch-write")]
 use tokio::sync::{Notify, Semaphore};
 
 /// 缓冲区条目
 ///
 /// 表示批处理缓冲区中的一个条目
+#[cfg(feature = "batch-write")]
 struct BufferEntry {
     /// 批量操作
     operation: BatchOperation,
@@ -24,6 +33,7 @@ struct BufferEntry {
 /// 批量写入器
 ///
 /// 负责将缓存操作批量写入L2缓存，以提高性能
+#[cfg(feature = "batch-write")]
 pub struct BatchWriter {
     /// 缓冲区
     buffer: Arc<DashMap<String, BufferEntry>>,
@@ -44,6 +54,7 @@ pub struct BatchWriter {
     shutdown_token: Arc<tokio_util::sync::CancellationToken>,
 }
 
+#[cfg(feature = "batch-write")]
 impl BatchWriter {
     /// 创建新的批量写入器
     ///
@@ -307,3 +318,48 @@ impl BatchWriter {
             .set_wal_size("batch_buffer", if all_success { 0 } else { buffer.len() });
     }
 }
+
+// ============================================================================
+// 当 batch-write 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "batch-write"))]
+use crate::error::Result;
+#[cfg(not(feature = "batch-write"))]
+use std::sync::Arc;
+
+/// 批量写入器（空实现）
+#[cfg(not(feature = "batch-write"))]
+#[derive(Debug, Clone, Default)]
+pub struct BatchWriter;
+
+#[cfg(not(feature = "batch-write"))]
+impl BatchWriter {
+    pub fn new(_service_name: String, _l2: Arc<L2Backend>, _config: BatchWriterConfig) -> Self {
+        Self
+    }
+
+    pub fn new_with_default_config(_service_name: String, _l2: Arc<L2Backend>) -> Self {
+        Self
+    }
+
+    pub async fn shutdown(&self) {}
+
+    pub async fn start(&self) {}
+
+    pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn enqueue_delete(&self, _key: String) -> Result<()> {
+        Ok(())
+    }
+
+    pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<()> {
+        Ok(())
+    }
+}
+
+// 重新导出需要的类型
+#[cfg(not(feature = "batch-write"))]
+use crate::backend::l2::L2Backend;

@@ -4,42 +4,48 @@
 //!
 //! 统一配置模块入口
 //!
-//! 提供 `OxcacheConfig` 作为配置统一入口，支持：
-//! - 嵌入式/集成模式：使用 Builder 模式构建配置
-//! - confers 宏模式：使用声明式宏定义配置（需要 confers 特性）
+//! Feature-gated 配置系统：
+//! - L1 配置需要 l1-moka feature  
+//! - L2 配置需要 l2-redis feature
+//! - confers 配置需要 confers feature
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod builder;
+#[cfg(feature = "l1-moka")]
 pub mod layer;
 pub mod legacy_config;
 pub mod service;
-pub mod validation; // 旧配置保持兼容
+pub mod validation;
 
-#[cfg(feature = "confers")]
+#[cfg(all(feature = "confers", feature = "config-toml"))]
 pub mod confers_macro;
 
+#[cfg(feature = "l2-redis")]
+pub use crate::config::legacy_config::{ClusterConfig, SentinelConfig};
 pub use builder::OxcacheConfigBuilder;
+#[cfg(feature = "l1-moka")]
 pub use layer::{EvictionPolicy, L1LayerConfig, L2LayerConfig, LayerConfig, TwoLevelLayerConfig};
-pub use service::{CacheType, L1Config, L2Config, RedisMode, ServiceConfig, TwoLevelConfig};
+#[cfg(feature = "l1-moka")]
+pub use service::L1Config;
+pub use service::{CacheType, RedisMode, ServiceConfig};
+#[cfg(feature = "l2-redis")]
+pub use service::{L2Config, TwoLevelConfig};
 pub use validation::ConfigValidation;
 
-pub use crate::config::legacy_config::{
-    CacheStrategy, CacheWarmupConfig, ClusterConfig, Config as LegacyConfig, DynamicConfig,
-    EvictionPolicy as LegacyEvictionPolicy, GlobalConfig, InvalidationChannelConfig,
-    RedisMode as LegacyRedisMode, SentinelConfig, SerializationType, WarmupDataSource,
+pub use self::legacy_config::{
+    CacheStrategy, CacheWarmupConfig, Config as LegacyConfig, DynamicConfig,
+    EvictionPolicy as LegacyEvictionPolicy, GlobalConfig as LegacyGlobalConfig,
+    InvalidationChannelConfig, RedisMode as LegacyRedisMode, SerializationType, WarmupDataSource,
 };
 
 /// 配置来源枚举
 #[cfg(feature = "confers")]
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub enum ConfigSource {
-    /// 代码构建
     Code,
-    /// confers 宏
     Macro(String),
-    /// 文件加载
     File(String),
 }
 
@@ -47,88 +53,70 @@ pub enum ConfigSource {
 pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
 
+/// 全局配置（始终可用）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GlobalConfig {
+    pub default_ttl: u64,
+    pub health_check_interval: u64,
+    pub serialization: SerializationType,
+    pub enable_metrics: bool,
+}
+
+impl GlobalConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_default_ttl(mut self, ttl: u64) -> Self {
+        self.default_ttl = ttl;
+        self
+    }
+
+    pub fn with_health_check_interval(mut self, interval: u64) -> Self {
+        self.health_check_interval = interval;
+        self
+    }
+
+    pub fn with_serialization(mut self, serialization: SerializationType) -> Self {
+        self.serialization = serialization;
+        self
+    }
+
+    pub fn with_enable_metrics(mut self, enable: bool) -> Self {
+        self.enable_metrics = enable;
+        self
+    }
+}
+
 /// 统一的配置入口结构体
-///
-/// 这是配置系统的统一入口点，支持：
-/// - Builder 模式构建（嵌入式/集成场景）
-/// - confers 宏配置（声明式配置场景）
-///
-/// # 示例
-///
-/// ## Builder 模式
-///
-/// ```rust
-/// use oxcache::{oxcache_config, CacheType, ServiceConfig};
-///
-/// let config = oxcache_config()
-///     .with_global(GlobalConfig::default())
-///     .with_service("default", ServiceConfig::two_level())
-///     .build();
-/// ```
-///
-/// ## 服务配置示例
-///
-/// ```rust
-/// use oxcache::{ServiceConfig, L2Config, RedisMode, CacheType};
-/// use secrecy::SecretString;
-///
-/// // 创建双层缓存服务配置
-/// let service = ServiceConfig::two_level()
-///     .with_ttl(3600)
-///     .with_l2_config(
-///         L2Config::new()
-///             .with_mode(RedisMode::Standalone)
-///             .with_connection_string("redis://localhost:6379")
-///             .with_password("secret_password")
-///     );
-/// ```
-///
-/// ## 从 TOML 文件加载（需要 confers 特性）
-///
-/// ```rust,ignore
-/// #[cfg(feature = "confers")]
-/// async fn load_config() -> anyhow::Result<()> {
-///     let config = confers_load("oxcache.toml")?;
-///     oxcache::init(config).await?;
-///     Ok(())
-/// }
-/// ```
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct OxcacheConfig {
-    /// 配置版本（向后兼容）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_version: Option<u32>,
-    /// 全局配置
     pub global: GlobalConfig,
-    /// 服务配置字典
     pub services: HashMap<String, ServiceConfig>,
-    /// 层级化配置
+    #[cfg(feature = "l1-moka")]
     pub layer: Option<LayerConfig>,
-    /// 扩展配置
     #[cfg(feature = "confers")]
-    pub extensions: HashMap<String, toml::Value>,
-    /// 配置来源（用于诊断）
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub extensions: HashMap<String, serde_json::Value>,
     #[cfg(feature = "confers")]
     pub source: Option<ConfigSource>,
 }
 
 impl OxcacheConfig {
-    /// 创建新的空配置
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// 使用 Builder 模式创建配置
     pub fn builder() -> OxcacheConfigBuilder {
         OxcacheConfigBuilder::new()
     }
 
-    /// 验证配置
     pub fn validate(&self) -> Result<(), String> {
         ConfigValidation::validate(self)
     }
 
-    /// 获取配置来源描述
     #[cfg(feature = "confers")]
     pub fn source(&self) -> &Option<ConfigSource> {
         &self.source
@@ -138,32 +126,68 @@ impl OxcacheConfig {
     pub fn set_source(&mut self, source: ConfigSource) {
         self.source = Some(source);
     }
+
+    pub fn is_l1_enabled(&self) -> bool {
+        cfg!(feature = "l1-moka")
+    }
+
+    pub fn is_l2_enabled(&self) -> bool {
+        cfg!(feature = "l2-redis")
+    }
+
+    pub fn available_features(&self) -> Vec<&'static str> {
+        let mut features = Vec::new();
+
+        if cfg!(feature = "l1-moka") {
+            features.push("l1-moka");
+        }
+        if cfg!(feature = "l2-redis") {
+            features.push("l2-redis");
+        }
+        if cfg!(feature = "bloom-filter") {
+            features.push("bloom-filter");
+        }
+        if cfg!(feature = "rate-limiting") {
+            features.push("rate-limiting");
+        }
+        if cfg!(feature = "batch-write") {
+            features.push("batch-write");
+        }
+        if cfg!(feature = "wal-recovery") {
+            features.push("wal-recovery");
+        }
+        if cfg!(feature = "serialization") {
+            features.push("serialization");
+        }
+        if cfg!(feature = "compression") {
+            features.push("compression");
+        }
+        if cfg!(feature = "database") {
+            features.push("database");
+        }
+        if cfg!(feature = "cli") {
+            features.push("cli");
+        }
+        if cfg!(feature = "opentelemetry") {
+            features.push("opentelemetry");
+        }
+        if cfg!(feature = "metrics") {
+            features.push("metrics");
+        }
+        if cfg!(feature = "confers") {
+            features.push("confers");
+        }
+
+        features
+    }
 }
 
 /// 配置入口函数
-///
-/// 提供便捷的配置构建入口。
-///
-/// # 示例
-///
-/// ```rust
-/// use oxcache::{oxcache_config, ServiceConfig};
-///
-/// let config = oxcache_config()
-///     .with_service("default", ServiceConfig::l1_only())
-///     .build();
-/// ```
 pub fn oxcache_config() -> OxcacheConfigBuilder {
     OxcacheConfigBuilder::new()
 }
 
-// 向后兼容：旧 Config 类型别名
-#[deprecated(
-    since = "0.2.0",
-    note = "请使用 `OxcacheConfig` 替代 `Config`。迁移方式：\n\
-            1. 使用 `oxcache_config()` Builder 创建配置\n\
-            2. 或使用 `type Config = OxcacheConfig` 临时兼容"
-)]
+#[deprecated(since = "0.2.0", note = "请使用 `OxcacheConfig` 替代 `Config`")]
 pub type Config = OxcacheConfig;
 
 #[cfg(test)]
@@ -174,6 +198,7 @@ mod tests {
     fn test_oxcache_config_default() {
         let config = OxcacheConfig::default();
         assert!(config.services.is_empty());
+        #[cfg(feature = "l1-moka")]
         assert!(config.layer.is_none());
     }
 
@@ -182,16 +207,25 @@ mod tests {
         let config = oxcache_config()
             .with_global(GlobalConfig::default())
             .build();
-
         assert!(!config.services.is_empty() || config.global.default_ttl == 300);
     }
 
     #[test]
-    fn test_oxcache_config_validate() {
-        let config = oxcache_config()
-            .with_global(GlobalConfig::default())
-            .build();
+    fn test_global_config_builder() {
+        let global = GlobalConfig::new()
+            .with_default_ttl(600)
+            .with_health_check_interval(30)
+            .with_serialization(SerializationType::Json)
+            .with_enable_metrics(true);
+        assert_eq!(global.default_ttl, 600);
+    }
 
-        assert!(config.validate().is_ok());
+    #[test]
+    fn test_feature_flags() {
+        let config = OxcacheConfig::new();
+        #[cfg(feature = "l1-moka")]
+        assert!(config.is_l1_enabled());
+        #[cfg(feature = "l2-redis")]
+        assert!(config.is_l2_enabled());
     }
 }

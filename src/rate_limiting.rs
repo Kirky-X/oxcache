@@ -3,13 +3,19 @@
 //! MIT License
 //!
 //! 该模块实现了速率限制功能，用于防止缓存滥用和拒绝服务攻击。
+//! 通过 `rate-limiting` feature 控制启用/禁用
 
+#[cfg(feature = "rate-limiting")]
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(feature = "rate-limiting")]
 use std::sync::Arc;
+#[cfg(feature = "rate-limiting")]
 use std::time::Duration;
+#[cfg(feature = "rate-limiting")]
 use tokio::sync::Mutex;
 
 /// 速率限制配置
+#[cfg(feature = "rate-limiting")]
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
     /// 每秒允许的最大请求数
@@ -20,6 +26,7 @@ pub struct RateLimitConfig {
     pub block_duration_secs: u64,
 }
 
+#[cfg(feature = "rate-limiting")]
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
@@ -33,6 +40,7 @@ impl Default for RateLimitConfig {
 /// 令牌桶速率限制器
 ///
 /// 使用令牌桶算法实现精确的速率限制，支持突发流量
+#[cfg(feature = "rate-limiting")]
 #[derive(Debug)]
 pub struct TokenBucket {
     tokens: AtomicU64,
@@ -41,6 +49,7 @@ pub struct TokenBucket {
     refill_rate: u64, // 每秒补充的令牌数
 }
 
+#[cfg(feature = "rate-limiting")]
 impl TokenBucket {
     /// 创建新的令牌桶
     pub fn new(capacity: u64, refill_rate: u64) -> Self {
@@ -106,6 +115,7 @@ impl TokenBucket {
 /// 客户端级别的速率限制器
 ///
 /// 为每个客户端维护独立的速率限制状态
+#[cfg(feature = "rate-limiting")]
 #[derive(Debug)]
 pub struct ClientRateLimiter {
     per_client: Mutex<ahash::AHashMap<String, Arc<TokenBucket>>>,
@@ -113,6 +123,7 @@ pub struct ClientRateLimiter {
     config: RateLimitConfig,
 }
 
+#[cfg(feature = "rate-limiting")]
 impl ClientRateLimiter {
     /// 创建新的客户端速率限制器
     pub fn new(config: RateLimitConfig) -> Self {
@@ -194,6 +205,7 @@ impl ClientRateLimiter {
 }
 
 /// 速率限制状态
+#[cfg(feature = "rate-limiting")]
 #[derive(Debug, Clone)]
 pub struct RateLimitStatus {
     /// 客户端可用令牌数
@@ -207,9 +219,11 @@ pub struct RateLimitStatus {
 }
 
 /// 全局速率限制器单例
+#[cfg(feature = "rate-limiting")]
 #[derive(Debug, Clone)]
 pub struct GlobalRateLimiter(Arc<ClientRateLimiter>);
 
+#[cfg(feature = "rate-limiting")]
 impl GlobalRateLimiter {
     /// 创建新的全局速率限制器
     pub fn new(config: Option<RateLimitConfig>) -> Self {
@@ -222,13 +236,111 @@ impl GlobalRateLimiter {
     }
 }
 
+#[cfg(feature = "rate-limiting")]
 impl Default for GlobalRateLimiter {
     fn default() -> Self {
         Self::new(None)
     }
 }
 
+// ============================================================================
+// 当 rate-limiting 功能禁用时的空实现
+// ============================================================================
+
+#[cfg(not(feature = "rate-limiting"))]
+/// 速率限制配置（空实现）
+#[derive(Debug, Clone, Default)]
+pub struct RateLimitConfig;
+
+#[cfg(not(feature = "rate-limiting"))]
+impl RateLimitConfig {
+    pub fn new(
+        _max_requests_per_second: u64,
+        _burst_capacity: u64,
+        _block_duration_secs: u64,
+    ) -> Self {
+        Self
+    }
+}
+
+/// 令牌桶速率限制器（空实现）
+#[cfg(not(feature = "rate-limiting"))]
+#[derive(Debug, Clone, Default)]
+pub struct TokenBucket;
+
+#[cfg(not(feature = "rate-limiting"))]
+impl TokenBucket {
+    pub fn new(_capacity: u64, _refill_rate: u64) -> Self {
+        Self
+    }
+
+    pub fn try_acquire(&self) -> bool {
+        true
+    }
+
+    pub fn try_acquire_n(&self, _n: u64) -> bool {
+        true
+    }
+
+    pub fn available_tokens(&self) -> u64 {
+        u64::MAX
+    }
+}
+
+/// 客户端速率限制器（空实现）
+#[cfg(not(feature = "rate-limiting"))]
+#[derive(Debug, Clone, Default)]
+pub struct ClientRateLimiter;
+
+#[cfg(not(feature = "rate-limiting"))]
+impl ClientRateLimiter {
+    pub fn new(_config: RateLimitConfig) -> Self {
+        Self
+    }
+
+    pub async fn check_rate_limit(
+        &self,
+        _client_id: &str,
+        _cost: u64,
+    ) -> Result<(), std::time::Duration> {
+        Ok(())
+    }
+
+    pub async fn get_client_status(&self, _client_id: &str) -> RateLimitStatus {
+        RateLimitStatus::default()
+    }
+}
+
+/// 速率限制状态（空实现）
+#[cfg(not(feature = "rate-limiting"))]
+#[derive(Debug, Clone, Default)]
+pub struct RateLimitStatus {
+    pub client_available: u64,
+    pub client_capacity: u64,
+    pub global_available: u64,
+    pub global_capacity: u64,
+}
+
+/// 全局速率限制器（空实现）
+#[cfg(not(feature = "rate-limiting"))]
+#[derive(Debug, Clone, Default)]
+pub struct GlobalRateLimiter;
+
+#[cfg(not(feature = "rate-limiting"))]
+impl GlobalRateLimiter {
+    pub fn new(_config: Option<RateLimitConfig>) -> Self {
+        Self
+    }
+
+    pub fn inner(&self) -> &Arc<ClientRateLimiter> {
+        // 创建一个静态空实例
+        static EMPTY: Arc<ClientRateLimiter> = Arc::new(ClientRateLimiter);
+        &EMPTY
+    }
+}
+
 #[cfg(test)]
+#[cfg(feature = "rate-limiting")]
 mod tests {
     use super::*;
 
