@@ -94,6 +94,9 @@ pub const CONFIG_VERSION_FIELD: &str = "config_version";
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct OxcacheConfig {
+    /// 配置版本（向后兼容）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_version: Option<u32>,
     /// 全局配置
     pub global: GlobalConfig,
     /// 服务配置字典

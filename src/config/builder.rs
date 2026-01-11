@@ -84,6 +84,7 @@ impl OxcacheConfigBuilder {
         }
 
         OxcacheConfig {
+            config_version: Some(crate::config::CONFIG_VERSION),
             global,
             services,
             layer: self.layer,
