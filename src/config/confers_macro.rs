@@ -221,13 +221,14 @@ impl OxcacheConfigFile {
         Ok(canonical_path)
     }
 
-    /// 转换为内部 OxcacheConfig
+/// 转换为内部 OxcacheConfig
     pub fn to_oxcache_config(self) -> super::OxcacheConfig {
         use super::{CacheType, GlobalConfig, ServiceConfig};
-
+        use crate::config::CONFIG_VERSION;
+ 
         let global = self.global.unwrap_or_default();
         let services = self.services.unwrap_or_default();
-
+ 
         // 转换全局配置
         let global = GlobalConfig {
             default_ttl: global.default_ttl.unwrap_or(300),
@@ -242,7 +243,7 @@ impl OxcacheConfigFile {
             },
             enable_metrics: global.enable_metrics.unwrap_or(true),
         };
-
+ 
         // 转换服务配置
         let mut services_map = HashMap::new();
         for svc in services {
@@ -255,11 +256,11 @@ impl OxcacheConfigFile {
                 "l2" | "L2" => CacheType::L2,
                 _ => CacheType::TwoLevel,
             };
-
+ 
             let l1_config = svc.l1.unwrap_or_default();
             let l2_config = svc.l2.unwrap_or_default();
             let two_level_config = svc.two_level.unwrap_or_default();
-
+ 
             let service = ServiceConfig {
                 cache_type,
                 ttl: svc.ttl,
@@ -300,6 +301,34 @@ impl OxcacheConfigFile {
                         max_key_length: 512,
                         max_value_size: 10 * 1024 * 1024,
                     }
+                }),
+                two_level: Some(super::TwoLevelConfig {
+                    promote_on_hit: two_level_config.promote_on_hit.unwrap_or(true),
+                    enable_batch_write: two_level_config.enable_batch_write.unwrap_or(false),
+                    batch_size: two_level_config.batch_size.unwrap_or(100),
+                    batch_interval_ms: two_level_config.batch_interval_ms.unwrap_or(10),
+                    max_key_length: None,
+                    max_value_size: None,
+                    bloom_filter: None,
+                    invalidation_channel: None,
+                    warmup: None,
+                }),
+            };
+ 
+            services_map.insert(svc.name, service);
+        }
+ 
+        super::OxcacheConfig {
+            config_version: Some(CONFIG_VERSION),
+            global,
+            services: services_map,
+            layer: None,
+            #[cfg(feature = "confers")]
+            extensions: HashMap::new(),
+            #[cfg(feature = "confers")]
+            source: Some(super::ConfigSource::File("confers".to_string())),
+        }
+    }
                 }),
                 two_level: Some(super::TwoLevelConfig {
                     promote_on_hit: two_level_config.promote_on_hit.unwrap_or(true),
