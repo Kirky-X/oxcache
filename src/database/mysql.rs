@@ -15,7 +15,8 @@ use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
-use super::{common::*, PartitionConfig, PartitionInfo, PartitionManager};
+use super::common::*;
+use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 
 /// 连接池统计信息
 #[derive(Debug, Clone, Default)]

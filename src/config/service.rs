@@ -9,11 +9,11 @@ use crate::config::legacy_config::{
     WarmupDataSource,
 };
 use secrecy::SecretString;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// 缓存类型枚举
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheType {
     /// 仅 L1 缓存
@@ -38,7 +38,7 @@ impl fmt::Display for CacheType {
 /// 服务配置
 ///
 /// 定义单个服务的缓存配置。
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ServiceConfig {
     /// 缓存类型
     pub cache_type: CacheType,
@@ -141,7 +141,7 @@ impl ServiceConfig {
 /// L1 缓存配置
 ///
 /// 定义内存缓存的相关配置。
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct L1Config {
     /// 最大缓存容量
@@ -181,18 +181,20 @@ impl L1Config {
 /// L2 缓存配置
 ///
 /// 定义分布式缓存的相关配置。
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct L2Config {
     /// Redis 模式
     pub mode: RedisMode,
     /// 连接字符串
+    #[serde(skip)]
     pub connection_string: SecretString,
     /// 连接超时（毫秒）
     pub connection_timeout_ms: u64,
     /// 命令超时（毫秒）
     pub command_timeout_ms: u64,
     /// 密码
+    #[serde(skip)]
     pub password: Option<SecretString>,
     /// 是否启用 TLS
     pub enable_tls: bool,
@@ -258,7 +260,7 @@ impl L2Config {
 }
 
 /// Redis 模式
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RedisMode {
     /// 单机模式
@@ -283,7 +285,7 @@ impl fmt::Display for RedisMode {
 /// 双层缓存配置
 ///
 /// 定义双层缓存特有的行为配置。
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TwoLevelConfig {
     /// 是否在命中时提升到 L1
@@ -326,7 +328,7 @@ impl TwoLevelConfig {
 }
 
 /// 布隆过滤器配置
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BloomFilterConfig {
     /// 预期元素数量
     pub expected_elements: usize,

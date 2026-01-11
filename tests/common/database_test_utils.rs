@@ -6,8 +6,8 @@
 
 #![allow(dead_code)]
 
+use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use chrono::{TimeZone, Utc};
-use oxcache::database::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use oxcache::error::Result;
 use std::sync::Arc;
 use tempfile::NamedTempFile;

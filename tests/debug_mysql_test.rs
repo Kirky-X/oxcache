@@ -4,8 +4,8 @@
 //!
 //! MySQL调试测试
 
+use crate::database::partition::{PartitionConfig, PartitionManager};
 use oxcache::database::mysql::MySQLPartitionManager;
-use oxcache::database::{PartitionConfig, PartitionManager, PartitionStrategy};
 use std::time::Duration;
 use tokio::time::timeout;
 

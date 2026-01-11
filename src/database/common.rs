@@ -2,211 +2,143 @@
 //!
 //! MIT License
 //!
-//! 该模块定义了数据库分区管理的公共工具函数。
+//! 数据库连接和常用工具模块
+//!
 
-use super::{PartitionConfig, PartitionInfo, PartitionManager};
-use crate::error::Result;
+use crate::error::{CacheError, Result};
+use async_trait::async_trait;
 use chrono::{DateTime, Datelike, TimeZone, Utc};
-use futures::Future;
-use std::pin::Pin;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tracing::debug;
 
-/// 数据库分区管理的公共工具函数
-pub trait PartitionCommon {
-    /// 计算分区保留截止日期
-    fn calculate_cutoff_date(&self, retention_months: u32) -> DateTime<Utc> {
-        Utc::now() - chrono::Duration::days((retention_months * 30) as i64)
+/// 通用数据库操作trait
+#[async_trait]
+pub trait DatabaseOperations: Debug + Send + Sync {
+    /// 检查连接是否有效
+    async fn is_connected(&self) -> bool;
+
+    /// 执行查询
+    async fn query(&self, sql: &str) -> Result<Vec<HashMap<String, String>>>;
+
+    /// 执行更新
+    async fn execute(&self, sql: &str) -> Result<u64>;
+}
+
+/// 连接池配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoolConfig {
+    /// 最大连接数
+    pub max_size: u32,
+    /// 最小空闲连接数
+    pub min_idle: u32,
+    /// 连接超时（秒）
+    pub connection_timeout: u64,
+    /// 空闲连接超时（秒）
+    pub idle_timeout: u64,
+}
+
+impl Default for PoolConfig {
+    fn default() -> Self {
+        Self {
+            max_size: 10,
+            min_idle: 1,
+            connection_timeout: 30,
+            idle_timeout: 600,
+        }
+    }
+}
+
+/// 连接池统计信息
+#[derive(Debug, Clone, Default)]
+pub struct PoolStats {
+    /// 活跃连接数
+    pub active_connections: u32,
+    /// 空闲连接数
+    pub idle_connections: u32,
+    /// 等待获取连接的请求数
+    pub waiting_requests: u32,
+    /// 总连接数
+    pub total_connections: u32,
+}
+
+impl PoolStats {
+    /// 创建新的统计信息
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// 通用连接池
+#[derive(Debug)]
+pub struct ConnectionPool<T: DatabaseOperations> {
+    /// 连接池
+    pool: Arc<Mutex<Vec<Arc<T>>>>,
+    /// 配置
+    config: PoolConfig,
+    /// 活跃连接数
+    active_count: Arc<Mutex<u32>>,
+    /// 统计信息
+    stats: Arc<Mutex<PoolStats>>,
+}
+
+impl<T: DatabaseOperations> ConnectionPool<T> {
+    /// 创建新的连接池
+    pub async fn new<F>(config: PoolConfig, creator: F) -> Result<Self>
+    where
+        F: Fn() -> Result<Arc<T>>,
+    {
+        let mut connections = Vec::new();
+        for _ in 0..config.min_idle {
+            connections.push(creator()?);
+        }
+
+        Ok(Self {
+            pool: Arc::new(Mutex::new(connections)),
+            config,
+            active_count: Arc::new(Mutex::new(0)),
+            stats: Arc::new(Mutex::new(PoolStats::new())),
+        })
     }
 
-    /// 获取分区的基础表名（移除日期后缀）
-    fn extract_base_table(&self, table_name: &str) -> String {
-        if table_name.contains("_y") && table_name.contains("m") {
-            // Format: table_prefix_y2023m12
-            table_name
-                .split("_y")
-                .next()
-                .unwrap_or(table_name)
-                .to_string()
-        } else if table_name.contains("_") {
-            // Format: table_prefix_2023_12
-            table_name
-                .split("_")
-                .take_while(|part| !part.chars().all(|c| c.is_ascii_digit() || c == 'm'))
-                .collect::<Vec<_>>()
-                .join("_")
+    /// 获取连接
+    pub async fn get_connection(&self) -> Result<Arc<T>> {
+        let mut pool = self.pool.lock().await;
+
+        if let Some(conn) = pool.pop() {
+            let mut stats = self.stats.lock().await;
+            stats.idle_connections = stats.idle_connections.saturating_sub(1);
+            stats.active_connections = stats.active_connections.saturating_add(1);
+
+            Ok(conn)
         } else {
-            // 没有日期格式，使用原始表名
-            table_name.to_string()
+            // 没有可用连接，尝试创建新连接
+            // 这里应该实现连接创建逻辑
+            Err(CacheError::DatabaseError(
+                "No connection available".to_string(),
+            ))
         }
     }
 
-    /// 生成分区名称
-    fn generate_partition_name(&self, date: &DateTime<Utc>, prefix: &str) -> String {
-        format!("{}{}_{:02}", prefix, date.year(), date.month())
+    /// 归还连接
+    pub async fn return_connection(&self, _conn: Arc<T>) {
+        let mut stats = self.stats.lock().await;
+        stats.active_connections = stats.active_connections.saturating_sub(1);
+        stats.idle_connections = stats.idle_connections.saturating_add(1);
     }
 
-    /// 生成分区表名
-    fn generate_partition_table_name(&self, table_prefix: &str, date: &DateTime<Utc>) -> String {
-        format!("{}_y{}m{:02}", table_prefix, date.year(), date.month())
-    }
-
-    /// 获取下一个月的第一天
-    fn get_next_month_first_day(&self, date: &DateTime<Utc>) -> DateTime<Utc> {
-        if date.month() == 12 {
-            Utc.with_ymd_and_hms(date.year() + 1, 1, 1, 0, 0, 0)
-                .single()
-                .expect("January 1st should be a valid date")
-        } else {
-            Utc.with_ymd_and_hms(date.year(), date.month() + 1, 1, 0, 0, 0)
-                .single()
-                .expect("First day of month should be a valid date")
+    /// 获取统计信息
+    pub async fn get_stats(&self) -> PoolStats {
+        let stats = self.stats.lock().await;
+        let pool = self.pool.lock().await;
+        PoolStats {
+            active_connections: stats.active_connections,
+            idle_connections: pool.len() as u32 + stats.idle_connections,
+            waiting_requests: 0,
+            total_connections: stats.active_connections + stats.idle_connections,
         }
     }
-
-    /// 获取当前配置的保留月数
-    fn get_retention_months(&self, config: &PartitionConfig, param_retention: u32) -> u32 {
-        config.retention_months.unwrap_or(param_retention)
-    }
-
-    /// 解析分区表名获取日期信息
-    fn parse_partition_date(&self, table_name: &str) -> Option<DateTime<Utc>> {
-        if let Some(y_pos) = table_name.rfind("_y") {
-            if let Some(m_pos) = table_name[y_pos + 2..].find("m") {
-                let year_str = &table_name[y_pos + 2..y_pos + 2 + m_pos];
-                let month_str = &table_name[y_pos + 2 + m_pos + 1..];
-
-                if let (Ok(year), Ok(month)) = (year_str.parse::<i32>(), month_str.parse::<u32>()) {
-                    return Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single();
-                }
-            }
-        }
-        None
-    }
-}
-
-/// 默认实现
-impl<T> PartitionCommon for T where T: Sized {}
-
-/// 预创建分区的通用实现
-pub async fn common_precreate_partitions<'a, M, F>(
-    manager: &'a M,
-    table_name: &'a str,
-    months_ahead: u32,
-    _config: &'a PartitionConfig,
-    ensure_partition: F,
-) -> Result<()>
-where
-    M: PartitionCommon + ?Sized + 'a,
-    F: for<'b> Fn(
-        &'b M,
-        DateTime<Utc>,
-        &'b str,
-    ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'b>>,
-{
-    let now = Utc::now();
-
-    // 预创建未来几个月的分区
-    for i in 1..=months_ahead {
-        let future_date = now + chrono::Duration::days((i * 30) as i64);
-        ensure_partition(manager, future_date, table_name).await?;
-    }
-
-    Ok(())
-}
-
-/// 清理过期分区的通用实现
-pub async fn common_cleanup_old_partitions<'a, M, F, G>(
-    manager: &'a M,
-    table_name: &'a str,
-    retention_months: u32,
-    config: &'a PartitionConfig,
-    get_partitions: F,
-    drop_partition: G,
-) -> Result<usize>
-where
-    M: PartitionCommon + ?Sized + 'a,
-    F: for<'b> Fn(
-        &'b M,
-        &'b str,
-    )
-        -> Pin<Box<dyn futures::Future<Output = Result<Vec<PartitionInfo>>> + Send + 'b>>,
-    G: for<'b> Fn(
-        &'b M,
-        &'b str,
-        &'b str,
-    ) -> Pin<Box<dyn futures::Future<Output = Result<()>> + Send + 'b>>,
-{
-    // 如果配置中指定了保留月数，则使用配置的，否则使用参数传入的
-    let retention = config.retention_months.unwrap_or(retention_months);
-
-    // 获取所有分区
-    let partitions = get_partitions(manager, table_name).await?;
-    let cutoff_date = manager.calculate_cutoff_date(retention);
-
-    let mut dropped_count = 0;
-    for partition in partitions {
-        if partition.end_date < cutoff_date {
-            drop_partition(manager, table_name, &partition.name).await?;
-            dropped_count += 1;
-        }
-    }
-
-    Ok(dropped_count)
-}
-
-/// 分区管理器扩展trait，用于通用实现
-pub trait PartitionManagerExt: PartitionCommon + PartitionManager {
-    /// 预创建未来分区（使用通用实现）
-    fn precreate_partitions(
-        &self,
-        table_name: &str,
-        months_ahead: u32,
-    ) -> impl futures::Future<Output = Result<()>> + Send {
-        let manager = self;
-        let table_name = table_name.to_string();
-        async move {
-            common_precreate_partitions(
-                manager,
-                &table_name,
-                months_ahead,
-                manager.get_config(),
-                |manager, date, table| {
-                    Box::pin(PartitionManager::ensure_partition_exists(
-                        manager, date, table,
-                    ))
-                },
-            )
-            .await
-        }
-    }
-
-    /// 清理过期分区（使用通用实现）
-    fn cleanup_old_partitions(
-        &self,
-        table_name: &str,
-        retention_months: u32,
-    ) -> impl futures::Future<Output = Result<usize>> + Send {
-        let manager = self;
-        let table_name = table_name.to_string();
-        async move {
-            common_cleanup_old_partitions(
-                manager,
-                &table_name,
-                retention_months,
-                manager.get_config(),
-                |manager, table| Box::pin(manager.get_partitions(table)),
-                |manager, table, partition| Box::pin(manager.drop_partition(table, partition)),
-            )
-            .await
-        }
-    }
-
-    /// 确保分区存在
-    fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> impl std::future::Future<Output = Result<String>> + Send;
-
-    /// 获取配置
-    fn get_config(&self) -> &PartitionConfig;
 }

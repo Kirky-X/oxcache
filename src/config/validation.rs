@@ -249,6 +249,7 @@ pub fn validate_service(
     global: &GlobalConfig,
 ) -> Result<(), String> {
     let config = OxcacheConfig {
+        config_version: None,
         global: global.clone(),
         services: HashMap::new(),
         layer: None,
