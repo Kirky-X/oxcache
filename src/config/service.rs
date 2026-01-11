@@ -4,7 +4,10 @@
 //!
 //! 服务配置模块
 
-use crate::config::legacy_config::{CacheWarmupConfig, ClusterConfig, InvalidationChannelConfig, SentinelConfig, SerializationType, WarmupDataSource};
+use crate::config::legacy_config::{
+    CacheWarmupConfig, ClusterConfig, InvalidationChannelConfig, SentinelConfig, SerializationType,
+    WarmupDataSource,
+};
 use secrecy::SecretString;
 use serde::Deserialize;
 use std::fmt;

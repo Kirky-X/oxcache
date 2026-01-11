@@ -12,25 +12,22 @@ use std::collections::HashMap;
 
 pub mod builder;
 pub mod layer;
+pub mod legacy_config;
 pub mod service;
-pub mod validation;
-pub mod legacy_config; // 旧配置保持兼容
+pub mod validation; // 旧配置保持兼容
 
 #[cfg(feature = "confers")]
 pub mod confers_macro;
 
 pub use builder::OxcacheConfigBuilder;
-pub use layer::{
-    EvictionPolicy, LayerConfig, L1LayerConfig, L2LayerConfig, TwoLevelLayerConfig,
-};
+pub use layer::{EvictionPolicy, L1LayerConfig, L2LayerConfig, LayerConfig, TwoLevelLayerConfig};
 pub use service::{CacheType, L1Config, L2Config, RedisMode, ServiceConfig, TwoLevelConfig};
 pub use validation::ConfigValidation;
 
 pub use crate::config::legacy_config::{
-    CacheStrategy, ClusterConfig, Config as LegacyConfig, DynamicConfig,
+    CacheStrategy, CacheWarmupConfig, ClusterConfig, Config as LegacyConfig, DynamicConfig,
     EvictionPolicy as LegacyEvictionPolicy, GlobalConfig, InvalidationChannelConfig,
-    RedisMode as LegacyRedisMode, SentinelConfig, SerializationType, CacheWarmupConfig,
-    WarmupDataSource,
+    RedisMode as LegacyRedisMode, SentinelConfig, SerializationType, WarmupDataSource,
 };
 
 /// 配置来源枚举

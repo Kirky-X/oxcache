@@ -21,7 +21,7 @@ pub enum Commands {
     Status(StatusArgs),
 
     #[command(name = "admin", about = "Admin operations (clean, warmup)")]
-    Admin(AdminArgs),
+    Admin(admin::AdminArgs),
 
     #[command(name = "metrics", about = "Get cache metrics")]
     Metrics(MetricsArgs),

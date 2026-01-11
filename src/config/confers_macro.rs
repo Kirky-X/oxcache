@@ -7,6 +7,10 @@
 //! 提供基于 confers 库的声明式配置功能。
 
 #[cfg(feature = "confers")]
+use super::ConfigSource;
+#[cfg(feature = "confers")]
+use crate::OxcacheConfig;
+#[cfg(feature = "confers")]
 use anyhow::{anyhow, Context as AnyhowContext};
 #[cfg(feature = "confers")]
 use serde::Deserialize;
@@ -18,10 +22,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "confers")]
 use toml;
-#[cfg(feature = "confers")]
-use super::ConfigSource;
-#[cfg(feature = "confers")]
-use crate::OxcacheConfig;
 
 /// 完整配置（confers 版本）
 ///
@@ -185,8 +185,7 @@ impl OxcacheConfigFile {
         let content = fs::read_to_string(&config_path)
             .with_context(|| format!("Failed to read config file: {}", path))?;
 
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to parse config file: {}", path))
+        toml::from_str(&content).with_context(|| format!("Failed to parse config file: {}", path))
     }
 
     /// 验证并规范化路径
@@ -233,7 +232,11 @@ impl OxcacheConfigFile {
         let global = GlobalConfig {
             default_ttl: global.default_ttl.unwrap_or(300),
             health_check_interval: global.health_check_interval.unwrap_or(60),
-            serialization: match global.serialization.unwrap_or_else(|| "json".to_string()).as_str() {
+            serialization: match global
+                .serialization
+                .unwrap_or_else(|| "json".to_string())
+                .as_str()
+            {
                 "bincode" => super::SerializationType::Bincode,
                 _ => super::SerializationType::Json,
             },
@@ -243,7 +246,11 @@ impl OxcacheConfigFile {
         // 转换服务配置
         let mut services_map = HashMap::new();
         for svc in services {
-            let cache_type = match svc.cache_type.unwrap_or_else(|| "two_level".to_string()).as_str() {
+            let cache_type = match svc
+                .cache_type
+                .unwrap_or_else(|| "two_level".to_string())
+                .as_str()
+            {
                 "l1" | "L1" => CacheType::L1,
                 "l2" | "L2" => CacheType::L2,
                 _ => CacheType::TwoLevel,
@@ -269,7 +276,11 @@ impl OxcacheConfigFile {
                 l2: Some({
                     use secrecy::SecretString;
                     super::L2Config {
-                        mode: match l2_config.mode.unwrap_or_else(|| "standalone".to_string()).as_str() {
+                        mode: match l2_config
+                            .mode
+                            .unwrap_or_else(|| "standalone".to_string())
+                            .as_str()
+                        {
                             "sentinel" => super::RedisMode::Sentinel,
                             "cluster" => super::RedisMode::Cluster,
                             _ => super::RedisMode::Standalone,
@@ -279,7 +290,9 @@ impl OxcacheConfigFile {
                         ),
                         connection_timeout_ms: l2_config.connection_timeout_ms.unwrap_or(5000),
                         command_timeout_ms: l2_config.command_timeout_ms.unwrap_or(30000),
-                        password: l2_config.password.map(|p| SecretString::new(p.into_boxed_str())),
+                        password: l2_config
+                            .password
+                            .map(|p| SecretString::new(p.into_boxed_str())),
                         enable_tls: l2_config.enable_tls.unwrap_or(false),
                         sentinel: None,
                         cluster: None,
@@ -381,10 +394,7 @@ connection_timeout_ms = 5000
         fn test_config_source_code() {
             let mut config = super::super::OxcacheConfig::new();
             config.set_source(super::super::ConfigSource::Code);
-            assert_eq!(
-                config.source,
-                Some(super::super::ConfigSource::Code)
-            );
+            assert_eq!(config.source, Some(super::super::ConfigSource::Code));
         }
     }
 }

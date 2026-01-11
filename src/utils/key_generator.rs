@@ -227,8 +227,7 @@ impl KeyGenerator {
         if key.len() <= self.max_key_length {
             key.to_string()
         } else {
-            let hash = murmur3_32(&mut key.as_bytes(), 0)
-                .expect("Failed to compute murmur3 hash");
+            let hash = murmur3_32(&mut key.as_bytes(), 0).expect("Failed to compute murmur3 hash");
             format!("hash:{:08x}", hash)
         }
     }

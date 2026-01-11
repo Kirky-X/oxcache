@@ -6,8 +6,10 @@
 
 use crate::backend::{l1::L1Backend, l2::L2Backend};
 use crate::client::{l1::L1Client, l2::L2Client, two_level::TwoLevelClient, CacheOps};
-use crate::config::{CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, SerializationType};
 use crate::config::legacy_config::EvictionPolicy;
+use crate::config::{
+    CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, SerializationType,
+};
 use crate::error::{CacheError, Result};
 use crate::serialization::{json::JsonSerializer, SerializerEnum};
 use dashmap::DashMap;
@@ -334,10 +336,7 @@ pub fn update_l1_capacity(service_name: &str, capacity: u64) -> Result<()> {
 /// 更新淘汰策略
 ///
 /// 便捷方法：仅更新服务的 L1 淘汰策略
-pub fn update_eviction_policy(
-    service_name: &str,
-    policy: EvictionPolicy,
-) -> Result<()> {
+pub fn update_eviction_policy(service_name: &str, policy: EvictionPolicy) -> Result<()> {
     update_strategy(service_name, None, None, Some(policy))
 }
 
@@ -348,7 +347,11 @@ pub fn reset_strategy(service_name: &str) {
     let dynamic_config = get_dynamic_config();
     dynamic_config.remove_strategy(service_name);
 
-    event!(Level::INFO, service = service_name, "Cache strategy reset to static config");
+    event!(
+        Level::INFO,
+        service = service_name,
+        "Cache strategy reset to static config"
+    );
 }
 
 /// 获取所有已配置动态策略的服务名称
