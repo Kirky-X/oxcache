@@ -7,13 +7,11 @@
 
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
-use chrono::{DateTime, Datelike, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::debug;
 
 /// 通用数据库操作trait
 #[async_trait]

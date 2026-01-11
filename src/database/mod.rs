@@ -6,10 +6,7 @@
 //!
 //! 提供PostgreSQL和MySQL的按月分区功能
 
-use crate::error::{CacheError, Result};
-use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 mod common;
 mod connection_string;
@@ -19,9 +16,7 @@ mod connection_string;
 // mod sqlite;
 
 pub(crate) use connection_string::{
-    ensure_database_directory, extract_sqlite_path, get_recommended_connection_string,
-    is_test_connection_string, normalize_connection_string, validate_connection_string, DbType,
-    ParsedConnectionString, ValidationResult,
+    is_test_connection_string, normalize_connection_string,
 };
 // 分区管理模块暂时禁用，待后续修复
 // pub mod partition;
