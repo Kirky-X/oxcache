@@ -13,8 +13,8 @@
 //! - 敏感信息脱敏工具
 //! - 缓存键生成器
 
-pub(crate) mod redaction;
 pub(crate) mod key_generator;
+pub(crate) mod redaction;
 
 use crate::config::{
     CacheType, ClusterConfig, Config, L1Config, L2Config, RedisMode, SentinelConfig, ServiceConfig,

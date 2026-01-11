@@ -20,10 +20,8 @@ pub mod manager;
 mod backend;
 #[cfg(not(feature = "test"))]
 mod bloom_filter;
-#[cfg(all(not(feature = "test"), feature = "cli"))]
+#[cfg(any(feature = "cli", feature = "test"))]
 pub mod cli;
-#[cfg(all(not(feature = "test"), not(feature = "cli")))]
-mod cli;
 #[cfg(not(feature = "test"))]
 mod database;
 #[cfg(not(feature = "test"))]
@@ -47,7 +45,7 @@ pub mod backend;
 #[cfg(feature = "test")]
 pub mod bloom_filter;
 #[cfg(feature = "test")]
-pub mod cli;
+pub use cli::*;
 #[cfg(feature = "test")]
 pub mod database;
 #[cfg(feature = "test")]
@@ -65,18 +63,22 @@ pub mod sync;
 #[cfg(feature = "test")]
 pub mod utils;
 
+#[cfg(feature = "test")]
+pub use config::{CacheType, L1Config, L2Config, RedisMode, SerializationType, TwoLevelConfig};
+
 // 重新导出公共 API
 pub use client::{CacheExt, CacheOps};
+pub use config::legacy_config::{
+    CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig,
+};
 pub use config::{
     CacheStrategy, Config, ConfigSource, DynamicConfig, EvictionPolicy, GlobalConfig, LayerConfig,
     OxcacheConfig, ServiceConfig,
 };
-pub use config::{CacheType, L1Config, L2Config, RedisMode, SerializationType, TwoLevelConfig};
-pub use config::legacy_config::{CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig};
 pub use error::{CacheError, Result};
 pub use manager::{
-    get_client, get_strategy, init, list_strategies, update_eviction_policy, update_l1_capacity,
-    update_strategy, update_ttl, CacheManager, clear_all_strategies, reset_strategy,
+    clear_all_strategies, get_client, get_strategy, init, list_strategies, reset_strategy,
+    update_eviction_policy, update_l1_capacity, update_strategy, update_ttl, CacheManager,
 };
 pub use utils::key_generator::KeyGenerator;
 
@@ -108,8 +110,8 @@ macro_rules! init_config {
 #[cfg(feature = "confers")]
 pub async fn init_from_confers(path: &str) -> Result<()> {
     use crate::config::confers_macro::confers_load;
-    let config = confers_load(path)
-        .map_err(|e| crate::error::CacheError::ConfigError(e.to_string()))?;
+    let config =
+        confers_load(path).map_err(|e| crate::error::CacheError::ConfigError(e.to_string()))?;
     init(config).await
 }
 

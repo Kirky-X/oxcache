@@ -47,11 +47,7 @@ impl OxcacheConfig {
     }
 
     /// 验证单个服务配置
-    pub fn validate_service(
-        &self,
-        name: &str,
-        service: &ServiceConfig,
-    ) -> Result<(), String> {
+    pub fn validate_service(&self, name: &str, service: &ServiceConfig) -> Result<(), String> {
         // 验证服务名称
         if name.is_empty() {
             return Err("Service name cannot be empty".to_string());
@@ -111,9 +107,7 @@ impl OxcacheConfig {
             ));
         }
 
-        if l1_config.cleanup_interval_secs > 0
-            && l1_config.cleanup_interval_secs > service_ttl
-        {
+        if l1_config.cleanup_interval_secs > 0 && l1_config.cleanup_interval_secs > service_ttl {
             return Err(format!(
                 "Service '{}' L1 cleanup_interval_secs ({}) must be <= service TTL ({})",
                 name, l1_config.cleanup_interval_secs, service_ttl
