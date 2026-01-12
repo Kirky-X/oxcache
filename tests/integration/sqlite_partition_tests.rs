@@ -4,8 +4,8 @@
 //!
 //! SQLite分区测试
 
-use oxcache::database::partition::PartitionInfo;
 use chrono::{TimeZone, Utc};
+use oxcache::database::partition::PartitionInfo;
 use oxcache::database::sqlite::SQLitePartitionManager;
 use oxcache::error::{CacheError, Result};
 use std::fs::File;
@@ -34,8 +34,8 @@ fn cleanup_partition_tables() {
 
 mod basic_functionality_tests {
     use super::*;
-    use oxcache::database::PartitionManager;
     use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
+    use oxcache::database::PartitionManager;
 
     #[tokio::test]
     async fn test_sqlite_partitioning_basic() -> Result<()> {
@@ -105,7 +105,9 @@ mod basic_functionality_tests {
         println!("✓ Total partitions: {}", all_partitions.len());
 
         let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
-        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
+        let cleaned_count = manager
+            .cleanup_old_partitions(test_table, cutoff_date)
+            .await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;
@@ -195,8 +197,8 @@ mod basic_functionality_tests {
 
 mod manager_tests {
     use super::*;
-    use oxcache::database::PartitionManager;
     use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
+    use oxcache::database::PartitionManager;
 
     #[tokio::test]
     async fn test_sqlite_partition_manager_basic() {

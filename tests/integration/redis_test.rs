@@ -16,8 +16,8 @@ use common::{
 };
 use oxcache::backend::l2::L2Backend;
 use oxcache::config::{
-    CacheType, ClusterConfig, OxcacheConfig, GlobalConfig, L1Config, L2Config, RedisMode, SentinelConfig,
-    ServiceConfig, TwoLevelConfig,
+    CacheType, ClusterConfig, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode,
+    SentinelConfig, ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
 use std::collections::HashMap;

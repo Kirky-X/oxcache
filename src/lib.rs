@@ -112,11 +112,7 @@ pub mod telemetry;
 pub mod serialization;
 
 // Utils Module
-#[cfg(any(
-    feature = "full",
-    feature = "minimal",
-    feature = "core"
-))]
+#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub mod utils;
 
 // Test-only modules
@@ -131,12 +127,12 @@ pub use client::{CacheExt, CacheOps};
 pub use config::legacy_config::{
     CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig,
 };
+#[allow(deprecated)]
+pub use config::Config;
 pub use config::{
     CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, OxcacheConfigBuilder,
     RedisMode, SerializationType, ServiceConfig,
 };
-#[allow(deprecated)]
-pub use config::Config;
 
 #[cfg(feature = "confers")]
 pub use config::ConfigSource;

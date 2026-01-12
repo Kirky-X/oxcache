@@ -6,6 +6,8 @@
 //! 通过 `bloom-filter` feature 控制启用/禁用
 
 #[cfg(feature = "bloom-filter")]
+use crate::error::CacheError;
+#[cfg(feature = "bloom-filter")]
 use murmur3::murmur3_32;
 #[cfg(feature = "bloom-filter")]
 use std::collections::HashMap;
@@ -16,8 +18,6 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
     RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-#[cfg(feature = "bloom-filter")]
-use crate::error::CacheError;
 
 /// 布隆过滤器配置
 #[cfg(feature = "bloom-filter")]
@@ -127,7 +127,10 @@ impl BloomFilter {
         // 尝试从缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         if let Some(cached_positions) = {
-            let cache = self.hash_cache.read().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+            let cache = self
+                .hash_cache
+                .read()
+                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
             cache.get(&item_key).cloned()
         } {
             // 使用缓存的位置进行检查
@@ -139,7 +142,10 @@ impl BloomFilter {
 
         // 将结果存入缓存（限制缓存大小以避免内存无限增长）
         {
-            let mut cache = self.hash_cache.write().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+            let mut cache = self
+                .hash_cache
+                .write()
+                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
 
             // 如果缓存过大，使用 LRU 策略移除部分条目
             if cache.len() > 10000 {
@@ -186,7 +192,10 @@ impl BloomFilter {
         // 尝试从缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         let positions = if let Some(cached_positions) = {
-            let cache = self.hash_cache.read().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+            let cache = self
+                .hash_cache
+                .read()
+                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
             cache.get(&item_key).cloned()
         } {
             cached_positions
@@ -195,7 +204,10 @@ impl BloomFilter {
 
             // 将结果存入缓存
             {
-                let mut cache = self.hash_cache.write().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+                let mut cache = self
+                    .hash_cache
+                    .write()
+                    .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
 
                 // 如果缓存过大，使用 LRU 策略移除部分条目
                 if cache.len() > 10000 {
@@ -381,7 +393,10 @@ impl BloomFilterShared {
     }
 
     pub async fn add(&self, item: &[u8]) -> Result<(), CacheError> {
-        self.filter.write().map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?.add(item)
+        self.filter
+            .write()
+            .map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?
+            .add(item)
     }
 
     pub async fn contains_and_add(&self, item: &[u8]) -> Result<bool, CacheError> {
@@ -392,7 +407,8 @@ impl BloomFilterShared {
     }
 
     pub fn get_stats(&self) -> Result<BloomFilterStats, CacheError> {
-        Ok(self.filter
+        Ok(self
+            .filter
             .read()
             .map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?
             .get_stats())
@@ -420,9 +436,14 @@ impl BloomFilterManager {
         }
     }
 
-    pub async fn get_or_create(&self, options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
-        let mut guard: RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.write().map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
+    pub async fn get_or_create(
+        &self,
+        options: BloomFilterOptions,
+    ) -> Result<BloomFilterShared, CacheError> {
+        let mut guard: RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> = self
+            .filters
+            .write()
+            .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
 
         if let Some(existing) = guard.get(&options.name) {
             let existing: &BloomFilterShared = existing;
@@ -436,7 +457,8 @@ impl BloomFilterManager {
     }
 
     pub fn get(&self, name: &str) -> Result<Option<BloomFilterShared>, CacheError> {
-        Ok(self.filters
+        Ok(self
+            .filters
             .read()
             .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .get(name)
@@ -444,7 +466,8 @@ impl BloomFilterManager {
     }
 
     pub fn remove(&self, name: &str) -> Result<bool, CacheError> {
-        Ok(self.filters
+        Ok(self
+            .filters
             .write()
             .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .remove(name)
@@ -452,7 +475,8 @@ impl BloomFilterManager {
     }
 
     pub fn list_names(&self) -> Result<Vec<String>, CacheError> {
-        Ok(self.filters
+        Ok(self
+            .filters
             .read()
             .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .keys()
@@ -461,8 +485,10 @@ impl BloomFilterManager {
     }
 
     pub async fn get_all_stats(&self) -> Result<Vec<BloomFilterStats>, CacheError> {
-        let guard: RwLockReadGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.read().map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
+        let guard: RwLockReadGuard<'_, HashMap<String, BloomFilterShared>> = self
+            .filters
+            .read()
+            .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
         let mut stats = Vec::with_capacity(guard.len());
 
         for filter in guard.values() {
@@ -615,8 +641,13 @@ impl BloomFilterManager {
         Self
     }
 
-    pub async fn get_or_create(&self, _options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
-        Ok(BloomFilterShared::new(BloomFilter::new(BloomFilterOptions::default())))
+    pub async fn get_or_create(
+        &self,
+        _options: BloomFilterOptions,
+    ) -> Result<BloomFilterShared, CacheError> {
+        Ok(BloomFilterShared::new(BloomFilter::new(
+            BloomFilterOptions::default(),
+        )))
     }
 
     pub fn get(&self, _name: &str) -> Result<Option<BloomFilterShared>, CacheError> {

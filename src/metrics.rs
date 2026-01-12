@@ -265,84 +265,78 @@ pub fn get_metrics_string() -> String {
     // DashMap 无锁迭代
     let requests: &DashMap<String, u64> = &metrics.requests_total;
     for entry in requests.iter() {
-                let (key, value): (&String, &u64) = entry.pair();
-                output.push_str(&format!(
-                    "cache_requests_total{{labels=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &u64) = entry.pair();
+        output.push_str(&format!(
+            "cache_requests_total{{labels=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     let health_status: &DashMap<String, u8> = &metrics.l2_health_status;
     for entry in health_status.iter() {
-                let (key, value): (&String, &u8) = entry.pair();
-                output.push_str(&format!(
-                    "cache_l2_health_status{{service=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &u8) = entry.pair();
+        output.push_str(&format!(
+            "cache_l2_health_status{{service=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     let wal_entries: &DashMap<String, usize> = &metrics.wal_entries;
     for entry in wal_entries.iter() {
-                let (key, value): (&String, &usize) = entry.pair();
-                output.push_str(&format!(
-                    "cache_wal_entries{{service=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &usize) = entry.pair();
+        output.push_str(&format!(
+            "cache_wal_entries{{service=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     let durations: &DashMap<String, (f64, u64)> = &metrics.operation_duration;
     for entry in durations.iter() {
-                let (key, (total_duration, count)): (&String, &(f64, u64)) = entry.pair();
-                if *count > 0 {
-                    let parts: Vec<&str> = key.split(':').collect();
-                    if parts.len() >= 3 {
-                        let service = parts[0];
-                        let layer = parts[1];
-                        let op = parts[2];
-                        let avg_duration = total_duration / *count as f64;
-                        output.push_str(&format!(
+        let (key, (total_duration, count)): (&String, &(f64, u64)) = entry.pair();
+        if *count > 0 {
+            let parts: Vec<&str> = key.split(':').collect();
+            if parts.len() >= 3 {
+                let service = parts[0];
+                let layer = parts[1];
+                let op = parts[2];
+                let avg_duration = total_duration / *count as f64;
+                output.push_str(&format!(
                             "cache_operation_duration_seconds{{service=\"{}\",layer=\"{}\",op=\"{}\"}} {}\n",
                             service,
                             layer,
                             op,
                             avg_duration
                         ));
-                    }
-                }
             }
+        }
+    }
 
     let buffer_sizes: &DashMap<String, usize> = &metrics.batch_buffer_size;
     for entry in buffer_sizes.iter() {
-                let (key, value): (&String, &usize) = entry.pair();
-                output.push_str(&format!(
-                    "cache_batch_buffer_size{{service=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &usize) = entry.pair();
+        output.push_str(&format!(
+            "cache_batch_buffer_size{{service=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     let success_rates: &DashMap<String, f64> = &metrics.batch_success_rate;
     for entry in success_rates.iter() {
-                let (key, value): (&String, &f64) = entry.pair();
-                output.push_str(&format!(
-                    "cache_batch_success_rate{{service=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &f64) = entry.pair();
+        output.push_str(&format!(
+            "cache_batch_success_rate{{service=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     let throughputs: &DashMap<String, f64> = &metrics.batch_throughput;
     for entry in throughputs.iter() {
-                let (key, value): (&String, &f64) = entry.pair();
-                output.push_str(&format!(
-                    "cache_batch_throughput{{service=\"{}\"}} {}\n",
-                    key,
-                    value
-                ));
-            }
+        let (key, value): (&String, &f64) = entry.pair();
+        output.push_str(&format!(
+            "cache_batch_throughput{{service=\"{}\"}} {}\n",
+            key, value
+        ));
+    }
 
     output
 }

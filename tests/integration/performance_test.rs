@@ -7,13 +7,13 @@
 use crate::common;
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
-use std::collections::HashMap;
-use std::time::Instant;
 use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
+use std::collections::HashMap;
+use std::time::Instant;
 
 /// 测试NF2：缓存回填延迟 < 5ms
 ///
@@ -104,17 +104,25 @@ async fn test_backfill_latency() {
     // client.delete 只会同时删除 L1 和 L2。
     //
     // 我们可以直接操作 Redis 写入数据，绕过 L1。
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let redis_client = redis::Client::open(redis_url).unwrap();
-    let mut con = redis_client.get_multiplexed_async_connection().await.unwrap();
+    let mut con = redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
 
     // 手动写入 Redis，key 需要带前缀（oxcache 默认可能有前缀，也可能没有，看实现。
     // 查看 TwoLevelClient 实现，key 是直接使用的。
     // 序列化：oxcache 使用 JSON 序列化字符串会加上引号。
     // "perf_value" -> "\"perf_value\""
     let serialized_val = serde_json::to_string(&val).unwrap();
-    redis::cmd("SET").arg(key).arg(serialized_val).query_async::<()>(&mut con).await.unwrap();
+    redis::cmd("SET")
+        .arg(key)
+        .arg(serialized_val)
+        .query_async::<()>(&mut con)
+        .await
+        .unwrap();
 
     // 现在 L1 没有 key，L2 有 key。
     // 测量 Get 延迟
@@ -129,7 +137,10 @@ async fn test_backfill_latency() {
     // 注意：在 CI 环境或负载高的机器上，这可能会偶尔失败，所以作为警告而不是硬性失败可能更好，
     // 但 PRD 要求 < 5ms。
     if duration.as_millis() >= 5 {
-        println!("WARNING: Backfill latency {}ms exceeds 5ms target", duration.as_millis());
+        println!(
+            "WARNING: Backfill latency {}ms exceeds 5ms target",
+            duration.as_millis()
+        );
     } else {
         assert!(duration.as_millis() < 5, "Backfill latency too high");
     }

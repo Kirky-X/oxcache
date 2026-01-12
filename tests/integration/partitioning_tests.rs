@@ -6,9 +6,9 @@
 
 use chrono::{TimeZone, Utc};
 use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use oxcache::database::postgresql::PostgresPartitionManager;
 use oxcache::database::sqlite::SQLitePartitionManager;
-use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use oxcache::database::PartitionStrategy;
 use oxcache::error::{CacheError, Result};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
@@ -406,7 +406,9 @@ mod sqlite_basic_tests {
         println!("✓ Total partitions: {}", all_partitions.len());
 
         let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
-        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
+        let cleaned_count = manager
+            .cleanup_old_partitions(test_table, cutoff_date)
+            .await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;

@@ -63,8 +63,7 @@ impl L1Backend {
         // 注意：Moka 0.12 使用 TinyLFU 作为默认策略
         // 不同策略的行为在 Moka 内部实现，目前我们只存储策略信息
         // 实际策略效果由 Moka 库控制
-        let cache: Cache<String, CacheEntry> =
-            Cache::builder().max_capacity(capacity).build();
+        let cache: Cache<String, CacheEntry> = Cache::builder().max_capacity(capacity).build();
 
         Self {
             cache,

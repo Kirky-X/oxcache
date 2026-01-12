@@ -65,8 +65,8 @@ mod feature_info_tests {
 /// Test CacheManager initialization with feature flags
 #[cfg(test)]
 mod cache_manager_init_tests {
-    use oxcache::manager::CacheManager;
     use oxcache::config::{L1Config, ServiceConfig};
+    use oxcache::manager::CacheManager;
 
     // Minimal test config
     fn create_test_config() -> oxcache::OxcacheConfig {
@@ -78,10 +78,7 @@ mod cache_manager_init_tests {
 
         oxcache::OxcacheConfig::builder()
             .with_global(oxcache::config::GlobalConfig::default())
-            .with_service(
-                "test_service",
-                service_config,
-            )
+            .with_service("test_service", service_config)
             .build()
     }
 

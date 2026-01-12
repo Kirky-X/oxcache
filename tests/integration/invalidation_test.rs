@@ -8,8 +8,8 @@ use crate::common;
 
 use futures::stream::StreamExt;
 use oxcache::config::{
-    CacheType, OxcacheConfig, GlobalConfig, InvalidationChannelConfig, L1Config, L2Config, RedisMode,
-    ServiceConfig, TwoLevelConfig,
+    CacheType, GlobalConfig, InvalidationChannelConfig, L1Config, L2Config, OxcacheConfig,
+    RedisMode, ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheManager;
 use std::collections::HashMap;

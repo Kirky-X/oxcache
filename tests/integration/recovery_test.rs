@@ -5,12 +5,12 @@
 //! 故障恢复集成测试
 
 use common::{cleanup_service, generate_unique_service_name, setup_cache};
-use std::collections::HashMap;
-use std::time::Duration;
 use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
+use std::collections::HashMap;
+use std::time::Duration;
 
 use oxcache::CacheExt;
 

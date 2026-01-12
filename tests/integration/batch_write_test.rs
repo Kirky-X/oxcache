@@ -5,14 +5,14 @@
 //! 批量写入集成测试
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
-use std::collections::HashMap;
-use std::time::Duration;
 use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
 use secrecy::SecretString;
+use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::common;
 
@@ -44,10 +44,10 @@ async fn test_batch_write_performance() {
                     ttl: Some(60),
                     serialization: None,
                     l1: Some(L1Config {
-                            max_capacity: 100,
-                            cleanup_interval_secs: 10,
-                            ..Default::default()
-                        }),
+                        max_capacity: 100,
+                        cleanup_interval_secs: 10,
+                        ..Default::default()
+                    }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
                         connection_string: SecretString::new("redis://127.0.0.1:6379".into()),
@@ -72,7 +72,7 @@ async fn test_batch_write_performance() {
                         max_key_length: Some(1024),
                         max_value_size: Some(1024 * 1024),
                     }),
-                }
+                },
             );
             map
         },

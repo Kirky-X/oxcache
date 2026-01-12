@@ -54,28 +54,37 @@ pub struct PartitionInfo {
 impl PartitionInfo {
     /// 创建新的分区信息（默认按月）
     pub fn new(date: DateTime<Utc>, table_name: &str) -> Result<Self> {
-        use chrono::{Datelike, TimeZone};
         use crate::error::CacheError;
+        use chrono::{Datelike, TimeZone};
         let year = date.year();
         let month = date.month();
-        
+
         // Start of month
-        let start_date = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0)
+        let start_date = Utc
+            .with_ymd_and_hms(year, month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| CacheError::DatabaseError(format!("Invalid start date for {}-{}", year, month)))?;
-        
+            .ok_or_else(|| {
+                CacheError::DatabaseError(format!("Invalid start date for {}-{}", year, month))
+            })?;
+
         // End of month (start of next month)
         let (next_year, next_month) = if month == 12 {
             (year + 1, 1)
         } else {
             (year, month + 1)
         };
-        let end_date = Utc.with_ymd_and_hms(next_year, next_month, 1, 0, 0, 0)
+        let end_date = Utc
+            .with_ymd_and_hms(next_year, next_month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| CacheError::DatabaseError(format!("Invalid end date for {}-{}", next_year, next_month)))?;
-        
+            .ok_or_else(|| {
+                CacheError::DatabaseError(format!(
+                    "Invalid end date for {}-{}",
+                    next_year, next_month
+                ))
+            })?;
+
         let name = format!("{}_{:04}_{:02}", table_name, year, month);
-        
+
         Ok(Self {
             name,
             table_name: table_name.to_string(),
@@ -111,28 +120,40 @@ pub trait PartitionManager: Send + Sync {
     async fn drop_partition(&self, table_name: &str, partition_name: &str) -> Result<()>;
 
     /// 确保分区存在
-    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String>;
+    async fn ensure_partition_exists(
+        &self,
+        date: DateTime<Utc>,
+        table_name: &str,
+    ) -> Result<String>;
 
     /// 预创建未来分区
     async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()> {
         use chrono::{Datelike, TimeZone};
         let now = Utc::now();
-        
+
         for i in 0..=months_ahead {
             let mut target_month = now.month() + i;
             let mut target_year = now.year();
-            
+
             while target_month > 12 {
                 target_month -= 12;
                 target_year += 1;
             }
-            
+
             // Construct date for 1st of the target month
             // We use single_res to handle potential ambiguity (though unlikely for 1st of month in UTC)
-            if let Some(target_date) = Utc.with_ymd_and_hms(target_year, target_month, 1, 0, 0, 0).single() {
-                self.ensure_partition_exists(target_date, table_name).await?;
+            if let Some(target_date) = Utc
+                .with_ymd_and_hms(target_year, target_month, 1, 0, 0, 0)
+                .single()
+            {
+                self.ensure_partition_exists(target_date, table_name)
+                    .await?;
             } else {
-                tracing::warn!("Failed to construct date for partition: {}-{}", target_year, target_month);
+                tracing::warn!(
+                    "Failed to construct date for partition: {}-{}",
+                    target_year,
+                    target_month
+                );
             }
         }
         Ok(())
@@ -146,7 +167,7 @@ pub trait PartitionManager: Send + Sync {
     ) -> Result<u32> {
         let partitions = self.get_partitions(table_name).await?;
         let mut dropped_count = 0;
-        
+
         for partition in partitions {
             // If partition end date is before cutoff date, it's expired
             if partition.end_date < cutoff_date {
@@ -167,7 +188,7 @@ pub trait PartitionManager: Send + Sync {
             // 检查最后两部分是否为年份和月份
             let year = parts[parts.len() - 2].parse::<i32>();
             let month = parts[parts.len() - 1].parse::<u32>();
-            
+
             if year.is_ok() && month.is_ok() {
                 // 是分区表，移除后缀
                 return parts[..parts.len() - 2].join("_");
@@ -194,7 +215,7 @@ pub trait PartitionManager: Send + Sync {
         if parts.len() >= 3 {
             let year_str = parts[parts.len() - 2];
             let month_str = parts[parts.len() - 1];
-            
+
             if let (Ok(year), Ok(month)) = (year_str.parse::<i32>(), month_str.parse::<u32>()) {
                 return Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single();
             }

@@ -93,7 +93,7 @@ impl SQLitePartitionManager {
         opt.max_connections(1)
             .min_connections(1)
             .connect_timeout(std::time::Duration::from_secs(30));
-            
+
         debug!("Connecting to database with: {}", normalized);
         println!("DEBUG: Connecting to database with: {}", normalized);
 
@@ -416,7 +416,9 @@ impl PartitionManager for SQLitePartitionManager {
                 .and_then(|d| d.with_hour(0))
                 .and_then(|d| d.with_minute(0))
                 .and_then(|d| d.with_second(0))
-                .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for start_date".to_string()))?;
+                .ok_or_else(|| {
+                    CacheError::DatabaseError("Invalid date calculation for start_date".to_string())
+                })?;
 
             let end_date = if date.month() == 12 {
                 date.with_year(date.year() + 1)
@@ -425,14 +427,22 @@ impl PartitionManager for SQLitePartitionManager {
                     .and_then(|d| d.with_hour(0))
                     .and_then(|d| d.with_minute(0))
                     .and_then(|d| d.with_second(0))
-                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next year".to_string()))?
+                    .ok_or_else(|| {
+                        CacheError::DatabaseError(
+                            "Invalid date calculation for next year".to_string(),
+                        )
+                    })?
             } else {
                 date.with_month(date.month() + 1)
                     .and_then(|d| d.with_day(1))
                     .and_then(|d| d.with_hour(0))
                     .and_then(|d| d.with_minute(0))
                     .and_then(|d| d.with_second(0))
-                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next month".to_string()))?
+                    .ok_or_else(|| {
+                        CacheError::DatabaseError(
+                            "Invalid date calculation for next month".to_string(),
+                        )
+                    })?
             };
 
             let partition_info = PartitionInfo {

@@ -5,10 +5,8 @@
 //! 跨数据库集成测试
 
 use chrono::Utc;
+use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use oxcache::database::DatabaseType;
-use oxcache::database::partition::{
-    PartitionConfig, PartitionInfo, PartitionManager,
-};
 use std::sync::Arc;
 
 async fn setup_partition_manager(
@@ -233,7 +231,9 @@ async fn test_cross_database_partition_cleanup() -> Result<(), Box<dyn std::erro
         let cutoff_date = Utc::now()
             .checked_sub_signed(chrono::Duration::days(60))
             .unwrap();
-        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
+        let cleaned_count = manager
+            .cleanup_old_partitions(test_table, cutoff_date)
+            .await?;
         println!("✓ {} cleaned up {} old partitions", db_name, cleaned_count);
 
         let partitions_after = manager.get_partitions(test_table).await?;

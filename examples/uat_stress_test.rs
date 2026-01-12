@@ -396,11 +396,12 @@ impl UatStressTester {
             let key = format!("uat_key_{}", i);
             let value = format!("uat_value_{}", i);
 
-            let handle: tokio::task::JoinHandle<Result<(), oxcache::error::CacheError>> = tokio::spawn(async move {
-                backend
-                    .set_bytes(&key, value.as_bytes().to_vec(), Some(3600))
-                    .await
-            });
+            let handle: tokio::task::JoinHandle<Result<(), oxcache::error::CacheError>> =
+                tokio::spawn(async move {
+                    backend
+                        .set_bytes(&key, value.as_bytes().to_vec(), Some(3600))
+                        .await
+                });
             handles.push(handle);
 
             // 限制并发数量
