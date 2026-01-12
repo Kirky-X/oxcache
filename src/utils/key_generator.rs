@@ -10,6 +10,9 @@
 //! - 键验证和规范化
 //! - 长键的哈希指纹生成
 
+use crate::error::CacheError;
+#[cfg(feature = "bloom-filter")]
+use murmur3::murmur3_32;
 
 /// 默认键最大长度
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;
@@ -38,26 +41,22 @@ const VALID_KEY_CHARS: &[char] = &[
 /// let generator = KeyGenerator::new()
 ///     .with_namespace("app:v1");
 ///
-/// let key = generator.generate("user:{id}", &[("id", "123")]);
+/// let key = generator.generate_full("user:{id}", &[("id", "123")]);
 /// assert_eq!(key, "app:v1:user:123");
 /// ```
 #[derive(Clone, Debug)]
-#[cfg(feature = "regex")]
 pub struct KeyGenerator {
     namespace: String,
     prefix: String,
     max_key_length: usize,
-    template_regex: regex::Regex,
 }
 
-#[cfg(feature = "regex")]
 impl Default for KeyGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(feature = "regex")]
 impl KeyGenerator {
     /// 创建新的键生成器实例
     ///
@@ -67,8 +66,6 @@ impl KeyGenerator {
             namespace: DEFAULT_NAMESPACE.to_string(),
             prefix: String::new(),
             max_key_length: DEFAULT_MAX_KEY_LENGTH,
-            template_regex: regex::Regex::new(r"\{(\w+)\}")
-                .expect("Failed to compile template regex"),
         }
     }
 
@@ -80,7 +77,7 @@ impl KeyGenerator {
     /// use oxcache::KeyGenerator;
     ///
     /// let generator = KeyGenerator::with_prefix("session:");
-    /// let key = generator.generate("user:{id}", &[("id", "123")]);
+    /// let key = generator.generate_full("user:{id}", &[("id", "123")]);
     /// assert_eq!(key, "session:user:123");
     /// ```
     pub fn with_prefix(prefix: &str) -> Self {
@@ -88,8 +85,6 @@ impl KeyGenerator {
             namespace: DEFAULT_NAMESPACE.to_string(),
             prefix: prefix.to_string(),
             max_key_length: DEFAULT_MAX_KEY_LENGTH,
-            template_regex: regex::Regex::new(r"\{(\w+)\}")
-                .expect("Failed to compile template regex"),
         }
     }
 
@@ -112,7 +107,7 @@ impl KeyGenerator {
     }
 
     /// 设置淘汰策略
-    pub fn with_eviction_policy(mut self, _policy: crate::EvictionPolicy) -> Self {
+    pub fn with_eviction_policy(self, _policy: crate::EvictionPolicy) -> Self {
         // 暂时忽略淘汰策略，用于接口兼容性
         self
     }
@@ -142,7 +137,8 @@ impl KeyGenerator {
     /// 生成带有命名空间和前缀的完整缓存键
     pub fn generate_full(&self, template: &str, params: &[(&str, &str)]) -> String {
         let key = self.generate(template, params);
-        self.apply_prefix(&key)
+        let prefixed = self.apply_prefix(&key);
+        self.namespaced_key(&prefixed)
     }
 
     /// 应用前缀到键
@@ -179,6 +175,7 @@ impl KeyGenerator {
     }
 
     /// 生成哈希指纹（用于长键）
+    #[cfg(feature = "bloom-filter")]
     pub fn generate_fingerprint(&self, key: &str) -> String {
         let key_bytes = key.as_bytes();
         let hash = murmur3_32(&mut &key_bytes[..], 0).unwrap_or(0);
@@ -186,6 +183,7 @@ impl KeyGenerator {
     }
 
     /// 生成规范化的键（自动处理长键和特殊字符）
+    #[cfg(feature = "bloom-filter")]
     pub fn normalize(&self, key: &str) -> String {
         let key = key.trim().to_string();
         if key.len() <= self.max_key_length {
@@ -200,7 +198,7 @@ impl KeyGenerator {
 
     /// 生成带有命名空间的键
     pub fn namespaced_key(&self, key: &str) -> String {
-        if self.namespace.is_empty() {
+        if self.namespace.is_empty() || self.namespace == DEFAULT_NAMESPACE {
             key.to_string()
         } else {
             format!("{}:{}", self.namespace, key)
@@ -209,28 +207,29 @@ impl KeyGenerator {
 }
 
 /// 生成缓存键
-#[cfg(feature = "regex")]
+#[allow(dead_code)]
 pub fn generate_cache_key(template: &str, params: &[(&str, &str)]) -> String {
     let generator = KeyGenerator::new();
     generator.generate(template, params)
 }
 
 /// 生成带命名空间的缓存键
-#[cfg(feature = "regex")]
+#[allow(dead_code)]
 pub fn generate_namespaced_key(namespace: &str, template: &str, params: &[(&str, &str)]) -> String {
     let generator = KeyGenerator::new().with_namespace(namespace);
     generator.generate_full(template, params)
 }
 
 /// 验证缓存键
-#[cfg(feature = "regex")]
+#[allow(dead_code)]
 pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
     let generator = KeyGenerator::new();
     generator.validate_key(key)
 }
 
 /// 规范化缓存键
-#[cfg(feature = "regex")]
+#[cfg(feature = "bloom-filter")]
+#[allow(dead_code)]
 pub fn normalize_cache_key(key: &str) -> String {
     let generator = KeyGenerator::new();
     generator.normalize(key)

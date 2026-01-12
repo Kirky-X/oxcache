@@ -4,16 +4,16 @@
 //!
 //! 双层缓存集成测试
 
-use crate::common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
+use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
+    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
-use secrecy::SecretBox;
+use secrecy::SecretString;
+use std::collections::HashMap;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 /// 测试双层缓存流程
 ///
@@ -27,7 +27,7 @@ async fn test_two_level_cache_flow() {
 
     let service_name = generate_unique_service_name("flow_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
@@ -45,11 +45,12 @@ async fn test_two_level_cache_flow() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 10,
                         ..Default::default()
                     }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
-                        connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
+                        connection_string: SecretString::new("redis://127.0.0.1:6379".into()),
                         connection_timeout_ms: 500,
                         command_timeout_ms: 500,
                         password: None,
@@ -75,6 +76,9 @@ async fn test_two_level_cache_flow() {
             );
             map
         },
+        layer: None,
+        extensions: HashMap::new(),
+        source: None,
     };
 
     setup_cache(config).await;

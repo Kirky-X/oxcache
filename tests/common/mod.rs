@@ -45,7 +45,10 @@ pub async fn setup_cache(config: Config) {
         if msg.contains("Authentication required") || msg.contains("authentication failed") {
             panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
         }
+        println!("CRITICAL WARNING: CacheManager初始化失败: {}", e);
         tracing::warn!("CacheManager初始化失败 (可能已初始化): {}", e);
+    } else {
+        println!("DEBUG: CacheManager initialized successfully");
     }
 }
 

@@ -71,8 +71,11 @@ pub mod bloom_filter;
     feature = "l2-redis",
     feature = "minimal",
     feature = "core",
-    feature = "full"
+    feature = "full",
+    feature = "batch-write",
+    feature = "cli"
 ))]
+#[allow(unexpected_cfgs)]
 pub mod metrics;
 
 // Rate Limiting Module
@@ -110,7 +113,6 @@ pub mod serialization;
 
 // Utils Module
 #[cfg(any(
-    feature = "utils",
     feature = "full",
     feature = "minimal",
     feature = "core"
@@ -130,8 +132,11 @@ pub use config::legacy_config::{
     CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig,
 };
 pub use config::{
-    CacheStrategy, Config, DynamicConfig, GlobalConfig, OxcacheConfig, ServiceConfig,
+    CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, OxcacheConfigBuilder,
+    RedisMode, SerializationType, ServiceConfig,
 };
+#[allow(deprecated)]
+pub use config::Config;
 
 #[cfg(feature = "confers")]
 pub use config::ConfigSource;
@@ -152,7 +157,10 @@ pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
 pub use config::oxcache_config;
 
 #[cfg(feature = "test")]
-pub use config::{CacheType, L1Config, L2Config, RedisMode, SerializationType, TwoLevelConfig};
+pub use config::{L1Config, L2Config, TwoLevelConfig};
+
+#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
+pub use utils::key_generator::KeyGenerator;
 
 // ============================================================================
 // Configuration Macros (Feature-Gated)

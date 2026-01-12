@@ -12,8 +12,7 @@ use oxcache::serialization::SerializerEnum;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use common::cleanup_service;
 

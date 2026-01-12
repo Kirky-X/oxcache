@@ -133,9 +133,9 @@ impl<'a> ParsedConnectionString<'a> {
         let mut port = None;
         if let Some(colon_pos) = _host_port.rfind(':') {
             let port_str = &_host_port[colon_pos + 1..];
-            if port_str.parse::<u16>().is_ok() {
+            if let Ok(p) = port_str.parse::<u16>() {
                 host = _host_port[..colon_pos].to_string();
-                port = Some(port_str.parse::<u16>().expect("Port should be valid u16"));
+                port = Some(p);
             }
         }
 
@@ -209,9 +209,9 @@ impl<'a> ParsedConnectionString<'a> {
         let mut port = None;
         if let Some(colon_pos) = _host_port.rfind(':') {
             let port_str = &_host_port[colon_pos + 1..];
-            if port_str.parse::<u16>().is_ok() {
+            if let Ok(p) = port_str.parse::<u16>() {
                 host = _host_port[..colon_pos].to_string();
-                port = Some(port_str.parse::<u16>().unwrap());
+                port = Some(p);
             }
         }
 
@@ -359,7 +359,7 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
         }
     }
 
-    if let Some(path) = &parsed.file_path {
+    let base = if let Some(path) = &parsed.file_path {
         if path.starts_with("/") || path.starts_with("./") || path.starts_with("../") {
             format!("sqlite:{}", path)
         } else {
@@ -367,6 +367,17 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
         }
     } else {
         "sqlite::memory:".to_string()
+    };
+
+    if parsed.params.is_empty() {
+        base
+    } else {
+        let params: Vec<String> = parsed
+            .params
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+        format!("{}?{}", base, params.join("&"))
     }
 }
 
@@ -484,7 +495,7 @@ pub fn validate_connection_string(s: &str) -> ValidationResult {
             }
         }
         DbType::MySQL | DbType::PostgreSQL => {
-            if parsed.host.is_none() || parsed.host.as_ref().unwrap().is_empty() {
+            if parsed.host.as_ref().is_none_or(|h| h.is_empty()) {
                 errors.push("必须指定主机地址".to_string());
             }
         }

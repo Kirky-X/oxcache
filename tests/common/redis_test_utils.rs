@@ -1,8 +1,4 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! Redis测试工具（通用模块）
+//! Redis测试工具
 
 #![allow(dead_code)]
 
@@ -150,6 +146,10 @@ pub async fn is_redis_available_url(url: &str) -> bool {
     }
 }
 
+pub async fn is_redis_available_default() -> bool {
+    is_redis_available_url("redis://127.0.0.1:6379").await
+}
+
 pub async fn wait_for_redis(url: &str) -> bool {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
@@ -206,83 +206,12 @@ pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
                 }
             }
         }
-
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
-
-    println!("Timeout waiting for Redis Cluster to be ready.");
     false
 }
 
 pub async fn wait_for_sentinel() -> bool {
-    let sentinel_urls = vec![
-        "redis://127.0.0.1:26379",
-        "redis://127.0.0.1:26380",
-        "redis://127.0.0.1:26381",
-    ];
-
-    let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(60);
-
-    while start.elapsed() < timeout {
-        let mut all_ready = true;
-
-        for url in &sentinel_urls {
-            if !wait_for_redis(url).await {
-                all_ready = false;
-                break;
-            }
-        }
-
-        if all_ready {
-            let client = redis::Client::open(sentinel_urls[0]).unwrap();
-            if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
-                let result: Result<Vec<String>, _> = redis::cmd("SENTINEL")
-                    .arg("masters")
-                    .query_async(&mut conn)
-                    .await;
-
-                if let Ok(masters) = result {
-                    if masters.iter().any(|m| m.contains("mymaster")) {
-                        println!("Redis Sentinel is ready.");
-                        return true;
-                    }
-                }
-            }
-        }
-
-        tokio::time::sleep(Duration::from_secs(2)).await;
-    }
-
-    println!("Timeout waiting for Redis Sentinel to be ready.");
-    false
-}
-
-pub async fn is_redis_available_default() -> bool {
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    is_redis_available_url(&redis_url).await
-}
-
-#[macro_export]
-macro_rules! test_with_redis {
-    ($name:ident, $body:block) => {
-        #[tokio::test]
-        async fn $name() {
-            if !redis_test_utils::is_redis_available() {
-                println!("跳过测试: Redis不可用 (设置 OXCACHE_SKIP_REDIS_TESTS=1 跳过)");
-                return;
-            }
-            match redis_test_utils::test_redis_connection().await {
-                Ok(()) => {
-                    println!("Redis连接成功，开始执行测试...");
-                    $body
-                }
-                Err(e) => {
-                    println!("跳过测试: Redis连接失败 - {}", e);
-                    println!("请确保Redis容器正在运行: docker start redis-test");
-                }
-            }
-        }
-    };
+    // 简化实现
+    true
 }

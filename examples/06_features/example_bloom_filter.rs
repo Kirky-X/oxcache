@@ -51,9 +51,8 @@ async fn main() -> oxcache::Result<()> {
         return Err(e);
     }
 
-    let _client = oxcache::get_client("bloom_cache")?;
-
-    let client = oxcache::get_client("bloom_cache")?;
+    // Use get_typed_client to access specific TwoLevelClient methods like check_bloom_filter
+    let client = oxcache::manager::get_typed_client("bloom_cache")?;
 
     println!("Bloom Filter Example");
     println!("====================\n");
@@ -65,7 +64,8 @@ async fn main() -> oxcache::Result<()> {
     println!("Adding keys to bloom filter...");
     let keys = vec!["user:1", "user:2", "user:3", "product:100", "product:200"];
     for key in &keys {
-        // In real implementation, this would add to the bloom filter
+        // In real implementation, set() automatically adds key to bloom filter
+        client.set(key, &"value", None).await?;
         println!("  Added: {}", key);
     }
 
@@ -73,13 +73,15 @@ async fn main() -> oxcache::Result<()> {
 
     // Test existing keys
     for key in &keys {
-        let likely_exists = true; // Simulated bloom filter result
+        // check_bloom_filter returns Result<Option<bool>>
+        // Option<bool> is Some(true) if likely exists, Some(false) if definitely not, None if disabled
+        let likely_exists = client.check_bloom_filter(key).await?.unwrap_or(false);
         println!("  {}: likely_exists={}", key, likely_exists);
     }
 
     // Test non-existing key
     let non_existing = "user:99999";
-    let likely_exists = false; // Simulated bloom filter result
+    let likely_exists = client.check_bloom_filter(non_existing).await?.unwrap_or(false);
     println!("  {}: likely_exists={}", non_existing, likely_exists);
 
     println!("\n✓ Bloom filter benefits:");

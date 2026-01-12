@@ -12,8 +12,7 @@ use oxcache::{
 };
 use std::sync::Arc;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use common::setup_logging;
 

@@ -4,8 +4,7 @@
 //!
 //! 分层缓存测试
 
-use oxcache::config::{CacheType, L1Config, L2Config, RedisMode, ServiceConfig};
-use std::collections::HashMap;
+use oxcache::config::{CacheType, L1Config, L2Config, ServiceConfig};
 
 mod common;
 
@@ -83,7 +82,12 @@ async fn test_two_level_mode() {
 
     let config = oxcache::oxcache_config()
         .with_global(oxcache::GlobalConfig::default())
-        .with_service(&service_name, ServiceConfig::two_level().with_ttl(600))
+        .with_service(
+            &service_name,
+            ServiceConfig::two_level()
+                .with_ttl(600)
+                .with_l2(L2Config::new().with_connection_string("redis://127.0.0.1:6379")),
+        )
         .build();
 
     assert!(config.validate().is_ok());

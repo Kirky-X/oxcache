@@ -54,12 +54,23 @@ pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
 
 /// 全局配置（始终可用）
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalConfig {
     pub default_ttl: u64,
     pub health_check_interval: u64,
     pub serialization: SerializationType,
     pub enable_metrics: bool,
+}
+
+impl Default for GlobalConfig {
+    fn default() -> Self {
+        Self {
+            default_ttl: 300,
+            health_check_interval: 60,
+            serialization: SerializationType::default(),
+            enable_metrics: false,
+        }
+    }
 }
 
 impl GlobalConfig {

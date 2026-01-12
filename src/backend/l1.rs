@@ -19,6 +19,9 @@ use std::time::{Duration, Instant};
 #[cfg(feature = "l1-moka")]
 use tracing::{debug, instrument};
 
+/// 缓存条目类型：(数据, 版本/时间戳, 过期时间)
+pub type CacheEntry = (Vec<u8>, u64, Option<Instant>);
+
 /// L1缓存后端实现
 ///
 /// 基于内存的高速缓存实现，使用Moka作为底层缓存库
@@ -26,7 +29,7 @@ use tracing::{debug, instrument};
 #[derive(Clone)]
 pub struct L1Backend {
     // 值: (数据, 版本/时间戳, 过期时间)
-    cache: Cache<String, (Vec<u8>, u64, Option<Instant>)>,
+    cache: Cache<String, CacheEntry>,
     // 淘汰策略
     eviction_policy: EvictionPolicy,
 }
@@ -60,7 +63,7 @@ impl L1Backend {
         // 注意：Moka 0.12 使用 TinyLFU 作为默认策略
         // 不同策略的行为在 Moka 内部实现，目前我们只存储策略信息
         // 实际策略效果由 Moka 库控制
-        let cache: Cache<String, (Vec<u8>, u64, Option<Instant>)> =
+        let cache: Cache<String, CacheEntry> =
             Cache::builder().max_capacity(capacity).build();
 
         Self {
@@ -87,7 +90,7 @@ impl L1Backend {
         &self,
         new_capacity: u64,
         new_policy: EvictionPolicy,
-        entries: Vec<(String, (Vec<u8>, u64, Option<Instant>))>,
+        entries: Vec<(String, CacheEntry)>,
     ) {
         // 创建新缓存
         let new_cache = match new_policy {

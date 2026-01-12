@@ -1,6 +1,6 @@
 //! Feature-gated initialization tests for CacheManager
 
-use crate::manager::{
+use oxcache::manager::{
     get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
 };
 
@@ -65,18 +65,22 @@ mod feature_info_tests {
 /// Test CacheManager initialization with feature flags
 #[cfg(test)]
 mod cache_manager_init_tests {
-    use crate::manager::CacheManager;
-    use crate::CacheType;
+    use oxcache::manager::CacheManager;
+    use oxcache::config::{L1Config, ServiceConfig};
 
     // Minimal test config
-    fn create_test_config() -> crate::OxcacheConfig {
-        crate::OxcacheConfig::builder()
-            .with_global(crate::GlobalConfig::default())
+    fn create_test_config() -> oxcache::OxcacheConfig {
+        let mut service_config = ServiceConfig::l1_only();
+        #[cfg(feature = "l1-moka")]
+        {
+            service_config.l1 = Some(L1Config::new().with_max_capacity(1000));
+        }
+
+        oxcache::OxcacheConfig::builder()
+            .with_global(oxcache::config::GlobalConfig::default())
             .with_service(
                 "test_service",
-                crate::ServiceConfig::builder(CacheType::L1)
-                    .with_l1_config(crate::L1Config::new(1000))
-                    .build(),
+                service_config,
             )
             .build()
     }
@@ -86,7 +90,7 @@ mod cache_manager_init_tests {
         #[cfg(feature = "l1-moka")]
         {
             let config = create_test_config();
-            let result = CacheManager::init(config).await;
+            let result: oxcache::Result<()> = CacheManager::init(config).await;
             assert!(result.is_ok(), "L1 cache should initialize successfully");
         }
 

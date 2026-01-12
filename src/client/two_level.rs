@@ -206,7 +206,7 @@ impl TwoLevelClient {
                 bloom_config.false_positive_rate,
             );
             let mgr = Arc::new(BloomFilterManager::new());
-            let filter = mgr.get_or_create(options).await;
+            let filter = mgr.get_or_create(options).await?;
             (Some(filter), Some(mgr))
         } else {
             (None, None)
@@ -332,6 +332,28 @@ impl TwoLevelClient {
                 }
             }
             None => format!("cache:invalidate:{}", service_name),
+        }
+    }
+
+    /// 检查键是否在布隆过滤器中
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// * `Ok(Some(true))` - 可能存在
+    /// * `Ok(Some(false))` - 肯定不存在
+    /// * `Ok(None)` - 布隆过滤器未启用
+    /// * `Err(e)` - 检查失败
+    pub async fn check_bloom_filter(&self, key: &str) -> Result<Option<bool>> {
+        if let Some(bloom_filter) = &self.bloom_filter {
+            let key_bytes = key.as_bytes();
+            let contains = bloom_filter.contains(key_bytes)?;
+            Ok(Some(contains))
+        } else {
+            Ok(None)
         }
     }
 
@@ -572,11 +594,29 @@ impl CacheOps for TwoLevelClient {
             // 布隆过滤器检查 - 防止缓存穿透
             if let Some(bloom_filter) = &self.bloom_filter {
                 let key_bytes = key.as_bytes();
-                if !bloom_filter.contains(key_bytes) {
-                    GLOBAL_METRICS.record_request(&self.service_name, "BloomFilter", "get", "miss");
-                    return Ok(None);
+                match bloom_filter.contains(key_bytes) {
+                    Ok(contains) => {
+                        if !contains {
+                            GLOBAL_METRICS.record_request(
+                                &self.service_name,
+                                "BloomFilter",
+                                "get",
+                                "miss",
+                            );
+                            return Ok(None);
+                        }
+                        GLOBAL_METRICS.record_request(
+                            &self.service_name,
+                            "BloomFilter",
+                            "get",
+                            "hit",
+                        );
+                    }
+                    Err(e) => {
+                        warn!("BloomFilter check failed: {}", e);
+                        // On error, proceed as if the key might be in cache
+                    }
                 }
-                GLOBAL_METRICS.record_request(&self.service_name, "BloomFilter", "get", "hit");
             }
 
             GLOBAL_METRICS.record_request(&self.service_name, "L1", "get", "attempt");
@@ -706,8 +746,14 @@ impl CacheOps for TwoLevelClient {
         // 自动将键添加到布隆过滤器
         if let Some(bloom_filter) = &self.bloom_filter {
             let key_bytes = key.as_bytes().to_vec();
-            bloom_filter.add(&key_bytes).await;
-            GLOBAL_METRICS.record_request(&self.service_name, "BloomFilter", "set", "add");
+            match bloom_filter.add(&key_bytes).await {
+                Ok(_) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "BloomFilter", "set", "add");
+                }
+                Err(e) => {
+                    warn!("Failed to add key to BloomFilter: {}", e);
+                }
+            }
         }
 
         // Two-level mode

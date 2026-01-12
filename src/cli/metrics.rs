@@ -8,6 +8,8 @@ use crate::cli::MetricsArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::metrics::get_metrics_string;
 use anyhow::Result;
+use dashmap::DashMap;
+use std::sync::Arc;
 
 pub async fn execute(args: &MetricsArgs) -> Result<()> {
     if args.prometheus {
@@ -36,11 +38,12 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
         let mut hits = 0;
 
         // DashMap 无锁迭代
-        for entry in metrics.requests_total.iter() {
+        let requests = &*metrics.requests_total;
+        for entry in requests.iter() {
             let key = entry.key();
             let count = entry.value();
             if key.starts_with(service_name) {
-                total_requests += count;
+                total_requests += *count;
                 if key.ends_with(":hit") {
                     hits += count;
                 }
@@ -76,17 +79,19 @@ pub async fn execute(args: &MetricsArgs) -> Result<()> {
     } else {
         println!("All Services:\n");
 
-        for entry in MANAGER.iter() {
-            let service_name = entry.key().clone();
+        let manager: &DashMap<String, Arc<dyn crate::CacheOps>> = &MANAGER;
+        for entry in manager.iter() {
+            let service_name: &String = entry.key();
 
             let mut total_requests = 0;
             let mut hits = 0;
 
             // DashMap 无锁迭代
-            for entry in metrics.requests_total.iter() {
-                let key = entry.key();
-                let count = entry.value();
-                if key.starts_with(&service_name) {
+            let requests: &DashMap<String, u64> = &metrics.requests_total;
+            for metric_entry in requests.iter() {
+                let key: &String = metric_entry.key();
+                let count: &u64 = metric_entry.value();
+                if key.starts_with(service_name) {
                     total_requests += count;
                     if key.ends_with(":hit") {
                         hits += count;

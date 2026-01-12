@@ -4,8 +4,9 @@
 //!
 //! 配置单元测试
 
-use oxcache::config::{CacheType, Config, L1Config, L2Config, ServiceConfig};
+use oxcache::config::{CacheType, OxcacheConfig, L1Config, L2Config, ServiceConfig};
 use std::collections::HashMap;
+use secrecy::SecretString;
 
 /// 测试从TOML配置文件加载配置
 ///
@@ -39,7 +40,7 @@ fn test_config_load_from_toml() {
         enable_tls = false
     "#;
 
-    let config: Config = toml::from_str(config_str).expect("Failed to parse TOML");
+    let config: OxcacheConfig = toml::from_str(config_str).expect("Failed to parse TOML");
 
     assert_eq!(config.global.default_ttl, 3600);
     assert!(config.services.contains_key("test_service"));
@@ -54,7 +55,7 @@ fn test_config_load_from_toml() {
 /// 验证能否通过编程方式正确创建配置对象
 #[test]
 fn test_config_structure_manual_creation() {
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
@@ -78,8 +79,8 @@ fn test_config_structure_manual_creation() {
                     two_level: None,
                 },
             );
-            map
-        },
+            map},
+        ..Default::default()
     };
 
     assert_eq!(config.services.get("manual_test").unwrap().ttl, Some(600));
@@ -91,7 +92,7 @@ fn test_config_structure_manual_creation() {
 #[test]
 fn test_config_validation_ttl() {
     // 1. 正常情况：L1 TTL <= L2 TTL
-    let config_ok = Config {
+    let config_ok = OxcacheConfig {
         config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
@@ -114,18 +115,19 @@ fn test_config_validation_ttl() {
                     }),
                     l2: Some(L2Config {
                         default_ttl: Some(100), // L2 TTL > L1 TTL
+                        connection_string: SecretString::new("redis://127.0.0.1:6379".to_string()),
                         ..Default::default()
                     }),
                     two_level: None,
                 },
             );
-            map
-        },
+            map},
+        ..Default::default()
     };
     assert!(config_ok.validate().is_ok());
 
     // 2. 异常情况：L1 TTL > L2 TTL
-    let config_fail = Config {
+    let config_fail = OxcacheConfig {
         config_version: Some(1),
         global: oxcache::config::GlobalConfig {
             default_ttl: 60,
@@ -133,12 +135,6 @@ fn test_config_validation_ttl() {
             serialization: oxcache::config::SerializationType::Json,
             enable_metrics: false,
         },
-        services: std::collections::HashMap::new(),
-        layer: None,
-        #[cfg(feature = "confers")]
-        extensions: std::collections::HashMap::new(),
-        #[cfg(feature = "confers")]
-        source: None,
         services: {
             let mut map = HashMap::new();
             map.insert(
@@ -154,13 +150,14 @@ fn test_config_validation_ttl() {
                     }),
                     l2: Some(L2Config {
                         default_ttl: Some(100), // L2 TTL < L1 TTL
+                        connection_string: SecretString::new("redis://127.0.0.1:6379".to_string()),
                         ..Default::default()
                     }),
                     two_level: None,
                 },
             );
-            map
-        },
+            map},
+        ..Default::default()
     };
     assert!(config_fail.validate().is_err());
 }
@@ -192,7 +189,7 @@ fn test_invalid_redis_mode_parsing() {
     "#;
 
     // 解析应该失败，因为mode字段包含无效的Redis模式
-    let result: Result<Config, _> = toml::from_str(config_str);
+    let result: Result<OxcacheConfig, _> = toml::from_str(config_str);
     assert!(result.is_err(), "应该无法解析无效的Redis模式");
 
     // 验证错误信息包含模式相关的提示

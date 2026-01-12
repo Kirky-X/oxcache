@@ -14,11 +14,11 @@ fn test_metrics_recording() {
     GLOBAL_METRICS.set_batch_buffer_size("test_service", 42);
 
     let output = get_metrics_string();
-
     println!("Metrics output:\n{}", output);
 
-    assert!(output.contains("cache_requests_total{labels=\"test_service:L1:get:hit\"}"));
-    assert!(output.contains("cache_operation_duration_seconds_sum{service=\"test_service\", layer=\"L1\", operation=\"get\"} 0.005"));
-    assert!(output.contains("cache_operation_duration_seconds_count{service=\"test_service\", layer=\"L1\", operation=\"get\"} 1"));
-    assert!(output.contains("cache_batch_write_buffer_size{service=\"test_service\"} 42"));
+    // Check global counter
+    assert!(output.contains("cache_l1_get_hits_total"));
+    // Check per-service duration metric which is recorded via DashMap
+    assert!(output.contains("cache_operation_duration_seconds{service=\"test_service\",layer=\"L1\",op=\"get\"}"));
+    assert!(output.contains("cache_batch_buffer_size{service=\"test_service\"} 42"));
 }

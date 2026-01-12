@@ -8,6 +8,8 @@ use crate::cli::StatusArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::recovery::health::HealthState;
 use anyhow::{Context, Result};
+use dashmap::DashMap;
+use std::sync::Arc;
 
 pub async fn execute(args: &StatusArgs) -> Result<()> {
     if let Some(ref service_name) = args.service {
@@ -24,8 +26,15 @@ pub async fn execute(args: &StatusArgs) -> Result<()> {
             return Ok(());
         }
 
-        for entry in MANAGER.iter() {
-            let service_name = entry.key().clone();
+        let mut services: Vec<String> = Vec::new();
+        let manager: &DashMap<String, Arc<dyn crate::CacheOps>> = &MANAGER;
+        for entry in manager.iter() {
+            let key: &String = entry.key();
+            services.push(key.clone());
+        }
+        services.sort();
+
+        for service_name in services {
             let client = get_typed_client(&service_name)?;
             let state = client.get_health_state().await;
             print_service_status(&service_name, &state, args.verbose);
@@ -85,11 +94,12 @@ fn print_service_status(service_name: &str, state: &HealthState, verbose: bool) 
         let mut l2_hits = 0;
 
         // DashMap 无锁迭代
-        for entry in metrics.requests_total.iter() {
-            let key = entry.key();
-            let count = entry.value();
+        let requests: &DashMap<String, u64> = &metrics.requests_total;
+        for entry in requests.iter() {
+            let key: &String = entry.key();
+            let count: &u64 = entry.value();
             if key.starts_with(service_name) {
-                total_requests += count;
+                total_requests += *count;
                 if key.ends_with(":hit") {
                     if key.contains(":L1:") {
                         l1_hits += count;

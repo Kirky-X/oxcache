@@ -17,8 +17,7 @@ use secrecy::SecretString;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 #[derive(Clone)]
 pub struct FailingL2Backend {
@@ -32,6 +31,7 @@ impl FailingL2Backend {
         ))
     }
 
+    #[allow(dead_code)]
     pub fn command_timeout_ms(&self) -> u64 {
         self.command_timeout_ms
     }

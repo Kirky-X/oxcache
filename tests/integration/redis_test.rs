@@ -5,8 +5,7 @@
 //! Redis集成测试 - 合并所有Redis测试文件
 //! 包含：Standalone、Cluster、Sentinel模式测试
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use common::redis_test_utils::{
     cleanup_test_keys, create_standalone_config, test_redis_connection,
@@ -17,7 +16,7 @@ use common::{
 };
 use oxcache::backend::l2::L2Backend;
 use oxcache::config::{
-    CacheType, ClusterConfig, Config, GlobalConfig, L1Config, L2Config, RedisMode, SentinelConfig,
+    CacheType, ClusterConfig, OxcacheConfig, GlobalConfig, L1Config, L2Config, RedisMode, SentinelConfig,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
@@ -837,7 +836,7 @@ async fn test_cluster_basic_operations() {
 
     let service_name = generate_unique_service_name("cluster_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -879,6 +878,7 @@ async fn test_cluster_basic_operations() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;
@@ -927,7 +927,7 @@ async fn test_cluster_data_distribution() {
 
     let service_name = generate_unique_service_name("cluster_distribution_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -969,6 +969,7 @@ async fn test_cluster_data_distribution() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;
@@ -1023,7 +1024,7 @@ async fn test_cluster_distributed_lock() {
 
     let service_name = generate_unique_service_name("cluster_lock_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -1065,6 +1066,7 @@ async fn test_cluster_distributed_lock() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;
@@ -1126,7 +1128,7 @@ async fn test_sentinel_basic_operations() {
 
     let service_name = generate_unique_service_name("sentinel_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -1166,6 +1168,7 @@ async fn test_sentinel_basic_operations() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;
@@ -1205,7 +1208,7 @@ async fn test_sentinel_failover() {
 
     let service_name = generate_unique_service_name("sentinel_failover_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -1245,6 +1248,7 @@ async fn test_sentinel_failover() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;
@@ -1282,7 +1286,7 @@ async fn test_sentinel_distributed_lock() {
 
     let service_name = generate_unique_service_name("sentinel_lock_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -1322,6 +1326,7 @@ async fn test_sentinel_distributed_lock() {
             );
             map
         },
+        ..Default::default()
     };
 
     setup_cache(config).await;

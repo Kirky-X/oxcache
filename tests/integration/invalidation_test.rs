@@ -4,12 +4,11 @@
 //!
 //! 缓存失效集成测试
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use futures::stream::StreamExt;
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, InvalidationChannelConfig, L1Config, L2Config, RedisMode,
+    CacheType, OxcacheConfig, GlobalConfig, InvalidationChannelConfig, L1Config, L2Config, RedisMode,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheManager;
@@ -51,7 +50,7 @@ async fn test_multi_instance_invalidation() {
     // - client1 执行删除操作，验证订阅者能收到消息。
     // - 独立的 Redis 发布者发送消息，验证 client1 的 L1 缓存被清除。
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -84,11 +83,13 @@ async fn test_multi_instance_invalidation() {
                         warmup: None,
                         max_key_length: Some(1024),
                         max_value_size: Some(1024 * 1024),
+                        // invalidation_channel is already set above
                     }),
                 },
             );
             map
         },
+        ..Default::default()
     };
 
     // 初始化 CacheManager

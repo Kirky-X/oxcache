@@ -5,21 +5,15 @@
 //! 该模块定义了缓存系统的指标收集和监控功能。
 //! 通过 `metrics` 或 `l1-moka` feature 控制启用/禁用。
 
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use dashmap::DashMap;
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
-use lazy_static::lazy_static;
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
+use once_cell::sync::Lazy;
 use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use std::sync::Arc;
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 use tracing::{span, Level};
 
 /// 原子计数器集合
 ///
 /// 使用原子操作实现无锁的指标计数，大幅提升性能
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 #[derive(Debug)]
 pub struct AtomicCounters {
     /// L1缓存命中次数
@@ -42,7 +36,6 @@ pub struct AtomicCounters {
     pub total_operations: AtomicU64,
 }
 
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 impl Default for AtomicCounters {
     fn default() -> Self {
         Self {
@@ -63,7 +56,6 @@ impl Default for AtomicCounters {
 ///
 /// 用于收集和存储缓存系统的各种运行时指标
 /// 优化版本：高频指标使用原子计数器，低频指标使用DashMap
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 #[derive(Clone, Debug, Default)]
 pub struct Metrics {
     /// 原子计数器（高频指标，无锁）
@@ -86,13 +78,9 @@ pub struct Metrics {
     pub batch_throughput: Arc<DashMap<String, f64>>,
 }
 
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
-lazy_static! {
-    /// 全局指标实例
-    pub static ref GLOBAL_METRICS: Metrics = Metrics::default();
-}
+/// 全局指标实例
+pub static GLOBAL_METRICS: Lazy<Metrics> = Lazy::new(Metrics::default);
 
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
 impl Metrics {
     /// 记录请求指标（优化版本）
     ///
@@ -275,68 +263,86 @@ pub fn get_metrics_string() -> String {
     output.push_str(&format!("cache_operations_total {}\n", counters.8));
 
     // DashMap 无锁迭代
-    for entry in metrics.requests_total.iter() {
-        output.push_str(&format!(
-            "cache_requests_total{{labels=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let requests: &DashMap<String, u64> = &metrics.requests_total;
+    for entry in requests.iter() {
+                let (key, value): (&String, &u64) = entry.pair();
+                output.push_str(&format!(
+                    "cache_requests_total{{labels=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
-    for entry in metrics.l2_health_status.iter() {
-        output.push_str(&format!(
-            "cache_l2_health_status{{service=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let health_status: &DashMap<String, u8> = &metrics.l2_health_status;
+    for entry in health_status.iter() {
+                let (key, value): (&String, &u8) = entry.pair();
+                output.push_str(&format!(
+                    "cache_l2_health_status{{service=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
-    for entry in metrics.wal_entries.iter() {
-        output.push_str(&format!(
-            "cache_wal_entries{{service=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let wal_entries: &DashMap<String, usize> = &metrics.wal_entries;
+    for entry in wal_entries.iter() {
+                let (key, value): (&String, &usize) = entry.pair();
+                output.push_str(&format!(
+                    "cache_wal_entries{{service=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
-    for entry in metrics.operation_duration.iter() {
-        let (total, count) = entry.value();
-        let parts: Vec<&str> = entry.key().split(':').collect();
-        if parts.len() == 3 {
-            output.push_str(&format!(
-                "cache_operation_duration_seconds_sum{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
-                parts[0], parts[1], parts[2], total
-            ));
-            output.push_str(&format!(
-                "cache_operation_duration_seconds_count{{service=\"{}\", layer=\"{}\", operation=\"{}\"}} {}\n",
-                parts[0], parts[1], parts[2], count
-            ));
-        }
-    }
+    let durations: &DashMap<String, (f64, u64)> = &metrics.operation_duration;
+    for entry in durations.iter() {
+                let (key, (total_duration, count)): (&String, &(f64, u64)) = entry.pair();
+                if *count > 0 {
+                    let parts: Vec<&str> = key.split(':').collect();
+                    if parts.len() >= 3 {
+                        let service = parts[0];
+                        let layer = parts[1];
+                        let op = parts[2];
+                        let avg_duration = total_duration / *count as f64;
+                        output.push_str(&format!(
+                            "cache_operation_duration_seconds{{service=\"{}\",layer=\"{}\",op=\"{}\"}} {}\n",
+                            service,
+                            layer,
+                            op,
+                            avg_duration
+                        ));
+                    }
+                }
+            }
 
-    for entry in metrics.batch_buffer_size.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_buffer_size{{service=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let buffer_sizes: &DashMap<String, usize> = &metrics.batch_buffer_size;
+    for entry in buffer_sizes.iter() {
+                let (key, value): (&String, &usize) = entry.pair();
+                output.push_str(&format!(
+                    "cache_batch_buffer_size{{service=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
-    for entry in metrics.batch_success_rate.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_success_rate{{service=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let success_rates: &DashMap<String, f64> = &metrics.batch_success_rate;
+    for entry in success_rates.iter() {
+                let (key, value): (&String, &f64) = entry.pair();
+                output.push_str(&format!(
+                    "cache_batch_success_rate{{service=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
-    for entry in metrics.batch_throughput.iter() {
-        output.push_str(&format!(
-            "cache_batch_write_throughput{{service=\"{}\"}} {}\n",
-            entry.key(),
-            entry.value()
-        ));
-    }
+    let throughputs: &DashMap<String, f64> = &metrics.batch_throughput;
+    for entry in throughputs.iter() {
+                let (key, value): (&String, &f64) = entry.pair();
+                output.push_str(&format!(
+                    "cache_batch_throughput{{service=\"{}\"}} {}\n",
+                    key,
+                    value
+                ));
+            }
 
     output
 }

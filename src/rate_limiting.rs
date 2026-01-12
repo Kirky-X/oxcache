@@ -118,7 +118,7 @@ impl TokenBucket {
 #[cfg(feature = "rate-limiting")]
 #[derive(Debug)]
 pub struct ClientRateLimiter {
-    per_client: Mutex<ahash::AHashMap<String, Arc<TokenBucket>>>,
+    per_client: Mutex<std::collections::HashMap<String, Arc<TokenBucket>>>,
     global_limit: TokenBucket,
     config: RateLimitConfig,
 }
@@ -128,7 +128,7 @@ impl ClientRateLimiter {
     /// 创建新的客户端速率限制器
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
-            per_client: Mutex::new(ahash::AHashMap::new()),
+            per_client: Mutex::new(std::collections::HashMap::new()),
             global_limit: TokenBucket::new(config.burst_capacity, config.max_requests_per_second),
             config,
         }

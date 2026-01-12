@@ -92,7 +92,7 @@ impl WalManager {
                 }
             }
 
-            format!("sqlite:{}", wal_file)
+            format!("sqlite:{}?mode=rwc", wal_file)
         };
 
         let normalized = normalize_connection_string(&raw_connection_string);
@@ -297,13 +297,13 @@ impl WalManager {
         }
 
         // 使用事务批量插入
-        let txn_result = db.begin().await;
-        if let Err(e) = txn_result {
-            tracing::error!("Failed to begin transaction for WAL batch write: {}", e);
-            return;
-        }
-
-        let txn = txn_result.expect("Transaction should be available after error check");
+        let txn = match db.begin().await {
+            Ok(txn) => txn,
+            Err(e) => {
+                tracing::error!("Failed to begin transaction for WAL batch write: {}", e);
+                return;
+            }
+        };
 
         let insert_sql = r#"
             INSERT INTO wal_entries (timestamp, operation, key, value, ttl, service_name)

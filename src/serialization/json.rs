@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 /// JSON序列化器
 ///
 /// 实现基于serde_json的序列化和反序列化
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JsonSerializer {
     /// 是否启用压缩
     compress: bool,

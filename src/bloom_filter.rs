@@ -16,6 +16,8 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
     RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
+#[cfg(feature = "bloom-filter")]
+use crate::error::CacheError;
 
 /// 布隆过滤器配置
 #[cfg(feature = "bloom-filter")]
@@ -119,17 +121,17 @@ impl BloomFilter {
         positions
     }
 
-    pub fn contains(&self, item: &[u8]) -> bool {
+    pub fn contains(&self, item: &[u8]) -> Result<bool, CacheError> {
         self.checked_count.fetch_add(1, Ordering::SeqCst);
 
         // 尝试从缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         if let Some(cached_positions) = {
-            let cache = self.hash_cache.read().expect("Hash cache lock poisoned");
+            let cache = self.hash_cache.read().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
             cache.get(&item_key).cloned()
         } {
             // 使用缓存的位置进行检查
-            return self.check_positions(&cached_positions);
+            return Ok(self.check_positions(&cached_positions));
         }
 
         // 缓存未命中，计算新的位置
@@ -137,7 +139,7 @@ impl BloomFilter {
 
         // 将结果存入缓存（限制缓存大小以避免内存无限增长）
         {
-            let mut cache = self.hash_cache.write().expect("Hash cache lock poisoned");
+            let mut cache = self.hash_cache.write().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
 
             // 如果缓存过大，使用 LRU 策略移除部分条目
             if cache.len() > 10000 {
@@ -156,7 +158,7 @@ impl BloomFilter {
             cache.insert(item_key, positions.clone());
         }
 
-        self.check_positions(&positions)
+        Ok(self.check_positions(&positions))
     }
 
     /// 检查位置是否都设置为1
@@ -180,11 +182,11 @@ impl BloomFilter {
         true
     }
 
-    pub fn add(&mut self, item: &[u8]) {
+    pub fn add(&mut self, item: &[u8]) -> Result<(), CacheError> {
         // 尝试从缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         let positions = if let Some(cached_positions) = {
-            let cache = self.hash_cache.read().expect("Hash cache lock poisoned");
+            let cache = self.hash_cache.read().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
             cache.get(&item_key).cloned()
         } {
             cached_positions
@@ -193,7 +195,7 @@ impl BloomFilter {
 
             // 将结果存入缓存
             {
-                let mut cache = self.hash_cache.write().expect("Hash cache lock poisoned");
+                let mut cache = self.hash_cache.write().map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
 
                 // 如果缓存过大，使用 LRU 策略移除部分条目
                 if cache.len() > 10000 {
@@ -225,22 +227,23 @@ impl BloomFilter {
         }
 
         self.added_count.fetch_add(1, Ordering::SeqCst);
+        Ok(())
     }
 
-    pub fn add_checked(&mut self, item: &[u8]) -> bool {
-        let existed = self.contains(item);
+    pub fn add_checked(&mut self, item: &[u8]) -> Result<bool, CacheError> {
+        let existed = self.contains(item)?;
         if !existed {
-            self.add(item);
+            self.add(item)?;
         }
-        !existed
+        Ok(!existed)
     }
 
-    pub fn contains_and_add(&mut self, item: &[u8]) -> bool {
-        let result = self.contains(item);
+    pub fn contains_and_add(&mut self, item: &[u8]) -> Result<bool, CacheError> {
+        let result = self.contains(item)?;
         if !result {
-            self.add(item);
+            self.add(item)?;
         }
-        result
+        Ok(result)
     }
 
     pub fn remove(&self, _item: &[u8]) -> bool {
@@ -370,29 +373,29 @@ impl BloomFilterShared {
         }
     }
 
-    pub fn contains(&self, item: &[u8]) -> bool {
+    pub fn contains(&self, item: &[u8]) -> Result<bool, CacheError> {
         self.filter
             .read()
-            .expect("Filter lock poisoned")
+            .map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?
             .contains(item)
     }
 
-    pub async fn add(&self, item: &[u8]) {
-        self.filter.write().expect("Filter lock poisoned").add(item)
+    pub async fn add(&self, item: &[u8]) -> Result<(), CacheError> {
+        self.filter.write().map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?.add(item)
     }
 
-    pub async fn contains_and_add(&self, item: &[u8]) -> bool {
+    pub async fn contains_and_add(&self, item: &[u8]) -> Result<bool, CacheError> {
         self.filter
             .write()
-            .expect("Filter lock poisoned")
+            .map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?
             .contains_and_add(item)
     }
 
-    pub fn get_stats(&self) -> BloomFilterStats {
-        self.filter
+    pub fn get_stats(&self) -> Result<BloomFilterStats, CacheError> {
+        Ok(self.filter
             .read()
-            .expect("Filter lock poisoned")
-            .get_stats()
+            .map_err(|_| CacheError::L1Error("Filter lock poisoned".to_string()))?
+            .get_stats())
     }
 
     pub fn name(&self) -> &str {
@@ -417,57 +420,59 @@ impl BloomFilterManager {
         }
     }
 
-    pub async fn get_or_create(&self, options: BloomFilterOptions) -> BloomFilterShared {
+    pub async fn get_or_create(&self, options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
         let mut guard: RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.write().expect("Filters lock poisoned");
+            self.filters.write().map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
 
         if let Some(existing) = guard.get(&options.name) {
             let existing: &BloomFilterShared = existing;
-            return existing.clone();
+            return Ok(existing.clone());
         }
 
         let filter = BloomFilter::new(options.clone());
         let shared = BloomFilterShared::new(filter);
         guard.insert(options.name.clone(), shared.clone());
-        shared
+        Ok(shared)
     }
 
-    pub fn get(&self, name: &str) -> Option<BloomFilterShared> {
-        self.filters
+    pub fn get(&self, name: &str) -> Result<Option<BloomFilterShared>, CacheError> {
+        Ok(self.filters
             .read()
-            .expect("Filters lock poisoned")
+            .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .get(name)
-            .cloned()
+            .cloned())
     }
 
-    pub fn remove(&self, name: &str) -> bool {
-        self.filters
+    pub fn remove(&self, name: &str) -> Result<bool, CacheError> {
+        Ok(self.filters
             .write()
-            .expect("Filters lock poisoned")
+            .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .remove(name)
-            .is_some()
+            .is_some())
     }
 
-    pub fn list_names(&self) -> Vec<String> {
-        self.filters
+    pub fn list_names(&self) -> Result<Vec<String>, CacheError> {
+        Ok(self.filters
             .read()
-            .expect("Filters lock poisoned")
+            .map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?
             .keys()
             .cloned()
-            .collect()
+            .collect())
     }
 
-    pub async fn get_all_stats(&self) -> Vec<BloomFilterStats> {
+    pub async fn get_all_stats(&self) -> Result<Vec<BloomFilterStats>, CacheError> {
         let guard: RwLockReadGuard<'_, HashMap<String, BloomFilterShared>> =
-            self.filters.read().expect("Filters lock poisoned");
+            self.filters.read().map_err(|_| CacheError::L1Error("Filters lock poisoned".to_string()))?;
         let mut stats = Vec::with_capacity(guard.len());
 
         for filter in guard.values() {
             let filter: &BloomFilterShared = filter;
-            stats.push(filter.get_stats());
+            if let Ok(stat) = filter.get_stats() {
+                stats.push(stat);
+            }
         }
 
-        stats
+        Ok(stats)
     }
 }
 
@@ -505,23 +510,28 @@ impl BloomFilterOptions {
 pub struct BloomFilter;
 
 #[cfg(not(feature = "bloom-filter"))]
+use crate::error::CacheError;
+
+#[cfg(not(feature = "bloom-filter"))]
 impl BloomFilter {
     pub fn new(_options: BloomFilterOptions) -> Self {
         Self
     }
 
-    pub fn contains(&self, _item: &[u8]) -> bool {
-        false
+    pub fn contains(&self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
     }
 
-    pub fn add(&mut self, _item: &[u8]) {}
-
-    pub fn add_checked(&mut self, _item: &[u8]) -> bool {
-        false
+    pub fn add(&mut self, _item: &[u8]) -> Result<(), CacheError> {
+        Ok(())
     }
 
-    pub fn contains_and_add(&mut self, _item: &[u8]) -> bool {
-        false
+    pub fn add_checked(&mut self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
+    }
+
+    pub fn contains_and_add(&mut self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
     }
 
     pub fn remove(&self, _item: &[u8]) -> bool {
@@ -555,6 +565,13 @@ pub struct BloomFilterStats {
     pub configured_fp_rate: f64,
 }
 
+#[cfg(not(feature = "bloom-filter"))]
+impl std::fmt::Display for BloomFilterStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BloomFilter (Disabled)")
+    }
+}
+
 /// 布隆过滤器共享包装器（空实现）
 #[cfg(not(feature = "bloom-filter"))]
 #[derive(Clone, Default)]
@@ -566,18 +583,20 @@ impl BloomFilterShared {
         Self
     }
 
-    pub fn contains(&self, _item: &[u8]) -> bool {
-        false
+    pub fn contains(&self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
     }
 
-    pub async fn add(&self, _item: &[u8]) {}
-
-    pub async fn contains_and_add(&self, _item: &[u8]) -> bool {
-        false
+    pub async fn add(&self, _item: &[u8]) -> Result<(), CacheError> {
+        Ok(())
     }
 
-    pub fn get_stats(&self) -> BloomFilterStats {
-        BloomFilterStats::default()
+    pub async fn contains_and_add(&self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
+    }
+
+    pub fn get_stats(&self) -> Result<BloomFilterStats, CacheError> {
+        Ok(BloomFilterStats::default())
     }
 
     pub fn name(&self) -> &str {
@@ -596,24 +615,24 @@ impl BloomFilterManager {
         Self
     }
 
-    pub async fn get_or_create(&self, _options: BloomFilterOptions) -> BloomFilterShared {
-        BloomFilterShared::new(BloomFilter::new(BloomFilterOptions::default()))
+    pub async fn get_or_create(&self, _options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
+        Ok(BloomFilterShared::new(BloomFilter::new(BloomFilterOptions::default())))
     }
 
-    pub fn get(&self, _name: &str) -> Option<BloomFilterShared> {
-        None
+    pub fn get(&self, _name: &str) -> Result<Option<BloomFilterShared>, CacheError> {
+        Ok(None)
     }
 
-    pub fn remove(&self, _name: &str) -> bool {
-        false
+    pub fn remove(&self, _name: &str) -> Result<bool, CacheError> {
+        Ok(false)
     }
 
-    pub fn list_names(&self) -> Vec<String> {
-        Vec::new()
+    pub fn list_names(&self) -> Result<Vec<String>, CacheError> {
+        Ok(Vec::new())
     }
 
-    pub async fn get_all_stats(&self) -> Vec<BloomFilterStats> {
-        Vec::new()
+    pub async fn get_all_stats(&self) -> Result<Vec<BloomFilterStats>, CacheError> {
+        Ok(Vec::new())
     }
 }
 
@@ -623,51 +642,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bloom_filter_basic() {
+    fn test_bloom_filter_basic() -> Result<(), CacheError> {
         let options = BloomFilterOptions::default_with_name("test".to_string());
         let mut filter = BloomFilter::new(options);
 
-        assert!(!filter.contains(b"hello"));
-        assert!(!filter.contains(b"world"));
+        assert!(!filter.contains(b"hello")?);
+        assert!(!filter.contains(b"world")?);
 
-        filter.add(b"hello");
+        filter.add(b"hello")?;
 
-        assert!(filter.contains(b"hello"));
-        assert!(!filter.contains(b"world"));
+        assert!(filter.contains(b"hello")?);
+        assert!(!filter.contains(b"world")?);
 
-        filter.add(b"world");
+        filter.add(b"world")?;
 
-        assert!(filter.contains(b"hello"));
-        assert!(filter.contains(b"world"));
+        assert!(filter.contains(b"hello")?);
+        assert!(filter.contains(b"world")?);
+        Ok(())
     }
 
     #[test]
-    fn test_bloom_filter_false_positive_rate() {
+    fn test_bloom_filter_false_positive_rate() -> Result<(), CacheError> {
         let options = BloomFilterOptions::new("test_fp".to_string(), 10000, 0.01);
         let mut filter = BloomFilter::new(options);
 
         for i in 0..1000 {
-            filter.add(format!("item_{}", i).as_bytes());
+            filter.add(format!("item_{}", i).as_bytes())?;
         }
 
         let mut false_positives = 0;
         for i in 1000..2000 {
-            if filter.contains(format!("fake_{}", i).as_bytes()) {
+            if filter.contains(format!("fake_{}", i).as_bytes())? {
                 false_positives += 1;
             }
         }
 
         let fp_rate = false_positives as f64 / 1000.0;
         assert!(fp_rate < 0.05, "False positive rate too high: {}", fp_rate);
+        Ok(())
     }
 
     #[test]
-    fn test_bloom_filter_contains_and_add() {
+    fn test_bloom_filter_contains_and_add() -> Result<(), CacheError> {
         let options = BloomFilterOptions::default_with_name("test_caa".to_string());
         let mut filter = BloomFilter::new(options);
 
-        assert!(!filter.contains_and_add(b"new_item"));
-        assert!(filter.contains_and_add(b"new_item"));
+        assert!(!filter.contains_and_add(b"new_item")?);
+        assert!(filter.contains_and_add(b"new_item")?);
+        Ok(())
     }
 
     #[test]

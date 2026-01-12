@@ -5,8 +5,9 @@
 //! 跨数据库集成测试
 
 use chrono::Utc;
-use oxcache::database::{
-    DatabaseType, PartitionConfig, PartitionInfo, PartitionManager, PartitionManagerFactory,
+use oxcache::database::DatabaseType;
+use oxcache::database::partition::{
+    PartitionConfig, PartitionInfo, PartitionManager,
 };
 use std::sync::Arc;
 
@@ -15,11 +16,23 @@ async fn setup_partition_manager(
 ) -> Result<Arc<dyn PartitionManager + Send + Sync>, Box<dyn std::error::Error>> {
     let db_type = DatabaseType::from_url(database_url);
     let config = PartitionConfig {
-        table_prefix: "test_".to_string(),
         ..Default::default()
     };
 
-    let manager = PartitionManagerFactory::create_manager(db_type, database_url, config).await?;
+    let manager: Arc<dyn PartitionManager + Send + Sync> = match db_type {
+        DatabaseType::MySQL => {
+            use oxcache::database::mysql::MySQLPartitionManager;
+            Arc::new(MySQLPartitionManager::new(database_url, config).await?)
+        }
+        DatabaseType::PostgreSQL => {
+            use oxcache::database::postgresql::PostgresPartitionManager;
+            Arc::new(PostgresPartitionManager::new(database_url, config).await?)
+        }
+        DatabaseType::SQLite => {
+            use oxcache::database::sqlite::SQLitePartitionManager;
+            Arc::new(SQLitePartitionManager::new(database_url, config).await?)
+        }
+    };
 
     Ok(manager)
 }
@@ -91,7 +104,7 @@ async fn test_cross_database_partition_consistency() -> Result<(), Box<dyn std::
         manager.initialize_table(test_table, &schema).await?;
         println!("✓ {} table initialized", db_name);
 
-        let partition_info = PartitionInfo::new(test_date, test_table);
+        let partition_info = PartitionInfo::new(test_date, test_table)?;
         manager.create_partition(&partition_info).await?;
         println!(
             "✓ {} partition created: {}",
@@ -201,8 +214,8 @@ async fn test_cross_database_partition_cleanup() -> Result<(), Box<dyn std::erro
         let old_date = Utc::now() - chrono::Duration::days(100); // ~3 months ago
         let recent_date = Utc::now() - chrono::Duration::days(30); // ~1 month ago
 
-        let old_partition = PartitionInfo::new(old_date, test_table);
-        let recent_partition = PartitionInfo::new(recent_date, test_table);
+        let old_partition = PartitionInfo::new(old_date, test_table)?;
+        let recent_partition = PartitionInfo::new(recent_date, test_table)?;
 
         manager.create_partition(&old_partition).await?;
         manager.create_partition(&recent_partition).await?;
@@ -216,7 +229,11 @@ async fn test_cross_database_partition_cleanup() -> Result<(), Box<dyn std::erro
         );
 
         // Test cleanup with 2 months retention
-        let cleaned_count = manager.cleanup_old_partitions(test_table, 2).await?;
+        // Calculate cutoff date (2 months ago)
+        let cutoff_date = Utc::now()
+            .checked_sub_signed(chrono::Duration::days(60))
+            .unwrap();
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ {} cleaned up {} old partitions", db_name, cleaned_count);
 
         let partitions_after = manager.get_partitions(test_table).await?;

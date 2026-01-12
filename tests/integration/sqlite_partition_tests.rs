@@ -4,7 +4,7 @@
 //!
 //! SQLite分区测试
 
-use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
+use oxcache::database::partition::PartitionInfo;
 use chrono::{TimeZone, Utc};
 use oxcache::database::sqlite::SQLitePartitionManager;
 use oxcache::error::{CacheError, Result};
@@ -34,6 +34,8 @@ fn cleanup_partition_tables() {
 
 mod basic_functionality_tests {
     use super::*;
+    use oxcache::database::PartitionManager;
+    use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
 
     #[tokio::test]
     async fn test_sqlite_partitioning_basic() -> Result<()> {
@@ -57,7 +59,7 @@ mod basic_functionality_tests {
         let partition_config = PartitionConfig {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -95,14 +97,15 @@ mod basic_functionality_tests {
         ];
 
         for date in &test_dates {
-            let partition_info = PartitionInfo::new(*date, test_table);
+            let partition_info = PartitionInfo::new(*date, test_table)?;
             manager.create_partition(&partition_info).await?;
         }
 
         let all_partitions = manager.get_partitions(test_table).await?;
         println!("✓ Total partitions: {}", all_partitions.len());
 
-        let cleaned_count = manager.cleanup_old_partitions(test_table, 2).await?;
+        let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;
@@ -135,7 +138,7 @@ mod basic_functionality_tests {
         let partition_config = PartitionConfig {
             enabled: false,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -177,7 +180,7 @@ mod basic_functionality_tests {
         let partition_config = PartitionConfig {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -192,6 +195,8 @@ mod basic_functionality_tests {
 
 mod manager_tests {
     use super::*;
+    use oxcache::database::PartitionManager;
+    use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
 
     #[tokio::test]
     async fn test_sqlite_partition_manager_basic() {
@@ -212,8 +217,7 @@ mod manager_tests {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
             precreate_months: 3,
-            retention_months: Some(12),
-            table_prefix: "partitioned_".to_string(),
+            retention_months: 12,
         };
 
         let connection_string = format!("sqlite:{}", db_path);
@@ -277,8 +281,7 @@ mod manager_tests {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
             precreate_months: 3,
-            retention_months: Some(12),
-            table_prefix: "partitioned_".to_string(),
+            retention_months: 12,
         };
 
         let connection_string = format!("sqlite:{}", db_path);

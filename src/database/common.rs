@@ -76,8 +76,10 @@ pub struct ConnectionPool<T: DatabaseOperations> {
     /// 连接池
     pool: Arc<Mutex<Vec<Arc<T>>>>,
     /// 配置
+    #[allow(dead_code)]
     config: PoolConfig,
     /// 活跃连接数
+    #[allow(dead_code)]
     active_count: Arc<Mutex<u32>>,
     /// 统计信息
     stats: Arc<Mutex<PoolStats>>,

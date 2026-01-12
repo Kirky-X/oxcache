@@ -4,7 +4,9 @@
 //!
 //! MySQL调试测试
 
-use crate::database::partition::{PartitionConfig, PartitionManager};
+use oxcache::database::partition::PartitionConfig;
+use oxcache::database::partition::PartitionStrategy;
+use oxcache::database::partition::PartitionManager;
 use oxcache::database::mysql::MySQLPartitionManager;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -17,14 +19,13 @@ async fn debug_mysql_initialize_table() {
         enabled: true,
         strategy: PartitionStrategy::Monthly,
         precreate_months: 3,
-        retention_months: Some(6),
-        table_prefix: "test_cache".to_string(),
+        retention_months: 6,
     };
 
     let connection_string = "mysql://user:password@localhost:3307/oxcache_test";
 
     println!("1. Creating MySQL partition manager...");
-    let manager = match MySQLPartitionManager::new(connection_string, config).await {
+    let manager: MySQLPartitionManager = match MySQLPartitionManager::new(connection_string, config).await {
         Ok(mgr) => {
             println!("✓ MySQL partition manager created successfully!");
             mgr
@@ -50,7 +51,7 @@ async fn debug_mysql_initialize_table() {
     println!("3. Testing basic connection...");
     let connection_test = timeout(Duration::from_secs(10), async {
         // 简单的查询测试
-        let result = manager.get_partitions("information_schema.tables").await;
+        let result: Result<Vec<oxcache::database::partition::PartitionInfo>, _> = manager.get_partitions("information_schema.tables").await;
         match result {
             Ok(partitions) => println!(
                 "✓ Connection test passed, found {} partitions",

@@ -6,7 +6,7 @@
 
 #![allow(dead_code)]
 
-use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
+use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use chrono::{TimeZone, Utc};
 use oxcache::error::Result;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ pub fn create_partition_config(
     PartitionConfig {
         enabled,
         strategy,
-        retention_months: Some(retention as u32),
+        retention_months: retention as u32,
         ..Default::default()
     }
 }
@@ -142,7 +142,7 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
     ];
 
     for date in &dates {
-        let partition_info = PartitionInfo::new(*date, table_name);
+        let partition_info = PartitionInfo::new(*date, table_name)?;
         manager.create_partition(&partition_info).await?;
     }
 
@@ -151,8 +151,26 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
     println!("Partitions before cleanup: {}", partitions_before.len());
 
     // Clean up old partitions
+    // Calculate cutoff date based on retention_months relative to the test data (May 2023)
+    let mut year = 2023;
+    let mut month = 5;
+    let retention = retention_months as u32;
+    
+    let years_sub = retention / 12;
+    let months_sub = retention % 12;
+    
+    year -= years_sub as i32;
+    if month > months_sub {
+        month -= months_sub;
+    } else {
+        year -= 1;
+        month = month + 12 - months_sub;
+    }
+    
+    let cutoff_date = Utc.with_ymd_and_hms(year, month, 2, 0, 0, 0).unwrap();
+
     manager
-        .cleanup_old_partitions(table_name, retention_months.try_into().unwrap())
+        .cleanup_old_partitions(table_name, cutoff_date)
         .await?;
 
     // List partitions after cleanup
@@ -187,7 +205,7 @@ pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>
         let table_name_clone = table_name.to_string();
 
         let task = tokio::spawn(async move {
-            let partition_info = PartitionInfo::new(date, &table_name_clone);
+            let partition_info = PartitionInfo::new(date, &table_name_clone)?;
             manager_clone.create_partition(&partition_info).await
         });
 

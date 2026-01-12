@@ -194,7 +194,7 @@ async fn test_redis_version_standalone(
 
     let config = L2Config {
         mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::new(connection_string.to_string().into()),
+        connection_string: secrecy::SecretString::new(connection_string.to_string()),
         connection_timeout_ms: 5000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -334,7 +334,7 @@ async fn test_redis_version_cluster(version: &str, connection_string: &str) -> R
 
     let config = L2Config {
         mode: RedisMode::Cluster,
-        connection_string: secrecy::SecretString::new(connection_string.to_string().into()),
+        connection_string: secrecy::SecretString::new(connection_string.to_string()),
         connection_timeout_ms: 10000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -410,7 +410,7 @@ async fn test_redis_6_compatibility() {
     // 首先测试连接性
     let config = L2Config {
         mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::new(connection_string.clone().into()),
+        connection_string: secrecy::SecretString::new(connection_string.clone()),
         connection_timeout_ms: 5000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -562,7 +562,7 @@ async fn test_redis_7_compatibility() {
 
     let config = L2Config {
         mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::new(connection_string.clone().into()),
+        connection_string: secrecy::SecretString::new(connection_string.clone()),
         connection_timeout_ms: 5000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -641,7 +641,7 @@ async fn test_redis_cluster_version_compatibility() {
 
     let config = L2Config {
         mode: RedisMode::Cluster,
-        connection_string: secrecy::SecretString::new(nodes[0].clone().into()),
+        connection_string: secrecy::SecretString::new(nodes[0].clone()),
         connection_timeout_ms: 10000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -739,7 +739,7 @@ async fn test_redis_sentinel_version_compatibility() {
 
     let config = L2Config {
         mode: RedisMode::Sentinel,
-        connection_string: secrecy::SecretString::new(sentinel_nodes.clone().into()),
+        connection_string: secrecy::SecretString::new(sentinel_nodes.clone()),
         connection_timeout_ms: 10000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -830,7 +830,7 @@ async fn test_redis_serialization_compatibility() {
 
     let config = L2Config {
         mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::new(connection_string.clone().into()),
+        connection_string: secrecy::SecretString::new(connection_string.clone()),
         connection_timeout_ms: 5000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -922,7 +922,7 @@ async fn test_redis_cluster_advanced_features() {
 
     let config = L2Config {
         mode: RedisMode::Cluster,
-        connection_string: secrecy::SecretString::new(nodes[0].clone().into()),
+        connection_string: secrecy::SecretString::new(nodes[0].clone()),
         connection_timeout_ms: 10000,
         command_timeout_ms: 5000,
         ..Default::default()
@@ -1124,7 +1124,7 @@ async fn test_cross_version_cluster_sync() {
 
     let config_6_2 = L2Config {
         mode: RedisMode::Cluster,
-        connection_string: secrecy::SecretString::new(nodes_6_2[0].clone().into()),
+        connection_string: secrecy::SecretString::new(nodes_6_2[0].clone()),
         connection_timeout_ms: 15000,
         command_timeout_ms: 10000,
         ..Default::default()
@@ -1151,7 +1151,7 @@ async fn test_cross_version_cluster_sync() {
 
     let config_7_2 = L2Config {
         mode: RedisMode::Cluster,
-        connection_string: secrecy::SecretString::new(nodes_7_2[0].clone().into()),
+        connection_string: secrecy::SecretString::new(nodes_7_2[0].clone()),
         connection_timeout_ms: 15000,
         command_timeout_ms: 10000,
         ..Default::default()

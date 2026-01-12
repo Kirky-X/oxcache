@@ -392,6 +392,26 @@ impl DbLoader for SqlDbLoader {
 
         let key_list = escaped_keys.join(",");
 
+        // Validate SQL identifiers to prevent SQL injection
+        if !validate_sql_identifier(&self.key_column) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid key_column identifier: {}",
+                self.key_column
+            )));
+        }
+        if !validate_sql_identifier(&self.value_column) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid value_column identifier: {}",
+                self.value_column
+            )));
+        }
+        if !validate_sql_identifier(&self.table_name) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid table_name identifier: {}",
+                self.table_name
+            )));
+        }
+
         let query = format!(
             "SELECT {}, {} FROM {} WHERE {} IN ({})",
             self.key_column, self.value_column, self.table_name, self.key_column, key_list

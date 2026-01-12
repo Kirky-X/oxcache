@@ -7,8 +7,7 @@
 use oxcache::backend::l2::L2Backend;
 use oxcache::config::{L2Config, RedisMode};
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 #[tokio::test]
 async fn test_redis_tls_config_parsing() {

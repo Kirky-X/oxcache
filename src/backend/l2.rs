@@ -54,33 +54,10 @@ fn validate_redis_key(key: &str) -> Result<()> {
     }
 
     // 检查是否包含Redis命令模式（防止命令注入）
-    let key_upper = key.to_uppercase();
-    let redis_commands = [
-        "FLUSHALL",
-        "FLUSHDB",
-        "SHUTDOWN",
-        "CONFIG",
-        "DEBUG",
-        "EVAL",
-        "SCRIPT",
-        "KEYS",
-        "SCAN",
-        "RANDOMKEY",
-        "TYPE",
-        "OBJECT",
-        "MIGRATE",
-        "DUMP",
-        "RESTORE",
-    ];
-
-    for cmd in &redis_commands {
-        if key_upper.contains(cmd) {
-            return Err(CacheError::InvalidInput(format!(
-                "Redis key contains potential command injection pattern: {}",
-                cmd
-            )));
-        }
-    }
+    // 注意：这里移除了对命令名称的检查，因为它们会导致误报（例如 user_type 包含 TYPE）
+    // Redis 协议注入主要依赖于 CRLF，上面已经检查过了。
+    // 只要我们使用安全的 redis crate 客户端方法（如 .arg()），参数会被正确编码为 Bulk Strings，
+    // 不会被解析为命令。
 
     Ok(())
 }
@@ -125,6 +102,8 @@ impl std::fmt::Debug for L2Backend {
         }
     }
 }
+
+
 
 impl L2Backend {
     /// 获取命令超时时间（毫秒）

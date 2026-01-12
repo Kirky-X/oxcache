@@ -281,7 +281,7 @@ impl UatStressTester {
             ..Default::default()
         };
 
-        let backend = L2Backend::new(&l2_config)
+        let backend: L2Backend = L2Backend::new(&l2_config)
             .await
             .map_err(|e| UatError::from(format!("Failed to create L2Backend: {}", e)))?;
         Ok(backend)
@@ -396,7 +396,7 @@ impl UatStressTester {
             let key = format!("uat_key_{}", i);
             let value = format!("uat_value_{}", i);
 
-            let handle = tokio::spawn(async move {
+            let handle: tokio::task::JoinHandle<Result<(), oxcache::error::CacheError>> = tokio::spawn(async move {
                 backend
                     .set_bytes(&key, value.as_bytes().to_vec(), Some(3600))
                     .await
