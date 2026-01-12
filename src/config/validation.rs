@@ -284,7 +284,6 @@ pub fn validate_service(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::{oxcache_config, GlobalConfig, ServiceConfig};
 
     #[test]
@@ -324,8 +323,10 @@ mod tests {
             .with_global(GlobalConfig::default())
             .build();
 
-        let mut l1 = crate::config::L1Config::default();
-        l1.max_capacity = 0;
+        let l1 = crate::config::L1Config {
+            max_capacity: 0,
+            ..Default::default()
+        };
         let service = ServiceConfig::l1_only().with_l1(l1);
 
         assert!(config.validate_service("test", &service).is_err());
@@ -333,8 +334,10 @@ mod tests {
 
     #[test]
     fn test_validate_global_config() {
-        let mut global = GlobalConfig::default();
-        global.default_ttl = 0;
+        let global = GlobalConfig {
+            default_ttl: 0,
+            ..Default::default()
+        };
 
         let config = oxcache_config().with_global(global).build();
 

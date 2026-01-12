@@ -14,7 +14,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
-use super::common::*;
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 
 /// 连接池统计信息
@@ -450,28 +449,12 @@ impl PartitionManager for PostgresPartitionManager {
         Ok(())
     }
 
-    async fn cleanup_old_partitions(
-        &self,
-        table_name: &str,
-        retention_months: u32,
-    ) -> Result<usize> {
-        common_cleanup_old_partitions(
-            self,
-            table_name,
-            retention_months,
-            &self.config,
-            |m, t| m.get_partitions(t),
-            |m, t, p| m.drop_partition(t, p),
-        )
-        .await
-    }
-
     async fn ensure_partition_exists(
         &self,
         date: DateTime<Utc>,
         table_name: &str,
     ) -> Result<String> {
-        let partition = PartitionInfo::new(date, table_name);
+        let partition = PartitionInfo::new(date, table_name)?;
 
         // 检查分区是否已存在
         let existing_partitions = self.get_partitions(table_name).await?;
@@ -484,11 +467,8 @@ impl PartitionManager for PostgresPartitionManager {
         Ok(partition.table_name)
     }
 
-    async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()> {
-        common_precreate_partitions(self, table_name, months_ahead, &self.config, |m, d, t| {
-            PartitionManager::ensure_partition_exists(m, d, t)
-        })
-        .await
+    fn get_config(&self) -> PartitionConfig {
+        self.config.clone()
     }
 }
 
@@ -528,7 +508,7 @@ impl PostgresPartitionManager {
             debug!("Parsed end date as DateTime: {}", end_date);
 
             // Create PartitionInfo using the table name from the partition
-            let mut info = PartitionInfo::new(start_date, table_name);
+            let mut info = PartitionInfo::new(start_date, table_name).ok()?;
             info.name = partition_name.to_string();
             info.start_date = start_date;
             info.end_date = end_date;
@@ -543,42 +523,3 @@ impl PostgresPartitionManager {
     }
 }
 
-impl PartitionManagerExt for PostgresPartitionManager {
-    async fn cleanup_old_partitions(
-        &self,
-        table_name: &str,
-        retention_months: u32,
-    ) -> Result<usize> {
-        common_cleanup_old_partitions(
-            self,
-            table_name,
-            retention_months,
-            &self.config,
-            |m, t| m.get_partitions(t),
-            |m, t, p| m.drop_partition(t, p),
-        )
-        .await
-    }
-
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String> {
-        let partition = PartitionInfo::new(date, table_name);
-
-        // 检查分区是否已存在
-        let existing_partitions = self.get_partitions(table_name).await?;
-        let exists = existing_partitions.iter().any(|p| p.name == partition.name);
-
-        if !exists {
-            self.create_partition(&partition).await?;
-        }
-
-        Ok(partition.table_name)
-    }
-
-    fn get_config(&self) -> &PartitionConfig {
-        &self.config
-    }
-}

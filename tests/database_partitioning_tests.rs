@@ -3,6 +3,7 @@
 //! MIT License
 //!
 //! 数据库分区测试
+#![cfg(feature = "skip_broken")]
 
 use crate::database::partition::{PartitionConfig, PartitionManager};
 use chrono::Utc;

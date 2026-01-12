@@ -4,16 +4,17 @@
 //!
 //! 故障恢复集成测试
 
-use crate::common::{generate_unique_service_name, setup_cache};
+use common::{cleanup_service, generate_unique_service_name, setup_cache};
+use std::collections::HashMap;
+use std::time::Duration;
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
+    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
-use oxcache::CacheExt;
-use secrecy::SecretBox;
 
-#[path = "../common/mod.rs"]
-mod common;
+use oxcache::CacheExt;
+
+use crate::common;
 
 /// 测试降级逻辑
 ///
@@ -23,7 +24,7 @@ async fn test_degradation_logic() {
     // 此测试配置无效的Redis地址以强制降级
     let service_name = generate_unique_service_name("recovery_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
@@ -41,6 +42,7 @@ async fn test_degradation_logic() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 10,
                         ..Default::default()
                     }),
                     l2: Some(L2Config {
@@ -72,6 +74,9 @@ async fn test_degradation_logic() {
             );
             map
         },
+        layer: None,
+        extensions: std::collections::HashMap::new(),
+        source: None,
     };
 
     setup_cache(config).await;

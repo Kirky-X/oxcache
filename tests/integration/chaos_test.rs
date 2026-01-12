@@ -15,8 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 #[tokio::test]
 async fn test_chaos_redis_outage_and_recovery() {
@@ -42,7 +41,7 @@ async fn test_chaos_redis_outage_and_recovery() {
 
     let l2_config = L2Config {
         mode: RedisMode::Standalone,
-        connection_string: SecretString::new(redis_url.to_string().into_boxed_str()),
+        connection_string: SecretString::new(redis_url.to_string().into_boxed_str().into()),
         connection_timeout_ms: 5000,
         command_timeout_ms: 500,
         password: None,

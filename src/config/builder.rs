@@ -361,8 +361,10 @@ mod tests {
 
     #[test]
     fn test_builder_validate_ttl() {
-        let mut global = GlobalConfig::default();
-        global.default_ttl = 0;
+        let global = GlobalConfig {
+            default_ttl: 0,
+            ..Default::default()
+        };
 
         let builder = OxcacheConfigBuilder::new().with_global(global);
 

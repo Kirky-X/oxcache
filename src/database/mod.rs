@@ -8,19 +8,15 @@
 
 use serde::{Deserialize, Serialize};
 
-mod common;
-mod connection_string;
-// mod mysql;
-// mod partition;
-// mod postgresql;
-// mod sqlite;
+pub mod common;
+pub mod connection_string;
+pub mod mysql;
+pub mod postgresql;
+pub mod sqlite;
 
-pub(crate) use connection_string::{
-    is_test_connection_string, normalize_connection_string,
-};
-// 分区管理模块暂时禁用，待后续修复
-// pub mod partition;
-// pub(crate) use partition::PartitionStrategy;
+pub(crate) use connection_string::{is_test_connection_string, normalize_connection_string};
+pub mod partition;
+pub use partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 
 /// 数据库类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

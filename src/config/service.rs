@@ -322,7 +322,7 @@ impl L1Config {
 ///
 /// 定义分布式缓存的相关配置。
 #[cfg(feature = "l2-redis")]
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct L2Config {
     /// Redis 模式
@@ -379,7 +379,7 @@ impl L2Config {
 
     /// 设置连接字符串
     pub fn with_connection_string(mut self, connection_string: &str) -> Self {
-        self.connection_string = SecretString::new(connection_string.to_string().into());
+        self.connection_string = SecretString::new(connection_string.to_string());
         self
     }
 
@@ -397,7 +397,7 @@ impl L2Config {
 
     /// 设置密码
     pub fn with_password(mut self, password: &str) -> Self {
-        self.password = Some(SecretString::new(password.to_string().into()));
+        self.password = Some(SecretString::new(password.to_string()));
         self
     }
 
@@ -429,6 +429,25 @@ impl L2Config {
     pub fn with_cluster(mut self, cluster: ClusterConfig) -> Self {
         self.cluster = Some(cluster);
         self
+    }
+}
+
+#[cfg(feature = "l2-redis")]
+impl Default for L2Config {
+    fn default() -> Self {
+        Self {
+            mode: RedisMode::default(),
+            connection_string: SecretString::new("".to_string()),
+            connection_timeout_ms: 5000,
+            command_timeout_ms: 30000,
+            password: None,
+            enable_tls: false,
+            sentinel: None,
+            cluster: None,
+            default_ttl: None,
+            max_key_length: 512,
+            max_value_size: 10 * 1024 * 1024,
+        }
     }
 }
 

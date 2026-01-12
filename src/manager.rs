@@ -5,9 +5,7 @@
 //! 该模块定义了缓存管理器，负责初始化和管理所有缓存客户端。
 
 use crate::config::legacy_config::EvictionPolicy;
-use crate::config::{
-    CacheStrategy, CacheType, DynamicConfig, OxcacheConfig, SerializationType,
-};
+use crate::config::{CacheStrategy, CacheType, DynamicConfig, OxcacheConfig, SerializationType};
 use crate::error::{CacheError, Result};
 #[cfg(feature = "l1-moka")]
 use crate::serialization::{json::JsonSerializer, SerializerEnum};
@@ -178,6 +176,7 @@ pub struct CacheManager {
     #[allow(dead_code)]
     config: OxcacheConfig,
     /// 动态配置管理
+    #[allow(dead_code)]
     dynamic_config: DynamicConfig,
 }
 
@@ -300,20 +299,39 @@ impl CacheManager {
         // 根据功能可用性选择降级策略
         match (l1_available, l2_available) {
             (true, true) => {
-                // 完整功能：创建完整的 TwoLevelClient
+                // 完整功能：尝试创建完整的 TwoLevelClient
                 let l1 = l1_backend::create_l1_backend(l1_cfg).await?;
-                let l2 = l2_backend::create_l2_backend(l2_cfg).await?;
-
-                Ok(Arc::new(
-                    TwoLevelClient::new(
-                        name.to_string(),
-                        two_level_cfg.clone(),
-                        l1,
-                        l2,
-                        serializer.clone(),
-                    )
-                    .await?,
-                ))
+                
+                // 尝试初始化 L2，如果失败则降级到 L1
+                match l2_backend::create_l2_backend(l2_cfg).await {
+                    Ok(l2) => {
+                        match TwoLevelClient::new(
+                            name.to_string(),
+                            two_level_cfg.clone(),
+                            l1.clone(),
+                            l2,
+                            serializer.clone(),
+                        ).await {
+                            Ok(client) => Ok(Arc::new(client)),
+                            Err(e) => {
+                                warn!(
+                                    "Service '{}': Failed to initialize TwoLevelClient, degrading to L1-only mode: {}", 
+                                    name, e
+                                );
+                                let l1_client = crate::client::l1::L1Client::new(name.to_string(), l1, serializer.clone());
+                                Ok(Arc::new(l1_client))
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        warn!(
+                            "Service '{}': Failed to initialize L2 backend (Redis), degrading to L1-only mode: {}", 
+                            name, e
+                        );
+                        let l1_client = crate::client::l1::L1Client::new(name.to_string(), l1, serializer.clone());
+                        Ok(Arc::new(l1_client))
+                    }
+                }
             }
             (true, false) => {
                 // L1 可用，L2 不可用：降级为 L1 only
@@ -438,10 +456,13 @@ impl CacheManager {
 ///
 /// 返回对应服务的缓存客户端，如果服务不存在则返回错误
 pub fn get_client(service: &str) -> Result<Arc<dyn CacheOps>> {
-    MANAGER
-        .get(service)
-        .map(|r| r.value().clone())
-        .ok_or_else(|| CacheError::ConfigError(format!("未找到服务{}", service)))
+    let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
+    if let Some(r) = manager.get(service) {
+        let val: &Arc<dyn CacheOps> = r.value();
+        Ok(val.clone())
+    } else {
+        Err(CacheError::ConfigError(format!("未找到服务{}", service)))
+    }
 }
 
 /// 获取指定服务的强类型缓存客户端
@@ -492,13 +513,14 @@ pub async fn shutdown_all() -> Result<()> {
     let mut errors = Vec::new();
 
     // 遍历所有客户端并关闭它们
-    for entry in MANAGER.iter() {
-        let service_name = entry.key();
-        let client = entry.value();
+    let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
+    for entry in manager.iter() {
+                let service_name: &String = entry.key();
+                let client: &Arc<dyn CacheOps> = entry.value();
 
-        info!("正在关闭服务: {}", service_name);
+                info!("正在关闭服务: {}", service_name);
 
-        match client.shutdown().await {
+                match client.shutdown().await {
             Ok(_) => {
                 info!("服务 {} 已成功关闭", service_name);
             }

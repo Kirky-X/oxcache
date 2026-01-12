@@ -12,7 +12,7 @@ pub mod database_test_utils;
 #[path = "redis_test_utils.rs"]
 pub mod redis_test_utils;
 
-use oxcache::{CacheManager, Config};
+use oxcache::{CacheManager, OxcacheConfig};
 use redis_test_utils::{
     is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
@@ -42,7 +42,7 @@ pub fn setup_logging() {
 ///
 /// * `config` - 缓存配置
 #[allow(dead_code)]
-pub async fn setup_cache(config: Config) {
+pub async fn setup_cache(config: OxcacheConfig) {
     setup_logging();
 
     if let Err(e) = CacheManager::init(config).await {

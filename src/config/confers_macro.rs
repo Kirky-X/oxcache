@@ -195,11 +195,11 @@ impl OxcacheConfigFile {
                             _ => super::RedisMode::Standalone,
                         },
                         connection_string: SecretString::new(
-                            l.connection_string.unwrap_or_default().into(),
+                            l.connection_string.unwrap_or_default(),
                         ),
                         connection_timeout_ms: l.connection_timeout_ms.unwrap_or(5000),
                         command_timeout_ms: l.command_timeout_ms.unwrap_or(30000),
-                        password: l.password.map(|p| SecretString::new(p.into_boxed_str())),
+                        password: l.password.map(SecretString::new),
                         enable_tls: l.enable_tls.unwrap_or(false),
                         sentinel: None,
                         cluster: None,
@@ -257,11 +257,13 @@ pub fn confers_load(path: &str) -> Result<super::OxcacheConfig, String> {
 mod tests {
     #[cfg(feature = "confers")]
     mod confers_tests {
+        use crate::{ConfigSource, OxcacheConfig};
+
         #[test]
         fn test_config_source_code() {
-            let mut config = super::super::OxcacheConfig::new();
-            config.set_source(super::super::ConfigSource::Code);
-            assert_eq!(config.source, Some(super::super::ConfigSource::Code));
+            let mut config = OxcacheConfig::new();
+            config.set_source(ConfigSource::Code);
+            assert_eq!(config.source, Some(ConfigSource::Code));
         }
     }
 }

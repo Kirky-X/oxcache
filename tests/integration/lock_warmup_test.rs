@@ -4,24 +4,23 @@
 //!
 //! 锁预热功能集成测试
 
-use crate::common::{
-    cleanup_service, generate_unique_service_name, is_redis_available, setup_cache,
-};
+use common::{cleanup_service, generate_unique_service_name, is_redis_available};
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use oxcache::client::two_level::TwoLevelClient;
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, ServiceConfig, TwoLevelConfig,
+    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, ServiceConfig,
+    TwoLevelConfig,
 };
 use oxcache::serialization::json::JsonSerializer;
 use oxcache::serialization::SerializerEnum;
+use oxcache::CacheManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 #[tokio::test]
 async fn test_distributed_lock() {
@@ -33,7 +32,7 @@ async fn test_distributed_lock() {
     let service_name = generate_unique_service_name("lock_test");
 
     // 初始化配置
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig::default(),
         services: {
@@ -46,6 +45,7 @@ async fn test_distributed_lock() {
                     serialization: None,
                     l1: Some(L1Config {
                         max_capacity: 100,
+                        cleanup_interval_secs: 10,
                         ..Default::default()
                     }),
                     l2: Some(L2Config {
@@ -66,6 +66,7 @@ async fn test_distributed_lock() {
             );
             map
         },
+        ..Default::default()
     };
 
     CacheManager::init(config)

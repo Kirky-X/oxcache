@@ -192,7 +192,7 @@ impl Default for L2Config {
     fn default() -> Self {
         Self {
             mode: RedisMode::Standalone,
-            connection_string: SecretString::new("redis://localhost:6379".to_string().into()),
+            connection_string: SecretString::new("redis://localhost:6379".to_string()),
             connection_timeout_ms: 5000,
             command_timeout_ms: 3000,
             password: None,
@@ -666,7 +666,6 @@ pub enum EvictionPolicy {
     /// 随机淘汰
     Random,
 }
-
 
 /// 运行时缓存策略配置
 ///

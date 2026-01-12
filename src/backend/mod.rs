@@ -14,10 +14,10 @@ pub mod l2;
 pub mod redis_provider;
 
 #[cfg(not(feature = "test"))]
-pub(crate) mod l1;
+pub mod l1;
 
 #[cfg(not(feature = "test"))]
-pub(crate) mod l2;
+pub mod l2;
 
 #[cfg(not(feature = "test"))]
-pub(crate) mod redis_provider;
+pub mod redis_provider;

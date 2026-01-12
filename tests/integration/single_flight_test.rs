@@ -4,8 +4,7 @@
 //!
 //! 单飞模式集成测试
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use common::setup_logging;
 use oxcache::backend::l1::L1Backend;

@@ -15,7 +15,6 @@ use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
-use super::common::*;
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 
 /// 连接池统计信息
@@ -352,7 +351,7 @@ impl PartitionManager for MySQLPartitionManager {
         date: DateTime<Utc>,
         table_name: &str,
     ) -> Result<String> {
-        let partition = PartitionInfo::new(date, table_name);
+        let partition = PartitionInfo::new(date, table_name)?;
 
         // 检查分区是否已存在
         let existing_partitions = self.get_partitions(table_name).await?;
@@ -365,27 +364,8 @@ impl PartitionManager for MySQLPartitionManager {
         Ok(partition.table_name)
     }
 
-    // 使用通用实现
-    async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()> {
-        PartitionManagerExt::precreate_partitions(self, table_name, months_ahead).await
-    }
-}
-
-#[async_trait::async_trait]
-impl PartitionManagerExt for MySQLPartitionManager {
-    // 使用PartitionManager trait中定义的ensure_partition_exists实现
-    fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> impl std::future::Future<Output = Result<String>> + Send {
-        Box::pin(
-            async move { PartitionManager::ensure_partition_exists(self, date, table_name).await },
-        )
-    }
-
-    fn get_config(&self) -> &PartitionConfig {
-        &self.config
+    fn get_config(&self) -> PartitionConfig {
+        self.config.clone()
     }
 }
 
@@ -519,7 +499,7 @@ impl MySQLPartitionManager {
         let epoch = Utc
             .with_ymd_and_hms(0, 1, 1, 0, 0, 0)
             .single()
-            .expect("Year 0-01-01 00:00:00 should be a valid UTC date");
+            .unwrap_or_else(Utc::now);
         let duration = date.signed_duration_since(epoch);
         duration.num_days() as i32
     }
@@ -538,9 +518,8 @@ impl MySQLPartitionManager {
             // 使用一个遥远的未来日期作为结束日期
             let max_date = Utc
                 .with_ymd_and_hms(9999, 12, 31, 23, 59, 59)
-                .single()
-                .expect("Year 9999-12-31 23:59:59 should be a valid UTC date");
-            let mut info = PartitionInfo::new(max_date, table_name);
+                .single()?;
+            let mut info = PartitionInfo::new(max_date, table_name).ok()?;
             info.name = partition_name.to_string();
             info.start_date = max_date;
             info.end_date = max_date;
@@ -556,7 +535,7 @@ impl MySQLPartitionManager {
                 if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
                     debug!("Parsed year={}, month={}", year, month);
                     if let Some(date) = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single() {
-                        let mut info = PartitionInfo::new(date, table_name);
+                        let mut info = PartitionInfo::new(date, table_name).ok()?;
                         info.name = partition_name.to_string();
                         info.created = true;
                         debug!("Successfully parsed partition: {:?}", info.name);

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // Feature Combinations Test Suite
 //
 // This test suite verifies all feature combinations:
@@ -49,18 +51,14 @@ impl L1Config {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 enum RedisMode {
+    #[default]
     Standalone,
     Sentinel,
     Cluster,
 }
 
-impl Default for RedisMode {
-    fn default() -> Self {
-        RedisMode::Standalone
-    }
-}
 
 #[derive(Debug, Clone, Default)]
 struct L2Config {
@@ -242,6 +240,421 @@ impl Config {
     }
 }
 
+
+// ============================================================================
+// Main (for standalone testing)
+// ============================================================================
+
+fn main() {
+    println!("Running Feature Combinations Test Suite...\n");
+
+    // Run all tests
+    let tests: Vec<(&str, fn())> = vec![
+        (
+            "Minimal Feature Compilation",
+            test_minimal_feature_compilation,
+        ),
+        ("Core Feature Compilation", test_core_feature_compilation),
+        ("Full Feature Compilation", test_full_feature_compilation),
+        ("TTL Validation", test_config_validation_ttl),
+        ("L1 Only Validation", test_l1_only_validation),
+        ("Capacity Boundaries", test_capacity_boundaries),
+        ("TTL Boundaries", test_ttl_boundaries),
+        ("Empty Services", test_empty_services),
+        ("Redis Mode Boundaries", test_redis_mode_boundaries),
+        ("Timeout Boundaries", test_timeout_boundaries),
+        ("L1 Only Mode", test_l1_only_mode),
+        ("L2 Only Mode", test_l2_only_mode),
+        ("Batch Write Boundaries", test_batch_write_boundaries),
+        ("All Cache Types", test_all_cache_types),
+        ("Global Config Boundaries", test_global_config_boundaries),
+        ("Service Name Boundaries", test_service_name_boundaries),
+        ("High Throughput Config", test_high_throughput_config),
+        ("Low Latency Config", test_low_latency_config),
+        ("Redis Password Config", test_redis_password_config),
+        ("Size Limit Config", test_size_limit_config),
+    ];
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    for (name, test_fn) in tests {
+        print!("Testing {}... ", name);
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            test_fn();
+        })) {
+            Ok(_) => {
+                println!("PASSED");
+                passed += 1;
+            }
+            Err(_) => {
+                println!("FAILED");
+                failed += 1;
+            }
+        }
+    }
+
+    println!("\n========================================");
+    println!("Test Results: {} passed, {} failed", passed, failed);
+    println!("========================================");
+
+    if failed > 0 {
+        std::process::exit(1);
+    }
+}
+
+// Test functions for main
+fn test_minimal_feature_compilation() {
+    let mut services = HashMap::new();
+    services.insert(
+        "minimal_cache".to_string(),
+        ServiceConfig::l1_only().with_ttl(600),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 3600,
+            health_check_interval: 30,
+            enable_metrics: false,
+        },
+        services,
+    };
+
+    assert_eq!(config.global.default_ttl, 3600);
+    assert!(config.services.contains_key("minimal_cache"));
+}
+
+fn test_core_feature_compilation() {
+    let mut services = HashMap::new();
+    services.insert(
+        "core_cache".to_string(),
+        ServiceConfig::two_level()
+            .with_ttl(600)
+            .with_l1_config(L1Config::new().with_max_capacity(10000))
+            .with_l2_config(
+                L2Config::new()
+                    .with_mode(RedisMode::Standalone)
+                    .with_connection_string("redis://localhost:6379"),
+            ),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 3600,
+            health_check_interval: 30,
+            enable_metrics: false,
+        },
+        services,
+    };
+
+    assert!(config.services.contains_key("core_cache"));
+}
+
+fn test_full_feature_compilation() {
+    let mut services = HashMap::new();
+    services.insert(
+        "full_cache".to_string(),
+        ServiceConfig::two_level()
+            .with_ttl(600)
+            .with_l1_config(L1Config::new().with_max_capacity(10000))
+            .with_l2_config(
+                L2Config::new()
+                    .with_mode(RedisMode::Standalone)
+                    .with_connection_string("redis://localhost:6379"),
+            )
+            .with_two_level_config(TwoLevelConfig::new()),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 3600,
+            health_check_interval: 30,
+            enable_metrics: true,
+        },
+        services,
+    };
+
+    assert!(config.services.contains_key("full_cache"));
+}
+
+fn test_config_validation_ttl() {
+    let mut valid_services = HashMap::new();
+    valid_services.insert(
+        "valid_service".to_string(),
+        ServiceConfig::two_level()
+            .with_ttl(300)
+            .with_l1_config(L1Config::new().with_ttl(300))
+            .with_l2_config(L2Config::new().with_default_ttl(600)),
+    );
+
+    let valid_config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: valid_services,
+    };
+    assert!(valid_config.validate().is_ok());
+}
+
+fn test_l1_only_validation() {
+    let mut services = HashMap::new();
+    services.insert("l1_only".to_string(), ServiceConfig::l1_only());
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    };
+    assert!(config.validate().is_ok());
+}
+
+fn test_capacity_boundaries() {
+    let mut min_services = HashMap::new();
+    min_services.insert(
+        "min_capacity".to_string(),
+        ServiceConfig::l1_only().with_ttl(60),
+    );
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: min_services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_ttl_boundaries() {
+    let mut zero_services = HashMap::new();
+    zero_services.insert("zero_ttl".to_string(), ServiceConfig::l1_only().with_ttl(0));
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: zero_services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_empty_services() {
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: HashMap::new(),
+    };
+    assert!(config.services.is_empty());
+    assert!(config.validate().is_ok());
+}
+
+fn test_redis_mode_boundaries() {
+    let mut services = HashMap::new();
+    services.insert(
+        "standalone".to_string(),
+        ServiceConfig::l2_only().with_ttl(300),
+    );
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_timeout_boundaries() {
+    let mut services = HashMap::new();
+    services.insert("timeout_test".to_string(), ServiceConfig::l2_only());
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_l1_only_mode() {
+    let mut services = HashMap::new();
+    services.insert(
+        "hot_data".to_string(),
+        ServiceConfig::l1_only().with_ttl(60),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    };
+
+    let service = config.services.get("hot_data").unwrap();
+    assert_eq!(service.cache_type, CacheType::L1);
+}
+
+fn test_l2_only_mode() {
+    let mut services = HashMap::new();
+    services.insert(
+        "shared_data".to_string(),
+        ServiceConfig::l2_only().with_ttl(3600),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    };
+
+    let service = config.services.get("shared_data").unwrap();
+    assert_eq!(service.cache_type, CacheType::L2);
+}
+
+fn test_batch_write_boundaries() {
+    let mut min_services = HashMap::new();
+    min_services.insert(
+        "min_batch".to_string(),
+        ServiceConfig::two_level()
+            .with_ttl(300)
+            .with_two_level_config(TwoLevelConfig::new().with_batch_size(1)),
+    );
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: min_services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_all_cache_types() {
+    let mut services = HashMap::new();
+    services.insert(
+        "l1_cache".to_string(),
+        ServiceConfig::l1_only().with_ttl(60),
+    );
+    services.insert(
+        "l2_cache".to_string(),
+        ServiceConfig::l2_only().with_ttl(3600),
+    );
+    services.insert(
+        "two_level_cache".to_string(),
+        ServiceConfig::two_level().with_ttl(600),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    };
+
+    assert_eq!(config.services.len(), 3);
+    assert!(config.validate().is_ok());
+}
+
+fn test_global_config_boundaries() {
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 1,
+            health_check_interval: 1,
+            enable_metrics: false,
+        },
+        services: HashMap::new(),
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_service_name_boundaries() {
+    let mut short_services = HashMap::new();
+    short_services.insert("a".to_string(), ServiceConfig::l1_only().with_ttl(60));
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services: short_services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_high_throughput_config() {
+    let mut services = HashMap::new();
+    services.insert(
+        "high_throughput".to_string(),
+        ServiceConfig::two_level()
+            .with_ttl(300)
+            .with_l1_config(L1Config::new().with_max_capacity(100_000)),
+    );
+
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 3600,
+            health_check_interval: 10,
+            enable_metrics: true,
+        },
+        services,
+    }
+    .validate()
+    .is_ok());
+}
+
+fn test_low_latency_config() {
+    let mut services = HashMap::new();
+    services.insert(
+        "low_latency".to_string(),
+        ServiceConfig::l1_only().with_ttl(30),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig {
+            default_ttl: 60,
+            health_check_interval: 5,
+            enable_metrics: false,
+        },
+        services,
+    };
+
+    assert!(config.validate().is_ok());
+}
+
+fn test_redis_password_config() {
+    let mut services = HashMap::new();
+    services.insert(
+        "secured_redis".to_string(),
+        ServiceConfig::l2_only().with_ttl(300).with_l2_config(
+            L2Config::new()
+                .with_mode(RedisMode::Standalone)
+                .with_connection_string("redis://localhost:6379")
+                .with_password("strong_password_123")
+                .with_tls(true),
+        ),
+    );
+
+    let config = Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    };
+
+    assert!(config.validate().is_ok());
+}
+
+fn test_size_limit_config() {
+    let mut services = HashMap::new();
+    services.insert(
+        "limited_size".to_string(),
+        ServiceConfig::two_level().with_ttl(300),
+    );
+
+    assert!(Config {
+        config_version: Some(1),
+        global: GlobalConfig::default(),
+        services,
+    }
+    .validate()
+    .is_ok());
+}
 // ============================================================================
 // Tests
 // ============================================================================
@@ -755,419 +1168,4 @@ mod feature_tests {
         .validate()
         .is_ok());
     }
-}
-
-// ============================================================================
-// Main (for standalone testing)
-// ============================================================================
-
-fn main() {
-    println!("Running Feature Combinations Test Suite...\n");
-
-    // Run all tests
-    let tests: Vec<(&str, fn())> = vec![
-        (
-            "Minimal Feature Compilation",
-            test_minimal_feature_compilation,
-        ),
-        ("Core Feature Compilation", test_core_feature_compilation),
-        ("Full Feature Compilation", test_full_feature_compilation),
-        ("TTL Validation", test_config_validation_ttl),
-        ("L1 Only Validation", test_l1_only_validation),
-        ("Capacity Boundaries", test_capacity_boundaries),
-        ("TTL Boundaries", test_ttl_boundaries),
-        ("Empty Services", test_empty_services),
-        ("Redis Mode Boundaries", test_redis_mode_boundaries),
-        ("Timeout Boundaries", test_timeout_boundaries),
-        ("L1 Only Mode", test_l1_only_mode),
-        ("L2 Only Mode", test_l2_only_mode),
-        ("Batch Write Boundaries", test_batch_write_boundaries),
-        ("All Cache Types", test_all_cache_types),
-        ("Global Config Boundaries", test_global_config_boundaries),
-        ("Service Name Boundaries", test_service_name_boundaries),
-        ("High Throughput Config", test_high_throughput_config),
-        ("Low Latency Config", test_low_latency_config),
-        ("Redis Password Config", test_redis_password_config),
-        ("Size Limit Config", test_size_limit_config),
-    ];
-
-    let mut passed = 0;
-    let mut failed = 0;
-
-    for (name, test_fn) in tests {
-        print!("Testing {}... ", name);
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            test_fn();
-        })) {
-            Ok(_) => {
-                println!("PASSED");
-                passed += 1;
-            }
-            Err(_) => {
-                println!("FAILED");
-                failed += 1;
-            }
-        }
-    }
-
-    println!("\n========================================");
-    println!("Test Results: {} passed, {} failed", passed, failed);
-    println!("========================================");
-
-    if failed > 0 {
-        std::process::exit(1);
-    }
-}
-
-// Test functions for main
-fn test_minimal_feature_compilation() {
-    let mut services = HashMap::new();
-    services.insert(
-        "minimal_cache".to_string(),
-        ServiceConfig::l1_only().with_ttl(600),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 3600,
-            health_check_interval: 30,
-            enable_metrics: false,
-        },
-        services,
-    };
-
-    assert_eq!(config.global.default_ttl, 3600);
-    assert!(config.services.contains_key("minimal_cache"));
-}
-
-fn test_core_feature_compilation() {
-    let mut services = HashMap::new();
-    services.insert(
-        "core_cache".to_string(),
-        ServiceConfig::two_level()
-            .with_ttl(600)
-            .with_l1_config(L1Config::new().with_max_capacity(10000))
-            .with_l2_config(
-                L2Config::new()
-                    .with_mode(RedisMode::Standalone)
-                    .with_connection_string("redis://localhost:6379"),
-            ),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 3600,
-            health_check_interval: 30,
-            enable_metrics: false,
-        },
-        services,
-    };
-
-    assert!(config.services.contains_key("core_cache"));
-}
-
-fn test_full_feature_compilation() {
-    let mut services = HashMap::new();
-    services.insert(
-        "full_cache".to_string(),
-        ServiceConfig::two_level()
-            .with_ttl(600)
-            .with_l1_config(L1Config::new().with_max_capacity(10000))
-            .with_l2_config(
-                L2Config::new()
-                    .with_mode(RedisMode::Standalone)
-                    .with_connection_string("redis://localhost:6379"),
-            )
-            .with_two_level_config(TwoLevelConfig::new()),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 3600,
-            health_check_interval: 30,
-            enable_metrics: true,
-        },
-        services,
-    };
-
-    assert!(config.services.contains_key("full_cache"));
-}
-
-fn test_config_validation_ttl() {
-    let mut valid_services = HashMap::new();
-    valid_services.insert(
-        "valid_service".to_string(),
-        ServiceConfig::two_level()
-            .with_ttl(300)
-            .with_l1_config(L1Config::new().with_ttl(300))
-            .with_l2_config(L2Config::new().with_default_ttl(600)),
-    );
-
-    let valid_config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: valid_services,
-    };
-    assert!(valid_config.validate().is_ok());
-}
-
-fn test_l1_only_validation() {
-    let mut services = HashMap::new();
-    services.insert("l1_only".to_string(), ServiceConfig::l1_only());
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    };
-    assert!(config.validate().is_ok());
-}
-
-fn test_capacity_boundaries() {
-    let mut min_services = HashMap::new();
-    min_services.insert(
-        "min_capacity".to_string(),
-        ServiceConfig::l1_only().with_ttl(60),
-    );
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: min_services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_ttl_boundaries() {
-    let mut zero_services = HashMap::new();
-    zero_services.insert("zero_ttl".to_string(), ServiceConfig::l1_only().with_ttl(0));
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: zero_services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_empty_services() {
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: HashMap::new(),
-    };
-    assert!(config.services.is_empty());
-    assert!(config.validate().is_ok());
-}
-
-fn test_redis_mode_boundaries() {
-    let mut services = HashMap::new();
-    services.insert(
-        "standalone".to_string(),
-        ServiceConfig::l2_only().with_ttl(300),
-    );
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_timeout_boundaries() {
-    let mut services = HashMap::new();
-    services.insert("timeout_test".to_string(), ServiceConfig::l2_only());
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_l1_only_mode() {
-    let mut services = HashMap::new();
-    services.insert(
-        "hot_data".to_string(),
-        ServiceConfig::l1_only().with_ttl(60),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    };
-
-    let service = config.services.get("hot_data").unwrap();
-    assert_eq!(service.cache_type, CacheType::L1);
-}
-
-fn test_l2_only_mode() {
-    let mut services = HashMap::new();
-    services.insert(
-        "shared_data".to_string(),
-        ServiceConfig::l2_only().with_ttl(3600),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    };
-
-    let service = config.services.get("shared_data").unwrap();
-    assert_eq!(service.cache_type, CacheType::L2);
-}
-
-fn test_batch_write_boundaries() {
-    let mut min_services = HashMap::new();
-    min_services.insert(
-        "min_batch".to_string(),
-        ServiceConfig::two_level()
-            .with_ttl(300)
-            .with_two_level_config(TwoLevelConfig::new().with_batch_size(1)),
-    );
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: min_services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_all_cache_types() {
-    let mut services = HashMap::new();
-    services.insert(
-        "l1_cache".to_string(),
-        ServiceConfig::l1_only().with_ttl(60),
-    );
-    services.insert(
-        "l2_cache".to_string(),
-        ServiceConfig::l2_only().with_ttl(3600),
-    );
-    services.insert(
-        "two_level_cache".to_string(),
-        ServiceConfig::two_level().with_ttl(600),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    };
-
-    assert_eq!(config.services.len(), 3);
-    assert!(config.validate().is_ok());
-}
-
-fn test_global_config_boundaries() {
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 1,
-            health_check_interval: 1,
-            enable_metrics: false,
-        },
-        services: HashMap::new(),
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_service_name_boundaries() {
-    let mut short_services = HashMap::new();
-    short_services.insert("a".to_string(), ServiceConfig::l1_only().with_ttl(60));
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services: short_services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_high_throughput_config() {
-    let mut services = HashMap::new();
-    services.insert(
-        "high_throughput".to_string(),
-        ServiceConfig::two_level()
-            .with_ttl(300)
-            .with_l1_config(L1Config::new().with_max_capacity(100_000)),
-    );
-
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 3600,
-            health_check_interval: 10,
-            enable_metrics: true,
-        },
-        services,
-    }
-    .validate()
-    .is_ok());
-}
-
-fn test_low_latency_config() {
-    let mut services = HashMap::new();
-    services.insert(
-        "low_latency".to_string(),
-        ServiceConfig::l1_only().with_ttl(30),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 60,
-            health_check_interval: 5,
-            enable_metrics: false,
-        },
-        services,
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-fn test_redis_password_config() {
-    let mut services = HashMap::new();
-    services.insert(
-        "secured_redis".to_string(),
-        ServiceConfig::l2_only().with_ttl(300).with_l2_config(
-            L2Config::new()
-                .with_mode(RedisMode::Standalone)
-                .with_connection_string("redis://localhost:6379")
-                .with_password("strong_password_123")
-                .with_tls(true),
-        ),
-    );
-
-    let config = Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-fn test_size_limit_config() {
-    let mut services = HashMap::new();
-    services.insert(
-        "limited_size".to_string(),
-        ServiceConfig::two_level().with_ttl(300),
-    );
-
-    assert!(Config {
-        config_version: Some(1),
-        global: GlobalConfig::default(),
-        services,
-    }
-    .validate()
-    .is_ok());
 }

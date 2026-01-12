@@ -8,8 +8,7 @@ use oxcache::backend::l2::L2Backend;
 use oxcache::config::L2Config;
 use std::sync::Arc;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 #[tokio::test]
 async fn test_version_control() {

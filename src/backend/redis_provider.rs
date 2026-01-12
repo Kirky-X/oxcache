@@ -85,7 +85,8 @@ impl RedisProvider for DefaultRedisProvider {
         let mut builder = redis::cluster::ClusterClient::builder(cluster_config.nodes.clone());
 
         if let Some(password) = &config.password {
-            builder = builder.password(password.expose_secret().to_string());
+            let secret: &String = ExposeSecret::expose_secret(password);
+            builder = builder.password(secret.to_string());
         }
 
         // Enable read from replicas for better read scalability
@@ -175,8 +176,9 @@ impl RedisProvider for DefaultRedisProvider {
         // 这样避免了将密码包含在 URL 中，防止密码泄露到日志
         if let Some(password) = &config.password {
             let mut conn = manager.clone();
+            let secret_val: &String = ExposeSecret::expose_secret(password);
             let _: String = redis::cmd("AUTH")
-                .arg(password.expose_secret())
+                .arg(secret_val)
                 .query_async(&mut conn)
                 .await
                 .map_err(|e| CacheError::L2Error(format!("Redis authentication failed: {}", e)))?;

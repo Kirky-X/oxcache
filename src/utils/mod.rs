@@ -14,7 +14,7 @@
 //! - 缓存键生成器
 
 pub(crate) mod key_generator;
-pub(crate) mod redaction;
+pub mod redaction;
 
 use crate::config::{
     CacheType, ClusterConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SentinelConfig,
@@ -26,8 +26,10 @@ use std::collections::HashMap;
 use std::sync::Once;
 use std::time::Duration;
 
+#[allow(dead_code)]
 static INIT: Once = Once::new();
 
+#[allow(dead_code)]
 pub(crate) fn setup_logging() {
     INIT.call_once(|| {
         // Logging setup - currently a no-op for minimal builds
@@ -37,6 +39,7 @@ pub(crate) fn setup_logging() {
 }
 
 /// 创建独立的Redis配置
+#[allow(dead_code)]
 pub(crate) fn create_standalone_config() -> L2Config {
     L2Config {
         mode: RedisMode::Standalone,
@@ -54,6 +57,7 @@ pub(crate) fn create_standalone_config() -> L2Config {
 }
 
 /// 创建Redis集群配置
+#[allow(dead_code)]
 pub(crate) fn create_cluster_config() -> L2Config {
     L2Config {
         mode: RedisMode::Cluster,
@@ -80,6 +84,7 @@ pub(crate) fn create_cluster_config() -> L2Config {
 }
 
 /// 创建Redis Sentinel配置
+#[allow(dead_code)]
 pub(crate) fn create_sentinel_config() -> L2Config {
     L2Config {
         mode: RedisMode::Sentinel,
@@ -104,6 +109,7 @@ pub(crate) fn create_sentinel_config() -> L2Config {
 }
 
 /// 创建默认的两级缓存配置
+#[allow(dead_code)]
 pub(crate) fn create_default_config(service_name: &str, max_capacity: usize) -> OxcacheConfig {
     let mut services = HashMap::new();
     services.insert(
@@ -144,11 +150,13 @@ pub(crate) fn create_default_config(service_name: &str, max_capacity: usize) -> 
 }
 
 /// 检查Redis是否可用
+#[allow(dead_code)]
 pub(crate) fn is_redis_available() -> bool {
     std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
 }
 
 /// 检查指定URL的Redis是否可用
+#[allow(dead_code)]
 pub(crate) async fn is_redis_available_url(url: &str) -> bool {
     let client = match redis::Client::open(url) {
         Ok(c) => c,
@@ -168,6 +176,7 @@ pub(crate) async fn is_redis_available_url(url: &str) -> bool {
 }
 
 /// 等待Redis可用
+#[allow(dead_code)]
 pub(crate) async fn wait_for_redis(url: &str) -> bool {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
@@ -182,6 +191,7 @@ pub(crate) async fn wait_for_redis(url: &str) -> bool {
 }
 
 /// 生成唯一的服务名称
+#[allow(dead_code)]
 pub(crate) fn generate_unique_service_name(base: &str) -> String {
     format!("{}_{}", base, uuid::Uuid::new_v4().simple())
 }

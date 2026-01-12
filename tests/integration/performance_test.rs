@@ -4,12 +4,13 @@
 //!
 //! 性能测试集成测试
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
+use std::collections::HashMap;
+use std::time::Instant;
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
+    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
@@ -26,8 +27,8 @@ async fn test_backfill_latency() {
         return;
     }
 
-    let service_name = generate_unique_service_name("perf_backfill");
-    let config = Config {
+    let service_name = generate_unique_service_name("perf_backfill_test");
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 3600,
@@ -77,6 +78,9 @@ async fn test_backfill_latency() {
             );
             map
         },
+        layer: None,
+        extensions: std::collections::HashMap::new(),
+        source: None,
     };
 
     setup_cache(config).await;
@@ -141,7 +145,7 @@ async fn test_redis_outage_resilience() {
     let service_name = generate_unique_service_name("resilience_test");
 
     // 配置一个错误的 Redis 地址来模拟不可用
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: Default::default(),
         services: {
@@ -174,6 +178,9 @@ async fn test_redis_outage_resilience() {
             );
             map
         },
+        layer: None,
+        extensions: std::collections::HashMap::new(),
+        source: None,
     };
 
     // 初始化可能会失败，或者成功但后续操作失败。

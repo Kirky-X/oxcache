@@ -4,16 +4,16 @@
 //!
 //! 该模块定义了缓存客户端的接口和实现。
 
-pub(crate) mod db_loader;
+pub mod db_loader;
 
 #[cfg(feature = "l1-moka")]
-pub(crate) mod l1;
+pub mod l1;
 
 #[cfg(feature = "l2-redis")]
-pub(crate) mod l2;
+pub mod l2;
 
 #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
-pub(crate) mod two_level;
+pub mod two_level;
 
 use crate::error::Result;
 use async_trait::async_trait;

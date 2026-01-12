@@ -6,6 +6,35 @@
 
 use thiserror::Error;
 
+/// 脱敏连接字符串，隐藏密码等敏感信息
+fn sanitize_connection_string(conn_str: &str) -> String {
+    // 使用正则表达式隐藏密码
+    // 匹配模式: protocol://[:password@]host:port
+    if let Some(start) = conn_str.find("://") {
+        let protocol = &conn_str[..start];
+        let after_protocol = &conn_str[start + 3..];
+
+        // 检查是否包含密码 (@ 符号)
+        if let Some(at_pos) = after_protocol.find('@') {
+            let user_part = &after_protocol[..at_pos];
+            // 隐藏密码部分
+            let sanitized_user: String = user_part
+                .chars()
+                .take_while(|c| *c != ':')
+                .chain(std::iter::once('*'))
+                .chain(std::iter::once(':').chain(std::iter::once('*')).take(5))
+                .collect();
+            return format!(
+                "{}://{}@{}",
+                protocol,
+                sanitized_user,
+                &after_protocol[at_pos + 1..]
+            );
+        }
+    }
+    conn_str.to_string()
+}
+
 /// 缓存系统错误类型枚举
 ///
 /// 定义了缓存系统中可能发生的各种错误类型
@@ -47,9 +76,10 @@ pub enum CacheError {
     #[error("Database error: {0}. Please check database connectivity and query syntax.")]
     DatabaseError(String),
 
-    /// Redis错误
+    /// Redis错误（脱敏后的错误信息）
     #[cfg(feature = "l2-redis")]
-    #[error("Redis connection failed: {0}. Please ensure Redis server is running and the connection string is correct."
+    #[error("Redis connection failed: {}. Please ensure Redis server is running and the connection string is correct.",
+        sanitize_connection_string(&0.to_string())
     )]
     RedisError(#[from] redis::RedisError),
 
@@ -61,7 +91,7 @@ pub enum CacheError {
 
     /// IO错误
     #[error("I/O error: {0}. Check file permissions and disk space.")]
-    IoError(#[from] std::io::Error),
+    IoError(std::io::Error),
 
     /// 后端错误
     #[error("Backend error: {0}. This may be a transient issue, please retry.")]
@@ -109,5 +139,11 @@ pub type Result<T> = std::result::Result<T, CacheError>;
 impl From<sea_orm::DbErr> for CacheError {
     fn from(e: sea_orm::DbErr) -> Self {
         CacheError::DatabaseError(e.to_string())
+    }
+}
+
+impl From<std::io::Error> for CacheError {
+    fn from(e: std::io::Error) -> Self {
+        CacheError::IoError(e)
     }
 }

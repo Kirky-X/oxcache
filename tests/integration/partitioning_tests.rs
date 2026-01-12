@@ -8,7 +8,8 @@ use chrono::{TimeZone, Utc};
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::postgresql::PostgresPartitionManager;
 use oxcache::database::sqlite::SQLitePartitionManager;
-use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager, };
+use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
+use oxcache::database::PartitionStrategy;
 use oxcache::error::{CacheError, Result};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 use std::fs::File;
@@ -16,8 +17,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 // 更新路径引用
-#[path = "../database_test_utils.rs"]
-mod database_test_utils;
+use crate::database_test_utils;
 use database_test_utils::*;
 
 // ============================================================================
@@ -286,7 +286,7 @@ async fn test_sqlite_partitioning() -> Result<()> {
     let partition_config = PartitionConfig {
         enabled: true,
         strategy: PartitionStrategy::Monthly,
-        retention_months: Some(6),
+        retention_months: 6,
         ..Default::default()
     };
 
@@ -363,7 +363,7 @@ mod sqlite_basic_tests {
         let partition_config = PartitionConfig {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -398,14 +398,15 @@ mod sqlite_basic_tests {
         ];
 
         for date in &test_dates {
-            let partition_info = PartitionInfo::new(*date, test_table);
+            let partition_info = PartitionInfo::new(*date, test_table)?;
             manager.create_partition(&partition_info).await?;
         }
 
         let all_partitions = manager.get_partitions(test_table).await?;
         println!("✓ Total partitions: {}", all_partitions.len());
 
-        let cleaned_count = manager.cleanup_old_partitions(test_table, 2).await?;
+        let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;
@@ -438,7 +439,7 @@ mod sqlite_basic_tests {
         let partition_config = PartitionConfig {
             enabled: false,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -480,7 +481,7 @@ mod sqlite_basic_tests {
         let partition_config = PartitionConfig {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
-            retention_months: Some(6),
+            retention_months: 6,
             ..Default::default()
         };
 
@@ -495,6 +496,7 @@ mod sqlite_basic_tests {
 
 mod sqlite_manager_tests {
     use super::*;
+    use oxcache::database::PartitionStrategy;
 
     #[tokio::test]
     async fn test_sqlite_partition_manager_basic() {
@@ -515,8 +517,7 @@ mod sqlite_manager_tests {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
             precreate_months: 3,
-            retention_months: Some(12),
-            table_prefix: "partitioned_".to_string(),
+            retention_months: 12,
         };
 
         let connection_string = format!("sqlite:{}", db_path);
@@ -580,8 +581,7 @@ mod sqlite_manager_tests {
             enabled: true,
             strategy: PartitionStrategy::Monthly,
             precreate_months: 3,
-            retention_months: Some(12),
-            table_prefix: "partitioned_".to_string(),
+            retention_months: 12,
         };
 
         let connection_string = format!("sqlite:{}", db_path);
@@ -780,7 +780,6 @@ async fn test_invalid_configuration() -> Result<()> {
     // Test with invalid MySQL URL
     let invalid_mysql_url = "mysql://invalid:invalid@localhost:9999/invalid_db";
     let partition_config = create_partition_config(true, PartitionStrategy::Monthly, 12);
-
     let result = MySQLPartitionManager::new(invalid_mysql_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid MySQL URL");
 

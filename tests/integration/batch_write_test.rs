@@ -4,16 +4,17 @@
 //!
 //! 批量写入集成测试
 
-use crate::common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
+use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
+use std::collections::HashMap;
+use std::time::Duration;
 use oxcache::config::{
-    CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
+    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
 use oxcache::CacheExt;
-use secrecy::SecretBox;
+use secrecy::SecretString;
 
-#[path = "../common/mod.rs"]
-mod common;
+use crate::common;
 
 /// 测试批量写入性能
 ///
@@ -26,7 +27,7 @@ async fn test_batch_write_performance() {
 
     let service_name = generate_unique_service_name("batch_test");
 
-    let config = Config {
+    let config = OxcacheConfig {
         config_version: Some(1),
         global: GlobalConfig {
             default_ttl: 60,
@@ -43,12 +44,13 @@ async fn test_batch_write_performance() {
                     ttl: Some(60),
                     serialization: None,
                     l1: Some(L1Config {
-                        max_capacity: 1000,
-                        ..Default::default()
-                    }),
+                            max_capacity: 100,
+                            cleanup_interval_secs: 10,
+                            ..Default::default()
+                        }),
                     l2: Some(L2Config {
                         mode: RedisMode::Standalone,
-                        connection_string: SecretBox::new("redis://127.0.0.1:6379".into()),
+                        connection_string: SecretString::new("redis://127.0.0.1:6379".into()),
                         connection_timeout_ms: 500,
                         command_timeout_ms: 500,
                         password: None,
@@ -62,7 +64,7 @@ async fn test_batch_write_performance() {
                     two_level: Some(TwoLevelConfig {
                         promote_on_hit: false,
                         enable_batch_write: true,
-                        batch_size: 50,
+                        batch_size: 200,
                         batch_interval_ms: 200,
                         invalidation_channel: None,
                         bloom_filter: None,
@@ -70,10 +72,13 @@ async fn test_batch_write_performance() {
                         max_key_length: Some(1024),
                         max_value_size: Some(1024 * 1024),
                     }),
-                },
+                }
             );
             map
         },
+        layer: None,
+        extensions: std::collections::HashMap::new(),
+        source: None,
     };
 
     setup_cache(config).await;

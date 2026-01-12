@@ -4,9 +4,8 @@
 //!
 //! 该模块定义了SQLite分区管理器的实现。
 
-use super::{
-    common::*,
-    connection_string::{ensure_database_directory, normalize_connection_string},
+use super::connection_string::{
+    ensure_database_directory, normalize_connection_string, ParsedConnectionString,
 };
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use crate::error::{CacheError, Result};
@@ -88,12 +87,15 @@ impl SQLitePartitionManager {
     pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self> {
         let connection_string = ensure_database_directory(connection_string)?;
         let normalized = normalize_connection_string(&connection_string);
-        let _parsed = super::ParsedConnectionString::parse(&normalized);
+        let _parsed = ParsedConnectionString::parse(&normalized);
 
         let mut opt = ConnectOptions::new(normalized.clone());
         opt.max_connections(1)
             .min_connections(1)
             .connect_timeout(std::time::Duration::from_secs(30));
+            
+        debug!("Connecting to database with: {}", normalized);
+        println!("DEBUG: Connecting to database with: {}", normalized);
 
         let connection = Database::connect(opt)
             .await
@@ -106,7 +108,8 @@ impl SQLitePartitionManager {
     }
 
     pub fn new_sync(connection_string: &str, config: PartitionConfig) -> Result<Self> {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to create runtime: {}", e)))?;
         rt.block_on(Self::new(connection_string, config))
     }
 
@@ -160,24 +163,11 @@ impl SQLitePartitionManager {
 }
 
 #[async_trait]
-impl PartitionManagerExt for SQLitePartitionManager {
-    fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> impl std::future::Future<Output = Result<String>> + Send {
-        Box::pin(
-            async move { PartitionManager::ensure_partition_exists(self, date, table_name).await },
-        )
-    }
-
-    fn get_config(&self) -> &PartitionConfig {
-        &self.config
-    }
-}
-
-#[async_trait]
 impl PartitionManager for SQLitePartitionManager {
+    fn get_config(&self) -> PartitionConfig {
+        self.config.clone()
+    }
+
     async fn initialize_table(&self, table_name: &str, schema: &str) -> Result<()> {
         // 验证表名
         self.validate_identifier(table_name)?;
@@ -423,37 +413,26 @@ impl PartitionManager for SQLitePartitionManager {
         if !exists {
             let start_date = date
                 .with_day(1)
-                .expect("Day 1 should exist")
-                .with_hour(0)
-                .expect("Hour 0 should exist")
-                .with_minute(0)
-                .expect("Minute 0 should exist")
-                .with_second(0)
-                .expect("Second 0 should exist");
+                .and_then(|d| d.with_hour(0))
+                .and_then(|d| d.with_minute(0))
+                .and_then(|d| d.with_second(0))
+                .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for start_date".to_string()))?;
+
             let end_date = if date.month() == 12 {
                 date.with_year(date.year() + 1)
-                    .expect("Year change should succeed")
-                    .with_month(1)
-                    .expect("January should exist")
-                    .with_day(1)
-                    .expect("Day 1 should exist")
-                    .with_hour(0)
-                    .expect("Hour 0 should exist")
-                    .with_minute(0)
-                    .expect("Minute 0 should exist")
-                    .with_second(0)
-                    .expect("Second 0 should exist")
+                    .and_then(|d| d.with_month(1))
+                    .and_then(|d| d.with_day(1))
+                    .and_then(|d| d.with_hour(0))
+                    .and_then(|d| d.with_minute(0))
+                    .and_then(|d| d.with_second(0))
+                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next year".to_string()))?
             } else {
                 date.with_month(date.month() + 1)
-                    .expect("Month change should succeed")
-                    .with_day(1)
-                    .expect("Day 1 should exist")
-                    .with_hour(0)
-                    .expect("Hour 0 should exist")
-                    .with_minute(0)
-                    .expect("Minute 0 should exist")
-                    .with_second(0)
-                    .expect("Second 0 should exist")
+                    .and_then(|d| d.with_day(1))
+                    .and_then(|d| d.with_hour(0))
+                    .and_then(|d| d.with_minute(0))
+                    .and_then(|d| d.with_second(0))
+                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next month".to_string()))?
             };
 
             let partition_info = PartitionInfo {
@@ -468,17 +447,5 @@ impl PartitionManager for SQLitePartitionManager {
         }
 
         Ok(partition_table)
-    }
-
-    async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()> {
-        PartitionManagerExt::precreate_partitions(self, table_name, months_ahead).await
-    }
-
-    async fn cleanup_old_partitions(
-        &self,
-        table_name: &str,
-        retention_months: u32,
-    ) -> Result<usize> {
-        PartitionManagerExt::cleanup_old_partitions(self, table_name, retention_months).await
     }
 }
