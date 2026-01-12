@@ -5,11 +5,12 @@
 //! 数据库分区测试
 #![cfg(feature = "skip_broken")]
 
-use crate::database::partition::{PartitionConfig, PartitionManager};
 use chrono::Utc;
 use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::database::partition::{PartitionConfig, PartitionManager};
 use oxcache::database::postgresql::PostgresPartitionManager;
 use oxcache::database::sqlite::SQLitePartitionManager;
+use oxcache::database::PartitionStrategy;
 use oxcache::error::Result;
 use std::sync::Arc;
 #[path = "./common/database_test_utils.rs"]
@@ -204,7 +205,7 @@ async fn test_sqlite_partitioning() -> Result<()> {
     let partition_config = PartitionConfig {
         enabled: true,
         strategy: PartitionStrategy::Monthly,
-        retention_months: Some(6),
+        retention_months: 6,
         ..Default::default()
     };
 
