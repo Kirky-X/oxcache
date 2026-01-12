@@ -516,9 +516,7 @@ impl MySQLPartitionManager {
         if partition_name == "p_future" {
             debug!("Found p_future partition (MAXVALUE)");
             // 使用一个遥远的未来日期作为结束日期
-            let max_date = Utc
-                .with_ymd_and_hms(9999, 12, 31, 23, 59, 59)
-                .single()?;
+            let max_date = Utc.with_ymd_and_hms(9999, 12, 31, 23, 59, 59).single()?;
             let mut info = PartitionInfo::new(max_date, table_name).ok()?;
             info.name = partition_name.to_string();
             info.start_date = max_date;

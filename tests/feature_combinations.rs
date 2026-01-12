@@ -59,7 +59,6 @@ enum RedisMode {
     Cluster,
 }
 
-
 #[derive(Debug, Clone, Default)]
 struct L2Config {
     mode: RedisMode,
@@ -239,7 +238,6 @@ impl Config {
         Ok(())
     }
 }
-
 
 // ============================================================================
 // Main (for standalone testing)

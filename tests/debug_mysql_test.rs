@@ -4,10 +4,10 @@
 //!
 //! MySQL调试测试
 
-use oxcache::database::partition::PartitionConfig;
-use oxcache::database::partition::PartitionStrategy;
-use oxcache::database::partition::PartitionManager;
 use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::database::partition::PartitionConfig;
+use oxcache::database::partition::PartitionManager;
+use oxcache::database::partition::PartitionStrategy;
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -25,16 +25,17 @@ async fn debug_mysql_initialize_table() {
     let connection_string = "mysql://user:password@localhost:3307/oxcache_test";
 
     println!("1. Creating MySQL partition manager...");
-    let manager: MySQLPartitionManager = match MySQLPartitionManager::new(connection_string, config).await {
-        Ok(mgr) => {
-            println!("✓ MySQL partition manager created successfully!");
-            mgr
-        }
-        Err(e) => {
-            println!("✗ Failed to create manager: {}", e);
-            return;
-        }
-    };
+    let manager: MySQLPartitionManager =
+        match MySQLPartitionManager::new(connection_string, config).await {
+            Ok(mgr) => {
+                println!("✓ MySQL partition manager created successfully!");
+                mgr
+            }
+            Err(e) => {
+                println!("✗ Failed to create manager: {}", e);
+                return;
+            }
+        };
 
     let table_name = "debug_test_table";
     let schema = "CREATE TABLE IF NOT EXISTS debug_test_table (
@@ -51,7 +52,8 @@ async fn debug_mysql_initialize_table() {
     println!("3. Testing basic connection...");
     let connection_test = timeout(Duration::from_secs(10), async {
         // 简单的查询测试
-        let result: Result<Vec<oxcache::database::partition::PartitionInfo>, _> = manager.get_partitions("information_schema.tables").await;
+        let result: Result<Vec<oxcache::database::partition::PartitionInfo>, _> =
+            manager.get_partitions("information_schema.tables").await;
         match result {
             Ok(partitions) => println!(
                 "✓ Connection test passed, found {} partitions",

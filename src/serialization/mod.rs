@@ -4,9 +4,9 @@
 //!
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
-pub mod json;
 #[cfg(feature = "bincode")]
 pub mod bincode;
+pub mod json;
 
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};

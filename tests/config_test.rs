@@ -4,9 +4,9 @@
 //!
 //! 配置单元测试
 
-use oxcache::config::{CacheType, OxcacheConfig, L1Config, L2Config, ServiceConfig};
-use std::collections::HashMap;
+use oxcache::config::{CacheType, L1Config, L2Config, OxcacheConfig, ServiceConfig};
 use secrecy::SecretString;
+use std::collections::HashMap;
 
 /// 测试从TOML配置文件加载配置
 ///
@@ -79,7 +79,8 @@ fn test_config_structure_manual_creation() {
                     two_level: None,
                 },
             );
-            map},
+            map
+        },
         ..Default::default()
     };
 
@@ -121,7 +122,8 @@ fn test_config_validation_ttl() {
                     two_level: None,
                 },
             );
-            map},
+            map
+        },
         ..Default::default()
     };
     assert!(config_ok.validate().is_ok());
@@ -156,7 +158,8 @@ fn test_config_validation_ttl() {
                     two_level: None,
                 },
             );
-            map},
+            map
+        },
         ..Default::default()
     };
     assert!(config_fail.validate().is_err());

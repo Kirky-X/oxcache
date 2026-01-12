@@ -522,4 +522,3 @@ impl PostgresPartitionManager {
         None
     }
 }
-

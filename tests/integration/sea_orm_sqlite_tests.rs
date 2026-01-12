@@ -100,7 +100,7 @@ mod file_creation_tests {
     async fn test_sea_orm_sqlite_memory() {
         println!("Testing sea-orm SQLite with in-memory database");
         test_basic_connection("sqlite::memory:").await;
-        
+
         println!("Testing sea-orm SQLite with shared in-memory database");
         test_basic_connection("sqlite::memory:?cache=shared").await;
     }

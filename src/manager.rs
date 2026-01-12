@@ -301,7 +301,7 @@ impl CacheManager {
             (true, true) => {
                 // 完整功能：尝试创建完整的 TwoLevelClient
                 let l1 = l1_backend::create_l1_backend(l1_cfg).await?;
-                
+
                 // 尝试初始化 L2，如果失败则降级到 L1
                 match l2_backend::create_l2_backend(l2_cfg).await {
                     Ok(l2) => {
@@ -311,24 +311,34 @@ impl CacheManager {
                             l1.clone(),
                             l2,
                             serializer.clone(),
-                        ).await {
+                        )
+                        .await
+                        {
                             Ok(client) => Ok(Arc::new(client)),
                             Err(e) => {
                                 warn!(
                                     "Service '{}': Failed to initialize TwoLevelClient, degrading to L1-only mode: {}", 
                                     name, e
                                 );
-                                let l1_client = crate::client::l1::L1Client::new(name.to_string(), l1, serializer.clone());
+                                let l1_client = crate::client::l1::L1Client::new(
+                                    name.to_string(),
+                                    l1,
+                                    serializer.clone(),
+                                );
                                 Ok(Arc::new(l1_client))
                             }
                         }
-                    },
+                    }
                     Err(e) => {
                         warn!(
                             "Service '{}': Failed to initialize L2 backend (Redis), degrading to L1-only mode: {}", 
                             name, e
                         );
-                        let l1_client = crate::client::l1::L1Client::new(name.to_string(), l1, serializer.clone());
+                        let l1_client = crate::client::l1::L1Client::new(
+                            name.to_string(),
+                            l1,
+                            serializer.clone(),
+                        );
                         Ok(Arc::new(l1_client))
                     }
                 }
@@ -515,12 +525,12 @@ pub async fn shutdown_all() -> Result<()> {
     // 遍历所有客户端并关闭它们
     let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
     for entry in manager.iter() {
-                let service_name: &String = entry.key();
-                let client: &Arc<dyn CacheOps> = entry.value();
+        let service_name: &String = entry.key();
+        let client: &Arc<dyn CacheOps> = entry.value();
 
-                info!("正在关闭服务: {}", service_name);
+        info!("正在关闭服务: {}", service_name);
 
-                match client.shutdown().await {
+        match client.shutdown().await {
             Ok(_) => {
                 info!("服务 {} 已成功关闭", service_name);
             }

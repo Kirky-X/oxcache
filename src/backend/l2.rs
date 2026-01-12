@@ -103,8 +103,6 @@ impl std::fmt::Debug for L2Backend {
     }
 }
 
-
-
 impl L2Backend {
     /// 获取命令超时时间（毫秒）
     pub fn command_timeout_ms(&self) -> u64 {

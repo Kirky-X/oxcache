@@ -6,8 +6,10 @@
 
 #![allow(dead_code)]
 
-use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use chrono::{TimeZone, Utc};
+use oxcache::database::partition::{
+    PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy,
+};
 use oxcache::error::Result;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
@@ -155,10 +157,10 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
     let mut year = 2023;
     let mut month = 5;
     let retention = retention_months as u32;
-    
+
     let years_sub = retention / 12;
     let months_sub = retention % 12;
-    
+
     year -= years_sub as i32;
     if month > months_sub {
         month -= months_sub;
@@ -166,7 +168,7 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
         year -= 1;
         month = month + 12 - months_sub;
     }
-    
+
     let cutoff_date = Utc.with_ymd_and_hms(year, month, 2, 0, 0, 0).unwrap();
 
     manager
