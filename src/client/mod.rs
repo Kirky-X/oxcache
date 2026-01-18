@@ -75,6 +75,86 @@ pub trait CacheExt: CacheOps {
         let bytes = self.serializer().serialize(value)?;
         self.set_l2_bytes(key, bytes, ttl).await
     }
+
+    /// 获取缓存值，如果不存在则调用回调函数获取并缓存
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `ttl` - 缓存时间（秒）
+    /// * `fetch` - 当缓存未命中时调用的回调函数
+    ///
+    /// # 返回值
+    ///
+    /// 返回缓存的值或从回调函数获取的值
+    ///
+    /// # 示例
+    ///
+    /// ```rust,ignore
+    /// let user = cache
+    ///     .get_or_fetch("user:123", Some(3600), || async {
+    ///         database::get_user("123").await
+    ///     })
+    ///     .await?;
+    /// ```
+    #[instrument(skip(self, fetch), level = "debug")]
+    async fn get_or_fetch<T, F, Fut>(&self, key: &str, ttl: Option<u64>, fetch: F) -> Result<T>
+    where
+        T: DeserializeOwned + Serialize + Send + Sync + Clone,
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<T>> + Send,
+    {
+        // 尝试从缓存获取
+        if let Some(cached) = self.get::<T>(key).await? {
+            return Ok(cached);
+        }
+
+        // 缓存未命中，从数据源获取
+        let value = fetch().await?;
+
+        // 缓存结果
+        self.set(key, &value, ttl).await?;
+
+        Ok(value)
+    }
+
+    /// 尝试获取，如果不存在返回 None（不触发 fetch）
+    ///
+    /// 这是一个便捷方法，避免使用 Option 处理
+    #[instrument(skip(self), level = "debug")]
+    async fn try_get<T: DeserializeOwned + Send>(&self, key: &str) -> Result<Option<T>> {
+        self.get(key).await
+    }
+
+    /// 删除并返回旧值
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// 返回被删除的值（如果存在）
+    #[instrument(skip(self), level = "debug")]
+    async fn remove<T: DeserializeOwned + Send>(&self, key: &str) -> Result<Option<T>> {
+        let old_value = self.get::<T>(key).await?;
+        self.delete(key).await?;
+        Ok(old_value)
+    }
+
+    /// 检查键是否存在
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// 如果键存在返回 true，否则返回 false
+    #[instrument(skip(self), level = "debug")]
+    async fn contains(&self, key: &str) -> Result<bool> {
+        Ok(self.get_bytes(key).await?.is_some())
+    }
 }
 
 impl<T: CacheOps + ?Sized> CacheExt for T {}

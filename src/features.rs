@@ -3,6 +3,86 @@
 //! This module provides a centralized way to check which features are enabled
 //! at compile time, enabling zero-cost abstractions for feature detection.
 
+use paste::paste;
+
+// ============================================================================
+// Feature Flag Macro
+// ============================================================================
+
+/// Macro to generate feature availability functions
+/// Reduces code duplication for feature check functions
+macro_rules! feature_check {
+    ($feature:literal, $name:ident, $doc:expr) => {
+        paste! {
+            #[cfg(feature = $feature)]
+            #[doc = $doc]
+            pub fn $name() -> bool {
+                true
+            }
+
+            #[cfg(not(feature = $feature))]
+            #[doc = $doc]
+            pub fn $name() -> bool {
+                false
+            }
+        }
+    };
+}
+
+// Generate individual feature availability functions
+feature_check!("l1-moka", l1_available, "Check if L1 cache is available");
+feature_check!("l2-redis", l2_available, "Check if L2 cache is available");
+feature_check!(
+    "metrics",
+    metrics_available,
+    "Check if metrics are available"
+);
+feature_check!(
+    "bloom-filter",
+    bloom_available,
+    "Check if bloom filter is available"
+);
+feature_check!(
+    "rate-limiting",
+    rate_limiting_available,
+    "Check if rate limiting is available"
+);
+feature_check!(
+    "batch-write",
+    batch_write_available,
+    "Check if batch write is available"
+);
+feature_check!(
+    "wal-recovery",
+    wal_recovery_available,
+    "Check if WAL recovery is available"
+);
+feature_check!(
+    "serialization",
+    serialization_available,
+    "Check if serialization is available"
+);
+feature_check!(
+    "compression",
+    compression_available,
+    "Check if compression is available"
+);
+feature_check!(
+    "database",
+    database_available,
+    "Check if database is available"
+);
+feature_check!("cli", cli_available, "Check if CLI is available");
+feature_check!(
+    "opentelemetry",
+    opentelemetry_available,
+    "Check if OpenTelemetry is available"
+);
+
+// ============================================================================
+// FeatureSet Structure
+// ============================================================================
+
 /// Unified feature availability check
 #[derive(Debug, Clone)]
 pub struct FeatureSet {
@@ -36,18 +116,18 @@ impl FeatureSet {
     /// Create feature set from current features
     pub fn current() -> Self {
         Self {
-            l1_available: cfg!(feature = "l1-moka"),
-            l2_available: cfg!(feature = "l2-redis"),
-            metrics_available: cfg!(feature = "metrics"),
-            bloom_available: cfg!(feature = "bloom-filter"),
-            rate_limiting_available: cfg!(feature = "rate-limiting"),
-            batch_write_available: cfg!(feature = "batch-write"),
-            wal_recovery_available: cfg!(feature = "wal-recovery"),
-            serialization_available: cfg!(feature = "serialization"),
-            compression_available: cfg!(feature = "compression"),
-            database_available: cfg!(feature = "database"),
-            cli_available: cfg!(feature = "cli"),
-            opentelemetry_available: cfg!(feature = "opentelemetry"),
+            l1_available: l1_available(),
+            l2_available: l2_available(),
+            metrics_available: metrics_available(),
+            bloom_available: bloom_available(),
+            rate_limiting_available: rate_limiting_available(),
+            batch_write_available: batch_write_available(),
+            wal_recovery_available: wal_recovery_available(),
+            serialization_available: serialization_available(),
+            compression_available: compression_available(),
+            database_available: database_available(),
+            cli_available: cli_available(),
+            opentelemetry_available: opentelemetry_available(),
         }
     }
 
@@ -129,152 +209,4 @@ impl Default for FeatureSet {
     fn default() -> Self {
         Self::current()
     }
-}
-
-// ============================================================================
-// Individual Feature Availability Functions
-// ============================================================================
-
-/// Check if L1 cache is available
-#[cfg(feature = "l1-moka")]
-pub fn l1_available() -> bool {
-    true
-}
-
-/// Check if L1 cache is available (stub)
-#[cfg(not(feature = "l1-moka"))]
-pub fn l1_available() -> bool {
-    false
-}
-
-/// Check if L2 cache is available
-#[cfg(feature = "l2-redis")]
-pub fn l2_available() -> bool {
-    true
-}
-
-/// Check if L2 cache is available (stub)
-#[cfg(not(feature = "l2-redis"))]
-pub fn l2_available() -> bool {
-    false
-}
-
-/// Check if metrics are available
-#[cfg(feature = "metrics")]
-pub fn metrics_available() -> bool {
-    true
-}
-
-/// Check if metrics are available (stub)
-#[cfg(not(feature = "metrics"))]
-pub fn metrics_available() -> bool {
-    false
-}
-
-/// Check if bloom filter is available
-#[cfg(feature = "bloom-filter")]
-pub fn bloom_available() -> bool {
-    true
-}
-
-/// Check if bloom filter is available (stub)
-#[cfg(not(feature = "bloom-filter"))]
-pub fn bloom_available() -> bool {
-    false
-}
-
-/// Check if rate limiting is available
-#[cfg(feature = "rate-limiting")]
-pub fn rate_limiting_available() -> bool {
-    true
-}
-
-/// Check if rate limiting is available (stub)
-#[cfg(not(feature = "rate-limiting"))]
-pub fn rate_limiting_available() -> bool {
-    false
-}
-
-/// Check if batch write is available
-#[cfg(feature = "batch-write")]
-pub fn batch_write_available() -> bool {
-    true
-}
-
-/// Check if batch write is available (stub)
-#[cfg(not(feature = "batch-write"))]
-pub fn batch_write_available() -> bool {
-    false
-}
-
-/// Check if WAL recovery is available
-#[cfg(feature = "wal-recovery")]
-pub fn wal_recovery_available() -> bool {
-    true
-}
-
-/// Check if WAL recovery is available (stub)
-#[cfg(not(feature = "wal-recovery"))]
-pub fn wal_recovery_available() -> bool {
-    false
-}
-
-/// Check if serialization is available
-#[cfg(feature = "serialization")]
-pub fn serialization_available() -> bool {
-    true
-}
-
-/// Check if serialization is available (stub)
-#[cfg(not(feature = "serialization"))]
-pub fn serialization_available() -> bool {
-    false
-}
-
-/// Check if compression is available
-#[cfg(feature = "compression")]
-pub fn compression_available() -> bool {
-    true
-}
-
-/// Check if compression is available (stub)
-#[cfg(not(feature = "compression"))]
-pub fn compression_available() -> bool {
-    false
-}
-
-/// Check if database is available
-#[cfg(feature = "database")]
-pub fn database_available() -> bool {
-    true
-}
-
-/// Check if database is available (stub)
-#[cfg(not(feature = "database"))]
-pub fn database_available() -> bool {
-    false
-}
-
-/// Check if CLI is available
-#[cfg(feature = "cli")]
-pub fn cli_available() -> bool {
-    true
-}
-
-/// Check if CLI is available (stub)
-#[cfg(not(feature = "cli"))]
-pub fn cli_available() -> bool {
-    false
-}
-
-/// Check if OpenTelemetry is available
-#[cfg(feature = "opentelemetry")]
-pub fn opentelemetry_available() -> bool {
-    true
-}
-
-/// Check if OpenTelemetry is available (stub)
-#[cfg(not(feature = "opentelemetry"))]
-pub fn opentelemetry_available() -> bool {
-    false
 }
