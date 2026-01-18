@@ -1,6 +1,6 @@
 [package]
 name = "oxcache"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 # ============================================================================
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.1.2", optional = true }
+oxcache_macros = { path = "macros", version = "0.1.3", optional = true }
 
 # Async Runtime
 tokio = { version = "1.32", features = ["full"] }
