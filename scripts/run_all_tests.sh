@@ -164,39 +164,25 @@ run_security_audit() {
 # 运行内存泄漏测试
 run_memory_leak_tests() {
     log_info "运行内存泄漏测试..."
-    
-    local memory_output="$OUTPUT_DIR/memory_leak.log"
+
+    local memory_output="$OUTPUT_DIR/memory_test.log"
     local start_time=$(date +%s)
-    
-    # 运行Miri测试
-    if command -v miri &> /dev/null; then
-        log_info "运行Miri内存安全检查..."
-        if MIRIFLAGS="-Zmiri-disable-isolation" cargo miri test > "$memory_output" 2>&1; then
-            log_success "✅ Miri内存安全检查通过"
-        else
-            log_warning "⚠️  Miri内存安全检查发现问题"
-        fi
-    else
-        log_info "Miri未安装，跳过Miri测试"
-    fi
-    
-    # 运行Valgrind测试
-    if [[ -f "scripts/valgrind_memory_test.sh" ]] && command -v valgrind &> /dev/null; then
-        log_info "运行Valgrind内存泄漏检测..."
-        if timeout "$TEST_TIMEOUT" ./scripts/valgrind_memory_test.sh -o "$memory_output" > /dev/null 2>&1; then
+
+    if [[ -f "scripts/memory_test.sh" ]]; then
+        if timeout "$TEST_TIMEOUT" ./scripts/memory_test.sh -m all -o "$OUTPUT_DIR/memory_test-reports" > "$memory_output" 2>&1; then
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
-            log_success "✅ Valgrind内存检测通过 (${duration}s)"
+            log_success "✅ 内存测试通过 (${duration}s)"
             return 0
         else
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
-            log_warning "⚠️  Valgrind内存检测发现问题 (${duration}s)"
+            log_warning "⚠️  内存测试发现问题 (${duration}s)"
             log_warning "查看详细报告: $memory_output"
             return 1
         fi
     else
-        log_info "Valgrind测试脚本不存在或未安装Valgrind，跳过"
+        log_warning "内存测试脚本不存在，跳过"
         return 0
     fi
 }
