@@ -117,6 +117,42 @@ Fixes #456
 - Use `clippy` for linting: `cargo clippy`
 - Follow Rust API guidelines: [rust-lang/rfcs](https://rust-lang.github.io/api-guidelines/)
 
+### Project Structure
+
+```mermaid
+graph TD
+    A[oxcache/] --> B[src/]
+    A --> C[tests/]
+    A --> D[docs/]
+    A --> E[examples/]
+    A --> F[scripts/]
+    A --> G[benches/]
+    
+    B --> B1[backend/]
+    B --> B2[client/]
+    B --> B3[config/]
+    B --> B4[sync/]
+    B --> B5[recovery/]
+    B --> B6[database/]
+    B --> B7[serialization/]
+    B --> B8[error.rs]
+    B --> B9[lib.rs]
+    B --> B10[utils/]
+    
+    C --> C1[integration/]
+    C --> C2[unit/]
+    C --> C3[e2e/]
+    C --> C4[chaos/]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#fdf2e9
+```
+
 ### Code Organization
 
 ```
@@ -214,12 +250,30 @@ pub async fn get<T>(&self, key: &str) -> Result<Option<T>> {
 
 ### Test Structure
 
-```
-tests/
-├── integration/  # Integration tests
-├── unit/         # Unit tests (can also be in src/)
-├── e2e/          # End-to-end tests
-└── chaos/        # Chaos engineering tests
+```mermaid
+graph TD
+    A[tests/] --> B[integration/]
+    A --> C[unit/]
+    A --> D[e2e/]
+    A --> E[chaos/]
+    
+    B --> B1[Cache integration tests]
+    B --> B2[Database integration tests]
+    
+    C --> C1[Unit tests for modules]
+    C --> C2[Mock tests]
+    
+    D --> D1[End-to-end workflows]
+    D --> D2[User acceptance tests]
+    
+    E --> E1[Chaos engineering]
+    E --> E2[Failure simulation]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
 ```
 
 ### Writing Tests

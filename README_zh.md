@@ -258,30 +258,27 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 🏗️ 架构设计
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Application Code                      │
-│                  (#[cached] Macro)                       │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────┐
-│                   CacheManager                           │
-│        (Service Registry + Health Monitor)               │
-└───┬─────────────────────────────────────────────────┬───┘
-    │                                                  │
-    ↓                                                  ↓
-┌──────────────┐                              ┌──────────────┐
-│ TwoLevelClient│                              │ L1OnlyClient │
-│               │                              │ L2OnlyClient │
-└───┬──────┬───┘                              └──────────────┘
-    │      │
-    ↓      ↓
-┌────────┐ ┌────────────────────────────────────────┐
-│  L1    │ │                L2                       │
-│ (Moka) │ │              (Redis)                    │
-│        │ │                                        │
-└────────┘ └────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[Application Code<br/>#[cached] Macro] --> B[CacheManager<br/>Service Registry + Health Monitor]
+    
+    B --> C[TwoLevelClient]
+    B --> D[L1OnlyClient]
+    B --> E[L2OnlyClient]
+    
+    C --> F[L1 Cache<br/>Moka]
+    C --> G[L2 Cache<br/>Redis]
+    
+    D --> F
+    E --> G
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#fdf2e9
 ```
 
 **L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略  
@@ -293,17 +290,30 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 > 
 > **注意**: 性能因硬件、网络条件和数据大小而异。
 
+```mermaid
+xychart-beta
+    title "单线程延迟测试 (P99)"
+    x-axis ["L1 缓存", "L2 缓存", "数据库"]
+    y-axis "延迟时间" 0 --> 60
+    bar [50, 3, 30]
+    line [50, 3, 30]
 ```
-单线程延迟测试 (P99):
-├── L1 缓存:  ~50-100ns (内存访问)
-├── L2 缓存:  ~1-5ms (Redis, 本地)
-└── 数据库:   ~10-50ms (典型 SQL 查询)
 
-吞吐量测试 (batch_size=100):
-├── L1 操作:  ~5-10M ops/sec
-├── L2 单次写入:  ~50-100K ops/sec
-└── L2 批量写入:  ~200-500K ops/sec
+```mermaid
+xychart-beta
+    title "吞吐量测试 (batch_size=100)"
+    x-axis ["L1 操作", "L2 单次写入", "L2 批量写入"]
+    y-axis "操作数/秒" 0 --> 600
+    bar [7500, 75, 350]
 ```
+
+**性能数据总结**:
+- **L1 缓存**: 50-100ns (内存访问)
+- **L2 缓存**: 1-5ms (Redis, 本地)
+- **数据库**: 10-50ms (典型 SQL 查询)
+- **L1 操作**: 5-10M ops/sec
+- **L2 单次写入**: 50-100K ops/sec
+- **L2 批量写入**: 200-500K ops/sec
 
 ## 🛡️ 可靠性
 

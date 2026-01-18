@@ -264,30 +264,27 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Application Code                      │
-│                  (#[cached] Macro)                       │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────┐
-│                   CacheManager                           │
-│        (Service Registry + Health Monitor)               │
-└───┬─────────────────────────────────────────────────┬───┘
-    │                                                  │
-    ↓                                                  ↓
-┌──────────────┐                              ┌──────────────┐
-│ TwoLevelClient│                              │ L1OnlyClient │
-│               │                              │ L2OnlyClient │
-└───┬──────┬───┘                              └──────────────┘
-    │      │
-    ↓      ↓
-┌────────┐ ┌────────────────────────────────────────┐
-│  L1    │ │                L2                       │
-│ (Moka) │ │              (Redis)                    │
-│        │ │                                        │
-└────────┘ └────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[Application Code<br/>#[cached] Macro] --> B[Cache Manager<br/>Service Registry + Health Monitor]
+    
+    B --> C[TwoLevelClient]
+    B --> D[L1OnlyClient]
+    B --> E[L2OnlyClient]
+    
+    C --> F[L1 Cache<br/>Moka]
+    C --> G[L2 Cache<br/>Redis]
+    
+    D --> F
+    E --> G
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#fdf2e9
 ```
 
 **L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy  
@@ -299,17 +296,30 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 > 
 > **Note**: Performance varies based on hardware, network conditions, and data size.
 
+```mermaid
+xychart-beta
+    title "Single-thread Latency Test (P99)"
+    x-axis ["L1 Cache", "L2 Cache", "Database"]
+    y-axis "Latency (ms)" 0 --> 60
+    bar [0.05, 3, 30]
+    line [0.05, 3, 30]
 ```
-Single-thread Latency Test (P99):
-├── L1 Cache:  ~50-100ns (in-memory)
-├── L2 Cache:  ~1-5ms (Redis, localhost)
-└── Database:   ~10-50ms (typical SQL query)
 
-Throughput Test (batch_size=100):
-├── L1 Operations:  ~5-10M ops/sec
-├── L2 Single Write:  ~50-100K ops/sec
-└── L2 Batch Write:   ~200-500K ops/sec
+```mermaid
+xychart-beta
+    title "Throughput Test (batch_size=100)"
+    x-axis ["L1 Operations", "L2 Single Write", "L2 Batch Write"]
+    y-axis "Ops/sec" 0 --> 600
+    bar [7500, 75, 350]
 ```
+
+**Performance Summary**:
+- **L1 Cache**: 50-100ns (in-memory)
+- **L2 Cache**: 1-5ms (Redis, localhost)
+- **Database**: 10-50ms (typical SQL query)
+- **L1 Operations**: 5-10M ops/sec
+- **L2 Single Write**: 50-100K ops/sec
+- **L2 Batch Write**: 200-500K ops/sec
 
 ## 🛡️ Reliability
 
