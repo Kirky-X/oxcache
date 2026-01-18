@@ -33,36 +33,32 @@ Oxcache is a multi-level caching system designed for high-performance, productio
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Application                         │
-│                  (Functions with #[cached])                  │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      Cache Manager                           │
-│                   (DashMap: Service → Client)                │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        ▼                ▼                ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  L1 Client   │  │ L2 Client    │  │  Sync Layer  │
-│   (Moka)     │  │  (Redis)     │  │  (Pub/Sub)   │
-└──────────────┘  └──────────────┘  └──────────────┘
-        │                │                │
-        ▼                ▼                ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│   Memory     │  │   Redis      │  │   Pub/Sub    │
-│   (LRU)      │  │   Cluster    │  │   Channel    │
-└──────────────┘  └──────────────┘  └──────────────┘
-                                            │
-                                            ▼
-                                    ┌──────────────┐
-                                    │  Recovery    │
-                                    │     WAL      │
-                                    └──────────────┘
+```mermaid
+graph TD
+    A[Application<br/>Functions with #[cached]] --> B[Cache Manager<br/>DashMap: Service → Client]
+    
+    B --> C[TwoLevelClient]
+    B --> D[Sync Layer<br/>Pub/Sub]
+    
+    C --> E[L1 Client<br/>Moka]
+    C --> F[L2 Client<br/>Redis]
+    
+    D --> G[Recovery<br/>WAL]
+    
+    E --> H[Memory<br/>LRU]
+    F --> I[Redis<br/>Cluster]
+    D --> J[Pub/Sub<br/>Channel]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#f1f8e9
+    style F fill:#fdf2e9
+    style G fill:#fce4ec
+    style H fill:#e8f5e8
+    style I fill:#fdf2e9
+    style J fill:#fff3e0
 ```
 
 ## Components
@@ -273,66 +269,47 @@ pub struct RateLimitConfig {
 
 ### Read Operation
 
-```
-┌─────────────┐
-│ Application │
-│  #[cached]  │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Check L1 (Moka)                │
-│  - If hit: Return value         │
-│  - If miss: Continue            │
-└──────┬──────────────────────────┘
-       │ miss
-       ▼
-┌─────────────────────────────────┐
-│  Check L2 (Redis)               │
-│  - If hit: Populate L1 → Return │
-│  - If miss: Return None        │
-└──────┬──────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Return value to application    │
-└─────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[Application<br/>#[cached]] --> B{Check L1<br/>Moka}
+    B -->|hit| C[Return value]
+    B -->|miss| D{Check L2<br/>Redis}
+    D -->|hit| E[Populate L1<br/>Return value]
+    D -->|miss| F[Return None]
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#f1f8e9
+    style F fill:#fce4ec
 ```
 
 ### Write Operation
 
-```
-┌─────────────┐
-│ Application │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Write to L1 (async, immediate)  │
-└──────┬──────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Add to Batch Writer buffer     │
-└──────┬──────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Write to WAL (async)           │
-└──────┬──────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Flush to L2 (batch)            │
-│  - When buffer full OR timeout  │
-│  - Use Redis MSET               │
-└──────┬──────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│  Publish invalidation (Pub/Sub) │
-│  - Key, version, timestamp      │
-└─────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[Application] --> B[Write to L1<br/>async, immediate]
+    B --> C[Add to Batch<br/>Writer buffer]
+    C --> D[Write to WAL<br/>async]
+    D --> E[Flush to L2<br/>batch]
+    E --> F{Buffer full<br/>OR timeout?}
+    F -->|yes| G[Use Redis MSET]
+    F -->|no| H[Continue buffering]
+    G --> I[Publish invalidation<br/>Pub/Sub]
+    H --> I
+    I --> J[Key, version,<br/>timestamp]
+    
+    style A fill:#e1f5fe
+    style B fill:#f1f8e9
+    style C fill:#fff3e0
+    style D fill:#fce4ec
+    style E fill:#fdf2e9
+    style F fill:#ffeb3b
+    style G fill:#e8f5e8
+    style H fill:#f3e5f5
+    style I fill:#fff3e0
+    style J fill:#e1f5fe
 ```
 
 ## Consistency Model
@@ -346,13 +323,15 @@ Oxcache provides **eventual consistency** across instances:
 
 ### Invalidation Propagation
 
-```
-Instance A                Pub/Sub Channel               Instance B
-   │                          │                            │
-   │─── UPDATE key:123 ──────►│                            │
-   │                          │─── INVALIDATE key:123 ────►│
-   │                          │                            │
-   │                          │                            │
+```mermaid
+sequenceDiagram
+    participant A as Instance A
+    participant P as Pub/Sub Channel
+    participant B as Instance B
+    
+    A->>P: UPDATE key:123
+    P->>B: INVALIDATE key:123
+    Note over B: Remove from L1 if version < v5
 ```
 
 ### Versioning Scheme
