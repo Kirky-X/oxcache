@@ -247,15 +247,14 @@ impl WalManager {
     }
 
     pub async fn clear_entries(&self) -> Result<()> {
-        let delete_sql = format!(
-            "DELETE FROM wal_entries WHERE service_name = '{}'",
-            self.service_name
-        );
+        // 使用参数化查询防止SQL注入
+        use sea_orm::Value;
 
         self.db
-            .execute(Statement::from_string(
+            .execute(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Sqlite,
-                delete_sql,
+                "DELETE FROM wal_entries WHERE service_name = ?",
+                [Value::String(Some(Box::new(self.service_name.clone())))],
             ))
             .await
             .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;

@@ -14,6 +14,9 @@ use serde::{de::DeserializeOwned, Serialize};
 #[derive(Clone)]
 pub struct BincodeSerializer;
 
+/// 最大反序列化大小限制（10MB）
+const MAX_BINCODE_SIZE: usize = 10 * 1024 * 1024;
+
 impl Serializer for BincodeSerializer {
     /// 序列化值为Bincode字节数组
     ///
@@ -37,7 +40,20 @@ impl Serializer for BincodeSerializer {
     /// # 返回值
     ///
     /// 返回反序列化后的值或错误
+    ///
+    /// # 安全
+    ///
+    /// 此方法限制反序列化数据的大小，防止拒绝服务攻击
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+        // 安全检查：限制数据大小
+        if data.len() > MAX_BINCODE_SIZE {
+            return Err(CacheError::Serialization(format!(
+                "Data too large: {} bytes (max: {} bytes)",
+                data.len(),
+                MAX_BINCODE_SIZE
+            )));
+        }
+
         bincode::deserialize(data).map_err(|e| CacheError::Serialization(e.to_string()))
     }
 }

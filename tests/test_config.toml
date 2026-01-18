@@ -1,10 +1,12 @@
 # Test configuration for database partitioning
 [database]
 # PostgreSQL connection for testing
-postgres_url = "postgresql://postgres:postgres@localhost:5432/oxcache_test"
+# 安全修复：使用环境变量
+postgres_url = "postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/oxcache_test"
 
 # MySQL connection for testing  
-mysql_url = "mysql://mysql:mysql@localhost:3306/oxcache_test"
+# 安全修复：使用环境变量
+mysql_url = "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@localhost:3306/oxcache_test"
 
 # SQLite connection for testing
 sqlite_path = "/tmp/oxcache_test.db"

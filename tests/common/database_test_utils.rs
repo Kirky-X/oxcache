@@ -53,6 +53,15 @@ pub fn create_partition_config(
 }
 
 /// Clean up existing table using Docker command (for PostgreSQL)
+/// 验证表名格式，防止SQL注入攻击
+fn validate_table_name(table_name: &str) -> bool {
+    // 表名只能包含字母、数字、下划线，且不能以数字开头
+    let is_valid = !table_name.is_empty()
+        && table_name.chars().all(|c| c.is_alphanumeric() || c == '_')
+        && !table_name.chars().next().unwrap().is_digit(10);
+    is_valid
+}
+
 #[allow(dead_code)]
 pub fn cleanup_postgres_table(
     container_name: &str,
@@ -60,6 +69,12 @@ pub fn cleanup_postgres_table(
     user: &str,
     table_name: &str,
 ) -> bool {
+    // 验证表名格式，防止SQL注入
+    if !validate_table_name(table_name) {
+        eprintln!("Invalid table name: {}", table_name);
+        return false;
+    }
+
     let cleanup_result = std::process::Command::new("docker")
         .args([
             "exec",

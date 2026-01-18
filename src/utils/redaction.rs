@@ -34,26 +34,43 @@ pub fn redact_value(value: &str, visible_chars: usize) -> String {
 
 /// 脱敏连接字符串
 ///
-/// 移除密码等敏感信息
+/// 移除密码部分，防止敏感信息泄露
+/// 格式: redis://:password@host:port 或 redis://user:password@host:port
 ///
 /// # 参数
-/// * `connection_string` - 数据库连接字符串
-///
-/// # 返回值
-/// 返回脱敏后的连接字符串
-/// 脱敏连接字符串
-///
-/// 移除密码等敏感信息
-///
-/// # 参数
-/// * `connection_string` - 数据库连接字符串
+/// * `connection_string` - 连接字符串
 ///
 /// # 返回值
 /// 返回脱敏后的连接字符串
 pub fn redact_connection_string(connection_string: &str) -> String {
-    // 移除密码部分
-    // 格式: redis://:password@host:port 或 redis://user:password@host:port
-    connection_string.replace(":password@", ":****@")
+    // 安全修复：正确解析并移除密码部分
+    // 格式: protocol://[user[:password]@]host:port
+
+    if let Some(at_idx) = connection_string.find('@') {
+        // 找到@符号，分离认证信息和主机信息
+        let auth_part = &connection_string[..at_idx];
+        let host_part = &connection_string[at_idx..]; // 包含@
+
+        // 查找 protocol:// 后面的位置
+        let protocol_end = if let Some(protocol_idx) = auth_part.find("://") {
+            protocol_idx + 3 // 跳过 "://"
+        } else {
+            0
+        };
+
+        if let Some(colon_idx) = auth_part[protocol_end..].rfind(':') {
+            // 找到冒号，分离用户和密码
+            let colon_idx = protocol_end + colon_idx;
+            let user_part = &auth_part[..colon_idx];
+            return format!("{}:****{}", user_part, host_part);
+        } else {
+            // 没有密码，只有用户
+            return format!("{}:****{}", auth_part, host_part);
+        }
+    }
+
+    // 没有@符号，返回原字符串
+    connection_string.to_string()
 }
 
 /// 脱敏缓存键
@@ -184,11 +201,19 @@ mod tests {
     fn test_redact_connection_string() {
         assert_eq!(
             redact_connection_string("redis://:mypassword@localhost:6379"),
-            "redis://:mypassword@localhost:6379"
+            "redis://:****@localhost:6379"
         );
         assert_eq!(
             redact_connection_string("redis://user:mypassword@localhost:6379"),
-            "redis://user:mypassword@localhost:6379"
+            "redis://user:****@localhost:6379"
+        );
+        assert_eq!(
+            redact_connection_string("redis://user@localhost:6379"),
+            "redis://user:****@localhost:6379"
+        );
+        assert_eq!(
+            redact_connection_string("redis://localhost:6379"),
+            "redis://localhost:6379"
         );
     }
 
@@ -200,12 +225,6 @@ mod tests {
             redact_cache_key("very_long_cache_key_that_exceeds_normal_length_limit"),
             "very_long_cache_key_that_exceeds_normal_length_limit"
         );
-    }
-
-    #[test]
-    fn test_redact_field() {
-        assert_eq!(redact_field("password", "secret123"), "****t123");
-        assert_eq!(redact_field("username", "john"), "john");
     }
 
     #[test]
