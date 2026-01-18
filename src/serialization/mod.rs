@@ -10,6 +10,7 @@ pub mod json;
 
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};
+use std::borrow::Cow;
 
 pub use json::JsonSerializer;
 
@@ -22,6 +23,24 @@ pub trait Serializer: Send + Sync {
 
     /// 从字节数组反序列化值
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T>;
+}
+
+/// 零拷贝序列化器特征
+///
+/// 提供零拷贝序列化和反序列化操作，使用 Cow<[u8]> 避免不必要的内存分配
+pub trait ZeroCopySerializer: Send + Sync {
+    /// 零拷贝序列化（返回 Cow 以避免不必要的克隆）
+    ///
+    /// 某些序列化格式（如 bincode）可以实现真正的零拷贝序列化
+    fn serialize_zero_copy<'a, T: Serialize>(&self, value: &'a T) -> Result<Cow<'a, [u8]>>;
+
+    /// 零拷贝反序列化
+    ///
+    /// 某些场景下可以避免数据拷贝
+    fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(
+        &self,
+        data: &'a [u8],
+    ) -> Result<Cow<'a, T>>;
 }
 
 /// 序列化器枚举

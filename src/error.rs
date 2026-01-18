@@ -6,6 +6,9 @@
 
 use thiserror::Error;
 
+/// Maximum number of asterisks to show for hidden password
+const PASSWORD_MASK_ASTERISKS: usize = 5;
+
 /// 脱敏连接字符串，隐藏密码等敏感信息
 fn sanitize_connection_string(conn_str: &str) -> String {
     // 使用正则表达式隐藏密码
@@ -22,7 +25,11 @@ fn sanitize_connection_string(conn_str: &str) -> String {
                 .chars()
                 .take_while(|c| *c != ':')
                 .chain(std::iter::once('*'))
-                .chain(std::iter::once(':').chain(std::iter::once('*')).take(5))
+                .chain(
+                    std::iter::once(':')
+                        .chain(std::iter::once('*'))
+                        .take(PASSWORD_MASK_ASTERISKS),
+                )
                 .collect();
             return format!(
                 "{}://{}@{}",

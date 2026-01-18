@@ -10,6 +10,35 @@ use syn::{
     parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, ItemFn, Lit, Meta, Token,
 };
 
+/// Maximum allowed cache key length
+const MAX_CACHE_KEY_LENGTH: usize = 1024;
+
+/// Characters not allowed in cache keys
+const FORBIDDEN_KEY_CHARS: &[char] = &['\0', '\n', '\r'];
+
+/// Validates a cache key and returns an error message if invalid
+fn validate_cache_key(key: &str) -> Result<(), String> {
+    if key.is_empty() {
+        return Err("Cache key cannot be empty".to_string());
+    }
+    if key.len() > MAX_CACHE_KEY_LENGTH {
+        return Err(format!(
+            "Cache key exceeds maximum length of {} bytes (got {} bytes)",
+            MAX_CACHE_KEY_LENGTH,
+            key.len()
+        ));
+    }
+    for c in key.chars() {
+        if FORBIDDEN_KEY_CHARS.contains(&c) {
+            return Err(format!(
+                "Cache key contains forbidden character '\\x{:02x}'",
+                c as u8
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
@@ -197,6 +226,22 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             use oxcache::{get_client, CacheOps};
 
             let cache_key = #key_gen;
+
+            // Validate cache key length and characters
+            let key_len = cache_key.len();
+            if key_len > 1024 {
+                tracing::warn!(
+                    "Cache key too long ({} bytes), falling back to uncached execution",
+                    key_len
+                );
+                return async { #fn_block }.await;
+            }
+            if cache_key.bytes().any(|b| b == 0 || b == 10 || b == 13) {
+                tracing::warn!(
+                    "Cache key contains invalid characters, falling back to uncached execution"
+                );
+                return async { #fn_block }.await;
+            }
 
             // Try to get client, if fails, run original function
             let client = match get_client(#service_name) {
