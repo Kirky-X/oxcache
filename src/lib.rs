@@ -300,10 +300,6 @@ pub mod serialization;
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub mod utils;
 
-// Test-only modules
-#[cfg(feature = "test")]
-pub mod debug_test;
-
 // ============================================================================
 // Public API Re-exports
 // ============================================================================
@@ -395,8 +391,7 @@ pub async fn init_from_confers(path: &str) -> Result<()> {
 #[cfg(all(feature = "confers", feature = "config-toml"))]
 pub async fn init_from_file(config_path: &str) -> Result<()> {
     use crate::config::load_from_file;
-    let config =
-        load_from_file(config_path).map_err(|e| crate::error::CacheError::ConfigError(e))?;
+    let config = load_from_file(config_path).map_err(crate::error::CacheError::ConfigError)?;
     init(config).await
 }
 

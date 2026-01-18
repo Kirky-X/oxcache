@@ -173,6 +173,7 @@ mod tests {
     /// 测试用的模拟数据库连接
     #[derive(Debug)]
     struct MockConnection {
+        #[allow(dead_code)]
         id: usize,
         connection_count: &'static AtomicUsize,
     }
