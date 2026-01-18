@@ -443,19 +443,26 @@ serialization_type = "bincode"  # "json" or "bincode"
 
 ### Horizontal Scaling
 
-Add more instances:
-```
-┌──────────┐  ┌──────────┐  ┌──────────┐
-│ Instance │  │ Instance │  │ Instance │
-│    1     │  │    2     │  │    3     │
-└────┬─────┘  └────┬─────┘  └────┬─────┘
-     │             │             │
-     └─────────────┴─────────────┘
-                   │
-              ┌────▼────┐
-              │  Redis  │
-              │ Cluster │
-              └─────────┘
+```mermaid
+graph TD
+    subgraph "Application Instances"
+        I1[Instance 1]
+        I2[Instance 2] 
+        I3[Instance 3]
+    end
+    
+    subgraph "Redis Cluster"
+        R[Redis Cluster]
+    end
+    
+    I1 --> R
+    I2 --> R
+    I3 --> R
+    
+    style I1 fill:#e1f5fe
+    style I2 fill:#e1f5fe
+    style I3 fill:#e1f5fe
+    style R fill:#f3e5f5
 ```
 
 ### Vertical Scaling

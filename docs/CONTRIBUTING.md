@@ -155,18 +155,36 @@ graph TD
 
 ### Code Organization
 
-```
-src/
-├── backend/       # Cache backend implementations
-├── client/        # Cache client implementations
-├── config/        # Configuration structures
-├── sync/          # Synchronization mechanisms
-├── recovery/      # Failure recovery
-├── database/      # Database integration
-├── serialization/ # Serialization implementations
-├── error.rs       # Error types
-├── lib.rs        # Public API
-└── utils/        # Utility functions
+```mermaid
+graph TD
+    A[src/] --> A1[backend/]
+    A --> A2[client/]
+    A --> A3[config/]
+    A --> A4[sync/]
+    A --> A5[recovery/]
+    A --> A6[database/]
+    A --> A7[serialization/]
+    A --> A8[error.rs]
+    A --> A9[lib.rs]
+    A --> A10[utils/]
+    
+    A1 --> A1_1[L1 cache implementation]
+    A1 --> A1_2[L2 cache implementation]
+    
+    A2 --> A2_1[Cache clients]
+    A2 --> A2_2[Client traits]
+    
+    style A fill:#e1f5fe
+    style A1 fill:#f3e5f5
+    style A2 fill:#e8f5e8
+    style A3 fill:#fff3e0
+    style A4 fill:#fce4ec
+    style A5 fill:#f1f8e9
+    style A6 fill:#fdf2e9
+    style A7 fill:#ffeb3b
+    style A8 fill:#ffcdd2
+    style A9 fill:#e8f5e8
+    style A10 fill:#f3e5f5
 ```
 
 ### Naming Conventions

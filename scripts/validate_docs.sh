@@ -3,31 +3,25 @@
 # Documentation Validation Script
 # This script helps maintain consistency between documentation and code
 
-set -e
-
-echo "🔍 Validating Oxcache Documentation Consistency..."
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# 引入公共库
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 # Track issues
 issues=0
 
 # Function to print colored output
 print_issue() {
-    echo -e "${RED}❌ $1${NC}"
+    log_error "$1"
     ((issues++))
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+    log_warning "$1"
 }
 
 print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    log_success "$1"
 }
 
 echo "📋 Checking documentation files..."
