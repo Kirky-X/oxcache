@@ -181,7 +181,8 @@ pub struct CacheManager {
 }
 
 lazy_static! {
-    pub static ref MANAGER: Arc<DashMap<String, Arc<dyn CacheOps>>> = Arc::new(DashMap::new());
+    pub(crate) static ref MANAGER: Arc<DashMap<String, Arc<dyn CacheOps>>> =
+        Arc::new(DashMap::new());
 }
 
 impl CacheManager {

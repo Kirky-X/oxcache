@@ -58,7 +58,7 @@ fn validate_table_name(table_name: &str) -> bool {
     // 表名只能包含字母、数字、下划线，且不能以数字开头
     let is_valid = !table_name.is_empty()
         && table_name.chars().all(|c| c.is_alphanumeric() || c == '_')
-        && !table_name.chars().next().unwrap().is_digit(10);
+        && !table_name.chars().next().unwrap().is_ascii_digit();
     is_valid
 }
 

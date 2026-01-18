@@ -5,12 +5,13 @@
 //! Common utilities for examples
 
 use oxcache::config::{
-    CacheType, Config, L1Config, L2Config, RedisMode, ServiceConfig, TwoLevelConfig,
+    CacheType, L1Config, L2Config, OxcacheConfig, RedisMode, ServiceConfig, TwoLevelConfig,
 };
 use std::collections::HashMap;
 
 /// Create a default two-level cache configuration for examples
-pub fn create_default_config(service_name: &str, max_capacity: usize) -> Config {
+#[allow(deprecated)]
+pub fn create_default_config(service_name: &str, max_capacity: usize) -> OxcacheConfig {
     let mut services = HashMap::new();
     services.insert(
         service_name.to_string(),
@@ -41,7 +42,8 @@ pub fn create_default_config(service_name: &str, max_capacity: usize) -> Config 
         },
     );
 
-    Config {
+    #[allow(deprecated)]
+    OxcacheConfig {
         services,
         ..Default::default()
     }
