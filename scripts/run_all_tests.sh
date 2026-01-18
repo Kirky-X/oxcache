@@ -3,14 +3,9 @@
 # 综合测试运行器
 # 运行所有测试并生成报告
 
-set -e
-
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 引入公共库
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 # 默认配置
 DEFAULT_TEST_TIMEOUT=600  # 10分钟
@@ -19,22 +14,24 @@ DEFAULT_PARALLEL=true
 
 # 帮助信息
 show_help() {
-    echo -e "${BLUE}综合测试运行器${NC}"
-    echo ""
-    echo "用法: $0 [选项]"
-    echo ""
-    echo "选项:"
-    echo "  -o, --output DIR       输出目录 (默认: $DEFAULT_OUTPUT_DIR)"
-    echo "  -t, --timeout SECONDS  测试超时时间 (默认: $DEFAULT_TEST_TIMEOUT)"
-    echo "  -s, --sequential       串行运行测试（默认并行）"
-    echo "  -v, --verbose          详细输出"
-    echo "  -h, --help             显示帮助信息"
-    echo ""
-    echo "示例:"
-    echo "  $0                                    # 运行所有测试"
-    echo "  $0 -o reports -t 900                  # 15分钟超时，输出到reports目录"
-    echo "  $0 -s                                 # 串行运行"
-    echo ""
+    cat << EOF
+综合测试运行器
+
+用法: $0 [选项]
+
+选项:
+  -o, --output DIR       输出目录 (默认: $DEFAULT_OUTPUT_DIR)
+  -t, --timeout SECONDS  测试超时时间 (默认: $DEFAULT_TEST_TIMEOUT)
+  -s, --sequential       串行运行测试（默认并行）
+  -v, --verbose          详细输出
+  -h, --help             显示帮助信息
+
+示例:
+  $0                                    # 运行所有测试
+  $0 -o reports -t 900                  # 15分钟超时，输出到reports目录
+  $0 -s                                 # 串行运行
+
+EOF
 }
 
 # 解析命令行参数
@@ -66,52 +63,31 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            echo -e "${RED}错误: 未知选项 $1${NC}"
+            log_error "未知选项: $1"
             show_help
             exit 1
             ;;
     esac
 done
 
-# 日志函数
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
 # 检查依赖
 check_dependencies() {
     log_info "检查依赖..."
-    
-    if ! command -v cargo &> /dev/null; then
-        log_error "Cargo未安装。请安装Rust工具链。"
+
+    if ! check_cargo; then
         exit 1
     fi
-    
+
     if ! command -v redis-server &> /dev/null; then
         log_warning "Redis服务器未安装，某些测试可能无法运行"
     fi
-    
+
     log_success "依赖检查通过"
 }
 
 # 创建输出目录
 create_output_dir() {
-    if [[ ! -d "$OUTPUT_DIR" ]]; then
-        mkdir -p "$OUTPUT_DIR"
-        log_info "创建输出目录: $OUTPUT_DIR"
-    fi
+    ensure_directory "$OUTPUT_DIR"
 }
 
 # 运行单元测试
