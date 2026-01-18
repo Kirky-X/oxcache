@@ -215,7 +215,8 @@ set_env_if_empty() {
     local default_value="$2"
     if [[ -z "${!var_name}" ]]; then
         export "$var_name"="$default_value"
-    fi}
+    fi
+}
 
 # ==================== 退出处理 ====================
 cleanup_on_exit() {

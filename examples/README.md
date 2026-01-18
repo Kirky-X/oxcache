@@ -63,20 +63,44 @@ Follow these modules to learn Oxcache from basics to advanced usage:
 
 ## Project Structure
 
-```
-oxcache-examples/
-├── Cargo.toml              # Project configuration
-├── README.md               # This file
-├── examples/
-│   ├── 01_basics/         # Core functionality
-│   ├── 02_advanced/       # Advanced features
-│   ├── 03_performance/    # Performance testing
-│   ├── 04_redis_modes/    # Redis configurations
-│   ├── 05_database/       # Database integration
-│   ├── 06_features/       # Additional features
-│   ├── 07_testing/        # Testing patterns
-│   └── 08_uat/            # Acceptance tests
-└── src/                   # Common utilities
+```mermaid
+graph TD
+    A[oxcache-examples/] --> B[Cargo.toml]
+    A --> C[README.md]
+    A --> D[examples/]
+    A --> E[src/]
+    
+    D --> D1[01_basics/]
+    D --> D2[02_advanced/]
+    D --> D3[03_performance/]
+    D --> D4[04_redis_modes/]
+    D --> D5[05_database/]
+    D --> D6[06_features/]
+    D --> D7[07_testing/]
+    D --> D8[08_uat/]
+    
+    D1 --> D1_1[Core functionality]
+    D2 --> D2_1[Advanced features]
+    D3 --> D3_1[Performance testing]
+    D4 --> D4_1[Redis configurations]
+    D5 --> D5_1[Database integration]
+    D6 --> D6_1[Additional features]
+    D7 --> D7_1[Testing patterns]
+    D8 --> D8_1[Acceptance tests]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style D1 fill:#f1f8e9
+    style D2 fill:#fdf2e9
+    style D3 fill:#ffeb3b
+    style D4 fill:#ffcdd2
+    style D5 fill:#e8f5e8
+    style D6 fill:#f3e5f5
+    style D7 fill:#e1f5fe
+    style D8 fill:#f3e5f5
 ```
 
 ## Examples by Category
