@@ -11,12 +11,15 @@ use syn::{
 };
 
 /// Maximum allowed cache key length
+#[allow(dead_code)]
 const MAX_CACHE_KEY_LENGTH: usize = 1024;
 
 /// Characters not allowed in cache keys
+#[allow(dead_code)]
 const FORBIDDEN_KEY_CHARS: &[char] = &['\0', '\n', '\r'];
 
 /// Validates a cache key and returns an error message if invalid
+#[allow(dead_code)]
 fn validate_cache_key(key: &str) -> Result<(), String> {
     if key.is_empty() {
         return Err("Cache key cannot be empty".to_string());
