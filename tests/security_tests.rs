@@ -201,8 +201,22 @@ impl SecurityAcceptanceTester {
         println!("🔍 Testing Authentication Security...");
 
         // 测试1: 验证密码配置
-        let auth_url = env::var("REDIS_AUTH_URL")
-            .unwrap_or_else(|_| "redis://username:password@127.0.0.1:6379".to_string());
+        // 安全修复：使用环境变量，必须设置认证URL
+        let auth_url = match env::var("REDIS_AUTH_URL") {
+            Ok(url) => url,
+            Err(_) => {
+                let duration = start.elapsed();
+                return SecurityTestResult {
+                    test_name,
+                    passed: false,
+                    message:
+                        "REDIS_AUTH_URL environment variable must be set for authentication tests"
+                            .to_string(),
+                    duration,
+                    severity: SecuritySeverity::High,
+                };
+            }
+        };
 
         let config = L2Config {
             mode: RedisMode::Standalone,

@@ -12,9 +12,11 @@
 //! - 输入验证工具
 //! - 敏感信息脱敏工具
 //! - 缓存键生成器
+//! - 安全日志工具
 
 pub(crate) mod key_generator;
 pub mod redaction;
+// 安全日志工具已直接定义在 security_log.rs 中
 
 use crate::config::{
     CacheType, ClusterConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SentinelConfig,

@@ -37,15 +37,49 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 
 /// 缓存系统错误类型枚举
 ///
-/// 定义了缓存系统中可能发生的各种错误类型
+/// 定义了缓存系统中可能发生的各种错误类型。
+/// 所有错误都实现了std::error::Error trait，可以使用?操作符传播。
+///
+/// # 错误分类
+///
+/// - **配置错误** ([`CacheError::Configuration`]): 配置问题，如缺少必需字段
+/// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
+/// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
+/// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
+/// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
+/// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
+///
+/// # 示例
+///
+/// ```rust,ignore
+/// use oxcache::error::CacheError;
+///
+/// async fn safe_cache_operation() -> Result<String, CacheError> {
+///     let result = cache.get("key").await?;
+///     match result {
+///         Some(value) => Ok(value),
+///         None => Err(CacheError::BackendError("Key not found".to_string()))
+///     }
+/// }
+/// ```
 #[derive(Error, Debug)]
 pub enum CacheError {
     /// 序列化错误
+    ///
+    /// 通常发生在：
+    /// - 尝试序列化不支持的数据类型
+    /// - 序列化器配置不兼容
+    /// - 数据在传输过程中被损坏
     #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible."
     )]
     Serialization(String),
 
     /// L1缓存操作失败
+    ///
+    /// L1缓存是进程内的内存缓存，可能因以下原因失败：
+    /// - 内存不足导致缓存被逐出
+    /// - 缓存容量达到上限
+    /// - 缓存项过期
     #[error("L1 cache operation failed: {0}. This may indicate memory pressure or configuration issues."
     )]
     L1Error(String),

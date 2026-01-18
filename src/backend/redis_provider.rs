@@ -69,8 +69,8 @@ impl RedisProvider for DefaultRedisProvider {
 
                 // Let's print the error context if possible, but timeout doesn't give error.
                 return Err(CacheError::L2Error(format!(
-                    "Connection timed out after {}ms. Target: {}",
-                    config.connection_timeout_ms, connection_string
+                    "Connection timed out after {}ms. Target: [REDACTED]",
+                    config.connection_timeout_ms
                 )));
             }
         };

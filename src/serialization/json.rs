@@ -17,6 +17,9 @@ pub struct JsonSerializer {
     compress: bool,
 }
 
+/// 最大JSON反序列化大小限制（5MB）
+const MAX_JSON_SIZE: usize = 5 * 1024 * 1024;
+
 impl JsonSerializer {
     /// 创建新的JSON序列化器
     pub fn new() -> Self {
@@ -85,7 +88,20 @@ impl Serializer for JsonSerializer {
     /// # 返回值
     ///
     /// 返回反序列化后的值或错误
+    ///
+    /// # 安全
+    ///
+    /// 此方法限制反序列化数据的大小，防止拒绝服务攻击
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+        // 安全检查：限制数据大小
+        if data.len() > MAX_JSON_SIZE {
+            return Err(CacheError::Serialization(format!(
+                "JSON data too large: {} bytes (max: {} bytes)",
+                data.len(),
+                MAX_JSON_SIZE
+            )));
+        }
+
         let json_bytes = if self.compress {
             // 解压缩
             #[cfg(feature = "flate2")]

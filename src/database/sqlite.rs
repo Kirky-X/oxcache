@@ -79,9 +79,16 @@ impl SQLitePartitionManager {
         Ok(())
     }
 
-    /// 转义SQL标识符（使用双引号）
+    /// 转义SQL标识符（使用双引号并转义内部双引号）
+    /// 防止SQL注入攻击
     fn escape_identifier(&self, identifier: &str) -> String {
-        format!("\"{}\"", identifier)
+        // 首先验证标识符格式
+        self.validate_identifier(identifier)
+            .expect("Invalid identifier");
+
+        // 转义双引号：将 " 替换为 ""
+        let escaped = identifier.replace("\"", "\"\"");
+        format!("\"{}\"", escaped)
     }
 
     pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self> {
