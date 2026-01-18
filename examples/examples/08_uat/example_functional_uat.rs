@@ -40,7 +40,18 @@ mod uat_tests {
     #[tokio::test]
     async fn test_user_session_caching() {
         // Requirement: User sessions should be cached for fast retrieval
-        let services = HashMap::new();
+        let mut services = HashMap::new();
+        services.insert(
+            "session_cache".to_string(),
+            oxcache::config::ServiceConfig {
+                l1: Some(oxcache::config::L1Config {
+                    max_capacity: 1000,
+                    ..Default::default()
+                }),
+                cache_type: oxcache::config::CacheType::L1,
+                ..Default::default()
+            },
+        );
         let config = oxcache::config::Config {
             services,
             ..Default::default()
@@ -70,7 +81,18 @@ mod uat_tests {
     #[tokio::test]
     async fn test_shopping_cart_operations() {
         // Requirement: Shopping cart should be persistent and fast
-        let services = HashMap::new();
+        let mut services = HashMap::new();
+        services.insert(
+            "cart_cache".to_string(),
+            oxcache::config::ServiceConfig {
+                l1: Some(oxcache::config::L1Config {
+                    max_capacity: 1000,
+                    ..Default::default()
+                }),
+                cache_type: oxcache::config::CacheType::L1,
+                ..Default::default()
+            },
+        );
         let config = oxcache::config::Config {
             services,
             ..Default::default()
@@ -107,7 +129,18 @@ mod uat_tests {
     #[tokio::test]
     async fn test_data_consistency() {
         // Requirement: Cache should reflect latest data
-        let services = HashMap::new();
+        let mut services = HashMap::new();
+        services.insert(
+            "data_cache".to_string(),
+            oxcache::config::ServiceConfig {
+                l1: Some(oxcache::config::L1Config {
+                    max_capacity: 1000,
+                    ..Default::default()
+                }),
+                cache_type: oxcache::config::CacheType::L1,
+                ..Default::default()
+            },
+        );
         let config = oxcache::config::Config {
             services,
             ..Default::default()

@@ -7,6 +7,7 @@
 // This example validates security requirements and protections.
 
 use oxcache::CacheExt;
+use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -130,11 +131,8 @@ mod security_uat {
             .unwrap();
 
         // Verify both roles are stored
-        let admin = client
-            .get::<serde::JsonValue>("access:admin")
-            .await
-            .unwrap();
-        let user = client.get::<serde::JsonValue>("access:user").await.unwrap();
+        let admin = client.get::<Value>("access:admin").await.unwrap();
+        let user = client.get::<Value>("access:user").await.unwrap();
 
         assert!(admin.is_some());
         assert!(user.is_some());
