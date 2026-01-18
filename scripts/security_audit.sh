@@ -3,14 +3,9 @@
 # Cargo Audit安全审计脚本
 # 用于检测Rust项目依赖库中的安全漏洞
 
-set -e
-
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 引入公共库
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 
 # 默认配置
 DEFAULT_AUDIT_OPTIONS="--json"
@@ -20,24 +15,26 @@ DEFAULT_IGNORE_ADVISORIES=""   # 逗号分隔的advisory ID列表
 
 # 帮助信息
 show_help() {
-    echo -e "${BLUE}Cargo Audit安全审计脚本${NC}"
-    echo ""
-    echo "用法: $0 [选项]"
-    echo ""
-    echo "选项:"
-    echo "  -f, --format FORMAT    输出格式: human, json, both (默认: $DEFAULT_OUTPUT_FORMAT)"
-    echo "  -o, --output FILE      输出结果文件"
-    echo "  -i, --ignore IDS       忽略特定的advisory ID (逗号分隔)"
-    echo "  -w, --warnings-only    只显示警告，不将警告视为错误"
-    echo "  -v, --verbose          详细输出"
-    echo "  -h, --help             显示帮助信息"
-    echo ""
-    echo "示例:"
-    echo "  $0                                    # 基本审计"
-    echo "  $0 -f json -o audit_report.json     # JSON格式输出到文件"
-    echo "  $0 -i RUSTSEC-2023-0001,RUSTSEC-2023-0002  # 忽略特定advisory"
-    echo "  $0 -w                                # 只显示警告"
-    echo ""
+    cat << EOF
+Cargo Audit安全审计脚本
+
+用法: $0 [选项]
+
+选项:
+  -f, --format FORMAT    输出格式: human, json, both (默认: $DEFAULT_OUTPUT_FORMAT)
+  -o, --output FILE      输出结果文件
+  -i, --ignore IDS       忽略特定的advisory ID (逗号分隔)
+  -w, --warnings-only    只显示警告，不将警告视为错误
+  -v, --verbose          详细输出
+  -h, --help             显示帮助信息
+
+示例:
+  $0                                    # 基本审计
+  $0 -f json -o audit_report.json     # JSON格式输出到文件
+  $0 -i RUSTSEC-2023-0001,RUSTSEC-2023-0002  # 忽略特定advisory
+  $0 -w                                # 只显示警告
+
+EOF
 }
 
 # 解析命令行参数
@@ -74,39 +71,21 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            echo -e "${RED}错误: 未知选项 $1${NC}"
+            log_error "未知选项: $1"
             show_help
             exit 1
             ;;
     esac
 done
 
-# 日志函数
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
 # 检查依赖
 check_dependencies() {
     log_info "检查依赖..."
-    
-    if ! command -v cargo &> /dev/null; then
-        log_error "Cargo未安装。请安装Rust工具链。"
+
+    if ! check_cargo; then
         exit 1
     fi
-    
+
     if ! cargo audit --version &> /dev/null 2>&1; then
         log_info "安装cargo-audit..."
         if cargo install cargo-audit; then
@@ -116,7 +95,7 @@ check_dependencies() {
             exit 1
         fi
     fi
-    
+
     log_success "依赖检查通过"
 }
 
