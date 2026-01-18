@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 Oxcache
+<img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
 [![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)
@@ -347,6 +347,6 @@ xychart-beta
 
 **如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
 
-Made with ❤️ by oxcache Team
+Made with ❤️ by Kirky.X
 
 </div>
