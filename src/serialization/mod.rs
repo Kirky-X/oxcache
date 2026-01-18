@@ -14,6 +14,9 @@ use std::borrow::Cow;
 
 pub use json::JsonSerializer;
 
+#[cfg(feature = "bincode")]
+pub use bincode::BincodeSerializer;
+
 /// 序列化器特征
 ///
 /// 定义序列化和反序列化操作的接口
@@ -45,22 +48,28 @@ pub trait ZeroCopySerializer: Send + Sync {
 
 /// 序列化器枚举
 ///
-/// 用于支持 trait object 的序列化器
+/// 用于支持多态的序列化器
 #[derive(Clone, Debug)]
 pub enum SerializerEnum {
     Json(JsonSerializer),
+    #[cfg(feature = "bincode")]
+    Bincode(bincode::BincodeSerializer),
 }
 
 impl Serializer for SerializerEnum {
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         match self {
             SerializerEnum::Json(s) => s.serialize(value),
+            #[cfg(feature = "bincode")]
+            SerializerEnum::Bincode(s) => s.serialize(value),
         }
     }
 
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         match self {
             SerializerEnum::Json(s) => s.deserialize(data),
+            #[cfg(feature = "bincode")]
+            SerializerEnum::Bincode(s) => s.deserialize(data),
         }
     }
 }

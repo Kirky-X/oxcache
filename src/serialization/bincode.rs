@@ -11,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 /// Bincode序列化器
 ///
 /// 实现基于bincode的序列化和反序列化
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BincodeSerializer;
 
 /// 最大反序列化大小限制（10MB）

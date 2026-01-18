@@ -27,11 +27,13 @@ pub enum WarmupStatus {
     Failed { error: String },
 }
 
+#[derive(Debug, Clone)]
 pub struct WarmupResult {
     pub loaded: usize,
     pub failed: usize,
     pub skipped: usize,
     pub success: bool,
+    pub error: Option<String>,
 }
 
 impl WarmupResult {
@@ -41,15 +43,17 @@ impl WarmupResult {
             failed: 0,
             skipped: 1,
             success: true,
+            error: None,
         }
     }
 
-    pub fn failed(_error: String) -> Self {
+    pub fn failed(error: String) -> Self {
         Self {
             loaded: 0,
             failed: 0,
             skipped: 0,
             success: false,
+            error: Some(error),
         }
     }
 }
@@ -167,6 +171,7 @@ impl WarmupManager {
             failed: total_failed,
             skipped: total_skipped,
             success: total_failed == 0,
+            error: None,
         })
     }
 
@@ -176,5 +181,164 @@ impl WarmupManager {
             .get(source_type)
             .cloned()
             .unwrap_or(WarmupStatus::Pending)
+    }
+}
+
+#[cfg(test)]
+mod warmup_tests {
+    use super::*;
+    use crate::config::{CacheWarmupConfig, WarmupDataSource};
+    use std::time::Duration;
+
+    fn create_test_config() -> CacheWarmupConfig {
+        CacheWarmupConfig {
+            enabled: true,
+            timeout_seconds: 30,
+            batch_size: 10,
+            batch_interval_ms: 10,
+            data_sources: vec![WarmupDataSource::Static {
+                keys: vec!["key1".to_string(), "key2".to_string()],
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_warmup_result_error_stored() {
+        let result = WarmupResult::failed("test error".to_string());
+        assert!(!result.success);
+        assert_eq!(result.error, Some("test error".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_warmup_result_skipped() {
+        let result = WarmupResult::skipped();
+        assert!(result.success);
+        assert_eq!(result.skipped, 1);
+        assert!(result.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_warmup_result_full() {
+        let result = WarmupResult {
+            loaded: 10,
+            failed: 2,
+            skipped: 1,
+            success: false,
+            error: Some("partial failure".to_string()),
+        };
+        assert_eq!(result.loaded, 10);
+        assert_eq!(result.failed, 2);
+        assert_eq!(result.skipped, 1);
+        assert!(!result.success);
+        assert_eq!(result.error, Some("partial failure".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_warmup_disabled_returns_skipped() {
+        let mut config = create_test_config();
+        config.enabled = false;
+
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        let result = manager
+            .run_warmup(|_keys| async { Ok(HashMap::new()) })
+            .await
+            .unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.skipped, 1);
+    }
+
+    #[tokio::test]
+    async fn test_warmup_timeout_returns_error() {
+        let config = CacheWarmupConfig {
+            enabled: true,
+            timeout_seconds: 0, // 立即超时
+            batch_size: 100,
+            batch_interval_ms: 0,
+            data_sources: vec![WarmupDataSource::Static {
+                keys: vec!["key1".to_string()],
+            }],
+        };
+
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        let result = manager
+            .run_warmup(|_keys| async {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                Ok(HashMap::new())
+            })
+            .await
+            .unwrap();
+
+        assert!(!result.success);
+        assert!(result.error.is_some());
+        assert!(result.error.unwrap().contains("timeout"));
+    }
+
+    #[tokio::test]
+    async fn test_warmup_loads_keys_successfully() {
+        let config = create_test_config();
+
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        let result = manager
+            .run_warmup(|keys| async move {
+                let mut map = HashMap::new();
+                for key in keys {
+                    map.insert(key, vec![1, 2, 3]);
+                }
+                Ok(map)
+            })
+            .await
+            .unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.loaded, 2);
+        assert_eq!(result.failed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_warmup_partial_failure() {
+        let config = create_test_config();
+
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        // 第一个key成功，第二个key失败
+        let result = manager
+            .run_warmup(|keys| async move {
+                let mut map = HashMap::new();
+                for (i, key) in keys.iter().enumerate() {
+                    if i == 0 {
+                        map.insert(key.clone(), vec![1, 2, 3]);
+                    }
+                    // 跳过第二个key
+                }
+                Ok(map)
+            })
+            .await
+            .unwrap();
+
+        assert!(!result.success);
+        assert_eq!(result.loaded, 1);
+        assert_eq!(result.failed, 1);
+    }
+
+    #[tokio::test]
+    async fn test_warmup_status_retrieval() {
+        let config = create_test_config();
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        let status = manager.get_status("static").await;
+        assert_eq!(status, WarmupStatus::Pending);
+    }
+
+    #[tokio::test]
+    async fn test_warmup_status_nonexistent_source() {
+        let config = create_test_config();
+        let manager = WarmupManager::new("test_service".to_string(), config);
+
+        let status = manager.get_status("nonexistent").await;
+        assert_eq!(status, WarmupStatus::Pending);
     }
 }

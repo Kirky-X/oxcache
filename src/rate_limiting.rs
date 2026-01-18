@@ -64,10 +64,18 @@ impl TokenBucket {
 
     #[inline]
     fn now_millis() -> u64 {
-        std::time::SystemTime::now()
+        // 使用UNIX_EPOCH作为参考点，处理系统时间可能回退的情况
+        // 如果时间获取失败，使用一个固定的基准时间
+        let since_epoch = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64
+            .unwrap_or_else(|e| {
+                // 时间回退，使用0作为后备值
+                // 这会导致速率限制器在系统时间异常时返回0，
+                // 意味着令牌补充会立即进行（最大速率）
+                tracing::warn!("系统时间异常，可能时钟回退: {}", e);
+                std::time::Duration::ZERO
+            });
+        since_epoch.as_millis() as u64
     }
 
     /// 尝试获取一个令牌

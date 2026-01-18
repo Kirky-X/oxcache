@@ -4,6 +4,7 @@ This document provides detailed API reference for the Oxcache library.
 
 ## Table of Contents
 
+- [Feature Requirements](#feature-requirements)
 - [Cache Macro](#cache-macro)
 - [Cache Management](#cache-management)
 - [Cache Operations](#cache-operations)
@@ -13,6 +14,47 @@ This document provides detailed API reference for the Oxcache library.
 - [Database Integration](#database-integration)
 - [Security Features](#security-features)
 - [Observability](#observability)
+
+## Feature Requirements
+
+Oxcache uses feature gates to control functionality. Here are the key features and their requirements:
+
+### Core Features
+- **`minimal`**: L1 cache only (Moka)
+- **`core`**: L1 + L2 cache (Redis)
+- **`full`**: All features enabled
+
+### Component Features
+- **`macros`**: Required for `#[cached]` attribute macro
+- **`l1-moka`**: L1 cache implementation (Moka)
+- **`l2-redis`**: L2 cache implementation (Redis)
+- **`config-toml`**: TOML configuration file support
+- **`metrics`**: Basic metrics collection
+- **`full-metrics`**: OpenTelemetry integration
+
+### Advanced Features
+- **`bloom-filter`**: Cache penetration protection
+- **`rate-limiting`**: DoS protection
+- **`wal-recovery`**: Write-ahead log for durability
+- **`batch-write`**: Optimized batch writing
+- **`database`**: Database integration
+- **`cli`**: Command-line interface
+
+### Example Configurations
+
+```toml
+# Full features (recommended)
+oxcache = { version = "0.1.2", features = ["full"] }
+
+# Core functionality only
+oxcache = { version = "0.1.2", features = ["core"] }
+
+# Minimal - L1 cache only
+oxcache = { version = "0.1.2", features = ["minimal"] }
+
+# Custom selection
+oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+```
 
 ## Cache Macro
 
@@ -33,6 +75,10 @@ Zero-boilerplate caching decorator for async functions.
 **Example:**
 
 ```rust
+// Enable macros feature in Cargo.toml
+oxcache = { version = "0.1.2", features = ["macros"] }
+
+// In your code
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
@@ -56,7 +102,7 @@ async fn fetch_user(user_id: &str) -> Result<User> {
 
 #### `init(config: OxcacheConfig) -> Result<()>`
 
-Initialize the cache system with the given configuration.
+Initialize cache system with given configuration.
 
 ```rust
 use oxcache::{init, oxcache_config, ServiceConfig};
@@ -66,6 +112,15 @@ let config = oxcache_config()
     .build();
 
 init(config).await?;
+```
+
+#### `init_from_file(config_path: &str) -> Result<()>` (requires `config-toml` and `confers` features)
+
+Initialize cache system from TOML configuration file.
+
+```rust
+// Requires features: ["config-toml", "confers"]
+oxcache::init_from_file("config.toml").await?;
 ```
 
 #### `shutdown_all() -> Result<()>`
@@ -159,33 +214,21 @@ client.clear().await?;
 
 ### Batch Operations
 
-#### `get_batch<T>(&self, keys: &[&str]) -> Result<HashMap<String, T>>`
+Note: Batch operations are currently handled internally by the OptimizedBatchWriter for performance optimization. Direct batch operation APIs are planned for future releases.
 
-Get multiple values in a single operation.
+#### Optimized Batch Writer
 
-```rust
-let keys = vec!["user:1", "user:2", "user:3"];
-let results: HashMap<String, User> = client.get_batch(&keys).await?;
-```
-
-#### `set_batch<T>(&self, entries: HashMap<&str, &T>, ttl: Option<u64>) -> Result<()>`
-
-Set multiple values in a single operation.
+For high-throughput scenarios, use the optimized batch writer:
 
 ```rust
-let mut entries = HashMap::new();
-entries.insert("user:1", &user1);
-entries.insert("user:2", &user2);
+use oxcache::sync::OptimizedBatchWriter;
 
-client.set_batch(entries, Some(3600)).await?;
-```
-
-#### `delete_batch(&self, keys: &[&str]) -> Result<()>`
-
-Delete multiple keys in a single operation.
-
-```rust
-client.delete_batch(&["user:1", "user:2", "user:3"]).await?;
+let writer = OptimizedBatchWriter::new(
+    client.clone(),
+    "default".to_string(),
+    100,  // batch_size
+    50,   // max_flush_interval_ms
+).await?;
 ```
 
 ## Configuration

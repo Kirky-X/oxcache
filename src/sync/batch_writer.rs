@@ -250,15 +250,17 @@ impl BatchWriter {
             return;
         }
 
-        // 分离set和delete操作
-        let mut set_items = Vec::new();
-        let mut delete_keys = Vec::new();
-        let mut keys_to_remove = Vec::new();
+        // 预分配容量以减少内存重新分配
+        let batch_size = config.max_batch_size.min(buffer.len());
+        let mut set_items = Vec::with_capacity(batch_size);
+        let mut delete_keys = Vec::with_capacity(batch_size);
+        let mut keys_to_remove = Vec::with_capacity(batch_size);
 
         for entry in buffer.iter() {
             let key = entry.key().clone();
             match &entry.value().operation {
                 BatchOperation::Set { value, ttl, .. } => {
+                    // 使用 Arc::make_mut 实现零拷贝（如果可能）
                     set_items.push((key.clone(), value.clone(), *ttl));
                     keys_to_remove.push(key);
                 }

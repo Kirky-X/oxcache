@@ -244,45 +244,19 @@ impl OxcacheConfigBuilder {
     pub fn available_features(&self) -> Vec<&'static str> {
         let mut features = Vec::new();
 
-        if cfg!(feature = "l1-moka") {
-            features.push("l1-moka");
-        }
-        if cfg!(feature = "l2-redis") {
-            features.push("l2-redis");
-        }
-        if cfg!(feature = "bloom-filter") {
-            features.push("bloom-filter");
-        }
-        if cfg!(feature = "rate-limiting") {
-            features.push("rate-limiting");
-        }
-        if cfg!(feature = "batch-write") {
-            features.push("batch-write");
-        }
-        if cfg!(feature = "wal-recovery") {
-            features.push("wal-recovery");
-        }
-        if cfg!(feature = "serialization") {
-            features.push("serialization");
-        }
-        if cfg!(feature = "compression") {
-            features.push("compression");
-        }
-        if cfg!(feature = "database") {
-            features.push("database");
-        }
-        if cfg!(feature = "cli") {
-            features.push("cli");
-        }
-        if cfg!(feature = "opentelemetry") {
-            features.push("opentelemetry");
-        }
-        if cfg!(feature = "metrics") {
-            features.push("metrics");
-        }
-        if cfg!(feature = "confers") {
-            features.push("confers");
-        }
+        add_feature_if_enabled!(features, "l1-moka");
+        add_feature_if_enabled!(features, "l2-redis");
+        add_feature_if_enabled!(features, "bloom-filter");
+        add_feature_if_enabled!(features, "rate-limiting");
+        add_feature_if_enabled!(features, "batch-write");
+        add_feature_if_enabled!(features, "wal-recovery");
+        add_feature_if_enabled!(features, "serialization");
+        add_feature_if_enabled!(features, "compression");
+        add_feature_if_enabled!(features, "database");
+        add_feature_if_enabled!(features, "cli");
+        add_feature_if_enabled!(features, "opentelemetry");
+        add_feature_if_enabled!(features, "metrics");
+        add_feature_if_enabled!(features, "confers");
 
         features
     }

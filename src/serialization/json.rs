@@ -20,6 +20,48 @@ pub struct JsonSerializer {
 /// 最大JSON反序列化大小限制（5MB）
 const MAX_JSON_SIZE: usize = 5 * 1024 * 1024;
 
+/// 使用flate2压缩数据
+#[cfg(feature = "flate2")]
+fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder
+        .write_all(data)
+        .map_err(|e| CacheError::Serialization(e.to_string()))?;
+    encoder
+        .finish()
+        .map_err(|e| CacheError::Serialization(e.to_string()))
+}
+
+/// 使用flate2解压缩数据
+#[cfg(feature = "flate2")]
+fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
+    use flate2::read::GzDecoder;
+    use std::io::Read;
+
+    let mut decoder = GzDecoder::new(data);
+    let mut decoded = Vec::new();
+    decoder
+        .read_to_end(&mut decoded)
+        .map_err(|e| CacheError::Serialization(e.to_string()))?;
+    Ok(decoded)
+}
+
+/// 当flate2特性未启用时的压缩函数（直接返回原数据）
+#[cfg(not(feature = "flate2"))]
+fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
+    Ok(data.to_vec())
+}
+
+/// 当flate2特性未启用时的解压缩函数（直接返回原数据）
+#[cfg(not(feature = "flate2"))]
+fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
+    Ok(data.to_vec())
+}
+
 impl JsonSerializer {
     /// 创建新的JSON序列化器
     pub fn new() -> Self {
@@ -54,26 +96,7 @@ impl Serializer for JsonSerializer {
 
         if self.compress {
             // 使用压缩
-            #[cfg(feature = "flate2")]
-            {
-                use flate2::write::GzEncoder;
-                use flate2::Compression;
-                use std::io::Write;
-
-                let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-                encoder
-                    .write_all(&json_bytes)
-                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
-                encoder
-                    .finish()
-                    .map_err(|e| CacheError::Serialization(e.to_string()))
-            }
-
-            #[cfg(not(feature = "flate2"))]
-            {
-                // 如果没有启用flate2特性，返回未压缩的数据
-                Ok(json_bytes)
-            }
+            compress_data(&json_bytes)
         } else {
             Ok(json_bytes)
         }
@@ -104,24 +127,7 @@ impl Serializer for JsonSerializer {
 
         let json_bytes = if self.compress {
             // 解压缩
-            #[cfg(feature = "flate2")]
-            {
-                use flate2::read::GzDecoder;
-                use std::io::Read;
-
-                let mut decoder = GzDecoder::new(data);
-                let mut decoded = Vec::new();
-                decoder
-                    .read_to_end(&mut decoded)
-                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
-                decoded
-            }
-
-            #[cfg(not(feature = "flate2"))]
-            {
-                // 如果没有启用flate2特性，直接使用原始数据
-                data.to_vec()
-            }
+            decompress_data(data)?
         } else {
             data.to_vec()
         };

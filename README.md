@@ -64,11 +64,13 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.1"
+oxcache = "0.1.2"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-`oxcache = { version = "0.1", default-features = false }` and add them manually.
+`oxcache = { version = "0.1.2", default-features = false }` and add them manually.
+
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.1.2", features = ["macros"] }`
 
 ### 2. Configuration
 
