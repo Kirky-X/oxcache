@@ -24,6 +24,7 @@ use database_test_utils::*;
 // 辅助函数
 // ============================================================================
 
+#[allow(dead_code)]
 fn create_unique_db_path() -> String {
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -32,10 +33,12 @@ fn create_unique_db_path() -> String {
     format!("/tmp/test_oxcache_{}.db", timestamp)
 }
 
+#[allow(dead_code)]
 fn cleanup_test_db(db_path: &str) {
     let _ = std::fs::remove_file(db_path);
 }
 
+#[allow(dead_code)]
 fn cleanup_partition_tables() {
     for year in 2023..=2025 {
         for month in 1..=12 {
