@@ -63,11 +63,13 @@
 
 ```toml
 [dependencies]
-oxcache = "0.1"
+oxcache = "0.1.2"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.1", default-features = false }` 手动添加。
+`oxcache = { version = "0.1.2", default-features = false }` 手动添加。
+
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.2", features = ["macros"] }`
 
 ### 最简示例
 

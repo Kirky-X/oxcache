@@ -48,6 +48,181 @@ macro_rules! require_feature {
     };
 }
 
+/// 编译时断言：检查特性依赖关系（支持full特性）
+///
+/// # Example
+///
+/// ```rust,ignore
+/// check_feature_dependence!("bloom-filter", cfg!(feature = "l1-moka"));
+/// ```
+///
+/// 如果启用了 `bloom-filter` 但没有启用 `l1-moka` 或 `full`，编译时会panic。
+#[macro_export]
+macro_rules! check_feature_dependence {
+    ($dependent:expr, $required:expr) => {
+        const _: fn() = || {
+            if cfg!(feature = $dependent) && !$required && !cfg!(feature = "full") {
+                panic!(
+                    "ERROR: '{}' feature requires '{}' feature.\n\
+                    \n\
+                    Solution 1: Enable required feature:\n\
+                        oxcache = {{ version = \"0.1\", features = [\"{}\", \"{}\"] }}\n\
+                    \n\
+                    Solution 2: Enable all features:\n\
+                        oxcache = {{ version = \"0.1\", features = [\"full\"] }}",
+                    $dependent,
+                    stringify!($required)
+                        .replace("cfg!(feature = \\\"", "")
+                        .replace("\\\")\"", ""),
+                    $dependent,
+                    stringify!($required)
+                        .replace("cfg!(feature = \\\"", "")
+                        .replace("\\\")\"", "")
+                )
+            }
+        };
+    };
+}
+
+/// 运行时检查特性是否启用（用于available_features等场景）
+#[macro_export]
+macro_rules! add_feature_if_enabled {
+    ($features:ident, $name:expr) => {
+        if cfg!(feature = $name) {
+            $features.push($name);
+        }
+    };
+}
+
+/// 为禁用的特性生成空实现结构体及其基本实现
+///
+/// # Example
+///
+/// ```rust,ignore
+/// empty_struct!(BatchWriter, Debug, Clone, Default);
+/// ```
+///
+/// 生成：
+/// - `#[cfg(not(feature = "batch-write"))]`
+/// - `#[derive(Debug, Clone, Default)] pub struct BatchWriter;`
+/// - `impl BatchWriter { pub fn new() -> Self { Self } }
+#[macro_export]
+macro_rules! empty_struct {
+    ($name:ident, $($traits:ident),+ $(,)?) => {
+        #[cfg(not(feature = "batch-write"))]
+        #[derive($($traits),+)]
+        pub struct $name;
+        #[cfg(not(feature = "batch-write"))]
+        impl $name {
+            pub fn new() -> Self {
+                Self
+            }
+        }
+    };
+}
+
+/// 为禁用的特性生成空实现结构体（带泛型参数）
+///
+/// # Example
+///
+/// ```rust,ignore
+/// empty_struct_generic!(HealthChecker<T: HealthCheckableBackend>, Debug);
+/// ```
+#[macro_export]
+macro_rules! empty_struct_generic {
+    ($name:ident $(<$($generics:tt),+>)?, $($traits:ident),+ $(,)?) => {
+        #[cfg(not(feature = "wal-recovery"))]
+        #[derive($($traits),+)]
+        pub struct $name $(<$($generics),+>)?;
+        #[cfg(not(feature = "wal-recovery"))]
+        impl $(<$($generics),+>)? $name $(<$($generics),+>)? {
+            pub fn new() -> Self {
+                Self
+            }
+        }
+    };
+}
+
+/// 为禁用的特性生成带有 async 方法的空实现
+///
+/// # Example
+///
+/// ```rust,ignore
+/// empty_async_methods!(MyStruct, {
+///     pub async fn start(&self) {}
+///     pub async fn shutdown(&self) {}
+/// });
+/// ```
+#[macro_export]
+macro_rules! empty_async_methods {
+    ($name:ident, { $(pub async fn $fn_name:ident(&self $(, $param:ident: $param_type: ty)* $(,)? ) -> Result<()> { $($body:stmt)* })+ }) => {
+        #[cfg(not(feature = "batch-write"))]
+        #[derive(Debug, Clone, Default)]
+        pub struct $name;
+        #[cfg(not(feature = "batch-write"))]
+        impl $name {
+            $(
+                pub async fn $fn_name(&self $(, $param: $param_type)*) -> Result<()> {
+                    $($body)*
+                    Ok(())
+                }
+            )+
+        }
+    };
+}
+
+/// 为禁用的特性生成空 trait 定义
+///
+/// # Example
+///
+/// ```rust,ignore
+/// empty_trait!(HealthCheckableBackend, Clone + Send + Sync + 'static {
+///     async fn ping(&self) -> Result<()>;
+///     fn command_timeout_ms(&self) -> u64;
+/// });
+/// ```
+#[macro_export]
+macro_rules! empty_trait {
+    ($name:ident, $($bounds:tt)*) => {
+        #[cfg(not(feature = "wal-recovery"))]
+        #[async_trait::async_trait]
+        pub trait $name: $($bounds)* {}
+    };
+}
+
+/// 生成空的 Result 返回方法
+///
+/// # Example
+///
+/// ```rust,ignore
+/// empty_async_fn!(pub async fn foo(&self) -> Result<()>);
+/// empty_async_fn!(pub async fn bar(&self, key: &str) -> Result<()>);
+/// ```
+#[macro_export]
+macro_rules! empty_async_fn {
+    (pub async fn $fn_name:ident (&self $(, $param:ident: $param_type: ty)*) -> Result<()>) => {
+        #[cfg(not(feature = "batch-write"))]
+        pub async fn $fn_name(&self $(, $param: $param_type)*) -> Result<()> {
+            Ok(())
+        }
+    };
+}
+
+/// 为禁用功能的模块生成占位符模块声明
+///
+/// # Example
+///
+/// ```rust,ignore
+/// placeholder_module!(batch_writer, "batch-write");
+/// ```
+#[macro_export]
+macro_rules! placeholder_module {
+    ($module:ident, $feature:expr) => {
+        #[cfg(not(feature = $feature))]
+        pub(crate) mod $module;
+    };
+}
+
 // ============================================================================
 // Core Modules (Always Available)
 // ============================================================================
@@ -86,7 +261,6 @@ pub mod bloom_filter;
     feature = "batch-write",
     feature = "cli"
 ))]
-#[allow(unexpected_cfgs)]
 pub mod metrics;
 
 // Rate Limiting Module
@@ -133,6 +307,15 @@ pub mod debug_test;
 // ============================================================================
 // Public API Re-exports
 // ============================================================================
+
+// Re-export macros when the feature is enabled
+#[cfg(feature = "macros")]
+pub use oxcache_macros::cached;
+
+#[cfg(feature = "macros")]
+pub mod macros {
+    pub use oxcache_macros::*;
+}
 
 pub use client::{CacheExt, CacheOps};
 pub use config::legacy_config::{
@@ -196,6 +379,27 @@ pub async fn init_from_confers(path: &str) -> Result<()> {
     init(config).await
 }
 
+/// 从配置文件初始化缓存系统
+///
+/// # Arguments
+/// * `config_path` - 配置文件路径，支持 TOML 格式
+///
+/// # Example
+/// ```rust,ignore
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     oxcache::init_from_file("config.toml").await?;
+///     Ok(())
+/// }
+/// ```
+#[cfg(all(feature = "confers", feature = "config-toml"))]
+pub async fn init_from_file(config_path: &str) -> Result<()> {
+    use crate::config::load_from_file;
+    let config =
+        load_from_file(config_path).map_err(|e| crate::error::CacheError::ConfigError(e))?;
+    init(config).await
+}
+
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -223,86 +427,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // ```
 
 const _: fn() = || {
-    // Bloom filter requires L1 cache for storing bloom filter data
-    if cfg!(feature = "bloom-filter") && !cfg!(feature = "l1-moka") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'bloom-filter' feature requires 'l1-moka' feature.\n\
-            \n\
-            Solution 1: Enable L1 cache support:\n\
-                oxcache = {{ version = \"0.1\", features = [\"bloom-filter\", \"l1-moka\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // Rate limiting requires L1 cache for token bucket storage
-    if cfg!(feature = "rate-limiting") && !cfg!(feature = "l1-moka") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'rate-limiting' feature requires 'l1-moka' feature.\n\
-            \n\
-            Solution 1: Enable L1 cache support:\n\
-                oxcache = {{ version = \"0.1\", features = [\"rate-limiting\", \"l1-moka\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // WAL recovery requires Redis backend for persistent storage
-    if cfg!(feature = "wal-recovery") && !cfg!(feature = "l2-redis") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'wal-recovery' feature requires 'l2-redis' feature.\n\
-            \n\
-            Solution 1: Enable Redis backend:\n\
-                oxcache = {{ version = \"0.1\", features = [\"wal-recovery\", \"l2-redis\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // Batch write requires Redis backend for batch operations
-    if cfg!(feature = "batch-write") && !cfg!(feature = "l2-redis") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'batch-write' feature requires 'l2-redis' feature.\n\
-            \n\
-            Solution 1: Enable Redis backend:\n\
-                oxcache = {{ version = \"0.1\", features = [\"batch-write\", \"l2-redis\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // CLI requires configuration file support
-    if cfg!(feature = "cli") && !cfg!(feature = "confers") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'cli' feature requires 'confers' feature for configuration file support.\n\
-            \n\
-            Solution 1: Enable configuration support:\n\
-                oxcache = {{ version = \"0.1\", features = [\"cli\", \"confers\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // OpenTelemetry requires metrics support for tracing
-    if cfg!(feature = "opentelemetry") && !cfg!(feature = "metrics") && !cfg!(feature = "full") {
-        panic!(
-            "ERROR: 'opentelemetry' feature requires 'metrics' feature for tracing.\n\
-            \n\
-            Solution 1: Enable metrics support:\n\
-                oxcache = {{ version = \"0.1\", features = [\"opentelemetry\", \"metrics\"] }}\n\
-            \n\
-            Solution 2: Enable all features:\n\
-                oxcache = {{ version = \"0.1\", features = [\"full\"] }}"
-        );
-    }
-
-    // Database features require Redis backend for fallback
-    if cfg!(feature = "database") && !cfg!(feature = "l2-redis") && !cfg!(feature = "full") {
-        panic!("'database' feature requires 'l2-redis' feature to be enabled");
-    }
+    // 使用统一的宏检查特性依赖
+    check_feature_dependence!("bloom-filter", cfg!(feature = "l1-moka"));
+    check_feature_dependence!("rate-limiting", cfg!(feature = "l1-moka"));
+    check_feature_dependence!("wal-recovery", cfg!(feature = "l2-redis"));
+    check_feature_dependence!("batch-write", cfg!(feature = "l2-redis"));
+    check_feature_dependence!("cli", cfg!(feature = "confers"));
+    check_feature_dependence!("opentelemetry", cfg!(feature = "metrics"));
+    check_feature_dependence!("database", cfg!(feature = "l2-redis"));
 };

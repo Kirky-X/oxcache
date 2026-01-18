@@ -343,16 +343,20 @@ mod sqlite_basic_tests {
 
     #[tokio::test]
     async fn test_sqlite_partitioning_basic() -> Result<()> {
-        let db_path = create_unique_db_path();
-        println!("Testing SQLite partitioning with database: {}", db_path);
+        // 使用TempDir创建完全隔离的临时目录，避免并行测试的文件冲突
+        let temp_dir = TempDir::new().map_err(|e| {
+            CacheError::DatabaseError(format!("Failed to create temp directory: {}", e))
+        })?;
+        let db_path = temp_dir.path().join("test_partitioning.db");
+        let db_path_str = db_path.to_str().unwrap();
 
-        cleanup_partition_tables();
-        let _ = std::fs::remove_file(&db_path);
+        println!("Testing SQLite partitioning with database: {}", db_path_str);
 
+        // 先创建文件
         match File::create(&db_path) {
-            Ok(_) => println!("✓ Database file pre-created: {}", db_path),
+            Ok(_) => println!("✓ Database file created: {}", db_path_str),
             Err(e) => {
-                println!("✗ Failed to pre-create database file: {}", e);
+                println!("✗ Failed to create database file: {}", e);
                 return Err(CacheError::DatabaseError(format!(
                     "Failed to create database file: {}",
                     e
@@ -367,7 +371,7 @@ mod sqlite_basic_tests {
             ..Default::default()
         };
 
-        let connection_string = format!("sqlite:{}", db_path);
+        let connection_string = format!("sqlite:{}", db_path_str);
         let manager = SQLitePartitionManager::new(&connection_string, partition_config).await?;
 
         let test_table = "cache_entries";
@@ -415,9 +419,12 @@ mod sqlite_basic_tests {
         println!("✓ Partitions after cleanup: {}", remaining_partitions.len());
 
         use std::path::Path;
-        assert!(Path::new(&db_path).exists(), "Database file should exist");
+        assert!(
+            Path::new(db_path_str).exists(),
+            "Database file should exist"
+        );
 
-        cleanup_test_db(&db_path);
+        // TempDir会自动在drop时清理，无需手动删除
         println!("✓ SQLite partitioning test completed");
         Ok(())
     }

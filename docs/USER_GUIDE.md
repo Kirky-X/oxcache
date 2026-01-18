@@ -133,16 +133,18 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.1"
+oxcache = "0.1.2"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含，无需单独添加。
+
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.2", features = ["macros"] }`
 
 如果需要最小依赖或自定义特性：
 
 ```toml
 [dependencies]
-oxcache = { version = "0.1", default-features = false }
+oxcache = { version = "0.1.2", default-features = false }
 ```
 
 或者使用命令行：

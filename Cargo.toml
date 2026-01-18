@@ -18,6 +18,9 @@ path = "src/lib.rs"
 # MAIN DEPENDENCIES
 # ============================================================================
 [dependencies]
+# Internal macros
+oxcache_macros = { path = "macros", version = "0.1.2", optional = true }
+
 # Async Runtime
 tokio = { version = "1.32", features = ["full"] }
 async-trait = "0.1"
@@ -251,6 +254,7 @@ core = [
 # Full: All features enabled
 full = [
     "core",
+    "macros",
     "bloom-filter",
     "rate-limiting",
     "wal-recovery",
@@ -269,6 +273,9 @@ full = [
 # --------------------------------------------------------------------
 # COMPONENT FEATURES
 # --------------------------------------------------------------------
+
+# Cache Macros
+macros = ["dep:oxcache_macros"]
 
 # L1 Cache Implementation (Moka)
 l1-moka = ["dep:moka", "dep:dashmap"]

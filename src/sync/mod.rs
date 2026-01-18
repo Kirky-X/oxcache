@@ -32,13 +32,8 @@ pub(crate) mod promotion;
 // warmup 模块始终可用（不依赖 batch-write）
 
 // ============================================================================
-// 当 batch-write 功能禁用时的空实现
+// 当 batch-write 功能禁用时的空实现（使用宏减少代码重复）
 // ============================================================================
-
-#[cfg(not(feature = "batch-write"))]
-use crate::error::Result;
-#[cfg(not(feature = "batch-write"))]
-use std::sync::Arc;
 
 /// 批量写入配置（空实现）
 #[cfg(not(feature = "batch-write"))]
@@ -62,35 +57,36 @@ impl BatchWriterConfig {
 
 /// 批量操作类型（空实现）
 #[cfg(not(feature = "batch-write"))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum BatchOperation {
-    Set {
-        key: String,
-        value: Vec<u8>,
-        ttl: Option<u64>,
-    },
-    Delete {
-        key: String,
-    },
+    #[default]
+    Set,
+    Delete,
 }
 
 /// 批量写入器（空实现）
 #[cfg(not(feature = "batch-write"))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BatchWriter;
 
 #[cfg(not(feature = "batch-write"))]
 impl BatchWriter {
-    pub fn new(_service_name: String, _l2: Arc<L2Backend>, _config: BatchWriterConfig) -> Self {
+    pub fn new(
+        _service_name: String,
+        _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
+        _config: BatchWriterConfig,
+    ) -> Self {
         Self
     }
 
-    pub fn new_with_default_config(_service_name: String, _l2: Arc<L2Backend>) -> Self {
+    pub fn new_with_default_config(
+        _service_name: String,
+        _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
+    ) -> Self {
         Self
     }
 
     pub async fn shutdown(&self) {}
-
     pub async fn start(&self) {}
 
     pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
@@ -159,7 +155,3 @@ impl CachePromoter {
         Ok(())
     }
 }
-
-// 重新导出需要的类型（当功能禁用时提供类型定义）
-#[cfg(not(feature = "batch-write"))]
-use crate::backend::l2::L2Backend;

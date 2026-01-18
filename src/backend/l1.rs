@@ -40,11 +40,15 @@ impl L1Backend {
     ///
     /// # 参数
     ///
-    /// * `capacity` - 缓存最大容量（字节）
+    /// * `capacity` - 缓存最大容量（条目数量）
     ///
     /// # 返回值
     ///
     /// 返回新的L1Backend实例
+    ///
+    /// # 注意
+    ///
+    /// Moka缓存库使用条目数量而非字节数作为容量单位。
     pub fn new(capacity: u64) -> Self {
         Self::with_policy(capacity, EvictionPolicy::default())
     }
@@ -53,12 +57,16 @@ impl L1Backend {
     ///
     /// # 参数
     ///
-    /// * `capacity` - 缓存最大容量（字节）
+    /// * `capacity` - 缓存最大容量（条目数量）
     /// * `policy` - 淘汰策略
     ///
     /// # 返回值
     ///
     /// 返回新的L1Backend实例
+    ///
+    /// # 注意
+    ///
+    /// Moka缓存库使用条目数量而非字节数作为容量单位。
     pub fn with_policy(capacity: u64, policy: EvictionPolicy) -> Self {
         // 注意：Moka 0.12 使用 TinyLFU 作为默认策略
         // 不同策略的行为在 Moka 内部实现，目前我们只存储策略信息
@@ -82,9 +90,13 @@ impl L1Backend {
     ///
     /// # 参数
     ///
-    /// * `new_capacity` - 新的缓存容量
+    /// * `new_capacity` - 新的缓存容量（条目数量）
     /// * `new_policy` - 新的淘汰策略
     /// * `entries` - 需要保留的现有条目
+    ///
+    /// # 注意
+    ///
+    /// Moka缓存库使用条目数量而非字节数作为容量单位。
     pub async fn rebuild_with_policy(
         &self,
         new_capacity: u64,
