@@ -72,6 +72,40 @@ oxcache = "0.1.2"
 
 > **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.1.2", features = ["macros"] }`
 
+#### Feature Tiers
+
+```toml
+# Full features (recommended)
+oxcache = { version = "0.1.2", features = ["full"] }
+
+# Core functionality (L1 + L2 cache)
+oxcache = { version = "0.1.2", features = ["core"] }
+
+# Minimal (L1 cache only)
+oxcache = { version = "0.1.2", features = ["minimal"] }
+
+# Custom selection
+oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+```
+
+#### Available Features
+
+| Tier | Features | Description |
+|------|----------|-------------|
+| **minimal** | `l1-moka`, `serialization`, `metrics` | L1 cache only |
+| **core** | `minimal` + `l2-redis` | L1 + L2 cache |
+| **full** | `core` + all advanced features | Complete functionality |
+
+**Advanced Features** (included in `full`):
+- `macros` - `#[cached]` attribute macro
+- `batch-write` - Optimized batch writing
+- `wal-recovery` - Write-ahead log for durability
+- `bloom-filter` - Cache penetration protection
+- `rate-limiting` - DoS protection
+- `database` - Database integration
+- `cli` - Command-line interface
+- `full-metrics` - OpenTelemetry integration
+
 ### 2. Configuration
 
 Create a `config.toml` file:
@@ -83,6 +117,7 @@ health_check_interval = 30
 serialization = "json"
 enable_metrics = true
 
+# Two-level cache (L1 + L2)
 [services.user_cache]
 cache_type = "two-level"  # "l1" | "l2" | "two-level"
 ttl = 600
@@ -103,6 +138,25 @@ ttl = 600
   enable_batch_write = true
   batch_size = 100
   batch_interval_ms = 50
+
+# L1-only cache (memory only)
+[services.session_cache]
+cache_type = "l1"
+ttl = 300
+
+  [services.session_cache.l1]
+  max_capacity = 5000
+  ttl = 300
+  tti = 120
+
+# L2-only cache (Redis only)
+[services.shared_cache]
+cache_type = "l2"
+ttl = 7200
+
+  [services.shared_cache.l2]
+  mode = "standalone"
+  connection_string = "redis://127.0.0.1:6379"
 ```
 
 ### 3. Usage
@@ -241,17 +295,20 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 
 ## 📊 Performance Benchmarks
 
-> Test environment: M1 Pro, 16GB RAM, macOS
+> Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
+> 
+> **Note**: Performance varies based on hardware, network conditions, and data size.
 
 ```
 Single-thread Latency Test (P99):
-├── L1 Cache:  ~50ns
-├── L2 Cache:  ~1ms
-└── Database:   ~10ms
+├── L1 Cache:  ~50-100ns (in-memory)
+├── L2 Cache:  ~1-5ms (Redis, localhost)
+└── Database:   ~10-50ms (typical SQL query)
 
 Throughput Test (batch_size=100):
-├── Single Write:  ~10K ops/s
-└── Batch Write:   ~50K ops/s
+├── L1 Operations:  ~5-10M ops/sec
+├── L2 Single Write:  ~50-100K ops/sec
+└── L2 Batch Write:   ~200-500K ops/sec
 ```
 
 ## 🛡️ Reliability

@@ -71,6 +71,40 @@ oxcache = "0.1.2"
 
 > **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.2", features = ["macros"] }`
 
+#### 特性分层
+
+```toml
+# 完整特性（推荐）
+oxcache = { version = "0.1.2", features = ["full"] }
+
+# 核心功能（L1 + L2 缓存）
+oxcache = { version = "0.1.2", features = ["core"] }
+
+# 最小特性（仅 L1 缓存）
+oxcache = { version = "0.1.2", features = ["minimal"] }
+
+# 自定义选择
+oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+```
+
+#### 可用特性
+
+| 层级 | 包含特性 | 描述 |
+|------|----------|------|
+| **minimal** | `l1-moka`, `serialization`, `metrics` | 仅 L1 缓存 |
+| **core** | `minimal` + `l2-redis` | L1 + L2 缓存 |
+| **full** | `core` + 所有高级特性 | 完整功能 |
+
+**高级特性**（包含在 `full` 中）：
+- `macros` - `#[cached]` 属性宏
+- `batch-write` - 优化的批量写入
+- `wal-recovery` - 预写日志持久化
+- `bloom-filter` - 缓存穿透保护
+- `rate-limiting` - DoS 防护
+- `database` - 数据库集成
+- `cli` - 命令行界面
+- `full-metrics` - OpenTelemetry 集成
+
 ### 最简示例
 
 ```rust
@@ -122,6 +156,7 @@ health_check_interval = 30
 serialization = "json"
 enable_metrics = true
 
+# 双层缓存 (L1 + L2)
 [services.user_cache]
 cache_type = "two-level"  # "l1" | "l2" | "two-level"
 ttl = 600
@@ -142,6 +177,25 @@ ttl = 600
   enable_batch_write = true
   batch_size = 100
   batch_interval_ms = 50
+
+# 仅 L1 缓存 (仅内存)
+[services.session_cache]
+cache_type = "l1"
+ttl = 300
+
+  [services.session_cache.l1]
+  max_capacity = 5000
+  ttl = 300
+  tti = 120
+
+# 仅 L2 缓存 (仅 Redis)
+[services.shared_cache]
+cache_type = "l2"
+ttl = 7200
+
+  [services.shared_cache.l2]
+  mode = "standalone"
+  connection_string = "redis://127.0.0.1:6379"
 ```
 
 ## 🎨 使用场景
@@ -235,17 +289,20 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 📊 性能基准
 
-> 测试环境: M1 Pro, 16GB RAM, macOS
+> 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
+> 
+> **注意**: 性能因硬件、网络条件和数据大小而异。
 
 ```
 单线程延迟测试 (P99):
-├── L1 缓存:  ~50ns
-├── L2 缓存:  ~1ms
-└── 数据库:   ~10ms
+├── L1 缓存:  ~50-100ns (内存访问)
+├── L2 缓存:  ~1-5ms (Redis, 本地)
+└── 数据库:   ~10-50ms (典型 SQL 查询)
 
 吞吐量测试 (batch_size=100):
-├── 单次写入:  ~10K ops/s
-└── 批量写入:  ~50K ops/s
+├── L1 操作:  ~5-10M ops/sec
+├── L2 单次写入:  ~50-100K ops/sec
+└── L2 批量写入:  ~200-500K ops/sec
 ```
 
 ## 🛡️ 可靠性
@@ -258,7 +315,7 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 📚 文档
 
-- [📖 用户指南](docs/zh/USER_GUIDE.md)
+- [📖 用户指南](docs/USER_GUIDE.md)
 - [📘 API 文档](https://docs.rs/oxcache)
 - [💻 示例代码](../examples/)
 

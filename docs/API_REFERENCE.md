@@ -54,7 +54,32 @@ oxcache = { version = "0.1.2", features = ["minimal"] }
 
 # Custom selection
 oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+
+# Development with specific features
+oxcache = { version = "0.1.2", features = [
+    "l1-moka",      # L1 cache (Moka)
+    "l2-redis",     # L2 cache (Redis)
+    "macros",       # #[cached] macro
+    "batch-write",  # Optimized batch writing
+    "metrics",      # Basic metrics
+] }
 ```
+
+### Feature Dependencies
+
+Some features require other features to be enabled:
+
+| Feature | Required Features | Description |
+|---------|-------------------|-------------|
+| `bloom-filter` | `l1-moka` | Cache penetration protection |
+| `rate-limiting` | `l1-moka` | DoS protection |
+| `wal-recovery` | `l2-redis` | Write-ahead log for durability |
+| `batch-write` | `l2-redis` | Optimized batch writing |
+| `cli` | `confers` | Command-line interface |
+| `opentelemetry` | `metrics` | OpenTelemetry integration |
+| `database` | `l2-redis` | Database integration |
+
+**Note**: Using the `full` feature automatically enables all dependencies.
 
 ## Cache Macro
 
@@ -118,9 +143,17 @@ init(config).await?;
 
 Initialize cache system from TOML configuration file.
 
+**Required Features**: `config-toml`, `confers`
+
 ```rust
 // Requires features: ["config-toml", "confers"]
 oxcache::init_from_file("config.toml").await?;
+```
+
+**Alternative**: Use `init_from_file` which requires both features:
+```rust
+// Add to Cargo.toml:
+// oxcache = { version = "0.1.2", features = ["config-toml", "confers"] }
 ```
 
 #### `shutdown_all() -> Result<()>`
