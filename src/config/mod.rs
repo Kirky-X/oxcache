@@ -30,6 +30,8 @@ pub use crate::config::legacy_config::{ClusterConfig, SentinelConfig};
 pub use builder::OxcacheConfigBuilder;
 #[cfg(feature = "l1-moka")]
 pub use layer::{EvictionPolicy, L1LayerConfig, L2LayerConfig, LayerConfig, TwoLevelLayerConfig};
+#[cfg(feature = "bloom-filter")]
+pub use service::BloomFilterConfig;
 #[cfg(feature = "l1-moka")]
 pub use service::L1Config;
 pub use service::{CacheType, RedisMode, ServiceConfig};

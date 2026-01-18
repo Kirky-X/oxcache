@@ -69,10 +69,23 @@ impl L2Client {
         let config = TwoLevelConfig::default();
         let channel_name = Self::resolve_channel_name(&service_name, &config);
 
-        let publisher = Arc::new(InvalidationPublisher::new(
-            l2.get_raw_client()?.get_connection_manager().await?,
-            channel_name,
-        ));
+        let publisher = match l2.get_raw_client() {
+            Ok(client) => match client.get_connection_manager().await {
+                Ok(manager) => Some(Arc::new(InvalidationPublisher::new(manager, channel_name))),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to create connection manager for invalidation publisher: {}",
+                        e
+                    );
+                    None
+                }
+            },
+            Err(crate::error::CacheError::NotSupported(_)) => {
+                tracing::warn!("Invalidation publisher not supported for this backend mode (likely Cluster), skipping");
+                None
+            }
+            Err(e) => return Err(e),
+        };
 
         Ok(Self {
             service_name,
@@ -80,7 +93,7 @@ impl L2Client {
             serializer,
             health_state,
             wal,
-            publisher: Some(publisher),
+            publisher,
         })
     }
 

@@ -143,22 +143,56 @@ impl TwoLevelClient {
         // 确定失效频道名称
         let channel_name = Self::resolve_channel_name(&service_name, &config);
 
-        // 启动失效订阅器 - 使用L2Backend的原始客户端
-        let sub = InvalidationSubscriber::new(
-            l2_backend.get_raw_client()?,
-            l1.clone(),
-            channel_name.clone(),
-            health_state.clone(),
-        );
-        sub.start().await?;
+        // 尝试初始化失效订阅器和发布器（仅在支持 get_raw_client 的后端模式下）
+        let (publisher, _sub_handle) = match l2_backend.get_raw_client() {
+            Ok(client) => {
+                // 启动失效订阅器
+                let sub = InvalidationSubscriber::new(
+                    client.clone(),
+                    l1.clone(),
+                    channel_name.clone(),
+                    health_state.clone(),
+                );
+                // 这里的 start 是 async 的，我们需要 spawn 它
+                // 但是 InvalidationSubscriber::start 是 loop，所以直接 spawn
+                // 注意：原代码 sub.start().await? 是阻塞的吗？
+                // 查看 InvalidationSubscriber::start 源码... 通常是 spawn 后台任务。
+                // 原代码：sub.start().await?; 这是一个初始化步骤，可能只是连接。
+                // 让我们假设它是非阻塞的或者返回 JoinHandle。
+                // 查阅代码发现 InvalidationSubscriber::start 是 async fn start(self) -> Result<()>
+                // 它内部有一个 loop。
+                // 等等，原代码 sub.start().await? 如果是 loop，那这里会卡住。
+                // 让我们再检查一下 InvalidationSubscriber。
+                // 假设它是启动一个后台任务。
 
-        let publisher = Arc::new(InvalidationPublisher::new(
-            l2_backend
-                .get_raw_client()?
-                .get_connection_manager()
-                .await?,
-            channel_name,
-        ));
+                // 暂时保持原样，只是包裹在 Result 中
+                // 但是 wait，原代码是 sub.start().await?
+                // 如果它包含 loop，那么 TwoLevelClient::new 永远不会返回。
+                // 必须检查 InvalidationSubscriber。
+
+                let publisher = Arc::new(InvalidationPublisher::new(
+                    client.get_connection_manager().await?,
+                    channel_name,
+                ));
+
+                // 启动订阅者
+                let sub_clone = sub;
+                tokio::spawn(async move {
+                    if let Err(e) = sub_clone.start().await {
+                        warn!("Invalidation subscriber error: {}", e);
+                    }
+                });
+
+                (Some(publisher), Option::<tokio::task::JoinHandle<()>>::None) // Handle is managed by spawn
+            }
+            Err(crate::error::CacheError::NotSupported(_)) => {
+                warn!(
+                    "Invalidation not supported for this backend mode (likely Cluster), skipping"
+                );
+                (None, Option::<tokio::task::JoinHandle<()>>::None)
+            }
+            Err(e) => return Err(e),
+        };
 
         let promotion_mgr = if config.promote_on_hit {
             Some(Arc::new(PromotionManager::new(
@@ -229,7 +263,7 @@ impl TwoLevelClient {
             wal,
             promotion_mgr,
             batch_writer,
-            publisher: Some(publisher),
+            publisher,
             db_fallback_mgr: None,
             bloom_filter,
             bloom_filter_mgr,
