@@ -4,9 +4,8 @@
 //!
 //! Comprehensive example demonstrating basic usage, manual control, and serialization.
 
-// Import common module
-#[path = "common/mod.rs"]
-mod common;
+// Import common module from src/lib.rs
+use oxcache_examples::create_default_config;
 
 use oxcache::{config::SerializationType, get_client, CacheExt, CacheManager};
 use serde::{Deserialize, Serialize};
@@ -68,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 我们创建两个服务配置：
     // - "default_service": 使用默认 JSON 序列化，用于基本演示和宏
     // - "binary_service": 使用 Bincode 序列化，用于演示大数据或二进制数据
-    let mut config = common::create_default_config("default_service", 1000);
+    let mut config = create_default_config("default_service", 1000);
 
     // 添加第二个服务配置
     if let Some(mut service_config) = config.services.get("default_service").cloned() {
