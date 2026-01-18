@@ -25,7 +25,7 @@ Oxcache is a multi-level caching system designed for high-performance, productio
 
 ### Design Goals
 
-1. **Performance**: Sub-100ns L1 latency, sub-5ms L2 latency (P99)
+1. **Performance**: L1 latency 50-100ns, L2 latency 1-5ms (P99, varies by environment)
 2. **Reliability**: Automatic failover, data consistency across instances
 3. **Usability**: Zero-boilerplate integration via `#[cached]` macro
 4. **Observability**: Comprehensive metrics, tracing, and health checks
@@ -97,9 +97,11 @@ pub struct L1Config {
 ```
 
 **Performance Characteristics**:
-- Read: < 100ns (P99)
-- Write: < 200ns (P99)
+- Read: 50-100ns (P99, in-memory)
+- Write: 50-200ns (P99, in-memory)
 - Thread-safe with lock-free design
+
+> **Note**: Performance varies based on hardware, data size, and access patterns
 
 ### 3. L2 Cache Backend (`backend/l2.rs`)
 
@@ -425,12 +427,16 @@ serialization_type = "bincode"  # "json" or "bincode"
 
 ### Benchmark Results
 
+> Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
+> 
+> **Note**: Performance varies based on hardware, network conditions, and data size.
+
 | Operation | Throughput | Latency (P99) |
 |-----------|------------|---------------|
-| L1 Read | 10M+ ops/sec | < 100ns |
-| L1 Write | 5M+ ops/sec | < 200ns |
-| L2 Read | 100K+ ops/sec | < 5ms |
-| L2 Write (batch) | 50K+ ops/sec | < 10ms |
+| L1 Read | 5-10M ops/sec | 50-100ns |
+| L1 Write | 2-5M ops/sec | 50-200ns |
+| L2 Read | 50-100K ops/sec | 1-5ms |
+| L2 Write (batch) | 200-500K ops/sec | 1-10ms |
 
 ## Security
 

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Improved configuration examples with L1-only and L2-only cache types
+- Added comprehensive feature dependency documentation
+- Enhanced performance data with test environment details
+- Fixed broken documentation links and version inconsistencies
+- Added documentation validation script and maintenance guidelines
+
 ## [0.1.2] - 2026-01-02
 
 ### Security

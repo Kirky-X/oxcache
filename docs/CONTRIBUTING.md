@@ -310,6 +310,8 @@ cargo tarpaulin --out Html --output-dir ./coverage
 - All public APIs must have doc comments
 - Include examples for complex APIs
 - Keep documentation up-to-date with code changes
+- Run documentation validation script: `./scripts/validate_docs.sh`
+- Ensure version consistency across all documentation files
 
 ### Building Documentation
 
@@ -400,7 +402,7 @@ git push origin feature/your-feature
 - [ ] Code follows style guidelines (`cargo fmt`, `cargo clippy`)
 - [ ] All tests pass (`cargo test`)
 - [ ] New tests added for new features
-- [ ] Documentation updated
+- [ ] Documentation updated and validated (`./scripts/validate_docs.sh`)
 - [ ] Commit messages follow Conventional Commits
 - [ ] PR description is clear and detailed
 
@@ -430,9 +432,11 @@ When reporting a bug, include:
 ```
 **Version**: 0.1.2
 
-**Rust version**: 1.75.0
+**Rust version**: 1.75.0+
 
-**OS**: Linux 5.15.0
+**OS**: [Your OS and version]
+
+**Oxcache features**: [e.g., "full", "core", "minimal"]
 
 **Reproduction**:
 ```rust
