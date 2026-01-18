@@ -89,5 +89,9 @@ yarn-error.log*
 # Project specific
 .iflow/
 openspec/
+.sisyphus/
+.ruff_cache/
+CONDITIONAL_COMPILATION.md
+FEATURE_MIGRATION_GUIDE.md
 AGENTS.md
 requirements.db

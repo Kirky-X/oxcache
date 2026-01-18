@@ -7,29 +7,29 @@
 #[derive(Debug, Clone)]
 pub struct FeatureSet {
     /// L1 cache available
-    pub l1_available: bool,
+    l1_available: bool,
     /// L2 cache available
-    pub l2_available: bool,
+    l2_available: bool,
     /// Metrics available
-    pub metrics_available: bool,
+    metrics_available: bool,
     /// Bloom filter available
-    pub bloom_available: bool,
+    bloom_available: bool,
     /// Rate limiting available
-    pub rate_limiting_available: bool,
+    rate_limiting_available: bool,
     /// Batch write available
-    pub batch_write_available: bool,
+    batch_write_available: bool,
     /// WAL recovery available
-    pub wal_recovery_available: bool,
+    wal_recovery_available: bool,
     /// Serialization available
-    pub serialization_available: bool,
+    serialization_available: bool,
     /// Compression available
-    pub compression_available: bool,
+    compression_available: bool,
     /// Database available
-    pub database_available: bool,
+    database_available: bool,
     /// CLI available
-    pub cli_available: bool,
+    cli_available: bool,
     /// OpenTelemetry available
-    pub opentelemetry_available: bool,
+    opentelemetry_available: bool,
 }
 
 impl FeatureSet {
@@ -62,6 +62,66 @@ impl FeatureSet {
         } else {
             "core"
         }
+    }
+
+    /// Check if L1 cache is available
+    pub fn is_l1_available(&self) -> bool {
+        self.l1_available
+    }
+
+    /// Check if L2 cache is available
+    pub fn is_l2_available(&self) -> bool {
+        self.l2_available
+    }
+
+    /// Check if metrics are available
+    pub fn is_metrics_available(&self) -> bool {
+        self.metrics_available
+    }
+
+    /// Check if bloom filter is available
+    pub fn is_bloom_available(&self) -> bool {
+        self.bloom_available
+    }
+
+    /// Check if rate limiting is available
+    pub fn is_rate_limiting_available(&self) -> bool {
+        self.rate_limiting_available
+    }
+
+    /// Check if batch write is available
+    pub fn is_batch_write_available(&self) -> bool {
+        self.batch_write_available
+    }
+
+    /// Check if WAL recovery is available
+    pub fn is_wal_recovery_available(&self) -> bool {
+        self.wal_recovery_available
+    }
+
+    /// Check if serialization is available
+    pub fn is_serialization_available(&self) -> bool {
+        self.serialization_available
+    }
+
+    /// Check if compression is available
+    pub fn is_compression_available(&self) -> bool {
+        self.compression_available
+    }
+
+    /// Check if database is available
+    pub fn is_database_available(&self) -> bool {
+        self.database_available
+    }
+
+    /// Check if CLI is available
+    pub fn is_cli_available(&self) -> bool {
+        self.cli_available
+    }
+
+    /// Check if OpenTelemetry is available
+    pub fn is_opentelemetry_available(&self) -> bool {
+        self.opentelemetry_available
     }
 }
 

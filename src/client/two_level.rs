@@ -467,7 +467,12 @@ impl TwoLevelClient {
         Ok(())
     }
 
-    /// 获取预热管理器
+    /// 获取预热管理器（主要用于调试和管理）
+    ///
+    /// # 返回值
+    ///
+    /// 返回预热管理器的引用，如果未配置则返回 None
+    #[doc(hidden)]
     pub fn warmup_manager(&self) -> Option<&Arc<WarmupManager>> {
         self.warmup_mgr.as_ref()
     }
@@ -1098,7 +1103,12 @@ impl TwoLevelClient {
         self.db_fallback_mgr = Some(db_fallback_mgr);
     }
 
-    /// 获取数据库回源管理器
+    /// 获取数据库回源管理器（主要用于调试和管理）
+    ///
+    /// # 返回值
+    ///
+    /// 返回数据库回源管理器的 Arc 引用，如果未配置则返回 None
+    #[doc(hidden)]
     pub fn get_db_fallback_manager(&self) -> Option<Arc<DbFallbackManager>> {
         self.db_fallback_mgr.clone()
     }
