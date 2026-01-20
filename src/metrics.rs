@@ -7,6 +7,7 @@
 
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
+use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{span, Level};
@@ -34,6 +35,16 @@ pub struct AtomicCounters {
     pub l2_delete_total: AtomicU64,
     /// 总操作次数
     pub total_operations: AtomicU64,
+    /// L1 缓存项数量
+    pub l1_items: AtomicU64,
+    /// L1 缓存容量使用（字节）
+    pub l1_capacity_used: AtomicU64,
+    /// 预取操作次数
+    pub prefetch_total: AtomicU64,
+    /// 压缩操作次数
+    pub compression_total: AtomicU64,
+    /// 压缩节省的字节数
+    pub compression_bytes_saved: AtomicU64,
 }
 
 impl Default for AtomicCounters {
@@ -48,6 +59,11 @@ impl Default for AtomicCounters {
             l1_delete_total: AtomicU64::new(0),
             l2_delete_total: AtomicU64::new(0),
             total_operations: AtomicU64::new(0),
+            l1_items: AtomicU64::new(0),
+            l1_capacity_used: AtomicU64::new(0),
+            prefetch_total: AtomicU64::new(0),
+            compression_total: AtomicU64::new(0),
+            compression_bytes_saved: AtomicU64::new(0),
         }
     }
 }
@@ -385,4 +401,259 @@ lazy_static! {
 /// 当 metrics 功能禁用时返回空字符串
 pub fn get_metrics_string() -> String {
     String::new()
+}
+
+// ============================================================================
+// Enhanced Statistics (enhanced-stats feature)
+// ============================================================================
+
+/// 缓存统计快照
+///
+/// 包含缓存系统的详细统计信息，用于监控和报告。
+#[derive(Debug, Clone, Default, Serialize)]
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+pub struct CacheStats {
+    /// L1 命中次数
+    pub l1_hits: u64,
+    /// L1 未命中次数
+    pub l1_misses: u64,
+    /// L2 命中次数
+    pub l2_hits: u64,
+    /// L2 未命中次数
+    pub l2_misses: u64,
+    /// L1 设置次数
+    pub l1_sets: u64,
+    /// L2 设置次数
+    pub l2_sets: u64,
+    /// L1 删除次数
+    pub l1_deletes: u64,
+    /// L2 删除次数
+    pub l2_deletes: u64,
+    /// 总操作次数
+    pub total_operations: u64,
+    /// L1 缓存项数量
+    pub l1_item_count: u64,
+    /// L1 容量使用（字节）
+    pub l1_capacity_used: u64,
+    /// 预取操作次数
+    pub prefetch_count: u64,
+    /// 压缩操作次数
+    pub compression_count: u64,
+    /// 压缩节省的字节数
+    pub compression_bytes_saved: u64,
+    /// 快照创建时间戳
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+impl CacheStats {
+    /// 计算 L1 命中率
+    pub fn l1_hit_rate(&self) -> f64 {
+        let total = self.l1_hits + self.l1_misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.l1_hits as f64 / total as f64
+        }
+    }
+
+    /// 计算 L2 命中率
+    pub fn l2_hit_rate(&self) -> f64 {
+        let total = self.l2_hits + self.l2_misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.l2_hits as f64 / total as f64
+        }
+    }
+
+    /// 计算总体命中率
+    pub fn overall_hit_rate(&self) -> f64 {
+        let total = self.l1_hits + self.l1_misses + self.l2_hits + self.l2_misses;
+        if total == 0 {
+            0.0
+        } else {
+            (self.l1_hits + self.l2_hits) as f64 / total as f64
+        }
+    }
+
+    /// 获取命中率百分比字符串
+    pub fn l1_hit_rate_percent(&self) -> String {
+        format!("{:.2}%", self.l1_hit_rate() * 100.0)
+    }
+
+    /// 获取 L2 命中率百分比字符串
+    pub fn l2_hit_rate_percent(&self) -> String {
+        format!("{:.2}%", self.l2_hit_rate() * 100.0)
+    }
+
+    /// 获取总体命中率百分比字符串
+    pub fn overall_hit_rate_percent(&self) -> String {
+        format!("{:.2}%", self.overall_hit_rate() * 100.0)
+    }
+
+    /// 导出为 Prometheus 格式
+    pub fn export_prometheus(&self) -> String {
+        let mut output = String::new();
+
+        // 计数器指标
+        output.push_str(&format!("# Cache Statistics\n"));
+        output.push_str(&format!("# Generated at: {}\n", self.timestamp));
+
+        output.push_str(&format!("cache_l1_hits_total {}\n", self.l1_hits));
+        output.push_str(&format!("cache_l1_misses_total {}\n", self.l1_misses));
+        output.push_str(&format!("cache_l2_hits_total {}\n", self.l2_hits));
+        output.push_str(&format!("cache_l2_misses_total {}\n", self.l2_misses));
+        output.push_str(&format!("cache_l1_sets_total {}\n", self.l1_sets));
+        output.push_str(&format!("cache_l2_sets_total {}\n", self.l2_sets));
+        output.push_str(&format!("cache_l1_deletes_total {}\n", self.l1_deletes));
+        output.push_str(&format!("cache_l2_deletes_total {}\n", self.l2_deletes));
+        output.push_str(&format!("cache_operations_total {}\n", self.total_operations));
+
+        // 计算并导出命中率
+        output.push_str(&format!("cache_l1_hit_rate {}\n", self.l1_hit_rate()));
+        output.push_str(&format!("cache_l2_hit_rate {}\n", self.l2_hit_rate()));
+        output.push_str(&format!("cache_overall_hit_rate {}\n", self.overall_hit_rate()));
+
+        // 容量指标
+        output.push_str(&format!("cache_l1_item_count {}\n", self.l1_item_count));
+        output.push_str(&format!("cache_l1_capacity_used_bytes {}\n", self.l1_capacity_used));
+
+        // 压缩指标
+        output.push_str(&format!("cache_prefetch_total {}\n", self.prefetch_count));
+        output.push_str(&format!("cache_compression_total {}\n", self.compression_count));
+        output.push_str(&format!(
+            "cache_compression_bytes_saved {}\n",
+            self.compression_bytes_saved
+        ));
+
+        output
+    }
+
+    /// 导出为 JSON 格式
+    pub fn export_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+}
+
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+impl Metrics {
+    /// 创建统计快照
+    pub fn snapshot(&self) -> CacheStats {
+        let counters = &self.counters;
+        CacheStats {
+            l1_hits: counters.l1_get_hits.load(Ordering::Relaxed),
+            l1_misses: counters.l1_get_misses.load(Ordering::Relaxed),
+            l2_hits: counters.l2_get_hits.load(Ordering::Relaxed),
+            l2_misses: counters.l2_get_misses.load(Ordering::Relaxed),
+            l1_sets: counters.l1_set_total.load(Ordering::Relaxed),
+            l2_sets: counters.l2_set_total.load(Ordering::Relaxed),
+            l1_deletes: counters.l1_delete_total.load(Ordering::Relaxed),
+            l2_deletes: counters.l2_delete_total.load(Ordering::Relaxed),
+            total_operations: counters.total_operations.load(Ordering::Relaxed),
+            l1_item_count: counters.l1_items.load(Ordering::Relaxed),
+            l1_capacity_used: counters.l1_capacity_used.load(Ordering::Relaxed),
+            prefetch_count: counters.prefetch_total.load(Ordering::Relaxed),
+            compression_count: counters.compression_total.load(Ordering::Relaxed),
+            compression_bytes_saved: counters.compression_bytes_saved.load(Ordering::Relaxed),
+            timestamp: chrono::Utc::now(),
+        }
+    }
+
+    /// 重置所有统计
+    pub fn reset(&self) {
+        let counters = &self.counters;
+        counters.l1_get_hits.store(0, Ordering::Relaxed);
+        counters.l1_get_misses.store(0, Ordering::Relaxed);
+        counters.l2_get_hits.store(0, Ordering::Relaxed);
+        counters.l2_get_misses.store(0, Ordering::Relaxed);
+        counters.l1_set_total.store(0, Ordering::Relaxed);
+        counters.l2_set_total.store(0, Ordering::Relaxed);
+        counters.l1_delete_total.store(0, Ordering::Relaxed);
+        counters.l2_delete_total.store(0, Ordering::Relaxed);
+        counters.total_operations.store(0, Ordering::Relaxed);
+        counters.l1_items.store(0, Ordering::Relaxed);
+        counters.l1_capacity_used.store(0, Ordering::Relaxed);
+        counters.prefetch_total.store(0, Ordering::Relaxed);
+        counters.compression_total.store(0, Ordering::Relaxed);
+        counters.compression_bytes_saved.store(0, Ordering::Relaxed);
+
+        // 清空 DashMap
+        self.requests_total.clear();
+        self.operation_duration.clear();
+        self.batch_buffer_size.clear();
+        self.batch_success_rate.clear();
+        self.batch_throughput.clear();
+    }
+
+    /// 获取命中率
+    pub fn hit_rate(&self) -> f64 {
+        let counters = &self.counters;
+        let hits = counters.l1_get_hits.load(Ordering::Relaxed)
+            + counters.l2_get_hits.load(Ordering::Relaxed);
+        let misses = counters.l1_get_misses.load(Ordering::Relaxed)
+            + counters.l2_get_misses.load(Ordering::Relaxed);
+        let total = hits + misses;
+        if total == 0 {
+            1.0
+        } else {
+            hits as f64 / total as f64
+        }
+    }
+
+    /// 获取命中率百分比
+    pub fn hit_rate_percent(&self) -> String {
+        format!("{:.2}%", self.hit_rate() * 100.0)
+    }
+
+    /// 记录预取操作
+    pub fn record_prefetch(&self) {
+        self.counters.prefetch_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// 记录压缩操作
+    pub fn record_compression(&self, bytes_saved: u64) {
+        self.counters.compression_total.fetch_add(1, Ordering::Relaxed);
+        self.counters
+            .compression_bytes_saved
+            .fetch_add(bytes_saved, Ordering::Relaxed);
+    }
+
+    /// 设置 L1 缓存项数量
+    pub fn set_l1_item_count(&self, count: u64) {
+        self.counters.l1_items.store(count, Ordering::Relaxed);
+    }
+
+    /// 设置 L1 容量使用
+    pub fn set_l1_capacity_used(&self, bytes: u64) {
+        self.counters.l1_capacity_used.store(bytes, Ordering::Relaxed);
+    }
+
+    /// 导出 Prometheus 格式
+    pub fn export_prometheus(&self) -> String {
+        self.snapshot().export_prometheus()
+    }
+
+    /// 导出 JSON 格式
+    pub fn export_json(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().export_json()
+    }
+}
+
+/// 获取增强统计快照（全局）
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+pub fn get_enhanced_stats() -> CacheStats {
+    GLOBAL_METRICS.snapshot()
+}
+
+/// 导出 Prometheus 格式（全局）
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+pub fn export_prometheus_format() -> String {
+    GLOBAL_METRICS.export_prometheus()
+}
+
+/// 导出 JSON 格式（全局）
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+pub fn export_json_format() -> Result<String, serde_json::Error> {
+    GLOBAL_METRICS.export_json()
 }
