@@ -15,6 +15,15 @@ pub mod l2;
 #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
 pub mod two_level;
 
+#[cfg(feature = "redis-native")]
+pub mod redis_native;
+
+#[cfg(feature = "ttl-control")]
+pub mod ttl_control;
+
+#[cfg(feature = "tiered-cache")]
+pub mod tiered_cache;
+
 use crate::error::Result;
 use async_trait::async_trait;
 use std::any::Any;
@@ -218,17 +227,20 @@ pub trait CacheOps: Send + Sync + Any {
 
     /// 尝试获取分布式锁
     ///
+    /// 使用 SET NX PX 实现，自动生成安全的随机锁值
+    ///
     /// # 参数
     ///
     /// * `key` - 锁的键
-    /// * `value` - 锁的值（通常是唯一标识符，用于释放锁）
     /// * `ttl` - 锁的过期时间（秒）
     ///
     /// # 返回值
     ///
-    /// 成功获取锁返回 true，否则返回 false
-    async fn lock(&self, _key: &str, _value: &str, _ttl: u64) -> Result<bool> {
-        Ok(false)
+    /// * `Ok(Some(value))` - 成功获取锁，value 为生成的锁值
+    /// * `Ok(None)` - 锁已被其他进程持有
+    /// * `Err(...)` - 发生错误
+    async fn lock(&self, _key: &str, _ttl: u64) -> Result<Option<String>> {
+        Ok(None)
     }
 
     /// 释放分布式锁

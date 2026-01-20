@@ -5,6 +5,8 @@
 //! 该模块定义了L2-only缓存客户端的实现。
 
 use super::CacheOps;
+use super::ttl_control::TtlControl;
+use super::tiered_cache::TieredCacheControl;
 use crate::backend::l2::L2Backend;
 use crate::config::TwoLevelConfig;
 use crate::error::Result;
@@ -139,6 +141,11 @@ impl L2Client {
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
     pub async fn clear(&self) -> Result<()> {
         self.l2.clear(&self.service_name).await
+    }
+
+    /// 获取内部 L2Backend 引用（用于高级操作）
+    pub fn backend(&self) -> &L2Backend {
+        &self.l2
     }
 }
 
@@ -342,14 +349,14 @@ impl CacheOps for L2Client {
 
     /// 尝试获取分布式锁
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
-    async fn lock(&self, key: &str, value: &str, ttl: u64) -> Result<bool> {
+    async fn lock(&self, key: &str, ttl: u64) -> Result<Option<String>> {
         let state = self.health_state.read().await;
         match *state {
             HealthState::Healthy | HealthState::Recovering { .. } => {
                 drop(state);
-                match self.l2.lock(key, value, ttl).await {
+                match self.l2.lock(key, ttl).await {
                     Ok(result) => {
-                        if result {
+                        if result.is_some() {
                             GLOBAL_METRICS.record_request(&self.service_name, "L2", "lock", "hit");
                         } else {
                             GLOBAL_METRICS.record_request(&self.service_name, "L2", "lock", "miss");
@@ -368,7 +375,7 @@ impl CacheOps for L2Client {
                     "Cannot acquire lock in degraded state, service={}",
                     self.service_name
                 );
-                Ok(false)
+                Ok(None)
             }
             HealthState::WalReplaying { .. } => {
                 drop(state);
@@ -376,7 +383,7 @@ impl CacheOps for L2Client {
                     "Cannot acquire lock during WAL replay, service={}",
                     self.service_name
                 );
-                Ok(false)
+                Ok(None)
             }
         }
     }
@@ -438,5 +445,132 @@ impl CacheOps for L2Client {
         self.l2.clear(&self.service_name).await?;
         GLOBAL_METRICS.record_request(&self.service_name, "L2", "clear", "success");
         Ok(())
+    }
+}
+
+#[async_trait]
+impl TtlControl for L2Client {
+    /// 获取 L1 缓存剩余 TTL（L2-only 模式下始终返回 None）
+    async fn get_l1_ttl(&self, _key: &str) -> Result<Option<u64>> {
+        Ok(None)
+    }
+
+    /// 获取 L2 缓存剩余 TTL
+    async fn get_l2_ttl(&self, key: &str) -> Result<Option<u64>> {
+        match self.l2.ttl(key).await {
+            Ok(Some(ttl)) if ttl > 0 => Ok(Some(ttl)),
+            Ok(Some(_)) => Ok(Some(0)), // 键已过期或不存在
+            Ok(None) => Ok(None),       // 键不存在
+            Err(e) => Err(e),
+        }
+    }
+
+    /// 获取缓存剩余 TTL（从 L2）
+    async fn get_ttl(&self, key: &str) -> Result<Option<u64>> {
+        self.get_l2_ttl(key).await
+    }
+
+    /// 刷新 L1 缓存 TTL（L2-only 模式下不做任何操作）
+    async fn refresh_l1_ttl(&self, _key: &str, _ttl: u64) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// 刷新 L2 缓存 TTL
+    async fn refresh_l2_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        let state = self.health_state.read().await;
+        match *state {
+            HealthState::Healthy | HealthState::Recovering { .. } => {
+                drop(state);
+                let result = self.l2.expire(key, ttl).await?;
+                if result {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "expire", "success");
+                }
+                Ok(result)
+            }
+            HealthState::Degraded { .. } | HealthState::WalReplaying { .. } => {
+                drop(state);
+                Ok(false)
+            }
+        }
+    }
+
+    /// 刷新缓存 TTL（仅刷新 L2）
+    async fn refresh_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        self.refresh_l2_ttl(key, ttl).await
+    }
+
+    /// Touch 操作（刷新访问时间）
+    async fn touch(&self, key: &str) -> Result<bool> {
+        let state = self.health_state.read().await;
+        match *state {
+            HealthState::Healthy | HealthState::Recovering { .. } => {
+                drop(state);
+                // Touch 可以通过重新设置 TTL 来实现（保持剩余时间不变）
+                if let Some(current_ttl) = self.get_l2_ttl(key).await? {
+                    if current_ttl == 0 {
+                        // 键已过期
+                        return Ok(false);
+                    }
+                    return self.l2.expire(key, current_ttl).await;
+                }
+                Ok(false)
+            }
+            HealthState::Degraded { .. } | HealthState::WalReplaying { .. } => {
+                drop(state);
+                Ok(false)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl TieredCacheControl for L2Client {
+    /// L2-only 模式下不支持 L1 操作
+    async fn get_l1_direct(&self, _key: &str) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
+    /// L2-only 模式下不支持 L1 操作
+    async fn set_l1_direct(&self, _key: &str, _value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
+        Err(crate::error::CacheError::NotSupported(
+            "L1 operations not supported in L2-only mode".to_string(),
+        ))
+    }
+
+    /// L2-only 模式下不支持 L1 操作
+    async fn delete_l1_direct(&self, _key: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// 仅从 L2 获取
+    async fn get_l2_direct(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        self.get_bytes(key).await
+    }
+
+    /// 仅设置 L2（不同步到 L1）
+    async fn set_l2_direct(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        self.set_bytes(key, value, ttl).await
+    }
+
+    /// 仅从 L2 删除（不同步到 L1）
+    async fn delete_l2_direct(&self, key: &str) -> Result<bool> {
+        self.delete(key).await?;
+        Ok(true)
+    }
+
+    /// L2-only 模式下没有 L1，无法提升
+    async fn promote_to_l1(&self, _key: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// L2-only 模式下没有 L1，无法降级
+    async fn demote_to_l2(&self, _key: &str, _ttl: Option<u64>) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// 从 L2 清除数据
+    async fn evict_all(&self, key: &str) -> Result<bool> {
+        self.delete(key).await?;
+        Ok(true)
     }
 }

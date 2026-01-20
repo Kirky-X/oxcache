@@ -5,6 +5,8 @@
 //! 该模块定义了双层缓存客户端的实现，结合L1和L2缓存。
 
 use super::{db_loader::DbFallbackManager, l2::L2Client, CacheOps};
+use super::ttl_control::TtlControl;
+use super::tiered_cache::TieredCacheControl;
 use crate::backend::l1::L1Backend;
 use crate::bloom_filter::{BloomFilterManager, BloomFilterOptions, BloomFilterShared};
 use crate::config::TwoLevelConfig;
@@ -23,6 +25,7 @@ use crate::sync::{
     warmup::WarmupManager,
 };
 use crate::utils::{validate_cache_key, validate_key_length, validate_value_size};
+use crate::smart_strategy::SmartStrategyManager;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,6 +66,9 @@ pub struct TwoLevelClient {
     bloom_filter_mgr: Option<Arc<BloomFilterManager>>,
     /// 缓存预热管理器
     warmup_mgr: Option<Arc<WarmupManager>>,
+    /// 智能策略管理器（需要 smart-strategy feature）
+    #[cfg(feature = "smart-strategy")]
+    smart_strategy: Option<Arc<SmartStrategyManager>>,
     /// 健康检查器任务句柄
     #[allow(dead_code)]
     health_checker_handle: Option<JoinHandle<()>>,
@@ -88,6 +94,8 @@ impl Clone for TwoLevelClient {
             bloom_filter: self.bloom_filter.clone(),
             bloom_filter_mgr: self.bloom_filter_mgr.clone(),
             warmup_mgr: self.warmup_mgr.clone(),
+            #[cfg(feature = "smart-strategy")]
+            smart_strategy: self.smart_strategy.clone(),
             health_checker_handle: None,
             batch_writer_handle: None,
         }
@@ -268,6 +276,8 @@ impl TwoLevelClient {
             bloom_filter,
             bloom_filter_mgr,
             warmup_mgr,
+            #[cfg(feature = "smart-strategy")]
+            smart_strategy: None,
             health_checker_handle: Some(health_checker_handle),
             batch_writer_handle,
         })
@@ -568,17 +578,11 @@ impl CacheOps for TwoLevelClient {
     }
 
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
-    async fn lock(&self, key: &str, value: &str, ttl: u64) -> Result<bool> {
+    async fn lock(&self, key: &str, ttl: u64) -> Result<Option<String>> {
         validate_cache_key(key)?;
 
         let max_key_length = self.config.max_key_length.unwrap_or(256);
         validate_key_length(key, max_key_length)?;
-
-        if value.is_empty() {
-            return Err(crate::error::CacheError::InvalidInput(
-                "Lock value cannot be empty".to_string(),
-            ));
-        }
 
         if ttl == 0 {
             return Err(crate::error::CacheError::InvalidInput(
@@ -587,17 +591,17 @@ impl CacheOps for TwoLevelClient {
         }
 
         debug!(
-            "TwoLevelClient lock called: key={}, value={}, ttl={}",
-            key, value, ttl
+            "TwoLevelClient lock called: key={}, ttl={}",
+            key, ttl
         );
         if let Some(l2) = &self.l2 {
             debug!("L2 backend available, attempting lock acquisition");
-            let result = l2.lock(key, value, ttl).await;
+            let result = l2.lock(key, ttl).await;
             debug!("L2 lock result: {:?}", result);
             return result;
         }
         warn!("Cannot acquire lock, L2 unavailable or not configured");
-        Ok(false)
+        Ok(None)
     }
 
     #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
@@ -666,6 +670,13 @@ impl CacheOps for TwoLevelClient {
                 let duration = start.elapsed().as_secs_f64();
                 GLOBAL_METRICS.record_duration(&self.service_name, "L1", "get", duration);
                 GLOBAL_METRICS.record_request(&self.service_name, "L1", "get", "hit");
+
+                // 记录命中到智能策略
+                #[cfg(feature = "smart-strategy")]
+                if let Some(strategy) = &self.smart_strategy {
+                    strategy.record_access(true);
+                }
+
                 return Ok(Some(bytes));
             }
             let duration = start.elapsed().as_secs_f64();
@@ -686,6 +697,12 @@ impl CacheOps for TwoLevelClient {
                         let duration = start.elapsed().as_secs_f64();
                         GLOBAL_METRICS.record_duration(&self.service_name, "L2", "get", duration);
                         GLOBAL_METRICS.record_request(&self.service_name, "L2", "get", "hit");
+
+                        // 记录命中到智能策略
+                        #[cfg(feature = "smart-strategy")]
+                        if let Some(strategy) = &self.smart_strategy {
+                            strategy.record_access(true);
+                        }
 
                         // 注意：L2Client的get_bytes不返回版本信息，所以promotion逻辑需要调整
                         // 如果需要版本信息，我们需要在L2Client中暴露get_with_version方法
@@ -734,6 +751,12 @@ impl CacheOps for TwoLevelClient {
                         );
                         GLOBAL_METRICS.record_request(&self.service_name, "DB", "fallback", "hit");
 
+                        // 记录命中到智能策略
+                        #[cfg(feature = "smart-strategy")]
+                        if let Some(strategy) = &self.smart_strategy {
+                            strategy.record_access(true);
+                        }
+
                         // 将数据回写到L1和L2缓存
                         if let Err(e) = self.set_bytes(key, data.clone(), None).await {
                             warn!("Failed to write fallback data to cache: {}", e);
@@ -764,6 +787,12 @@ impl CacheOps for TwoLevelClient {
                     }
                 }
             }
+        }
+
+        // 记录未命中到智能策略
+        #[cfg(feature = "smart-strategy")]
+        if let Some(strategy) = &self.smart_strategy {
+            strategy.record_access(false);
         }
 
         Ok(None)
@@ -1145,5 +1174,377 @@ impl TwoLevelClient {
     #[doc(hidden)]
     pub fn get_db_fallback_manager(&self) -> Option<Arc<DbFallbackManager>> {
         self.db_fallback_mgr.clone()
+    }
+
+    /// 启用智能策略（需要 smart-strategy feature）
+    ///
+    /// 启用后会根据命中率自动调整预取策略，并进行数据可压缩性检查
+    #[cfg(feature = "smart-strategy")]
+    pub fn enable_smart_strategy(&mut self, config: Option<crate::smart_strategy::SmartStrategyConfig>) {
+        self.smart_strategy = Some(Arc::new(
+            crate::smart_strategy::SmartStrategyManager::new(config)
+        ));
+    }
+
+    /// 检查是否启用了智能策略
+    #[cfg(feature = "smart-strategy")]
+    pub fn is_smart_strategy_enabled(&self) -> bool {
+        self.smart_strategy.is_some()
+    }
+
+    /// 获取智能策略管理器（用于调试和统计）
+    #[cfg(feature = "smart-strategy")]
+    pub fn smart_strategy(&self) -> Option<&Arc<crate::smart_strategy::SmartStrategyManager>> {
+        self.smart_strategy.as_ref()
+    }
+
+    /// 按模式删除缓存项
+    ///
+    /// # 参数
+    ///
+    /// * `pattern` - 缓存键模式（支持 * 通配符）
+    ///
+    /// # 返回值
+    ///
+    /// 返回删除的键数量
+    pub async fn del_pattern(&self, pattern: &str) -> Result<u64> {
+        if let Some(l2) = &self.l2 {
+            let deleted = l2.backend().del_pattern(pattern).await?;
+            GLOBAL_METRICS.record_request(&self.service_name, "L2", "del_pattern", "success");
+            return Ok(deleted);
+        }
+        Ok(0)
+    }
+}
+
+#[async_trait]
+impl TtlControl for TwoLevelClient {
+    /// 获取 L1 缓存剩余 TTL
+    async fn get_l1_ttl(&self, key: &str) -> Result<Option<u64>> {
+        if let Some(l1) = &self.l1 {
+            // TODO: 实现 L1 的 TTL 查询
+            // L1Backend 需要添加 ttl 方法
+            Ok(None)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 获取 L2 缓存剩余 TTL
+    async fn get_l2_ttl(&self, key: &str) -> Result<Option<u64>> {
+        if let Some(l2) = &self.l2 {
+            match l2.backend().ttl(key).await {
+                Ok(Some(ttl)) if ttl > 0 => Ok(Some(ttl)),
+                Ok(Some(_)) => Ok(Some(0)), // 键已过期或不存在
+                Ok(None) => Ok(None),       // 键不存在
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 获取缓存剩余 TTL（优先 L1）
+    async fn get_ttl(&self, key: &str) -> Result<Option<u64>> {
+        // 优先检查 L1
+        if let Some(l1) = &self.l1 {
+            // TODO: 实现 L1 的 TTL 查询
+        }
+        // 检查 L2
+        self.get_l2_ttl(key).await
+    }
+
+    /// 刷新 L1 缓存 TTL
+    async fn refresh_l1_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        if let Some(l1) = &self.l1 {
+            // TODO: 实现 L1 的 TTL 刷新
+            // L1Backend 需要添加 refresh_ttl 方法
+            Ok(false)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 刷新 L2 缓存 TTL
+    async fn refresh_l2_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        if let Some(l2) = &self.l2 {
+            let state = self.health_state.read().await;
+            match *state {
+                HealthState::Healthy | HealthState::Recovering { .. } => {
+                    drop(state);
+                    let result = l2.backend().expire(key, ttl).await?;
+                    if result {
+                        GLOBAL_METRICS.record_request(&self.service_name, "L2", "expire", "success");
+                    }
+                    Ok(result)
+                }
+                HealthState::Degraded { .. } | HealthState::WalReplaying { .. } => {
+                    drop(state);
+                    Ok(false)
+                }
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 刷新缓存 TTL（同时刷新 L1 和 L2）
+    async fn refresh_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        let l1_result = self.refresh_l1_ttl(key, ttl).await?;
+        let l2_result = self.refresh_l2_ttl(key, ttl).await?;
+        Ok(l1_result || l2_result)
+    }
+
+    /// Touch 操作（刷新访问时间）
+    async fn touch(&self, key: &str) -> Result<bool> {
+        let state = self.health_state.read().await;
+        match *state {
+            HealthState::Healthy | HealthState::Recovering { .. } => {
+                drop(state);
+                // 尝试刷新 L2 的 TTL
+                if let Some(current_ttl) = self.get_l2_ttl(key).await? {
+                    if current_ttl == 0 {
+                        // 键已过期
+                        return Ok(false);
+                    }
+                    if let Some(l2) = &self.l2 {
+                        return l2.backend().expire(key, current_ttl).await;
+                    }
+                }
+                Ok(true)
+            }
+            HealthState::Degraded { .. } | HealthState::WalReplaying { .. } => {
+                drop(state);
+                Ok(false)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl TieredCacheControl for TwoLevelClient {
+    /// 仅从 L1 获取（不 fallback 到 L2）
+    async fn get_l1_direct(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        if let Some(l1) = &self.l1 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+
+            GLOBAL_METRICS.record_request(&self.service_name, "L1", "get_direct", "attempt");
+            let start = std::time::Instant::now();
+            let result = l1.get_bytes(key).await;
+            let duration = start.elapsed().as_secs_f64();
+            GLOBAL_METRICS.record_duration(&self.service_name, "L1", "get_direct", duration);
+
+            match result {
+                Ok(Some(value)) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L1", "get_direct", "hit");
+                    Ok(Some(value))
+                }
+                Ok(None) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L1", "get_direct", "miss");
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 仅设置 L1（不同步到 L2）
+    async fn set_l1_direct(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        if let Some(l1) = &self.l1 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+            let max_value_size = self.config.max_value_size.unwrap_or(10 * 1024 * 1024);
+            validate_value_size(&value, max_value_size)?;
+
+            let start = std::time::Instant::now();
+            l1.set_bytes(key, value, ttl).await?;
+            let duration = start.elapsed().as_secs_f64();
+            GLOBAL_METRICS.record_duration(&self.service_name, "L1", "set_direct", duration);
+            GLOBAL_METRICS.record_request(&self.service_name, "L1", "set_direct", "success");
+            Ok(())
+        } else {
+            Err(crate::error::CacheError::NotSupported(
+                "L1 not available".to_string(),
+            ))
+        }
+    }
+
+    /// 仅从 L1 删除（不同步到 L2）
+    async fn delete_l1_direct(&self, key: &str) -> Result<bool> {
+        if let Some(l1) = &self.l1 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+
+            l1.delete(key).await?;
+            GLOBAL_METRICS.record_request(&self.service_name, "L1", "delete_direct", "success");
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 仅从 L2 获取
+    async fn get_l2_direct(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        if let Some(l2) = &self.l2 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+
+            GLOBAL_METRICS.record_request(&self.service_name, "L2", "get_direct", "attempt");
+            let start = std::time::Instant::now();
+            let result = l2.get_bytes(key).await;
+            let duration = start.elapsed().as_secs_f64();
+            GLOBAL_METRICS.record_duration(&self.service_name, "L2", "get_direct", duration);
+
+            match result {
+                Ok(Some(value)) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "get_direct", "hit");
+                    Ok(Some(value))
+                }
+                Ok(None) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "get_direct", "miss");
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 仅设置 L2（不同步到 L1）
+    async fn set_l2_direct(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        if let Some(l2) = &self.l2 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+            let max_value_size = self.config.max_value_size.unwrap_or(10 * 1024 * 1024);
+            validate_value_size(&value, max_value_size)?;
+
+            l2.set_bytes(key, value, ttl).await?;
+            GLOBAL_METRICS.record_request(&self.service_name, "L2", "set_direct", "success");
+            Ok(())
+        } else {
+            Err(crate::error::CacheError::NotSupported(
+                "L2 not available".to_string(),
+            ))
+        }
+    }
+
+    /// 仅从 L2 删除（不同步到 L1）
+    async fn delete_l2_direct(&self, key: &str) -> Result<bool> {
+        if let Some(l2) = &self.l2 {
+            validate_cache_key(key)?;
+            let max_key_length = self.config.max_key_length.unwrap_or(256);
+            validate_key_length(key, max_key_length)?;
+
+            l2.delete(key).await?;
+            GLOBAL_METRICS.record_request(&self.service_name, "L2", "delete_direct", "success");
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 将 L2 数据提升到 L1
+    async fn promote_to_l1(&self, key: &str) -> Result<bool> {
+        validate_cache_key(key)?;
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        if let (Some(l1), Some(l2)) = (&self.l1, &self.l2) {
+            // 从 L2 获取数据
+            match l2.get_bytes(key).await {
+                Ok(Some(value)) => {
+                    // 获取 L2 的 TTL
+                    let ttl = l2.backend().ttl(key).await?.map(|t| t as u64);
+
+                    // 设置到 L1
+                    let start = std::time::Instant::now();
+                    l1.set_bytes(key, value.clone(), ttl).await?;
+                    let duration = start.elapsed().as_secs_f64();
+                    GLOBAL_METRICS.record_duration(&self.service_name, "L1", "promote", duration);
+
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "promote", "success");
+                    Ok(true)
+                }
+                Ok(None) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "promote", "miss");
+                    Ok(false)
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 将 L1 数据降级到 L2
+    async fn demote_to_l2(&self, key: &str, ttl: Option<u64>) -> Result<bool> {
+        validate_cache_key(key)?;
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        if let (Some(l1), Some(l2)) = (&self.l1, &self.l2) {
+            // 从 L1 获取数据
+            match l1.get_bytes(key).await {
+                Ok(Some(value)) => {
+                    // 设置到 L2
+                    let start = std::time::Instant::now();
+                    l2.set_bytes(key, value.clone(), ttl).await?;
+                    let duration = start.elapsed().as_secs_f64();
+                    GLOBAL_METRICS.record_duration(&self.service_name, "L2", "demote", duration);
+
+                    GLOBAL_METRICS.record_request(&self.service_name, "L1", "demote", "success");
+                    Ok(true)
+                }
+                Ok(None) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L1", "demote", "miss");
+                    Ok(false)
+                }
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// 从所有层清除数据
+    async fn evict_all(&self, key: &str) -> Result<bool> {
+        validate_cache_key(key)?;
+        let max_key_length = self.config.max_key_length.unwrap_or(256);
+        validate_key_length(key, max_key_length)?;
+
+        let mut success = false;
+
+        // 从 L1 删除
+        if let Some(l1) = &self.l1 {
+            match l1.delete(key).await {
+                Ok(_) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L1", "evict", "success");
+                    success = true;
+                }
+                Err(e) => warn!("Failed to evict from L1: {}", e),
+            }
+        }
+
+        // 从 L2 删除
+        if let Some(l2) = &self.l2 {
+            match l2.delete(key).await {
+                Ok(_) => {
+                    GLOBAL_METRICS.record_request(&self.service_name, "L2", "evict", "success");
+                    success = true;
+                }
+                Err(e) => warn!("Failed to evict from L2: {}", e),
+            }
+        }
+
+        Ok(success)
     }
 }
