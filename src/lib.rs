@@ -300,6 +300,18 @@ pub mod serialization;
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub mod utils;
 
+// Smart Strategy Module
+#[cfg(any(feature = "smart-strategy", feature = "full"))]
+pub mod smart_strategy;
+
+// HTTP Cache Module
+#[cfg(any(feature = "http-cache", feature = "full"))]
+pub mod http;
+
+// Security Module (Always available for internal use)
+#[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
+pub mod security;
+
 // ============================================================================
 // Public API Re-exports
 // ============================================================================
@@ -348,6 +360,26 @@ pub use config::{L1Config, L2Config, TwoLevelConfig};
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub use utils::key_generator::KeyGenerator;
 
+// Smart Strategy exports
+#[cfg(any(feature = "smart-strategy", feature = "full"))]
+pub use smart_strategy::{
+    CompressionDecider, CompressibilityChecker, HitRateCollector, HitRateStats, PrefetchDecider,
+    SmartStrategyConfig, SmartStrategyManager,
+};
+
+// Enhanced Stats exports
+#[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
+pub use metrics::{
+    export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats,
+};
+
+// HTTP Cache exports
+#[cfg(any(feature = "http-cache", feature = "full"))]
+pub use http::{
+    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator,
+    HttpCachePolicy, HttpCacheResponse, HttpRequest,
+};
+
 // ============================================================================
 // Configuration Macros (Feature-Gated)
 // ============================================================================
@@ -388,10 +420,10 @@ pub async fn init_from_confers(path: &str) -> Result<()> {
 ///     Ok(())
 /// }
 /// ```
-#[cfg(all(feature = "confers", feature = "config-toml"))]
+#[cfg(feature = "confers")]
 pub async fn init_from_file(config_path: &str) -> Result<()> {
-    use crate::config::load_from_file;
-    let config = load_from_file(config_path).map_err(crate::error::CacheError::ConfigError)?;
+    use crate::config::confers_macro::confers_load;
+    let config = confers_load(config_path).map_err(crate::error::CacheError::ConfigError)?;
     init(config).await
 }
 
