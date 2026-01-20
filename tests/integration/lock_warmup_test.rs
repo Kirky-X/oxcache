@@ -76,32 +76,32 @@ async fn test_distributed_lock() {
 
     // 1. 测试获取锁
     let lock_key = "test_lock";
-    let lock_val = "uuid_1";
     let ttl = 5;
 
-    let locked = client
-        .lock(lock_key, lock_val, ttl)
+    let lock_value = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(locked, "Should acquire lock successfully");
+    assert!(lock_value.is_some(), "Should acquire lock successfully");
+    let lock_val = lock_value.unwrap();
 
     // 2. 测试重复获取锁（应失败）
     let locked_again = client
-        .lock(lock_key, "uuid_2", ttl)
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to call lock");
-    assert!(!locked_again, "Should fail to acquire lock again");
+    assert!(locked_again.is_none(), "Should fail to acquire lock again");
 
     // 3. 测试释放锁
     let unlocked = client
-        .unlock(lock_key, lock_val)
+        .unlock(lock_key, &lock_val)
         .await
         .expect("Failed to unlock");
     assert!(unlocked, "Should unlock successfully");
 
     // 4. 测试释放不存在的锁（应失败）
     let unlocked_again = client
-        .unlock(lock_key, lock_val)
+        .unlock(lock_key, &lock_val)
         .await
         .expect("Failed to call unlock");
     assert!(
@@ -110,16 +110,19 @@ async fn test_distributed_lock() {
     );
 
     // 5. 测试锁过期
-    let _ = client
-        .lock(lock_key, lock_val, 1)
+    let lock_value = client
+        .lock(lock_key, 1)
         .await
         .expect("Failed to acquire lock");
+    assert!(lock_value.is_some());
+    let lock_val = lock_value.unwrap();
+
     sleep(Duration::from_secs(2)).await;
     let locked_after_expire = client
-        .lock(lock_key, "uuid_2", ttl)
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(locked_after_expire, "Should acquire lock after expiration");
+    assert!(locked_after_expire.is_some(), "Should acquire lock after expiration");
 
     cleanup_service(&service_name).await;
 }

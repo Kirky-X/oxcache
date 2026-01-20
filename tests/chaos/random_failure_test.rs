@@ -172,21 +172,20 @@ async fn test_distributed_lock_during_failures() {
     let client = oxcache::get_client(&service_name).unwrap();
 
     let lock_key = "chaos_lock_test";
-    let value1 = "client_1_unique_value";
-    let value2 = "client_2_unique_value";
     let ttl = 5;
 
-    let acquired = client.lock(lock_key, value1, ttl).await.unwrap();
-    assert!(acquired, "客户端1应该成功获取锁");
+    let lock1 = client.lock(lock_key, ttl).await.unwrap();
+    assert!(lock1.is_some(), "客户端1应该成功获取锁");
+    let lock_value1 = lock1.unwrap();
 
-    let acquired_again = client.lock(lock_key, value2, ttl).await.unwrap();
-    assert!(!acquired_again, "客户端2应该无法获取已持有的锁");
+    let lock2 = client.lock(lock_key, ttl).await.unwrap();
+    assert!(lock2.is_none(), "客户端2应该无法获取已持有的锁");
 
-    let released = client.unlock(lock_key, value1).await.unwrap();
+    let released = client.unlock(lock_key, &lock_value1).await.unwrap();
     assert!(released, "正确值应该能释放锁");
 
-    let acquired_after_release = client.lock(lock_key, value2, ttl).await.unwrap();
-    assert!(acquired_after_release, "锁释放后客户端2应该能获取");
+    let lock3 = client.lock(lock_key, ttl).await.unwrap();
+    assert!(lock3.is_some(), "锁释放后客户端2应该能获取");
 
     let _ = std::fs::remove_file(format!("{}_wal.db", service_name));
 }
