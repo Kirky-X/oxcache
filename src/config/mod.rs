@@ -19,10 +19,13 @@ pub mod legacy_config;
 pub mod service;
 pub mod validation;
 
-#[cfg(all(feature = "confers", feature = "config-toml"))]
+#[cfg(feature = "confers")]
 pub mod confers_macro;
 
-#[cfg(all(feature = "confers", feature = "config-toml"))]
+#[cfg(feature = "config-dynamic")]
+pub mod dynamic;
+
+#[cfg(feature = "confers")]
 pub use confers_macro::confers_load as load_from_file;
 
 #[cfg(feature = "l2-redis")]
@@ -175,6 +178,14 @@ impl OxcacheConfig {
 /// 配置入口函数
 pub fn oxcache_config() -> OxcacheConfigBuilder {
     OxcacheConfigBuilder::new()
+}
+
+/// 从文件加载配置（统一走 confers 路径）
+///
+/// 此函数在 confers feature 启用时可用
+#[cfg(feature = "confers")]
+pub fn load_config_from_file(path: &str) -> Result<OxcacheConfig, String> {
+    confers_macro::confers_load(path)
 }
 
 #[deprecated(since = "0.2.0", note = "请使用 `OxcacheConfig` 替代 `Config`")]
