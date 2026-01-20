@@ -5,62 +5,22 @@
 //! 该模块定义了L2缓存后端的实现，基于Redis的分布式缓存。
 
 use crate::backend::redis_provider::{DefaultRedisProvider, RedisProvider};
+use crate::client::redis_native::{RedisNativeOps, ScanKeyIterator, ZSetMember};
 use crate::config::{L2Config, RedisMode};
 use crate::error::{CacheError, Result};
+#[cfg(feature = "l2-redis")]
+use crate::security::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
+use async_trait::async_trait;
 use dashmap::DashMap;
 use redis::{aio::ConnectionManager, AsyncCommands, Client};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, instrument, warn};
 
 // Version cache eviction constants
 const VERSION_CACHE_MAX_SIZE: usize = 10000;
 const VERSION_CACHE_EVICTION_BATCH: usize = 1000;
-
-/// 验证Redis缓存键是否安全
-/// 防止Redis命令注入和协议污染攻击
-///
-/// # 参数
-/// * `key` - 要验证的缓存键
-///
-/// # 返回值
-/// * `Ok(())` - 键是安全的
-/// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
-fn validate_redis_key(key: &str) -> Result<()> {
-    // 检查键长度
-    if key.is_empty() {
-        return Err(CacheError::InvalidInput(
-            "Redis key cannot be empty".to_string(),
-        ));
-    }
-
-    if key.len() > 512 * 1024 {
-        // Redis最大键长512MB，但我们限制为512KB以防止滥用
-        return Err(CacheError::InvalidInput(
-            "Redis key exceeds maximum length of 512KB".to_string(),
-        ));
-    }
-
-    // 检查是否包含危险字符
-    // Redis协议使用\r\n作为分隔符，我们必须防止注入
-    let dangerous_chars = ['\r', '\n', '\0'];
-
-    for c in key.chars() {
-        if dangerous_chars.contains(&c) {
-            return Err(CacheError::InvalidInput(format!(
-                "Redis key contains forbidden character: {:?}",
-                c
-            )));
-        }
-    }
-
-    // 检查是否包含Redis命令模式（防止命令注入）
-    // 注意：这里移除了对命令名称的检查，因为它们会导致误报（例如 user_type 包含 TYPE）
-    // Redis 协议注入主要依赖于 CRLF，上面已经检查过了。
-    // 只要我们使用安全的 redis crate 客户端方法（如 .arg()），参数会被正确编码为 Bulk Strings，
-    // 不会被解析为命令。
-
-    Ok(())
-}
 
 /// 验证并返回安全的Redis键
 ///
@@ -71,6 +31,7 @@ fn validate_redis_key(key: &str) -> Result<()> {
 /// * `Ok(&str)` - 验证通过的键引用
 /// * `Err(CacheError)` - 键验证失败
 fn ensure_safe_key(key: &str) -> Result<&str> {
+    #[cfg(feature = "l2-redis")]
     validate_redis_key(key)?;
     Ok(key)
 }
@@ -210,20 +171,28 @@ impl L2Backend {
 
     /// 尝试获取分布式锁
     ///
-    /// 使用 SET NX PX 实现
+    /// 使用 SET NX PX 实现，自动生成安全的随机锁值
+    ///
+    /// # 返回值
+    ///
+    /// * `Ok(Some(value))` - 成功获取锁，value 为生成的锁值
+    /// * `Ok(None)` - 锁已被其他进程持有
+    /// * `Err(...)` - 发生错误
     #[instrument(skip(self), level = "debug")]
-    pub async fn lock(&self, key: &str, value: &str, ttl: u64) -> Result<bool> {
+    pub async fn lock(&self, key: &str, ttl: u64) -> Result<Option<String>> {
+        // 生成安全的随机 UUID 作为锁值
+        let lock_value = uuid::Uuid::new_v4().to_string();
         let ttl_ms = ttl * 1000;
         debug!(
             "Attempting to acquire lock: key={}, value={}, ttl={}s ({}ms)",
-            key, value, ttl, ttl_ms
+            key, lock_value, ttl, ttl_ms
         );
         match self {
             L2Backend::Standalone { manager, .. } => {
                 let mut conn = manager.clone();
                 let result: Option<String> = redis::cmd("SET")
                     .arg(key)
-                    .arg(value)
+                    .arg(&lock_value)
                     .arg("NX")
                     .arg("PX")
                     .arg(ttl_ms)
@@ -235,7 +204,11 @@ impl L2Backend {
                     result.is_some(),
                     result
                 );
-                Ok(result.is_some())
+                if result.is_some() {
+                    Ok(Some(lock_value))
+                } else {
+                    Ok(None)
+                }
             }
             L2Backend::Cluster { client, .. } => {
                 let mut conn = client
@@ -244,7 +217,7 @@ impl L2Backend {
                     .map_err(|e| CacheError::BackendError(e.to_string()))?;
                 let result: Option<String> = redis::cmd("SET")
                     .arg(key)
-                    .arg(value)
+                    .arg(&lock_value)
                     .arg("NX")
                     .arg("PX")
                     .arg(ttl_ms)
@@ -256,7 +229,11 @@ impl L2Backend {
                     result.is_some(),
                     result
                 );
-                Ok(result.is_some())
+                if result.is_some() {
+                    Ok(Some(lock_value))
+                } else {
+                    Ok(None)
+                }
             }
         }
     }
@@ -690,6 +667,16 @@ impl L2Backend {
         let mut pipe = redis::pipe();
 
         for entry in entries {
+            // 验证键安全性，跳过无效键并记录警告
+            #[cfg(feature = "l2-redis")]
+            if let Err(e) = validate_redis_key(&entry.key) {
+                warn!(
+                    "Skipping invalid WAL entry key '{}': {}",
+                    entry.key, e
+                );
+                continue;
+            }
+
             match entry.operation {
                 crate::recovery::wal::Operation::Set => {
                     if let Some(val) = entry.value {
@@ -1043,5 +1030,871 @@ impl L2Backend {
 
         debug!("L2 clear: 缓存已清空");
         Ok(())
+    }
+
+    // ============================================================================
+    // Redis 原生操作扩展方法
+    // ============================================================================
+
+    /// 计数器操作：增加数值（带 TTL）
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `amount` - 增加的数量
+    /// * `ttl` - 过期时间（秒）
+    ///
+    /// # 返回值
+    ///
+    /// 返回增加后的值
+    #[instrument(skip(self), level = "debug")]
+    pub async fn incr_by(&self, key: &str, amount: i64, ttl: Option<u64>) -> Result<i64> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: i64 = redis::cmd("INCRBY").arg(key).arg(amount).query_async(&mut conn).await?;
+
+                // 设置 TTL
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: i64 = redis::cmd("INCRBY").arg(key).arg(amount).query_async(&mut conn).await?;
+
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+        }
+    }
+
+    /// 计数器操作：减少数值（带 TTL）
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `amount` - 减少的数量
+    /// * `ttl` - 过期时间（秒）
+    ///
+    /// # 返回值
+    ///
+    /// 返回减少后的值
+    #[instrument(skip(self), level = "debug")]
+    pub async fn decr_by(&self, key: &str, amount: i64, ttl: Option<u64>) -> Result<i64> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: i64 = redis::cmd("DECRBY").arg(key).arg(amount).query_async(&mut conn).await?;
+
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: i64 = redis::cmd("DECRBY").arg(key).arg(amount).query_async(&mut conn).await?;
+
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+        }
+    }
+
+    /// 计数器操作：获取计数值
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// 返回计数值，如果不存在返回 None
+    #[instrument(skip(self), level = "debug")]
+    pub async fn get_counter(&self, key: &str) -> Result<Option<i64>> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: Option<i64> = redis::cmd("GET").arg(key).query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: Option<i64> = redis::cmd("GET").arg(key).query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 有序集合操作：添加成员
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `score` - 分数
+    /// * `member` - 成员
+    /// * `ttl` - 过期时间（秒）
+    ///
+    /// # 返回值
+    ///
+    /// 返回添加的成员数量
+    #[instrument(skip(self), level = "debug")]
+    pub async fn zadd(&self, key: &str, score: f64, member: &str, ttl: Option<u64>) -> Result<u64> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: u64 = redis::cmd("ZADD").arg(key).arg(score).arg(member).query_async(&mut conn).await?;
+
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: u64 = redis::cmd("ZADD").arg(key).arg(score).arg(member).query_async(&mut conn).await?;
+
+                if let Some(ttl_secs) = ttl {
+                    redis::cmd("EXPIRE").arg(key).arg(ttl_secs).query_async::<()>(&mut conn).await?;
+                }
+
+                Ok(result)
+            }
+        }
+    }
+
+    /// 有序集合操作：按分数范围获取成员
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `min` - 最小分数
+    /// * `max` - 最大分数
+    /// * `with_scores` - 是否返回分数
+    ///
+    /// # 返回值
+    ///
+    /// 返回成员列表
+    #[instrument(skip(self), level = "debug")]
+    pub async fn zrange_by_score(
+        &self,
+        key: &str,
+        min: f64,
+        max: f64,
+        with_scores: bool,
+    ) -> Result<Vec<(String, f64)>> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                if with_scores {
+                    let result: Vec<(String, f64)> = redis::cmd("ZRANGEBYSCORE")
+                        .arg(key)
+                        .arg(min)
+                        .arg(max)
+                        .arg("WITHSCORES")
+                        .query_async(&mut conn)
+                        .await?;
+                    Ok(result)
+                } else {
+                    let result: Vec<String> = redis::cmd("ZRANGEBYSCORE")
+                        .arg(key)
+                        .arg(min)
+                        .arg(max)
+                        .query_async(&mut conn)
+                        .await?;
+                    Ok(result.into_iter().map(|s| (s, 0.0)).collect())
+                }
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                if with_scores {
+                    let result: Vec<(String, f64)> = redis::cmd("ZRANGEBYSCORE")
+                        .arg(key)
+                        .arg(min)
+                        .arg(max)
+                        .arg("WITHSCORES")
+                        .query_async(&mut conn)
+                        .await?;
+                    Ok(result)
+                } else {
+                    let result: Vec<String> = redis::cmd("ZRANGEBYSCORE")
+                        .arg(key)
+                        .arg(min)
+                        .arg(max)
+                        .query_async(&mut conn)
+                        .await?;
+                    Ok(result.into_iter().map(|s| (s, 0.0)).collect())
+                }
+            }
+        }
+    }
+
+    /// 有序集合操作：获取成员分数
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `member` - 成员
+    ///
+    /// # 返回值
+    ///
+    /// 返回成员分数，如果不存在返回 None
+    #[instrument(skip(self), level = "debug")]
+    pub async fn zscore(&self, key: &str, member: &str) -> Result<Option<f64>> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: Option<f64> = redis::cmd("ZSCORE").arg(key).arg(member).query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: Option<f64> = redis::cmd("ZSCORE").arg(key).arg(member).query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 有序集合操作：删除成员
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `members` - 要删除的成员列表
+    ///
+    /// # 返回值
+    ///
+    /// 返回删除的成员数量
+    #[instrument(skip(self), level = "debug")]
+    pub async fn zrem(&self, key: &str, members: &[&str]) -> Result<u64> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let mut cmd = redis::cmd("ZREM");
+                cmd.arg(key);
+                for member in members {
+                    cmd.arg(member);
+                }
+                let result: u64 = cmd.query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let mut cmd = redis::cmd("ZREM");
+                cmd.arg(key);
+                for member in members {
+                    cmd.arg(member);
+                }
+                let result: u64 = cmd.query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 有序集合操作：获取成员数量
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// 返回成员数量
+    #[instrument(skip(self), level = "debug")]
+    pub async fn zcard(&self, key: &str) -> Result<u64> {
+        ensure_safe_key(key)?;
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: u64 = redis::cmd("ZCARD").arg(key).query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: u64 = redis::cmd("ZCARD").arg(key).query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 键扫描：获取匹配的键
+    ///
+    /// # 参数
+    ///
+    /// * `pattern` - 匹配模式
+    /// * `count` - 每次返回的键数量
+    ///
+    /// # 返回值
+    ///
+    /// 返回匹配的键列表
+    #[instrument(skip(self), level = "debug")]
+    pub async fn scan_keys(&self, pattern: &str, count: usize) -> Result<Vec<String>> {
+        // 验证 SCAN 模式安全性
+        #[cfg(feature = "l2-redis")]
+        validate_scan_pattern(pattern)?;
+
+        // 限制 count 参数到安全范围
+        #[cfg(feature = "l2-redis")]
+        let count = clamp_scan_count(count);
+
+        #[cfg(not(feature = "l2-redis"))]
+        let count = count; // 保持兼容
+
+        // 添加 30 秒超时保护
+        let timeout_duration = Duration::from_secs(30);
+
+        let scan_operation = async {
+            match self {
+                L2Backend::Standalone { manager, .. } => {
+                    let mut conn = manager.clone();
+                    let mut all_keys = Vec::new();
+                    let mut cursor = 0i64;
+
+                    loop {
+                        let (next_cursor, keys): (i64, Vec<String>) = redis::cmd("SCAN")
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg(pattern)
+                            .arg("COUNT")
+                            .arg(count)
+                            .query_async(&mut conn)
+                            .await?;
+
+                        all_keys.extend(keys);
+
+                        cursor = next_cursor;
+                        if cursor == 0 {
+                            break;
+                        }
+                    }
+
+                    Ok(all_keys)
+                }
+                L2Backend::Cluster { client, .. } => {
+                    let mut all_keys = Vec::new();
+                    let mut cursor = 0i64;
+
+                    loop {
+                        let mut conn = client.get_async_connection().await?;
+                        let (next_cursor, keys): (i64, Vec<String>) = redis::cmd("SCAN")
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg(pattern)
+                            .arg("COUNT")
+                            .arg(count)
+                            .query_async(&mut conn)
+                            .await?;
+
+                        all_keys.extend(keys);
+
+                        cursor = next_cursor;
+                        if cursor == 0 {
+                            break;
+                        }
+                    }
+
+                    Ok(all_keys)
+                }
+            }
+        };
+
+        tokio::time::timeout(timeout_duration, scan_operation)
+            .await
+            .map_err(|_| CacheError::Timeout("SCAN operation timed out after 30 seconds".to_string()))?
+    }
+
+    /// 批量获取
+    ///
+    /// # 参数
+    ///
+    /// * `keys` - 键列表
+    ///
+    /// # 返回值
+    ///
+    /// 返回键值对映射
+    #[instrument(skip(self), level = "debug")]
+    pub async fn get_many(&self, keys: &[&str]) -> Result<HashMap<String, Vec<u8>>> {
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let mut pipe = redis::pipe();
+                for key in keys {
+                    pipe.get(key);
+                }
+                let results: Vec<Option<Vec<u8>>> = pipe.query_async(&mut conn).await?;
+
+                let mut map = HashMap::new();
+                for (key, value) in keys.iter().zip(results.into_iter()) {
+                    if let Some(v) = value {
+                        map.insert(key.to_string(), v);
+                    }
+                }
+                Ok(map)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let mut pipe = redis::pipe();
+                for key in keys {
+                    pipe.get(key);
+                }
+                let results: Vec<Option<Vec<u8>>> = pipe.query_async(&mut conn).await?;
+
+                let mut map = HashMap::new();
+                for (key, value) in keys.iter().zip(results.into_iter()) {
+                    if let Some(v) = value {
+                        map.insert(key.to_string(), v);
+                    }
+                }
+                Ok(map)
+            }
+        }
+    }
+
+    /// 批量设置
+    ///
+    /// # 参数
+    ///
+    /// * `items` - 键值对映射
+    /// * `ttl` - 过期时间（秒）
+    ///
+    /// # 返回值
+    ///
+    /// 返回操作结果
+    #[instrument(skip(self), level = "debug", fields(item_count = items.len()))]
+    pub async fn set_many(&self, items: HashMap<&str, &[u8]>, ttl: Option<u64>) -> Result<()> {
+        let ttl_secs = ttl.unwrap_or(3600);
+
+        match self {
+            L2Backend::Standalone { manager, version_cache, .. } => {
+                let mut conn = manager.clone();
+                let mut pipe = redis::pipe();
+
+                for (key, value) in items {
+                    let ttl_i64 = ttl_secs.try_into().unwrap_or(3600);
+                    pipe.set(key, value).arg("EX").arg(ttl_i64).ignore();
+                    pipe.incr(format!("{}:version", key), 1).ignore();
+                    pipe.expire(format!("{}:version", key), ttl_i64).ignore();
+
+                    // 更新版本缓存
+                    let new_version = version_cache.get(key).map(|v| *v.value() + 1).unwrap_or(1);
+                    version_cache.insert(key.to_string(), new_version);
+                }
+
+                pipe.query_async::<()>(&mut conn).await?;
+            }
+            L2Backend::Cluster { client, version_cache, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let mut pipe = redis::pipe();
+
+                for (key, value) in items {
+                    let ttl_i64 = ttl_secs.try_into().unwrap_or(3600);
+                    pipe.set(key, value).arg("EX").arg(ttl_i64).ignore();
+                    pipe.incr(format!("{}:version", key), 1).ignore();
+                    pipe.expire(format!("{}:version", key), ttl_i64).ignore();
+
+                    let new_version = version_cache.get(key).map(|v| *v.value() + 1).unwrap_or(1);
+                    version_cache.insert(key.to_string(), new_version);
+                }
+
+                pipe.query_async::<()>(&mut conn).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 删除匹配模式的键
+    ///
+    /// # 参数
+    ///
+    /// * `pattern` - 匹配模式
+    ///
+    /// # 返回值
+    ///
+    /// 返回删除的键数量
+    #[instrument(skip(self), level = "debug")]
+    pub async fn del_pattern(&self, pattern: &str) -> Result<u64> {
+        let keys = self.scan_keys(pattern, 1000).await?;
+
+        if keys.is_empty() {
+            return Ok(0);
+        }
+
+        let mut deleted_count = 0u64;
+        let mut batch_count = 0usize;
+
+        match self {
+            L2Backend::Standalone { manager, version_cache, .. } => {
+                let mut conn = manager.clone();
+                let mut pipe = redis::pipe();
+
+                for key in &keys {
+                    pipe.del(key).ignore();
+                    pipe.del(format!("{}:version", key)).ignore();
+                    version_cache.remove(key);
+                    deleted_count += 1;
+                    batch_count += 1;
+
+                    // 分批执行，每批 100 个键
+                    if batch_count >= 100 {
+                        pipe.query_async::<()>(&mut conn).await?;
+                        pipe = redis::pipe();
+                        batch_count = 0;
+                    }
+                }
+
+                if batch_count > 0 {
+                    pipe.query_async::<()>(&mut conn).await?;
+                }
+            }
+            L2Backend::Cluster { client, version_cache, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let mut pipe = redis::pipe();
+
+                for key in &keys {
+                    pipe.del(key).ignore();
+                    pipe.del(format!("{}:version", key)).ignore();
+                    version_cache.remove(key);
+                    deleted_count += 1;
+                    batch_count += 1;
+
+                    if batch_count >= 100 {
+                        pipe.query_async::<()>(&mut conn).await?;
+                        pipe = redis::pipe();
+                        batch_count = 0;
+                    }
+                }
+
+                if batch_count > 0 {
+                    pipe.query_async::<()>(&mut conn).await?;
+                }
+            }
+        }
+
+        Ok(deleted_count)
+    }
+
+    /// 执行 Lua 脚本
+    ///
+    /// # 参数
+    ///
+    /// * `script` - Lua 脚本
+    /// * `keys` - 键列表
+    /// * `args` - 参数列表
+    ///
+    /// # 返回值
+    ///
+    /// 返回脚本执行结果
+    #[instrument(skip(self), level = "debug")]
+    pub async fn eval(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<String> {
+        // 验证 Lua 脚本安全性
+        #[cfg(feature = "l2-redis")]
+        validate_lua_script(script, keys.len())?;
+
+        let mut cmd = redis::cmd("EVAL");
+        cmd.arg(script).arg(keys.len());
+
+        for key in keys {
+            cmd.arg(key);
+        }
+
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        // 添加 30 秒超时保护
+        let timeout_duration = Duration::from_secs(30);
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result = tokio::time::timeout(timeout_duration, async {
+                    cmd.query_async::<String>(&mut conn).await
+                })
+                .await
+                .map_err(|_| CacheError::Timeout("Lua script execution timed out after 30 seconds".to_string()))??;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result = tokio::time::timeout(timeout_duration, async {
+                    cmd.query_async::<String>(&mut conn).await
+                })
+                .await
+                .map_err(|_| CacheError::Timeout("Lua script execution timed out after 30 seconds".to_string()))??;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 加载 Lua 脚本
+    ///
+    /// # 参数
+    ///
+    /// * `script` - Lua 脚本
+    ///
+    /// # 返回值
+    ///
+    /// 返回脚本的 SHA
+    #[instrument(skip(self), level = "debug")]
+    pub async fn script_load(&self, script: &str) -> Result<String> {
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: String = redis::cmd("SCRIPT").arg("LOAD").arg(script).query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: String = redis::cmd("SCRIPT").arg("LOAD").arg(script).query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 使用 SHA 执行 Lua 脚本
+    ///
+    /// # 参数
+    ///
+    /// * `sha` - 脚本 SHA
+    /// * `keys` - 键列表
+    /// * `args` - 参数列表
+    ///
+    /// # 返回值
+    ///
+    /// 返回脚本执行结果
+    #[instrument(skip(self), level = "debug")]
+    pub async fn evalsha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<String> {
+        // 验证键数量（即使使用 SHA，也要防止键数量过多）
+        #[cfg(feature = "l2-redis")]
+        if keys.len() > 100 {
+            return Err(CacheError::InvalidInput(format!(
+                "Lua script exceeds maximum key count of 100 (got {} keys)",
+                keys.len()
+            )));
+        }
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(sha).arg(keys.len());
+
+        for key in keys {
+            cmd.arg(key);
+        }
+
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        // 添加 30 秒超时保护
+        let timeout_duration = Duration::from_secs(30);
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result = tokio::time::timeout(timeout_duration, async {
+                    cmd.query_async::<String>(&mut conn).await
+                })
+                .await
+                .map_err(|_| CacheError::Timeout("Lua script execution timed out after 30 seconds".to_string()))??;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result = tokio::time::timeout(timeout_duration, async {
+                    cmd.query_async::<String>(&mut conn).await
+                })
+                .await
+                .map_err(|_| CacheError::Timeout("Lua script execution timed out after 30 seconds".to_string()))??;
+                Ok(result)
+            }
+        }
+    }
+}
+
+// ============================================================================
+// RedisNativeOps Trait Implementation
+// ============================================================================
+
+#[async_trait]
+impl RedisNativeOps for L2Backend {
+    /// 设置单个键值
+    async fn set(&self, key: &str, value: &[u8], ttl: Option<u64>) -> Result<()> {
+        self.set_bytes(key, value.to_vec(), ttl).await
+    }
+
+    /// 获取字节数组缓存值
+    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        self.get_bytes(key).await
+    }
+
+    /// 计数器操作：增加数值
+    async fn increment(&self, key: &str, amount: i64, ttl: Option<u64>) -> Result<i64> {
+        self.incr_by(key, amount, ttl).await
+    }
+
+    /// 计数器操作：减少数值
+    async fn decrement(&self, key: &str, amount: i64, ttl: Option<u64>) -> Result<i64> {
+        self.decr_by(key, amount, ttl).await
+    }
+
+    /// 计数器操作：获取计数值
+    async fn get_counter(&self, key: &str) -> Result<Option<i64>> {
+        self.get_counter(key).await
+    }
+
+    /// 有序集合操作：添加成员
+    async fn zadd(
+        &self,
+        key: &str,
+        score: f64,
+        member: &str,
+        ttl: Option<u64>,
+    ) -> Result<u64> {
+        self.zadd(key, score, member, ttl).await
+    }
+
+    /// 有序集合操作：按分数范围获取成员
+    async fn zrange_by_score(
+        &self,
+        key: &str,
+        min: f64,
+        max: f64,
+        with_scores: bool,
+    ) -> Result<Vec<ZSetMember>> {
+        let raw_result: Vec<(String, f64)> = self.zrange_by_score(key, min, max, with_scores).await?;
+        Ok(raw_result
+            .into_iter()
+            .map(|(member, score)| ZSetMember { member, score })
+            .collect())
+    }
+
+    /// 有序集合操作：获取成员分数
+    async fn zscore(&self, key: &str, member: &str) -> Result<Option<f64>> {
+        self.zscore(key, member).await
+    }
+
+    /// 有序集合操作：删除成员
+    async fn zrem(&self, key: &str, members: &[&str]) -> Result<u64> {
+        self.zrem(key, members).await
+    }
+
+    /// 有序集合操作：获取成员数量
+    async fn zcard(&self, key: &str) -> Result<u64> {
+        self.zcard(key).await
+    }
+
+    /// 键扫描：获取匹配的键
+    async fn scan_keys(&self, pattern: &str, count: usize) -> Result<Vec<String>> {
+        self.scan_keys(pattern, count).await
+    }
+
+    /// 键扫描迭代器
+    fn scan_iter(&self, pattern: &str) -> ScanKeyIterator {
+        ScanKeyIterator::new(Arc::new(self.clone()), pattern)
+    }
+
+    /// 执行 Lua 脚本（只读）
+    async fn eval_readonly(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<String> {
+        // 尝试只读执行
+        let mut cmd = redis::cmd("EVAL");
+        cmd.arg(script).arg(keys.len());
+        for key in keys {
+            cmd.arg(key);
+        }
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let result: String = cmd.query_async(&mut conn).await?;
+                Ok(result)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let result: String = cmd.query_async(&mut conn).await?;
+                Ok(result)
+            }
+        }
+    }
+
+    /// 执行 Lua 脚本（写操作）
+    async fn eval_write(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<String> {
+        // 写操作与只读相同，Redis 不区分
+        self.eval_readonly(script, keys, args).await
+    }
+
+    /// 使用缓存的脚本 SHA 执行
+    async fn evalsha(&self, sha1: &str, keys: &[&str], args: &[&str]) -> Result<String> {
+        self.evalsha(sha1, keys, args).await
+    }
+
+    /// 加载 Lua 脚本到缓存
+    async fn script_load(&self, script: &str) -> Result<String> {
+        self.script_load(script).await
+    }
+
+    /// 检查脚本是否在缓存中
+    async fn script_exists(&self, sha1: &[&str]) -> Result<Vec<bool>> {
+        let mut cmd = redis::cmd("SCRIPT");
+        cmd.arg("EXISTS");
+        for sha in sha1 {
+            cmd.arg(sha);
+        }
+
+        match self {
+            L2Backend::Standalone { manager, .. } => {
+                let mut conn = manager.clone();
+                let results: Vec<bool> = cmd.query_async(&mut conn).await?;
+                Ok(results)
+            }
+            L2Backend::Cluster { client, .. } => {
+                let mut conn = client.get_async_connection().await?;
+                let results: Vec<bool> = cmd.query_async(&mut conn).await?;
+                Ok(results)
+            }
+        }
+    }
+
+    /// 批量获取
+    async fn get_many(&self, keys: &[&str]) -> Result<HashMap<String, Vec<u8>>> {
+        self.get_many(keys).await
+    }
+
+    /// 批量设置
+    async fn set_many(&self, items: HashMap<&str, &[u8]>, ttl: Option<u64>) -> Result<()> {
+        self.set_many(items, ttl).await
+    }
+
+    /// 删除匹配模式的键
+    async fn del_pattern(&self, pattern: &str) -> Result<u64> {
+        self.del_pattern(pattern).await
     }
 }
