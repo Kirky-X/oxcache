@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced performance data with test environment details
 - Fixed broken documentation links and version inconsistencies
 - Added documentation validation script and maintenance guidelines
+- **Fixed version inconsistencies**: Updated all documentation from 0.1.2 to 0.1.3
+- **Corrected API usage**: Updated examples to use `init_from_file()` instead of `init()` for config file initialization
+- **Added feature requirements**: Clarified that `config-toml` and `confers` features are required for file-based initialization
 
 ## [0.1.2] - 2026-01-02
 
