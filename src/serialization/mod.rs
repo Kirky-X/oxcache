@@ -8,6 +8,9 @@
 pub mod bincode;
 pub mod json;
 
+#[cfg(feature = "extra-serialization")]
+pub mod extra;
+
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
@@ -16,6 +19,9 @@ pub use json::JsonSerializer;
 
 #[cfg(feature = "bincode")]
 pub use bincode::BincodeSerializer;
+
+#[cfg(feature = "extra-serialization")]
+pub use extra::{CborSerializer, MessagePackSerializer, SerializerRegistry};
 
 /// 序列化器特征
 ///
