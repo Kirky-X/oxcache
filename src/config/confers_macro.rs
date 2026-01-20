@@ -2,22 +2,19 @@
 //!
 //! MIT License
 //!
-//! confers 宏模块
+//! confers 配置模块 - 统一使用 confers 进行配置读取
+//!
+//! 此模块在 confers feature 启用时可用
 
-#[cfg(feature = "confers")]
 use serde::Deserialize;
-#[cfg(feature = "confers")]
 use std::collections::HashMap;
-#[cfg(feature = "confers")]
 use std::fs;
-#[cfg(feature = "confers")]
 use std::path::{Path, PathBuf};
 
-#[cfg(all(feature = "confers", feature = "config-toml"))]
+#[cfg(feature = "confers")]
 use toml;
 
 /// 完整配置（confers 版本）
-#[cfg(feature = "confers")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct OxcacheConfigFile {
     pub global: Option<GlobalConfigConfers>,
@@ -25,7 +22,6 @@ pub struct OxcacheConfigFile {
 }
 
 /// 全局配置（confers 版本）
-#[cfg(feature = "confers")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct GlobalConfigConfers {
     pub default_ttl: Option<u64>,
@@ -35,7 +31,6 @@ pub struct GlobalConfigConfers {
 }
 
 /// 服务配置项
-#[cfg(feature = "confers")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServiceConfigItem {
     pub name: String,
@@ -51,7 +46,7 @@ pub struct ServiceConfigItem {
 }
 
 /// L1 配置（需要 l1-moka feature）
-#[cfg(all(feature = "confers", feature = "l1-moka"))]
+#[cfg(feature = "l1-moka")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct L1ConfigConfers {
     pub max_capacity: Option<u64>,
@@ -62,7 +57,7 @@ pub struct L1ConfigConfers {
 }
 
 /// L2 配置（需要 l2-redis feature）
-#[cfg(all(feature = "confers", feature = "l2-redis"))]
+#[cfg(feature = "l2-redis")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct L2ConfigConfers {
     pub mode: Option<String>,
@@ -75,7 +70,7 @@ pub struct L2ConfigConfers {
 }
 
 /// 双层缓存配置（需要 l2-redis feature）
-#[cfg(all(feature = "confers", feature = "l2-redis"))]
+#[cfg(feature = "l2-redis")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct TwoLevelConfigConfers {
     pub promote_on_hit: Option<bool>,
@@ -84,7 +79,6 @@ pub struct TwoLevelConfigConfers {
     pub batch_interval_ms: Option<u64>,
 }
 
-#[cfg(feature = "confers")]
 impl Default for GlobalConfigConfers {
     fn default() -> Self {
         Self {
@@ -96,7 +90,6 @@ impl Default for GlobalConfigConfers {
     }
 }
 
-#[cfg(feature = "confers")]
 impl Default for ServiceConfigItem {
     fn default() -> Self {
         Self {
@@ -114,10 +107,8 @@ impl Default for ServiceConfigItem {
     }
 }
 
-#[cfg(feature = "confers")]
 impl OxcacheConfigFile {
     /// 从 TOML 文件加载配置
-    #[cfg(all(feature = "confers", feature = "config-toml"))]
     pub fn from_toml(path: &str) -> Result<Self, String> {
         let config_path = Self::validate_path(path)?;
         let content = fs::read_to_string(&config_path)
@@ -125,7 +116,6 @@ impl OxcacheConfigFile {
         toml::from_str(&content).map_err(|e| format!("Failed to parse TOML: {}", e))
     }
 
-    #[cfg(feature = "confers")]
     fn validate_path(path: &str) -> Result<PathBuf, String> {
         let path = Path::new(path);
         if path.is_absolute() {
@@ -137,7 +127,7 @@ impl OxcacheConfigFile {
         }
     }
 
-    #[cfg(feature = "confers")]
+    /// 转换为 OxcacheConfig
     pub fn to_oxcache_config(self) -> super::OxcacheConfig {
         use super::{CacheType, GlobalConfig, ServiceConfig};
         use crate::config::CONFIG_VERSION;
@@ -239,31 +229,122 @@ impl OxcacheConfigFile {
     }
 }
 
-/// 从 TOML 文件加载配置
+/// 从 TOML 文件加载配置（统一使用 confers）
 #[cfg(feature = "confers")]
 pub fn confers_load(path: &str) -> Result<super::OxcacheConfig, String> {
-    #[cfg(feature = "config-toml")]
-    {
-        let config = OxcacheConfigFile::from_toml(path)?;
-        Ok(config.to_oxcache_config())
-    }
-    #[cfg(not(feature = "config-toml"))]
-    {
-        Err("TOML configuration loading requires 'config-toml' feature".to_string())
-    }
+    let config = OxcacheConfigFile::from_toml(path)?;
+    Ok(config.to_oxcache_config())
 }
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "confers")]
-    mod confers_tests {
-        use crate::{ConfigSource, OxcacheConfig};
+    use super::*;
+    use tempfile::TempDir;
 
-        #[test]
-        fn test_config_source_code() {
-            let mut config = OxcacheConfig::new();
-            config.set_source(ConfigSource::Code);
-            assert_eq!(config.source, Some(ConfigSource::Code));
-        }
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_confers_load_valid_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("oxcache.toml");
+
+        let config_content = r#"
+[global]
+default_ttl = 600
+health_check_interval = 30
+serialization = "json"
+enable_metrics = true
+
+[[services]]
+name = "test_service"
+cache_type = "two_level"
+ttl = 3600
+"#;
+
+        std::fs::write(&config_path, config_content).unwrap();
+
+        let config = confers_load(config_path.to_str().unwrap());
+        assert!(config.is_ok());
+        let config = config.unwrap();
+        assert_eq!(config.global.default_ttl, 600);
+        assert!(config.services.contains_key("test_service"));
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_confers_load_with_l2_config() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("oxcache.toml");
+
+        let config_content = r#"
+[global]
+default_ttl = 300
+
+[[services]]
+name = "redis_service"
+cache_type = "L2"
+
+[services.l2]
+mode = "standalone"
+connection_string = "redis://localhost:6379"
+connection_timeout_ms = 5000
+default_ttl = 3600
+"#;
+
+        std::fs::write(&config_path, config_content).unwrap();
+
+        let config = confers_load(config_path.to_str().unwrap());
+        assert!(config.is_ok());
+        let config = config.unwrap();
+
+        let service = config.services.get("redis_service").unwrap();
+        assert!(service.l2.is_some());
+        let l2 = service.l2.as_ref().unwrap();
+        // connection_string 应该是 SecretString
+        let conn_str = l2.connection_string.expose_secret();
+        use secrecy::ExposeSecret;
+        assert!(conn_str.contains("localhost"));
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_confers_load_invalid_path() {
+        let result = confers_load("/nonexistent/path/config.toml");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to read config file"));
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_confers_load_invalid_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("invalid.toml");
+
+        let invalid_content = r#"
+[global
+this is not valid toml
+"#;
+
+        std::fs::write(&config_path, invalid_content).unwrap();
+
+        let result = confers_load(config_path.to_str().unwrap());
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_config_source_set_correctly() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("oxcache.toml");
+
+        let config_content = r#"
+[global]
+default_ttl = 300
+"#;
+
+        std::fs::write(&config_path, config_content).unwrap();
+
+        let config = confers_load(config_path.to_str().unwrap()).unwrap();
+        use crate::ConfigSource;
+        assert_eq!(config.source, Some(ConfigSource::File("confers".to_string())));
     }
 }
