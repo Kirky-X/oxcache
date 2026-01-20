@@ -28,7 +28,7 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 - **`macros`**: Required for `#[cached]` attribute macro
 - **`l1-moka`**: L1 cache implementation (Moka)
 - **`l2-redis`**: L2 cache implementation (Redis)
-- **`config-toml`**: TOML configuration file support
+- **`confers`**: Unified configuration file support (TOML)
 - **`metrics`**: Basic metrics collection
 - **`full-metrics`**: OpenTelemetry integration
 
@@ -44,19 +44,19 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.1.2", features = ["full"] }
+oxcache = { version = "0.1.3", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.1.2", features = ["core"] }
+oxcache = { version = "0.1.3", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.1.2", features = ["minimal"] }
+oxcache = { version = "0.1.3", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 # Development with specific features
-oxcache = { version = "0.1.2", features = [
+oxcache = { version = "0.1.3", features = [
     "l1-moka",      # L1 cache (Moka)
     "l2-redis",     # L2 cache (Redis)
     "macros",       # #[cached] macro
@@ -139,21 +139,21 @@ let config = oxcache_config()
 init(config).await?;
 ```
 
-#### `init_from_file(config_path: &str) -> Result<()>` (requires `config-toml` and `confers` features)
+#### `init_from_file(config_path: &str) -> Result<()>` (requires `confers` feature)
 
 Initialize cache system from TOML configuration file.
 
-**Required Features**: `config-toml`, `confers`
+**Required Features**: `confers`
 
 ```rust
-// Requires features: ["config-toml", "confers"]
+// Requires features: ["confers"]
 oxcache::init_from_file("config.toml").await?;
 ```
 
-**Alternative**: Use `init_from_file` which requires both features:
+**Alternative**: Use `init_from_file` which requires confers feature:
 ```rust
 // Add to Cargo.toml:
-// oxcache = { version = "0.1.2", features = ["config-toml", "confers"] }
+// oxcache = { version = "0.1.3", features = ["confers"] }
 ```
 
 #### `shutdown_all() -> Result<()>`

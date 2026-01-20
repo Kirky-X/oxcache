@@ -133,27 +133,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.1.2"
+oxcache = "0.1.3"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含，无需单独添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.2", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.3", features = ["macros"] }`
 
 #### 特性分层选择
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.1.2", features = ["full"] }
+oxcache = { version = "0.1.3", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.1.2", features = ["core"] }
+oxcache = { version = "0.1.3", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.1.2", features = ["minimal"] }
+oxcache = { version = "0.1.3", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.1.2", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 ```
 
 #### 特性依赖说明
@@ -210,7 +210,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化缓存（从配置文件加载）
-    oxcache::init("config.toml").await?;
+    oxcache::init_from_file("config.toml").await?;
     
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
@@ -352,7 +352,7 @@ use oxcache::{get_client, CacheOps};
 
 #[tokio::main]
 async fn main() {
-    oxcache::init("config.toml").await.unwrap();
+    oxcache::init_from_file("config.toml").await.unwrap();
     
     let client = get_client("my_service").unwrap();
     
@@ -488,7 +488,7 @@ use oxcache::manager::shutdown_all;
 #[tokio::main]
 async fn main() {
     // 初始化缓存
-    oxcache::init("config.toml").await.expect("Failed to init cache");
+    oxcache::init_from_file("config.toml").await.expect("Failed to init cache");
     
     // 你的应用逻辑
     
