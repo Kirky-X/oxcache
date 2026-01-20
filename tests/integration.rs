@@ -2,6 +2,8 @@
 mod batch_write_test;
 #[path = "integration/chaos_test.rs"]
 mod chaos_test;
+#[path = "integration/comprehensive_test.rs"]
+mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]
 mod degradation_tests;
 #[path = "integration/invalidation_test.rs"]
@@ -34,6 +36,12 @@ mod sqlite_partition_tests;
 mod two_level_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
+#[path = "integration/redis_native_test.rs"]
+mod redis_native_test;
+#[path = "integration/tiered_cache_test.rs"]
+mod tiered_cache_test;
+#[path = "integration/ttl_control_test.rs"]
+mod ttl_control_test;
 #[path = "integration/wal_test.rs"]
 mod wal_test;
 

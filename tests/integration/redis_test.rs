@@ -1073,39 +1073,39 @@ async fn test_cluster_distributed_lock() {
     let client = oxcache::get_client(&service_name).expect("Failed to get client");
 
     let lock_key = "cluster_lock_test";
-    let lock_value1 = "uuid_1";
-    let lock_value2 = "uuid_2";
     let ttl = 10;
 
-    let locked1 = client
-        .lock(lock_key, lock_value1, ttl)
+    let lock1 = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(locked1, "First client should acquire lock successfully");
+    assert!(lock1.is_some(), "First client should acquire lock successfully");
+    let lock_value1 = lock1.unwrap();
 
-    let locked2 = client
-        .lock(lock_key, lock_value2, ttl)
+    let lock2 = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to call lock");
-    assert!(!locked2, "Second client should fail to acquire lock");
+    assert!(lock2.is_none(), "Second client should fail to acquire lock");
 
     let unlocked1 = client
-        .unlock(lock_key, lock_value1)
+        .unlock(lock_key, &lock_value1)
         .await
         .expect("Failed to release lock");
     assert!(unlocked1, "First client should release lock successfully");
 
-    let locked2_after_unlock = client
-        .lock(lock_key, lock_value2, ttl)
+    let lock2_after_unlock = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
     assert!(
-        locked2_after_unlock,
+        lock2_after_unlock.is_some(),
         "Second client should acquire lock after first client releases it"
     );
+    let lock_value2 = lock2_after_unlock.unwrap();
 
     let unlocked2 = client
-        .unlock(lock_key, lock_value2)
+        .unlock(lock_key, &lock_value2)
         .await
         .expect("Failed to release lock");
     assert!(unlocked2, "Second client should release lock successfully");
@@ -1333,39 +1333,39 @@ async fn test_sentinel_distributed_lock() {
     let client = oxcache::get_client(&service_name).expect("Failed to get client");
 
     let lock_key = "sentinel_lock_test";
-    let lock_value1 = "uuid_1";
-    let lock_value2 = "uuid_2";
     let ttl = 10;
 
-    let locked1 = client
-        .lock(lock_key, lock_value1, ttl)
+    let lock1 = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(locked1, "First client should acquire lock successfully");
+    assert!(lock1.is_some(), "First client should acquire lock successfully");
+    let lock_value1 = lock1.unwrap();
 
-    let locked2 = client
-        .lock(lock_key, lock_value2, ttl)
+    let lock2 = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to call lock");
-    assert!(!locked2, "Second client should fail to acquire lock");
+    assert!(lock2.is_none(), "Second client should fail to acquire lock");
 
     let unlocked1 = client
-        .unlock(lock_key, lock_value1)
+        .unlock(lock_key, &lock_value1)
         .await
         .expect("Failed to release lock");
     assert!(unlocked1, "First client should release lock successfully");
 
-    let locked2_after_unlock = client
-        .lock(lock_key, lock_value2, ttl)
+    let lock2_after_unlock = client
+        .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
     assert!(
-        locked2_after_unlock,
+        lock2_after_unlock.is_some(),
         "Second client should acquire lock after first client releases it"
     );
+    let lock_value2 = lock2_after_unlock.unwrap();
 
     let unlocked2 = client
-        .unlock(lock_key, lock_value2)
+        .unlock(lock_key, &lock_value2)
         .await
         .expect("Failed to release lock");
     assert!(unlocked2, "Second client should release lock successfully");

@@ -26,7 +26,11 @@ oxcache = { path = "..", default-features = false, features = [
     "cli",
     "full-metrics",
     "batch-write",
-    "config-toml",
+    "confers",
+    "smart-strategy",
+    "http-cache",
+    "config-dynamic",
+    "extra-serialization",
 ] }
 
 # Async runtime
@@ -49,6 +53,12 @@ thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 secrecy = { version = "0.8", features = ["serde"] }
+axum = { version = "0.7", optional = true, features = ["tokio"] }
+http = { version = "1.0", optional = true }
+
+[features]
+default = []
+http-cache = ["oxcache/http-cache", "axum", "http"]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -168,6 +178,25 @@ path = "examples/08_uat/example_security_uat.rs"
 [[example]]
 name = "example_uat_stress_test"
 path = "examples/08_uat/example_uat_stress_test.rs"
+
+# 新功能示例
+[[example]]
+name = "example_smart_strategy"
+path = "examples/smart_strategy.rs"
+
+[[example]]
+name = "example_redis_native"
+path = "examples/redis_native.rs"
+
+[[example]]
+name = "example_http_cache"
+path = "examples/http_cache.rs"
+required-features = ["http-cache"]
+
+[[example]]
+name = "example_dynamic_config"
+path = "examples/dynamic_config.rs"
+required-features = ["config-dynamic"]
 
 [profile.release]
 opt-level = 1

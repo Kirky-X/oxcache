@@ -258,9 +258,9 @@ fn bench_l2_lock(c: &mut Criterion) {
                     .map(|d| d.as_nanos())
                     .unwrap_or(0)
             );
-            l2_backend
-                .lock(black_box(&key), black_box("test_value"), black_box(10))
-                .await
+            let _ = l2_backend
+                .lock(black_box(&key), black_box(10))
+                .await;
         });
     });
 
@@ -273,10 +273,12 @@ fn bench_l2_lock(c: &mut Criterion) {
                     .map(|d| d.as_nanos())
                     .unwrap_or(0)
             );
-            l2_backend.lock(&key, "test_value", 10).await.unwrap();
-            l2_backend
-                .unlock(black_box(&key), black_box("test_value"))
-                .await
+            let lock_value = l2_backend.lock(&key, 10).await.unwrap();
+            if let Some(val) = lock_value {
+                l2_backend
+                    .unlock(black_box(&key), black_box(&val))
+                    .await
+            }
         });
     });
 
