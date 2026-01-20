@@ -11,6 +11,8 @@ use super::common::*;
 use crate::backend::l2::L2Backend;
 #[cfg(feature = "batch-write")]
 use crate::error::Result;
+#[cfg(feature = "batch-write")]
+use crate::security::validate_redis_key;
 
 #[cfg(feature = "batch-write")]
 use dashmap::DashMap;
@@ -152,6 +154,9 @@ impl BatchWriter {
     ///
     /// 返回操作结果
     pub async fn enqueue(&self, key: String, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        // 验证键安全性
+        validate_redis_key(&key)?;
+
         let operation = BatchOperation::Set {
             key: key.clone(),
             value,
@@ -170,6 +175,9 @@ impl BatchWriter {
     ///
     /// 返回操作结果
     pub async fn enqueue_delete(&self, key: String) -> Result<()> {
+        // 验证键安全性
+        validate_redis_key(&key)?;
+
         let operation = BatchOperation::Delete { key: key.clone() };
         self.enqueue_operation(operation).await
     }
