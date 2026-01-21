@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -11,7 +12,7 @@ use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
-use oxcache::CacheExt;
+use oxcache::{manager::CacheManager, CacheError, CacheExt};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -84,7 +85,7 @@ async fn test_backfill_latency() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     // 预热 L2：写入数据
     let key = "perf_key";
@@ -197,7 +198,7 @@ async fn test_redis_outage_resilience() {
     // 初始化可能会失败，或者成功但后续操作失败。
     // oxcache 的 init 会尝试连接 L2，如果连接失败，init 会返回错误。
     // 这是一个设计选择：启动时强依赖 L2。
-    let init_res = oxcache::CacheManager::init(config).await;
+    let init_res: Result<(), oxcache::CacheError> = oxcache::CacheManager::init(config).await;
 
     // 如果初始化失败，说明系统正确地报告了错误，而不是 panic。
     assert!(init_res.is_err());

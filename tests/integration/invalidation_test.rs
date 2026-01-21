@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -97,7 +98,7 @@ async fn test_multi_instance_invalidation() {
     CacheManager::init(config)
         .await
         .expect("CacheManager init failed");
-    let client1 = oxcache::get_client(&service_name).expect("Failed to get client1");
+    let client1 = oxcache::manager::get_client(&service_name).expect("Failed to get client1");
 
     // 2. 准备一个独立的 Redis 客户端来模拟“另一个实例”的 Pub/Sub
     let redis_client = redis::Client::open(redis_url).expect("Failed to create redis client");

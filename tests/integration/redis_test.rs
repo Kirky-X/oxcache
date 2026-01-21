@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -882,7 +883,7 @@ async fn test_cluster_basic_operations() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let key = "cluster_test_key";
     let value = "cluster_test_value";
@@ -973,7 +974,7 @@ async fn test_cluster_data_distribution() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let num_keys = 100;
     let mut keys = Vec::new();
@@ -1070,7 +1071,7 @@ async fn test_cluster_distributed_lock() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let lock_key = "cluster_lock_test";
     let ttl = 10;
@@ -1175,7 +1176,7 @@ async fn test_sentinel_basic_operations() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let key = "sentinel_test_key".to_string();
     let value = "sentinel_test_value".to_string();
@@ -1255,7 +1256,7 @@ async fn test_sentinel_failover() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let test_key = "failover_test_key".to_string();
     let test_value = "failover_test_value".to_string();
@@ -1333,7 +1334,7 @@ async fn test_sentinel_distributed_lock() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     let lock_key = "sentinel_lock_test";
     let ttl = 10;

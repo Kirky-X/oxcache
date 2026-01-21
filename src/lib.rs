@@ -520,10 +520,9 @@ pub use config::LayerConfig;
 // Use LegacyEvictionPolicy from legacy_config to avoid type conflict
 pub use config::LegacyEvictionPolicy as EvictionPolicy;
 pub use error::{CacheError, Result};
-pub use manager::{
-    clear_all_strategies, get_client, get_strategy, init, list_strategies, reset_strategy,
-    update_eviction_policy, update_l1_capacity, update_strategy, update_ttl, CacheManager,
-};
+
+// Note: Legacy manager functions (init, get_client, etc.) are deprecated and no longer re-exported.
+// Use Cache::new(), Cache::redis(), or Cache::tiered() instead.
 
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
@@ -569,21 +568,22 @@ macro_rules! init_config {
     () => {
         let config = $crate::config::confers_macro::confers_load("oxcache.toml")
             .map_err(|e| $crate::error::CacheError::ConfigError(e.to_string()))?;
-        $crate::init(config).await
+        $crate::manager::CacheManager::init(config).await
     };
     ($path:expr) => {
         let config = $crate::config::confers_macro::confers_load($path)
             .map_err(|e| $crate::error::CacheError::ConfigError(e.to_string()))?;
-        $crate::init(config).await
+        $crate::manager::CacheManager::init(config).await
     };
 }
 
 #[cfg(feature = "confers")]
 pub async fn init_from_confers(path: &str) -> Result<()> {
     use crate::config::confers_macro::confers_load;
+    use crate::manager::CacheManager;
     let config =
         confers_load(path).map_err(|e| crate::error::CacheError::ConfigError(e.to_string()))?;
-    init(config).await
+    CacheManager::init(config).await
 }
 
 /// 从配置文件初始化缓存系统
@@ -602,8 +602,9 @@ pub async fn init_from_confers(path: &str) -> Result<()> {
 #[cfg(feature = "confers")]
 pub async fn init_from_file(config_path: &str) -> Result<()> {
     use crate::config::confers_macro::confers_load;
+    use crate::manager::CacheManager;
     let config = confers_load(config_path).map_err(crate::error::CacheError::ConfigError)?;
-    init(config).await
+    CacheManager::init(config).await
 }
 
 /// oxcache 版本号

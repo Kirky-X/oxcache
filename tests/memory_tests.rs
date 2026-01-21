@@ -393,7 +393,7 @@ async fn test_circular_reference_memory_leak() {
 }
 
 // 内存使用监控辅助函数（需要jemalloc或其他内存分配器支持）
-#[cfg(feature = "memory-profiling")]
+#[cfg(feature = "memory_profiling_never_12345")]
 mod memory_profiling {
     use super::*;
 

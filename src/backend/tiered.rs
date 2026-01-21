@@ -340,7 +340,7 @@ impl CacheBackend for TieredBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::memory::MemoryBackend;
+    use crate::backend::memory::MemoryBackend;
 
     #[tokio::test]
     async fn test_tiered_backend_basic() {
@@ -372,11 +372,12 @@ mod tests {
         l2.set("key1", b"value1".to_vec(), None).await.unwrap();
 
         // Get should return value from L2 and promote to L1
-        let value = backend.get("key1").await.unwrap();
+        let value: Option<Vec<u8>> = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
         // Now value should be in L1
-        assert!(l1.exists("key1").await.unwrap());
+        let exists: bool = l1.exists("key1").await.unwrap();
+        assert!(exists);
     }
 
     #[tokio::test]

@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -82,7 +83,7 @@ async fn test_two_level_cache_flow() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("未找到客户端");
+    let client = oxcache::manager::get_client(&service_name).expect("未找到客户端");
 
     // 1. 写入数据
     let test_val = "value1".to_string();

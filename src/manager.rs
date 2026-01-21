@@ -544,10 +544,14 @@ pub fn get_client(service: &str) -> Result<Arc<dyn CacheOps>> {
 /// 返回对应服务的缓存客户端，如果服务不存在则返回错误
 #[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
 pub fn get_typed_client(service: &str) -> Result<Arc<crate::client::two_level::TwoLevelClient>> {
-    let client = get_client(service)?;
+    let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
+    let client = manager
+        .get(service)
+        .ok_or_else(|| CacheError::NotFound(format!("Service '{}' not found", service)))?;
 
     // 使用 into_any_arc 进行安全的向下转型
     match client
+        .clone()
         .into_any_arc()
         .downcast::<crate::client::two_level::TwoLevelClient>()
     {
@@ -644,7 +648,10 @@ pub fn update_strategy(
     l1_max_capacity: Option<u64>,
     eviction_policy: Option<EvictionPolicy>,
 ) -> Result<()> {
-    let _client = get_client(service_name)?;
+    let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
+    let _client = manager
+        .get(service_name)
+        .ok_or_else(|| CacheError::NotFound(format!("Service '{}' not found", service_name)))?;
 
     // 获取或创建当前策略
     let dynamic_config = get_dynamic_config();
