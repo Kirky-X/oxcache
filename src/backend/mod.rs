@@ -19,8 +19,19 @@ pub mod new_backend;
 pub mod redis;
 pub mod tiered;
 
+// Custom tiered backend configuration (always available)
+#[cfg(any(feature = "l1-moka", feature = "l2-redis", feature = "full", feature = "core"))]
+pub mod custom_tiered;
+
 // Re-exports for new API
 pub use memory::MemoryBackend;
 pub use new_backend::CacheBackend;
 pub use redis::{RedisBackend, RedisMode};
 pub use tiered::TieredBackend;
+
+// Re-exports for custom tiered configuration
+#[cfg(any(feature = "l1-moka", feature = "l2-redis", feature = "full", feature = "core"))]
+pub use custom_tiered::{
+    AutoFixConfig, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
+    CustomTieredConfigBuilder, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
+};
