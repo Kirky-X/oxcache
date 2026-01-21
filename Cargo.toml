@@ -237,9 +237,6 @@ anyhow = { version = "1.0", optional = true }
 # Default: Full feature set for maximum compatibility
 default = ["full"]
 
-skip_broken = []
-test = []
-
 # --------------------------------------------------------------------
 # TIERED FEATURES (Build on top of individual features)
 # --------------------------------------------------------------------
