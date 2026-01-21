@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -174,7 +175,7 @@ async fn test_cached_macro_custom_key() {
     assert_eq!(user.name, "Custom");
 
     // 手动验证
-    let client = oxcache::get_client("user_cache").unwrap();
+    let client = oxcache::manager::get_client("user_cache").unwrap();
     // Use low-level get_bytes and manually deserialize because get<T> is not available on trait object
     // or use the helper if available. But since we are testing macro integration, we know macro worked if we can find it.
     // Also, we can use the new serializer method exposed on CacheOps

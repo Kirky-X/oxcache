@@ -81,7 +81,7 @@ pub struct MemoryBackendBuilder {
 impl Default for MemoryBackendBuilder {
     fn default() -> Self {
         Self {
-            capacity: 10_000,  // Default capacity
+            capacity: 10_000, // Default capacity
             ttl: None,
             time_to_idle: None,
         }

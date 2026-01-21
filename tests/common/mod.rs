@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -124,7 +125,7 @@ pub async fn cleanup_service(service_name: &str) {
         .await
         .ok();
 
-    if let Ok(client) = oxcache::get_client(service_name) {
+    if let Ok(client) = oxcache::manager::get_client(service_name) {
         let _ = client.clear_wal().await;
         let _ = client.clear_l1().await;
         let _ = client.clear_l2().await;

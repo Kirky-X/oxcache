@@ -5,7 +5,7 @@
 //! Unified Cache interface for the modernized cache API
 
 use crate::backend::{CacheBackend, MemoryBackend};
-use crate::error::{CacheError, Result};
+use crate::error::Result;
 use crate::serialization::json::JsonSerializer;
 use crate::serialization::Serializer;
 use crate::traits::{CacheKey, Cacheable};
@@ -508,6 +508,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_get_or() {
+        use crate::error::CacheError;
         let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
 
         let value = TestValue {
@@ -516,21 +517,20 @@ mod tests {
         };
 
         // First call should use fallback
-        let result1 = cache
-            .get_or(&"key1".to_string(), || async {
-                Ok::<_, CacheError>(value.clone())
+        async fn fallback1() -> Result<TestValue> {
+            Ok(TestValue {
+                id: 1,
+                name: "test".to_string(),
             })
-            .await
-            .unwrap();
+        }
+        let result1 = cache.get_or(&"key1".to_string(), fallback1).await.unwrap();
         assert_eq!(result1, value);
 
         // Second call should use cache
-        let result2 = cache
-            .get_or(&"key1".to_string(), || async {
-                Err::<_, CacheError>(CacheError::NotFound("should not be called".to_string()))
-            })
-            .await
-            .unwrap();
+        async fn fallback2() -> Result<TestValue> {
+            Err(CacheError::NotFound("should not be called".to_string()))
+        }
+        let result2 = cache.get_or(&"key1".to_string(), fallback2).await.unwrap();
         assert_eq!(result2, value);
     }
 

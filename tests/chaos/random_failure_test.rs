@@ -76,7 +76,7 @@ async fn test_random_redis_failures() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     let start = Instant::now();
     let mut success_count = 0;
@@ -169,7 +169,7 @@ async fn test_distributed_lock_during_failures() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     let lock_key = "chaos_lock_test";
     let ttl = 5;
@@ -249,7 +249,7 @@ async fn test_concurrent_isolation_during_failures() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     let success_count = Arc::new(AtomicUsize::new(0));
     let error_count = Arc::new(AtomicUsize::new(0));
@@ -369,7 +369,7 @@ async fn test_network_instability_handling() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     let mut success_count = 0;
     let mut timeout_count = 0;
@@ -459,7 +459,7 @@ async fn test_data_consistency_after_recovery() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     let test_key = "consistency_test_key";
     let test_value = "test_value_for_consistency";

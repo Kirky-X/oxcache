@@ -1,3 +1,5 @@
+use oxcache::CacheError;
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -12,9 +14,9 @@ use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, ServiceConfig,
     TwoLevelConfig,
 };
+use oxcache::manager::CacheManager;
 use oxcache::serialization::json::JsonSerializer;
 use oxcache::serialization::SerializerEnum;
-use oxcache::CacheManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -69,10 +71,8 @@ async fn test_distributed_lock() {
         ..Default::default()
     };
 
-    CacheManager::init(config)
-        .await
-        .expect("Failed to init CacheManager");
-    let client = oxcache::get_client(&service_name).expect("Failed to get client");
+    CacheManager::init(config).await.expect("Failed to init CacheManager");
+    let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     // 1. 测试获取锁
     let lock_key = "test_lock";
@@ -140,7 +140,7 @@ async fn test_cache_preheating() {
     let service_name = generate_unique_service_name("warmup_test");
 
     // 手动构建 TwoLevelClient 以访问 warmup 方法
-    // 注意：oxcache::get_client 返回 Arc<dyn CacheOps>，不包含 warmup 方法
+    // 注意：oxcache::manager::get_client 返回 Arc<dyn CacheOps>，不包含 warmup 方法
     // 所以我们需要直接构建 TwoLevelClient 或将其转型
 
     let l1 = Arc::new(L1Backend::new(100));

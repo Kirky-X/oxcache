@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -82,7 +83,7 @@ async fn test_batch_write_performance() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).unwrap();
+    let client = oxcache::manager::get_client(&service_name).unwrap();
 
     // 1. 快速写入100个项目
     for i in 0..100 {

@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 
 use chrono::{TimeZone, Utc};
+use oxcache::CacheError;
 use oxcache::database::partition::{
     PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy,
 };

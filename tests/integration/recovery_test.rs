@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -80,7 +81,7 @@ async fn test_degradation_logic() {
     };
 
     setup_cache(config).await;
-    let client = oxcache::get_client(&service_name).expect("未找到客户端");
+    let client = oxcache::manager::get_client(&service_name).expect("未找到客户端");
 
     // 等待健康检查标记为降级
     tokio::time::sleep(Duration::from_secs(2)).await;
