@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Testing
+
+- **Added**: Comprehensive feature combination testing matrix covering minimal, core, and full feature sets
+- **Added**: Automated feature combination validation script (`scripts/validate-feature-combinations.sh`)
+- **Added**: CI jobs for testing individual feature sets (minimal, core, full)
+- **Added**: CI matrix for testing critical feature combinations
+- **Fixed**: Removed `skip_broken` feature flag from database partitioning tests
+- **Fixed**: Database tests now use environment variable `OXCACHE_TEST_DATABASE` for conditional execution
+- **Improved**: CI cache strategy for better build performance
+- **Added**: Feature analysis documentation (`FEATURE_ANALYSIS.md`)
+- **Added**: Feature test matrix documentation (`FEATURE_TEST_MATRIX.md`)
+
 ### Documentation
 
 - Improved configuration examples with L1-only and L2-only cache types
