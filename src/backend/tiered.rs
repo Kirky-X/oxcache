@@ -66,6 +66,18 @@ impl TieredBackend {
         }
     }
 
+    /// Create a tiered backend from Arc<dyn CacheBackend>
+    ///
+    /// This is useful when the backends are created dynamically.
+    pub fn from_arc(l1: Arc<dyn CacheBackend>, l2: Arc<dyn CacheBackend>) -> Self {
+        Self {
+            l1,
+            l2,
+            auto_promote: true,
+            degraded: Arc::new(tokio::sync::RwLock::new(false)),
+        }
+    }
+
     /// Create a new builder for configuring the tiered backend
     ///
     /// # Example

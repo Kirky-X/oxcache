@@ -529,12 +529,19 @@ pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
 pub use cache::Cache;
 pub use traits::{CacheKey, Cacheable};
 
+// Custom tiered backend configuration exports
+#[cfg(any(feature = "l1-moka", feature = "l2-redis", feature = "core", feature = "full"))]
+pub use backend::custom_tiered::{
+    AutoFixConfig, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
+    CustomTieredConfigBuilder, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
+};
+
 #[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
 
 pub use config::oxcache_config;
 
-#[cfg(feature = "test")]
+#[cfg(test)]
 pub use config::{L1Config, L2Config, TwoLevelConfig};
 
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
