@@ -19,6 +19,38 @@ use tracing::{event, info, instrument, warn, Level};
 /// 初始化缓存系统
 ///
 /// 这是一个便捷函数，调用 `CacheManager::init`。
+///
+/// # Deprecated
+///
+/// 此函数已被弃用，建议使用新的现代化 API。
+/// 请使用 `Cache::new()`、`Cache::redis()` 或 `Cache::tiered()` 创建独立的缓存实例。
+///
+/// # Migration Guide
+///
+/// 旧 API:
+/// ```rust,ignore
+/// let config = oxcache_config()
+///     .with_service("default", ServiceConfig::two_level())
+///     .build();
+/// oxcache::init(config).await?;
+/// let client = oxcache::get_client("default")?;
+/// ```
+///
+/// 新 API:
+/// ```rust,ignore
+/// // 简单内存缓存
+/// let cache: Cache<String, User> = Cache::new().await?;
+///
+/// // Redis 缓存
+/// let cache: Cache<String, User> = Cache::redis("redis://localhost:6379").await?;
+///
+/// // 分层缓存
+/// let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+/// ```
+#[deprecated(
+    since = "0.2.0",
+    note = "Use Cache::new(), Cache::redis(), or Cache::tiered() instead. See migration guide for details."
+)]
 #[instrument(skip(config), level = "info", fields(service_count = config.services.len()))]
 pub async fn init(config: OxcacheConfig) -> Result<()> {
     CacheManager::init(config).await
@@ -466,6 +498,29 @@ impl CacheManager {
 /// # 返回值
 ///
 /// 返回对应服务的缓存客户端，如果服务不存在则返回错误
+///
+/// # Deprecated
+///
+/// 此函数已被弃用，建议使用新的现代化 API。
+/// 请使用 `Cache::new()`、`Cache::redis()` 或 `Cache::tiered()` 创建独立的缓存实例。
+///
+/// # Migration Guide
+///
+/// 旧 API:
+/// ```rust,ignore
+/// let client = oxcache::get_client("default")?;
+/// let value: Option<User> = client.get("user:1").await?;
+/// ```
+///
+/// 新 API:
+/// ```rust,ignore
+/// let cache: Cache<String, User> = Cache::new().await?;
+/// let value: Option<User> = cache.get(&"user:1".to_string()).await?;
+/// ```
+#[deprecated(
+    since = "0.2.0",
+    note = "Use Cache::new(), Cache::redis(), or Cache::tiered() instead. See migration guide for details."
+)]
 pub fn get_client(service: &str) -> Result<Arc<dyn CacheOps>> {
     let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
     if let Some(r) = manager.get(service) {

@@ -4,9 +4,9 @@
 //!
 //! 该模块定义了L2-only缓存客户端的实现。
 
-use super::CacheOps;
-use super::ttl_control::TtlControl;
 use super::tiered_cache::TieredCacheControl;
+use super::ttl_control::TtlControl;
+use super::CacheOps;
 use crate::backend::l2::L2Backend;
 use crate::config::TwoLevelConfig;
 use crate::error::Result;
@@ -38,6 +38,8 @@ pub struct L2Client {
     wal: Arc<WalManager>,
     /// 失效发布器
     publisher: Option<Arc<InvalidationPublisher>>,
+    /// 时间戳验证缓存（用于防止时间回退攻击）
+    timestamp_cache: Arc<dashmap::DashMap<String, i64>>,
 }
 
 impl L2Client {
@@ -96,6 +98,7 @@ impl L2Client {
             health_state,
             wal,
             publisher,
+            timestamp_cache: Arc::new(dashmap::DashMap::new()),
         })
     }
 
@@ -481,9 +484,28 @@ impl TtlControl for L2Client {
         match *state {
             HealthState::Healthy | HealthState::Recovering { .. } => {
                 drop(state);
+
+                // 时间戳验证：防止时间回退攻击
+                let current_timestamp = chrono::Utc::now().timestamp();
+                if let Some(last_timestamp) = self.timestamp_cache.get(key) {
+                    let last_ts = *last_timestamp;
+                    if current_timestamp < last_ts {
+                        warn!(
+                            "Detected time rollback attack for key '{}': current={}, last={}",
+                            key, current_timestamp, last_ts
+                        );
+                        return Err(crate::error::CacheError::InvalidInput(
+                            "Time rollback detected".to_string(),
+                        ));
+                    }
+                }
+
                 let result = self.l2.expire(key, ttl).await?;
                 if result {
                     GLOBAL_METRICS.record_request(&self.service_name, "L2", "expire", "success");
+                    // 更新时间戳
+                    self.timestamp_cache
+                        .insert(key.to_string(), current_timestamp);
                 }
                 Ok(result)
             }
@@ -505,13 +527,35 @@ impl TtlControl for L2Client {
         match *state {
             HealthState::Healthy | HealthState::Recovering { .. } => {
                 drop(state);
+
+                // 时间戳验证：防止时间回退攻击
+                let current_timestamp = chrono::Utc::now().timestamp();
+                if let Some(last_timestamp) = self.timestamp_cache.get(key) {
+                    let last_ts = *last_timestamp;
+                    if current_timestamp < last_ts {
+                        warn!(
+                            "Detected time rollback attack for key '{}': current={}, last={}",
+                            key, current_timestamp, last_ts
+                        );
+                        return Err(crate::error::CacheError::InvalidInput(
+                            "Time rollback detected".to_string(),
+                        ));
+                    }
+                }
+
                 // Touch 可以通过重新设置 TTL 来实现（保持剩余时间不变）
                 if let Some(current_ttl) = self.get_l2_ttl(key).await? {
                     if current_ttl == 0 {
                         // 键已过期
                         return Ok(false);
                     }
-                    return self.l2.expire(key, current_ttl).await;
+                    let result = self.l2.expire(key, current_ttl).await?;
+                    if result {
+                        // 更新时间戳
+                        self.timestamp_cache
+                            .insert(key.to_string(), current_timestamp);
+                    }
+                    return Ok(result);
                 }
                 Ok(false)
             }

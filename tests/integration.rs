@@ -22,6 +22,8 @@ mod partitioning_tests;
 mod performance_test;
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
+#[path = "integration/redis_native_test.rs"]
+mod redis_native_test;
 #[path = "integration/redis_test.rs"]
 mod redis_test;
 #[path = "integration/sea_orm_sqlite_tests.rs"]
@@ -32,16 +34,14 @@ mod security_test;
 mod single_flight_test;
 #[path = "integration/sqlite_partition_tests.rs"]
 mod sqlite_partition_tests;
-#[path = "integration/two_level_test.rs"]
-mod two_level_test;
-#[path = "integration/version_test.rs"]
-mod version_test;
-#[path = "integration/redis_native_test.rs"]
-mod redis_native_test;
 #[path = "integration/tiered_cache_test.rs"]
 mod tiered_cache_test;
 #[path = "integration/ttl_control_test.rs"]
 mod ttl_control_test;
+#[path = "integration/two_level_test.rs"]
+mod two_level_test;
+#[path = "integration/version_test.rs"]
+mod version_test;
 #[path = "integration/wal_test.rs"]
 mod wal_test;
 

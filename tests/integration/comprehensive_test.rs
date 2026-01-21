@@ -84,7 +84,10 @@ default_ttl = 300
     std::fs::write(&config_path, config_content).unwrap();
 
     let config = confers_load(config_path.to_str().unwrap()).unwrap();
-    assert_eq!(config.source, Some(oxcache::ConfigSource::File("confers".to_string())));
+    assert_eq!(
+        config.source,
+        Some(oxcache::ConfigSource::File("confers".to_string()))
+    );
 }
 
 /// 测试不存在的配置文件

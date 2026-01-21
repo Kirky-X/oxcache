@@ -115,14 +115,17 @@ async fn test_distributed_lock() {
         .await
         .expect("Failed to acquire lock");
     assert!(lock_value.is_some());
-    let lock_val = lock_value.unwrap();
+    let _lock_val = lock_value.unwrap();
 
     sleep(Duration::from_secs(2)).await;
     let locked_after_expire = client
         .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(locked_after_expire.is_some(), "Should acquire lock after expiration");
+    assert!(
+        locked_after_expire.is_some(),
+        "Should acquire lock after expiration"
+    );
 
     cleanup_service(&service_name).await;
 }

@@ -309,6 +309,7 @@ full = [
     "extra-serialization",
     "config-dynamic",
     "http-cache",
+    "serialization-cache",
 ]
 
 # --------------------------------------------------------------------
@@ -329,6 +330,9 @@ serialization = ["dep:serde", "dep:serde_json"]
 bincode = ["serialization", "dep:bincode"]
 compression = ["dep:flate2"]
 flate2 = ["dep:flate2"]
+
+# Serialization Cache
+serialization-cache = ["serialization", "dep:dashmap"]
 
 # Metrics & Observability
 opentelemetry = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:tracing-subscriber"]

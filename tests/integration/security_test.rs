@@ -96,18 +96,27 @@ async fn test_lua_script_injection_attempts() {
 
     // 攻击 7: 大小写混合尝试绕过
     let result = validate_lua_script("return redis.call('flushall')", 0);
-    assert!(result.is_err(), "Case-insensitive FLUSHALL should be rejected");
+    assert!(
+        result.is_err(),
+        "Case-insensitive FLUSHALL should be rejected"
+    );
 
     let result = validate_lua_script("return redis.call('FlushAll')", 0);
     assert!(result.is_err(), "Mixed case FLUSHALL should be rejected");
 
     // 攻击 8: 嵌套在注释中的恶意代码
     let result = validate_lua_script("--[[ malicious ]] return redis.call('FLUSHALL')", 0);
-    assert!(result.is_err(), "Comment-hidden FLUSHALL should be rejected");
+    assert!(
+        result.is_err(),
+        "Comment-hidden FLUSHALL should be rejected"
+    );
 
     // 攻击 9: 字符串中的恶意代码（不应被检测，因为不在 redis.call 中）
     let result = validate_lua_script("local x = 'FLUSHALL'; return 'safe'", 0);
-    assert!(result.is_ok(), "String containing FLUSHALL should be allowed");
+    assert!(
+        result.is_ok(),
+        "String containing FLUSHALL should be allowed"
+    );
 
     println!("✓ All Lua script injection attempts were correctly rejected");
 }
@@ -134,7 +143,10 @@ async fn test_scan_pattern_redos_attempts() {
 
     // 攻击 3: 嵌套通配符
     let result = validate_scan_pattern("*:*:*:*:*:*:*:*:*:*:*:*");
-    assert!(result.is_err(), "Too many nested wildcards should be rejected");
+    assert!(
+        result.is_err(),
+        "Too many nested wildcards should be rejected"
+    );
 
     // 攻击 4: 边界情况 - 刚好 10 个通配符（应该通过）
     let result = validate_scan_pattern(&"*".repeat(10));
@@ -146,7 +158,10 @@ async fn test_scan_pattern_redos_attempts() {
 
     // 攻击 6: 复杂正则表达式模式（虽然 Redis 不支持正则，但防止未来的扩展）
     let result = validate_scan_pattern("(a+)+test");
-    assert!(result.is_ok(), "Complex pattern should be allowed (not ReDoS vulnerable)");
+    assert!(
+        result.is_ok(),
+        "Complex pattern should be allowed (not ReDoS vulnerable)"
+    );
 
     // 攻击 7: 混合通配符
     let result = validate_scan_pattern("user:*:data:*:profile");
@@ -191,7 +206,10 @@ async fn test_redis_key_injection_attempts() {
 
     // 攻击 7: 协议分隔符组合
     let result = validate_redis_key("key\r\n*3\r\n$3\r\nSET\r\n");
-    assert!(result.is_err(), "Protocol injection attempt should be rejected");
+    assert!(
+        result.is_err(),
+        "Protocol injection attempt should be rejected"
+    );
 
     // 合法键应该通过
     assert!(validate_redis_key("user:123").is_ok());
@@ -213,7 +231,7 @@ async fn test_connection_string_redaction() {
     use oxcache::database::normalize_connection_string_with_redaction;
 
     // 测试 MySQL 连接字符串脱敏
-    let mysql_no_pass = "mysql://user@localhost:3306";
+    let _mysql_no_pass = "mysql://user@localhost:3306";
     let mysql_with_pass = "mysql://user:password123@localhost:3306";
 
     println!("Testing: {}", mysql_with_pass);
@@ -222,18 +240,27 @@ async fn test_connection_string_redaction() {
     println!("Result: {}", result);
 
     assert!(result.contains("****"), "Password should be redacted");
-    assert!(!result.contains("password123"), "Original password should not be present");
+    assert!(
+        !result.contains("password123"),
+        "Original password should not be present"
+    );
     assert!(result.contains("user"), "Username should be preserved");
 
     // 测试 PostgreSQL 连接字符串脱敏
     let postgres_with_pass = "postgres://admin:secret456@host:5432/db";
     let result = normalize_connection_string_with_redaction(postgres_with_pass, true);
     assert!(result.contains("****"), "Password should be redacted");
-    assert!(!result.contains("secret456"), "Original password should not be present");
+    assert!(
+        !result.contains("secret456"),
+        "Original password should not be present"
+    );
 
     // 测试不脱敏
     let result = normalize_connection_string_with_redaction(mysql_with_pass, false);
-    assert!(result.contains("password123"), "Password should be preserved when redact=false");
+    assert!(
+        result.contains("password123"),
+        "Password should be preserved when redact=false"
+    );
 
     // 测试 Redis 连接字符串脱敏
     let redis_with_pass = "redis://:mypassword@localhost:6379";

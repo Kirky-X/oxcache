@@ -4,6 +4,7 @@
 //!
 //! 该模块定义了JSON序列化器的实现。
 
+use super::utils::{check_data_size, compress_data, decompress_data};
 use super::Serializer;
 use crate::error::{CacheError, Result};
 use serde::{de::DeserializeOwned, Serialize};
@@ -19,48 +20,6 @@ pub struct JsonSerializer {
 
 /// 最大JSON反序列化大小限制（5MB）
 const MAX_JSON_SIZE: usize = 5 * 1024 * 1024;
-
-/// 使用flate2压缩数据
-#[cfg(feature = "flate2")]
-fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
-    use flate2::write::GzEncoder;
-    use flate2::Compression;
-    use std::io::Write;
-
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-    encoder
-        .write_all(data)
-        .map_err(|e| CacheError::Serialization(e.to_string()))?;
-    encoder
-        .finish()
-        .map_err(|e| CacheError::Serialization(e.to_string()))
-}
-
-/// 使用flate2解压缩数据
-#[cfg(feature = "flate2")]
-fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
-    use flate2::read::GzDecoder;
-    use std::io::Read;
-
-    let mut decoder = GzDecoder::new(data);
-    let mut decoded = Vec::new();
-    decoder
-        .read_to_end(&mut decoded)
-        .map_err(|e| CacheError::Serialization(e.to_string()))?;
-    Ok(decoded)
-}
-
-/// 当flate2特性未启用时的压缩函数（直接返回原数据）
-#[cfg(not(feature = "flate2"))]
-fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
-    Ok(data.to_vec())
-}
-
-/// 当flate2特性未启用时的解压缩函数（直接返回原数据）
-#[cfg(not(feature = "flate2"))]
-fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
-    Ok(data.to_vec())
-}
 
 impl JsonSerializer {
     /// 创建新的JSON序列化器
@@ -117,13 +76,7 @@ impl Serializer for JsonSerializer {
     /// 此方法限制反序列化数据的大小，防止拒绝服务攻击
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         // 安全检查：限制数据大小
-        if data.len() > MAX_JSON_SIZE {
-            return Err(CacheError::Serialization(format!(
-                "JSON data too large: {} bytes (max: {} bytes)",
-                data.len(),
-                MAX_JSON_SIZE
-            )));
-        }
+        check_data_size(data, MAX_JSON_SIZE, "JSON")?;
 
         let json_bytes = if self.compress {
             // 解压缩

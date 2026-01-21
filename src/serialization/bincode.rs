@@ -4,6 +4,7 @@
 //!
 //! 该模块定义了Bincode序列化器的实现。
 
+use super::utils::check_data_size;
 use super::Serializer;
 use crate::error::{CacheError, Result};
 use serde::{de::DeserializeOwned, Serialize};
@@ -46,13 +47,7 @@ impl Serializer for BincodeSerializer {
     /// 此方法限制反序列化数据的大小，防止拒绝服务攻击
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         // 安全检查：限制数据大小
-        if data.len() > MAX_BINCODE_SIZE {
-            return Err(CacheError::Serialization(format!(
-                "Data too large: {} bytes (max: {} bytes)",
-                data.len(),
-                MAX_BINCODE_SIZE
-            )));
-        }
+        check_data_size(data, MAX_BINCODE_SIZE, "Bincode")?;
 
         bincode::deserialize(data).map_err(|e| CacheError::Serialization(e.to_string()))
     }

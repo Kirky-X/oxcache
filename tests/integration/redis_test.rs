@@ -1079,7 +1079,10 @@ async fn test_cluster_distributed_lock() {
         .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(lock1.is_some(), "First client should acquire lock successfully");
+    assert!(
+        lock1.is_some(),
+        "First client should acquire lock successfully"
+    );
     let lock_value1 = lock1.unwrap();
 
     let lock2 = client
@@ -1339,7 +1342,10 @@ async fn test_sentinel_distributed_lock() {
         .lock(lock_key, ttl)
         .await
         .expect("Failed to acquire lock");
-    assert!(lock1.is_some(), "First client should acquire lock successfully");
+    assert!(
+        lock1.is_some(),
+        "First client should acquire lock successfully"
+    );
     let lock_value1 = lock1.unwrap();
 
     let lock2 = client

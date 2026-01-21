@@ -55,6 +55,9 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 /// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
 /// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
 /// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
+/// - **未找到错误** ([`CacheError::NotFound`]): 请求的键不存在
+/// - **降级错误** ([`CacheError::Degraded`]): 缓存处于降级模式
+/// - **操作错误** ([`CacheError::Operation`]): 一般操作错误
 ///
 /// # 示例
 ///
@@ -65,7 +68,7 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 ///     let result = cache.get("key").await?;
 ///     match result {
 ///         Some(value) => Ok(value),
-///         None => Err(CacheError::BackendError("Key not found".to_string()))
+///         None => Err(CacheError::NotFound("Key not found".to_string()))
 ///     }
 /// }
 /// ```
@@ -80,6 +83,32 @@ pub enum CacheError {
     #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible."
     )]
     Serialization(String),
+
+    /// 操作错误
+    ///
+    /// 一般的缓存操作失败
+    #[error("Operation failed: {0}. Please retry or check your request.")]
+    Operation(String),
+
+    /// 连接错误
+    ///
+    /// 网络连接失败或断开
+    #[error("Connection error: {0}. Please check network connectivity and server availability.")]
+    Connection(String),
+
+    /// 未找到错误
+    ///
+    /// 请求的键在缓存中不存在
+    #[error("Key not found: {0}. The requested key does not exist in the cache.")]
+    NotFound(String),
+
+    /// 降级错误
+    ///
+    /// 缓存处于降级模式，某些功能不可用
+    #[error(
+        "Cache degraded: {0}. The cache is operating in degraded mode with limited functionality."
+    )]
+    Degraded(String),
 
     /// L1缓存操作失败
     ///
@@ -186,5 +215,67 @@ impl From<sea_orm::DbErr> for CacheError {
 impl From<std::io::Error> for CacheError {
     fn from(e: std::io::Error) -> Self {
         CacheError::IoError(e)
+    }
+}
+
+impl CacheError {
+    /// Check if this error is a "not found" error
+    ///
+    /// Returns true if the error indicates that a requested key was not found.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::CacheError;
+    ///
+    /// let err = CacheError::NotFound("key".to_string());
+    /// assert!(err.is_not_found());
+    ///
+    /// let other_err = CacheError::Connection("failed".to_string());
+    /// assert!(!other_err.is_not_found());
+    /// ```
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, CacheError::NotFound(_))
+    }
+
+    /// Check if this error is a connection error
+    ///
+    /// Returns true if the error indicates a connection-related failure.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::CacheError;
+    ///
+    /// let err = CacheError::Connection("failed".to_string());
+    /// assert!(err.is_connection_error());
+    ///
+    /// let other_err = CacheError::NotFound("key".to_string());
+    /// assert!(!other_err.is_connection_error());
+    /// ```
+    pub fn is_connection_error(&self) -> bool {
+        matches!(
+            self,
+            CacheError::Connection(_) | CacheError::RedisError(_) | CacheError::L2Error(_)
+        )
+    }
+
+    /// Check if this error is a degraded mode error
+    ///
+    /// Returns true if the error indicates the cache is operating in degraded mode.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::CacheError;
+    ///
+    /// let err = CacheError::Degraded("L2 unavailable".to_string());
+    /// assert!(err.is_degraded());
+    ///
+    /// let other_err = CacheError::NotFound("key".to_string());
+    /// assert!(!other_err.is_degraded());
+    /// ```
+    pub fn is_degraded(&self) -> bool {
+        matches!(self, CacheError::Degraded(_))
     }
 }

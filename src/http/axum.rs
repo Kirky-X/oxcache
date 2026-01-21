@@ -9,11 +9,7 @@
 use crate::http::{
     HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy, HttpCacheResponse, HttpRequest,
 };
-use axum::{
-    body::Body,
-    extract::State,
-    response::Response,
-};
+use axum::{body::Body, extract::State, response::Response};
 use http::Request;
 use http::StatusCode;
 use http_body_util::BodyExt;
@@ -143,7 +139,10 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
         };
 
         // 缓存响应
-        let _ = state.adapter.set_response(&cache_key, &cached_response).await;
+        let _ = state
+            .adapter
+            .set_response(&cache_key, &cached_response)
+            .await;
     }
 
     response
@@ -163,15 +162,10 @@ fn build_response(cached: &HttpCacheResponse) -> Response {
     }
 
     if let Some(ttl) = cached.ttl {
-        builder = builder.header(
-            "Cache-Control",
-            format!("max-age={}", ttl),
-        );
+        builder = builder.header("Cache-Control", format!("max-age={}", ttl));
     }
 
-    builder
-        .body(Body::from(cached.body.clone()))
-        .unwrap()
+    builder.body(Body::from(cached.body.clone())).unwrap()
 }
 
 #[cfg(test)]
@@ -196,30 +190,60 @@ mod tests {
 
     #[async_trait]
     impl HttpCacheAdapter for MemoryCacheAdapter {
-        async fn get_response(&self, key: &str) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
-            Ok(self.store.lock().unwrap().get(key).cloned())
+        async fn get_response(
+            &self,
+            key: &str,
+        ) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
+            Ok(self
+                .store
+                .lock()
+                .expect("MemoryCacheAdapter store lock poisoned")
+                .get(key)
+                .cloned())
         }
 
-        async fn set_response(&self, key: &str, response: &HttpCacheResponse) -> Result<(), crate::error::CacheError> {
-            self.store
+        async fn set_response(
+            &self,
+            key: &str,
+            response: &HttpCacheResponse,
+        ) -> Result<(), crate::error::CacheError> {
+            let mut store = self
+                .store
                 .lock()
-                .unwrap()
-                .insert(key.to_string(), response.clone());
+                .expect("MemoryCacheAdapter store lock poisoned");
+            store.insert(key.to_string(), response.clone());
             Ok(())
         }
 
         async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError> {
-            Ok(self.store.lock().unwrap().remove(key).is_some())
+            let mut store = self
+                .store
+                .lock()
+                .expect("MemoryCacheAdapter store lock poisoned");
+            Ok(store.remove(key).is_some())
         }
 
-        async fn invalidate_by_pattern(&self, pattern: &str) -> Result<u64, crate::error::CacheError> {
-            let count = self.store.lock().unwrap().len();
-            self.store.lock().unwrap().clear();
+        async fn invalidate_by_pattern(
+            &self,
+            _pattern: &str,
+        ) -> Result<u64, crate::error::CacheError> {
+            let mut store = self
+                .store
+                .lock()
+                .expect("MemoryCacheAdapter store lock poisoned");
+            let count = store.len();
+            store.clear();
             Ok(count as u64)
         }
 
-        async fn get_responses(&self, keys: &[&str]) -> Result<HashMap<String, HttpCacheResponse>, crate::error::CacheError> {
-            let store = self.store.lock().unwrap();
+        async fn get_responses(
+            &self,
+            keys: &[&str],
+        ) -> Result<HashMap<String, HttpCacheResponse>, crate::error::CacheError> {
+            let store = self
+                .store
+                .lock()
+                .expect("MemoryCacheAdapter store lock poisoned");
             let mut result = HashMap::new();
             for &key in keys {
                 if let Some(resp) = store.get(key) {

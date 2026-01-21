@@ -44,9 +44,23 @@ impl ConfigDynamicManager {
 
     /// 更新服务策略
     pub fn update_strategy(&self, strategy: CacheStrategy) {
-        let old_strategy = self.strategies.get(&strategy.service_name).map(|s| s.clone());
+        // 验证策略
+        if let Err(e) = self.validate_strategy(&strategy) {
+            tracing::error!(
+                "Invalid strategy for service '{}': {}",
+                strategy.service_name,
+                e
+            );
+            return;
+        }
+
+        let old_strategy = self
+            .strategies
+            .get(&strategy.service_name)
+            .map(|s| s.clone());
         let service_name = strategy.service_name.clone();
-        self.strategies.insert(service_name.clone(), strategy.clone());
+        self.strategies
+            .insert(service_name.clone(), strategy.clone());
 
         // 发送变更事件
         let _ = self.event_sender.send(ConfigChangeEvent {
@@ -81,7 +95,7 @@ impl ConfigDynamicManager {
     }
 
     /// 切换缓存模式（如 promote_on_hit）
-    pub fn switch_cache_mode(&self, service_name: &str, promote_on_hit: bool) {
+    pub fn switch_cache_mode(&self, service_name: &str, _promote_on_hit: bool) {
         if let Some(mut entry) = self.strategies.get_mut(service_name) {
             // 注意：这里需要根据实际配置结构调整
             entry.updated_at = chrono::Utc::now();
@@ -91,6 +105,31 @@ impl ConfigDynamicManager {
     /// 订阅配置变更
     pub fn subscribe(&self) -> broadcast::Receiver<ConfigChangeEvent> {
         self.event_sender.subscribe()
+    }
+
+    /// 验证策略
+    fn validate_strategy(&self, strategy: &CacheStrategy) -> Result<(), String> {
+        // 验证服务名称
+        if strategy.service_name.is_empty() {
+            return Err("Service name cannot be empty".to_string());
+        }
+
+        if strategy.service_name.len() > 64 {
+            return Err("Service name exceeds maximum length of 64 characters".to_string());
+        }
+
+        // 验证 TTL
+        if strategy.ttl == 0 {
+            return Err("TTL cannot be zero".to_string());
+        }
+
+        if strategy.ttl > 86400 * 30 {
+            return Err("TTL cannot exceed 30 days".to_string());
+        }
+
+        // EvictionPolicy 枚举已经定义了有效的变体，无需额外验证
+
+        Ok(())
     }
 
     /// 全部清除

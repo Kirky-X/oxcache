@@ -14,10 +14,8 @@ mod tests {
     use oxcache::client::two_level::TwoLevelClient;
     use oxcache::config::{L2Config, RedisMode, TwoLevelConfig};
     use oxcache::serialization::{JsonSerializer, SerializerEnum};
-    use oxcache::CacheExt;
     use secrecy::SecretString;
     use std::sync::Arc;
-    use tokio;
 
     /// 获取测试 TwoLevelClient
     async fn get_test_two_level_client() -> Arc<TwoLevelClient> {
@@ -72,7 +70,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 直接设置 L1
-        client.set_l1_direct(test_key, b"l1_value".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(test_key, b"l1_value".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 直接获取 L1（应该能获取到）
         let value = client.get_l1_direct(test_key).await.unwrap();
@@ -105,7 +106,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 直接设置 L1
-        client.set_l1_direct(test_key, b"only_in_l1".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(test_key, b"only_in_l1".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证 L1 有数据
         let l1_value = client.get_l1_direct(test_key).await.unwrap();
@@ -126,7 +130,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 先设置数据到 L1
-        client.set_l1_direct(test_key, b"to_delete".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(test_key, b"to_delete".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证存在
         assert!(client.get_l1_direct(test_key).await.unwrap().is_some());
@@ -153,7 +160,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 直接设置 L2
-        client.set_l2_direct(test_key, b"l2_value".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l2_direct(test_key, b"l2_value".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 直接获取 L2
         let value = client.get_l2_direct(test_key).await.unwrap();
@@ -171,7 +181,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 直接设置 L2
-        client.set_l2_direct(test_key, b"only_in_l2".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l2_direct(test_key, b"only_in_l2".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证 L2 有数据
         let l2_value = client.get_l2_direct(test_key).await.unwrap();
@@ -198,7 +211,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 先设置数据到 L2
-        client.set_l2_direct(test_key, b"to_delete_from_l2".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l2_direct(test_key, b"to_delete_from_l2".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 直接删除 L2
         let result = client.delete_l2_direct(test_key).await.unwrap();
@@ -222,7 +238,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 先设置数据到 L2
-        client.set_l2_direct(test_key, b"promote_this".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l2_direct(test_key, b"promote_this".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证 L1 没有数据
         assert!(client.get_l1_direct(test_key).await.unwrap().is_none());
@@ -248,7 +267,10 @@ mod tests {
         let client = get_test_two_level_client().await;
 
         // 提升不存在的键应该返回 false
-        let result = client.promote_to_l1("nonexistent_promote_key").await.unwrap();
+        let result = client
+            .promote_to_l1("nonexistent_promote_key")
+            .await
+            .unwrap();
         assert!(!result);
     }
 
@@ -260,7 +282,10 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 先设置数据到 L1
-        client.set_l1_direct(test_key, b"demote_this".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(test_key, b"demote_this".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 降级到 L2（同时可以指定新的 TTL）
         let result = client.demote_to_l2(test_key, Some(600)).await.unwrap();
@@ -290,8 +315,14 @@ mod tests {
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
 
         // 在 L1 和 L2 都设置数据
-        client.set_l1_direct(test_key, b"l1_data".to_vec(), Some(300)).await.unwrap();
-        client.set_l2_direct(test_key, b"l2_data".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(test_key, b"l1_data".to_vec(), Some(300))
+            .await
+            .unwrap();
+        client
+            .set_l2_direct(test_key, b"l2_data".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证两边都有数据
         assert!(client.get_l1_direct(test_key).await.unwrap().is_some());
@@ -325,12 +356,24 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // 设置不同的值到不同层
-        client.set_l1_direct(l1_key, b"l1_only".to_vec(), Some(300)).await.unwrap();
-        client.set_l2_direct(l2_key, b"l2_only".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(l1_key, b"l1_only".to_vec(), Some(300))
+            .await
+            .unwrap();
+        client
+            .set_l2_direct(l2_key, b"l2_only".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 对于共享键，两边都设置
-        client.set_l1_direct(shared_key, b"shared_in_l1".to_vec(), Some(300)).await.unwrap();
-        client.set_l2_direct(shared_key, b"shared_in_l2".to_vec(), Some(300)).await.unwrap();
+        client
+            .set_l1_direct(shared_key, b"shared_in_l1".to_vec(), Some(300))
+            .await
+            .unwrap();
+        client
+            .set_l2_direct(shared_key, b"shared_in_l2".to_vec(), Some(300))
+            .await
+            .unwrap();
 
         // 验证层隔离
         // L1 键只能从 L1 获取
@@ -343,8 +386,14 @@ mod tests {
         assert!(l2_result.is_some(), "L2 key should exist in L2");
 
         // 共享键两边都能获取
-        assert_eq!(client.get_l1_direct(shared_key).await.unwrap().unwrap(), b"shared_in_l1".to_vec());
-        assert_eq!(client.get_l2_direct(shared_key).await.unwrap().unwrap(), b"shared_in_l2".to_vec());
+        assert_eq!(
+            client.get_l1_direct(shared_key).await.unwrap().unwrap(),
+            b"shared_in_l1".to_vec()
+        );
+        assert_eq!(
+            client.get_l2_direct(shared_key).await.unwrap().unwrap(),
+            b"shared_in_l2".to_vec()
+        );
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
     }
@@ -366,12 +415,14 @@ mod tests {
             let client = client.clone();
             let key = format!("{}:{}", test_prefix, i);
             handles.push(tokio::spawn(async move {
-                client.set_l1_direct(&key, format!("value{}", i).into_bytes(), Some(300)).await
+                client
+                    .set_l1_direct(&key, format!("value{}", i).into_bytes(), Some(300))
+                    .await
             }));
         }
 
         for handle in handles {
-            handle.await.unwrap();
+            let _ = handle.await.unwrap();
         }
 
         // 验证所有键都在 L1

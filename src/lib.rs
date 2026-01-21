@@ -6,8 +6,179 @@
 //!
 //! 提供L1内存缓存和L2分布式缓存的两级缓存解决方案，
 //! 支持缓存降级、故障恢复和优雅关闭等功能。
+//!
+//! # Modern API (Recommended)
+//!
+//! The new API (v0.2.0+) provides a type-safe, independent cache interface:
+//!
+//! ```rust,ignore
+//! use oxcache::Cache;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Serialize, Deserialize, Debug)]
+//! struct User {
+//!     id: u64,
+//!     name: String,
+//! }
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Simple memory cache
+//!     let cache: Cache<String, User> = Cache::new().await?;
+//!
+//!     // Set a value
+//!     let user = User { id: 1, name: "Alice".to_string() };
+//!     cache.set(&"user:1".to_string(), &user).await?;
+//!
+//!     // Get a value
+//!     let user: Option<User> = cache.get(&"user:1".to_string()).await?;
+//!
+//!     // Cache-aside pattern with fallback
+//!     let user: User = cache.get_or(&"user:1".to_string(), || async {
+//!         fetch_user_from_db(1).await
+//!     }).await?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Cache Types
+//!
+//! ## Memory Cache
+//!
+//! ```rust,ignore
+//! let cache: Cache<String, MyType> = Cache::new().await?;
+//! // or
+//! let cache: Cache<String, MyType> = Cache::memory().await?;
+//! ```
+//!
+//! ## Redis Cache
+//!
+//! ```rust,ignore
+//! let cache: Cache<String, MyType> = Cache::redis("redis://localhost:6379").await?;
+//! ```
+//!
+//! ## Tiered Cache (L1 + L2)
+//!
+//! ```rust,ignore
+//! let cache: Cache<String, MyType> = Cache::tiered(10000, "redis://localhost:6379").await?;
+//! ```
+//!
+//! # Advanced Configuration
+//!
+//! ```rust,ignore
+//! use oxcache::{Cache, builder::BackendBuilder};
+//! use std::time::Duration;
+//!
+//! let cache: Cache<String, User> = Cache::builder()
+//!     .backend(
+//!         BackendBuilder::tiered()
+//!             .l1_capacity(10000)
+//!             .l2_connection_string("redis://localhost:6379")
+//!             .auto_promote(true)
+//!     )
+//!     .ttl(Duration::from_secs(3600))
+//!     .build()
+//!     .await?;
+//! ```
+//!
+//! # Key Types
+//!
+//! The new API supports any type implementing `CacheKey`:
+//!
+//! ```rust,ignore
+//! // String keys (default)
+//! let cache: Cache<String, User> = Cache::new().await?;
+//!
+//! // Numeric keys
+//! let cache: Cache<u64, User> = Cache::new().await?;
+//!
+//! // Custom key type
+//! impl oxcache::traits::CacheKey for UserId {
+//!     fn to_key_string(&self) -> String {
+//!         format!("user:{}", self.0)
+//!     }
+//! }
+//!
+//! let cache: Cache<UserId, User> = Cache::new().await?;
+//! ```
+//!
+//! # Batch Operations
+//!
+//! ```rust,ignore
+//! // Batch set
+//! cache.set_many(vec![
+//!     (&"key1".to_string(), &value1),
+//!     (&"key2".to_string(), &value2),
+//! ]).await?;
+//!
+//! // Batch get
+//! let results: HashMap<String, User> = cache.get_many(vec![
+//!     &"key1".to_string(),
+//!     &"key2".to_string(),
+//! ]).await?;
+//!
+//! // Batch delete
+//! cache.delete_many(vec![
+//!     &"key1".to_string(),
+//!     &"key2".to_string(),
+//! ]).await?;
+//! ```
+//!
+//! # Migration from Old API
+//!
+//! If you're using the old API (v0.1.x), see the migration guide:
+//! - [Migration Guide](https://docs.rs/oxcache/latest/oxcache/docs/migration/index.html)
+//!
+//! The old API is deprecated but still functional. To migrate:
+//!
+//! Old API:
+//! ```rust,ignore
+//! let config = oxcache_config()
+//!     .with_service("default", ServiceConfig::two_level())
+//!     .build();
+//! oxcache::init(config).await?;
+//! let client = oxcache::get_client("default")?;
+//! ```
+//!
+//! New API:
+//! ```rust,ignore
+//! let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+//! ```
+//!
+//! # Features
+//!
+//! - `l1-moka`: Enable L1 memory cache (Moka)
+//! - `l2-redis`: Enable L2 distributed cache (Redis)
+//! - `serialization`: Enable JSON/Bincode serialization
+//! - `metrics`: Enable OpenTelemetry metrics
+//! - `wal-recovery`: Enable write-ahead log for recovery
+//! - `batch-write`: Enable optimized batch writes
+//! - `full`: Enable all features
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use oxcache::Cache;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create a tiered cache
+//!     let cache: Cache<String, String> = Cache::tiered(
+//!         10000,
+//!         "redis://localhost:6379"
+//!     ).await?;
+//!
+//!     // Set and get
+//!     cache.set(&"key".to_string(), &"value".to_string()).await?;
+//!     let value = cache.get(&"key".to_string()).await?;
+//!
+//!     println!("Got value: {:?}", value);
+//!     Ok(())
+//! }
+//! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.2.0")]
 
 // ============================================================================
 // Feature Flags and Macros
@@ -232,6 +403,11 @@ pub mod config;
 pub mod error;
 pub mod manager;
 
+// New modernized API modules
+pub mod builder;
+pub mod cache;
+pub mod traits;
+
 // ============================================================================
 // Optional Feature-Gated Modules
 // ============================================================================
@@ -349,6 +525,11 @@ pub use manager::{
     update_eviction_policy, update_l1_capacity, update_strategy, update_ttl, CacheManager,
 };
 
+// New API exports
+pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
+pub use cache::Cache;
+pub use traits::{CacheKey, Cacheable};
+
 #[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
 
@@ -363,15 +544,13 @@ pub use utils::key_generator::KeyGenerator;
 // Smart Strategy exports
 #[cfg(any(feature = "smart-strategy", feature = "full"))]
 pub use smart_strategy::{
-    CompressionDecider, CompressibilityChecker, HitRateCollector, HitRateStats, PrefetchDecider,
+    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider,
     SmartStrategyConfig, SmartStrategyManager,
 };
 
 // Enhanced Stats exports
 #[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
-pub use metrics::{
-    export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats,
-};
+pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
 // HTTP Cache exports
 #[cfg(any(feature = "http-cache", feature = "full"))]

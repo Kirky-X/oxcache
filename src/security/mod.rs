@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -35,17 +37,35 @@ const SCAN_COUNT_MAX: usize = 1000;
 /// 只允许安全命令，禁止危险命令如 FLUSHALL、KEYS 等
 const ALLOWED_REDIS_COMMANDS: &[&str] = &[
     // 字符串命令
-    "GET", "MGET", "SET", "SETEX", "PSETEX", "MSET",
+    "GET",
+    "MGET",
+    "SET",
+    "SETEX",
+    "PSETEX",
+    "MSET",
     // 哈希命令
-    "HGET", "HMGET", "HGETALL", "HSET", "HMSET",
+    "HGET",
+    "HMGET",
+    "HGETALL",
+    "HSET",
+    "HMSET",
     // 列表命令
-    "LINDEX", "LRANGE", "LLEN",
+    "LINDEX",
+    "LRANGE",
+    "LLEN",
     // 集合命令
-    "SISMEMBER", "SMEMBERS", "SCARD",
+    "SISMEMBER",
+    "SMEMBERS",
+    "SCARD",
     // 有序集合命令
-    "ZSCORE", "ZRANGE", "ZRANGEBYSCORE", "ZCARD",
+    "ZSCORE",
+    "ZRANGE",
+    "ZRANGEBYSCORE",
+    "ZCARD",
     // 过期命令
-    "TTL", "PTTL", "EXISTS",
+    "TTL",
+    "PTTL",
+    "EXISTS",
     // 事务命令
     "UNWATCH",
 ];
@@ -132,8 +152,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     if key_count > MAX_LUA_SCRIPT_KEYS {
         return Err(CacheError::InvalidInput(format!(
             "Lua script exceeds maximum key count of {} (got {} keys)",
-            MAX_LUA_SCRIPT_KEYS,
-            key_count
+            MAX_LUA_SCRIPT_KEYS, key_count
         )));
     }
 
@@ -151,7 +170,8 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
             || script_upper.contains(&format!("REDIS.PCALL(\"{}\"", cmd))
         {
             return Err(CacheError::InvalidInput(format!(
-                "Lua script calls forbidden Redis command: {}", cmd
+                "Lua script calls forbidden Redis command: {}",
+                cmd
             )));
         }
     }
@@ -172,8 +192,15 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查其他危险的管理命令
     // 这些命令只有在 redis.call/pcall 中调用时才危险
     let dangerous_commands = [
-        "SHUTDOWN", "DEBUG", "CONFIG", "SAVE", "BGSAVE",
-        "BGREWRITEAOF", "LASTSAVE", "MONITOR", "SYNC",
+        "SHUTDOWN",
+        "DEBUG",
+        "CONFIG",
+        "SAVE",
+        "BGSAVE",
+        "BGREWRITEAOF",
+        "LASTSAVE",
+        "MONITOR",
+        "SYNC",
     ];
 
     for cmd in &dangerous_commands {
@@ -185,7 +212,8 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
             || script_upper.contains(&format!("REDIS.PCALL(\"{}\"", cmd))
         {
             return Err(CacheError::InvalidInput(format!(
-                "Lua script calls forbidden Redis command: {}", cmd
+                "Lua script calls forbidden Redis command: {}",
+                cmd
             )));
         }
     }
@@ -226,8 +254,7 @@ pub fn validate_scan_pattern(pattern: &str) -> Result<()> {
     if wildcard_count > MAX_SCAN_WILDCARDS {
         return Err(CacheError::InvalidInput(format!(
             "SCAN pattern contains too many wildcards (max {}, got {})",
-            MAX_SCAN_WILDCARDS,
-            wildcard_count
+            MAX_SCAN_WILDCARDS, wildcard_count
         )));
     }
 
