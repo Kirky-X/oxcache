@@ -6,6 +6,7 @@
 //!
 //! 提供缓存未命中时自动从数据库加载数据的功能
 
+use crate::config::validation::DEFAULT_RETRY_INTERVAL_MS;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -196,7 +197,7 @@ impl DbFallbackManager {
                     last_error = Some(e);
                     if attempt < self.max_retries {
                         // 指数退避重试
-                        let backoff_ms = 100 * (2_u64.pow(attempt));
+                        let backoff_ms = DEFAULT_RETRY_INTERVAL_MS * (2_u64.pow(attempt));
                         tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
                     }
                 }

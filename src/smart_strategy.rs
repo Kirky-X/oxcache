@@ -113,8 +113,8 @@ impl HitRateCollector {
 
     /// 旋转窗口
     fn rotate_window_if_needed(&self) {
-        let total = self.recent_hits.load(Ordering::Relaxed)
-            + self.recent_misses.load(Ordering::Relaxed);
+        let total =
+            self.recent_hits.load(Ordering::Relaxed) + self.recent_misses.load(Ordering::Relaxed);
         if total >= self.window_size as u64 {
             self.recent_hits.store(0, Ordering::Relaxed);
             self.recent_misses.store(0, Ordering::Relaxed);
@@ -178,11 +178,7 @@ impl CompressibilityChecker {
 
         // 采样检查
         let step = (data.len() / self.sample_size).max(1);
-        let sample: Vec<u8> = data
-            .iter()
-            .step_by(step)
-            .copied()
-            .collect();
+        let sample: Vec<u8> = data.iter().step_by(step).copied().collect();
 
         if sample.is_empty() {
             return (false, 1.0);
@@ -289,7 +285,8 @@ impl PrefetchDecider {
         }
 
         // 检查命中率阈值
-        self.hit_rate_collector.should_prefetch(self.config.prefetch_threshold)
+        self.hit_rate_collector
+            .should_prefetch(self.config.prefetch_threshold)
     }
 
     /// 标记预取已执行
@@ -298,11 +295,7 @@ impl PrefetchDecider {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or(Duration::ZERO)
             .as_secs();
-        std::sync::atomic::AtomicU64::store(
-            &self.last_prefetch_time,
-            now,
-            Ordering::Relaxed,
-        );
+        std::sync::atomic::AtomicU64::store(&self.last_prefetch_time, now, Ordering::Relaxed);
     }
 
     /// 获取配置
@@ -449,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_should_prefetch() {
-        let mut decider = PrefetchDecider::new(SmartStrategyConfig {
+        let decider = PrefetchDecider::new(SmartStrategyConfig {
             prefetch_enabled: true,
             prefetch_threshold: 0.8,
             prefetch_window_size: 200, // 窗口大小大于记录数量

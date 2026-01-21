@@ -497,7 +497,7 @@ impl CacheStats {
         let mut output = String::new();
 
         // 计数器指标
-        output.push_str(&format!("# Cache Statistics\n"));
+        output.push_str("# Cache Statistics\n");
         output.push_str(&format!("# Generated at: {}\n", self.timestamp));
 
         output.push_str(&format!("cache_l1_hits_total {}\n", self.l1_hits));
@@ -508,20 +508,32 @@ impl CacheStats {
         output.push_str(&format!("cache_l2_sets_total {}\n", self.l2_sets));
         output.push_str(&format!("cache_l1_deletes_total {}\n", self.l1_deletes));
         output.push_str(&format!("cache_l2_deletes_total {}\n", self.l2_deletes));
-        output.push_str(&format!("cache_operations_total {}\n", self.total_operations));
+        output.push_str(&format!(
+            "cache_operations_total {}\n",
+            self.total_operations
+        ));
 
         // 计算并导出命中率
         output.push_str(&format!("cache_l1_hit_rate {}\n", self.l1_hit_rate()));
         output.push_str(&format!("cache_l2_hit_rate {}\n", self.l2_hit_rate()));
-        output.push_str(&format!("cache_overall_hit_rate {}\n", self.overall_hit_rate()));
+        output.push_str(&format!(
+            "cache_overall_hit_rate {}\n",
+            self.overall_hit_rate()
+        ));
 
         // 容量指标
         output.push_str(&format!("cache_l1_item_count {}\n", self.l1_item_count));
-        output.push_str(&format!("cache_l1_capacity_used_bytes {}\n", self.l1_capacity_used));
+        output.push_str(&format!(
+            "cache_l1_capacity_used_bytes {}\n",
+            self.l1_capacity_used
+        ));
 
         // 压缩指标
         output.push_str(&format!("cache_prefetch_total {}\n", self.prefetch_count));
-        output.push_str(&format!("cache_compression_total {}\n", self.compression_count));
+        output.push_str(&format!(
+            "cache_compression_total {}\n",
+            self.compression_count
+        ));
         output.push_str(&format!(
             "cache_compression_bytes_saved {}\n",
             self.compression_bytes_saved
@@ -613,7 +625,9 @@ impl Metrics {
 
     /// 记录压缩操作
     pub fn record_compression(&self, bytes_saved: u64) {
-        self.counters.compression_total.fetch_add(1, Ordering::Relaxed);
+        self.counters
+            .compression_total
+            .fetch_add(1, Ordering::Relaxed);
         self.counters
             .compression_bytes_saved
             .fetch_add(bytes_saved, Ordering::Relaxed);
@@ -626,7 +640,9 @@ impl Metrics {
 
     /// 设置 L1 容量使用
     pub fn set_l1_capacity_used(&self, bytes: u64) {
-        self.counters.l1_capacity_used.store(bytes, Ordering::Relaxed);
+        self.counters
+            .l1_capacity_used
+            .store(bytes, Ordering::Relaxed);
     }
 
     /// 导出 Prometheus 格式

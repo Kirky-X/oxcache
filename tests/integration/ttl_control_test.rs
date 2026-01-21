@@ -11,11 +11,10 @@ mod tests {
     use oxcache::backend::l2::L2Backend;
     use oxcache::client::l2::L2Client;
     use oxcache::client::ttl_control::TtlControl;
-    use oxcache::{CacheExt, CacheOps};
     use oxcache::config::L2Config;
+    use oxcache::{CacheExt, CacheOps};
     use secrecy::SecretString;
     use std::sync::Arc;
-    use tokio;
 
     // 获取测试 L2Client
     async fn get_test_l2_client() -> Arc<L2Client> {
@@ -76,7 +75,10 @@ mod tests {
         let client = get_test_l2_client().await;
 
         // 不存在的键应该返回 None
-        let ttl = client.get_l2_ttl("definitely_not_exists_key_12345").await.unwrap();
+        let ttl = client
+            .get_l2_ttl("definitely_not_exists_key_12345")
+            .await
+            .unwrap();
         assert!(ttl.is_none());
     }
 
@@ -236,7 +238,10 @@ mod tests {
         for i in 1..=5 {
             let key = format!("{}:{}", test_prefix, i);
             let ttl = i * 60; // 60, 120, 180, 240, 300
-            client.set(&key, &format!("value{}", i), Some(ttl)).await.unwrap();
+            client
+                .set(&key, &format!("value{}", i), Some(ttl))
+                .await
+                .unwrap();
         }
 
         // 验证所有键的 TTL

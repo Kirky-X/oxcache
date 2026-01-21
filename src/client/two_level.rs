@@ -4,9 +4,9 @@
 //!
 //! 该模块定义了双层缓存客户端的实现，结合L1和L2缓存。
 
-use super::{db_loader::DbFallbackManager, l2::L2Client, CacheOps};
-use super::ttl_control::TtlControl;
 use super::tiered_cache::TieredCacheControl;
+use super::ttl_control::TtlControl;
+use super::{db_loader::DbFallbackManager, l2::L2Client, CacheOps};
 use crate::backend::l1::L1Backend;
 use crate::bloom_filter::{BloomFilterManager, BloomFilterOptions, BloomFilterShared};
 use crate::config::TwoLevelConfig;
@@ -17,6 +17,7 @@ use crate::recovery::{
     wal::{Operation, WalEntry, WalManager},
 };
 use crate::serialization::{Serializer, SerializerEnum};
+use crate::smart_strategy::SmartStrategyManager;
 use crate::sync::{
     common::{BatchOperation, BatchWriterConfig},
     invalidation::{InvalidationPublisher, InvalidationSubscriber},
@@ -25,7 +26,6 @@ use crate::sync::{
     warmup::WarmupManager,
 };
 use crate::utils::{validate_cache_key, validate_key_length, validate_value_size};
-use crate::smart_strategy::SmartStrategyManager;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -590,10 +590,7 @@ impl CacheOps for TwoLevelClient {
             ));
         }
 
-        debug!(
-            "TwoLevelClient lock called: key={}, ttl={}",
-            key, ttl
-        );
+        debug!("TwoLevelClient lock called: key={}, ttl={}", key, ttl);
         if let Some(l2) = &self.l2 {
             debug!("L2 backend available, attempting lock acquisition");
             let result = l2.lock(key, ttl).await;
@@ -1180,10 +1177,13 @@ impl TwoLevelClient {
     ///
     /// 启用后会根据命中率自动调整预取策略，并进行数据可压缩性检查
     #[cfg(feature = "smart-strategy")]
-    pub fn enable_smart_strategy(&mut self, config: Option<crate::smart_strategy::SmartStrategyConfig>) {
-        self.smart_strategy = Some(Arc::new(
-            crate::smart_strategy::SmartStrategyManager::new(config)
-        ));
+    pub fn enable_smart_strategy(
+        &mut self,
+        config: Option<crate::smart_strategy::SmartStrategyConfig>,
+    ) {
+        self.smart_strategy = Some(Arc::new(crate::smart_strategy::SmartStrategyManager::new(
+            config,
+        )));
     }
 
     /// 检查是否启用了智能策略
@@ -1220,8 +1220,8 @@ impl TwoLevelClient {
 #[async_trait]
 impl TtlControl for TwoLevelClient {
     /// 获取 L1 缓存剩余 TTL
-    async fn get_l1_ttl(&self, key: &str) -> Result<Option<u64>> {
-        if let Some(l1) = &self.l1 {
+    async fn get_l1_ttl(&self, _key: &str) -> Result<Option<u64>> {
+        if let Some(_l1) = &self.l1 {
             // TODO: 实现 L1 的 TTL 查询
             // L1Backend 需要添加 ttl 方法
             Ok(None)
@@ -1246,17 +1246,15 @@ impl TtlControl for TwoLevelClient {
 
     /// 获取缓存剩余 TTL（优先 L1）
     async fn get_ttl(&self, key: &str) -> Result<Option<u64>> {
-        // 优先检查 L1
-        if let Some(l1) = &self.l1 {
-            // TODO: 实现 L1 的 TTL 查询
-        }
-        // 检查 L2
+        // 注意：L1 缓存通常不直接暴露 TTL 查询接口
+        // 因为它是简单的内存缓存，TTL 由内部淘汰策略管理
+        // 直接查询 L2 的 TTL，这反映了缓存项的实际过期时间
         self.get_l2_ttl(key).await
     }
 
     /// 刷新 L1 缓存 TTL
-    async fn refresh_l1_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
-        if let Some(l1) = &self.l1 {
+    async fn refresh_l1_ttl(&self, _key: &str, _ttl: u64) -> Result<bool> {
+        if let Some(_l1) = &self.l1 {
             // TODO: 实现 L1 的 TTL 刷新
             // L1Backend 需要添加 refresh_ttl 方法
             Ok(false)
@@ -1274,7 +1272,12 @@ impl TtlControl for TwoLevelClient {
                     drop(state);
                     let result = l2.backend().expire(key, ttl).await?;
                     if result {
-                        GLOBAL_METRICS.record_request(&self.service_name, "L2", "expire", "success");
+                        GLOBAL_METRICS.record_request(
+                            &self.service_name,
+                            "L2",
+                            "expire",
+                            "success",
+                        );
                     }
                     Ok(result)
                 }
@@ -1463,7 +1466,7 @@ impl TieredCacheControl for TwoLevelClient {
             match l2.get_bytes(key).await {
                 Ok(Some(value)) => {
                     // 获取 L2 的 TTL
-                    let ttl = l2.backend().ttl(key).await?.map(|t| t as u64);
+                    let ttl = l2.backend().ttl(key).await?;
 
                     // 设置到 L1
                     let start = std::time::Instant::now();

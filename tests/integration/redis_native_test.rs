@@ -14,7 +14,6 @@ mod tests {
     use secrecy::SecretString;
     use std::collections::HashMap;
     use std::sync::Arc;
-    use tokio;
 
     // 获取测试后端
     async fn get_test_backend() -> Arc<dyn RedisNativeOps> {
@@ -69,7 +68,9 @@ mod tests {
 
         // 添加测试数据
         for i in 1..=10 {
-            let _ = backend.zadd(test_key, i as f64, &format!("member{}", i), None).await;
+            let _ = backend
+                .zadd(test_key, i as f64, &format!("member{}", i), None)
+                .await;
         }
 
         // 获取分数范围内的成员
@@ -210,7 +211,9 @@ mod tests {
         // 批量设置
         for i in 1..=5 {
             let key = format!("{}:{}", test_prefix, i);
-            let _ = backend.set(&key, format!("value{}", i).as_bytes(), None).await;
+            let _ = backend
+                .set(&key, format!("value{}", i).as_bytes(), None)
+                .await;
         }
 
         // 批量获取
@@ -245,7 +248,9 @@ mod tests {
         // 批量设置
         for i in 1..=10 {
             let key = format!("{}:{}", test_prefix, i);
-            let _ = backend.set(&key, format!("batch_value{}", i).as_bytes(), Some(300)).await;
+            let _ = backend
+                .set(&key, format!("batch_value{}", i).as_bytes(), Some(300))
+                .await;
         }
 
         // 验证

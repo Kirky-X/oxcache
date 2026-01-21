@@ -66,7 +66,7 @@ impl BufferPool {
     pub fn get_small_buffer(&self) -> Vec<u8> {
         self.small_buffers
             .lock()
-            .unwrap()
+            .expect("BufferPool small_buffers lock poisoned")
             .pop()
             .unwrap_or_else(|| Vec::with_capacity(256))
     }
@@ -77,7 +77,7 @@ impl BufferPool {
     pub fn get_medium_buffer(&self) -> Vec<u8> {
         self.medium_buffers
             .lock()
-            .unwrap()
+            .expect("BufferPool medium_buffers lock poisoned")
             .pop()
             .unwrap_or_else(|| Vec::with_capacity(1024))
     }
@@ -88,7 +88,7 @@ impl BufferPool {
     pub fn get_large_buffer(&self) -> Vec<u8> {
         self.large_buffers
             .lock()
-            .unwrap()
+            .expect("BufferPool large_buffers lock poisoned")
             .pop()
             .unwrap_or_else(|| Vec::with_capacity(64 * 1024))
     }
@@ -97,7 +97,10 @@ impl BufferPool {
     pub fn return_small_buffer(&self, mut buffer: Vec<u8>) {
         if buffer.capacity() <= 512 {
             buffer.clear();
-            self.small_buffers.lock().unwrap().push(buffer);
+            self.small_buffers
+                .lock()
+                .expect("BufferPool small_buffers lock poisoned")
+                .push(buffer);
         }
     }
 
@@ -105,7 +108,10 @@ impl BufferPool {
     pub fn return_medium_buffer(&self, mut buffer: Vec<u8>) {
         if buffer.capacity() <= 2048 {
             buffer.clear();
-            self.medium_buffers.lock().unwrap().push(buffer);
+            self.medium_buffers
+                .lock()
+                .expect("BufferPool medium_buffers lock poisoned")
+                .push(buffer);
         }
     }
 

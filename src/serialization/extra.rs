@@ -38,12 +38,17 @@ impl crate::serialization::Serializer for MessagePackSerializer {
 
 impl crate::serialization::ZeroCopySerializer for MessagePackSerializer {
     fn serialize_zero_copy<'a, T: Serialize>(&self, value: &'a T) -> Result<Cow<'a, [u8]>> {
-        let bytes = encode::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let bytes = encode::to_vec(value)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(Cow::Owned(bytes))
     }
 
-    fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(&self, data: &'a [u8]) -> Result<Cow<'a, T>> {
-        let value: T = decode::from_read(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+    fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(
+        &self,
+        data: &'a [u8],
+    ) -> Result<Cow<'a, T>> {
+        let value: T = decode::from_read(data)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(Cow::Owned(value))
     }
 }
@@ -61,12 +66,14 @@ impl CborSerializer {
 impl crate::serialization::Serializer for CborSerializer {
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        ciborium::into_writer(value, &mut buf)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(buf)
     }
 
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
-        ciborium::from_reader(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+        ciborium::from_reader(data)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
 }
 
@@ -111,12 +118,14 @@ impl ErasedSerializer for CborSerializer {
 
     fn serialize(&self, value: &serde_json::Value) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        ciborium::into_writer(value, &mut buf)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(buf)
     }
 
     fn deserialize(&self, data: &[u8]) -> Result<serde_json::Value> {
-        ciborium::from_reader(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+        ciborium::from_reader(data)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
 }
 
@@ -129,27 +138,44 @@ impl SerializerRegistry {
 
     /// 注册自定义序列化器
     pub fn register(&self, name: &str, serializer: Arc<dyn ErasedSerializer>) {
-        self.serializers.lock().unwrap().insert(name.to_string(), serializer);
+        self.serializers
+            .lock()
+            .expect("SerializerRegistry lock poisoned")
+            .insert(name.to_string(), serializer);
     }
 
     /// 获取序列化器
     pub fn get(&self, name: &str) -> Option<Arc<dyn ErasedSerializer>> {
-        self.serializers.lock().unwrap().get(name).cloned()
+        self.serializers
+            .lock()
+            .expect("SerializerRegistry lock poisoned")
+            .get(name)
+            .cloned()
     }
 
     /// 检查是否存在
     pub fn contains(&self, name: &str) -> bool {
-        self.serializers.lock().unwrap().contains_key(name)
+        self.serializers
+            .lock()
+            .expect("SerializerRegistry lock poisoned")
+            .contains_key(name)
     }
 
     /// 移除序列化器
     pub fn remove(&self, name: &str) -> bool {
-        self.serializers.lock().unwrap().remove(name).is_some()
+        self.serializers
+            .lock()
+            .expect("SerializerRegistry lock poisoned")
+            .remove(name)
+            .is_some()
     }
 
     /// 清空所有
     pub fn clear(&self) {
-        self.serializers.lock().unwrap().clear();
+        self.serializers
+            .lock()
+            .expect("SerializerRegistry lock poisoned")
+            .clear();
     }
 
     /// 注册 MessagePack 序列化器

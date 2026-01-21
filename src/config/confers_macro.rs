@@ -345,6 +345,9 @@ default_ttl = 300
 
         let config = confers_load(config_path.to_str().unwrap()).unwrap();
         use crate::ConfigSource;
-        assert_eq!(config.source, Some(ConfigSource::File("confers".to_string())));
+        assert_eq!(
+            config.source,
+            Some(ConfigSource::File("confers".to_string()))
+        );
     }
 }

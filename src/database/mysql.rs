@@ -51,9 +51,21 @@ impl MySQLPartitionManager {
         let connection = match timeout(Duration::from_secs(30), Database::connect(opt)).await {
             Ok(Ok(conn)) => conn,
             Ok(Err(e)) => {
+                // 脱敏错误信息，避免泄露连接字符串中的密码
+                let error_msg = e.to_string();
+                let sanitized_msg = if error_msg.contains("://") {
+                    error_msg
+                        .split("://")
+                        .next()
+                        .map(|_| "[REDACTED]")
+                        .unwrap_or(&error_msg)
+                        .to_string()
+                } else {
+                    error_msg
+                };
                 return Err(CacheError::DatabaseError(format!(
                     "Failed to connect to MySQL: {}. Please check your connection string and ensure the database server is running.",
-                    e
+                    sanitized_msg
                 )));
             }
             Err(_) => {
@@ -133,9 +145,21 @@ impl MySQLPartitionManager {
         let connection = match timeout(Duration::from_secs(30), Database::connect(opt)).await {
             Ok(Ok(conn)) => conn,
             Ok(Err(e)) => {
+                // 脱敏错误信息
+                let error_msg = e.to_string();
+                let sanitized_msg = if error_msg.contains("://") {
+                    error_msg
+                        .split("://")
+                        .next()
+                        .map(|_| "[REDACTED]")
+                        .unwrap_or(&error_msg)
+                        .to_string()
+                } else {
+                    error_msg
+                };
                 return Err(CacheError::DatabaseError(format!(
                     "Failed to reconnect to MySQL: {}. Please check your database server.",
-                    e
+                    sanitized_msg
                 )));
             }
             Err(_) => {

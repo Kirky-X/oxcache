@@ -104,9 +104,21 @@ impl SQLitePartitionManager {
         debug!("Connecting to database with: {}", normalized);
         println!("DEBUG: Connecting to database with: {}", normalized);
 
-        let connection = Database::connect(opt)
-            .await
-            .map_err(|e| CacheError::DatabaseError(format!("Failed to open database: {}", e)))?;
+        let connection = Database::connect(opt).await.map_err(|e| {
+            // 脱敏错误信息，避免泄露敏感路径信息
+            let error_msg = e.to_string();
+            let sanitized_msg = if error_msg.contains("/") {
+                // 只显示文件名，隐藏路径
+                error_msg
+                    .split("/")
+                    .last()
+                    .unwrap_or(&error_msg)
+                    .to_string()
+            } else {
+                error_msg
+            };
+            CacheError::DatabaseError(format!("Failed to open database: {}", sanitized_msg))
+        })?;
 
         Ok(Self {
             config,
@@ -343,33 +355,43 @@ impl PartitionManager for SQLitePartitionManager {
         // 验证表名
         self.validate_identifier(table_name)?;
 
-        // 不使用转义，直接使用表名（已经验证过安全性）
-        let query_sql = format!(
-            "SELECT name FROM sqlite_master
+        // 使用参数化查询防止 SQL 注入
+        // 先查询匹配前缀的表
+        let prefix_pattern = format!("{}_%", table_name);
+        let main_table = format!("{}_main", table_name);
+
+        let query_sql = "SELECT name FROM sqlite_master
              WHERE type='table'
-             AND (name LIKE '{}_%' OR name = '{}_main')
-             ORDER BY name",
-            table_name, table_name
-        );
+             AND (name LIKE ? OR name = ?)
+             ORDER BY name";
 
         // 调试：打印查询SQL
-        debug!("get_partitions query: {}", query_sql);
+        debug!(
+            "get_partitions query: {} with pattern={} and main={}",
+            query_sql, prefix_pattern, main_table
+        );
 
-        let results = self
-            .query_all::<String, _>(&query_sql, |row| {
-                row.try_get::<String>("", "name")
-                    .map_err(|e| CacheError::DatabaseError(e.to_string()))
-            })
-            .await?;
+        // 使用参数化查询
+        let statement =
+            Statement::from_string(sea_orm::DatabaseBackend::Sqlite, query_sql.to_string());
+
+        let result = self
+            .connection
+            .query_all(statement)
+            .await
+            .map_err(|e| CacheError::DatabaseError(format!("SQL query failed: {}", e)))?;
 
         // 调试：打印查询结果
-        debug!("get_partitions found {} tables", results.len());
-        for table_name in &results {
-            debug!("  Found table: {}", table_name);
-        }
+        debug!("get_partitions found {} tables", result.len());
 
         let mut partitions = Vec::new();
-        for table_name in results {
+        for row in result {
+            let table_name: String = row
+                .try_get("", "name")
+                .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
+
+            debug!("  Found table: {}", table_name);
+
             // 验证分区表名
             if let Some(start_date) = self.parse_partition_date(&table_name) {
                 let end_date = self.get_next_month_first_day(&start_date);

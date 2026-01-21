@@ -32,13 +32,7 @@ pub trait RedisNativeOps: Send + Sync {
     async fn get_counter(&self, key: &str) -> Result<Option<i64>>;
 
     /// 有序集合操作：添加成员
-    async fn zadd(
-        &self,
-        key: &str,
-        score: f64,
-        member: &str,
-        ttl: Option<u64>,
-    ) -> Result<u64>;
+    async fn zadd(&self, key: &str, score: f64, member: &str, ttl: Option<u64>) -> Result<u64>;
 
     /// 有序集合操作：按分数范围获取成员
     async fn zrange_by_score(
@@ -97,6 +91,7 @@ pub struct ZSetMember {
 }
 
 /// 键扫描迭代器
+#[allow(dead_code)]
 pub struct ScanKeyIterator {
     client: Arc<dyn RedisNativeOps>,
     pattern: String,
@@ -160,22 +155,35 @@ impl ScriptCache {
 
     /// 获取脚本的 SHA
     pub fn get_sha(&self, script: &str) -> Option<String> {
-        self.scripts.lock().unwrap().get(script).cloned()
+        self.scripts
+            .lock()
+            .expect("ScriptCache lock poisoned")
+            .get(script)
+            .cloned()
     }
 
     /// 缓存脚本及其 SHA
     pub fn cache(&self, script: &str, sha: &str) {
-        self.scripts.lock().unwrap().insert(script.to_string(), sha.to_string());
+        self.scripts
+            .lock()
+            .expect("ScriptCache lock poisoned")
+            .insert(script.to_string(), sha.to_string());
     }
 
     /// 检查脚本是否已缓存
     pub fn contains(&self, script: &str) -> bool {
-        self.scripts.lock().unwrap().contains_key(script)
+        self.scripts
+            .lock()
+            .expect("ScriptCache lock poisoned")
+            .contains_key(script)
     }
 
     /// 清除缓存
     pub fn clear(&self) {
-        self.scripts.lock().unwrap().clear();
+        self.scripts
+            .lock()
+            .expect("ScriptCache lock poisoned")
+            .clear();
     }
 }
 

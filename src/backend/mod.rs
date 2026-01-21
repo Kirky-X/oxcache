@@ -9,3 +9,18 @@ pub mod l1;
 pub mod l2;
 
 pub mod redis_provider;
+
+#[cfg(feature = "l2-redis")]
+pub mod strategy;
+
+// New modernized API backend modules
+pub mod memory;
+pub mod new_backend;
+pub mod redis;
+pub mod tiered;
+
+// Re-exports for new API
+pub use memory::MemoryBackend;
+pub use new_backend::CacheBackend;
+pub use redis::{RedisBackend, RedisMode};
+pub use tiered::TieredBackend;

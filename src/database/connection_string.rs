@@ -657,7 +657,7 @@ fn get_recommended_postgres(environment: &str, name: &str) -> String {
 }
 
 /// 获取 Redis 推荐连接字符串
-fn get_recommended_redis(environment: &str, name: &str) -> String {
+fn get_recommended_redis(environment: &str, _name: &str) -> String {
     let host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "localhost".to_string());
     let port = std::env::var("REDIS_PORT").unwrap_or_else(|_| "6379".to_string());
 
@@ -792,13 +792,19 @@ pub fn normalize_connection_string_with_redaction(s: &str, redact_password: bool
 }
 
 /// 规范化 SQLite 连接字符串（带密码屏蔽）
-fn normalize_sqlite_with_redaction(parsed: &ParsedConnectionString, _redact_password: bool) -> String {
+fn normalize_sqlite_with_redaction(
+    parsed: &ParsedConnectionString,
+    _redact_password: bool,
+) -> String {
     // SQLite 连接字符串不包含密码，直接调用原函数
     normalize_sqlite(parsed)
 }
 
 /// 规范化 MySQL 连接字符串（带密码屏蔽）
-fn normalize_mysql_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
+fn normalize_mysql_with_redaction(
+    parsed: &ParsedConnectionString,
+    redact_password: bool,
+) -> String {
     let mut result = String::from("mysql://");
 
     if let Some(username) = &parsed.username {
@@ -842,7 +848,10 @@ fn normalize_mysql_with_redaction(parsed: &ParsedConnectionString, redact_passwo
 }
 
 /// 规范化 PostgreSQL 连接字符串（带密码屏蔽）
-fn normalize_postgres_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
+fn normalize_postgres_with_redaction(
+    parsed: &ParsedConnectionString,
+    redact_password: bool,
+) -> String {
     let mut result = String::from("postgresql://");
 
     if let Some(username) = &parsed.username {
@@ -886,7 +895,10 @@ fn normalize_postgres_with_redaction(parsed: &ParsedConnectionString, redact_pas
 }
 
 /// 规范化 Redis 连接字符串（带密码屏蔽）
-fn normalize_redis_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
+fn normalize_redis_with_redaction(
+    parsed: &ParsedConnectionString,
+    redact_password: bool,
+) -> String {
     let mut result = String::from("redis://");
 
     if let Some(password) = &parsed.password {
@@ -1027,26 +1039,37 @@ mod tests {
     #[test]
     fn test_normalize_with_redaction_mysql() {
         // 测试 MySQL 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
+        let redacted =
+            normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
         assert_eq!(redacted, "mysql://user:****@localhost/db");
 
         // 测试不屏蔽（默认行为）
-        let visible = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", false);
+        let visible = normalize_connection_string_with_redaction(
+            "mysql://user:secret123@localhost/db",
+            false,
+        );
         assert_eq!(visible, "mysql://user:secret123@localhost/db");
 
         // 测试没有密码的情况
-        let no_password = normalize_connection_string_with_redaction("mysql://user@localhost/db", true);
+        let no_password =
+            normalize_connection_string_with_redaction("mysql://user@localhost/db", true);
         assert_eq!(no_password, "mysql://user@localhost/db");
     }
 
     #[test]
     fn test_normalize_with_redaction_postgres() {
         // 测试 PostgreSQL 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", true);
+        let redacted = normalize_connection_string_with_redaction(
+            "postgresql://user:mypass@localhost:5432/mydb",
+            true,
+        );
         assert_eq!(redacted, "postgresql://user:****@localhost:5432/mydb");
 
         // 测试不屏蔽
-        let visible = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", false);
+        let visible = normalize_connection_string_with_redaction(
+            "postgresql://user:mypass@localhost:5432/mydb",
+            false,
+        );
         assert_eq!(visible, "postgresql://user:mypass@localhost:5432/mydb");
     }
 
@@ -1086,22 +1109,26 @@ mod tests {
         let normalized = normalize_connection_string("redis://localhost:6379");
         assert_eq!(normalized, "redis://localhost:6379");
 
-        let normalized_with_pass = normalize_connection_string("redis://:mypassword@localhost:6379");
+        let normalized_with_pass =
+            normalize_connection_string("redis://:mypassword@localhost:6379");
         assert_eq!(normalized_with_pass, "redis://:mypassword@localhost:6379");
     }
 
     #[test]
     fn test_normalize_with_redaction_redis() {
         // 测试 Redis 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", true);
+        let redacted =
+            normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", true);
         assert_eq!(redacted, "redis://:****@localhost:6379");
 
         // 测试不屏蔽
-        let visible = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", false);
+        let visible =
+            normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", false);
         assert_eq!(visible, "redis://:mypassword@localhost:6379");
 
         // 测试没有密码的情况
-        let no_password = normalize_connection_string_with_redaction("redis://localhost:6379", true);
+        let no_password =
+            normalize_connection_string_with_redaction("redis://localhost:6379", true);
         assert_eq!(no_password, "redis://localhost:6379");
     }
 

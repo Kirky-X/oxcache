@@ -11,6 +11,70 @@ use std::collections::HashMap;
 
 use crate::config::{GlobalConfig, OxcacheConfig, ServiceConfig};
 
+// ============================================================================
+// 常量定义
+// ============================================================================
+
+/// 默认 TTL（秒）
+pub const DEFAULT_TTL: u64 = 3600;
+
+/// 最大 TTL（30天，秒）
+pub const MAX_TTL: u64 = 86400 * 30;
+
+/// 最小 TTL（秒）
+pub const MIN_TTL: u64 = 1;
+
+/// 服务名称最大长度
+pub const MAX_SERVICE_NAME_LENGTH: usize = 64;
+
+/// 健康检查间隔最小值（秒）
+pub const MIN_HEALTH_CHECK_INTERVAL: u64 = 1;
+
+/// 健康检查间隔最大值（秒）
+pub const MAX_HEALTH_CHECK_INTERVAL: u64 = 3600;
+
+/// L1 缓存最大容量
+pub const MAX_L1_CAPACITY: usize = 10_000_000;
+
+/// 批量写入最大大小
+pub const MAX_BATCH_SIZE: usize = 10000;
+
+/// 批量写入间隔最大值（毫秒）
+pub const MAX_BATCH_INTERVAL_MS: u64 = 60000;
+
+/// 最大键长度（字节）
+pub const MAX_KEY_LENGTH: usize = 1024;
+
+/// 最大值大小（10MB，字节）
+pub const MAX_VALUE_SIZE: usize = 10 * 1024 * 1024;
+
+/// L2 连接超时最小值（毫秒）
+pub const MIN_L2_CONNECTION_TIMEOUT_MS: u64 = 100;
+
+/// L2 连接超时最大值（毫秒）
+pub const MAX_L2_CONNECTION_TIMEOUT_MS: u64 = 30000;
+
+/// L2 命令超时最小值（毫秒）
+pub const MIN_L2_COMMAND_TIMEOUT_MS: u64 = 100;
+
+/// L2 命令超时最大值（毫秒）
+pub const MAX_L2_COMMAND_TIMEOUT_MS: u64 = 60000;
+
+/// 生产环境关键词列表
+pub const PRODUCTION_KEYWORDS: &[&str] = &["production", "prod"];
+
+/// 默认重试间隔（毫秒）
+pub const DEFAULT_RETRY_INTERVAL_MS: u64 = 100;
+
+/// 默认最大重试次数
+pub const DEFAULT_MAX_RETRIES: u32 = 3;
+
+/// 默认 WAL 条目最大 TTL（30天，秒）
+pub const MAX_WAL_ENTRY_TTL: u64 = 30 * 24 * 3600;
+
+/// 默认内存大小（100MB）
+pub const DEFAULT_MAX_MEMORY_BYTES: usize = 100 * 1024 * 1024;
+
 /// 配置验证trait
 pub trait ConfigValidation {
     /// 验证配置
@@ -41,18 +105,24 @@ impl OxcacheConfig {
             return Err("Global default_ttl cannot be zero".to_string());
         }
 
-        if global.default_ttl > 86400 * 30 {
-            return Err("Global default_ttl cannot exceed 30 days".to_string());
+        if global.default_ttl > MAX_TTL {
+            return Err(format!(
+                "Global default_ttl cannot exceed {} days",
+                MAX_TTL / 86400
+            ));
         }
 
         if global.health_check_interval == 0 {
             return Err("Global health_check_interval cannot be zero".to_string());
         }
 
-        if global.health_check_interval < 1 || global.health_check_interval > 3600 {
-            return Err(
-                "Global health_check_interval must be between 1 and 3600 seconds".to_string(),
-            );
+        if global.health_check_interval < MIN_HEALTH_CHECK_INTERVAL
+            || global.health_check_interval > MAX_HEALTH_CHECK_INTERVAL
+        {
+            return Err(format!(
+                "Global health_check_interval must be between {} and {} seconds",
+                MIN_HEALTH_CHECK_INTERVAL, MAX_HEALTH_CHECK_INTERVAL
+            ));
         }
 
         Ok(())
@@ -65,10 +135,10 @@ impl OxcacheConfig {
             return Err("Service name cannot be empty".to_string());
         }
 
-        if name.len() > 64 {
+        if name.len() > MAX_SERVICE_NAME_LENGTH {
             return Err(format!(
-                "Service name '{}' exceeds maximum length of 64 characters",
-                name
+                "Service name '{}' exceeds maximum length of {} characters",
+                name, MAX_SERVICE_NAME_LENGTH
             ));
         }
 
@@ -80,8 +150,12 @@ impl OxcacheConfig {
             return Err(format!("Service '{}' TTL cannot be zero", name));
         }
 
-        if service_ttl > 86400 * 30 {
-            return Err(format!("Service '{}' TTL cannot exceed 30 days", name));
+        if service_ttl > MAX_TTL {
+            return Err(format!(
+                "Service '{}' TTL cannot exceed {} days",
+                name,
+                MAX_TTL / 86400
+            ));
         }
 
         // 验证 L1 配置（需要 l1-moka feature）
@@ -116,10 +190,10 @@ impl OxcacheConfig {
             return Err(format!("Service '{}' L1 max_capacity cannot be zero", name));
         }
 
-        if l1_config.max_capacity > 10_000_000 {
+        if l1_config.max_capacity > MAX_L1_CAPACITY as u64 {
             return Err(format!(
-                "Service '{}' L1 max_capacity cannot exceed 10,000,000",
-                name
+                "Service '{}' L1 max_capacity cannot exceed {}",
+                name, MAX_L1_CAPACITY
             ));
         }
 
@@ -156,19 +230,19 @@ impl OxcacheConfig {
 
         // 验证连接超时
         let timeout = l2_config.connection_timeout_ms;
-        if !(100..=30000).contains(&timeout) {
+        if !(MIN_L2_CONNECTION_TIMEOUT_MS..=MAX_L2_CONNECTION_TIMEOUT_MS).contains(&timeout) {
             return Err(format!(
-                "Service '{}' connection_timeout_ms must be between 100 and 30000 ms",
-                name
+                "Service '{}' connection_timeout_ms must be between {} and {} ms",
+                name, MIN_L2_CONNECTION_TIMEOUT_MS, MAX_L2_CONNECTION_TIMEOUT_MS
             ));
         }
 
         // 验证命令超时
         let timeout = l2_config.command_timeout_ms;
-        if !(100..=60000).contains(&timeout) {
+        if !(MIN_L2_COMMAND_TIMEOUT_MS..=MAX_L2_COMMAND_TIMEOUT_MS).contains(&timeout) {
             return Err(format!(
-                "Service '{}' command_timeout_ms must be between 100 and 60000 ms",
-                name
+                "Service '{}' command_timeout_ms must be between {} and {} ms",
+                name, MIN_L2_COMMAND_TIMEOUT_MS, MAX_L2_COMMAND_TIMEOUT_MS
             ));
         }
 
@@ -217,8 +291,11 @@ impl OxcacheConfig {
                 ));
             }
 
-            if two_level_config.batch_size > 10000 {
-                return Err(format!("Service '{}' batch_size cannot exceed 10000", name));
+            if two_level_config.batch_size > MAX_BATCH_SIZE {
+                return Err(format!(
+                    "Service '{}' batch_size cannot exceed {}",
+                    name, MAX_BATCH_SIZE
+                ));
             }
 
             if two_level_config.batch_interval_ms == 0 {
@@ -228,30 +305,31 @@ impl OxcacheConfig {
                 ));
             }
 
-            if two_level_config.batch_interval_ms > 60000 {
+            if two_level_config.batch_interval_ms > MAX_BATCH_INTERVAL_MS {
                 return Err(format!(
-                    "Service '{}' batch_interval_ms cannot exceed 60000 ms",
-                    name
+                    "Service '{}' batch_interval_ms cannot exceed {} ms",
+                    name, MAX_BATCH_INTERVAL_MS
                 ));
             }
         }
 
         // 验证键大小限制
         if let Some(max_key_length) = two_level_config.max_key_length {
-            if max_key_length == 0 || max_key_length > 1024 {
+            if max_key_length == 0 || max_key_length > MAX_KEY_LENGTH {
                 return Err(format!(
-                    "Service '{}' max_key_length must be between 1 and 1024",
-                    name
+                    "Service '{}' max_key_length must be between 1 and {}",
+                    name, MAX_KEY_LENGTH
                 ));
             }
         }
 
         // 验证值大小限制
         if let Some(max_value_size) = two_level_config.max_value_size {
-            if max_value_size == 0 || max_value_size > 10 * 1024 * 1024 {
+            if max_value_size == 0 || max_value_size > MAX_VALUE_SIZE {
                 return Err(format!(
-                    "Service '{}' max_value_size must be between 1 and 10MB",
-                    name
+                    "Service '{}' max_value_size must be between 1 and {}MB",
+                    name,
+                    MAX_VALUE_SIZE / (1024 * 1024)
                 ));
             }
         }

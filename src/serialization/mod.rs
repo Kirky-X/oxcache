@@ -11,6 +11,11 @@ pub mod json;
 #[cfg(feature = "extra-serialization")]
 pub mod extra;
 
+#[cfg(feature = "serialization-cache")]
+pub mod cache;
+
+pub mod utils;
+
 use crate::error::Result;
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
@@ -22,6 +27,9 @@ pub use bincode::BincodeSerializer;
 
 #[cfg(feature = "extra-serialization")]
 pub use extra::{CborSerializer, MessagePackSerializer, SerializerRegistry};
+
+#[cfg(feature = "serialization-cache")]
+pub use cache::{SerializationCache, SerializationCacheConfig, SerializationCacheStats};
 
 /// 序列化器特征
 ///
