@@ -94,8 +94,9 @@ Zero-boilerplate caching decorator for async functions.
 | `service` | `&str` | Yes | - | Cache service name |
 | `ttl` | `u64` | No | `None` | Time-to-live in seconds |
 | `key` | `&str` | No | Auto-generated | Custom cache key format |
+| `key_prefix` | `&str` | No | `""` | Prefix for cache key |
+| `key_generator` | `&str` | No | `"default"` | Key generation strategy: `"default"`, `"simple"`, `"md5"`, `"murmur3"`, `"namespace"` |
 | `cache_type` | `&str` | No | `"two-level"` | Cache type: `"two-level"`, `"l1-only"`, `"l2-only"` |
-| `strategy` | `&str` | No | `"default"` | Cache strategy |
 
 **Example:**
 

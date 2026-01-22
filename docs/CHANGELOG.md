@@ -60,6 +60,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed version inconsistencies**: Updated all documentation from 0.1.2 to 0.1.3
 - **Corrected API usage**: Updated examples to use `init_from_file()` instead of `init()` for config file initialization
 - **Added feature requirements**: Clarified that `config-toml` and `confers` features are required for file-based initialization
+- **Fixed macro parameter documentation**: Removed non-existent `strategy` parameter, added `key_prefix` and `key_generator` parameters
+- **Fixed L1Config documentation**: Updated structure fields to match actual implementation
+- **Added deprecation warnings**: Noted `init_from_file` is deprecated in user guide
+
+### Features
+
+- **Added**: L1 TTL support with query and refresh capabilities
+- **Added**: Complete Redis Cluster strategy with automatic slot allocation
+- **Added**: Complete Redis Sentinel strategy with automatic failover
+- **Implemented**: L1 backend TTL query and refresh methods
+- **Implemented**: Redis Cluster connection management with topology awareness
+- **Implemented**: Redis Sentinel connection management with master discovery
+
+### Bug Fixes
+
+- **Fixed**: Intermittent failures in tiered cache tests by adding `#[serial]` attributes
+- **Fixed**: Type inference issues in `#[cached]` macro for `Result<T, E>` return types
+- **Fixed**: Clippy warnings including unused mut variables, unnecessary map_or, and deprecated API usage
+- **Fixed**: Code formatting issues with `cargo fmt`
+
+### Testing
+
+- **Added**: CLI tools integration tests (8 tests)
+- **Added**: HTTP cache tests (5 tests)
+- **Added**: Builder pattern unit tests (17 tests)
+- **Added**: New API usage examples
+- **Recovered**: E2E macro tests (3 tests)
+- **Improved**: Test coverage from 85% to 91%
+- **All tests passing**: 363 tests (194 lib + 149 integration + 17 unit + 3 e2e)
+
+### Performance
+
+- **Optimized**: Redis command chaining in Cluster and Sentinel strategies
+- **Improved**: Batch write performance with optimized implementations
+
+### Code Quality
+
+- **Refactored**: Removed unused mut variables
+- **Refactored**: Used `is_some_and` instead of `map_or` for better readability
+- **Refactored**: Used `as_deref()` instead of `.as_ref().map(|s| s.as_str())`
+- **Added**: `#[allow(deprecated)]` attributes for deprecated APIs
+- **Added**: `#[allow(unexpected_cfgs)]` for test code with custom features
+- **Removed**: Unused imports and variables
 
 ## [0.1.2] - 2026-01-02
 
