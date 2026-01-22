@@ -1,11 +1,11 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! Redis 原生操作集成测试
-//!
-//! 测试 Redis 有序集合、Lua 脚本、批量操作等原生功能。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// Redis 原生操作集成测试
+//
+// 测试 Redis 有序集合、Lua 脚本、批量操作等原生功能。
 
 #[cfg(feature = "l2-redis")]
 mod tests {

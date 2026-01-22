@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 单飞模式集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 单飞模式集成测试
 
 use crate::common;
 

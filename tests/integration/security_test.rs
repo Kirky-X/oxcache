@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 安全性集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 安全性集成测试
 
 use oxcache::backend::l2::L2Backend;
 use oxcache::config::{L2Config, RedisMode};

@@ -32,10 +32,10 @@ pub(crate) mod promotion;
 // warmup 模块始终可用（不依赖 batch-write）
 
 // ============================================================================
-// 当 batch-write 功能禁用时的空实现（使用宏减少代码重复）
+// 当 batch-write 功能禁用时的空实现（使用 panic! 提供清晰的错误消息）
 // ============================================================================
 
-/// 批量写入配置（空实现）
+/// 批量写入配置（需要 batch-write feature）
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct BatchWriterConfig {
@@ -55,7 +55,7 @@ impl BatchWriterConfig {
     }
 }
 
-/// 批量操作类型（空实现）
+/// 批量操作类型（需要 batch-write feature）
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub enum BatchOperation {
@@ -64,7 +64,23 @@ pub enum BatchOperation {
     Delete,
 }
 
-/// 批量写入器（空实现）
+/// 批量写入器（需要 batch-write feature）
+///
+/// # Feature Requirement
+///
+/// 此类型需要 `batch-write` feature 启用。
+///
+/// 启用方法：
+/// ```toml
+/// [dependencies]
+/// oxcache = { version = "0.2", features = ["batch-write"] }
+/// ```
+///
+/// 或使用 `full` feature 启用所有功能：
+/// ```toml
+/// [dependencies]
+/// oxcache = { version = "0.2", features = ["full"] }
+/// ```
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct BatchWriter;
@@ -76,38 +92,109 @@ impl BatchWriter {
         _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
         _config: BatchWriterConfig,
     ) -> Self {
-        Self
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub fn new_with_default_config(
         _service_name: String,
         _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
     ) -> Self {
-        Self
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
-    pub async fn shutdown(&self) {}
-    pub async fn start(&self) {}
+    pub async fn shutdown(&self) {
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
+    }
+
+    pub async fn start(&self) {
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
+    }
 
     pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
-        Ok(())
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn enqueue_delete(&self, _key: String) -> Result<()> {
-        Ok(())
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<()> {
-        Ok(())
+        panic!(
+            "BatchWriter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 }
 
-/// 缓存失效配置（空实现）
+/// 缓存失效配置（需要 batch-write feature）
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct InvalidationConfig;
 
-/// 缓存失效器（空实现）
+/// 缓存失效器（需要 batch-write feature）
+///
+/// # Feature Requirement
+///
+/// 此类型需要 `batch-write` feature 启用。
+///
+/// 启用方法：
+/// ```toml
+/// [dependencies]
+/// oxcache = { version = "0.2", features = ["batch-write"] }
+/// ```
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct CacheInvalidator;
@@ -115,28 +202,70 @@ pub struct CacheInvalidator;
 #[cfg(not(feature = "batch-write"))]
 impl CacheInvalidator {
     pub fn new(_config: InvalidationConfig) -> Self {
-        Self
+        panic!(
+            "CacheInvalidator requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn invalidate(&self, _key: &str) -> Result<()> {
-        Ok(())
+        panic!(
+            "CacheInvalidator requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn invalidate_pattern(&self, _pattern: &str) -> Result<()> {
-        Ok(())
+        panic!(
+            "CacheInvalidator requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn invalidate_all(&self) -> Result<()> {
-        Ok(())
+        panic!(
+            "CacheInvalidator requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 }
 
-/// 缓存提升配置（空实现）
+/// 缓存提升配置（需要 batch-write feature）
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct PromotionConfig;
 
-/// 缓存提升器（空实现）
+/// 缓存提升器（需要 batch-write feature）
+///
+/// # Feature Requirement
+///
+/// 此类型需要 `batch-write` feature 启用。
+///
+/// 启用方法：
+/// ```toml
+/// [dependencies]
+/// oxcache = { version = "0.2", features = ["batch-write"] }
+/// ```
 #[cfg(not(feature = "batch-write"))]
 #[derive(Debug, Clone, Default)]
 pub struct CachePromoter;
@@ -144,14 +273,38 @@ pub struct CachePromoter;
 #[cfg(not(feature = "batch-write"))]
 impl CachePromoter {
     pub fn new(_config: PromotionConfig) -> Self {
-        Self
+        panic!(
+            "CachePromoter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn promote(&self, _key: &str) -> Result<()> {
-        Ok(())
+        panic!(
+            "CachePromoter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 
     pub async fn promote_many(&self, _keys: &[String]) -> Result<()> {
-        Ok(())
+        panic!(
+            "CachePromoter requires the 'batch-write' feature to be enabled. \
+             \n\n\
+             Solution 1: Enable the batch-write feature:\n\
+               oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
+             \n\
+             Solution 2: Enable all features:\n\
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+        );
     }
 }

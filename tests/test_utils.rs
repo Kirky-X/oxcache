@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 该模块定义了测试的通用工具函数和设置。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 该模块定义了测试的通用工具函数和设置。
 
 // 包含数据库测试工具
 #[path = "database_test_utils.rs"]
@@ -13,7 +13,7 @@ pub mod database_test_utils;
 #[path = "redis_test_utils.rs"]
 pub mod redis_test_utils;
 
-use oxcache::{CacheManager, OxcacheConfig};
+use oxcache::{manager::CacheManager, OxcacheConfig};
 use redis_test_utils::{
     is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
@@ -47,7 +47,7 @@ pub async fn setup_cache(config: OxcacheConfig) {
     setup_logging();
 
     if let Err(e) = CacheManager::init(config).await {
-        let msg = e.to_string();
+        let msg: String = e.to_string();
         if msg.contains("Authentication required") || msg.contains("authentication failed") {
             panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
         }

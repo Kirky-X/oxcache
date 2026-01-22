@@ -1,11 +1,11 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! TTL 控制集成测试
-//!
-//! 测试 TTL 查询、刷新和 touch 操作。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// TTL 控制集成测试
+//
+// 测试 TTL 查询、刷新和 touch 操作。
 
 #[cfg(feature = "l2-redis")]
 mod tests {

@@ -116,6 +116,87 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
         }
     }
 
+    // ========== 安全增强 ==========
+
+    // 检查 Unicode 控制字符（除了 \r, \n, \0 已检查）
+    for c in key.chars() {
+        if c.is_control() && !matches!(c, '\r' | '\n' | '\0' | '\t') {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains control character: U+{:04X}",
+                c as u32
+            )));
+        }
+    }
+
+    // 检查 SQL 注入模式
+    const SQL_INJECTION_PATTERNS: &[&str] = &[
+        "' OR '",
+        "'--",
+        "'; DROP",
+        "'; DELETE",
+        "'; INSERT",
+        "1=1",
+        "1=2",
+        "UNION SELECT",
+        "xp_cmdshell",
+        "OR 1=1",
+        "AND 1=1",
+        "' OR '1'='1",
+        "admin'--",
+    ];
+
+    let key_upper = key.to_uppercase();
+    for pattern in SQL_INJECTION_PATTERNS {
+        if key_upper.contains(pattern) {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains suspicious SQL injection pattern: {}",
+                pattern
+            )));
+        }
+    }
+
+    // 检查路径遍历模式
+    const PATH_TRAVERSAL_PATTERNS: &[&str] = &[
+        "../",
+        "..\\",
+        "%2e%2e",
+        "%252e%252e",
+        "..%2f",
+        "..%5c",
+        "%2e%2e%2f",
+        "%2e%2e%5c",
+    ];
+
+    for pattern in PATH_TRAVERSAL_PATTERNS {
+        if key.to_lowercase().contains(&pattern.to_lowercase()) {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains path traversal pattern: {}",
+                pattern
+            )));
+        }
+    }
+
+    // 检查命令注入模式
+    const COMMAND_INJECTION_PATTERNS: &[&str] = &[
+        ";", "|", "&", "$(", "`", "${", "&&", "||", ">", "<", ">", ">>", "<<", "\n", "\r", "&&",
+        "||",
+    ];
+
+    for c in key.chars() {
+        // 检查管道和重定向符（可能被误用）
+        if (c == ';' || c == '|' || c == '&' || c == '`') && key.len() > 10
+        // 只有长键才检查，避免误报
+        {
+            // 检查是否在可能的命令上下文中
+            if key.chars().take(5).any(|x| x.is_alphabetic()) {
+                return Err(CacheError::InvalidInput(format!(
+                    "Redis key contains potential command injection character: {:?}",
+                    c
+                )));
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -156,7 +237,6 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
         )));
     }
 
-    // 检查危险命令
     // 将脚本转为大写进行统一检查
     let script_upper = script.to_uppercase();
 
@@ -216,6 +296,81 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
                 cmd
             )));
         }
+    }
+
+    // ========== 安全增强：防止绕过检查 ==========
+
+    // 检查动态命令执行（使用变量作为命令名）
+    if script_upper.contains("REDIS.CALL(CMD)")
+        || script_upper.contains("REDIS.CALL(VAR)")
+        || script_upper.contains("REDIS.CALL(COMMAND")
+        || script_upper.contains("REDIS.PCALL(CMD)")
+        || script_upper.contains("REDIS.PCALL(VAR)")
+        || script_upper.contains("REDIS.PCALL(COMMAND")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script uses dynamic command execution which is not allowed".to_string(),
+        ));
+    }
+
+    // 检查字符串拼接用于命令执行
+    if script_upper.contains("REDIS.CALL(\"") && script_upper.contains("..")
+        || script_upper.contains("REDIS.CALL('") && script_upper.contains("..")
+        || script_upper.contains("REDIS.PCALL(\"") && script_upper.contains("..")
+        || script_upper.contains("REDIS.PCALL('") && script_upper.contains("..")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script uses string concatenation for command execution which is not allowed"
+                .to_string(),
+        ));
+    }
+
+    // 检查嵌套 eval/evalsha（可能导致无限递归）
+    if script_upper.contains("REDIS.EVAL(")
+        || script_upper.contains("REDIS.EVALSHA(")
+        || script_upper.contains("REDIS.CALL('EVAL'")
+        || script_upper.contains("REDIS.CALL(\"EVAL\"")
+        || script_upper.contains("REDIS.PCALL('EVAL'")
+        || script_upper.contains("REDIS.PCALL(\"EVAL\"")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script contains nested redis.eval/evalsha which is not allowed".to_string(),
+        ));
+    }
+
+    // 检查潜在的无限循环模式
+    if script_upper.contains("WHILE TRUE")
+        || script_upper.contains("WHILE 1")
+        || script_upper.contains("WHILE (TRUE)")
+        || script_upper.contains("WHILE (1)")
+        || script_upper.contains("REPEAT")
+        || script_upper.contains("GOTO")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script contains potential infinite loop patterns".to_string(),
+        ));
+    }
+
+    // 检查 os.execute 和 io.popen（防止命令注入）
+    if script_upper.contains("OS.EXECUTE")
+        || script_upper.contains("OS.EXEC")
+        || script_upper.contains("IO.POPEN")
+        || script_upper.contains("IO.OPEN")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script contains system command execution which is not allowed".to_string(),
+        ));
+    }
+
+    // 检查 loadstring/load（防止动态代码加载）
+    if script_upper.contains("LOADSTRING")
+        || script_upper.contains("LOAD(")
+        || script_upper.contains("DOFILE")
+        || script_upper.contains("LOADFILE")
+    {
+        return Err(CacheError::InvalidInput(
+            "Lua script contains dynamic code loading which is not allowed".to_string(),
+        ));
     }
 
     Ok(())

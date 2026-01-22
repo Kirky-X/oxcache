@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 安全验收测试工具 - 完成uat.md中安全验收项
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 安全验收测试工具 - 完成uat.md中安全验收项
 
 use oxcache::{
     backend::l2::L2Backend,

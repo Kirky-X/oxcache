@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Critical**: Fixed Lua script validation bypass vulnerability by adding detection for:
+  - Dynamic command execution (e.g., `redis.call(CMD)`, `redis.call(VAR)`)
+  - String concatenation for command execution (e.g., `redis.call('FLU' .. 'SHALL')`)
+  - Nested `redis.eval`/`redis.evalsha` calls
+  - Potential infinite loop patterns (`WHILE TRUE`, `REPEAT`, `GOTO`)
+  - System command execution (`os.execute`, `io.popen`)
+  - Dynamic code loading (`loadstring`, `dofile`)
+- **High**: Enhanced configuration file loading security by adding:
+  - Path traversal detection (prevents `../` and `~` attacks)
+  - File extension validation (only allows `.toml` files)
+  - File permission checks (Unix: requires 0600 or stricter)
+  - File existence validation
+- **High**: Replaced empty feature-gated implementations with compile-time panic errors for better error messages:
+  - `BatchWriter` (requires `batch-write` feature)
+  - `CacheInvalidator` (requires `batch-write` feature)
+  - `CachePromoter` (requires `batch-write` feature)
+- **Medium**: Enhanced Redis key validation by adding:
+  - Unicode control character detection
+  - SQL injection pattern detection (e.g., `' OR '1'='1'`, `'; DROP TABLE`)
+  - Path traversal pattern detection (e.g., `../`, URL-encoded forms)
+  - Command injection character detection (e.g., `;`, `|`, `&`, `` ` ``)
+- **Medium**: Enhanced production environment validation by adding:
+  - More precise private network detection (172.16.0.0/12, .local, .dev, .test, etc.)
+  - Password complexity requirements (16+ chars, uppercase, lowercase, digit, special char)
+  - Common weak password blacklist
+  - TLS certificate verification checks
+- **Low**: Unified `security` module visibility (now always public, not feature-gated)
+- **Low**: Enhanced deprecation warnings for `manager` module (will be removed in v0.3.0)
+
 ### Testing
 
 - **Added**: Comprehensive feature combination testing matrix covering minimal, core, and full feature sets

@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 缓存失效集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 缓存失效集成测试
 
 use crate::common;
 
@@ -12,7 +12,7 @@ use oxcache::config::{
     CacheType, GlobalConfig, InvalidationChannelConfig, L1Config, L2Config, OxcacheConfig,
     RedisMode, ServiceConfig, TwoLevelConfig,
 };
-use oxcache::CacheManager;
+use oxcache::manager::CacheManager;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -95,7 +95,7 @@ async fn test_multi_instance_invalidation() {
 
     // 初始化 CacheManager
     CacheManager::reset();
-    CacheManager::init(config)
+    let _: () = CacheManager::init(config)
         .await
         .expect("CacheManager init failed");
     let client1 = oxcache::manager::get_client(&service_name).expect("Failed to get client1");

@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 跨数据库集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 跨数据库集成测试
 
 use chrono::Utc;
 use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};

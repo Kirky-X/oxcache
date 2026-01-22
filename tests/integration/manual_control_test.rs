@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 手动控制集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 手动控制集成测试
 
 use oxcache::{
     backend::{l1::L1Backend, l2::L2Backend},

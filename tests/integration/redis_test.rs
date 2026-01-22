@@ -1,10 +1,10 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! Redis集成测试 - 合并所有Redis测试文件
-//! 包含：Standalone、Cluster、Sentinel模式测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// Redis集成测试 - 合并所有Redis测试文件
+// 包含：Standalone、Cluster、Sentinel模式测试
 
 use crate::common;
 

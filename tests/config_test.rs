@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 配置单元测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 配置单元测试
 
 use oxcache::config::{CacheType, L1Config, L2Config, OxcacheConfig, ServiceConfig};
 use secrecy::SecretString;

@@ -1,4 +1,4 @@
-//! Redis测试工具
+// Redis测试工具
 
 #![allow(dead_code)]
 

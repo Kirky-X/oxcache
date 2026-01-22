@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 生命周期管理集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 生命周期管理集成测试
 
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
