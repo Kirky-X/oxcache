@@ -17,6 +17,7 @@ mod tests {
     use oxcache::serialization::{JsonSerializer, SerializerEnum};
     use oxcache::CacheOps;
     use secrecy::SecretString;
+    use serial_test::serial;
     use std::sync::Arc;
 
     /// 获取测试 TwoLevelClient
@@ -70,6 +71,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_get_l1_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:l1direct";
@@ -97,6 +99,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_get_l1_direct_not_exists() {
         let client = get_test_two_level_client_with_name("test_tiered_l1_not_exists".to_string()).await;
 
@@ -106,6 +109,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_set_l1_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_set_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:setl1";
@@ -130,6 +134,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_delete_l1_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_delete_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:deletel1";
@@ -160,6 +165,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_get_l2_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_l2".to_string()).await;
         let test_key = "oxcache:test:tiered:l2direct";
@@ -181,6 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_set_l2_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_set_l2".to_string()).await;
         let test_key = format!("oxcache:test:tiered:setl2:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
@@ -210,6 +217,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_delete_l2_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_delete_l2".to_string()).await;
         let test_key = "oxcache:test:tiered:deletel2";
@@ -237,6 +245,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_promote_to_l1() {
         let client = get_test_two_level_client_with_name("test_tiered_promote".to_string()).await;
         let test_key = format!("oxcache:test:tiered:promote:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
@@ -275,6 +284,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_promote_to_l1_not_exists() {
         let client = get_test_two_level_client_with_name("test_tiered_promote_not_exists".to_string()).await;
 
@@ -287,6 +297,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_demote_to_l2() {
         let client = get_test_two_level_client_with_name("test_tiered_demote".to_string()).await;
         let test_key = "oxcache:test:tiered:demote";
@@ -320,6 +331,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_evict_all() {
         let client = get_test_two_level_client_with_name("test_tiered_evict".to_string()).await;
         let test_key = "oxcache:test:tiered:evict";
@@ -356,6 +368,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_layer_isolation() {
         let client = get_test_two_level_client_with_name("test_tiered_isolation".to_string()).await;
         let l1_key = "oxcache:test:tiered:isolation:l1";
@@ -415,6 +428,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
+    #[serial]
     async fn test_multiple_direct_operations() {
         let client = get_test_two_level_client_with_name("test_tiered_multi".to_string()).await;
         let test_prefix = "oxcache:test:tiered:multi";
