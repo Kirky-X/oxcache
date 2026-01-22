@@ -91,6 +91,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "flate2"))]
     fn test_compress_data_no_feature() {
         let data = b"hello world";
         let compressed = compress_data(data).unwrap();
@@ -98,9 +99,31 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "flate2"))]
     fn test_decompress_data_no_feature() {
         let data = b"hello world";
         let decompressed = decompress_data(data).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    #[cfg(feature = "flate2")]
+    fn test_compress_data_with_feature() {
+        let data = b"hello world";
+        let compressed = compress_data(data).unwrap();
+        // 压缩后的数据应该与原数据不同
+        assert_ne!(compressed, data);
+        // 解压后应该得到原数据
+        let decompressed = decompress_data(&compressed).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    #[cfg(feature = "flate2")]
+    fn test_decompress_data_with_feature() {
+        let data = b"hello world";
+        let compressed = compress_data(data).unwrap();
+        let decompressed = decompress_data(&compressed).unwrap();
         assert_eq!(decompressed, data);
     }
 }

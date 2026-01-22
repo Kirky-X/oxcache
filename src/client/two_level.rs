@@ -1220,11 +1220,9 @@ impl TwoLevelClient {
 #[async_trait]
 impl TtlControl for TwoLevelClient {
     /// 获取 L1 缓存剩余 TTL
-    async fn get_l1_ttl(&self, _key: &str) -> Result<Option<u64>> {
-        if let Some(_l1) = &self.l1 {
-            // TODO: 实现 L1 的 TTL 查询
-            // L1Backend 需要添加 ttl 方法
-            Ok(None)
+    async fn get_l1_ttl(&self, key: &str) -> Result<Option<u64>> {
+        if let Some(l1) = &self.l1 {
+            l1.ttl(key).await
         } else {
             Ok(None)
         }
@@ -1253,11 +1251,9 @@ impl TtlControl for TwoLevelClient {
     }
 
     /// 刷新 L1 缓存 TTL
-    async fn refresh_l1_ttl(&self, _key: &str, _ttl: u64) -> Result<bool> {
-        if let Some(_l1) = &self.l1 {
-            // TODO: 实现 L1 的 TTL 刷新
-            // L1Backend 需要添加 refresh_ttl 方法
-            Ok(false)
+    async fn refresh_l1_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        if let Some(l1) = &self.l1 {
+            l1.refresh_ttl(key, ttl).await
         } else {
             Ok(false)
         }

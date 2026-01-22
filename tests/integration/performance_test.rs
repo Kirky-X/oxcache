@@ -96,7 +96,7 @@ async fn test_backfill_latency() {
     // 为了确保L1没有数据（如果是 promote_on_hit=true，set可能也会写L1，取决于实现。
     // oxcache 的 TwoLevelClient.set 通常同时写 L1 和 L2。
     // 所以我们需要清除 L1，或者创建一个新的 Client 实例（但这需要重启 CacheManager，比较麻烦）。
-    // 或者我们可以利用 L1 的 LRU 特性挤出它，或者直接用 hack 方式。
+    // 我们可以利用 L1 的 LRU 特性挤出它。
     //
     // 简单方法：等待 L1 过期？不，太慢。
     // 使用内部 API？不行。
@@ -104,26 +104,11 @@ async fn test_backfill_latency() {
     // 我们可以手动从 L1 删除？
     // client.delete 只会同时删除 L1 和 L2。
     //
-    // 我们可以直接操作 Redis 写入数据，绕过 L1。
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    let redis_client = redis::Client::open(redis_url).unwrap();
-    let mut con = redis_client
-        .get_multiplexed_async_connection()
-        .await
-        .unwrap();
+    // 使用官方 API 清除 L1 缓存
+    client.clear_l1().await.unwrap();
 
-    // 手动写入 Redis，key 需要带前缀（oxcache 默认可能有前缀，也可能没有，看实现。
-    // 查看 TwoLevelClient 实现，key 是直接使用的。
-    // 序列化：oxcache 使用 JSON 序列化字符串会加上引号。
-    // "perf_value" -> "\"perf_value\""
-    let serialized_val = serde_json::to_string(&val).unwrap();
-    redis::cmd("SET")
-        .arg(key)
-        .arg(serialized_val)
-        .query_async::<()>(&mut con)
-        .await
-        .unwrap();
+    // 现在重新写入数据到 L2（通过 set_l2_only 方法）
+    client.set_l2_only(key, &val, Some(3600)).await.unwrap();
 
     // 现在 L1 没有 key，L2 有 key。
     // 测量 Get 延迟
