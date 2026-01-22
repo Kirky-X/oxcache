@@ -51,6 +51,7 @@ use tracing::{event, info, instrument, warn, Level};
     since = "0.2.0",
     note = "Use Cache::new(), Cache::redis(), or Cache::tiered() instead. See migration guide for details."
 )]
+#[allow(deprecated)]
 #[instrument(skip(config), level = "info", fields(service_count = config.services.len()))]
 pub async fn init(config: OxcacheConfig) -> Result<()> {
     CacheManager::init(config).await
@@ -521,6 +522,7 @@ impl CacheManager {
     since = "0.2.0",
     note = "Use Cache::new(), Cache::redis(), or Cache::tiered() instead. See migration guide for details."
 )]
+#[allow(deprecated)]
 pub fn get_client(service: &str) -> Result<Arc<dyn CacheOps>> {
     let manager: &DashMap<String, Arc<dyn CacheOps>> = &MANAGER;
     if let Some(r) = manager.get(service) {

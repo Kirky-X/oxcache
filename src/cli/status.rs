@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了状态查询命令的实现。
 
+#![allow(deprecated)]
+
 use crate::cli::StatusArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::recovery::health::HealthState;

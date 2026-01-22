@@ -21,6 +21,7 @@ mod tests {
     use std::sync::Arc;
 
     /// 获取测试 TwoLevelClient
+    #[allow(dead_code)]
     async fn get_test_two_level_client() -> Arc<TwoLevelClient> {
         get_test_two_level_client_with_name("test_tiered_service".to_string()).await
     }
@@ -101,7 +102,8 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_get_l1_direct_not_exists() {
-        let client = get_test_two_level_client_with_name("test_tiered_l1_not_exists".to_string()).await;
+        let client =
+            get_test_two_level_client_with_name("test_tiered_l1_not_exists".to_string()).await;
 
         // L1 中不存在应该返回 None
         let value = client.get_l1_direct("nonexistent_l1_key").await.unwrap();
@@ -190,7 +192,13 @@ mod tests {
     #[serial]
     async fn test_set_l2_direct() {
         let client = get_test_two_level_client_with_name("test_tiered_set_l2".to_string()).await;
-        let test_key = format!("oxcache:test:tiered:setl2:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+        let test_key = format!(
+            "oxcache:test:tiered:setl2:{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
 
         // 直接设置 L2
         client
@@ -248,7 +256,13 @@ mod tests {
     #[serial]
     async fn test_promote_to_l1() {
         let client = get_test_two_level_client_with_name("test_tiered_promote".to_string()).await;
-        let test_key = format!("oxcache:test:tiered:promote:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+        let test_key = format!(
+            "oxcache:test:tiered:promote:{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
 
         // 先设置数据到 L2
         client
@@ -277,7 +291,10 @@ mod tests {
 
         // L2 仍然有数据
         let l2_value = client.get_l2_direct(&test_key).await.unwrap();
-        assert!(l2_value.is_some(), "L2 should still have data after promote");
+        assert!(
+            l2_value.is_some(),
+            "L2 should still have data after promote"
+        );
 
         // 清理
         let _ = client.delete(&test_key).await;
@@ -286,7 +303,8 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_promote_to_l1_not_exists() {
-        let client = get_test_two_level_client_with_name("test_tiered_promote_not_exists".to_string()).await;
+        let client =
+            get_test_two_level_client_with_name("test_tiered_promote_not_exists".to_string()).await;
 
         // 提升不存在的键应该返回 false
         let result = client

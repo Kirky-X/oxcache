@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了指标查询命令的实现。
 
+#![allow(deprecated)]
+
 use crate::cli::MetricsArgs;
 use crate::manager::{get_typed_client, MANAGER};
 use crate::metrics::get_metrics_string;

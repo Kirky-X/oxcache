@@ -41,19 +41,25 @@ mod tests {
     #[test]
     fn test_backend_builder_redis_with_connection() {
         let builder = BackendBuilder::redis().connection_string("redis://127.0.0.1:6379");
-        assert!(matches!(builder, BackendBuilder::Redis { connection_string, .. } if connection_string.as_ref().map(|s| s.as_str()) == Some("redis://127.0.0.1:6379")));
+        assert!(
+            matches!(builder, BackendBuilder::Redis { connection_string, .. } if connection_string.as_deref() == Some("redis://127.0.0.1:6379"))
+        );
     }
 
     #[test]
     fn test_backend_builder_tiered_with_l1_capacity() {
         let builder = BackendBuilder::tiered().l1_capacity(10000);
-        assert!(matches!(builder, BackendBuilder::Tiered { l1_capacity, .. } if l1_capacity == 10000));
+        assert!(
+            matches!(builder, BackendBuilder::Tiered { l1_capacity, .. } if l1_capacity == 10000)
+        );
     }
 
     #[test]
     fn test_backend_builder_tiered_with_l2_connection() {
         let builder = BackendBuilder::tiered().l2_connection_string("redis://127.0.0.1:6379");
-        assert!(matches!(builder, BackendBuilder::Tiered { l2_connection_string, .. } if l2_connection_string.as_ref().map(|s| s.as_str()) == Some("redis://127.0.0.1:6379")));
+        assert!(
+            matches!(builder, BackendBuilder::Tiered { l2_connection_string, .. } if l2_connection_string.as_deref() == Some("redis://127.0.0.1:6379"))
+        );
     }
 
     #[test]
@@ -115,8 +121,10 @@ mod tests {
             .l2_connection_string("redis://127.0.0.1:6379")
             .auto_promote(true);
 
-        assert!(matches!(builder, BackendBuilder::Tiered { l1_capacity, auto_promote, .. } 
-            if l1_capacity == 10000 && auto_promote));
+        assert!(
+            matches!(builder, BackendBuilder::Tiered { l1_capacity, auto_promote, .. }
+            if l1_capacity == 10000 && auto_promote)
+        );
     }
 
     #[test]

@@ -12,7 +12,7 @@ use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
     ServiceConfig, TwoLevelConfig,
 };
-use oxcache::{manager::CacheManager, CacheError, CacheExt};
+use oxcache::CacheExt;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -183,7 +183,8 @@ async fn test_redis_outage_resilience() {
     // 初始化可能会失败，或者成功但后续操作失败。
     // oxcache 的 init 会尝试连接 L2，如果连接失败，init 会返回错误。
     // 这是一个设计选择：启动时强依赖 L2。
-    let init_res: Result<(), oxcache::CacheError> = oxcache::manager::CacheManager::init(config).await;
+    let init_res: Result<(), oxcache::CacheError> =
+        oxcache::manager::CacheManager::init(config).await;
 
     // 如果初始化失败，说明系统正确地报告了错误，而不是 panic。
     assert!(init_res.is_err());

@@ -395,8 +395,8 @@ mod sqlite_basic_tests {
         println!("✓ Initial partitions: {}", initial_partitions.len());
 
         let partitions = manager.get_partitions(test_table).await?;
-    println!("✓ SQLite partitions listed: {} found", partitions.len());
-    // Note: Partitions will be created manually below
+        println!("✓ SQLite partitions listed: {} found", partitions.len());
+        // Note: Partitions will be created manually below
 
         let test_dates = vec![
             Utc.with_ymd_and_hms(2023, 1, 15, 0, 0, 0).unwrap(),

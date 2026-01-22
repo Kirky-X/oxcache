@@ -197,7 +197,7 @@ async fn test_mysql_partitioning() -> Result<()> {
     )
     .await;
 
-    let partitions = match list_result {
+    let _partitions = match list_result {
         Ok(Ok(partitions)) => {
             println!("✓ MySQL partitions listed: {} found", partitions.len());
             partitions

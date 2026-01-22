@@ -4,6 +4,8 @@
 //
 // 内存测试 - 包含内存泄漏测试和 Miri 内存安全测试
 
+#![allow(unexpected_cfgs)]
+
 use oxcache::backend::l1::L1Backend;
 use oxcache::backend::l2::L2Backend;
 use std::sync::Arc;

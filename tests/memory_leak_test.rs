@@ -4,6 +4,8 @@
 //
 // 内存泄漏测试
 
+#![allow(unexpected_cfgs)]
+
 #[path = "common/mod.rs"]
 mod common;
 

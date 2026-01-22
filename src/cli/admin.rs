@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了管理员操作命令的实现。
 
+#![allow(deprecated)]
+
 use crate::client::CacheOps;
 use crate::manager::get_typed_client;
 use crate::sync::warmup::WarmupStatus;

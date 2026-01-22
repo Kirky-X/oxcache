@@ -11,8 +11,8 @@
 mod tests {
     use oxcache::backend::l2::L2Backend;
     use oxcache::client::l2::L2Client;
-    use oxcache::client::two_level::TwoLevelClient;
     use oxcache::client::ttl_control::TtlControl;
+    use oxcache::client::two_level::TwoLevelClient;
     use oxcache::config::L2Config;
     use oxcache::{CacheExt, CacheOps};
     use secrecy::SecretString;
