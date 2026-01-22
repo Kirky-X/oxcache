@@ -9,11 +9,7 @@
 // - Set: Store values in cache
 // - Delete: Remove values from cache
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct User {
@@ -24,19 +20,8 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache configuration - L1 only (no Redis required)
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "user_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-        )
-        .build();
-
-    // Initialize the cache manager
-    let _ = init(config).await;
-
-    // Get the cache client
-    let client = get_client("user_cache")?;
+    // Create a simple memory cache
+    let cache: Cache<String, User> = Cache::new().await?;
 
     // Create test user
     let user = User {
@@ -47,12 +32,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set a value in cache
     println!("Setting user: {}", user.name);
-    client.set("user:1", &user, Some(3600)).await?;
-    assert!(client.get::<User>("user:1").await?.is_some());
+    cache.set(&"user:1".to_string(), &user).await?;
+    assert!(cache.get(&"user:1".to_string()).await?.is_some());
 
     // Get a value from cache
     println!("Getting user...");
-    if let Some(cached_user) = client.get::<User>("user:1").await? {
+    if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
         println!(
             "Retrieved user: {} ({})",
             cached_user.name, cached_user.email
@@ -62,8 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Delete a value from cache
     println!("Deleting user...");
-    client.delete("user:1").await?;
-    assert!(client.get::<User>("user:1").await?.is_none());
+    cache.delete(&"user:1".to_string()).await?;
+    assert!(cache.get(&"user:1".to_string()).await?.is_none());
 
     // Update a value
     let updated_user = User {
@@ -73,8 +58,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("Updating user...");
-    client.set("user:1", &updated_user, Some(3600)).await?;
-    if let Some(cached) = client.get::<User>("user:1").await? {
+    cache.set(&"user:1".to_string(), &updated_user).await?;
+    if let Some(cached) = cache.get(&"user:1".to_string()).await? {
         println!("Updated user: {} ({})", cached.name, cached.email);
     }
 

@@ -495,10 +495,6 @@ pub mod sync;
 #[cfg(any(feature = "database", feature = "full"))]
 pub mod database;
 
-// CLI Module
-#[cfg(any(feature = "cli", feature = "full"))]
-pub mod cli;
-
 // OpenTelemetry Module
 #[cfg(any(feature = "opentelemetry", feature = "full"))]
 pub mod telemetry;
@@ -612,108 +608,6 @@ pub use http::{
 // ============================================================================
 // Configuration Macros (Feature-Gated)
 // ============================================================================
-
-#[cfg(feature = "confers")]
-#[macro_export]
-macro_rules! init_config {
-    () => {
-        let config = $crate::config::confers_macro::confers_load("oxcache.toml")
-            .map_err(|e| $crate::error::CacheError::ConfigError(e.to_string()))?;
-        $crate::manager::CacheManager::init(config).await
-    };
-    ($path:expr) => {
-        let config = $crate::config::confers_macro::confers_load($path)
-            .map_err(|e| $crate::error::CacheError::ConfigError(e.to_string()))?;
-        $crate::manager::CacheManager::init(config).await
-    };
-}
-
-#[cfg(feature = "confers")]
-#[allow(deprecated)]
-pub async fn init_from_confers(path: &str) -> Result<()> {
-    use crate::config::confers_macro::confers_load;
-    use crate::manager::CacheManager;
-    let config =
-        confers_load(path).map_err(|e| crate::error::CacheError::ConfigError(e.to_string()))?;
-    CacheManager::init(config).await
-}
-
-/// 从配置文件初始化缓存系统
-///
-/// # Arguments
-/// * `config_path` - 配置文件路径，支持 TOML 格式
-///
-/// # Security
-/// 此函数会验证配置文件路径和权限，防止路径遍历攻击和权限问题。
-///
-/// # Example
-/// ```rust,ignore
-/// #[tokio::main]
-/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     oxcache::init_from_file("config.toml").await?;
-///     Ok(())
-/// }
-/// ```
-#[cfg(feature = "confers")]
-#[allow(deprecated)]
-pub async fn init_from_file(config_path: &str) -> Result<()> {
-    use crate::config::confers_macro::confers_load;
-    use crate::manager::CacheManager;
-    use std::path::PathBuf;
-
-    // ========== 安全验证 ==========
-
-    // 检查路径遍历攻击
-    if config_path.contains("..") || config_path.contains("~") {
-        return Err(crate::error::CacheError::ConfigError(
-            "Configuration file path contains path traversal characters (.. or ~)".to_string(),
-        ));
-    }
-
-    let path = PathBuf::from(config_path);
-
-    // 检查文件扩展名
-    if path.extension().is_some_and(|ext| ext != "toml") {
-        return Err(crate::error::CacheError::ConfigError(
-            "Configuration file must be a TOML file (.toml extension required)".to_string(),
-        ));
-    }
-
-    // 检查文件是否存在
-    if !path.exists() {
-        return Err(crate::error::CacheError::ConfigError(format!(
-            "Configuration file not found: {}",
-            config_path
-        )));
-    }
-
-    // 检查文件权限（确保只有所有者可读）
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(&path).map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("Cannot read file metadata: {}", e))
-        })?;
-        let permissions = metadata.permissions();
-        let mode = permissions.mode();
-
-        // 检查是否只有所有者可读（0600 或更严格）
-        // 权限掩码 0o077 检查组和其他用户权限
-        if mode & 0o077 != 0 {
-            return Err(crate::error::CacheError::ConfigError(format!(
-                "Configuration file has too permissive permissions (mode: {:o}). \
-                    Recommended: 0600 (owner read/write only). \
-                    Fix with: chmod 600 {}",
-                mode & 0o777,
-                config_path
-            )));
-        }
-    }
-
-    // 加载配置
-    let config = confers_load(config_path).map_err(crate::error::CacheError::ConfigError)?;
-    CacheManager::init(config).await
-}
 
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
