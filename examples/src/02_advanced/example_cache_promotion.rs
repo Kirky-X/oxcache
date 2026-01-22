@@ -8,11 +8,7 @@
 // - When promote_on_hit is enabled, L1 cache is updated on L2 cache hit
 // - Hot data is automatically promoted to L1 for faster access
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 struct Session {
@@ -24,20 +20,9 @@ struct Session {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only configuration for simplicity (no Redis required)
-    // Note: promote_on_hit is a L2-specific feature
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "session_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(5000)),
-        )
-        .build();
-
-    if let Err(e) = init(config).await {
-        eprintln!("Init error: {:?}", e);
-    }
-
-    let client = get_client("session_cache")?;
+    // Create a tiered cache with L1 (memory) and L2 (Redis)
+    let cache: Cache<String, Session> =
+        Cache::tiered(5000, "redis://127.0.0.1:6379").await?;
 
     // Simulate session data that exists only in L2 initially
     let session = Session {
@@ -49,8 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set session (goes to both L1 and L2)
     println!("Creating session...");
-    client
-        .set("session:sess_abc123", &session, Some(86400))
+    cache
+        .set(&"session:sess_abc123".to_string(), &session)
         .await?;
 
     // Evict from L1 to simulate L2-only state
@@ -61,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // First access - might hit L2 and promote to L1
     println!("\nFirst access (potential L2 hit -> L1 promotion)...");
     let start = std::time::Instant::now();
-    if let Some(sess) = client.get::<Session>("session:sess_abc123").await? {
+    if let Some(sess) = cache.get(&"session:sess_abc123".to_string()).await? {
         println!("Session found after {:?}", start.elapsed());
         println!("User ID: {}", sess.user_id);
     }
@@ -69,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Subsequent access - should hit L1 (fast!)
     println!("\nSecond access (L1 hit - should be faster)...");
     let start = std::time::Instant::now();
-    if let Some(sess) = client.get::<Session>("session:sess_abc123").await? {
+    if let Some(sess) = cache.get(&"session:sess_abc123".to_string()).await? {
         println!("Session found after {:?}", start.elapsed());
         println!("User ID: {}", sess.user_id);
     }

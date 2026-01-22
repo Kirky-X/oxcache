@@ -8,11 +8,7 @@
 // - JSON serialization (human-readable)
 // - Bincode serialization (binary, more efficient)
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{CacheType, L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct User {
@@ -24,16 +20,7 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "json_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-        )
-        .build();
-
-    let _ = init(config).await;
-
-    let client = get_client("json_cache")?;
+    let cache: Cache<String, User> = Cache::new().await?;
 
     println!("Serialization Options Example");
     println!("============================\n");
@@ -56,11 +43,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   - Slightly larger size\n");
 
     // Store with JSON
-    client.set("user:json:1", &user, Some(3600)).await?;
+    cache.set(&"user:json:1".to_string(), &user).await?;
     println!("   Stored user: {} - {}", user.name, user.email);
 
     // Retrieve
-    if let Some(cached) = client.get::<User>("user:json:1").await? {
+    if let Some(cached) = cache.get(&"user:json:1".to_string()).await? {
         println!("   Retrieved: {} - {}", cached.name, cached.email);
         println!("   Profile: {:?}\n", cached.profile);
     }
