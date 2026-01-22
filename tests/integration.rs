@@ -2,10 +2,14 @@
 mod batch_write_test;
 #[path = "integration/chaos_test.rs"]
 mod chaos_test;
+#[path = "integration/cli_test.rs"]
+mod cli_test;
 #[path = "integration/comprehensive_test.rs"]
 mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]
 mod degradation_tests;
+#[path = "integration/http_cache_test.rs"]
+mod http_cache_test;
 #[path = "integration/invalidation_test.rs"]
 mod invalidation_test;
 #[path = "integration/lifecycle_test.rs"]

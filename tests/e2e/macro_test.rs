@@ -5,6 +5,9 @@
 //
 // 端到端宏测试
 
+extern crate oxcache;
+
+use crate::common;
 use oxcache::cached;
 use oxcache::config::{
     CacheType, Config, GlobalConfig, L1Config, L2Config, RedisMode, SerializationType,
@@ -14,9 +17,6 @@ use serde::{Deserialize, Serialize};
 use serial_test::serial;
 use std::collections::HashMap;
 use std::time::Duration;
-
-#[path = "../common/mod.rs"]
-mod common;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 struct User {
@@ -78,6 +78,9 @@ async fn setup_macro_env() {
             );
             map
         },
+        layer: None,
+        extensions: HashMap::new(),
+        source: None,
     };
     // 重置并初始化
     oxcache::manager::CacheManager::reset();
