@@ -286,4 +286,77 @@ impl L1Backend {
         debug!("L1 clear: 缓存已清空");
         Ok(())
     }
+
+    /// 查询键的剩余生存时间（TTL）
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    ///
+    /// # 返回值
+    ///
+    /// 返回剩余秒数，如果键不存在或未设置 TTL 则返回 None
+    #[instrument(skip(self), level = "debug")]
+    pub async fn ttl(&self, key: &str) -> Result<Option<u64>> {
+        let result = self.cache.get(key).await;
+        match result {
+            Some((_, _, expire_at)) => {
+                if let Some(expire_time) = expire_at {
+                    let now = Instant::now();
+                    if now >= expire_time {
+                        // 已过期，移除并返回 None
+                        self.cache.remove(key).await;
+                        debug!("L1 ttl: key={}, expired=true, removed", key);
+                        Ok(None)
+                    } else {
+                        let remaining = (expire_time - now).as_secs();
+                        debug!("L1 ttl: key={}, remaining={}", key, remaining);
+                        Ok(Some(remaining))
+                    }
+                } else {
+                    // 未设置 TTL
+                    debug!("L1 ttl: key={}, no_ttl=true", key);
+                    Ok(None)
+                }
+            }
+            None => {
+                debug!("L1 ttl: key={}, not_found=true", key);
+                Ok(None)
+            }
+        }
+    }
+
+    /// 刷新键的过期时间
+    ///
+    /// # 参数
+    ///
+    /// * `key` - 缓存键
+    /// * `ttl` - 新的过期时间（秒）
+    ///
+    /// # 返回值
+    ///
+    /// 返回操作是否成功
+    #[instrument(skip(self), level = "debug")]
+    pub async fn refresh_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        let result = self.cache.get(key).await;
+        match result {
+            Some((value, version, _)) => {
+                // 更新过期时间
+                let expire_at = if ttl > 0 {
+                    Some(Instant::now() + Duration::from_secs(ttl))
+                } else {
+                    None
+                };
+                self.cache
+                    .insert(key.to_string(), (value, version, expire_at))
+                    .await;
+                debug!("L1 refresh_ttl: key={}, ttl={}, success=true", key, ttl);
+                Ok(true)
+            }
+            None => {
+                debug!("L1 refresh_ttl: key={}, not_found=true", key);
+                Ok(false)
+            }
+        }
+    }
 }

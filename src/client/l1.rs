@@ -120,3 +120,53 @@ impl CacheOps for L1Client {
         Ok(())
     }
 }
+
+#[cfg(feature = "l1-moka")]
+#[cfg(feature = "ttl-control")]
+#[async_trait::async_trait]
+impl crate::client::ttl_control::TtlControl for L1Client {
+    /// 获取 L1 缓存剩余 TTL
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn get_l1_ttl(&self, key: &str) -> Result<Option<u64>> {
+        self.l1.ttl(key).await
+    }
+
+    /// 获取 L2 缓存剩余 TTL（L1-only 客户端不支持）
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn get_l2_ttl(&self, _key: &str) -> Result<Option<u64>> {
+        Ok(None)
+    }
+
+    /// 获取缓存剩余 TTL（优先 L1）
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn get_ttl(&self, key: &str) -> Result<Option<u64>> {
+        self.get_l1_ttl(key).await
+    }
+
+    /// 刷新 L1 缓存 TTL
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn refresh_l1_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        self.l1.refresh_ttl(key, ttl).await
+    }
+
+    /// 刷新 L2 缓存 TTL（L1-only 客户端不支持）
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn refresh_l2_ttl(&self, _key: &str, _ttl: u64) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// 刷新缓存 TTL（同时刷新 L1 和 L2）
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn refresh_ttl(&self, key: &str, ttl: u64) -> Result<bool> {
+        self.refresh_l1_ttl(key, ttl).await
+    }
+
+    /// Touch 操作（刷新访问时间但不返回值）
+    #[instrument(skip(self), level = "debug", fields(service = %self.service_name))]
+    async fn touch(&self, key: &str) -> Result<bool> {
+        // 对于 L1 缓存，touch 操作等同于刷新 TTL
+        // 但是由于 L1 缓存不保留原始 TTL，这里返回 false
+        // 如果需要真正的 touch，需要在 L1Backend 中存储原始 TTL
+        Ok(false)
+    }
+}
