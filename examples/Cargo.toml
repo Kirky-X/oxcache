@@ -65,138 +65,137 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 
 [[example]]
 name = "example_basic_operations"
-path = "examples/01_basics/example_basic_operations.rs"
+path = "src/01_basics/example_basic_operations.rs"
 
 [[example]]
 name = "example_comprehensive_usage"
-path = "examples/01_basics/example_comprehensive_usage.rs"
+path = "src/01_basics/example_comprehensive_usage.rs"
 
 [[example]]
 name = "example_serialization"
-path = "examples/01_basics/example_serialization.rs"
+path = "src/01_basics/example_serialization.rs"
 
 [[example]]
 name = "example_batch_write"
-path = "examples/02_advanced/example_batch_write.rs"
+path = "src/02_advanced/example_batch_write.rs"
 
 [[example]]
 name = "example_cache_promotion"
-path = "examples/02_advanced/example_cache_promotion.rs"
+path = "src/02_advanced/example_cache_promotion.rs"
 
 [[example]]
 name = "example_invalidation"
-path = "examples/02_advanced/example_invalidation.rs"
+path = "src/02_advanced/example_invalidation.rs"
 
 [[example]]
 name = "example_warmup"
-path = "examples/02_advanced/example_warmup.rs"
+path = "src/02_advanced/example_warmup.rs"
 
 [[example]]
 name = "example_latency_benchmark"
-path = "examples/03_performance/example_latency_benchmark.rs"
+path = "src/03_performance/example_latency_benchmark.rs"
 
 [[example]]
 name = "example_stress_test"
-path = "examples/03_performance/example_stress_test.rs"
+path = "src/03_performance/example_stress_test.rs"
 
 [[example]]
 name = "example_throughput_benchmark"
-path = "examples/03_performance/example_throughput_benchmark.rs"
+path = "src/03_performance/example_throughput_benchmark.rs"
 
 [[example]]
 name = "example_standalone"
-path = "examples/04_redis_modes/example_standalone.rs"
+path = "src/04_redis_modes/example_standalone.rs"
 
 [[example]]
 name = "example_sentinel"
-path = "examples/04_redis_modes/example_sentinel.rs"
+path = "src/04_redis_modes/example_sentinel.rs"
 
 [[example]]
 name = "example_cluster"
-path = "examples/04_redis_modes/example_cluster.rs"
+path = "src/04_redis_modes/example_cluster.rs"
 
 [[example]]
 name = "example_tls"
-path = "examples/04_redis_modes/example_tls.rs"
+path = "src/04_redis_modes/example_tls.rs"
 
 [[example]]
 name = "example_sqlite_cache"
-path = "examples/05_database/example_sqlite_cache.rs"
+path = "src/05_database/example_sqlite_cache.rs"
 
 [[example]]
 name = "example_postgresql_cache"
-path = "examples/05_database/example_postgresql_cache.rs"
+path = "src/05_database/example_postgresql_cache.rs"
 
 [[example]]
 name = "example_mysql_cache"
-path = "examples/05_database/example_mysql_cache.rs"
+path = "src/05_database/example_mysql_cache.rs"
 
 [[example]]
 name = "example_database_partitioning"
-path = "examples/05_database/example_database_partitioning.rs"
+path = "src/05_database/example_database_partitioning.rs"
 
 [[example]]
 name = "example_bloom_filter"
-path = "examples/06_features/example_bloom_filter.rs"
+path = "src/06_features/example_bloom_filter.rs"
 
 [[example]]
 name = "example_rate_limiting"
-path = "examples/06_features/example_rate_limiting.rs"
+path = "src/06_features/example_rate_limiting.rs"
 
 [[example]]
 name = "example_metrics"
-path = "examples/06_features/example_metrics.rs"
+path = "src/06_features/example_metrics.rs"
 
 [[example]]
 name = "example_health_check"
-path = "examples/06_features/example_health_check.rs"
+path = "src/06_features/example_health_check.rs"
 
 [[example]]
 name = "example_unit_tests"
-path = "examples/07_testing/example_unit_tests.rs"
+path = "src/07_testing/example_unit_tests.rs"
 
 [[example]]
 name = "example_integration_tests"
-path = "examples/07_testing/example_integration_tests.rs"
+path = "src/07_testing/example_integration_tests.rs"
 
 [[example]]
 name = "example_mock_tests"
-path = "examples/07_testing/example_mock_tests.rs"
+path = "src/07_testing/example_mock_tests.rs"
 
 [[example]]
 name = "example_functional_uat"
-path = "examples/08_uat/example_functional_uat.rs"
+path = "src/08_uat/example_functional_uat.rs"
 
 [[example]]
 name = "example_performance_uat"
-path = "examples/08_uat/example_performance_uat.rs"
+path = "src/08_uat/example_performance_uat.rs"
 
 [[example]]
 name = "example_security_uat"
-path = "examples/08_uat/example_security_uat.rs"
+path = "src/08_uat/example_security_uat.rs"
 
 [[example]]
 name = "example_uat_stress_test"
-path = "examples/08_uat/example_uat_stress_test.rs"
+path = "src/08_uat/example_uat_stress_test.rs"
 
 # 新功能示例
 [[example]]
 name = "example_smart_strategy"
-path = "examples/smart_strategy.rs"
+path = "src/smart_strategy.rs"
 
 [[example]]
 name = "example_redis_native"
-path = "examples/redis_native.rs"
+path = "src/redis_native.rs"
 
 [[example]]
 name = "example_http_cache"
-path = "examples/http_cache.rs"
+path = "src/http_cache.rs"
 required-features = ["http-cache"]
 
 [[example]]
 name = "example_dynamic_config"
-path = "examples/dynamic_config.rs"
-required-features = ["config-dynamic"]
+path = "src/dynamic_config.rs"
 
 [profile.release]
 opt-level = 1
