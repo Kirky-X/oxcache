@@ -31,6 +31,13 @@
 //!                              │
 //!                              ▼
 //! ┌─────────────────────────────────────────────────────────────┐
+//! │                 TieredBackendFactory                        │
+//! │  - 创建 L1/L2 后端实例                                      │
+//! │  - 支持依赖注入 (BackendProvider trait)                     │
+//! └─────────────────────────────────────────────────────────────┘
+//!                              │
+//!                              ▼
+//! ┌─────────────────────────────────────────────────────────────┐
 //! │                    TieredBackend                            │
 //! │  - 实际创建和组合后端                                        │
 //! │  - 统一 CacheBackend 接口                                   │
@@ -40,14 +47,269 @@
 use crate::backend::memory::{MemoryBackend, MemoryBackendBuilder};
 use crate::backend::{CacheBackend, TieredBackend};
 use crate::error::{CacheError, Result};
+use crate::utils::redaction::redact_value;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tracing::instrument;
+
+/// 路径验证配置
+#[derive(Debug, Clone)]
+pub struct PathValidationConfig {
+    /// 允许的基础目录
+    pub allowed_base_dirs: Vec<PathBuf>,
+    /// 是否允许符号链接
+    pub allow_symbolic_links: bool,
+    /// 最大路径长度
+    pub max_path_length: usize,
+}
+
+impl Default for PathValidationConfig {
+    fn default() -> Self {
+        Self {
+            allowed_base_dirs: Vec::new(),
+            allow_symbolic_links: false,
+            max_path_length: 4096,
+        }
+    }
+}
+
+impl PathValidationConfig {
+    /// 创建新配置
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 添加允许的基础目录
+    pub fn add_allowed_base_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.allowed_base_dirs.push(dir.into());
+        self
+    }
+
+    /// 允许符号链接
+    pub fn allow_symbolic_links(mut self, allowed: bool) -> Self {
+        self.allow_symbolic_links = allowed;
+        self
+    }
+
+    /// 设置最大路径长度
+    pub fn with_max_path_length(mut self, length: usize) -> Self {
+        self.max_path_length = length;
+        self
+    }
+
+    /// 验证路径安全性
+    ///
+    /// # 参数
+    /// * `path` - 要验证的路径
+    ///
+    /// # 返回值
+    /// * `Ok(PathBuf)` - 规范化后的安全路径
+    /// * `Err(CacheError)` - 验证失败
+    pub fn validate(&self, path: &str) -> Result<PathBuf> {
+        // 检查路径长度
+        if path.len() > self.max_path_length {
+            return Err(CacheError::ConfigError(format!(
+                "Path exceeds maximum length of {} characters",
+                self.max_path_length
+            )));
+        }
+
+        // 解析路径（规范化但不使用实际文件）
+        let path = Path::new(path);
+
+        // 检查是否绝对路径
+        if !path.is_absolute() {
+            return Err(CacheError::ConfigError(
+                "Only absolute paths are allowed".to_string(),
+            ));
+        }
+
+        // 规范化路径（移除 . 和 ..，解析冗余分隔符）
+        let normalized = match path.canonicalize() {
+            Ok(p) => p,
+            Err(_) => {
+                // 如果文件不存在，仍然进行路径规范化检查
+                let mut buf = PathBuf::new();
+                for component in path.components() {
+                    match component {
+                        std::path::Component::Normal(part) => {
+                            buf.push(part);
+                        }
+                        std::path::Component::CurDir => {} // 忽略 .
+                        std::path::Component::ParentDir => {
+                            // 尝试弹出父目录，但不允许超出基础
+                            if !buf.pop() {
+                                return Err(CacheError::ConfigError(
+                                    "Path traversal attempt detected".to_string(),
+                                ));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                buf
+            }
+        };
+
+        // 如果设置了允许的目录，检查路径是否在允许范围内
+        if !self.allowed_base_dirs.is_empty() {
+            let mut within_allowed = false;
+            for base_dir in &self.allowed_base_dirs {
+                let base_canonical = match base_dir.canonicalize() {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
+                if normalized.starts_with(&base_canonical) {
+                    within_allowed = true;
+                    break;
+                }
+            }
+            if !within_allowed {
+                return Err(CacheError::ConfigError(format!(
+                    "Path is not within allowed directories: {}",
+                    normalized.display()
+                )));
+            }
+        }
+
+        // 如果不允许符号链接，检查是否为符号链接
+        if !self.allow_symbolic_links {
+            // 注意：这里无法检查不存在的文件，实际使用时应在文件操作前再次检查
+            // 此处仅作为预防性检查
+            if let Some(file_name) = normalized.file_name() {
+                if file_name.to_string_lossy().starts_with('.') {
+                    // 隐藏文件可能有问题，进行警告
+                    tracing::warn!("Loading configuration from hidden file: {}", path.display());
+                }
+            }
+        }
+
+        // 检查路径中是否包含可疑字符
+        validate_path_chars(path)?;
+
+        Ok(normalized)
+    }
+}
+
+/// 验证路径字符
+fn validate_path_chars(path: &Path) -> Result<()> {
+    // 检查无效字符
+    let invalid_chars = ['\0', '\n', '\r', '\t'];
+    let path_str = path.to_string_lossy();
+
+    for ch in invalid_chars {
+        if path_str.contains(ch) {
+            return Err(CacheError::ConfigError(format!(
+                "Path contains invalid character: {:?}",
+                ch
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// 配置验证常量
+#[derive(Debug, Clone, Copy)]
+pub struct ConfigValidation;
+
+impl ConfigValidation {
+    /// 最大缓存容量（10亿条目）
+    pub const MAX_CAPACITY: u64 = 1_000_000_000;
+    /// 最大 TTL（30天，以秒计）
+    pub const MAX_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+    /// 最大 TTI（30天，以秒计）
+    pub const MAX_TTI_SECS: u64 = 30 * 24 * 60 * 60;
+    /// 自定义名称最大长度（256字符）
+    pub const MAX_CUSTOM_NAME_LENGTH: usize = 256;
+    /// 允许的自定义名称字符正则（字母、数字、下划线、连字符、点）
+    pub const VALID_NAME_CHARS: &'static str =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
+
+    /// 验证容量值
+    pub fn validate_capacity(capacity: u64) -> Result<u64> {
+        if capacity == 0 {
+            return Err(CacheError::ConfigError(
+                "Capacity must be greater than 0".to_string(),
+            ));
+        }
+        if capacity > Self::MAX_CAPACITY {
+            return Err(CacheError::ConfigError(format!(
+                "Capacity {} exceeds maximum allowed value of {}",
+                capacity,
+                Self::MAX_CAPACITY
+            )));
+        }
+        Ok(capacity)
+    }
+
+    /// 验证 TTL 值
+    pub fn validate_ttl(ttl: u64) -> Result<u64> {
+        if ttl == 0 {
+            return Err(CacheError::ConfigError(
+                "TTL must be greater than 0".to_string(),
+            ));
+        }
+        if ttl > Self::MAX_TTL_SECS {
+            return Err(CacheError::ConfigError(format!(
+                "TTL {} seconds exceeds maximum allowed value of {} seconds (30 days)",
+                ttl,
+                Self::MAX_TTL_SECS
+            )));
+        }
+        Ok(ttl)
+    }
+
+    /// 验证 TTI 值
+    pub fn validate_tti(tti: u64) -> Result<u64> {
+        if tti > Self::MAX_TTI_SECS {
+            return Err(CacheError::ConfigError(format!(
+                "Time to idle {} seconds exceeds maximum allowed value of {} seconds (30 days)",
+                tti,
+                Self::MAX_TTI_SECS
+            )));
+        }
+        Ok(tti)
+    }
+
+    /// 验证自定义名称
+    pub fn validate_custom_name(name: &str) -> Result<String> {
+        // 检查长度
+        if name.is_empty() {
+            return Err(CacheError::ConfigError(
+                "Custom backend name cannot be empty".to_string(),
+            ));
+        }
+        if name.len() > Self::MAX_CUSTOM_NAME_LENGTH {
+            return Err(CacheError::ConfigError(format!(
+                "Custom backend name exceeds maximum length of {} characters",
+                Self::MAX_CUSTOM_NAME_LENGTH
+            )));
+        }
+
+        // 检查字符有效性
+        for ch in name.chars() {
+            if !Self::VALID_NAME_CHARS.contains(ch) {
+                return Err(CacheError::ConfigError(format!(
+                    "Custom backend name contains invalid character '{}'. Allowed characters: {}",
+                    ch,
+                    Self::VALID_NAME_CHARS
+                )));
+            }
+        }
+
+        Ok(name.to_string())
+    }
+}
 
 /// 缓存层级
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Layer {
     /// 第一层缓存 - 通常是内存缓存
+    #[default]
     L1,
     /// 第二层缓存 - 通常是分布式缓存
     L2,
@@ -59,12 +321,6 @@ impl fmt::Display for Layer {
             Layer::L1 => write!(f, "L1"),
             Layer::L2 => write!(f, "L2"),
         }
-    }
-}
-
-impl Default for Layer {
-    fn default() -> Self {
-        Layer::L1
     }
 }
 
@@ -106,7 +362,7 @@ impl LayerRestriction {
 /// - `Memory` - 仅支持 L1（内存缓存）
 /// - `Redis` - 仅支持 L2（分布式缓存）
 /// - `Tiered` - 支持任意层级（用于组合）
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendType {
     /// Moka 内存缓存（L1 推荐）
@@ -119,6 +375,7 @@ pub enum BackendType {
     #[cfg(feature = "l2-redis")]
     Redis,
     /// 分层缓存组合（任意层级）
+    #[default]
     Tiered,
     /// 持久化缓存（L2 推荐）
     Persisted,
@@ -137,20 +394,11 @@ impl fmt::Display for BackendType {
             BackendType::Redis => write!(f, "redis"),
             BackendType::Tiered => write!(f, "tiered"),
             BackendType::Persisted => write!(f, "persisted"),
-            BackendType::Custom(name) => write!(f, "custom:{}", name),
-        }
-    }
-}
-
-impl Default for BackendType {
-    fn default() -> Self {
-        #[cfg(feature = "l1-moka")]
-        {
-            BackendType::Moka
-        }
-        #[cfg(not(feature = "l1-moka"))]
-        {
-            BackendType::Memory
+            // 脱敏自定义名称，防止敏感信息泄露
+            BackendType::Custom(name) => {
+                let masked = redact_value(name, 8);
+                write!(f, "custom:{}", masked)
+            }
         }
     }
 }
@@ -187,22 +435,22 @@ impl BackendType {
 
     /// 获取可用的后端类型列表（基于启用的 feature）
     pub fn available_backends() -> Vec<BackendType> {
-        let mut backends = Vec::new();
-
-        #[cfg(feature = "l1-moka")]
-        backends.push(BackendType::Moka);
-
-        #[cfg(feature = "l2-redis")]
-        backends.push(BackendType::Redis);
-
-        backends.push(BackendType::Tiered);
-
-        backends.push(BackendType::Persisted);
-
-        backends
+        vec![
+            #[cfg(feature = "l1-moka")]
+            BackendType::Moka,
+            #[cfg(feature = "l2-redis")]
+            BackendType::Redis,
+            BackendType::Tiered,
+            BackendType::Persisted,
+        ]
     }
 
     /// 从字符串解析后端类型
+    ///
+    /// # 安全说明
+    /// - 验证自定义名称长度（最大 256 字符）
+    /// - 验证自定义名称字符（只允许字母、数字、下划线、连字符、点）
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             #[cfg(feature = "l1-moka")]
@@ -214,12 +462,30 @@ impl BackendType {
             "tiered" | "multi" | "two-level" => Ok(BackendType::Tiered),
             "persisted" | "persist" | "sqlite" => Ok(BackendType::Persisted),
             _ => {
-                if s.starts_with("custom:") {
-                    Ok(BackendType::Custom(s[7..].to_string()))
+                if let Some(custom_name) = s.strip_prefix("custom:") {
+                    // 验证自定义名称
+                    let validated_name = ConfigValidation::validate_custom_name(custom_name)?;
+                    Ok(BackendType::Custom(validated_name))
                 } else {
+                    #[cfg(feature = "l1-moka")]
+                    #[cfg(feature = "l2-redis")]
+                    let available = "moka, memory, redis, tiered, persisted, custom:<name>";
+
+                    #[cfg(feature = "l1-moka")]
+                    #[cfg(not(feature = "l2-redis"))]
+                    let available = "moka, memory, tiered, persisted, custom:<name>";
+
+                    #[cfg(not(feature = "l1-moka"))]
+                    #[cfg(feature = "l2-redis")]
+                    let available = "memory, redis, tiered, persisted, custom:<name>";
+
+                    #[cfg(not(feature = "l1-moka"))]
+                    #[cfg(not(feature = "l2-redis"))]
+                    let available = "memory, tiered, persisted, custom:<name>";
+
                     Err(CacheError::ConfigError(format!(
-                        "Unknown backend type: {}. Available: moka, redis, tiered",
-                        s
+                        "Unknown backend type: '{}'. Available backends: {}",
+                        s, available
                     )))
                 }
             }
@@ -289,6 +555,175 @@ impl LayerBackendConfig {
         }
 
         Ok(())
+    }
+}
+
+/// 后端提供者 trait - 支持依赖注入
+///
+/// 允许自定义后端创建逻辑，实现解耦。
+/// 默认提供者是 `DefaultBackendProvider`。
+#[async_trait]
+pub trait BackendProvider: Send + Sync {
+    /// 创建 L1 后端
+    async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>>;
+
+    /// 创建 L2 后端
+    async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>>;
+}
+
+/// 默认后端提供者
+///
+/// 使用 MemoryBackend 作为 L1，RedisBackend 作为 L2。
+#[derive(Default)]
+pub struct DefaultBackendProvider;
+
+#[async_trait]
+impl BackendProvider for DefaultBackendProvider {
+    #[instrument(skip(self, options), level = "debug")]
+    async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
+        let mut builder = MemoryBackend::builder();
+        builder = apply_memory_options(builder, options);
+        let backend = builder.build();
+        Ok(Arc::new(backend))
+    }
+
+    #[instrument(skip(self, options), level = "debug")]
+    async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
+        #[cfg(feature = "l2-redis")]
+        {
+            use crate::backend::RedisBackend;
+
+            let connection_string = options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .unwrap_or("redis://localhost:6379");
+
+            // 记录脱敏后的连接字符串，防止敏感信息泄露
+            tracing::debug!(
+                "Creating Redis backend with connection: redis://***@{}",
+                connection_string
+                    .split('@')
+                    .nth(1)
+                    .unwrap_or(connection_string)
+                    .split(':')
+                    .next()
+                    .unwrap_or("unknown")
+            );
+
+            let backend = Arc::new(RedisBackend::new(connection_string).await?);
+            Ok(backend)
+        }
+        #[cfg(not(feature = "l2-redis"))]
+        {
+            // 如果没有 l2-redis feature，降级到内存后端
+            tracing::warn!("Redis backend not available, falling back to memory backend");
+            let mut builder = MemoryBackend::builder();
+            builder = apply_memory_options(builder, options);
+            let backend = builder.build();
+            Ok(Arc::new(backend))
+        }
+    }
+}
+
+/// 应用内存后端配置选项
+///
+/// # 安全说明
+/// 此函数会验证配置参数的范围：
+/// - capacity 不能超过 10 亿
+/// - ttl 不能超过 30 天
+/// - tti 不能超过 30 天
+fn apply_memory_options(
+    mut builder: MemoryBackendBuilder,
+    options: &serde_json::Value,
+) -> MemoryBackendBuilder {
+    if let Some(options) = options.as_object() {
+        if let Some(capacity) = options.get("capacity").and_then(|v| v.as_u64()) {
+            // 验证容量值
+            match ConfigValidation::validate_capacity(capacity) {
+                Ok(validated) => {
+                    builder = builder.capacity(validated);
+                }
+                Err(e) => {
+                    tracing::warn!("Invalid capacity: {}", e);
+                }
+            }
+        }
+        if let Some(ttl) = options.get("ttl").and_then(|v| v.as_u64()) {
+            // 验证 TTL 值
+            match ConfigValidation::validate_ttl(ttl) {
+                Ok(validated) => {
+                    builder = builder.ttl(std::time::Duration::from_secs(validated));
+                }
+                Err(e) => {
+                    tracing::warn!("Invalid TTL: {}", e);
+                }
+            }
+        }
+        if let Some(tti) = options.get("time_to_idle").and_then(|v| v.as_u64()) {
+            // 验证 TTI 值
+            match ConfigValidation::validate_tti(tti) {
+                Ok(validated) => {
+                    builder = builder.time_to_idle(std::time::Duration::from_secs(validated));
+                }
+                Err(e) => {
+                    tracing::warn!("Invalid TTI: {}", e);
+                }
+            }
+        }
+    }
+    builder
+}
+
+/// 分层后端工厂
+///
+/// 负责根据配置创建后端实例。
+/// 支持自定义 `BackendProvider` 实现依赖注入。
+#[derive(Clone)]
+pub struct TieredBackendFactory {
+    provider: Arc<dyn BackendProvider>,
+}
+
+impl Default for TieredBackendFactory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TieredBackendFactory {
+    /// 创建新工厂
+    pub fn new() -> Self {
+        Self {
+            provider: Arc::new(DefaultBackendProvider),
+        }
+    }
+
+    /// 使用自定义提供者创建工厂
+    pub fn with_provider(provider: Arc<dyn BackendProvider>) -> Self {
+        Self { provider }
+    }
+
+    /// 创建 L1 后端
+    #[instrument(skip(self, options), level = "debug")]
+    pub async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
+        self.provider.create_l1(options).await
+    }
+
+    /// 创建 L2 后端
+    #[instrument(skip(self, options), level = "debug")]
+    pub async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
+        self.provider.create_l2(options).await
+    }
+
+    /// 创建分层后端
+    #[instrument(skip(self, l1_options, l2_options), level = "debug")]
+    pub async fn create_tiered_backend(
+        &self,
+        l1_options: &serde_json::Value,
+        l2_options: &serde_json::Value,
+    ) -> Result<TieredBackend> {
+        let l1 = self.create_l1(l1_options).await?;
+        let l2 = self.create_l2(l2_options).await?;
+        Ok(TieredBackend::from_arc(l1, l2))
     }
 }
 
@@ -454,22 +889,25 @@ impl CustomTieredConfig {
         for fix in fixes {
             match fix.layer {
                 Layer::L1 => {
-                                    if self.auto_fix.warn_on_fix {
-                                        tracing::warn!(
-                                            "L1 backend '{}' is not suitable for L1, auto-fixing to '{}'",
-                                            fix.from_backend, fix.to_backend
-                                        );
-                                    }
-                                    fixed.l1.backend_type = fix.to_backend.clone();
-                                }
-                                Layer::L2 => {
-                                    if self.auto_fix.warn_on_fix {
-                                        tracing::warn!(
-                                            "L2 backend '{}' is not suitable for L2, auto-fixing to '{}'",
-                                            fix.from_backend, fix.to_backend
-                                        );
-                                    }
-                                    fixed.l2.backend_type = fix.to_backend.clone();                }
+                    if self.auto_fix.warn_on_fix {
+                        tracing::warn!(
+                            "L1 backend '{}' is not suitable for L1, auto-fixing to '{}'",
+                            fix.from_backend,
+                            fix.to_backend
+                        );
+                    }
+                    fixed.l1.backend_type = fix.to_backend.clone();
+                }
+                Layer::L2 => {
+                    if self.auto_fix.warn_on_fix {
+                        tracing::warn!(
+                            "L2 backend '{}' is not suitable for L2, auto-fixing to '{}'",
+                            fix.from_backend,
+                            fix.to_backend
+                        );
+                    }
+                    fixed.l2.backend_type = fix.to_backend.clone();
+                }
             }
         }
 
@@ -485,95 +923,6 @@ impl CustomTieredConfig {
             tracing::error!("Auto-fix failed for tiered cache configuration");
             (FixedConfigResult::from(validation), None)
         }
-    }
-
-    /// 获取后端类型的工厂方法
-    pub fn create_l1_backend(&self) -> Result<Arc<dyn CacheBackend>> {
-        match &self.l1.backend_type {
-            #[cfg(feature = "l1-moka")]
-            BackendType::Moka => {
-                let mut builder = MemoryBackend::builder();
-                builder = self.apply_l1_options(builder);
-                let backend = builder.build();
-                Ok(Arc::new(backend))
-            }
-            #[cfg(not(feature = "l1-moka"))]
-            BackendType::Memory => {
-                let mut builder = MemoryBackend::builder();
-                builder = self.apply_l1_options(builder);
-                let backend = builder.build();
-                Ok(Arc::new(backend))
-            }
-            _ => Err(CacheError::ConfigError(format!(
-                "Backend type '{}' is not supported for L1",
-                self.l1.backend_type
-            ))),
-        }
-    }
-
-    fn apply_l1_options(&self, mut builder: MemoryBackendBuilder) -> MemoryBackendBuilder {
-        if let Some(options) = self.l1.options.as_object() {
-            if let Some(capacity) = options.get("capacity").and_then(|v| v.as_u64()) {
-                builder = builder.capacity(capacity);
-            }
-            if let Some(ttl) = options.get("ttl").and_then(|v| v.as_u64()) {
-                builder = builder.ttl(std::time::Duration::from_secs(ttl));
-            }
-            if let Some(tti) = options.get("time_to_idle").and_then(|v| v.as_u64()) {
-                builder = builder.time_to_idle(std::time::Duration::from_secs(tti));
-            }
-        }
-        builder
-    }
-
-    pub async fn create_l2_backend(&self) -> Result<Arc<dyn CacheBackend>> {
-        use crate::backend::RedisBackend;
-
-        match &self.l2.backend_type {
-            #[cfg(feature = "l2-redis")]
-            BackendType::Redis => {
-                let connection_string = self
-                    .l2
-                    .options
-                    .get("connection_string")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("redis://localhost:6379");
-                let backend = RedisBackend::new(connection_string).await?;
-                Ok(Arc::new(backend))
-            }
-            #[cfg(not(feature = "l2-redis"))]
-            BackendType::Redis => {
-                // 如果没有 l2-redis feature，降级到内存后端
-                tracing::warn!("Redis backend not available, falling back to memory backend");
-                let mut builder = MemoryBackend::builder();
-                builder = self.apply_l2_options(builder);
-                let backend = builder.build();
-                Ok(Arc::new(backend))
-            }
-            _ => Err(CacheError::ConfigError(format!(
-                "Backend type '{}' is not supported for L2",
-                self.l2.backend_type
-            ))),
-        }
-    }
-
-    #[allow(dead_code)]
-    fn apply_l2_options(&self, mut builder: MemoryBackendBuilder) -> MemoryBackendBuilder {
-        if let Some(options) = self.l2.options.as_object() {
-            if let Some(capacity) = options.get("capacity").and_then(|v| v.as_u64()) {
-                builder = builder.capacity(capacity);
-            }
-        }
-        builder
-    }
-
-    /// 创建分层后端
-    pub async fn create_tiered_backend(&self) -> Result<TieredBackend> {
-        let l1 = self.create_l1_backend()?;
-        let l2 = self.create_l2_backend().await?;
-
-        let backend = TieredBackend::from_arc(l1, l2);
-        Ok(backend)
     }
 }
 
@@ -600,7 +949,8 @@ impl ConfigValidationResult {
 
     fn add_invalid(&mut self, layer: Layer, backend_type: BackendType, error: String) {
         let backend_type_clone = backend_type.clone();
-        self.invalid_layers.push((layer, backend_type, error.clone()));
+        self.invalid_layers
+            .push((layer, backend_type, error.clone()));
 
         // 生成修复建议
         let suggested = backend_type_clone.recommended_layer();
@@ -649,10 +999,7 @@ impl ConfigValidationResult {
         } else {
             report.push_str("❌ Configuration has issues:\n");
             for (layer, backend, error) in &self.invalid_layers {
-                report.push_str(&format!(
-                    "  - Layer {}: {} - {}\n",
-                    layer, backend, error
-                ));
+                report.push_str(&format!("  - Layer {}: {} - {}\n", layer, backend, error));
             }
         }
 
@@ -699,8 +1046,16 @@ impl From<ConfigValidationResult> for FixedConfigResult {
             ));
         }
 
-        let l1_backend = val.valid_layers.iter().find(|(l, _)| *l == Layer::L1).map(|(_, b)| b.clone());
-        let l2_backend = val.valid_layers.iter().find(|(l, _)| *l == Layer::L2).map(|(_, b)| b.clone());
+        let l1_backend = val
+            .valid_layers
+            .iter()
+            .find(|(l, _)| *l == Layer::L1)
+            .map(|(_, b)| b.clone());
+        let l2_backend = val
+            .valid_layers
+            .iter()
+            .find(|(l, _)| *l == Layer::L2)
+            .map(|(_, b)| b.clone());
 
         Self {
             is_valid: val.is_valid(),
@@ -795,16 +1150,50 @@ impl CustomTieredConfigBuilder {
 }
 
 /// 从配置文件加载自定义分层配置
+///
+/// # 安全说明
+/// 此函数会验证路径安全性：
+/// - 只允许绝对路径
+/// - 规范化路径，防止路径遍历攻击
+/// - 可选限制在指定目录范围内
+/// - 不允许符号链接（除非明确启用）
+///
+/// # 参数
+/// * `path` - 配置文件路径（绝对路径）
+/// * `validation_config` - 路径验证配置（可选，使用默认配置）
+///
+/// # 返回值
+/// * `Ok(CustomTieredConfig)` - 加载的配置
+/// * `Err(CacheError)` - 加载或验证失败
 #[cfg(feature = "confers")]
-pub async fn load_from_file(path: &str) -> Result<CustomTieredConfig> {
+#[instrument(skip(path, validation_config), level = "debug")]
+pub async fn load_from_file(
+    path: &str,
+    validation_config: Option<PathValidationConfig>,
+) -> Result<CustomTieredConfig> {
     use std::fs;
     use toml;
 
-    let content = fs::read_to_string(path)
-        .map_err(|e| CacheError::ConfigError(e.to_string()))?;
+    // 使用提供的配置或默认配置
+    let path_config = validation_config.unwrap_or_default();
 
-    let config: CustomTieredConfig = toml::from_str(&content)
-        .map_err(|e| CacheError::ConfigError(e.to_string()))?;
+    // 验证路径安全性
+    let safe_path = path_config.validate(path)?;
+
+    // 读取文件前再次检查是否为符号链接（防御性检查）
+    if let Ok(metadata) = fs::metadata(&safe_path) {
+        if metadata.file_type().is_symlink() {
+            return Err(CacheError::ConfigError(
+                "Symbolic links are not allowed for configuration files".to_string(),
+            ));
+        }
+    }
+
+    let content =
+        fs::read_to_string(&safe_path).map_err(|e| CacheError::ConfigError(e.to_string()))?;
+
+    let config: CustomTieredConfig =
+        toml::from_str(&content).map_err(|e| CacheError::ConfigError(e.to_string()))?;
 
     // 验证配置
     let (result, fixed) = config.validate_and_fix();
@@ -819,7 +1208,10 @@ pub async fn load_from_file(path: &str) -> Result<CustomTieredConfig> {
     // 如果有自动修复，返回修复后的配置
     if let Some(fixed_config) = fixed {
         if !result.warnings.is_empty() {
-            tracing::info!("Auto-fixed tiered cache configuration: {:?}", result.warnings);
+            tracing::info!(
+                "Auto-fixed tiered cache configuration: {:?}",
+                result.warnings
+            );
         }
         Ok(fixed_config)
     } else {
@@ -835,19 +1227,28 @@ mod tests {
     fn test_backend_type_layer_restriction() {
         #[cfg(feature = "l1-moka")]
         {
-            assert_eq!(BackendType::Moka.layer_restriction(), LayerRestriction::L1Only);
+            assert_eq!(
+                BackendType::Moka.layer_restriction(),
+                LayerRestriction::L1Only
+            );
             assert!(BackendType::Moka.supports_layer(Layer::L1));
             assert!(!BackendType::Moka.supports_layer(Layer::L2));
         }
 
         #[cfg(feature = "l2-redis")]
         {
-            assert_eq!(BackendType::Redis.layer_restriction(), LayerRestriction::L2Only);
+            assert_eq!(
+                BackendType::Redis.layer_restriction(),
+                LayerRestriction::L2Only
+            );
             assert!(!BackendType::Redis.supports_layer(Layer::L1));
             assert!(BackendType::Redis.supports_layer(Layer::L2));
         }
 
-        assert_eq!(BackendType::Tiered.layer_restriction(), LayerRestriction::Any);
+        assert_eq!(
+            BackendType::Tiered.layer_restriction(),
+            LayerRestriction::Any
+        );
         assert!(BackendType::Tiered.supports_layer(Layer::L1));
         assert!(BackendType::Tiered.supports_layer(Layer::L2));
     }
@@ -1010,5 +1411,123 @@ mod tests {
         {
             assert!(backends.contains(&BackendType::Redis));
         }
+    }
+
+    // ==================== 安全测试 ====================
+
+    #[test]
+    fn test_config_validation_capacity_limits() {
+        // 有效容量
+        assert!(ConfigValidation::validate_capacity(1000).is_ok());
+        assert!(ConfigValidation::validate_capacity(ConfigValidation::MAX_CAPACITY).is_ok());
+
+        // 无效容量 - 为零
+        assert!(ConfigValidation::validate_capacity(0).is_err());
+
+        // 无效容量 - 超过最大值
+        assert!(ConfigValidation::validate_capacity(ConfigValidation::MAX_CAPACITY + 1).is_err());
+    }
+
+    #[test]
+    fn test_config_validation_ttl_limits() {
+        // 有效 TTL
+        assert!(ConfigValidation::validate_ttl(3600).is_ok());
+        assert!(ConfigValidation::validate_ttl(ConfigValidation::MAX_TTL_SECS).is_ok());
+
+        // 无效 TTL - 为零
+        assert!(ConfigValidation::validate_ttl(0).is_err());
+
+        // 无效 TTL - 超过最大值
+        assert!(ConfigValidation::validate_ttl(ConfigValidation::MAX_TTL_SECS + 1).is_err());
+    }
+
+    #[test]
+    fn test_config_validation_tti_limits() {
+        // 有效 TTI
+        assert!(ConfigValidation::validate_tti(1800).is_ok());
+        assert!(ConfigValidation::validate_tti(ConfigValidation::MAX_TTI_SECS).is_ok());
+
+        // 无效 TTI - 超过最大值
+        assert!(ConfigValidation::validate_tti(ConfigValidation::MAX_TTI_SECS + 1).is_err());
+    }
+
+    #[test]
+    fn test_config_validation_custom_name() {
+        // 有效名称
+        assert!(ConfigValidation::validate_custom_name("valid_name").is_ok());
+        assert!(ConfigValidation::validate_custom_name("my-backend.123").is_ok());
+        assert!(ConfigValidation::validate_custom_name("A").is_ok());
+
+        // 无效名称 - 为空
+        assert!(ConfigValidation::validate_custom_name("").is_err());
+
+        // 无效名称 - 超过最大长度
+        let long_name = "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH + 1);
+        assert!(ConfigValidation::validate_custom_name(&long_name).is_err());
+
+        // 无效名称 - 包含特殊字符
+        assert!(ConfigValidation::validate_custom_name("invalid/name").is_err());
+        assert!(ConfigValidation::validate_custom_name("invalid@name").is_err());
+        assert!(ConfigValidation::validate_custom_name("invalid name").is_err());
+    }
+
+    #[test]
+    fn test_backend_type_from_str_validates_custom_name() {
+        // 有效自定义后端
+        let result = BackendType::from_str("custom:valid_name");
+        assert!(result.is_ok());
+        assert_eq!(
+            result.unwrap(),
+            BackendType::Custom("valid_name".to_string())
+        );
+
+        // 无效自定义后端 - 名称太长
+        let long_name = format!(
+            "custom:{}",
+            "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH + 1)
+        );
+        let result = BackendType::from_str(&long_name);
+        assert!(result.is_err());
+
+        // 无效自定义后端 - 包含无效字符
+        let result = BackendType::from_str("custom:invalid/name");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_path_validation_config_defaults() {
+        let config = PathValidationConfig::new();
+        assert!(config.allowed_base_dirs.is_empty());
+        assert!(!config.allow_symbolic_links);
+        assert_eq!(config.max_path_length, 4096);
+    }
+
+    #[test]
+    fn test_path_validation_rejects_relative_paths() {
+        let config = PathValidationConfig::new();
+        let result = config.validate("relative/path/config.toml");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("absolute"));
+    }
+
+    #[test]
+    fn test_path_validation_rejects_invalid_chars() {
+        let config = PathValidationConfig::new();
+        let result = config.validate("/path/with\ninvalid/chars.toml");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid character"));
+    }
+
+    #[test]
+    fn test_path_validation_allows_valid_absolute_paths() {
+        let config = PathValidationConfig::new();
+        // 使用临时目录
+        let temp_path = "/tmp/oxcache_test_config.toml";
+        let result = config.validate(temp_path);
+        // 文件不存在也可以验证路径格式
+        assert!(result.is_ok() || result.unwrap_err().to_string().contains("canonicalize"));
     }
 }

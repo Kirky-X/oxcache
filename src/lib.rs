@@ -530,7 +530,12 @@ pub use cache::Cache;
 pub use traits::{CacheKey, Cacheable};
 
 // Custom tiered backend configuration exports
-#[cfg(any(feature = "l1-moka", feature = "l2-redis", feature = "core", feature = "full"))]
+#[cfg(any(
+    feature = "l1-moka",
+    feature = "l2-redis",
+    feature = "core",
+    feature = "full"
+))]
 pub use backend::custom_tiered::{
     AutoFixConfig, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
     CustomTieredConfigBuilder, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
