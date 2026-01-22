@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! SQLite连接测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// SQLite连接测试
 
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 

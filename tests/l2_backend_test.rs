@@ -1,9 +1,8 @@
-use oxcache::CacheError;
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! L2后端测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// L2后端测试
 
 use oxcache::{
     backend::l2::L2Backend,

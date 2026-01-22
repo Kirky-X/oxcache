@@ -1,11 +1,11 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 分层缓存细粒度控制集成测试
-//!
-//! 测试 L1/L2 直接操作和跨层移动功能。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 分层缓存细粒度控制集成测试
+//
+// 测试 L1/L2 直接操作和跨层移动功能。
 
 #[cfg(feature = "l2-redis")]
 mod tests {
@@ -15,11 +15,17 @@ mod tests {
     use oxcache::client::two_level::TwoLevelClient;
     use oxcache::config::{L2Config, RedisMode, TwoLevelConfig};
     use oxcache::serialization::{JsonSerializer, SerializerEnum};
+    use oxcache::CacheOps;
     use secrecy::SecretString;
     use std::sync::Arc;
 
     /// 获取测试 TwoLevelClient
     async fn get_test_two_level_client() -> Arc<TwoLevelClient> {
+        get_test_two_level_client_with_name("test_tiered_service".to_string()).await
+    }
+
+    /// 获取测试 TwoLevelClient（使用指定的服务名称）
+    async fn get_test_two_level_client_with_name(service_name: String) -> Arc<TwoLevelClient> {
         let l2_config = L2Config {
             connection_string: SecretString::new("redis://127.0.0.1:6379".to_string()),
             mode: RedisMode::Standalone,
@@ -43,7 +49,7 @@ mod tests {
 
         Arc::new(
             TwoLevelClient::new(
-                "test_tiered_service".to_string(),
+                service_name,
                 two_level_config,
                 l1_backend,
                 l2_backend,
@@ -65,7 +71,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_l1_direct() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:l1direct";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -92,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_l1_direct_not_exists() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_l1_not_exists".to_string()).await;
 
         // L1 中不存在应该返回 None
         let value = client.get_l1_direct("nonexistent_l1_key").await.unwrap();
@@ -101,7 +107,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_l1_direct() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_set_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:setl1";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -125,7 +131,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_l1_direct() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_delete_l1".to_string()).await;
         let test_key = "oxcache:test:tiered:deletel1";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -155,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_l2_direct() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_l2".to_string()).await;
         let test_key = "oxcache:test:tiered:l2direct";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -176,37 +182,36 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_l2_direct() {
-        let client = get_test_two_level_client().await;
-        let test_key = "oxcache:test:tiered:setl2";
-
-        cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
+        let client = get_test_two_level_client_with_name("test_tiered_set_l2".to_string()).await;
+        let test_key = format!("oxcache:test:tiered:setl2:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
 
         // 直接设置 L2
         client
-            .set_l2_direct(test_key, b"only_in_l2".to_vec(), Some(300))
+            .set_l2_direct(&test_key, b"only_in_l2".to_vec(), Some(300))
             .await
             .unwrap();
 
         // 验证 L2 有数据
-        let l2_value = client.get_l2_direct(test_key).await.unwrap();
+        let l2_value = client.get_l2_direct(&test_key).await.unwrap();
         assert!(l2_value.is_some());
         assert_eq!(l2_value.unwrap(), b"only_in_l2");
 
         // 验证 L1 没有数据（因为是直接设置 L2）
-        let l1_value = client.get_l1_direct(test_key).await.unwrap();
+        let l1_value = client.get_l1_direct(&test_key).await.unwrap();
         assert!(l1_value.is_none());
 
         // 常规 get_bytes 应该能获取到（因为数据在 L2，原始字节）
-        let value = client.get_l2_direct(test_key).await.unwrap();
+        let value = client.get_l2_direct(&test_key).await.unwrap();
         assert!(value.is_some());
         assert_eq!(value.unwrap(), b"only_in_l2");
 
-        cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
+        // 清理
+        let _ = client.delete(&test_key).await;
     }
 
     #[tokio::test]
     async fn test_delete_l2_direct() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_delete_l2".to_string()).await;
         let test_key = "oxcache:test:tiered:deletel2";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -233,39 +238,45 @@ mod tests {
 
     #[tokio::test]
     async fn test_promote_to_l1() {
-        let client = get_test_two_level_client().await;
-        let test_key = "oxcache:test:tiered:promote";
-
-        cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
+        let client = get_test_two_level_client_with_name("test_tiered_promote".to_string()).await;
+        let test_key = format!("oxcache:test:tiered:promote:{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
 
         // 先设置数据到 L2
         client
-            .set_l2_direct(test_key, b"promote_this".to_vec(), Some(300))
+            .set_l2_direct(&test_key, b"promote_this".to_vec(), Some(300))
             .await
             .unwrap();
 
         // 验证 L1 没有数据
-        assert!(client.get_l1_direct(test_key).await.unwrap().is_none());
+        assert!(client.get_l1_direct(&test_key).await.unwrap().is_none());
+
+        // 验证 L2 有数据
+        let l2_before = client.get_l2_direct(&test_key).await.unwrap();
+        assert!(l2_before.is_some(), "L2 should have data before promote");
 
         // 提升到 L1
-        let result = client.promote_to_l1(test_key).await.unwrap();
+        let result = client.promote_to_l1(&test_key).await.unwrap();
         assert!(result);
 
+        // 等待一下，确保操作完成
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
         // 验证 L1 有数据
-        let l1_value = client.get_l1_direct(test_key).await.unwrap();
+        let l1_value = client.get_l1_direct(&test_key).await.unwrap();
         assert!(l1_value.is_some());
         assert_eq!(l1_value.unwrap(), b"promote_this".to_vec());
 
         // L2 仍然有数据
-        let l2_value = client.get_l2_direct(test_key).await.unwrap();
-        assert!(l2_value.is_some());
+        let l2_value = client.get_l2_direct(&test_key).await.unwrap();
+        assert!(l2_value.is_some(), "L2 should still have data after promote");
 
-        cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
+        // 清理
+        let _ = client.delete(&test_key).await;
     }
 
     #[tokio::test]
     async fn test_promote_to_l1_not_exists() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_promote_not_exists".to_string()).await;
 
         // 提升不存在的键应该返回 false
         let result = client
@@ -277,7 +288,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_demote_to_l2() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_demote".to_string()).await;
         let test_key = "oxcache:test:tiered:demote";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -310,7 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evict_all() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_evict".to_string()).await;
         let test_key = "oxcache:test:tiered:evict";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;
@@ -346,7 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_layer_isolation() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_isolation".to_string()).await;
         let l1_key = "oxcache:test:tiered:isolation:l1";
         let l2_key = "oxcache:test:tiered:isolation:l2";
         let shared_key = "oxcache:test:tiered:isolation:shared";
@@ -405,7 +416,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_direct_operations() {
-        let client = get_test_two_level_client().await;
+        let client = get_test_two_level_client_with_name("test_tiered_multi".to_string()).await;
         let test_prefix = "oxcache:test:tiered:multi";
 
         cleanup_test_keys(&client, "oxcache:test:tiered:*").await;

@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 端到端宏测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 端到端宏测试
 
 use oxcache::cached;
 use oxcache::config::{
@@ -80,8 +80,8 @@ async fn setup_macro_env() {
         },
     };
     // 重置并初始化
-    oxcache::CacheManager::reset();
-    oxcache::CacheManager::init(config)
+    oxcache::manager::CacheManager::reset();
+    oxcache::manager::CacheManager::init(config)
         .await
         .expect("Failed to initialize CacheManager");
 }

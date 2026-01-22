@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 测试真实L2Backend与Redis的集成
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 测试真实L2Backend与Redis的集成
 
 use common::redis_test_utils::{
     create_standalone_config, is_redis_available, test_redis_connection, wait_for_redis,

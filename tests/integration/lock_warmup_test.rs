@@ -1,10 +1,10 @@
-use oxcache::CacheError;
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 锁预热功能集成测试
+use oxcache::CacheError;
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 锁预热功能集成测试
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available};
 use oxcache::backend::l1::L1Backend;
@@ -71,7 +71,9 @@ async fn test_distributed_lock() {
         ..Default::default()
     };
 
-    CacheManager::init(config).await.expect("Failed to init CacheManager");
+    CacheManager::init(config)
+        .await
+        .expect("Failed to init CacheManager");
     let client = oxcache::manager::get_client(&service_name).expect("Failed to get client");
 
     // 1. 测试获取锁

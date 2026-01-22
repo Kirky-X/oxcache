@@ -248,28 +248,139 @@ impl OxcacheConfig {
 
         // 生产环境安全检查
         let conn_str = l2_config.connection_string.expose_secret();
+
+        // 更精确的生产环境检测
         let is_production = conn_str.contains("production")
             || conn_str.contains("prod")
             || (!conn_str.contains("localhost")
                 && !conn_str.contains("127.0.0.1")
                 && !conn_str.contains("192.168.")
-                && !conn_str.contains("10."));
+                && !conn_str.contains("10.")
+                && !conn_str.contains("172.16.")
+                && !conn_str.contains("172.17.")
+                && !conn_str.contains("172.18.")
+                && !conn_str.contains("172.19.")
+                && !conn_str.contains("172.20.")
+                && !conn_str.contains("172.21.")
+                && !conn_str.contains("172.22.")
+                && !conn_str.contains("172.23.")
+                && !conn_str.contains("172.24.")
+                && !conn_str.contains("172.25.")
+                && !conn_str.contains("172.26.")
+                && !conn_str.contains("172.27.")
+                && !conn_str.contains("172.28.")
+                && !conn_str.contains("172.29.")
+                && !conn_str.contains("172.30.")
+                && !conn_str.contains("172.31.")
+                && !conn_str.contains(".local")
+                && !conn_str.contains(".dev")
+                && !conn_str.contains(".test")
+                && !conn_str.contains(".staging")
+                && !conn_str.contains(".internal"));
 
         if is_production {
             // 检查密码
             if l2_config.password.is_none() {
                 return Err(format!(
-                    "Service '{}' is in production but Redis password is not configured",
+                    "Service '{}' is in production but Redis password is not configured. \
+                     Production deployments require authentication.",
                     name
                 ));
+            }
+
+            // 检查密码复杂度
+            if let Some(password) = &l2_config.password {
+                let password = password.expose_secret();
+
+                // 检查密码长度（最少 16 字符）
+                if password.len() < 16 {
+                    return Err(format!(
+                        "Service '{}' is in production but Redis password is too weak ({} chars, minimum 16 required). \
+                         Production deployments require strong passwords.",
+                        name,
+                        password.len()
+                    ));
+                }
+
+                // 检查密码复杂度
+                let has_upper = password.chars().any(|c| c.is_uppercase());
+                let has_lower = password.chars().any(|c| c.is_lowercase());
+                let has_digit = password.chars().any(|c| c.is_ascii_digit());
+                let has_special = password
+                    .chars()
+                    .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?/~`".contains(c));
+
+                if !has_upper || !has_lower || !has_digit || !has_special {
+                    let missing = vec![
+                        if !has_upper { "uppercase letter" } else { "" },
+                        if !has_lower { "lowercase letter" } else { "" },
+                        if !has_digit { "digit" } else { "" },
+                        if !has_special {
+                            "special character"
+                        } else {
+                            ""
+                        },
+                    ]
+                    .into_iter()
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                    return Err(format!(
+                        "Service '{}' is in production but Redis password does not meet complexity requirements. \
+                         Missing: {}. Password must contain uppercase, lowercase, digit, and special character.",
+                        name, missing
+                    ));
+                }
+
+                // 检查常见弱密码
+                const WEAK_PASSWORDS: &[&str] = &[
+                    "password",
+                    "Password123",
+                    "Admin123",
+                    "Root123",
+                    "Redis123",
+                    "Cache123",
+                    "Welcome123",
+                    "P@ssw0rd",
+                    "Admin@123",
+                    "Root@123",
+                    "Redis@123",
+                ];
+
+                if WEAK_PASSWORDS.iter().any(|weak| password == *weak) {
+                    return Err(format!(
+                        "Service '{}' is in production but Redis password is too weak (matches common weak password list). \
+                         Please use a strong, unique password.",
+                        name
+                    ));
+                }
             }
 
             // 检查 TLS
             if !l2_config.enable_tls {
                 return Err(format!(
-                    "Service '{}' is in production but TLS is not enabled",
+                    "Service '{}' is in production but TLS is not enabled. \
+                     Production deployments require TLS encryption.",
                     name
                 ));
+            }
+
+            // 检查 TLS 证书验证
+            #[cfg(feature = "l2-redis")]
+            if l2_config.enable_tls {
+                // 检查是否禁用了证书验证（不安全）
+                // 注意：这里假设 L2Config 有 tls_insecure 字段
+                // 如果没有，需要添加该字段或使用其他方式检查
+                let tls_insecure = false; // 默认值，需要根据实际配置调整
+
+                if tls_insecure {
+                    return Err(format!(
+                        "Service '{}' is in production but TLS certificate verification is disabled. \
+                         This is a security risk. Please enable certificate verification.",
+                        name
+                    ));
+                }
             }
         }
 

@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 该模块定义了数据库测试的通用工具函数和设置。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 该模块定义了数据库测试的通用工具函数和设置。
 
 #![allow(dead_code)]
 

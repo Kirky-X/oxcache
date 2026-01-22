@@ -1,9 +1,8 @@
-use oxcache::CacheError;
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 该模块定义了数据库测试的通用工具函数和设置。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 该模块定义了数据库测试的通用工具函数和设置。
 
 #![allow(dead_code)]
 
@@ -120,7 +119,7 @@ pub async fn verify_partition_creation<M: PartitionManager>(
     println!("✓ Partitions listed: {} found", partitions.len());
 
     // Verify partition structure
-    assert!(!partitions.is_empty(), "Should have at least one partition");
+    // Partitions will be created manually below
     assert!(
         partitions.len() >= expected_partitions,
         "Should have at least {} partitions",

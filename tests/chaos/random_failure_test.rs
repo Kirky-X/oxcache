@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 随机故障混沌测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 随机故障混沌测试
 
 use crate::common::{generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{

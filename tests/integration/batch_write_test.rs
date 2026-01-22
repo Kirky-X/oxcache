@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 批量写入集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 批量写入集成测试
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
 use oxcache::config::{

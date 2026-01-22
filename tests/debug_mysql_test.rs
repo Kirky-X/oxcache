@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! MySQL调试测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// MySQL调试测试
 
 use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::partition::PartitionConfig;

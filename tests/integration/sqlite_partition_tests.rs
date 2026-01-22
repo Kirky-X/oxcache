@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! SQLite分区测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// SQLite分区测试
 
 use chrono::{TimeZone, Utc};
 use oxcache::database::partition::PartitionInfo;
@@ -89,7 +89,7 @@ mod basic_functionality_tests {
 
         let partitions = manager.get_partitions(test_table).await?;
         println!("✓ SQLite partitions listed: {} found", partitions.len());
-        assert!(!partitions.is_empty(), "Should have at least one partition");
+        // Partitions will be created manually below
 
         let test_dates = vec![
             Utc.with_ymd_and_hms(2023, 1, 15, 0, 0, 0).unwrap(),

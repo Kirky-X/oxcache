@@ -1,11 +1,11 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 综合集成测试
-//!
-//! 测试新增功能：配置系统、智能策略、HTTP 缓存、TTL 控制等
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 综合集成测试
+//
+// 测试新增功能：配置系统、智能策略、HTTP 缓存、TTL 控制等
 
 use oxcache::config::{
     CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, ServiceConfig, TwoLevelConfig,

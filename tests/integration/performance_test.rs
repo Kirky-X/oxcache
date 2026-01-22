@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 性能测试集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 性能测试集成测试
 
 use crate::common;
 
@@ -198,7 +198,7 @@ async fn test_redis_outage_resilience() {
     // 初始化可能会失败，或者成功但后续操作失败。
     // oxcache 的 init 会尝试连接 L2，如果连接失败，init 会返回错误。
     // 这是一个设计选择：启动时强依赖 L2。
-    let init_res: Result<(), oxcache::CacheError> = oxcache::CacheManager::init(config).await;
+    let init_res: Result<(), oxcache::CacheError> = oxcache::manager::CacheManager::init(config).await;
 
     // 如果初始化失败，说明系统正确地报告了错误，而不是 panic。
     assert!(init_res.is_err());

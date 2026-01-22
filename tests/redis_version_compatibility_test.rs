@@ -1,8 +1,8 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! Redis版本兼容性测试 - 支持Redis 6.0, 6.2, 7.0, 7.2等多个版本
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// Redis版本兼容性测试 - 支持Redis 6.0, 6.2, 7.0, 7.2等多个版本
 
 use oxcache::backend::l2::L2Backend;
 use oxcache::config::{L2Config, RedisMode};

@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! SeaORM SQLite测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// SeaORM SQLite测试
 
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 use std::fs::File;

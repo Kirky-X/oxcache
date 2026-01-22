@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 指标收集集成测试
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 指标收集集成测试
 
 use oxcache::metrics::{get_metrics_string, GLOBAL_METRICS};
 
