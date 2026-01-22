@@ -629,6 +629,7 @@ macro_rules! init_config {
 }
 
 #[cfg(feature = "confers")]
+#[allow(deprecated)]
 pub async fn init_from_confers(path: &str) -> Result<()> {
     use crate::config::confers_macro::confers_load;
     use crate::manager::CacheManager;
@@ -654,6 +655,7 @@ pub async fn init_from_confers(path: &str) -> Result<()> {
 /// }
 /// ```
 #[cfg(feature = "confers")]
+#[allow(deprecated)]
 pub async fn init_from_file(config_path: &str) -> Result<()> {
     use crate::config::confers_macro::confers_load;
     use crate::manager::CacheManager;
@@ -671,7 +673,7 @@ pub async fn init_from_file(config_path: &str) -> Result<()> {
     let path = PathBuf::from(config_path);
 
     // 检查文件扩展名
-    if path.extension().map_or(false, |ext| ext != "toml") {
+    if path.extension().is_some_and(|ext| ext != "toml") {
         return Err(crate::error::CacheError::ConfigError(
             "Configuration file must be a TOML file (.toml extension required)".to_string(),
         ));

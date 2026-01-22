@@ -47,7 +47,7 @@ impl ClusterStrategy {
 
     /// 获取集群连接
     async fn get_connection(&self) -> Result<redis::cluster_async::ClusterConnection> {
-        let mut client: tokio::sync::MutexGuard<'_, ClusterClient> = self.client.lock().await;
+        let client: tokio::sync::MutexGuard<'_, ClusterClient> = self.client.lock().await;
         client
             .get_async_connection()
             .await
@@ -72,10 +72,8 @@ impl L2BackendStrategy for ClusterStrategy {
         debug!(key, "Getting value from Redis (cluster)");
 
         let mut conn = self.get_connection().await?;
-        let result: RedisResult<Option<Vec<u8>>> = redis::cmd("GET")
-            .arg(key)
-            .query_async(&mut conn)
-            .await;
+        let result: RedisResult<Option<Vec<u8>>> =
+            redis::cmd("GET").arg(key).query_async(&mut conn).await;
 
         match result {
             Ok(value) => Ok(value),
@@ -114,10 +112,7 @@ impl L2BackendStrategy for ClusterStrategy {
         debug!(key, "Deleting value from Redis (cluster)");
 
         let mut conn = self.get_connection().await?;
-        let result: RedisResult<i32> = redis::cmd("DEL")
-            .arg(key)
-            .query_async(&mut conn)
-            .await;
+        let result: RedisResult<i32> = redis::cmd("DEL").arg(key).query_async(&mut conn).await;
 
         match result {
             Ok(n) => Ok(n > 0),
@@ -131,10 +126,7 @@ impl L2BackendStrategy for ClusterStrategy {
     #[instrument(skip(self), level = "debug", name = "cluster_exists")]
     async fn exists(&self, key: &str) -> Result<bool> {
         let mut conn = self.get_connection().await?;
-        let result: RedisResult<i32> = redis::cmd("EXISTS")
-            .arg(key)
-            .query_async(&mut conn)
-            .await;
+        let result: RedisResult<i32> = redis::cmd("EXISTS").arg(key).query_async(&mut conn).await;
 
         match result {
             Ok(n) => Ok(n > 0),
@@ -168,10 +160,7 @@ impl L2BackendStrategy for ClusterStrategy {
     #[instrument(skip(self), level = "debug", name = "cluster_ttl")]
     async fn ttl(&self, key: &str) -> Result<Option<i64>> {
         let mut conn = self.get_connection().await?;
-        let result: RedisResult<i64> = redis::cmd("TTL")
-            .arg(key)
-            .query_async(&mut conn)
-            .await;
+        let result: RedisResult<i64> = redis::cmd("TTL").arg(key).query_async(&mut conn).await;
 
         match result {
             Ok(ttl) => {
@@ -197,10 +186,8 @@ impl L2BackendStrategy for ClusterStrategy {
         let mut conn = self.get_connection().await?;
 
         // 使用 MGET 获取值和版本号（假设版本号存储在 key:version 中）
-        let value_result: RedisResult<Option<Vec<u8>>> = redis::cmd("GET")
-            .arg(key)
-            .query_async(&mut conn)
-            .await;
+        let value_result: RedisResult<Option<Vec<u8>>> =
+            redis::cmd("GET").arg(key).query_async(&mut conn).await;
 
         let version_key = format!("{}:version", key);
         let version_result: RedisResult<Option<u64>> = redis::cmd("GET")

@@ -1,5 +1,7 @@
 // Feature-gated initialization tests for CacheManager
 
+#![allow(deprecated)]
+
 use oxcache::manager::{
     get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
 };

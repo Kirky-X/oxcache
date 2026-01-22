@@ -10,7 +10,9 @@
 #[cfg(feature = "cli")]
 #[cfg(feature = "l2-redis")]
 mod tests {
-    use oxcache::cli::{AdminArgs, AdminSubcommand, CleanArgs, MetricsArgs, StatusArgs, WarmupArgs};
+    use oxcache::cli::{
+        AdminArgs, AdminSubcommand, CleanArgs, MetricsArgs, StatusArgs, WarmupArgs,
+    };
 
     // ============================================================================
     // Status 命令测试

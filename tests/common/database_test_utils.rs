@@ -11,7 +11,6 @@ use oxcache::database::partition::{
     PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy,
 };
 use oxcache::error::Result;
-use oxcache::CacheError;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 
