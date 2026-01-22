@@ -86,9 +86,10 @@ graph TD
 **Configuration**:
 ```rust
 pub struct L1Config {
-    pub max_capacity: u64,      // Maximum number of entries
-    pub time_to_live: Option<u64>,  // TTL in seconds
-    pub time_to_idle: Option<u64>,   // Idle TTL in seconds
+    pub max_capacity: u64,         // Maximum number of entries
+    pub max_key_length: usize,      // Maximum key length in bytes
+    pub max_value_size: usize,      // Maximum value size in bytes
+    pub cleanup_interval_secs: u64,  // Cleanup interval in seconds
 }
 ```
 

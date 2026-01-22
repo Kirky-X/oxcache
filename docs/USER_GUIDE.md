@@ -210,6 +210,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化缓存（从配置文件加载）
+    // 注意：init_from_file 已弃用，建议使用新的 Builder 模式
+    #[allow(deprecated)]
     oxcache::init_from_file("config.toml").await?;
     
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
