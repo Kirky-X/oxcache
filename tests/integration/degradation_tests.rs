@@ -1,16 +1,15 @@
-use oxcache::CacheError;
-#![allow(deprecated)]
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 降级策略和健康状态测试
-//!
-//! 合并自:
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 降级策略和健康状态测试
+//
+// 合并自:
 /// - tests/degradation_test.rs
 /// - tests/degradation_integration_test.rs
 /// - tests/health_state_test.rs
-use oxcache::config::{L2Config, RedisMode};
+
+use oxcache::CacheError;
 use oxcache::recovery::health::{
     HealthCheckableBackend, HealthChecker, HealthState, WalReplayableBackendTrait,
 };
