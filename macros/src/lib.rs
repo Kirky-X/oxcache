@@ -105,6 +105,36 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let fn_block = &input.block;
     let vis = &input.vis;
 
+    // Extract return type from fn_output for type annotations
+    // For Result<T, E>, we need to extract T
+    let return_type = match fn_output {
+        syn::ReturnType::Default => quote! { () },
+        syn::ReturnType::Type(_, ty) => {
+            // Try to extract T from Result<T, E>
+            if let syn::Type::Path(path) = &**ty {
+                if let Some(seg) = path.path.segments.last() {
+                    if seg.ident == "Result" {
+                        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
+                            if let Some(first_arg) = args.args.first() {
+                                quote! { #first_arg }
+                            } else {
+                                quote! { #ty }
+                            }
+                        } else {
+                            quote! { #ty }
+                        }
+                    } else {
+                        quote! { #ty }
+                    }
+                } else {
+                    quote! { #ty }
+                }
+            } else {
+                quote! { #ty }
+            }
+        }
+    };
+
     // Generate argument names for key generation
     let arg_names: Vec<_> = fn_args
         .iter()
@@ -226,8 +256,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let output = quote! {
         #vis async fn #fn_name(#fn_args) #fn_output {
-            use oxcache::{get_client, CacheOps};
-
             let cache_key = #key_gen;
 
             // Validate cache key length and characters
@@ -247,7 +275,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Try to get client, if fails, run original function
-            let client = match get_client(#service_name) {
+            let client = match ::oxcache::manager::get_client(#service_name) {
                 Ok(c) => c,
                 Err(_) => return async { #fn_block }.await,
             };
@@ -255,9 +283,9 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             // Try get from cache
             // We use the client's internal serializer (via CacheOps::serializer()) to handle serialization.
             if let Ok(Some(bytes)) = client.get_bytes(&cache_key).await {
-                 use oxcache::serialization::Serializer;
-                 if let Ok(val) = client.serializer().deserialize(&bytes) {
-                     return Ok(val);
+                 use ::oxcache::serialization::Serializer;
+                 if let Ok(val) = client.serializer().deserialize::<#return_type>(&bytes) {
+                     return ::std::result::Result::Ok(val);
                  }
             }
 
@@ -266,7 +294,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
             // Cache result if Ok
             if let Ok(ref val) = result {
-                 use oxcache::serialization::Serializer;
+                 use ::oxcache::serialization::Serializer;
                  if let Ok(bytes) = client.serializer().serialize(val) {
                     let _ = match #cache_type {
                         "l1-only" => client.set_l1_bytes(&cache_key, bytes, #ttl).await,
