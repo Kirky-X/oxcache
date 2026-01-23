@@ -2,9 +2,9 @@
 //
 // MIT License
 //
-// Throughput benchmark example
+// 吞吐量基准测试示例
 //
-// This example measures throughput (operations per second) for the cache.
+// 本示例测量缓存的吞吐量（每秒操作数）。
 
 use oxcache::manager::{get_client, init};
 use oxcache::{

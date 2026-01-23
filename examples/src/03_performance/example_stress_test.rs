@@ -2,10 +2,10 @@
 //
 // MIT License
 //
-// Stress test example
+// 压力测试示例
 //
-// This example stress tests the cache under high load.
-// Uses L1-only mode for demonstration without Redis.
+// 本示例在高负载下对缓存进行压力测试。
+// 使用仅L1模式进行演示，无需Redis。
 
 use oxcache::manager::{get_client, init};
 use oxcache::{
@@ -41,11 +41,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicU64::new(0)); // Simple ID counter
     let duration = std::time::Duration::from_secs(5);
 
-    println!("Stress Test Example (L1-only mode)");
+    println!("压力测试示例 (仅L1模式)");
     println!("===================================\n");
-    println!("Starting stress test for {} seconds...", duration.as_secs());
-    println!("Concurrency level: 100");
-    println!("\nMetrics will be collected during the test...\n");
+    println!("开始进行 {} 秒压力测试...", duration.as_secs());
+    println!("并发级别: 100");
+    println!("\n测试期间将收集指标...\n");
 
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
@@ -86,13 +86,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
     let ops_per_sec = (handle_count as f64) / elapsed.as_secs_f64();
 
-    println!("=== Stress Test Results ===");
-    println!("Duration: {:.2}s", elapsed.as_secs_f64());
-    println!("Total operations: {}", handle_count);
-    println!("Throughput: {:.0} ops/sec", ops_per_sec);
-    println!("\nNote: L1-only mode for demo. For real stress testing:");
-    println!("  - Enable TwoLevel with Redis for distributed testing");
-    println!("  - Use enable_batch_write for higher write throughput");
-    println!("\nStress test completed!");
+    println!("=== 压力测试结果 ===");
+    println!("持续时间: {:.2}s", elapsed.as_secs_f64());
+    println!("总操作数: {}", handle_count);
+    println!("吞吐量: {:.0} ops/sec", ops_per_sec);
+    println!("\n注意: 演示使用仅L1模式。对于真实压力测试:");
+    println!("  - 启用带Redis的双层缓存进行分布式测试");
+    println!("  - 使用enable_batch_write获得更高写入吞吐量");
+    println!("\n压力测试完成!");
     Ok(())
 }

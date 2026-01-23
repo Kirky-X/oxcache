@@ -2,13 +2,13 @@
 //
 // MIT License
 //
-// Redis Sentinel mode example
+// Redis Sentinel模式示例
 //
-// This example demonstrates using Redis with Sentinel for
-// high availability and automatic failover.
+// 本示例演示使用Redis Sentinel实现
+// 高可用性和自动故障转移。
 //
-// Note: This example uses L1-only mode for demonstration.
-// To use with Redis Sentinel, configure with:
+// 注意: 此示例使用仅L1模式进行演示。
+// 要使用Redis Sentinel，请配置:
 // - cache_type: TwoLevel
 // - l2.mode: Sentinel
 // - l2.sentinel.master_name: "mymaster"
@@ -28,8 +28,8 @@ struct SentinelData {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only for demo (no Redis required)
-    // For real Sentinel usage, configure with TwoLevel + Sentinel
+    // 演示使用仅L1模式 (不需要Redis)
+    // 实际Sentinel使用，请配置TwoLevel + Sentinel
     let config = OxcacheConfig::builder()
         .with_service(
             "sentinel_cache",
@@ -41,35 +41,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = get_client("sentinel_cache")?;
 
-    println!("Redis Sentinel Mode Example");
-    println!("===========================\n");
-    println!("Note: Using L1-only mode for demo");
-    println!("For real Sentinel, configure:");
+    println!("Redis Sentinel模式示例");
+    println!("=======================\n");
+    println!("注意: 演示使用仅L1模式");
+    println!("对于实际Sentinel，请配置:");
     println!("  - cache_type: TwoLevel");
     println!("  - l2.mode: Sentinel");
     println!("  - l2.sentinel.master_name: mymaster");
     println!("  - l2.sentinel.nodes: [host1:26379, host2:26379, ...]\n");
 
-    // Test basic operations
+    // 测试基本操作
     let data = SentinelData {
         id: 1,
         content: "High availability data".to_string(),
     };
 
-    println!("Writing data...");
+    println!("写入数据...");
     client.set("sentinel:test", &data, None).await?;
-    println!("  Wrote: {}", data.content);
+    println!("  写入: {}", data.content);
 
-    println!("\nReading data...");
+    println!("\n读取数据...");
     if let Some(cached) = client.get::<SentinelData>("sentinel:test").await? {
-        println!("  Read: {}", cached.content);
+        println!("  读取: {}", cached.content);
     }
 
-    println!("\nSentinel benefits:");
-    println!("  - Automatic failover");
-    println!("  - High availability");
-    println!("  - Master replica synchronization");
+    println!("\nSentinel优势:");
+    println!("  - 自动故障转移");
+    println!("  - 高可用性");
+    println!("  - 主副本同步");
 
-    println!("\n✓ Sentinel mode example completed!");
+    println!("\n✓ Sentinel模式示例完成!");
     Ok(())
 }

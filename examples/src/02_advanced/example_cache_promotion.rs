@@ -2,11 +2,11 @@
 //
 // MIT License
 //
-// Cache promotion strategy example
+// 缓存提升策略示例
 //
-// This example demonstrates cache promotion on hit behavior:
-// - When promote_on_hit is enabled, L1 cache is updated on L2 cache hit
-// - Hot data is automatically promoted to L1 for faster access
+// 本示例演示命中的缓存提升行为:
+// - 当启用promote_on_hit时，L2缓存命中时更新L1缓存
+// - 热数据自动提升到L1以实现更快的访问
 
 use oxcache::Cache;
 
@@ -20,11 +20,11 @@ struct Session {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a tiered cache with L1 (memory) and L2 (Redis)
+    // 创建具有L1 (内存) 和L2 (Redis) 的分层缓存
     let cache: Cache<String, Session> =
         Cache::tiered(5000, "redis://127.0.0.1:6379").await?;
 
-    // Simulate session data that exists only in L2 initially
+    // 模拟初始状态下仅存在于L2的会话数据
     let session = Session {
         id: "sess_abc123".to_string(),
         user_id: 42,
@@ -32,34 +32,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         last_accessed: chrono::Utc::now(),
     };
 
-    // Set session (goes to both L1 and L2)
-    println!("Creating session...");
+    // 设置会话 (同时进入L1和L2)
+    println!("创建会话...");
     cache
         .set(&"session:sess_abc123".to_string(), &session)
         .await?;
 
-    // Evict from L1 to simulate L2-only state
-    println!("\nEvicting from L1 to simulate L2-only state...");
-    // Note: We can't directly evict from L1 in this API, but in real scenario
-    // L1 might be full and old entries get evicted
+    // 从L1驱逐以模拟仅L2状态
+    println!("\n从L1驱逐以模拟仅L2状态...");
+    // 注意: 我们无法在此API中直接从L1驱逐，但在实际场景中
+    // L1可能已满且旧条目被驱逐
 
-    // First access - might hit L2 and promote to L1
-    println!("\nFirst access (potential L2 hit -> L1 promotion)...");
+    // 首次访问 - 可能命中L2并提升到L1
+    println!("\n首次访问 (潜在L2命中 -> L1提升)...");
     let start = std::time::Instant::now();
     if let Some(sess) = cache.get(&"session:sess_abc123".to_string()).await? {
-        println!("Session found after {:?}", start.elapsed());
-        println!("User ID: {}", sess.user_id);
+        println!("会话在 {:?} 后找到", start.elapsed());
+        println!("用户ID: {}", sess.user_id);
     }
 
-    // Subsequent access - should hit L1 (fast!)
-    println!("\nSecond access (L1 hit - should be faster)...");
+    // 后续访问 - 应该命中L1 (快速!)
+    println!("\n第二次访问 (L1命中 - 应该更快)...");
     let start = std::time::Instant::now();
     if let Some(sess) = cache.get(&"session:sess_abc123".to_string()).await? {
-        println!("Session found after {:?}", start.elapsed());
-        println!("User ID: {}", sess.user_id);
+        println!("会话在 {:?} 后找到", start.elapsed());
+        println!("用户ID: {}", sess.user_id);
     }
 
-    println!("\nCache promotion example completed!");
-    println!("With promote_on_hit=true, hot data automatically moves to L1 for faster access.");
+    println!("\n缓存提升示例完成!");
+    println!("当promote_on_hit=true时，热数据自动移动到L1以实现更快的访问.");
     Ok(())
 }

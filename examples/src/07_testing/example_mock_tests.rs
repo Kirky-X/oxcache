@@ -2,32 +2,32 @@
 //
 // MIT License
 //
-// Mock tests example
+// Mock测试示例
 //
-// This example demonstrates the concept of mock testing
-// without requiring real Redis connections.
+// 本示例演示mock测试的概念
+// 无需真实的Redis连接。
 //
-// Note: In Rust, fully implementing CacheOps for testing requires
-// access to internal types. For production testing, consider using
-// the mockall crate or test interfaces provided by the library.
+// 注意: 在Rust中，为测试完全实现CacheOps需要
+// 访问内部类型。对于生产测试，请考虑使用
+// mockall包或库提供的测试接口。
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Mock Testing Example");
-    println!("====================\n");
-    println!("Benefits of mock testing:");
-    println!("  - No Redis connection required");
-    println!("  - Fast test execution");
-    println!("  - Deterministic behavior");
-    println!("  - CI/CD friendly\n");
+    println!("Mock测试示例");
+    println!("==================\n");
+    println!("Mock测试的优势:");
+    println!("  - 无需Redis连接");
+    println!("  - 快速测试执行");
+    println!("  - 确定性行为");
+    println!("  - 适合CI/CD\n");
 
-    println!("Approaches for mock testing:");
-    println!("  1. Use mockall crate for automatic mock generation");
-    println!("  2. Create trait interfaces for cache operations");
-    println!("  3. Use feature flags to swap implementations in tests");
-    println!("  4. Test against embedded Redis (redismock or similar)\n");
+    println!("Mock测试的方法:");
+    println!("  1. 使用mockall包进行自动mock生成");
+    println!("  2. 为缓存操作创建trait接口");
+    println!("  3. 使用功能标志在测试中切换实现");
+    println!("  4. 针对嵌入式Redis进行测试 (redismock或类似)\n");
 
-    println!("Example pattern:");
+    println!("示例模式:");
     println!("  ```rust");
     println!("  #[async_trait]");
     println!("  trait CacheClient {{");
@@ -35,16 +35,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("      async fn set(&self, key: &str, value: &Value) -> Result<()>;");
     println!("  }}");
     println!("  ");
-    println!("  // In production: RealRedisClient");
-    println!("  // In tests: MockCacheClient");
+    println!("  // 在生产环境中: RealRedisClient");
+    println!("  // 在测试中: MockCacheClient");
     println!("  ```\n");
 
-    println!("Use cases:");
-    println!("  - Unit tests");
-    println!("  - CI pipelines");
-    println!("  - Offline development");
-    println!("  - Failure simulation\n");
+    println!("使用案例:");
+    println!("  - 单元测试");
+    println!("  - CI流水线");
+    println!("  - 离线开发");
+    println!("  - 故障模拟\n");
 
-    println!("\n✓ Mock tests example completed!");
+    println!("\n✓ Mock测试示例完成!");
     Ok(())
 }
