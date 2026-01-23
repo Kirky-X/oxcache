@@ -2,12 +2,11 @@
 
 ## 概述
 
-Oxcache 提供了灵活的多序列化支持，支持 JSON、Bincode、MessagePack、CBOR 等多种序列化格式。不同的序列化格式各有优劣，可以根据实际需求选择合适的格式。
+Oxcache 提供了灵活的序列化支持，支持 JSON 和 Bincode 两种序列化格式。不同的序列化格式各有优劣，可以根据实际需求选择合适的格式。
 
 ### 核心特性
 
-- ✅ **多种格式**：JSON、Bincode、MessagePack、CBOR
-- ✅ **自动选择**：根据数据类型自动选择最优格式
+- ✅ **多种格式**：JSON、Bincode
 - ✅ **性能优化**：支持压缩和批量序列化
 - ✅ **类型安全**：基于 serde 的类型安全序列化
 - ✅ **自定义序列化**：支持自定义序列化器
@@ -18,8 +17,6 @@ Oxcache 提供了灵活的多序列化支持，支持 JSON、Bincode、MessagePa
 |------|------|------|------|----------|
 | JSON | 文本格式 | 可读性好、通用性强 | 体积大、速度慢 | 调试、跨语言 |
 | Bincode | 二进制格式 | 速度快、体积小 | Rust 专用 | Rust 间通信 |
-| MessagePack | 二进制格式 | 平衡性好、跨语言 | 不如 Bincode 快 | 跨语言通信 |
-| CBOR | 二进制格式 | 标准化、支持扩展 | 性能一般 | 物联网、嵌入式 |
 
 ## 使用方式
 
@@ -78,78 +75,9 @@ let serialized = serializer.serialize(&user)?;
 let deserialized: User = serializer.deserialize(&serialized)?;
 ```
 
-### MessagePack 序列化
 
-```rust
-use oxcache::serialization::MessagePackSerializer;
 
-// 创建 MessagePack 序列化器
-let serializer = MessagePackSerializer::new();
 
-// 序列化数据
-let serialized = serializer.serialize(&user)?;
-
-// 反序列化数据
-let deserialized: User = serializer.deserialize(&serialized)?;
-```
-
-### CBOR 序列化
-
-```rust
-use oxcache::serialization::CborSerializer;
-
-// 创建 CBOR 序列化器
-let serializer = CborSerializer::new();
-
-// 序列化数据
-let serialized = serializer.serialize(&user)?;
-
-// 反序列化数据
-let deserialized: User = serializer.deserialize(&serialized)?;
-```
-
-### 序列化缓存
-
-```rust
-use oxcache::serialization::{SerializationCache, JsonSerializer};
-
-// 创建序列化缓存（缓存序列化结果）
-let cache = SerializationCache::new(1000, 3600); // 容量 1000，TTL 3600 秒
-
-let serializer = JsonSerializer::new();
-
-// 第一次序列化（缓存未命中）
-let serialized = cache.serialize(&user, &serializer)?;
-
-// 第二次序列化相同对象（缓存命中）
-let serialized2 = cache.serialize(&user, &serializer)?;
-
-// 查看缓存统计
-println!("缓存命中率: {:.1}%", cache.hit_rate() * 100.0);
-println!("缓存大小: {}", cache.len());
-```
-
-### 序列化器注册表
-
-```rust
-use oxcache::serialization::{SerializerRegistry, JsonSerializer, BincodeSerializer};
-
-// 创建注册表
-let mut registry = SerializerRegistry::new();
-
-// 注册序列化器
-registry.register("json", Box::new(JsonSerializer::new()))?;
-registry.register("bincode", Box::new(BincodeSerializer::new()))?;
-
-// 获取序列化器
-let serializer = registry.get("json")?;
-
-// 序列化数据
-let serialized = serializer.serialize(&user)?;
-
-// 反序列化数据
-let deserialized: User = serializer.deserialize(&serialized)?;
-```
 
 ## 高级用法
 
@@ -211,8 +139,6 @@ let serializer = registry.get(format)?;
 | 格式 | 速度 | 体积 | 兼容性 |
 |------|------|------|--------|
 | Bincode | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ |
-| MessagePack | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| CBOR | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | JSON | ⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
 
 ### 基准测试
@@ -228,12 +154,6 @@ bench("JSON", JsonSerializer::new(), &data, iterations);
 
 // Bincode
 bench("Bincode", BincodeSerializer::new(), &data, iterations);
-
-// MessagePack
-bench("MessagePack", MessagePackSerializer::new(), &data, iterations);
-
-// CBOR
-bench("CBOR", CborSerializer::new(), &data, iterations);
 ```
 
 ## 最佳实践
@@ -242,8 +162,8 @@ bench("CBOR", CborSerializer::new(), &data, iterations);
 
 1. **根据场景选择**：
    - Rust 间通信：使用 Bincode
-   - 跨语言通信：使用 MessagePack 或 CBOR
    - 调试和日志：使用 JSON
+   - 跨语言通信：使用 JSON
 
 2. **启用压缩**：对大数据启用压缩，减少存储和传输开销
 
@@ -321,51 +241,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bincode_user: User = bincode_serializer.deserialize(&bincode_data)?;
     println!("   反序列化: {:?}\n", bincode_user);
     
-    // 4. MessagePack 序列化
-    println!("4. MessagePack 序列化...");
-    let msgpack_config = SerializerConfig::new()
-        .with_type(SerializationType::MessagePack);
-    let msgpack_serializer = msgpack_config.build()?;
-    
-    let msgpack_data = msgpack_serializer.serialize(&user)?;
-    println!("   MessagePack 大小: {} bytes", msgpack_data.len());
-    println!("   压缩率: {:.1}%", 
-        (msgpack_data.len() as f64 / json_data.len() as f64) * 100.0);
-    
-    let msgpack_user: User = msgpack_serializer.deserialize(&msgpack_data)?;
-    println!("   反序列化: {:?}\n", msgpack_user);
-    
-    // 5. CBOR 序列化
-    println!("5. CBOR 序列化...");
-    let cbor_config = SerializerConfig::new()
-        .with_type(SerializationType::Cbor);
-    let cbor_serializer = cbor_config.build()?;
-    
-    let cbor_data = cbor_serializer.serialize(&user)?;
-    println!("   CBOR 大小: {} bytes", cbor_data.len());
-    println!("   压缩率: {:.1}%", 
-        (cbor_data.len() as f64 / json_data.len() as f64) * 100.0);
-    
-    let cbor_user: User = cbor_serializer.deserialize(&cbor_data)?;
-    println!("   反序列化: {:?}\n", cbor_user);
-    
-    // 6. 使用序列化缓存
-    println!("6. 使用序列化缓存...");
-    let cache = SerializationCache::new(1000, 3600);
-    
-    let start = std::time::Instant::now();
-    let cached_data = cache.serialize(&user, &bincode_serializer)?;
-    let cached_time = start.elapsed();
-    println!("   首次序列化: {:?} ({} bytes)", cached_time, cached_data.len());
-    
-    let start = std::time::Instant::now();
-    let cached_data2 = cache.serialize(&user, &bincode_serializer)?;
-    let cached_time2 = start.elapsed();
-    println!("   缓存命中序列化: {:?} ({} bytes)", cached_time2, cached_data2.len());
-    println!("   缓存加速: {:.1}x", cached_time.as_secs_f64() / cached_time2.as_secs_f64());
-    
-    // 7. 性能对比
-    println!("7. 性能对比...");
+    // 4. 性能对比
+    println!("4. 性能对比...");
     let iterations = 10000;
     
     let start = std::time::Instant::now();
@@ -382,14 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bincode_time = start.elapsed();
     println!("   Bincode 序列化: {:?} ({} 次)", bincode_time, iterations);
     
-    let start = std::time::Instant::now();
-    for _ in 0..iterations {
-        let _ = msgpack_serializer.serialize(&user)?;
-    }
-    let msgpack_time = start.elapsed();
-    println!("   MessagePack 序列化: {:?} ({} 次)", msgpack_time, iterations);
-    
-    println!("\n8. 总结：");
+    println!("\n5. 总结：");
     println!("   最小体积: Bincode ({} bytes)", bincode_data.len());
     println!("   最快速度: Bincode ({:?})", bincode_time);
     println!("   最佳兼容: JSON");

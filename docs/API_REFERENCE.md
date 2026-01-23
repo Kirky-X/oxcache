@@ -1,5 +1,14 @@
 # API Reference
 
+> **⚠️ API Version Notice**
+>
+> This document describes **Oxcache v0.2.0+** APIs. If you're using v0.1.x, please see the [Migration Guide](#api-migration-guide) below.
+>
+> **Deprecated APIs**: The following APIs from v0.1.x are deprecated and will be removed in future versions:
+> - `init_from_file()` - Use the new Builder pattern instead
+> - `get_client()` - Use `Cache::new()` or `Cache::tiered()` directly
+> - `shutdown_all()` - Use `Cache::shutdown()` on individual cache instances
+
 This document provides detailed API reference for the Oxcache library.
 
 ## Table of Contents
@@ -140,47 +149,67 @@ let config = oxcache_config()
 init(config).await?;
 ```
 
-#### `init_from_file(config_path: &str) -> Result<()>` (requires `confers` feature)
+#### `init_from_file(config_path: &str) -> Result<()>` ⚠️ **DEPRECATED**
 
-Initialize cache system from TOML configuration file.
+> **Deprecated since v0.2.0** - Use the Builder pattern instead
 
-**Required Features**: `confers`
+This function is deprecated. Please use the new Builder pattern:
 
 ```rust
-// Requires features: ["confers"]
-oxcache::init_from_file("config.toml").await?;
+// Old way (deprecated)
+// oxcache::init_from_file("config.toml").await?;
+
+// New way (recommended)
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
+
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .ttl(Duration::from_secs(3600))
+    .build()
+    .await?;
 ```
 
-**Alternative**: Use `init_from_file` which requires confers feature:
-```rust
-// Add to Cargo.toml:
-// oxcache = { version = "0.1.3", features = ["confers"] }
-```
+#### `shutdown_all() -> Result<()>` ⚠️ **DEPRECATED**
 
-#### `shutdown_all() -> Result<()>`
+> **Deprecated since v0.2.0** - Use `Cache::shutdown()` on individual cache instances
 
-Shutdown all cache clients and release resources.
+This function is deprecated. Please shutdown cache instances individually:
 
 ```rust
-oxcache::shutdown_all().await?;
+// Old way (deprecated)
+// oxcache::shutdown_all().await?;
+
+// New way (recommended)
+cache.shutdown().await?;
 ```
 
 ### Client Management
 
-#### `get_client(service_name: &str) -> Result<Arc<dyn CacheOps>>`
+#### `get_client(service_name: &str) -> Result<Arc<dyn CacheOps>>` ⚠️ **DEPRECATED**
 
-Get a cache client for the specified service.
+> **Deprecated since v0.2.0** - Use `Cache::new()` or `Cache::tiered()` directly
 
-```rust
-let client = oxcache::get_client("default")?;
-```
-
-#### `remove_client(service_name: &str) -> Result<()>`
-
-Remove a cache client.
+This function is deprecated. Please create cache instances directly:
 
 ```rust
-oxcache::remove_client("default")?;
+// Old way (deprecated)
+// let client = oxcache::get_client("default")?;
+
+// New way (recommended)
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
+
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .build()
+    .await?;
 ```
 
 ## Cache Operations
@@ -413,35 +442,34 @@ let writer = OptimizedBatchWriter::new(
 
 ### Invalidation
 
-#### `InvalidationService`
-
-Manage cache invalidation across instances.
+Cache invalidation is handled internally by the `#[cached]` macro and the internal registry. For manual invalidation, use the cache operations:
 
 ```rust
-use oxcache::sync::InvalidationService;
+// Invalidate a specific key
+cache.delete("user:123").await?;
 
-let invalidation = InvalidationService::new(
-    redis_client.clone(),
-    "cache_invalidation".to_string(),
-).await?;
-
-invalidation.publish_invalidation("user:123").await?;
+// Clear all entries
+cache.clear().await?;
 ```
 
 ### Cache Promotion
 
-#### `PromotionService`
+Cache promotion is handled automatically by the tiered cache backend. Hot keys are automatically promoted from L2 to L1 based on access patterns.
 
-Promote hot keys from L2 to L1.
+To configure promotion behavior:
 
 ```rust
-use oxcache::sync::PromotionService;
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
 
-let promotion = PromotionService::new(
-    l1_client.clone(),
-    l2_client.clone(),
-    10,  // hit_threshold
-).await?;
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+            .auto_promote(true)  // Enable automatic promotion
+    )
+    .build()
+    .await?;
 ```
 
 ## Recovery
@@ -645,3 +673,140 @@ See the [examples/](examples/) directory for more usage examples:
 - [Security Features](examples/06_features/)
 - [Testing](examples/07_testing/)
 - [UAT](examples/08_uat/)
+
+## API Migration Guide
+
+### Migrating from v0.1.x to v0.2.0+
+
+#### 1. Initialization
+
+**Old API (v0.1.x):**
+```rust
+use oxcache::{init, get_client, shutdown_all};
+
+// Initialize from file
+init_from_file("config.toml").await?;
+
+// Get client
+let client = get_client("default")?;
+
+// Shutdown
+shutdown_all().await?;
+```
+
+**New API (v0.2.0+):**
+```rust
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
+use std::time::Duration;
+
+// Create cache directly
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .ttl(Duration::from_secs(3600))
+    .build()
+    .await?;
+
+// Shutdown
+cache.shutdown().await?;
+```
+
+#### 2. Cache Creation
+
+**Old API (v0.1.x):**
+```rust
+use oxcache::{Cache, CacheOps};
+
+let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+```
+
+**New API (v0.2.0+):**
+```rust
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
+
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .build()
+    .await?;
+```
+
+#### 3. Configuration
+
+**Old API (v0.1.x):**
+```rust
+use oxcache::{Config, ServiceConfig, TwoLevelConfig};
+
+let config = Config {
+    services: vec![(
+        "default".to_string(),
+        ServiceConfig::TwoLevel(TwoLevelConfig {
+            l1_capacity: 10000,
+            l2_connection_string: "redis://localhost:6379".to_string(),
+            ttl: 3600,
+        }),
+    )],
+};
+
+init(config).await?;
+```
+
+**New API (v0.2.0+):**
+```rust
+use oxcache::{Cache, CacheBuilder, BackendBuilder};
+use std::time::Duration;
+
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .ttl(Duration::from_secs(3600))
+    .build()
+    .await?;
+```
+
+#### 4. Macro Usage
+
+**Old API (v0.1.x):**
+```rust
+use oxcache::cached;
+
+#[cached(service = "default", ttl = 3600)]
+async fn fetch_user(user_id: &str) -> Result<User> {
+    // Function body
+}
+```
+
+**New API (v0.2.0+):**
+```rust
+use oxcache::cached;
+
+#[cached(service = "default", ttl = 3600)]
+async fn fetch_user(user_id: &str) -> Result<User> {
+    // Function body
+}
+
+// Note: The macro syntax remains the same, but the underlying
+// implementation uses the internal registry instead of global state
+```
+
+### Breaking Changes
+
+1. **Removed Global State**: The global `get_client()` and `shutdown_all()` functions are removed. Cache instances must be created and managed explicitly.
+2. **Configuration API**: The old `Config` struct is replaced by the Builder pattern.
+3. **Internal Registry**: The `#[cached]` macro now uses an internal registry for cache registration, which is transparent to users.
+
+### Benefits of v0.2.0+
+
+1. **Type Safety**: Cache instances are type-safe and can be managed independently.
+2. **Better Performance**: Reduced overhead from global state management.
+3. **Flexibility**: Easier to create multiple cache instances with different configurations.
+4. **Testability**: Simpler to test with isolated cache instances.

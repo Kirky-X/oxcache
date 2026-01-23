@@ -1,15 +1,15 @@
-# 数据库集成完整指南
+## 数据库集成完整指南
 
 ## 概述
 
-Oxcache 提供了完整的数据库集成功能，支持 MySQL、PostgreSQL 和 SQLite 三种主流数据库。通过数据库加载器（Database Loader），可以自动从数据库加载数据并填充到缓存中，实现缓存预热和自动回源。
+Oxcache 提供了数据库分区管理功能，支持 MySQL、PostgreSQL 和 SQLite 三种主流数据库。通过分区管理器（Partition Manager），可以自动管理数据库表的分区，实现按时间范围的数据分离和高效查询。
 
 ### 核心特性
 
 - ✅ **多数据库支持**：MySQL、PostgreSQL、SQLite
-- ✅ **自动加载**：缓存未命中时自动从数据库加载
+- ✅ **时间分区**：支持按月、按季度、按年分区
+- ✅ **自动分区管理**：自动创建、清理过期分区
 - ✅ **连接池管理**：高效的数据库连接池
-- ✅ **分区支持**：支持时间分区和哈希分区
 - ✅ **故障恢复**：数据库故障时的降级处理
 - ✅ **配置灵活**：支持连接字符串和配置文件
 - ✅ **类型安全**：基于 Sea-ORM 的类型安全查询
@@ -24,270 +24,279 @@ Oxcache 提供了完整的数据库集成功能，支持 MySQL、PostgreSQL 和 
 
 ## 使用方式
 
-### MySQL 集成
+### MySQL 分区管理器
 
 ```rust
-use oxcache::{Cache, CacheOps};
 use oxcache::database::mysql::MySQLPartitionManager;
-use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
+use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 配置分区策略
+    let config = PartitionConfig {
+        enabled: true,
+        strategy: PartitionStrategy::Monthly,
+        retention_months: 12,  // 保留 12 个月的数据
+        precreate_months: 3,   // 预创建 3 个月的分区
+    };
+
     // 创建 MySQL 分区管理器
     let partition_manager = MySQLPartitionManager::new(
-        "mysql://user:password@localhost:3306/mydb"
+        "mysql://user:password@localhost:3306/mydb",
+        config
     ).await?;
 
-    // 创建数据库加载器
-    let db_loader = SqlDbLoader::new(|key: &str| async move {
-        // 从数据库查询
-        let user_id: u64 = key.strip_prefix("user:")
-            .ok_or("Invalid key")?
-            .parse()?;
-        
-        // 使用 sea-orm 查询
-        let db = Database::connect("mysql://user:password@localhost:3306/mydb").await?;
-        let user = User::find_by_id(user_id).one(&db).await?
-            .ok_or("User not found")?;
-        
-        Ok(user)
-    });
+    // 初始化分区表
+    let schema = r#"
+        CREATE TABLE IF NOT EXISTS logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            message TEXT NOT NULL,
+            created_at DATE NOT NULL,
+            INDEX idx_created_at (created_at)
+        )
+    "#;
+    partition_manager.initialize_table("logs", schema).await?;
 
-    // 创建缓存
-    let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+    // 预创建未来分区
+    partition_manager.precreate_partitions("logs", 3).await?;
 
-    // 设置数据库回源管理器
-    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
-    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
-
-    // 查询用户（自动从数据库加载）
-    let user = cache.get("user:123").await?.ok_or("User not found")?;
-
-    println!("用户: {:?}", user);
+    // 获取所有分区
+    let partitions = partition_manager.get_partitions("logs").await?;
+    for partition in partitions {
+        println!("分区: {} ({} ~ {})",
+            partition.name,
+            partition.start_date.format("%Y-%m-%d"),
+            partition.end_date.format("%Y-%m-%d")
+        );
+    }
 
     Ok(())
 }
 ```
 
-### PostgreSQL 集成
+### PostgreSQL 分区管理器
 
 ```rust
-use oxcache::{Cache, CacheOps};
-use oxcache::database::postgresql::PostgreSQLPartitionManager;
-use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
+use oxcache::database::postgresql::PostgresPartitionManager;
+use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
+use chrono::{Utc, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 配置分区策略
+    let config = PartitionConfig {
+        enabled: true,
+        strategy: PartitionStrategy::Monthly,
+        retention_months: 12,
+        precreate_months: 3,
+    };
+
     // 创建 PostgreSQL 分区管理器
-    let partition_manager = PostgreSQLPartitionManager::new(
-        "postgresql://user:password@localhost:5432/mydb"
+    let partition_manager = PostgresPartitionManager::new(
+        "postgresql://user:password@localhost:5432/mydb",
+        config
     ).await?;
 
-    // 创建数据库加载器
-    let db_loader = SqlDbLoader::new(|key: &str| async move {
-        // 从数据库查询
-        let product_id: u64 = key.strip_prefix("product:")
-            .ok_or("Invalid key")?
-            .parse()?;
-        
-        // 使用 sea-orm 查询
-        let db = Database::connect("postgresql://user:password@localhost:5432/mydb").await?;
-        let product = Product::find_by_id(product_id).one(&db).await?
-            .ok_or("Product not found")?;
-        
-        Ok(product)
-    });
+    // 初始化分区表（PostgreSQL 使用声明式分区）
+    let schema = r#"
+        CREATE TABLE IF NOT EXISTS events (
+            id BIGSERIAL PRIMARY KEY,
+            event_type VARCHAR(100) NOT NULL,
+            payload JSONB,
+            created_at TIMESTAMP NOT NULL
+        )
+    "#;
+    partition_manager.initialize_table("events", schema).await?;
 
-    // 创建缓存
-    let cache: Cache<String, Product> = Cache::tiered(10000, "redis://localhost:6379").await?;
+    // 预创建未来分区
+    partition_manager.precreate_partitions("events", 3).await?;
 
-    // 设置数据库回源管理器
-    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
-    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
-
-    // 查询产品（自动从数据库加载）
-    let product = cache.get("product:456").await?.ok_or("Product not found")?;
-
-    println!("产品: {:?}", product);
+    // 清理过期分区（保留 6 个月）
+    let cutoff_date = Utc::now() - Duration::days(180);
+    let dropped_count = partition_manager.cleanup_old_partitions("events", cutoff_date).await?;
+    println!("清理了 {} 个过期分区", dropped_count);
 
     Ok(())
 }
 ```
 
-### SQLite 集成
+### SQLite 分区管理器
 
 ```rust
-use oxcache::{Cache, CacheOps};
 use oxcache::database::sqlite::SQLitePartitionManager;
-use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
+use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 配置分区策略
+    let config = PartitionConfig {
+        enabled: true,
+        strategy: PartitionStrategy::Monthly,
+        retention_months: 6,
+        precreate_months: 2,
+    };
+
     // 创建 SQLite 分区管理器
     let partition_manager = SQLitePartitionManager::new(
-        "sqlite:///path/to/database.db"
+        "sqlite:///path/to/database.db",
+        config
     ).await?;
 
-    // 创建数据库加载器
-    let db_loader = SqlDbLoader::new(|key: &str| async move {
-        // 从数据库查询
-        let config_name = key.strip_prefix("config:")
-            .ok_or("Invalid key")?;
-        
-        // 使用 sea-orm 查询
-        let db = Database::connect("sqlite:///path/to/database.db").await?;
-        let config = Config::find_by_name(config_name).one(&db).await?
-            .ok_or("Config not found")?;
-        
-        Ok(config)
-    });
+    // 初始化分区表
+    let schema = r#"
+        CREATE TABLE IF NOT EXISTS metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            metric_name TEXT NOT NULL,
+            value REAL NOT NULL,
+            timestamp TEXT NOT NULL
+        )
+    "#;
+    partition_manager.initialize_table("metrics", schema).await?;
 
-    // 创建缓存
-    let cache: Cache<String, Config> = Cache::memory().await?;
-
-    // 设置数据库回源管理器
-    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
-    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
-
-    // 查询配置（自动从数据库加载）
-    let config = cache.get("config:theme").await?.ok_or("Config not found")?;
-
-    println!("配置: {:?}", config);
+    // 获取所有分区
+    let partitions = partition_manager.get_partitions("metrics").await?;
+    println!("当前分区数: {}", partitions.len());
 
     Ok(())
-}
-```
-
-### 使用 #[cached] 宏
-
-```rust
-use oxcache::cached;
-
-// 带数据库加载的缓存函数
-#[cached(service = "user_cache", ttl = 3600)]
-async fn get_user(user_id: u64) -> Result<User, String> {
-    // 使用 sea-orm 查询
-    let db = Database::connect("mysql://user:password@localhost:3306/mydb").await
-        .map_err(|e| e.to_string())?;
-    
-    let user = User::find_by_id(user_id).one(&db).await
-        .map_err(|e| e.to_string())?
-        .ok_or("User not found".to_string())?;
-    
-    Ok(user)
 }
 ```
 
 ## 数据库分区
 
-### 时间分区
+### 分区策略
+
+Oxcache 支持两种分区策略：
+
+1. **按月分区 (Monthly)**：将数据按月进行分区，适合时间序列数据
+2. **按范围分区 (Range)**：自定义范围分区，适合特定业务场景
 
 ```rust
-use oxcache::database::partition::{PartitionConfig, TimeUnit};
+use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
 
-// 按月分区
-let config = PartitionConfig::time_based(TimeUnit::Month);
+// 按月分区（推荐）
+let config = PartitionConfig {
+    enabled: true,
+    strategy: PartitionStrategy::Monthly,
+    retention_months: 12,  // 保留 12 个月的数据
+    precreate_months: 3,   // 预创建 3 个月的分区
+};
 
-// 按季度分区
-let config = PartitionConfig::time_based(TimeUnit::Quarter);
-
-// 按年分区
-let config = PartitionConfig::time_based(TimeUnit::Year);
-
-// 应用分区配置
-let loader = MySqlLoader::with_partition(
-    "mysql://user:password@localhost:3306/mydb",
-    config
-).await?;
+// 按范围分区（自定义）
+let config = PartitionConfig {
+    enabled: true,
+    strategy: PartitionStrategy::Range,
+    retention_months: 6,
+    precreate_months: 2,
+};
 ```
 
-### 哈希分区
+### 分区配置参数
+
+| 参数 | 类型 | 说明 | 默认值 |
+|------|------|------|--------|
+| `enabled` | `bool` | 是否启用分区功能 | `true` |
+| `strategy` | `PartitionStrategy` | 分区策略 | `Monthly` |
+| `retention_months` | `u32` | 保留数据的月数 | `12` |
+| `precreate_months` | `u32` | 预创建分区月数 | `3` |
+
+### 分区操作示例
 
 ```rust
+use oxcache::database::mysql::MySQLPartitionManager;
 use oxcache::database::partition::PartitionConfig;
+use chrono::{Utc, Duration};
 
-// 按哈希分区（4 个分片）
-let config = PartitionConfig::hash_based(4);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = PartitionConfig::default();
+    let manager = MySQLPartitionManager::new(
+        "mysql://user:password@localhost:3306/mydb",
+        config
+    ).await?;
 
-// 按哈希分区（8 个分片）
-let config = PartitionConfig::hash_based(8);
+    // 1. 初始化分区表
+    let schema = "CREATE TABLE logs (id BIGINT, created_at DATE)";
+    manager.initialize_table("logs", schema).await?;
 
-// 应用分区配置
-let loader = PostgresLoader::with_partition(
-    "postgresql://user:password@localhost:5432/mydb",
-    config
-).await?;
-```
+    // 2. 确保分区存在
+    let now = Utc::now();
+    manager.ensure_partition_exists(now, "logs").await?;
 
-### 自定义分区
+    // 3. 预创建未来分区
+    manager.precreate_partitions("logs", 3).await?;
 
-```rust
-use oxcache::database::partition::{PartitionStrategy, PartitionConfig};
+    // 4. 清理过期分区
+    let cutoff = Utc::now() - Duration::days(180);
+    let dropped = manager.cleanup_old_partitions("logs", cutoff).await?;
+    println!("清理了 {} 个过期分区", dropped);
 
-// 自定义分区策略
-struct CustomPartitionStrategy;
-
-impl PartitionStrategy for CustomPartitionStrategy {
-    fn get_partition(&self, key: &str) -> usize {
-        // 自定义分区逻辑
-        if key.starts_with("user:") {
-            0
-        } else if key.starts_with("product:") {
-            1
-        } else {
-            2
-        }
+    // 5. 获取所有分区
+    let partitions = manager.get_partitions("logs").await?;
+    for p in partitions {
+        println!("分区: {} ({} ~ {})", p.name, p.start_date, p.end_date);
     }
-}
 
-let config = PartitionConfig::custom(CustomPartitionStrategy);
+    Ok(())
+}
 ```
 
 ## 连接池配置
 
-### 基础配置
+分区管理器内部使用 Sea-ORM 的连接池，配置参数在创建管理器时设置：
 
 ```rust
-use oxcache::database::mysql::MySqlLoader;
-use sqlx::mysql::MySqlPoolOptions;
+use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::database::partition::PartitionConfig;
+use sea_orm::ConnectOptions;
+use std::time::Duration;
 
-// 创建自定义连接池
-let pool = MySqlPoolOptions::new()
-    .max_connections(20)      // 最大连接数
-    .min_connections(5)       // 最小连接数
-    .connect_timeout(Duration::from_secs(30))  // 连接超时
-    .idle_timeout(Duration::from_secs(600))    // 空闲超时
-    .max_lifetime(Duration::from_secs(1800))   // 最大生命周期
-    .connect("mysql://user:password@localhost:3306/mydb")
-    .await?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = PartitionConfig::default();
 
-// 使用连接池创建加载器
-let loader = MySqlLoader::from_pool(pool);
+    // 注意：分区管理器的连接池配置是内置的
+    // 如需自定义连接池，可以直接使用 Sea-ORM
+    let mut opt = ConnectOptions::new("mysql://user:password@localhost:3306/mydb");
+    opt.max_connections(10)
+        .min_connections(2)
+        .connect_timeout(Duration::from_secs(5))
+        .idle_timeout(Duration::from_secs(8))
+        .max_lifetime(Duration::from_secs(1800))
+        .acquire_timeout(Duration::from_secs(10));
+
+    // 创建分区管理器（内部使用上述配置）
+    let manager = MySQLPartitionManager::new_with_options(
+        "mysql://user:password@localhost:3306/mydb",
+        config,
+        opt
+    ).await?;
+
+    Ok(())
+}
 ```
 
-### 高级配置
+### 连接池统计信息
 
 ```rust
-use sqlx::mysql::MySqlPoolOptions;
+use oxcache::database::mysql::MySQLPartitionManager;
 
-let pool = MySqlPoolOptions::new()
-    .max_connections(20)
-    .min_connections(5)
-    .connect_timeout(Duration::from_secs(30))
-    .idle_timeout(Duration::from_secs(600))
-    .max_lifetime(Duration::from_secs(1800))
-    .test_before_acquire(true)      // 获取连接前测试
-    .acquire_timeout(Duration::from_secs(10))   // 获取超时
-    .wait_timeout(Duration::from_secs(5))       // 等待超时
-    .after_connect(|conn, _meta| Box::pin(async move {
-        // 连接后执行初始化 SQL
-        sqlx::query("SET time_zone = '+08:00'")
-            .execute(&mut *conn)
-            .await?;
-        Ok(())
-    }))
-    .connect("mysql://user:password@localhost:3306/mydb")
-    .await?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = PartitionConfig::default();
+    let manager = MySQLPartitionManager::new(
+        "mysql://user:password@localhost:3306/mydb",
+        config
+    ).await?;
+
+    // 获取连接池统计信息
+    let stats = manager.pool_stats().await;
+    println!("活跃连接: {}", stats.active_connections);
+    println!("空闲连接: {}", stats.idle_connections);
+    println!("最大连接数: {}", stats.max_connections);
+    println!("连接获取时间: {:.2}ms", stats.connection_acquire_ms);
+
+    Ok(())
+}
 ```
 
 ## 连接字符串
@@ -345,281 +354,324 @@ sqlite:///path/to/database.db?mode=ro
 
 ## 高级用法
 
-### 批量加载
+### 健康检查
 
 ```rust
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::mysql::MySQLPartitionManager;
 
-// 批量加载缓存
-let keys = vec![
-    "user:1".to_string(),
-    "user:2".to_string(),
-    "user:3".to_string(),
-];
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = PartitionConfig::default();
+    let manager = MySQLPartitionManager::new(
+        "mysql://user:password@localhost:3306/mydb",
+        config
+    ).await?;
 
-let results = db_loader.batch_get_or_load(keys, |keys| async move {
-    let user_ids: Vec<u64> = keys.iter()
-        .filter_map(|k| k.strip_prefix("user:"))
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    
-    let users = sqlx::query_as::<_, User>(
-        "SELECT id, name, email FROM users WHERE id IN (?)"
-    )
-    .bind(&user_ids)
-    .fetch_all(&loader.pool)
-    .await?;
-    
-    Ok(users)
-}).await?;
-
-for result in results {
-    println!("{:?}", result);
-}
-```
-
-### 预加载缓存
-
-```rust
-use oxcache::client::db_loader::DatabaseCacheLoader;
-
-// 预加载热门数据
-async fn preload_hot_data(
-    db_loader: &DatabaseCacheLoader<User>,
-    loader: &MySqlLoader,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // 查询热门用户
-    let hot_users = sqlx::query_as::<_, User>(
-        "SELECT id, name, email FROM users 
-         WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-         ORDER BY view_count DESC LIMIT 1000"
-    )
-    .fetch_all(&loader.pool)
-    .await?;
-    
-    // 预加载到缓存
-    for user in hot_users {
-        let key = format!("user:{}", user.id);
-        db_loader.cache.set(&key, &user, Some(3600)).await?;
+    // 检查连接健康状态
+    if manager.health_check().await {
+        println!("数据库连接正常");
+    } else {
+        println!("数据库连接异常");
     }
-    
-    println!("预加载了 {} 个热门用户", hot_users.len());
-    
+
     Ok(())
 }
 ```
 
-### 故障恢复
+### 重新连接
 
 ```rust
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::mysql::MySQLPartitionManager;
 
-// 带故障恢复的查询
-async fn get_user_with_fallback(
-    db_loader: &DatabaseCacheLoader<User>,
-    user_id: u64,
-) -> Result<Option<User>, Box<dyn std::error::Error>> {
-    let key = format!("user:{}", user_id);
-    
-    // 尝试从数据库加载
-    match db_loader.get_or_load(&key, |key| async move {
-        let user_id: u64 = key.strip_prefix("user:")?
-            .parse()?;
-        
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, name, email FROM users WHERE id = ?"
-        )
-        .bind(user_id)
-        .fetch_one(&loader.pool)
-        .await?;
-        
-        Ok(user)
-    }).await {
-        Ok(user) => Ok(Some(user)),
-        Err(e) => {
-            // 数据库故障，返回默认值
-            eprintln!("数据库查询失败: {}", e);
-            Ok(None)
-        }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = PartitionConfig::default();
+    let mut manager = MySQLPartitionManager::new(
+        "mysql://user:password@localhost:3306/mydb",
+        config
+    ).await?;
+
+    // 检测到连接失败时重新连接
+    if !manager.health_check().await {
+        println!("尝试重新连接...");
+        manager.reconnect("mysql://user:password@localhost:3306/mydb").await?;
+        println!("重新连接成功");
     }
+
+    Ok(())
 }
 ```
 
-### 监控与统计
+### 分区信息查询
 
 ```rust
-use oxcache::database::DatabaseStats;
+use oxcache::database::partition::PartitionManager;
 
-// 获取数据库统计信息
-let stats = loader.get_stats().await?;
+async fn print_partition_info<T: PartitionManager>(
+    manager: &T,
+    table_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let partitions = manager.get_partitions(table_name).await?;
 
-println!("数据库统计：");
-println!("  活跃连接: {}", stats.active_connections);
-println!("  空闲连接: {}", stats.idle_connections);
-println!("  总查询数: {}", stats.total_queries);
-println!("  成功查询: {}", stats.successful_queries);
-println!("  失败查询: {}", stats.failed_queries);
-println!("  平均查询时间: {:?}", stats.avg_query_time);
+    println!("表 {} 的分区信息:", table_name);
+    println!("  总分区数: {}", partitions.len());
+
+    for partition in partitions {
+        println!("  - {}:", partition.name);
+        println!("    起始时间: {}", partition.start_date.format("%Y-%m-%d %H:%M:%S"));
+        println!("    结束时间: {}", partition.end_date.format("%Y-%m-%d %H:%M:%S"));
+        println!("    已创建: {}", if partition.created { "是" } else { "否" });
+    }
+
+    Ok(())
+}
 ```
 
 ## 最佳实践
 
 ### ✅ 推荐做法
 
-1. **使用连接池**：合理配置连接池大小，避免连接泄漏
-2. **错误处理**：妥善处理数据库错误，实现故障恢复
-3. **索引优化**：为查询字段创建合适的索引
-4. **批量操作**：使用批量查询减少数据库往返
-5. **监控统计**：定期检查数据库统计信息
+1. **合理配置分区策略**：
+   - 根据数据保留时间设置 `retention_months`
+   - 提前预创建分区避免写入失败
+   - 定期清理过期分区释放空间
+
+2. **监控分区状态**：
+   - 定期检查分区是否创建成功
+   - 监控分区数量和大小
+   - 关注连接池健康状态
+
+3. **错误处理**：
+   - 妥善处理分区创建失败
+   - 实现重连机制应对网络问题
+   - 记录分区操作日志
+
+4. **性能优化**：
+   - 为分区字段创建索引
+   - 合理设置连接池大小
+   - 使用批量操作提升效率
 
 ### ❌ 避免做法
 
-1. **N+1 查询**：避免在循环中执行数据库查询
-2. **连接泄漏**：不要忘记关闭数据库连接
-3. **过度查询**：不要查询不需要的字段
-4. **忽略错误**：不要忽略数据库错误
-5. **硬编码 SQL**：不要在代码中硬编码 SQL 语句
+1. **不要忽略分区配置**：
+   - 不要忘记预创建分区
+   - 不要让分区数量无限增长
+
+2. **不要硬编码连接字符串**：
+   - 使用环境变量或配置文件
+   - 避免在代码中暴露敏感信息
+
+3. **不要忽略错误处理**：
+   - 不要忽略分区创建失败
+   - 不要忽略连接异常
+
+4. **不要过度分区**：
+   - 避免创建过多的小分区
+   - 根据实际数据量选择分区粒度
 
 ## 性能优化
 
-### 查询优化
+### 分区表设计
 
 ```rust
-// 使用索引
-let user = sqlx::query_as::<_, User>(
-    "SELECT id, name, email FROM users WHERE id = ?"
-)
-.bind(user_id)
-.fetch_one(&pool)
-.await?;
+// 1. 选择合适的分区字段（通常是时间字段）
+let schema = r#"
+    CREATE TABLE events (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        event_type VARCHAR(100) NOT NULL,
+        data JSON,
+        created_at DATE NOT NULL,  -- 分区字段
+        INDEX idx_created_at (created_at)
+    )
+"#;
 
-// 只查询需要的字段
-let user_name = sqlx::query_as::<_, (String,)>(
-    "SELECT name FROM users WHERE id = ?"
-)
-.bind(user_id)
-.fetch_one(&pool)
-.await?;
+// 2. 为分区字段创建索引
+// MySQL 和 PostgreSQL 会自动在分区字段上创建索引
+
+// 3. 合理设置分区粒度
+// - 数据量大：按月分区
+// - 数据量小：按季度或按年分区
+let config = PartitionConfig {
+    enabled: true,
+    strategy: PartitionStrategy::Monthly,  // 按月分区
+    retention_months: 12,
+    precreate_months: 3,
+};
 ```
 
-### 缓存策略
+### 连接池优化
 
 ```rust
-// 热数据：长 TTL
-cache.set(&key, &value, Some(3600)).await?;
+use sea_orm::ConnectOptions;
+use std::time::Duration;
 
-// 冷数据：短 TTL
-cache.set(&key, &value, Some(300)).await?;
+// 根据实际负载调整连接池参数
+let mut opt = ConnectOptions::new("mysql://user:password@localhost:3306/mydb");
+opt.max_connections(20)      // 根据并发量调整
+    .min_connections(5)       // 保持最小连接数
+    .connect_timeout(Duration::from_secs(5))
+    .idle_timeout(Duration::from_secs(600))
+    .max_lifetime(Duration::from_secs(1800))
+    .acquire_timeout(Duration::from_secs(10));
+```
 
-// 静态数据：永久缓存
-cache.set(&key, &value, None).await?;
+### 分区管理优化
+
+```rust
+// 1. 批量预创建分区（减少频繁创建的开销）
+manager.precreate_partitions("logs", 6).await?;
+
+// 2. 定期清理过期分区（避免分区数量过多）
+let cutoff = Utc::now() - Duration::days(90);
+manager.cleanup_old_partitions("logs", cutoff).await?;
+
+// 3. 使用连接池统计信息监控性能
+let stats = manager.pool_stats().await;
+if stats.active_connections > stats.max_connections * 8 / 10 {
+    println!("警告：连接池使用率超过 80%");
+}
 ```
 
 ## 完整示例
 
 ```rust
-use oxcache::{Cache, CacheOps};
 use oxcache::database::mysql::MySQLPartitionManager;
-use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
-use serde::{Deserialize, Serialize};
-use sea_orm::{Database, EntityTrait};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
-    email: String,
-}
+use oxcache::database::partition::{PartitionConfig, PartitionStrategy};
+use chrono::{Utc, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 数据库集成完整示例 ===\n");
-    
-    // 1. 创建 MySQL 分区管理器
-    println!("1. 创建 MySQL 分区管理器...");
-    let partition_manager = MySQLPartitionManager::new(
-        "mysql://root:password@localhost:3306/myapp"
+    println!("=== MySQL 分区管理器完整示例 ===\n");
+
+    // 1. 配置分区策略
+    println!("1. 配置分区策略...");
+    let config = PartitionConfig {
+        enabled: true,
+        strategy: PartitionStrategy::Monthly,
+        retention_months: 12,
+        precreate_months: 3,
+    };
+    println!("   ✅ 分区配置: 按月分区，保留12个月\n");
+
+    // 2. 创建分区管理器
+    println!("2. 创建 MySQL 分区管理器...");
+    let manager = MySQLPartitionManager::new(
+        "mysql://root:password@localhost:3306/myapp",
+        config
     ).await?;
     println!("   ✅ 分区管理器创建成功\n");
-    
-    // 2. 创建缓存
-    println!("2. 创建双层缓存...");
-    let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
-    println!("   ✅ 缓存创建成功\n");
-    
-    // 3. 创建数据库加载器
-    println!("3. 创建数据库加载器...");
-    let db_loader = SqlDbLoader::new(|key: &str| async move {
-        let user_id: u64 = key.strip_prefix("user:")?
-            .parse()?;
-        
-        println!("   📡 从数据库查询用户: {}", user_id);
-        
-        let db = Database::connect("mysql://root:password@localhost:3306/myapp").await?;
-        let user = User::find_by_id(user_id).one(&db).await?
-            .ok_or("User not found")?;
-        
-        println!("   ✅ 数据库查询成功");
-        
-        Ok(user)
-    });
-    println!("   ✅ 加载器创建成功\n");
-    
-    // 4. 设置数据库回源管理器
-    println!("4. 设置数据库回源管理器...");
-    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
-    cache.set_db_fallback_manager(Some(fallback_manager)).await?;
-    println!("   ✅ 回源管理器设置成功\n");
-    
-    // 5. 查询用户（自动从数据库加载）
-    println!("5. 查询用户...");
-    let user_id = 123;
-    let key = format!("user:{}", user_id);
-    
-    let user = cache.get(&key).await?.ok_or("User not found")?;
-    println!("   用户: {} ({})", user.name, user.email);
+
+    // 3. 初始化分区表
+    println!("3. 初始化分区表...");
+    let schema = r#"
+        CREATE TABLE IF NOT EXISTS user_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            action VARCHAR(100) NOT NULL,
+            metadata JSON,
+            created_at DATE NOT NULL,
+            INDEX idx_user_id (user_id),
+            INDEX idx_created_at (created_at)
+        )
+    "#;
+    manager.initialize_table("user_logs", schema).await?;
+    println!("   ✅ 表初始化成功\n");
+
+    // 4. 预创建未来分区
+    println!("4. 预创建未来分区...");
+    manager.precreate_partitions("user_logs", 3).await?;
+    println!("   ✅ 预创建成功\n");
+
+    // 5. 获取所有分区
+    println!("5. 获取所有分区...");
+    let partitions = manager.get_partitions("user_logs").await?;
+    println!("   当前分区数: {}", partitions.len());
+    for partition in &partitions {
+        println!("   - {} ({} ~ {})",
+            partition.name,
+            partition.start_date.format("%Y-%m-%d"),
+            partition.end_date.format("%Y-%m-%d")
+        );
+    }
     println!();
-    
-    // 6. 再次查询（从缓存读取）
-    println!("6. 再次查询相同用户...");
-    let user2 = cache.get(&key).await?.ok_or("User not found")?;
-    println!("   💾 从缓存读取: {} ({})", user2.name, user2.email);
-    println!();
-    
-    // 7. 分区操作
-    println!("7. 分区操作...");
-    let partitions = partition_manager.list_partitions().await?;
-    println!("   现有分区: {:?}", partitions);
-    
+
+    // 6. 清理过期分区
+    println!("6. 清理过期分区...");
+    let cutoff_date = Utc::now() - Duration::days(180);
+    let dropped_count = manager.cleanup_old_partitions("user_logs", cutoff_date).await?;
+    println!("   ✅ 清理了 {} 个过期分区\n", dropped_count);
+
+    // 7. 健康检查
+    println!("7. 健康检查...");
+    if manager.health_check().await {
+        println!("   ✅ 数据库连接正常\n");
+    } else {
+        println!("   ❌ 数据库连接异常\n");
+    }
+
+    // 8. 获取连接池统计
+    println!("8. 连接池统计...");
+    let stats = manager.pool_stats().await;
+    println!("   活跃连接: {}", stats.active_connections);
+    println!("   空闲连接: {}", stats.idle_connections);
+    println!("   最大连接数: {}", stats.max_connections);
+    println!("   连接获取时间: {:.2}ms\n", stats.connection_acquire_ms);
+
+    println!("=== 示例完成 ===");
+
     Ok(())
 }
 ```
 
 ## 故障排除
 
-### 问题：连接池耗尽
+### 问题：分区创建失败
 
 **原因**：
-- 连接未正确释放
-- 并发请求过多
-- 连接池配置过小
+- 表结构不包含日期字段
+- 分区字段类型不正确
+- 数据库权限不足
 
 **解决方案**：
-1. 检查连接是否正确释放
-2. 增加连接池大小
-3. 使用连接超时设置
+1. 确保表包含 `DATE` 或 `TIMESTAMP` 字段
+2. 检查分区字段类型是否正确
+3. 验证数据库用户权限
 
-### 问题：查询超时
+```rust
+// 正确的表结构示例
+let schema = r#"
+    CREATE TABLE logs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        message TEXT,
+        created_at DATE NOT NULL  -- 必须是日期类型
+    )
+"#;
+```
+
+### 问题：分区未自动创建
 
 **原因**：
-- 数据库响应慢
-- 查询语句复杂
-- 网络延迟高
+- 没有调用 `precreate_partitions`
+- 分区配置未启用
+- 时间计算错误
 
 **解决方案**：
-1. 优化查询语句
-2. 添加索引
-3. 增加超时时间
+1. 调用 `precreate_partitions` 预创建分区
+2. 检查 `PartitionConfig.enabled` 是否为 `true`
+3. 验证时间计算逻辑
+
+```rust
+// 确保启用分区
+let config = PartitionConfig {
+    enabled: true,  // 必须为 true
+    strategy: PartitionStrategy::Monthly,
+    retention_months: 12,
+    precreate_months: 3,
+};
+
+// 预创建分区
+manager.precreate_partitions("logs", 3).await?;
+```
 
 ### 问题：连接失败
 
@@ -627,11 +679,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 连接字符串错误
 - 数据库服务未启动
 - 网络不通
+- 用户名或密码错误
 
 **解决方案**：
-1. 检查连接字符串
+1. 检查连接字符串格式
 2. 确认数据库服务运行
 3. 检查网络连接
+4. 验证用户名和密码
+
+```rust
+// 使用健康检查验证连接
+if !manager.health_check().await {
+    eprintln!("数据库连接失败");
+    // 尝试重新连接
+    manager.reconnect("mysql://user:password@localhost:3306/mydb").await?;
+}
+```
+
+### 问题：分区清理失败
+
+**原因**：
+- 分区正在被使用
+- 权限不足
+- 分区名称错误
+
+**解决方案**：
+1. 确保分区没有被锁定
+2. 检查数据库用户权限
+3. 验证分区名称
+
+```rust
+// 使用正确的截止时间
+let cutoff = Utc::now() - Duration::days(90);
+let dropped = manager.cleanup_old_partitions("logs", cutoff).await?;
+println!("清理了 {} 个分区", dropped);
+```
 
 ## 相关文档
 
@@ -642,6 +724,96 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 示例代码
 
-- `examples/src/05_database/` - 数据库集成示例
-- `tests/database_test.rs` - 数据库测试
-- `src/database/` - 数据库实现
+- `examples/src/05_database/` - 数据库分区示例
+- `tests/database_partitioning_tests.rs` - 分区测试
+- `src/database/` - 数据库分区实现
+
+## API 参考
+
+### MySQLPartitionManager
+
+```rust
+pub struct MySQLPartitionManager {
+    config: PartitionConfig,
+    connection: Arc<DatabaseConnection>,
+    pool_stats: Arc<Mutex<PoolStats>>,
+}
+
+impl MySQLPartitionManager {
+    pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self>;
+    pub async fn health_check(&self) -> bool;
+    pub async fn ping(&self) -> Result<()>;
+    pub async fn pool_stats(&self) -> PoolStats;
+    pub async fn reconnect(&mut self, connection_string: &str) -> Result<()>;
+}
+```
+
+### PostgresPartitionManager
+
+```rust
+pub struct PostgresPartitionManager {
+    config: PartitionConfig,
+    connection: Arc<DatabaseConnection>,
+    pool_stats: Arc<Mutex<PoolStats>>,
+}
+
+impl PostgresPartitionManager {
+    pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self>;
+    pub async fn health_check(&self) -> bool;
+    pub async fn ping(&self) -> Result<()>;
+    pub async fn get_pool_stats(&self) -> PoolStats;
+    pub async fn reconnect(&mut self, connection_string: &str) -> Result<()>;
+}
+```
+
+### SQLitePartitionManager
+
+```rust
+pub struct SQLitePartitionManager {
+    config: PartitionConfig,
+    connection: Arc<DatabaseConnection>,
+}
+
+impl SQLitePartitionManager {
+    pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self>;
+    pub fn new_sync(connection_string: &str, config: PartitionConfig) -> Result<Self>;
+}
+```
+
+### PartitionManager Trait
+
+```rust
+#[async_trait]
+pub trait PartitionManager: Send + Sync {
+    async fn initialize_table(&self, table_name: &str, schema: &str) -> Result<()>;
+    async fn create_partition(&self, partition: &PartitionInfo) -> Result<()>;
+    async fn get_partitions(&self, table_name: &str) -> Result<Vec<PartitionInfo>>;
+    async fn drop_partition(&self, table_name: &str, partition_name: &str) -> Result<()>;
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String>;
+    async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()>;
+    async fn cleanup_old_partitions(&self, table_name: &str, cutoff_date: DateTime<Utc>) -> Result<u32>;
+    fn get_config(&self) -> PartitionConfig;
+}
+```
+
+### PartitionConfig
+
+```rust
+pub struct PartitionConfig {
+    pub enabled: bool,
+    pub strategy: PartitionStrategy,
+    pub retention_months: u32,
+    pub precreate_months: u32,
+}
+
+impl Default for PartitionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            strategy: PartitionStrategy::Monthly,
+            retention_months: 12,
+            precreate_months: 3,
+        }
+    }
+}
+```
