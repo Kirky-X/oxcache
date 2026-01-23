@@ -2,12 +2,12 @@
 //
 // MIT License
 //
-// Basic CRUD operations example
+// 基本CRUD操作示例
 //
-// This example demonstrates fundamental cache operations:
-// - Get: Retrieve cached values
-// - Set: Store values in cache
-// - Delete: Remove values from cache
+// 本示例演示基本的缓存操作:
+// - Get: 获取缓存值
+// - Set: 在缓存中存储值
+// - Delete: 从缓存中删除值
 
 use oxcache::Cache;
 
@@ -20,53 +20,53 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a simple memory cache
+    // 创建一个简单的内存缓存
     let cache: Cache<String, User> = Cache::new().await?;
 
-    // Create test user
+    // 创建测试用户
     let user = User {
         id: 1,
         name: "Alice".to_string(),
         email: "alice@example.com".to_string(),
     };
 
-    // Set a value in cache
-    println!("Setting user: {}", user.name);
+    // 在缓存中设置值
+    println!("设置用户: {}", user.name);
     cache.set(&"user:1".to_string(), &user).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_some());
 
-    // Get a value from cache
-    println!("Getting user...");
+    // 从缓存中获取值
+    println!("获取用户...");
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
         println!(
-            "Retrieved user: {} ({})",
+            "获取的用户: {} ({})",
             cached_user.name, cached_user.email
         );
         assert_eq!(cached_user.id, 1);
     }
 
-    // Delete a value from cache
-    println!("Deleting user...");
+    // 从缓存中删除值
+    println!("删除用户...");
     cache.delete(&"user:1".to_string()).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_none());
 
-    // Update a value
+    // 更新值
     let updated_user = User {
         id: 1,
         name: "Alice Updated".to_string(),
         email: "alice.updated@example.com".to_string(),
     };
 
-    println!("Updating user...");
+    println!("更新用户...");
     cache.set(&"user:1".to_string(), &updated_user).await?;
     if let Some(cached) = cache.get(&"user:1".to_string()).await? {
-        println!("Updated user: {} ({})", cached.name, cached.email);
+        println!("更新的用户: {} ({})", cached.name, cached.email);
     }
 
-    println!("\n✓ Basic operations example completed!");
-    println!("  - Set: Store a value in cache");
-    println!("  - Get: Retrieve a value from cache");
-    println!("  - Delete: Remove a value from cache");
-    println!("  - Update: Overwrite an existing value");
+    println!("\n✓ 基本操作示例完成!");
+    println!("  - Set: 在缓存中存储值");
+    println!("  - Get: 从缓存中获取值");
+    println!("  - Delete: 从缓存中删除值");
+    println!("  - Update: 覆盖现有值");
     Ok(())
 }
