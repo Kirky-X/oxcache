@@ -9,14 +9,13 @@
 //! 运行方式：
 //! ```bash
 //! cd examples && cargo run --example example_invalidation
-//! ```
+//!
 
 use std::sync::Arc;
-use tokio::time::sleep;
 use std::time::Duration;
 use oxcache::Cache;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct Order {
     id: u64,
     user_id: u64,
@@ -60,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for order in &orders {
         cache
-            .set(&format!("order:{}", order.id), order, None)
+            .set(&format!("order:{}", order.id), order)
             .await?;
     }
     println!("   ✓ 添加了 {} 个订单\n", orders.len());
@@ -68,8 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. 单个 key 失效
     println!("2. 单个 key 失效");
     println!("   删除 order:1");
-    cache.delete("order:1").await?;
-    let result = cache.get("order:1").await?;
+    cache.delete(&"order:1".to_string()).await?;
+    let result = cache.get(&"order:1".to_string()).await?;
     match result {
         Some(_) => println!("   ✗ 订单仍然存在"),
         None => println!("   ✓ 订单已删除"),
@@ -80,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. 批量失效 (通过清空缓存)");
     // 清空整个缓存
     cache.clear().await?;
-    let remaining = cache.get("order:2").await?;
+    let remaining = cache.get(&"order:2".to_string()).await?;
     match remaining {
         Some(_) => println!("   ✗ order:2 仍然存在"),
         None => println!("   ✓ 所有订单已清空"),
@@ -93,19 +92,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 添加用户 100 的多个购物车项目
     user_cache
-        .set("cart:100:item1", "笔记本电脑", None)
+        .set(&"cart:100:item1".to_string(), &"笔记本电脑".to_string())
         .await?;
     user_cache
-        .set("cart:100:item2", "鼠标", None)
+        .set(&"cart:100:item2".to_string(), &"鼠标".to_string())
         .await?;
     user_cache
-        .set("cart:200:item1", "键盘", None)
+        .set(&"cart:200:item1".to_string(), &"键盘".to_string())
         .await?;
 
     println!("   原始购物车:");
-    println!("     cart:100:item1 = {:?}", user_cache.get("cart:100:item1").await?);
-    println!("     cart:100:item2 = {:?}", user_cache.get("cart:100:item2").await?);
-    println!("     cart:200:item1 = {:?}", user_cache.get("cart:200:item1").await?);
+    println!("     cart:100:item1 = {:?}", user_cache.get(&"cart:100:item1".to_string()).await?);
+    println!("     cart:100:item2 = {:?}", user_cache.get(&"cart:100:item2".to_string()).await?);
+    println!("     cart:200:item1 = {:?}", user_cache.get(&"cart:200:item1".to_string()).await?);
 
     // 模拟用户 100 结账，需要清空其购物车
     // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
@@ -113,12 +112,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 实际应用中应该维护 key 的索引列表
     // 这里演示概念，实际需要应用层维护关联
-    user_cache.delete("cart:100:item1").await?;
-    user_cache.delete("cart:100:item2").await?;
+    user_cache.delete(&"cart:100:item1".to_string()).await?;
+    user_cache.delete(&"cart:100:item2".to_string()).await?;
 
     println!("   清空后:");
-    println!("     cart:100:item1 = {:?}", user_cache.get("cart:100:item1").await?);
-    println!("     cart:200:item1 = {:?}", user_cache.get("cart:200:item1").await?);
+    println!("     cart:100:item1 = {:?}", user_cache.get(&"cart:100:item1".to_string()).await?);
+    println!("     cart:200:item1 = {:?}", user_cache.get(&"cart:200:item1".to_string()).await?);
     println!();
 
     // 5. TTL 失效
@@ -126,27 +125,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ttl_cache: Cache<String, String> = Cache::new().await?;
 
     println!("   添加 2 秒过期的数据");
-    ttl_cache.set("temp:data", "临时数据", Some(2)).await?;
+    ttl_cache.set_with_ttl(&"temp:data".to_string(), &"临时数据".to_string(), Some(Duration::from_secs(2))).await?;
 
-    println!("   立即获取: {:?}", ttl_cache.get("temp:data").await?);
+    println!("   立即获取: {:?}", ttl_cache.get(&"temp:data".to_string()).await?);
 
     println!("   等待 3 秒...");
-    sleep(Duration::from_secs(3)).await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
-    println!("   3 秒后获取: {:?}\n", ttl_cache.get("temp:data").await?);
+    println!("   3 秒后获取: {:?}\n", ttl_cache.get(&"temp:data".to_string()).await?);
 
     // 6. 更新时失效 (Write-Invalidation)
     println!("6. 更新时失效 (Write-Invalidation)");
     let cache: Cache<String, String> = Cache::new().await?;
 
-    cache.set("config:theme", "dark", None).await?;
-    println!("   初始主题: {:?}", cache.get("config:theme").await?);
+    cache.set(&"config:theme".to_string(), &"dark".to_string()).await?;
+    println!("   初始主题: {:?}", cache.get(&"config:theme".to_string()).await?);
 
     // 更新配置时直接覆盖旧值
     cache
-        .set("config:theme", "light", None)
+        .set(&"config:theme".to_string(), &"light".to_string())
         .await?;
-    println!("   更新后主题: {:?}", cache.get("config:theme").await?);
+    println!("   更新后主题: {:?}", cache.get(&"config:theme".to_string()).await?);
 
     println!();
     println!("=== 失效策略示例完成 ===");
