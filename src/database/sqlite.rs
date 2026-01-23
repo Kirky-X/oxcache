@@ -102,7 +102,6 @@ impl SQLitePartitionManager {
             .connect_timeout(std::time::Duration::from_secs(30));
 
         debug!("Connecting to database with: {}", normalized);
-        println!("DEBUG: Connecting to database with: {}", normalized);
 
         let connection = Database::connect(opt).await.map_err(|e| {
             // 脱敏错误信息，避免泄露敏感路径信息

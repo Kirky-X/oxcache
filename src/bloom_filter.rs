@@ -105,11 +105,6 @@ impl BloomFilter {
         }
     }
 
-    #[allow(dead_code)]
-    fn bit_array_len(&self) -> usize {
-        self.bit_array.len()
-    }
-
     fn calculate_positions(&self, mut item: &[u8]) -> Vec<usize> {
         let bit_array_len = self.bit_array.len();
         let mut positions = Vec::with_capacity(self.seeds.len());

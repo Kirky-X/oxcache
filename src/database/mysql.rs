@@ -286,10 +286,6 @@ impl PartitionManager for MySQLPartitionManager {
             )
         } else {
             // 没有更大的分区，直接添加
-            debug!(
-                "DEBUG: Appending new partition {} at the end",
-                partition_name
-            );
             format!(
                 "ALTER TABLE {} ADD PARTITION (PARTITION {} VALUES LESS THAN ({}))",
                 self.escape_identifier(&base_table),
