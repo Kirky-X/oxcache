@@ -401,32 +401,6 @@ impl TwoLevelClient {
         }
     }
 
-    #[allow(dead_code)]
-    #[instrument(skip(self), level = "debug")]
-    async fn get_from_l1(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        if let Some(l1) = &self.l1 {
-            if let Some((val, _ver)) = l1.get_with_metadata(key).await? {
-                debug!("L1 hit for key: {}", key);
-                return Ok(Some(val));
-            }
-        }
-        debug!("L1 miss for key: {}", key);
-        Ok(None)
-    }
-
-    #[allow(dead_code)]
-    #[instrument(skip(self), level = "debug")]
-    async fn get_from_l2(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        if let Some(l2) = &self.l2 {
-            if let Some(val) = l2.get_bytes(key).await? {
-                debug!("L2 hit for key: {}", key);
-                return Ok(Some(val));
-            }
-        }
-        debug!("L2 miss for key: {}", key);
-        Ok(None)
-    }
-
     /// 缓存预热
     ///
     /// 批量从数据源加载数据并写入缓存

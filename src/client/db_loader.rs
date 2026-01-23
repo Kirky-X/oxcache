@@ -8,6 +8,7 @@
 
 use crate::config::validation::DEFAULT_RETRY_INTERVAL_MS;
 use crate::error::{CacheError, Result};
+use crate::utils::validate_cache_key as utils_validate_cache_key;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -44,17 +45,7 @@ pub fn validate_sql_identifier(identifier: &str) -> bool {
 /// 验证缓存键格式
 /// 键可以包含字母、数字、连字符、下划线、点号、冒号
 pub fn validate_cache_key(key: &str) -> bool {
-    if key.is_empty() || key.len() > 1024 {
-        return false;
-    }
-
-    for c in key.chars() {
-        if !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != ':' && c != '/' {
-            return false;
-        }
-    }
-
-    true
+    utils_validate_cache_key(key).is_ok()
 }
 
 /// SQL转义函数 - 用于字符串值转义

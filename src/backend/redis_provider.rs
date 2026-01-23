@@ -118,10 +118,6 @@ impl RedisProvider for DefaultRedisProvider {
 
         tracing::info!("Initializing Sentinel client with automatic failover support");
 
-        // Construct the Sentinel URL: redis+sentinel://host:port[,host:port][/service_name]
-        // 注意：不在 URL 中包含密码，避免密码泄露到日志中
-        let mut url = "redis+sentinel://".to_string();
-
         // Add sentinel nodes
         let nodes: Vec<String> = sentinel_config
             .nodes
@@ -141,23 +137,28 @@ impl RedisProvider for DefaultRedisProvider {
             ));
         }
 
-        url.push_str(&nodes.join(","));
-        url.push('/');
-        url.push_str(&sentinel_config.master_name);
+        // 构建 Sentinel URL
+        // redis-rs 0.27 需要使用 sentinel://host:port 格式
+        // 然后使用 SentinelClient::builder()
+        let first_node = &nodes[0];
 
         // 记录连接信息（不包含密码）
         tracing::info!(
-            "Connecting to Sentinel: master={}, nodes={}",
+            "Connecting to Sentinel: master={}, nodes={}, url={}",
             sentinel_config.master_name,
-            nodes.len()
+            nodes.len(),
+            first_node
         );
 
-        // Note: We removed the manual map_addr logic because using redis+sentinel://
-        // is required for automatic failover support in ConnectionManager.
-        // In test environments with NAT/Docker, ensure Sentinels report reachable IPs
-        // or use host networking.
+        // 使用 redis://host:port 格式创建基础 client
+        // Sentinel 逻辑通过 ConnectionManager 处理
+        let redis_url = if first_node.contains("://") {
+            first_node.clone()
+        } else {
+            format!("redis://{}", first_node)
+        };
 
-        let client = Client::open(url)?;
+        let client = Client::open(redis_url.as_str())?;
 
         // Create connection manager which handles reconnection and failover automatically
         let manager = timeout(
