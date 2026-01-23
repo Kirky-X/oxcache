@@ -97,3 +97,4 @@ requirements.db
 *.seed
 *.pid.lock
 CLAUDE.md
+.worktrees/
