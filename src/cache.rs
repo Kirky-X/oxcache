@@ -13,6 +13,72 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+// ============================================================================
+// CacheOps Wrapper for Backend
+// ============================================================================
+
+use crate::serialization::SerializerEnum;
+use async_trait::async_trait;
+use std::any::Any;
+
+/// Wrapper that implements CacheOps trait for any CacheBackend.
+/// This is used to register caches in the global registry for #[cached] macro support.
+pub(crate) struct BackendCacheOps {
+    pub(crate) backend: Arc<dyn CacheBackend>,
+    pub(crate) serializer: SerializerEnum,
+}
+
+#[async_trait]
+impl crate::client::CacheOps for BackendCacheOps {
+    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        self.backend.get(key).await
+    }
+
+    async fn set_bytes(&self, key: &str, value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
+        self.backend.set(key, value, None).await
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        self.backend.delete(key).await
+    }
+
+    async fn clear_l1(&self) -> Result<()> {
+        self.backend.clear().await
+    }
+
+    async fn clear_l2(&self) -> Result<()> {
+        self.backend.clear().await
+    }
+
+    async fn shutdown(&self) -> Result<()> {
+        self.backend.close().await
+    }
+
+    fn serializer(&self) -> &SerializerEnum {
+        &self.serializer
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn into_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
+        self
+    }
+}
+
+/// Creates a CacheOps wrapper for a given backend.
+/// This is used by the confers initialization to register caches.
+pub fn create_cache_ops_wrapper(
+    backend: Arc<dyn CacheBackend>,
+    serializer: SerializerEnum,
+) -> Arc<dyn crate::client::CacheOps + Send + Sync> {
+    Arc::new(BackendCacheOps {
+        backend,
+        serializer,
+    })
+}
+
 /// Unified cache interface with type-safe key and value types
 ///
 /// This is the main cache type that users interact with. It provides a
@@ -46,6 +112,18 @@ use std::time::Duration;
 pub struct Cache<K, V> {
     backend: Arc<dyn CacheBackend>,
     _phantom: std::marker::PhantomData<(K, V)>,
+}
+
+impl<K, V> std::fmt::Debug for Cache<K, V>
+where
+    K: CacheKey,
+    V: Cacheable,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cache")
+            .field("backend", &"<CacheBackend>")
+            .finish()
+    }
 }
 
 impl<K, V> Cache<K, V>
@@ -465,10 +543,56 @@ where
     /// ```rust,ignore
     /// if cache.health_check().await? {
     ///     println!("Cache is healthy");
-    /// }
-    /// ```
+    /// Perform a health check on the cache backend.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - Cache is healthy
+    /// * `Ok(false)` - Cache is unhealthy
+    /// * `Err(CacheError)` - Health check failed
     pub async fn health_check(&self) -> Result<bool> {
         self.backend.health_check().await
+    }
+
+    /// Shutdown the cache and release all resources.
+    ///
+    /// This method should be called during application shutdown to properly
+    /// close connections and release resources.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let cache: Cache<String, User> = Cache::new().await?;
+    /// // ... use cache ...
+    /// cache.shutdown().await?;
+    /// ```
+    pub async fn shutdown(&self) -> Result<()> {
+        self.backend.close().await
+    }
+
+    /// Create a CacheOps wrapper for this cache instance.
+    ///
+    /// This allows the cache to be used with the global registry for
+    /// #[cached] macro support and confers configuration.
+    ///
+    /// # Returns
+    ///
+    /// Arc<dyn CacheOps + Send + Sync> that can be registered in the global registry
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, User> = Cache::new().await?;
+    /// let cache_ops = cache.to_cache_ops();
+    /// manager::register("my_service", cache_ops);
+    /// ```
+    pub fn to_cache_ops(&self) -> Arc<dyn crate::client::CacheOps + Send + Sync> {
+        create_cache_ops_wrapper(
+            self.backend.clone(),
+            SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
+        )
     }
 
     /// Register this cache instance for use with the #[cached] macro.
@@ -493,61 +617,12 @@ where
     /// // async fn get_user(id: u64) -> User { ... }
     /// ```
     pub async fn register_for_macro(&self, service_name: &str) {
-        use crate::manager::__internal_register_cache;
-        use crate::serialization::SerializerEnum;
-        use std::any::Any;
-        use std::sync::Arc;
+        use crate::internal::__internal_register_cache;
 
-        // Create a simple wrapper that implements CacheOps for the backend
-        struct BackendCacheOps {
-            backend: Arc<dyn crate::backend::CacheBackend>,
-            serializer: SerializerEnum,
-        }
-
-        #[async_trait::async_trait]
-        impl crate::client::CacheOps for BackendCacheOps {
-            async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
-                self.backend.get(key).await
-            }
-
-            async fn set_bytes(&self, key: &str, value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
-                self.backend.set(key, value, None).await
-            }
-
-            async fn delete(&self, key: &str) -> Result<()> {
-                self.backend.delete(key).await
-            }
-
-            async fn clear_l1(&self) -> Result<()> {
-                self.backend.clear().await
-            }
-
-            async fn clear_l2(&self) -> Result<()> {
-                self.backend.clear().await
-            }
-
-            async fn shutdown(&self) -> Result<()> {
-                self.backend.close().await
-            }
-
-            fn serializer(&self) -> &SerializerEnum {
-                &self.serializer
-            }
-
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-
-            fn into_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
-                self
-            }
-        }
-
-        let cache_ops: Arc<dyn crate::client::CacheOps + Send + Sync> =
-            Arc::new(BackendCacheOps {
-                backend: self.backend.clone(),
-                serializer: SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
-            });
+        let cache_ops = create_cache_ops_wrapper(
+            self.backend.clone(),
+            SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
+        );
         __internal_register_cache(service_name, cache_ops);
     }
 }

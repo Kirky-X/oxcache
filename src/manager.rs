@@ -2,71 +2,56 @@
 //
 // MIT License
 //
-// 该模块提供了缓存功能信息查询功能。
-// 同时提供宏使用的内部缓存注册表支持。
+// 该模块提供内部缓存注册表支持和功能信息查询。
 
+use crate::client::CacheOps;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
 // ============================================================================
-// Internal Macro Cache Registry (for macro use only)
+// Internal Global Cache Registry (for #[cached] macro)
 // ============================================================================
 
-/// Internal cache registry for macro support.
-/// This is NOT part of the public API - only the #[cached] macro uses it.
-static MACRO_CACHE_REGISTRY: OnceLock<DashMap<String, Arc<dyn crate::client::CacheOps + Send + Sync>>> =
-    OnceLock::new();
+static CACHE_REGISTRY: OnceLock<DashMap<String, Arc<dyn CacheOps + Send + Sync>>> = OnceLock::new();
 
-fn get_macro_registry() -> &'static DashMap<String, Arc<dyn crate::client::CacheOps + Send + Sync>> {
-    MACRO_CACHE_REGISTRY.get_or_init(|| DashMap::new())
+fn get_registry() -> &'static DashMap<String, Arc<dyn CacheOps + Send + Sync>> {
+    CACHE_REGISTRY.get_or_init(DashMap::new)
 }
 
 /// Register a cache instance for use with the #[cached] macro.
 /// This is an internal function used by Cache::register_for_macro().
-///
-/// # Arguments
-/// * `service_name` - The service name to register the cache under
-/// * `cache` - The cache instance to register
 #[doc(hidden)]
-pub fn __internal_register_cache(
-    service_name: &str,
-    cache: Arc<dyn crate::client::CacheOps + Send + Sync>,
-) {
-    get_macro_registry().insert(service_name.to_string(), cache);
+pub fn __internal_register_cache(service_name: &str, cache: Arc<dyn CacheOps + Send + Sync>) {
+    get_registry().insert(service_name.to_string(), cache);
 }
 
 /// Get a cache instance registered for the #[cached] macro.
 /// This is an internal function called by the generated macro code.
-///
-/// # Arguments
-/// * `service_name` - The service name to look up
-///
-/// # Returns
-/// Some(cache) if found, None if not found
 #[doc(hidden)]
-pub fn __internal_get_cache(
-    service_name: &str,
-) -> Option<Arc<dyn crate::client::CacheOps + Send + Sync>> {
-    get_macro_registry().get(service_name).map(|r| r.value().clone())
+pub fn __internal_get_cache(service_name: &str) -> Option<Arc<dyn CacheOps + Send + Sync>> {
+    get_registry().get(service_name).map(|r| r.value().clone())
 }
 
-/// Remove a cache registration.
-/// This is an internal function for cleanup.
+/// Remove a cache registration (internal function for cleanup).
 #[doc(hidden)]
 pub fn __internal_remove_cache(service_name: &str) {
-    get_macro_registry().remove(service_name);
+    let _ = get_registry().remove(service_name);
 }
 
-/// Clear all registered caches.
-/// This is an internal function for cleanup.
+/// Clear all registered caches (internal function for cleanup).
 #[doc(hidden)]
-pub fn __internal_clear_all() {
-    get_macro_registry().clear();
+pub async fn __internal_clear_all() {
+    let registry = get_registry();
+    for entry in registry.iter() {
+        let cache = entry.value();
+        let _ = cache.shutdown().await;
+    }
+    registry.clear();
 }
 
 // ============================================================================
-// Feature Information Functions
+// Feature Information Functions (Public)
 // ============================================================================
 
 /// 获取 L1 缓存功能状态信息

@@ -108,47 +108,47 @@ let serialized = serializer.serialize(&user)?;
 let deserialized: User = serializer.deserialize(&serialized)?;
 ```
 
-### 自动选择序列化格式
+### 序列化缓存
 
 ```rust
-use oxcache::serialization::{AutoSerializer, SerializationType};
+use oxcache::serialization::{SerializationCache, JsonSerializer};
 
-// 创建自动序列化器
-let serializer = AutoSerializer::new(SerializationType::Json);
+// 创建序列化缓存（缓存序列化结果）
+let cache = SerializationCache::new(1000, 3600); // 容量 1000，TTL 3600 秒
 
-// 自动选择最优格式
+let serializer = JsonSerializer::new();
+
+// 第一次序列化（缓存未命中）
+let serialized = cache.serialize(&user, &serializer)?;
+
+// 第二次序列化相同对象（缓存命中）
+let serialized2 = cache.serialize(&user, &serializer)?;
+
+// 查看缓存统计
+println!("缓存命中率: {:.1}%", cache.hit_rate() * 100.0);
+println!("缓存大小: {}", cache.len());
+```
+
+### 序列化器注册表
+
+```rust
+use oxcache::serialization::{SerializerRegistry, JsonSerializer, BincodeSerializer};
+
+// 创建注册表
+let mut registry = SerializerRegistry::new();
+
+// 注册序列化器
+registry.register("json", Box::new(JsonSerializer::new()))?;
+registry.register("bincode", Box::new(BincodeSerializer::new()))?;
+
+// 获取序列化器
+let serializer = registry.get("json")?;
+
+// 序列化数据
 let serialized = serializer.serialize(&user)?;
 
-// 自动检测格式并反序列化
+// 反序列化数据
 let deserialized: User = serializer.deserialize(&serialized)?;
-```
-
-## 配置序列化
-
-### 在配置文件中指定
-
-```toml
-[services.default]
-type = "two-level"
-ttl = 3600
-
-[services.default.serialization]
-type = "json"  # json, bincode, messagepack, cbor
-compression_enabled = true
-compression_threshold = 1024
-```
-
-### 使用 Builder 模式
-
-```rust
-use oxcache::serialization::{SerializerConfig, SerializationType};
-
-let config = SerializerConfig::new()
-    .with_type(SerializationType::Bincode)
-    .with_compression(true)
-    .with_compression_threshold(1024);
-
-let serializer = config.build()?;
 ```
 
 ## 高级用法
@@ -174,56 +174,34 @@ impl Serializer for CustomSerializer {
 }
 ```
 
-### 压缩序列化
+### 使用序列化缓存优化性能
 
 ```rust
-use oxcache::serialization::{SerializerConfig, CompressionType};
+use oxcache::serialization::{SerializationCache, JsonSerializer};
 
-// 启用压缩
-let config = SerializerConfig::new()
-    .with_type(SerializationType::Bincode)
-    .with_compression(true)
-    .with_compression_type(CompressionType::Gzip)
-    .with_compression_threshold(1024);
+// 创建序列化缓存
+let cache = SerializationCache::new(10000, 3600);
+let serializer = JsonSerializer::new();
 
-let serializer = config.build()?;
-
-// 自动压缩
-let compressed = serializer.serialize(&large_data)?;
+// 对同一对象多次序列化时，第二次会从缓存读取
+for _ in 0..100 {
+    let serialized = cache.serialize(&user, &serializer)?;
+    // 使用序列化后的数据
+}
 ```
 
-### 批量序列化
+### 动态选择序列化器
 
 ```rust
-use oxcache::serialization::BatchSerializer;
+use oxcache::serialization::{SerializerRegistry, JsonSerializer, BincodeSerializer};
 
-// 创建批量序列化器
-let batch_serializer = BatchSerializer::new(JsonSerializer::new());
+let mut registry = SerializerRegistry::new();
+registry.register("json", Box::new(JsonSerializer::new()))?;
+registry.register("bincode", Box::new(BincodeSerializer::new()))?;
 
-// 批量序列化
-let users = vec![user1, user2, user3];
-let serialized = batch_serializer.serialize_batch(&users)?;
-
-// 批量反序列化
-let deserialized: Vec<User> = batch_serializer.deserialize_batch(&serialized)?;
-```
-
-### 版本兼容性
-
-```rust
-use oxcache::serialization::VersionedSerializer;
-
-// 创建版本化序列化器
-let serializer = VersionedSerializer::new(
-    BincodeSerializer::new(),
-    1  // 版本号
-);
-
-// 序列化时包含版本信息
-let serialized = serializer.serialize(&user)?;
-
-// 反序列化时自动处理版本兼容
-let deserialized: User = serializer.deserialize(&serialized)?;
+// 根据配置动态选择
+let format = get_configured_format(); // "json" 或 "bincode"
+let serializer = registry.get(format)?;
 ```
 
 ## 性能对比
@@ -371,22 +349,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cbor_user: User = cbor_serializer.deserialize(&cbor_data)?;
     println!("   反序列化: {:?}\n", cbor_user);
     
-    // 6. 带压缩的序列化
-    println!("6. 带压缩的序列化...");
-    let compressed_config = SerializerConfig::new()
-        .with_type(SerializationType::Bincode)
-        .with_compression(true)
-        .with_compression_type(CompressionType::Gzip)
-        .with_compression_threshold(100);  // 小于 100 bytes 不压缩
-    let compressed_serializer = compressed_config.build()?;
+    // 6. 使用序列化缓存
+    println!("6. 使用序列化缓存...");
+    let cache = SerializationCache::new(1000, 3600);
     
-    let compressed_data = compressed_serializer.serialize(&user)?;
-    println!("   压缩后大小: {} bytes", compressed_data.len());
-    println!("   压缩率: {:.1}%", 
-        (compressed_data.len() as f64 / bincode_data.len() as f64) * 100.0);
+    let start = std::time::Instant::now();
+    let cached_data = cache.serialize(&user, &bincode_serializer)?;
+    let cached_time = start.elapsed();
+    println!("   首次序列化: {:?} ({} bytes)", cached_time, cached_data.len());
     
-    let compressed_user: User = compressed_serializer.deserialize(&compressed_data)?;
-    println!("   反序列化: {:?}\n", compressed_user);
+    let start = std::time::Instant::now();
+    let cached_data2 = cache.serialize(&user, &bincode_serializer)?;
+    let cached_time2 = start.elapsed();
+    println!("   缓存命中序列化: {:?} ({} bytes)", cached_time2, cached_data2.len());
+    println!("   缓存加速: {:.1}x", cached_time.as_secs_f64() / cached_time2.as_secs_f64());
     
     // 7. 性能对比
     println!("7. 性能对比...");

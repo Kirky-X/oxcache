@@ -275,7 +275,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             // Try to get client, if fails, run original function
-            let client = match ::oxcache::manager::__internal_get_cache(#service_name) {
+            let client = match ::oxcache::__internal_get_cache(#service_name) {
                 Some(c) => c,
                 None => return async { #fn_block }.await,
             };

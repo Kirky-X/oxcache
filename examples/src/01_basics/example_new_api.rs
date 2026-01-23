@@ -127,15 +127,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     let advanced_cache: Cache<String, User> = CacheBuilder::new()
-        .and_then(|b| b.backend(
+        .backend(
             BackendBuilder::tiered()
-                .and_then(|b| b.l1_capacity(5000))
-                .and_then(|b| b.l2_connection_string("redis://127.0.0.1:6379"))
-                .and_then(|b| b.auto_promote(true))
-                .unwrap(),
-        ))
-        .and_then(|b| b.ttl(Duration::from_secs(3600)))
-        .and_then(|b| b.build())
+                .l1_capacity(5000)
+                .l2_connection_string("redis://127.0.0.1:6379")
+                .auto_promote(true)
+        )
+        .ttl(Duration::from_secs(3600))
+        .build()
         .await?;
 
     advanced_cache.set(&"user:6".to_string(), &user).await?;

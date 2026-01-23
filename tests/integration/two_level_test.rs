@@ -1,18 +1,11 @@
-#![allow(deprecated)]
 // Copyright (c) 2025-2026, Kirky.X
 //
 // MIT License
 //
-// 双层缓存集成测试
+// 双层缓存集成测试 - 使用新API
 
-use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_cache};
-use oxcache::config::{
-    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SerializationType,
-    ServiceConfig, TwoLevelConfig,
-};
-use oxcache::CacheExt;
-use secrecy::SecretString;
-use std::collections::HashMap;
+use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
+use oxcache::Cache;
 
 use crate::common;
 
@@ -26,82 +19,29 @@ async fn test_two_level_cache_flow() {
         return;
     }
 
+    setup_logging();
     let service_name = generate_unique_service_name("flow_test");
+    let redis_url = "redis://127.0.0.1:6379";
 
-    let config = OxcacheConfig {
-        config_version: Some(1),
-        global: GlobalConfig {
-            default_ttl: 60,
-            health_check_interval: 1,
-            serialization: SerializationType::Json,
-            enable_metrics: true,
-        },
-        services: {
-            let mut map = HashMap::new();
-            map.insert(
-                service_name.clone(),
-                ServiceConfig {
-                    cache_type: CacheType::TwoLevel,
-                    ttl: Some(60),
-                    serialization: None,
-                    l1: Some(L1Config {
-                        max_capacity: 100,
-                        cleanup_interval_secs: 10,
-                        ..Default::default()
-                    }),
-                    l2: Some(L2Config {
-                        mode: RedisMode::Standalone,
-                        connection_string: SecretString::new("redis://127.0.0.1:6379".into()),
-                        connection_timeout_ms: 500,
-                        command_timeout_ms: 500,
-                        password: None,
-                        enable_tls: false,
-                        sentinel: None,
-                        cluster: None,
-                        default_ttl: None,
-                        max_key_length: 256,
-                        max_value_size: 1024 * 1024 * 10,
-                    }),
-                    two_level: Some(TwoLevelConfig {
-                        promote_on_hit: true,
-                        enable_batch_write: false,
-                        batch_size: 10,
-                        batch_interval_ms: 100,
-                        invalidation_channel: None,
-                        bloom_filter: None,
-                        warmup: None,
-                        max_key_length: Some(1024),
-                        max_value_size: Some(1024 * 1024),
-                    }),
-                },
-            );
-            map
-        },
-        layer: None,
-        extensions: HashMap::new(),
-        source: None,
-    };
-
-    setup_cache(config).await;
-    let client = oxcache::manager::get_client(&service_name).expect("未找到客户端");
+    // 使用新API创建缓存
+    let cache: Cache<String, String> = Cache::tiered(100, redis_url)
+        .await
+        .expect("Failed to create tiered cache");
 
     // 1. 写入数据
     let test_val = "value1".to_string();
-    client.set("key1", &test_val, Some(60)).await.unwrap();
+    cache.set(&"key1".to_string(), &test_val).await.unwrap();
 
     // 2. 验证L1命中（立即读取）
-    let val: String = client.get("key1").await.unwrap().unwrap();
-    assert_eq!(val, "value1");
+    let val: Option<String> = cache.get(&"key1".to_string()).await.unwrap();
+    assert_eq!(val, Some("value1".to_string()));
 
-    // 3. 通过仅从L1删除来模拟L1未命中（未在公共API中暴露，
-    // 因此我们依赖L2持久性和新的客户端实例，或者如果我们能模拟时间的话等待驱逐。
-    // 对于此测试，我们相信L2已被写入。如果有原始访问权限，我们可以通过直接检查L2来验证，
-    // 但这里我们正在测试公共API契约。）
-
-    // 让我们删除并确保它从两个地方都消失了
-    client.delete("key1").await.unwrap();
-    let val: Option<String> = client.get("key1").await.unwrap();
+    // 3. 删除并验证
+    cache.delete(&"key1".to_string()).await.unwrap();
+    let val: Option<String> = cache.get(&"key1".to_string()).await.unwrap();
     assert!(val.is_none());
 
+    // 清理
+    cache.shutdown().await.expect("Shutdown failed");
     cleanup_service(&service_name).await;
 }

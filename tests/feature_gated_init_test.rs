@@ -2,7 +2,7 @@
 
 #![allow(deprecated)]
 
-use oxcache::manager::{
+use oxcache::{
     get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
 };
 
@@ -64,43 +64,41 @@ mod feature_info_tests {
     }
 }
 
-/// Test CacheManager initialization with feature flags
+/// Test Cache initialization with feature flags (new API)
 #[cfg(test)]
-mod cache_manager_init_tests {
-    use oxcache::config::{L1Config, ServiceConfig};
-    use oxcache::manager::CacheManager;
-
-    // Minimal test config
-    fn create_test_config() -> oxcache::OxcacheConfig {
-        let mut service_config = ServiceConfig::l1_only();
-        #[cfg(feature = "l1-moka")]
-        {
-            service_config.l1 = Some(L1Config::new().with_max_capacity(1000));
-        }
-
-        oxcache::OxcacheConfig::builder()
-            .with_global(oxcache::config::GlobalConfig::default())
-            .with_service("test_service", service_config)
-            .build()
-    }
+mod cache_init_tests {
+    use oxcache::Cache;
 
     #[tokio::test]
-    async fn test_init_requires_l1_feature_for_l1_cache() {
+    async fn test_l1_cache_initialization() {
         #[cfg(feature = "l1-moka")]
         {
-            let config = create_test_config();
-            let result: oxcache::Result<()> = CacheManager::init(config).await;
-            assert!(result.is_ok(), "L1 cache should initialize successfully");
+            let _cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
+            // L1 cache should initialize successfully
         }
 
         #[cfg(not(feature = "l1-moka"))]
         {
-            let config = create_test_config();
-            let result = CacheManager::init(config).await;
-            assert!(
-                result.is_err(),
-                "L1 cache should fail without l1-moka feature"
-            );
+            // Without l1-moka feature, Cache::new should still work (in-memory fallback)
+            let _cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
+            // Memory cache should initialize
+        }
+    }
+
+    #[tokio::test]
+    async fn test_redis_cache_initialization() {
+        #[cfg(feature = "l2-redis")]
+        {
+            // This will fail to connect but should initialize the client
+            let _cache: Cache<String, Vec<u8>> =
+                Cache::redis("redis://localhost:6379").await.unwrap();
+            // We don't assert success here as Redis may not be running
+            // The point is that the initialization code paths work
+        }
+
+        #[cfg(not(feature = "l2-redis"))]
+        {
+            // Skip if l2-redis feature is not enabled
         }
     }
 }
