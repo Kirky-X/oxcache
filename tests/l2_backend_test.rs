@@ -17,8 +17,8 @@ async fn test_sentinel_mode_success() {
     common::setup_logging();
 
     // 等待 Sentinel 环境就绪
-    // 注意：26379 是 sentinel 的端口，我们连接它来确认
-    if !common::wait_for_redis("redis://127.0.0.1:26379").await {
+    // 注意：26382 是 sentinel 的端口，我们连接它来确认
+    if !common::wait_for_redis("redis://127.0.0.1:26382").await {
         println!("Skipping test_sentinel_mode_success: Redis Sentinel not available");
         return;
     }
@@ -31,7 +31,7 @@ async fn test_sentinel_mode_success() {
         mode: RedisMode::Sentinel,
         sentinel: Some(SentinelConfig {
             master_name: "mymaster".to_string(),
-            nodes: vec!["127.0.0.1:26379".to_string()],
+            nodes: vec!["127.0.0.1:26382".to_string()],
         }),
         default_ttl: None,
         connection_timeout_ms: 10000,
