@@ -110,18 +110,14 @@ impl ScanKeyIterator {
     }
 }
 
-impl std::iter::Iterator for ScanKeyIterator {
+impl Iterator for ScanKeyIterator {
     type Item = String;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.finished {
-            return None;
-        }
+    fn next(&mut self) -> Option<String> {
+        // 同步迭代器无法执行异步操作
 
-        // 使用异步运行时执行 scan
-        // 注意：这是一个简化实现，实际应该使用内部状态
-        // 由于迭代器需要维护状态，这里返回 None，实际使用时需要重构
-        self.finished = true;
+        // 建议使用 async_next() 方法
+
         None
     }
 }
@@ -133,10 +129,26 @@ impl ScanKeyIterator {
             return None;
         }
 
-        // 实际实现应该在这里处理扫描逻辑
-        // 暂时返回 None
+        // 使用 Redis SCAN 命令获取键
+
+        // 注意：这是一个简化实现，实际应该使用内部状态维护游标
+
+        // 由于 RedisNativeOps trait 没有定义 scan_match 方法，这里返回 None
+
         self.finished = true;
+
         None
+    }
+
+    /// 批量获取所有匹配的键
+    pub async fn collect_all(&mut self) -> crate::error::Result<Vec<String>> {
+        let mut all_keys = Vec::new();
+
+        while let Some(key) = self.async_next().await {
+            all_keys.push(key);
+        }
+
+        Ok(all_keys)
     }
 }
 

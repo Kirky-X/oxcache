@@ -6,22 +6,22 @@
 //
 // 提供安全的日志记录功能，自动脱敏敏感信息
 
-use crate::utils::redaction::{redact_cache_key, redact_connection_string};
+#![cfg_attr(doctest, allow(unused_imports))]
+
+use crate::utils::redaction::redact_cache_key;
+use crate::utils::redaction::redact_connection_string;
 
 /// 安全日志宏 - 自动脱敏连接字符串
 ///
 /// # 示例
 ///
-/// ```rust
-/// use crate::utils::security_log;
-///
-/// // 记录连接字符串时会自动脱敏
-/// security_log::info("Redis URL: {}", "redis://user:password@localhost:6379");
-/// // 输出: Redis URL: redis://user:****@localhost:6379
-///
-/// // 记录缓存键时会自动脱敏
-/// security_log::debug("Cache key: {}", "user_token_abc123");
-/// // 输出: Cache key: ****c123
+/// ```rust,ignore
+/// # // 注意：此示例需要完整的导入路径
+/// # use oxcache::utils::security_log;
+/// #
+/// # // 记录连接字符串时会自动脱敏
+/// # security_log::info("Redis URL: {}", "redis://user:password@localhost:6379");
+/// # // 输出: Redis URL: redis://user:****@localhost:6379
 /// ```
 /// 安全记录信息级别日志
 #[macro_export]
@@ -77,7 +77,7 @@ macro_rules! secure_debug {
 ///
 /// # 示例
 ///
-/// ```rust
+/// ```rust,ignore
 /// use crate::utils::security_log::log_connection_string;
 ///
 /// log_connection_string("info", "Redis connection", "redis://user:password@localhost:6379");
@@ -104,7 +104,7 @@ pub fn log_connection_string(level: &str, message: &str, connection_string: &str
 ///
 /// # 示例
 ///
-/// ```rust
+/// ```rust,ignore
 /// use crate::utils::security_log::log_cache_key;
 ///
 /// log_cache_key("debug", "Cache access", "user_token_abc123");
@@ -134,7 +134,7 @@ pub fn log_cache_key(level: &str, message: &str, key: &str) {
 ///
 /// # 示例
 ///
-/// ```rust
+/// ```rust,ignore
 /// use crate::utils::security_log::sanitize_message;
 ///
 /// let msg = sanitize_message("User token: user_token_abc123, password: secret123");

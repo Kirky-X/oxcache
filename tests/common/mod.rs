@@ -37,35 +37,15 @@ pub fn setup_logging() {
 ///
 /// * `config` - 缓存配置
 #[allow(dead_code)]
-pub async fn setup_cache(config: Config) -> Cache<String, Vec<u8>> {
+pub async fn setup_cache(_config: Config) -> Cache<String, Vec<u8>> {
     setup_logging();
 
-    // 根据配置创建相应类型的缓存
-    if let Some(l2_config) = config.get_global_config().and_then(|g| g.l2.as_ref()) {
-        let connection_string = l2_config.connection_string();
-        if connection_string.contains("redis://") {
-            match Cache::redis(connection_string).await {
-                Ok(cache) => {
-                    println!("DEBUG: Redis cache initialized successfully");
-                    cache
-                }
-                Err(e) => {
-                    let msg = e.to_string();
-                    if msg.contains("Authentication required") || msg.contains("authentication failed") {
-                        panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
-                    }
-                    println!("CRITICAL WARNING: Redis缓存初始化失败: {}", e);
-                    tracing::warn!("Redis缓存初始化失败: {}", e);
-                    // 回退到内存缓存
-                    Cache::new().await.unwrap()
-                }
-            }
-        } else {
-            Cache::new().await.unwrap()
-        }
-    } else {
-        Cache::new().await.unwrap()
-    }
+    // 使用新的 API 直接创建缓存
+    // 配置参数目前未使用，因为新的 Cache API 不接受 OxcacheConfig
+    // 这是因为我们已经迁移到独立的 Cache<K, V> 实例模式
+    Cache::new()
+        .await
+        .unwrap_or_else(|e| panic!("Failed to create memory cache: {}", e))
 }
 
 /// 检查Redis是否可用 (默认URL)

@@ -394,49 +394,44 @@ macro_rules! placeholder_module {
     };
 }
 
+/// Initialize cache configuration from a function.
+///
+/// This macro generates code that calls the provided function to get configuration,
+/// then initializes all caches from that configuration.
+///
+/// # Arguments
+/// * `path` (optional) - Path to a TOML config file. If provided, uses confers_load.
+/// * `config` (optional) - A function that returns `OxcacheConfig`.
+///
+/// Either `path` or `config` must be provided, but not both.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// #[oxcache::init_config]
+/// fn load_config() -> oxcache::OxcacheConfig {
+///     oxcache::oxcache_config()
+///         .with_service("default", oxcache::ServiceConfig::two_level())
+///         .build()
+/// }
+/// ```
 // ============================================================================
 // Core Modules (Always Available)
 // ============================================================================
-
 pub mod client;
 pub mod config;
 pub mod error;
 
-/// Legacy cache manager module (Deprecated)
-///
-/// # Deprecation Notice
-///
-/// This module is deprecated since v0.2.0 and will be **removed in v0.3.0**.
-///
-/// # Migration Guide
-///
-/// Replace the old API with the new Cache API:
-///
-/// Old API:
-/// ```rust,ignore
-/// let config = oxcache_config()
-///     .with_service("default", ServiceConfig::two_level())
-///     .build();
-/// oxcache::init(config).await?;
-/// let client = oxcache::get_client("default")?;
-/// ```
-///
-/// New API:
-/// ```rust,ignore
-/// let cache: Cache<String, MyType> = Cache::tiered(10000, "redis://localhost:6379").await?;
-/// ```
-///
-/// # What's New
-///
-/// - Type-safe cache operations with generics
-/// - Simplified initialization (no global state)
-/// - Better error handling
-/// - More intuitive API
+// Internal module for macro support (deprecated, for internal use only)
 #[deprecated(
     since = "0.2.0",
-    note = "This module will be removed in v0.3.0. Use Cache::new(), Cache::redis(), or Cache::tiered() instead."
+    note = "Internal module, will be made private in v0.3.0"
 )]
 pub mod manager;
+
+// Internal module for #[cached] macro support
+#[doc(hidden)]
+pub mod internal;
 
 // New modernized API modules
 pub mod builder;
@@ -552,8 +547,9 @@ pub use config::LayerConfig;
 pub use config::LegacyEvictionPolicy as EvictionPolicy;
 pub use error::{CacheError, Result};
 
-// Note: Legacy manager functions (init, get_client, etc.) are deprecated and no longer re-exported.
-// Use Cache::new(), Cache::redis(), or Cache::tiered() instead.
+// ============================================================================
+// New API (Recommended)
+// ============================================================================
 
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
@@ -603,6 +599,15 @@ pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_sta
 pub use http::{
     CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator,
     HttpCachePolicy, HttpCacheResponse, HttpRequest,
+};
+
+// Internal module exports (for #[cached] macro)
+#[doc(hidden)]
+pub use internal::{__internal_get_cache, __internal_register_cache};
+
+// Feature info exports
+pub use internal::{
+    get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
 };
 
 // ============================================================================

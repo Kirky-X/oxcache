@@ -28,38 +28,40 @@ Oxcache 提供了完整的数据库集成功能，支持 MySQL、PostgreSQL 和 
 
 ```rust
 use oxcache::{Cache, CacheOps};
-use oxcache::database::mysql::MySqlLoader;
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 MySQL 加载器
-    let loader = MySqlLoader::new(
+    // 创建 MySQL 分区管理器
+    let partition_manager = MySQLPartitionManager::new(
         "mysql://user:password@localhost:3306/mydb"
     ).await?;
 
-    // 创建缓存
-    let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
-
-    // 创建数据库缓存加载器
-    let db_loader = DatabaseCacheLoader::new(cache.clone(), loader);
-
-    // 查询用户（自动从数据库加载）
-    let user = db_loader.get_or_load("user:123", |key| async move {
+    // 创建数据库加载器
+    let db_loader = SqlDbLoader::new(|key: &str| async move {
         // 从数据库查询
         let user_id: u64 = key.strip_prefix("user:")
             .ok_or("Invalid key")?
             .parse()?;
         
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, name, email FROM users WHERE id = ?"
-        )
-        .bind(user_id)
-        .fetch_one(&loader.pool)
-        .await?;
+        // 使用 sea-orm 查询
+        let db = Database::connect("mysql://user:password@localhost:3306/mydb").await?;
+        let user = User::find_by_id(user_id).one(&db).await?
+            .ok_or("User not found")?;
         
         Ok(user)
-    }).await?;
+    });
+
+    // 创建缓存
+    let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+
+    // 设置数据库回源管理器
+    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
+    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
+
+    // 查询用户（自动从数据库加载）
+    let user = cache.get("user:123").await?.ok_or("User not found")?;
 
     println!("用户: {:?}", user);
 
@@ -71,37 +73,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use oxcache::{Cache, CacheOps};
-use oxcache::database::postgresql::PostgresLoader;
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::postgresql::PostgreSQLPartitionManager;
+use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 PostgreSQL 加载器
-    let loader = PostgresLoader::new(
+    // 创建 PostgreSQL 分区管理器
+    let partition_manager = PostgreSQLPartitionManager::new(
         "postgresql://user:password@localhost:5432/mydb"
     ).await?;
 
-    // 创建缓存
-    let cache: Cache<String, Product> = Cache::tiered(10000, "redis://localhost:6379").await?;
-
-    // 创建数据库缓存加载器
-    let db_loader = DatabaseCacheLoader::new(cache.clone(), loader);
-
-    // 查询产品（自动从数据库加载）
-    let product = db_loader.get_or_load("product:456", |key| async move {
+    // 创建数据库加载器
+    let db_loader = SqlDbLoader::new(|key: &str| async move {
+        // 从数据库查询
         let product_id: u64 = key.strip_prefix("product:")
             .ok_or("Invalid key")?
             .parse()?;
         
-        let product = sqlx::query_as::<_, Product>(
-            "SELECT id, name, price, stock FROM products WHERE id = $1"
-        )
-        .bind(product_id)
-        .fetch_one(&loader.pool)
-        .await?;
+        // 使用 sea-orm 查询
+        let db = Database::connect("postgresql://user:password@localhost:5432/mydb").await?;
+        let product = Product::find_by_id(product_id).one(&db).await?
+            .ok_or("Product not found")?;
         
         Ok(product)
-    }).await?;
+    });
+
+    // 创建缓存
+    let cache: Cache<String, Product> = Cache::tiered(10000, "redis://localhost:6379").await?;
+
+    // 设置数据库回源管理器
+    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
+    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
+
+    // 查询产品（自动从数据库加载）
+    let product = cache.get("product:456").await?.ok_or("Product not found")?;
 
     println!("产品: {:?}", product);
 
@@ -113,36 +118,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use oxcache::{Cache, CacheOps};
-use oxcache::database::sqlite::SqliteLoader;
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::sqlite::SQLitePartitionManager;
+use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 SQLite 加载器
-    let loader = SqliteLoader::new(
+    // 创建 SQLite 分区管理器
+    let partition_manager = SQLitePartitionManager::new(
         "sqlite:///path/to/database.db"
     ).await?;
+
+    // 创建数据库加载器
+    let db_loader = SqlDbLoader::new(|key: &str| async move {
+        // 从数据库查询
+        let config_name = key.strip_prefix("config:")
+            .ok_or("Invalid key")?;
+        
+        // 使用 sea-orm 查询
+        let db = Database::connect("sqlite:///path/to/database.db").await?;
+        let config = Config::find_by_name(config_name).one(&db).await?
+            .ok_or("Config not found")?;
+        
+        Ok(config)
+    });
 
     // 创建缓存
     let cache: Cache<String, Config> = Cache::memory().await?;
 
-    // 创建数据库缓存加载器
-    let db_loader = DatabaseCacheLoader::new(cache.clone(), loader);
+    // 设置数据库回源管理器
+    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
+    cache.set_db_fallback_manager(Some(fallback_manager.clone())).await?;
 
     // 查询配置（自动从数据库加载）
-    let config = db_loader.get_or_load("config:theme", |key| async move {
-        let config_name = key.strip_prefix("config:")
-            .ok_or("Invalid key")?;
-        
-        let config = sqlx::query_as::<_, Config>(
-            "SELECT name, value FROM configs WHERE name = ?"
-        )
-        .bind(config_name)
-        .fetch_one(&loader.pool)
-        .await?;
-        
-        Ok(config)
-    }).await?;
+    let config = cache.get("config:theme").await?.ok_or("Config not found")?;
 
     println!("配置: {:?}", config);
 
@@ -154,21 +162,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use oxcache::cached;
-use oxcache::database::mysql::MySqlLoader;
-
-// 创建 MySQL 加载器
-let loader = MySqlLoader::new("mysql://user:password@localhost:3306/mydb").await?;
 
 // 带数据库加载的缓存函数
 #[cached(service = "user_cache", ttl = 3600)]
 async fn get_user(user_id: u64) -> Result<User, String> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT id, name, email FROM users WHERE id = ?"
-    )
-    .bind(user_id)
-    .fetch_one(&loader.pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    // 使用 sea-orm 查询
+    let db = Database::connect("mysql://user:password@localhost:3306/mydb").await
+        .map_err(|e| e.to_string())?;
+    
+    let user = User::find_by_id(user_id).one(&db).await
+        .map_err(|e| e.to_string())?
+        .ok_or("User not found".to_string())?;
     
     Ok(user)
 }
@@ -515,9 +519,10 @@ cache.set(&key, &value, None).await?;
 
 ```rust
 use oxcache::{Cache, CacheOps};
-use oxcache::database::mysql::MySqlLoader;
-use oxcache::client::db_loader::DatabaseCacheLoader;
+use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::client::db_loader::{DbLoader, DbFallbackManager, SqlDbLoader};
 use serde::{Deserialize, Serialize};
+use sea_orm::{Database, EntityTrait};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct User {
@@ -530,100 +535,61 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 数据库集成完整示例 ===\n");
     
-    // 1. 创建 MySQL 加载器
-    println!("1. 创建 MySQL 加载器...");
-    let loader = MySqlLoader::new(
+    // 1. 创建 MySQL 分区管理器
+    println!("1. 创建 MySQL 分区管理器...");
+    let partition_manager = MySQLPartitionManager::new(
         "mysql://root:password@localhost:3306/myapp"
     ).await?;
-    println!("   ✅ 加载器创建成功\n");
+    println!("   ✅ 分区管理器创建成功\n");
     
     // 2. 创建缓存
     println!("2. 创建双层缓存...");
     let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
     println!("   ✅ 缓存创建成功\n");
     
-    // 3. 创建数据库缓存加载器
-    println!("3. 创建数据库缓存加载器...");
-    let db_loader = DatabaseCacheLoader::new(cache.clone(), loader.clone());
-    println!("   ✅ 加载器创建成功\n");
-    
-    // 4. 查询用户（自动从数据库加载）
-    println!("4. 查询用户...");
-    let user_id = 123;
-    let key = format!("user:{}", user_id);
-    
-    let user = db_loader.get_or_load(&key, |key| async move {
+    // 3. 创建数据库加载器
+    println!("3. 创建数据库加载器...");
+    let db_loader = SqlDbLoader::new(|key: &str| async move {
         let user_id: u64 = key.strip_prefix("user:")?
             .parse()?;
         
         println!("   📡 从数据库查询用户: {}", user_id);
         
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, name, email FROM users WHERE id = ?"
-        )
-        .bind(user_id)
-        .fetch_one(&loader.pool)
-        .await?;
+        let db = Database::connect("mysql://root:password@localhost:3306/myapp").await?;
+        let user = User::find_by_id(user_id).one(&db).await?
+            .ok_or("User not found")?;
         
         println!("   ✅ 数据库查询成功");
         
         Ok(user)
-    }).await?;
+    });
+    println!("   ✅ 加载器创建成功\n");
     
+    // 4. 设置数据库回源管理器
+    println!("4. 设置数据库回源管理器...");
+    let mut fallback_manager = DbFallbackManager::new(cache.clone(), db_loader);
+    cache.set_db_fallback_manager(Some(fallback_manager)).await?;
+    println!("   ✅ 回源管理器设置成功\n");
+    
+    // 5. 查询用户（自动从数据库加载）
+    println!("5. 查询用户...");
+    let user_id = 123;
+    let key = format!("user:{}", user_id);
+    
+    let user = cache.get(&key).await?.ok_or("User not found")?;
     println!("   用户: {} ({})", user.name, user.email);
     println!();
     
-    // 5. 再次查询（从缓存读取）
-    println!("5. 再次查询相同用户...");
-    let user2 = db_loader.get_or_load(&key, |key| async move {
-        // 这个闭包不会被执行，因为缓存命中
-        Err("不应该执行到这里".into())
-    }).await?;
-    
+    // 6. 再次查询（从缓存读取）
+    println!("6. 再次查询相同用户...");
+    let user2 = cache.get(&key).await?.ok_or("User not found")?;
     println!("   💾 从缓存读取: {} ({})", user2.name, user2.email);
     println!();
     
-    // 6. 批量加载
-    println!("6. 批量加载多个用户...");
-    let keys = vec![
-        "user:1".to_string(),
-        "user:2".to_string(),
-        "user:3".to_string(),
-    ];
-    
-    let results = db_loader.batch_get_or_load(keys.clone(), |keys| async move {
-        println!("   📡 批量从数据库查询 {} 个用户", keys.len());
-        
-        let user_ids: Vec<u64> = keys.iter()
-            .filter_map(|k| k.strip_prefix("user:"))
-            .filter_map(|s| s.parse().ok())
-            .collect();
-        
-        let users = sqlx::query_as::<_, User>(
-            "SELECT id, name, email FROM users WHERE id IN (?)"
-        )
-        .bind(&user_ids)
-        .fetch_all(&loader.pool)
-        .await?;
-        
-        println!("   ✅ 批量查询成功");
-        
-        Ok(users)
-    }).await?;
-    
-    for (i, result) in results.iter().enumerate() {
-        println!("   用户 {}: {:?}", i + 1, result);
-    }
-    println!();
-    
-    // 7. 显示统计信息
-    println!("7. 数据库统计信息...");
-    let stats = loader.get_stats().await?;
-    println!("   活跃连接: {}", stats.active_connections);
-    println!("   空闲连接: {}", stats.idle_connections);
-    println!("   总查询数: {}", stats.total_queries);
-    println!("   成功查询: {}", stats.successful_queries);
-    println!("   失败查询: {}", stats.failed_queries);
+    // 7. 分区操作
+    println!("7. 分区操作...");
+    let partitions = partition_manager.list_partitions().await?;
+    println!("   现有分区: {:?}", partitions);
     
     Ok(())
 }

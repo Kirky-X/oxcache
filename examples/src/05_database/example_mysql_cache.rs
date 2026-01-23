@@ -1,100 +1,85 @@
-//! MySQL 数据库缓存示例
+//! MySQL 数据库分区管理示例
 //!
-//! 本示例演示如何使用 Oxcache 缓存 MySQL 查询结果。
+//! 本示例演示如何使用 Oxcache 的 MySQL 分区管理器。
 //!
 //! 运行方式：
 //! ```bash
 //! cd examples && cargo run --example example_mysql_cache
 //!
 
-use oxcache::Cache;
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct User {
-    id: u64,
-    name: String,
-    email: String,
-    created_at: String,
-}
+use oxcache::database::mysql::MySQLPartitionManager;
+use oxcache::database::partition::{PartitionConfig, TimeUnit};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== MySQL 数据库缓存示例 ===\n");
+    println!("=== MySQL 数据库分区管理示例 ===\n");
 
-    // 创建分层缓存 (L1: 内存, L2: Redis)
-    println!("创建分层缓存...");
-    let cache: Cache<String, User> = Cache::tiered(1000, "redis://127.0.0.1:6379").await?;
-    println!("✓ 缓存创建成功\n");
+    // 创建 MySQL 分区管理器
+    println!("1. 创建 MySQL 分区管理器...");
+    let partition_manager = MySQLPartitionManager::new(
+        "mysql://root:password@localhost:3306/test_db"
+    ).await?;
+    println!("   ✓ 分区管理器创建成功\n");
 
-    // 模拟用户数据
-    println!("1. 模拟用户数据");
-    let users = vec![
-        User {
-            id: 1,
-            name: "张三".to_string(),
-            email: "zhangsan@example.com".to_string(),
-            created_at: "2024-01-01".to_string(),
-        },
-        User {
-            id: 2,
-            name: "李四".to_string(),
-            email: "lisi@example.com".to_string(),
-            created_at: "2024-01-02".to_string(),
-        },
-        User {
-            id: 3,
-            name: "王五".to_string(),
-            email: "wangwu@example.com".to_string(),
-            created_at: "2024-01-03".to_string(),
-        },
-    ];
+    // 创建时间分区配置（按月分区）
+    println!("2. 创建时间分区配置（按月分区）...");
+    let time_config = PartitionConfig::time_based(TimeUnit::Month);
+    println!("   ✓ 时间分区配置创建成功\n");
 
-    println!("   添加用户到缓存...");
-    for user in &users {
-        cache
-            .set(&format!("user:{}", user.id), user, Some(3600))
-            .await?;
-        println!("   ✓ 用户 {}: {}", user.id, user.name);
-    }
-    println!();
+    // 创建哈希分区配置
+    println!("3. 创建哈希分区配置（4 个分片）...");
+    let hash_config = PartitionConfig::hash_based(4);
+    println!("   ✓ 哈希分区配置创建成功\n");
 
-    // 模拟查询
-    println!("2. 模拟数据库查询 (带缓存)");
-    for user_id in [1, 2, 3, 1, 2] {
-        let key = format!("user:{}", user_id);
-        let start = std::time::Instant::now();
-        let user = cache.get(&key).await?;
-        let elapsed = start.elapsed();
-
-        match user {
-            Some(u) => println!(
-                "   ✓ 用户 {}: {} (耗时: {:?})",
-                u.id, u.name, elapsed
-            ),
-            None => println!("   ✗ 用户 {} 未找到", user_id),
+    // 列出所有分区
+    println!("4. 列出所有分区...");
+    match partition_manager.list_partitions().await {
+        Ok(partitions) => {
+            println!("   现有分区:");
+            for partition in partitions {
+                println!("     - {}", partition);
+            }
+        }
+        Err(e) => {
+            println!("   ⚠ 无法列出分区: {}", e);
+            println!("   (这可能是因为数据库表尚未创建)");
         }
     }
     println!();
 
-    // 统计信息
-    println!("3. 缓存统计");
-    let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.item_count());
-    println!("   - 命中次数: {}", stats.hit_count());
-    println!("   - 未命中次数: {}", stats.miss_count());
-    if stats.hit_count() + stats.miss_count() > 0 {
-        let hit_rate = stats.hit_count() as f64
-            / (stats.hit_count() + stats.miss_count()) as f64
-            * 100.0;
-        println!("   - 命中率: {:.2}%", hit_rate);
+    // 创建新分区
+    println!("5. 创建新分区...");
+    match partition_manager.create_partition("users_2026_01").await {
+        Ok(()) => println!("   ✓ 分区创建成功"),
+        Err(e) => println!("   ⚠ 分区创建失败: {}", e),
     }
     println!();
 
-    // 清理
-    println!("4. 清理测试数据");
-    cache.clear().await?;
-    println!("   ✓ 测试数据已清理\n");
+    // 查询分区信息
+    println!("6. 查询分区信息...");
+    match partition_manager.get_partition_info("users_2026_01").await {
+        Ok(info) => {
+            println!("   分区信息:");
+            println!("     - 名称: {}", info.name);
+            println!("     - 类型: {:?}", info.partition_type);
+            println!("     - 创建时间: {:?}", info.created_at);
+        }
+        Err(e) => {
+            println!("   ⚠ 无法获取分区信息: {}", e);
+        }
+    }
+    println!();
 
-    println!("=== MySQL 数据库缓存示例完成 ===");
+    // 删除分区
+    println!("7. 删除分区...");
+    match partition_manager.drop_partition("users_2026_01").await {
+        Ok(()) => println!("   ✓ 分区删除成功"),
+        Err(e) => println!("   ⚠ 分区删除失败: {}", e),
+    }
+    println!();
+
+    println!("=== MySQL 数据库分区管理示例完成 ===");
+    println!("\n注意: 此示例需要 MySQL 数据库运行在 localhost:3306");
+    println!("      请确保数据库连接字符串正确，并已创建相应的表结构。");
     Ok(())
 }

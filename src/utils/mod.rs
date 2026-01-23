@@ -17,7 +17,7 @@
 
 pub(crate) mod key_generator;
 pub mod redaction;
-// 安全日志工具已直接定义在 security_log.rs 中
+pub mod security_log;
 
 use crate::config::{
     CacheType, ClusterConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SentinelConfig,
@@ -26,120 +26,7 @@ use crate::config::{
 use crate::error::CacheError;
 use secrecy::SecretString;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::Once;
 use std::time::Duration;
-
-/// 全局缓冲区池
-///
-/// 用于缓存常用的缓冲区，减少内存分配开销
-#[derive(Clone)]
-pub struct BufferPool {
-    /// 小缓冲区池（用于键）
-    small_buffers: Arc<Mutex<Vec<Vec<u8>>>>,
-    /// 中缓冲区池（用于值）
-    medium_buffers: Arc<Mutex<Vec<Vec<u8>>>>,
-    /// 大缓冲区池（用于批量操作）
-    large_buffers: Arc<Mutex<Vec<Vec<u8>>>>,
-}
-
-impl Default for BufferPool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BufferPool {
-    /// 创建新的缓冲区池
-    pub fn new() -> Self {
-        Self {
-            small_buffers: Arc::new(Mutex::new(Vec::new())),
-            medium_buffers: Arc::new(Mutex::new(Vec::new())),
-            large_buffers: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    /// 获取小缓冲区（用于缓存键）
-    ///
-    /// 从池中获取或创建新的小缓冲区
-    pub fn get_small_buffer(&self) -> Vec<u8> {
-        self.small_buffers
-            .lock()
-            .expect("BufferPool small_buffers lock poisoned")
-            .pop()
-            .unwrap_or_else(|| Vec::with_capacity(256))
-    }
-
-    /// 获取中缓冲区（用于缓存值）
-    ///
-    /// 从池中获取或创建新的中缓冲区
-    pub fn get_medium_buffer(&self) -> Vec<u8> {
-        self.medium_buffers
-            .lock()
-            .expect("BufferPool medium_buffers lock poisoned")
-            .pop()
-            .unwrap_or_else(|| Vec::with_capacity(1024))
-    }
-
-    /// 获取大缓冲区（用于批量操作）
-    ///
-    /// 从池中获取或创建新的大缓冲区
-    pub fn get_large_buffer(&self) -> Vec<u8> {
-        self.large_buffers
-            .lock()
-            .expect("BufferPool large_buffers lock poisoned")
-            .pop()
-            .unwrap_or_else(|| Vec::with_capacity(64 * 1024))
-    }
-
-    /// 返回小缓冲区到池中
-    pub fn return_small_buffer(&self, mut buffer: Vec<u8>) {
-        if buffer.capacity() <= 512 {
-            buffer.clear();
-            self.small_buffers
-                .lock()
-                .expect("BufferPool small_buffers lock poisoned")
-                .push(buffer);
-        }
-    }
-
-    /// 返回中缓冲区到池中
-    pub fn return_medium_buffer(&self, mut buffer: Vec<u8>) {
-        if buffer.capacity() <= 2048 {
-            buffer.clear();
-            self.medium_buffers
-                .lock()
-                .expect("BufferPool medium_buffers lock poisoned")
-                .push(buffer);
-        }
-    }
-
-    /// 返回大缓冲区到池中
-    pub fn return_large_buffer(&self, mut buffer: Vec<u8>) {
-        if buffer.capacity() <= 128 * 1024 {
-            buffer.clear();
-            self.large_buffers.lock().unwrap().push(buffer);
-        }
-    }
-}
-
-/// 获取全局缓冲区池
-pub fn global_buffer_pool() -> BufferPool {
-    BufferPool::new()
-}
-
-#[allow(dead_code)]
-static INIT: Once = Once::new();
-
-#[allow(dead_code)]
-pub(crate) fn setup_logging() {
-    INIT.call_once(|| {
-        // Logging setup - currently a no-op for minimal builds
-        // For full builds with tracing-subscriber, use:
-        // tracing_subscriber::fmt().try_init().ok();
-    });
-}
 
 /// 创建独立的Redis配置
 #[allow(dead_code)]
