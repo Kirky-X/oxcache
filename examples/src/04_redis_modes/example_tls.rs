@@ -1,75 +1,81 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Redis TLS mode example
-//
-// This example demonstrates using Redis with TLS encryption
-// for secure communication.
-//
-// Note: This example uses L1-only mode for demonstration.
-// To use with TLS, configure with:
-// - cache_type: TwoLevel
-// - l2.connection_string: rediss://host:6380 (note: rediss://)
-// - l2.enable_tls: true
+//! Redis TLS 连接示例
+//!
+//! 本示例演示如何使用 Oxcache 连接启用 TLS 的 Redis 服务器。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_tls
+//!
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct SecureData {
-    id: u64,
-    sensitive_info: String,
-    encrypted_field: Vec<u8>,
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct Session {
+    id: String,
+    user_id: u64,
+    data: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only for demo (no Redis required)
-    // For real TLS usage, configure with TwoLevel + enable_tls
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "tls_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(10000)),
-        )
-        .build();
+    println!("=== Redis TLS 连接示例 ===\n");
 
-    let _ = init(config).await;
+    // 创建 Redis 缓存 (使用 rediss:// 前缀启用 TLS)
+    println!("创建 Redis TLS 缓存连接...");
+    let cache: Cache<String, Session> = Cache::redis("rediss://127.0.0.1:6379").await?;
+    println!("✓ Redis TLS 连接成功\n");
 
-    let client = get_client("tls_cache")?;
-
-    println!("Redis TLS Mode Example");
-    println!("======================\n");
-    println!("Note: Using L1-only mode for demo");
-    println!("For real TLS, configure:");
-    println!("  - cache_type: TwoLevel");
-    println!("  - l2.connection_string: rediss://host:6380");
-    println!("  - l2.enable_tls: true\n");
-
-    // Test basic operations
-    let data = SecureData {
-        id: 1,
-        sensitive_info: "Secret data".to_string(),
-        encrypted_field: vec![0u8; 32],
+    // 基本操作
+    println!("1. 会话存储演示");
+    let session = Session {
+        id: "sess_abc123".to_string(),
+        user_id: 1001,
+        data: r#"{"theme": "dark", "language": "zh-CN"}"#.to_string(),
     };
 
-    println!("Writing encrypted data...");
-    client.set("tls:test", &data, None).await?;
-    println!("  Wrote: ID={}, info={}", data.id, data.sensitive_info);
+    // 存储会话
+    println!("   存储会话...");
+    cache.set("session:sess_abc123", &session, Some(3600)).await?;
+    println!("   ✓ 会话存储成功");
 
-    println!("\nReading data...");
-    if let Some(cached) = client.get::<SecureData>("tls:test").await? {
-        println!("  Read: ID={}, info={}", cached.id, cached.sensitive_info);
+    // 获取会话
+    println!("   获取会话...");
+    let retrieved = cache.get("session:sess_abc123").await?;
+    match retrieved {
+        Some(s) => println!("   ✓ 会话获取成功: 用户 {} (ID: {})", s.user_id, s.id),
+        None => println!("   ✗ 会话未找到"),
     }
 
-    println!("\nTLS benefits:");
-    println!("  - Encrypted communication");
-    println!("  - Data in transit protection");
-    println!("  - Compliance with security standards");
+    // 更新会话数据
+    println!("   更新会话数据...");
+    let updated_session = Session {
+        id: "sess_abc123".to_string(),
+        user_id: 1001,
+        data: r#"{"theme": "light", "language": "zh-CN"}"#.to_string(),
+    };
+    cache.set("session:sess_abc123", &updated_session, Some(3600)).await?;
+    println!("   ✓ 会话更新成功");
 
-    println!("\n✓ TLS mode example completed!");
+    // 验证更新
+    let retrieved = cache.get("session:sess_abc123").await?;
+    match retrieved {
+        Some(s) => println!("   ✓ 会话数据: {}", s.data),
+        None => println!("   ✗ 会话未找到"),
+    }
+
+    // 删除会话
+    println!("   删除会话...");
+    cache.delete("session:sess_abc123").await?;
+    println!("   ✓ 会话删除成功\n");
+
+    // 统计信息
+    println!("2. 缓存统计");
+    let stats = cache.stats().await?;
+    println!("   - 总条目数: {}", stats.item_count());
+    println!("   - 命中次数: {}", stats.hit_count());
+    println!("   - 未命中次数: {}", stats.miss_count());
+    println!();
+
+    println!("=== Redis TLS 连接示例完成 ===");
     Ok(())
 }

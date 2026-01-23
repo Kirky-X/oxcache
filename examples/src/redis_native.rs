@@ -1,59 +1,114 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Redis Native Operations Example
-//
-// This example demonstrates native Redis operations
-// including sorted sets, Lua scripts, and batch operations.
-//
-// Note: Requires `l2-redis` feature and a running Redis instance.
+//! Redis 原生客户端示例
+//!
+//! 本示例演示如何使用 Oxcache 连接 Redis。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example redis_native
+//!
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct RedisUser {
+    id: u64,
+    name: String,
+    email: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Redis Native Operations Example");
-    println!("==============================\n");
-    println!("Note: Using L1-only mode for demo");
-    println!("For native Redis operations:");
-    println!("  - Enable l2-redis feature");
-    println!("  - Configure TwoLevel with Redis backend");
-    println!("  - Use L2NativeOperations trait\n");
+    println!("=== Redis 原生客户端示例 ===\n");
 
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "redis_native_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(10000)),
-        )
-        .build();
+    // 创建 Redis 缓存
+    println!("1. 连接 Redis");
+    let cache: Cache<String, RedisUser> = Cache::redis("redis://127.0.0.1:6379").await?;
+    println!("   ✓ Redis 连接成功\n");
 
-    let _ = init(config).await;
+    // 2. 基本操作
+    println!("2. 基本 CRUD 操作");
+    let user = RedisUser {
+        id: 1,
+        name: "张三".to_string(),
+        email: "zhangsan@example.com".to_string(),
+    };
 
-    let client = get_client("redis_native_cache")?;
+    // 创建
+    println!("   添加用户...");
+    cache.set("user:1", &user, Some(3600)).await?;
+    println!("   ✓ 用户添加成功");
 
-    println!("Native Redis Operations:");
-    println!("  - Sorted Sets (ZADD, ZRANGE, ZSCORE)");
-    println!("  - Lua Scripts (EVAL, EVALSHA)");
-    println!("  - Batch Operations (MGET, MSET)");
-    println!("  - Pub/Sub (PUBLISH, SUBSCRIBE)");
-    println!("  - Streams (XADD, XREAD)");
-    println!("  - HyperLogLog (PFADD, PFCOUNT)");
+    // 读取
+    println!("   获取用户...");
+    let retrieved = cache.get("user:1").await?;
+    match retrieved {
+        Some(u) => println!("   ✓ 用户获取成功: {} ({})", u.name, u.email),
+        None => println!("   ✗ 用户未找到"),
+    }
 
-    // Basic cache operations as fallback
-    println!("\nBasic cache operations (demo):");
-    client.set("demo:key1", &"value1", None).await?;
-    client.set("demo:key2", &"value2", None).await?;
-    
-    let val1: Option<String> = client.get("demo:key1").await?;
-    let val2: Option<String> = client.get("demo:key2").await?;
-    
-    println!("  - Set and retrieve values: {:?}, {:?}", val1, val2);
+    // 更新
+    println!("   更新用户...");
+    let updated_user = RedisUser {
+        id: 1,
+        name: "张三丰".to_string(),
+        email: "zhangsanfeng@example.com".to_string(),
+    };
+    cache.set("user:1", &updated_user, Some(3600)).await?;
+    println!("   ✓ 用户更新成功");
 
-    println!("\n✓ Redis native example completed!");
+    // 删除
+    println!("   删除用户...");
+    cache.delete("user:1").await?;
+    let retrieved = cache.get("user:1").await?;
+    match retrieved {
+        Some(_) => println!("   ✗ 用户删除失败"),
+        None => println!("   ✓ 用户删除成功"),
+    }
+    println!();
+
+    // 3. 批量操作
+    println!("3. 批量操作");
+    let users = vec![
+        RedisUser {
+            id: 2,
+            name: "李四".to_string(),
+            email: "lisi@example.com".to_string(),
+        },
+        RedisUser {
+            id: 3,
+            name: "王五".to_string(),
+            email: "wangwu@example.com".to_string(),
+        },
+    ];
+
+    println!("   批量添加用户...");
+    for user in &users {
+        cache
+            .set(&format!("user:{}", user.id), user, Some(3600))
+            .await?;
+    }
+    println!("   ✓ 批量添加成功");
+
+    println!("   批量获取用户...");
+    for user in &users {
+        if let Some(u) = cache.get(&format!("user:{}", user.id)).await? {
+            println!("   ✓ 用户 {}: {}", u.id, u.name);
+        }
+    }
+
+    // 清空
+    println!("   清空测试数据...");
+    cache.clear().await?;
+    println!("   ✓ 清空完成\n");
+
+    // 4. 统计信息
+    println!("4. 缓存统计");
+    let stats = cache.stats().await?;
+    println!("   - 总条目数: {}", stats.item_count());
+    println!("   - 命中次数: {}", stats.hit_count());
+    println!("   - 未命中次数: {}", stats.miss_count());
+    println!();
+
+    println!("=== Redis 原生客户端示例完成 ===");
     Ok(())
 }

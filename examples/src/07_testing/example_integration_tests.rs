@@ -1,138 +1,213 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Integration tests example
-//
-// This example contains integration tests for cache behavior
-// with real Redis and database connections.
+//! 集成测试示例
+//!
+//! 本示例展示如何进行 Oxcache 的集成测试。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_integration_tests
+//!
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use std::sync::Arc;
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct IntegrationTestData {
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct IntegrationTestUser {
+    id: u64,
+    username: String,
+    email: String,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct IntegrationTestProduct {
     id: u64,
     name: String,
-    timestamp: chrono::DateTime<chrono::Utc>,
+    price: f64,
+    category: String,
 }
 
-fn create_test_config() -> OxcacheConfig {
-    OxcacheConfig::builder()
-        .with_service(
-            "integration_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(100)),
-        )
-        .build()
+// 测试场景 1: 用户会话管理
+async fn test_user_session_management() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   测试场景 1: 用户会话管理...");
+
+    let cache: Cache<String, IntegrationTestUser> = Cache::new().await?;
+
+    // 模拟用户登录
+    let user = IntegrationTestUser {
+        id: 1,
+        username: "test_user".to_string(),
+        email: "test@example.com".to_string(),
+        created_at: chrono::Local::now().to_rfc3339(),
+    };
+
+    // 存储会话
+    cache.set("session:user:1", &user, Some(3600)).await?;
+
+    // 验证会话存在
+    let retrieved = cache.get("session:user:1").await?;
+    assert!(retrieved.is_some(), "会话应该存在");
+    assert_eq!(retrieved.unwrap().username, "test_user", "用户名应该匹配");
+
+    // 模拟会话更新
+    let updated_user = IntegrationTestUser {
+        id: 1,
+        username: "test_user".to_string(),
+        email: "updated@example.com".to_string(),
+        created_at: user.created_at.clone(),
+    };
+    cache.set("session:user:1", &updated_user, Some(3600)).await?;
+
+    // 验证更新
+    let retrieved = cache.get("session:user:1").await?;
+    assert_eq!(retrieved.unwrap().email, "updated@example.com", "邮箱应该已更新");
+
+    // 清理
+    cache.delete("session:user:1").await?;
+    println!("   ✓ 用户会话管理测试通过");
+
+    Ok(())
 }
 
-/// Check if Redis is available
-async fn is_redis_available() -> bool {
-    use std::net::SocketAddr;
-    use tokio::net::TcpSocket;
-    
-    match "127.0.0.1:6379".parse::<SocketAddr>() {
-        Ok(addr) => {
-            match TcpSocket::connect(addr).await {
-                Ok(_) => true,
-                Err(_) => false,
-            }
-        }
-        Err(_) => false,
-    }
-}
+// 测试场景 2: 产品目录缓存
+async fn test_product_catalog_cache() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   测试场景 2: 产品目录缓存...");
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn test_cache_with_redis() {
-        // Skip test if Redis is not available
-        if !is_redis_available().await {
-            println!("Skipping Redis integration test - Redis not available");
-            return;
-        }
+    let cache: Cache<String, IntegrationTestProduct> = Cache::new().await?;
 
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "integration_cache",
-                ServiceConfig::two_level()
-                    .with_l1(L1Config::new().with_max_capacity(100)),
-            )
-            .build();
-        
-        let _ = init(config).await;
-        let client = get_client("integration_cache").unwrap();
-
-        let data = IntegrationTestData {
+    // 模拟产品数据
+    let products = vec![
+        IntegrationTestProduct {
             id: 1,
-            name: "Integration Test".to_string(),
-            timestamp: chrono::Utc::now(),
-        };
+            name: "产品 A".to_string(),
+            price: 99.99,
+            category: "电子产品".to_string(),
+        },
+        IntegrationTestProduct {
+            id: 2,
+            name: "产品 B".to_string(),
+            price: 199.99,
+            category: "服装".to_string(),
+        },
+        IntegrationTestProduct {
+            id: 3,
+            name: "产品 C".to_string(),
+            price: 299.99,
+            category: "家居".to_string(),
+        },
+    ];
 
-        // Test basic operations
-        client.set("integration_key", &data, None).await.unwrap();
-        let retrieved = client.get::<IntegrationTestData>("integration_key").await.unwrap();
-        
-        assert_eq!(retrieved, Some(data));
+    // 缓存产品
+    for product in &products {
+        cache
+            .set(&format!("product:{}", product.id), product, Some(7200))
+            .await?;
     }
 
-    #[tokio::test]
-    async fn test_cache_consistency() {
-        let config = create_test_config();
-        let _ = init(config).await;
-        let client = get_client("integration_cache").unwrap();
-
-        let data = IntegrationTestData {
-            id: 1,
-            name: "Consistency Test".to_string(),
-            timestamp: chrono::Utc::now(),
-        };
-
-        // Write data
-        client.set("consistency_key", &data, None).await.unwrap();
-        
-        // Read multiple times
-        for _ in 0..10 {
-            let retrieved = client.get::<IntegrationTestData>("consistency_key").await.unwrap();
-            assert_eq!(retrieved, Some(data.clone()));
-        }
+    // 验证所有产品都缓存成功
+    for product in &products {
+        let retrieved = cache.get(&format!("product:{}", product.id)).await?;
+        assert!(retrieved.is_some(), "产品应该存在");
+        assert_eq!(retrieved.unwrap().name, product.name, "产品名称应该匹配");
     }
 
-    #[tokio::test]
-    async fn test_concurrent_access() {
-        let config = create_test_config();
-        let _ = init(config).await;
-        let client = get_client("integration_cache").unwrap();
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 产品目录缓存测试通过");
 
-        let mut handles = Vec::new();
-        
-        // Spawn concurrent tasks
-        for i in 0..10 {
-            let client_clone = client.clone();
-            let handle = tokio::spawn(async move {
-                let data = IntegrationTestData {
-                    id: i,
-                    name: format!("Concurrent Test {}", i),
-                    timestamp: chrono::Utc::now(),
-                };
-                
-                let key = format!("concurrent_key_{}", i);
-                client_clone.set(&key, &data, None).await.unwrap();
-                
-                let retrieved = client_clone.get::<IntegrationTestData>(&key).await.unwrap();
-                assert_eq!(retrieved, Some(data));
-            });
-            handles.push(handle);
-        }
-        
-        // Wait for all tasks to complete
-        for handle in handles {
-            handle.await.unwrap();
-        }
+    Ok(())
+}
+
+// 测试场景 3: 并发缓存操作
+async fn test_concurrent_cache_operations() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   测试场景 3: 并发缓存操作...");
+
+    let cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
+    let mut handles = Vec::new();
+
+    // 并发写入
+    for i in 0..50 {
+        let cache = cache.clone();
+        let handle = tokio::spawn(async move {
+            cache.set(&format!("concurrent:{}", i), &format!("value:{}", i), None).await?;
+            Ok::<(), Box<dyn std::error::Error>>(())
+        });
+        handles.push(handle);
     }
+
+    for handle in handles {
+        handle.await??;
+    }
+
+    // 并发读取
+    let mut handles = Vec::new();
+    for i in 0..50 {
+        let cache = cache.clone();
+        let handle = tokio::spawn(async move {
+            cache.get(&format!("concurrent:{}", i)).await?;
+            Ok::<(), Box<dyn std::error::Error>>(())
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.await??;
+    }
+
+    // 验证数据完整性
+    let count = cache.iter().await?.len();
+    assert_eq!(count, 50, "应该有 50 条数据");
+
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 并发缓存操作测试通过");
+
+    Ok(())
+}
+
+// 测试场景 4: 缓存过期策略
+async fn test_cache_expiration_policy() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   测试场景 4: 缓存过期策略...");
+
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    // 设置不同过期时间的缓存
+    cache.set("short:1", "1秒过期", Some(1)).await?;
+    cache.set("medium:1", "3秒过期", Some(3)).await?;
+    cache.set("long:1", "10秒过期", Some(10)).await?;
+
+    // 验证所有缓存存在
+    assert!(cache.get("short:1").await?.is_some());
+    assert!(cache.get("medium:1").await?.is_some());
+    assert!(cache.get("long:1").await?.is_some());
+
+    // 等待短缓存过期
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    // 验证短缓存已过期
+    assert!(cache.get("short:1").await?.is_none(), "短缓存应该已过期");
+    // 中长缓存应该还存在
+    assert!(cache.get("medium:1").await?.is_some(), "中缓存应该还存在");
+    assert!(cache.get("long:1").await?.is_some(), "长缓存应该还存在");
+
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 缓存过期策略测试通过");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== 集成测试示例 ===\n");
+
+    println!("运行集成测试套件...\n");
+
+    test_user_session_management().await?;
+    test_product_catalog_cache().await?;
+    test_concurrent_cache_operations().await?;
+    test_cache_expiration_policy().await?;
+
+    println!();
+    println!("=== 所有集成测试通过 ===");
+    Ok(())
 }

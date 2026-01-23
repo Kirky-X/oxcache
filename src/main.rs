@@ -8,5 +8,7 @@ use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    oxcache::cli::run().await
+    println!("Oxcache CLI is deprecated. Please use the library API directly.");
+    println!("See examples/ for usage patterns.");
+    Ok(())
 }

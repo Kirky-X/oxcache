@@ -1,102 +1,154 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Cache invalidation example
-//
-// This example demonstrates cache invalidation strategies:
-// - Manual deletion
-// - TTL-based expiration
-// - Pattern-based invalidation
+//! 缓存失效策略示例
+//!
+//! 本示例演示了 Oxcache 的各种缓存失效策略：
+//! - 单个 key 失效
+//! - 批量失效
+//! - 模式匹配失效
+//! - 基于时间的失效
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_invalidation
+//! ```
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use std::sync::Arc;
+use tokio::time::sleep;
+use std::time::Duration;
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Order {
     id: u64,
     user_id: u64,
+    product: String,
+    quantity: u32,
     total: f64,
-    status: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only configuration for simplicity (no Redis required)
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "order_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(10000)),
-        )
-        .build();
+    println!("=== 缓存失效策略示例 ===\n");
 
-    if let Err(e) = init(config).await {
-        eprintln!("Init error: {:?}", e);
-    }
+    // 创建分层缓存用于演示
+    let cache: Arc<Cache<String, Order>> = Arc::new(Cache::new().await?);
 
-    let client = get_client("order_cache")?;
-
-    // Create test orders
+    // 1. 准备测试数据
+    println!("1. 准备测试数据");
     let orders = vec![
         Order {
             id: 1,
-            user_id: 1,
-            total: 99.99,
-            status: "pending".to_string(),
+            user_id: 100,
+            product: "笔记本电脑".to_string(),
+            quantity: 1,
+            total: 5999.99,
         },
         Order {
             id: 2,
-            user_id: 1,
-            total: 149.99,
-            status: "processing".to_string(),
+            user_id: 100,
+            product: "鼠标".to_string(),
+            quantity: 2,
+            total: 199.98,
         },
         Order {
             id: 3,
-            user_id: 2,
-            total: 49.99,
-            status: "shipped".to_string(),
+            user_id: 200,
+            product: "键盘".to_string(),
+            quantity: 1,
+            total: 299.99,
         },
     ];
 
-    // Cache orders
-    println!("Caching orders...");
     for order in &orders {
-        client
+        cache
             .set(&format!("order:{}", order.id), order, None)
             .await?;
     }
+    println!("   ✓ 添加了 {} 个订单\n", orders.len());
 
-    // Manual invalidation - delete single entry
-    println!("\n1. Manual deletion:");
-    client.delete("order:1").await?;
-    assert!(client.get::<Order>("order:1").await?.is_none());
-    println!("   Deleted order:1");
-
-    // TTL-based expiration (simulated with short TTL)
-    println!("\n2. TTL-based expiration:");
-    let temp_config = OxcacheConfig::builder()
-        .with_service(
-            "temp_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(100)),
-        )
-        .build();
-
-    if let Err(e) = init(temp_config).await {
-        eprintln!("Init error: {:?}", e);
+    // 2. 单个 key 失效
+    println!("2. 单个 key 失效");
+    println!("   删除 order:1");
+    cache.delete("order:1").await?;
+    let result = cache.get("order:1").await?;
+    match result {
+        Some(_) => println!("   ✗ 订单仍然存在"),
+        None => println!("   ✓ 订单已删除"),
     }
-    let temp_client = get_client("temp_cache")?;
+    println!();
 
-    temp_client.set("temp:key", &"value", Some(1)).await?;
-    assert!(temp_client.get::<String>("temp:key").await?.is_some());
-    println!("   Value exists immediately after set");
+    // 3. 批量失效
+    println!("3. 批量失效 (通过清空缓存)");
+    // 清空整个缓存
+    cache.clear().await?;
+    let remaining = cache.get("order:2").await?;
+    match remaining {
+        Some(_) => println!("   ✗ order:2 仍然存在"),
+        None => println!("   ✓ 所有订单已清空"),
+    }
+    println!();
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    assert!(temp_client.get::<String>("temp:key").await?.is_none());
-    println!("   Value expired after TTL");
+    // 4. 基于用户 ID 的失效模式
+    println!("4. 基于用户 ID 的失效模式");
+    let user_cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
 
-    println!("\nCache invalidation example completed!");
+    // 添加用户 100 的多个购物车项目
+    user_cache
+        .set("cart:100:item1", "笔记本电脑", None)
+        .await?;
+    user_cache
+        .set("cart:100:item2", "鼠标", None)
+        .await?;
+    user_cache
+        .set("cart:200:item1", "键盘", None)
+        .await?;
+
+    println!("   原始购物车:");
+    println!("     cart:100:item1 = {:?}", user_cache.get("cart:100:item1").await?);
+    println!("     cart:100:item2 = {:?}", user_cache.get("cart:100:item2").await?);
+    println!("     cart:200:item1 = {:?}", user_cache.get("cart:200:item1").await?);
+
+    // 模拟用户 100 结账，需要清空其购物车
+    // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
+    println!("   \n   用户 100 结账，清空其购物车...");
+
+    // 实际应用中应该维护 key 的索引列表
+    // 这里演示概念，实际需要应用层维护关联
+    user_cache.delete("cart:100:item1").await?;
+    user_cache.delete("cart:100:item2").await?;
+
+    println!("   清空后:");
+    println!("     cart:100:item1 = {:?}", user_cache.get("cart:100:item1").await?);
+    println!("     cart:200:item1 = {:?}", user_cache.get("cart:200:item1").await?);
+    println!();
+
+    // 5. TTL 失效
+    println!("5. TTL 自动失效");
+    let ttl_cache: Cache<String, String> = Cache::new().await?;
+
+    println!("   添加 2 秒过期的数据");
+    ttl_cache.set("temp:data", "临时数据", Some(2)).await?;
+
+    println!("   立即获取: {:?}", ttl_cache.get("temp:data").await?);
+
+    println!("   等待 3 秒...");
+    sleep(Duration::from_secs(3)).await;
+
+    println!("   3 秒后获取: {:?}\n", ttl_cache.get("temp:data").await?);
+
+    // 6. 更新时失效 (Write-Invalidation)
+    println!("6. 更新时失效 (Write-Invalidation)");
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    cache.set("config:theme", "dark", None).await?;
+    println!("   初始主题: {:?}", cache.get("config:theme").await?);
+
+    // 更新配置时直接覆盖旧值
+    cache
+        .set("config:theme", "light", None)
+        .await?;
+    println!("   更新后主题: {:?}", cache.get("config:theme").await?);
+
+    println!();
+    println!("=== 失效策略示例完成 ===");
     Ok(())
 }

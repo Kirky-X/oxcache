@@ -1,92 +1,87 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Rate limiting example
-//
-// This example demonstrates rate limiting functionality
-// for protecting the cache from overuse.
+//! 速率限制示例
+//!
+//! 本示例演示如何使用 Oxcache 实现速率限制。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_rate_limiting
+//!
 
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Semaphore;
+use oxcache::Cache;
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
-
-#[derive(Clone)]
-struct RateLimiter {
-    permits: Arc<Semaphore>,
-    interval: Duration,
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct RateLimitConfig {
+    user_id: u64,
+    max_requests: u32,
+    window_secs: u64,
 }
 
-impl RateLimiter {
-    fn new(permits_per_second: u64) -> Self {
-        let permits = Arc::new(Semaphore::new(permits_per_second as usize));
-        let interval = Duration::from_secs_f64(1.0 / permits_per_second as f64);
-
-        // Spawn background task to replenish permits
-        let permits_clone = permits.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(interval).await;
-                let _ = permits_clone.available_permits();
-            }
-        });
-
-        Self { permits, interval }
-    }
-
-    async fn acquire(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let permit = self.permits.try_acquire()?;
-        Ok(())
-    }
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct RateLimitStatus {
+    user_id: u64,
+    current: u32,
+    remaining: u32,
+    reset_at: u64,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "rate_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(10000)),
-        )
-        .build();
+    println!("=== 速率限制示例 ===\n");
 
-    let _ = init(config).await;
+    // 创建缓存用于存储速率限制状态
+    let cache: Cache<String, RateLimitStatus> = Cache::new().await?;
 
-    let _client = get_client("rate_cache")?;
-    let rate_limiter = RateLimiter::new(100);
+    // 1. 模拟用户请求
+    println!("1. 模拟用户请求速率限制");
+    let user_id = 1001;
+    let max_requests = 10;
+    let window_secs = 60;
 
-    println!("Rate Limiting Example");
-    println!("=====================\n");
-    println!("Rate limiting configuration:");
-    println!("  Requests/second: 100");
-    println!("  Burst size: 200\n");
+    println!("   用户 {} 的速率限制: {} 次/{} 秒", user_id, max_requests, window_secs);
+    println!();
 
-    println!("Testing rate limiting...");
-    let mut success_count = 0;
-    let mut limited_count = 0;
+    // 模拟 15 次请求
+    for i in 1..=15 {
+        let key = format!("ratelimit:{}", user_id);
 
-    for i in 0..300 {
-        if rate_limiter.acquire().await.is_ok() {
-            success_count += 1;
+        // 获取当前计数
+        let mut status = cache.get(&key).await?.unwrap_or(RateLimitStatus {
+            user_id,
+            current: 0,
+            remaining: max_requests,
+            reset_at: 0,
+        });
+
+        if status.current >= max_requests {
+            println!("   请求 #{}: ❌ 已达到速率限制", i);
         } else {
-            limited_count += 1;
+            status.current += 1;
+            status.remaining = max_requests - status.current;
+            cache.set(&key, &status, Some(window_secs)).await?;
+            println!(
+                "   请求 #{}: ✓ 通过 (当前: {}/{}, 剩余: {})",
+                i, status.current, max_requests, status.remaining
+            );
         }
     }
+    println!();
 
-    println!("\nResults:");
-    println!("  Allowed: {} requests", success_count);
-    println!("  Limited: {} requests", limited_count);
+    // 2. 查看速率限制状态
+    println!("2. 查看速率限制状态");
+    let key = format!("ratelimit:{}", user_id);
+    if let Some(status) = cache.get(&key).await? {
+        println!("   用户 {} 的速率限制状态:", status.user_id);
+        println!("     - 当前请求数: {}", status.current);
+        println!("     - 最大请求数: {}", max_requests);
+        println!("     - 剩余请求数: {}", status.remaining);
+    }
+    println!();
 
-    println!("\n✓ Rate limiting benefits:");
-    println!("  - Protects cache from overuse");
-    println!("  - Prevents abuse");
-    println!("  - Ensures fair resource sharing");
+    // 3. 清理
+    println!("3. 清理测试数据");
+    cache.clear().await?;
+    println!("   ✓ 测试数据已清理\n");
 
-    println!("\n✓ Rate limiting example completed!");
+    println!("=== 速率限制示例完成 ===");
     Ok(())
 }

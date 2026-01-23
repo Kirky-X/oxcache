@@ -1,30 +1,23 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Functional UAT (User Acceptance Testing) example
-//
-// This example contains end-to-end functional tests that validate
-// the cache system meets user requirements.
+//! 功能性 UAT 测试示例
+//!
+//! 本示例展示用户验收测试 (UAT) 场景。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_functional_uat
+//!
 
-use serde_json::Value;
+use std::sync::Arc;
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct UserSession {
-    user_id: u64,
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct UatUser {
+    id: u64,
     username: String,
-    last_activity: chrono::DateTime<chrono::Utc>,
-    preferences: Value,
+    email: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct ShoppingCart {
-    user_id: u64,
-    items: Vec<CartItem>,
-    total: f64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct CartItem {
     product_id: u64,
     name: String,
@@ -32,148 +25,182 @@ struct CartItem {
     price: f64,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use oxcache::manager::{get_client, init};
-    use oxcache::{
-        config::{L1Config, OxcacheConfig, ServiceConfig},
-        CacheExt,
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct ShoppingCart {
+    user_id: u64,
+    items: Vec<CartItem>,
+    total: f64,
+}
+
+// 场景 1: 用户登录和会话管理
+async fn test_user_login_and_session() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   场景 1: 用户登录和会话管理...");
+
+    let cache: Cache<String, UatUser> = Cache::new().await?;
+
+    // 用户登录
+    let user = UatUser {
+        id: 1,
+        username: "test_user".to_string(),
+        email: "test@example.com".to_string(),
     };
-    
-    #[tokio::test]
-    async fn test_user_session_caching() {
-        // Requirement: User sessions should be cached for fast retrieval
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "session_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("session_cache").unwrap();
-        
-        let session = UserSession {
-            user_id: 12345,
-            username: "testuser".to_string(),
-            last_activity: chrono::Utc::now(),
-            preferences: json!({"theme": "dark", "lang": "en"}),
-        };
-        
-        // Cache the session
-        client.set(&format!("session:{}", session.user_id), &session, Some(3600)).await.unwrap();
-        
-        // Retrieve the session (simulating user authentication)
-        let retrieved = client.get::<UserSession>(&format!("session:{}", session.user_id)).await.unwrap();
-        
-        assert!(retrieved.is_some(), "Session should be retrievable");
-        assert_eq!(retrieved.unwrap().username, "testuser");
-    }
-    
-    #[tokio::test]
-    async fn test_shopping_cart_persistence() {
-        // Requirement: Shopping carts should persist across requests
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "cart_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(500)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("cart_cache").unwrap();
-        
-        let cart = ShoppingCart {
-            user_id: 12345,
-            items: vec![
-                CartItem {
-                    product_id: 1,
-                    name: "Laptop".to_string(),
-                    quantity: 1,
-                    price: 999.99,
-                },
-                CartItem {
-                    product_id: 2,
-                    name: "Mouse".to_string(),
-                    quantity: 2,
-                    price: 29.99,
-                },
-            ],
-            total: 1059.97,
-        };
-        
-        // Save cart
-        client.set(&format!("cart:{}", cart.user_id), &cart, Some(1800)).await.unwrap();
-        
-        // Modify cart (add item)
-        let mut updated_cart = cart.clone();
-        updated_cart.items.push(CartItem {
-            product_id: 3,
-            name: "Keyboard".to_string(),
-            quantity: 1,
-            price: 79.99,
+    cache.set("user:1", &user, Some(3600)).await?;
+
+    // 验证会话
+    let retrieved = cache.get("user:1").await?;
+    assert!(retrieved.is_some(), "用户会话应该存在");
+    assert_eq!(retrieved.unwrap().id, 1, "用户 ID 应该匹配");
+
+    // 用户登出
+    cache.delete("user:1").await?;
+    let retrieved = cache.get("user:1").await?;
+    assert!(retrieved.is_none(), "用户会话应该已删除");
+
+    println!("   ✓ 用户登录和会话管理测试通过");
+    Ok(())
+}
+
+// 场景 2: 购物车操作
+async fn test_shopping_cart_operations() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   场景 2: 购物车操作...");
+
+    let cache: Cache<String, ShoppingCart> = Cache::new().await?;
+
+    // 添加购物车项
+    let cart = ShoppingCart {
+        user_id: 1,
+        items: vec![
+            CartItem {
+                product_id: 1,
+                name: "产品 A".to_string(),
+                quantity: 2,
+                price: 99.99,
+            },
+            CartItem {
+                product_id: 2,
+                name: "产品 B".to_string(),
+                quantity: 1,
+                price: 199.99,
+            },
+        ],
+        total: 399.97,
+    };
+    cache.set("cart:1", &cart, Some(1800)).await?;
+
+    // 验证购物车
+    let retrieved = cache.get("cart:1").await?;
+    assert!(retrieved.is_some(), "购物车应该存在");
+    assert_eq!(retrieved.unwrap().items.len(), 2, "购物车应该有 2 个商品");
+
+    // 更新数量
+    let mut updated_cart = cart.clone();
+    updated_cart.items[0].quantity = 3;
+    updated_cart.total = 299.97 + 199.99;
+    cache.set("cart:1", &updated_cart, Some(1800)).await?;
+
+    // 验证更新
+    let retrieved = cache.get("cart:1").await?;
+    assert_eq!(retrieved.unwrap().items[0].quantity, 3, "商品数量应该已更新");
+
+    // 清空购物车
+    cache.delete("cart:1").await?;
+    let retrieved = cache.get("cart:1").await?;
+    assert!(retrieved.is_none(), "购物车应该已删除");
+
+    println!("   ✓ 购物车操作测试通过");
+    Ok(())
+}
+
+// 场景 3: 性能测试
+async fn test_performance_requirements() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   场景 3: 性能要求验证...");
+
+    let cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
+
+    // 性能测试: 1000 次读写
+    let iterations = 1000;
+    let start = std::time::Instant::new();
+
+    // 并发写入
+    let mut handles = Vec::new();
+    for i in 0..iterations {
+        let cache = cache.clone();
+        let handle = tokio::spawn(async move {
+            cache
+                .set(&format!("perf:{}", i), &format!("value:{}", i), None)
+                .await
         });
-        updated_cart.total += 79.99;
-        
-        client.set(&format!("cart:{}", updated_cart.user_id), &updated_cart, Some(1800)).await.unwrap();
-        
-        // Retrieve updated cart
-        let retrieved = client.get::<ShoppingCart>(&format!("cart:{}", updated_cart.user_id)).await.unwrap();
-        
-        assert!(retrieved.is_some(), "Cart should be retrievable");
-        assert_eq!(retrieved.unwrap().items.len(), 3);
-        assert_eq!(retrieved.unwrap().total, 1139.96);
+        handles.push(handle);
     }
-    
-    #[tokio::test]
-    async fn test_cache_hit_performance() {
-        // Requirement: Cache hits should be significantly faster than cache misses
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "perf_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("perf_cache").unwrap();
-        
-        let data = "Large string data for performance testing".to_string();
-        
-        // First, cache the data (cache miss)
-        let start_miss = std::time::Instant::now();
-        client.set("perf_key", &data, None).await.unwrap();
-        let miss_time = start_miss.elapsed();
-        
-        // Then retrieve the data (cache hit)
-        let start_hit = std::time::Instant::now();
-        let _ = client.get::<String>("perf_key").await.unwrap();
-        let hit_time = start_hit.elapsed();
-        
-        // Cache hit should be faster (this is a basic check)
-        assert!(hit_time.as_nanos() < miss_time.as_nanos() * 10, "Cache hit should be faster than miss");
+    for handle in handles {
+        handle.await?;
     }
-    
-    #[tokio::test]
-    async fn test_ttl_expiration() {
-        // Requirement: Items should expire according to TTL settings
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "ttl_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(100)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("ttl_cache").unwrap();
-        
-        // Set data with 1 second TTL
-        client.set("ttl_key", &"test_data", Some(1)).await.unwrap();
-        
-        // Should be available immediately
-        assert!(client.get::<String>("ttl_key").await.unwrap().is_some());
-        
-        // Wait for expiration
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        
-        // Should be expired
-        assert!(client.get::<String>("ttl_key").await.unwrap().is_none());
+
+    // 并发读取
+    let mut handles = Vec::new();
+    for i in 0..iterations {
+        let cache = cache.clone();
+        let handle = tokio::spawn(async move {
+            cache.get(&format!("perf:{}", i)).await
+        });
+        handles.push(handle);
     }
+    for handle in handles {
+        handle.await?;
+    }
+
+    let elapsed = start.elapsed();
+    let throughput = iterations as f64 * 2.0 / elapsed.as_secs_f64();
+
+    println!("     执行 {} 次读写，耗时: {:?}", iterations * 2, elapsed);
+    println!("     吞吐量: {:.2} ops/sec", throughput);
+
+    // 性能要求: 吞吐量应该 > 10000 ops/sec
+    assert!(throughput > 10000.0, "吞吐量应该 > 10000 ops/sec");
+
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 性能要求验证测试通过");
+
+    Ok(())
+}
+
+// 场景 4: TTL 过期测试
+async fn test_ttl_requirements() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   场景 4: TTL 过期要求验证...");
+
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    // 设置 2 秒过期的数据
+    cache.set("ttl:test", "测试数据", Some(2)).await?;
+
+    // 立即获取应该成功
+    let retrieved = cache.get("ttl:test").await?;
+    assert!(retrieved.is_some(), "数据应该存在");
+
+    // 等待 3 秒
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+    // 数据应该已过期
+    let retrieved = cache.get("ttl:test").await?;
+    assert!(retrieved.is_none(), "数据应该已过期");
+
+    println!("   ✓ TTL 过期要求验证测试通过");
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== 功能性 UAT 测试示例 ===\n");
+
+    println!("运行 UAT 测试...\n");
+
+    test_user_login_and_session().await?;
+    test_shopping_cart_operations().await?;
+    test_performance_requirements().await?;
+    test_ttl_requirements().await?;
+
+    println!();
+    println!("=== 所有 UAT 测试通过 ===");
+    Ok(())
 }

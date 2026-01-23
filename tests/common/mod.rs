@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 // Copyright (c) 2025-2026, Kirky.X
 //
 // MIT License
@@ -8,7 +7,7 @@
 pub mod database_test_utils;
 pub mod redis_test_utils;
 
-use oxcache::{config::OxcacheConfig as Config, manager::CacheManager};
+use oxcache::{config::OxcacheConfig as Config, Cache};
 use redis_test_utils::{
     is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
@@ -30,26 +29,42 @@ pub fn setup_logging() {
     });
 }
 
-/// 设置缓存管理器
+/// 设置缓存
 ///
-/// 根据提供的配置初始化缓存管理器
+/// 根据提供的配置创建缓存实例
 ///
 /// # 参数
 ///
 /// * `config` - 缓存配置
 #[allow(dead_code)]
-pub async fn setup_cache(config: Config) {
+pub async fn setup_cache(config: Config) -> Cache<String, Vec<u8>> {
     setup_logging();
 
-    if let Err(e) = CacheManager::init(config).await {
-        let msg: String = e.to_string();
-        if msg.contains("Authentication required") || msg.contains("authentication failed") {
-            panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
+    // 根据配置创建相应类型的缓存
+    if let Some(l2_config) = config.get_global_config().and_then(|g| g.l2.as_ref()) {
+        let connection_string = l2_config.connection_string();
+        if connection_string.contains("redis://") {
+            match Cache::redis(connection_string).await {
+                Ok(cache) => {
+                    println!("DEBUG: Redis cache initialized successfully");
+                    cache
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("Authentication required") || msg.contains("authentication failed") {
+                        panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
+                    }
+                    println!("CRITICAL WARNING: Redis缓存初始化失败: {}", e);
+                    tracing::warn!("Redis缓存初始化失败: {}", e);
+                    // 回退到内存缓存
+                    Cache::new().await.unwrap()
+                }
+            }
+        } else {
+            Cache::new().await.unwrap()
         }
-        println!("CRITICAL WARNING: CacheManager初始化失败: {}", e);
-        tracing::warn!("CacheManager初始化失败 (可能已初始化): {}", e);
     } else {
-        println!("DEBUG: CacheManager initialized successfully");
+        Cache::new().await.unwrap()
     }
 }
 
@@ -124,10 +139,4 @@ pub async fn cleanup_service(service_name: &str) {
     tokio::fs::remove_file(format!("{}.db", service_name))
         .await
         .ok();
-
-    if let Ok(client) = oxcache::manager::get_client(service_name) {
-        let _ = client.clear_wal().await;
-        let _ = client.clear_l1().await;
-        let _ = client.clear_l2().await;
-    }
 }

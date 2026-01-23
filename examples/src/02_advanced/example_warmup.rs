@@ -1,94 +1,151 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Cache warmup example
-//
-// This example demonstrates cache warmup strategies:
-// - Pre-loading data on application startup
+//! 缓存预热示例
+//!
+//! 本示例演示了 Oxcache 的缓存预热功能：
+//! - 应用启动时预热缓存
+//! - 预加载热点数据
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_warmup
+//! ```
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use std::sync::Arc;
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct Config {
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct AppConfig {
     key: String,
     value: String,
+    description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct User {
+    id: u64,
+    username: String,
+    role: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only configuration for simplicity (no Redis required)
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "config_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-        )
-        .build();
+    println!("=== 缓存预热示例 ===\n");
 
-    if let Err(e) = init(config).await {
-        eprintln!("Init error: {:?}", e);
-    }
+    // 创建缓存
+    let cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
 
-    let client = get_client("config_cache")?;
-
-    // Simulate warmup data
-    let warmup_data: Vec<Config> = vec![
-        Config {
-            key: "database.url".to_string(),
-            value: "postgres://localhost/db".to_string(),
-        },
-        Config {
-            key: "api.rate_limit".to_string(),
-            value: "1000".to_string(),
-        },
-        Config {
-            key: "logging.level".to_string(),
-            value: "info".to_string(),
-        },
+    // 1. 模拟从数据库加载配置
+    println!("1. 模拟应用配置预热");
+    let configs = vec![
+        ("app:theme", "dark", "应用主题"),
+        ("app:language", "zh-CN", "默认语言"),
+        ("app:timezone", "Asia/Shanghai", "时区"),
+        ("app:max_connections", "100", "最大连接数"),
+        ("app:session_timeout", "3600", "会话超时时间"),
     ];
 
-    println!(
-        "Warming up cache with {} configuration entries...",
-        warmup_data.len()
-    );
+    println!("   从数据库加载配置...");
+    for (key, value, desc) in &configs {
+        // 模拟数据库查询延迟
+        // tokio::time::sleep(Duration::from_millis(10)).await;
+        cache.set(key, value, None).await?;
+        println!("     加载配置: {} = {} ({})", key, value, desc);
+    }
+    println!("   ✓ 配置预热完成 ({} 个配置项)\n", configs.len());
 
-    // Warmup strategy: Bulk load
-    for cfg in &warmup_data {
-        client
-            .set(&format!("config:{}", cfg.key), cfg, None)
-            .await?;
+    // 2. 模拟预加载热点用户数据
+    println!("2. 模拟热点用户数据预热");
+    let hot_users = vec![1, 2, 3, 4, 5, 10, 100, 101];
+
+    println!("   预加载热点用户...");
+    let start = std::time::Instant::new();
+    let mut handles = Vec::new();
+
+    for user_id in &hot_users {
+        let cache = cache.clone();
+        let id = *user_id;
+        let handle = tokio::spawn(async move {
+            // 模拟从数据库查询用户
+            // let user = db.query_user(id).await?;
+            let username = format!("user_{}", id);
+            let role = if id == 1 { "admin" } else { "user" };
+            cache
+                .set(&format!("user:{}", id), &format!("{}:{}", username, role), None)
+                .await?;
+            Ok::<(), Box<dyn std::error::Error>>(())
+        });
+        handles.push(handle);
     }
 
-    // Verify warmup
-    println!("\nVerifying warmup...");
-    let mut hit_count = 0;
+    for handle in handles {
+        handle.await??;
+    }
 
-    for cfg in &warmup_data {
-        if client
-            .get::<Config>(&format!("config:{}", cfg.key))
-            .await?
-            .is_some()
-        {
-            hit_count += 1;
+    let elapsed = start.elapsed();
+    println!(
+        "   ✓ 热点用户预热完成 ({} 个用户, 耗时: {:?})\n",
+        hot_users.len(),
+        elapsed
+    );
+
+    // 3. 验证预热数据
+    println!("3. 验证预热数据");
+    println!("   配置验证:");
+    for (key, value, _) in &configs {
+        let retrieved = cache.get(key).await?;
+        match retrieved {
+            Some(v) if v == *value => println!("     ✓ {} = {}", key, v),
+            Some(v) => println!("     ✗ {} = {} (期望: {})", key, v, value),
+            None => println!("     ✗ {} 未找到", key),
         }
     }
 
-    println!(
-        "  Warmup hit rate: {}/{} ({}%)",
-        hit_count,
-        warmup_data.len(),
-        hit_count * 100 / warmup_data.len()
-    );
+    println!("   \n   用户验证:");
+    for user_id in &hot_users {
+        let key = format!("user:{}", user_id);
+        let retrieved = cache.get(&key).await?;
+        match retrieved {
+            Some(v) => println!("     ✓ {} = {}", key, v),
+            None => println!("     ✗ {} 未找到", key),
+        }
+    }
+    println!();
 
-    println!("\nCache warmup benefits:");
-    println!("  - Reduces cold-start latency");
-    println!("  - Prevents cache thrashing on startup");
-    println!("  - Improves user experience");
+    // 4. 模拟缓存重建（故障恢复后）
+    println!("4. 模拟缓存重建场景");
+    println!("   清空缓存...");
+    cache.clear().await?;
 
-    println!("\n✓ Cache warmup example completed!");
+    println!("   重新预热...");
+    let start = std::time::Instant::new();
+
+    // 并发重新加载所有配置
+    let mut handles = Vec::new();
+    for (key, value, _) in &configs {
+        let cache = cache.clone();
+        let k = key.clone();
+        let v = value.clone();
+        let handle = tokio::spawn(async move {
+            cache.set(&k, &v, None).await?;
+            Ok::<(), Box<dyn std::error::Error>>(())
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.await??;
+    }
+
+    let elapsed = start.elapsed();
+    println!("   ✓ 缓存重建完成，耗时: {:?}", elapsed);
+    println!();
+
+    // 5. 统计信息
+    println!("5. 预热后统计");
+    let stats = cache.stats().await?;
+    println!("   - 总条目数: {}", stats.item_count());
+    println!("   - 命中次数: {}", stats.hit_count());
+    println!();
+
+    println!("=== 缓存预热示例完成 ===");
     Ok(())
 }
