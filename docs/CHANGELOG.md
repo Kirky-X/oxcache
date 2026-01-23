@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-01-24
+
+### Refactor
+
+- **Examples**: Adapted all examples to the new Cache API (`set()` / `set_with_ttl()` separation)
+- **Examples**: Updated type signatures for `get()` and `delete()` to use `&String`
+- **Examples**: Added `Serialize/Deserialize` derive for cacheable structs
+- **Examples**: Simplified MySQL example, focused on connection demonstration
+- **Examples**: Removed obsolete TTL expiration tests (API changed)
+- **Examples**: Unified `tokio::time::sleep` and `std::time::Duration` usage
+- **Examples**: Fixed trailing newline issues
+
+### Testing
+
+- **All tests passing**: 163 tests (17 unit + 141 integration + 5 doc)
+- **CI checks passing**: Format, Clippy, Deny (licenses + sources)
+
 ## [Unreleased]
 
 ### Security
