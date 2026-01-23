@@ -33,6 +33,20 @@ Oxcache 提供了强大的配置验证和自动修复功能，确保缓存配置
 
 ## 使用方式
 
+### validate_and_fix() 方法签名
+
+```rust
+pub fn validate_and_fix(&self) -> (FixedConfigResult, Option<CustomTieredConfig>)
+```
+
+**返回值说明**：
+- `FixedConfigResult` - 验证结果，包含：
+  - `is_valid: bool` - 配置是否有效
+  - `l1_backend: Option<BackendType>` - L1 后端类型
+  - `l2_backend: Option<BackendType>` - L2 后端类型
+  - `warnings: Vec<String>` - 自动修复产生的警告信息
+- `Option<CustomTieredConfig>` - 修复后的配置（如果启用了自动修复且修复成功）
+
 ### 方式 1：使用 CustomTieredConfig
 
 ```rust
@@ -60,6 +74,11 @@ if let Some(fixed) = fixed_config {
 } else {
     println!("❌ 配置无法自动修复");
 }
+
+// 查看修复警告
+for warning in &result.warnings {
+    println!("警告: {}", warning);
+}
 ```
 
 ### 方式 2：使用 Builder 模式
@@ -77,6 +96,18 @@ let config = CustomTieredConfigBuilder::new()
 
 // 自动修复并验证
 let (result, fixed_config) = config.validate_and_fix();
+
+// 检查验证结果
+if result.is_valid() {
+    println!("✅ 配置有效");
+} else {
+    println!("❌ 配置无效: {}", result.get_report());
+}
+
+// 查看修复警告
+for warning in &result.warnings {
+    println!("警告: {}", warning);
+}
 ```
 
 ### 方式 3：从配置文件加载
@@ -90,14 +121,17 @@ auto_fix = true       # ✅ 启用自动修复
 ```
 
 ```rust
-use oxcache::backend::custom_tiered::CustomTieredConfigBuilder;
+use oxcache::backend::custom_tiered::load_from_file;
 
-let config = CustomTieredConfigBuilder::new()
-    .from_file("config.toml")  // 加载配置
-    .await?;
+// 从文件加载配置（会自动验证和修复）
+let config = load_from_file("config.toml", None).await?;
+println!("✅ 配置已加载并验证");
 
-// 自动修复
-let (result, fixed_config) = config.validate_and_fix();
+// 查看验证报告
+let (result, _) = config.validate_and_fix();
+if !result.is_valid() {
+    println!("警告: {}", result.get_report());
+}
 ```
 
 ## 配置选项
@@ -116,6 +150,48 @@ pub struct AutoFixConfig {
 - `enabled: true` - 启用自动修复（默认）
 - `warn_on_fix: true` - 输出警告日志（默认）
 
+### FixedConfigResult
+
+```rust
+pub struct FixedConfigResult {
+    /// 配置是否有效
+    pub is_valid: bool,
+    /// L1 后端类型（如果有效）
+    pub l1_backend: Option<BackendType>,
+    /// L2 后端类型（如果有效）
+    pub l2_backend: Option<BackendType>,
+    /// 修复警告列表
+    pub warnings: Vec<String>,
+}
+```
+
+- `is_valid: bool` - 配置是否有效
+- `l1_backend: Option<BackendType>` - L1 后端类型
+- `l2_backend: Option<BackendType>` - L2 后端类型
+- `warnings: Vec<String>` - 自动修复产生的警告信息
+
+### 方法
+
+#### FixedConfigResult::is_valid()
+
+检查配置是否有效。
+
+```rust
+let (result, _) = config.validate_and_fix();
+if result.is_valid() {
+    println!("✅ 配置有效");
+}
+```
+
+#### FixedConfigResult::get_report()
+
+获取配置验证报告。
+
+```rust
+let (result, _) = config.validate_and_fix();
+println!("{}", result.get_report());
+```
+
 ## 验证报告
 
 ### 获取验证报告
@@ -123,6 +199,15 @@ pub struct AutoFixConfig {
 ```rust
 let result = config.validate();
 let report = result.get_validation_report();
+
+println!("{}", report);
+```
+
+### 获取修复结果报告
+
+```rust
+let (result, fixed_config) = config.validate_and_fix();
+let report = result.get_report();
 
 println!("{}", report);
 ```
@@ -137,6 +222,14 @@ println!("{}", report);
 🔧 Suggested fixes:
   - L1: 'redis' → 'moka' (reason: Backend type 'redis' does not support layer L1. Only supports L2 layer)
   - L2: 'moka' → 'redis' (reason: Backend type 'moka' does not support layer L2. Only supports L1 layer)
+```
+
+### 修复结果报告示例
+
+```
+Invalid configuration:
+  - Auto-fixed L1 from 'redis' to 'moka'
+  - Auto-fixed L2 from 'moka' to 'redis'
 ```
 
 ## 参数验证
@@ -248,6 +341,7 @@ let (result, fixed_config) = config.validate_and_fix();
 // 配置验证失败，但不会自动修复
 assert!(!result.is_valid());
 assert!(fixed_config.is_none());
+assert!(!result.warnings.is_empty());
 ```
 
 ### 自定义警告行为
@@ -256,8 +350,15 @@ assert!(fixed_config.is_none());
 let config = CustomTieredConfigBuilder::new()
     .l1(BackendType::Redis)
     .auto_fix(true)
-    .with_warn_on_fix(false)  // 禁用警告日志
     .build();
+
+// 或者使用 AutoFixConfig 直接控制
+let auto_fix = AutoFixConfig::new()
+    .with_enabled(true)
+    .with_warn_on_fix(false);  // 禁用警告日志
+
+let mut config = CustomTieredConfig::new();
+config.auto_fix = auto_fix;
 ```
 
 ## 最佳实践
@@ -268,12 +369,12 @@ let config = CustomTieredConfigBuilder::new()
 2. **启用警告日志**：设置 `warn_on_fix = true` 以便追踪配置修复
 3. **验证配置**：在应用启动时验证配置并处理修复结果
 4. **使用 Builder 模式**：使用 Builder 模式创建配置，链式调用更清晰
-5. **检查验证结果**：始终检查 `validate_and_fix()` 的返回结果
+5. **检查验证结果**：始终检查 `validate_and_fix()` 的返回结果和警告信息
 
 ### ❌ 避免做法
 
 1. **禁用自动修复**：不要在生产环境中禁用自动修复
-2. **忽略验证结果**：不要忽略 `validate_and_fix()` 的返回值
+2. **忽略验证结果**：不要忽略 `validate_and_fix()` 的返回值和警告
 3. **硬编码错误配置**：避免在代码中硬编码错误的配置
 4. **跳过验证**：不要跳过配置验证直接使用
 
@@ -293,7 +394,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .l1(BackendType::Redis)  // ❌ 错误：Redis 不应该作为 L1
         .l2(BackendType::Moka)   // ❌ 错误：Moka 不应该作为 L2
         .auto_fix(true)          // ✅ 启用自动修复
-        .with_warn_on_fix(true)  // ✅ 启用警告日志
         .build();
 
     println!("2. 原始配置：");
@@ -312,19 +412,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("✅ 配置有效，无需修复");
     } else {
         println!("❌ 配置存在问题");
-        println!("{}", result.get_validation_report());
+        println!("{}", result.get_report());
     }
 
+    // 5. 显示修复警告
+    if !result.warnings.is_empty() {
+        println!("\n4. 修复警告：");
+        for warning in &result.warnings {
+            println!("   - {}", warning);
+        }
+    }
+
+    // 6. 显示修复后的配置
     if let Some(fixed) = fixed_config {
-        println!("\n4. 自动修复结果：");
+        println!("\n5. 自动修复结果：");
         println!("   L1 后端: {} → {}", BackendType::Redis, fixed.l1.backend_type);
         println!("   L2 后端: {} → {}", BackendType::Moka, fixed.l2.backend_type);
-        println!("   修复警告: {}", fixed.warnings.len());
     }
 
-    // 5. 使用修复后的配置
+    // 7. 使用修复后的配置
     if let Some(fixed) = fixed_config {
-        println!("\n5. 使用修复后的配置创建缓存...");
+        println!("\n6. 使用修复后的配置创建缓存...");
         // 在这里使用 fixed 配置创建缓存实例
         println!("   ✅ 缓存创建成功");
     }

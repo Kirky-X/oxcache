@@ -35,47 +35,103 @@ Oxcache is a multi-level caching system designed for high-performance, productio
 
 ```mermaid
 graph TD
-    A[Application<br/>Functions with #[cached]] --> B[Cache Manager<br/>DashMap: Service → Client]
+    A[Application<br/>Functions with #[cached]] --> B[Internal Registry<br/>CACHE_REGISTRY]
     
-    B --> C[TwoLevelClient]
-    B --> D[Sync Layer<br/>Pub/Sub]
+    B --> C[Cache&lt;K,V&gt;]
+    B --> D[Backend Layer]
     
-    C --> E[L1 Client<br/>Moka]
-    C --> F[L2 Client<br/>Redis]
+    C --> E[CacheOps Wrapper]
+    D --> F[MemoryBackend]
+    D --> G[RedisBackend]
+    D --> H[TieredBackend]
     
-    D --> G[Recovery<br/>WAL]
+    F --> I[L1 Cache<br/>Moka]
+    G --> J[L2 Cache<br/>Redis]
+    H --> I
+    H --> J
     
-    E --> H[Memory<br/>LRU]
-    F --> I[Redis<br/>Cluster]
-    D --> J[Pub/Sub<br/>Channel]
+    D --> K[Sync Layer<br/>Pub/Sub]
+    D --> L[Recovery<br/>WAL]
+    
+    K --> M[Pub/Sub Channel]
+    L --> N[WAL Storage]
     
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
     style D fill:#fff3e0
     style E fill:#f1f8e9
-    style F fill:#fdf2e9
-    style G fill:#fce4ec
-    style H fill:#e8f5e8
-    style I fill:#fdf2e9
-    style J fill:#fff3e0
+    style F fill:#e8f5e8
+    style G fill:#fdf2e9
+    style H fill:#fff3e0
+    style I fill:#f1f8e9
+    style J fill:#fdf2e9
+    style K fill:#fff3e0
+    style L fill:#fce4ec
+    style M fill:#fff3e0
+    style N fill:#fce4ec
 ```
 
 ## Components
 
-### 1. Cache Manager (`manager.rs`)
+### 1. Internal Cache Registry (`internal.rs`)
 
-**Responsibility**: Central registry for all cache clients
+**Responsibility**: Central registry for all cache instances used by the `#[cached]` macro
 
 **Data Structures**:
-- `DashMap<String, Arc<dyn CacheOps>>`: Thread-safe service-to-client mapping
+- `CACHE_REGISTRY: OnceLock<DashMap<String, Arc<dyn CacheOps>>>`: Thread-safe service-to-client mapping
+
+**Key Internal Functions**:
+- `__internal_register_cache(service_name, cache)`: Register a cache instance
+- `__internal_get_cache(service_name)`: Retrieve cache by service name
+- `__internal_remove_cache(service_name)`: Remove a cache registration
+- `__internal_clear_all()`: Shutdown and clear all registered caches
+
+**Thread Safety**: Uses `DashMap` for lock-free concurrent access and `OnceLock` for lazy initialization
+
+**Usage Pattern**:
+```rust
+// Register cache for #[cached] macro
+let cache: Cache<String, User> = Cache::new().await?;
+cache.register_for_macro("my_service").await;
+
+// Macro automatically retrieves cache from registry
+#[cached(service = "my_service", ttl = 300)]
+async fn get_user(id: u64) -> User { ... }
+```
+
+### 2. Feature Information (`manager.rs`)
+
+**Responsibility**: Provide runtime feature status information
+
+**Public Functions**:
+- `get_l1_feature_info()`: Get L1 cache feature status
+- `get_l2_feature_info()`: Get L2 cache feature status
+- `get_all_feature_info()`: Get all feature status
+- `is_l1_enabled()`: Check if L1 is enabled
+- `is_l2_enabled()`: Check if L2 is enabled
+
+### 3. Cache Interface (`cache.rs`)
+
+**Responsibility**: Unified type-safe cache interface
+
+**Key Types**:
+- `Cache<K, V>`: Main cache type with generic key and value types
+- `BackendCacheOps`: CacheOps wrapper for backend compatibility
 
 **Key Methods**:
-- `init(config: OxcacheConfig)`: Initialize all services
-- `get_client(name: &str)`: Retrieve client by service name
-- `shutdown_all()`: Cleanup all clients
+- `new()`: Create cache with default memory backend
+- `memory()`: Create cache with memory backend
+- `redis(connection_string)`: Create cache with Redis backend
+- `tiered(l1_capacity, l2_connection_string)`: Create tiered cache
+- `builder()`: Create cache builder for advanced configuration
+- `get(key)`: Get value from cache
+- `set(key, value)`: Set value in cache
+- `get_or(key, fallback)`: Get value or compute using fallback
+- `register_for_macro(service_name)`: Register for #[cached] macro
+- `to_cache_ops()`: Convert to CacheOps wrapper
 
-**Thread Safety**: Uses `DashMap` for lock-free concurrent access
+**Thread Safety**: All operations are thread-safe via Arc<dyn CacheBackend>
 
 ### 2. L1 Cache Backend (`backend/l1.rs`)
 
@@ -118,26 +174,76 @@ pub struct L1Config {
 - Pub/Sub for invalidation
 - Write-ahead logging
 
-### 4. Two-Level Cache Client (`client/two_level.rs`)
+### 4. Backend Layer (`backend/`)
 
-**Read Path**:
+**Responsibility**: Pluggable cache backend implementations
+
+**Backend Types**:
+- `MemoryBackend`: In-memory cache using Moka
+- `RedisBackend`: Redis distributed cache
+- `TieredBackend`: Two-level cache (L1 + L2)
+
+**Backend Trait**:
+```rust
+#[async_trait]
+pub trait CacheBackend: Send + Sync {
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+    async fn delete(&self, key: &str) -> Result<()>;
+    async fn exists(&self, key: &str) -> Result<bool>;
+    async fn clear(&self) -> Result<()>;
+    async fn stats(&self) -> Result<HashMap<String, String>>;
+    async fn health_check(&self) -> Result<bool>;
+    async fn close(&self) -> Result<()>;
+}
 ```
-1. Check L1 cache
+
+**Tiered Backend Read Path**:
+```
+1. Check L1 cache (MemoryBackend)
 2. If hit → Return value
-3. If miss → Check L2 cache
+3. If miss → Check L2 cache (RedisBackend)
 4. If L2 hit → Populate L1 → Return value
 5. If L2 miss → Return None
 ```
 
-**Write Path**:
+**Tiered Backend Write Path**:
 ```
-1. Write to L1 cache (async)
+1. Write to L1 cache (async, immediate)
 2. Write to L2 cache (async, can be batched)
 3. Write to WAL for durability
 4. Publish invalidation if needed
 ```
 
-### 5. Batch Writer (`sync/batch_writer.rs`)
+### 5. Client Layer (`client/`)
+
+**Responsibility**: Cache client implementations and database integration
+
+**Client Types**:
+- `L1Client`: L1 cache client
+- `L2Client`: L2 cache client
+- `TieredCacheClient`: Two-level cache client
+- `DbLoader`: Database loader for cache-aside pattern
+
+**CacheOps Trait**:
+```rust
+#[async_trait]
+pub trait CacheOps: Send + Sync {
+    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
+    async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
+    async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
+    async fn delete(&self, key: &str) -> Result<()>;
+    async fn clear_l1(&self) -> Result<()>;
+    async fn clear_l2(&self) -> Result<()>;
+    async fn shutdown(&self) -> Result<()>;
+    fn serializer(&self) -> &SerializerEnum;
+    fn as_any(&self) -> &dyn Any;
+    fn into_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
+}
+```
+
+### 6. Batch Writer (`sync/batch_writer.rs`)
 
 **Purpose**: Optimize L2 write throughput by batching multiple operations
 
@@ -148,7 +254,7 @@ pub struct L1Config {
 
 **Performance**: 10-50x improvement in throughput for write-heavy workloads
 
-### 6. Invalidation Service (`sync/invalidation.rs`)
+### 7. Invalidation Service (`sync/invalidation.rs`)
 
 **Purpose**: Ensure consistency across multiple instances
 
@@ -167,7 +273,7 @@ pub struct L1Config {
 
 **Version-Based Invalidation**: Prevents race conditions and thundering herd
 
-### 7. Recovery Layer (`recovery/`)
+### 8. Recovery Layer (`recovery/`)
 
 #### Write-Ahead Log (WAL) (`wal.rs`)
 
@@ -204,7 +310,7 @@ WAL Entry:
 - **Low memory**: Reduce L1 capacity
 - **Disk full**: Pause WAL, log warning
 
-### 8. Database Integration (`database/`)
+### 9. Database Integration (`database/`)
 
 **Supported Databases**:
 - MySQL (`sqlx-mysql`)
@@ -228,7 +334,7 @@ pub enum PartitionStrategy {
 4. Return value
 ```
 
-### 9. Security Features
+### 10. Security Features
 
 #### Bloom Filter (`bloom_filter.rs`)
 
@@ -268,49 +374,169 @@ pub struct RateLimitConfig {
 
 ## Data Flow
 
-### Read Operation
+### #[cached] Macro Workflow
+
+The `#[cached]` macro provides zero-boilerplate caching by automatically handling cache lookup, storage, and serialization:
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Macro as #[cached] Macro
+    participant Registry as CACHE_REGISTRY
+    participant Cache as Cache<K,V>
+    participant Backend as CacheBackend
+
+    App->>Macro: Call cached function
+    Macro->>Macro: Generate cache key
+    Macro->>Registry: __internal_get_cache("service")
+    Registry-->>Macro: Arc<dyn CacheOps>
+    Macro->>Cache: get_bytes(key)
+    Cache->>Backend: get(key)
+    Backend-->>Cache: Some(Vec<u8>)
+    Cache-->>Macro: Some(bytes)
+    Macro->>Macro: Deserialize bytes
+    Macro-->>App: Return cached value
+
+    Note over App,Backend: Cache Miss Path
+    Macro->>Macro: Execute original function
+    Macro->>Macro: Serialize result
+    Macro->>Cache: set_bytes(key, bytes)
+    Cache->>Backend: set(key, bytes)
+    Macro-->>App: Return result
+```
+
+**Macro Generated Code Structure**:
+```rust
+#[cached(service = "my_service", ttl = 300)]
+async fn get_user(id: u64) -> Result<User> {
+    // ... original function body ...
+}
+```
+
+Expands to approximately:
+```rust
+async fn get_user(id: u64) -> Result<User> {
+    let cache_key = format!("my_service:get_user:{:?}", id);
+
+    // Get cache from registry
+    let client = match oxcache::__internal_get_cache("my_service") {
+        Some(c) => c,
+        None => return { /* original code */ }.await,
+    };
+
+    // Try to get from cache
+    if let Ok(Some(bytes)) = client.get_bytes(&cache_key).await {
+        if let Ok(val) = client.serializer().deserialize::<User>(&bytes) {
+            return Ok(val);
+        }
+    }
+
+    // Execute original function
+    let result = { /* original code */ }.await;
+
+    // Cache result if successful
+    if let Ok(ref val) = result {
+        if let Ok(bytes) = client.serializer().serialize(val) {
+            let _ = client.set_bytes(&cache_key, bytes, Some(300)).await;
+        }
+    }
+
+    result
+}
+```
+
+### Read Operation (with #[cached] macro)
 
 ```mermaid
 flowchart TD
-    A[Application<br/>#[cached]] --> B{Check L1<br/>Moka}
-    B -->|hit| C[Return value]
-    B -->|miss| D{Check L2<br/>Redis}
-    D -->|hit| E[Populate L1<br/>Return value]
-    D -->|miss| F[Return None]
+    A[Application<br/>#[cached] function] --> B[Generate cache key]
+    B --> C[Get cache from<br/>CACHE_REGISTRY]
+    C --> D{Cache found?}
+    D -->|no| E[Execute function<br/>uncached]
+    D -->|yes| F[get_bytes from cache]
+    F --> G{Cache hit?}
+    G -->|yes| H[Deserialize value]
+    G -->|no| E
+    H --> I[Return cached value]
+    E --> J[Execute original code]
+    J --> K{Result Ok?}
+    K -->|yes| L[Serialize result]
+    L --> M[set_bytes to cache]
+    K -->|no| N[Return error]
+    M --> O[Return result]
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#f1f8e9
-    style F fill:#fce4ec
+    style C fill:#f3e5f5
+    style D fill:#ffeb3b
+    style E fill:#fce4ec
+    style F fill:#fff3e0
+    style G fill:#ffeb3b
+    style H fill:#f1f8e9
+    style I fill:#e8f5e8
+    style J fill:#fce4ec
+    style K fill:#ffeb3b
+    style L fill:#f1f8e9
+    style M fill:#fff3e0
+    style N fill:#fce4ec
+    style O fill:#e8f5e8
 ```
 
-### Write Operation
+### Tiered Backend Read Path
 
 ```mermaid
 flowchart TD
-    A[Application] --> B[Write to L1<br/>async, immediate]
-    B --> C[Add to Batch<br/>Writer buffer]
-    C --> D[Write to WAL<br/>async]
-    D --> E[Flush to L2<br/>batch]
-    E --> F{Buffer full<br/>OR timeout?}
-    F -->|yes| G[Use Redis MSET]
-    F -->|no| H[Continue buffering]
-    G --> I[Publish invalidation<br/>Pub/Sub]
-    H --> I
-    I --> J[Key, version,<br/>timestamp]
+    A[Cache.get_bytes] --> B[TieredBackend.get]
+    B --> C{Check L1<br/>MemoryBackend}
+    C -->|hit| D[Return value]
+    C -->|miss| E{Check L2<br/>RedisBackend}
+    E -->|hit| F[Populate L1]
+    F --> D
+    E -->|miss| G[Return None]
     
     style A fill:#e1f5fe
-    style B fill:#f1f8e9
+    style B fill:#fff3e0
     style C fill:#fff3e0
+    style D fill:#e8f5e8
+    style E fill:#fff3e0
+    style F fill:#f1f8e9
+    style G fill:#fce4ec
+```
+
+### Write Operation (with #[cached] macro)
+
+```mermaid
+flowchart TD
+    A[Application<br/>#[cached] function] --> B[Execute function]
+    B --> C[Result Ok?]
+    C -->|no| D[Return error]
+    C -->|yes| E[Serialize result]
+    E --> F[Get cache from<br/>CACHE_REGISTRY]
+    F --> G[set_bytes to cache]
+    G --> H{Cache type?}
+    H -->|l1-only| I[set_l1_bytes]
+    H -->|l2-only| J[set_l2_bytes]
+    H -->|two-level| K[set_bytes to both]
+    I --> L[Return result]
+    J --> L
+    K --> M[Write to L1<br/>immediate]
+    M --> N[Batch write to L2]
+    N --> L
+    
+    style A fill:#e1f5fe
+    style B fill:#fce4ec
+    style C fill:#ffeb3b
     style D fill:#fce4ec
-    style E fill:#fdf2e9
-    style F fill:#ffeb3b
-    style G fill:#e8f5e8
-    style H fill:#f3e5f5
-    style I fill:#fff3e0
-    style J fill:#e1f5fe
+    style E fill:#f1f8e9
+    style F fill:#f3e5f5
+    style G fill:#fff3e0
+    style H fill:#ffeb3b
+    style I fill:#f1f8e9
+    style J fill:#fdf2e9
+    style K fill:#fff3e0
+    style L fill:#e8f5e8
+    style M fill:#f1f8e9
+    style N fill:#fdf2e9
 ```
 
 ## Consistency Model

@@ -10,6 +10,10 @@
 
 </div>
 
+> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.2.0+** 编写。
+> 
+> 如果你正在使用 **v0.1.x** 版本，请参考本文档末尾的 [API 迁移指南](#api-迁移指南) 进行升级。
+
 ## 📋 目录
 
 - [简介](#简介)
@@ -133,27 +137,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.1.3"
+oxcache = "0.2"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含，无需单独添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.3", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.2", features = ["macros"] }`
 
 #### 特性分层选择
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.1.3", features = ["full"] }
+oxcache = { version = "0.2", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.1.3", features = ["core"] }
+oxcache = { version = "0.2", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.1.3", features = ["minimal"] }
+oxcache = { version = "0.2", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.2", features = ["core", "macros", "metrics"] }
 ```
 
 #### 特性依赖说明
@@ -173,7 +177,7 @@ oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 ```toml
 [dependencies]
-oxcache = { version = "0.1.2", default-features = false }
+oxcache = { version = "0.2", default-features = false }
 ```
 
 或者使用命令行：
@@ -186,8 +190,53 @@ cargo add oxcache
 
 让我们通过一个简单的例子来验证安装。我们将使用 `#[cached]` 宏来为函数添加缓存功能：
 
+#### 方法一：使用 Builder 模式（推荐）
+
+```rust
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::l1::L1Backend;
+use oxcache::backend::l2::L2Backend;
+use oxcache::backend::Backend;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct User {
+    id: u64,
+    name: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用 Builder 模式创建双层缓存
+    let cache = CacheBuilder::new()
+        .with_name("user_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,  // L1: 最大容量 10000
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    // 第一次调用：写入缓存
+    let user = User { id: 1, name: "User 1".to_string() };
+    cache.set("user:1", &user, Some(600)).await?;
+    println!("First call: {:?}", user);
+
+    // 第二次调用：从缓存读取
+    let cached_user: Option<User> = cache.get("user:1").await?;
+    println!("Cached call: {:?}", cached_user);
+
+    Ok(())
+}
+```
+
+#### 方法二：使用 #[cached] 宏
+
 ```rust
 use oxcache::macros::cached;
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -197,7 +246,7 @@ pub struct User {
 }
 
 // 使用 #[cached] 宏一行代码启用缓存
-#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
+#[cached(cache = "user_cache", key = "user:{id}", ttl = 600)]
 async fn get_user(id: u64) -> Result<User, String> {
     // 模拟耗时的数据库查询
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -209,49 +258,76 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化缓存（从配置文件加载）
-    // 注意：init_from_file 已弃用，建议使用新的 Builder 模式
-    #[allow(deprecated)]
-    oxcache::init_from_file("config.toml").await?;
-    
+    // 初始化缓存（使用 Builder 模式）
+    let cache = CacheBuilder::new()
+        .with_name("user_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    // 注册缓存实例到全局管理器（供宏使用）
+    oxcache::manager::register_cache("user_cache".to_string(), cache).await?;
+
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
     println!("First call: {:?}", user);
-    
+
     // 第二次调用：直接从缓存返回（~0.1ms）
     let cached_user = get_user(1).await?;
     println!("Cached call: {:?}", cached_user);
-    
+
     Ok(())
 }
 ```
 
-创建对应的 `config.toml`：
+#### 方法三：仅 L1 缓存（内存缓存）
 
-```toml
-[global]
-default_ttl = 3600
-health_check_interval = 30
-serialization = "json"
-enable_metrics = true
+```rust
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend};
 
-[services.user_cache]
-cache_type = "two-level"
-ttl = 600
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建仅 L1 缓存
+    let cache = CacheBuilder::new()
+        .with_name("memory_cache")
+        .with_backend(Backend::l1(L1Backend::new(10000)?))
+        .build()?;
 
-  [services.user_cache.l1]
-  max_capacity = 10000
-  ttl = 300
-  tti = 180
-  initial_capacity = 1000
+    cache.set("key", &"value", Some(3600)).await?;
 
-  [services.user_cache.l2]
-  mode = "standalone"
-  connection_string = "redis://127.0.0.1:6379"
+    let val: Option<String> = cache.get("key").await?;
+    println!("Value: {:?}", val);
 
-  [services.user_cache.two_level]
-  write_through = true
-  promote_on_hit = true
+    Ok(())
+}
+```
+
+#### 方法四：仅 L2 缓存（Redis 缓存）
+
+```rust
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L2Backend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建仅 L2 缓存
+    let cache = CacheBuilder::new()
+        .with_name("redis_cache")
+        .with_backend(Backend::l2(L2Backend::new("redis://127.0.0.1:6379").await?))
+        .build()?;
+
+    cache.set("key", &"value", Some(3600)).await?;
+
+    let val: Option<String> = cache.get("key").await?;
+    println!("Value: {:?}", val);
+
+    Ok(())
+}
 ```
 
 ---
@@ -347,34 +423,74 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 ### 手动控制缓存
 
-你也可以绕过宏，直接使用客户端进行缓存操作：
+你也可以绕过宏，直接使用 `Cache` 实例进行缓存操作：
 
 ```rust
-use oxcache::{get_client, CacheOps};
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
 
 #[tokio::main]
-async fn main() {
-    oxcache::init_from_file("config.toml").await.unwrap();
-    
-    let client = get_client("my_service").unwrap();
-    
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建缓存实例
+    let cache = CacheBuilder::new()
+        .with_name("my_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
     // 标准操作：同时写入 L1 和 L2
-    client.set("key", &"value", None).await.unwrap();
-    
-    let val: Option<String> = client.get("key").await.unwrap();
+    cache.set("key", &"value", None).await?;
+
+    let val: Option<String> = cache.get("key").await?;
     assert_eq!(val, Some("value".to_string()));
-    
-    // 仅写入 L1（临时数据）
-    client.set_l1_only("temp_key", &temp_data, Some(60)).await?;
-    
-    // 仅写入 L2（共享数据）
-    client.set_l2_only("shared_key", &shared_data, Some(3600)).await?;
-    
+
     // 删除缓存
-    client.delete("key").await?;
-    
+    cache.delete("key").await?;
+
     // 检查键是否存在
-    let exists = client.exists("key").await?;
+    let exists = cache.exists("key").await?;
+    println!("Key exists: {}", exists);
+
+    // 批量操作
+    let mut batch = vec![];
+    for i in 0..10 {
+        batch.push((format!("key:{}", i), format!("value:{}", i)));
+    }
+
+    for (key, value) in batch {
+        cache.set(&key, &value, Some(3600)).await?;
+    }
+
+    // 清空缓存
+    cache.clear().await?;
+
+    Ok(())
+}
+```
+
+#### 直接操作后端
+
+如果需要更精细的控制，可以直接操作 L1 或 L2 后端：
+
+```rust
+use oxcache::backend::{Backend, L1Backend, L2Backend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let l1 = L1Backend::new(10000)?;
+    let l2 = L2Backend::new("redis://127.0.0.1:6379").await?;
+
+    // 仅写入 L1（临时数据）
+    l1.set("temp_key", b"temp_data", Some(60)).await?;
+
+    // 仅写入 L2（共享数据）
+    l2.set("shared_key", b"shared_data", Some(3600)).await?;
+
+    Ok(())
 }
 ```
 
@@ -485,17 +601,29 @@ init_tracing("my_app", Some("http://localhost:4317"));
 ### 优雅关闭
 
 ```rust
-use oxcache::manager::shutdown_all;
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
 
 #[tokio::main]
-async fn main() {
-    // 初始化缓存
-    oxcache::init_from_file("config.toml").await.expect("Failed to init cache");
-    
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建缓存实例
+    let cache = CacheBuilder::new()
+        .with_name("my_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
     // 你的应用逻辑
-    
+    cache.set("key", &"value", Some(3600)).await?;
+
     // 优雅关闭
-    shutdown_all().await.expect("Failed to shutdown cache clients");
+    cache.shutdown().await?;
+
+    Ok(())
 }
 ```
 
@@ -671,6 +799,295 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
 </td>
 </tr>
 </table>
+
+---
+
+## API 迁移指南
+
+本指南帮助你从 Oxcache v0.1.x 迁移到 v0.2.0+。
+
+### 📋 主要变化
+
+| 变化类型 | 旧 API (v0.1.x) | 新 API (v0.2.0+) |
+|---------|----------------|-----------------|
+| **初始化方式** | `init_from_file()` | `CacheBuilder` |
+| **获取客户端** | `get_client()` | 直接使用 `Cache` 实例 |
+| **关闭方式** | `shutdown_all()` | `cache.shutdown()` |
+| **配置方式** | 配置文件 + `Config` | Builder 模式 |
+| **宏参数** | `service` | `cache` |
+
+### 🔄 迁移步骤
+
+#### 步骤 1: 更新依赖
+
+```toml
+# 旧版本
+[dependencies]
+oxcache = "0.1.3"
+
+# 新版本
+[dependencies]
+oxcache = "0.2"
+```
+
+#### 步骤 2: 替换初始化代码
+
+**旧代码 (v0.1.x)**:
+
+```rust
+use oxcache::init_from_file;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 从配置文件初始化
+    init_from_file("config.toml").await?;
+    Ok(())
+}
+```
+
+**新代码 (v0.2.0+)**:
+
+```rust
+use oxcache::{CacheBuilder, Cache};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用 Builder 模式
+    let cache = CacheBuilder::new()
+        .with_name("my_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    // 注册缓存实例（供宏使用）
+    oxcache::manager::register_cache("my_cache".to_string(), cache).await?;
+    Ok(())
+}
+```
+
+#### 步骤 3: 替换缓存使用代码
+
+**旧代码 (v0.1.x)**:
+
+```rust
+use oxcache::{get_client, CacheOps};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_from_file("config.toml").await?;
+
+    let client = get_client("my_service")?;
+
+    client.set("key", &"value", None).await?;
+    let val: Option<String> = client.get("key").await?;
+
+    Ok(())
+}
+```
+
+**新代码 (v0.2.0+)**:
+
+```rust
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cache = CacheBuilder::new()
+        .with_name("my_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    cache.set("key", &"value", None).await?;
+    let val: Option<String> = cache.get("key").await?;
+
+    Ok(())
+}
+```
+
+#### 步骤 4: 更新宏参数
+
+**旧代码 (v0.1.x)**:
+
+```rust
+use oxcache::macros::cached;
+
+#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // ...
+}
+```
+
+**新代码 (v0.2.0+)**:
+
+```rust
+use oxcache::macros::cached;
+
+#[cached(cache = "user_cache", key = "user:{id}", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // ...
+}
+```
+
+#### 步骤 5: 替换关闭代码
+
+**旧代码 (v0.1.x)**:
+
+```rust
+use oxcache::manager::shutdown_all;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_from_file("config.toml").await?;
+
+    // 应用逻辑...
+
+    shutdown_all().await?;
+    Ok(())
+}
+```
+
+**新代码 (v0.2.0+)**:
+
+```rust
+use oxcache::{Cache, CacheBuilder};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cache = CacheBuilder::new()
+        .with_name("my_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    // 应用逻辑...
+
+    cache.shutdown().await?;
+    Ok(())
+}
+```
+
+### 📝 完整迁移示例
+
+**旧代码 (v0.1.x)**:
+
+```rust
+use oxcache::{init_from_file, get_client, CacheOps};
+use oxcache::macros::cached;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct User {
+    id: u64,
+    name: String,
+}
+
+#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // 数据库查询
+    Ok(User { id, name: format!("User {}", id) })
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_from_file("config.toml").await?;
+
+    let user = get_user(1).await?;
+    println!("User: {:?}", user);
+
+    shutdown_all().await?;
+    Ok(())
+}
+```
+
+**新代码 (v0.2.0+)**:
+
+```rust
+use oxcache::{Cache, CacheBuilder, CacheOps};
+use oxcache::backend::{Backend, L1Backend, L2Backend};
+use oxcache::macros::cached;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct User {
+    id: u64,
+    name: String,
+}
+
+#[cached(cache = "user_cache", key = "user:{id}", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // 数据库查询
+    Ok(User { id, name: format!("User {}", id) })
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建缓存实例
+    let cache = CacheBuilder::new()
+        .with_name("user_cache")
+        .with_backend(
+            Backend::tiered(
+                L1Backend::new(10000)?,
+                L2Backend::new("redis://127.0.0.1:6379").await?,
+            )
+        )
+        .build()?;
+
+    // 注册缓存实例（供宏使用）
+    oxcache::manager::register_cache("user_cache".to_string(), cache).await?;
+
+    let user = get_user(1).await?;
+    println!("User: {:?}", user);
+
+    // 获取缓存实例并关闭
+    let cache = oxcache::manager::get_cache("user_cache")?;
+    cache.shutdown().await?;
+
+    Ok(())
+}
+```
+
+### ⚠️ 废弃 API 列表
+
+以下 API 在 v0.2.0+ 中已废弃，请使用新的替代方案：
+
+| 废弃 API | 替代方案 |
+|---------|---------|
+| `init_from_file()` | `CacheBuilder` |
+| `get_client()` | 直接使用 `Cache` 实例 |
+| `shutdown_all()` | `cache.shutdown()` |
+| `Config` 结构体 | `CacheBuilder` |
+| `#[cached(service)]` | `#[cached(cache)]` |
+
+### 💡 迁移提示
+
+1. **逐步迁移**: 建议先迁移一个模块，验证后再迁移其他模块
+2. **保持兼容**: 如果需要，可以在过渡期内同时使用新旧 API
+3. **更新测试**: 确保所有测试用例都使用新 API
+4. **文档更新**: 更新项目文档和示例代码
+
+### 🆘 需要帮助？
+
+如果在迁移过程中遇到问题，请：
+
+1. 查看 [API 参考](API_REFERENCE.md) 了解新 API 的详细用法
+2. 查看 [示例代码](../examples/) 获取更多示例
+3. [提交 Issue](https://github.com/Kirky-X/oxcache/issues) 获取帮助
 
 ---
 
