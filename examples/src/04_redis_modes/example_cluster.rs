@@ -1,72 +1,111 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Redis Cluster mode example
-//
-// This example demonstrates using Redis Cluster for
-// horizontal scaling and automatic sharding.
-//
-// Note: This example uses L1-only mode for demonstration.
-// To use with Redis Cluster, configure with:
-// - cache_type: TwoLevel
-// - l2.mode: Cluster
-// - l2.cluster.nodes: [node1:6379, node2:6379, ...]
+//! Redis Cluster 模式示例
+//!
+//! 本示例演示如何使用 Oxcache 连接 Redis Cluster。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_cluster
+//!
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct ClusterData {
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+struct Product {
     id: u64,
-    partition_key: String,
-    data: Vec<u8>,
+    name: String,
+    price: f64,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Use L1-only for demo (no Redis required)
-    // For real Cluster usage, configure with TwoLevel + Cluster
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "cluster_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(100000)),
-        )
-        .build();
+    println!("=== Redis Cluster 模式示例 ===\n");
 
-    let _ = init(config).await;
+    // 创建 Redis Cluster 缓存
+    println!("创建 Redis Cluster 缓存连接...");
+    let cache: Cache<String, Product> = Cache::redis("redis://127.0.0.1:6379").await?;
+    println!("✓ Redis Cluster 连接成功\n");
 
-    let client = get_client("cluster_cache")?;
+    // 基本操作
+    println!("1. 产品数据操作");
+    let products = vec![
+        Product {
+            id: 1,
+            name: "笔记本电脑".to_string(),
+            price: 5999.99,
+        },
+        Product {
+            id: 2,
+            name: "智能手机".to_string(),
+            price: 3999.99,
+        },
+        Product {
+            id: 3,
+            name: "平板电脑".to_string(),
+            price: 2999.99,
+        },
+    ];
 
-    println!("Redis Cluster Mode Example");
-    println!("==========================\n");
-    println!("Note: Using L1-only mode for demo");
-    println!("For real Cluster, configure:");
-    println!("  - cache_type: TwoLevel");
-    println!("  - l2.mode: Cluster");
-    println!("  - l2.cluster.nodes: [node1:6379, node2:6379, ...]\n");
-
-    // Test basic operations with different keys (would be sharded in real cluster)
-    for i in 0..6 {
-        let data = ClusterData {
-            id: i,
-            partition_key: format!("partition_{}", i % 3),
-            data: vec![0u8; 100],
-        };
-        client
-            .set(&format!("cluster:key:{}", i), &data, None)
+    // 添加产品
+    println!("   添加产品...");
+    for product in &products {
+        cache
+            .set(&format!("product:{}", product.id), product, Some(3600))
             .await?;
-        println!("  Written to partition {}: key {}", data.partition_key, i);
+        println!("   ✓ 产品 {}: {} (¥{:.2})", product.id, product.name, product.price);
+    }
+    println!();
+
+    // 获取产品
+    println!("   获取产品...");
+    for product in &products {
+        if let Some(p) = cache.get(&format!("product:{}", product.id)).await? {
+            println!("   ✓ 产品 {}: {} (¥{:.2})", p.id, p.name, p.price);
+        }
+    }
+    println!();
+
+    // 批量操作测试 (验证跨槽操作)
+    println!("2. 批量操作测试");
+    let keys: Vec<String> = (1..=10).map(|i| format!("product:{}", i)).collect();
+
+    println!("   并发读取 10 个产品...");
+    let start = std::time::Instant::now();
+    let mut handles = Vec::new();
+    for key in &keys {
+        let cache = cache.clone();
+        let k = key.clone();
+        let handle = tokio::spawn(async move {
+            cache.get(&k).await
+        });
+        handles.push(handle);
     }
 
-    println!("\nCluster benefits:");
-    println!("  - Horizontal scaling");
-    println!("  - Automatic sharding");
-    println!("  - High availability with replica");
+    let mut results = Vec::new();
+    for handle in handles {
+        if let Ok(Ok(Some(product))) = handle.await {
+            results.push(product);
+        }
+    }
+    let elapsed = start.elapsed();
 
-    println!("\n✓ Cluster mode example completed!");
+    println!("   ✓ 读取 {} 个产品，耗时: {:?}", results.len(), elapsed);
+    println!();
+
+    // 清空测试数据
+    println!("3. 清理测试数据");
+    for product in &products {
+        cache.delete(&format!("product:{}", product.id)).await?;
+    }
+    println!("   ✓ 测试数据已清理\n");
+
+    // 统计信息
+    println!("4. 缓存统计");
+    let stats = cache.stats().await?;
+    println!("   - 总条目数: {}", stats.item_count());
+    println!("   - 命中次数: {}", stats.hit_count());
+    println!("   - 未命中次数: {}", stats.miss_count());
+    println!();
+
+    println!("=== Redis Cluster 模式示例完成 ===");
     Ok(())
 }

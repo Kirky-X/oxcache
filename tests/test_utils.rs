@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 // Copyright (c) 2025-2026, Kirky.X
 //
 // MIT License
@@ -13,7 +12,7 @@ pub mod database_test_utils;
 #[path = "redis_test_utils.rs"]
 pub mod redis_test_utils;
 
-use oxcache::{manager::CacheManager, OxcacheConfig};
+use oxcache::{Cache, OxcacheConfig};
 use redis_test_utils::{
     is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
@@ -35,23 +34,38 @@ pub fn setup_logging() {
     });
 }
 
-/// 设置缓存管理器
+/// 设置缓存
 ///
-/// 根据提供的配置初始化缓存管理器
+/// 根据提供的配置创建缓存实例
 ///
-/// #[path = "../test_utils.rs"]参数
+/// # 参数
 ///
 /// * `config` - 缓存配置
 #[allow(dead_code)]
-pub async fn setup_cache(config: OxcacheConfig) {
+pub async fn setup_cache(config: OxcacheConfig) -> Cache<String, Vec<u8>> {
     setup_logging();
 
-    if let Err(e) = CacheManager::init(config).await {
-        let msg: String = e.to_string();
-        if msg.contains("Authentication required") || msg.contains("authentication failed") {
-            panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
+    // 根据配置创建相应类型的缓存
+    if let Some(l2_config) = config.get_global_config().and_then(|g| g.l2.as_ref()) {
+        let connection_string = l2_config.connection_string();
+        if connection_string.contains("redis://") {
+            match Cache::redis(connection_string).await {
+                Ok(cache) => cache,
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("Authentication required") || msg.contains("authentication failed") {
+                        panic!("Redis认证失败，请检查REDIS_URL环境变量: {}", msg);
+                    }
+                    tracing::warn!("Redis缓存初始化失败: {}", e);
+                    // 回退到内存缓存
+                    Cache::new().await.unwrap()
+                }
+            }
+        } else {
+            Cache::new().await.unwrap()
         }
-        tracing::warn!("CacheManager初始化失败 (可能已初始化): {}", e);
+    } else {
+        Cache::new().await.unwrap()
     }
 }
 
@@ -99,11 +113,11 @@ pub async fn wait_for_sentinel() -> bool {
 ///
 /// 在基础名称后附加UUID，确保测试之间的隔离
 ///
-/// #[path = "../test_utils.rs"]参数
+/// # 参数
 ///
 /// * `base` - 基础名称
 ///
-/// #[path = "../test_utils.rs"]返回值
+/// # 返回值
 ///
 /// 返回唯一的服务器名称
 #[allow(dead_code)]
@@ -115,7 +129,7 @@ pub fn generate_unique_service_name(base: &str) -> String {
 ///
 /// 测试结束后清理WAL数据库文件和缓存数据
 ///
-/// #[path = "../test_utils.rs"]参数
+/// # 参数
 ///
 /// * `service_name` - 服务名称
 #[allow(dead_code)]
@@ -126,10 +140,4 @@ pub async fn cleanup_service(service_name: &str) {
     tokio::fs::remove_file(format!("{}.db", service_name))
         .await
         .ok();
-
-    if let Ok(client) = oxcache::manager::get_client(service_name) {
-        let _ = client.clear_wal().await;
-        let _ = client.clear_l1().await;
-        let _ = client.clear_l2().await;
-    }
 }

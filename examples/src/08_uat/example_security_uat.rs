@@ -1,197 +1,151 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Security UAT (User Acceptance Testing) example
-//
-// This example validates security requirements and protections.
+//! 安全 UAT 测试示例
+//!
+//! 本示例展示安全相关的用户验收测试 (UAT) 场景。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example example_security_uat
+//!
 
-use serde_json::Value;
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-struct SensitiveData {
-    user_id: u64,
-    ssn: String,
-    credit_card: String,
-    medical_record: String,
+// 测试 1: 数据隔离
+async fn test_data_isolation() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   安全测试 1: 数据隔离...");
+
+    let cache1: Cache<String, String> = Cache::new().await?;
+    let cache2: Cache<String, String> = Cache::new().await?;
+
+    // 在 cache1 中添加数据
+    cache1.set("shared:key", "cache1_value", None).await?;
+
+    // cache2 应该无法访问 cache1 的数据
+    let retrieved = cache2.get("shared:key").await?;
+    assert!(retrieved.is_none(), "不同缓存实例应该数据隔离");
+
+    // cache1 应该能访问自己的数据
+    let retrieved = cache1.get("shared:key").await?;
+    assert!(retrieved.is_some(), "缓存应该能访问自己的数据");
+    assert_eq!(retrieved.unwrap(), "cache1_value", "数据值应该正确");
+
+    // 清理
+    cache1.clear().await?;
+    println!("   ✓ 数据隔离测试通过");
+
+    Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use oxcache::manager::{get_client, init};
-    use oxcache::{
-        config::{L1Config, OxcacheConfig, ServiceConfig},
-        CacheExt,
-    };
-    
-    #[tokio::test]
-    async fn test_data_isolation() {
-        // Requirement: User data should be isolated between tenants
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "secure_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("secure_cache").unwrap();
-        
-        let data_tenant_a = SensitiveData {
-            user_id: 1,
-            ssn: "***-**-1234".to_string(),
-            credit_card: "****-****-****-1234".to_string(),
-            medical_record: "Confidential".to_string(),
-        };
-        
-        let data_tenant_b = SensitiveData {
-            user_id: 2,
-            ssn: "***-**-5678".to_string(),
-            credit_card: "****-****-****-5678".to_string(),
-            medical_record: "Confidential".to_string(),
-        };
-        
-        // Store with tenant prefix
-        client.set("tenant_a:user_1", &data_tenant_a, Some(3600)).await.unwrap();
-        client.set("tenant_b:user_2", &data_tenant_b, Some(3600)).await.unwrap();
-        
-        // Verify isolation
-        let retrieved_a = client.get::<SensitiveData>("tenant_a:user_1").await.unwrap();
-        let retrieved_b = client.get::<SensitiveData>("tenant_b:user_2").await.unwrap();
-        
-        assert!(retrieved_a.is_some());
-        assert!(retrieved_b.is_some());
-        assert_ne!(retrieved_a.unwrap().user_id, retrieved_b.unwrap().user_id);
+// 测试 2: 访问控制模拟
+async fn test_access_control() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   安全测试 2: 访问控制模拟...");
+
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    // 模拟敏感数据
+    cache
+        .set("user:1:password", "secret_password", Some(300))
+        .await?;
+    cache
+        .set("user:1:token", "access_token_xyz", Some(3600))
+        .await?;
+    cache.set("public:config", "config_value", None).await?;
+
+    // 验证数据存在
+    assert!(cache.get("user:1:password").await?.is_some());
+    assert!(cache.get("user:1:token").await?.is_some());
+    assert!(cache.get("public:config").await?.is_some());
+
+    // 清理敏感数据
+    cache.delete("user:1:password").await?;
+    cache.delete("user:1:token").await?;
+
+    // 验证清理
+    assert!(cache.get("user:1:password").await?.is_none());
+    assert!(cache.get("user:1:token").await?.is_none());
+    assert!(cache.get("public:config").await?.is_some());
+
+    // 清理公共数据
+    cache.delete("public:config").await?;
+
+    println!("   ✓ 访问控制测试通过");
+    Ok(())
+}
+
+// 测试 3: 审计日志模拟
+async fn test_audit_log() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   安全测试 3: 审计日志模拟...");
+
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    // 模拟审计日志记录
+    let operations = vec![
+        ("audit:1", "用户登录"),
+        ("audit:2", "数据查询"),
+        ("audit:3", "配置更改"),
+        ("audit:4", "用户登出"),
+    ];
+
+    for (key, desc) in &operations {
+        cache.set(key, desc, Some(86400)).await?; // 保留 24 小时
     }
-    
-    #[tokio::test]
-    async fn test_access_control() {
-        // Requirement: Access should be controlled based on permissions
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "access_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(500)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("access_cache").unwrap();
-        
-        // Simulate role-based access control
-        let admin_data = json!({
-            "role": "admin",
-            "permissions": ["read", "write", "delete"]
-        });
-        
-        let user_data = json!({
-            "role": "user",
-            "permissions": ["read"]
-        });
-        
-        client.set("role:admin", &admin_data, None).await.unwrap();
-        client.set("role:user", &user_data, None).await.unwrap();
-        
-        // Verify role-based access
-        let admin_perms = client.get::<Value>("role:admin").await.unwrap();
-        let user_perms = client.get::<Value>("role:user").await.unwrap();
-        
-        assert!(admin_perms.is_some());
-        assert!(user_perms.is_some());
-        
-        // In real implementation, you would check permissions before operations
-        let admin_permissions = admin_perms.unwrap().get("permissions").unwrap().as_array().unwrap();
-        assert!(admin_permissions.len() == 3);
-        
-        let user_permissions = user_perms.unwrap().get("permissions").unwrap().as_array().unwrap();
-        assert!(user_permissions.len() == 1);
+
+    // 验证所有审计日志记录
+    for (key, desc) in &operations {
+        let retrieved = cache.get(key).await?;
+        assert!(retrieved.is_some(), "审计日志应该存在");
+        assert_eq!(retrieved.unwrap(), *desc, "审计日志内容应该匹配");
     }
-    
-    #[tokio::test]
-    async fn test_data_sanitization() {
-        // Requirement: Input data should be sanitized before caching
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "sanitized_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("sanitized_cache").unwrap();
-        
-        // Simulate malicious input
-        let malicious_input = "<script>alert('xss')</script>";
-        let sanitized_input = "alert('xss')"; // Sanitized version
-        
-        // Store sanitized version
-        client.set("safe_input", &sanitized_input, None).await.unwrap();
-        
-        // Retrieve and verify it's sanitized
-        let retrieved = client.get::<String>("safe_input").await.unwrap();
-        assert_eq!(retrieved.unwrap(), "alert('xss')");
-        assert!(!retrieved.unwrap().contains("<script>"));
-        assert!(!retrieved.unwrap().contains("</script>"));
+
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 审计日志测试通过");
+
+    Ok(())
+}
+
+// 测试 4: 加密数据存储模拟
+async fn test_encrypted_storage() -> Result<(), Box<dyn std::error::Error>> {
+    println!("   安全测试 4: 加密数据存储模拟...");
+
+    let cache: Cache<String, String> = Cache::new().await?;
+
+    // 模拟加密数据
+    let sensitive_data = vec![
+        ("encrypted:credit_card", "4111111111111111"),
+        ("encrypted:ssn", "123-45-6789"),
+        ("encrypted:api_key", "sk_live_abcdefg"),
+    ];
+
+    for (key, value) in &sensitive_data {
+        cache.set(key, value, Some(300)).await?;
     }
-    
-    #[tokio::test]
-    async fn test_encryption_at_rest() {
-        // Requirement: Sensitive data should be encrypted in transit
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "encrypted_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(500)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("encrypted_cache").unwrap();
-        
-        let sensitive_data = SensitiveData {
-            user_id: 12345,
-            ssn: "123-45-6789".to_string(),
-            credit_card: "4111-1111-1111-1111".to_string(),
-            medical_record: "Patient data".to_string(),
-        };
-        
-        // In a real implementation, data would be encrypted before caching
-        client.set("encrypted:user_12345", &sensitive_data, Some(3600)).await.unwrap();
-        
-        let retrieved = client.get::<SensitiveData>("encrypted:user_12345").await.unwrap();
-        assert!(retrieved.is_some());
-        
-        // Verify data integrity
-        let original = retrieved.unwrap();
-        assert_eq!(original.user_id, 12345);
-        assert_eq!(original.ssn, "123-45-6789");
+
+    // 验证数据存在
+    for (key, value) in &sensitive_data {
+        let retrieved = cache.get(key).await?;
+        assert!(retrieved.is_some(), "加密数据应该存在");
+        assert_eq!(retrieved.unwrap(), *value, "加密数据值应该正确");
     }
-    
-    #[tokio::test]
-    async fn test_audit_logging() {
-        // Requirement: Security events should be logged
-        let config = OxcacheConfig::builder()
-            .with_service(
-                "audit_cache",
-                ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(1000)),
-            )
-            .build();
-        let _ = init(config).await;
-        let client = get_client("audit_cache").unwrap();
-        
-        // Simulate security event logging
-        let security_event = json!({
-            "event_type": "access_attempt",
-            "user_id": 12345,
-            "resource": "sensitive_data",
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "ip_address": "192.168.1.100",
-            "result": "success"
-        });
-        
-        client.set("audit:12345", &security_event, None).await.unwrap();
-        
-        // In a real implementation, this would be sent to a logging system
-        let logged_event = client.get::<Value>("audit:12345").await.unwrap();
-        assert!(logged_event.is_some());
-        
-        let event = logged_event.unwrap();
-        assert_eq!(event.get("event_type"), Some(&Value::String("access_attempt".to_string())));
-        assert_eq!(event.get("user_id"), Some(&Value::Number(serde_json::Number::from(12345))));
-    }
+
+    // 清理
+    cache.clear().await?;
+    println!("   ✓ 加密数据存储测试通过");
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("=== 安全 UAT 测试示例 ===\n");
+
+    println!("运行安全测试...\n");
+
+    test_data_isolation().await?;
+    test_access_control().await?;
+    test_audit_log().await?;
+    test_encrypted_storage().await?;
+
+    println!();
+    println!("=== 所有安全 UAT 测试通过 ===");
+    Ok(())
 }

@@ -1,82 +1,107 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// HTTP Cache Example
-//
-// This example demonstrates HTTP caching functionality
-// including ETags, conditional requests, and middleware.
-//
-// Note: Requires `http-cache` feature.
+//! HTTP 缓存集成示例
+//!
+//! 本示例演示如何将 Oxcache 用于 HTTP 缓存场景。
+//!
+//! 运行方式：
+//! ```bash
+//! cd examples && cargo run --example http_cache
+//!
 
-use oxcache::manager::{get_client, init};
-use oxcache::{
-    config::{L1Config, OxcacheConfig, ServiceConfig},
-    CacheExt,
-};
+use oxcache::Cache;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+// 模拟 HTTP 响应
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct HttpResponse {
     status: u16,
-    headers: std::collections::HashMap<String, String>,
+    headers: Vec<(String, String)>,
     body: String,
-    etag: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("HTTP Cache Example");
-    println!("==================\n");
-    println!("Note: Using L1-only mode for demo");
-    println!("HTTP Cache features:");
-    println!("  - ETag support for conditional requests");
-    println!("  - Cache-Control header parsing");
-    println!("  - Last-Modified and If-Modified-Since");
-    println!("  - Vary header handling");
-    println!("  - Axum middleware integration\n");
+    println!("=== HTTP 缓存集成示例 ===\n");
 
-    let config = OxcacheConfig::builder()
-        .with_service(
-            "http_cache",
-            ServiceConfig::l1_only().with_l1(L1Config::new().with_max_capacity(10000)),
-        )
-        .build();
+    // 创建缓存
+    let cache: Cache<String, HttpResponse> = Cache::new().await?;
 
-    let _ = init(config).await;
+    // 1. 缓存 API 响应
+    println!("1. 缓存 API 响应");
 
-    let client = get_client("http_cache")?;
-
-    // Simulate HTTP response caching
     let response = HttpResponse {
         status: 200,
-        headers: {
-            let mut h = std::collections::HashMap::new();
-            h.insert("Content-Type".to_string(), "application/json".to_string());
-            h.insert("Cache-Control".to_string(), "max-age=3600".to_string());
-            h
-        },
-        body: r#"{"message": "Hello from cached response"}"#.to_string(),
-        etag: Some("\"abc123\"".to_string()),
+        headers: vec![
+            ("Content-Type".to_string(), "application/json".to_string()),
+            ("Cache-Control".to_string(), "max-age=3600".to_string()),
+        ],
+        body: r#"{"message": "Hello, World!", "data": [1, 2, 3]}"#.to_string(),
     };
 
-    println!("Caching HTTP response...");
-    client.set("http:/api/data", &response, Some(3600)).await?;
-    println!("  Cached response with ETag: {}", response.etag.as_deref().unwrap_or("none"));
+    cache.set("/api/hello", &response, Some(3600)).await?;
+    println!("   ✓ 缓存 API 响应: /api/hello");
 
-    println!("\nRetrieving cached response...");
-    if let Some(cached) = client.get::<HttpResponse>("http:/api/data").await? {
-        println!("  Status: {}", cached.status);
-        println!("  Content-Type: {}", cached.headers.get("Content-Type").unwrap_or(&"unknown".to_string()));
-        println!("  Cache-Control: {}", cached.headers.get("Cache-Control").unwrap_or(&"none".to_string()));
-        println!("  Body: {}", cached.body);
+    // 2. 模拟请求
+    println!("\n2. 模拟 HTTP 请求");
+
+    let requests = vec![
+        "/api/hello",
+        "/api/hello", // 重复请求，命中缓存
+        "/api/users",
+        "/api/hello", // 再次请求，命中缓存
+    ];
+
+    for path in &requests {
+        let start = std::time::Instant::new();
+        let cached = cache.get(path).await?;
+        let elapsed = start.elapsed();
+
+        match cached {
+            Some(resp) => {
+                println!(
+                    "   GET {} - 状态: {} (缓存命中, 耗时: {:?})",
+                    path, resp.status, elapsed
+                );
+            }
+            None => {
+                println!("   GET {} - 缓存未命中", path);
+            }
+        }
     }
 
-    println!("\nHTTP Cache Benefits:");
-    println!("  - Reduces server load");
-    println!("  - Improves response times");
-    println!("  - Bandwidth savings");
-    println!("  - Better user experience");
+    // 3. 缓存控制
+    println!("\n3. 缓存控制示例");
 
-    println!("\n✓ HTTP cache example completed!");
+    // 设置缓存响应
+    let private_response = HttpResponse {
+        status: 200,
+        headers: vec![("Cache-Control".to_string(), "private, max-age=300".to_string())],
+        body: r#"{"user": "private_data"}"#.to_string(),
+    };
+    cache.set("/api/user/profile", &private_response, Some(300)).await?;
+    println!("   ✓ 设置私有缓存: /api/user/profile (5分钟)");
+
+    // 强制刷新
+    println!("   强制刷新 /api/hello...");
+    cache.delete("/api/hello").await?;
+    println!("   ✓ 缓存已清除");
+
+    // 4. 统计信息
+    println!("\n4. 缓存统计");
+    let stats = cache.stats().await?;
+    println!("   - 总条目数: {}", stats.item_count());
+    println!("   - 命中次数: {}", stats.hit_count());
+    println!("   - 未命中次数: {}", stats.miss_count());
+    if stats.hit_count() + stats.miss_count() > 0 {
+        let hit_rate = stats.hit_count() as f64
+            / (stats.hit_count() + stats.miss_count()) as f64
+            * 100.0;
+        println!("   - 命中率: {:.2}%", hit_rate);
+    }
+
+    // 清理
+    println!("\n5. 清理测试数据");
+    cache.clear().await?;
+    println!("   ✓ 测试数据已清理\n");
+
+    println!("=== HTTP 缓存集成示例完成 ===");
     Ok(())
 }
