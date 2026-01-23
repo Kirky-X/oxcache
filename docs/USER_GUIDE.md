@@ -4,7 +4,7 @@
 
 ### 高性能 Rust 双层缓存库完整使用指南
 
-[🏠 首页](../README.md) • [📚 文档](README.md) • [🎯 示例](../examples/) • [❓ 常见问题](FAQ.md)
+[🏠 首页](../README.md) • [📚 文档](README.md) • [🎯 示例](../examples/) • [❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)
 
 ---
 
@@ -1093,7 +1093,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 <div align="center">
 
-**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](FAQ.md)** • *
+**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)** • *
 *[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
 
 由 oxcache Team 用 ❤️ 制作
