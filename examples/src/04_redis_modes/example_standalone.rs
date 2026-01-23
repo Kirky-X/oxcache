@@ -7,6 +7,7 @@
 //! cd examples && cargo run --example example_standalone
 //!
 
+use std::time::Duration;
 use oxcache::Cache;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -35,12 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 创建
     println!("   添加用户...");
-    cache.set("user:1", &user, Some(3600)).await?;
+    cache.set_with_ttl(&"user:1".to_string(), &user, Some(Duration::from_secs(3600))).await?;
     println!("   ✓ 用户添加成功");
 
     // 读取
     println!("   获取用户...");
-    let retrieved = cache.get("user:1").await?;
+    let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(u) => println!("   ✓ 用户获取成功: {:?}", u.name),
         None => println!("   ✗ 用户未找到"),
@@ -53,11 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "张三丰".to_string(),
         email: "zhangsanfeng@example.com".to_string(),
     };
-    cache.set("user:1", &updated_user, Some(3600)).await?;
+    cache.set_with_ttl(&"user:1".to_string(), &updated_user, Some(Duration::from_secs(3600))).await?;
     println!("   ✓ 用户更新成功");
 
     // 验证更新
-    let retrieved = cache.get("user:1").await?;
+    let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(u) => println!("   ✓ 更新后用户: {:?}", u.name),
         None => println!("   ✗ 用户未找到"),
@@ -65,8 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 删除
     println!("   删除用户...");
-    cache.delete("user:1").await?;
-    let retrieved = cache.get("user:1").await?;
+    cache.delete(&"user:1".to_string()).await?;
+    let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(_) => println!("   ✗ 用户删除失败"),
         None => println!("   ✓ 用户删除成功"),
@@ -91,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   批量添加用户...");
     for user in &users {
         cache
-            .set(&format!("user:{}", user.id), user, Some(3600))
+            .set_with_ttl(&format!("user:{}", user.id), user, Some(Duration::from_secs(3600)))
             .await?;
     }
     println!("   ✓ 批量添加成功");
