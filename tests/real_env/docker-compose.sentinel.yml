@@ -6,17 +6,17 @@ version: '3.8'
 services:
   # Redis主节点
   redis-master:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-master
     ports:
-      - "6379:6379"
+      - "16379:6379"
     volumes:
       - ./configs/redis-master.conf:/usr/local/etc/redis/redis.conf
       - redis-master-data:/data
     command: redis-server /usr/local/etc/redis/redis.conf
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.2
+        ipv4_address: 172.25.0.2
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -25,10 +25,10 @@ services:
 
   # Redis从节点1
   redis-slave1:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-slave1
     ports:
-      - "6380:6379"
+      - "26385:6379"
     volumes:
       - ./configs/redis-slave1.conf:/usr/local/etc/redis/redis.conf
       - redis-slave1-data:/data
@@ -37,7 +37,7 @@ services:
       - redis-master
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.3
+        ipv4_address: 172.25.0.3
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -46,10 +46,10 @@ services:
 
   # Redis从节点2
   redis-slave2:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-slave2
     ports:
-      - "6381:6379"
+      - "26386:6379"
     volumes:
       - ./configs/redis-slave2.conf:/usr/local/etc/redis/redis.conf
       - redis-slave2-data:/data
@@ -58,7 +58,7 @@ services:
       - redis-master
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.4
+        ipv4_address: 172.25.0.4
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -67,10 +67,10 @@ services:
 
   # Sentinel节点1
   redis-sentinel1:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-sentinel1
     ports:
-      - "26379:26379"
+      - "26382:26379"
     volumes:
       - ./configs/redis-sentinel1.conf:/usr/local/etc/redis/sentinel.conf
       - sentinel1-data:/data
@@ -81,14 +81,14 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.10
+        ipv4_address: 172.25.0.10
 
   # Sentinel节点2
   redis-sentinel2:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-sentinel2
     ports:
-      - "26380:26379"
+      - "26383:26379"
     volumes:
       - ./configs/redis-sentinel2.conf:/usr/local/etc/redis/sentinel.conf
       - sentinel2-data:/data
@@ -99,14 +99,14 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.11
+        ipv4_address: 172.25.0.11
 
   # Sentinel节点3
   redis-sentinel3:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: redis-sentinel3
     ports:
-      - "26381:26379"
+      - "26384:26379"
     volumes:
       - ./configs/redis-sentinel3.conf:/usr/local/etc/redis/sentinel.conf
       - sentinel3-data:/data
@@ -117,14 +117,14 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.20.0.12
+        ipv4_address: 172.25.0.12
 
 networks:
   redis-sentinel:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/24
+        - subnet: 172.25.0.0/24
 
 volumes:
   redis-master-data:
