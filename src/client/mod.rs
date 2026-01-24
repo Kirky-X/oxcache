@@ -6,15 +6,6 @@
 
 pub mod db_loader;
 
-#[cfg(feature = "l1-moka")]
-pub mod l1;
-
-#[cfg(feature = "l2-redis")]
-pub mod l2;
-
-#[cfg(all(feature = "l1-moka", feature = "l2-redis"))]
-pub mod two_level;
-
 #[cfg(feature = "redis-native")]
 pub mod redis_native;
 

@@ -197,9 +197,9 @@ mod tests {
             Ok(self
                 .store
                 .lock()
-                .expect("MemoryCacheAdapter store lock poisoned")
-                .get(key)
-                .cloned())
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))
+                .ok()
+                .and_then(|store| store.get(key).cloned()))
         }
 
         async fn set_response(
@@ -207,32 +207,26 @@ mod tests {
             key: &str,
             response: &HttpCacheResponse,
         ) -> Result<(), crate::error::CacheError> {
-            let mut store = self
-                .store
-                .lock()
-                .expect("MemoryCacheAdapter store lock poisoned");
-            store.insert(key.to_string(), response.clone());
+            if let Ok(mut store) = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string())) {
+                store.insert(key.to_string(), response.clone());
+            }
             Ok(())
         }
 
         async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError> {
-            let mut store = self
-                .store
-                .lock()
-                .expect("MemoryCacheAdapter store lock poisoned");
-            Ok(store.remove(key).is_some())
+            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            Ok(store_result.map_or(false, |store| store.remove(key).is_some()))
         }
 
         async fn invalidate_by_pattern(
             &self,
             _pattern: &str,
         ) -> Result<u64, crate::error::CacheError> {
-            let mut store = self
-                .store
-                .lock()
-                .expect("MemoryCacheAdapter store lock poisoned");
-            let count = store.len();
-            store.clear();
+            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            let count = store_result.as_ref().map(|store| store.len()).unwrap_or(0);
+            if let Ok(mut store) = store_result {
+                store.clear();
+            }
             Ok(count as u64)
         }
 
@@ -240,14 +234,13 @@ mod tests {
             &self,
             keys: &[&str],
         ) -> Result<HashMap<String, HttpCacheResponse>, crate::error::CacheError> {
-            let store = self
-                .store
-                .lock()
-                .expect("MemoryCacheAdapter store lock poisoned");
+            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
             let mut result = HashMap::new();
-            for &key in keys {
-                if let Some(resp) = store.get(key) {
-                    result.insert(key.to_string(), resp.clone());
+            if let Ok(store) = store_result {
+                for &key in keys {
+                    if let Some(resp) = store.get(key) {
+                        result.insert(key.to_string(), resp.clone());
+                    }
                 }
             }
             Ok(result)

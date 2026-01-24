@@ -4,7 +4,7 @@
 //!
 //! Tiered cache backend with L1 (memory) and L2 (Redis) layers
 
-use super::new_backend::CacheBackend;
+use super::backend::CacheBackend;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;

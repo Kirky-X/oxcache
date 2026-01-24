@@ -13,10 +13,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod builder;
-#[cfg(feature = "l1-moka")]
 pub mod layer;
 pub mod legacy_config;
-pub mod service;
+pub mod unified;
 pub mod validation;
 
 #[cfg(feature = "confers")]
@@ -29,17 +28,12 @@ pub mod dynamic;
 pub use confers_macro::confers_load as load_from_file;
 
 #[cfg(feature = "l2-redis")]
+use crate::config::legacy_config::ServiceConfig;
+#[cfg(feature = "l2-redis")]
 pub use crate::config::legacy_config::{ClusterConfig, SentinelConfig};
 pub use builder::OxcacheConfigBuilder;
 #[cfg(feature = "l1-moka")]
 pub use layer::{EvictionPolicy, L1LayerConfig, L2LayerConfig, LayerConfig, TwoLevelLayerConfig};
-#[cfg(feature = "bloom-filter")]
-pub use service::BloomFilterConfig;
-#[cfg(feature = "l1-moka")]
-pub use service::L1Config;
-pub use service::{CacheType, RedisMode, ServiceConfig};
-#[cfg(feature = "l2-redis")]
-pub use service::{L2Config, TwoLevelConfig};
 pub use validation::ConfigValidation;
 
 pub use self::legacy_config::{
@@ -230,3 +224,16 @@ mod tests {
         assert!(config.is_l2_enabled());
     }
 }
+
+// ============================================================================
+// Unified Configuration Exports
+// ============================================================================
+
+// Re-export unified configuration
+pub use unified::{
+    UnifiedConfig, UnifiedConfigBuilder, BackendConfig, BackendType,
+    MemoryBackendConfig, RedisBackendConfig, TieredBackendConfig,
+    PerformanceConfig, SerializationConfig, BatchConfig, ConcurrencyConfig,
+    FeatureConfig, MonitoringConfig, MetricsConfig, HealthCheckConfig,
+    LoggingConfig, SecurityConfig, convenience as config_convenience
+};

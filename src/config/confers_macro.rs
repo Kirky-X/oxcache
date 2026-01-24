@@ -129,7 +129,8 @@ impl OxcacheConfigFile {
 
     /// 转换为 OxcacheConfig
     pub fn to_oxcache_config(self) -> super::OxcacheConfig {
-        use super::{CacheType, GlobalConfig, ServiceConfig};
+        use super::{GlobalConfig};
+        use super::legacy_config::{CacheType, ServiceConfig};
         use crate::config::CONFIG_VERSION;
 
         let global = self.global.unwrap_or_default();
@@ -169,7 +170,7 @@ impl OxcacheConfigFile {
                     _ => super::SerializationType::Json,
                 }),
                 #[cfg(feature = "l1-moka")]
-                l1: svc.l1.map(|l| super::L1Config {
+                l1: svc.l1.map(|l| super::legacy_config::L1Config {
                     max_capacity: l.max_capacity.unwrap_or(10000),
                     max_key_length: l.max_key_length.unwrap_or(512),
                     max_value_size: l.max_value_size.unwrap_or(10485760),
@@ -178,11 +179,11 @@ impl OxcacheConfigFile {
                 #[cfg(feature = "l2-redis")]
                 l2: svc.l2.map(|l| {
                     use secrecy::SecretString;
-                    super::L2Config {
+                    super::legacy_config::L2Config {
                         mode: match l.mode.unwrap_or_else(|| "standalone".to_string()).as_str() {
-                            "sentinel" => super::RedisMode::Sentinel,
-                            "cluster" => super::RedisMode::Cluster,
-                            _ => super::RedisMode::Standalone,
+                            "sentinel" => super::legacy_config::RedisMode::Sentinel,
+                            "cluster" => super::legacy_config::RedisMode::Cluster,
+                            _ => super::legacy_config::RedisMode::Standalone,
                         },
                         connection_string: SecretString::new(
                             l.connection_string.unwrap_or_default(),
@@ -199,7 +200,7 @@ impl OxcacheConfigFile {
                     }
                 }),
                 #[cfg(feature = "l2-redis")]
-                two_level: svc.two_level.map(|t| super::TwoLevelConfig {
+                two_level: svc.two_level.map(|t| super::legacy_config::TwoLevelConfig {
                     promote_on_hit: t.promote_on_hit.unwrap_or(true),
                     enable_batch_write: t.enable_batch_write.unwrap_or(false),
                     batch_size: t.batch_size.unwrap_or(100),

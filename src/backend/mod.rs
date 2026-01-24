@@ -1,22 +1,17 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
-//! 该模块定义了缓存系统的后端提供者，包括L1和L2缓存后端。
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// 该模块定义了缓存系统的后端提供者。
 
-pub mod l1;
-
-pub mod l2;
-
-pub mod redis_provider;
+// Client implementations
+pub mod client;
 
 #[cfg(feature = "l2-redis")]
 pub mod strategy;
 
-// New modernized API backend modules
-pub mod memory;
-pub mod new_backend;
-pub mod redis;
+// Modernized API backend modules
+pub mod backend;
 pub mod tiered;
 
 // Custom tiered backend configuration (always available)
@@ -29,10 +24,20 @@ pub mod tiered;
 pub mod custom_tiered;
 
 // Re-exports for new API
-pub use memory::MemoryBackend;
-pub use new_backend::CacheBackend;
-pub use redis::{RedisBackend, RedisMode};
+pub use backend::CacheBackend;
 pub use tiered::TieredBackend;
+
+// Client implementations
+pub use client::{
+    DashMapMemoryBackend, MokaMemoryBackend, MemoryBackend,
+    RedisBackend as ClientRedisBackend, RedisMode as ClientRedisMode, RedisBackendBuilder,
+    UnifiedRedisBackend, UnifiedRedisManager, RedisConfig,
+    RedisProvider, DefaultRedisProvider,
+    // Convenience functions
+    moka_memory, dashmap_memory, default_memory_backend,
+    // Type definitions
+    MemoryBackendType,
+};
 
 // Re-exports for custom tiered configuration
 #[cfg(any(

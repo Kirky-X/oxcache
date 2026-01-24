@@ -4,7 +4,8 @@
 //!
 //! Tiered cache builder for advanced configuration
 
-use crate::backend::{CacheBackend, MemoryBackend, RedisBackend, RedisMode, TieredBackend};
+use crate::backend::{CacheBackend, TieredBackend};
+use crate::backend::client::{RedisBackend, RedisMode, MokaMemoryBackend as MemoryBackend};
 use crate::error::Result;
 use std::sync::Arc;
 
@@ -138,7 +139,7 @@ impl TieredCacheBuilder {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::backend::RedisMode;
+    /// use oxcache::backend::client::redis::RedisMode;
     ///
     /// let builder = TieredCacheBuilder::new()
     ///     .l2_mode(RedisMode::Standalone);

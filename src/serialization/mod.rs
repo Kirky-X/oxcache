@@ -14,6 +14,7 @@ pub mod extra;
 #[cfg(feature = "serialization-cache")]
 pub mod cache;
 
+pub mod unified;
 pub mod utils;
 
 use crate::error::Result;
@@ -30,6 +31,12 @@ pub use extra::{CborSerializer, MessagePackSerializer, SerializerRegistry};
 
 #[cfg(feature = "serialization-cache")]
 pub use cache::{SerializationCache, SerializationCacheConfig, SerializationCacheStats};
+
+// Unified serialization exports
+pub use unified::{
+    UnifiedSerializer, SerializationFormat, SerializationRegistry, FormatInfo,
+    UnifiedSerializerAdapter, default_serializer, convenience
+};
 
 /// 序列化器特征
 ///

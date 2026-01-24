@@ -4,7 +4,8 @@
 //!
 //! Unified Cache interface for the modernized cache API
 
-use crate::backend::{CacheBackend, MemoryBackend};
+use crate::backend::{CacheBackend};
+use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::error::Result;
 use crate::serialization::json::JsonSerializer;
 use crate::serialization::Serializer;
@@ -189,7 +190,7 @@ where
     /// let cache: Cache<String, User> = Cache::redis("redis://localhost:6379").await?;
     /// ```
     pub async fn redis(connection_string: &str) -> Result<Self> {
-        let backend = crate::backend::RedisBackend::new(connection_string).await?;
+        let backend = crate::backend::client::RedisBackend::new(connection_string).await?;
         Ok(Self {
             backend: Arc::new(backend),
             _phantom: std::marker::PhantomData,
@@ -217,7 +218,7 @@ where
     /// ```
     pub async fn tiered(l1_capacity: u64, l2_connection_string: &str) -> Result<Self> {
         let l1 = MemoryBackend::builder().capacity(l1_capacity).build();
-        let l2 = crate::backend::RedisBackend::new(l2_connection_string).await?;
+        let l2 = crate::backend::client::RedisBackend::new(l2_connection_string).await?;
         let backend = crate::backend::TieredBackend::new(l1, l2);
         Ok(Self {
             backend: Arc::new(backend),

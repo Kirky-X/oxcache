@@ -9,7 +9,8 @@
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 
-use crate::config::{GlobalConfig, OxcacheConfig, ServiceConfig};
+use crate::config::{GlobalConfig, OxcacheConfig};
+use crate::config::legacy_config::ServiceConfig;
 
 // ============================================================================
 // 常量定义
@@ -183,7 +184,7 @@ impl OxcacheConfig {
     #[cfg(feature = "l1-moka")]
     fn validate_l1_config(
         name: &str,
-        l1_config: &crate::config::L1Config,
+        l1_config: &crate::config::legacy_config::L1Config,
         service_ttl: u64,
     ) -> Result<(), String> {
         if l1_config.max_capacity == 0 {
@@ -211,7 +212,7 @@ impl OxcacheConfig {
     #[cfg(feature = "l2-redis")]
     fn validate_l2_config(
         name: &str,
-        l2_config: &crate::config::L2Config,
+        l2_config: &crate::config::legacy_config::L2Config,
         service_ttl: u64,
     ) -> Result<(), String> {
         // 验证 L1 TTL <= L2 TTL
@@ -391,7 +392,7 @@ impl OxcacheConfig {
     #[cfg(feature = "l2-redis")]
     fn validate_two_level_config(
         name: &str,
-        two_level_config: &crate::config::TwoLevelConfig,
+        two_level_config: &crate::config::legacy_config::TwoLevelConfig,
     ) -> Result<(), String> {
         // 验证批量写入配置
         if two_level_config.enable_batch_write {

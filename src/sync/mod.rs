@@ -2,32 +2,11 @@
 //!
 //! MIT License
 //!
-//! 该模块定义了缓存系统的同步机制，包括批量写入、失效和提升功能。
+//! 该模块定义了缓存系统的同步机制。
 //! 通过 `batch-write` feature 控制启用/禁用
 
 #[cfg(feature = "batch-write")]
-pub mod batch_writer;
-#[cfg(feature = "batch-write")]
-pub mod common;
-#[cfg(feature = "batch-write")]
-pub mod invalidation;
-#[cfg(feature = "batch-write")]
-pub mod optimized_batch_writer;
-#[cfg(feature = "batch-write")]
-pub mod promotion;
-#[cfg(feature = "batch-write")]
 pub mod warmup;
-
-#[cfg(not(feature = "batch-write"))]
-pub(crate) mod batch_writer;
-#[cfg(not(feature = "batch-write"))]
-pub(crate) mod common;
-#[cfg(not(feature = "batch-write"))]
-pub(crate) mod invalidation;
-#[cfg(not(feature = "batch-write"))]
-pub(crate) mod optimized_batch_writer;
-#[cfg(not(feature = "batch-write"))]
-pub(crate) mod promotion;
 
 // warmup 模块始终可用（不依赖 batch-write）
 
@@ -89,93 +68,93 @@ pub struct BatchWriter;
 impl BatchWriter {
     pub fn new(
         _service_name: String,
-        _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
+        _l2: std::sync::Arc<dyn crate::backend::CacheBackend>,
         _config: BatchWriterConfig,
-    ) -> Self {
-        panic!(
+    ) -> Result<Self, crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
     pub fn new_with_default_config(
         _service_name: String,
-        _l2: std::sync::Arc<crate::backend::l2::L2Backend>,
-    ) -> Self {
-        panic!(
+        _l2: std::sync::Arc<dyn crate::backend::CacheBackend>,
+    ) -> Result<Self, crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn shutdown(&self) {
-        panic!(
+    pub async fn shutdown(&self) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn start(&self) {
-        panic!(
+    pub async fn start(&self) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
-        panic!(
+    pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn enqueue_delete(&self, _key: String) -> Result<()> {
-        panic!(
+    pub async fn enqueue_delete(&self, _key: String) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<()> {
-        panic!(
+    pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 }
 
@@ -201,52 +180,52 @@ pub struct CacheInvalidator;
 
 #[cfg(not(feature = "batch-write"))]
 impl CacheInvalidator {
-    pub fn new(_config: InvalidationConfig) -> Self {
-        panic!(
+    pub fn new(_config: InvalidationConfig) -> Result<Self, crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn invalidate(&self, _key: &str) -> Result<()> {
-        panic!(
+    pub async fn invalidate(&self, _key: &str) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn invalidate_pattern(&self, _pattern: &str) -> Result<()> {
-        panic!(
+    pub async fn invalidate_pattern(&self, _pattern: &str) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn invalidate_all(&self) -> Result<()> {
-        panic!(
+    pub async fn invalidate_all(&self) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 }
 
@@ -272,39 +251,39 @@ pub struct CachePromoter;
 
 #[cfg(not(feature = "batch-write"))]
 impl CachePromoter {
-    pub fn new(_config: PromotionConfig) -> Self {
-        panic!(
+    pub fn new(_config: PromotionConfig) -> Result<Self, crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn promote(&self, _key: &str) -> Result<()> {
-        panic!(
+    pub async fn promote(&self, _key: &str) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 
-    pub async fn promote_many(&self, _keys: &[String]) -> Result<()> {
-        panic!(
+    pub async fn promote_many(&self, _keys: &[String]) -> Result<(), crate::error::CacheError> {
+        Err(crate::error::CacheError::ConfigError(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
-        );
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+        ))
     }
 }

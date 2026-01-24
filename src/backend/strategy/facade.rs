@@ -6,10 +6,10 @@
 //!
 //! 使用策略模式封装不同的 Redis 部署模式，提供统一的 API。
 
-use crate::backend::redis_provider::{DefaultRedisProvider, RedisProvider};
+use crate::backend::client::redis::{DefaultRedisProvider, RedisProvider};
 use crate::backend::strategy::standalone::StandaloneStrategy;
 use crate::backend::strategy::traits::{HealthStatus, L2BackendStrategy, ScanResult};
-use crate::config::{L2Config, RedisMode};
+use crate::config::legacy_config::{L2Config, RedisMode};
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use std::sync::Arc;

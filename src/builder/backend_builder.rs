@@ -4,7 +4,8 @@
 //!
 //! Backend builder for creating cache backends
 
-use crate::backend::{CacheBackend, MemoryBackend, RedisBackend, RedisMode, TieredBackend};
+use crate::backend::{CacheBackend, TieredBackend};
+use crate::backend::client::{RedisBackend, RedisMode, MokaMemoryBackend as MemoryBackend};
 use crate::error::Result;
 use std::sync::Arc;
 

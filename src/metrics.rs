@@ -5,6 +5,8 @@
 //! 该模块定义了缓存系统的指标收集和监控功能。
 //! 通过 `metrics` 或 `l1-moka` feature 控制启用/禁用。
 
+pub mod unified;
+
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::Serialize;
@@ -673,3 +675,15 @@ pub fn export_prometheus_format() -> String {
 pub fn export_json_format() -> Result<String, serde_json::Error> {
     GLOBAL_METRICS.export_json()
 }
+
+// ============================================================================
+// Unified Metrics Exports
+// ============================================================================
+
+// Re-export unified metrics
+pub use unified::{
+    UnifiedMetrics, MetricValue, HistogramData, TimerData,
+    MetricsConfig, CacheOperation, CacheLayer, CacheOpType, CacheOpResult,
+    MetricsSnapshot, CounterSnapshot, HitRates, GLOBAL_UNIFIED_METRICS,
+    convenience as unified_convenience
+};
