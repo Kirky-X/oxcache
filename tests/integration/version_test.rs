@@ -4,7 +4,8 @@
 //
 // 版本管理集成测试
 
-use oxcache::backend::{CacheBackend, RedisBackend};
+use oxcache::backend::client::RedisBackend;
+use oxcache::backend::CacheBackend;
 use std::sync::Arc;
 
 use crate::common;
