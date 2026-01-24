@@ -6,8 +6,8 @@
 
 #![allow(deprecated)]
 
-use crate::common::redis_test_utils::{test_redis_connection};
 use crate::common::is_redis_available;
+use crate::common::redis_test_utils::test_redis_connection;
 use oxcache::backend::client::RedisBackend;
 use std::sync::Arc;
 use std::time::Duration;

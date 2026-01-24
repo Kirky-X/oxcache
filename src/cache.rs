@@ -4,8 +4,8 @@
 //!
 //! Unified Cache interface for the modernized cache API
 
-use crate::backend::{CacheBackend};
 use crate::backend::client::MokaMemoryBackend as MemoryBackend;
+use crate::backend::CacheBackend;
 use crate::error::Result;
 use crate::serialization::json::JsonSerializer;
 use crate::serialization::Serializer;

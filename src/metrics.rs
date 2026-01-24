@@ -682,8 +682,7 @@ pub fn export_json_format() -> Result<String, serde_json::Error> {
 
 // Re-export unified metrics
 pub use unified::{
-    UnifiedMetrics, MetricValue, HistogramData, TimerData,
-    MetricsConfig, CacheOperation, CacheLayer, CacheOpType, CacheOpResult,
-    MetricsSnapshot, CounterSnapshot, HitRates, GLOBAL_UNIFIED_METRICS,
-    convenience as unified_convenience
+    convenience as unified_convenience, CacheLayer, CacheOpResult, CacheOpType, CacheOperation,
+    CounterSnapshot, HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot,
+    TimerData, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
 };

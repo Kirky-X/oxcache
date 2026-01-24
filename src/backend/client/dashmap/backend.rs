@@ -122,7 +122,7 @@ impl DashMapMemoryBackend {
         let hits = self.hits.load(Ordering::Relaxed);
         let misses = self.misses.load(Ordering::Relaxed);
         let total = hits + misses;
-        
+
         if total == 0 {
             0.0
         } else {
@@ -206,10 +206,7 @@ impl CacheBackend for DashMapMemoryBackend {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
 
-        let entry = CacheEntry {
-            value,
-            expires_at,
-        };
+        let entry = CacheEntry { value, expires_at };
 
         // Insert the entry
         self.cache.insert(key.to_string(), entry.clone());
@@ -310,8 +307,14 @@ impl CacheBackend for DashMapMemoryBackend {
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert("entry_count".to_string(), self.cache.len().to_string());
-        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
-        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
+        stats.insert(
+            "hits".to_string(),
+            self.hits.load(Ordering::Relaxed).to_string(),
+        );
+        stats.insert(
+            "misses".to_string(),
+            self.misses.load(Ordering::Relaxed).to_string(),
+        );
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
     }
@@ -368,7 +371,10 @@ pub fn dashmap_memory_with_capacity(capacity: usize) -> DashMapMemoryBackend {
 }
 
 /// Convenience function to create a DashMap memory backend with capacity and TTL
-pub fn dashmap_memory_with_capacity_and_ttl(capacity: usize, ttl: Duration) -> DashMapMemoryBackend {
+pub fn dashmap_memory_with_capacity_and_ttl(
+    capacity: usize,
+    ttl: Duration,
+) -> DashMapMemoryBackend {
     DashMapMemoryBackend::builder()
         .capacity(capacity)
         .default_ttl(ttl)
@@ -399,7 +405,7 @@ mod tests {
     #[tokio::test]
     async fn test_dashmap_basic_operations() {
         let backend = DashMapMemoryBackend::new();
-        
+
         // Test set and get
         backend.set("key1", b"value1".to_vec(), None).await.unwrap();
         let value = backend.get("key1").await.unwrap();
@@ -425,16 +431,19 @@ mod tests {
     #[tokio::test]
     async fn test_dashmap_ttl() {
         let backend = DashMapMemoryBackend::new();
-        
+
         // Set with TTL
-        backend.set("key1", b"value1".to_vec(), Some(Duration::from_millis(100))).await.unwrap();
-        
+        backend
+            .set("key1", b"value1".to_vec(), Some(Duration::from_millis(100)))
+            .await
+            .unwrap();
+
         // Should exist immediately
         assert!(backend.exists("key1").await.unwrap());
-        
+
         // Wait for expiration
         tokio::time::sleep(Duration::from_millis(150)).await;
-        
+
         // Should be expired
         assert!(!backend.exists("key1").await.unwrap());
     }

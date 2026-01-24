@@ -29,13 +29,20 @@ pub use tiered::TieredBackend;
 
 // Client implementations
 pub use client::{
-    DashMapMemoryBackend, MokaMemoryBackend, MemoryBackend,
-    RedisBackend as ClientRedisBackend, RedisMode as ClientRedisMode, RedisBackendBuilder,
-    RedisProvider, DefaultRedisProvider,
+    dashmap_memory,
+    default_memory_backend,
     // Convenience functions
-    moka_memory, dashmap_memory, default_memory_backend,
+    moka_memory,
+    DashMapMemoryBackend,
+    DefaultRedisProvider,
+    MemoryBackend,
     // Type definitions
     MemoryBackendType,
+    MokaMemoryBackend,
+    RedisBackend as ClientRedisBackend,
+    RedisBackendBuilder,
+    RedisMode as ClientRedisMode,
+    RedisProvider,
 };
 
 // Re-exports for custom tiered configuration

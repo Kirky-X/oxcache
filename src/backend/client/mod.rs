@@ -22,11 +22,10 @@ pub use dashmap::DashMapMemoryBackend;
 pub use moka::MokaMemoryBackend;
 pub use moka::MokaMemoryBackend as MemoryBackend; // 为向后兼容提供别名
 pub use redis::{
-    RedisBackend, RedisMode, RedisBackendBuilder,
-    RedisProvider, DefaultRedisProvider
+    DefaultRedisProvider, RedisBackend, RedisBackendBuilder, RedisMode, RedisProvider,
 };
 
 // Convenience functions for creating memory backends
-pub use moka::moka_memory;
 pub use dashmap::dashmap_memory;
 pub use moka::default_memory_backend;
+pub use moka::moka_memory;

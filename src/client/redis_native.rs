@@ -176,7 +176,11 @@ impl ScriptCache {
 
     /// 缓存脚本及其 SHA
     pub fn cache(&self, script: &str, sha: &str) {
-        if let Ok(mut cache) = self.scripts.lock().map_err(|e| CacheError::LockError(e.to_string())) {
+        if let Ok(mut cache) = self
+            .scripts
+            .lock()
+            .map_err(|e| CacheError::LockError(e.to_string()))
+        {
             cache.insert(script.to_string(), sha.to_string());
         }
     }
@@ -192,7 +196,11 @@ impl ScriptCache {
 
     /// 清除缓存
     pub fn clear(&self) {
-        if let Ok(mut cache) = self.scripts.lock().map_err(|e| CacheError::LockError(e.to_string())) {
+        if let Ok(mut cache) = self
+            .scripts
+            .lock()
+            .map_err(|e| CacheError::LockError(e.to_string()))
+        {
             cache.clear();
         }
     }

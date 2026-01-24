@@ -73,14 +73,24 @@ pub trait UnifiedCache: Send + Sync + Any {
     }
 
     /// Set in L1 cache only
-    async fn set_l1_bytes(&self, _key: &str, _value: Vec<u8>, _ttl: Option<Duration>) -> Result<()> {
+    async fn set_l1_bytes(
+        &self,
+        _key: &str,
+        _value: Vec<u8>,
+        _ttl: Option<Duration>,
+    ) -> Result<()> {
         Err(crate::error::CacheError::NotSupported(
             "set_l1_bytes".to_string(),
         ))
     }
 
     /// Set in L2 cache only
-    async fn set_l2_bytes(&self, _key: &str, _value: Vec<u8>, _ttl: Option<Duration>) -> Result<()> {
+    async fn set_l2_bytes(
+        &self,
+        _key: &str,
+        _value: Vec<u8>,
+        _ttl: Option<Duration>,
+    ) -> Result<()> {
         Err(crate::error::CacheError::NotSupported(
             "set_l2_bytes".to_string(),
         ))
@@ -335,7 +345,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
     fn serializer(&self) -> &SerializerEnum {
         use crate::serialization::unified::default_serializer;
         use once_cell::sync::Lazy;
-        
+
         static DEFAULT_SERIALIZER: Lazy<SerializerEnum> = Lazy::new(|| {
             let unified = default_serializer();
             match unified.format() {
@@ -346,7 +356,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
                 _ => SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
             }
         });
-        
+
         &DEFAULT_SERIALIZER
     }
 
@@ -377,7 +387,9 @@ impl UnifiedCache for CacheOpsAdapter {
     }
 
     async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops.set_bytes(key, value, ttl.map(|d| d.as_secs())).await
+        self.ops
+            .set_bytes(key, value, ttl.map(|d| d.as_secs()))
+            .await
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
@@ -430,11 +442,15 @@ impl UnifiedCache for CacheOpsAdapter {
     }
 
     async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops.set_l1_bytes(key, value, ttl.map(|d| d.as_secs())).await
+        self.ops
+            .set_l1_bytes(key, value, ttl.map(|d| d.as_secs()))
+            .await
     }
 
     async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops.set_l2_bytes(key, value, ttl.map(|d| d.as_secs())).await
+        self.ops
+            .set_l2_bytes(key, value, ttl.map(|d| d.as_secs()))
+            .await
     }
 
     async fn clear_l1(&self) -> Result<()> {
@@ -478,43 +494,57 @@ mod tests {
     async fn test_unified_cache_backend() {
         // Create backend using the public API
         let backend = MemoryBackend::new();
-        
+
         // Test basic operations using the backend's own methods directly
         // This tests that the backend works correctly
-        backend.set("test_key", b"test_value".to_vec(), None).await.unwrap();
-        
+        backend
+            .set("test_key", b"test_value".to_vec(), None)
+            .await
+            .unwrap();
+
         // Small delay to allow async operations to complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        
+
         let value = backend.get("test_key").await.unwrap();
         assert_eq!(value, Some(b"test_value".to_vec()));
-        
+
         // Use fully qualified method calls to avoid ambiguity
-        <MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key").await.unwrap();
-        <MemoryBackend as crate::backend::CacheBackend>::delete(&backend, "test_key").await.unwrap();
-        assert!(!<MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key").await.unwrap());
+        <MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key")
+            .await
+            .unwrap();
+        <MemoryBackend as crate::backend::CacheBackend>::delete(&backend, "test_key")
+            .await
+            .unwrap();
+        assert!(
+            !<MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key")
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]
     async fn test_unified_cache_typed() {
         let backend = MemoryBackend::new();
-        
+
         #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
         struct TestStruct {
             name: String,
             value: i32,
         }
-        
+
         let test_val: TestStruct = TestStruct {
             name: "test".to_string(),
             value: 42,
         };
-        
+
         // Test typed operations
-        backend.set_typed("typed_key", &test_val, None).await.unwrap();
+        backend
+            .set_typed("typed_key", &test_val, None)
+            .await
+            .unwrap();
         let retrieved: Option<TestStruct> = backend.get_typed("typed_key").await.unwrap();
         assert_eq!(retrieved, Some(test_val));
-        
+
         // Test get_or_fetch
         let fetched: TestStruct = backend
             .get_or_fetch::<TestStruct, _, _>("fetch_key", None, || async {
@@ -525,10 +555,10 @@ mod tests {
             })
             .await
             .unwrap();
-        
+
         assert_eq!(fetched.name, "fetched");
         assert_eq!(fetched.value, 100);
-        
+
         // Verify it was cached
         let cached: Option<TestStruct> = backend.get_typed("fetch_key").await.unwrap();
         assert!(cached.is_some());
@@ -537,22 +567,24 @@ mod tests {
     #[tokio::test]
     async fn test_batch_operations() {
         let backend = MemoryBackend::new();
-        
+
         // Test batch set
-        let items: Vec<(&str, Vec<u8>)> = vec![
-            ("key1", b"value1".to_vec()),
-            ("key2", b"value2".to_vec()),
-        ];
-        backend.set_many_bytes(items.iter().map(|(k, v)| (*k, v.clone()))).await.unwrap();
-        
+        let items: Vec<(&str, Vec<u8>)> =
+            vec![("key1", b"value1".to_vec()), ("key2", b"value2".to_vec())];
+        backend
+            .set_many_bytes(items.iter().map(|(k, v)| (*k, v.clone())))
+            .await
+            .unwrap();
+
         // Test batch get
         let keys: Vec<&str> = vec!["key1", "key2", "key3"];
-        let results: std::collections::HashMap<String, Vec<u8>> = backend.get_many_bytes(keys.iter().cloned()).await.unwrap();
+        let results: std::collections::HashMap<String, Vec<u8>> =
+            backend.get_many_bytes(keys.iter().cloned()).await.unwrap();
         assert_eq!(results.len(), 2);
         assert!(results.contains_key("key1"));
         assert!(results.contains_key("key2"));
         assert!(!results.contains_key("key3"));
-        
+
         // Test batch delete
         backend.delete_many(vec!["key1", "key2"]).await.unwrap();
         assert!(!CacheBackend::exists(&backend, "key1").await.unwrap());
