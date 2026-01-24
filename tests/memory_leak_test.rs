@@ -10,8 +10,7 @@
 mod common;
 
 use common::is_redis_available;
-use oxcache::backend::l1::L1Backend;
-use oxcache::backend::l2::L2Backend;
+use oxcache::backend::{CacheBackend, MemoryBackend, RedisBackend};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -21,7 +20,7 @@ use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_l1_cache_memory_leak() {
-    let cache = Arc::new(L1Backend::new(1000));
+    let cache: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::builder().capacity(1000).build());
 
     // 执行大量操作，检测内存泄漏
     for i in 0..10000 {
@@ -29,14 +28,13 @@ async fn test_l1_cache_memory_leak() {
         let value = vec![i as u8; 100];
 
         cache
-            .set_bytes(&key, value.clone(), Some(60))
+            .set(&key, value.clone(), Some(Duration::from_secs(60)))
             .await
             .unwrap();
-        cache.get_bytes(&key).await.unwrap();
+        cache.get(&key).await.unwrap();
 
         if i % 1000 == 0 {
             // 定期清理，模拟真实使用场景
-            // L1Backend doesn't have clear method, so we'll delete keys individually
             for j in 0..100 {
                 let key = format!("key_{}", j);
                 let _ = cache.delete(&key).await;
@@ -65,25 +63,14 @@ async fn test_l2_cache_memory_leak() {
         return;
     }
 
-    use oxcache::config::L2Config;
-    use oxcache::config::RedisMode;
-
-    let config = L2Config {
-        mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::from("redis://127.0.0.1:6379/15".to_string()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 1000,
-        password: None,
-        enable_tls: false,
-        sentinel: None,
-        cluster: None,
-        default_ttl: Some(3600),
-        ..Default::default()
+    let redis_url = "redis://127.0.0.1:6379/15";
+    let l2_backend: Arc<dyn CacheBackend> = match RedisBackend::new(redis_url).await {
+        Ok(backend) => Arc::new(backend),
+        Err(e) => {
+            println!("无法连接Redis: {:?}", e);
+            return;
+        }
     };
-
-    let l2_backend = L2Backend::new(&config)
-        .await
-        .expect("Failed to connect to Redis");
 
     // 执行大量L2操作
     for i in 0..5000 {
@@ -91,10 +78,10 @@ async fn test_l2_cache_memory_leak() {
         let value = vec![i as u8; 1024]; // 1KB数据
 
         l2_backend
-            .set_with_version(&key, value.clone(), Some(300))
+            .set(&key, value.clone(), Some(Duration::from_secs(300)))
             .await
             .unwrap();
-        l2_backend.get_bytes(&key).await.unwrap();
+        l2_backend.get(&key).await.unwrap();
 
         if i % 500 == 0 {
             // 定期删除，避免Redis内存溢出
@@ -119,39 +106,28 @@ async fn test_two_level_cache_memory_leak() {
         return;
     }
 
-    use oxcache::config::L2Config;
-    use oxcache::config::RedisMode;
-
-    let l1 = Arc::new(L1Backend::new(100));
-
-    let config = L2Config {
-        mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::from("redis://127.0.0.1:6379/14".to_string()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 1000,
-        password: None,
-        enable_tls: false,
-        sentinel: None,
-        cluster: None,
-        default_ttl: Some(3600),
-        ..Default::default()
+    let redis_url = "redis://127.0.0.1:6379/14";
+    let l1: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::builder().capacity(100).build());
+    let l2: Arc<dyn CacheBackend> = match RedisBackend::new(redis_url).await {
+        Ok(backend) => Arc::new(backend),
+        Err(e) => {
+            println!("无法连接Redis: {:?}", e);
+            return;
+        }
     };
 
-    let l2 = L2Backend::new(&config)
-        .await
-        .expect("Failed to connect to Redis");
-
-    // 直接使用L1和L2进行测试，不创建TwoLevelClient
     // 测试L1缓存的内存泄漏
     for i in 0..1500 {
         let key = format!("two_level_l1_{}", i % 100);
         let value = format!("value_{}", i).into_bytes();
 
         // 写入操作
-        l1.set_bytes(&key, value.clone(), Some(120)).await.unwrap();
+        l1.set(&key, value.clone(), Some(Duration::from_secs(120)))
+            .await
+            .unwrap();
 
         // 读取操作
-        let _ = l1.get_bytes(&key).await;
+        let _ = l1.get(&key).await;
 
         // 定期清理
         if i % 150 == 0 {
@@ -175,12 +151,12 @@ async fn test_two_level_cache_memory_leak() {
         let value = format!("value_{}", i).into_bytes();
 
         // 写入操作
-        l2.set_with_version(&key, value.clone(), Some(120))
+        l2.set(&key, value.clone(), Some(Duration::from_secs(120)))
             .await
             .unwrap();
 
         // 读取操作
-        let _ = l2.get_bytes(&key).await;
+        let _ = l2.get(&key).await;
 
         // 定期清理
         if i % 150 == 0 {
@@ -210,27 +186,15 @@ async fn test_batch_operation_memory_leak() {
         return;
     }
 
-    let l1 = Arc::new(L1Backend::new(500));
-
-    use oxcache::config::L2Config;
-    use oxcache::config::RedisMode;
-
-    let config = L2Config {
-        mode: RedisMode::Standalone,
-        connection_string: secrecy::SecretString::from("redis://127.0.0.1:6379/13".to_string()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 1000,
-        password: None,
-        enable_tls: false,
-        sentinel: None,
-        cluster: None,
-        default_ttl: Some(3600),
-        ..Default::default()
+    let l1: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::builder().capacity(500).build());
+    let redis_url = "redis://127.0.0.1:6379/13";
+    let l2: Arc<dyn CacheBackend> = match RedisBackend::new(redis_url).await {
+        Ok(backend) => Arc::new(backend),
+        Err(e) => {
+            println!("无法连接Redis: {:?}", e);
+            return;
+        }
     };
-
-    let l2 = L2Backend::new(&config)
-        .await
-        .expect("Failed to connect to Redis");
 
     // 批量操作内存泄漏测试 - 分别测试L1和L2
     for batch_id in 0..50 {
@@ -244,12 +208,14 @@ async fn test_batch_operation_memory_leak() {
 
         // L1批量设置
         for (key, value) in &batch {
-            l1.set_bytes(key, value.clone(), Some(60)).await.unwrap();
+            l1.set(key, value.clone(), Some(Duration::from_secs(60)))
+                .await
+                .unwrap();
         }
 
         // L1批量获取
         for (key, _) in &batch {
-            let _ = l1.get_bytes(key).await;
+            let _ = l1.get(key).await;
         }
 
         // L1批量删除
@@ -267,14 +233,14 @@ async fn test_batch_operation_memory_leak() {
 
         // L2批量设置
         for (key, value) in &l2_batch {
-            l2.set_with_version(key, value.clone(), Some(60))
+            l2.set(key, value.clone(), Some(Duration::from_secs(60)))
                 .await
                 .unwrap();
         }
 
         // L2批量获取
         for (key, _) in &l2_batch {
-            let _ = l2.get_bytes(key).await;
+            let _ = l2.get(key).await;
         }
 
         // L2批量删除
@@ -297,7 +263,7 @@ async fn test_batch_operation_memory_leak() {
 
 #[tokio::test]
 async fn test_concurrent_memory_leak() {
-    let cache = Arc::new(L1Backend::new(1000));
+    let cache: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::builder().capacity(1000).build());
     let mut handles = vec![];
 
     // 并发内存泄漏测试
@@ -310,10 +276,10 @@ async fn test_concurrent_memory_leak() {
                 let value = format!("thread_{}_value_{}", thread_id, i).into_bytes();
 
                 cache_clone
-                    .set_bytes(&key, value.clone(), Some(60))
+                    .set(&key, value.clone(), Some(Duration::from_secs(60)))
                     .await
                     .unwrap();
-                let _ = cache_clone.get_bytes(&key).await;
+                let _ = cache_clone.get(&key).await;
 
                 if i % 100 == 0 {
                     // 定期清理部分key，避免全部清理影响并发测试
@@ -371,12 +337,16 @@ async fn test_circular_reference_memory_leak() {
     node1.borrow_mut().next = Some(Rc::clone(&node2));
 
     // 使用缓存存储循环引用（序列化为字节数组）
-    let cache = Arc::new(L1Backend::new(100));
+    let cache: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::builder().capacity(100).build());
 
     // 将循环引用序列化为字节数组存储
     let serialized = format!("circular_ref_data_{}", Rc::strong_count(&node1)).into_bytes();
     cache
-        .set_bytes("circular_ref", serialized.clone(), Some(10))
+        .set(
+            "circular_ref",
+            serialized.clone(),
+            Some(Duration::from_secs(10)),
+        )
         .await
         .unwrap();
 
@@ -387,170 +357,4 @@ async fn test_circular_reference_memory_leak() {
     drop(node2);
 
     sleep(Duration::from_millis(100)).await;
-}
-
-// 内存使用监控辅助函数（需要jemalloc或其他内存分配器支持）
-#[cfg(feature = "memory_profiling_never_12345")]
-mod memory_profiling {
-    use super::*;
-
-    use jemalloc_ctl::{epoch, stats};
-    use std::fmt;
-
-    #[derive(Debug)]
-    struct JemallocWrapper(jemalloc_ctl::Error);
-
-    impl fmt::Display for JemallocWrapper {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "jemalloc error: {:?}", self.0)
-        }
-    }
-
-    impl std::error::Error for JemallocWrapper {}
-
-    pub async fn get_memory_usage() -> Result<(usize, usize), Box<dyn std::error::Error>> {
-        epoch::advance().map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
-
-        let allocated = stats::allocated::read()
-            .map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
-        let active = stats::active::read()
-            .map_err(|e| Box::new(JemallocWrapper(e)) as Box<dyn std::error::Error>)?;
-
-        Ok((allocated, active))
-    }
-
-    #[tokio::test]
-    async fn test_memory_usage_tracking() {
-        let (initial_allocated, initial_active) = get_memory_usage().await.unwrap();
-
-        let cache = Arc::new(L1Backend::new(10000));
-
-        // 执行大量操作，模拟真实使用场景
-        for i in 0..10000 {
-            let key = format!("mem_test_{}", i);
-            let value = vec![i as u8; 1024];
-            cache.set_bytes(&key, value, Some(60)).await.unwrap();
-        }
-
-        let (peak_allocated, peak_active) = get_memory_usage().await.unwrap();
-        println!(
-            "Memory usage - Initial: {} bytes allocated, {} bytes active",
-            initial_allocated, initial_active
-        );
-        println!(
-            "Memory usage - Peak: {} bytes allocated, {} bytes active",
-            peak_allocated, peak_active
-        );
-
-        // 清理缓存：L1Backend没有clear方法，逐个删除键
-        for i in 0..10000 {
-            let key = format!("mem_test_{}", i);
-            let _ = cache.delete(&key).await;
-        }
-        drop(cache);
-        sleep(Duration::from_millis(500)).await;
-
-        let (final_allocated, final_active) = get_memory_usage().await.unwrap();
-        println!(
-            "Memory usage - Final: {} bytes allocated, {} bytes active",
-            final_allocated, final_active
-        );
-
-        // Jemalloc 会保留内存以便后续重用，这不是真正的内存泄漏
-        // 验证分配的内存没有过度增长（允许最多 10MB 的 Jemalloc 缓存）
-        let max_reasonable_allocation = initial_allocated.saturating_add(10 * 1024 * 1024);
-        assert!(
-            final_allocated < max_reasonable_allocation,
-            "Potential memory leak: allocated {} bytes (initial: {}, max reasonable: {})",
-            final_allocated,
-            initial_allocated,
-            max_reasonable_allocation
-        );
-
-        // 验证没有持续的内存增长趋势（多次运行测试不应该导致内存持续增加）
-        // 这个检查在单次测试中没有意义，但可以防止明显的泄漏
-        assert!(
-            final_allocated <= peak_allocated * 2,
-            "Memory allocation increased significantly after cleanup: {} vs peak {}",
-            final_allocated,
-            peak_allocated
-        );
-    }
-
-    #[tokio::test]
-    async fn test_long_running_memory_stability() {
-        // 长时间运行的内存稳定性测试
-        let (initial_allocated, _) = get_memory_usage().await.unwrap();
-        let cache = Arc::new(L1Backend::new(5000));
-
-        // 定期记录内存使用情况
-        let mut memory_samples = Vec::new();
-        memory_samples.push(initial_allocated);
-
-        // 运行10轮，每轮执行操作后休息一段时间
-        for round in 0..10 {
-            println!("Running memory stability test round {}/10", round + 1);
-
-            // 执行批量操作
-            for i in 0..2000 {
-                let key = format!("longrun_{}_{}", round, i % 500);
-                let value = vec![round as u8; 512];
-                cache.set_bytes(&key, value, Some(120)).await.unwrap();
-            }
-
-            // 执行批量读取
-            for i in 0..2000 {
-                let key = format!("longrun_{}_{}", round, i % 500);
-                let _ = cache.get_bytes(&key).await;
-            }
-
-            // 定期清理旧数据
-            if round % 2 == 0 {
-                for i in 0..500 {
-                    let key = format!("longrun_{}_{}", (round + 1) % 2, i);
-                    let _ = cache.delete(&key).await;
-                }
-            }
-
-            // 记录内存使用情况
-            let (current_allocated, _) = get_memory_usage().await.unwrap();
-            memory_samples.push(current_allocated);
-            println!(
-                "  Memory usage after round {}: {} bytes",
-                round + 1,
-                current_allocated
-            );
-
-            // 休息一段时间
-            sleep(Duration::from_millis(200)).await;
-        }
-
-        // 清理所有数据
-        for round in 0..10 {
-            for i in 0..500 {
-                let key = format!("longrun_{}_{}", round, i);
-                let _ = cache.delete(&key).await;
-            }
-        }
-
-        drop(cache);
-        sleep(Duration::from_millis(500)).await;
-
-        // 验证长时间运行后的内存稳定性
-        let max_memory = memory_samples.iter().max().unwrap();
-        let min_memory = memory_samples.iter().min().unwrap();
-
-        println!("Long running memory stability test results:");
-        println!("  Minimum memory usage: {} bytes", min_memory);
-        println!("  Maximum memory usage: {} bytes", max_memory);
-        println!("  Memory usage range: {} bytes", max_memory - min_memory);
-
-        // 检查内存使用是否在合理范围内波动，没有持续增长
-        assert!(
-            *max_memory < initial_allocated * 3,
-            "Memory usage exceeded expected limit: {} vs {}",
-            max_memory,
-            initial_allocated * 3
-        );
-    }
 }

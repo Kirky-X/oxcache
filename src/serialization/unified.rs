@@ -12,13 +12,6 @@ use std::sync::Arc;
 // Import the Serializer trait
 use crate::serialization::Serializer;
 
-// Import extra serialization features if available
-#[cfg(feature = "extra-serialization")]
-use crate::serialization::extra::{CborSerializer, MessagePackSerializer};
-
-// Import ZeroCopySerializer if available
-use crate::serialization::ZeroCopySerializer;
-
 /// Unified serialization manager
 ///
 /// This provides a centralized way to handle all serialization operations
@@ -84,9 +77,9 @@ impl UnifiedSerializer {
                 UnifiedSerializerInner::Cbor(crate::serialization::extra::CborSerializer)
             }
             #[cfg(feature = "extra-serialization")]
-            SerializationFormat::MessagePack => {
-                UnifiedSerializerInner::MessagePack(crate::serialization::extra::MessagePackSerializer)
-            }
+            SerializationFormat::MessagePack => UnifiedSerializerInner::MessagePack(
+                crate::serialization::extra::MessagePackSerializer,
+            ),
         };
 
         Self {
@@ -133,13 +126,9 @@ impl UnifiedSerializer {
     /// Serialize a value to bytes
     pub fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
         match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => {
-                serializer.serialize(value)
-            }
+            UnifiedSerializerInner::Json(serializer) => serializer.serialize(value),
             #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => {
-                serializer.serialize(value)
-            }
+            UnifiedSerializerInner::Bincode(serializer) => serializer.serialize(value),
             #[cfg(feature = "extra-serialization")]
             UnifiedSerializerInner::Cbor(serializer) => {
                 crate::serialization::Serializer::serialize(serializer, value)
@@ -154,13 +143,9 @@ impl UnifiedSerializer {
     /// Deserialize bytes to a value
     pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => {
-                serializer.deserialize(data)
-            }
+            UnifiedSerializerInner::Json(serializer) => serializer.deserialize(data),
             #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => {
-                serializer.deserialize(data)
-            }
+            UnifiedSerializerInner::Bincode(serializer) => serializer.deserialize(data),
             #[cfg(feature = "extra-serialization")]
             UnifiedSerializerInner::Cbor(serializer) => {
                 crate::serialization::Serializer::deserialize(serializer, data)
@@ -278,7 +263,7 @@ pub struct FormatInfo {
 }
 
 /// Serialization registry for managing multiple formats
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SerializationRegistry {
     serializers: std::collections::HashMap<SerializationFormat, UnifiedSerializer>,
 }
@@ -302,7 +287,8 @@ impl SerializationRegistry {
     /// Get or create a serializer for a format
     pub fn get_or_create(&mut self, format: SerializationFormat) -> &UnifiedSerializer {
         if !self.serializers.contains_key(&format) {
-            self.serializers.insert(format, UnifiedSerializer::new(format));
+            self.serializers
+                .insert(format, UnifiedSerializer::new(format));
         }
         self.serializers.get(&format).unwrap()
     }
@@ -387,7 +373,7 @@ mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
     struct TestData {
         name: String,
         value: i32,
@@ -458,15 +444,16 @@ mod tests {
         let json_serializer = registry.get(&SerializationFormat::Json).unwrap();
         assert_eq!(json_serializer.format(), SerializationFormat::Json);
 
-        // Get or create serializer
-        let json_serializer2 = registry.get_or_create(SerializationFormat::Json);
-        assert_eq!(json_serializer2.format(), SerializationFormat::Json);
-
-        // Test with data
+        // Test with data using the existing serializer
         let data = test_data();
         let serialized = json_serializer.serialize(&data).unwrap();
         let deserialized: TestData = json_serializer.deserialize(&serialized).unwrap();
         assert_eq!(data, deserialized);
+
+        // Get or create serializer - create a new registry to avoid borrow conflict
+        let mut registry2 = registry.clone();
+        let json_serializer2 = registry2.get_or_create(SerializationFormat::Json);
+        assert_eq!(json_serializer2.format(), SerializationFormat::Json);
     }
 
     #[test]
@@ -518,7 +505,9 @@ mod tests {
 
             // Test zero-copy deserialization
             let serialized = serializer.serialize(&data).unwrap();
-            let zero_copy_result = serializer.deserialize_zero_copy::<TestData>(&serialized).unwrap();
+            let zero_copy_result = serializer
+                .deserialize_zero_copy::<TestData>(&serialized)
+                .unwrap();
             match zero_copy_result {
                 Cow::Borrowed(_) => println!("True zero-copy achieved"),
                 Cow::Owned(_) => println!("Fallback to regular deserialization"),

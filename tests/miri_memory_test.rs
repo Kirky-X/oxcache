@@ -6,12 +6,12 @@
 // 这个文件包含专门用于Miri检测的内存安全测试
 // 运行方式: cargo +nightly miri test --test miri_memory_test
 
-use oxcache::backend::l1::L1Backend;
+use oxcache::backend::{CacheBackend, MemoryBackend};
 
 /// 测试基本的内存安全 - 无内存泄漏
 #[test]
 fn test_basic_memory_safety() {
-    let cache = L1Backend::new(100);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(100).build());
 
     // 简单的set/get操作
     let key = "test_key";
@@ -20,8 +20,11 @@ fn test_basic_memory_safety() {
     // 注意：这里使用block_on来同步执行异步代码
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        cache.set_bytes(key, value.clone(), Some(60)).await.unwrap();
-        let retrieved = cache.get_bytes(key).await.unwrap();
+        cache
+            .set(key, value.clone(), Some(std::time::Duration::from_secs(60)))
+            .await
+            .unwrap();
+        let retrieved = cache.get(key).await.unwrap();
 
         assert_eq!(retrieved, Some(value));
         cache.delete(key).await.unwrap();
@@ -31,7 +34,7 @@ fn test_basic_memory_safety() {
 /// 测试内存释放 - 确保删除后内存被释放
 #[test]
 fn test_memory_release_on_delete() {
-    let cache = L1Backend::new(10);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -39,7 +42,10 @@ fn test_memory_release_on_delete() {
         for i in 0..100 {
             let key = format!("key_{}", i);
             let value = vec![i as u8; 1024]; // 1KB数据
-            cache.set_bytes(&key, value, Some(60)).await.unwrap();
+            cache
+                .set(&key, value, Some(std::time::Duration::from_secs(60)))
+                .await
+                .unwrap();
         }
 
         // 删除所有数据
@@ -51,7 +57,7 @@ fn test_memory_release_on_delete() {
         // 验证所有数据都被删除
         for i in 0..100 {
             let key = format!("key_{}", i);
-            let result = cache.get_bytes(&key).await.unwrap();
+            let result = cache.get(&key).await.unwrap();
             assert_eq!(result, None);
         }
     });
@@ -69,7 +75,7 @@ fn test_no_circular_reference_leak() {
         next: Option<Rc<RefCell<Node>>>,
     }
 
-    let cache = L1Backend::new(5);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(5).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -89,7 +95,11 @@ fn test_no_circular_reference_leak() {
         // 存储循环引用
         let data = format!("circular_data_{}", Rc::strong_count(&node1)).into_bytes();
         cache
-            .set_bytes("circular", data.clone(), Some(10))
+            .set(
+                "circular",
+                data.clone(),
+                Some(std::time::Duration::from_secs(10)),
+            )
             .await
             .unwrap();
 
@@ -107,7 +117,7 @@ fn test_no_circular_reference_leak() {
 /// 测试缓冲区溢出 - 确保没有缓冲区溢出
 #[test]
 fn test_buffer_overflow_prevention() {
-    let cache = L1Backend::new(10);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -119,10 +129,14 @@ fn test_buffer_overflow_prevention() {
             let value = vec![42u8; size];
 
             cache
-                .set_bytes(&key, value.clone(), Some(60))
+                .set(
+                    &key,
+                    value.clone(),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
-            let retrieved = cache.get_bytes(&key).await.unwrap();
+            let retrieved = cache.get(&key).await.unwrap();
 
             assert_eq!(retrieved, Some(value));
             cache.delete(&key).await.unwrap();
@@ -136,7 +150,8 @@ fn test_concurrent_memory_safety() {
     use std::sync::Arc;
     use std::thread;
 
-    let cache = Arc::new(L1Backend::new(100));
+    let cache: Arc<dyn CacheBackend + Send + Sync> =
+        Arc::new(MemoryBackend::builder().capacity(100).build());
     let mut handles = vec![];
 
     for thread_id in 0..5 {
@@ -151,10 +166,14 @@ fn test_concurrent_memory_safety() {
                     let value = vec![thread_id as u8; 100];
 
                     cache_clone
-                        .set_bytes(&key, value.clone(), Some(60))
+                        .set(
+                            &key,
+                            value.clone(),
+                            Some(std::time::Duration::from_secs(60)),
+                        )
                         .await
                         .unwrap();
-                    let retrieved = cache_clone.get_bytes(&key).await.unwrap();
+                    let retrieved = cache_clone.get(&key).await.unwrap();
 
                     assert_eq!(retrieved, Some(value));
                     cache_clone.delete(&key).await.unwrap();
@@ -174,7 +193,7 @@ fn test_concurrent_memory_safety() {
 /// 测试内存对齐 - 确保数据结构正确对齐
 #[test]
 fn test_memory_alignment() {
-    let cache = L1Backend::new(10);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -189,8 +208,11 @@ fn test_memory_alignment() {
         ];
 
         for (key, value) in test_cases {
-            cache.set_bytes(key, value.clone(), Some(60)).await.unwrap();
-            let retrieved = cache.get_bytes(key).await.unwrap();
+            cache
+                .set(key, value.clone(), Some(std::time::Duration::from_secs(60)))
+                .await
+                .unwrap();
+            let retrieved = cache.get(key).await.unwrap();
 
             assert_eq!(retrieved, Some(value));
             cache.delete(key).await.unwrap();
@@ -201,7 +223,7 @@ fn test_memory_alignment() {
 /// 测试使用未初始化内存 - 确保没有使用未初始化内存
 #[test]
 fn test_uninitialized_memory_prevention() {
-    let cache = L1Backend::new(5);
+    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(5).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -220,12 +242,16 @@ fn test_uninitialized_memory_prevention() {
             }
 
             cache
-                .set_bytes(&key, value.clone(), Some(60))
+                .set(
+                    &key,
+                    value.clone(),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
 
             // 验证数据完整性
-            let retrieved = cache.get_bytes(&key).await.unwrap();
+            let retrieved = cache.get(&key).await.unwrap();
             assert_eq!(retrieved, Some(value));
 
             cache.delete(&key).await.unwrap();

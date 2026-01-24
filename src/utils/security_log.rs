@@ -9,7 +9,6 @@
 #![cfg_attr(doctest, allow(unused_imports))]
 
 use crate::utils::redaction::redact_cache_key;
-use crate::utils::redaction::redact_connection_string;
 
 /// 安全日志宏 - 自动脱敏连接字符串
 ///
@@ -143,7 +142,7 @@ pub fn sanitize_message(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::redaction::redact_cache_key;
+    use crate::utils::redaction::{redact_cache_key, redact_connection_string};
 
     #[test]
     fn test_log_connection_string() {

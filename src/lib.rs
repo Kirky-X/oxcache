@@ -592,20 +592,10 @@ pub use backend::{
 // Client backend exports  
 pub use backend::client::{DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend};
 
-// Unified Redis backend exports
-pub use backend::{UnifiedRedisBackend, UnifiedRedisManager, RedisConfig};
-
 #[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
 
 pub use config::oxcache_config;
-
-#[cfg(test)]
-pub use config::L1Config;
-#[cfg(any(feature = "l2-redis", feature = "full"))]
-pub use config::legacy_config::L2Config;
-#[cfg(test)]
-pub use config::TwoLevelConfig;
 
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub use utils::key_generator::KeyGenerator;

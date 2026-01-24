@@ -19,8 +19,9 @@ pub(crate) mod key_generator;
 pub mod redaction;
 pub mod security_log;
 
-use crate::config::{
-    CacheType, ClusterConfig, L1Config, L2Config, OxcacheConfig, RedisMode, SentinelConfig,
+use crate::config::OxcacheConfig;
+use crate::config::legacy_config::{
+    CacheType, ClusterConfig, L1Config, L2Config, RedisMode, SentinelConfig,
     ServiceConfig, TwoLevelConfig,
 };
 use crate::error::CacheError;

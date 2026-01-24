@@ -23,7 +23,6 @@ pub use moka::MokaMemoryBackend;
 pub use moka::MokaMemoryBackend as MemoryBackend; // 为向后兼容提供别名
 pub use redis::{
     RedisBackend, RedisMode, RedisBackendBuilder,
-    UnifiedRedisBackend, UnifiedRedisManager, RedisConfig,
     RedisProvider, DefaultRedisProvider
 };
 

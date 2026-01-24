@@ -293,6 +293,9 @@ macros = ["dep:oxcache_macros"]
 # L1 Cache Implementation (Moka)
 l1-moka = ["dep:moka", "dep:dashmap"]
 
+# DashMap Backend (Pure in-memory concurrent cache)
+dashmap-backend = ["dep:dashmap"]
+
 # L2 Cache Implementation (Redis)
 l2-redis = ["dep:redis"]
 

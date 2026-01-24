@@ -83,6 +83,32 @@ impl Default for ServiceConfig {
     }
 }
 
+impl ServiceConfig {
+    /// Create an L1-only cache configuration
+    pub fn l1_only() -> Self {
+        Self {
+            cache_type: CacheType::L1,
+            ttl: None,
+            serialization: None,
+            l1: Some(L1Config::default()),
+            l2: None,
+            two_level: None,
+        }
+    }
+
+    /// Set TTL for the service configuration
+    pub fn with_ttl(mut self, ttl: u64) -> Self {
+        self.ttl = Some(ttl);
+        self
+    }
+
+    /// Set L1 configuration for the service
+    pub fn with_l1(mut self, l1: L1Config) -> Self {
+        self.l1 = Some(l1);
+        self
+    }
+}
+
 /// 序列化类型枚举
 ///
 /// 支持JSON和Bincode两种序列化方式

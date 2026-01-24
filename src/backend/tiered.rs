@@ -352,7 +352,7 @@ impl CacheBackend for TieredBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::memory::MemoryBackend;
+    use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 
     #[tokio::test]
     async fn test_tiered_backend_basic() {
