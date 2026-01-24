@@ -95,6 +95,19 @@ impl RedisBackend {
     pub fn client(&self) -> &Client {
         &self.client
     }
+
+    /// Ping the Redis server
+    pub async fn ping(&self) -> Result<String> {
+        let mut conn = self.client.get_multiplexed_async_connection().await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        
+        let result: String = redis::cmd("PING")
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        
+        Ok(result)
+    }
 }
 
 /// Builder for RedisBackend
