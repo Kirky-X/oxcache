@@ -7,7 +7,7 @@
 //! 支持单个 Redis 实例，支持主从读写分离。
 
 use crate::backend::strategy::traits::{HealthStatus, L2BackendStrategy, ScanResult};
-use crate::config::L2Config;
+use crate::config::legacy_config::L2Config;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use redis::{aio::ConnectionManager, Client, RedisResult};

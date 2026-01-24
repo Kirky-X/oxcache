@@ -149,6 +149,7 @@
 //! # Features
 //!
 //! - `l1-moka`: Enable L1 memory cache (Moka)
+//! - `dashmap-backend`: Enable DashMap backend (pure concurrent in-memory)
 //! - `l2-redis`: Enable L2 distributed cache (Redis)
 //! - `serialization`: Enable JSON/Bincode serialization
 //! - `metrics`: Enable OpenTelemetry metrics
@@ -436,6 +437,7 @@ pub mod internal;
 // New modernized API modules
 pub mod builder;
 pub mod cache;
+pub mod cache_interface;
 pub mod traits;
 
 // ============================================================================
@@ -534,8 +536,17 @@ pub use config::legacy_config::{
 #[allow(deprecated)]
 pub use config::Config;
 pub use config::{
-    CacheStrategy, CacheType, DynamicConfig, GlobalConfig, OxcacheConfig, OxcacheConfigBuilder,
-    RedisMode, SerializationType, ServiceConfig,
+    CacheStrategy, DynamicConfig, GlobalConfig, OxcacheConfig, OxcacheConfigBuilder,
+    SerializationType,
+    // Unified configuration exports
+    UnifiedConfig, UnifiedConfigBuilder, BackendConfig, BackendType,
+    MemoryBackendConfig, RedisBackendConfig, TieredBackendConfig,
+    PerformanceConfig, SerializationConfig, BatchConfig, ConcurrencyConfig,
+    FeatureConfig, MonitoringConfig, MetricsConfig, HealthCheckConfig,
+    LoggingConfig, SecurityConfig, config_convenience
+};
+pub use config::legacy_config::{
+    CacheType, RedisMode, ServiceConfig,
 };
 
 #[cfg(feature = "confers")]
@@ -554,19 +565,35 @@ pub use error::{CacheError, Result};
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
 pub use cache::Cache;
+pub use cache_interface::{UnifiedCache, CacheOpsAdapter};
 pub use traits::{CacheKey, Cacheable};
 
 // Custom tiered backend configuration exports
 #[cfg(any(
     feature = "l1-moka",
     feature = "l2-redis",
-    feature = "core",
-    feature = "full"
+    feature = "full",
+    feature = "core"
 ))]
 pub use backend::custom_tiered::{
-    AutoFixConfig, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
+    AutoFixConfig, ConfigFix, ConfigValidationResult, CustomTieredConfig,
     CustomTieredConfigBuilder, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
 };
+
+// DashMap backend exports (client)
+#[cfg(feature = "dashmap-backend")]
+pub use backend::client::DashMapMemoryBackend as DashmapBackend;
+
+// Unified memory backend exports (from client implementations)
+pub use backend::{
+    MokaMemoryBackend, DashMapMemoryBackend, MemoryBackend, MemoryBackendType,
+    moka_memory, dashmap_memory, default_memory_backend
+};
+// Client backend exports  
+pub use backend::client::{DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend};
+
+// Unified Redis backend exports
+pub use backend::{UnifiedRedisBackend, UnifiedRedisManager, RedisConfig};
 
 #[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
@@ -576,7 +603,7 @@ pub use config::oxcache_config;
 #[cfg(test)]
 pub use config::L1Config;
 #[cfg(any(feature = "l2-redis", feature = "full"))]
-pub use config::L2Config;
+pub use config::legacy_config::L2Config;
 #[cfg(test)]
 pub use config::TwoLevelConfig;
 

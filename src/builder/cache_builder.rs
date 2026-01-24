@@ -5,7 +5,7 @@
 //! Cache builder for advanced configuration
 
 use super::backend_builder::BackendBuilder;
-use crate::backend::MemoryBackend;
+use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::cache::Cache;
 use crate::error::Result;
 use std::marker::PhantomData;

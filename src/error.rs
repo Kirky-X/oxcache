@@ -198,6 +198,12 @@ pub enum CacheError {
     /// 无效键错误
     #[error("Invalid key: {0}. The provided key does not meet the required format or contains forbidden characters.")]
     InvalidKey(String),
+
+    /// 锁错误
+    ///
+    /// 互斥锁获取失败，通常发生在锁被毒害（之前的持有者 panicked）
+    #[error("Lock error: {0}. The lock may have been poisoned by a previous panic.")]
+    LockError(String),
 }
 
 /// 缓存操作结果类型别名

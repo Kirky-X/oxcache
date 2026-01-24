@@ -44,7 +44,9 @@
 //! +-------------------------------------------------------------+
 //! ```
 
-use crate::backend::memory::{MemoryBackend, MemoryBackendBuilder};
+use crate::backend::client::moka::{MokaMemoryBackend, MokaMemoryBackendBuilder};
+use crate::backend::client::moka::MokaMemoryBackend as MemoryBackend;
+use crate::backend::client::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
 use crate::backend::{CacheBackend, TieredBackend};
 use crate::error::{CacheError, Result};
 use crate::utils::redaction::redact_value;
@@ -591,7 +593,7 @@ impl BackendProvider for DefaultBackendProvider {
     async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
         #[cfg(feature = "l2-redis")]
         {
-            use crate::backend::RedisBackend;
+            use crate::backend::client::redis::RedisBackend;
 
             let connection_string = options
                 .get("connection_string")

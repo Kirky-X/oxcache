@@ -6,7 +6,7 @@
 //!
 //! 实现动态调整的批量写入策略，根据系统负载和性能指标自动优化批处理参数。
 
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -421,9 +421,10 @@ where
             current_batch_size: self.batch_size.load(Ordering::Relaxed),
             current_wait_us: self.wait_us.load(Ordering::Relaxed),
             queue_depth: self.queue
-            .blocking_lock()
-            .expect("AdaptiveBatchWriter queue lock poisoned")
-            .len(),
+                .blocking_lock()
+                .map_err(|e| CacheError::LockError(e.to_string()))
+                .ok()
+                .map_or(0, |queue| queue.len()),
         }
     }
 

@@ -68,33 +68,6 @@ macro_rules! secure_debug {
     }}
 }
 
-/// 安全记录连接字符串到日志
-///
-/// # 参数
-/// * `level` - 日志级别 (info, debug, warn, error)
-/// * `message` - 日志消息
-/// * `connection_string` - 连接字符串
-///
-/// # 示例
-///
-/// ```rust,ignore
-/// use crate::utils::security_log::log_connection_string;
-///
-/// log_connection_string("info", "Redis connection", "redis://user:password@localhost:6379");
-/// // 日志输出: Redis connection: redis://user:****@localhost:6379
-/// ```
-pub fn log_connection_string(level: &str, message: &str, connection_string: &str) {
-    let redacted = redact_connection_string(connection_string);
-
-    match level {
-        "info" => tracing::info!("{}: {}", message, redacted),
-        "debug" => tracing::debug!("{}: {}", message, redacted),
-        "warn" => tracing::warn!("{}: {}", message, redacted),
-        "error" => tracing::error!("{}: {}", message, redacted),
-        _ => tracing::info!("{}: {}", message, redacted),
-    }
-}
-
 /// 安全记录缓存键到日志
 ///
 /// # 参数

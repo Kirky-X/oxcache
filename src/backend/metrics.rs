@@ -95,14 +95,16 @@ impl LatencyHistogram {
     ///
     /// # 返回值
     /// * 新的 LatencyHistogram 实例
-    pub fn new(bucket_bounds_us: Vec<u64>) -> Self {
+    pub fn new(bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::CacheError> {
         // 验证桶数量限制，防止内存过度分配
         if bucket_bounds_us.len() > MAX_HISTOGRAM_BUCKETS {
-            panic!(
-                "Histogram bucket bounds exceed maximum of {} (got {})",
-                MAX_HISTOGRAM_BUCKETS,
-                bucket_bounds_us.len()
-            );
+            return Err(crate::error::CacheError::ConfigError(
+                format!(
+                    "Histogram bucket bounds exceed maximum of {} (got {})",
+                    MAX_HISTOGRAM_BUCKETS,
+                    bucket_bounds_us.len()
+                )
+            ));
         }
 
         let bucket_counts: Vec<_> = bucket_bounds_us
@@ -112,14 +114,14 @@ impl LatencyHistogram {
 
         let max_latency = u64::MAX;
 
-        Self {
+        Ok(Self {
             buckets: bucket_bounds_us,
             bucket_counts,
             total_count: Arc::new(AtomicU64::new(0)),
             total_latency_us: Arc::new(AtomicU64::new(0)),
             min_latency_us: Arc::new(AtomicU64::new(max_latency)),
             max_latency_us: Arc::new(AtomicU64::new(0)),
-        }
+        })
     }
 
     /// 记录延迟
@@ -268,13 +270,13 @@ pub struct OperationCounter {
 
 impl OperationCounter {
     /// 创建新的操作计数器
-    pub fn new(op_type: OperationType, bucket_bounds_us: Vec<u64>) -> Self {
-        Self {
+    pub fn new(op_type: OperationType, bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::CacheError> {
+        Ok(Self {
             op_type,
             success_count: Arc::new(AtomicU64::new(0)),
             failure_count: Arc::new(AtomicU64::new(0)),
-            latency_histogram: LatencyHistogram::new(bucket_bounds_us),
-        }
+            latency_histogram: LatencyHistogram::new(bucket_bounds_us)?,
+        })
     }
 
     /// 记录成功操作
@@ -357,7 +359,7 @@ pub struct MetricsCollector {
 
 impl MetricsCollector {
     /// 创建新的指标收集器
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, crate::error::CacheError> {
         let (tx, _) = broadcast::channel(1);
 
         // 初始化操作计数器
@@ -374,9 +376,9 @@ impl MetricsCollector {
         let operation_counters: Vec<_> = op_types
             .into_iter()
             .map(|op| OperationCounter::new(op, bucket_bounds.clone()))
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
-        Self {
+        Ok(Self {
             operation_counters: Arc::new(operation_counters),
             l1_hits: Arc::new(AtomicU64::new(0)),
             l1_misses: Arc::new(AtomicU64::new(0)),
@@ -386,7 +388,7 @@ impl MetricsCollector {
             active_tasks: Arc::new(AtomicUsize::new(0)),
             queue_depth: Arc::new(AtomicUsize::new(0)),
             _update_tx: tx,
-        }
+        })
     }
 
     /// 获取操作计数器
@@ -498,7 +500,7 @@ impl MetricsCollector {
 
 impl Default for MetricsCollector {
     fn default() -> Self {
-        Self::new()
+        Self::new().expect("Failed to create default MetricsCollector")
     }
 }
 

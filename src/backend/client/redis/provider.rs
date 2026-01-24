@@ -6,7 +6,7 @@
 
 #[cfg(feature = "l2-redis")]
 use crate::{
-    config::L2Config,
+    config::legacy_config::L2Config,
     error::{CacheError, Result},
 };
 #[cfg(feature = "l2-redis")]
@@ -122,7 +122,7 @@ impl RedisProvider for DefaultRedisProvider {
         let nodes: Vec<String> = sentinel_config
             .nodes
             .iter()
-            .map(|n| {
+            .map(|n: &String| {
                 // Strip scheme if present
                 n.trim_start_matches("redis://")
                     .trim_start_matches("redis+sentinel://")

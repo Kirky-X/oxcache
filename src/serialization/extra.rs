@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
 
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 use rmp_serde::{decode, encode};
 
 /// MessagePack 序列化器
@@ -138,44 +138,51 @@ impl SerializerRegistry {
 
     /// 注册自定义序列化器
     pub fn register(&self, name: &str, serializer: Arc<dyn ErasedSerializer>) {
-        self.serializers
+        if let Ok(mut cache) = self
+            .serializers
             .lock()
-            .expect("SerializerRegistry lock poisoned")
-            .insert(name.to_string(), serializer);
+            .map_err(|e| CacheError::LockError(e.to_string()))
+        {
+            cache.insert(name.to_string(), serializer);
+        }
     }
 
     /// 获取序列化器
     pub fn get(&self, name: &str) -> Option<Arc<dyn ErasedSerializer>> {
         self.serializers
             .lock()
-            .expect("SerializerRegistry lock poisoned")
-            .get(name)
-            .cloned()
+            .map_err(|e| CacheError::LockError(e.to_string()))
+            .ok()
+            .and_then(|cache| cache.get(name).cloned())
     }
 
     /// 检查是否存在
     pub fn contains(&self, name: &str) -> bool {
         self.serializers
             .lock()
-            .expect("SerializerRegistry lock poisoned")
-            .contains_key(name)
+            .map_err(|e| CacheError::LockError(e.to_string()))
+            .ok()
+            .map_or(false, |cache| cache.contains_key(name))
     }
 
     /// 移除序列化器
     pub fn remove(&self, name: &str) -> bool {
         self.serializers
             .lock()
-            .expect("SerializerRegistry lock poisoned")
-            .remove(name)
-            .is_some()
+            .map_err(|e| CacheError::LockError(e.to_string()))
+            .ok()
+            .map_or(false, |mut cache| cache.remove(name).is_some())
     }
 
     /// 清空所有
     pub fn clear(&self) {
-        self.serializers
+        if let Ok(mut cache) = self
+            .serializers
             .lock()
-            .expect("SerializerRegistry lock poisoned")
-            .clear();
+            .map_err(|e| CacheError::LockError(e.to_string()))
+        {
+            cache.clear();
+        }
     }
 
     /// 注册 MessagePack 序列化器

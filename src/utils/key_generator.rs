@@ -206,31 +206,3 @@ impl KeyGenerator {
     }
 }
 
-/// 生成缓存键
-#[allow(dead_code)]
-pub fn generate_cache_key(template: &str, params: &[(&str, &str)]) -> String {
-    let generator = KeyGenerator::new();
-    generator.generate(template, params)
-}
-
-/// 生成带命名空间的缓存键
-#[allow(dead_code)]
-pub fn generate_namespaced_key(namespace: &str, template: &str, params: &[(&str, &str)]) -> String {
-    let generator = KeyGenerator::new().with_namespace(namespace);
-    generator.generate_full(template, params)
-}
-
-/// 验证缓存键
-#[allow(dead_code)]
-pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
-    let generator = KeyGenerator::new();
-    generator.validate_key(key)
-}
-
-/// 规范化缓存键
-#[cfg(feature = "bloom-filter")]
-#[allow(dead_code)]
-pub fn normalize_cache_key(key: &str) -> String {
-    let generator = KeyGenerator::new();
-    generator.normalize(key)
-}

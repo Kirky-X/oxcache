@@ -6,7 +6,7 @@
 //!
 //! 提供 Redis 计数器、有序集合、键扫描和 Lua 脚本执行支持。
 
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -169,33 +169,32 @@ impl ScriptCache {
     pub fn get_sha(&self, script: &str) -> Option<String> {
         self.scripts
             .lock()
-            .expect("ScriptCache lock poisoned")
-            .get(script)
-            .cloned()
+            .map_err(|e| CacheError::LockError(e.to_string()))
+            .ok()
+            .and_then(|cache| cache.get(script).cloned())
     }
 
     /// 缓存脚本及其 SHA
     pub fn cache(&self, script: &str, sha: &str) {
-        self.scripts
-            .lock()
-            .expect("ScriptCache lock poisoned")
-            .insert(script.to_string(), sha.to_string());
+        if let Ok(mut cache) = self.scripts.lock().map_err(|e| CacheError::LockError(e.to_string())) {
+            cache.insert(script.to_string(), sha.to_string());
+        }
     }
 
     /// 检查脚本是否已缓存
     pub fn contains(&self, script: &str) -> bool {
         self.scripts
             .lock()
-            .expect("ScriptCache lock poisoned")
-            .contains_key(script)
+            .map_err(|e| CacheError::LockError(e.to_string()))
+            .ok()
+            .map_or(false, |cache| cache.contains_key(script))
     }
 
     /// 清除缓存
     pub fn clear(&self) {
-        self.scripts
-            .lock()
-            .expect("ScriptCache lock poisoned")
-            .clear();
+        if let Ok(mut cache) = self.scripts.lock().map_err(|e| CacheError::LockError(e.to_string())) {
+            cache.clear();
+        }
     }
 }
 

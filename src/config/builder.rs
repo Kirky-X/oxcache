@@ -8,7 +8,8 @@
 
 use std::collections::HashMap;
 
-use crate::config::{GlobalConfig, OxcacheConfig, ServiceConfig};
+use crate::config::{GlobalConfig, OxcacheConfig};
+use crate::config::legacy_config::ServiceConfig;
 
 /// OxcacheConfig 构建器
 ///
