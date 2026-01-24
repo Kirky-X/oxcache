@@ -215,7 +215,7 @@ mod tests {
 
         async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError> {
             let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
-            Ok(store_result.map_or(false, |store| store.remove(key).is_some()))
+            Ok(store_result.map_or(false, |mut store| store.remove(key).is_some()))
         }
 
         async fn invalidate_by_pattern(

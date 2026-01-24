@@ -44,7 +44,6 @@
 //! +-------------------------------------------------------------+
 //! ```
 
-use crate::backend::client::moka::{MokaMemoryBackend, MokaMemoryBackendBuilder};
 use crate::backend::client::moka::MokaMemoryBackend as MemoryBackend;
 use crate::backend::client::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
 use crate::backend::{CacheBackend, TieredBackend};

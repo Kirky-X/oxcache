@@ -9,8 +9,8 @@
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
 
-use crate::config::{GlobalConfig, OxcacheConfig};
 use crate::config::legacy_config::ServiceConfig;
+use crate::config::{GlobalConfig, OxcacheConfig};
 
 // ============================================================================
 // 常量定义
@@ -513,7 +513,7 @@ mod tests {
             .with_global(GlobalConfig::default())
             .build();
 
-        let l1 = crate::config::L1Config {
+        let l1 = crate::config::legacy_config::L1Config {
             max_capacity: 0,
             ..Default::default()
         };

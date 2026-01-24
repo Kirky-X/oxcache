@@ -759,6 +759,7 @@ mod tests {
         let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
 
         let stats = cache.stats().await.unwrap();
-        assert_eq!(stats.get("type"), Some(&"memory".to_string()));
+        // Cache::new() uses MokaMemoryBackend which reports type as "moka"
+        assert_eq!(stats.get("type"), Some(&"moka".to_string()));
     }
 }

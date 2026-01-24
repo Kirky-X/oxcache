@@ -4,7 +4,8 @@
 //!
 //! Unified configuration system that consolidates all configuration functionality
 
-use crate::backend::{MemoryBackendType, RedisConfig};
+use crate::backend::client::redis::client::RedisConfig;
+use crate::backend::client::redis::RedisMode;
 use crate::error::{CacheError, Result};
 use crate::serialization::SerializationFormat;
 use serde::{Deserialize, Serialize};
@@ -71,7 +72,7 @@ pub struct MemoryBackendConfig {
 }
 
 /// Redis backend configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct RedisBackendConfig {
     /// Connection configuration
     pub connection: RedisConnectionConfig,
@@ -133,7 +134,7 @@ pub struct TieredBackendConfig {
 }
 
 /// Performance configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceConfig {
     /// Serialization configuration
     pub serialization: SerializationConfig,
@@ -688,10 +689,10 @@ impl UnifiedConfig {
     pub fn to_redis_config(&self) -> Option<RedisConfig> {
         self.backend.redis.as_ref().map(|redis_config| {
             let mode = match redis_config.connection.mode.as_str() {
-                "standalone" => crate::backend::ClientRedisMode::Standalone,
-                "sentinel" => crate::backend::ClientRedisMode::Sentinel,
-                "cluster" => crate::backend::ClientRedisMode::Cluster,
-                _ => crate::backend::ClientRedisMode::Standalone,
+                "standalone" => RedisMode::Standalone,
+                "sentinel" => RedisMode::Sentinel,
+                "cluster" => RedisMode::Cluster,
+                _ => RedisMode::Standalone,
             };
 
             RedisConfig {
@@ -703,7 +704,7 @@ impl UnifiedConfig {
                 min_pool_size: Some(redis_config.pool.min_size),
                 connection_name: redis_config.connection.connection_name.clone(),
                 password: redis_config.connection.password.clone(),
-                database: redis_config.connection.database,
+                database: redis_config.connection.database.map(|d| d as u32),
             }
         })
     }
@@ -851,7 +852,7 @@ mod tests {
     fn test_memory_config() {
         let config = UnifiedConfig::memory_only()
             .memory_backend(MemoryBackendConfig {
-                engine: MemoryEngine::DashMap,
+                backend_type: crate::backend::MemoryBackendType::DashMap,
                 capacity: 5000,
                 default_ttl: Some(Duration::from_secs(1800)),
                 time_to_idle: None,
@@ -1030,7 +1031,7 @@ mod tests {
         assert_eq!(redis_config.connection_strings[0], "redis://localhost:6379");
         assert!(matches!(
             redis_config.mode,
-            crate::backend::UnifiedRedisMode::Cluster
+            crate::backend::client::RedisMode::Cluster
         ));
     }
 }

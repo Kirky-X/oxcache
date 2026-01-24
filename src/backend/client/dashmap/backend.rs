@@ -5,7 +5,7 @@
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
 use crate::backend::backend::CacheBackend;
-use crate::error::{CacheError, Result};
+use crate::error::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 /// Entry with metadata for TTL tracking
 #[derive(Clone, Debug)]
-struct CacheEntry {
+pub struct CacheEntry {
     value: Vec<u8>,
     expires_at: Option<Instant>,
 }
@@ -169,7 +169,7 @@ impl CacheBackend for DashMapMemoryBackend {
                         if let Some(default_ttl) = self.default_ttl {
                             let new_expires_at = now + default_ttl;
                             self.ttl_map.insert(key.to_string(), new_expires_at);
-                            entry_ref.clone(); // Update entry with new TTL
+                            let _ = entry_ref.clone(); // Update entry with new TTL
                         }
                         (false, Some(entry.value.clone()))
                     }
@@ -339,12 +339,19 @@ impl DashMapBackendBuilder {
 
     /// Build the DashMap backend
     pub fn build(self) -> DashMapMemoryBackend {
+        // Use a reasonable default capacity if not set
+        let capacity = if self.capacity > 0 {
+            self.capacity
+        } else {
+            10_000 // Default capacity of 10,000 entries
+        };
+
         DashMapMemoryBackend {
             cache: Arc::new(DashMap::new()),
             ttl_map: Arc::new(DashMap::new()),
             hits: Arc::new(AtomicUsize::new(0)),
             misses: Arc::new(AtomicUsize::new(0)),
-            capacity: self.capacity,
+            capacity,
             default_ttl: self.default_ttl,
         }
     }

@@ -6,9 +6,7 @@
 
 pub mod client;
 pub mod provider;
-pub mod unified;
 
 // Re-export main types for convenience
-pub use client::{RedisBackend, RedisMode, RedisBackendBuilder};
+pub use client::{RedisBackend, RedisMode, RedisBackendBuilder, RedisConfig};
 pub use provider::{RedisProvider, DefaultRedisProvider};
-pub use unified::{UnifiedRedisBackend, UnifiedRedisManager, RedisConfig};

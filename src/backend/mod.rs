@@ -31,7 +31,6 @@ pub use tiered::TieredBackend;
 pub use client::{
     DashMapMemoryBackend, MokaMemoryBackend, MemoryBackend,
     RedisBackend as ClientRedisBackend, RedisMode as ClientRedisMode, RedisBackendBuilder,
-    UnifiedRedisBackend, UnifiedRedisManager, RedisConfig,
     RedisProvider, DefaultRedisProvider,
     // Convenience functions
     moka_memory, dashmap_memory, default_memory_backend,
