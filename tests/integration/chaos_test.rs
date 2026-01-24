@@ -4,7 +4,8 @@
 //
 // Chaos测试 - 测试系统在Redis故障时的恢复能力
 
-use oxcache::backend::{CacheBackend, MemoryBackend, RedisBackend, TieredBackend};
+use oxcache::backend::client::{MokaMemoryBackend, RedisBackend};
+use oxcache::backend::{CacheBackend, TieredBackend};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
