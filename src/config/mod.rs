@@ -100,13 +100,41 @@ impl GlobalConfig {
     }
 
     /// 获取序列化类型
-    pub fn serialization(&self) -> SerializationType {
-        self.serialization
+    pub fn serialization(&self) -> &SerializationType {
+        &self.serialization
     }
 
     /// 是否启用指标收集
     pub fn is_metrics_enabled(&self) -> bool {
         self.enable_metrics
+    }
+
+    /// 设置默认 TTL（返回新的配置实例）
+    #[must_use]
+    pub fn with_default_ttl(mut self, ttl: u64) -> Self {
+        self.default_ttl = ttl;
+        self
+    }
+
+    /// 设置健康检查间隔（返回新的配置实例）
+    #[must_use]
+    pub fn with_health_check_interval(mut self, interval: u64) -> Self {
+        self.health_check_interval = interval;
+        self
+    }
+
+    /// 设置序列化类型（返回新的配置实例）
+    #[must_use]
+    pub fn with_serialization(mut self, serialization: SerializationType) -> Self {
+        self.serialization = serialization;
+        self
+    }
+
+    /// 是否启用指标收集（返回新的配置实例）
+    #[must_use]
+    pub fn with_enable_metrics(mut self, enable: bool) -> Self {
+        self.enable_metrics = enable;
+        self
     }
 }
 

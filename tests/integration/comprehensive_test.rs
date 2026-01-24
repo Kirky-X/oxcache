@@ -8,11 +8,9 @@
 
 #![allow(deprecated)]
 
-use oxcache::config::{
-    CacheType, GlobalConfig, L1Config, L2Config, OxcacheConfig, ServiceConfig, TwoLevelConfig,
-};
+// 使用新的统一配置 API
+use oxcache::config::GlobalConfig;
 use oxcache::smart_strategy::{HitRateCollector, SmartStrategyConfig, SmartStrategyManager};
-use std::collections::HashMap;
 use tempfile::TempDir;
 
 // ============================================================================
@@ -60,7 +58,7 @@ default_ttl = 3600
     assert!(config.is_ok());
     let config = config.unwrap();
 
-    assert_eq!(config.global.default_ttl, 600);
+    assert_eq!(config.global.default_ttl(), 600);
     assert!(config.services.contains_key("test_service"));
 
     let service = config.services.get("test_service").unwrap();

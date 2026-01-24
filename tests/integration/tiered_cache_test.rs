@@ -14,7 +14,7 @@ use crate::common::{is_redis_available, setup_logging};
 async fn test_tiered_cache_operations() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -29,7 +29,7 @@ async fn test_tiered_cache_operations() {
 async fn test_l1_l2_direct_operations() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -42,7 +42,7 @@ async fn test_l1_l2_direct_operations() {
 async fn test_cross_layer_movement() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
