@@ -375,18 +375,6 @@ impl Default for MemoryBackendConfig {
     }
 }
 
-impl Default for RedisBackendConfig {
-    fn default() -> Self {
-        Self {
-            connection: RedisConnectionConfig::default(),
-            pool: RedisPoolConfig::default(),
-            default_ttl: None,
-            key_prefix: None,
-            enable_compression: false,
-        }
-    }
-}
-
 impl Default for RedisConnectionConfig {
     fn default() -> Self {
         Self {
@@ -408,16 +396,6 @@ impl Default for RedisPoolConfig {
             min_size: 1,
             idle_timeout: Some(Duration::from_secs(300)),
             max_lifetime: Some(Duration::from_secs(1800)),
-        }
-    }
-}
-
-impl Default for PerformanceConfig {
-    fn default() -> Self {
-        Self {
-            serialization: SerializationConfig::default(),
-            batch: BatchConfig::default(),
-            concurrency: ConcurrencyConfig::default(),
         }
     }
 }
