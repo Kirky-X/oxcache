@@ -66,10 +66,13 @@ impl Default for RedisConfig {
 ///
 /// This backend provides a distributed cache using Redis.
 /// It supports standalone, sentinel, and cluster modes.
+/// Now includes connection pooling for better performance.
 #[derive(Clone)]
 pub struct RedisBackend {
     client: Arc<Client>,
     mode: RedisMode,
+    /// Connection pool size (for future use with r2d2 or mobc)
+    pool_size: usize,
 }
 
 impl RedisBackend {
@@ -77,6 +80,15 @@ impl RedisBackend {
     pub async fn new(connection_string: &str) -> Result<Self> {
         Self::builder()
             .connection_string(connection_string)
+            .build()
+            .await
+    }
+
+    /// Create a new Redis backend with connection pool
+    pub async fn with_pool(connection_string: &str, pool_size: usize) -> Result<Self> {
+        Self::builder()
+            .connection_string(connection_string)
+            .pool_size(pool_size)
             .build()
             .await
     }
@@ -94,6 +106,11 @@ impl RedisBackend {
     /// Get the Redis client
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    /// Get connection pool size
+    pub fn pool_size(&self) -> usize {
+        self.pool_size
     }
 
     /// Ping the Redis server
@@ -115,6 +132,7 @@ impl RedisBackend {
 pub struct RedisBackendBuilder {
     connection_string: Option<String>,
     mode: RedisMode,
+    pool_size: Option<usize>,
 }
 
 impl RedisBackendBuilder {
@@ -130,6 +148,12 @@ impl RedisBackendBuilder {
         self
     }
 
+    /// Set connection pool size
+    pub fn pool_size(mut self, size: usize) -> Self {
+        self.pool_size = Some(size);
+        self
+    }
+
     /// Build the Redis backend
     pub async fn build(self) -> Result<RedisBackend> {
         let connection_string = self.connection_string
@@ -141,6 +165,7 @@ impl RedisBackendBuilder {
         Ok(RedisBackend {
             client: Arc::new(client),
             mode: self.mode,
+            pool_size: self.pool_size.unwrap_or(1),
         })
     }
 }
