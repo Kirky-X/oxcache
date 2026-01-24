@@ -187,7 +187,7 @@ impl ScriptCache {
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))
             .ok()
-            .map_or(false, |cache| cache.contains_key(script))
+            .is_some_and(|cache| cache.contains_key(script))
     }
 
     /// 清除缓存
