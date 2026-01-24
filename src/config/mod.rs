@@ -56,12 +56,15 @@ pub const CONFIG_VERSION: u32 = 2;
 pub const CONFIG_VERSION_FIELD: &str = "config_version";
 
 /// 全局配置（始终可用）
+///
+/// 提供构建器模式来创建不可变配置,
+/// 确保配置对象的线程安全和共享安全。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalConfig {
-    pub default_ttl: u64,
-    pub health_check_interval: u64,
-    pub serialization: SerializationType,
-    pub enable_metrics: bool,
+    default_ttl: u64,
+    health_check_interval: u64,
+    serialization: SerializationType,
+    enable_metrics: bool,
 }
 
 impl Default for GlobalConfig {
@@ -76,28 +79,83 @@ impl Default for GlobalConfig {
 }
 
 impl GlobalConfig {
+    /// 创建新的全局配置（使用默认值）
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// 创建 builder 模式配置
+    pub fn builder() -> GlobalConfigBuilder {
+        GlobalConfigBuilder::new()
+    }
+
+    /// 获取默认 TTL
+    pub fn default_ttl(&self) -> u64 {
+        self.default_ttl
+    }
+
+    /// 获取健康检查间隔
+    pub fn health_check_interval(&self) -> u64 {
+        self.health_check_interval
+    }
+
+    /// 获取序列化类型
+    pub fn serialization(&self) -> SerializationType {
+        self.serialization
+    }
+
+    /// 是否启用指标收集
+    pub fn is_metrics_enabled(&self) -> bool {
+        self.enable_metrics
+    }
+}
+
+/// 全局配置构建器
+#[derive(Debug, Clone, Default)]
+pub struct GlobalConfigBuilder {
+    default_ttl: u64,
+    health_check_interval: u64,
+    serialization: SerializationType,
+    enable_metrics: bool,
+}
+
+impl GlobalConfigBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 设置默认 TTL（秒）
     pub fn with_default_ttl(mut self, ttl: u64) -> Self {
         self.default_ttl = ttl;
         self
     }
 
+    /// 设置健康检查间隔（秒）
     pub fn with_health_check_interval(mut self, interval: u64) -> Self {
         self.health_check_interval = interval;
         self
     }
 
+    /// 设置序列化类型
     pub fn with_serialization(mut self, serialization: SerializationType) -> Self {
         self.serialization = serialization;
         self
     }
 
+    /// 是否启用指标收集
     pub fn with_enable_metrics(mut self, enable: bool) -> Self {
         self.enable_metrics = enable;
         self
+    }
+
+    /// 构建全局配置
+    pub fn build(self) -> GlobalConfig {
+        GlobalConfig {
+            default_ttl: self.default_ttl,
+            health_check_interval: self.health_check_interval,
+            serialization: self.serialization,
+            enable_metrics: self.enable_metrics,
+        }
     }
 }
 
