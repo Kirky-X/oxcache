@@ -6,9 +6,9 @@
 
 #![allow(deprecated)]
 
-use crate::common;
-use crate::common::redis_test_utils::{is_redis_available, test_redis_connection};
-use oxcache::backend::{CacheBackend, RedisBackend};
+use crate::common::redis_test_utils::{test_redis_connection};
+use crate::common::is_redis_available;
+use oxcache::backend::client::RedisBackend;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,7 +16,7 @@ use std::time::Duration;
 async fn test_redis_backend_standalone_creation() {
     println!("测试RedisBackend Standalone模式创建...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -31,7 +31,7 @@ async fn test_redis_backend_standalone_creation() {
         }
     }
 
-    let result = RedisBackend::new("redis://127.0.0.1:6379").await;
+    let result = RedisBackend::new("redis://127.0.0.1:6381").await;
 
     assert!(
         result.is_ok(),
@@ -45,7 +45,7 @@ async fn test_redis_backend_standalone_creation() {
 async fn test_redis_backend_standalone_operations() {
     println!("测试RedisBackend Standalone模式基本操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -60,7 +60,7 @@ async fn test_redis_backend_standalone_operations() {
         }
     }
 
-    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6381").await {
         Ok(b) => Arc::new(b),
         Err(e) => {
             println!("创建RedisBackend失败: {:?}", e);
@@ -93,7 +93,7 @@ async fn test_redis_backend_standalone_operations() {
 async fn test_redis_backend_health_check() {
     println!("测试RedisBackend健康检查...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -128,7 +128,7 @@ async fn test_redis_backend_health_check() {
 async fn test_redis_backend_ttl_operations() {
     println!("测试RedisBackend TTL操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -143,7 +143,7 @@ async fn test_redis_backend_ttl_operations() {
         }
     }
 
-    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6381").await {
         Ok(b) => Arc::new(b),
         Err(e) => {
             println!("创建RedisBackend失败: {:?}", e);
@@ -179,7 +179,7 @@ async fn test_redis_backend_ttl_operations() {
 async fn test_redis_backend_exists_operation() {
     println!("测试RedisBackend EXISTS操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -194,7 +194,7 @@ async fn test_redis_backend_exists_operation() {
         }
     }
 
-    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6381").await {
         Ok(b) => Arc::new(b),
         Err(e) => {
             println!("创建RedisBackend失败: {:?}", e);
@@ -234,7 +234,7 @@ async fn test_redis_backend_exists_operation() {
 async fn test_redis_backend_multiple_operations() {
     println!("测试RedisBackend批量操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -249,7 +249,7 @@ async fn test_redis_backend_multiple_operations() {
         }
     }
 
-    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6381").await {
         Ok(b) => Arc::new(b),
         Err(e) => {
             println!("创建RedisBackend失败: {:?}", e);
@@ -291,7 +291,7 @@ async fn test_redis_backend_multiple_operations() {
 async fn test_redis_backend_concurrent_operations() {
     println!("测试RedisBackend并发操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -306,7 +306,7 @@ async fn test_redis_backend_concurrent_operations() {
         }
     }
 
-    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let backend: Arc<dyn CacheBackend> = match RedisBackend::new("redis://127.0.0.1:6381").await {
         Ok(b) => Arc::new(b),
         Err(e) => {
             println!("创建RedisBackend失败: {:?}", e);

@@ -40,7 +40,8 @@ pub use unified::{
 
 /// 序列化器特征
 ///
-/// 定义序列化和反序列化操作的接口
+/// 定义序列化和反序列化操作的接口。
+/// 这是公共API,但实现细节应该私有。
 pub trait Serializer: Send + Sync {
     /// 序列化值为字节数组
     fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>>;

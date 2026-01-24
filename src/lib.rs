@@ -428,11 +428,11 @@ pub mod error;
     since = "0.2.0",
     note = "Internal module, will be made private in v0.3.0"
 )]
-pub mod manager;
+pub(crate) mod manager;  // 改为 pub(crate) 限制内部访问
 
 // Internal module for #[cached] macro support
 #[doc(hidden)]
-pub mod internal;
+pub(crate) mod internal;  // 改为 pub(crate) 限制内部访问
 
 // New modernized API modules
 pub mod builder;
