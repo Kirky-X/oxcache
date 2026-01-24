@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 /// 基准测试L1缓存的设置操作性能
 fn bench_l1_set(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    
+
     c.bench_function("l1_set", |b| {
         b.to_async(&rt).iter(|| async {
             let key = "key".to_string();
@@ -27,7 +27,7 @@ fn bench_l1_set(c: &mut Criterion) {
 /// 基准测试L1缓存的获取操作性能
 fn bench_l1_get(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    
+
     c.bench_function("l1_get", |b| {
         b.to_async(&rt).iter(|| async {
             let key = "key".to_string();

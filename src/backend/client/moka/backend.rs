@@ -114,7 +114,10 @@ impl CacheBackend for MokaMemoryBackend {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
+        stats.insert(
+            "entry_count".to_string(),
+            self.cache.entry_count().to_string(),
+        );
         Ok(stats)
     }
 }
@@ -167,10 +170,7 @@ impl MokaMemoryBackendBuilder {
 
         let cache = Arc::new(builder.build());
 
-        MokaMemoryBackend {
-            cache,
-            capacity,
-        }
+        MokaMemoryBackend { cache, capacity }
     }
 }
 
@@ -222,24 +222,24 @@ mod tests {
     #[tokio::test]
     async fn test_moka_basic_operations() {
         let backend = MokaMemoryBackend::new();
-        
+
         // Set a value
         backend.set("key1", b"value1".to_vec(), None).await.unwrap();
-        
+
         // Use tokio::time::sleep to ensure async operations complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        
+
         // Get the value
         let result = backend.get("key1").await.unwrap();
         assert_eq!(result, Some(b"value1".to_vec()));
-        
+
         // Check exists
         let exists = backend.exists("key1").await.unwrap();
         assert!(exists);
-        
+
         // Delete
         backend.delete("key1").await.unwrap();
-        
+
         // Verify deletion
         let exists_after = backend.exists("key1").await.unwrap();
         assert!(!exists_after);

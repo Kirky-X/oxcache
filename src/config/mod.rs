@@ -317,9 +317,8 @@ mod tests {
 
 // Re-export unified configuration
 pub use unified::{
-    UnifiedConfig, UnifiedConfigBuilder, BackendConfig, BackendType,
-    MemoryBackendConfig, RedisBackendConfig, TieredBackendConfig,
-    PerformanceConfig, SerializationConfig, BatchConfig, ConcurrencyConfig,
-    FeatureConfig, MonitoringConfig, MetricsConfig, HealthCheckConfig,
-    LoggingConfig, SecurityConfig, convenience as config_convenience
+    convenience as config_convenience, BackendConfig, BackendType, BatchConfig, ConcurrencyConfig,
+    FeatureConfig, HealthCheckConfig, LoggingConfig, MemoryBackendConfig, MetricsConfig,
+    MonitoringConfig, PerformanceConfig, RedisBackendConfig, SecurityConfig, SerializationConfig,
+    TieredBackendConfig, UnifiedConfig, UnifiedConfigBuilder,
 };

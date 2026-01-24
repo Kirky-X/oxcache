@@ -428,11 +428,11 @@ pub mod error;
     since = "0.2.0",
     note = "Internal module, will be made private in v0.3.0"
 )]
-pub(crate) mod manager;  // 改为 pub(crate) 限制内部访问
+pub(crate) mod manager; // 改为 pub(crate) 限制内部访问
 
 // Internal module for #[cached] macro support
 #[doc(hidden)]
-pub(crate) mod internal;  // 改为 pub(crate) 限制内部访问
+pub(crate) mod internal; // 改为 pub(crate) 限制内部访问
 
 // New modernized API modules
 pub mod builder;
@@ -533,20 +533,35 @@ pub use client::{CacheExt, CacheOps};
 pub use config::legacy_config::{
     CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig,
 };
+pub use config::legacy_config::{CacheType, RedisMode, ServiceConfig};
 #[allow(deprecated)]
 pub use config::Config;
 pub use config::{
-    CacheStrategy, DynamicConfig, GlobalConfig, OxcacheConfig, OxcacheConfigBuilder,
+    config_convenience,
+    BackendConfig,
+    BackendType,
+    BatchConfig,
+    CacheStrategy,
+    ConcurrencyConfig,
+    DynamicConfig,
+    FeatureConfig,
+    GlobalConfig,
+    HealthCheckConfig,
+    LoggingConfig,
+    MemoryBackendConfig,
+    MetricsConfig,
+    MonitoringConfig,
+    OxcacheConfig,
+    OxcacheConfigBuilder,
+    PerformanceConfig,
+    RedisBackendConfig,
+    SecurityConfig,
+    SerializationConfig,
     SerializationType,
+    TieredBackendConfig,
     // Unified configuration exports
-    UnifiedConfig, UnifiedConfigBuilder, BackendConfig, BackendType,
-    MemoryBackendConfig, RedisBackendConfig, TieredBackendConfig,
-    PerformanceConfig, SerializationConfig, BatchConfig, ConcurrencyConfig,
-    FeatureConfig, MonitoringConfig, MetricsConfig, HealthCheckConfig,
-    LoggingConfig, SecurityConfig, config_convenience
-};
-pub use config::legacy_config::{
-    CacheType, RedisMode, ServiceConfig,
+    UnifiedConfig,
+    UnifiedConfigBuilder,
 };
 
 #[cfg(feature = "confers")]
@@ -565,7 +580,7 @@ pub use error::{CacheError, Result};
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
 pub use cache::Cache;
-pub use cache_interface::{UnifiedCache, CacheOpsAdapter};
+pub use cache_interface::{CacheOpsAdapter, UnifiedCache};
 pub use traits::{CacheKey, Cacheable};
 
 // Custom tiered backend configuration exports
@@ -586,11 +601,13 @@ pub use backend::client::DashMapMemoryBackend as DashmapBackend;
 
 // Unified memory backend exports (from client implementations)
 pub use backend::{
-    MokaMemoryBackend, DashMapMemoryBackend, MemoryBackend, MemoryBackendType,
-    moka_memory, dashmap_memory, default_memory_backend
+    dashmap_memory, default_memory_backend, moka_memory, DashMapMemoryBackend, MemoryBackend,
+    MemoryBackendType, MokaMemoryBackend,
 };
-// Client backend exports  
-pub use backend::client::{DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend};
+// Client backend exports
+pub use backend::client::{
+    DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend,
+};
 
 #[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};

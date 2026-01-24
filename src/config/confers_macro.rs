@@ -129,8 +129,8 @@ impl OxcacheConfigFile {
 
     /// 转换为 OxcacheConfig
     pub fn to_oxcache_config(self) -> super::OxcacheConfig {
-        use super::{GlobalConfig};
         use super::legacy_config::{CacheType, ServiceConfig};
+        use super::GlobalConfig;
         use crate::config::CONFIG_VERSION;
 
         let global = self.global.unwrap_or_default();

@@ -78,7 +78,8 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -93,7 +94,8 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -105,7 +107,8 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -117,11 +120,17 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
-    pub async fn enqueue(&self, _key: String, _value: Vec<u8>, _ttl: Option<u64>) -> Result<(), crate::error::CacheError> {
+    pub async fn enqueue(
+        &self,
+        _key: String,
+        _value: Vec<u8>,
+        _ttl: Option<u64>,
+    ) -> Result<(), crate::error::CacheError> {
         Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
@@ -129,7 +138,8 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -141,11 +151,15 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
-    pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<(), crate::error::CacheError> {
+    pub async fn enqueue_operation(
+        &self,
+        _operation: BatchOperation,
+    ) -> Result<(), crate::error::CacheError> {
         Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
@@ -153,7 +167,8 @@ impl BatchWriter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 }
@@ -188,7 +203,8 @@ impl CacheInvalidator {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -200,7 +216,8 @@ impl CacheInvalidator {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -212,7 +229,8 @@ impl CacheInvalidator {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -224,7 +242,8 @@ impl CacheInvalidator {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 }
@@ -259,7 +278,8 @@ impl CachePromoter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -271,7 +291,8 @@ impl CachePromoter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 
@@ -283,7 +304,8 @@ impl CachePromoter {
                oxcache = {{ version = \"0.2\", features = [\"batch-write\"] }}\n\
              \n\
              Solution 2: Enable all features:\n\
-               oxcache = {{ version = \"0.2\", features = [\"full\"] }}".to_string()
+               oxcache = {{ version = \"0.2\", features = [\"full\"] }}"
+                .to_string(),
         ))
     }
 }

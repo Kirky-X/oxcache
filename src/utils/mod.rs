@@ -19,11 +19,11 @@ pub(crate) mod key_generator;
 pub mod redaction;
 pub mod security_log;
 
-use crate::config::OxcacheConfig;
 use crate::config::legacy_config::{
-    CacheType, ClusterConfig, L1Config, L2Config, RedisMode, SentinelConfig,
-    ServiceConfig, TwoLevelConfig,
+    CacheType, ClusterConfig, L1Config, L2Config, RedisMode, SentinelConfig, ServiceConfig,
+    TwoLevelConfig,
 };
+use crate::config::OxcacheConfig;
 use crate::error::CacheError;
 use secrecy::SecretString;
 use std::collections::HashMap;

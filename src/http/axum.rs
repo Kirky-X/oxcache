@@ -207,14 +207,21 @@ mod tests {
             key: &str,
             response: &HttpCacheResponse,
         ) -> Result<(), crate::error::CacheError> {
-            if let Ok(mut store) = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string())) {
+            if let Ok(mut store) = self
+                .store
+                .lock()
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))
+            {
                 store.insert(key.to_string(), response.clone());
             }
             Ok(())
         }
 
         async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError> {
-            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            let store_result = self
+                .store
+                .lock()
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
             Ok(store_result.map_or(false, |mut store| store.remove(key).is_some()))
         }
 
@@ -222,7 +229,10 @@ mod tests {
             &self,
             _pattern: &str,
         ) -> Result<u64, crate::error::CacheError> {
-            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            let store_result = self
+                .store
+                .lock()
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
             let count = store_result.as_ref().map(|store| store.len()).unwrap_or(0);
             if let Ok(mut store) = store_result {
                 store.clear();
@@ -234,7 +244,10 @@ mod tests {
             &self,
             keys: &[&str],
         ) -> Result<HashMap<String, HttpCacheResponse>, crate::error::CacheError> {
-            let store_result = self.store.lock().map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            let store_result = self
+                .store
+                .lock()
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
             let mut result = HashMap::new();
             if let Ok(store) = store_result {
                 for &key in keys {

@@ -115,14 +115,17 @@ impl RedisBackend {
 
     /// Ping the Redis server
     pub async fn ping(&self) -> Result<String> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
-        
+
         let result: String = redis::cmd("PING")
             .query_async(&mut conn)
             .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
-        
+
         Ok(result)
     }
 }
@@ -156,11 +159,12 @@ impl RedisBackendBuilder {
 
     /// Build the Redis backend
     pub async fn build(self) -> Result<RedisBackend> {
-        let connection_string = self.connection_string
-            .ok_or_else(|| CacheError::Configuration("Connection string is required".to_string()))?;
+        let connection_string = self.connection_string.ok_or_else(|| {
+            CacheError::Configuration("Connection string is required".to_string())
+        })?;
 
-        let client = Client::open(connection_string)
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        let client =
+            Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
 
         Ok(RedisBackend {
             client: Arc::new(client),
@@ -173,7 +177,10 @@ impl RedisBackendBuilder {
 #[async_trait]
 impl CacheBackend for RedisBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let result: Option<Vec<u8>> = redis::cmd("GET")
@@ -192,7 +199,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         if let Some(ttl) = ttl {
@@ -229,7 +239,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         redis::cmd("DEL")
@@ -248,7 +261,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let result: i64 = redis::cmd("EXISTS")
@@ -267,7 +283,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let result: i64 = redis::cmd("TTL")
@@ -290,7 +309,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let result: i64 = redis::cmd("EXPIRE")
@@ -310,7 +332,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         redis::cmd("FLUSHDB")
@@ -333,7 +358,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn health_check(&self) -> Result<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let result: String = redis::cmd("PING")
@@ -351,7 +379,10 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await
+        let mut conn = self
+            .client
+            .get_multiplexed_async_connection()
+            .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let info: String = redis::cmd("INFO")
