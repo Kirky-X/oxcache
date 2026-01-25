@@ -163,8 +163,45 @@ impl RedisBackendBuilder {
             CacheError::Configuration("Connection string is required".to_string())
         })?;
 
+        // 强制 TLS 在生产环境，允许通过环境变量覆盖用于测试
+        if !connection_string.starts_with("rediss://") {
+            // 检查是否允许非 TLS 连接（用于开发和测试）
+            if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
+                tracing::warn!("Using insecure Redis connection (TLS disabled). This is only allowed in development/testing.");
+            } else {
+                return Err(CacheError::Configuration(
+                    "Redis connection must use TLS (rediss://) in production. \
+                    For development/testing, set OXCACHE_ALLOW_INSECURE_REDIS=1 to override.".to_string()
+                ));
+            }
+        }
+
+        // 创建客户端并验证连接
         let client =
             Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
+        
+        // 快速验证连接是否可用（2秒超时）
+        let connection_timeout = std::time::Duration::from_secs(2);
+        let connection_result = tokio::time::timeout(
+            connection_timeout,
+            client.get_connection_manager()
+        ).await;
+        
+        match connection_result {
+            Ok(Ok(_)) => {
+                // 连接成功
+            }
+            Ok(Err(e)) => {
+                return Err(CacheError::Connection(format!(
+                    "Failed to connect to Redis: {}", e
+                )));
+            }
+            Err(_) => {
+                return Err(CacheError::Connection(
+                    "Connection timeout - Redis server unavailable".to_string()
+                ));
+            }
+        }
 
         Ok(RedisBackend {
             client: Arc::new(client),
@@ -332,23 +369,57 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn clear(&self) -> Result<()> {
+        // Use SCAN + DEL instead of FLUSHDB to avoid affecting other connections/databases
+        // FLUSHDB clears the entire database which can interfere with other tests
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
             .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
-        redis::cmd("FLUSHDB")
-            .query_async::<()>(&mut conn)
-            .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
+        // Iterate through all keys and delete them using SCAN
+        let mut cursor = 0i64;
+        let mut deleted_count = 0;
 
+        loop {
+            let (new_cursor, keys): (i64, Vec<String>) = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg("*")
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| {
+                    if is_connection_error(&e) {
+                        CacheError::Connection(e.to_string())
+                    } else {
+                        CacheError::Operation(e.to_string())
+                    }
+                })?;
+
+            for key in &keys {
+                redis::cmd("DEL")
+                    .arg(key)
+                    .query_async::<()>(&mut conn)
+                    .await
+                    .map_err(|e| {
+                        if is_connection_error(&e) {
+                            CacheError::Connection(e.to_string())
+                        } else {
+                            CacheError::Operation(e.to_string())
+                        }
+                    })?;
+                deleted_count += 1;
+            }
+
+            cursor = new_cursor;
+            if cursor == 0 {
+                break;
+            }
+        }
+
+        tracing::debug!("Cleared {} keys from Redis", deleted_count);
         Ok(())
     }
 

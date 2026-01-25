@@ -18,17 +18,17 @@ use crate::common;
 /// 注意：此测试使用 Redis 直接实现锁功能，因为新API暂不直接支持锁
 #[tokio::test]
 async fn test_distributed_lock() {
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("Skipping test_distributed_lock: Redis not available");
         return;
     }
 
     setup_logging();
     let service_name = generate_unique_service_name("lock_test");
-    let redis_url = "redis://127.0.0.1:6379";
+    let redis_url = common::get_redis_url();
 
     // 使用新API创建缓存
-    let cache: Cache<String, String> = Cache::tiered(100, redis_url)
+    let cache: Cache<String, String> = Cache::redis(&redis_url)
         .await
         .expect("Failed to create tiered cache");
 
@@ -46,7 +46,7 @@ async fn test_distributed_lock() {
     // 2. 测试锁功能（使用Redis直接实现）
     // 注意：新API暂不直接支持lock/unlock方法
     // 使用 Redis SETNX 命令实现简单的锁
-    let mut conn = redis::Client::open(redis_url)
+    let mut conn = redis::Client::open(redis_url.as_str())
         .expect("Failed to create redis client")
         .get_multiplexed_async_connection()
         .await
@@ -99,17 +99,17 @@ async fn test_distributed_lock() {
 /// 注意：此测试使用手动方式预热缓存，因为新API暂不直接支持warmup方法
 #[tokio::test]
 async fn test_cache_preheating() {
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("Skipping test_cache_preheating: Redis not available");
         return;
     }
 
     setup_logging();
     let service_name = generate_unique_service_name("warmup_test");
-    let redis_url = "redis://127.0.0.1:6379";
+    let redis_url = common::get_redis_url();
 
     // 使用新API创建缓存
-    let cache: Cache<String, String> = Cache::tiered(100, redis_url)
+    let cache: Cache<String, String> = Cache::redis(&redis_url)
         .await
         .expect("Failed to create tiered cache");
 
