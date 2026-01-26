@@ -100,9 +100,8 @@ async fn test_different_cache_types() {
         i64_cache.get(&"k4".to_string()).await.unwrap().unwrap(),
         123456789i64
     );
-    assert_eq!(
-        bool_cache.get(&"k5".to_string()).await.unwrap().unwrap(),
-        true
+    assert!(
+        bool_cache.get(&"k5".to_string()).await.unwrap().unwrap()
     );
 }
 

@@ -6,7 +6,6 @@
 
 extern crate oxcache;
 
-use crate::common;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 

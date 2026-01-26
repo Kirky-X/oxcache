@@ -57,16 +57,16 @@ pub struct WarmupStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_warmup_config_defaults() {
         let config = CacheWarmupConfig::default();
-        assert_eq!(config.enabled, false);
+        assert!(!config.enabled);
         assert_eq!(config.timeout_secs, 0);
         assert_eq!(config.max_concurrent, 0);
         assert!(config.sources.is_empty());
     }
-    
+
     #[test]
     fn test_warmup_config_custom_values() {
         let config = CacheWarmupConfig {
@@ -75,19 +75,19 @@ mod tests {
             max_concurrent: 5,
             sources: vec![],
         };
-        
-        assert_eq!(config.enabled, true);
+
+        assert!(config.enabled);
         assert_eq!(config.timeout_secs, 30);
         assert_eq!(config.max_concurrent, 5);
         assert!(config.sources.is_empty());
     }
-    
+
     #[test]
     fn test_warmup_data_source_defaults() {
         let source = WarmupDataSource::default();
         assert_eq!(source.name, "");
     }
-    
+
     #[test]
     fn test_warmup_status_creation() {
         let status = WarmupStatus {
@@ -96,13 +96,13 @@ mod tests {
             total: 100,
             error: None,
         };
-        
+
         assert_eq!(status.status, "completed");
         assert_eq!(status.progress, 100);
         assert_eq!(status.total, 100);
         assert!(status.error.is_none());
     }
-    
+
     #[test]
     fn test_warmup_status_with_error() {
         let status = WarmupStatus {
@@ -111,7 +111,7 @@ mod tests {
             total: 100,
             error: Some("Test error".to_string()),
         };
-        
+
         assert_eq!(status.status, "failed");
         assert_eq!(status.progress, 50);
         assert_eq!(status.total, 100);
@@ -119,4 +119,3 @@ mod tests {
         assert_eq!(status.error.unwrap(), "Test error");
     }
 }
-

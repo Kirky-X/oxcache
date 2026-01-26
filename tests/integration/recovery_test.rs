@@ -6,7 +6,7 @@
 //
 use crate::common;
 use common::{is_redis_available, setup_logging};
-use oxcache::{Cache, CacheError};
+use oxcache::Cache;
 
 /// 测试降级逻辑
 ///

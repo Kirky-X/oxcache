@@ -61,7 +61,7 @@ async fn test_redis_backend_standalone_basic_operations() {
     }
 
     let redis_url = get_redis_url();
-    let backend = RedisBackend::new(&redis_url).await.unwrap();
+    let _backend = RedisBackend::new(&redis_url).await.unwrap();
 
     // 测试SET/GET/DELETE需要CacheBackend trait，暂时跳过
     // RedisBackend 实现了 CacheBackend trait，但该trait未从crate根目录导出

@@ -14,13 +14,13 @@ log_info "Starting pre-commit checks..."
 
 # 定义要运行的检查脚本
 checks=(
-    "audit.sh"
-    "clippy.sh" 
-    "deny.sh"
-    "license.sh"
-    "secrets.sh"
-    "tests.sh"
-    "toml.sh"
+    "precommit_audit.sh"
+    "precommit_clippy.sh" 
+    "precommit_deny.sh"
+    "precommit_license.sh"
+    "precommit_secrets.sh"
+    "precommit_tests.sh"
+    "precommit_toml.sh"
 )
 
 # 记录开始时间
