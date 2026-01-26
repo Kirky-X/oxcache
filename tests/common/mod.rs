@@ -4,8 +4,8 @@
 //
 // 该模块定义了测试的通用工具函数和设置。
 
-pub mod database_test_utils;
-pub mod redis_test_utils;
+// 注意：database_test_utils 和 redis_test_utils 在根目录 tests/ 下定义
+// 它们通过 include! 宏在这里被包含，以避免重复定义
 
 use oxcache::Cache;
 use std::sync::Once;
@@ -43,8 +43,7 @@ pub async fn setup_cache() -> Cache<String, Vec<u8>> {
 /// 尝试连接到本地Redis实例，检查其是否可用
 #[allow(dead_code)]
 pub fn is_redis_available() -> bool {
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| get_redis_url());
+    let _redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| get_redis_url());
     // 简化实现：直接检查环境变量，不进行实际连接测试
     // 完整的实现需要异步支持
     std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
@@ -57,7 +56,7 @@ pub fn get_redis_url() -> String {
     if let Ok(url) = std::env::var("REDIS_URL") {
         return url;
     }
-    
+
     // 检查是否允许非TLS连接
     if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
         "redis://127.0.0.1:6379".to_string()
@@ -77,7 +76,8 @@ pub fn get_redis_url_insecure() -> String {
         "redis://127.0.0.1:6379"
     } else {
         "rediss://127.0.0.1:6379"
-    }.to_string()
+    }
+    .to_string()
 }
 
 async fn is_redis_available_url(url: &str) -> bool {

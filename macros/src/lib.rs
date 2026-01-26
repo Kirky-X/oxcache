@@ -260,10 +260,11 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
             // Validate cache key length and characters
             let key_len = cache_key.len();
-            if key_len > 1024 {
+            if key_len > MAX_CACHE_KEY_LENGTH {
                 tracing::warn!(
-                    "Cache key too long ({} bytes), falling back to uncached execution",
-                    key_len
+                    "Cache key too long ({} bytes, max {}), falling back to uncached execution",
+                    key_len,
+                    MAX_CACHE_KEY_LENGTH
                 );
                 return async { #fn_block }.await;
             }

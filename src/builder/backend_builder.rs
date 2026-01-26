@@ -4,8 +4,10 @@
 //!
 //! Backend builder for creating cache backends
 
-use crate::backend::client::{MokaMemoryBackend as MemoryBackend, RedisBackend, RedisMode};
-use crate::backend::{CacheBackend, TieredBackend};
+use crate::backend::client::MokaMemoryBackend as MemoryBackend;
+#[cfg(feature = "redis")]
+use crate::backend::client::{RedisBackend, RedisMode};
+use crate::backend::CacheBackend;
 use crate::error::Result;
 use std::sync::Arc;
 
@@ -42,16 +44,10 @@ pub enum BackendBuilder {
         ttl: Option<std::time::Duration>,
     },
     /// Redis backend configuration
+    #[cfg(feature = "redis")]
     Redis {
         connection_string: Option<String>,
         mode: RedisMode,
-    },
-    /// Tiered backend configuration
-    Tiered {
-        l1_capacity: u64,
-        l2_connection_string: Option<String>,
-        l2_mode: RedisMode,
-        auto_promote: bool,
     },
 }
 
@@ -93,35 +89,11 @@ impl BackendBuilder {
     ///     .build()
     ///     .await?;
     /// ```
+    #[cfg(feature = "redis")]
     pub fn redis() -> Self {
         BackendBuilder::Redis {
             connection_string: None,
             mode: RedisMode::Standalone,
-        }
-    }
-
-    /// Create a tiered backend builder
-    ///
-    /// # Returns
-    ///
-    /// Tiered backend builder
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let backend = BackendBuilder::tiered()
-    ///     .l1_capacity(10000)
-    ///     .l2_connection_string("redis://localhost:6379")
-    ///     .auto_promote(true)
-    ///     .build()
-    ///     .await?;
-    /// ```
-    pub fn tiered() -> Self {
-        BackendBuilder::Tiered {
-            l1_capacity: 10000,
-            l2_connection_string: None,
-            l2_mode: RedisMode::Standalone,
-            auto_promote: true,
         }
     }
 
@@ -173,28 +145,13 @@ impl BackendBuilder {
     /// # Returns
     ///
     /// Self for method chaining
+    #[cfg(feature = "redis")]
     pub fn connection_string(mut self, connection_string: &str) -> Self {
-        match self {
-            BackendBuilder::Redis { mode, .. } => {
-                self = BackendBuilder::Redis {
-                    connection_string: Some(connection_string.to_string()),
-                    mode,
-                };
-            }
-            BackendBuilder::Tiered {
-                l1_capacity,
-                l2_mode,
-                auto_promote,
-                ..
-            } => {
-                self = BackendBuilder::Tiered {
-                    l1_capacity,
-                    l2_connection_string: Some(connection_string.to_string()),
-                    l2_mode,
-                    auto_promote,
-                };
-            }
-            _ => {}
+        if let BackendBuilder::Redis { mode, .. } = self {
+            self = BackendBuilder::Redis {
+                connection_string: Some(connection_string.to_string()),
+                mode,
+            };
         }
         self
     }
@@ -208,145 +165,21 @@ impl BackendBuilder {
     /// # Returns
     ///
     /// Self for method chaining
+    #[cfg(feature = "redis")]
     pub fn mode(mut self, mode: RedisMode) -> Self {
-        match self {
-            BackendBuilder::Redis {
-                connection_string, ..
-            } => {
-                self = BackendBuilder::Redis {
-                    connection_string,
-                    mode,
-                };
-            }
-            BackendBuilder::Tiered {
-                l1_capacity,
-                l2_connection_string,
-                auto_promote,
-                ..
-            } => {
-                self = BackendBuilder::Tiered {
-                    l1_capacity,
-                    l2_connection_string,
-                    l2_mode: mode,
-                    auto_promote,
-                };
-            }
-            _ => {}
-        }
-        self
-    }
-
-    // Tiered backend configuration methods
-
-    /// Set the L1 capacity for tiered backend
-    ///
-    /// # Arguments
-    ///
-    /// * `capacity` - Maximum number of entries in L1
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    pub fn l1_capacity(mut self, capacity: u64) -> Self {
-        if let BackendBuilder::Tiered {
-            l2_connection_string,
-            l2_mode,
-            auto_promote,
-            ..
+        if let BackendBuilder::Redis {
+            connection_string, ..
         } = self
         {
-            self = BackendBuilder::Tiered {
-                l1_capacity: capacity,
-                l2_connection_string,
-                l2_mode,
-                auto_promote,
+            self = BackendBuilder::Redis {
+                connection_string,
+                mode,
             };
         }
         self
     }
 
-    /// Set the L2 connection string for tiered backend
-    ///
-    /// # Arguments
-    ///
-    /// * `connection_string` - Redis connection URL
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    pub fn l2_connection_string(mut self, connection_string: &str) -> Self {
-        if let BackendBuilder::Tiered {
-            l1_capacity,
-            l2_mode,
-            auto_promote,
-            ..
-        } = self
-        {
-            self = BackendBuilder::Tiered {
-                l1_capacity,
-                l2_connection_string: Some(connection_string.to_string()),
-                l2_mode,
-                auto_promote,
-            };
-        }
-        self
-    }
-
-    /// Set the L2 Redis mode for tiered backend
-    ///
-    /// # Arguments
-    ///
-    /// * `mode` - Redis mode (Standalone, Sentinel, Cluster)
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    pub fn l2_mode(mut self, mode: RedisMode) -> Self {
-        if let BackendBuilder::Tiered {
-            l1_capacity,
-            l2_connection_string,
-            auto_promote,
-            ..
-        } = self
-        {
-            self = BackendBuilder::Tiered {
-                l1_capacity,
-                l2_connection_string,
-                l2_mode: mode,
-                auto_promote,
-            };
-        }
-        self
-    }
-
-    /// Enable or disable auto-promote for tiered backend
-    ///
-    /// # Arguments
-    ///
-    /// * `auto_promote` - Whether to enable auto-promote
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    pub fn auto_promote(mut self, auto_promote: bool) -> Self {
-        if let BackendBuilder::Tiered {
-            l1_capacity,
-            l2_connection_string,
-            l2_mode,
-            ..
-        } = self
-        {
-            self = BackendBuilder::Tiered {
-                l1_capacity,
-                l2_connection_string,
-                l2_mode,
-                auto_promote,
-            };
-        }
-        self
-    }
-
-    /// Build the backend
+    /// Build backend
     ///
     /// # Returns
     ///
@@ -366,6 +199,7 @@ impl BackendBuilder {
                 };
                 Ok(Arc::new(backend))
             }
+            #[cfg(feature = "redis")]
             BackendBuilder::Redis {
                 connection_string,
                 mode,
@@ -380,32 +214,6 @@ impl BackendBuilder {
                     .connection_string(&connection_string)
                     .mode(mode);
                 let backend = builder.build().await?;
-                Ok(Arc::new(backend))
-            }
-            BackendBuilder::Tiered {
-                l1_capacity,
-                l2_connection_string,
-                l2_mode,
-                auto_promote,
-            } => {
-                let l2_connection_string = l2_connection_string.ok_or_else(|| {
-                    crate::error::CacheError::ConfigError(
-                        "L2 connection string is required".to_string(),
-                    )
-                })?;
-
-                let l1 = MemoryBackend::builder().capacity(l1_capacity).build();
-                let l2 = RedisBackend::builder()
-                    .connection_string(&l2_connection_string)
-                    .mode(l2_mode)
-                    .build()
-                    .await?;
-
-                let backend = TieredBackend::builder()
-                    .l1(l1)
-                    .l2(l2)
-                    .auto_promote(auto_promote)
-                    .build()?;
                 Ok(Arc::new(backend))
             }
         }
@@ -428,26 +236,13 @@ mod tests {
 
     #[tokio::test]
     #[ignore] // Requires running Redis server
+    #[cfg(feature = "redis")]
     async fn test_backend_builder_redis() {
         let backend = BackendBuilder::redis()
             .connection_string("redis://localhost:6379")
             .mode(RedisMode::Standalone)
             .build()
             .await
-            .unwrap();
-        assert!(backend.health_check().await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_backend_builder_tiered() {
-        // Use memory backend as mock L2 for testing
-        let l1 = MemoryBackend::new();
-        let l2 = MemoryBackend::new();
-        let backend = TieredBackend::builder()
-            .l1(l1)
-            .l2(l2)
-            .auto_promote(true)
-            .build()
             .unwrap();
         assert!(backend.health_check().await.unwrap());
     }

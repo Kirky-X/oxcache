@@ -88,7 +88,7 @@ fn bench_l1_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("l1_different_sizes");
 
     for &size in [10, 100, 1000, 10000].iter() {
-        group.bench_with_input(&format!("size_{}", size), size, |b, &size| {
+        group.bench_with_input(&format!("size_{}", size), &size, |b, size| {
             b.to_async(&rt).iter(|| async {
                 let key = format!("size_test_{}", size);
                 let value = vec![0u8; *size];
@@ -100,69 +100,25 @@ fn bench_l1_sizes(c: &mut Criterion) {
     group.finish();
 }
 
-/// 基准测试并发操作性能
-fn bench_l1_concurrent(c: &mut Criterion) {
+/// 基准测试简单顺序操作性能
+fn bench_l1_sequential(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let cache = rt.block_on(async { Cache::<String, String>::new().await.unwrap() });
 
-    let mut group = c.benchmark_group("l1_concurrent");
+    let mut group = c.benchmark_group("l1_sequential");
 
-    for &concurrency in [1, 10, 50, 100].iter() {
-        group.bench_with_input(
-            &format!("concurrent_{}", concurrency),
-            concurrency,
-            |b, &concurrency| {
-                b.to_async(&rt).iter(|| async {
-                    let start = Instant::now();
-                    let mut handles = Vec::new();
-
-                    for i in 0..*concurrency {
-                        let cache = cache.clone();
-                        let handle = tokio::spawn(async move {
-                            let key = format!("concurrent_key_{}", i);
-                            let value = format!("concurrent_value_{}", i);
-                            let _ = cache.set(&key, &value).await;
-                            let _: Option<String> = cache.get(&key).await;
-                        });
-                        handles.push(handle);
-                    }
-
-                    for handle in handles {
-                        handle.await.unwrap();
-                    }
-
-                    black_box(start.elapsed());
-                });
-            },
-        );
-    }
-
-    group.finish();
-}
-
-/// 基准测试批量操作性能
-fn bench_l1_batch(c: &mut Criterion) {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-
-    let cache = rt.block_on(async { Cache::<String, String>::new().await.unwrap() });
-
-    let mut group = c.benchmark_group("l1_batch");
-
-    for &batch_size in [10, 50, 100, 500].iter() {
-        group.bench_with_input(
-            &format!("batch_size_{}", batch_size),
-            batch_size,
-            |b, &batch_size| {
-                b.to_async(&rt).iter(|| async {
-                    let items: Vec<(&String, &String)> = (0..*batch_size)
-                        .map(|i| (&format!("batch_key_{}", i), &format!("batch_value_{}", i)))
-                        .collect();
-
-                    let _ = cache.set_many(items).await;
-                });
-            },
-        );
+    for &ops in [10, 50, 100].iter() {
+        group.bench_with_input(&format!("ops_{}", ops), &ops, |b, ops| {
+            b.to_async(&rt).iter(|| async {
+                for i in 0..*ops {
+                    let key = format!("seq_key_{}", i);
+                    let value = format!("seq_value_{}", i);
+                    let _ = cache.set(&key, &value).await;
+                    let _result: Result<Option<String>, _> = cache.get(&key).await;
+                }
+            });
+        });
     }
 
     group.finish();
@@ -177,17 +133,13 @@ fn bench_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");
 
     for &ops_count in [100, 500, 1000, 5000].iter() {
-        group.bench_with_input(&format!("ops_{}", ops_count), ops_count, |b, &ops_count| {
+        group.bench_with_input(&format!("ops_{}", ops_count), &ops_count, |b, ops_count| {
             b.to_async(&rt).iter(|| async {
-                let start = Instant::now();
-
                 for i in 0..*ops_count {
                     let key = format!("throughput_key_{}", i);
                     let value = format!("throughput_value_{}", i);
                     let _ = cache.set(&key, &value).await;
                 }
-
-                black_box(start.elapsed());
             });
         });
     }
@@ -199,8 +151,7 @@ criterion_group!(
     benches,
     bench_l1_operations,
     bench_l1_sizes,
-    bench_l1_concurrent,
-    bench_l1_batch,
+    bench_l1_sequential,
     bench_throughput
 );
 criterion_main!(benches);

@@ -1,3 +1,12 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+// Integration Tests Module
+//
+// Contains all integration tests for the cache system.
+// These tests verify the interaction between different components.
+
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
 #[path = "integration/chaos_test.rs"]
@@ -38,8 +47,6 @@ mod security_test;
 mod single_flight_test;
 #[path = "integration/sqlite_partition_tests.rs"]
 mod sqlite_partition_tests;
-#[path = "integration/tiered_cache_test.rs"]
-mod tiered_cache_test;
 #[path = "integration/ttl_control_test.rs"]
 mod ttl_control_test;
 #[path = "integration/two_level_test.rs"]
@@ -52,5 +59,3 @@ mod wal_test;
 // Common modules shared by integration tests
 #[path = "common/mod.rs"]
 mod common;
-#[path = "database_test_utils.rs"]
-mod database_test_utils;

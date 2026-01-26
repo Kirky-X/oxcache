@@ -9,7 +9,7 @@
 use crate::backend::client::redis::{DefaultRedisProvider, RedisProvider};
 use crate::backend::strategy::standalone::StandaloneStrategy;
 use crate::backend::strategy::traits::{HealthStatus, L2BackendStrategy, ScanResult};
-use crate::config::legacy_config::{L2Config, RedisMode};
+use crate::config::service::{L2Config, RedisMode};
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use std::sync::Arc;

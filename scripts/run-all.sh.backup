@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# Run All Scripts
+# ==================================
+# Entry point for running all scripts in organized structure
+
+set -e
+
+# 引入公共库
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
+
+show_help() {
+    cat << EOF
+Run All Scripts
+
+用法: $0 [选项]
+
+选项:
+  --pre-commit        运行预提交检查
+  --tests            运行所有测试
+  --validation       运行验证脚本
+  --performance      运行性能测试
+  --all              运行所有脚本
+  -h, --help         显示帮助信息
+
+示例:
+  $0 --pre-commit    # 运行预提交检查
+  $0 --all           # 运行所有脚本
+EOF
+}
+
+case "${1:-all}" in
+    --pre-commit)
+        log_info "Running pre-commit checks..."
+        "$SCRIPT_DIR/pre-commit/run-all.sh"
+        ;;
+    --tests)
+        log_info "Running all tests..."
+        "$SCRIPT_DIR/tests/run_all_tests.sh"
+        ;;
+    --validation)
+        log_info "Running validation scripts..."
+        "$SCRIPT_DIR/validation/validate-feature-combinations.sh" --all
+        "$SCRIPT_DIR/validation/validate_docs.sh"
+        ;;
+    --performance)
+        log_info "Running performance tests..."
+        "$SCRIPT_DIR/performance/redis_perf_test.sh"
+        ;;
+    --all)
+        log_info "Running all scripts..."
+        
+        # 运行预提交检查
+        log_info "Running pre-commit checks..."
+        "$SCRIPT_DIR/pre-commit/run-all.sh"
+        
+        # 运行验证
+        log_info "Running validation scripts..."
+        "$SCRIPT_DIR/validation/validate-feature-combinations.sh" --all
+        "$SCRIPT_DIR/validation/validate_docs.sh"
+        
+        # 运行测试
+        log_info "Running tests..."
+        "$SCRIPT_DIR/tests/run_all_tests.sh"
+        
+        # 运行性能测试
+        log_info "Running performance tests..."
+        "$SCRIPT_DIR/performance/redis_perf_test.sh"
+        ;;
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+    *)
+        log_error "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+esac

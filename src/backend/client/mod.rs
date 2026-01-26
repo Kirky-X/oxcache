@@ -6,6 +6,7 @@
 
 pub mod dashmap;
 pub mod moka;
+#[cfg(feature = "redis")]
 pub mod redis;
 
 // Memory backend type enumeration
@@ -21,6 +22,7 @@ pub enum MemoryBackendType {
 pub use dashmap::DashMapMemoryBackend;
 pub use moka::MokaMemoryBackend;
 pub use moka::MokaMemoryBackend as MemoryBackend; // 为向后兼容提供别名
+#[cfg(feature = "redis")]
 pub use redis::{
     DefaultRedisProvider, RedisBackend, RedisBackendBuilder, RedisMode, RedisProvider,
 };

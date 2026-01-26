@@ -4,21 +4,21 @@
 //!
 //! 该模块定义了Redis提供者接口和默认实现。
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 use crate::{
-    config::legacy_config::L2Config,
+    config::service::L2Config,
     error::{CacheError, Result},
 };
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 use async_trait::async_trait;
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 use redis::{aio::ConnectionManager, Client};
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 use secrecy::ExposeSecret;
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 use tokio::time::{timeout, Duration};
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 #[async_trait]
 pub trait RedisProvider: Send + Sync {
     async fn get_standalone_client(&self, config: &L2Config)
@@ -30,10 +30,10 @@ pub trait RedisProvider: Send + Sync {
     ) -> Result<(Client, ConnectionManager, Option<ConnectionManager>)>;
 }
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub struct DefaultRedisProvider;
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 #[async_trait]
 impl RedisProvider for DefaultRedisProvider {
     async fn get_standalone_client(
@@ -79,7 +79,7 @@ impl RedisProvider for DefaultRedisProvider {
 
     async fn get_cluster_client(&self, config: &L2Config) -> Result<redis::cluster::ClusterClient> {
         let cluster_config = config.cluster.as_ref().ok_or_else(|| {
-            CacheError::Configuration("Cluster configuration is missing".to_string())
+            CacheError::ConfigError("Cluster configuration is missing".to_string())
         })?;
 
         let mut builder = redis::cluster::ClusterClient::builder(cluster_config.nodes.clone());
@@ -113,7 +113,7 @@ impl RedisProvider for DefaultRedisProvider {
         config: &L2Config,
     ) -> Result<(Client, ConnectionManager, Option<ConnectionManager>)> {
         let sentinel_config = config.sentinel.as_ref().ok_or_else(|| {
-            CacheError::Configuration("Sentinel configuration is missing".to_string())
+            CacheError::ConfigError("Sentinel configuration is missing".to_string())
         })?;
 
         tracing::info!("Initializing Sentinel client with automatic failover support");
@@ -132,7 +132,7 @@ impl RedisProvider for DefaultRedisProvider {
             .collect();
 
         if nodes.is_empty() {
-            return Err(CacheError::Configuration(
+            return Err(CacheError::ConfigError(
                 "No sentinel nodes provided".to_string(),
             ));
         }

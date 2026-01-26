@@ -98,3 +98,15 @@ requirements.db
 *.pid.lock
 CLAUDE.md
 .worktrees/
+
+# Backup and temporary config files
+*.config.bak
+*.config.backup
+*.config.orig
+*.config.save
+*.config.fixed
+*.config.copy
+*.yaml.bak
+*.yml.bak
+*.toml.bak
+*.json.bak

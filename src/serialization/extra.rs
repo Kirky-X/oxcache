@@ -162,7 +162,7 @@ impl SerializerRegistry {
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))
             .ok()
-            .map_or(false, |cache| cache.contains_key(name))
+            .is_some_and(|cache| cache.contains_key(name))
     }
 
     /// 移除序列化器
@@ -171,7 +171,7 @@ impl SerializerRegistry {
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))
             .ok()
-            .map_or(false, |mut cache| cache.remove(name).is_some())
+            .is_some_and(|mut cache| cache.remove(name).is_some())
     }
 
     /// 清空所有

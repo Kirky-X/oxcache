@@ -384,8 +384,8 @@ pub fn normalize_connection_string(s: &str) -> String {
     let parsed = ParsedConnectionString::parse(s);
     match parsed.db_type {
         DbType::SQLite => normalize_sqlite(&parsed),
-        DbType::MySQL => normalize_mysql(&parsed),
-        DbType::PostgreSQL => normalize_postgres(&parsed),
+        DbType::MySQL => normalize_mysql(&parsed, false), // 不脱敏用于显示
+        DbType::PostgreSQL => normalize_postgres(&parsed, false), // 不脱敏用于显示
         DbType::Redis => normalize_redis(&parsed),
     }
 }
@@ -428,14 +428,18 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
 }
 
 /// 规范化 MySQL 连接字符串
-fn normalize_mysql(parsed: &ParsedConnectionString) -> String {
+fn normalize_mysql(parsed: &ParsedConnectionString, redact: bool) -> String {
     let mut result = String::from("mysql://");
 
     if let Some(username) = &parsed.username {
         result.push_str(username);
         if let Some(password) = &parsed.password {
             result.push(':');
-            result.push_str(password);
+            if redact {
+                result.push_str("****");
+            } else {
+                result.push_str(password);
+            }
         }
         result.push('@');
     }
@@ -468,14 +472,18 @@ fn normalize_mysql(parsed: &ParsedConnectionString) -> String {
 }
 
 /// 规范化 PostgreSQL 连接字符串
-fn normalize_postgres(parsed: &ParsedConnectionString) -> String {
+fn normalize_postgres(parsed: &ParsedConnectionString, redact: bool) -> String {
     let mut result = String::from("postgresql://");
 
     if let Some(username) = &parsed.username {
         result.push_str(username);
         if let Some(password) = &parsed.password {
             result.push(':');
-            result.push_str(password);
+            if redact {
+                result.push_str("****");
+            } else {
+                result.push_str(password);
+            }
         }
         result.push('@');
     }

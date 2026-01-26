@@ -14,7 +14,7 @@ use crate::common;
 /// 验证双层缓存系统的基本工作流程
 #[tokio::test]
 async fn test_two_level_cache_flow() {
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过test_two_level_cache_flow：Redis不可用");
         return;
     }
@@ -24,7 +24,7 @@ async fn test_two_level_cache_flow() {
     let redis_url = "redis://127.0.0.1:6379";
 
     // 使用新API创建缓存
-    let cache: Cache<String, String> = Cache::tiered(100, redis_url)
+    let cache: Cache<String, String> = Cache::redis(redis_url)
         .await
         .expect("Failed to create tiered cache");
 

@@ -7,7 +7,7 @@
 //! 支持单个 Redis 实例，支持主从读写分离。
 
 use crate::backend::strategy::traits::{HealthStatus, L2BackendStrategy, ScanResult};
-use crate::config::legacy_config::L2Config;
+use crate::config::service::L2Config;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use redis::{aio::ConnectionManager, Client, RedisResult};
@@ -18,11 +18,10 @@ use tracing::{debug, instrument, warn};
 /// 单机 Redis 策略
 ///
 /// 支持单个 Redis 实例，可选配置读从库。
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct StandaloneStrategy {
     /// Redis 客户端
-    client: Client,
+    _client: Client,
     /// 主库连接管理器
     manager: ConnectionManager,
     /// 读从库连接管理器（可选）
@@ -49,7 +48,7 @@ impl StandaloneStrategy {
         read_manager: Option<ConnectionManager>,
     ) -> Self {
         Self {
-            client,
+            _client: client,
             manager,
             read_manager,
             command_timeout: Duration::from_millis(config.command_timeout_ms),

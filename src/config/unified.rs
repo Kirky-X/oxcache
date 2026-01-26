@@ -7,6 +7,8 @@
 use crate::backend::client::redis::client::RedisConfig;
 use crate::backend::client::redis::RedisMode;
 use crate::error::{CacheError, Result};
+
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::SerializationFormat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -16,7 +18,7 @@ use std::time::Duration;
 ///
 /// This provides a centralized way to configure all aspects of the cache system
 /// including backend selection, performance tuning, and feature flags.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UnifiedConfig {
     /// Backend configuration
     pub backend: BackendConfig,
@@ -39,8 +41,8 @@ pub struct BackendConfig {
     pub memory: Option<MemoryBackendConfig>,
     /// Redis backend configuration
     pub redis: Option<RedisBackendConfig>,
-    /// Tiered backend configuration
-    pub tiered: Option<TieredBackendConfig>,
+    /// Custom backend configuration
+    pub custom: Option<serde_json::Value>,
 }
 
 /// Backend type selection
@@ -50,7 +52,7 @@ pub enum BackendType {
     Memory,
     /// Redis-only backend
     Redis,
-    /// Tiered backend (L1 + L2)
+    /// Tiered (L1 + L2) backend
     Tiered,
     /// Custom backend
     Custom,
@@ -116,21 +118,6 @@ pub struct RedisPoolConfig {
     pub idle_timeout: Option<Duration>,
     /// Connection max lifetime
     pub max_lifetime: Option<Duration>,
-}
-
-/// Tiered backend configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TieredBackendConfig {
-    /// L1 backend configuration
-    pub l1: MemoryBackendConfig,
-    /// L2 backend configuration
-    pub l2: RedisBackendConfig,
-    /// Enable auto-promotion from L2 to L1
-    pub auto_promote: bool,
-    /// Write-through strategy
-    pub write_through: bool,
-    /// Write-behind buffer size
-    pub write_behind_buffer_size: Option<usize>,
 }
 
 /// Performance configuration
@@ -201,7 +188,7 @@ pub struct FeatureConfig {
 }
 
 /// Monitoring configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MonitoringConfig {
     /// Metrics collection configuration
     pub metrics: MetricsConfig,
@@ -277,7 +264,7 @@ pub enum LogFormat {
 }
 
 /// Security configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SecurityConfig {
     /// Enable encryption
     pub enable_encryption: bool,
@@ -340,25 +327,13 @@ pub struct TimeRestriction {
     pub days_of_week: Vec<u8>, // 0 = Sunday, 6 = Saturday
 }
 
-impl Default for UnifiedConfig {
-    fn default() -> Self {
-        Self {
-            backend: BackendConfig::default(),
-            performance: PerformanceConfig::default(),
-            features: FeatureConfig::default(),
-            monitoring: MonitoringConfig::default(),
-            security: SecurityConfig::default(),
-        }
-    }
-}
-
 impl Default for BackendConfig {
     fn default() -> Self {
         Self {
             backend_type: BackendType::Memory,
             memory: Some(MemoryBackendConfig::default()),
             redis: None,
-            tiered: None,
+            custom: None,
         }
     }
 }
@@ -401,9 +376,20 @@ impl Default for RedisPoolConfig {
 }
 
 impl Default for SerializationConfig {
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn default() -> Self {
         Self {
             format: SerializationFormat::Json,
+            enable_zero_copy: false,
+            enable_compression: false,
+            compression_threshold: 1024,
+        }
+    }
+
+    #[cfg(not(any(feature = "serialization", feature = "full")))]
+    fn default() -> Self {
+        Self {
+            format: serde_json::Value::Null,
             enable_zero_copy: false,
             enable_compression: false,
             compression_threshold: 1024,
@@ -446,16 +432,6 @@ impl Default for FeatureConfig {
     }
 }
 
-impl Default for MonitoringConfig {
-    fn default() -> Self {
-        Self {
-            metrics: MetricsConfig::default(),
-            health_check: HealthCheckConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
-
 impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
@@ -489,16 +465,6 @@ impl Default for LoggingConfig {
     }
 }
 
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            enable_encryption: false,
-            encryption: None,
-            access_control: None,
-        }
-    }
-}
-
 /// Configuration builder
 #[derive(Debug, Clone)]
 pub struct UnifiedConfigBuilder {
@@ -528,12 +494,6 @@ impl UnifiedConfigBuilder {
     /// Set Redis backend configuration
     pub fn redis_backend(mut self, config: RedisBackendConfig) -> Self {
         self.config.backend.redis = Some(config);
-        self
-    }
-
-    /// Set tiered backend configuration
-    pub fn tiered_backend(mut self, config: TieredBackendConfig) -> Self {
-        self.config.backend.tiered = Some(config);
         self
     }
 
@@ -606,24 +566,35 @@ impl UnifiedConfig {
                 }
             }
             BackendType::Tiered => {
-                if self.backend.tiered.is_none() {
+                #[cfg(all(feature = "moka", feature = "redis"))]
+                {
+                    if self.backend.memory.is_none() || self.backend.redis.is_none() {
+                        return Err(CacheError::ConfigError(
+                            "Tiered backend requires both L1 and L2 configurations".to_string(),
+                        ));
+                    }
+                }
+                #[cfg(not(all(feature = "moka", feature = "redis")))]
+                {
                     return Err(CacheError::ConfigError(
-                        "Tiered backend configuration is required".to_string(),
+                        "Tiered backend requires both 'moka' and 'redis' features".to_string(),
                     ));
                 }
             }
             BackendType::Custom => {
-                // Custom backend validation would go here
+                if self.backend.custom.is_none() {
+                    return Err(CacheError::ConfigError(
+                        "Custom backend configuration is required".to_string(),
+                    ));
+                }
             }
         }
 
         // Validate performance configuration
-        if self.performance.batch.enabled {
-            if self.performance.batch.max_batch_size == 0 {
-                return Err(CacheError::ConfigError(
-                    "Batch max size must be greater than 0".to_string(),
-                ));
-            }
+        if self.performance.batch.enabled && self.performance.batch.max_batch_size == 0 {
+            return Err(CacheError::ConfigError(
+                "Batch max size must be greater than 0".to_string(),
+            ));
         }
 
         // Validate monitoring configuration
@@ -650,17 +621,19 @@ impl UnifiedConfig {
             .redis_backend(RedisBackendConfig::default())
     }
 
-    /// Create a tiered configuration
+    /// Create a tiered (L1 + L2) configuration
+    #[cfg(all(feature = "moka", feature = "redis"))]
     pub fn tiered() -> UnifiedConfigBuilder {
         UnifiedConfigBuilder::new()
             .backend_type(BackendType::Tiered)
-            .tiered_backend(TieredBackendConfig {
-                l1: MemoryBackendConfig::default(),
-                l2: RedisBackendConfig::default(),
-                auto_promote: true,
-                write_through: false,
-                write_behind_buffer_size: None,
-            })
+            .memory_backend(MemoryBackendConfig::default())
+            .redis_backend(RedisBackendConfig::default())
+    }
+
+    #[cfg(not(all(feature = "moka", feature = "redis")))]
+    pub fn tiered() -> UnifiedConfigBuilder {
+        // Fallback to memory-only if features not available
+        UnifiedConfig::memory_only()
     }
 
     /// Convert to Redis configuration
@@ -702,9 +675,16 @@ pub mod convenience {
         UnifiedConfig::redis_only().build()
     }
 
-    /// Create a simple tiered cache configuration
+    /// Create a simple tiered (L1 + L2) cache configuration
+    #[cfg(all(feature = "moka", feature = "redis"))]
     pub fn simple_tiered() -> UnifiedConfig {
         UnifiedConfig::tiered().build()
+    }
+
+    #[cfg(not(all(feature = "moka", feature = "redis")))]
+    pub fn simple_tiered() -> UnifiedConfig {
+        // Return memory-only config if features not available
+        UnifiedConfig::memory_only().build()
     }
 
     /// Create a high-performance memory configuration
@@ -743,12 +723,27 @@ pub mod convenience {
                 time_to_idle: Some(Duration::from_secs(1800)),
                 enable_stats: true,
             })
-            .serialization(SerializationConfig {
-                format: SerializationFormat::Json,
-                enable_zero_copy: true,
-                enable_compression: false,
-                compression_threshold: 1024,
-            })
+            .serialization(
+                #[cfg(any(feature = "serialization", feature = "full"))]
+                SerializationConfig {
+                    #[cfg(any(feature = "serialization", feature = "full"))]
+                    format: SerializationFormat::Json,
+                    #[cfg(any(feature = "serialization", feature = "full"))]
+                    enable_zero_copy: true,
+                    #[cfg(any(feature = "serialization", feature = "full"))]
+                    enable_compression: false,
+                    #[cfg(any(feature = "serialization", feature = "full"))]
+                    compression_threshold: 1024,
+                    #[cfg(not(any(feature = "serialization", feature = "full")))]
+                    format: serde_json::Value::Null,
+                    #[cfg(not(any(feature = "serialization", feature = "full")))]
+                    enable_zero_copy: false,
+                    #[cfg(not(any(feature = "serialization", feature = "full")))]
+                    enable_compression: false,
+                    #[cfg(not(any(feature = "serialization", feature = "full")))]
+                    compression_threshold: 1024,
+                },
+            )
             .batch(BatchConfig {
                 enabled: true,
                 max_batch_size: 1000,
@@ -871,34 +866,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tiered_config() {
-        let config = UnifiedConfig::tiered()
-            .tiered_backend(TieredBackendConfig {
-                l1: MemoryBackendConfig {
-                    capacity: 1000,
-                    ..Default::default()
-                },
-                l2: RedisBackendConfig::default(),
-                auto_promote: true,
-                write_through: false,
-                write_behind_buffer_size: Some(100),
-            })
-            .build();
-
-        assert!(config.validate().is_ok());
-        assert_eq!(config.backend.backend_type, BackendType::Tiered);
-        assert_eq!(config.backend.tiered.as_ref().unwrap().l1.capacity, 1000);
-        assert!(config.backend.tiered.as_ref().unwrap().auto_promote);
-    }
-
-    #[test]
     fn test_invalid_config() {
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Redis,
                 memory: None,
                 redis: None, // Missing Redis config
-                tiered: None,
+                custom: None,
             },
             ..Default::default()
         };
@@ -914,9 +888,6 @@ mod tests {
 
         let redis_config = convenience::simple_redis();
         assert_eq!(redis_config.backend.backend_type, BackendType::Redis);
-
-        let tiered_config = convenience::simple_tiered();
-        assert_eq!(tiered_config.backend.backend_type, BackendType::Tiered);
 
         let high_perf_config = convenience::high_performance_memory();
         assert_eq!(

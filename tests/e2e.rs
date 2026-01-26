@@ -4,7 +4,8 @@
 //
 // E2E Tests Module
 //
-// 包含所有端到端测试模块。
+// Contains all end-to-end tests for the cache system.
+// These tests verify the complete user workflow.
 
 #[path = "e2e/macro_test.rs"]
 mod macro_test;

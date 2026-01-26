@@ -7,25 +7,23 @@
 // Client implementations
 pub mod client;
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub mod strategy;
 
-// Modernized API backend modules
-pub mod backend;
-pub mod tiered;
+// Modernized API backend interface
+pub mod interface;
 
 // Custom tiered backend configuration (always available)
 #[cfg(any(
-    feature = "l1-moka",
-    feature = "l2-redis",
+    feature = "moka",
+    feature = "redis",
     feature = "full",
     feature = "core"
 ))]
 pub mod custom_tiered;
 
 // Re-exports for new API
-pub use backend::CacheBackend;
-pub use tiered::TieredBackend;
+pub use interface::CacheBackend;
 
 // Client implementations
 pub use client::{
@@ -34,26 +32,27 @@ pub use client::{
     // Convenience functions
     moka_memory,
     DashMapMemoryBackend,
-    DefaultRedisProvider,
     MemoryBackend,
     // Type definitions
     MemoryBackendType,
     MokaMemoryBackend,
-    RedisBackend as ClientRedisBackend,
-    RedisBackendBuilder,
-    RedisMode as ClientRedisMode,
-    RedisProvider,
+};
+
+#[cfg(feature = "redis")]
+pub use client::{
+    DefaultRedisProvider, RedisBackend as ClientRedisBackend, RedisBackendBuilder,
+    RedisMode as ClientRedisMode, RedisProvider,
 };
 
 // Re-exports for custom tiered configuration
 #[cfg(any(
-    feature = "l1-moka",
-    feature = "l2-redis",
+    feature = "moka",
+    feature = "redis",
     feature = "full",
     feature = "core"
 ))]
 pub use custom_tiered::{
     AutoFixConfig, BackendProvider, BackendType, ConfigFix, ConfigValidationResult,
     CustomTieredConfig, CustomTieredConfigBuilder, DefaultBackendProvider, FixedConfigResult,
-    Layer, LayerBackendConfig, LayerRestriction, TieredBackendFactory,
+    Layer, LayerBackendConfig, LayerRestriction,
 };

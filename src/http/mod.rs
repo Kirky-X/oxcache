@@ -632,10 +632,7 @@ mod tests {
 
         // ETag 匹配，应该返回 NotModified
         let result = handler.check_conditional(&cached, Some("\"abc123\""), None);
-        match result {
-            ConditionalRequestResult::NotModified => {}
-            _ => panic!("Expected NotModified"),
-        }
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
     }
 
     #[test]
@@ -653,10 +650,7 @@ mod tests {
 
         // ETag 不匹配，应该返回 FullResponse
         let result = handler.check_conditional(&cached, Some("\"different\""), None);
-        match result {
-            ConditionalRequestResult::FullResponse(_) => {}
-            _ => panic!("Expected FullResponse"),
-        }
+        assert!(matches!(result, ConditionalRequestResult::FullResponse(_)));
     }
 
     #[test]
@@ -676,10 +670,7 @@ mod tests {
         // 请求时间晚于缓存时间，应该返回 NotModified
         let recent_time = "Tue, 01 Jan 2002 00:00:00 GMT";
         let result = handler.check_conditional(&cached, None, Some(recent_time));
-        match result {
-            ConditionalRequestResult::NotModified => {}
-            _ => panic!("Expected NotModified"),
-        }
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
     }
 
     #[test]

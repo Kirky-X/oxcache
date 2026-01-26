@@ -4,7 +4,7 @@
 //
 // 批量写入集成测试 - 使用新API
 
-use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
+use common::{is_redis_available, setup_logging};
 use oxcache::Cache;
 use std::time::Duration;
 
@@ -15,18 +15,17 @@ use crate::common;
 /// 验证批量写入功能是否能正确工作并提高性能
 #[tokio::test]
 async fn test_batch_write_performance() {
-    if !is_redis_available().await {
+    if !is_redis_available() {
         return;
     }
 
     setup_logging();
-    let service_name = generate_unique_service_name("batch_test");
     let redis_url = "redis://127.0.0.1:6379";
 
-    // 使用新API创建缓存实例
-    let cache: Cache<String, i32> = Cache::tiered(100, redis_url)
+    // 使用新API创建Redis缓存实例（注意：当前版本暂不支持tiered，使用Redis作为L2）
+    let cache: Cache<String, i32> = Cache::redis(redis_url)
         .await
-        .expect("Failed to create tiered cache");
+        .expect("Failed to create Redis cache");
 
     // 1. 快速写入100个项目
     for i in 0..100 {
@@ -43,5 +42,4 @@ async fn test_batch_write_performance() {
 
     // 清理
     cache.shutdown().await.expect("Shutdown failed");
-    cleanup_service(&service_name).await;
 }

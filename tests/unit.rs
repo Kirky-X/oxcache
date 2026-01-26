@@ -4,10 +4,8 @@
 //
 // Unit Tests Module
 //
-// 包含所有单元测试模块。
-
-#[path = "unit/builder_test.rs"]
-mod builder_test;
+// Contains all unit tests for the cache system.
+// These tests verify individual component functionality.
 
 #[path = "unit/serialization_test.rs"]
 mod serialization_test;

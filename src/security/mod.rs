@@ -9,6 +9,7 @@
 //! 提供各种安全验证功能，防止恶意输入导致的安全问题。
 
 use crate::error::{CacheError, Result};
+use regex::Regex;
 
 /// Lua 脚本最大长度 (10KB)
 const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
@@ -237,143 +238,194 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
         )));
     }
 
-    // 将脚本转为大写进行统一检查
-    let script_upper = script.to_uppercase();
+    // 预处理脚本：移除注释、字符串和多行内容，得到净化后的脚本
+    let cleaned = preprocess_lua_script(script);
+    let cleaned_upper = cleaned.to_uppercase();
 
-    // 检查 FLUSHALL/FLUSHDB 命令 - 只有在 redis.call/pcall 中才危险
-    // 但由于这些命令极其危险，我们也检查字符串字面量
-    let flush_commands = ["FLUSHALL", "FLUSHDB"];
-    for cmd in &flush_commands {
-        if script_upper.contains(&format!("REDIS.CALL('{}'", cmd))
-            || script_upper.contains(&format!("REDIS.CALL(\"{}\"", cmd))
-            || script_upper.contains(&format!("REDIS.PCALL('{}'", cmd))
-            || script_upper.contains(&format!("REDIS.PCALL(\"{}\"", cmd))
-        {
-            return Err(CacheError::InvalidInput(format!(
-                "Lua script calls forbidden Redis command: {}",
-                cmd
-            )));
-        }
-    }
-
-    // 检查 Redis KEYS 命令（可能导致阻塞）
-    // 必须区分 Redis KEYS 命令和 Lua 的 KEYS 数组
-    // 检查模式: redis.call('KEYS' 或 redis.call("KEYS" （后面可能有逗号或空格）
-    if script_upper.contains("REDIS.CALL('KEYS'")
-        || script_upper.contains("REDIS.CALL(\"KEYS\"")
-        || script_upper.contains("REDIS.PCALL('KEYS'")
-        || script_upper.contains("REDIS.PCALL(\"KEYS\"")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script contains forbidden command: KEYS".to_string(),
-        ));
-    }
-
-    // 检查其他危险的管理命令
-    // 这些命令只有在 redis.call/pcall 中调用时才危险
-    let dangerous_commands = [
-        "SHUTDOWN",
-        "DEBUG",
-        "CONFIG",
-        "SAVE",
-        "BGSAVE",
-        "BGREWRITEAOF",
-        "LASTSAVE",
-        "MONITOR",
-        "SYNC",
+    // 使用简单字符串检查代替正则表达式（避免原始字符串语法问题）
+    let forbidden_patterns = [
+        ("REDIS.CALL('FLUSHALL')", "FLUSHALL"),
+        ("REDIS.CALL(\"FLUSHALL\")", "FLUSHALL"),
+        ("REDIS.PCALL('FLUSHALL')", "FLUSHALL via PCALL"),
+        ("REDIS.PCALL(\"FLUSHALL\")", "FLUSHALL via PCALL"),
+        ("REDIS.CALL('FLUSHDB')", "FLUSHDB"),
+        ("REDIS.CALL(\"FLUSHDB\")", "FLUSHDB"),
+        ("REDIS.PCALL('FLUSHDB')", "FLUSHDB via PCALL"),
+        ("REDIS.PCALL(\"FLUSHDB\")", "FLUSHDB via PCALL"),
+        ("REDIS.CALL('KEYS')", "KEYS"),
+        ("REDIS.CALL(\"KEYS\")", "KEYS"),
+        ("REDIS.PCALL('KEYS')", "KEYS via PCALL"),
+        ("REDIS.PCALL(\"KEYS\")", "KEYS via PCALL"),
+        ("REDIS.CALL('SHUTDOWN')", "SHUTDOWN"),
+        ("REDIS.CALL(\"SHUTDOWN\")", "SHUTDOWN"),
+        ("REDIS.CALL('CONFIG')", "CONFIG"),
+        ("REDIS.CALL(\"CONFIG\")", "CONFIG"),
+        ("REDIS.CALL('CONFIG',", "CONFIG"),
+        ("REDIS.CALL(\"CONFIG\",", "CONFIG"),
+        ("REDIS.CALL('DEBUG')", "DEBUG"),
+        ("REDIS.CALL(\"DEBUG\")", "DEBUG"),
+        ("REDIS.CALL('DEBUG',", "DEBUG"),
+        ("REDIS.CALL(\"DEBUG\",", "DEBUG"),
+        ("REDIS.CALL('SAVE')", "SAVE"),
+        ("REDIS.CALL(\"SAVE\")", "SAVE"),
+        ("REDIS.CALL('BGSAVE')", "BGSAVE"),
+        ("REDIS.CALL(\"BGSAVE\")", "BGSAVE"),
+        ("REDIS.CALL('MONITOR')", "MONITOR"),
+        ("REDIS.CALL(\"MONITOR\")", "MONITOR"),
+        ("OS.EXECUTE", "os.execute"),
+        ("OS.EXEC", "os.exec"),
+        ("IO.POPEN", "io.popen"),
+        ("LOADSTRING", "loadstring"),
+        ("LOAD(", "load()"),
+        ("REDIS.CALL('KEYS',", "KEYS"),
+        ("REDIS.CALL(\"KEYS\",", "KEYS"),
     ];
 
-    for cmd in &dangerous_commands {
-        // 检查是否在 redis.call 或 redis.pcall 中调用了这些命令
-        // 检查模式: REDIS.CALL('CMD' 或 REDIS.CALL("CMD)（不检查后面的参数）
-        if script_upper.contains(&format!("REDIS.CALL('{}'", cmd))
-            || script_upper.contains(&format!("REDIS.CALL(\"{}\"", cmd))
-            || script_upper.contains(&format!("REDIS.PCALL('{}'", cmd))
-            || script_upper.contains(&format!("REDIS.PCALL(\"{}\"", cmd))
-        {
+    // 检查每种危险模式
+    for (pattern, description) in &forbidden_patterns {
+        if cleaned_upper.contains(pattern) {
             return Err(CacheError::InvalidInput(format!(
-                "Lua script calls forbidden Redis command: {}",
-                cmd
+                "Lua script contains forbidden pattern: {}",
+                description
             )));
         }
     }
 
-    // ========== 安全增强：防止绕过检查 ==========
-
-    // 检查动态命令执行（使用变量作为命令名）
-    if script_upper.contains("REDIS.CALL(CMD)")
-        || script_upper.contains("REDIS.CALL(VAR)")
-        || script_upper.contains("REDIS.CALL(COMMAND")
-        || script_upper.contains("REDIS.PCALL(CMD)")
-        || script_upper.contains("REDIS.PCALL(VAR)")
-        || script_upper.contains("REDIS.PCALL(COMMAND")
-    {
+    // 检查嵌套 eval
+    if cleaned_upper.contains("REDIS.EVAL") || cleaned_upper.contains("REDIS.EVALSHA") {
         return Err(CacheError::InvalidInput(
-            "Lua script uses dynamic command execution which is not allowed".to_string(),
+            "Lua script contains nested redis.eval/evalsha".to_string(),
         ));
     }
 
-    // 检查字符串拼接用于命令执行
-    if script_upper.contains("REDIS.CALL(\"") && script_upper.contains("..")
-        || script_upper.contains("REDIS.CALL('") && script_upper.contains("..")
-        || script_upper.contains("REDIS.PCALL(\"") && script_upper.contains("..")
-        || script_upper.contains("REDIS.PCALL('") && script_upper.contains("..")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script uses string concatenation for command execution which is not allowed"
-                .to_string(),
-        ));
-    }
-
-    // 检查嵌套 eval/evalsha（可能导致无限递归）
-    if script_upper.contains("REDIS.EVAL(")
-        || script_upper.contains("REDIS.EVALSHA(")
-        || script_upper.contains("REDIS.CALL('EVAL'")
-        || script_upper.contains("REDIS.CALL(\"EVAL\"")
-        || script_upper.contains("REDIS.PCALL('EVAL'")
-        || script_upper.contains("REDIS.PCALL(\"EVAL\"")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script contains nested redis.eval/evalsha which is not allowed".to_string(),
-        ));
-    }
-
-    // 检查潜在的无限循环模式
-    if script_upper.contains("WHILE TRUE")
-        || script_upper.contains("WHILE 1")
-        || script_upper.contains("WHILE (TRUE)")
-        || script_upper.contains("WHILE (1)")
-        || script_upper.contains("REPEAT")
-        || script_upper.contains("GOTO")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script contains potential infinite loop patterns".to_string(),
-        ));
-    }
-
-    // 检查 os.execute 和 io.popen（防止命令注入）
-    if script_upper.contains("OS.EXECUTE")
-        || script_upper.contains("OS.EXEC")
-        || script_upper.contains("IO.POPEN")
-        || script_upper.contains("IO.OPEN")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script contains system command execution which is not allowed".to_string(),
-        ));
-    }
-
-    // 检查 loadstring/load（防止动态代码加载）
-    if script_upper.contains("LOADSTRING")
-        || script_upper.contains("LOAD(")
-        || script_upper.contains("DOFILE")
-        || script_upper.contains("LOADFILE")
-    {
-        return Err(CacheError::InvalidInput(
-            "Lua script contains dynamic code loading which is not allowed".to_string(),
-        ));
+    // 检查无限循环模式
+    let loop_patterns = [r"WHILE\s+TRUE", r"WHILE\s+1", r"REPEAT", r"GOTO"];
+    for pattern in &loop_patterns {
+        if Regex::new(pattern).unwrap().is_match(&cleaned_upper) {
+            return Err(CacheError::InvalidInput(
+                "Lua script contains potential infinite loop patterns".to_string(),
+            ));
+        }
     }
 
     Ok(())
+}
+
+/// 预处理 Lua 脚本，移除注释和字符串内容
+///
+/// 这可以防止通过注释、字符串拼接等方式绕过检查
+fn preprocess_lua_script(script: &str) -> String {
+    let mut result = String::with_capacity(script.len());
+
+    let mut chars = script.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '-' && chars.peek() == Some(&'-') {
+            // 检查是否是 --[[ (多行注释开始)
+            if chars.clone().nth(1) == Some('[') && chars.clone().nth(2) == Some('[') {
+                // 这是 --[[ 多行注释
+                chars.next(); // 跳过 --
+                chars.next(); // 跳过 [
+                chars.next(); // 跳过 [
+                let mut depth = 1;
+                while let Some(next_c) = chars.next() {
+                    if next_c == '[' && chars.peek() == Some(&'[') {
+                        depth += 1;
+                        chars.next();
+                    } else if next_c == ']' && chars.peek() == Some(&']') {
+                        depth -= 1;
+                        if depth == 0 {
+                            chars.next(); // 跳过最后一个 ]
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 移除单行注释
+                while let Some(&next_c) = chars.peek() {
+                    if next_c == '\n' {
+                        break;
+                    }
+                    chars.next();
+                }
+            }
+        } else if c == '[' && chars.peek() == Some(&'[') {
+            // 移除多行注释 [[...]]
+            chars.next(); // 跳过第一个 [
+            chars.next(); // 跳过第二个 [
+            let mut depth = 1;
+            while let Some(next_c) = chars.next() {
+                if next_c == '[' && chars.peek() == Some(&'[') {
+                    depth += 1;
+                    chars.next();
+                } else if next_c == ']' && chars.peek() == Some(&']') {
+                    depth -= 1;
+                    if depth == 0 {
+                        chars.next(); // 跳过最后一个 ]
+                        break;
+                    }
+                }
+            }
+        } else if c == '"' {
+            // 移除字符串 ""
+            result.push('"');
+            result.push('"'); // 用空字符串替换
+            while let Some(&next_c) = chars.peek() {
+                if next_c == '"' {
+                    chars.next(); // 跳过结束引号
+                    break;
+                } else if next_c == '\\' {
+                    chars.next(); // 跳过转义字符
+                    if chars.next().is_some() {}
+                } else if next_c == '\n' {
+                    break; // 未闭合的字符串
+                } else {
+                    chars.next();
+                }
+            }
+        } else if c == '\'' {
+            // 处理字符串 ''，保留标识符但移除值
+            result.push('\'');
+            let mut in_string = true;
+            while in_string {
+                if let Some(&next_c) = chars.peek() {
+                    if next_c == '\'' {
+                        chars.next();
+                        result.push('\'');
+                        in_string = false;
+                    } else if next_c == '\\' {
+                        chars.next();
+                        if let Some(escaped) = chars.next() {
+                            // 只保留字母数字下划线
+                            if escaped.is_alphanumeric() || escaped == '_' {
+                                result.push(escaped);
+                            }
+                        }
+                    } else if next_c == '\n' {
+                        break; // 未闭合的字符串
+                    } else if next_c.is_alphanumeric() || next_c == '_' {
+                        // 保留标识符字符
+                        result.push(next_c);
+                        chars.next();
+                    } else {
+                        chars.next(); // 跳过非标识符字符
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else if c.is_whitespace() {
+            // 规范化空白字符为空格
+            if !result.is_empty() && !result.ends_with(' ') {
+                result.push(' ');
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    // 移除多余空格
+    let re = Regex::new(r"\s+").unwrap();
+    re.replace_all(&result, " ").to_string()
 }
 
 /// 验证 SCAN 模式

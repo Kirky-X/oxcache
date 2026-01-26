@@ -2,6 +2,7 @@
 // Run with: REDIS_URL=redis://127.0.0.1:6381 cargo test --lib test_redis_integration --all-features
 
 #[cfg(test)]
+#[cfg(feature = "redis")]
 mod redis_integration_tests {
     use oxcache::backend::client::RedisBackend;
     use std::time::Duration;

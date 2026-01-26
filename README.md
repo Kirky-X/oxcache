@@ -89,8 +89,8 @@ oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 # Development with specific features
 oxcache = { version = "0.1.3", features = [
-    "l1-moka",      # L1 cache (Moka)
-    "l2-redis",     # L2 cache (Redis)
+    "moka",      # L1 cache (Moka)
+    "redis",     # L2 cache (Redis)
     "macros",       # #[cached] macro
     "batch-write",  # Optimized batch writing
     "metrics",      # Basic metrics
@@ -99,8 +99,8 @@ oxcache = { version = "0.1.3", features = [
 
 | Tier | Features | Description |
 |------|----------|-------------|
-| **minimal** | `l1-moka`, `serialization`, `metrics` | L1 cache only |
-| **core** | `minimal` + `l2-redis` | L1 + L2 cache |
+| **minimal** | `moka`, `serialization`, `metrics` | L1 cache only |
+| **core** | `minimal` + `redis` | L1 + L2 cache |
 | **full** | `core` + all advanced features | Complete functionality |
 
 **Advanced Features** (included in `full`):

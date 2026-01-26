@@ -17,8 +17,9 @@ use std::fs::File;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-// 更新路径引用
-use crate::database_test_utils;
+// 使用path属性引用根目录下的database_test_utils
+#[path = "../database_test_utils.rs"]
+mod database_test_utils;
 use database_test_utils::*;
 
 // ============================================================================
@@ -97,8 +98,8 @@ async fn test_basic_connection(db_path: &str) -> bool {
 /// Test PostgreSQL partitioning
 #[tokio::test]
 async fn test_postgres_partitioning() -> Result<()> {
-    let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
+    let config = database_test_utils::TestConfig::from_file();
+    let partition_config = database_test_utils::create_partition_config(
         config.partitioning_enabled,
         config.strategy,
         config.retention_months,
@@ -127,7 +128,7 @@ async fn test_postgres_partitioning() -> Result<()> {
     let test_table = "test_cache_entries";
 
     // Clean up existing table to prevent conflicts
-    cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
+    database_test_utils::cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
 
     // Create table schema
     let schema = format!(
@@ -146,7 +147,7 @@ async fn test_postgres_partitioning() -> Result<()> {
     println!("✓ PostgreSQL table initialized with partitioning");
 
     // Verify partition creation
-    let partitions = verify_partition_creation(&manager, test_table, true, 1).await?;
+    let partitions: Vec<PartitionInfo> = database_test_utils::verify_partition_creation(&manager, test_table, true, 1).await?;
 
     // Clean up
     if let Some(partition) = partitions.first() {
@@ -164,8 +165,8 @@ async fn test_postgres_partitioning() -> Result<()> {
 /// Test MySQL partitioning
 #[tokio::test]
 async fn test_mysql_partitioning() -> Result<()> {
-    let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
+    let config = database_test_utils::TestConfig::from_file();
+    let partition_config = database_test_utils::create_partition_config(
         config.partitioning_enabled,
         config.strategy,
         config.retention_months,
@@ -727,8 +728,8 @@ mod sea_orm_path_tests {
 /// Test partition retention cleanup
 #[tokio::test]
 async fn test_partition_retention() -> Result<()> {
-    let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
+    let config = database_test_utils::TestConfig::from_file();
+    let partition_config = database_test_utils::create_partition_config(
         config.partitioning_enabled,
         config.strategy,
         2, // Only keep 2 partitions for testing
@@ -756,7 +757,7 @@ async fn test_partition_retention() -> Result<()> {
     let test_table = "test_retention_entries";
 
     // Clean up existing table to prevent conflicts
-    cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
+    database_test_utils::cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
 
     let schema = format!(
         "CREATE TABLE IF NOT EXISTS {} (
@@ -772,7 +773,7 @@ async fn test_partition_retention() -> Result<()> {
     manager.initialize_table(test_table, &schema).await?;
 
     // Verify partition cleanup with retention policy
-    verify_partition_cleanup(&manager, test_table, 2).await?;
+    database_test_utils::verify_partition_cleanup(&manager, test_table, 2).await?;
 
     Ok(())
 }
@@ -780,18 +781,18 @@ async fn test_partition_retention() -> Result<()> {
 /// Test error handling for invalid configurations
 #[tokio::test]
 async fn test_invalid_configuration() -> Result<()> {
-    let _config = TestConfig::from_file(); // Configuration loaded but not used in this test
+    let _config = database_test_utils::TestConfig::from_file(); // Configuration loaded but not used in this test
 
     // Test with invalid PostgreSQL URL
     let invalid_postgres_url = "postgresql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config = create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
 
     let result = PostgresPartitionManager::new(invalid_postgres_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid PostgreSQL URL");
 
     // Test with invalid MySQL URL
     let invalid_mysql_url = "mysql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config = create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
     let result = MySQLPartitionManager::new(invalid_mysql_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid MySQL URL");
 
@@ -801,8 +802,8 @@ async fn test_invalid_configuration() -> Result<()> {
 /// Test concurrent partition operations
 #[tokio::test]
 async fn test_concurrent_operations() -> Result<()> {
-    let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
+    let config = database_test_utils::TestConfig::from_file();
+    let partition_config = database_test_utils::create_partition_config(
         config.partitioning_enabled,
         config.strategy,
         config.retention_months,
@@ -830,7 +831,7 @@ async fn test_concurrent_operations() -> Result<()> {
     let test_table = "test_concurrent_entries";
 
     // Clean up existing table to prevent conflicts
-    cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
+    database_test_utils::cleanup_postgres_table("crawlrs_db", "crawlrs_db", "user", test_table);
 
     let schema = format!(
         "CREATE TABLE IF NOT EXISTS {} (
@@ -846,7 +847,7 @@ async fn test_concurrent_operations() -> Result<()> {
     manager.initialize_table(test_table, &schema).await?;
 
     // Test concurrent partition operations
-    test_concurrent_partition_operations(manager, test_table).await?;
+    database_test_utils::test_concurrent_partition_operations(manager, test_table).await?;
 
     Ok(())
 }

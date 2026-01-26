@@ -6,8 +6,11 @@
 //!
 //! 提供缓存未命中时自动从数据库加载数据的功能
 
-use crate::config::validation::DEFAULT_RETRY_INTERVAL_MS;
 use crate::error::{CacheError, Result};
+
+const DEFAULT_RETRY_INTERVAL_MS: u64 = 100;
+
+#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 use crate::utils::validate_cache_key as utils_validate_cache_key;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -17,7 +20,6 @@ use tracing::{debug, error, info, instrument, warn};
 /// 安全的SQL标识符验证
 /// 验证SQL标识符（表名、列名等）
 /// 只允许字母、数字、下划线，且不以数字开头
-#[allow(dead_code)]
 pub fn validate_sql_identifier(identifier: &str) -> bool {
     if identifier.is_empty() {
         return false;
@@ -45,7 +47,19 @@ pub fn validate_sql_identifier(identifier: &str) -> bool {
 /// 验证缓存键格式
 /// 键可以包含字母、数字、连字符、下划线、点号、冒号
 pub fn validate_cache_key(key: &str) -> bool {
-    utils_validate_cache_key(key).is_ok()
+    #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
+    {
+        utils_validate_cache_key(key).is_ok()
+    }
+    #[cfg(not(any(feature = "full", feature = "minimal", feature = "core")))]
+    {
+        // 内联实现：当 utils 模块不可用时
+        if key.is_empty() || key.len() > 512 {
+            return false;
+        }
+        key.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == ':')
+    }
 }
 
 /// SQL转义函数 - 用于字符串值转义

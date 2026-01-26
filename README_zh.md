@@ -91,8 +91,8 @@ oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 | 层级 | 包含特性 | 描述 |
 |------|----------|------|
-| **minimal** | `l1-moka`, `serialization`, `metrics` | 仅 L1 缓存 |
-| **core** | `minimal` + `l2-redis` | L1 + L2 缓存 |
+| **minimal** | `moka`, `serialization`, `metrics` | 仅 L1 缓存 |
+| **core** | `minimal` + `redis` | L1 + L2 缓存 |
 | **full** | `core` + 所有高级特性 | 完整功能 |
 
 **高级特性**（包含在 `full` 中）：

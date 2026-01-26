@@ -12,7 +12,7 @@ pub mod database_test_utils;
 #[path = "redis_test_utils.rs"]
 pub mod redis_test_utils;
 
-use oxcache::{Cache, OxcacheConfig};
+use oxcache::Cache;
 use redis_test_utils::{
     is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
@@ -36,18 +36,12 @@ pub fn setup_logging() {
 
 /// 设置缓存
 ///
-/// 根据提供的配置创建缓存实例
-///
-/// # 参数
-///
-/// * `config` - 缓存配置（当前未使用，保留参数以保持 API 兼容性）
+/// 创建默认的内存缓存实例
 #[allow(dead_code)]
-pub async fn setup_cache(_config: OxcacheConfig) -> Cache<String, Vec<u8>> {
+pub async fn setup_cache() -> Cache<String, Vec<u8>> {
     setup_logging();
 
-    // 使用新的 API 直接创建缓存
-    // 配置参数目前未使用，因为新的 Cache API 不接受 OxcacheConfig
-    // 这是因为我们已经迁移到独立的 Cache<K, V> 实例模式
+    // 使用新的 API 直接创建内存缓存
     Cache::new()
         .await
         .unwrap_or_else(|e| panic!("Failed to create memory cache: {}", e))
@@ -57,8 +51,8 @@ pub async fn setup_cache(_config: OxcacheConfig) -> Cache<String, Vec<u8>> {
 ///
 /// 尝试连接到本地Redis实例，检查其是否可用
 #[allow(dead_code)]
-pub async fn is_redis_available() -> bool {
-    is_redis_available_default().await
+pub fn is_redis_available() -> bool {
+    std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
 }
 
 /// 等待Redis可用

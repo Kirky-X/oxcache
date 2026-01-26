@@ -37,9 +37,11 @@
 /// - `Sized`: The type must have a known size at compile time
 /// - `Serialize`: The type must be serializable to bytes
 /// - `DeserializeOwned`: The type must be deserializable from owned data
+#[cfg(any(feature = "serialization", feature = "full"))]
 pub trait Cacheable: Sized + serde::Serialize + for<'de> serde::Deserialize<'de> {}
 
 // Blanket implementation for all types that meet the bounds
+#[cfg(any(feature = "serialization", feature = "full"))]
 impl<T> Cacheable for T where T: serde::Serialize + for<'de> serde::Deserialize<'de> {}
 
 #[cfg(test)]

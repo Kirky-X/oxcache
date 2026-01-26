@@ -35,8 +35,8 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 
 ### Component Features
 - **`macros`**: Required for `#[cached]` attribute macro
-- **`l1-moka`**: L1 cache implementation (Moka)
-- **`l2-redis`**: L2 cache implementation (Redis)
+- **`moka`**: L1 cache implementation (Moka)
+- **`redis`**: L2 cache implementation (Redis)
 - **`confers`**: Unified configuration file support (TOML)
 - **`metrics`**: Basic metrics collection
 - **`full-metrics`**: OpenTelemetry integration
@@ -66,8 +66,8 @@ oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 # Development with specific features
 oxcache = { version = "0.1.3", features = [
-    "l1-moka",      # L1 cache (Moka)
-    "l2-redis",     # L2 cache (Redis)
+    "moka",      # L1 cache (Moka)
+    "redis",     # L2 cache (Redis)
     "macros",       # #[cached] macro
     "batch-write",  # Optimized batch writing
     "metrics",      # Basic metrics
@@ -80,13 +80,13 @@ Some features require other features to be enabled:
 
 | Feature | Required Features | Description |
 |---------|-------------------|-------------|
-| `bloom-filter` | `l1-moka` | Cache penetration protection |
-| `rate-limiting` | `l1-moka` | DoS protection |
-| `wal-recovery` | `l2-redis` | Write-ahead log for durability |
-| `batch-write` | `l2-redis` | Optimized batch writing |
+| `bloom-filter` | `moka` | Cache penetration protection |
+| `rate-limiting` | `moka` | DoS protection |
+| `wal-recovery` | `redis` | Write-ahead log for durability |
+| `batch-write` | `redis` | Optimized batch writing |
 | `cli` | `confers` | Command-line interface |
 | `opentelemetry` | `metrics` | OpenTelemetry integration |
-| `database` | `l2-redis` | Database integration |
+| `database` | `redis` | Database integration |
 
 **Note**: Using the `full` feature automatically enables all dependencies.
 

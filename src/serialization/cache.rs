@@ -6,7 +6,6 @@
 //!
 //! 提供带容量管理的序列化缓存，支持混合限制（条目数 + 内存）。
 
-use crate::config::validation::DEFAULT_MAX_MEMORY_BYTES;
 use crate::error::Result;
 use crate::serialization::Serializer;
 use dashmap::DashMap;
@@ -15,6 +14,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, warn};
+
+const DEFAULT_MAX_MEMORY_BYTES: usize = 100 * 1024 * 1024; // 100MB
 
 /// 序列化缓存条目
 #[derive(Clone, Debug)]

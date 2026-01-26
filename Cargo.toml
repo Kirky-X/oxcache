@@ -243,7 +243,7 @@ default = ["full"]
 
 # Minimal: Only L1 memory cache - no Redis, no external services
 minimal = [
-    "l1-moka",
+    "moka",
     "tokio/time",
     "dep:tracing",
     "metrics",
@@ -254,7 +254,7 @@ minimal = [
 # Core: L1 + L2 basic functionality (Redis)
 core = [
     "minimal",
-    "l2-redis",
+    "redis",
     "futures",
 ]
 
@@ -266,6 +266,10 @@ full = [
     "rate-limiting",
     "wal-recovery",
     "database",
+    "sqlite",
+    "dashmap",
+    "dep:moka",
+    "dep:redis",
     "cli",
     "full-metrics",
     "batch-write",
@@ -291,13 +295,13 @@ full = [
 macros = ["dep:oxcache_macros"]
 
 # L1 Cache Implementation (Moka)
-l1-moka = ["dep:moka", "dep:dashmap"]
+moka = ["dep:moka", "dep:dashmap"]
 
 # DashMap Backend (Pure in-memory concurrent cache)
 dashmap-backend = ["dep:dashmap"]
 
 # L2 Cache Implementation (Redis)
-l2-redis = ["dep:redis"]
+redis = ["dep:redis"]
 
 # Serialization Support
 serialization = ["dep:serde", "dep:serde_json"]
@@ -315,6 +319,8 @@ full-metrics = ["metrics", "dep:tracing-opentelemetry", "dep:opentelemetry-otlp"
 
 # Database Integration
 database = ["dep:sea-orm", "dep:sqlx", "dep:regex"]
+sqlite = ["sqlx/sqlite"]
+dashmap = ["dep:dashmap"]
 
 # Advanced Features
 bloom-filter = ["dep:bloomfilter", "dep:murmur3"]
@@ -327,11 +333,11 @@ sync = []
 confers = ["dep:confers", "dep:toml"]
 
 # Smart Strategy Features
-smart-strategy = ["compression", "metrics", "l1-moka"]
-redis-native = ["l2-redis"]
+smart-strategy = ["compression", "metrics", "moka"]
+redis-native = ["redis"]
 enhanced-stats = ["metrics"]
-ttl-control = ["l2-redis"]
-tiered-cache = ["l1-moka", "l2-redis"]
+ttl-control = ["redis"]
+tiered-cache = ["moka", "redis"]
 extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
 config-dynamic = ["confers"]
 http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util"]

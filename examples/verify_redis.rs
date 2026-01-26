@@ -6,11 +6,14 @@ use oxcache::backend::CacheBackend;
 async fn main() {
     println!("🧪 验证 Redis 后端功能...\n");
 
-    let redis_url = "redis://127.0.0.1:6381";
+    // Use default Redis port 6379
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    println!("🔗 连接地址: {}\n", redis_url);
 
     // Test 1: Create backend
     println!("1. 创建 Redis 后端...");
-    match RedisBackend::new(redis_url).await {
+    match RedisBackend::new(&redis_url).await {
         Ok(backend) => {
             println!("   ✅ 后端创建成功\n");
 

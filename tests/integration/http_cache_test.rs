@@ -7,8 +7,8 @@
 //
 // 测试 HTTP 缓存功能，包括 ETags、条件请求等。
 
-#[cfg(all(feature = "http-cache", feature = "l2-redis"))]
-#[cfg(feature = "l2-redis")]
+#[cfg(all(feature = "http-cache", feature = "redis"))]
+#[cfg(feature = "redis")]
 mod tests {
     use oxcache::http::HttpCacheResponse;
     use std::collections::HashMap;

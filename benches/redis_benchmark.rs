@@ -15,16 +15,23 @@ use tokio::runtime::Runtime;
 /// 基准测试Redis的SET操作性能
 fn bench_redis_set(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    
+
     c.bench_function("redis_set", |b| {
         b.to_async(&rt).iter(|| async {
-            let key = format!("bench:redis:set:{}", std::time::SystemTime::now().elapsed().unwrap().as_nanos());
+            let key = format!(
+                "bench:redis:set:{}",
+                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
+            );
             let value = vec![0u8; 100];
-            let backend = match RedisBackend::new("redis://127.0.0.1:6381").await {
-                Ok(b) => b,
-                Err(_) => return,
-            };
-            let _ = backend.set(black_box(&key), black_box(value), Some(Duration::from_secs(300))).await;
+            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
+                let _ = backend
+                    .set(
+                        black_box(&key),
+                        black_box(value),
+                        Some(Duration::from_secs(300)),
+                    )
+                    .await;
+            }
         });
     });
 }
@@ -32,25 +39,23 @@ fn bench_redis_set(c: &mut Criterion) {
 /// 基准测试Redis的GET操作性能
 fn bench_redis_get(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    
+
     // Pre-populate test data
     rt.block_on(async {
-        let backend = match RedisBackend::new("redis://127.0.0.1:6381").await {
-            Ok(b) => b,
-            return,
-        };
-        let key = "bench:redis:get:test";
-        let value = vec![0u8; 100];
-        let _ = backend.set(key, value, Some(Duration::from_secs(300))).await;
+        if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
+            let key = "bench:redis:get:test";
+            let value = vec![0u8; 100];
+            let _ = backend
+                .set(key, value, Some(Duration::from_secs(300)))
+                .await;
+        }
     });
 
     c.bench_function("redis_get", |b| {
         b.to_async(&rt).iter(|| async {
-            let backend = match RedisBackend::new("redis://127.0.0.1:6381").await {
-                Ok(b) => b,
-                Err(_) => return,
-            };
-            let _ = backend.get(black_box("bench:redis:get:test")).await;
+            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
+                let _ = backend.get(black_box("bench:redis:get:test")).await;
+            }
         });
     });
 }
@@ -67,11 +72,15 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
             b.to_async(&rt).iter(|| async {
                 let key = format!("bench:redis:size:{}", size);
                 let value = vec![0u8; size];
-                let backend = match RedisBackend::new("redis://127.0.0.1:6381").await {
-                    Ok(b) => b,
-                    Err(_) => return,
-                };
-                let _ = backend.set(black_box(&key), black_box(value), Some(Duration::from_secs(300))).await;
+                if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
+                    let _ = backend
+                        .set(
+                            black_box(&key),
+                            black_box(value),
+                            Some(Duration::from_secs(300)),
+                        )
+                        .await;
+                }
             });
         });
     }
@@ -82,16 +91,23 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
 /// 基准测试Redis的TTL操作性能
 fn bench_redis_ttl(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    
+
     c.bench_function("redis_ttl", |b| {
         b.to_async(&rt).iter(|| async {
-            let key = format!("bench:redis:ttl:{}", std::time::SystemTime::now().elapsed().unwrap().as_nanos());
+            let key = format!(
+                "bench:redis:ttl:{}",
+                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
+            );
             let value = vec![0u8; 100];
-            let backend = match RedisBackend::new("redis://127.0.0.1:6381").await {
-                Ok(b) => b,
-                Err(_) => return,
-            };
-            let _ = backend.set(black_box(&key), black_box(value), Some(Duration::from_secs(60))).await;
+            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
+                let _ = backend
+                    .set(
+                        black_box(&key),
+                        black_box(value),
+                        Some(Duration::from_secs(60)),
+                    )
+                    .await;
+            }
         });
     });
 }
