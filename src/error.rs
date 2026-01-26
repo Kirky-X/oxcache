@@ -130,6 +130,7 @@ pub enum CacheError {
     ConfigError(String),
 
     /// 配置错误（别名，为了兼容）
+    #[deprecated(since = "0.2.0", note = "Use ConfigError instead")]
     #[error("Configuration error: {0}. Please review your configuration file.")]
     Configuration(String),
 
@@ -147,15 +148,15 @@ pub enum CacheError {
     DatabaseError(String),
 
     /// Redis错误（脱敏后的错误信息）
-    #[cfg(feature = "l2-redis")]
+    #[cfg(feature = "redis")]
     #[error("Redis connection failed: {}. Please ensure Redis server is running and the connection string is correct.",
         sanitize_connection_string(&0.to_string())
     )]
     RedisError(#[from] redis::RedisError),
 
-    /// Redis错误（占位符，当 l2-redis feature 禁用时）
-    #[cfg(not(feature = "l2-redis"))]
-    #[error("Redis connection failed: {0}. Please enable l2-redis feature and ensure Redis server is running."
+    /// Redis错误（占位符，当 redis feature 禁用时）
+    #[cfg(not(feature = "redis"))]
+    #[error("Redis connection failed: {0}. Please enable redis feature and ensure Redis server is running."
     )]
     RedisError(String),
 

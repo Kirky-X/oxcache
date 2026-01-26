@@ -6,16 +6,33 @@
 
 #![allow(dead_code)]
 
-use oxcache::backend::{CacheBackend, RedisBackend};
+#[cfg(feature = "redis")]
+use oxcache::backend::client::RedisBackend;
+#[cfg(feature = "redis")]
+use oxcache::backend::CacheBackend;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "redis")]
 pub(crate) async fn create_redis_backend_with_real_redis() -> Result<Arc<dyn CacheBackend>, String>
 {
     match RedisBackend::new("redis://127.0.0.1:6379").await {
         Ok(backend) => Ok(Arc::new(backend)),
         Err(e) => Err(format!("无法创建Redis连接: {}", e)),
     }
+}
+
+pub(crate) async fn create_standalone_config() -> String {
+    "redis://127.0.0.1:6379".to_string()
+}
+
+pub(crate) async fn wait_for_redis(_url: &str) -> bool {
+    // 简化实现，直接检查Redis可用性
+    is_redis_available()
+}
+
+pub(crate) async fn is_redis_available_default() -> bool {
+    is_redis_available()
 }
 
 pub(crate) async fn test_redis_connection() -> Result<(), String> {

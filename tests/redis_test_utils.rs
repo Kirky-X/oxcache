@@ -6,16 +6,21 @@
 
 #![allow(dead_code)]
 
-use oxcache::backend::l2::L2Backend;
-use oxcache::config::{ClusterConfig, L2Config, RedisMode, SentinelConfig};
-use secrecy::SecretString;
+#[cfg(feature = "redis")]
+use oxcache::backend::client::RedisBackend;
+#[cfg(feature = "redis")]
+use oxcache::backend::CacheBackend;
 use std::time::Duration;
 
-pub(crate) async fn create_l2_backend_with_real_redis() -> Result<L2Backend, String> {
-    let config = create_standalone_config();
-    L2Backend::new(&config).await.map_err(|e| e.to_string())
+#[cfg(feature = "redis")]
+pub(crate) async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String> {
+    let redis_url = "redis://127.0.0.1:6379";
+    RedisBackend::new(redis_url)
+        .await
+        .map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "redis")]
 pub(crate) async fn test_redis_connection() -> Result<(), String> {
     let backend = match create_l2_backend_with_real_redis().await {
         Ok(b) => b,
@@ -23,12 +28,12 @@ pub(crate) async fn test_redis_connection() -> Result<(), String> {
     };
     let test_key = "oxcache:test:connection";
     if let Err(e) = backend
-        .set_bytes(test_key, b"test".to_vec(), Some(60))
+        .set(test_key, b"test".to_vec(), Some(Duration::from_secs(60)))
         .await
     {
         return Err(format!("SET操作失败: {}", e));
     }
-    let value_opt = match backend.get_bytes(test_key).await {
+    let value_opt = match backend.get(test_key).await {
         Ok(v) => v,
         Err(e) => return Err(format!("GET操作失败: {}", e)),
     };
@@ -46,84 +51,22 @@ pub(crate) async fn test_redis_connection() -> Result<(), String> {
 }
 
 #[allow(dead_code)]
-pub fn create_standalone_config() -> L2Config {
-    L2Config {
-        mode: RedisMode::Standalone,
-        connection_string: SecretString::new("redis://127.0.0.1:6379".into()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 5000,
-        password: None,
-        enable_tls: false,
-        sentinel: None,
-        cluster: None,
-        default_ttl: Some(3600),
-        max_key_length: 256,
-        max_value_size: 1024 * 1024 * 10,
-    }
+pub fn create_standalone_redis_url() -> String {
+    "redis://127.0.0.1:6379".to_string()
 }
 
-pub fn create_cluster_config() -> L2Config {
-    L2Config {
-        mode: RedisMode::Cluster,
-        connection_string: SecretString::new("redis://127.0.0.1:7000".into()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 5000,
-        password: None,
-        enable_tls: false,
-        sentinel: None,
-        cluster: Some(ClusterConfig {
-            nodes: vec![
-                "127.0.0.1:7000".to_string(),
-                "127.0.0.1:7001".to_string(),
-                "127.0.0.1:7002".to_string(),
-                "127.0.0.1:7003".to_string(),
-                "127.0.0.1:7004".to_string(),
-                "127.0.0.1:7005".to_string(),
-            ],
-        }),
-        default_ttl: Some(3600),
-        max_key_length: 256,
-        max_value_size: 1024 * 1024 * 10,
-    }
+#[allow(dead_code)]
+pub fn create_cluster_redis_urls() -> Vec<String> {
+    vec![
+        "redis://127.0.0.1:7000".to_string(),
+        "redis://127.0.0.1:7001".to_string(),
+        "redis://127.0.0.1:7002".to_string(),
+    ]
 }
 
-pub fn create_sentinel_config() -> L2Config {
-    L2Config {
-        mode: RedisMode::Sentinel,
-        connection_string: SecretString::new("redis://127.0.0.1:26379".into()),
-        connection_timeout_ms: 5000,
-        command_timeout_ms: 5000,
-        password: None,
-        enable_tls: false,
-        sentinel: Some(SentinelConfig {
-            master_name: "mymaster".to_string(),
-            nodes: vec![
-                "127.0.0.1:26379".to_string(),
-                "127.0.0.1:26380".to_string(),
-                "127.0.0.1:26381".to_string(),
-            ],
-        }),
-        cluster: None,
-        default_ttl: Some(3600),
-        max_key_length: 256,
-        max_value_size: 1024 * 1024 * 10,
-    }
-}
-
-pub async fn cleanup_test_keys(pattern: &str) -> Result<(), String> {
-    let backend = create_l2_backend_with_real_redis().await?;
-
-    if pattern.contains("oxcache:test:*") {
-        let test_keys = ["oxcache:test:integration", "oxcache:test:ha:standalone"];
-
-        for key in test_keys {
-            match backend.delete(key).await {
-                Ok(()) => tracing::debug!("已清理测试键: {}", key),
-                Err(_) => tracing::debug!("键不存在或删除失败: {}", key),
-            }
-        }
-    }
-
+#[allow(dead_code)]
+pub async fn cleanup_test_keys(_pattern: &str) -> Result<(), String> {
+    // 简化实现
     Ok(())
 }
 

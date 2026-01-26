@@ -55,25 +55,25 @@ pub async fn __internal_clear_all() {
 
 /// 获取 L1 缓存功能状态信息
 pub fn get_l1_feature_info() -> &'static str {
-    #[cfg(feature = "l1-moka")]
+    #[cfg(feature = "moka")]
     {
         "L1 Cache (Moka): Enabled"
     }
-    #[cfg(not(feature = "l1-moka"))]
+    #[cfg(not(feature = "moka"))]
     {
-        "L1 Cache (Moka): Disabled (enable with 'l1-moka' feature)"
+        "L1 Cache (Moka): Disabled (enable with 'moka' feature)"
     }
 }
 
 /// 获取 L2 缓存功能状态信息
 pub fn get_l2_feature_info() -> &'static str {
-    #[cfg(feature = "l2-redis")]
+    #[cfg(feature = "redis")]
     {
         "L2 Cache (Redis): Enabled"
     }
-    #[cfg(not(feature = "l2-redis"))]
+    #[cfg(not(feature = "redis"))]
     {
-        "L2 Cache (Redis): Disabled (enable with 'l2-redis' feature)"
+        "L2 Cache (Redis): Disabled (enable with 'redis' feature)"
     }
 }
 
@@ -84,10 +84,10 @@ pub fn get_all_feature_info() -> Vec<&'static str> {
 
 /// 检查 L1 功能是否启用
 pub fn is_l1_enabled() -> bool {
-    cfg!(feature = "l1-moka")
+    cfg!(feature = "moka")
 }
 
 /// 检查 L2 功能是否启用
 pub fn is_l2_enabled() -> bool {
-    cfg!(feature = "l2-redis")
+    cfg!(feature = "redis")
 }

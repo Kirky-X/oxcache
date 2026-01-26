@@ -4,7 +4,7 @@
 //!
 //! Moka-based memory backend implementation
 
-use crate::backend::backend::CacheBackend;
+use crate::backend::interface::CacheBackend;
 use crate::error::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;

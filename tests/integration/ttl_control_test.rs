@@ -14,7 +14,7 @@ use crate::common::{is_redis_available, setup_logging};
 async fn test_ttl_control_operations() {
     setup_logging();
 
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -29,7 +29,7 @@ async fn test_ttl_control_operations() {
 async fn test_l1_ttl_operations() {
     setup_logging();
 
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -42,7 +42,7 @@ async fn test_l1_ttl_operations() {
 async fn test_l2_ttl_operations() {
     setup_logging();
 
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -55,7 +55,7 @@ async fn test_l2_ttl_operations() {
 async fn test_ttl_expiration() {
     setup_logging();
 
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过测试: Redis不可用");
         return;
     }

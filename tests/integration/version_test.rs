@@ -4,17 +4,20 @@
 //
 // 版本管理集成测试
 
+#[cfg(feature = "redis")]
 use oxcache::backend::client::RedisBackend;
+#[cfg(feature = "redis")]
 use oxcache::backend::CacheBackend;
 use std::sync::Arc;
 
 use crate::common;
 
 #[tokio::test]
+#[cfg(feature = "redis")]
 async fn test_version_control() {
     common::setup_logging();
 
-    if !common::is_redis_available().await {
+    if !common::is_redis_available() {
         println!("Skipping test_version_control because Redis is not available");
         return;
     }

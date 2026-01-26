@@ -4,7 +4,7 @@
 //!
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
-use crate::backend::backend::CacheBackend;
+use crate::backend::interface::CacheBackend;
 use crate::error::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;

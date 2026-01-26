@@ -16,10 +16,10 @@ pub struct ServiceStatus {
 
 pub async fn execute(_args: &StatusArgs) -> Result<()> {
     println!("Cache status check requires the new Cache API.");
-    println!("Use the Cache::new(), Cache::memory(), or Cache::tiered() functions.");
+    println!("Use the Cache::new(), Cache::memory(), or Cache::redis() functions.");
     println!();
     println!("Example:");
-    println!("  let cache = Cache::tiered(10000, \"redis://localhost:6379\").await?;");
+    println!("  let cache = Cache::memory().await?;");
 
     Ok(())
 }

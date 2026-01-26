@@ -3,8 +3,9 @@
 //!
 //! Redis backend implementation with connection pooling
 
-use crate::backend::backend::CacheBackend;
+use crate::backend::interface::CacheBackend;
 use crate::error::{CacheError, Result};
+use crate::security;
 use async_trait::async_trait;
 use redis::{Client, RedisError};
 use std::collections::HashMap;
@@ -159,9 +160,9 @@ impl RedisBackendBuilder {
 
     /// Build the Redis backend
     pub async fn build(self) -> Result<RedisBackend> {
-        let connection_string = self.connection_string.ok_or_else(|| {
-            CacheError::Configuration("Connection string is required".to_string())
-        })?;
+        let connection_string = self
+            .connection_string
+            .ok_or_else(|| CacheError::ConfigError("Connection string is required".to_string()))?;
 
         // 强制 TLS 在生产环境，允许通过环境变量覆盖用于测试
         if !connection_string.starts_with("rediss://") {
@@ -169,9 +170,10 @@ impl RedisBackendBuilder {
             if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
                 tracing::warn!("Using insecure Redis connection (TLS disabled). This is only allowed in development/testing.");
             } else {
-                return Err(CacheError::Configuration(
+                return Err(CacheError::ConfigError(
                     "Redis connection must use TLS (rediss://) in production. \
-                    For development/testing, set OXCACHE_ALLOW_INSECURE_REDIS=1 to override.".to_string()
+                    For development/testing, set OXCACHE_ALLOW_INSECURE_REDIS=1 to override."
+                        .to_string(),
                 ));
             }
         }
@@ -179,26 +181,25 @@ impl RedisBackendBuilder {
         // 创建客户端并验证连接
         let client =
             Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
-        
+
         // 快速验证连接是否可用（2秒超时）
         let connection_timeout = std::time::Duration::from_secs(2);
-        let connection_result = tokio::time::timeout(
-            connection_timeout,
-            client.get_connection_manager()
-        ).await;
-        
+        let connection_result =
+            tokio::time::timeout(connection_timeout, client.get_connection_manager()).await;
+
         match connection_result {
             Ok(Ok(_)) => {
                 // 连接成功
             }
             Ok(Err(e)) => {
                 return Err(CacheError::Connection(format!(
-                    "Failed to connect to Redis: {}", e
+                    "Failed to connect to Redis: {}",
+                    e
                 )));
             }
             Err(_) => {
                 return Err(CacheError::Connection(
-                    "Connection timeout - Redis server unavailable".to_string()
+                    "Connection timeout - Redis server unavailable".to_string(),
                 ));
             }
         }
@@ -214,6 +215,9 @@ impl RedisBackendBuilder {
 #[async_trait]
 impl CacheBackend for RedisBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -236,6 +240,9 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -276,6 +283,9 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -298,6 +308,9 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -320,6 +333,9 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -346,6 +362,9 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        // 验证键的安全性
+        security::validate_redis_key(key)?;
+
         let mut conn = self
             .client
             .get_multiplexed_async_connection()
@@ -377,6 +396,9 @@ impl CacheBackend for RedisBackend {
             .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
 
+        // 验证扫描模式的安全性
+        security::validate_scan_pattern("*")?;
+
         // Iterate through all keys and delete them using SCAN
         let mut cursor = 0i64;
         let mut deleted_count = 0;
@@ -399,6 +421,8 @@ impl CacheBackend for RedisBackend {
                 })?;
 
             for key in &keys {
+                // 对每个扫描到的键也进行验证
+                security::validate_redis_key(key)?;
                 redis::cmd("DEL")
                     .arg(key)
                     .query_async::<()>(&mut conn)

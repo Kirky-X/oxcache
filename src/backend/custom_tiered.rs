@@ -46,7 +46,7 @@
 
 use crate::backend::client::moka::MokaMemoryBackend as MemoryBackend;
 use crate::backend::client::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
-use crate::backend::{CacheBackend, TieredBackend};
+use crate::backend::CacheBackend;
 use crate::error::{CacheError, Result};
 use crate::utils::redaction::redact_value;
 use async_trait::async_trait;
@@ -309,11 +309,13 @@ impl ConfigValidation {
 /// 缓存层级
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Layer {
-    /// 第一层缓存 - 通常是内存缓存
+    /// 第一层缓存 - 通常是本地高速内存缓存
     #[default]
     L1,
-    /// 第二层缓存 - 通常是分布式缓存
+    /// 第二层缓存 - 本地持久化或分布式缓存
     L2,
+    /// 第三层缓存 - 分布式存储或外部服务
+    L3,
 }
 
 impl fmt::Display for Layer {
@@ -321,6 +323,7 @@ impl fmt::Display for Layer {
         match self {
             Layer::L1 => write!(f, "L1"),
             Layer::L2 => write!(f, "L2"),
+            Layer::L3 => write!(f, "L3"),
         }
     }
 }
@@ -328,10 +331,10 @@ impl fmt::Display for Layer {
 /// 后端支持的层级限制
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayerRestriction {
-    /// 仅支持 L1（内存缓存）
+    /// 仅支持 L1（本地高速内存缓存）
     L1Only,
-    /// 仅支持 L2（分布式缓存）
-    L2Only,
+    /// 仅支持 L2/L3（分布式或持久化缓存）
+    L2AndL3Only,
     /// 支持任意层级
     Any,
 }
@@ -341,7 +344,7 @@ impl LayerRestriction {
     pub fn supports(&self, layer: Layer) -> bool {
         match self {
             LayerRestriction::L1Only => layer == Layer::L1,
-            LayerRestriction::L2Only => layer == Layer::L2,
+            LayerRestriction::L2AndL3Only => layer == Layer::L2 || layer == Layer::L3,
             LayerRestriction::Any => true,
         }
     }
@@ -350,7 +353,7 @@ impl LayerRestriction {
     pub fn description(&self) -> &'static str {
         match self {
             LayerRestriction::L1Only => "仅支持 L1 层级",
-            LayerRestriction::L2Only => "仅支持 L2 层级",
+            LayerRestriction::L2AndL3Only => "仅支持 L2/L3 层级",
             LayerRestriction::Any => "支持任意层级",
         }
     }
@@ -359,42 +362,46 @@ impl LayerRestriction {
 /// 缓存后端类型枚举
 ///
 /// 每个后端类型都有其推荐的层级限制：
-/// - `Moka` - 仅支持 L1（内存缓存）
-/// - `Memory` - 仅支持 L1（内存缓存）
-/// - `Redis` - 仅支持 L2（分布式缓存）
-/// - `Tiered` - 支持任意层级（用于组合）
+/// - `Moka` - L1/L2/L3（高性能内存缓存）
+/// - `DashMap` - L1/L2/L3（纯并发HashMap）
+/// - `Redis` - L2/L3（分布式缓存）
+/// - `Sqlite` - L2/L3（持久化存储）
+/// - `Tiered` - 任意层级（用于组合）
+/// - `Custom` - 任意层级（自定义后端）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendType {
-    /// Moka 内存缓存（L1 推荐）
-    #[cfg(feature = "l1-moka")]
+    /// Moka 高性能内存缓存（推荐 L1/L2）
+    #[cfg(feature = "moka")]
     Moka,
-    /// 简单内存缓存（L1 推荐）
-    #[cfg(not(feature = "l1-moka"))]
-    Memory,
-    /// Redis 分布式缓存（L2 推荐）
-    #[cfg(feature = "l2-redis")]
+    /// DashMap 纯并发HashMap（推荐 L1/L2，无驱逐策略）
+    #[cfg(feature = "dashmap")]
+    DashMap,
+    /// Redis 分布式缓存（推荐 L2/L3）
+    #[cfg(feature = "redis")]
     Redis,
+    /// Sqlite 持久化存储（推荐 L2/L3）
+    #[cfg(feature = "sqlite")]
+    Sqlite,
     /// 分层缓存组合（任意层级）
     #[default]
     Tiered,
-    /// 持久化缓存（L2 推荐）
-    Persisted,
-    /// 自定义后端（任意层级）
+    /// 自定义后端（任意层级，通过 BackendProvider 注入）
     Custom(String),
 }
 
 impl fmt::Display for BackendType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(feature = "l1-moka")]
+            #[cfg(feature = "moka")]
             BackendType::Moka => write!(f, "moka"),
-            #[cfg(not(feature = "l1-moka"))]
-            BackendType::Memory => write!(f, "memory"),
-            #[cfg(feature = "l2-redis")]
+            #[cfg(feature = "dashmap")]
+            BackendType::DashMap => write!(f, "dashmap"),
+            #[cfg(feature = "redis")]
             BackendType::Redis => write!(f, "redis"),
+            #[cfg(feature = "sqlite")]
+            BackendType::Sqlite => write!(f, "sqlite"),
             BackendType::Tiered => write!(f, "tiered"),
-            BackendType::Persisted => write!(f, "persisted"),
             // 脱敏自定义名称，防止敏感信息泄露
             BackendType::Custom(name) => {
                 let masked = redact_value(name, 8);
@@ -408,24 +415,32 @@ impl BackendType {
     /// 获取后端类型的层级限制
     pub fn layer_restriction(&self) -> LayerRestriction {
         match self {
-            #[cfg(feature = "l1-moka")]
+            #[cfg(feature = "moka")]
             BackendType::Moka => LayerRestriction::L1Only,
-            #[cfg(not(feature = "l1-moka"))]
-            BackendType::Memory => LayerRestriction::L1Only,
-            #[cfg(feature = "l2-redis")]
-            BackendType::Redis => LayerRestriction::L2Only,
+            #[cfg(feature = "dashmap")]
+            BackendType::DashMap => LayerRestriction::L1Only,
+            #[cfg(feature = "redis")]
+            BackendType::Redis => LayerRestriction::L2AndL3Only,
+            #[cfg(feature = "sqlite")]
+            BackendType::Sqlite => LayerRestriction::L2AndL3Only,
             BackendType::Tiered => LayerRestriction::Any,
-            BackendType::Persisted => LayerRestriction::L2Only,
             BackendType::Custom(_) => LayerRestriction::Any,
         }
     }
 
     /// 获取后端类型的推荐层级
     pub fn recommended_layer(&self) -> Layer {
-        match self.layer_restriction() {
-            LayerRestriction::L1Only => Layer::L1,
-            LayerRestriction::L2Only => Layer::L2,
-            LayerRestriction::Any => Layer::L1,
+        match self {
+            #[cfg(feature = "moka")]
+            BackendType::Moka => Layer::L1,
+            #[cfg(feature = "dashmap")]
+            BackendType::DashMap => Layer::L1,
+            #[cfg(feature = "redis")]
+            BackendType::Redis => Layer::L2,
+            #[cfg(feature = "sqlite")]
+            BackendType::Sqlite => Layer::L2,
+            BackendType::Tiered => Layer::L1,
+            BackendType::Custom(_) => Layer::L1,
         }
     }
 
@@ -437,12 +452,15 @@ impl BackendType {
     /// 获取可用的后端类型列表（基于启用的 feature）
     pub fn available_backends() -> Vec<BackendType> {
         vec![
-            #[cfg(feature = "l1-moka")]
+            #[cfg(feature = "moka")]
             BackendType::Moka,
-            #[cfg(feature = "l2-redis")]
+            #[cfg(feature = "dashmap")]
+            BackendType::DashMap,
+            #[cfg(feature = "redis")]
             BackendType::Redis,
+            #[cfg(feature = "sqlite")]
+            BackendType::Sqlite,
             BackendType::Tiered,
-            BackendType::Persisted,
         ]
     }
 
@@ -454,39 +472,43 @@ impl BackendType {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
-            #[cfg(feature = "l1-moka")]
+            #[cfg(feature = "moka")]
             "moka" => Ok(BackendType::Moka),
-            #[cfg(not(feature = "l1-moka"))]
-            "memory" | "moka" => Ok(BackendType::Memory),
-            #[cfg(feature = "l2-redis")]
+
+            #[cfg(feature = "dashmap")]
+            "dashmap" => Ok(BackendType::DashMap),
+
+            #[cfg(feature = "redis")]
             "redis" => Ok(BackendType::Redis),
-            "tiered" | "multi" | "two-level" => Ok(BackendType::Tiered),
-            "persisted" | "persist" | "sqlite" => Ok(BackendType::Persisted),
+
+            #[cfg(feature = "sqlite")]
+            "sqlite" | "persist" => Ok(BackendType::Sqlite),
+
+            "tiered" | "multi" | "two-level" | "three-level" => Ok(BackendType::Tiered),
+
             _ => {
                 if let Some(custom_name) = s.strip_prefix("custom:") {
                     // 验证自定义名称
                     let validated_name = ConfigValidation::validate_custom_name(custom_name)?;
                     Ok(BackendType::Custom(validated_name))
                 } else {
-                    #[cfg(feature = "l1-moka")]
-                    #[cfg(feature = "l2-redis")]
-                    let available = "moka, memory, redis, tiered, persisted, custom:<name>";
-
-                    #[cfg(feature = "l1-moka")]
-                    #[cfg(not(feature = "l2-redis"))]
-                    let available = "moka, memory, tiered, persisted, custom:<name>";
-
-                    #[cfg(not(feature = "l1-moka"))]
-                    #[cfg(feature = "l2-redis")]
-                    let available = "memory, redis, tiered, persisted, custom:<name>";
-
-                    #[cfg(not(feature = "l1-moka"))]
-                    #[cfg(not(feature = "l2-redis"))]
-                    let available = "memory, tiered, persisted, custom:<name>";
+                    // 构建可用后端列表
+                    let mut available = vec![
+                        #[cfg(feature = "moka")]
+                        "moka",
+                        #[cfg(feature = "dashmap")]
+                        "dashmap",
+                        #[cfg(feature = "redis")]
+                        "redis",
+                        #[cfg(feature = "sqlite")]
+                        "sqlite",
+                    ];
+                    available.extend(["tiered", "custom:<name>"]);
 
                     Err(CacheError::ConfigError(format!(
                         "Unknown backend type: '{}'. Available backends: {}",
-                        s, available
+                        s,
+                        available.join(", ")
                     )))
                 }
             }
@@ -496,6 +518,7 @@ impl BackendType {
 
 /// 单层后端配置
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg(any(feature = "serialization", feature = "full"))]
 pub struct LayerBackendConfig {
     /// 后端类型
     #[serde(default)]
@@ -508,10 +531,12 @@ pub struct LayerBackendConfig {
     pub enabled: bool,
 }
 
+#[cfg(any(feature = "serialization", feature = "full"))]
 fn default_enabled() -> bool {
     true
 }
 
+#[cfg(any(feature = "serialization", feature = "full"))]
 impl LayerBackendConfig {
     /// 创建新配置
     pub fn new(backend_type: BackendType) -> Self {
@@ -564,21 +589,27 @@ impl LayerBackendConfig {
 /// 允许自定义后端创建逻辑，实现解耦。
 /// 默认提供者是 `DefaultBackendProvider`。
 #[async_trait]
+#[cfg(any(feature = "serialization", feature = "full"))]
 pub trait BackendProvider: Send + Sync {
     /// 创建 L1 后端
     async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>>;
 
     /// 创建 L2 后端
     async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>>;
+
+    /// 创建 L3 后端
+    async fn create_l3(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>>;
 }
 
 /// 默认后端提供者
 ///
 /// 使用 MemoryBackend 作为 L1，RedisBackend 作为 L2。
 #[derive(Default)]
+#[cfg(any(feature = "serialization", feature = "full"))]
 pub struct DefaultBackendProvider;
 
 #[async_trait]
+#[cfg(any(feature = "serialization", feature = "full"))]
 impl BackendProvider for DefaultBackendProvider {
     #[instrument(skip(self, options), level = "debug")]
     async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
@@ -590,7 +621,7 @@ impl BackendProvider for DefaultBackendProvider {
 
     #[instrument(skip(self, options), level = "debug")]
     async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             use crate::backend::client::redis::RedisBackend;
 
@@ -614,14 +645,38 @@ impl BackendProvider for DefaultBackendProvider {
             let backend = Arc::new(RedisBackend::new(connection_string).await?);
             Ok(backend)
         }
-        #[cfg(not(feature = "l2-redis"))]
+        #[cfg(not(feature = "redis"))]
         {
-            // 如果没有 l2-redis feature，降级到内存后端
+            // 如果没有 redis feature，降级到内存后端
             tracing::warn!("Redis backend not available, falling back to memory backend");
             let mut builder = MemoryBackend::builder();
             builder = apply_memory_options(builder, options);
             let backend = builder.build();
             Ok(Arc::new(backend))
+        }
+    }
+
+    #[instrument(skip(self, options), level = "debug")]
+    async fn create_l3(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
+        #[cfg(feature = "redis")]
+        {
+            // L3 默认使用 Redis
+            use crate::backend::client::redis::RedisBackend;
+
+            let connection_string = options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .unwrap_or("redis://localhost:6379");
+
+            let backend = Arc::new(RedisBackend::new(connection_string).await?);
+            Ok(backend)
+        }
+        #[cfg(not(feature = "redis"))]
+        {
+            // 如果没有 redis feature，L3 不可用
+            Err(CacheError::ConfigError(
+                "L3 backend requires Redis feature to be enabled".to_string(),
+            ))
         }
     }
 }
@@ -633,6 +688,7 @@ impl BackendProvider for DefaultBackendProvider {
 /// - capacity 不能超过 10 亿
 /// - ttl 不能超过 30 天
 /// - tti 不能超过 30 天
+#[cfg(any(feature = "serialization", feature = "full"))]
 fn apply_memory_options(
     mut builder: MemoryBackendBuilder,
     options: &serde_json::Value,
@@ -677,83 +733,46 @@ fn apply_memory_options(
 
 /// 分层后端工厂
 ///
-/// 负责根据配置创建后端实例。
-/// 支持自定义 `BackendProvider` 实现依赖注入。
-#[derive(Clone)]
-pub struct TieredBackendFactory {
-    provider: Arc<dyn BackendProvider>,
-}
-
-impl Default for TieredBackendFactory {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TieredBackendFactory {
-    /// 创建新工厂
-    pub fn new() -> Self {
-        Self {
-            provider: Arc::new(DefaultBackendProvider),
-        }
-    }
-
-    /// 使用自定义提供者创建工厂
-    pub fn with_provider(provider: Arc<dyn BackendProvider>) -> Self {
-        Self { provider }
-    }
-
-    /// 创建 L1 后端
-    #[instrument(skip(self, options), level = "debug")]
-    pub async fn create_l1(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
-        self.provider.create_l1(options).await
-    }
-
-    /// 创建 L2 后端
-    #[instrument(skip(self, options), level = "debug")]
-    pub async fn create_l2(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
-        self.provider.create_l2(options).await
-    }
-
-    /// 创建分层后端
-    #[instrument(skip(self, l1_options, l2_options), level = "debug")]
-    pub async fn create_tiered_backend(
-        &self,
-        l1_options: &serde_json::Value,
-        l2_options: &serde_json::Value,
-    ) -> Result<TieredBackend> {
-        let l1 = self.create_l1(l1_options).await?;
-        let l2 = self.create_l2(l2_options).await?;
-        Ok(TieredBackend::from_arc(l1, l2))
-    }
-}
-
 /// 用户自定义分层缓存配置
 ///
-/// 允许用户灵活配置 L1 和 L2 的后端类型：
-/// - L1 可以选择：Moka、Memory
-/// - L2 可以选择：Redis、Persisted
+/// 允许用户灵活配置 L1、L2 和 L3 的后端类型：
+/// - L1 可以选择：Moka、DashMap（内存缓存，高速访问）
+/// - L2 可以选择：Moka、DashMap、Redis、Sqlite（持久化或分布式）
+/// - L3 可以选择：Redis、Sqlite（分布式或持久化存储）
 /// - 支持自动验证和修复不合理的配置
 ///
-/// # 示例
+/// # 示例（三层缓存）
 ///
 /// ```toml
 /// [cache.my_service]
-/// # 自定义 L1 为 Moka
+/// # 三层缓存配置
 /// l1_backend = "moka"
 /// l1_capacity = 10000
 ///
-/// # 自定义 L2 为 Redis
+/// l2_backend = "dashmap"
+/// l2_capacity = 50000
+///
+/// l3_backend = "redis"
+/// l3_connection_string = "redis://localhost:6379"
+/// ```
+///
+/// # 示例（两层 Redis）
+///
+/// ```toml
+/// [cache.my_service]
+/// l1_backend = "moka"
 /// l2_backend = "redis"
-/// l2_connection_string = "redis://localhost:6379"
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CustomTieredConfig {
-    /// L1 后端配置
+    /// L1 后端配置（本地高速内存缓存）
     pub l1: LayerBackendConfig,
-    /// L2 后端配置
+    /// L2 后端配置（本地持久化或分布式缓存）
     pub l2: LayerBackendConfig,
+    /// L3 后端配置（分布式存储或外部服务）
+    #[serde(default)]
+    pub l3: LayerBackendConfig,
     /// 自动修复配置
     #[serde(default)]
     pub auto_fix: AutoFixConfig,
@@ -803,21 +822,191 @@ impl AutoFixConfig {
 }
 
 impl CustomTieredConfig {
-    /// 创建新配置（默认 L1=Moka, L2=Redis）
-    #[cfg(feature = "l1-moka")]
+    /// 创建新配置（默认 L1=Moka, L2=Redis, L3=禁用）
+    #[cfg(all(feature = "moka", feature = "redis", feature = "serialization"))]
     pub fn new() -> Self {
         Self {
             l1: LayerBackendConfig::new(BackendType::Moka),
             l2: LayerBackendConfig::new(BackendType::Redis),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
             auto_fix: AutoFixConfig::new(),
         }
     }
 
-    #[cfg(not(feature = "l1-moka"))]
+    #[cfg(all(feature = "moka", not(feature = "redis"), feature = "serialization"))]
     pub fn new() -> Self {
         Self {
-            l1: LayerBackendConfig::new(BackendType::Memory),
+            l1: LayerBackendConfig::new(BackendType::Moka),
             l2: LayerBackendConfig::new(BackendType::Tiered),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    #[cfg(all(not(feature = "moka"), feature = "redis", feature = "serialization"))]
+    pub fn new() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l2: LayerBackendConfig::new(BackendType::Redis),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    #[cfg(all(
+        not(feature = "moka"),
+        not(feature = "redis"),
+        feature = "serialization"
+    ))]
+    pub fn new() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l2: LayerBackendConfig::new(BackendType::Sqlite),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    #[cfg(not(feature = "serialization"))]
+    pub fn new() -> Self {
+        Self {
+            l1: LayerBackendConfig {
+                backend_type: if cfg!(feature = "moka") {
+                    BackendType::Moka
+                } else {
+                    BackendType::DashMap
+                },
+                options: serde_json::Value::Null,
+                enabled: true,
+            },
+            l2: LayerBackendConfig {
+                backend_type: if cfg!(feature = "redis") {
+                    BackendType::Redis
+                } else {
+                    BackendType::Sqlite
+                },
+                options: serde_json::Value::Null,
+                enabled: true,
+            },
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    // ============ 便捷构造方法 ============
+
+    /// 仅使用 Redis（单层）
+    #[cfg(feature = "redis")]
+    pub fn redis_only(connection_string: &str) -> Self {
+        let mut options = serde_json::Value::Null;
+        if !connection_string.is_empty() {
+            options = serde_json::json!({
+                "connection_string": connection_string
+            });
+        }
+        Self {
+            l1: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            l2: LayerBackendConfig {
+                backend_type: BackendType::Redis,
+                options,
+                enabled: true,
+            },
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    /// Moka + Redis（双层）
+    #[cfg(all(feature = "moka", feature = "redis"))]
+    pub fn moka_redis() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::Moka),
+            l2: LayerBackendConfig::new(BackendType::Redis),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    /// DashMap + Redis（双层）
+    #[cfg(all(feature = "dashmap", feature = "redis"))]
+    pub fn dashmap_redis() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l2: LayerBackendConfig::new(BackendType::Redis),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    /// Moka + DashMap + Redis（三层）
+    #[cfg(all(feature = "moka", feature = "dashmap", feature = "redis"))]
+    pub fn moka_dashmap_redis() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::Moka),
+            l2: LayerBackendConfig::new(BackendType::DashMap),
+            l3: LayerBackendConfig::new(BackendType::Redis),
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    /// Moka + Redis + Sqlite（三层持久化）
+    #[cfg(all(feature = "moka", feature = "redis", feature = "sqlite"))]
+    pub fn moka_redis_sqlite() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::Moka),
+            l2: LayerBackendConfig::new(BackendType::Redis),
+            l3: LayerBackendConfig::new(BackendType::Sqlite),
+            auto_fix: AutoFixConfig::new(),
+        }
+    }
+
+    /// DashMap + Sqlite（双层持久化）
+    #[cfg(all(feature = "dashmap", feature = "sqlite"))]
+    pub fn dashmap_sqlite() -> Self {
+        Self {
+            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l2: LayerBackendConfig::new(BackendType::Sqlite),
+            l3: LayerBackendConfig {
+                backend_type: BackendType::Tiered,
+                options: serde_json::Value::Null,
+                enabled: false,
+            },
             auto_fix: AutoFixConfig::new(),
         }
     }
@@ -870,6 +1059,18 @@ impl CustomTieredConfig {
             }
         }
 
+        // 验证 L3 配置
+        if self.l3.enabled {
+            match self.l3.validate(Layer::L3) {
+                Ok(_) => {
+                    result.add_valid(Layer::L3, self.l3.backend_type.clone());
+                }
+                Err(e) => {
+                    result.add_invalid(Layer::L3, self.l3.backend_type.clone(), e.to_string());
+                }
+            }
+        }
+
         result
     }
 
@@ -908,6 +1109,16 @@ impl CustomTieredConfig {
                         );
                     }
                     fixed.l2.backend_type = fix.to_backend.clone();
+                }
+                Layer::L3 => {
+                    if self.auto_fix.warn_on_fix {
+                        tracing::warn!(
+                            "L3 backend '{}' is not suitable for L3, auto-fixing to '{}'",
+                            fix.from_backend,
+                            fix.to_backend
+                        );
+                    }
+                    fixed.l3.backend_type = fix.to_backend.clone();
                 }
             }
         }
@@ -960,13 +1171,23 @@ impl ConfigValidationResult {
             let recommended = match layer {
                 Layer::L1 => BackendType::default(),
                 Layer::L2 => {
-                    #[cfg(feature = "l2-redis")]
+                    #[cfg(feature = "redis")]
                     {
                         BackendType::Redis
                     }
-                    #[cfg(not(feature = "l2-redis"))]
+                    #[cfg(not(feature = "redis"))]
                     {
-                        BackendType::Memory
+                        BackendType::Sqlite
+                    }
+                }
+                Layer::L3 => {
+                    #[cfg(feature = "redis")]
+                    {
+                        BackendType::Redis
+                    }
+                    #[cfg(not(feature = "redis"))]
+                    {
+                        BackendType::Sqlite
                     }
                 }
             };
@@ -1033,6 +1254,7 @@ pub struct FixedConfigResult {
     pub is_valid: bool,
     pub l1_backend: Option<BackendType>,
     pub l2_backend: Option<BackendType>,
+    pub l3_backend: Option<BackendType>,
     pub warnings: Vec<String>,
 }
 
@@ -1057,11 +1279,17 @@ impl From<ConfigValidationResult> for FixedConfigResult {
             .iter()
             .find(|(l, _)| *l == Layer::L2)
             .map(|(_, b)| b.clone());
+        let l3_backend = val
+            .valid_layers
+            .iter()
+            .find(|(l, _)| *l == Layer::L3)
+            .map(|(_, b)| b.clone());
 
         Self {
             is_valid: val.is_valid(),
             l1_backend,
             l2_backend,
+            l3_backend,
             warnings,
         }
     }
@@ -1109,6 +1337,7 @@ impl CustomTieredConfigBuilder {
     }
 
     /// 设置 L1 配置选项
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn l1_options(mut self, options: serde_json::Value) -> Self {
         self.0.l1.options = options;
         self
@@ -1121,8 +1350,22 @@ impl CustomTieredConfigBuilder {
     }
 
     /// 设置 L2 配置选项
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn l2_options(mut self, options: serde_json::Value) -> Self {
         self.0.l2.options = options;
+        self
+    }
+
+    /// 设置 L3 后端类型
+    pub fn l3(mut self, backend_type: BackendType) -> Self {
+        self.0.l3.backend_type = backend_type;
+        self
+    }
+
+    /// 设置 L3 配置选项
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn l3_options(mut self, options: serde_json::Value) -> Self {
+        self.0.l3.options = options;
         self
     }
 
@@ -1135,6 +1378,12 @@ impl CustomTieredConfigBuilder {
     /// 启用 L2
     pub fn enable_l2(mut self, enabled: bool) -> Self {
         self.0.l2.enabled = enabled;
+        self
+    }
+
+    /// 启用 L3
+    pub fn enable_l3(mut self, enabled: bool) -> Self {
+        self.0.l3.enabled = enabled;
         self
     }
 
@@ -1226,7 +1475,7 @@ mod tests {
 
     #[test]
     fn test_backend_type_layer_restriction() {
-        #[cfg(feature = "l1-moka")]
+        #[cfg(feature = "moka")]
         {
             assert_eq!(
                 BackendType::Moka.layer_restriction(),
@@ -1236,11 +1485,11 @@ mod tests {
             assert!(!BackendType::Moka.supports_layer(Layer::L2));
         }
 
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             assert_eq!(
                 BackendType::Redis.layer_restriction(),
-                LayerRestriction::L2Only
+                LayerRestriction::L2AndL3Only
             );
             assert!(!BackendType::Redis.supports_layer(Layer::L1));
             assert!(BackendType::Redis.supports_layer(Layer::L2));
@@ -1256,10 +1505,10 @@ mod tests {
 
     #[test]
     fn test_backend_type_recommended_layer() {
-        #[cfg(feature = "l1-moka")]
+        #[cfg(feature = "moka")]
         assert_eq!(BackendType::Moka.recommended_layer(), Layer::L1);
 
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         assert_eq!(BackendType::Redis.recommended_layer(), Layer::L2);
     }
 
@@ -1267,11 +1516,11 @@ mod tests {
     fn test_custom_tiered_config_validation() {
         let config = CustomTieredConfig::new();
 
-        #[cfg(feature = "l1-moka")]
+        #[cfg(feature = "moka")]
         {
             assert_eq!(config.l1.backend_type, BackendType::Moka);
         }
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             assert_eq!(config.l2.backend_type, BackendType::Redis);
         }
@@ -1282,7 +1531,7 @@ mod tests {
         let mut config = CustomTieredConfig::new();
 
         // 设置不合法的配置：Redis 作为 L1
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             config.l1.backend_type = BackendType::Redis;
             config.auto_fix.enabled = true;
@@ -1311,14 +1560,14 @@ mod tests {
 
     #[test]
     fn test_layer_backend_config_validate() {
-        #[cfg(feature = "l1-moka")]
+        #[cfg(feature = "moka")]
         {
             let config = LayerBackendConfig::new(BackendType::Moka);
             assert!(config.validate(Layer::L1).is_ok());
             assert!(config.validate(Layer::L2).is_err());
         }
 
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             let config = LayerBackendConfig::new(BackendType::Redis);
             assert!(config.validate(Layer::L1).is_err());
@@ -1346,7 +1595,7 @@ mod tests {
         result.add_valid(Layer::L2, BackendType::Tiered);
 
         // 添加无效层（Redis 在 L1）
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             result.add_invalid(
                 Layer::L1,
@@ -1356,7 +1605,7 @@ mod tests {
         }
 
         // 测试结果
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             assert!(!result.is_valid());
             assert!(result.has_warnings());
@@ -1403,12 +1652,12 @@ mod tests {
         // 至少应该包含 Tiered
         assert!(backends.contains(&BackendType::Tiered));
 
-        #[cfg(feature = "l1-moka")]
+        #[cfg(feature = "moka")]
         {
             assert!(backends.contains(&BackendType::Moka));
         }
 
-        #[cfg(feature = "l2-redis")]
+        #[cfg(feature = "redis")]
         {
             assert!(backends.contains(&BackendType::Redis));
         }

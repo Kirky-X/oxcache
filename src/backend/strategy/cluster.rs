@@ -7,7 +7,7 @@
 //! 支持 Redis Cluster 分布式部署。
 
 use crate::backend::strategy::traits::{HealthStatus, L2BackendStrategy, ScanResult};
-use crate::config::legacy_config::L2Config;
+use crate::config::service::L2Config;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
 use redis::cluster::ClusterClient;

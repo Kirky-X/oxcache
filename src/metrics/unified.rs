@@ -16,7 +16,7 @@ use tracing::{span, Level};
 ///
 /// This provides a centralized way to collect and manage all cache metrics
 /// with support for different metric types and aggregation strategies.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct UnifiedMetrics {
     inner: Arc<UnifiedMetricsInner>,
 }
@@ -37,6 +37,16 @@ impl std::fmt::Debug for UnifiedMetricsInner {
             .field("dynamic_metrics", &self.dynamic_metrics)
             .field("config", &self.config)
             .finish()
+    }
+}
+
+impl Default for UnifiedMetricsInner {
+    fn default() -> Self {
+        Self {
+            counters: AtomicCounters::default(),
+            dynamic_metrics: DashMap::new(),
+            config: MetricsConfig::default(),
+        }
     }
 }
 
@@ -410,7 +420,13 @@ impl UnifiedMetrics {
     /// Create a comprehensive snapshot
     pub fn snapshot(&self) -> MetricsSnapshot {
         MetricsSnapshot {
+            #[cfg(feature = "chrono")]
             timestamp: chrono::Utc::now(),
+            #[cfg(not(feature = "chrono"))]
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             counters: self.get_counters(),
             dynamic_metrics: self.get_dynamic_metrics(),
         }
@@ -456,6 +472,7 @@ impl UnifiedMetrics {
     }
 
     /// Export metrics in JSON format
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn export_json(&self) -> Result<String, serde_json::Error> {
         let snapshot = self.snapshot();
         serde_json::to_string_pretty(&snapshot)
@@ -576,7 +593,10 @@ pub struct CounterSnapshot {
 /// Comprehensive metrics snapshot
 #[derive(Debug, Clone, Serialize)]
 pub struct MetricsSnapshot {
+    #[cfg(feature = "chrono")]
     pub timestamp: chrono::DateTime<chrono::Utc>,
+    #[cfg(not(feature = "chrono"))]
+    pub timestamp: u64, // Unix timestamp as fallback
     pub counters: CounterSnapshot,
     pub dynamic_metrics: std::collections::HashMap<String, MetricValue>,
 }
@@ -683,6 +703,7 @@ pub mod convenience {
     }
 
     /// Export global metrics in JSON format
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn export_json() -> Result<String, serde_json::Error> {
         GLOBAL_UNIFIED_METRICS.export_json()
     }
@@ -768,17 +789,19 @@ mod tests {
 
         let dynamic_metrics = metrics.get_dynamic_metrics();
 
-        if let Some(MetricValue::Counter(count)) = dynamic_metrics.get("test_counter") {
-            assert_eq!(*count, 8);
-        } else {
-            panic!("Expected counter metric");
-        }
+        let counter_metric = dynamic_metrics.get("test_counter");
+        assert!(
+            matches!(counter_metric, Some(MetricValue::Counter(count)) if *count == 8),
+            "Expected counter metric with value 8, got {:?}",
+            counter_metric
+        );
 
-        if let Some(MetricValue::Gauge(value)) = dynamic_metrics.get("test_gauge") {
-            assert_eq!(*value, 42.5);
-        } else {
-            panic!("Expected gauge metric");
-        }
+        let gauge_metric = dynamic_metrics.get("test_gauge");
+        assert!(
+            matches!(gauge_metric, Some(MetricValue::Gauge(value)) if *value == 42.5),
+            "Expected gauge metric with value 42.5, got {:?}",
+            gauge_metric
+        );
     }
 
     #[test]

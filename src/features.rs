@@ -30,8 +30,8 @@ macro_rules! feature_check {
 }
 
 // Generate individual feature availability functions
-feature_check!("l1-moka", l1_available, "Check if L1 cache is available");
-feature_check!("l2-redis", l2_available, "Check if L2 cache is available");
+feature_check!("moka", l1_available, "Check if L1 cache is available");
+feature_check!("redis", l2_available, "Check if L2 cache is available");
 feature_check!(
     "metrics",
     metrics_available,

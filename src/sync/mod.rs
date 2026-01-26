@@ -5,7 +5,6 @@
 //! 该模块定义了缓存系统的同步机制。
 //! 通过 `batch-write` feature 控制启用/禁用
 
-#[cfg(feature = "batch-write")]
 pub mod warmup;
 
 // warmup 模块始终可用（不依赖 batch-write）

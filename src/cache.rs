@@ -7,7 +7,10 @@
 use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::backend::CacheBackend;
 use crate::error::Result;
+
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::json::JsonSerializer;
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::Serializer;
 use crate::traits::{CacheKey, Cacheable};
 use std::collections::HashMap;
@@ -18,6 +21,7 @@ use std::time::Duration;
 // CacheOps Wrapper for Backend
 // ============================================================================
 
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::SerializerEnum;
 use async_trait::async_trait;
 use std::any::Any;
@@ -189,37 +193,9 @@ where
     /// ```rust,ignore
     /// let cache: Cache<String, User> = Cache::redis("redis://localhost:6379").await?;
     /// ```
+    #[cfg(feature = "redis")]
     pub async fn redis(connection_string: &str) -> Result<Self> {
         let backend = crate::backend::client::RedisBackend::new(connection_string).await?;
-        Ok(Self {
-            backend: Arc::new(backend),
-            _phantom: std::marker::PhantomData,
-        })
-    }
-
-    /// Create a cache with a tiered backend (L1 memory + L2 Redis)
-    ///
-    /// # Arguments
-    ///
-    /// * `l1_capacity` - Maximum entries in L1 cache
-    /// * `l2_connection_string` - Redis connection URL
-    ///
-    /// # Returns
-    ///
-    /// Configured cache instance
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let cache: Cache<String, User> = Cache::tiered(
-    ///     10000,
-    ///     "redis://localhost:6379"
-    /// ).await?;
-    /// ```
-    pub async fn tiered(l1_capacity: u64, l2_connection_string: &str) -> Result<Self> {
-        let l1 = MemoryBackend::builder().capacity(l1_capacity).build();
-        let l2 = crate::backend::client::RedisBackend::new(l2_connection_string).await?;
-        let backend = crate::backend::TieredBackend::new(l1, l2);
         Ok(Self {
             backend: Arc::new(backend),
             _phantom: std::marker::PhantomData,
@@ -266,6 +242,7 @@ where
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
 
+        #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
                 let serializer = JsonSerializer::new();
@@ -273,6 +250,16 @@ where
                 Ok(Some(value))
             }
             None => Ok(None),
+        }
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            // Without serialization, we can only work with bytes directly
+            // This is a limitation - the get method requires deserialization
+            let _ = bytes;
+            Err(CacheError::Serialization(
+                "Serialization feature is required for typed get operations".to_string(),
+            ))
         }
     }
 
@@ -319,9 +306,22 @@ where
     /// ```
     pub async fn set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> Result<()> {
         let key_str = key.to_key_string();
-        let serializer = JsonSerializer::new();
-        let bytes = serializer.serialize(value)?;
-        self.backend.set(&key_str, bytes, ttl).await
+
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let serializer = JsonSerializer::new();
+            let bytes = serializer.serialize(value)?;
+            self.backend.set(&key_str, bytes, ttl).await
+        }
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            // Without serialization, we cannot serialize the value
+            let _ = (key_str, value);
+            Err(CacheError::Serialization(
+                "Serialization feature is required for typed set operations".to_string(),
+            ))
+        }
     }
 
     /// Delete a value from the cache
@@ -590,10 +590,18 @@ where
     /// manager::register("my_service", cache_ops);
     /// ```
     pub fn to_cache_ops(&self) -> Arc<dyn crate::client::CacheOps + Send + Sync> {
-        create_cache_ops_wrapper(
-            self.backend.clone(),
-            SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
-        )
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            create_cache_ops_wrapper(
+                self.backend.clone(),
+                SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
+            )
+        }
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            // Fallback: create a basic cache ops wrapper without serializer
+            create_cache_ops_wrapper(self.backend.clone(), None)
+        }
     }
 
     /// Register this cache instance for use with the #[cached] macro.
@@ -620,11 +628,20 @@ where
     pub async fn register_for_macro(&self, service_name: &str) {
         use crate::internal::__internal_register_cache;
 
-        let cache_ops = create_cache_ops_wrapper(
-            self.backend.clone(),
-            SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
-        );
-        __internal_register_cache(service_name, cache_ops);
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let cache_ops = create_cache_ops_wrapper(
+                self.backend.clone(),
+                SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
+            );
+            __internal_register_cache(service_name, cache_ops);
+        }
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            // Fallback without serializer
+            let cache_ops = create_cache_ops_wrapper(self.backend.clone(), None);
+            __internal_register_cache(service_name, cache_ops);
+        }
     }
 }
 

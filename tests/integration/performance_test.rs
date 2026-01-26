@@ -18,7 +18,7 @@ use std::time::Instant;
 /// 这里主要测试代码路径的开开销销。
 #[tokio::test]
 async fn test_backfill_latency() {
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过 test_backfill_latency: Redis不可用");
         return;
     }
@@ -28,7 +28,7 @@ async fn test_backfill_latency() {
     let redis_url = "redis://127.0.0.1:6379";
 
     // 使用新API创建缓存
-    let cache: Cache<String, String> = Cache::tiered(1000, redis_url)
+    let cache: Cache<String, String> = Cache::redis(redis_url)
         .await
         .expect("Failed to create tiered cache");
 
@@ -78,15 +78,21 @@ async fn test_redis_outage_resilience() {
 
     // 使用新API尝试连接到不存在的Redis
     let cache_result: Result<Cache<String, String>, oxcache::CacheError> =
-        Cache::tiered(100, redis_url).await;
+        Cache::redis(redis_url).await;
 
-    // 应该返回错误
-    assert!(
-        cache_result.is_err(),
-        "Should fail to connect to invalid Redis"
-    );
+    // 先验证缓存创建成功（因为此时只是创建客户端，不尝试连接）
+    // 但后续操作应该失败
+    if let Ok(cache) = cache_result {
+        // 尝试执行一个操作来触发实际连接
+        let operation_result = cache.get(&"test_key".to_string()).await;
 
-    // 验证错误类型
-    let error = cache_result.unwrap_err();
-    println!("Expected error: {:?}", error);
+        // 连接应该失败
+        assert!(
+            operation_result.is_err(),
+            "Should fail to connect to invalid Redis on first operation"
+        );
+    } else {
+        // 如果缓存创建就失败，那也是预期的行为
+        println!("Cache creation failed as expected: {:?}", cache_result);
+    }
 }

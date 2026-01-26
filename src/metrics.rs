@@ -3,7 +3,7 @@
 //! MIT License
 //!
 //! 该模块定义了缓存系统的指标收集和监控功能。
-//! 通过 `metrics` 或 `l1-moka` feature 控制启用/禁用。
+//! 通过 `metrics` 或 `moka` feature 控制启用/禁用。
 
 pub mod unified;
 
@@ -74,6 +74,7 @@ impl Default for AtomicCounters {
 ///
 /// 用于收集和存储缓存系统的各种运行时指标
 /// 优化版本：高频指标使用原子计数器，低频指标使用DashMap
+#[cfg(any(feature = "metrics", feature = "moka"))]
 #[derive(Clone, Debug, Default)]
 pub struct Metrics {
     /// 原子计数器（高频指标，无锁）
@@ -263,7 +264,7 @@ impl Metrics {
 /// # 注意
 ///
 /// DashMap 无锁，无需担心死锁
-#[cfg(any(feature = "metrics", feature = "l1-moka"))]
+#[cfg(any(feature = "metrics", feature = "moka"))]
 pub fn get_metrics_string() -> String {
     let metrics = &GLOBAL_METRICS;
     let mut output = String::new();
@@ -359,12 +360,12 @@ pub fn get_metrics_string() -> String {
     output
 }
 
-/// 当 metrics 和 l1-moka 功能都禁用时的空实现
-#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+/// 当 metrics 和 moka 功能都禁用时的空实现
+#[cfg(not(any(feature = "metrics", feature = "moka")))]
 #[derive(Debug, Clone, Default)]
 pub struct Metrics;
 
-#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+#[cfg(not(any(feature = "metrics", feature = "moka")))]
 impl Metrics {
     /// 记录请求指标（空实现）
     pub fn record_request(&self, _service: &str, _layer: &str, _op: &str, _result: &str) {}
@@ -393,13 +394,13 @@ impl Metrics {
     }
 }
 
-#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+#[cfg(not(any(feature = "metrics", feature = "moka")))]
 lazy_static! {
     /// 全局空指标实例
     pub static ref GLOBAL_METRICS: Metrics = Metrics;
 }
 
-#[cfg(not(any(feature = "metrics", feature = "l1-moka")))]
+#[cfg(not(any(feature = "metrics", feature = "moka")))]
 /// 当 metrics 功能禁用时返回空字符串
 pub fn get_metrics_string() -> String {
     String::new()

@@ -6,6 +6,8 @@
 //! This provides a single, comprehensive interface for all cache operations
 
 use crate::error::Result;
+
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::{Serializer, SerializerEnum};
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
@@ -342,6 +344,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
     }
 
     // Default serializer implementation
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &SerializerEnum {
         use crate::serialization::unified::default_serializer;
         use once_cell::sync::Lazy;
@@ -402,7 +405,7 @@ impl UnifiedCache for CacheOpsAdapter {
 
     async fn clear(&self) -> Result<()> {
         // Try clearing L1 first, then L2 if L1 fails
-        if let Err(_) = self.ops.clear_l1().await {
+        if self.ops.clear_l1().await.is_err() {
             self.ops.clear_l2().await?;
         }
         Ok(())

@@ -12,7 +12,7 @@ use crate::common::{is_redis_available, setup_logging};
 async fn test_manual_control_api() {
     setup_logging();
 
-    if !is_redis_available().await {
+    if !is_redis_available() {
         println!("跳过测试: Redis不可用");
         return;
     }

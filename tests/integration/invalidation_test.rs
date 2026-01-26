@@ -26,7 +26,7 @@ async fn test_multi_instance_invalidation() {
     let service_name = common::generate_unique_service_name("invalidation_test");
 
     // 使用新API创建缓存实例（使用默认配置）
-    let cache: Cache<String, Vec<u8>> = Cache::tiered(1000, redis_url)
+    let cache: Cache<String, Vec<u8>> = Cache::redis(redis_url)
         .await
         .expect("Failed to create tiered cache");
 

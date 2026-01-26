@@ -75,13 +75,9 @@ pub struct ConnectionPool<T: DatabaseOperations> {
     /// 连接池
     pool: Arc<Mutex<Vec<Arc<T>>>>,
     /// 配置
-    #[allow(dead_code)]
     config: PoolConfig,
     /// 连接创建器（用于动态创建连接）
     creator: Arc<Box<dyn Fn() -> Result<Arc<T>> + Send + Sync>>,
-    /// 活跃连接数
-    #[allow(dead_code)]
-    active_count: Arc<Mutex<u32>>,
     /// 统计信息
     stats: Arc<Mutex<PoolStats>>,
 }
@@ -101,7 +97,6 @@ impl<T: DatabaseOperations> ConnectionPool<T> {
             pool: Arc::new(Mutex::new(connections)),
             config,
             creator: Arc::new(Box::new(creator)),
-            active_count: Arc::new(Mutex::new(0)),
             stats: Arc::new(Mutex::new(PoolStats::new())),
         })
     }

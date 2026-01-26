@@ -5,7 +5,7 @@ services:
   # Redis Standalone
   # ==========================================
   redis-standalone:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-redis-standalone
     ports:
       - "6379:6379"
@@ -20,7 +20,7 @@ services:
   # ==========================================
   # Master Node
   redis-master:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-redis-master
     command: redis-server --port 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16379
     ports:
@@ -33,7 +33,7 @@ services:
 
   # Slave Node 1
   redis-slave-1:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-redis-slave-1
     command: redis-server --port 6379 --replicaof redis-master 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16380
     ports:
@@ -48,7 +48,7 @@ services:
 
   # Slave Node 2
   redis-slave-2:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-redis-slave-2
     command: redis-server --port 6379 --replicaof redis-master 6379 --replica-announce-ip 127.0.0.1 --replica-announce-port 16381
     ports:
@@ -63,7 +63,7 @@ services:
 
   # Sentinel Node 1
   sentinel-1:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-sentinel-1
     command: >
       sh -c "echo 'port 26379' > /tmp/sentinel.conf &&
@@ -84,7 +84,7 @@ services:
 
   # Sentinel Node 2
   sentinel-2:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-sentinel-2
     command: >
       sh -c "echo 'port 26379' > /tmp/sentinel.conf &&
@@ -100,7 +100,7 @@ services:
 
   # Sentinel Node 3
   sentinel-3:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: oxcache-sentinel-3
     command: >
       sh -c "echo 'port 26379' > /tmp/sentinel.conf &&

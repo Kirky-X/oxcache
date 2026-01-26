@@ -166,12 +166,12 @@ oxcache = { version = "0.2", features = ["core", "macros", "metrics"] }
 
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
-| `bloom-filter` | `l1-moka` | 缓存穿透保护 |
-| `rate-limiting` | `l1-moka` | DoS 防护 |
-| `wal-recovery` | `l2-redis` | 预写日志持久化 |
-| `batch-write` | `l2-redis` | 优化的批量写入 |
+| `bloom-filter` | `moka` | 缓存穿透保护 |
+| `rate-limiting` | `moka` | DoS 防护 |
+| `wal-recovery` | `redis` | 预写日志持久化 |
+| `batch-write` | `redis` | 优化的批量写入 |
 | `cli` | `confers` | 命令行界面 |
-| `database` | `l2-redis` | 数据库集成 |
+| `database` | `redis` | 数据库集成 |
 
 如果需要最小依赖或自定义特性：
 

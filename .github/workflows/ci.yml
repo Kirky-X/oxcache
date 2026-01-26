@@ -112,12 +112,12 @@ jobs:
       fail-fast: false
       matrix:
         features:
-          - "l1-moka,macros"
-          - "l2-redis,macros"
-          - "l1-moka,l2-redis,batch-write"
-          - "l1-moka,l2-redis,metrics"
-          - "l1-moka,l2-redis,bloom-filter"
-          - "l1-moka,l2-redis,database"
+          - "moka,macros"
+          - "redis,macros"
+          - "moka,redis,batch-write"
+          - "moka,redis,metrics"
+          - "moka,redis,bloom-filter"
+          - "moka,redis,database"
           - "core,full-metrics"
           - "core,confers"
           - "core,smart-strategy"

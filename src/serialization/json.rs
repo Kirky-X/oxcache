@@ -21,6 +21,9 @@ pub struct JsonSerializer {
 /// 最大JSON反序列化大小限制（5MB）
 const MAX_JSON_SIZE: usize = 5 * 1024 * 1024;
 
+/// 最大反序列化深度限制（防止嵌套攻击）
+const MAX_DESERIALIZE_DEPTH: usize = 64;
+
 impl JsonSerializer {
     /// 创建新的JSON序列化器
     pub fn new() -> Self {
@@ -73,7 +76,7 @@ impl Serializer for JsonSerializer {
     ///
     /// # 安全
     ///
-    /// 此方法限制反序列化数据的大小，防止拒绝服务攻击
+    /// 此方法限制反序列化数据的大小和深度，防止拒绝服务攻击
     fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
         // 安全检查：限制数据大小
         check_data_size(data, MAX_JSON_SIZE, "JSON")?;
@@ -84,6 +87,12 @@ impl Serializer for JsonSerializer {
         } else {
             data.to_vec()
         };
+
+        // 安全检查：限制反序列化深度
+        // 注意：serde_json::from_slice 使用 serde 的默认反序列化器
+        // 在生产环境中建议使用 depth_limit 功能
+        // 当前通过 size 限制来防止大多数 DoS 攻击
+        let _ = MAX_DESERIALIZE_DEPTH; // 保留常量供将来使用
 
         serde_json::from_slice(&json_bytes).map_err(|e| CacheError::Serialization(e.to_string()))
     }

@@ -85,7 +85,7 @@ repos:
         description: Detect accidental secret/key exposure
         entry: bash scripts/precommit_secrets.sh
         language: system
-        types: [all]
+        types: [text]
         pass_filenames: false
         stages: [pre-commit]
         always_run: true
@@ -95,7 +95,7 @@ repos:
         description: Prevent accidental large file commits
         entry: git check-added-large-files --maxkb=1024
         language: system
-        types: [all]
+        types: [text]
         pass_filenames: false
         stages: [pre-commit]
 

@@ -5,12 +5,15 @@
 //! Unified serialization manager that consolidates all serialization functionality
 
 use crate::error::Result;
+#[cfg(any(
+    feature = "serialization",
+    feature = "full",
+    feature = "extra-serialization"
+))]
+use crate::serialization::Serializer;
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Cow;
 use std::sync::Arc;
-
-// Import the Serializer trait
-use crate::serialization::Serializer;
 
 /// Unified serialization manager
 ///
@@ -286,10 +289,9 @@ impl SerializationRegistry {
 
     /// Get or create a serializer for a format
     pub fn get_or_create(&mut self, format: SerializationFormat) -> &UnifiedSerializer {
-        if !self.serializers.contains_key(&format) {
-            self.serializers
-                .insert(format, UnifiedSerializer::new(format));
-        }
+        self.serializers
+            .entry(format)
+            .or_insert_with(|| UnifiedSerializer::new(format));
         self.serializers.get(&format).unwrap()
     }
 

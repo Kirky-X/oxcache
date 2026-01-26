@@ -58,10 +58,10 @@
 //! let cache: Cache<String, MyType> = Cache::redis("redis://localhost:6379").await?;
 //! ```
 //!
-//! ## Tiered Cache (L1 + L2)
+//! ## Redis Cache
 //!
 //! ```rust,ignore
-//! let cache: Cache<String, MyType> = Cache::tiered(10000, "redis://localhost:6379").await?;
+//! let cache: Cache<String, MyType> = Cache::redis("redis://localhost:6379").await?;
 //! ```
 //!
 //! # Advanced Configuration
@@ -72,10 +72,8 @@
 //!
 //! let cache: Cache<String, User> = Cache::builder()
 //!     .backend(
-//!         BackendBuilder::tiered()
-//!             .l1_capacity(10000)
-//!             .l2_connection_string("redis://localhost:6379")
-//!             .auto_promote(true)
+//!         BackendBuilder::memory()
+//!             .capacity(10000)
 //!     )
 //!     .ttl(Duration::from_secs(3600))
 //!     .build()
@@ -143,14 +141,14 @@
 //!
 //! New API:
 //! ```rust,ignore
-//! let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
+//! let cache: Cache<String, User> = Cache::memory().await?;
 //! ```
 //!
 //! # Features
 //!
-//! - `l1-moka`: Enable L1 memory cache (Moka)
+//! - `moka`: Enable L1 memory cache (Moka)
 //! - `dashmap-backend`: Enable DashMap backend (pure concurrent in-memory)
-//! - `l2-redis`: Enable L2 distributed cache (Redis)
+//! - `redis`: Enable L2 distributed cache (Redis)
 //! - `serialization`: Enable JSON/Bincode serialization
 //! - `metrics`: Enable OpenTelemetry metrics
 //! - `wal-recovery`: Enable write-ahead log for recovery
@@ -164,11 +162,8 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a tiered cache
-//!     let cache: Cache<String, String> = Cache::tiered(
-//!         10000,
-//!         "redis://localhost:6379"
-//!     ).await?;
+//!     // Create a memory cache
+//!     let cache: Cache<String, String> = Cache::memory().await?;
 //!
 //!     // Set and get
 //!     cache.set(&"key".to_string(), &"value".to_string()).await?;
@@ -198,10 +193,10 @@ macro_rules! has_feature {
 /// # Example
 ///
 /// ```rust,ignore
-/// require_feature!(cfg!(feature = "l1-moka"), "bloom-filter");
+/// require_feature!(cfg!(feature = "moka"), "bloom-filter");
 /// ```
 ///
-/// 如果启用了 `bloom-filter` 但没有启用 `l1-moka`，编译时会panic。
+/// 如果启用了 `bloom-filter` 但没有启用 `moka`，编译时会panic。
 /// 这是为了在编译时捕获配置错误，而不是在运行时。
 #[macro_export]
 macro_rules! require_feature {
@@ -225,10 +220,10 @@ macro_rules! require_feature {
 /// # Example
 ///
 /// ```rust,ignore
-/// check_feature_dependence!("bloom-filter", cfg!(feature = "l1-moka"));
+/// check_feature_dependence!("bloom-filter", cfg!(feature = "moka"));
 /// ```
 ///
-/// 如果启用了 `bloom-filter` 但没有启用 `l1-moka` 或 `full`，编译时会panic。
+/// 如果启用了 `bloom-filter` 但没有启用 `moka` 或 `full`，编译时会panic。
 #[macro_export]
 macro_rules! check_feature_dependence {
     ($dependent:expr, $required:expr) => {
@@ -423,13 +418,6 @@ pub mod client;
 pub mod config;
 pub mod error;
 
-// Internal module for macro support (deprecated, for internal use only)
-#[deprecated(
-    since = "0.2.0",
-    note = "Internal module, will be made private in v0.3.0"
-)]
-pub(crate) mod manager; // 改为 pub(crate) 限制内部访问
-
 // Internal module for #[cached] macro support
 #[doc(hidden)]
 pub(crate) mod internal; // 改为 pub(crate) 限制内部访问
@@ -446,8 +434,8 @@ pub mod traits;
 
 // Backend module (L1/L2 cache implementation)
 #[cfg(any(
-    feature = "l1-moka",
-    feature = "l2-redis",
+    feature = "moka",
+    feature = "redis",
     feature = "minimal",
     feature = "core",
     feature = "full"
@@ -461,8 +449,8 @@ pub mod bloom_filter;
 // Metrics Module - also needed for L1-only mode
 #[cfg(any(
     feature = "metrics",
-    feature = "l1-moka",
-    feature = "l2-redis",
+    feature = "moka",
+    feature = "redis",
     feature = "minimal",
     feature = "core",
     feature = "full",
@@ -476,13 +464,13 @@ pub mod metrics;
 pub mod rate_limiting;
 
 // WAL Recovery Module
-#[cfg(any(feature = "wal-recovery", feature = "l2-redis", feature = "full"))]
+#[cfg(any(feature = "wal-recovery", feature = "redis", feature = "full"))]
 pub mod recovery;
 
 // Sync writer
 #[cfg(any(
     feature = "batch-write",
-    feature = "l2-redis",
+    feature = "redis",
     feature = "sync",
     feature = "full"
 ))]
@@ -501,7 +489,13 @@ pub mod telemetry;
 pub mod serialization;
 
 // Utils Module
-#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
+#[cfg(any(
+    feature = "full",
+    feature = "minimal",
+    feature = "core",
+    feature = "moka",
+    feature = "redis"
+))]
 pub mod utils;
 
 // Smart Strategy Module
@@ -530,47 +524,48 @@ pub mod macros {
 }
 
 pub use client::{CacheExt, CacheOps};
-pub use config::legacy_config::{
-    CacheStrategy as LegacyCacheStrategy, DynamicConfig as LegacyDynamicConfig,
-};
-pub use config::legacy_config::{CacheType, RedisMode, ServiceConfig};
-#[allow(deprecated)]
-pub use config::Config;
+#[cfg(feature = "redis")]
 pub use config::{
-    config_convenience,
     BackendConfig,
     BackendType,
-    BatchConfig,
-    CacheStrategy,
-    ConcurrencyConfig,
-    DynamicConfig,
-    FeatureConfig,
-    GlobalConfig,
-    HealthCheckConfig,
-    LoggingConfig,
+    CacheType,
+    EvictionPolicy,
+    L1LayerConfig,
+    L2LayerConfig,
     MemoryBackendConfig,
-    MetricsConfig,
-    MonitoringConfig,
-    OxcacheConfig,
-    OxcacheConfigBuilder,
     PerformanceConfig,
     RedisBackendConfig,
-    SecurityConfig,
+    RedisConnectionConfig,
+    RedisPoolConfig,
     SerializationConfig,
-    SerializationType,
-    TieredBackendConfig,
+    ServiceConfig,
+    TwoLevelConfig,
     // Unified configuration exports
     UnifiedConfig,
-    UnifiedConfigBuilder,
+};
+
+#[cfg(not(feature = "redis"))]
+pub use config::{
+    BackendConfig,
+    BackendType,
+    CacheType,
+    EvictionPolicy,
+    L1LayerConfig,
+    L2LayerConfig,
+    MemoryBackendConfig,
+    PerformanceConfig,
+    RedisBackendConfig,
+    RedisConnectionConfig,
+    RedisPoolConfig,
+    SerializationConfig,
+    ServiceConfig,
+    // Unified configuration exports
+    UnifiedConfig,
 };
 
 #[cfg(feature = "confers")]
-pub use config::ConfigSource;
-
-#[cfg(feature = "l1-moka")]
 pub use config::LayerConfig;
-// Use LegacyEvictionPolicy from legacy_config to avoid type conflict
-pub use config::LegacyEvictionPolicy as EvictionPolicy;
+
 pub use error::{CacheError, Result};
 
 // ============================================================================
@@ -578,15 +573,15 @@ pub use error::{CacheError, Result};
 // ============================================================================
 
 // New API exports
-pub use builder::{BackendBuilder, CacheBuilder, TieredCacheBuilder};
+pub use builder::{BackendBuilder, CacheBuilder};
 pub use cache::Cache;
 pub use cache_interface::{CacheOpsAdapter, UnifiedCache};
 pub use traits::{CacheKey, Cacheable};
 
 // Custom tiered backend configuration exports
 #[cfg(any(
-    feature = "l1-moka",
-    feature = "l2-redis",
+    feature = "moka",
+    feature = "redis",
     feature = "full",
     feature = "core"
 ))]
@@ -596,7 +591,7 @@ pub use backend::custom_tiered::{
 };
 
 // DashMap backend exports (client)
-#[cfg(feature = "dashmap-backend")]
+#[cfg(feature = "dashmap")]
 pub use backend::client::DashMapMemoryBackend as DashmapBackend;
 
 // Unified memory backend exports (from client implementations)
@@ -609,10 +604,8 @@ pub use backend::client::{
     DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend,
 };
 
-#[cfg(any(feature = "l2-redis", feature = "core", feature = "full"))]
-pub use sync::warmup::{WarmupManager, WarmupResult, WarmupStatus};
-
-pub use config::oxcache_config;
+#[cfg(any(feature = "redis", feature = "core", feature = "full"))]
+pub use sync::warmup::{WarmupManager, WarmupStatus};
 
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub use utils::key_generator::KeyGenerator;
@@ -666,7 +659,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // oxcache = { version = "0.1", features = ["bloom-filter"] }
 // ```
 //
-// 上面的配置会导致编译错误，因为 `bloom-filter` 需要 `l1-moka` 特性。
+// 上面的配置会导致编译错误，因为 `bloom-filter` 需要 `moka` 特性。
 // 使用 `full` 特性可以启用所有功能：
 //
 // ```toml,ignore
@@ -676,11 +669,11 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const _: fn() = || {
     // 使用统一的宏检查特性依赖
-    check_feature_dependence!("bloom-filter", cfg!(feature = "l1-moka"));
-    check_feature_dependence!("rate-limiting", cfg!(feature = "l1-moka"));
-    check_feature_dependence!("wal-recovery", cfg!(feature = "l2-redis"));
-    check_feature_dependence!("batch-write", cfg!(feature = "l2-redis"));
+    check_feature_dependence!("bloom-filter", cfg!(feature = "moka"));
+    check_feature_dependence!("rate-limiting", cfg!(feature = "moka"));
+    check_feature_dependence!("wal-recovery", cfg!(feature = "redis"));
+    check_feature_dependence!("batch-write", cfg!(feature = "redis"));
     check_feature_dependence!("cli", cfg!(feature = "confers"));
     check_feature_dependence!("opentelemetry", cfg!(feature = "metrics"));
-    check_feature_dependence!("database", cfg!(feature = "l2-redis"));
+    check_feature_dependence!("database", cfg!(feature = "redis"));
 };

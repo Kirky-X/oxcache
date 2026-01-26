@@ -3,10 +3,10 @@
 // MIT License
 //
 // 故障恢复集成测试 - 使用新API
-// 
-use common::{setup_logging, is_redis_available};
-use oxcache::{Cache, CacheError};
+//
 use crate::common;
+use common::{is_redis_available, setup_logging};
+use oxcache::{Cache, CacheError};
 
 /// 测试降级逻辑
 ///
@@ -40,7 +40,10 @@ async fn test_degradation_logic() {
             println!("✓ Redis connection successful, testing cache operations");
 
             // 测试基本的缓存操作
-            cache.set(&test_key, &"test_value".to_string()).await.unwrap();
+            cache
+                .set(&test_key, &"test_value".to_string())
+                .await
+                .unwrap();
             let value = cache.get(&test_key).await.unwrap();
             assert_eq!(value, Some("test_value".to_string()));
             println!("✓ Basic cache operations work correctly");
@@ -52,7 +55,14 @@ async fn test_degradation_logic() {
             println!("✓ Delete operation works correctly");
 
             // 测试TTL过期
-            cache.set_with_ttl(&ttl_key, &"ttl_value".to_string(), Some(Duration::from_secs(1))).await.unwrap();
+            cache
+                .set_with_ttl(
+                    &ttl_key,
+                    &"ttl_value".to_string(),
+                    Some(Duration::from_secs(1)),
+                )
+                .await
+                .unwrap();
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             let expired_value = cache.get(&ttl_key).await.unwrap();
             assert_eq!(expired_value, None);

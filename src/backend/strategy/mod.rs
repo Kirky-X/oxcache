@@ -10,14 +10,14 @@
 pub mod traits;
 pub use traits::{HealthStatus, L2BackendStrategy, ScanResult};
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub mod standalone;
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub mod sentinel;
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub mod cluster;
 
-#[cfg(feature = "l2-redis")]
+#[cfg(feature = "redis")]
 pub mod facade;
