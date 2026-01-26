@@ -147,7 +147,8 @@ async fn test_postgres_partitioning() -> Result<()> {
     println!("✓ PostgreSQL table initialized with partitioning");
 
     // Verify partition creation
-    let partitions: Vec<PartitionInfo> = database_test_utils::verify_partition_creation(&manager, test_table, true, 1).await?;
+    let partitions: Vec<PartitionInfo> =
+        database_test_utils::verify_partition_creation(&manager, test_table, true, 1).await?;
 
     // Clean up
     if let Some(partition) = partitions.first() {
@@ -785,14 +786,16 @@ async fn test_invalid_configuration() -> Result<()> {
 
     // Test with invalid PostgreSQL URL
     let invalid_postgres_url = "postgresql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config =
+        database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
 
     let result = PostgresPartitionManager::new(invalid_postgres_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid PostgreSQL URL");
 
     // Test with invalid MySQL URL
     let invalid_mysql_url = "mysql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config =
+        database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
     let result = MySQLPartitionManager::new(invalid_mysql_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid MySQL URL");
 

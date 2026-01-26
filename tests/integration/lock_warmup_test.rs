@@ -10,7 +10,7 @@ use oxcache::Cache;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::common;
+use super::common;
 
 /// 测试分布式锁
 ///
@@ -32,7 +32,10 @@ async fn test_distributed_lock() {
     let cache: Cache<String, String> = match Cache::redis(&redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create cache (TLS required): {}",
+                e
+            );
             return;
         }
     };
@@ -118,7 +121,10 @@ async fn test_cache_preheating() {
     let cache: Cache<String, String> = match Cache::redis(&redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create cache (TLS required): {}",
+                e
+            );
             return;
         }
     };

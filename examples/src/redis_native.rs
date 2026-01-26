@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
 //! Redis 原生客户端示例
 //!
 //! 本示例演示如何使用 Oxcache 连接 Redis。

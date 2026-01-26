@@ -4,7 +4,7 @@
 //
 // 故障恢复集成测试 - 使用新API
 //
-use crate::common;
+use super::common;
 use common::{is_redis_available, setup_logging};
 use oxcache::Cache;
 

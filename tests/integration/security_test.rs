@@ -8,7 +8,7 @@
 
 use oxcache::security::{validate_lua_script, validate_redis_key, validate_scan_pattern};
 
-use crate::common;
+use super::common;
 
 // ============================================================================
 // 安全验证测试

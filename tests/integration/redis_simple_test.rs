@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 // Simplified integration test - verifies core functionality
 // Run with: REDIS_URL=redis://127.0.0.1:6381 cargo test --lib test_redis_integration --all-features
 
@@ -40,7 +45,8 @@ mod redis_integration_tests {
         assert_eq!(result.unwrap(), None, "Key should be None after deletion");
         println!("✅ Deletion verified");
         
-        println!("\n🎉 All Redis integration tests passed!");
+        println!("
+🎉 All Redis integration tests passed!");
     }
     
     #[tokio::test]

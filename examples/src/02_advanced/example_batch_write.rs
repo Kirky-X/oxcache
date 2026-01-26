@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 批量写入优化示例
 //!
 //! 本示例演示了 Oxcache 的批量写入优化功能：
@@ -24,7 +29,8 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 批量写入优化示例 ===\n");
+    println!("=== 批量写入优化示例 ===
+");
 
     // 创建分层缓存
     let cache: Arc<Cache<String, Product>> = Arc::new(Cache::new().await?);
@@ -139,7 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // 删除不存在的 key 不会报错
         cache.delete(&format!("product:{}", id)).await?;
     }
-    println!("   ✓ 商品下架完成\n");
+    println!("   ✓ 商品下架完成
+");
 
     // 5. 统计信息
     println!("5. 缓存统计");

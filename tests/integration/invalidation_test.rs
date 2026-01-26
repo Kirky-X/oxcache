@@ -4,7 +4,7 @@
 //
 // 缓存失效集成测试 - 使用新API
 
-use crate::common;
+use super::common;
 
 use oxcache::Cache;
 
@@ -30,7 +30,10 @@ async fn test_multi_instance_invalidation() {
     let cache: Cache<String, Vec<u8>> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create cache (TLS required): {}",
+                e
+            );
             return;
         }
     };

@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
 //! 缓存预热示例
 //!
 //! 本示例演示了 Oxcache 的缓存预热功能：

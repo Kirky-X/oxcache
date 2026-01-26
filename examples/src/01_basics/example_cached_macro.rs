@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! #[cached] 宏使用示例
 //!
 //! 本示例演示了 Oxcache 的 #[cached] 宏功能：
@@ -54,14 +59,16 @@ async fn get_hot_data(id: u64) -> Result<String, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== #[cached] 宏使用示例 ===\n");
+    println!("=== #[cached] 宏使用示例 ===
+");
 
     // 初始化缓存
     let cache: Cache<String, User> = Cache::new().await?;
 
     // 注册缓存实例到全局管理器（供宏使用）
     cache.register_for_macro("user_cache").await;
-    println!("✓ 缓存已注册供 #[cached] 宏使用\n");
+    println!("✓ 缓存已注册供 #[cached] 宏使用
+");
 
     // 1. 基础缓存功能演示
     println!("1. 基础缓存功能演示");

@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 布隆过滤器使用示例
 //!
 //! 本示例演示了 Oxcache 的布隆过滤器功能：
@@ -15,7 +20,8 @@ use oxcache::config::service::BloomFilterConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 布隆过滤器使用示例 ===\n");
+    println!("=== 布隆过滤器使用示例 ===
+");
 
     // 1. 创建布隆过滤器配置
     println!("1. 创建布隆过滤器配置");

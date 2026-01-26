@@ -6,7 +6,7 @@
 
 #![allow(deprecated)]
 
-use crate::common::{is_redis_available, setup_logging};
+use super::common::{is_redis_available, setup_logging};
 
 #[tokio::test]
 async fn test_single_flight_deduplication() {

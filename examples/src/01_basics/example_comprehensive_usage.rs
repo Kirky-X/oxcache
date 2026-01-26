@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 综合使用示例 - 展示 Oxcache 的完整功能
 //!
 //! 本示例演示了 Oxcache 的各种功能，包括：
@@ -36,22 +41,26 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("=== Oxcache 综合使用示例 ===\n");
+    println!("=== Oxcache 综合使用示例 ===
+");
 
     // 1. 创建内存缓存 (L1 only)
     println!("1. 创建内存缓存 (L1)");
     let memory_cache: Cache<String, User> = Cache::new().await?;
-    println!("   ✓ 内存缓存创建成功\n");
+    println!("   ✓ 内存缓存创建成功
+");
 
     // 2. 创建 Redis 缓存 (L2 only)
     println!("2. 创建 Redis 缓存 (L2)");
     let redis_cache: Cache<String, User> = Cache::redis("redis://127.0.0.1:6379").await?;
-    println!("   ✓ Redis 缓存创建成功\n");
+    println!("   ✓ Redis 缓存创建成功
+");
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
     let tiered_cache: Cache<String, User> = Cache::tiered(10000, "redis://127.0.0.1:6379").await?;
-    println!("   ✓ 分层缓存创建成功\n");
+    println!("   ✓ 分层缓存创建成功
+");
 
     // 4. 基本 CRUD 操作
     println!("4. 基本 CRUD 操作演示");
@@ -152,7 +161,8 @@ async fn main() -> Result<()> {
     for i in 1..=3 {
         cache.delete(&format!("product:{}", i)).await?;
     }
-    println!("   ✓ 批量删除成功\n");
+    println!("   ✓ 批量删除成功
+");
 
     // 6. TTL 控制
     println!("6. TTL 控制演示");
@@ -164,7 +174,8 @@ async fn main() -> Result<()> {
     println!("   立即获取: {:?}", cache.get(&"temp:1".to_string()).await?);
     println!("   等待 4 秒后获取...");
     sleep(Duration::from_secs(4)).await;
-    println!("   4 秒后获取: {:?}\n", cache.get(&"temp:1".to_string()).await?);
+    println!("   4 秒后获取: {:?}
+", cache.get(&"temp:1".to_string()).await?);
 
     // 7. 性能测试
     println!("7. 性能测试");
