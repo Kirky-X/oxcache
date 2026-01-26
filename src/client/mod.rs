@@ -6,19 +6,11 @@
 
 pub mod db_loader;
 
-#[cfg(feature = "redis-native")]
-pub mod redis_native;
-
-#[cfg(feature = "ttl-control")]
-pub mod ttl_control;
-
-#[cfg(feature = "tiered-cache")]
-pub mod tiered_cache;
-
 use crate::error::Result;
 use async_trait::async_trait;
 use std::any::Any;
 
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::Serializer;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::instrument;
