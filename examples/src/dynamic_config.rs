@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for config in &configs {
-        cache.set(&config.key, config, None).await?;
+        cache.set(&config.key, config).await?;
         println!("   ✓ {} = {}", config.key, config.value);
     }
     println!();
@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query_keys = ["app.mode", "app.theme", "database.timeout", "cache.size"];
 
     for key in &query_keys {
-        if let Some(config) = cache.get(key).await? {
+        if let Some(config) = cache.get(&key.to_string()).await? {
             println!("   ✓ {} = {} (类型: {})", config.key, config.value, config.config_type);
         } else {
             println!("   ✗ {} 未找到", key);
@@ -81,11 +81,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config_type: "app".to_string(),
         updated_at: chrono::Local::now().to_rfc3339(),
     };
-    cache.set("app.theme", &updated_config, None).await?;
+    cache.set(&updated_config.key, &updated_config).await?;
     println!("   ✓ app.theme 更新为 light");
 
     // 验证更新
-    if let Some(config) = cache.get("app.theme").await? {
+    if let Some(config) = cache.get(&"app.theme".to_string()).await? {
         println!("   ✓ 当前 app.theme = {}", config.value);
     }
     println!();
@@ -93,9 +93,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. 批量配置导出
     println!("4. 配置导出");
     println!("   导出所有配置:");
-    let all_configs = cache.iter().await?;
-    for (key, config) in all_configs {
-        println!("     {} = {} ({})", key, config.value, config.config_type);
+    // 注意: Cache 结构体不支持直接迭代，需要手动跟踪已添加的键
+    for config in &configs {
+        println!("     {} = {} ({})", config.key, config.value, config.config_type);
     }
     println!();
 
@@ -104,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app_configs = Vec::new();
     let mut db_configs = Vec::new();
 
-    for (_, config) in cache.iter().await? {
+    for config in &configs {
         match config.config_type.as_str() {
             "app" => app_configs.push(config),
             "database" => db_configs.push(config),
