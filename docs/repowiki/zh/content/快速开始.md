@@ -416,10 +416,14 @@ CLI["CLI"] --> CORE
 
 ### A. 常用示例路径
 - 基础 CRUD：[示例](file://examples/src/01_basics/example_basic_operations.rs#L21-L73)
+- 宏装饰器使用：[示例](file://examples/src/01_basics/example_cached_macro.rs#L20-L170)
 - 综合使用：[示例](file://examples/src/01_basics/example_comprehensive_usage.rs#L37-L225)
 - 新 API 使用：[示例](file://examples/src/01_basics/example_new_api.rs#L30-L271)
 - 批量写入优化：[示例](file://examples/src/02_advanced/example_batch_write.rs#L25-L154)
 - 缓存提升策略：[示例](file://examples/src/02_advanced/example_cache_promotion.rs#L21-L66)
+- 布隆过滤器：[示例](file://examples/src/06_features/example_bloom_filter.rs#L19-L180)
+- 限流保护：[示例](file://examples/src/06_features/example_rate_limiting.rs#L20-L150)
+- 数据库集成：[示例](file://examples/src/05_database/example_database_integration.rs#L25-L160)
 - 动态配置：[示例](file://examples/src/dynamic_config.rs#L20-L133)
 
 ### B. 关键 API 与类型
