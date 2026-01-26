@@ -233,8 +233,10 @@ class 序列化器 {
 - 自定义键：使用 key 参数控制键格式，如 "user:{id}"
 - 多种键生成策略：根据业务需要选择 simple/md5/murmur3/namespace
 - L1/L2 写入策略：cache_type 可选 "l1-only"/"l2-only"/"two-level"
+- 宏参数注意事项：新版本使用 `service` 参数而非 `cache` 参数，支持多参数函数处理
 - 端到端验证：参考 e2e 测试，确认 set/get/delete 基本流程可用
 - 综合示例：包含内存/Redis/分层缓存、批量操作、TTL 控制等
+- 详细示例：参考 [宏装饰器示例](file://examples/src/01_basics/example_cached_macro.rs#L20-L170)，展示了完整的宏使用场景
 
 **章节来源**
 - [API 参考（含 #[cached] 参数说明）](file://docs/API_REFERENCE.md#L109-L133)
