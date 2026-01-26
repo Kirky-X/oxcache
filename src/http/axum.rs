@@ -222,7 +222,7 @@ mod tests {
                 .store
                 .lock()
                 .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
-            Ok(store_result.map_or(false, |mut store| store.remove(key).is_some()))
+            Ok(store_result.is_ok_and(|mut store| store.remove(key).is_some()))
         }
 
         async fn invalidate_by_pattern(

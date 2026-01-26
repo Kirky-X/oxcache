@@ -14,7 +14,7 @@ pub mod redis_test_utils;
 
 use oxcache::Cache;
 use redis_test_utils::{
-    is_redis_available_default, wait_for_redis as redis_test_wait_for_redis,
+    wait_for_redis as redis_test_wait_for_redis,
     wait_for_redis_cluster as redis_test_wait_for_redis_cluster,
     wait_for_sentinel as redis_test_wait_for_sentinel,
 };

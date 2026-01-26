@@ -8,7 +8,6 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use oxcache::Cache;
-use std::time::Instant;
 
 /// 基准测试L1缓存的基本操作性能
 fn bench_l1_operations(c: &mut Criterion) {
@@ -88,6 +87,7 @@ fn bench_l1_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("l1_different_sizes");
 
     for &size in [10, 100, 1000, 10000].iter() {
+        #[allow(clippy::needless_borrows_for_generic_args)]
         group.bench_with_input(&format!("size_{}", size), &size, |b, size| {
             b.to_async(&rt).iter(|| async {
                 let key = format!("size_test_{}", size);
@@ -109,6 +109,7 @@ fn bench_l1_sequential(c: &mut Criterion) {
     let mut group = c.benchmark_group("l1_sequential");
 
     for &ops in [10, 50, 100].iter() {
+        #[allow(clippy::needless_borrows_for_generic_args)]
         group.bench_with_input(&format!("ops_{}", ops), &ops, |b, ops| {
             b.to_async(&rt).iter(|| async {
                 for i in 0..*ops {
@@ -133,6 +134,7 @@ fn bench_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");
 
     for &ops_count in [100, 500, 1000, 5000].iter() {
+        #[allow(clippy::needless_borrows_for_generic_args)]
         group.bench_with_input(&format!("ops_{}", ops_count), &ops_count, |b, ops_count| {
             b.to_async(&rt).iter(|| async {
                 for i in 0..*ops_count {
