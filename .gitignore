@@ -73,6 +73,7 @@ yarn-error.log*
 .cargo/
 .trae/
 .iflow/
+.qoder/
 openspec/
 .sisyphus/
 .ruff_cache/
