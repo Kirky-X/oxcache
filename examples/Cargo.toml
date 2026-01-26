@@ -14,8 +14,8 @@ categories = ["caching", "asynchronous", "educational"]
 # Path dependency to the main oxcache project
 oxcache = { path = "..", default-features = false, features = [
     "full",
-    "l1-moka",
-    "l2-redis",
+    "moka",
+    "redis",
     "serialization",
     "bincode",
     "compression",
@@ -53,7 +53,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 secrecy = { version = "0.8", features = ["serde"] }
-axum = { version = "0.7", optional = true, features = ["tokio"] }
+axum = { version = "0.7", optional = true, default-features = false, features = ["tokio"] }
 http = { version = "1.0", optional = true }
 
 [features]
@@ -91,95 +91,11 @@ path = "src/02_advanced/example_invalidation.rs"
 name = "example_warmup"
 path = "src/02_advanced/example_warmup.rs"
 
-[[example]]
-name = "example_latency_benchmark"
-path = "src/03_performance/example_latency_benchmark.rs"
-
-[[example]]
-name = "example_stress_test"
-path = "src/03_performance/example_stress_test.rs"
-
-[[example]]
-name = "example_throughput_benchmark"
-path = "src/03_performance/example_throughput_benchmark.rs"
-
-[[example]]
-name = "example_standalone"
-path = "src/04_redis_modes/example_standalone.rs"
-
-[[example]]
-name = "example_sentinel"
-path = "src/04_redis_modes/example_sentinel.rs"
-
-[[example]]
-name = "example_cluster"
-path = "src/04_redis_modes/example_cluster.rs"
-
-[[example]]
-name = "example_tls"
-path = "src/04_redis_modes/example_tls.rs"
-
-[[example]]
-name = "example_sqlite_cache"
-path = "src/05_database/example_sqlite_cache.rs"
-
-[[example]]
-name = "example_postgresql_cache"
-path = "src/05_database/example_postgresql_cache.rs"
-
-[[example]]
-name = "example_mysql_cache"
-path = "src/05_database/example_mysql_cache.rs"
-
-[[example]]
-name = "example_database_partitioning"
-path = "src/05_database/example_database_partitioning.rs"
-
-[[example]]
-name = "example_bloom_filter"
-path = "src/06_features/example_bloom_filter.rs"
-
-[[example]]
-name = "example_rate_limiting"
-path = "src/06_features/example_rate_limiting.rs"
-
-[[example]]
-name = "example_metrics"
-path = "src/06_features/example_metrics.rs"
-
-[[example]]
-name = "example_health_check"
-path = "src/06_features/example_health_check.rs"
-
-[[example]]
-name = "example_unit_tests"
-path = "src/07_testing/example_unit_tests.rs"
-
-[[example]]
-name = "example_integration_tests"
-path = "src/07_testing/example_integration_tests.rs"
-
-[[example]]
-name = "example_mock_tests"
-path = "src/07_testing/example_mock_tests.rs"
-
-[[example]]
-name = "example_functional_uat"
-path = "src/08_uat/example_functional_uat.rs"
-
-[[example]]
-name = "example_performance_uat"
-path = "src/08_uat/example_performance_uat.rs"
-
-[[example]]
-name = "example_security_uat"
-path = "src/08_uat/example_security_uat.rs"
-
-[[example]]
-name = "example_uat_stress_test"
-path = "src/08_uat/example_uat_stress_test.rs"
-
 # 新功能示例
+[[example]]
+name = "example_new_api"
+path = "src/01_basics/example_new_api.rs"
+
 [[example]]
 name = "example_smart_strategy"
 path = "src/smart_strategy.rs"
