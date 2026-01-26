@@ -9,7 +9,6 @@ extern crate oxcache;
 use crate::common;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 struct User {

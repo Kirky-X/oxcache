@@ -35,12 +35,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 创建
     println!("   添加用户...");
-    cache.set("user:1", &user, Some(3600)).await?;
+    cache.set(&"user:1".to_string(), &user).await?;
     println!("   ✓ 用户添加成功");
 
     // 读取
     println!("   获取用户...");
-    let retrieved = cache.get("user:1").await?;
+    let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(u) => println!("   ✓ 用户获取成功: {} ({})", u.name, u.email),
         None => println!("   ✗ 用户未找到"),
@@ -53,13 +53,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "张三丰".to_string(),
         email: "zhangsanfeng@example.com".to_string(),
     };
-    cache.set("user:1", &updated_user, Some(3600)).await?;
+    cache.set(&"user:1".to_string(), &updated_user).await?;
     println!("   ✓ 用户更新成功");
 
     // 删除
     println!("   删除用户...");
-    cache.delete("user:1").await?;
-    let retrieved = cache.get("user:1").await?;
+    cache.delete(&"user:1".to_string()).await?;
+    let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(_) => println!("   ✗ 用户删除失败"),
         None => println!("   ✓ 用户删除成功"),
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   批量添加用户...");
     for user in &users {
         cache
-            .set(&format!("user:{}", user.id), user, Some(3600))
+            .set(&format!("user:{}", user.id), user)
             .await?;
     }
     println!("   ✓ 批量添加成功");
@@ -103,10 +103,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. 统计信息
     println!("4. 缓存统计");
-    let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.item_count());
-    println!("   - 命中次数: {}", stats.hit_count());
-    println!("   - 未命中次数: {}", stats.miss_count());
+    println!("   缓存统计功能需要通过 metrics 接口获取");
+    println!("   (详细统计信息请参考 metrics_test 示例)");
     println!();
 
     println!("=== Redis 原生客户端示例完成 ===");

@@ -99,6 +99,7 @@ async fn is_redis_available_url(url: &str) -> bool {
     }
 }
 
+#[allow(dead_code)]
 async fn is_redis_available_default() -> bool {
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
