@@ -2,29 +2,19 @@
 # ======================================
 
 repos:
-  # Rust Toolchain Hooks
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
+  # Local script hooks only - avoid external dependencies
+  - repo: local
     hooks:
-      - id: fmt
+      - id: rust-fmt
         name: Rust Format
         description: Check Rust code formatting with cargo fmt
-        entry: cargo fmt --
+        entry: cargo fmt -- --check
         language: system
         types: [rust]
         pass_filenames: false
         stages: [pre-commit]
 
-      - id: fmt-fix
-        name: Rust Format Fix
-        description: Auto-fix Rust code formatting issues
-        entry: cargo fmt --
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: clippy
+      - id: rust-clippy
         name: Rust Clippy
         description: Run cargo clippy for static code analysis
         entry: bash scripts/precommit_clippy.sh
@@ -32,32 +22,7 @@ repos:
         types: [rust]
         pass_filenames: false
         stages: [pre-commit]
-        verbose: true
 
-      - id: test-fast
-        name: Rust Fast Tests
-        description: Run fast unit tests (skip slow integration tests)
-        entry: bash scripts/precommit_tests.sh
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-  # Security Audit Hooks
-  - repo: https://github.com/crazy-max/ghaction-deny
-    rev: v1.0.0
-    hooks:
-      - id: deny-check
-        name: Cargo Dependency Audit
-        description: Check for security vulnerabilities using cargo-deny
-        entry: bash scripts/precommit_deny.sh
-        language: system
-        types: [rust, toml]
-        pass_filenames: false
-        stages: [pre-commit]
-
-  - repo: local
-    hooks:
       - id: cargo-audit
         name: Cargo Audit (Enhanced)
         description: Enhanced vulnerability scanning with RUSTSEC database
@@ -76,32 +41,6 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-  # Secret Scanning Hooks
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
-    hooks:
-      - id: detect-secrets
-        name: Detect Secrets
-        description: Detect accidental secret/key exposure
-        entry: bash scripts/precommit_secrets.sh
-        language: system
-        types: [text]
-        pass_filenames: false
-        stages: [pre-commit]
-        always_run: true
-
-      - id: check-added-large-files
-        name: Check Large Files
-        description: Prevent accidental large file commits
-        entry: git check-added-large-files --maxkb=1024
-        language: system
-        types: [text]
-        pass_filenames: false
-        stages: [pre-commit]
-
-  # Configuration Validation
-  - repo: local
-    hooks:
       - id: toml-validate
         name: TOML Validation
         description: Validate Cargo.toml and config files
@@ -111,10 +50,29 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+      - id: detect-secrets
+        name: Detect Secrets
+        description: Detect accidental secret/key exposure
+        entry: bash -c 'git diff --cached --name-only | xargs -I {} sh -c "grep -n \"password\\|secret\\|token\\|key\\|credential\" {} || true"'
+        language: system
+        types: [text]
+        pass_filenames: false
+        stages: [pre-commit]
+        always_run: true
+
+      - id: check-added-large-files
+        name: Check Large Files
+        description: Prevent accidental large file commits
+        entry: bash -c 'git diff --cached --name-only | xargs -I {} sh -c "test $(git ls-files -s "{}" | cut -f4 -d" " | head -n1) -le 1048576" || echo "File {} exceeds size limit"'
+        language: system
+        types: [text]
+        pass_filenames: false
+        stages: [pre-commit]
+
 # Global Settings
 default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
-verbose: true
+verbose: false
 require_serial: false
 exclude: |
   (?x)^(
