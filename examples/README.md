@@ -109,6 +109,7 @@ graph TD
 
 - `example_basic_operations` - Basic CRUD operations (Get, Set, Delete)
 - `example_comprehensive_usage` - Comprehensive demo of macros, manual control, and serialization
+- `example_cached_macro` - #[cached] macro usage demonstration
 - `example_serialization` - JSON vs Bincode serialization comparison
 
 ### 02_advanced - Advanced Features
@@ -133,6 +134,7 @@ graph TD
 
 ### 05_database - Database Integration
 
+- `example_database_integration` - Database integration with cache-aside pattern
 - `example_sqlite_cache` - SQLite with caching integration
 - `example_postgresql_cache` - PostgreSQL with caching integration
 - `example_mysql_cache` - MySQL with caching integration
@@ -140,8 +142,8 @@ graph TD
 
 ### 06_features - Additional Features
 
-- `example_bloom_filter` - Bloom filter for cache optimization
-- `example_rate_limiting` - Rate limiting with cache
+- `example_bloom_filter` - Bloom filter for cache optimization and penetration protection
+- `example_rate_limiting` - Rate limiting with token bucket algorithm
 - `example_metrics` - OpenTelemetry metrics collection
 - `example_health_check` - Health check and monitoring
 

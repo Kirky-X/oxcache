@@ -22,7 +22,7 @@ const VALID_KEY_CHARS: &[char] = &[
     '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
-pub(crate) fn validate_cache_key(key: &str) -> Result<(), CacheError> {
+pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
     if key.is_empty() {
         return Err(CacheError::InvalidInput(
             "Cache key cannot be empty".to_string(),

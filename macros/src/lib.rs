@@ -10,37 +10,6 @@ use syn::{
     parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, ItemFn, Lit, Meta, Token,
 };
 
-/// Maximum allowed cache key length
-#[allow(dead_code)]
-const MAX_CACHE_KEY_LENGTH: usize = 1024;
-
-/// Characters not allowed in cache keys
-#[allow(dead_code)]
-const FORBIDDEN_KEY_CHARS: &[char] = &['\0', '\n', '\r'];
-
-/// Validates a cache key and returns an error message if invalid
-#[allow(dead_code)]
-fn validate_cache_key(key: &str) -> Result<(), String> {
-    if key.is_empty() {
-        return Err("Cache key cannot be empty".to_string());
-    }
-    if key.len() > MAX_CACHE_KEY_LENGTH {
-        return Err(format!(
-            "Cache key exceeds maximum length of {} bytes (got {} bytes)",
-            MAX_CACHE_KEY_LENGTH,
-            key.len()
-        ));
-    }
-    for c in key.chars() {
-        if FORBIDDEN_KEY_CHARS.contains(&c) {
-            return Err(format!(
-                "Cache key contains forbidden character '\\x{:02x}'",
-                c as u8
-            ));
-        }
-    }
-    Ok(())
-}
 
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -148,8 +117,15 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-    // Generate key logic using KeyGenerator
-    let key_gen = if let Some(pattern) = key_pattern {
+
+
+    // Generate cloned argument names for key generation to avoid ownership issues
+    let arg_names_cloned: Vec<_> = arg_names.iter().map(|name| {
+        quote! { (#name).clone() }
+    }).collect();
+    
+    // Generate key logic with cloned args
+    let key_gen_with_cloned_args = if let Some(pattern) = key_pattern {
         // Custom format string pattern: "user_{id}"
         quote! {
             format!(#pattern)
@@ -167,7 +143,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         oxcache::KeyGenerator::simple_with_args(
                             #service_name,
                             stringify!(#fn_name),
-                            &(#(#arg_names),*)
+                            &(#(#arg_names_cloned),*)
                         )
                     }
                 }
@@ -182,7 +158,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         oxcache::KeyGenerator::md5_with_args(
                             #service_name,
                             stringify!(#fn_name),
-                            &(#(#arg_names),*)
+                            &(#(#arg_names_cloned),*)
                         )
                     }
                 }
@@ -197,7 +173,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         oxcache::KeyGenerator::murmur3_with_args(
                             #service_name,
                             stringify!(#fn_name),
-                            &(#(#arg_names),*)
+                            &(#(#arg_names_cloned),*)
                         )
                     }
                 }
@@ -218,7 +194,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                             #service_name,
                             #key_prefix.unwrap_or("default"),
                             stringify!(#fn_name),
-                            &(#(#arg_names),*)
+                            &(#(#arg_names_cloned),*)
                         )
                     }
                 }
@@ -229,7 +205,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
                 } else {
                     quote! {
-                        format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names),*))
+                        format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names_cloned),*))
                     }
                 }
             }
@@ -240,7 +216,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             quote! { format!("{}:{}:{}", #service_name, #prefix, stringify!(#fn_name)) }
         } else {
             quote! {
-                format!("{}:{}:{}:{:?}", #service_name, #prefix, stringify!(#fn_name), (#(#arg_names),*))
+                format!("{}:{}:{}:{:?}", #service_name, #prefix, stringify!(#fn_name), (#(#arg_names_cloned),*))
             }
         }
     } else {
@@ -249,28 +225,20 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
         } else {
             quote! {
-                format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names),*))
+                format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names_cloned),*))
             }
         }
     };
-
+    
     let output = quote! {
         #vis async fn #fn_name(#fn_args) #fn_output {
-            let cache_key = #key_gen;
+            let cache_key = #key_gen_with_cloned_args;
 
-            // Validate cache key length and characters
-            let key_len = cache_key.len();
-            if key_len > MAX_CACHE_KEY_LENGTH {
+            // Validate cache key length and characters using library's validation function
+            if let Err(e) = ::oxcache::utils::validate_cache_key(&cache_key) {
                 tracing::warn!(
-                    "Cache key too long ({} bytes, max {}), falling back to uncached execution",
-                    key_len,
-                    MAX_CACHE_KEY_LENGTH
-                );
-                return async { #fn_block }.await;
-            }
-            if cache_key.bytes().any(|b| b == 0 || b == 10 || b == 13) {
-                tracing::warn!(
-                    "Cache key contains invalid characters, falling back to uncached execution"
+                    "Invalid cache key: {}. Falling back to uncached execution",
+                    e
                 );
                 return async { #fn_block }.await;
             }
