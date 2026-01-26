@@ -113,5 +113,21 @@ required-features = ["http-cache"]
 name = "example_dynamic_config"
 path = "src/dynamic_config.rs"
 
+[[example]]
+name = "example_cached_macro"
+path = "src/01_basics/example_cached_macro.rs"
+
+[[example]]
+name = "example_bloom_filter"
+path = "src/06_features/example_bloom_filter.rs"
+
+[[example]]
+name = "example_rate_limiting"
+path = "src/06_features/example_rate_limiting.rs"
+
+[[example]]
+name = "example_database_integration"
+path = "src/05_database/example_database_integration.rs"
+
 [profile.release]
 opt-level = 1
