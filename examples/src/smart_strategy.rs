@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 智能策略示例
 //!
 //! 本示例演示 Oxcache 的智能策略功能。
@@ -19,7 +24,8 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 智能策略示例 ===\n");
+    println!("=== 智能策略示例 ===
+");
 
     // 创建缓存
     let cache: Cache<String, User> = Cache::new().await?;
@@ -50,7 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   完成 100 次访问");
 
     // 2. 压缩策略演示
-    println!("\n2. 压缩策略演示");
+    println!("
+2. 压缩策略演示");
     println!("   智能策略会自动根据数据大小决定是否压缩");
     println!("   (对于大型数据项启用压缩，小型数据保持未压缩)");
 
@@ -71,7 +78,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   添加小型和大型数据各一个");
 
     // 3. 缓存效率演示
-    println!("\n3. 缓存效率演示");
+    println!("
+3. 缓存效率演示");
 
     // 访问数据
     let start = std::time::Instant::now();
@@ -91,14 +99,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // 4. 缓存统计
-    println!("\n4. 缓存统计");
+    println!("
+4. 缓存统计");
     println!("   - 缓存操作已执行");
     println!("   - 详情请查看日志输出");
 
     // 清理
-    println!("\n5. 清理测试数据");
+    println!("
+5. 清理测试数据");
     cache.clear().await?;
-    println!("   ✓ 测试数据已清理\n");
+    println!("   ✓ 测试数据已清理
+");
 
     println!("=== 智能策略示例完成 ===");
     println!("   智能策略功能：");

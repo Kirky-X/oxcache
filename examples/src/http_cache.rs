@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! HTTP 缓存集成示例
 //!
 //! 本示例演示如何将 Oxcache 用于 HTTP 缓存场景。
@@ -19,7 +24,8 @@ struct HttpResponse {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== HTTP 缓存集成示例 ===\n");
+    println!("=== HTTP 缓存集成示例 ===
+");
 
     // 创建缓存
     let cache: Cache<String, HttpResponse> = Cache::new().await?;
@@ -40,7 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ 缓存 API 响应: /api/hello");
 
     // 2. 模拟请求
-    println!("\n2. 模拟 HTTP 请求");
+    println!("
+2. 模拟 HTTP 请求");
 
     let requests = vec![
         "/api/hello",
@@ -68,7 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 3. 缓存控制
-    println!("\n3. 缓存控制示例");
+    println!("
+3. 缓存控制示例");
 
     // 设置缓存响应
     let private_response = HttpResponse {
@@ -85,7 +93,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ 缓存已清除");
 
     // 4. 统计信息
-    println!("\n4. 缓存统计");
+    println!("
+4. 缓存统计");
     let stats = cache.stats().await?;
     println!("   - 总条目数: {}", stats.item_count());
     println!("   - 命中次数: {}", stats.hit_count());
@@ -98,9 +107,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 清理
-    println!("\n5. 清理测试数据");
+    println!("
+5. 清理测试数据");
     cache.clear().await?;
-    println!("   ✓ 测试数据已清理\n");
+    println!("   ✓ 测试数据已清理
+");
 
     println!("=== HTTP 缓存集成示例完成 ===");
     Ok(())

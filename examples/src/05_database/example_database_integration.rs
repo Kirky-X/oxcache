@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 数据库集成使用示例
 //!
 //! 本示例演示了 Oxcache 的数据库集成功能：
@@ -25,7 +30,8 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 数据库集成使用示例 ===\n");
+    println!("=== 数据库集成使用示例 ===
+");
 
     // 1. 创建缓存实例
     println!("1. 创建缓存实例");

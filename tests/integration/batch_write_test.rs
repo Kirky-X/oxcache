@@ -8,7 +8,7 @@ use common::{is_redis_available, setup_logging};
 use oxcache::Cache;
 use std::time::Duration;
 
-use crate::common;
+use super::common;
 
 /// 测试批量写入性能
 ///
@@ -27,7 +27,10 @@ async fn test_batch_write_performance() {
     let cache: Cache<String, i32> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create Redis cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create Redis cache (TLS required): {}",
+                e
+            );
             return;
         }
     };

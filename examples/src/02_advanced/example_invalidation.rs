@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 缓存失效策略示例
 //!
 //! 本示例演示了 Oxcache 的各种缓存失效策略：
@@ -26,7 +31,8 @@ struct Order {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 缓存失效策略示例 ===\n");
+    println!("=== 缓存失效策略示例 ===
+");
 
     // 创建分层缓存用于演示
     let cache: Arc<Cache<String, Order>> = Arc::new(Cache::new().await?);
@@ -62,7 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .set(&format!("order:{}", order.id), order)
             .await?;
     }
-    println!("   ✓ 添加了 {} 个订单\n", orders.len());
+    println!("   ✓ 添加了 {} 个订单
+", orders.len());
 
     // 2. 单个 key 失效
     println!("2. 单个 key 失效");
@@ -108,7 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 模拟用户 100 结账，需要清空其购物车
     // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
-    println!("   \n   用户 100 结账，清空其购物车...");
+    println!("   
+   用户 100 结账，清空其购物车...");
 
     // 实际应用中应该维护 key 的索引列表
     // 这里演示概念，实际需要应用层维护关联
@@ -132,7 +140,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   等待 3 秒...");
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    println!("   3 秒后获取: {:?}\n", ttl_cache.get(&"temp:data".to_string()).await?);
+    println!("   3 秒后获取: {:?}
+", ttl_cache.get(&"temp:data".to_string()).await?);
 
     // 6. 更新时失效 (Write-Invalidation)
     println!("6. 更新时失效 (Write-Invalidation)");

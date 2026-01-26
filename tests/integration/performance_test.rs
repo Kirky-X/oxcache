@@ -4,7 +4,7 @@
 //
 // 性能测试集成测试 - 使用新API
 
-use crate::common;
+use super::common;
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
 use oxcache::Cache;
@@ -32,7 +32,10 @@ async fn test_backfill_latency() {
     let cache: Cache<String, String> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create cache (TLS required): {}",
+                e
+            );
             return;
         }
     };

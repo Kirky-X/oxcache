@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
 // Quick verification that Redis backend works
 use oxcache::backend::client::RedisBackend;
 use oxcache::backend::CacheBackend;

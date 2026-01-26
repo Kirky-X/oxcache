@@ -7,7 +7,7 @@
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
 use oxcache::Cache;
 
-use crate::common;
+use super::common;
 
 /// 测试双层缓存流程
 ///
@@ -28,7 +28,10 @@ async fn test_two_level_cache_flow() {
     let cache: Cache<String, String> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!("Skipping test: Failed to create cache (TLS required): {}", e);
+            println!(
+                "Skipping test: Failed to create cache (TLS required): {}",
+                e
+            );
             return;
         }
     };

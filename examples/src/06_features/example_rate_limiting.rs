@@ -1,3 +1,8 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+//
+
 //! 限流保护使用示例
 //!
 //! 本示例演示了 Oxcache 的限流保护功能：
@@ -16,7 +21,8 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 限流保护使用示例 ===\n");
+    println!("=== 限流保护使用示例 ===
+");
 
     // 1. 创建限流器配置
     println!("1. 创建限流器配置");
