@@ -7,7 +7,7 @@
 // 本示例演示新API (v0.2.0+) 的创建和使用缓存。
 // 新API提供类型安全、独立的缓存接口。
 
-use oxcache::{Cache, CacheKey};
+use oxcache::{Cache, CacheKey, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -28,7 +28,7 @@ impl CacheKey for UserId {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     println!("新API使用示例");
     println!("======================\n");
 
@@ -54,14 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(cached_user.is_some());
     println!("✓ 从内存缓存检索用户: {:?}", cached_user.unwrap().name);
 
-    // 带回退的缓存旁路模式
-    let user: User = memory_cache
-        .get_or(&"user:2".to_string(), || async {
-            fetch_user_from_db(2).await
-        })
-        .await?;
-    println!("✓ 通过回退检索用户: {:?}", user.name);
-
     // ============================================================================
     // 2. Redis Cache
     // ============================================================================
@@ -69,42 +61,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("2. Redis缓存 (仅L2)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let redis_cache: Cache<String, User> =
-        Cache::redis("redis://127.0.0.1:6379").await?;
-
-    redis_cache.set(&"user:3".to_string(), &user.clone()).await?;
-
-    let cached_user: Option<User> = redis_cache.get(&"user:3".to_string()).await?;
-    assert!(cached_user.is_some());
-    println!("✓ 从Redis缓存检索用户: {:?}", cached_user.unwrap().name);
-
-    // ============================================================================
-    // 3. Tiered Cache (L1 + L2)
-    // ============================================================================
-    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("3. 分层缓存 (L1 + L2)");
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-    let tiered_cache: Cache<String, User> =
-        Cache::tiered(10000, "redis://127.0.0.1:6379").await?;
-
-    tiered_cache.set(&"user:4".to_string(), &user.clone()).await?;
-
-    // 首次获取 - 从L2获取，在L1缓存
-    let cached_user: Option<User> = tiered_cache.get(&"user:4".to_string()).await?;
-    assert!(cached_user.is_some());
-    println!("✓ 首次获取 (来自L2): {:?}", cached_user.unwrap().name);
-
-    // 第二次获取 - 从L1获取 (快速)
-    let cached_user: Option<User> = tiered_cache.get(&"user:4".to_string()).await?;
-    assert!(cached_user.is_some());
-    println!("✓ 第二次获取 (来自L1): {:?}", cached_user.unwrap().name);
+    // 注意: 需要先启动 Redis 服务
+    // 使用 OXCACHE_ALLOW_INSECURE_REDIS=1 环境变量允许非TLS连接
+    match Cache::redis("redis://127.0.0.1:6379").await {
+        Ok(redis_cache) => {
+            redis_cache.set(&"user:3".to_string(), &user.clone()).await?;
+            let cached_user: Option<User> = redis_cache.get(&"user:3".to_string()).await?;
+            assert!(cached_user.is_some());
+            println!("✓ 从Redis缓存检索用户: {:?}", cached_user.unwrap().name);
+        }
+        Err(e) => {
+            println!("⚠ Redis不可用，跳过Redis测试: {:?}", e);
+        }
+    }
 
     // ============================================================================
-    // 4. Custom Key Type
+    // 3. Custom Key Type
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("4. 自定义键类型");
+    println!("3. 自定义键类型");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let custom_cache: Cache<UserId, User> = Cache::new().await?;
@@ -117,22 +92,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ 使用自定义键检索用户: {:?}", cached_user.unwrap().name);
 
     // ============================================================================
-    // 5. Advanced Configuration with Builder
+    // 4. Advanced Configuration with Builder
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("5. 高级配置");
+    println!("4. 高级配置 (使用 Builder)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    use oxcache::builder::{BackendBuilder, CacheBuilder};
     use std::time::Duration;
 
-    let advanced_cache: Cache<String, User> = CacheBuilder::new()
-        .backend(
-            BackendBuilder::tiered()
-                .l1_capacity(5000)
-                .l2_connection_string("redis://127.0.0.1:6379")
-                .auto_promote(true)
-        )
+    // 使用 builder 创建高级配置缓存
+    let advanced_cache: Cache<String, User> = Cache::builder()
         .ttl(Duration::from_secs(3600))
         .build()
         .await?;
@@ -140,39 +109,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     advanced_cache.set(&"user:6".to_string(), &user).await?;
     let cached_user: Option<User> = advanced_cache.get(&"user:6".to_string()).await?;
     assert!(cached_user.is_some());
-    println!("✓ 从高级缓存检索用户: {:?}", cached_user.unwrap().name);
+    println!("✓ 从高级配置缓存检索用户: {:?}", cached_user.unwrap().name);
 
     // ============================================================================
-    // 6. TTL Operations
+    // 5. TTL Operations (using set_with_ttl)
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("6. TTL操作");
+    println!("5. TTL操作 (使用 set_with_ttl)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let ttl_cache: Cache<String, User> = Cache::new().await?;
 
-    // 设置带TTL
+    // 设置带TTL (60秒)
     ttl_cache
-        .set_with_ttl(&"user:7".to_string(), &user, Duration::from_secs(60))
+        .set_with_ttl(&"user:7".to_string(), &user, Some(Duration::from_secs(60)))
         .await?;
 
-    // 获取TTL
-    let ttl = ttl_cache.ttl(&"user:7".to_string()).await?;
-    println!("✓ 用户:7的TTL: {:?}", ttl);
+    // 获取并验证 - 值存在
+    let cached_user = ttl_cache.get(&"user:7".to_string()).await?;
+    assert!(cached_user.is_some());
+    println!("✓ 设置带60秒TTL的用户:7");
 
-    // 刷新TTL
+    // 重新设置带新的TTL (120秒)
     ttl_cache
-        .refresh_ttl(&"user:7".to_string(), Duration::from_secs(120))
+        .set_with_ttl(&"user:7".to_string(), &user, Some(Duration::from_secs(120)))
         .await?;
-
-    let new_ttl = ttl_cache.ttl(&"user:7".to_string()).await?;
-    println!("✓ 刷新用户:7的TTL: {:?}", new_ttl);
+    println!("✓ 更新用户:7的TTL为120秒");
 
     // ============================================================================
-    // 7. Batch Operations
+    // 6. Batch Operations
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("7. 批量操作");
+    println!("6. 批量操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let batch_cache: Cache<String, User> = Cache::new().await?;
@@ -205,10 +173,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ 从缓存检索 {} 个用户", retrieved_count);
 
     // ============================================================================
-    // 8. Delete Operations
+    // 7. Delete Operations
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("8. 删除操作");
+    println!("7. 删除操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let delete_cache: Cache<String, User> = Cache::new().await?;
@@ -227,10 +195,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ 删除后用户:8存在: {}", exists);
 
     // ============================================================================
-    // 9. Clear Operations
+    // 8. Clear Operations
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("9. 清空操作");
+    println!("8. 清空操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let clear_cache: Cache<String, User> = Cache::new().await?;
@@ -251,6 +219,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ 清空后用户:1存在: {}", exists);
 
     // ============================================================================
+    // 9. Get-or-Fallback Pattern
+    // ============================================================================
+    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("9. 带回退的缓存旁路模式 (get_or)");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    let fallback_cache: Cache<String, User> = Cache::new().await?;
+
+    // 首次获取 - 使用回退函数
+    let user: User = fallback_cache
+        .get_or(&"user:10".to_string(), || async {
+            Ok::<User, oxcache::CacheError>(fetch_user_from_db(10).await)
+        })
+        .await?;
+    println!("✓ 通过回退函数检索用户: {:?}", user.name);
+
+    // ============================================================================
     // 10. Summary
     // ============================================================================
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -258,14 +243,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("\n新API特性:");
     println!("  ✓ 类型安全的缓存接口");
-    println!("  ✓ 内存、Redis和分层缓存");
-    println!("  ✓ 自定义键类型");
-    println!("  ✓ 用于配置的构建器模式");
-    println!("  ✓ TTL操作");
-    println!("  ✓ 批量操作");
-    println!("  ✓ 删除和清空操作");
-    println!("  ✓ 带回退的缓存旁路模式");
+    println!("  ✓ 内存缓存 (Cache::new())");
+    println!("  ✓ Redis缓存 (Cache::redis())");
+    println!("  ✓ 自定义键类型 (CacheKey trait)");
+    println!("  ✓ 用于配置的构建器模式 (Cache::builder())");
+    println!("  ✓ TTL操作 (set_with_ttl)");
+    println!("  ✓ 批量操作 (set_many, get_many)");
+    println!("  ✓ 删除和清空操作 (delete, clear)");
+    println!("  ✓ 存在检查 (exists)");
+    println!("  ✓ 带回退的缓存旁路模式 (get_or)");
 
+    println!("\n✅ 新API示例完成!");
     Ok(())
 }
 
