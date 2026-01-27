@@ -2,7 +2,7 @@
 //
 // MIT License
 //
-// Redis测试工具
+// Redis测试工具 - 支持环境变量控制测试跳过
 
 #![allow(dead_code)]
 
@@ -12,49 +12,76 @@ use oxcache::backend::client::RedisBackend;
 use oxcache::backend::CacheBackend;
 use std::time::Duration;
 
+/// 检查是否应该跳过 Redis 测试
+/// 控制环境变量:
+/// - OXCACHE_SKIP_REDIS_TESTS=1 - 跳过所有 Redis 测试
+/// - OXCACHE_TEST_REDIS=1 - 显式启用 Redis 测试
+pub async fn is_redis_available() -> bool {
+    // 如果设置了跳过变量，直接返回 false
+    if std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_ok() {
+        println!("[TEST-SKIP] Redis tests skipped via OXCACHE_SKIP_REDIS_TESTS");
+        return false;
+    }
+
+    // 如果没有显式设置启用，且 REDIS_URL 不可达，跳过
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+    if !is_redis_available_url(&redis_url).await {
+        println!("[TEST-SKIP] Redis not available at {} (set OXCACHE_SKIP_REDIS_TESTS=1 to skip)", redis_url);
+        return false;
+    }
+
+    true
+}
+
+/// Create Redis backend for testing
 #[cfg(feature = "redis")]
-pub(crate) async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String> {
-    let redis_url = "redis://127.0.0.1:6379";
-    RedisBackend::new(redis_url)
+pub async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String> {
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    RedisBackend::new(&redis_url)
         .await
         .map_err(|e| e.to_string())
 }
 
+/// Test Redis connection
 #[cfg(feature = "redis")]
-pub(crate) async fn test_redis_connection() -> Result<(), String> {
+pub async fn test_redis_connection() -> Result<(), String> {
     let backend = match create_l2_backend_with_real_redis().await {
         Ok(b) => b,
-        Err(e) => return Err(format!("无法创建Redis连接: {}", e)),
+        Err(e) => return Err(format!("Failed to create Redis connection: {}", e)),
     };
     let test_key = "oxcache:test:connection";
     if let Err(e) = backend
         .set(test_key, b"test".to_vec(), Some(Duration::from_secs(60)))
         .await
     {
-        return Err(format!("SET操作失败: {}", e));
+        return Err(format!("SET operation failed: {}", e));
     }
     let value_opt = match backend.get(test_key).await {
         Ok(v) => v,
-        Err(e) => return Err(format!("GET操作失败: {}", e)),
+        Err(e) => return Err(format!("GET operation failed: {}", e)),
     };
     let value = match value_opt {
         Some(v) => v,
-        None => return Err("Redis返回空值".to_string()),
+        None => return Err("Redis returned empty value".to_string()),
     };
     if &value != b"test" {
-        return Err("Redis返回的值不正确".to_string());
+        return Err("Redis returned incorrect value".to_string());
     }
     if let Err(e) = backend.delete(test_key).await {
-        return Err(format!("DELETE操作失败: {}", e));
+        return Err(format!("DELETE operation failed: {}", e));
     }
     Ok(())
 }
 
+/// Create standalone Redis URL
 #[allow(dead_code)]
 pub fn create_standalone_redis_url() -> String {
-    "redis://127.0.0.1:6379".to_string()
+    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
+/// Create cluster Redis URLs
 #[allow(dead_code)]
 pub fn create_cluster_redis_urls() -> Vec<String> {
     vec![
@@ -64,17 +91,13 @@ pub fn create_cluster_redis_urls() -> Vec<String> {
     ]
 }
 
+/// Cleanup test keys (simplified)
 #[allow(dead_code)]
 pub async fn cleanup_test_keys(_pattern: &str) -> Result<(), String> {
-    // 简化实现
     Ok(())
 }
 
-#[allow(dead_code)]
-pub fn is_redis_available() -> bool {
-    std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
-}
-
+/// 检查 Redis 服务是否可达（实际网络检查）
 pub async fn is_redis_available_url(url: &str) -> bool {
     let client = match redis::Client::open(url) {
         Ok(c) => c,
@@ -82,7 +105,7 @@ pub async fn is_redis_available_url(url: &str) -> bool {
     };
 
     match tokio::time::timeout(
-        Duration::from_secs(1),
+        Duration::from_secs(2),
         client.get_multiplexed_async_connection(),
     )
     .await

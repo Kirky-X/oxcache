@@ -178,23 +178,15 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
     }
 
     // 检查命令注入模式
-    const COMMAND_INJECTION_PATTERNS: &[&str] = &[
-        ";", "|", "&", "$(", "`", "${", "&&", "||", ">", "<", ">", ">>", "<<", "\n", "\r", "&&",
-        "||",
-    ];
+    // 直接检测危险字符，不使用可能绕过的不安全条件
+    const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
 
     for c in key.chars() {
-        // 检查管道和重定向符（可能被误用）
-        if (c == ';' || c == '|' || c == '&' || c == '`') && key.len() > 10
-        // 只有长键才检查，避免误报
-        {
-            // 检查是否在可能的命令上下文中
-            if key.chars().take(5).any(|x| x.is_alphabetic()) {
-                return Err(CacheError::InvalidInput(format!(
-                    "Redis key contains potential command injection character: {:?}",
-                    c
-                )));
-            }
+        if COMMAND_INJECTION_CHARS.contains(&c) {
+            return Err(CacheError::InvalidInput(format!(
+                "Redis key contains potential command injection character: {:?}",
+                c
+            )));
         }
     }
 
@@ -643,5 +635,105 @@ mod tests {
         assert_eq!(clamp_scan_count(500), 500);
         assert_eq!(clamp_scan_count(1000), SCAN_COUNT_MAX);
         assert_eq!(clamp_scan_count(2000), SCAN_COUNT_MAX);
+    }
+
+    // ============================================================================
+    // 边界测试 - SQL 注入检测
+    // ============================================================================
+
+    #[test]
+    fn test_sql_injection_patterns() {
+        // 真正的 SQL 注入尝试应该被检测
+        assert!(validate_redis_key("' OR '1'='1").is_err());
+        assert!(validate_redis_key("'; DROP TABLE--").is_err());
+        assert!(validate_redis_key("1 OR 1=1").is_err());
+    }
+
+    #[test]
+    fn test_sql_injection_false_positive_prevention() {
+        // 正常的键名不应该被误判
+        assert!(validate_redis_key("order_status").is_ok());
+        assert!(validate_redis_key("user_data_123").is_ok());
+        assert!(validate_redis_key("api_response").is_ok());
+    }
+
+    #[test]
+    fn test_command_injection_patterns() {
+        // 命令注入尝试应该被检测（长键会触发检测）
+        assert!(validate_redis_key("some_long_key_name;ls").is_err());
+        assert!(validate_redis_key("some_long_key_name|cat").is_err());
+        assert!(validate_redis_key("some_long_key_name&whoami").is_err());
+        // 单独的危险字符也会被检测
+        assert!(validate_redis_key("key;value").is_err());
+        assert!(validate_redis_key("key|value").is_err());
+    }
+
+    #[test]
+    fn test_path_traversal_patterns() {
+        // 路径遍历尝试应该被检测
+        assert!(validate_redis_key("../etc/passwd").is_err());
+        assert!(validate_redis_key("..\\windows\\system32").is_err());
+    }
+
+    #[test]
+    fn test_unicode_control_characters() {
+        // Unicode 控制字符应该被检测
+        assert!(validate_redis_key("key\u{0001}value").is_err());
+        assert!(validate_redis_key("key\u{007F}value").is_err());
+    }
+
+    #[test]
+    fn test_lua_script_edge_cases() {
+        // Lua 脚本边界测试
+        let script = "return 1";
+        assert!(validate_lua_script(script, 0).is_ok());
+
+        // 空的 Lua 脚本应该被允许（语法上有效，返回 nil）
+        let script = "";
+        assert!(validate_lua_script(script, 0).is_ok());
+
+        // FLUSHALL 应该被检测
+        let script = "return redis.call('FLUSHALL')";
+        assert!(validate_lua_script(script, 0).is_err());
+    }
+
+    #[test]
+    fn test_lua_script_comment_bypass_prevention() {
+        // 测试通过注释绕过检测的防护
+        let script = "--[[ FLUSHALL ]] return 1";
+        assert!(validate_lua_script(script, 0).is_ok());
+
+        let script = "return 1 -- FLUSHALL";
+        assert!(validate_lua_script(script, 0).is_ok());
+    }
+
+    #[test]
+    fn test_scan_pattern_edge_cases() {
+        // SCAN 模式边界测试
+        assert!(validate_scan_pattern("*").is_ok());
+        assert!(validate_scan_pattern("?").is_ok());
+        assert!(validate_scan_pattern("[a-z]").is_ok());
+        // 空模式
+        assert!(validate_scan_pattern("").is_ok());
+    }
+
+    #[test]
+    fn test_redis_key_max_length_boundary() {
+        // 精确的边界测试：512KB 是最大值
+        let max_key = "x".repeat(512 * 1024);
+        assert!(validate_redis_key(&max_key).is_ok());
+
+        let over_max_key = "x".repeat(512 * 1024 + 1);
+        assert!(validate_redis_key(&over_max_key).is_err());
+    }
+
+    #[test]
+    fn test_lua_script_max_length_boundary() {
+        // 精确的边界测试：10KB 是最大值
+        let max_script = "x".repeat(MAX_LUA_SCRIPT_LENGTH);
+        assert!(validate_lua_script(&max_script, 1).is_ok());
+
+        let over_max_script = "x".repeat(MAX_LUA_SCRIPT_LENGTH + 1);
+        assert!(validate_lua_script(&over_max_script, 1).is_err());
     }
 }
