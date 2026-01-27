@@ -16,6 +16,7 @@
 //! ```
 
 use std::sync::Arc;
+use std::time::Duration;
 use oxcache::Cache;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -85,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let p = product.clone();
         let handle = tokio::spawn(async move {
             cache
-                .set(&format!("product:{}", p.id), &p, Some(3600))
+                .set_with_ttl(&format!("product:{}", p.id), &p, Some(Duration::from_secs(3600)))
                 .await
         });
         handles.push(handle);
@@ -113,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(mut product) = cache.get(&format!("product:{}", id)).await? {
             product.price = *new_price;
             cache
-                .set(&format!("product:{}", id), &product, Some(3600))
+                .set_with_ttl(&format!("product:{}", id), &product, Some(Duration::from_secs(3600)))
                 .await?;
             println!(
                 "     产品 {}: {} 新价格: ¥{:.2}",
@@ -151,9 +152,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. 统计信息
     println!("5. 缓存统计");
     let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.item_count());
-    println!("   - 命中次数: {}", stats.hit_count());
-    println!("   - 未命中次数: {}", stats.miss_count());
+    println!("   - 缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
+    println!("   - 容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
+    println!("   - 条目数: {}", stats.get("entry_count").unwrap_or(&"N/A".to_string()));
     println!();
 
     println!("=== 批量写入优化示例完成 ===");
