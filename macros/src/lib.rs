@@ -10,7 +10,6 @@ use syn::{
     parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, ItemFn, Lit, Meta, Token,
 };
 
-
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
@@ -117,13 +116,14 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-
-
     // Generate cloned argument names for key generation to avoid ownership issues
-    let arg_names_cloned: Vec<_> = arg_names.iter().map(|name| {
-        quote! { (#name).clone() }
-    }).collect();
-    
+    let arg_names_cloned: Vec<_> = arg_names
+        .iter()
+        .map(|name| {
+            quote! { (#name).clone() }
+        })
+        .collect();
+
     // Generate key logic with cloned args
     let key_gen_with_cloned_args = if let Some(pattern) = key_pattern {
         // Custom format string pattern: "user_{id}"
@@ -229,7 +229,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     };
-    
+
     let output = quote! {
         #vis async fn #fn_name(#fn_args) #fn_output {
             let cache_key = #key_gen_with_cloned_args;

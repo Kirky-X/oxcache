@@ -211,7 +211,10 @@ mod tests {
     fn test_cache_event_type_display() {
         assert_eq!(CacheEventType::Hit.to_string(), "hit");
         assert_eq!(CacheEventType::Miss.to_string(), "miss");
-        assert_eq!(CacheEventType::Custom("test".to_string()).to_string(), "custom:test");
+        assert_eq!(
+            CacheEventType::Custom("test".to_string()).to_string(),
+            "custom:test"
+        );
     }
 
     #[tokio::test]
