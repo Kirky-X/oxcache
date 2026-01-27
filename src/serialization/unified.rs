@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn test_zero_copy_operations() {
-        let _data = test_data();
+        let data = test_data();
 
         #[cfg(feature = "bincode")]
         {
