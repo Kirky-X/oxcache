@@ -10,9 +10,62 @@ use crate::error::{CacheError, Result};
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::SerializationFormat;
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+
+/// Wrapper for SecretString that implements serde serialization
+/// This allows the password to be stored securely while still being serializable
+#[derive(Debug, Clone)]
+pub struct SecretStringWrapper(SecretString);
+
+impl SecretStringWrapper {
+    /// Create a new wrapper from a string
+    pub fn new<S: Into<String>>(value: S) -> Self {
+        Self(SecretString::new(value.into()))
+    }
+
+    /// Create from optional string
+    pub fn from_option(value: Option<String>) -> Option<Self> {
+        value.map(Self::new)
+    }
+
+    /// Get the inner SecretString
+    pub fn inner(&self) -> &SecretString {
+        &self.0
+    }
+
+    /// Expose the secret as a string
+    pub fn expose_secret(&self) -> &str {
+        self.0.expose_secret()
+    }
+}
+
+impl Serialize for SecretStringWrapper {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.0.expose_secret())
+    }
+}
+
+impl<'de> Deserialize<'de> for SecretStringWrapper {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::new(value))
+    }
+}
+
+impl std::fmt::Display for SecretStringWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.expose_secret())
+    }
+}
 
 /// Unified cache configuration
 ///
@@ -99,8 +152,8 @@ pub struct RedisConnectionConfig {
     pub connect_timeout: Duration,
     /// Command timeout
     pub command_timeout: Duration,
-    /// Authentication password
-    pub password: Option<String>,
+    /// Authentication password (using SecretString for memory protection)
+    pub password: Option<SecretStringWrapper>,
     /// Database number
     pub database: Option<i64>,
     /// Connection name
@@ -646,6 +699,13 @@ impl UnifiedConfig {
                 _ => RedisMode::Standalone,
             };
 
+            // Convert SecretStringWrapper back to String for the Redis client
+            let password = redis_config
+                .connection
+                .password
+                .as_ref()
+                .map(|s| s.to_string());
+
             RedisConfig {
                 connection_strings: redis_config.connection.connection_strings.clone(),
                 mode,
@@ -654,7 +714,7 @@ impl UnifiedConfig {
                 max_pool_size: Some(redis_config.pool.max_size),
                 min_pool_size: Some(redis_config.pool.min_size),
                 connection_name: redis_config.connection.connection_name.clone(),
-                password: redis_config.connection.password.clone(),
+                password,
                 database: redis_config.connection.database.map(|d| d as u32),
             }
         })
