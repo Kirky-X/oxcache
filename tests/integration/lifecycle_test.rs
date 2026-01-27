@@ -6,7 +6,7 @@
 
 #![allow(deprecated)]
 
-use super::common::{is_redis_available, setup_logging};
+use crate::common::{is_redis_available, setup_logging};
 
 #[tokio::test]
 async fn test_client_lifecycle_shutdown() {

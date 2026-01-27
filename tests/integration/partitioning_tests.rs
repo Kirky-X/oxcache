@@ -20,7 +20,6 @@ use tempfile::TempDir;
 // 使用path属性引用根目录下的database_test_utils
 #[path = "../database_test_utils.rs"]
 mod database_test_utils;
-use database_test_utils::*;
 
 // ============================================================================
 // 辅助函数

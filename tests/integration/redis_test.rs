@@ -4,20 +4,17 @@
 //
 // Redis集成测试 - 新API版本
 
-use super::common::get_redis_url;
+use crate::common::get_redis_url;
 #[path = "../redis_test_utils.rs"]
 mod redis_test_utils;
 use oxcache::backend::client::redis::RedisBackend;
 use redis_test_utils::{is_redis_available, test_redis_connection};
 
-#[path = "../common/mod.rs"]
-mod common;
-
 #[tokio::test]
 async fn test_redis_backend_standalone_creation() {
     println!("测试RedisBackend Standalone模式创建...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -47,7 +44,7 @@ async fn test_redis_backend_standalone_creation() {
 async fn test_redis_backend_standalone_basic_operations() {
     println!("测试RedisBackend Standalone模式基本操作...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -73,7 +70,7 @@ async fn test_redis_backend_standalone_basic_operations() {
 async fn test_redis_backend_ping() {
     println!("测试RedisBackend PING...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -94,7 +91,7 @@ async fn test_redis_backend_ping() {
 async fn test_redis_backend_connection_string_variations() {
     println!("测试不同连接字符串格式...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -117,7 +114,7 @@ async fn test_redis_backend_connection_string_variations() {
 async fn test_redis_backend_multiple_operations() {
     println!("测试RedisBackend多次连接...");
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }

@@ -4,11 +4,9 @@
 //
 // 批量写入集成测试 - 使用新API
 
-use common::{is_redis_available, setup_logging};
+use crate::common::{is_redis_available, setup_logging};
 use oxcache::Cache;
 use std::time::Duration;
-
-use super::common;
 
 /// 测试批量写入性能
 ///

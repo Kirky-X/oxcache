@@ -4,15 +4,13 @@
 //
 // 综合集成测试 - 简化版本
 
+use crate::common::setup_logging;
 use oxcache::Cache;
-
-#[path = "../common/mod.rs"]
-mod common;
 
 /// 测试新Cache API的综合功能
 #[tokio::test]
 async fn test_comprehensive_cache_api() {
-    common::setup_logging();
+    setup_logging();
 
     let cache: Cache<String, String> = Cache::new().await.unwrap();
 

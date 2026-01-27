@@ -4,7 +4,7 @@
 //
 // 性能测试集成测试 - 使用新API
 
-use super::common;
+use crate::common;
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
 use oxcache::Cache;

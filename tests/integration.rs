@@ -7,6 +7,10 @@
 // Contains all integration tests for the cache system.
 // These tests verify the interaction between different components.
 
+// Common modules shared by integration tests - declared as pub so #[path] modules can access
+#[path = "common/mod.rs"]
+pub mod common;
+
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
 #[path = "integration/chaos_test.rs"]
@@ -55,7 +59,3 @@ mod two_level_test;
 mod version_test;
 #[path = "integration/wal_test.rs"]
 mod wal_test;
-
-// Common modules shared by integration tests
-#[path = "common/mod.rs"]
-mod common;

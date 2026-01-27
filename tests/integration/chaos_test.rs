@@ -8,9 +8,6 @@ use oxcache::Cache;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[path = "../common/mod.rs"]
-mod common;
-
 /// 简化的chaos测试 - 测试基本故障恢复
 #[tokio::test]
 async fn test_basic_fault_recovery() {
