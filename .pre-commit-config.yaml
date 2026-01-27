@@ -44,7 +44,7 @@ repos:
       - id: toml-validate
         name: TOML Validation
         description: Validate Cargo.toml and config files
-        entry: bash scripts/precommit_toml.sh
+        entry: bash scripts/pre-commit/precommit_toml.sh
         language: system
         types: [toml]
         pass_filenames: false
