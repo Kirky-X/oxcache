@@ -4,11 +4,10 @@
 //
 // Redis集成测试 - 新API版本
 
-use crate::common::get_redis_url;
 #[path = "../redis_test_utils.rs"]
 mod redis_test_utils;
 use oxcache::backend::client::redis::RedisBackend;
-use redis_test_utils::{is_redis_available, test_redis_connection};
+use redis_test_utils::{is_redis_available, test_redis_connection, get_redis_url};
 
 #[tokio::test]
 async fn test_redis_backend_standalone_creation() {
