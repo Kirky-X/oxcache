@@ -12,11 +12,13 @@ use crate::{
 #[cfg(feature = "redis")]
 use async_trait::async_trait;
 #[cfg(feature = "redis")]
+use rand::Rng;
+#[cfg(feature = "redis")]
 use redis::{aio::ConnectionManager, Client};
 #[cfg(feature = "redis")]
 use secrecy::ExposeSecret;
 #[cfg(feature = "redis")]
-use tokio::time::{timeout, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 #[cfg(feature = "redis")]
 #[async_trait]
@@ -54,27 +56,48 @@ impl RedisProvider for DefaultRedisProvider {
         };
 
         let client = Client::open(connection_string.as_str())?;
-        let manager = match timeout(
-            Duration::from_millis(config.connection_timeout_ms),
-            client.get_connection_manager(),
-        )
-        .await
-        {
-            Ok(res) => res?,
-            Err(_) => {
-                // Try again with longer timeout?
-                // Or maybe the sentinel gave us an internal IP that is not reachable?
-                // In docker compose, containers share a network so 172.x.x.x should be reachable.
-                // But connection_timeout_ms might be too short for initial handshake.
 
-                // Let's print the error context if possible, but timeout doesn't give error.
-                return Err(CacheError::L2Error(format!(
-                    "Connection timed out after {}ms. Target: [REDACTED]",
-                    config.connection_timeout_ms
-                )));
+        // 带重试的连接获取
+        let max_retries = config.max_retries;
+        let retry_delay_ms = config.retry_delay_ms;
+        let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
+
+        for attempt in 0..=max_retries {
+            match timeout(
+                Duration::from_millis(config.connection_timeout_ms),
+                client.get_connection_manager(),
+            )
+            .await
+            {
+                Ok(Ok(manager)) => {
+                    return Ok((client, manager));
+                }
+                Ok(Err(e)) => {
+                    last_error = Some(Box::new(e));
+                }
+                Err(_) => {
+                    last_error = Some(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "Connection timeout",
+                    )));
+                }
             }
-        };
-        Ok((client, manager))
+
+            if attempt < max_retries {
+                // 指数退避 + 随机抖动
+                let delay_ms = (2u64.pow(attempt) * retry_delay_ms)
+                    .min(5000)
+                    .min(config.connection_timeout_ms / 2);
+                let jitter = rand::thread_rng().gen_range(0..50);
+                sleep(Duration::from_millis(delay_ms + jitter)).await;
+            }
+        }
+
+        Err(CacheError::L2Error(format!(
+            "Failed to connect after {} attempts. Last error: {:?}",
+            max_retries + 1,
+            last_error
+        )))
     }
 
     async fn get_cluster_client(&self, config: &L2Config) -> Result<redis::cluster::ClusterClient> {

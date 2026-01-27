@@ -357,7 +357,7 @@ impl L1Config {
     }
 }
 
-/// L2 缓存配置（需要 redis feature）
+/// L2 配置（需要 redis feature）
 ///
 /// 定义分布式缓存的相关配置。
 #[cfg(feature = "redis")]
@@ -388,6 +388,20 @@ pub struct L2Config {
     pub max_key_length: usize,
     /// 值的最大大小（字节）
     pub max_value_size: usize,
+    /// 连接池最大大小
+    pub pool_max_size: u32,
+    /// 连接池最小空闲连接数
+    pub pool_min_idle: u32,
+    /// 连接最大生命周期（秒）
+    pub max_lifetime_secs: u64,
+    /// 空闲超时（秒）
+    pub idle_timeout_secs: u64,
+    /// 最大重试次数
+    pub max_retries: u32,
+    /// 重试间隔（毫秒）
+    pub retry_delay_ms: u64,
+    /// 启用连接验证
+    pub test_on_borrow: bool,
 }
 
 #[cfg(feature = "redis")]
@@ -469,6 +483,30 @@ impl L2Config {
         self.cluster = Some(cluster);
         self
     }
+
+    /// 设置最大重试次数
+    pub fn with_max_retries(mut self, retries: u32) -> Self {
+        self.max_retries = retries;
+        self
+    }
+
+    /// 设置重试间隔（毫秒）
+    pub fn with_retry_delay_ms(mut self, delay: u64) -> Self {
+        self.retry_delay_ms = delay;
+        self
+    }
+
+    /// 设置连接池最大大小
+    pub fn with_pool_max_size(mut self, size: u32) -> Self {
+        self.pool_max_size = size;
+        self
+    }
+
+    /// 设置连接池最小空闲连接数
+    pub fn with_pool_min_idle(mut self, size: u32) -> Self {
+        self.pool_min_idle = size;
+        self
+    }
 }
 
 #[cfg(feature = "redis")]
@@ -486,6 +524,13 @@ impl Default for L2Config {
             default_ttl: None,
             max_key_length: 512,
             max_value_size: 10 * 1024 * 1024,
+            pool_max_size: 50,
+            pool_min_idle: 5,
+            max_lifetime_secs: 1800,
+            idle_timeout_secs: 300,
+            max_retries: 3,
+            retry_delay_ms: 100,
+            test_on_borrow: true,
         }
     }
 }

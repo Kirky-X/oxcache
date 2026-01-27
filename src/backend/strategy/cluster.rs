@@ -53,6 +53,37 @@ impl ClusterStrategy {
             .await
             .map_err(CacheError::RedisError)
     }
+
+    /// 计算哈希槽位
+    fn slot(&self, key: &str) -> u16 {
+        if let Some(start) = key.find('{') {
+            if let Some(end) = key.find('}') {
+                if end > start + 1 {
+                    let tag = &key[start + 1..end];
+                    if !tag.is_empty() {
+                        return self.crc16(tag.as_bytes()) % 16384;
+                    }
+                }
+            }
+        }
+        self.crc16(key.as_bytes()) % 16384
+    }
+
+    /// CRC16 算法
+    fn crc16(&self, data: &[u8]) -> u16 {
+        let mut crc: u16 = 0;
+        for &byte in data {
+            crc ^= byte as u16;
+            for _ in 0..8 {
+                if crc & 0x0001 != 0 {
+                    crc = (crc >> 1) ^ 0xA001;
+                } else {
+                    crc >>= 1;
+                }
+            }
+        }
+        crc
+    }
 }
 
 #[async_trait]
@@ -323,34 +354,85 @@ impl L2BackendStrategy for ClusterStrategy {
 
     #[instrument(skip(self), level = "debug", name = "cluster_mget")]
     async fn mget(&self, keys: &[&str]) -> Result<HashMap<String, Vec<u8>>> {
-        // Redis Cluster 的 MGET 需要所有键在同一个槽位
-        // 如果键不在同一个槽位，需要分别获取
-        let mut result = HashMap::new();
-
-        for key in keys {
-            match self.get(key).await {
-                Ok(Some(value)) => {
-                    result.insert(key.to_string(), value);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    warn!(key, error = %e, "Failed to get value in mget");
-                }
-            }
+        if keys.is_empty() {
+            return Ok(HashMap::new());
         }
 
-        Ok(result)
+        // 检查所有键是否在同一个槽位
+        let first_slot = self.slot(keys[0]);
+        let same_slot = keys.iter().all(|k| self.slot(k) == first_slot);
+
+        if same_slot {
+            // 使用真正的 Redis MGET 命令
+            let mut conn = self.get_connection().await?;
+            let mut cmd = redis::cmd("MGET");
+            for key in keys {
+                cmd.arg(key);
+            }
+            let results: Vec<Option<Vec<u8>>> = cmd.query_async(&mut conn).await?;
+
+            let mut result = HashMap::with_capacity(keys.len());
+            for (key, value) in keys.iter().zip(results.into_iter()) {
+                if let Some(bytes) = value {
+                    result.insert(key.to_string(), bytes);
+                }
+            }
+            Ok(result)
+        } else {
+            // 键不在同一个槽位，降级到单独获取
+            warn!(
+                keys_count = keys.len(),
+                "Keys not in same slot, using individual gets"
+            );
+            let mut result = HashMap::new();
+            for key in keys {
+                match self.get(key).await {
+                    Ok(Some(value)) => {
+                        result.insert(key.to_string(), value);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        warn!(key, error = %e, "Failed to get value in mget");
+                    }
+                }
+            }
+            Ok(result)
+        }
     }
 
     #[instrument(skip(self, items), level = "debug", name = "cluster_mset")]
     async fn mset(&self, items: &[(&str, &[u8])], ttl: Option<u64>) -> Result<()> {
-        // Redis Cluster 的 MSET 需要所有键在同一个槽位
-        // 如果键不在同一个槽位，需要分别设置
-        for (key, value) in items {
-            self.set(key, value, ttl).await?;
+        if items.is_empty() {
+            return Ok(());
         }
 
-        Ok(())
+        // 检查所有键是否在同一个槽位
+        let first_slot = self.slot(items[0].0);
+        let same_slot = items.iter().all(|(k, _)| self.slot(k) == first_slot);
+
+        if same_slot {
+            // 使用流水线批量执行 SET 命令
+            let mut conn = self.get_connection().await?;
+            let mut pipeline = redis::pipe();
+            for (key, value) in items {
+                pipeline.set(key, value);
+                if let Some(ttl_secs) = ttl {
+                    pipeline.expire(key, ttl_secs as i64);
+                }
+            }
+            let () = pipeline.query_async(&mut conn).await?;
+            Ok(())
+        } else {
+            // 键不在同一个槽位，降级到单独设置
+            warn!(
+                items_count = items.len(),
+                "Keys not in same slot, using individual sets"
+            );
+            for (key, value) in items {
+                self.set(key, value, ttl).await?;
+            }
+            Ok(())
+        }
     }
 
     #[instrument(skip(self), level = "debug", name = "cluster_scan")]

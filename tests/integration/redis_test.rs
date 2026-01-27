@@ -7,7 +7,7 @@
 #[path = "../redis_test_utils.rs"]
 mod redis_test_utils;
 use oxcache::backend::client::redis::RedisBackend;
-use redis_test_utils::{is_redis_available, test_redis_connection, get_redis_url};
+use redis_test_utils::{get_redis_url, is_redis_available, test_redis_connection};
 
 #[tokio::test]
 async fn test_redis_backend_standalone_creation() {
