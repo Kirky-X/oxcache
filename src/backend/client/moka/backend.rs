@@ -7,6 +7,7 @@
 use crate::backend::interface::CacheBackend;
 use crate::error::Result;
 use async_trait::async_trait;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -119,6 +120,10 @@ impl CacheBackend for MokaMemoryBackend {
             self.cache.entry_count().to_string(),
         );
         Ok(stats)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

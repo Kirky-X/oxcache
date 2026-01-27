@@ -5,31 +5,21 @@
 // 序列化单元测试
 
 use oxcache::serialization::{json::JsonSerializer, Serializer};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct TestStruct {
-    id: u64,
-    name: String,
-    tags: Vec<String>,
-}
 
 /// 测试JSON序列化器的往返操作
 ///
-/// 验证数据能否被正确序列化为JSON格式并成功反序列化回原始数据
+/// 验证原始字节能否被正确序列化为JSON格式并成功反序列化回原始字节
 #[test]
 fn test_json_serializer_round_trip() {
     let serializer = JsonSerializer::new();
-    let data = TestStruct {
-        id: 1,
-        name: "test".to_string(),
-        tags: vec!["a".into(), "b".into()],
-    };
 
-    let bytes = serializer.serialize(&data).unwrap();
-    let deserialized: TestStruct = serializer.deserialize(&bytes).unwrap();
+    // Test with raw bytes
+    let original_data = b"hello world this is test data";
 
-    assert_eq!(data, deserialized);
+    let serialized = serializer.serialize("test", original_data).unwrap();
+    let deserialized = serializer.deserialize("test", &serialized).unwrap();
+
+    assert_eq!(original_data.as_slice(), deserialized.as_slice());
 }
 
 /// 测试JSON序列化器的压缩功能
@@ -38,14 +28,19 @@ fn test_json_serializer_round_trip() {
 #[test]
 fn test_json_serializer_with_compression() {
     let serializer = JsonSerializer::with_compression();
-    let data = TestStruct {
-        id: 12345,
-        name: "optimization_test".to_string(),
-        tags: vec!["rust".into(), "cache".into(), "performance".into()],
-    };
 
-    let bytes = serializer.serialize(&data).unwrap();
-    let deserialized: TestStruct = serializer.deserialize(&bytes).unwrap();
+    // Create some data that compresses well
+    let original_data = b"aaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhhh";
 
-    assert_eq!(data, deserialized);
+    let serialized = serializer.serialize("test", original_data).unwrap();
+    let deserialized = serializer.deserialize("test", &serialized).unwrap();
+
+    assert_eq!(original_data.as_slice(), deserialized.as_slice());
+
+    // Verify compression actually reduced size (compared to uncompressed JSON)
+    let uncompressed_serializer = JsonSerializer::new();
+    let uncompressed = uncompressed_serializer
+        .serialize("test", original_data)
+        .unwrap();
+    assert!(serialized.len() < uncompressed.len());
 }

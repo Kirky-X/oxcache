@@ -7,7 +7,6 @@
 use super::utils::{check_data_size, compress_data, decompress_data};
 use super::Serializer;
 use crate::error::{CacheError, Result};
-use serde::{de::DeserializeOwned, Serialize};
 
 /// JSON序列化器
 ///
@@ -47,14 +46,15 @@ impl Serializer for JsonSerializer {
     ///
     /// # 参数
     ///
-    /// * `value` - 要序列化的值
+    /// * `type_name` - 类型名称（用于记录）
+    /// * `data` - 要序列化的字节数组
     ///
     /// # 返回值
     ///
     /// 返回序列化后的字节数组或错误
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
+    fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         let json_bytes =
-            serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            serde_json::to_vec(data).map_err(|e| CacheError::Serialization(e.to_string()))?;
 
         if self.compress {
             // 使用压缩
@@ -68,16 +68,17 @@ impl Serializer for JsonSerializer {
     ///
     /// # 参数
     ///
+    /// * `type_name` - 类型名称（用于记录）
     /// * `data` - 要反序列化的字节数组
     ///
     /// # 返回值
     ///
-    /// 返回反序列化后的值或错误
+    /// 返回反序列化后的字节数组或错误
     ///
     /// # 安全
     ///
     /// 此方法限制反序列化数据的大小和深度，防止拒绝服务攻击
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+    fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         // 安全检查：限制数据大小
         check_data_size(data, MAX_JSON_SIZE, "JSON")?;
 
@@ -94,6 +95,24 @@ impl Serializer for JsonSerializer {
         // 当前通过 size 限制来防止大多数 DoS 攻击
         let _ = MAX_DESERIALIZE_DEPTH; // 保留常量供将来使用
 
-        serde_json::from_slice(&json_bytes).map_err(|e| CacheError::Serialization(e.to_string()))
+        // 解析 JSON 数组并提取字节
+        let json_value: serde_json::Value = serde_json::from_slice(&json_bytes)
+            .map_err(|e| CacheError::Serialization(e.to_string()))?;
+
+        // 从 JSON 数组中提取字节
+        let bytes: Vec<u8> = json_value
+            .as_array()
+            .ok_or_else(|| CacheError::Serialization("Expected JSON array".to_string()))?
+            .iter()
+            .map(|v| {
+                v.as_u64()
+                    .ok_or_else(|| {
+                        CacheError::Serialization("Expected integer in array".to_string())
+                    })
+                    .map(|n| n as u8)
+            })
+            .collect::<std::result::Result<Vec<u8>, CacheError>>()?;
+
+        Ok(bytes)
     }
 }

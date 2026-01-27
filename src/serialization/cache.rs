@@ -218,7 +218,8 @@ impl<S: Serializer + Clone> SerializationCache<S> {
 
         // 序列化
         let start = Instant::now();
-        let serialized = self.serializer.serialize(value)?;
+        let serialized = serde_json::to_vec(value)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         let elapsed = start.elapsed().as_micros() as u64;
         self.serialize_count.fetch_add(1, Ordering::Relaxed);
         self.total_serialize_us
@@ -295,22 +296,20 @@ impl<S: Serializer + Clone> SerializationCache<S> {
     pub async fn get_deserialized<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         let start = Instant::now();
         match self.get(key).await {
-            Ok(Some(data)) => {
-                let result = self.serializer.deserialize::<T>(&data);
-                let elapsed = start.elapsed().as_micros() as u64;
-                self.deserialize_count.fetch_add(1, Ordering::Relaxed);
-                self.total_deserialize_us
-                    .fetch_add(elapsed, Ordering::Relaxed);
-
-                match result {
-                    Ok(value) => Ok(Some(value)),
-                    Err(e) => {
-                        warn!("Failed to deserialize cache entry: {}", e);
-                        self.delete(key).await.ok();
-                        Ok(None)
-                    }
+            Ok(Some(data)) => match serde_json::from_slice::<T>(&data) {
+                Ok(value) => {
+                    let elapsed = start.elapsed().as_micros() as u64;
+                    self.deserialize_count.fetch_add(1, Ordering::Relaxed);
+                    self.total_deserialize_us
+                        .fetch_add(elapsed, Ordering::Relaxed);
+                    Ok(Some(value))
                 }
-            }
+                Err(e) => {
+                    warn!("Failed to deserialize cache entry: {}", e);
+                    self.delete(key).await.ok();
+                    Ok(None)
+                }
+            },
             Ok(None) => Ok(None),
             Err(e) => Err(e),
         }

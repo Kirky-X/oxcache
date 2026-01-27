@@ -18,8 +18,6 @@ pub mod unified;
 pub mod utils;
 
 use crate::error::Result;
-use serde::{de::DeserializeOwned, Serialize};
-use std::borrow::Cow;
 
 pub use json::JsonSerializer;
 
@@ -44,28 +42,62 @@ pub use unified::{
 /// 这是公共API,但实现细节应该私有。
 pub trait Serializer: Send + Sync {
     /// 序列化值为字节数组
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>>;
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - 类型名称（用于记录）
+    /// * `data` - 要序列化的字节数组
+    ///
+    /// # Returns
+    ///
+    /// 返回序列化后的字节数组或错误
+    fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>>;
 
     /// 从字节数组反序列化值
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T>;
-}
-
-/// 零拷贝序列化器特征
-///
-/// 提供零拷贝序列化和反序列化操作，使用 Cow<[u8]> 避免不必要的内存分配
-pub trait ZeroCopySerializer: Send + Sync {
-    /// 零拷贝序列化（返回 Cow 以避免不必要的克隆）
     ///
-    /// 某些序列化格式（如 bincode）可以实现真正的零拷贝序列化
-    fn serialize_zero_copy<'a, T: Serialize>(&self, value: &'a T) -> Result<Cow<'a, [u8]>>;
+    /// # Arguments
+    ///
+    /// * `type_name` - 类型名称（用于记录）
+    /// * `data` - 要反序列化的字节数组
+    ///
+    /// # Returns
+    ///
+    /// 返回反序列化后的字节数组或错误
+    fn deserialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>>;
+
+    /// 零拷贝序列化
+    ///
+    /// 提供零拷贝序列化操作，默认实现调用普通 serialize 方法。
+    /// 某些序列化格式（如 bincode）可以重写此方法以实现真正的零拷贝。
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - 类型名称（用于记录）
+    /// * `data` - 要序列化的字节数组
+    ///
+    /// # Returns
+    ///
+    /// 返回序列化后的字节数组或错误
+    fn serialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        self.serialize(type_name, data)
+    }
 
     /// 零拷贝反序列化
     ///
-    /// 某些场景下可以避免数据拷贝
-    fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(
-        &self,
-        data: &'a [u8],
-    ) -> Result<Cow<'a, T>>;
+    /// 提供零拷贝反序列化操作，默认实现调用普通 deserialize 方法。
+    /// 某些序列化格式可以重写此方法以避免数据拷贝。
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - 类型名称（用于记录）
+    /// * `data` - 要反序列化的字节数组
+    ///
+    /// # Returns
+    ///
+    /// 返回反序列化后的字节数组或错误
+    fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        self.deserialize(type_name, data)
+    }
 }
 
 /// 序列化器枚举
@@ -79,19 +111,35 @@ pub enum SerializerEnum {
 }
 
 impl Serializer for SerializerEnum {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
+    fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         match self {
-            SerializerEnum::Json(s) => s.serialize(value),
+            SerializerEnum::Json(s) => s.serialize(type_name, data),
             #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.serialize(value),
+            SerializerEnum::Bincode(s) => s.serialize(type_name, data),
         }
     }
 
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+    fn deserialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         match self {
-            SerializerEnum::Json(s) => s.deserialize(data),
+            SerializerEnum::Json(s) => s.deserialize(type_name, data),
             #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.deserialize(data),
+            SerializerEnum::Bincode(s) => s.deserialize(type_name, data),
+        }
+    }
+
+    fn serialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            SerializerEnum::Json(s) => s.serialize_zero_copy(type_name, data),
+            #[cfg(feature = "bincode")]
+            SerializerEnum::Bincode(s) => s.serialize_zero_copy(type_name, data),
+        }
+    }
+
+    fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            SerializerEnum::Json(s) => s.deserialize_zero_copy(type_name, data),
+            #[cfg(feature = "bincode")]
+            SerializerEnum::Bincode(s) => s.deserialize_zero_copy(type_name, data),
         }
     }
 }

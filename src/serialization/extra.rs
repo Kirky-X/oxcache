@@ -6,11 +6,9 @@
 //!
 //! 提供 MessagePack 和 CBOR 序列化支持。
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use serde::{de::DeserializeOwned, Serialize};
 use serde_json;
 
 use crate::error::{CacheError, Result};
@@ -27,29 +25,12 @@ impl MessagePackSerializer {
 }
 
 impl crate::serialization::Serializer for MessagePackSerializer {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
-        encode::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+    fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        encode::to_vec(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
 
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+    fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         decode::from_read(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
-    }
-}
-
-impl crate::serialization::ZeroCopySerializer for MessagePackSerializer {
-    fn serialize_zero_copy<'a, T: Serialize>(&self, value: &'a T) -> Result<Cow<'a, [u8]>> {
-        let bytes = encode::to_vec(value)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
-        Ok(Cow::Owned(bytes))
-    }
-
-    fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(
-        &self,
-        data: &'a [u8],
-    ) -> Result<Cow<'a, T>> {
-        let value: T = decode::from_read(data)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
-        Ok(Cow::Owned(value))
     }
 }
 
@@ -64,14 +45,14 @@ impl CborSerializer {
 }
 
 impl crate::serialization::Serializer for CborSerializer {
-    fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
+    fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf)
+        ciborium::into_writer(data, &mut buf)
             .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(buf)
     }
 
-    fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+    fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         ciborium::from_reader(data)
             .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }

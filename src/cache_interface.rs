@@ -8,7 +8,7 @@
 use crate::error::Result;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
-use crate::serialization::{Serializer, SerializerEnum};
+use crate::serialization::SerializerEnum;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 use std::any::Any;
@@ -135,7 +135,8 @@ pub trait UnifiedCache: Send + Sync + Any {
         let bytes = self.get_bytes(key).await?;
         match bytes {
             Some(data) => {
-                let val = self.serializer().deserialize(&data)?;
+                let val: T = serde_json::from_slice(&data)
+                    .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
                 Ok(Some(val))
             }
             None => Ok(None),
@@ -149,7 +150,8 @@ pub trait UnifiedCache: Send + Sync + Any {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let bytes = self.serializer().serialize(value)?;
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_bytes(key, bytes, ttl).await
     }
 
@@ -160,7 +162,8 @@ pub trait UnifiedCache: Send + Sync + Any {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let bytes = self.serializer().serialize(value)?;
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_l1_bytes(key, bytes, ttl).await
     }
 
@@ -171,7 +174,8 @@ pub trait UnifiedCache: Send + Sync + Any {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let bytes = self.serializer().serialize(value)?;
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_l2_bytes(key, bytes, ttl).await
     }
 
@@ -369,120 +373,6 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
 
     fn into_any_arc(self: std::sync::Arc<Self>) -> std::sync::Arc<dyn Any + Send + Sync> {
         self as std::sync::Arc<dyn Any + Send + Sync>
-    }
-}
-
-/// Adapter to convert CacheOps implementations to UnifiedCache
-pub struct CacheOpsAdapter {
-    ops: std::sync::Arc<dyn crate::client::CacheOps + Send + Sync>,
-}
-
-impl CacheOpsAdapter {
-    pub fn new(ops: std::sync::Arc<dyn crate::client::CacheOps + Send + Sync>) -> Self {
-        Self { ops }
-    }
-}
-
-#[async_trait]
-impl UnifiedCache for CacheOpsAdapter {
-    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        self.ops.get_bytes(key).await
-    }
-
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops
-            .set_bytes(key, value, ttl.map(|d| d.as_secs()))
-            .await
-    }
-
-    async fn delete(&self, key: &str) -> Result<()> {
-        self.ops.delete(key).await
-    }
-
-    async fn exists(&self, key: &str) -> Result<bool> {
-        Ok(self.ops.get_bytes(key).await?.is_some())
-    }
-
-    async fn clear(&self) -> Result<()> {
-        // Try clearing L1 first, then L2 if L1 fails
-        if self.ops.clear_l1().await.is_err() {
-            self.ops.clear_l2().await?;
-        }
-        Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        self.ops.shutdown().await
-    }
-
-    async fn ttl(&self, _key: &str) -> Result<Option<Duration>> {
-        // CacheOps doesn't have TTL support
-        Err(crate::error::CacheError::NotSupported("ttl".to_string()))
-    }
-
-    async fn expire(&self, _key: &str, _ttl: Duration) -> Result<bool> {
-        // CacheOps doesn't have TTL support
-        Err(crate::error::CacheError::NotSupported("expire".to_string()))
-    }
-
-    async fn health_check(&self) -> Result<bool> {
-        // CacheOps doesn't have health check
-        Ok(true)
-    }
-
-    async fn stats(&self) -> Result<HashMap<String, String>> {
-        // CacheOps doesn't have stats
-        Ok(HashMap::new())
-    }
-
-    // Layer-specific operations
-    async fn get_l1_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        self.ops.get_l1_bytes(key).await
-    }
-
-    async fn get_l2_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        self.ops.get_l2_bytes(key).await
-    }
-
-    async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops
-            .set_l1_bytes(key, value, ttl.map(|d| d.as_secs()))
-            .await
-    }
-
-    async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        self.ops
-            .set_l2_bytes(key, value, ttl.map(|d| d.as_secs()))
-            .await
-    }
-
-    async fn clear_l1(&self) -> Result<()> {
-        self.ops.clear_l1().await
-    }
-
-    async fn clear_l2(&self) -> Result<()> {
-        self.ops.clear_l2().await
-    }
-
-    // Distributed operations
-    async fn lock(&self, key: &str, ttl: u64) -> Result<Option<String>> {
-        self.ops.lock(key, ttl).await
-    }
-
-    async fn unlock(&self, key: &str, value: &str) -> Result<bool> {
-        self.ops.unlock(key, value).await
-    }
-
-    fn serializer(&self) -> &SerializerEnum {
-        self.ops.serializer()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self.ops.as_any()
-    }
-
-    fn into_any_arc(self: std::sync::Arc<Self>) -> std::sync::Arc<dyn Any + Send + Sync> {
-        self.ops.clone().into_any_arc()
     }
 }
 

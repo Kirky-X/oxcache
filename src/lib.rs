@@ -44,24 +44,31 @@
 //!
 //! # Cache Types
 //!
-//! ## Memory Cache
+//! ## Memory Cache (L1)
 //!
 //! ```rust,ignore
 //! let cache: Cache<String, MyType> = Cache::new().await?;
-//! // or
-//! let cache: Cache<String, MyType> = Cache::memory().await?;
 //! ```
 //!
-//! ## Redis Cache
+//! ## Redis Cache (L2)
 //!
 //! ```rust,ignore
 //! let cache: Cache<String, MyType> = Cache::redis("redis://localhost:6379").await?;
 //! ```
 //!
-//! ## Redis Cache
+//! ## Tiered Cache (L1 + L2)
 //!
 //! ```rust,ignore
-//! let cache: Cache<String, MyType> = Cache::redis("redis://localhost:6379").await?;
+//! use oxcache::builder::BackendBuilder;
+//!
+//! let cache: Cache<String, MyType> = Cache::builder()
+//!     .backend(
+//!         BackendBuilder::tiered()
+//!             .l1_capacity(10000)
+//!             .l2_connection_string("redis://localhost:6379")
+//!     )
+//!     .build()
+//!     .await?;
 //! ```
 //!
 //! # Advanced Configuration
@@ -123,25 +130,23 @@
 //! ]).await?;
 //! ```
 //!
-//! # Migration from Old API
+//! # #[cached] Macro
 //!
-//! If you're using the old API (v0.1.x), see the migration guide:
-//! - [Migration Guide](https://docs.rs/oxcache/latest/oxcache/docs/migration/index.html)
+//! Use the `#[cached]` attribute to automatically cache function results:
 //!
-//! The old API is deprecated but still functional. To migrate:
-//!
-//! Old API:
 //! ```rust,ignore
-//! let config = oxcache_config()
-//!     .with_service("default", ServiceConfig::two_level())
-//!     .build();
-//! oxcache::init(config).await?;
-//! let client = oxcache::get_client("default")?;
-//! ```
+//! use oxcache::Cache;
 //!
-//! New API:
-//! ```rust,ignore
-//! let cache: Cache<String, User> = Cache::memory().await?;
+//! // First, register a cache for macro usage
+//! let cache = Cache::<String, Vec<u8>>::new().await?;
+//! cache.register_for_macro("my_cache").await;
+//!
+//! // Then use the macro on functions
+//! #[cached(service = "my_cache", ttl = 300)]
+//! async fn get_user(id: u64) -> User {
+//!     // This result will be cached automatically
+//!     database::fetch_user(id).await
+//! }
 //! ```
 //!
 //! # Features
@@ -163,7 +168,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a memory cache
-//!     let cache: Cache<String, String> = Cache::memory().await?;
+//!     let cache: Cache<String, String> = Cache::new().await?;
 //!
 //!     // Set and get
 //!     cache.set(&"key".to_string(), &"value".to_string()).await?;
@@ -415,12 +420,11 @@ macro_rules! placeholder_module {
 // Core Modules (Always Available)
 // ============================================================================
 pub mod client;
-pub mod config;
 pub mod error;
 
 // Internal module for #[cached] macro support
 #[doc(hidden)]
-pub(crate) mod internal; // 改为 pub(crate) 限制内部访问
+pub(crate) mod internal;
 
 // New modernized API modules
 pub mod builder;
@@ -527,49 +531,6 @@ pub mod macros {
     pub use oxcache_macros::*;
 }
 
-pub use client::{CacheExt, CacheOps};
-#[cfg(feature = "redis")]
-pub use config::{
-    BackendConfig,
-    BackendType,
-    CacheType,
-    EvictionPolicy,
-    L1LayerConfig,
-    L2LayerConfig,
-    MemoryBackendConfig,
-    PerformanceConfig,
-    RedisBackendConfig,
-    RedisConnectionConfig,
-    RedisPoolConfig,
-    SerializationConfig,
-    ServiceConfig,
-    TwoLevelConfig,
-    // Unified configuration exports
-    UnifiedConfig,
-};
-
-#[cfg(not(feature = "redis"))]
-pub use config::{
-    BackendConfig,
-    BackendType,
-    CacheType,
-    EvictionPolicy,
-    L1LayerConfig,
-    L2LayerConfig,
-    MemoryBackendConfig,
-    PerformanceConfig,
-    RedisBackendConfig,
-    RedisConnectionConfig,
-    RedisPoolConfig,
-    SerializationConfig,
-    ServiceConfig,
-    // Unified configuration exports
-    UnifiedConfig,
-};
-
-#[cfg(feature = "confers")]
-pub use config::LayerConfig;
-
 pub use error::{CacheError, Result};
 
 // ============================================================================
@@ -579,7 +540,7 @@ pub use error::{CacheError, Result};
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder};
 pub use cache::Cache;
-pub use cache_interface::{CacheOpsAdapter, UnifiedCache};
+pub use cache_interface::UnifiedCache;
 pub use traits::{CacheKey, Cacheable};
 
 // Custom tiered backend configuration exports

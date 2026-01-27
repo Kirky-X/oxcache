@@ -6,6 +6,7 @@
 
 use crate::error::Result;
 use async_trait::async_trait;
+use std::any::{Any, TypeId};
 use std::time::Duration;
 
 /// Backend strategy trait for cache implementations
@@ -43,7 +44,7 @@ use std::time::Duration;
 /// }
 /// ```
 #[async_trait]
-pub trait CacheBackend: Send + Sync {
+pub trait CacheBackend: Send + Sync + 'static {
     /// Get a value from the cache
     ///
     /// # Arguments
@@ -163,6 +164,17 @@ pub trait CacheBackend: Send + Sync {
     /// * `Ok(stats)` - Map of statistics
     /// * `Err(CacheError)` - Failed to retrieve statistics
     async fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
+
+    /// Get as_any reference for type downcasting
+    fn as_any(&self) -> &dyn Any;
+
+    /// Check if backend is of specific type
+    fn is<T: Any>(&self) -> bool
+    where
+        Self: Sized,
+    {
+        TypeId::of::<T>() == TypeId::of::<Self>()
+    }
 }
 
 #[cfg(test)]
@@ -233,6 +245,10 @@ mod tests {
             let mut stats = HashMap::new();
             stats.insert("type".to_string(), "mock".to_string());
             Ok(stats)
+        }
+
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
         }
     }
 
