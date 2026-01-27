@@ -8,6 +8,7 @@ use crate::backend::interface::CacheBackend;
 use crate::error::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -317,6 +318,10 @@ impl CacheBackend for DashMapMemoryBackend {
         );
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

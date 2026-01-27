@@ -3,7 +3,7 @@
 //
 // 内部模块 - 为 #[cached] 宏提供支持
 
-use crate::client::CacheOps;
+use crate::cache::Cache;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -12,23 +12,28 @@ use std::sync::OnceLock;
 // Internal Global Cache Registry (for #[cached] macro)
 // ============================================================================
 
-static CACHE_REGISTRY: OnceLock<DashMap<String, Arc<dyn CacheOps + Send + Sync>>> = OnceLock::new();
+// Type alias for the cache registry
+type CacheRegistry = DashMap<String, Arc<Cache<String, Vec<u8>>>>;
 
-fn get_registry() -> &'static DashMap<String, Arc<dyn CacheOps + Send + Sync>> {
+// Registry stores Cache instances keyed by service name
+// Using String keys for flexibility (service names are strings)
+static CACHE_REGISTRY: OnceLock<CacheRegistry> = OnceLock::new();
+
+fn get_registry() -> &'static CacheRegistry {
     CACHE_REGISTRY.get_or_init(DashMap::new)
 }
 
 /// Register a cache instance for use with the #[cached] macro.
 /// This is an internal function used by Cache::register_for_macro().
 #[doc(hidden)]
-pub fn __internal_register_cache(service_name: &str, cache: Arc<dyn CacheOps + Send + Sync>) {
+pub fn __internal_register_cache(service_name: &str, cache: Arc<Cache<String, Vec<u8>>>) {
     get_registry().insert(service_name.to_string(), cache);
 }
 
 /// Get a cache instance registered for the #[cached] macro.
 /// This is an internal function called by the generated macro code.
 #[doc(hidden)]
-pub fn __internal_get_cache(service_name: &str) -> Option<Arc<dyn CacheOps + Send + Sync>> {
+pub fn __internal_get_cache(service_name: &str) -> Option<Arc<Cache<String, Vec<u8>>>> {
     get_registry().get(service_name).map(|r| r.value().clone())
 }
 

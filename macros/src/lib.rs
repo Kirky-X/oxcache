@@ -243,19 +243,18 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 return async { #fn_block }.await;
             }
 
-            // Try to get client, if fails, run original function
-            let client = match ::oxcache::__internal_get_cache(#service_name) {
+            // Try to get cache instance, if fails, run original function
+            let cache = match ::oxcache::__internal_get_cache(#service_name) {
                 Some(c) => c,
                 None => return async { #fn_block }.await,
             };
 
-            // Try get from cache
-            // We use the client's internal serializer (via CacheOps::serializer()) to handle serialization.
-            if let Ok(Some(bytes)) = client.get_bytes(&cache_key).await {
-                 use ::oxcache::serialization::Serializer;
-                 if let Ok(val) = client.serializer().deserialize::<#return_type>(&bytes) {
-                     return ::std::result::Result::Ok(val);
-                 }
+            // Try get from cache using byte-level operations
+            if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
+                // Deserialize and return cached value
+                if let Ok(val) = cache.serializer().deserialize::<#return_type>(&bytes) {
+                    return ::std::result::Result::Ok(val);
+                }
             }
 
             // Run original function
@@ -263,14 +262,13 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
             // Cache result if Ok
             if let Ok(ref val) = result {
-                 use ::oxcache::serialization::Serializer;
-                 if let Ok(bytes) = client.serializer().serialize(val) {
+                if let Ok(bytes) = cache.serializer().serialize(val) {
                     let _ = match #cache_type {
-                        "l1-only" => client.set_l1_bytes(&cache_key, bytes, #ttl).await,
-                        "l2-only" => client.set_l2_bytes(&cache_key, bytes, #ttl).await,
-                        _ => client.set_bytes(&cache_key, bytes, #ttl).await,
+                        "l1-only" => cache.set_l1_bytes(&cache_key, bytes, #ttl).await,
+                        "l2-only" => cache.set_l2_bytes(&cache_key, bytes, #ttl).await,
+                        _ => cache.set_bytes(&cache_key, bytes, #ttl).await,
                     };
-                 }
+                }
             }
 
             result

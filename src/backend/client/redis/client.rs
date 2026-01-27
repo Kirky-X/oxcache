@@ -8,6 +8,7 @@ use crate::error::{CacheError, Result};
 use crate::security;
 use async_trait::async_trait;
 use redis::{Client, RedisError};
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -495,6 +496,10 @@ impl CacheBackend for RedisBackend {
         let mut stats = HashMap::new();
         stats.insert("memory_info".to_string(), info);
         Ok(stats)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

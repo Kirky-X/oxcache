@@ -23,9 +23,7 @@ pub use dashmap::DashMapMemoryBackend;
 pub use moka::MokaMemoryBackend;
 pub use moka::MokaMemoryBackend as MemoryBackend; // 为向后兼容提供别名
 #[cfg(feature = "redis")]
-pub use redis::{
-    DefaultRedisProvider, RedisBackend, RedisBackendBuilder, RedisMode, RedisProvider,
-};
+pub use redis::{RedisBackend, RedisBackendBuilder, RedisMode};
 
 // Convenience functions for creating memory backends
 pub use dashmap::dashmap_memory;

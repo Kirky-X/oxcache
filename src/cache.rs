@@ -6,7 +6,7 @@
 
 use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::backend::CacheBackend;
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::json::JsonSerializer;
@@ -16,73 +16,6 @@ use crate::traits::{CacheKey, Cacheable};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-
-// ============================================================================
-// CacheOps Wrapper for Backend
-// ============================================================================
-
-#[cfg(any(feature = "serialization", feature = "full"))]
-use crate::serialization::SerializerEnum;
-use async_trait::async_trait;
-use std::any::Any;
-
-/// Wrapper that implements CacheOps trait for any CacheBackend.
-/// This is used to register caches in the global registry for #[cached] macro support.
-pub(crate) struct BackendCacheOps {
-    pub(crate) backend: Arc<dyn CacheBackend>,
-    pub(crate) serializer: SerializerEnum,
-}
-
-#[async_trait]
-impl crate::client::CacheOps for BackendCacheOps {
-    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        self.backend.get(key).await
-    }
-
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, _ttl: Option<u64>) -> Result<()> {
-        self.backend.set(key, value, None).await
-    }
-
-    async fn delete(&self, key: &str) -> Result<()> {
-        self.backend.delete(key).await
-    }
-
-    async fn clear_l1(&self) -> Result<()> {
-        self.backend.clear().await
-    }
-
-    async fn clear_l2(&self) -> Result<()> {
-        self.backend.clear().await
-    }
-
-    async fn shutdown(&self) -> Result<()> {
-        self.backend.close().await
-    }
-
-    fn serializer(&self) -> &SerializerEnum {
-        &self.serializer
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn into_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync> {
-        self
-    }
-}
-
-/// Creates a CacheOps wrapper for a given backend.
-/// This is used by the confers initialization to register caches.
-pub fn create_cache_ops_wrapper(
-    backend: Arc<dyn CacheBackend>,
-    serializer: SerializerEnum,
-) -> Arc<dyn crate::client::CacheOps + Send + Sync> {
-    Arc::new(BackendCacheOps {
-        backend,
-        serializer,
-    })
-}
 
 /// 序列化器实例复用管理器
 ///
@@ -266,8 +199,8 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
-                let serializer = self.serializer_pool.json();
-                let value: V = serializer.deserialize(&data)?;
+                let value: V = serde_json::from_slice(&data)
+                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
                 Ok(Some(value))
             }
             None => Ok(None),
@@ -330,8 +263,8 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let serializer = self.serializer_pool.json();
-            let bytes = serializer.serialize(value)?;
+            let bytes =
+                serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
             self.backend.set(&key_str, bytes, ttl).await
         }
 
@@ -364,6 +297,103 @@ where
     pub async fn delete(&self, key: &K) -> Result<()> {
         let key_str = key.to_key_string();
         self.backend.delete(&key_str).await
+    }
+
+    // ============================================================================
+    // Low-level byte operations (for #[cached] macro compatibility)
+    // ============================================================================
+
+    /// Get raw bytes from cache (for macro compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Cache key as string
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(bytes))` - Value found
+    /// * `Ok(None)` - Key not found
+    pub async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        self.backend.get(key).await
+    }
+
+    /// Set raw bytes in cache (for macro compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Cache key as string
+    /// * `value` - Raw bytes to store
+    /// * `ttl` - Optional TTL in seconds
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Value stored successfully
+    pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        let ttl_duration = ttl.map(Duration::from_secs);
+        self.backend.set(key, value, ttl_duration).await
+    }
+
+    /// Set raw bytes in L1 cache only (for macro compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Cache key as string
+    /// * `value` - Raw bytes to store
+    /// * `ttl` - Optional TTL in seconds
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Value stored successfully
+    /// * `Err(CacheError::NotSupported)` - If backend doesn't support L1-only operations
+    pub async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        let ttl_duration = ttl.map(Duration::from_secs);
+        // Try to use L1-specific method if available
+        if let Some(l1_backend) = self
+            .backend
+            .as_any()
+            .downcast_ref::<crate::backend::client::MokaMemoryBackend>()
+        {
+            l1_backend.set(key, value, ttl_duration).await?;
+            return Ok(());
+        }
+        // Fallback to generic set
+        self.backend.set(key, value, ttl_duration).await
+    }
+
+    /// Set raw bytes in L2 cache only (for macro compatibility)
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Cache key as string
+    /// * `value` - Raw bytes to store
+    /// * `ttl` - Optional TTL in seconds
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Value stored successfully
+    /// * `Err(CacheError::NotSupported)` - If backend doesn't support L2-only operations
+    pub async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        let ttl_duration = ttl.map(Duration::from_secs);
+        // For non-tiered backends, fall back to regular set
+        self.backend.set(key, value, ttl_duration).await
+    }
+
+    /// Get the serializer for this cache (for macro compatibility)
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn serializer(&self) -> Arc<dyn Serializer> {
+        self.serializer_pool.json()
+    }
+
+    /// Check if the cache supports L1-only operations
+    pub fn supports_l1_only(&self) -> bool {
+        self.backend
+            .as_any()
+            .is::<crate::backend::client::MokaMemoryBackend>()
+    }
+
+    /// Check if the cache supports L2-only operations
+    pub fn supports_l2_only(&self) -> bool {
+        false // Only tiered backends support this
     }
 
     /// Check if a key exists in the cache
@@ -592,43 +622,10 @@ where
         self.backend.close().await
     }
 
-    /// Create a CacheOps wrapper for this cache instance.
-    ///
-    /// This allows the cache to be used with the global registry for
-    /// #[cached] macro support and confers configuration.
-    ///
-    /// # Returns
-    ///
-    /// Arc<dyn CacheOps + Send + Sync> that can be registered in the global registry
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::Cache;
-    ///
-    /// let cache: Cache<String, User> = Cache::new().await?;
-    /// let cache_ops = cache.to_cache_ops();
-    /// manager::register("my_service", cache_ops);
-    /// ```
-    pub fn to_cache_ops(&self) -> Arc<dyn crate::client::CacheOps + Send + Sync> {
-        #[cfg(any(feature = "serialization", feature = "full"))]
-        {
-            create_cache_ops_wrapper(
-                self.backend.clone(),
-                SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
-            )
-        }
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            // Fallback: create a basic cache ops wrapper without serializer
-            create_cache_ops_wrapper(self.backend.clone(), None)
-        }
-    }
-
     /// Register this cache instance for use with the #[cached] macro.
     ///
-    /// After calling this method, you can use `#[cached(service = "name")]`
-    /// on async functions to cache their results using this cache instance.
+    /// This method requires the cache to use `String` keys and `Vec<u8>` values
+    /// (the default for macro usage).
     ///
     /// # Arguments
     ///
@@ -639,29 +636,32 @@ where
     /// ```rust,ignore
     /// use oxcache::Cache;
     ///
-    /// let cache: Cache<String, User> = Cache::new().await?;
+    /// // Create a byte cache for macro usage
+    /// let cache = Cache::<String, Vec<u8>>::new().await?;
     /// cache.register_for_macro("my_service").await;
     ///
     /// // Now you can use:
     /// // #[cached(service = "my_service", ttl = 300)]
     /// // async fn get_user(id: u64) -> User { ... }
     /// ```
-    pub async fn register_for_macro(&self, service_name: &str) {
+    pub async fn register_for_macro(&self, service_name: &str)
+    where
+        K: 'static,
+        V: 'static,
+    {
         use crate::internal::__internal_register_cache;
+        use std::any::TypeId;
 
-        #[cfg(any(feature = "serialization", feature = "full"))]
+        // Only allow registration for Cache<String, Vec<u8>>
+        // This is the expected type for #[cached] macro
+        if TypeId::of::<K>() == TypeId::of::<String>()
+            && TypeId::of::<V>() == TypeId::of::<Vec<u8>>()
         {
-            let cache_ops = create_cache_ops_wrapper(
-                self.backend.clone(),
-                SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
-            );
-            __internal_register_cache(service_name, cache_ops);
-        }
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            // Fallback without serializer
-            let cache_ops = create_cache_ops_wrapper(self.backend.clone(), None);
-            __internal_register_cache(service_name, cache_ops);
+            // Safe to cast since we checked the types
+            let cache: Cache<String, Vec<u8>> = unsafe {
+                std::ptr::read(self as *const Cache<K, V> as *const Cache<String, Vec<u8>>)
+            };
+            __internal_register_cache(service_name, Arc::new(cache));
         }
     }
 }

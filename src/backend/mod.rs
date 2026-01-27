@@ -7,9 +7,6 @@
 // Client implementations
 pub mod client;
 
-#[cfg(feature = "redis")]
-pub mod strategy;
-
 // Modernized API backend interface
 pub mod interface;
 
@@ -40,8 +37,7 @@ pub use client::{
 
 #[cfg(feature = "redis")]
 pub use client::{
-    DefaultRedisProvider, RedisBackend as ClientRedisBackend, RedisBackendBuilder,
-    RedisMode as ClientRedisMode, RedisProvider,
+    RedisBackend as ClientRedisBackend, RedisBackendBuilder, RedisMode as ClientRedisMode,
 };
 
 // Re-exports for custom tiered configuration

@@ -178,4 +178,79 @@ mod tests {
             "custom:test"
         );
     }
+
+    #[test]
+    fn test_cache_event_with_value() {
+        // CacheEvent doesn't have with_value method, test with available methods
+        let event = CacheEvent::new(CacheEventType::Set)
+            .with_key("user:1")
+            .with_latency(5);
+        assert_eq!(event.key, Some("user:1".to_string()));
+        assert_eq!(event.latency_ms, Some(5));
+    }
+
+    #[test]
+    fn test_cache_event_with_metadata() {
+        let event = CacheEvent::new(CacheEventType::Miss)
+            .with_key("missing_key")
+            .with_latency(5)
+            .with_metadata("test_node", "test_service");
+
+        assert_eq!(event.latency_ms, Some(5));
+        assert_eq!(event.metadata.len(), 1);
+        assert_eq!(
+            event.metadata[0],
+            ("test_node".to_string(), "test_service".to_string())
+        );
+    }
+
+    #[test]
+    fn test_cache_event_error() {
+        let event = CacheEvent::new(CacheEventType::Error)
+            .with_key("error_key")
+            .with_error("Connection timeout");
+
+        assert_eq!(event.event_type, CacheEventType::Error);
+        assert_eq!(event.error, Some("Connection timeout".to_string()));
+    }
+
+    #[test]
+    fn test_cache_event_types_complete() {
+        // Test all event types have proper Display implementation
+        assert_eq!(CacheEventType::Expire.to_string(), "expire");
+        assert_eq!(CacheEventType::Clear.to_string(), "clear");
+        assert_eq!(CacheEventType::Get.to_string(), "get");
+        assert_eq!(CacheEventType::BatchStart.to_string(), "batch_start");
+        assert_eq!(CacheEventType::BatchEnd.to_string(), "batch_end");
+        assert_eq!(CacheEventType::Error.to_string(), "error");
+        assert_eq!(CacheEventType::Connect.to_string(), "connect");
+        assert_eq!(CacheEventType::Disconnect.to_string(), "disconnect");
+    }
+
+    #[test]
+    fn test_cache_event_with_all_optional_fields() {
+        let event = CacheEvent::new(CacheEventType::Get)
+            .with_key("test_key")
+            .with_latency(100)
+            .with_metadata("node1", "service1")
+            .with_error("test error");
+
+        assert_eq!(event.event_type, CacheEventType::Get);
+        assert_eq!(event.key, Some("test_key".to_string()));
+        assert_eq!(event.latency_ms, Some(100));
+        assert_eq!(event.metadata.len(), 1); // Only one metadata pair added
+        assert_eq!(event.error, Some("test error".to_string()));
+    }
+
+    #[test]
+    fn test_cache_event_clone() {
+        let event = CacheEvent::new(CacheEventType::Hit)
+            .with_key("key")
+            .with_latency(10);
+
+        let cloned = event.clone();
+        assert_eq!(event.event_type, cloned.event_type);
+        assert_eq!(event.key, cloned.key);
+        assert_eq!(event.latency_ms, cloned.latency_ms);
+    }
 }
