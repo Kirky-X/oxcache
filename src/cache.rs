@@ -84,20 +84,37 @@ pub fn create_cache_ops_wrapper(
     })
 }
 
-/// Unified cache interface with type-safe key and value types
+/// 序列化器实例复用管理器
 ///
-/// This is the main cache type that users interact with. It provides a
-/// type-safe interface over the pluggable backend architecture.
-///
-/// # Type Parameters
-///
-/// * `K` - Key type, must implement `CacheKey` trait
-/// * `V` - Value type, must implement `Cacheable` trait (Serialize + Deserialize)
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use oxcache::Cache;
+/// 优化点：
+/// 1. 复用 JsonSerializer 实例，避免每次创建新的实例
+/// 2. 使用 Arc 共享序列化器，减少内存开销
+#[cfg(any(feature = "serialization", feature = "full"))]
+pub struct SerializerPool {
+    json_serializer: Arc<JsonSerializer>,
+}
+
+#[cfg(any(feature = "serialization", feature = "full"))]
+impl SerializerPool {
+    /// 创建新的序列化器池
+    pub fn new() -> Self {
+        Self {
+            json_serializer: Arc::new(JsonSerializer::new()),
+        }
+    }
+
+    /// 获取 JSON 序列化器
+    pub fn json(&self) -> Arc<JsonSerializer> {
+        self.json_serializer.clone()
+    }
+}
+
+#[cfg(any(feature = "serialization", feature = "full"))]
+impl Default for SerializerPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 ///
 /// // Create a simple memory cache
 /// let cache: Cache<String, User> = Cache::new().await?;
@@ -116,6 +133,7 @@ pub fn create_cache_ops_wrapper(
 /// ```
 pub struct Cache<K, V> {
     backend: Arc<dyn CacheBackend>,
+    serializer_pool: Arc<SerializerPool>,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 
@@ -151,6 +169,7 @@ where
         let backend = MemoryBackend::new();
         Ok(Self {
             backend: Arc::new(backend),
+            serializer_pool: Arc::new(SerializerPool::new()),
             _phantom: std::marker::PhantomData,
         })
     }
@@ -159,6 +178,7 @@ where
     pub(crate) fn new_with_backend(backend: Arc<dyn CacheBackend>) -> Self {
         Self {
             backend,
+            serializer_pool: Arc::new(SerializerPool::new()),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -198,6 +218,7 @@ where
         let backend = crate::backend::client::RedisBackend::new(connection_string).await?;
         Ok(Self {
             backend: Arc::new(backend),
+            serializer_pool: Arc::new(SerializerPool::new()),
             _phantom: std::marker::PhantomData,
         })
     }
@@ -245,7 +266,7 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
-                let serializer = JsonSerializer::new();
+                let serializer = self.serializer_pool.json();
                 let value: V = serializer.deserialize(&data)?;
                 Ok(Some(value))
             }
@@ -309,7 +330,7 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let serializer = JsonSerializer::new();
+            let serializer = self.serializer_pool.json();
             let bytes = serializer.serialize(value)?;
             self.backend.set(&key_str, bytes, ttl).await
         }

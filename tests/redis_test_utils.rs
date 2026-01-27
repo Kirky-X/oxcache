@@ -69,15 +69,18 @@ pub async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String>
 pub async fn test_redis_connection() -> Result<(), String> {
     let redis_url = get_redis_url();
     println!("[TEST-REDIS] Testing connection to: {}", redis_url);
-    
+
     let backend = match RedisBackend::new(&redis_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("[TEST-SKIP] Cannot connect to Redis at {}: {}", redis_url, e);
+            println!(
+                "[TEST-SKIP] Cannot connect to Redis at {}: {}",
+                redis_url, e
+            );
             return Err(format!("Failed to create Redis connection: {}", e));
         }
     };
-    
+
     let test_key = "oxcache:test:connection";
     if let Err(e) = backend
         .set(test_key, b"test".to_vec(), Some(Duration::from_secs(60)))
