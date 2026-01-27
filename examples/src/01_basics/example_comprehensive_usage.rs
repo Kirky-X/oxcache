@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
-    let tiered_cache: Cache<String, User> = Cache::tiered(10000, "redis://127.0.0.1:6379").await?;
+    let tiered_cache: Cache<String, User> = Cache::new().await?;
     println!("   ✓ 分层缓存创建成功
 ");
 

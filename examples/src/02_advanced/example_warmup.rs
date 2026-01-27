@@ -49,10 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   从数据库加载配置...");
     for (key, value, desc) in &configs {
-        // 模拟数据库查询延迟
-        // tokio::time::sleep(Duration::from_millis(10)).await;
-        cache.set(key, value, None).await?;
-        println!("     加载配置: {} = {} ({})", key, value, desc);
+        let k = key.clone();
+        let v = value.clone();
+        cache.set(&k, &v).await?;
+        println!("     加载配置: {} = {} ({})", k, v, desc);
     }
     println!("   ✓ 配置预热完成 ({} 个配置项)\n", configs.len());
 
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let hot_users = vec![1, 2, 3, 4, 5, 10, 100, 101];
 
     println!("   预加载热点用户...");
-    let start = std::time::Instant::new();
+    let start = std::time::Instant::now();
     let mut handles = Vec::new();
 
     for user_id in &hot_users {
@@ -69,13 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let id = *user_id;
         let handle = tokio::spawn(async move {
             // 模拟从数据库查询用户
-            // let user = db.query_user(id).await?;
             let username = format!("user_{}", id);
             let role = if id == 1 { "admin" } else { "user" };
-            cache
-                .set(&format!("user:{}", id), &format!("{}:{}", username, role), None)
-                .await?;
-            Ok::<(), Box<dyn std::error::Error>>(())
+            cache.set(&format!("user:{}", id), &format!("{}:{}", username, role)).await?;
+            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
         });
         handles.push(handle);
     }
@@ -95,11 +92,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. 验证预热数据");
     println!("   配置验证:");
     for (key, value, _) in &configs {
-        let retrieved = cache.get(key).await?;
+        let k = key.clone();
+        let v = value.clone();
+        let retrieved = cache.get(&k).await?;
         match retrieved {
-            Some(v) if v == *value => println!("     ✓ {} = {}", key, v),
-            Some(v) => println!("     ✗ {} = {} (期望: {})", key, v, value),
-            None => println!("     ✗ {} 未找到", key),
+            Some(val) if val == v => println!("     ✓ {} = {}", k, val),
+            Some(val) => println!("     ✗ {} = {} (期望: {})", k, val, v),
+            None => println!("     ✗ {} 未找到", k),
         }
     }
 
@@ -120,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cache.clear().await?;
 
     println!("   重新预热...");
-    let start = std::time::Instant::new();
+    let start = std::time::Instant::now();
 
     // 并发重新加载所有配置
     let mut handles = Vec::new();
@@ -129,8 +128,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let k = key.clone();
         let v = value.clone();
         let handle = tokio::spawn(async move {
-            cache.set(&k, &v, None).await?;
-            Ok::<(), Box<dyn std::error::Error>>(())
+            cache.set(&k, &v).await?;
+            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
         });
         handles.push(handle);
     }
@@ -146,8 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. 统计信息
     println!("5. 预热后统计");
     let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.item_count());
-    println!("   - 命中次数: {}", stats.hit_count());
+    println!("   - 总条目数: {}", stats.get("item_count").unwrap_or(&0));
+    println!("   - 命中次数: {}", stats.get("hit_count").unwrap_or(&0));
     println!();
 
     println!("=== 缓存预热示例完成 ===");

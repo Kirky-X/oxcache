@@ -20,9 +20,7 @@ struct Session {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建具有L1 (内存) 和L2 (Redis) 的分层缓存
-    let cache: Cache<String, Session> =
-        Cache::tiered(5000, "redis://127.0.0.1:6379").await?;
+    let cache: Cache<String, Session> = Cache::new().await?;
 
     // 模拟初始状态下仅存在于L2的会话数据
     let session = Session {
