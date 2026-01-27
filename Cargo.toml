@@ -248,7 +248,7 @@ minimal = [
     "dep:tracing",
     "metrics",
     "serialization",
-    "chrono",
+    "dep:chrono",
 ]
 
 # Core: L1 + L2 basic functionality (Redis)
@@ -270,6 +270,7 @@ full = [
     "dashmap",
     "dep:moka",
     "dep:redis",
+    "dep:tracing",
     "cli",
     "full-metrics",
     "batch-write",
@@ -313,8 +314,17 @@ flate2 = ["dep:flate2"]
 serialization-cache = ["serialization", "dep:dashmap"]
 
 # Metrics & Observability
-opentelemetry = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:tracing-subscriber"]
-metrics = ["opentelemetry", "dep:dashmap"]
+chrono = ["dep:chrono"]
+opentelemetry = [
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:tracing-subscriber",
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry-otlp",
+    "dep:chrono",
+    "dep:tracing",
+]
+metrics = ["opentelemetry", "dep:dashmap", "dep:tracing"]
 full-metrics = ["metrics", "dep:tracing-opentelemetry", "dep:opentelemetry-otlp"]
 
 # Database Integration
@@ -325,7 +335,7 @@ dashmap = ["dep:dashmap"]
 # Advanced Features
 bloom-filter = ["dep:bloomfilter", "dep:murmur3"]
 rate-limiting = []
-wal-recovery = []
+wal-recovery = ["database", "redis"]
 batch-write = ["dep:tokio-util"]
 sync = []
 
