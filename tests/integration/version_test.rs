@@ -10,7 +10,7 @@ use oxcache::backend::client::RedisBackend;
 use oxcache::backend::CacheBackend;
 use std::sync::Arc;
 
-use super::common;
+use crate::common;
 
 #[tokio::test]
 #[cfg(feature = "redis")]

@@ -7,7 +7,7 @@
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};
 use oxcache::Cache;
 
-use super::common;
+use crate::common;
 
 /// 测试双层缓存流程
 ///

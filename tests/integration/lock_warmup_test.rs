@@ -10,7 +10,7 @@ use oxcache::Cache;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use super::common;
+use crate::common;
 
 /// 测试分布式锁
 ///

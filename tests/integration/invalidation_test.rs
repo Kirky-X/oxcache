@@ -4,7 +4,7 @@
 //
 // 缓存失效集成测试 - 使用新API
 
-use super::common;
+use crate::common;
 
 use oxcache::Cache;
 
