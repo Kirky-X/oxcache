@@ -12,11 +12,17 @@ source "$SCRIPT_DIR/../lib/common.sh"
 
 log_info "Running Rust Clippy static analysis..."
 
-# Run clippy and capture output
-if cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/clippy_output.txt; then
+# Run clippy and capture output separately to preserve exit code
+cargo clippy --workspace --all-targets --all-features -- -D warnings > /tmp/clippy_output.txt 2>&1
+CLIPPY_EXIT=$?
+
+if [ $CLIPPY_EXIT -eq 0 ]; then
     log_success "Clippy passed - no code quality issues found"
     exit 0
 else
+    # Also display output in real-time
+    cat /tmp/clippy_output.txt
+    
     print_header "Clippy发现代码质量问题"
     
     # Categorize and display warnings

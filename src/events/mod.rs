@@ -170,28 +170,28 @@ pub trait EventPublisher: Send + Sync {
     async fn publish(&self, event: CacheEvent);
 
     /// 发布命中事件
-    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) {
+    fn publish_hit(&self, _key: impl Into<String>, _latency_ms: u64) {
         // 默认实现需要是同步的，因为 trait 中不能有异步默认实现
         // 子类可以覆盖这个方法提供异步版本
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) {
+    fn publish_miss(&self, _key: impl Into<String>, _latency_ms: u64) {
         // 默认实现需要是同步的
     }
 
     /// 发布设置事件
-    fn publish_set(&self, key: impl Into<String>) {
+    fn publish_set(&self, _key: impl Into<String>) {
         // 默认实现需要是同步的
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, key: impl Into<String>) {
+    fn publish_delete(&self, _key: impl Into<String>) {
         // 默认实现需要是同步的
     }
 
     /// 发布错误事件
-    fn publish_error(&self, key: Option<String>, error: impl Into<String>) {
+    fn publish_error(&self, _key: Option<String>, _error: impl Into<String>) {
         // 默认实现需要是同步的
     }
 }
