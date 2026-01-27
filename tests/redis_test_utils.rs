@@ -17,28 +17,33 @@ use std::time::Duration;
 /// - OXCACHE_SKIP_REDIS_TESTS=1 - 跳过所有 Redis 测试
 /// - OXCACHE_TEST_REDIS=1 - 显式启用 Redis 测试
 pub async fn is_redis_available() -> bool {
+    use crate::common::get_redis_url;
+    
     // 如果设置了跳过变量，直接返回 false
     if std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_ok() {
         println!("[TEST-SKIP] Redis tests skipped via OXCACHE_SKIP_REDIS_TESTS");
         return false;
     }
-
+    
     // 如果没有显式设置启用，且 REDIS_URL 不可达，跳过
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-
+    let redis_url = get_redis_url();
+    
     if !is_redis_available_url(&redis_url).await {
-        println!("[TEST-SKIP] Redis not available at {} (set OXCACHE_SKIP_REDIS_TESTS=1 to skip)", redis_url);
+        println!(
+            "[TEST-SKIP] Redis not available at {} (set OXCACHE_SKIP_REDIS_TESTS=1 to skip)",
+            redis_url
+        );
         return false;
     }
-
+    
     true
 }
 
 /// Create Redis backend for testing
 #[cfg(feature = "redis")]
 pub async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String> {
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     RedisBackend::new(&redis_url)
         .await
         .map_err(|e| e.to_string())
@@ -47,10 +52,19 @@ pub async fn create_l2_backend_with_real_redis() -> Result<RedisBackend, String>
 /// Test Redis connection
 #[cfg(feature = "redis")]
 pub async fn test_redis_connection() -> Result<(), String> {
-    let backend = match create_l2_backend_with_real_redis().await {
+    use crate::common::get_redis_url;
+    
+    let redis_url = get_redis_url();
+    println!("[TEST-REDIS] Testing connection to: {}", redis_url);
+    
+    let backend = match RedisBackend::new(&redis_url).await {
         Ok(b) => b,
-        Err(e) => return Err(format!("Failed to create Redis connection: {}", e)),
+        Err(e) => {
+            println!("[TEST-SKIP] Cannot connect to Redis at {}: {}", redis_url, e);
+            return Err(format!("Failed to create Redis connection: {}", e));
+        }
     };
+    
     let test_key = "oxcache:test:connection";
     if let Err(e) = backend
         .set(test_key, b"test".to_vec(), Some(Duration::from_secs(60)))
