@@ -123,44 +123,6 @@ fn current_timestamp_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// 缓存事件监听器 Trait
-///
-/// 实现此 trait 来接收缓存事件通知。
-///
-/// # 示例
-///
-/// ```rust
-/// use oxcache::events::{CacheEvent, CacheEventListener, CacheEventType};
-///
-/// struct MyEventListener;
-///
-/// #[async_trait]
-/// impl CacheEventListener for MyEventListener {
-///     async fn on_event(&self, event: &CacheEvent) {
-///         println!("Event: {} - Key: {:?}", event.event_type, event.key);
-///     }
-/// }
-/// ```
-#[async_trait]
-pub trait CacheEventListener: Send + Sync {
-    /// 处理缓存事件
-    ///
-    /// # 参数
-    /// * `event` - 缓存事件
-    async fn on_event(&self, event: &CacheEvent);
-}
-
-/// 空事件监听器（不执行任何操作）
-#[derive(Default)]
-pub struct NoopEventListener;
-
-#[async_trait]
-impl CacheEventListener for NoopEventListener {
-    async fn on_event(&self, _event: &CacheEvent) {
-        // 不执行任何操作
-    }
-}
-
 /// 事件发布器 Trait
 ///
 /// 用于发布缓存事件。
@@ -215,13 +177,5 @@ mod tests {
             CacheEventType::Custom("test".to_string()).to_string(),
             "custom:test"
         );
-    }
-
-    #[tokio::test]
-    async fn test_noop_listener() {
-        let listener = NoopEventListener;
-        let event = CacheEvent::new(CacheEventType::Hit).with_key("test");
-        listener.on_event(&event).await;
-        // No assertion needed - just verify it doesn't panic
     }
 }
