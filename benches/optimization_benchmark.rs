@@ -6,7 +6,6 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use oxcache::cache::SerializerPool;
-use oxcache::config::service::L2Config;
 use oxcache::serialization::json::JsonSerializer;
 use oxcache::serialization::Serializer;
 use tokio::runtime::Runtime;
@@ -22,7 +21,8 @@ fn bench_serializer_pool_reuse(c: &mut Criterion) {
     c.bench_function("serializer_pool_json", |b| {
         b.iter(|| {
             let serializer = pool.json();
-            let serialized = black_box(serializer.serialize(&test_data).unwrap());
+            let data_bytes = serde_json::to_vec(&test_data).unwrap();
+            let serialized = black_box(serializer.serialize("TestData", &data_bytes).unwrap());
             black_box(serialized.len());
         })
     });
@@ -30,7 +30,8 @@ fn bench_serializer_pool_reuse(c: &mut Criterion) {
     c.bench_function("serializer_new_instance", |b| {
         b.iter(|| {
             let serializer = JsonSerializer::new();
-            let serialized = black_box(serializer.serialize(&test_data).unwrap());
+            let data_bytes = serde_json::to_vec(&test_data).unwrap();
+            let serialized = black_box(serializer.serialize("TestData", &data_bytes).unwrap());
             black_box(serialized.len());
         })
     });
@@ -43,7 +44,8 @@ fn bench_serialization_sizes(c: &mut Criterion) {
         let data = TestData::small();
         b.iter(|| {
             let serializer = pool.json();
-            black_box(serializer.serialize(&data).unwrap());
+            let data_bytes = serde_json::to_vec(&data).unwrap();
+            black_box(serializer.serialize("TestData", &data_bytes).unwrap());
         })
     });
 
@@ -51,7 +53,8 @@ fn bench_serialization_sizes(c: &mut Criterion) {
         let data = TestData::medium();
         b.iter(|| {
             let serializer = pool.json();
-            black_box(serializer.serialize(&data).unwrap());
+            let data_bytes = serde_json::to_vec(&data).unwrap();
+            black_box(serializer.serialize("TestData", &data_bytes).unwrap());
         })
     });
 
@@ -59,7 +62,8 @@ fn bench_serialization_sizes(c: &mut Criterion) {
         let data = TestData::large();
         b.iter(|| {
             let serializer = pool.json();
-            black_box(serializer.serialize(&data).unwrap());
+            let data_bytes = serde_json::to_vec(&data).unwrap();
+            black_box(serializer.serialize("TestData", &data_bytes).unwrap());
         })
     });
 }
@@ -108,31 +112,6 @@ fn bench_batch_operations(c: &mut Criterion) {
                 let keys: Vec<String> = (0..100).map(|i| format!("key{}", i)).collect();
                 black_box(keys.len());
             });
-        })
-    });
-}
-
-// ============================================================================
-// 连接重试逻辑基准测试
-// ============================================================================
-
-fn bench_connection_retry_config(c: &mut Criterion) {
-    c.bench_function("config_creation", |b| {
-        b.iter(|| {
-            let cfg = L2Config::default()
-                .with_connection_timeout_ms(black_box(100))
-                .with_max_retries(black_box(3))
-                .with_retry_delay_ms(black_box(10));
-            black_box(cfg);
-        })
-    });
-
-    c.bench_function("config_validation", |b| {
-        b.iter(|| {
-            let cfg = L2Config::default();
-            let max_retries: u64 = cfg.max_retries as u64;
-            let retry_delay: u64 = cfg.retry_delay_ms;
-            black_box(max_retries + retry_delay);
         })
     });
 }
@@ -286,7 +265,6 @@ criterion_group!(
     bench_serializer_pool_reuse,
     bench_serialization_sizes,
     bench_batch_operations,
-    bench_connection_retry_config,
     bench_slot_calculation,
 );
 
