@@ -194,12 +194,11 @@ mod tests {
             &self,
             key: &str,
         ) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
-            Ok(self
+            let store = self
                 .store
                 .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))
-                .ok()
-                .and_then(|store| store.get(key).cloned()))
+                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))?;
+            Ok(store.get(key).cloned())
         }
 
         async fn set_response(
