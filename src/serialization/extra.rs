@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use serde_json;
+use tracing::debug;
 
 use crate::error::{CacheError, Result};
 use rmp_serde::{decode, encode};
@@ -130,29 +131,35 @@ impl SerializerRegistry {
 
     /// 获取序列化器
     pub fn get(&self, name: &str) -> Option<Arc<dyn ErasedSerializer>> {
-        self.serializers
-            .lock()
-            .map_err(|e| CacheError::LockError(e.to_string()))
-            .ok()
-            .and_then(|cache| cache.get(name).cloned())
+        match self.serializers.lock() {
+            Ok(cache) => cache.get(name).cloned(),
+            Err(e) => {
+                debug!("Failed to acquire serializer lock: {}", e);
+                None
+            }
+        }
     }
 
     /// 检查是否存在
     pub fn contains(&self, name: &str) -> bool {
-        self.serializers
-            .lock()
-            .map_err(|e| CacheError::LockError(e.to_string()))
-            .ok()
-            .is_some_and(|cache| cache.contains_key(name))
+        match self.serializers.lock() {
+            Ok(cache) => cache.contains_key(name),
+            Err(e) => {
+                debug!("Failed to acquire serializer lock: {}", e);
+                false
+            }
+        }
     }
 
     /// 移除序列化器
     pub fn remove(&self, name: &str) -> bool {
-        self.serializers
-            .lock()
-            .map_err(|e| CacheError::LockError(e.to_string()))
-            .ok()
-            .is_some_and(|mut cache| cache.remove(name).is_some())
+        match self.serializers.lock() {
+            Ok(mut cache) => cache.remove(name).is_some(),
+            Err(e) => {
+                debug!("Failed to acquire serializer lock: {}", e);
+                false
+            }
+        }
     }
 
     /// 清空所有

@@ -657,9 +657,13 @@ where
         if TypeId::of::<K>() == TypeId::of::<String>()
             && TypeId::of::<V>() == TypeId::of::<Vec<u8>>()
         {
-            // Safe to cast since we checked the types
+            // Safety: We have verified that K=String and V=Vec<u8>,
+            // and both Cache<K,V> and Cache<String,Vec<u8>> have identical
+            // memory layouts (Arc<dyn CacheBackend>, Arc<SerializerPool>, PhantomData).
+            // The PhantomData only affects type checking, not memory layout.
+            // This cast is safe because the types are verified and layouts match.
             let cache: Cache<String, Vec<u8>> = unsafe {
-                std::ptr::read(self as *const Cache<K, V> as *const Cache<String, Vec<u8>>)
+                std::mem::transmute_copy(self)
             };
             __internal_register_cache(service_name, Arc::new(cache));
         }
