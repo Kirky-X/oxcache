@@ -662,9 +662,7 @@ where
             // memory layouts (Arc<dyn CacheBackend>, Arc<SerializerPool>, PhantomData).
             // The PhantomData only affects type checking, not memory layout.
             // This cast is safe because the types are verified and layouts match.
-            let cache: Cache<String, Vec<u8>> = unsafe {
-                std::mem::transmute_copy(self)
-            };
+            let cache: Cache<String, Vec<u8>> = unsafe { std::mem::transmute_copy(self) };
             __internal_register_cache(service_name, Arc::new(cache));
         }
     }

@@ -494,10 +494,9 @@ mod tests {
 
     #[test]
     fn test_zero_copy_operations() {
-        let data = test_data();
-
         #[cfg(feature = "bincode")]
         {
+            let data = test_data();
             let serializer = UnifiedSerializer::bincode();
             assert!(serializer.supports_zero_copy());
 
@@ -509,7 +508,8 @@ mod tests {
             }
 
             // Test zero-copy deserialization
-            let serialized = serializer.serialize(&data).unwrap();
+            let data_bytes = serde_json::to_vec(&data).unwrap();
+            let serialized = serializer.serialize(&data_bytes).unwrap();
             let zero_copy_result = serializer
                 .deserialize_zero_copy::<TestData>(&serialized)
                 .unwrap();

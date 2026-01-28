@@ -209,14 +209,17 @@ macro_rules! has_feature {
 macro_rules! require_feature {
     ($required:expr, $dependent:expr) => {
         #[cfg(all(feature = $dependent, not(feature = $required)))]
-        compile_error!(
-            concat!(
-                "Feature '", $dependent, "' requires the '", $required,
-                "' feature to be enabled.\n",
-                "Add '", $required, "' to your Cargo.toml features, ",
-                "or use the 'full' feature for all capabilities."
-            )
-        );
+        compile_error!(concat!(
+            "Feature '",
+            $dependent,
+            "' requires the '",
+            $required,
+            "' feature to be enabled.\n",
+            "Add '",
+            $required,
+            "' to your Cargo.toml features, ",
+            "or use the 'full' feature for all capabilities."
+        ));
     };
 }
 
@@ -235,16 +238,21 @@ macro_rules! require_feature {
 macro_rules! check_feature_dependence {
     ($required:expr, $dependent:expr) => {
         #[cfg(all(feature = $dependent, not(feature = $required), not(feature = "full")))]
-        compile_error!(
-            concat!(
-                "Feature '", $dependent, "' requires '", $required,
-                "' or 'full' feature.\n",
-                "\nSolution 1: Enable required feature:\n",
-                "    oxcache = { version = \"0.1\", features = [\"", $dependent, "\", \"", $required, "\"] }\n",
-                "\nSolution 2: Enable all features:\n",
-                "    oxcache = { version = \"0.1\", features = [\"full\"] }"
-            )
-        );
+        compile_error!(concat!(
+            "Feature '",
+            $dependent,
+            "' requires '",
+            $required,
+            "' or 'full' feature.\n",
+            "\nSolution 1: Enable required feature:\n",
+            "    oxcache = { version = \"0.1\", features = [\"",
+            $dependent,
+            "\", \"",
+            $required,
+            "\"] }\n",
+            "\nSolution 2: Enable all features:\n",
+            "    oxcache = { version = \"0.1\", features = [\"full\"] }"
+        ));
     };
 }
 
