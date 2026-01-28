@@ -193,66 +193,58 @@ macro_rules! has_feature {
     };
 }
 
-/// 编译时断言：确保功能依赖满足
+/// 编译时特性依赖检查
+///
+/// 使用 `compile_error!` 提供清晰的编译时错误信息。
+/// 注意：$required 应为特性名称字符串，而非 cfg 表达式。
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// require_feature!(cfg!(feature = "moka"), "bloom-filter");
+/// require_feature!("moka", "bloom-filter");
 /// ```
 ///
-/// 如果启用了 `bloom-filter` 但没有启用 `moka`，编译时会panic。
-/// 这是为了在编译时捕获配置错误，而不是在运行时。
+/// 如果启用了 `bloom-filter` 但没有启用 `moka`，编译时会报错。
 #[macro_export]
 macro_rules! require_feature {
     ($required:expr, $dependent:expr) => {
-        const _: fn() = || {
-            if !$required && cfg!(feature = $dependent) {
-                panic!(
-                    "Feature '{}' requires feature '{}' to be enabled. \
-                    Add '{}' to your Cargo.toml features or use the 'full' feature.",
-                    $dependent,
-                    stringify!($required),
-                    stringify!($required)
-                )
-            }
-        };
+        #[cfg(all(feature = $dependent, not(feature = $required)))]
+        compile_error!(
+            concat!(
+                "Feature '", $dependent, "' requires the '", $required,
+                "' feature to be enabled.\n",
+                "Add '", $required, "' to your Cargo.toml features, ",
+                "or use the 'full' feature for all capabilities."
+            )
+        );
     };
 }
 
-/// 编译时断言：检查特性依赖关系（支持full特性）
+/// 编译时特性依赖检查（支持 full 特性）
+///
+/// 注意：$required 应为特性名称字符串，而非 cfg 表达式。
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// check_feature_dependence!("bloom-filter", cfg!(feature = "moka"));
+/// check_feature_dependence!("moka", "bloom-filter");
 /// ```
 ///
-/// 如果启用了 `bloom-filter` 但没有启用 `moka` 或 `full`，编译时会panic。
+/// 如果启用了 `bloom-filter` 但没有启用 `moka` 或 `full`，编译时会报错。
 #[macro_export]
 macro_rules! check_feature_dependence {
-    ($dependent:expr, $required:expr) => {
-        const _: fn() = || {
-            if cfg!(feature = $dependent) && !$required && !cfg!(feature = "full") {
-                panic!(
-                    "ERROR: '{}' feature requires '{}' feature.\n\
-                    \n\
-                    Solution 1: Enable required feature:\n\
-                        oxcache = {{ version = \"0.1\", features = [\"{}\", \"{}\"] }}\n\
-                    \n\
-                    Solution 2: Enable all features:\n\
-                        oxcache = {{ version = \"0.1\", features = [\"full\"] }}",
-                    $dependent,
-                    stringify!($required)
-                        .replace("cfg!(feature = \\\"", "")
-                        .replace("\\\")\"", ""),
-                    $dependent,
-                    stringify!($required)
-                        .replace("cfg!(feature = \\\"", "")
-                        .replace("\\\")\"", "")
-                )
-            }
-        };
+    ($required:expr, $dependent:expr) => {
+        #[cfg(all(feature = $dependent, not(feature = $required), not(feature = "full")))]
+        compile_error!(
+            concat!(
+                "Feature '", $dependent, "' requires '", $required,
+                "' or 'full' feature.\n",
+                "\nSolution 1: Enable required feature:\n",
+                "    oxcache = { version = \"0.1\", features = [\"", $dependent, "\", \"", $required, "\"] }\n",
+                "\nSolution 2: Enable all features:\n",
+                "    oxcache = { version = \"0.1\", features = [\"full\"] }"
+            )
+        );
     };
 }
 
@@ -634,11 +626,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const _: fn() = || {
     // 使用统一的宏检查特性依赖
-    check_feature_dependence!("bloom-filter", cfg!(feature = "moka"));
-    check_feature_dependence!("rate-limiting", cfg!(feature = "moka"));
-    check_feature_dependence!("wal-recovery", cfg!(feature = "redis"));
-    check_feature_dependence!("batch-write", cfg!(feature = "redis"));
-    check_feature_dependence!("cli", cfg!(feature = "confers"));
-    check_feature_dependence!("opentelemetry", cfg!(feature = "metrics"));
-    check_feature_dependence!("database", cfg!(feature = "redis"));
+    // 注意：第一个参数是必需的依赖特性名称，第二个是当前启用的特性
+    check_feature_dependence!("moka", "bloom-filter");
+    check_feature_dependence!("moka", "rate-limiting");
+    check_feature_dependence!("redis", "wal-recovery");
+    check_feature_dependence!("redis", "batch-write");
+    check_feature_dependence!("confers", "cli");
+    check_feature_dependence!("metrics", "opentelemetry");
+    check_feature_dependence!("redis", "database");
 };

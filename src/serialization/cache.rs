@@ -306,7 +306,10 @@ impl<S: Serializer + Clone> SerializationCache<S> {
                 }
                 Err(e) => {
                     warn!("Failed to deserialize cache entry: {}", e);
-                    self.delete(key).await.ok();
+                    // Best-effort cleanup: try to delete corrupted entry
+                    if let Err(delete_err) = self.delete(key).await {
+                        debug!("Failed to delete corrupted entry: {}", delete_err);
+                    }
                     Ok(None)
                 }
             },
