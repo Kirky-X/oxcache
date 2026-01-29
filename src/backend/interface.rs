@@ -168,6 +168,12 @@ pub trait CacheBackend: Send + Sync + 'static {
     /// Get as_any reference for type downcasting
     fn as_any(&self) -> &dyn Any;
 
+    /// Get the number of entries in the cache
+    async fn len(&self) -> Result<u64>;
+
+    /// Get the capacity of the cache
+    async fn capacity(&self) -> Result<u64>;
+
     /// Check if backend is of specific type
     fn is<T: Any>(&self) -> bool
     where
@@ -249,6 +255,16 @@ mod tests {
 
         fn as_any(&self) -> &dyn std::any::Any {
             self
+        }
+
+        async fn len(&self) -> Result<u64> {
+            let data = self.data.read().await;
+            Ok(data.len() as u64)
+        }
+
+        async fn capacity(&self) -> Result<u64> {
+            // Mock backend has no fixed capacity
+            Ok(0)
         }
     }
 

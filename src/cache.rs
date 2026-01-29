@@ -619,6 +619,24 @@ where
         self.backend.health_check().await
     }
 
+    /// Get the number of entries in the cache
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(u64)` - Number of entries in the cache
+    pub async fn len(&self) -> Result<u64> {
+        self.backend.len().await
+    }
+
+    /// Get the capacity of the cache
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(u64)` - Maximum capacity of the cache (0 if unlimited)
+    pub async fn capacity(&self) -> Result<u64> {
+        self.backend.capacity().await
+    }
+
     /// Shutdown the cache and release all resources.
     ///
     /// This method should be called during application shutdown to properly

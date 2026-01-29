@@ -125,6 +125,14 @@ impl CacheBackend for MokaMemoryBackend {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    async fn len(&self) -> Result<u64> {
+        Ok(self.cache.entry_count())
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        Ok(self.capacity)
+    }
 }
 
 /// Builder for MokaMemoryBackend

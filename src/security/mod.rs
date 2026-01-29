@@ -497,10 +497,10 @@ mod tests {
     #[test]
     fn test_validate_lua_script_valid() {
         let script = "return redis.call('GET', KEYS[1])";
-        match validate_lua_script(script, 1) {
-            Ok(()) => (),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
+        assert!(
+            validate_lua_script(script, 1).is_ok(),
+            "Valid Lua script should not return error"
+        );
     }
 
     #[test]

@@ -6,8 +6,6 @@
 //
 // 测试 TTL 查询、刷新和 touch 操作。
 
-#![allow(deprecated)]
-
 use crate::common::{is_redis_available, setup_logging};
 
 #[tokio::test]
