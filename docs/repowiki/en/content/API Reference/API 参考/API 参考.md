@@ -388,10 +388,9 @@ Cache --> Error["CacheError"]
 
 ### 版本兼容性与迁移
 - 版本常量：VERSION 来自包元数据
-- 兼容策略：新 API（v0.2.0+）推荐使用，旧 API（v0.1.x）仍可用但已弃用
+- 兼容策略：统一使用新 API（v0.2.0+）
 - 迁移要点
-  - 旧 API 初始化与配置：使用 ServiceConfig/TwoLevelConfig 等
-  - 新 API 初始化：直接使用 Cache::new()/memory()/redis()/builder()
+  - 初始化：使用 Cache::memory()/redis()/builder()
   - 键类型：通过实现 CacheKey 或使用内置类型（String/&str/u64 等）
   - 值类型：实现 serde::Serialize/DeserializeOwned 或使用 blanket 实现
 - 特性检查：编译时通过 check_feature_dependence! 宏确保特性依赖满足

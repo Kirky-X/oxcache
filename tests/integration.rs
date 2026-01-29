@@ -41,6 +41,8 @@ mod performance_test;
 mod recovery_test;
 #[path = "integration/redis_native_test.rs"]
 mod redis_native_test;
+#[path = "integration/redis_simple_test.rs"]
+mod redis_simple_test;
 #[path = "integration/redis_test.rs"]
 mod redis_test;
 #[path = "integration/sea_orm_sqlite_tests.rs"]

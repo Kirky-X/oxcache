@@ -442,6 +442,10 @@ impl CacheBackend for RedisBackend {
         Ok(len as u64)
     }
 
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.len().await?.eq(&0))
+    }
+
     async fn capacity(&self) -> Result<u64> {
         // Redis doesn't have a fixed capacity limit
         // Return 0 to indicate unlimited capacity

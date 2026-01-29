@@ -9,3 +9,12 @@
 
 #[path = "unit/serialization_test.rs"]
 mod serialization_test;
+
+#[path = "unit/bloom_filter_test.rs"]
+mod bloom_filter_test;
+
+#[path = "unit/smart_strategy_test.rs"]
+mod smart_strategy_test;
+
+#[path = "unit/rate_limiting_test.rs"]
+mod rate_limiting_test;

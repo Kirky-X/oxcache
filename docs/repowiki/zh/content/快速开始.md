@@ -263,7 +263,7 @@ CL-->>APP : 返回结果
 - [src/lib.rs](file://src/lib.rs#L517-L539)
 
 ### 5) 新 API（v0.2+）入门
-- 创建缓存：Cache::new()/memory()/redis()/tiered()
+- 创建缓存：Cache::memory()/redis()/builder()/layered()
 - 基本操作：set/get/delete、exists、clear、get_or（回退模式）
 - 批量操作：set_many/get_many/delete_many
 - 高级配置：Builder 模式设置 TTL、序列化、批处理、并发等
@@ -272,10 +272,10 @@ CL-->>APP : 返回结果
 ```mermaid
 classDiagram
 class Cache~K,V~ {
-+new() Cache
 +memory() Cache
 +redis(url) Cache
-+tiered(capacity, url) Cache
++builder() CacheBuilder
++layered() Cache
 +set(key, value, ttl)
 +get(key) Option<V>
 +delete(key)

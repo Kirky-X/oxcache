@@ -171,6 +171,17 @@ pub trait CacheBackend: Send + Sync + 'static {
     /// Get the number of entries in the cache
     async fn len(&self) -> Result<u64>;
 
+    /// Check if the cache is empty
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - Cache has no entries
+    /// * `Ok(false)` - Cache has entries
+    /// * `Err(CacheError)` - Operation failed
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.len().await?.eq(&0))
+    }
+
     /// Get the capacity of the cache
     async fn capacity(&self) -> Result<u64>;
 
@@ -260,6 +271,11 @@ mod tests {
         async fn len(&self) -> Result<u64> {
             let data = self.data.read().await;
             Ok(data.len() as u64)
+        }
+
+        async fn is_empty(&self) -> Result<bool> {
+            let data = self.data.read().await;
+            Ok(data.is_empty())
         }
 
         async fn capacity(&self) -> Result<u64> {
