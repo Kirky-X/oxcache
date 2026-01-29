@@ -14,7 +14,7 @@ async fn test_basic_fault_recovery() {
     println!("=== 开始基本的 chaos 测试 ===");
 
     // 使用新的Cache API创建缓存
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     println!("1. 初始设置 - 设置测试数据");
     let key = "chaos_test_key".to_string();
@@ -45,7 +45,9 @@ async fn test_basic_fault_recovery() {
 /// 测试并发访问
 #[tokio::test]
 async fn test_concurrent_access() {
-    let cache = Arc::new(Mutex::new(Cache::<String, i32>::new().await.unwrap()));
+    let cache = Arc::new(Mutex::new(
+        Cache::<String, i32>::builder().build().await.unwrap(),
+    ));
 
     let handles: Vec<_> = (0..5)
         .map(|i| {
@@ -71,7 +73,7 @@ async fn test_concurrent_access() {
 /// 测试快速连续操作
 #[tokio::test]
 async fn test_rapid_operations() {
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     for i in 0..100 {
         let key = format!("rapid_key_{}", i % 20);

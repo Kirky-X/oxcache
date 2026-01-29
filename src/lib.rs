@@ -24,7 +24,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Simple memory cache
-//!     let cache: Cache<String, User> = Cache::new().await?;
+//!     let cache: Cache<String, User> = Cache::builder().build().await?;
 //!
 //!     // Set a value
 //!     let user = User { id: 1, name: "Alice".to_string() };
@@ -47,7 +47,7 @@
 //! ## Memory Cache (L1)
 //!
 //! ```rust,ignore
-//! let cache: Cache<String, MyType> = Cache::new().await?;
+//! let cache: Cache<String, MyType> = Cache::builder().build().await?;
 //! ```
 //!
 //! ## Redis Cache (L2)
@@ -93,10 +93,10 @@
 //!
 //! ```rust,ignore
 //! // String keys (default)
-//! let cache: Cache<String, User> = Cache::new().await?;
+//! let cache: Cache<String, User> = Cache::builder().build().await?;
 //!
 //! // Numeric keys
-//! let cache: Cache<u64, User> = Cache::new().await?;
+//! let cache: Cache<u64, User> = Cache::builder().build().await?;
 //!
 //! // Custom key type
 //! impl oxcache::traits::CacheKey for UserId {
@@ -105,7 +105,7 @@
 //!     }
 //! }
 //!
-//! let cache: Cache<UserId, User> = Cache::new().await?;
+//! let cache: Cache<UserId, User> = Cache::builder().build().await?;
 //! ```
 //!
 //! # Batch Operations
@@ -138,7 +138,7 @@
 //! use oxcache::Cache;
 //!
 //! // First, register a cache for macro usage
-//! let cache = Cache::<String, Vec<u8>>::new().await?;
+//! let cache = Cache::<String, Vec<u8>>::builder().build().await?;
 //! cache.register_for_macro("my_cache").await;
 //!
 //! // Then use the macro on functions
@@ -168,7 +168,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a memory cache
-//!     let cache: Cache<String, String> = Cache::new().await?;
+//!     let cache: Cache<String, String> = Cache::builder().build().await?;
 //!
 //!     // Set and get
 //!     cache.set(&"key".to_string(), &"value".to_string()).await?;
@@ -557,7 +557,7 @@ pub use backend::custom_tiered::{
 
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]
-pub use backend::client::DashMapMemoryBackend as DashmapBackend;
+pub use backend::client::DashMapMemoryBackend as DashMapBackend;
 
 // Unified memory backend exports (from client implementations)
 pub use backend::{

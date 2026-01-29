@@ -64,31 +64,31 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.1.3"
+oxcache = "0.2.0"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-`oxcache = { version = "0.1.3", default-features = false }` and add them manually.
+`oxcache = { version = "0.2.0", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.1.3", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.2.0", features = ["macros"] }`
 
 #### Feature Tiers
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.1.3", features = ["full"] }
+oxcache = { version = "0.2.0", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.1.3", features = ["core"] }
+oxcache = { version = "0.2.0", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.1.3", features = ["minimal"] }
+oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 
 # Development with specific features
-oxcache = { version = "0.1.3", features = [
+oxcache = { version = "0.2.0", features = [
     "moka",      # L1 cache (Moka)
     "redis",     # L2 cache (Redis)
     "macros",       # #[cached] macro
@@ -119,7 +119,7 @@ Create a `config.toml` file:
 
 > **Important**: To initialize from a config file, you need to enable both `config-toml` and `confers` features:
 > ```toml
-> oxcache = { version = "0.1.3", features = ["config-toml", "confers"] }
+> oxcache = { version = "0.2.0", features = ["config-toml", "confers"] }
 > ```
 
 ```toml
@@ -177,6 +177,9 @@ ttl = 7200
 
 ```rust
 use oxcache::macros::cached;
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
+use oxcache::backend::{L1Backend, L2Backend};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -198,17 +201,27 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache (from config file)
-    oxcache::init_from_file("config.toml").await?;
-    
+    // Initialize cache using Builder pattern
+    let cache = CacheBuilder::new()
+        .backend(
+            BackendBuilder::tiered()
+                .l1_capacity(10000)
+                .l2_connection_string("redis://127.0.0.1:6379")
+        )
+        .build()
+        .await?;
+
+    // Register cache for macro usage
+    cache.register_for_macro("user_cache").await;
+
     // First call: execute function logic + cache result (~100ms)
     let user = get_user(1).await?;
     println!("First call: {:?}", user);
-    
+
     // Second call: return directly from cache (~0.1ms)
     let cached_user = get_user(1).await?;
     println!("Cached call: {:?}", cached_user);
-    
+
     Ok(())
 }
 ```
@@ -216,27 +229,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### Manual Client Usage
 
 ```rust
-use oxcache::{get_client, CacheOps};
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct MyData {
+    field: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    oxcache::init_from_file("config.toml").await?;
-    
-    let client = get_client("user_cache")?;
-    
+    // Initialize cache using Builder pattern
+    let cache = CacheBuilder::new()
+        .backend(
+            BackendBuilder::tiered()
+                .l1_capacity(10000)
+                .l2_connection_string("redis://127.0.0.1:6379")
+        )
+        .build()
+        .await?;
+
+    let my_data = MyData {
+        field: "value".to_string(),
+    };
+
     // Standard operation: write to both L1 and L2
-    client.set("key", &my_data, Some(300)).await?;
-    let data: MyData = client.get("key").await?.unwrap();
-    
-    // Write to L1 only (temporary data)
-    client.set_l1_only("temp_key", &temp_data, Some(60)).await?;
-    
-    // Write to L2 only (shared data)
-    client.set_l2_only("shared_key", &shared_data, Some(3600)).await?;
-    
+    cache.set(&"key".to_string(), &my_data).await?;
+
+    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
+    println!("Data: {:?}", data);
+
     // Delete
-    client.delete("key").await?;
-    
+    cache.delete(&"key".to_string()).await?;
+
     Ok(())
 }
 ```

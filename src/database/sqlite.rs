@@ -192,11 +192,25 @@ impl PartitionManager for SQLitePartitionManager {
 
         let escaped_main_table = self.escape_identifier(&format!("{}_main", table_name));
 
-        // 替换schema中的表名为主表名
-        let main_table_sql = schema.replace(
-            &format!("CREATE TABLE IF NOT EXISTS {}", table_name),
-            &format!("CREATE TABLE IF NOT EXISTS {}", escaped_main_table),
-        );
+        // 使用更安全的 schema 构建方式
+        let main_table_sql = if let Some(create_pos) = schema.find("CREATE TABLE IF NOT EXISTS") {
+            // 从 schema 中提取列定义部分
+            let prefix_len = "CREATE TABLE IF NOT EXISTS".len();
+            let after_table_name = &schema[create_pos + prefix_len..];
+            let table_name_end = after_table_name.find('(').ok_or_else(|| {
+                CacheError::DatabaseError("Invalid schema: missing '('".to_string())
+            })?;
+
+            let columns = &after_table_name[table_name_end..];
+            format!(
+                "CREATE TABLE IF NOT EXISTS {} {}",
+                escaped_main_table, columns
+            )
+        } else {
+            return Err(CacheError::DatabaseError(
+                "Invalid schema: missing CREATE TABLE".to_string(),
+            ));
+        };
 
         debug!("Creating main table with SQL: {}", main_table_sql);
         self.execute(&main_table_sql).await?;
@@ -206,11 +220,24 @@ impl PartitionManager for SQLitePartitionManager {
         self.validate_identifier(&partition_table_name)?;
         let escaped_partition_table = self.escape_identifier(&partition_table_name);
 
-        // 替换schema中的表名为分区表名
-        let partition_schema = schema.replace(
-            &format!("CREATE TABLE IF NOT EXISTS {}", table_name),
-            &format!("CREATE TABLE IF NOT EXISTS {}", escaped_partition_table),
-        );
+        // 安全构建分区表 schema
+        let partition_schema = if let Some(create_pos) = schema.find("CREATE TABLE IF NOT EXISTS") {
+            let prefix_len = "CREATE TABLE IF NOT EXISTS".len();
+            let after_table_name = &schema[create_pos + prefix_len..];
+            let table_name_end = after_table_name.find('(').ok_or_else(|| {
+                CacheError::DatabaseError("Invalid schema: missing '('".to_string())
+            })?;
+
+            let columns = &after_table_name[table_name_end..];
+            format!(
+                "CREATE TABLE IF NOT EXISTS {} {}",
+                escaped_partition_table, columns
+            )
+        } else {
+            return Err(CacheError::DatabaseError(
+                "Invalid schema: missing CREATE TABLE".to_string(),
+            ));
+        };
 
         debug!(
             "Creating partition table {} with SQL: {}",
@@ -461,8 +488,9 @@ impl PartitionManager for SQLitePartitionManager {
                         )
                     })?
             } else {
-                date.with_month(date.month() + 1)
-                    .and_then(|d| d.with_day(1))
+                // 先取月份第一天，避免月末日期问题
+                date.with_day(1)
+                    .and_then(|d| d.with_month(d.month() + 1))
                     .and_then(|d| d.with_hour(0))
                     .and_then(|d| d.with_minute(0))
                     .and_then(|d| d.with_second(0))

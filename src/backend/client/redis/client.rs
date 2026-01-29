@@ -12,6 +12,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 /// Redis connection mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -68,12 +69,14 @@ impl Default for RedisConfig {
 ///
 /// This backend provides a distributed cache using Redis.
 /// It supports standalone, sentinel, and cluster modes.
-/// Now includes connection pooling for better performance.
+/// Includes connection pooling for better performance.
 #[derive(Clone)]
 pub struct RedisBackend {
     client: Arc<Client>,
     mode: RedisMode,
-    /// Connection pool size (for future use with r2d2 or mobc)
+    /// Connection pool for connection reuse
+    pool: Arc<Mutex<Vec<redis::aio::MultiplexedConnection>>>,
+    /// Pool configuration
     pool_size: usize,
 }
 
@@ -93,6 +96,30 @@ impl RedisBackend {
             .pool_size(pool_size)
             .build()
             .await
+    }
+
+    /// Get a connection from the pool
+    async fn get_connection(&self) -> Result<redis::aio::MultiplexedConnection> {
+        let mut pool = self.pool.lock().await;
+
+        if let Some(conn) = pool.pop() {
+            Ok(conn)
+        } else {
+            // Create new connection if pool is empty
+            self.client
+                .get_multiplexed_async_connection()
+                .await
+                .map_err(|e| CacheError::Connection(e.to_string()))
+        }
+    }
+
+    /// Return a connection to the pool
+    async fn return_connection(&self, conn: redis::aio::MultiplexedConnection) {
+        let mut pool = self.pool.lock().await;
+        if pool.len() < self.pool_size {
+            pool.push(conn);
+        }
+        // Connection is dropped if pool is full
     }
 
     /// Create a new Redis backend builder
@@ -117,17 +144,12 @@ impl RedisBackend {
 
     /// Ping the Redis server
     pub async fn ping(&self) -> Result<String> {
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         let result: String = redis::cmd("PING")
             .query_async(&mut conn)
             .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        self.return_connection(conn).await;
         Ok(result)
     }
 }
@@ -208,6 +230,7 @@ impl RedisBackendBuilder {
         Ok(RedisBackend {
             client: Arc::new(client),
             mode: self.mode,
+            pool: Arc::new(Mutex::new(Vec::new())),
             pool_size: self.pool_size.unwrap_or(1),
         })
     }
@@ -219,24 +242,13 @@ impl CacheBackend for RedisBackend {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         let result: Option<Vec<u8>> = redis::cmd("GET")
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
-
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
         Ok(result)
     }
 
@@ -244,11 +256,7 @@ impl CacheBackend for RedisBackend {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        let mut conn = self.get_connection().await?;
 
         if let Some(ttl) = ttl {
             let ttl_secs = ttl.as_secs();
@@ -258,28 +266,17 @@ impl CacheBackend for RedisBackend {
                 .arg(&value)
                 .query_async::<()>(&mut conn)
                 .await
-                .map_err(|e| {
-                    if is_connection_error(&e) {
-                        CacheError::Connection(e.to_string())
-                    } else {
-                        CacheError::Operation(e.to_string())
-                    }
-                })?;
+                .map_err(|e| CacheError::Connection(e.to_string()))?;
         } else {
             redis::cmd("SET")
                 .arg(key)
                 .arg(&value)
                 .query_async::<()>(&mut conn)
                 .await
-                .map_err(|e| {
-                    if is_connection_error(&e) {
-                        CacheError::Connection(e.to_string())
-                    } else {
-                        CacheError::Operation(e.to_string())
-                    }
-                })?;
+                .map_err(|e| CacheError::Connection(e.to_string()))?;
         }
 
+        self.return_connection(conn).await;
         Ok(())
     }
 
@@ -287,24 +284,13 @@ impl CacheBackend for RedisBackend {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         redis::cmd("DEL")
             .arg(key)
             .query_async::<()>(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
-
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
         Ok(())
     }
 
@@ -312,53 +298,32 @@ impl CacheBackend for RedisBackend {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
-        let result: i64 = redis::cmd("EXISTS")
+        let mut conn = self.get_connection().await?;
+        let n: i64 = redis::cmd("EXISTS")
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
-
-        Ok(result > 0)
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
+        Ok(n > 0)
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
-        let result: i64 = redis::cmd("TTL")
+        let mut conn = self.get_connection().await?;
+        let n: i64 = redis::cmd("TTL")
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
 
-        if result <= 0 {
+        if n <= 0 {
             Ok(None)
         } else {
-            Ok(Some(Duration::from_secs(result as u64)))
+            Ok(Some(Duration::from_secs(n as u64)))
         }
     }
 
@@ -366,24 +331,14 @@ impl CacheBackend for RedisBackend {
         // 验证键的安全性
         security::validate_redis_key(key)?;
 
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         let result: i64 = redis::cmd("EXPIRE")
             .arg(key)
             .arg(ttl.as_secs())
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+        self.return_connection(conn).await;
 
         Ok(result > 0)
     }
@@ -391,11 +346,7 @@ impl CacheBackend for RedisBackend {
     async fn clear(&self) -> Result<()> {
         // Use SCAN + DEL instead of FLUSHDB to avoid affecting other connections/databases
         // FLUSHDB clears the entire database which can interfere with other tests
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        let mut conn = self.get_connection().await?;
 
         // 验证扫描模式的安全性
         security::validate_scan_pattern("*")?;
@@ -454,44 +405,23 @@ impl CacheBackend for RedisBackend {
     }
 
     async fn health_check(&self) -> Result<bool> {
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         let result: String = redis::cmd("PING")
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
-
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
         Ok(result == "PONG")
     }
 
     async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
+        let mut conn = self.get_connection().await?;
         let info: String = redis::cmd("INFO")
             .arg("memory")
             .query_async(&mut conn)
             .await
-            .map_err(|e| {
-                if is_connection_error(&e) {
-                    CacheError::Connection(e.to_string())
-                } else {
-                    CacheError::Operation(e.to_string())
-                }
-            })?;
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+        self.return_connection(conn).await;
 
         let mut stats = HashMap::new();
         stats.insert("memory_info".to_string(), info);
@@ -508,6 +438,143 @@ fn is_connection_error(e: &RedisError) -> bool {
     e.is_timeout() || e.is_io_error()
 }
 
+// ============================================================================
+// Lua Script Execution (feature-gated) - Inherent methods on RedisBackend
+// ============================================================================
+
+#[cfg(feature = "lua-script")]
+impl RedisBackend {
+    /// Execute a Lua script with validation and security checks.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - The Lua script to execute
+    /// * `keys` - Keys that will be available as KEYS[1], KEYS[2], etc.
+    /// * `args` - Additional arguments that will be available as ARGV[1], ARGV[2], etc.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(redis::Value)` - The result from Redis
+    /// * `Err(CacheError)` - If validation fails or execution fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let result: i64 = backend.eval_lua(
+    ///     "return redis.call('INCR', KEYS[1])",
+    ///     &["mycounter"],
+    ///     &[],
+    /// ).await?;
+    /// ```
+    pub async fn eval_lua(
+        &self,
+        script: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> Result<redis::Value> {
+        // Validate the Lua script for security
+        security::validate_lua_script(script, keys.len())?;
+
+        let mut conn = self.get_connection().await?;
+
+        let mut cmd = redis::cmd("EVAL");
+        cmd.arg(script).arg(keys.len());
+
+        for key in keys {
+            cmd.arg(key);
+        }
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        let result = cmd
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+        self.return_connection(conn).await;
+        Ok(result)
+    }
+
+    /// Execute a cached Lua script by its SHA digest.
+    ///
+    /// This is more efficient than EVAL when the same script is executed multiple times
+    /// because Redis can reuse the compiled script from its internal cache.
+    ///
+    /// # Arguments
+    ///
+    /// * `sha` - The SHA1 digest of the script (from `script_load()`)
+    /// * `keys` - Keys that will be available as KEYS[1], KEYS[2], etc.
+    /// * `args` - Additional arguments that will be available as ARGV[1], ARGV[2], etc.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(redis::Value)` - The result from Redis
+    /// * `Err(CacheError)` - If the script is not cached (NOSCRIPT error) or execution fails
+    ///
+    /// # Note
+    ///
+    /// If you get a NOSCRIPT error, use `eval_lua()` to re-execute the script and cache it,
+    /// then call `script_load()` to get the SHA for future use.
+    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+        let mut conn = self.get_connection().await?;
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(sha).arg(keys.len());
+
+        for key in keys {
+            cmd.arg(key);
+        }
+        for arg in args {
+            cmd.arg(arg);
+        }
+
+        let result = cmd
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+        self.return_connection(conn).await;
+        Ok(result)
+    }
+
+    /// Load a Lua script into Redis's script cache and return its SHA digest.
+    ///
+    /// After loading a script, you can use `eval_sha()` with the returned SHA
+    /// for more efficient repeated executions.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - The Lua script to load
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The SHA1 digest of the script
+    /// * `Err(CacheError)` - If validation fails or loading fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let sha = backend.script_load("return redis.call('GET', KEYS[1])").await?;
+    /// // Later...
+    /// let result = backend.eval_sha(&sha, &["mykey"], &[]).await?;
+    /// ```
+    pub async fn script_load(&self, script: &str) -> Result<String> {
+        // Validate the Lua script for security
+        security::validate_lua_script(script, 0)?;
+
+        let mut conn = self.get_connection().await?;
+
+        let sha: String = redis::cmd("SCRIPT")
+            .arg("LOAD")
+            .arg(script)
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+        self.return_connection(conn).await;
+
+        Ok(sha)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,5 +589,134 @@ mod tests {
         let _standalone = RedisMode::Standalone;
         let _sentinel = RedisMode::Sentinel;
         let _cluster = RedisMode::Cluster;
+    }
+
+    // ============================================================================
+    // Lua Script Tests (feature-gated)
+    // ============================================================================
+
+    #[cfg(feature = "lua-script")]
+    mod lua_script_tests {
+        use super::*;
+
+        #[test]
+        fn test_validate_lua_script_valid() {
+            // Valid simple script
+            let result = security::validate_lua_script("return redis.call('GET', KEYS[1])", 1);
+            assert!(result.is_ok());
+
+            // Valid script with multiple keys
+            let result = security::validate_lua_script(
+                "local a = redis.call('GET', KEYS[1]); \
+                 local b = redis.call('GET', KEYS[2]); \
+                 return a + b",
+                2,
+            );
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_validate_lua_script_forbidden_commands() {
+            // FLUSHALL should be rejected
+            let result = security::validate_lua_script("return redis.call('FLUSHALL')", 0);
+            assert!(result.is_err());
+
+            // FLUSHDB should be rejected
+            let result = security::validate_lua_script("return redis.call('FLUSHDB')", 0);
+            assert!(result.is_err());
+
+            // KEYS command should be rejected
+            let result = security::validate_lua_script("return redis.call('KEYS', '*')", 0);
+            assert!(result.is_err());
+
+            // SHUTDOWN should be rejected
+            let result = security::validate_lua_script("return redis.call('SHUTDOWN')", 0);
+            assert!(result.is_err());
+
+            // DEBUG should be rejected
+            let result = security::validate_lua_script("return redis.call('DEBUG', 'SEGFAULT')", 0);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_validate_lua_script_max_length() {
+            // Script at max length (10KB)
+            let max_script = "x".repeat(10 * 1024);
+            let result = security::validate_lua_script(&max_script, 1);
+            assert!(result.is_ok());
+
+            // Script exceeds max length
+            let over_max_script = "x".repeat(10 * 1024 + 1);
+            let result = security::validate_lua_script(&over_max_script, 1);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_validate_lua_script_max_keys() {
+            // Max keys (100)
+            let script = "return 1";
+            let result = security::validate_lua_script(script, 100);
+            assert!(result.is_ok());
+
+            // Too many keys
+            let result = security::validate_lua_script(script, 101);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_validate_lua_script_case_insensitive() {
+            // Uppercase forbidden command
+            let result = security::validate_lua_script("return redis.call('FLUSHALL')", 0);
+            assert!(result.is_err());
+
+            // Lowercase forbidden command
+            let result = security::validate_lua_script("return redis.call('flushall')", 0);
+            assert!(result.is_err());
+
+            // Mixed case
+            let result = security::validate_lua_script("return redis.call('FlushAll')", 0);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_validate_lua_script_safe_commands() {
+            // GET is allowed
+            let result = security::validate_lua_script("return redis.call('GET', KEYS[1])", 1);
+            assert!(result.is_ok());
+
+            // SET is allowed
+            let result =
+                security::validate_lua_script("return redis.call('SET', KEYS[1], 'value')", 1);
+            assert!(result.is_ok());
+
+            // INCR is allowed
+            let result = security::validate_lua_script("return redis.call('INCR', KEYS[1])", 1);
+            assert!(result.is_ok());
+
+            // HGET/HSET are allowed
+            let result = security::validate_lua_script(
+                "local val = redis.call('HGET', KEYS[1], 'field'); \
+                 if not val then redis.call('HSET', KEYS[1], 'field', 'default'); end; \
+                 return val",
+                1,
+            );
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_validate_lua_script_with_args() {
+            // Script with args
+            let result = security::validate_lua_script(
+                "local val = redis.call('GET', KEYS[1]); \
+                 if val then \
+                   local new_val = tonumber(val) + tonumber(ARGV[1]); \
+                   redis.call('SET', KEYS[1], new_val); \
+                   return new_val; \
+                 end; \
+                 return ARGV[1]",
+                1,
+            );
+            assert!(result.is_ok());
+        }
     }
 }

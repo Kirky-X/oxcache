@@ -63,28 +63,28 @@
 
 ```toml
 [dependencies]
-oxcache = "0.1.3"
+oxcache = "0.2.0"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.1.3", default-features = false }` 手动添加。
+`oxcache = { version = "0.2.0", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.1.3", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.2.0", features = ["macros"] }`
 
 #### 特性分层
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.1.3", features = ["full"] }
+oxcache = { version = "0.2.0", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.1.3", features = ["core"] }
+oxcache = { version = "0.2.0", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.1.3", features = ["minimal"] }
+oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 ```
 
 #### 可用特性
@@ -109,6 +109,8 @@ oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
 
 ```rust
 use oxcache::macros::cached;
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -130,17 +132,27 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化缓存（从配置文件加载）
-    oxcache::init_from_file("config.toml").await?;
-    
+    // 使用 Builder 模式初始化缓存
+    let cache = CacheBuilder::new()
+        .backend(
+            BackendBuilder::tiered()
+                .l1_capacity(10000)
+                .l2_connection_string("redis://127.0.0.1:6379")
+        )
+        .build()
+        .await?;
+
+    // 注册缓存实例供宏使用
+    cache.register_for_macro("user_cache").await;
+
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
     println!("First call: {:?}", user);
-    
+
     // 第二次调用：直接从缓存返回（~0.1ms）
     let cached_user = get_user(1).await?;
     println!("Cached call: {:?}", cached_user);
-    
+
     Ok(())
 }
 ```
@@ -151,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 > **重要**：要从配置文件初始化，需要启用 `config-toml` 和 `confers` 特性：
 > ```toml
-> oxcache = { version = "0.1.3", features = ["config-toml", "confers"] }
+> oxcache = { version = "0.2.0", features = ["config-toml", "confers"] }
 > ```
 
 ```toml
@@ -239,26 +251,39 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 ### 场景 4: 手动控制缓存
 
 ```rust
-use oxcache::{get_client, CacheOps};
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct MyData {
+    field: String,
+}
 
 async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
-    oxcache::init_from_file("config.toml").await?;
-    
-    let client = get_client("custom_cache")?;
-    
+    // 使用 Builder 模式初始化缓存
+    let cache = CacheBuilder::new()
+        .backend(
+            BackendBuilder::tiered()
+                .l1_capacity(10000)
+                .l2_connection_string("redis://127.0.0.1:6379")
+        )
+        .build()
+        .await?;
+
+    let my_data = MyData {
+        field: "value".to_string(),
+    };
+
     // 标准操作
-    client.set("key", &my_data, Some(300)).await?;
-    let data: MyData = client.get("key").await?.unwrap();
-    
-    // 仅写入 L1（临时数据）
-    client.set_l1_only("temp_key", &temp_data, Some(60)).await?;
-    
-    // 仅写入 L2（共享数据）
-    client.set_l2_only("shared_key", &shared_data, Some(3600)).await?;
-    
+    cache.set(&"key".to_string(), &my_data).await?;
+
+    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
+    println!("Data: {:?}", data);
+
     // 删除
-    client.delete("key").await?;
-    
+    cache.delete(&"key".to_string()).await?;
+
     Ok(())
 }
 ```

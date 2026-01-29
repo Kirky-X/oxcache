@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 创建分层缓存用于演示
-    let cache: Arc<Cache<String, Order>> = Arc::new(Cache::new().await?);
+    let cache: Arc<Cache<String, Order>> = Arc::new(Cache::builder().build().await?);
 
     // 1. 准备测试数据
     println!("1. 准备测试数据");
@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. 基于用户 ID 的失效模式
     println!("4. 基于用户 ID 的失效模式");
-    let user_cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
+    let user_cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
     // 添加用户 100 的多个购物车项目
     user_cache
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. TTL 失效
     println!("5. TTL 自动失效");
-    let ttl_cache: Cache<String, String> = Cache::new().await?;
+    let ttl_cache: Cache<String, String> = Cache::builder().build().await?;
 
     println!("   添加 2 秒过期的数据");
     ttl_cache.set_with_ttl(&"temp:data".to_string(), &"临时数据".to_string(), Some(Duration::from_secs(2))).await?;
@@ -145,7 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. 更新时失效 (Write-Invalidation)
     println!("6. 更新时失效 (Write-Invalidation)");
-    let cache: Cache<String, String> = Cache::new().await?;
+    let cache: Cache<String, String> = Cache::builder().build().await?;
 
     cache.set(&"config:theme".to_string(), &"dark".to_string()).await?;
     println!("   初始主题: {:?}", cache.get(&"config:theme".to_string()).await?);

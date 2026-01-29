@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 创建缓存
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 1. 预取策略演示
     println!("1. 预取策略演示");

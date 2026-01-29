@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
     println!("1. 内存缓存 (仅L1)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let memory_cache: Cache<String, User> = Cache::new().await?;
+    let memory_cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 设置一个值
     let user = User {
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     println!("3. 自定义键类型");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let custom_cache: Cache<UserId, User> = Cache::new().await?;
+    let custom_cache: Cache<UserId, User> = Cache::builder().build().await?;
 
     let user_id = UserId(5);
     custom_cache.set(&user_id, &user).await?;
@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
     println!("5. TTL操作 (使用 set_with_ttl)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let ttl_cache: Cache<String, User> = Cache::new().await?;
+    let ttl_cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 设置带TTL (60秒)
     ttl_cache
@@ -143,7 +143,7 @@ async fn main() -> Result<()> {
     println!("6. 批量操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let batch_cache: Cache<String, User> = Cache::new().await?;
+    let batch_cache: Cache<String, User> = Cache::builder().build().await?;
 
     // Set multiple values
     let mut batch = Vec::new();
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
     println!("7. 删除操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let delete_cache: Cache<String, User> = Cache::new().await?;
+    let delete_cache: Cache<String, User> = Cache::builder().build().await?;
 
     delete_cache.set(&"user:8".to_string(), &user).await?;
 
@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
     println!("8. 清空操作");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let clear_cache: Cache<String, User> = Cache::new().await?;
+    let clear_cache: Cache<String, User> = Cache::builder().build().await?;
 
     // Set multiple values
     for i in 1..=3 {
@@ -225,7 +225,7 @@ async fn main() -> Result<()> {
     println!("9. 带回退的缓存旁路模式 (get_or)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    let fallback_cache: Cache<String, User> = Cache::new().await?;
+    let fallback_cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 首次获取 - 使用回退函数
     let user: User = fallback_cache

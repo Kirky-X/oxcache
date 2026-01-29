@@ -41,8 +41,9 @@ pub fn setup_logging() {
 pub async fn setup_cache() -> Cache<String, Vec<u8>> {
     setup_logging();
 
-    // 使用新的 API 直接创建内存缓存
-    Cache::new()
+    // 使用新的 API 创建内存缓存
+    Cache::builder()
+        .build()
         .await
         .unwrap_or_else(|e| panic!("Failed to create memory cache: {}", e))
 }

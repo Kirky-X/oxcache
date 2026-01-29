@@ -62,6 +62,8 @@ pub struct WalManager {
     pending_entries: Arc<Mutex<Vec<WalEntry>>>,
     flush_trigger: Arc<Notify>,
     batch_size: usize,
+    /// Background task handle for graceful shutdown
+    background_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 #[cfg(feature = "wal-recovery")]
@@ -136,7 +138,8 @@ impl WalManager {
         let flush_trigger_clone = Arc::clone(&flush_trigger);
         let batch_size_clone = batch_size;
 
-        tokio::spawn(async move {
+        // Spawn background task and save handle for graceful shutdown
+        let background_task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
             loop {
                 tokio::select! {
@@ -168,7 +171,16 @@ impl WalManager {
             pending_entries,
             flush_trigger,
             batch_size,
+            background_task: Arc::new(Mutex::new(Some(background_task))),
         })
+    }
+
+    /// Gracefully shutdown the WAL background task
+    pub async fn shutdown(&self) {
+        if let Some(task) = self.background_task.lock().await.take() {
+            task.abort();
+            let _ = task.await; // Wait for task to finish
+        }
     }
 
     pub async fn add_entry(&self, entry: &WalEntry) -> Result<()> {

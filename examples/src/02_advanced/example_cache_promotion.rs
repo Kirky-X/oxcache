@@ -20,7 +20,7 @@ struct Session {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache: Cache<String, Session> = Cache::new().await?;
+    let cache: Cache<String, Session> = Cache::builder().build().await?;
 
     // 模拟初始状态下仅存在于L2的会话数据
     let session = Session {

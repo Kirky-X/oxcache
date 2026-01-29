@@ -5,8 +5,6 @@
 
 // Feature-gated initialization tests for CacheManager
 
-#![allow(deprecated)]
-
 use oxcache::{
     get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
 };
@@ -78,14 +76,14 @@ mod cache_init_tests {
     async fn test_l1_cache_initialization() {
         #[cfg(feature = "moka")]
         {
-            let _cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
+            let _cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
             // L1 cache should initialize successfully
         }
 
         #[cfg(not(feature = "moka"))]
         {
-            // Without moka feature, Cache::new should still work (in-memory fallback)
-            let _cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
+            // Without moka feature, Cache::builder should still work (in-memory fallback)
+            let _cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
             // Memory cache should initialize
         }
     }

@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. 创建缓存实例
     println!("1. 创建缓存实例");
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 内存缓存创建成功");
     println!();
 

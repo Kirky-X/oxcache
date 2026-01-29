@@ -12,7 +12,7 @@ use oxcache::Cache;
 async fn test_comprehensive_cache_api() {
     setup_logging();
 
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 测试基本操作
     println!("1. 测试基本SET/GET操作");
@@ -62,11 +62,11 @@ async fn test_comprehensive_cache_api() {
 /// 测试不同类型的Cache
 #[tokio::test]
 async fn test_different_cache_types() {
-    let string_cache: Cache<String, String> = Cache::new().await.unwrap();
-    let bytes_cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
-    let i32_cache: Cache<String, i32> = Cache::new().await.unwrap();
-    let i64_cache: Cache<String, i64> = Cache::new().await.unwrap();
-    let bool_cache: Cache<String, bool> = Cache::new().await.unwrap();
+    let string_cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+    let bytes_cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+    let i32_cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+    let i64_cache: Cache<String, i64> = Cache::builder().build().await.unwrap();
+    let bool_cache: Cache<String, bool> = Cache::builder().build().await.unwrap();
 
     // 验证每种类型都可以正常工作
     assert!(string_cache
@@ -104,7 +104,7 @@ async fn test_different_cache_types() {
 /// 测试边界情况
 #[tokio::test]
 async fn test_edge_cases() {
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 空键测试
     assert!(cache
