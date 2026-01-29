@@ -51,7 +51,7 @@ mod smart_strategy_tests {
         // 命中率应该下降
         let rate = collector.hit_rate();
         assert!(
-            rate < 1.0 && rate >= 0.0,
+            (0.0..1.0).contains(&rate),
             "Rate should be between 0 and 1, got {}",
             rate
         );
@@ -219,8 +219,8 @@ mod smart_strategy_tests {
         // 大型可压缩数据
         let large_compressible = vec![0x00u8; 200];
         let should_compress = decider.should_compress(&large_compressible);
-        // 测试决策器能做出某种决定
-        assert!(true, "Compression decision made: {}", should_compress);
+        // 大型数据应该被压缩
+        assert!(should_compress, "Large data should be compressed");
 
         // 小数据不应该压缩
         let small_data = vec![0x00u8; 10];
