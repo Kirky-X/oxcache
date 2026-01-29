@@ -431,6 +431,22 @@ impl CacheBackend for RedisBackend {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    async fn len(&self) -> Result<u64> {
+        let mut conn = self.get_connection().await?;
+        let len: i64 = redis::cmd("DBSIZE")
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        self.return_connection(conn).await;
+        Ok(len as u64)
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        // Redis doesn't have a fixed capacity limit
+        // Return 0 to indicate unlimited capacity
+        Ok(0)
+    }
 }
 
 /// Check if a Redis error is a connection error

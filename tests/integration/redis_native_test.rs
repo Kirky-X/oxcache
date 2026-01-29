@@ -7,8 +7,6 @@
 // 注意：这些测试依赖于已删除的 L2Backend 和 RedisNativeOps 特性
 // 由于新 API 不完全支持这些功能，这些测试被标记为跳过或简化
 
-#![allow(deprecated)]
-
 use crate::common::{is_redis_available, setup_logging};
 
 #[tokio::test]

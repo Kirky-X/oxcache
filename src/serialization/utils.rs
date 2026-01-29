@@ -32,7 +32,8 @@ pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> Result<
     Ok(())
 }
 
-/// 最小压缩阈值 - 小于此大小的数据不压缩
+/// 最小压缩阈值 - 小于此时长的数据不压缩
+#[cfg(feature = "flate2")]
 const MIN_COMPRESS_SIZE: usize = 100;
 
 /// 使用flate2压缩数据

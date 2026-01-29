@@ -315,6 +315,14 @@ impl CacheBackend for DashMapMemoryBackend {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    async fn len(&self) -> Result<u64> {
+        Ok(self.cache.len() as u64)
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        Ok(self.capacity as u64)
+    }
 }
 
 /// Builder for DashMapMemoryBackend

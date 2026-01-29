@@ -4,8 +4,6 @@
 //
 // 生命周期管理集成测试 - 简化版本
 
-#![allow(deprecated)]
-
 use crate::common::{is_redis_available, setup_logging};
 
 #[tokio::test]

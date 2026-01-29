@@ -135,6 +135,16 @@ impl CacheBackend for TieredBackend {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    async fn len(&self) -> Result<u64> {
+        // Return L1 cache length for tiered backend
+        self.l1_cache.len().await
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        // L1 capacity is sync, return directly wrapped in Ok
+        Ok(self.l1_cache.capacity())
+    }
 }
 
 /// Backend builder enum for creating different backend types
