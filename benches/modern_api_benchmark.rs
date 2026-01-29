@@ -14,7 +14,7 @@ fn bench_l1_operations(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     // 创建L1内存缓存
-    let cache = rt.block_on(async { Cache::<String, String>::new().await.unwrap() });
+    let cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
 
     // 预填充测试数据
     rt.block_on(async {
@@ -82,7 +82,7 @@ fn bench_l1_operations(c: &mut Criterion) {
 fn bench_l1_sizes(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let cache = rt.block_on(async { Cache::<String, Vec<u8>>::new().await.unwrap() });
+    let cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
 
     let mut group = c.benchmark_group("l1_different_sizes");
 
@@ -104,7 +104,7 @@ fn bench_l1_sizes(c: &mut Criterion) {
 fn bench_l1_sequential(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let cache = rt.block_on(async { Cache::<String, String>::new().await.unwrap() });
+    let cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
 
     let mut group = c.benchmark_group("l1_sequential");
 
@@ -129,7 +129,7 @@ fn bench_l1_sequential(c: &mut Criterion) {
 fn bench_throughput(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let cache = rt.block_on(async { Cache::<String, String>::new().await.unwrap() });
+    let cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
 
     let mut group = c.benchmark_group("throughput");
 
