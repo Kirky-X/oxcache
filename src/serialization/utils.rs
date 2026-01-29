@@ -32,14 +32,40 @@ pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> Result<
     Ok(())
 }
 
+/// 最小压缩阈值 - 小于此大小的数据不压缩
+const MIN_COMPRESS_SIZE: usize = 100;
+
 /// 使用flate2压缩数据
+///
+/// 根据数据大小智能选择压缩策略：
+/// - 小于100字节：直接返回原数据（压缩开销不划算）
+/// - 100-1KB：使用快速压缩（Compression::fast）
+/// - 1KB-100KB：使用中等压缩（Compression::new(6)）
+/// - 大于100KB：使用高压缩率（Compression::best）
 #[cfg(feature = "flate2")]
 pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::io::Write;
 
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    // 小数据不压缩，避免压缩开销
+    if data.len() < MIN_COMPRESS_SIZE {
+        return Ok(data.to_vec());
+    }
+
+    // 根据数据大小选择压缩级别
+    let compression = if data.len() < 1024 {
+        // 100B - 1KB: 快速压缩
+        Compression::fast()
+    } else if data.len() < 100 * 1024 {
+        // 1KB - 100KB: 中等压缩 (级别6)
+        Compression::new(6)
+    } else {
+        // >100KB: 高压缩率
+        Compression::best()
+    };
+
+    let mut encoder = GzEncoder::new(Vec::new(), compression);
     encoder
         .write_all(data)
         .map_err(|e| CacheError::Serialization(e.to_string()))?;
@@ -109,8 +135,9 @@ mod tests {
     #[test]
     #[cfg(feature = "flate2")]
     fn test_compress_data_with_feature() {
-        let data = b"hello world";
-        let compressed = compress_data(data).unwrap();
+        // 使用大于100字节的数据测试压缩
+        let data = vec![0u8; 200]; // 200字节
+        let compressed = compress_data(&data).unwrap();
         // 压缩后的数据应该与原数据不同
         assert_ne!(compressed, data);
         // 解压后应该得到原数据
@@ -121,9 +148,18 @@ mod tests {
     #[test]
     #[cfg(feature = "flate2")]
     fn test_decompress_data_with_feature() {
-        let data = b"hello world";
-        let compressed = compress_data(data).unwrap();
+        let data = vec![0u8; 200]; // 200字节
+        let compressed = compress_data(&data).unwrap();
         let decompressed = decompress_data(&compressed).unwrap();
         assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    #[cfg(feature = "flate2")]
+    fn test_small_data_not_compressed() {
+        // 小于100字节的数据不应该被压缩
+        let data = b"small data";
+        let compressed = compress_data(data).unwrap();
+        assert_eq!(compressed, data);
     }
 }
