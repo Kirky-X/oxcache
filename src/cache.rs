@@ -51,7 +51,7 @@ impl Default for SerializerPool {
 }
 ///
 /// // Create a simple memory cache
-/// let cache: Cache<String, User> = Cache::new().await?;
+/// let cache: Cache<String, User> = Cache::memory().await?;
 ///
 /// // Set a value
 /// let user = User { id: 1, name: "Alice".to_string() };
@@ -88,37 +88,6 @@ where
     K: CacheKey,
     V: Cacheable,
 {
-    /// Create a new cache with default memory backend
-    ///
-    /// # ⚠️ DEPRECATED
-    ///
-    /// This method is deprecated. Use [`Cache::builder()`] instead for better
-    /// configuration options and future compatibility.
-    ///
-    /// ```rust,ignore
-    /// // Deprecated: Use Cache::builder() instead
-    /// let cache: Cache<String, User> = Cache::new().await?;
-    ///
-    /// // New API:
-    /// let cache: Cache<String, User> = Cache::builder()
-    ///     .capacity(10_000)
-    ///     .ttl(Duration::from_secs(3600))
-    ///     .build()
-    ///     .await?;
-    /// ```
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use `Cache::builder()` instead for better configuration options"
-    )]
-    pub async fn new() -> Result<Self> {
-        let backend = MemoryBackend::new();
-        Ok(Self {
-            backend: Arc::new(backend),
-            serializer_pool: Arc::new(SerializerPool::new()),
-            _phantom: std::marker::PhantomData,
-        })
-    }
-
     /// Internal constructor for builder
     pub(crate) fn new_with_backend(backend: Arc<dyn CacheBackend>) -> Self {
         Self {
@@ -645,7 +614,7 @@ where
     /// # Example
     ///
     /// ```rust,ignore
-    /// let cache: Cache<String, User> = Cache::new().await?;
+    /// let cache: Cache<String, User> = Cache::memory().await?;
     /// // ... use cache ...
     /// cache.shutdown().await?;
     /// ```
@@ -668,7 +637,7 @@ where
     /// use oxcache::Cache;
     ///
     /// // Create a byte cache for macro usage
-    /// let cache = Cache::<String, Vec<u8>>::new().await?;
+    /// let cache = Cache::<String, Vec<u8>>::memory().await?;
     /// cache.register_for_macro("my_service").await;
     ///
     /// // Now you can use:

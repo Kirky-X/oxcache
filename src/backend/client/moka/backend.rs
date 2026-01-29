@@ -130,6 +130,10 @@ impl CacheBackend for MokaMemoryBackend {
         Ok(self.cache.entry_count())
     }
 
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.cache.entry_count() == 0)
+    }
+
     async fn capacity(&self) -> Result<u64> {
         Ok(self.capacity)
     }

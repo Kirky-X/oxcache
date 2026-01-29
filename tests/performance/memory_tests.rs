@@ -22,7 +22,7 @@ use test_utils::is_redis_available;
 /// 内存泄漏测试 - 使用新的Cache API
 #[tokio::test]
 async fn test_l1_cache_memory_leak() {
-    let cache = Cache::<String, Vec<u8>>::new().await.unwrap();
+    let cache = Cache::<String, Vec<u8>>::memory().await.unwrap();
 
     // 执行大量操作，检测内存泄漏
     for i in 0..10000 {
@@ -64,7 +64,7 @@ async fn test_l2_cache_memory_leak() {
 #[tokio::test]
 async fn test_two_level_cache_memory_leak() {
     // 使用新的Cache API进行L1测试
-    let cache = Cache::<String, Vec<u8>>::new().await.unwrap();
+    let cache = Cache::<String, Vec<u8>>::memory().await.unwrap();
 
     // 测试L1缓存的内存泄漏
     for i in 0..1500 {
@@ -95,7 +95,7 @@ async fn test_two_level_cache_memory_leak() {
 /// 批量操作内存测试
 #[tokio::test]
 async fn test_batch_memory_usage() {
-    let cache = Cache::<String, String>::new().await.unwrap();
+    let cache = Cache::<String, String>::memory().await.unwrap();
 
     // 批量写入测试
     for batch in 0..100 {
@@ -119,7 +119,7 @@ async fn test_batch_memory_usage() {
 /// 大量小对象测试
 #[tokio::test]
 async fn test_many_small_objects() {
-    let cache = Cache::<String, String>::new().await.unwrap();
+    let cache = Cache::<String, String>::memory().await.unwrap();
 
     // 创建大量小对象
     for i in 0..5000 {
@@ -142,7 +142,7 @@ async fn test_many_small_objects() {
 /// 大对象测试
 #[tokio::test]
 async fn test_large_objects() {
-    let cache = Cache::<String, Vec<u8>>::new().await.unwrap();
+    let cache = Cache::<String, Vec<u8>>::memory().await.unwrap();
 
     // 测试大对象
     for i in 0..100 {
@@ -159,7 +159,7 @@ async fn test_large_objects() {
 /// 并发访问测试 - 简化版本
 #[tokio::test]
 async fn test_concurrent_access() {
-    let cache = Cache::<String, String>::new().await.unwrap();
+    let cache = Cache::<String, String>::memory().await.unwrap();
 
     // 顺序执行所有操作，测试高并发场景下的性能
     for _ in 0..10 {

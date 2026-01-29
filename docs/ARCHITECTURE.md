@@ -92,7 +92,7 @@ graph TD
 **Usage Pattern**:
 ```rust
 // Register cache for #[cached] macro
-let cache: Cache<String, User> = Cache::new().await?;
+let cache: Cache<String, User> = Cache::memory().await?;
 cache.register_for_macro("my_service").await;
 
 // Macro automatically retrieves cache from registry

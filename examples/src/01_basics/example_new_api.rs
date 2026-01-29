@@ -243,7 +243,7 @@ async fn main() -> Result<()> {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("\n新API特性:");
     println!("  ✓ 类型安全的缓存接口");
-    println!("  ✓ 内存缓存 (Cache::new())");
+    println!("  ✓ 内存缓存 (Cache::memory())");
     println!("  ✓ Redis缓存 (Cache::redis())");
     println!("  ✓ 自定义键类型 (CacheKey trait)");
     println!("  ✓ 用于配置的构建器模式 (Cache::builder())");

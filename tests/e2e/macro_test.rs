@@ -4,8 +4,6 @@
 //
 // E2E Tests - Simplified version
 
-extern crate oxcache;
-
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 

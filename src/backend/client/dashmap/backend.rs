@@ -320,6 +320,10 @@ impl CacheBackend for DashMapMemoryBackend {
         Ok(self.cache.len() as u64)
     }
 
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.cache.is_empty())
+    }
+
     async fn capacity(&self) -> Result<u64> {
         Ok(self.capacity as u64)
     }

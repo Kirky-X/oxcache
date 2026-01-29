@@ -19,7 +19,7 @@ use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_l1_cache_memory_leak() {
-    let cache = Cache::<String, Vec<u8>>::new().await.unwrap();
+    let cache = Cache::<String, Vec<u8>>::memory().await.unwrap();
 
     // 执行大量操作，检测内存泄漏
     for i in 0..10000 {
@@ -56,7 +56,7 @@ async fn test_l2_cache_memory_leak() {
 
 #[tokio::test]
 async fn test_cache_creation() {
-    let cache = Cache::<String, String>::new().await.unwrap();
+    let cache = Cache::<String, String>::memory().await.unwrap();
 
     // 验证缓存可以正常工作
     let key = "test_key".to_string();
