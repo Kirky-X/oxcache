@@ -19,7 +19,7 @@ struct TestData {
 #[ignore]  // 需要真实的 Redis 环境
 async fn test_random_redis_failures() {
     // 使用新版 Cache API 创建缓存实例
-    let cache = match Cache::new().await {
+    let cache = match Cache::builder().build().await {
         Ok(cache) => cache,
         Err(e) => {
             eprintln!("Failed to create cache: {}", e);
@@ -66,7 +66,7 @@ async fn test_random_redis_failures() {
 #[tokio::test]
 #[ignore]  // 需要真实的 Redis 环境
 async fn test_distributed_lock_during_failures() {
-    let cache = match Cache::new().await {
+    let cache = match Cache::builder().build().await {
         Ok(cache) => cache,
         Err(e) => {
             eprintln!("Failed to create cache: {}", e);
@@ -103,7 +103,7 @@ async fn test_distributed_lock_during_failures() {
 #[tokio::test]
 #[ignore]  // 需要真实的 Redis 环境
 async fn test_fault_recovery() {
-    let cache = match Cache::new().await {
+    let cache = match Cache::builder().build().await {
         Ok(cache) => cache,
         Err(e) => {
             eprintln!("Failed to create cache: {}", e);

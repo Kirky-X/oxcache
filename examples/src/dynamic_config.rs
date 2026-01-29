@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 创建配置缓存
-    let cache: Cache<String, ConfigValue> = Cache::new().await?;
+    let cache: Cache<String, ConfigValue> = Cache::builder().build().await?;
 
     // 1. 初始化配置
     println!("1. 初始化配置");

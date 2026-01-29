@@ -10,9 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.2.0+** 编写。
-> 
-> 如果你正在使用 **v0.1.x** 版本，请参考本文档末尾的 [API 迁移指南](#api-迁移指南) 进行升级。
+> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.1.4** 编写。
 
 ## 📋 目录
 
@@ -137,7 +135,7 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.2"
+oxcache = "0.2.0"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含，无需单独添加。
@@ -148,16 +146,16 @@ oxcache = "0.2"
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.2", features = ["full"] }
+oxcache = { version = "0.2.0", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.2", features = ["core"] }
+oxcache = { version = "0.2.0", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.2", features = ["minimal"] }
+oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.2", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 ```
 
 #### 特性依赖说明
@@ -236,7 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use oxcache::macros::cached;
 use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::{Backend, L1Backend, L2Backend};
+use oxcache::builder::BackendBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -766,337 +764,91 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
 
 ---
 
+
+
 ## 后续步骤
 
+
+
 <div align="center">
+
+
 
 ### 🎯 继续探索
 
+
+
 </div>
 
+
+
 <table>
+
 <tr>
+
 <td width="33%" align="center">
+
 <a href="API_REFERENCE.md">
+
 <img src="https://img.icons8.com/fluency/96/000000/graduation-cap.png" width="64"><br>
+
 <b>📚 API 参考</b>
+
 </a><br>
+
 详细的接口说明
+
 </td>
+
 <td width="33%" align="center">
+
 <a href="ARCHITECTURE.md">
+
 <img src="https://img.icons8.com/fluency/96/000000/settings.png" width="64"><br>
+
 <b>🔧 架构设计</b>
+
 </a><br>
+
 深入了解内部机制
+
 </td>
+
 <td width="33%" align="center">
+
 <a href="../examples/">
+
 <img src="https://img.icons8.com/fluency/96/000000/code.png" width="64"><br>
+
 <b>💻 示例代码</b>
+
 </a><br>
+
 真实场景的代码样例
+
 </td>
+
 </tr>
+
 </table>
 
+
+
 ---
 
-## API 迁移指南
 
-本指南帮助你从 Oxcache v0.1.x 迁移到 v0.2.0+。
-
-### 📋 主要变化
-
-| 变化类型 | 旧 API (v0.1.x) | 新 API (v0.2.0+) |
-|---------|----------------|-----------------|
-| **初始化方式** | `init_from_file()` | `CacheBuilder` |
-| **获取客户端** | `get_client()` | 直接使用 `Cache` 实例 |
-| **关闭方式** | `shutdown_all()` | `cache.shutdown()` |
-| **配置方式** | 配置文件 + `Config` | Builder 模式 |
-| **宏参数** | `service` | `cache` |
-
-### 🔄 迁移步骤
-
-#### 步骤 1: 更新依赖
-
-```toml
-# 旧版本
-[dependencies]
-oxcache = "0.1.3"
-
-# 新版本
-[dependencies]
-oxcache = "0.2"
-```
-
-#### 步骤 2: 替换初始化代码
-
-**旧代码 (v0.1.x)**:
-
-```rust
-use oxcache::init_from_file;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 从配置文件初始化
-    init_from_file("config.toml").await?;
-    Ok(())
-}
-```
-
-**新代码 (v0.2.0+)**:
-
-```rust
-use oxcache::{CacheBuilder, Cache};
-use oxcache::backend::{Backend, L1Backend, L2Backend};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 Builder 模式
-    let cache = CacheBuilder::new()
-        .with_name("my_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
-
-    // 注册缓存实例（供宏使用）
-    oxcache::manager::register_cache("my_cache".to_string(), cache).await?;
-    Ok(())
-}
-```
-
-#### 步骤 3: 替换缓存使用代码
-
-**旧代码 (v0.1.x)**:
-
-```rust
-use oxcache::{get_client, CacheOps};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_from_file("config.toml").await?;
-
-    let client = get_client("my_service")?;
-
-    client.set("key", &"value", None).await?;
-    let val: Option<String> = client.get("key").await?;
-
-    Ok(())
-}
-```
-
-**新代码 (v0.2.0+)**:
-
-```rust
-use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::{Backend, L1Backend, L2Backend};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache = CacheBuilder::new()
-        .with_name("my_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
-
-    cache.set("key", &"value", None).await?;
-    let val: Option<String> = cache.get("key").await?;
-
-    Ok(())
-}
-```
-
-#### 步骤 4: 更新宏参数
-
-**旧代码 (v0.1.x)**:
-
-```rust
-use oxcache::macros::cached;
-
-#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // ...
-}
-```
-
-**新代码 (v0.2.0+)**:
-
-```rust
-use oxcache::macros::cached;
-
-#[cached(cache = "user_cache", key = "user:{id}", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // ...
-}
-```
-
-#### 步骤 5: 替换关闭代码
-
-**旧代码 (v0.1.x)**:
-
-```rust
-use oxcache::manager::shutdown_all;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_from_file("config.toml").await?;
-
-    // 应用逻辑...
-
-    shutdown_all().await?;
-    Ok(())
-}
-```
-
-**新代码 (v0.2.0+)**:
-
-```rust
-use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::{Backend, L1Backend, L2Backend};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache = CacheBuilder::new()
-        .with_name("my_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
-
-    // 应用逻辑...
-
-    cache.shutdown().await?;
-    Ok(())
-}
-```
-
-### 📝 完整迁移示例
-
-**旧代码 (v0.1.x)**:
-
-```rust
-use oxcache::{init_from_file, get_client, CacheOps};
-use oxcache::macros::cached;
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct User {
-    id: u64,
-    name: String,
-}
-
-#[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // 数据库查询
-    Ok(User { id, name: format!("User {}", id) })
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init_from_file("config.toml").await?;
-
-    let user = get_user(1).await?;
-    println!("User: {:?}", user);
-
-    shutdown_all().await?;
-    Ok(())
-}
-```
-
-**新代码 (v0.2.0+)**:
-
-```rust
-use oxcache::{Cache, CacheBuilder, CacheOps};
-use oxcache::backend::{Backend, L1Backend, L2Backend};
-use oxcache::macros::cached;
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct User {
-    id: u64,
-    name: String,
-}
-
-#[cached(cache = "user_cache", key = "user:{id}", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // 数据库查询
-    Ok(User { id, name: format!("User {}", id) })
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建缓存实例
-    let cache = CacheBuilder::new()
-        .with_name("user_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
-
-    // 注册缓存实例（供宏使用）
-    oxcache::manager::register_cache("user_cache".to_string(), cache).await?;
-
-    let user = get_user(1).await?;
-    println!("User: {:?}", user);
-
-    // 获取缓存实例并关闭
-    let cache = oxcache::manager::get_cache("user_cache")?;
-    cache.shutdown().await?;
-
-    Ok(())
-}
-```
-
-### ⚠️ 废弃 API 列表
-
-以下 API 在 v0.2.0+ 中已废弃，请使用新的替代方案：
-
-| 废弃 API | 替代方案 |
-|---------|---------|
-| `init_from_file()` | `CacheBuilder` |
-| `get_client()` | 直接使用 `Cache` 实例 |
-| `shutdown_all()` | `cache.shutdown()` |
-| `Config` 结构体 | `CacheBuilder` |
-| `#[cached(service)]` | `#[cached(cache)]` |
-
-### 💡 迁移提示
-
-1. **逐步迁移**: 建议先迁移一个模块，验证后再迁移其他模块
-2. **保持兼容**: 如果需要，可以在过渡期内同时使用新旧 API
-3. **更新测试**: 确保所有测试用例都使用新 API
-4. **文档更新**: 更新项目文档和示例代码
-
-### 🆘 需要帮助？
-
-如果在迁移过程中遇到问题，请：
-
-1. 查看 [API 参考](API_REFERENCE.md) 了解新 API 的详细用法
-2. 查看 [示例代码](../examples/) 获取更多示例
-3. [提交 Issue](https://github.com/Kirky-X/oxcache/issues) 获取帮助
-
----
 
 <div align="center">
 
-**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)** • *
-*[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
+
+
+**[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)** • **[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
+
+
 
 由 oxcache Team 用 ❤️ 制作
+
+
 
 [⬆ 回到顶部](#-用户指南)
 

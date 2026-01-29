@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
 
     // 1. 创建内存缓存 (L1 only)
     println!("1. 创建内存缓存 (L1)");
-    let memory_cache: Cache<String, User> = Cache::new().await?;
+    let memory_cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 内存缓存创建成功
 ");
 
@@ -58,13 +58,13 @@ async fn main() -> Result<()> {
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
-    let tiered_cache: Cache<String, User> = Cache::new().await?;
+    let tiered_cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 分层缓存创建成功
 ");
 
     // 4. 基本 CRUD 操作
     println!("4. 基本 CRUD 操作演示");
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
 
     let user = User {
         id: 1,
@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
 
     // 5. 批量操作
     println!("5. 批量操作演示");
-    let cache: Cache<String, Product> = Cache::new().await?;
+    let cache: Cache<String, Product> = Cache::builder().build().await?;
 
     println!("   批量添加商品...");
     let products = vec![
@@ -166,7 +166,7 @@ async fn main() -> Result<()> {
 
     // 6. TTL 控制
     println!("6. TTL 控制演示");
-    let cache: Cache<String, String> = Cache::new().await?;
+    let cache: Cache<String, String> = Cache::builder().build().await?;
 
     println!("   添加 3 秒过期的数据...");
     cache.set_with_ttl(&"temp:1".to_string(), &"短期数据".to_string(), Some(Duration::from_secs(3))).await?;
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
 
     // 7. 性能测试
     println!("7. 性能测试");
-    let cache: Arc<Cache<String, i32>> = Arc::new(Cache::new().await?);
+    let cache: Arc<Cache<String, i32>> = Arc::new(Cache::builder().build().await?);
 
     // 并发写入测试
     println!("   并发写入 10000 条数据...");

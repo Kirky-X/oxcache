@@ -40,7 +40,7 @@ graph TD
     B --> C[Cache&lt;K,V&gt;]
     B --> D[Backend Layer]
     
-    C --> E[CacheOps Wrapper]
+    C --> E[CacheBuilder]
     D --> F[MemoryBackend]
     D --> G[RedisBackend]
     D --> H[TieredBackend]
@@ -117,21 +117,42 @@ async fn get_user(id: u64) -> User { ... }
 
 **Key Types**:
 - `Cache<K, V>`: Main cache type with generic key and value types
-- `BackendCacheOps`: CacheOps wrapper for backend compatibility
+- `CacheBuilder`: Builder for creating configured cache instances
+- `BackendBuilder`: Builder for creating cache backends
 
 **Key Methods**:
 - `new()`: Create cache with default memory backend
-- `memory()`: Create cache with memory backend
-- `redis(connection_string)`: Create cache with Redis backend
-- `tiered(l1_capacity, l2_connection_string)`: Create tiered cache
 - `builder()`: Create cache builder for advanced configuration
 - `get(key)`: Get value from cache
 - `set(key, value)`: Set value in cache
 - `get_or(key, fallback)`: Get value or compute using fallback
 - `register_for_macro(service_name)`: Register for #[cached] macro
-- `to_cache_ops()`: Convert to CacheOps wrapper
+- `shutdown()`: Shutdown cache and release resources
 
 **Thread Safety**: All operations are thread-safe via Arc<dyn CacheBackend>
+
+**Usage Pattern**:
+```rust
+// Create cache using Builder
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
+
+let cache: Cache<String, User> = CacheBuilder::new()
+    .backend(
+        BackendBuilder::tiered()
+            .l1_capacity(10000)
+            .l2_connection_string("redis://localhost:6379")
+    )
+    .build()
+    .await?;
+
+// Register for macro usage
+cache.register_for_macro("my_service").await;
+
+// Use cache
+cache.set(&"user:1".to_string(), &user).await?;
+let user: Option<User> = cache.get(&"user:1".to_string()).await?;
+```
 
 ### 2. L1 Cache Backend (`backend/l1.rs`)
 

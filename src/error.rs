@@ -49,7 +49,7 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 ///
 /// # 错误分类
 ///
-/// - **配置错误** ([`CacheError::Configuration`]): 配置问题，如缺少必需字段
+/// - **配置错误** ([`CacheError::ConfigError`]): 配置问题，如缺少必需字段
 /// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
 /// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
 /// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
@@ -128,11 +128,6 @@ pub enum CacheError {
     #[error("Configuration error: {0}. Please review your configuration file and ensure all required settings are provided."
     )]
     ConfigError(String),
-
-    /// 配置错误（别名，为了兼容）
-    #[deprecated(since = "0.2.0", note = "Use ConfigError instead")]
-    #[error("Configuration error: {0}. Please review your configuration file.")]
-    Configuration(String),
 
     /// 操作不支持
     #[error("Operation not supported: {0}. This feature may not be available for the current cache type."

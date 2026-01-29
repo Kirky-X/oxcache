@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 创建缓存
-    let cache: Cache<String, HttpResponse> = Cache::new().await?;
+    let cache: Cache<String, HttpResponse> = Cache::builder().build().await?;
 
     // 1. 缓存 API 响应
     println!("1. 缓存 API 响应");

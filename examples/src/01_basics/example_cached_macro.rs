@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 初始化缓存
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 注册缓存实例到全局管理器（供宏使用）
     cache.register_for_macro("user_cache").await;

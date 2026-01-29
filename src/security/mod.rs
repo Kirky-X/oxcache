@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! Copyright (c) 2025-2026, Kirky.X
 //!
 //! MIT License
@@ -7,6 +5,27 @@
 //! 安全验证模块
 //!
 //! 提供各种安全验证功能，防止恶意输入导致的安全问题。
+//!
+//! # 主要功能
+//!
+//! - [`validate_redis_key`] - 验证 Redis 键的安全性
+//! - [`validate_lua_script`] - 验证 Lua 脚本的安全性
+//! - [`validate_scan_pattern`] - 验证 SCAN 模式的安全性
+//!
+//! # 使用示例
+//!
+//! ```rust
+//! use oxcache::security::{validate_redis_key, validate_lua_script, validate_scan_pattern};
+//!
+//! // 验证 Redis 键
+//! assert!(validate_redis_key("user:123").is_ok());
+//!
+//! // 验证 Lua 脚本
+//! assert!(validate_lua_script("return redis.call('GET', KEYS[1])", 1).is_ok());
+//!
+//! // 验证 SCAN 模式
+//! assert!(validate_scan_pattern("user:*").is_ok());
+//! ```
 
 use crate::error::{CacheError, Result};
 use regex::Regex;
@@ -17,59 +36,15 @@ const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
 /// Lua 脚本最大键数量
 const MAX_LUA_SCRIPT_KEYS: usize = 100;
 
-/// Lua 脚本执行超时时间（秒）
-const LUA_SCRIPT_TIMEOUT_SECS: u64 = 30;
-
 /// SCAN 模式最大长度
 const MAX_SCAN_PATTERN_LENGTH: usize = 256;
 
 /// SCAN 模式最大通配符数量
 const MAX_SCAN_WILDCARDS: usize = 10;
 
-/// SCAN 操作超时时间（秒）
-const SCAN_TIMEOUT_SECS: u64 = 30;
-
 /// SCAN count 参数安全范围
 const SCAN_COUNT_MIN: usize = 1;
 const SCAN_COUNT_MAX: usize = 1000;
-
-/// 允许的 Redis 命令白名单（用于 Lua 脚本验证）
-///
-/// 只允许安全命令，禁止危险命令如 FLUSHALL、KEYS 等
-const ALLOWED_REDIS_COMMANDS: &[&str] = &[
-    // 字符串命令
-    "GET",
-    "MGET",
-    "SET",
-    "SETEX",
-    "PSETEX",
-    "MSET",
-    // 哈希命令
-    "HGET",
-    "HMGET",
-    "HGETALL",
-    "HSET",
-    "HMSET",
-    // 列表命令
-    "LINDEX",
-    "LRANGE",
-    "LLEN",
-    // 集合命令
-    "SISMEMBER",
-    "SMEMBERS",
-    "SCARD",
-    // 有序集合命令
-    "ZSCORE",
-    "ZRANGE",
-    "ZRANGEBYSCORE",
-    "ZCARD",
-    // 过期命令
-    "TTL",
-    "PTTL",
-    "EXISTS",
-    // 事务命令
-    "UNWATCH",
-];
 
 /// 验证 Redis 缓存键是否安全
 ///

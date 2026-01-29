@@ -14,7 +14,7 @@ async fn test_new_cache_api() {
     common::setup_logging();
 
     // 使用新的Cache API
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 测试基本SET/GET
     let key = "config_test_key".to_string();
@@ -38,9 +38,9 @@ async fn test_new_cache_api() {
 #[tokio::test]
 async fn test_cache_types() {
     // 测试不同类型的Cache
-    let string_cache: Cache<String, String> = Cache::new().await.unwrap();
-    let bytes_cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
-    let i32_cache: Cache<String, i32> = Cache::new().await.unwrap();
+    let string_cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+    let bytes_cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+    let i32_cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
 
     // 验证每种类型都可以正常工作
     assert!(string_cache
@@ -57,7 +57,7 @@ async fn test_cache_types() {
 /// 测试Cache选项
 #[tokio::test]
 async fn test_cache_options() {
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 测试SET/GET/DELETE/CLEAR
     for i in 0..5 {

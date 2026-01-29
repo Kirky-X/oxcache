@@ -2,12 +2,7 @@
 
 > **⚠️ API Version Notice**
 >
-> This document describes **Oxcache v0.2.0+** APIs. If you're using v0.1.x, please see the [Migration Guide](#api-migration-guide) below.
->
-> **Deprecated APIs**: The following APIs from v0.1.x are deprecated and will be removed in future versions:
-> - `init_from_file()` - Use the new Builder pattern instead
-> - `get_client()` - Use `Cache::new()` or `Cache::tiered()` directly
-> - `shutdown_all()` - Use `Cache::shutdown()` on individual cache instances
+> This document describes **Oxcache v0.1.4** APIs.
 
 This document provides detailed API reference for the Oxcache library.
 
@@ -53,19 +48,19 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.1.3", features = ["full"] }
+oxcache = { version = "0.2.0", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.1.3", features = ["core"] }
+oxcache = { version = "0.2.0", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.1.3", features = ["minimal"] }
+oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.1.3", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 
 # Development with specific features
-oxcache = { version = "0.1.3", features = [
+oxcache = { version = "0.2.0", features = [
     "moka",      # L1 cache (Moka)
     "redis",     # L2 cache (Redis)
     "macros",       # #[cached] macro
@@ -111,7 +106,7 @@ Zero-boilerplate caching decorator for async functions.
 
 ```rust
 // Enable macros feature in Cargo.toml
-oxcache = { version = "0.1.2", features = ["macros"] }
+oxcache = { version = "0.2.0", features = ["macros"] }
 
 // In your code
 use oxcache::cached;
@@ -149,59 +144,15 @@ let config = oxcache_config()
 init(config).await?;
 ```
 
-#### `init_from_file(config_path: &str) -> Result<()>` ⚠️ **DEPRECATED**
-
-> **Deprecated since v0.2.0** - Use the Builder pattern instead
-
-This function is deprecated. Please use the new Builder pattern:
-
-```rust
-// Old way (deprecated)
-// oxcache::init_from_file("config.toml").await?;
-
-// New way (recommended)
-use oxcache::{Cache, CacheBuilder, BackendBuilder};
-
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
-    .ttl(Duration::from_secs(3600))
-    .build()
-    .await?;
-```
-
-#### `shutdown_all() -> Result<()>` ⚠️ **DEPRECATED**
-
-> **Deprecated since v0.2.0** - Use `Cache::shutdown()` on individual cache instances
-
-This function is deprecated. Please shutdown cache instances individually:
-
-```rust
-// Old way (deprecated)
-// oxcache::shutdown_all().await?;
-
-// New way (recommended)
-cache.shutdown().await?;
-```
-
 ### Client Management
 
-#### `get_client(service_name: &str) -> Result<Arc<dyn CacheOps>>` ⚠️ **DEPRECATED**
-
-> **Deprecated since v0.2.0** - Use `Cache::new()` or `Cache::tiered()` directly
-
-This function is deprecated. Please create cache instances directly:
+For direct cache instance management, use the `Cache` and `CacheBuilder` types:
 
 ```rust
-// Old way (deprecated)
-// let client = oxcache::get_client("default")?;
+use oxcache::{Cache, CacheBuilder};
+use oxcache::builder::BackendBuilder;
 
-// New way (recommended)
-use oxcache::{Cache, CacheBuilder, BackendBuilder};
-
+// Create cache directly
 let cache: Cache<String, User> = CacheBuilder::new()
     .backend(
         BackendBuilder::tiered()
@@ -210,6 +161,9 @@ let cache: Cache<String, User> = CacheBuilder::new()
     )
     .build()
     .await?;
+
+// Register for macro usage
+cache.register_for_macro("my_service").await;
 ```
 
 ## Cache Operations
@@ -673,140 +627,3 @@ See the [examples/](examples/) directory for more usage examples:
 - [Security Features](examples/06_features/)
 - [Testing](examples/07_testing/)
 - [UAT](examples/08_uat/)
-
-## API Migration Guide
-
-### Migrating from v0.1.x to v0.2.0+
-
-#### 1. Initialization
-
-**Old API (v0.1.x):**
-```rust
-use oxcache::{init, get_client, shutdown_all};
-
-// Initialize from file
-init_from_file("config.toml").await?;
-
-// Get client
-let client = get_client("default")?;
-
-// Shutdown
-shutdown_all().await?;
-```
-
-**New API (v0.2.0+):**
-```rust
-use oxcache::{Cache, CacheBuilder, BackendBuilder};
-use std::time::Duration;
-
-// Create cache directly
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
-    .ttl(Duration::from_secs(3600))
-    .build()
-    .await?;
-
-// Shutdown
-cache.shutdown().await?;
-```
-
-#### 2. Cache Creation
-
-**Old API (v0.1.x):**
-```rust
-use oxcache::{Cache, CacheOps};
-
-let cache: Cache<String, User> = Cache::tiered(10000, "redis://localhost:6379").await?;
-```
-
-**New API (v0.2.0+):**
-```rust
-use oxcache::{Cache, CacheBuilder, BackendBuilder};
-
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
-    .build()
-    .await?;
-```
-
-#### 3. Configuration
-
-**Old API (v0.1.x):**
-```rust
-use oxcache::{Config, ServiceConfig, TwoLevelConfig};
-
-let config = Config {
-    services: vec![(
-        "default".to_string(),
-        ServiceConfig::TwoLevel(TwoLevelConfig {
-            l1_capacity: 10000,
-            l2_connection_string: "redis://localhost:6379".to_string(),
-            ttl: 3600,
-        }),
-    )],
-};
-
-init(config).await?;
-```
-
-**New API (v0.2.0+):**
-```rust
-use oxcache::{Cache, CacheBuilder, BackendBuilder};
-use std::time::Duration;
-
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
-    .ttl(Duration::from_secs(3600))
-    .build()
-    .await?;
-```
-
-#### 4. Macro Usage
-
-**Old API (v0.1.x):**
-```rust
-use oxcache::cached;
-
-#[cached(service = "default", ttl = 3600)]
-async fn fetch_user(user_id: &str) -> Result<User> {
-    // Function body
-}
-```
-
-**New API (v0.2.0+):**
-```rust
-use oxcache::cached;
-
-#[cached(service = "default", ttl = 3600)]
-async fn fetch_user(user_id: &str) -> Result<User> {
-    // Function body
-}
-
-// Note: The macro syntax remains the same, but the underlying
-// implementation uses the internal registry instead of global state
-```
-
-### Breaking Changes
-
-1. **Removed Global State**: The global `get_client()` and `shutdown_all()` functions are removed. Cache instances must be created and managed explicitly.
-2. **Configuration API**: The old `Config` struct is replaced by the Builder pattern.
-3. **Internal Registry**: The `#[cached]` macro now uses an internal registry for cache registration, which is transparent to users.
-
-### Benefits of v0.2.0+
-
-1. **Type Safety**: Cache instances are type-safe and can be managed independently.
-2. **Better Performance**: Reduced overhead from global state management.
-3. **Flexibility**: Easier to create multiple cache instances with different configurations.
-4. **Testability**: Simpler to test with isolated cache instances.

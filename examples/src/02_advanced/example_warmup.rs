@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 缓存预热示例 ===\n");
 
     // 创建缓存
-    let cache: Arc<Cache<String, String>> = Arc::new(Cache::new().await?);
+    let cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
     // 1. 模拟从数据库加载配置
     println!("1. 模拟应用配置预热");

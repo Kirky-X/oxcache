@@ -18,7 +18,7 @@ struct User {
 /// 端到端测试 - 基本Cache功能
 #[tokio::test]
 async fn test_e2e_basic_cache() {
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 测试基本SET/GET/DELETE
     let key = "e2e_test_key".to_string();
@@ -48,7 +48,7 @@ async fn test_e2e_basic_cache() {
 /// 端到端测试 - User结构体缓存
 #[tokio::test]
 async fn test_e2e_user_cache() {
-    let cache: Cache<String, User> = Cache::new().await.unwrap();
+    let cache: Cache<String, User> = Cache::builder().build().await.unwrap();
 
     let user = User {
         id: 1,
@@ -76,7 +76,7 @@ async fn test_e2e_user_cache() {
 /// 端到端测试 - 批量操作
 #[tokio::test]
 async fn test_e2e_batch_operations() {
-    let cache: Cache<String, i32> = Cache::new().await.unwrap();
+    let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
 
     // 批量写入
     for i in 0..10 {

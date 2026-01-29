@@ -158,49 +158,41 @@ impl CacheBackend for DashMapMemoryBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let now = Instant::now();
 
-        // Check if key exists and not expired
-        let (needs_removal, result) = {
-            if let Some(entry_ref) = self.cache.get(key) {
-                let entry = entry_ref.value();
-                if let Some(expires_at) = entry.expires_at {
-                    if expires_at <= now {
-                        (true, None) // Mark for removal, return None
-                    } else {
-                        // Update TTL if configured
-                        if let Some(default_ttl) = self.default_ttl {
-                            let new_expires_at = now + default_ttl;
-                            self.ttl_map.insert(key.to_string(), new_expires_at);
-                            let _ = entry_ref.clone(); // Update entry with new TTL
-                        }
-                        (false, Some(entry.value.clone()))
-                    }
-                } else {
-                    (false, Some(entry.value.clone()))
+        // Use atomic operations to reduce race conditions
+        let result = self.cache.get(key).map(|entry_ref| {
+            let entry = entry_ref.value();
+
+            // Check expiration atomically
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at <= now {
+                    // Atomically remove expired entry
+                    drop(entry_ref);
+                    self.cache.remove(key);
+                    self.ttl_map.remove(key);
+                    self.misses.fetch_add(1, Ordering::SeqCst);
+                    return None;
                 }
-            } else {
-                (false, None)
             }
-        };
 
-        // Remove expired entry if needed
-        if needs_removal {
-            self.cache.remove(key);
-            self.ttl_map.remove(key);
-            self.misses.fetch_add(1, Ordering::Relaxed);
-            return Ok(None);
+            // Update TTL atomically if configured
+            if let Some(default_ttl) = self.default_ttl {
+                let new_expires_at = now + default_ttl;
+                // Use update for atomic TTL update
+                if let Some(mut entry_mut) = self.cache.get_mut(key) {
+                    entry_mut.expires_at = Some(new_expires_at);
+                    self.ttl_map.insert(key.to_string(), new_expires_at);
+                }
+            }
+
+            self.hits.fetch_add(1, Ordering::SeqCst);
+            Some(entry.value.clone())
+        });
+
+        if result.is_none() {
+            self.misses.fetch_add(1, Ordering::SeqCst);
         }
 
-        // Update statistics
-        match result {
-            Some(_) => {
-                self.hits.fetch_add(1, Ordering::Relaxed);
-            }
-            None => {
-                self.misses.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-
-        Ok(result)
+        Ok(result.flatten())
     }
 
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {

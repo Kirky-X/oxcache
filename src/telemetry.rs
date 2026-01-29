@@ -6,7 +6,7 @@
 
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider;
-use opentelemetry_sdk::trace::TracerProvider as SdkTracerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 
 /// 初始化 OpenTelemetry Tracing

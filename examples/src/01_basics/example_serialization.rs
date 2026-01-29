@@ -20,7 +20,7 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
 
     println!("序列化选项示例");
     println!("========================\n");

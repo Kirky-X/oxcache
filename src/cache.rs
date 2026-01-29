@@ -13,6 +13,7 @@ use crate::serialization::json::JsonSerializer;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::Serializer;
 use crate::traits::{CacheKey, Cacheable};
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -89,15 +90,26 @@ where
 {
     /// Create a new cache with default memory backend
     ///
-    /// # Returns
+    /// # ⚠️ DEPRECATED
     ///
-    /// Configured cache instance
-    ///
-    /// # Example
+    /// This method is deprecated. Use [`Cache::builder()`] instead for better
+    /// configuration options and future compatibility.
     ///
     /// ```rust,ignore
+    /// // Deprecated: Use Cache::builder() instead
     /// let cache: Cache<String, User> = Cache::new().await?;
+    ///
+    /// // New API:
+    /// let cache: Cache<String, User> = Cache::builder()
+    ///     .capacity(10_000)
+    ///     .ttl(Duration::from_secs(3600))
+    ///     .build()
+    ///     .await?;
     /// ```
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use `Cache::builder()` instead for better configuration options"
+    )]
     pub async fn new() -> Result<Self> {
         let backend = MemoryBackend::new();
         Ok(Self {
@@ -128,7 +140,8 @@ where
     /// let cache: Cache<String, User> = Cache::memory().await?;
     /// ```
     pub async fn memory() -> Result<Self> {
-        Self::new().await
+        let backend = MemoryBackend::new();
+        Ok(Self::new_with_backend(Arc::new(backend)))
     }
 
     /// Create a cache with a Redis backend
@@ -650,21 +663,166 @@ where
         V: 'static,
     {
         use crate::internal::__internal_register_cache;
-        use std::any::TypeId;
 
         // Only allow registration for Cache<String, Vec<u8>>
         // This is the expected type for #[cached] macro
         if TypeId::of::<K>() == TypeId::of::<String>()
             && TypeId::of::<V>() == TypeId::of::<Vec<u8>>()
         {
-            // Safety: We have verified that K=String and V=Vec<u8>,
-            // and both Cache<K,V> and Cache<String,Vec<u8>> have identical
-            // memory layouts (Arc<dyn CacheBackend>, Arc<SerializerPool>, PhantomData).
-            // The PhantomData only affects type checking, not memory layout.
-            // This cast is safe because the types are verified and layouts match.
-            let cache: Cache<String, Vec<u8>> = unsafe { std::mem::transmute_copy(self) };
+            // Safe approach: Extract backend and create new cache with correct types
+            // This avoids unsafe transmute_copy by reusing the backend safely
+            let backend = self.backend.clone();
+            let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
             __internal_register_cache(service_name, Arc::new(cache));
         }
+    }
+
+    // ============================================================================
+    // Lua Script Execution (feature-gated)
+    // ============================================================================
+
+    /// Execute a Lua script using the Redis backend.
+    ///
+    /// This method allows executing arbitrary Lua scripts against Redis while
+    /// reusing the existing connection managed by oxcache, avoiding the need
+    /// for a separate Redis connection.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - The Lua script to execute
+    /// * `keys` - Keys that will be available as KEYS[1], KEYS[2], etc.
+    /// * `args` - Additional arguments that will be available as ARGV[1], ARGV[2], etc.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(redis::Value)` - The result from Redis
+    /// * `Err(CacheError)` - If validation fails or execution fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, Vec<u8>> = Cache::redis("redis://127.0.0.1:6379").await?;
+    ///
+    /// // Increment a counter atomically
+    /// let result: i64 = cache.eval_lua(
+    ///     "return redis.call('INCR', KEYS[1])",
+    ///     &["mycounter"],
+    ///     &[],
+    /// ).await?;
+    ///
+    /// println!("Counter: {}", result);
+    /// ```
+    #[cfg(feature = "lua-script")]
+    pub async fn eval_lua(
+        &self,
+        script: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> Result<redis::Value> {
+        use crate::backend::client::RedisBackend;
+
+        // Downcast to RedisBackend to access Lua methods
+        let redis_backend = self
+            .backend
+            .as_any()
+            .downcast_ref::<RedisBackend>()
+            .ok_or_else(|| {
+                CacheError::Operation("Lua scripts require Redis backend".to_string())
+            })?;
+
+        redis_backend.eval_lua(script, keys, args).await
+    }
+
+    /// Execute a cached Lua script by its SHA digest.
+    ///
+    /// This is more efficient than `eval_lua()` when the same script is executed
+    /// multiple times because Redis can reuse the compiled script.
+    ///
+    /// # Arguments
+    ///
+    /// * `sha` - The SHA1 digest of the script (from `script_load()`)
+    /// * `keys` - Keys that will be available as KEYS[1], KEYS[2], etc.
+    /// * `args` - Additional arguments that will be available as ARGV[1], ARGV[2], etc.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(redis::Value)` - The result from Redis
+    /// * `Err(CacheError)` - If the script is not cached or execution fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, Vec<u8>> = Cache::redis("redis://127.0.0.1:6379").await?;
+    ///
+    /// // Load script once to get SHA
+    /// let sha = cache.script_load("return redis.call('GET', KEYS[1])").await?;
+    ///
+    /// // Execute multiple times using SHA
+    /// let result = cache.eval_sha(&sha, &["mykey"], &[]).await?;
+    /// ```
+    #[cfg(feature = "lua-script")]
+    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+        use crate::backend::client::RedisBackend;
+
+        let redis_backend = self
+            .backend
+            .as_any()
+            .downcast_ref::<RedisBackend>()
+            .ok_or_else(|| {
+                CacheError::Operation("Lua scripts require Redis backend".to_string())
+            })?;
+
+        redis_backend.eval_sha(sha, keys, args).await
+    }
+
+    /// Load a Lua script into Redis's script cache and return its SHA digest.
+    ///
+    /// After loading a script, use `eval_sha()` with the returned SHA for more
+    /// efficient repeated executions.
+    ///
+    /// # Arguments
+    ///
+    /// * `script` - The Lua script to load
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The SHA1 digest of the script
+    /// * `Err(CacheError)` - If validation fails or loading fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, Vec<u8>> = Cache::redis("redis://127.0.0.1:6379").await?;
+    ///
+    /// // Load a script and get its SHA
+    /// let sha = cache.script_load(
+    ///     "local val = redis.call('GET', KEYS[1]); \
+    ///      if val then redis.call('DEL', KEYS[2]); end; \
+    ///      return val"
+    /// ).await?;
+    ///
+    /// // Use the SHA for efficient execution
+    /// let result = cache.eval_sha(&sha, &["key1", "key2"], &[]).await?;
+    /// ```
+    #[cfg(feature = "lua-script")]
+    pub async fn script_load(&self, script: &str) -> Result<String> {
+        use crate::backend::client::RedisBackend;
+
+        let redis_backend = self
+            .backend
+            .as_any()
+            .downcast_ref::<RedisBackend>()
+            .ok_or_else(|| {
+                CacheError::Operation("Lua scripts require Redis backend".to_string())
+            })?;
+
+        redis_backend.script_load(script).await
     }
 }
 
@@ -681,7 +839,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_basic() {
-        let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
+        let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         let value = TestValue {
             id: 1,
@@ -705,7 +863,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_get_or() {
         use crate::error::CacheError;
-        let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
+        let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         let value = TestValue {
             id: 1,
@@ -732,7 +890,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_batch_operations() {
-        let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
+        let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         let value1 = TestValue {
             id: 1,
@@ -776,7 +934,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_clear() {
-        let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
+        let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         cache
             .set(
@@ -796,10 +954,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_stats() {
-        let cache: Cache<String, TestValue> = Cache::new().await.unwrap();
+        let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         let stats = cache.stats().await.unwrap();
-        // Cache::new() uses MokaMemoryBackend which reports type as "moka"
+        // Cache::builder() uses MokaMemoryBackend which reports type as "moka"
         assert_eq!(stats.get("type"), Some(&"moka".to_string()));
     }
 }

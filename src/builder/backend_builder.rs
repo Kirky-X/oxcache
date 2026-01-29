@@ -22,9 +22,9 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct TieredBackend {
     /// L1 cache - local in-memory cache
-    l1: Arc<MemoryBackend>,
+    l1_cache: Arc<MemoryBackend>,
     /// L2 cache - distributed Redis cache
-    l2: Arc<RedisBackend>,
+    l2_cache: Arc<RedisBackend>,
 }
 
 impl TieredBackend {
@@ -35,19 +35,19 @@ impl TieredBackend {
     ///
     /// # Arguments
     ///
-    /// * `l1` - The L1 (memory) cache backend
-    /// * `l2` - The L2 (Redis) cache backend
+    /// * `l1_cache` - The L1 (memory) cache backend
+    /// * `l2_cache` - The L2 (Redis) cache backend
     ///
     /// # Returns
     ///
     /// A new TieredBackend instance
-    pub fn with_dependencies(l1: Arc<MemoryBackend>, l2: Arc<RedisBackend>) -> Self {
-        Self { l1, l2 }
+    pub fn with_dependencies(l1_cache: Arc<MemoryBackend>, l2_cache: Arc<RedisBackend>) -> Self {
+        Self { l1_cache, l2_cache }
     }
 
     /// Create a new tiered backend (alias for with_dependencies)
-    pub fn new(l1: Arc<MemoryBackend>, l2: Arc<RedisBackend>) -> Self {
-        Self { l1, l2 }
+    pub fn new(l1_cache: Arc<MemoryBackend>, l2_cache: Arc<RedisBackend>) -> Self {
+        Self { l1_cache, l2_cache }
     }
 }
 
@@ -55,79 +55,79 @@ impl TieredBackend {
 impl CacheBackend for TieredBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         // Try L1 first
-        let l1_result = self.l1.get(key).await?;
+        let l1_result = self.l1_cache.get(key).await?;
         if l1_result.is_some() {
             return Ok(l1_result);
         }
 
         // Fall back to L2
-        let l2_result = self.l2.get(key).await?;
+        let l2_result = self.l2_cache.get(key).await?;
         if let Some(ref value) = l2_result {
             // Promote to L1
-            let _ = self.l1.set(key, value.clone(), None).await;
+            let _ = self.l1_cache.set(key, value.clone(), None).await;
         }
         Ok(l2_result)
     }
 
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         // Write to L1
-        self.l1.set(key, value.clone(), ttl).await?;
+        self.l1_cache.set(key, value.clone(), ttl).await?;
 
         // Write to L2
-        self.l2.set(key, value, ttl).await?;
+        self.l2_cache.set(key, value, ttl).await?;
 
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         // Delete from both
-        self.l1.delete(key).await?;
-        self.l2.delete(key).await?;
+        self.l1_cache.delete(key).await?;
+        self.l2_cache.delete(key).await?;
         Ok(())
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
         // Check L1 first
-        if self.l1.exists(key).await? {
+        if self.l1_cache.exists(key).await? {
             return Ok(true);
         }
         // Check L2
-        self.l2.exists(key).await
+        self.l2_cache.exists(key).await
     }
 
     async fn clear(&self) -> Result<()> {
-        self.l1.clear().await?;
-        self.l2.clear().await?;
+        self.l1_cache.clear().await?;
+        self.l2_cache.clear().await?;
         Ok(())
     }
 
     async fn close(&self) -> Result<()> {
-        self.l2.close().await?;
+        self.l2_cache.close().await?;
         Ok(())
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
         // Check L1 first
-        let l1_ttl = self.l1.ttl(key).await?;
+        let l1_ttl = self.l1_cache.ttl(key).await?;
         if l1_ttl.is_some() {
             return Ok(l1_ttl);
         }
-        self.l2.ttl(key).await
+        self.l2_cache.ttl(key).await
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
-        self.l1.expire(key, ttl).await?;
-        self.l2.expire(key, ttl).await
+        self.l1_cache.expire(key, ttl).await?;
+        self.l2_cache.expire(key, ttl).await
     }
 
     async fn health_check(&self) -> Result<bool> {
         // Check L2 health (L1 is always healthy)
-        self.l2.health_check().await
+        self.l2_cache.health_check().await
     }
 
     async fn stats(&self) -> Result<std::collections::HashMap<String, String>> {
-        let mut stats = self.l1.stats().await?;
-        let l2_stats = self.l2.stats().await?;
+        let mut stats = self.l1_cache.stats().await?;
+        let l2_stats = self.l2_cache.stats().await?;
         stats.extend(l2_stats);
         Ok(stats)
     }

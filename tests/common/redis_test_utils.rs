@@ -16,14 +16,17 @@ use std::time::Duration;
 #[cfg(feature = "redis")]
 pub(crate) async fn create_redis_backend_with_real_redis() -> Result<Arc<dyn CacheBackend>, String>
 {
-    match RedisBackend::new("redis://127.0.0.1:6379").await {
+    let redis_url = std::env::var("TEST_REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    match RedisBackend::new(&redis_url).await {
         Ok(backend) => Ok(Arc::new(backend)),
         Err(e) => Err(format!("无法创建Redis连接: {}", e)),
     }
 }
 
 pub(crate) async fn create_standalone_config() -> String {
-    "redis://127.0.0.1:6379".to_string()
+    std::env::var("TEST_REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
 pub(crate) async fn wait_for_redis(_url: &str) -> bool {

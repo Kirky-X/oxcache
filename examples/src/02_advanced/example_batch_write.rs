@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 创建分层缓存
-    let cache: Arc<Cache<String, Product>> = Arc::new(Cache::new().await?);
+    let cache: Arc<Cache<String, Product>> = Arc::new(Cache::builder().build().await?);
 
     // 1. 批量添加商品
     println!("1. 批量添加商品");

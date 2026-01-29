@@ -21,7 +21,7 @@ struct User {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建一个简单的内存缓存
-    let cache: Cache<String, User> = Cache::new().await?;
+    let cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 创建测试用户
     let user = User {

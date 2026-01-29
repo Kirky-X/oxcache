@@ -508,8 +508,8 @@ mod tests {
             }
 
             // Test zero-copy deserialization
-            let data_bytes = serde_json::to_vec(&data).unwrap();
-            let serialized = serializer.serialize(&data_bytes).unwrap();
+            // First serialize data to bytes using the serializer's format
+            let serialized = serializer.serialize(&data).unwrap();
             let zero_copy_result = serializer
                 .deserialize_zero_copy::<TestData>(&serialized)
                 .unwrap();

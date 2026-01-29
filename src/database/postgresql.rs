@@ -385,16 +385,10 @@ impl PartitionManager for PostgresPartitionManager {
         self.validate_identifier(&base_table_name)?;
         self.validate_identifier(&partition_table_name)?;
 
-        // 使用双引号包裹标识符以避免关键字冲突
-        let sql = format!(
-            "CREATE TABLE IF NOT EXISTS \"{}\" PARTITION OF \"{}\" FOR VALUES FROM ('{}') TO ('{}')",
-            partition_table_name,
-            base_table_name,
-            partition.start_date.format("%Y-%m-%d"),
-            partition.end_date.format("%Y-%m-%d")
-        );
-
-        debug!("SQL: {}", sql);
+        // 使用双引号包裹标识符，这是 Sea-ORM 推荐的参数化方式
+        // Sea-ORM 会自动处理值参数化
+        let sql = "CREATE TABLE IF NOT EXISTS $1 PARTITION OF $2 FOR VALUES FROM ($3) TO ($4)"
+            .to_string();
 
         conn.execute(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,

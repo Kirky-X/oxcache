@@ -14,7 +14,7 @@ async fn test_l1_only_mode() {
     common::setup_logging();
 
     // 使用新的Cache API创建L1缓存
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 验证缓存可以正常工作
     let test_key = "l1_test_key".to_string();
@@ -39,7 +39,7 @@ async fn test_l1_only_mode() {
 async fn test_cache_basic_operations() {
     common::setup_logging();
 
-    let cache: Cache<String, Vec<u8>> = Cache::new().await.unwrap();
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
 
     // 测试SET/GET
     let key = "basic_test".to_string();
@@ -73,7 +73,7 @@ async fn test_cache_basic_operations() {
 async fn test_cache_clear() {
     common::setup_logging();
 
-    let cache: Cache<String, String> = Cache::new().await.unwrap();
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 填充数据
     for i in 0..10 {
