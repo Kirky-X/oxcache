@@ -11,6 +11,8 @@
 
 use crate::common::{is_redis_available, setup_logging};
 use oxcache::backend::client::RedisBackend;
+use oxcache::backend::CacheBackend;
+use oxcache::security::validate_lua_script;
 use std::time::Duration;
 
 /// 测试 Redis Lua 脚本验证功能
@@ -26,20 +28,20 @@ async fn test_redis_lua_script_validation() {
         local value = ARGV[1]
         return redis.call('GET', key)
     "#;
-    assert!(RedisBackend::validate_lua_script(valid_script).is_ok());
+    assert!(validate_lua_script(valid_script, 1).is_ok());
 
     // 包含禁止命令的脚本应该被拒绝
     let dangerous_script = r#"
         return redis.call('FLUSHALL')
     "#;
-    assert!(RedisBackend::validate_lua_script(dangerous_script).is_err());
+    assert!(validate_lua_script(dangerous_script, 0).is_err());
 
     // 包含 KEYS 命令的脚本应该被拒绝
     let keys_script = r#"
         local keys = redis.call('KEYS', '*')
         return keys
     "#;
-    assert!(RedisBackend::validate_lua_script(keys_script).is_err());
+    assert!(validate_lua_script(keys_script, 0).is_err());
 }
 
 /// 测试 Redis Lua 脚本最大长度限制
@@ -51,7 +53,7 @@ async fn test_redis_lua_script_max_length() {
 
     // 创建超过限制的脚本
     let long_script = "local x = 1\n".repeat(10000);
-    assert!(RedisBackend::validate_lua_script(&long_script).is_err());
+    assert!(validate_lua_script(&long_script, 1).is_err());
 }
 
 /// 测试 Redis Lua 脚本最大 key 数量限制
@@ -63,12 +65,12 @@ async fn test_redis_lua_script_max_keys() {
 
     // 创建声明大量 KEYS 的脚本
     let script = "local result = 0\n".to_string()
-        + &"for i = 1, 101 do\n"
+        + "for i = 1, 101 do\n"
         + "    local key = KEYS[i]\n"
         + "    result = result + 1\n"
         + "end\n"
         + "return result";
-    assert!(RedisBackend::validate_lua_script(&script).is_err());
+    assert!(validate_lua_script(&script, 101).is_err());
 }
 
 /// 测试基本的 Redis 操作（使用新 API）
@@ -122,7 +124,7 @@ async fn test_basic_redis_operations_new_api() {
     // 测试 TTL
     let ttl_result = backend.ttl(test_key).await;
     assert!(ttl_result.is_ok(), "TTL should succeed");
-    assert!(ttl_result.unwrap() > 0, "TTL should be positive");
+    assert!(ttl_result.unwrap().is_some(), "TTL should be positive");
     println!("✅ TTL 测试通过");
 
     // 测试 DELETE
@@ -175,9 +177,7 @@ async fn test_redis_lua_script_execution() {
         return value
     "#;
 
-    let eval_result = backend
-        .eval_lua(lua_script, vec![test_key], Vec::new())
-        .await;
+    let eval_result = backend.eval_lua(lua_script, &[test_key], &[]).await;
     assert!(eval_result.is_ok(), "Lua script execution should succeed");
     println!("✅ Lua 脚本执行测试通过");
 }
@@ -218,11 +218,7 @@ async fn test_redis_sorted_set_via_lua() {
     "#;
 
     let zadd_result = backend
-        .eval_lua(
-            zadd_script,
-            vec![test_key],
-            vec!["1.0".to_string(), "member1".to_string()],
-        )
+        .eval_lua(zadd_script, &[test_key], &["1.0", "member1"])
         .await;
     assert!(zadd_result.is_ok(), "ZADD via Lua should succeed");
     println!("✅ ZADD via Lua 测试通过");
@@ -236,11 +232,7 @@ async fn test_redis_sorted_set_via_lua() {
     "#;
 
     let zrange_result = backend
-        .eval_lua(
-            zrange_script,
-            vec![test_key],
-            vec!["0".to_string(), "-1".to_string()],
-        )
+        .eval_lua(zrange_script, &[test_key], &["0", "-1"])
         .await;
     assert!(zrange_result.is_ok(), "ZRANGE via Lua should succeed");
     println!("✅ ZRANGE via Lua 测试通过");

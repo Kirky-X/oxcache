@@ -179,7 +179,7 @@ mod rate_limiting_tests {
         }
 
         // 客户端1第6个请求 - 可能被限制
-        let result = limiter.check_rate_limit("client_1", 1).await;
+        let _result = limiter.check_rate_limit("client_1", 1).await;
         // 我们不假设一定被限制，因为实现可能有不同的行为
 
         // 客户端2应该能够请求（测试基本功能）

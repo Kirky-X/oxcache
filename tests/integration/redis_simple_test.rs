@@ -10,6 +10,7 @@
 #[cfg(feature = "redis")]
 mod redis_integration_tests {
     use oxcache::backend::client::RedisBackend;
+    use oxcache::backend::CacheBackend;
     use std::time::Duration;
 
     #[tokio::test]
