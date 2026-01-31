@@ -444,6 +444,12 @@ where
         self.serializer_pool.json()
     }
 
+    /// Get the unified serializer for this cache (simplified interface for macros)
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn unified_serializer(&self) -> crate::serialization::unified::UnifiedSerializer {
+        crate::serialization::unified::UnifiedSerializer::json()
+    }
+
     /// Check if the cache supports L1-only operations
     pub fn supports_l1_only(&self) -> bool {
         self.backend
