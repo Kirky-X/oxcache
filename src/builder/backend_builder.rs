@@ -19,6 +19,7 @@ use std::time::Duration;
 /// This implements a write-through cache strategy:
 /// - On get: check L1 first, then L2
 /// - On set: write to both L1 and L2
+#[cfg(feature = "redis")]
 #[derive(Clone)]
 pub struct TieredBackend {
     /// L1 cache - local in-memory cache
@@ -27,6 +28,7 @@ pub struct TieredBackend {
     l2_cache: Arc<RedisBackend>,
 }
 
+#[cfg(feature = "redis")]
 impl TieredBackend {
     /// Create a new tiered backend with specified dependencies
     ///
@@ -51,6 +53,7 @@ impl TieredBackend {
     }
 }
 
+#[cfg(feature = "redis")]
 #[async_trait]
 impl CacheBackend for TieredBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
@@ -574,6 +577,137 @@ impl BackendBuilder {
                 // Create tiered backend
                 let tiered_backend = TieredBackend::new(Arc::new(l1_backend), Arc::new(l2_backend));
                 Ok(Arc::new(tiered_backend))
+            }
+        }
+    }
+
+    /// 使用confers配置创建BackendBuilder（DI支持）
+    ///
+    /// 此方法允许从confers配置实例读取缓存后端配置，
+    /// 支持依赖注入架构。
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - confers配置实例
+    ///
+    /// # Returns
+    ///
+    /// 配置好的BackendBuilder实例
+    ///
+    /// # Configuration Keys
+    ///
+    /// 从confers读取以下配置项：
+    ///
+    /// - `oxcache.backend`: 后端类型 ("memory" | "redis" | "tiered")
+    /// - `oxcache.capacity`: 内存缓存容量（默认10000）
+    /// - `oxcache.ttl`: 默认TTL（秒）
+    /// - `oxcache.redis.url`: Redis连接URL（tiered/redis必需）
+    /// - `oxcache.redis.mode`: Redis模式 ("standalone" | "cluster" | "sentinel"）
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::builder::BackendBuilder;
+    /// use std::sync::Arc;
+    ///
+    /// let config: Arc<dyn ConfersConfig> = /* ... */;
+    /// let builder = BackendBuilder::with_confers(config);
+    /// let backend = builder.build().await?;
+    /// ```
+    #[cfg(feature = "confers")]
+    pub fn with_confers(config: Arc<dyn confers::ConfersConfig>) -> Self {
+        use std::time::Duration;
+
+        // 读取后端类型，默认为memory
+        let backend_type = config
+            .get_string("oxcache.backend")
+            .unwrap_or_else(|| "memory".to_string());
+
+        match backend_type.as_str() {
+            "tiered" => {
+                // 分层缓存（L1 + L2）
+                #[cfg(feature = "redis")]
+                {
+                    let l1_capacity = config
+                        .get_u64("oxcache.tiered.l1_capacity")
+                        .unwrap_or(10000);
+
+                    let l2_url = config.get_string("oxcache.redis.url");
+
+                    let mode_str = config
+                        .get_string("oxcache.redis.mode")
+                        .unwrap_or_else(|| "standalone".to_string());
+
+                    let mode = match mode_str.as_str() {
+                        "cluster" => RedisMode::Cluster,
+                        "sentinel" => RedisMode::Sentinel,
+                        _ => RedisMode::Standalone,
+                    };
+
+                    BackendBuilder::Tiered {
+                        l1_capacity,
+                        l2_connection_string: l2_url,
+                        l2_mode: mode,
+                        write_through: true,
+                        promote_on_hit: true,
+                    }
+                }
+
+                #[cfg(not(feature = "redis"))]
+                {
+                    tracing::warn!(
+                        "Tiered backend requested but redis feature not enabled, falling back to memory"
+                    );
+                    let capacity = config.get_u64("oxcache.capacity").unwrap_or(10000);
+                    let ttl_secs = config.get_int("oxcache.ttl").ok();
+                    let ttl = ttl_secs.map(|s| Duration::from_secs(s as u64));
+
+                    BackendBuilder::Memory { capacity, ttl }
+                }
+            }
+            "redis" => {
+                // Redis缓存
+                #[cfg(feature = "redis")]
+                {
+                    let connection_string = config.get_string("oxcache.redis.url");
+
+                    let mode_str = config
+                        .get_string("oxcache.redis.mode")
+                        .unwrap_or_else(|| "standalone".to_string());
+
+                    let mode = match mode_str.as_str() {
+                        "cluster" => RedisMode::Cluster,
+                        "sentinel" => RedisMode::Sentinel,
+                        _ => RedisMode::Standalone,
+                    };
+
+                    BackendBuilder::Redis {
+                        connection_string,
+                        mode,
+                    }
+                }
+
+                #[cfg(not(feature = "redis"))]
+                {
+                    tracing::warn!(
+                        "Redis backend requested but redis feature not enabled, falling back to memory"
+                    );
+                    let capacity = config.get_u64("oxcache.capacity").unwrap_or(10000);
+                    let ttl = config
+                        .get_int("oxcache.ttl")
+                        .map(|s| Duration::from_secs(s as u64));
+
+                    BackendBuilder::Memory { capacity, ttl }
+                }
+            }
+            _ => {
+                // 内存缓存（默认）
+                let capacity = config.get_u64("oxcache.capacity").unwrap_or(10000);
+                let ttl = config
+                    .get_int("oxcache.ttl")
+                    .map(|s| Duration::from_secs(s as u64));
+
+                BackendBuilder::Memory { capacity, ttl }
             }
         }
     }

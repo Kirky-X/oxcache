@@ -459,13 +459,35 @@ impl ConditionalRequestHandler {
         (if_none_match, if_modified_since)
     }
 
-    /// 生成强 ETag
+    /// 生成强 ETag (使用 SHA-256)
+    #[cfg(feature = "sha2")]
+    pub fn generate_strong_etag(&self, body: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(body);
+        let result = hasher.finalize();
+        format!("\"{:x}\"", result)
+    }
+
+    /// 生成弱 ETag (使用 SHA-256)
+    #[cfg(feature = "sha2")]
+    pub fn generate_weak_etag(&self, body: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(body);
+        let result = hasher.finalize();
+        format!("W/\"{:x}\"", result)
+    }
+
+    /// 生成强 ETag (使用 MD5 - 仅为向后兼容)
+    #[cfg(not(feature = "sha2"))]
     pub fn generate_strong_etag(&self, body: &[u8]) -> String {
         let digest = md5::compute(body);
         format!("\"{:x}\"", digest)
     }
 
-    /// 生成弱 ETag
+    /// 生成弱 ETag (使用 MD5 - 仅为向后兼容)
+    #[cfg(not(feature = "sha2"))]
     pub fn generate_weak_etag(&self, body: &[u8]) -> String {
         let digest = md5::compute(body);
         format!("W/\"{:x}\"", digest)

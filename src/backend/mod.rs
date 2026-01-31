@@ -14,8 +14,9 @@ pub mod interface;
 #[cfg(any(
     feature = "moka",
     feature = "redis",
-    feature = "full",
-    feature = "core"
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
 ))]
 pub mod custom_tiered;
 

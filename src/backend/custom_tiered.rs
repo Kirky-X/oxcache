@@ -517,6 +517,7 @@ impl BackendType {
 }
 
 /// 单层后端配置
+/// 层级后端配置
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg(any(feature = "serialization", feature = "full"))]
 pub struct LayerBackendConfig {
@@ -763,6 +764,10 @@ fn apply_memory_options(
 /// l1_backend = "moka"
 /// l2_backend = "redis"
 /// ```
+///
+/// 自定义分层缓存配置
+///
+/// 支持灵活的多层缓存配置，每层可以独立配置不同的后端类型。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CustomTieredConfig {
@@ -1092,7 +1097,8 @@ impl ConfigValidationResult {
                     }
                     #[cfg(not(feature = "redis"))]
                     {
-                        BackendType::Sqlite
+                        // When redis is not available, suggest tiered (memory-only)
+                        BackendType::Tiered
                     }
                 }
                 Layer::L3 => {
@@ -1102,7 +1108,8 @@ impl ConfigValidationResult {
                     }
                     #[cfg(not(feature = "redis"))]
                     {
-                        BackendType::Sqlite
+                        // When redis is not available, suggest tiered (memory-only)
+                        BackendType::Tiered
                     }
                 }
             };
@@ -1232,13 +1239,8 @@ impl FixedConfigResult {
 }
 
 /// Builder 模式的便捷构造器
+#[derive(Default)]
 pub struct CustomTieredConfigBuilder(CustomTieredConfig);
-
-impl Default for CustomTieredConfigBuilder {
-    fn default() -> Self {
-        Self(CustomTieredConfig::new())
-    }
-}
 
 impl CustomTieredConfigBuilder {
     pub fn new() -> Self {
@@ -1337,7 +1339,6 @@ pub async fn load_from_file(
     validation_config: Option<PathValidationConfig>,
 ) -> Result<CustomTieredConfig> {
     use std::fs;
-    use toml;
 
     // 使用提供的配置或默认配置
     let path_config = validation_config.unwrap_or_default();
@@ -1354,11 +1355,13 @@ pub async fn load_from_file(
         }
     }
 
+    // 读取配置文件
     let content =
         fs::read_to_string(&safe_path).map_err(|e| CacheError::ConfigError(e.to_string()))?;
 
+    // 使用标准的serde反序列化（与confers兼容的方式）
     let config: CustomTieredConfig =
-        toml::from_str(&content).map_err(|e| CacheError::ConfigError(e.to_string()))?;
+        serde_json::from_str(&content).map_err(|e| CacheError::ConfigError(e.to_string()))?;
 
     // 验证配置
     let (result, fixed) = config.validate_and_fix();

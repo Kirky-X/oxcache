@@ -148,6 +148,74 @@ where
         self
     }
 
+    /// 使用外部confers配置（DI支持）
+    ///
+    /// 此方法允许从confers配置实例读取缓存配置，
+    /// 并与手动配置的参数（如TTL、capacity）合并。
+    /// 手动配置的参数优先级高于confers配置。
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - confers配置实例
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
+    ///
+    /// # Configuration Keys
+    ///
+    /// 从confers读取以下配置项（如果未手动设置）：
+    ///
+    /// - `oxcache.backend`: 后端类型 ("memory" | "redis" | "tiered")
+    /// - `oxcache.capacity`: 内存缓存容量（默认10000）
+    /// - `oxcache.ttl`: 默认TTL（秒）
+    /// - `oxcache.redis.url`: Redis连接URL
+    /// - `oxcache.redis.mode`: Redis模式
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    /// use std::sync::Arc;
+    /// use std::time::Duration;
+    ///
+    /// let config: Arc<dyn ConfersConfig> = /* ... */;
+    ///
+    /// // 使用confers配置，但覆盖TTL
+    /// let cache = Cache::builder()
+    ///     .with_confers(config)
+    ///     .ttl(Duration::from_secs(7200))  // 覆盖confers中的TTL
+    ///     .build()
+    ///     .await?;
+    /// ```
+    ///
+    /// # Features
+    ///
+    /// 此方法仅在启用 `confers` feature 时可用。
+    #[cfg(feature = "confers")]
+    pub fn with_confers(mut self, config: Arc<dyn confers::ConfersConfig>) -> Self {
+        use std::time::Duration;
+
+        // 如果尚未设置TTL，从confers读取
+        if self.ttl.is_none() {
+            if let Some(ttl_secs) = config.get_int("oxcache.ttl") {
+                self.ttl = Some(Duration::from_secs(ttl_secs as u64));
+            }
+        }
+
+        // 如果尚未设置capacity，从confers读取
+        if self.capacity.is_none() {
+            if let Some(cap) = config.get_u64("oxcache.capacity") {
+                self.capacity = Some(cap);
+            }
+        }
+
+        // 使用BackendBuilder::with_confers创建后端构建器
+        self.backend_builder = Some(super::BackendBuilder::with_confers(config));
+
+        self
+    }
+
     /// Set the backend builder
     ///
     /// # Arguments

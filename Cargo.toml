@@ -123,6 +123,10 @@ optional = true
 version = "0.7"
 optional = true
 
+[dependencies.sha2]
+version = "0.10"
+optional = true
+
 # ============================================================================
 # DATABASE DEPENDENCIES
 # ============================================================================
@@ -175,6 +179,9 @@ optional = true
 version = "0.3"
 optional = true
 
+[dependencies.arc-swap]
+version = "1.6"
+
 [dependencies.regex]
 version = "1.12"
 optional = true
@@ -199,16 +206,17 @@ version = "0.5"
 optional = true
 
 # ============================================================================
-# CLI & CONFIGURATION
+# CONFIGURATION
 # ============================================================================
+
+[dependencies.confers]
+path = "/home/project/confers"
+optional = true
+
 [dependencies.clap]
 version = "4.5"
 default-features = false
-features = ["derive"]
-optional = true
-
-[dependencies.confers]
-version = "0.1.1"
+features = ["std", "derive", "env", "cargo"]
 optional = true
 
 # ============================================================================
@@ -246,7 +254,7 @@ default = ["full"]
 minimal = [
     "moka",
     "tokio/time",
-    "dep:tracing",
+    "tracing",
     "metrics",
     "serialization",
     "dep:chrono",
@@ -275,7 +283,7 @@ full = [
     "cli",
     "full-metrics",
     "batch-write",
-    "confers",
+    "dep:confers",
     "codegen",
     "compression",
     "smart-strategy",
@@ -305,6 +313,12 @@ dashmap-backend = ["dep:dashmap"]
 
 # L2 Cache Implementation (Redis)
 redis = ["dep:redis"]
+
+# Tracing support
+tracing = ["dep:tracing"]
+
+# SHA-256 hashing support
+sha2 = ["dep:sha2"]
 
 # Serialization Support
 serialization = ["dep:serde", "dep:serde_json"]
@@ -342,7 +356,7 @@ batch-write = ["dep:tokio-util"]
 sync = []
 
 # Configuration
-confers = ["dep:confers", "dep:toml"]
+confers = ["dep:confers", "toml", "confers/validation", "confers/schema"]
 
 # Smart Strategy Features
 smart-strategy = ["compression", "metrics", "moka"]
@@ -351,8 +365,8 @@ enhanced-stats = ["metrics"]
 ttl-control = ["redis"]
 tiered-cache = ["moka", "redis"]
 extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
-config-dynamic = ["confers"]
-http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util"]
+config-dynamic = ["dep:confers", "toml", "confers/validation", "confers/schema"]
+http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util"]
 
 # Lua Script Execution
 lua-script = ["redis"]
