@@ -8,6 +8,9 @@ use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::backend::CacheBackend;
 use crate::error::{CacheError, Result};
 
+#[cfg(any(feature = "tracing", feature = "full"))]
+use tracing::instrument;
+
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::json::JsonSerializer;
 #[cfg(any(feature = "serialization", feature = "full"))]
@@ -157,6 +160,78 @@ where
         crate::builder::CacheBuilder::default()
     }
 
+    /// 使用外部confers配置创建缓存实例（DI模式）
+    ///
+    /// 此方法允许功能组件层（inklog, limiteron）注入配置好的confers实例，
+    /// 实现依赖注入架构。
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - confers配置实例，实现了ConfersConfig trait
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Cache)` - 配置好的Cache实例
+    /// * `Err(CacheError)` - 创建失败
+    ///
+    /// # Configuration Keys
+    ///
+    /// 从confers读取以下配置项（如果不存在则使用默认值）：
+    ///
+    /// - `oxcache.backend`: 后端类型 ("memory" | "redis")，默认 "memory"
+    /// - `oxcache.redis.url`: Redis连接URL，默认 "redis://localhost:6379"
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use confers::ConfersConfig;
+    /// use oxcache::Cache;
+    /// use std::sync::Arc;
+    ///
+    /// // 假设已有confers配置实例
+    /// let config: Arc<dyn ConfersConfig> = /* ... */;
+    ///
+    /// // 使用confers配置创建缓存
+    /// let cache: Cache<String, User> = Cache::with_confers(config).await?;
+    /// ```
+    ///
+    /// # Features
+    ///
+    /// 此方法仅在启用 `confers` feature 时可用。
+    #[cfg(feature = "confers")]
+    #[instrument(skip(config), level = "info")]
+    pub async fn with_confers(config: Arc<dyn confers::ConfersConfig>) -> Result<Self> {
+        use crate::backend::client::RedisBackend;
+
+        // 从confers读取后端类型，默认为内存缓存
+        let backend_type = config
+            .get_string("oxcache.backend")
+            .unwrap_or_else(|| "memory".to_string());
+
+        let backend: Arc<dyn CacheBackend> = match backend_type.as_str() {
+            "redis" => {
+                // Redis后端
+                let connection_string = config
+                    .get_string("oxcache.redis.url")
+                    .unwrap_or_else(|| "redis://localhost:6379".to_string());
+
+                tracing::info!(
+                    "Creating Redis cache backend with connection: {}",
+                    connection_string
+                );
+
+                Arc::new(RedisBackend::new(&connection_string).await?)
+            }
+            _ => {
+                // 内存缓存（默认）
+                tracing::info!("Creating memory cache backend");
+                Arc::new(MemoryBackend::new())
+            }
+        };
+
+        Ok(Self::new_with_backend(backend))
+    }
+
     /// Get a value from the cache
     ///
     /// # Arguments
@@ -174,6 +249,7 @@ where
     /// ```rust,ignore
     /// let user: Option<User> = cache.get("user:1").await?;
     /// ```
+    #[instrument(skip(self, key), level = "debug", fields(key))]
     pub async fn get(&self, key: &K) -> Result<Option<V>> {
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
@@ -216,6 +292,7 @@ where
     /// ```rust,ignore
     /// cache.set("user:1", &user).await?;
     /// ```
+    #[instrument(skip(self, key, value), level = "debug", fields(key))]
     pub async fn set(&self, key: &K, value: &V) -> Result<()> {
         self.set_with_ttl(key, value, None).await
     }
@@ -276,6 +353,7 @@ where
     /// ```rust,ignore
     /// cache.delete("user:1").await?;
     /// ```
+    #[instrument(skip(self, key), level = "debug", fields(key))]
     pub async fn delete(&self, key: &K) -> Result<()> {
         let key_str = key.to_key_string();
         self.backend.delete(&key_str).await
@@ -584,6 +662,7 @@ where
     /// * `Ok(true)` - Cache is healthy
     /// * `Ok(false)` - Cache is unhealthy
     /// * `Err(CacheError)` - Health check failed
+    #[instrument(skip(self), level = "debug")]
     pub async fn health_check(&self) -> Result<bool> {
         self.backend.health_check().await
     }
@@ -660,7 +739,7 @@ where
             // This avoids unsafe transmute_copy by reusing the backend safely
             let backend = self.backend.clone();
             let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
-            __internal_register_cache(service_name, Arc::new(cache));
+            __internal_register_cache(service_name, Arc::new(cache)).await;
         }
     }
 

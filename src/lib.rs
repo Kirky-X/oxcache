@@ -432,6 +432,10 @@ pub mod cache;
 pub mod cache_interface;
 pub mod traits;
 
+// Configuration module (using Confers library)
+#[cfg(feature = "confers")]
+pub mod config;
+
 // ============================================================================
 // Optional Feature-Gated Modules
 // ============================================================================
@@ -510,8 +514,8 @@ pub mod smart_strategy;
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub mod http;
 
-// Security Module (Always available for public use)
-// 安全验证函数在所有场景下都可用，不仅限于 L2 Redis
+// Security Module (Only needed for Redis validation)
+#[cfg(any(feature = "redis", feature = "full"))]
 pub mod security;
 
 // Events Module (Always available)
@@ -540,20 +544,14 @@ pub use error::{CacheError, Result};
 // New API exports
 pub use builder::{BackendBuilder, CacheBuilder};
 pub use cache::Cache;
+
+// Configuration module exports (using Confers library)
+// Note: confers_config types are exported when confers feature is enabled
+#[cfg(feature = "confers")]
+pub use config::confers_config;
+
 pub use cache_interface::UnifiedCache;
 pub use traits::{CacheKey, Cacheable};
-
-// Custom tiered backend configuration exports
-#[cfg(any(
-    feature = "moka",
-    feature = "redis",
-    feature = "full",
-    feature = "core"
-))]
-pub use backend::custom_tiered::{
-    AutoFixConfig, ConfigFix, ConfigValidationResult, CustomTieredConfig,
-    CustomTieredConfigBuilder, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
-};
 
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]

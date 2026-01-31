@@ -6,6 +6,7 @@
 
 #[cfg(feature = "bincode")]
 pub mod bincode;
+pub mod depth_limited;
 pub mod json;
 
 #[cfg(feature = "extra-serialization")]

@@ -65,36 +65,12 @@ const SCAN_COUNT_MAX: usize = 1000;
 /// * `Ok(())` - 键是安全的
 /// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
 pub fn validate_redis_key(key: &str) -> Result<()> {
-    // 检查键长度
-    if key.is_empty() {
-        return Err(CacheError::InvalidInput(
-            "Redis key cannot be empty".to_string(),
-        ));
-    }
-
-    if key.len() > 512 * 1024 {
-        // Redis最大键长512MB，但我们限制为512KB以防止滥用
-        return Err(CacheError::InvalidInput(
-            "Redis key exceeds maximum length of 512KB".to_string(),
-        ));
-    }
-
-    // 检查是否包含危险字符
-    // Redis协议使用\r\n作为分隔符，我们必须防止注入
-    let dangerous_chars = ['\r', '\n', '\0'];
-
-    for c in key.chars() {
-        if dangerous_chars.contains(&c) {
-            return Err(CacheError::InvalidInput(format!(
-                "Redis key contains forbidden character: {:?}",
-                c
-            )));
-        }
-    }
+    // 使用公共验证模块进行基础验证
+    crate::utils::validation::redis::validate_key(key)?;
 
     // ========== 安全增强 ==========
 
-    // 检查 Unicode 控制字符（除了 \r, \n, \0 已检查）
+    // 检查 Unicode 控制字符（除了 \r, \n, \0 已在基础验证中检查）
     for c in key.chars() {
         if c.is_control() && !matches!(c, '\r' | '\n' | '\0' | '\t') {
             return Err(CacheError::InvalidInput(format!(
@@ -268,7 +244,10 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查无限循环模式
     let loop_patterns = [r"WHILE\s+TRUE", r"WHILE\s+1", r"REPEAT", r"GOTO"];
     for pattern in &loop_patterns {
-        if Regex::new(pattern).unwrap().is_match(&cleaned_upper) {
+        let re = Regex::new(pattern).map_err(|e| {
+            CacheError::InvalidInput(format!("Invalid regex pattern '{}': {}", pattern, e))
+        })?;
+        if re.is_match(&cleaned_upper) {
             return Err(CacheError::InvalidInput(
                 "Lua script contains potential infinite loop patterns".to_string(),
             ));
@@ -391,7 +370,8 @@ fn preprocess_lua_script(script: &str) -> String {
     }
 
     // 移除多余空格
-    let re = Regex::new(r"\s+").unwrap();
+    // Regex 模式是编译时确定的，不会失败
+    let re = Regex::new(r"\s+").expect("Failed to create whitespace regex");
     re.replace_all(&result, " ").to_string()
 }
 

@@ -10,7 +10,10 @@
 
 pub(crate) mod key_generator;
 pub mod redaction;
+#[cfg(feature = "database")]
+pub mod regex_security;
 pub mod security_log;
+pub mod validation;
 
 use crate::error::CacheError;
 
