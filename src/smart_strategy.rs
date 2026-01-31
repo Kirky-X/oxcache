@@ -324,9 +324,13 @@ pub struct CompressionDecider {
 impl CompressionDecider {
     /// 创建新的压缩决策器
     pub fn new(config: SmartStrategyConfig) -> Self {
+        // 使用config中的参数创建压缩性检查器
+        let sample_size = config.compression_threshold.max(100);
+        let entropy_threshold = (1.0 - config.min_compression_ratio).max(0.1);
+
         Self {
             config: config.clone(),
-            checker: CompressibilityChecker::new(1024, 0.9), // 使用默认参数
+            checker: CompressibilityChecker::new(sample_size, entropy_threshold),
         }
     }
 
