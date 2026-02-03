@@ -16,7 +16,6 @@
 //! ```
 
 use oxcache::bloom_filter::{BloomFilter, BloomFilterOptions};
-use oxcache::config::service::BloomFilterConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

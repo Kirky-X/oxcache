@@ -46,19 +46,19 @@ async fn main() -> Result<()> {
 
     // 1. 创建内存缓存 (L1 only)
     println!("1. 创建内存缓存 (L1)");
-    let memory_cache: Cache<String, User> = Cache::builder().build().await?;
+    let _memory_cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 内存缓存创建成功
 ");
 
     // 2. 创建 Redis 缓存 (L2 only)
     println!("2. 创建 Redis 缓存 (L2)");
-    let redis_cache: Cache<String, User> = Cache::redis("redis://127.0.0.1:6379").await?;
+    let _redis_cache: Cache<String, User> = Cache::redis("redis://127.0.0.1:6379").await?;
     println!("   ✓ Redis 缓存创建成功
 ");
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
-    let tiered_cache: Cache<String, User> = Cache::builder().build().await?;
+    let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 分层缓存创建成功
 ");
 
