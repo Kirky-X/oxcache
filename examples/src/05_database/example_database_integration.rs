@@ -17,9 +17,8 @@
 //! ```
 
 use oxcache::Cache;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct User {

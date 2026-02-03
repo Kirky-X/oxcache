@@ -13,25 +13,11 @@
 //! cd examples && cargo run --example example_warmup
 //! ```
 
-use std::sync::Arc;
 use oxcache::Cache;
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct AppConfig {
-    key: String,
-    value: String,
-    description: String,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-struct User {
-    id: u64,
-    username: String,
-    role: String,
-}
+use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== 缓存预热示例 ===\n");
 
     // 创建缓存
@@ -49,8 +35,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   从数据库加载配置...");
     for (key, value, desc) in &configs {
-        let k = key.clone();
-        let v = value.clone();
+        let k = key.to_string();
+        let v = value.to_string();
         cache.set(&k, &v).await?;
         println!("     加载配置: {} = {} ({})", k, v, desc);
     }
@@ -92,8 +78,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("3. 验证预热数据");
     println!("   配置验证:");
     for (key, value, _) in &configs {
-        let k = key.clone();
-        let v = value.clone();
+        let k = key.to_string();
+        let v = value.to_string();
         let retrieved = cache.get(&k).await?;
         match retrieved {
             Some(val) if val == v => println!("     ✓ {} = {}", k, val),
@@ -125,8 +111,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = Vec::new();
     for (key, value, _) in &configs {
         let cache = cache.clone();
-        let k = key.clone();
-        let v = value.clone();
+        let k = key.to_string();
+        let v = value.to_string();
         let handle = tokio::spawn(async move {
             cache.set(&k, &v).await?;
             Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
@@ -145,8 +131,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. 统计信息
     println!("5. 预热后统计");
     let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.get("item_count").unwrap_or(&0));
-    println!("   - 命中次数: {}", stats.get("hit_count").unwrap_or(&0));
+    println!(
+        "   - 总条目数: {}",
+        stats.get("item_count").map(String::as_str).unwrap_or("0")
+    );
+    println!(
+        "   - 命中次数: {}",
+        stats.get("hit_count").map(String::as_str).unwrap_or("0")
+    );
     println!();
 
     println!("=== 缓存预热示例完成 ===");

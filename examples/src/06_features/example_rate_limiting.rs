@@ -16,8 +16,7 @@
 //! cd examples && cargo run --example example_rate_limiting
 //! ```
 
-use oxcache::rate_limiting::{GlobalRateLimiter, ClientRateLimiter, RateLimitConfig};
-use std::time::Duration;
+use oxcache::rate_limiting::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -151,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let strict_inner = strict_limiter.inner().clone();
         
     println!("   严格限流器 (5 req/s, 5 burst):");
-    for i in 1..=10 {
+    for _ in 1..=10 {
         let result = strict_inner.check_rate_limit("strict_client", 1).await;
         match result {
             Ok(()) => print!("A "),
@@ -170,7 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let loose_inner = loose_limiter.inner().clone();
         
     println!("   宽松限流器 (50 req/s, 100 burst):");
-    for i in 1..=10 {
+    for _ in 1..=10 {
         let result = loose_inner.check_rate_limit("loose_client", 1).await;
         match result {
             Ok(()) => print!("A "),
