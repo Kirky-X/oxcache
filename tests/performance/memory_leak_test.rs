@@ -6,13 +6,14 @@
 
 #![allow(unexpected_cfgs)]
 
-#[path = "common/mod.rs"]
-mod common;
-
-use common::is_redis_available;
 use oxcache::Cache;
 use std::time::Duration;
 use tokio::time::sleep;
+
+/// 检查 Redis 是否可用
+fn is_redis_available() -> bool {
+    std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
+}
 
 /// 内存泄漏测试模块
 /// 使用循环引用和大量操作来检测潜在的内存泄漏

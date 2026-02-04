@@ -5,13 +5,26 @@
 // 配置单元测试 - 使用新API
 
 use oxcache::Cache;
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::EnvFilter;
+use std::sync::Once;
 
-mod common;
+static INIT: Once = Once::new();
+
+fn setup_logging() {
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_span_events(FmtSpan::CLOSE)
+            .with_env_filter(EnvFilter::new("debug"))
+            .try_init()
+            .ok();
+    });
+}
 
 /// 测试新Cache API的基本用法
 #[tokio::test]
 async fn test_new_cache_api() {
-    common::setup_logging();
+    setup_logging();
 
     // 使用新的Cache API
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
