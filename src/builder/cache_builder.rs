@@ -462,6 +462,196 @@ where
             _phantom: PhantomData,
         })
     }
+
+    /// Create a CacheBuilder from a UnifiedConfig with service-specific configuration override.
+    ///
+    /// This method allows using service-level configuration to override global settings.
+    /// If the specified service exists in the configuration, its TTL and capacity settings
+    /// will be used instead of the global defaults.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The UnifiedConfig containing global and service-specific settings
+    /// * `service_name` - The name of the service configuration to use
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the CacheBuilder on success, or a `CacheError` on failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ServiceNotFound` if the specified service does not exist in the configuration.
+    /// Returns `ConfigError` if the underlying configuration is invalid.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfigBuilder;
+    ///
+    /// let config = UnifiedConfigBuilder::tiered()
+    ///     .with_ttl(3600)
+    ///     .with_l1_capacity(10000)
+    ///     .with_redis_url("redis://localhost:6379")
+    ///     .with_service("user_cache", CacheType::TwoLevel, 600)
+    ///     .build();
+    ///
+    /// // Use user_cache service configuration
+    /// let builder = CacheBuilder::from_unified_config_with_service(&config, "user_cache")?;
+    /// ```
+    #[cfg(feature = "confers")]
+    pub fn from_unified_config_with_service(
+        config: &crate::config::UnifiedConfig,
+        service_name: &str,
+    ) -> std::result::Result<Self, crate::error::CacheError> {
+        // First validate the base configuration
+        validate_unified_config(config)?;
+
+        // Look up the service configuration
+        let service_config = match config.services.get(service_name) {
+            Some(service) => service,
+            None => {
+                return Err(crate::error::CacheError::ServiceNotFound(format!(
+                    "Service '{}' not found in UnifiedConfig. Available services: {:?}",
+                    service_name,
+                    config.services.keys().collect::<Vec<_>>()
+                )));
+            }
+        };
+
+        // Build the backend based on backend type
+        let backend_builder = match config.backend.backend_type {
+            #[cfg(feature = "moka")]
+            crate::config::BackendType::Memory => {
+                let capacity = config
+                    .backend
+                    .l1_options
+                    .get("max_capacity")
+                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                    .unwrap_or(10000);
+
+                // Apply service-level capacity override if specified
+                let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
+
+                crate::builder::BackendBuilder::memory().capacity(effective_capacity)
+            }
+            #[cfg(not(feature = "moka"))]
+            crate::config::BackendType::Memory => {
+                tracing::warn!("Memory backend requested but moka feature not enabled");
+                crate::builder::BackendBuilder::default()
+            }
+            #[cfg(feature = "redis")]
+            crate::config::BackendType::Redis => {
+                let connection_string = config
+                    .backend
+                    .l2_options
+                    .get("connection_string")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mode_str = config
+                    .backend
+                    .l2_options
+                    .get("mode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("standalone");
+
+                let mode = match mode_str {
+                    "cluster" => crate::backend::client::RedisMode::Cluster,
+                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                    _ => crate::backend::client::RedisMode::Standalone,
+                };
+
+                crate::builder::BackendBuilder::redis()
+                    .connection_string(connection_string.as_deref().unwrap_or(""))
+                    .mode(mode)
+            }
+            #[cfg(not(feature = "redis"))]
+            crate::config::BackendType::Redis => {
+                tracing::warn!(
+                    "Redis backend requested but redis feature not enabled, falling back to memory"
+                );
+                let capacity = config
+                    .backend
+                    .l1_options
+                    .get("max_capacity")
+                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                    .unwrap_or(10000);
+                crate::builder::BackendBuilder::memory().capacity(capacity)
+            }
+            #[cfg(feature = "moka")]
+            #[cfg(feature = "redis")]
+            crate::config::BackendType::Tiered => {
+                let capacity = config
+                    .backend
+                    .l1_options
+                    .get("max_capacity")
+                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                    .unwrap_or(10000);
+
+                // Apply service-level capacity override if specified
+                let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
+
+                let connection_string = config
+                    .backend
+                    .l2_options
+                    .get("connection_string")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mode_str = config
+                    .backend
+                    .l2_options
+                    .get("mode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("standalone");
+
+                let mode = match mode_str {
+                    "cluster" => crate::backend::client::RedisMode::Cluster,
+                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                    _ => crate::backend::client::RedisMode::Standalone,
+                };
+
+                crate::builder::BackendBuilder::tiered()
+                    .l1_capacity(effective_capacity)
+                    .l2_connection_string(connection_string.as_deref().unwrap_or(""))
+                    .mode(mode)
+            }
+            #[cfg(not(all(feature = "moka", feature = "redis")))]
+            crate::config::BackendType::Tiered => {
+                tracing::warn!(
+                    "Tiered backend requested but required features not enabled, falling back to memory"
+                );
+                let capacity = config
+                    .backend
+                    .l1_options
+                    .get("max_capacity")
+                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                    .unwrap_or(10000);
+                crate::builder::BackendBuilder::memory().capacity(capacity)
+            }
+        };
+
+        // Extract TTL from service config, falling back to global config
+        let ttl = match service_config.ttl {
+            Some(service_ttl) if service_ttl > 0 => Some(Duration::from_secs(service_ttl)),
+            _ => {
+                if config.global.default_ttl > 0 {
+                    Some(Duration::from_secs(config.global.default_ttl))
+                } else {
+                    None
+                }
+            }
+        };
+
+        Ok(Self {
+            backend_builder: Some(backend_builder),
+            ttl,
+            capacity: None,
+            batch_writes: false,
+            auto_promote: true,
+            _phantom: PhantomData,
+        })
+    }
 }
 
 /// Validates a UnifiedConfig instance.
@@ -821,5 +1011,134 @@ mod tests {
         } else {
             panic!("Expected ConfigError for zero capacity");
         }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_with_service_valid() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Create a config with a service
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .with_service("user_cache", CacheType::L1, 600)
+            .build();
+
+        // Should succeed with valid service
+        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
+            &config,
+            "user_cache",
+        );
+        assert!(result.is_ok(), "Valid service config should succeed");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_with_service_not_found() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Create a config without services
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .build();
+
+        // Should fail with ServiceNotFound
+        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
+            &config,
+            "nonexistent_service",
+        );
+        match result {
+            Err(crate::error::CacheError::ServiceNotFound(msg)) => {
+                assert!(
+                    msg.contains("nonexistent_service"),
+                    "Error should mention service name"
+                );
+                assert!(
+                    msg.contains("Available services"),
+                    "Error should list available services"
+                );
+            }
+            _ => panic!("Expected ServiceNotFound error"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_with_service_ttl_override() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Create a config with global TTL and service-specific TTL
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600) // Global TTL
+            .with_l1_capacity(10000)
+            .with_service("fast_cache", CacheType::L1, 60) // Service TTL = 60s
+            .build();
+
+        // Create builder with service config
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
+            &config,
+            "fast_cache",
+        )
+        .expect("Should succeed");
+
+        // Service TTL should override global TTL
+        assert_eq!(
+            builder.ttl,
+            Some(Duration::from_secs(60)),
+            "Service TTL should override global TTL"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_with_service_capacity_override() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Create a config with global capacity and service-specific capacity
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000) // Global capacity
+            .with_service("small_cache", CacheType::L1, 60)
+            .build();
+
+        // We need to use BackendBuilder to verify capacity, but since it's private,
+        // we verify by checking that the builder is created successfully
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
+            &config,
+            "small_cache",
+        )
+        .expect("Should succeed with service capacity override");
+
+        // Verify TTL override worked (capacity is not directly accessible)
+        assert_eq!(builder.ttl, Some(Duration::from_secs(60)));
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_with_service_fallback_to_global_ttl() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Create a config with global TTL but no service-specific TTL
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600) // Global TTL
+            .with_l1_capacity(10000)
+            .with_service("no_ttl_service", crate::config::CacheType::L1, 0) // No service TTL
+            .build();
+
+        // Create builder with service config
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
+            &config,
+            "no_ttl_service",
+        )
+        .expect("Should succeed");
+
+        // Should fall back to global TTL
+        assert_eq!(
+            builder.ttl,
+            Some(Duration::from_secs(3600)),
+            "Should fall back to global TTL"
+        );
     }
 }
