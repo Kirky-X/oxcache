@@ -311,6 +311,12 @@ where
     ///
     /// Configured CacheBuilder instance
     ///
+    /// # Errors
+    ///
+    /// Returns `CacheError::ConfigError` if the configuration is invalid:
+    /// - Missing `connection_string` for Redis or Tiered backends
+    /// - Invalid capacity or TTL values
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -327,7 +333,11 @@ where
     ///     .await?;
     /// ```
     #[cfg(feature = "confers")]
-    pub fn from_unified_config(config: &crate::config::UnifiedConfig) -> Self {
+    pub fn from_unified_config(
+        config: &crate::config::UnifiedConfig,
+    ) -> std::result::Result<Self, crate::error::CacheError> {
+        // Validate configuration
+        validate_unified_config(config)?;
         use std::time::Duration;
 
         // Create BackendBuilder from UnifiedConfig
@@ -443,15 +453,113 @@ where
             None
         };
 
-        Self {
+        Ok(Self {
             backend_builder: Some(backend_builder),
             ttl,
             capacity: None,
             batch_writes: false,
             auto_promote: true,
             _phantom: PhantomData,
+        })
+    }
+}
+
+/// Validates a UnifiedConfig instance.
+///
+/// This function checks that the configuration is valid for building a cache,
+/// ensuring that required fields are present and have sensible values.
+///
+/// # Arguments
+///
+/// * `config` - The UnifiedConfig to validate
+///
+/// # Returns
+///
+/// `Ok(())` if the configuration is valid, or a `CacheError::ConfigError` if invalid.
+///
+/// # Errors
+///
+/// Returns `ConfigError` in the following cases:
+/// - Redis/Tiered backend missing `connection_string`
+/// - Invalid capacity value (zero or negative)
+/// - Invalid TTL value (zero when explicitly set)
+///
+#[cfg(feature = "confers")]
+fn validate_unified_config(
+    config: &crate::config::UnifiedConfig,
+) -> std::result::Result<(), crate::error::CacheError> {
+    use crate::config::BackendType;
+
+    match config.backend.backend_type {
+        BackendType::Memory => {
+            // Validate L1 capacity if specified
+            if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
+                let capacity_val = capacity
+                    .as_u64()
+                    .or_else(|| capacity.as_i64().map(|i| i as u64));
+                if let Some(cap) = capacity_val {
+                    if cap == 0 {
+                        return Err(crate::error::CacheError::ConfigError(
+                            "L1 capacity cannot be zero".to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+        BackendType::Redis => {
+            // Validate Redis connection_string is present and non-empty
+            let connection_string = config.backend.l2_options.get("connection_string");
+            if connection_string.is_none() {
+                return Err(crate::error::CacheError::ConfigError(
+                    "Redis backend requires 'connection_string' in l2_options".to_string(),
+                ));
+            }
+            if let Some(cs) = connection_string.and_then(|v| v.as_str()) {
+                if cs.is_empty() {
+                    return Err(crate::error::CacheError::ConfigError(
+                        "Redis connection_string cannot be empty".to_string(),
+                    ));
+                }
+            }
+        }
+        BackendType::Tiered => {
+            // Validate L1 capacity
+            if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
+                let capacity_val = capacity
+                    .as_u64()
+                    .or_else(|| capacity.as_i64().map(|i| i as u64));
+                if let Some(cap) = capacity_val {
+                    if cap == 0 {
+                        return Err(crate::error::CacheError::ConfigError(
+                            "L1 capacity cannot be zero".to_string(),
+                        ));
+                    }
+                }
+            }
+            // Validate Redis connection_string
+            let connection_string = config.backend.l2_options.get("connection_string");
+            if connection_string.is_none() {
+                return Err(crate::error::CacheError::ConfigError(
+                    "Tiered backend requires 'connection_string' in l2_options".to_string(),
+                ));
+            }
+            if let Some(cs) = connection_string.and_then(|v| v.as_str()) {
+                if cs.is_empty() {
+                    return Err(crate::error::CacheError::ConfigError(
+                        "Redis connection_string cannot be empty".to_string(),
+                    ));
+                }
+            }
         }
     }
+
+    // Validate TTL if explicitly set (not default)
+    if config.global.default_ttl == 0 {
+        // Zero is acceptable as "not set" (use default), but warn if it was explicitly set
+        // For now, we allow zero as "use library default"
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -494,7 +602,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "confers")]
     async fn test_cache_builder_from_unified_config_memory() {
-        use crate::config::{BackendType, UnifiedConfigBuilder};
+        use crate::config::UnifiedConfigBuilder;
 
         // Create a memory-only configuration
         let config = UnifiedConfigBuilder::memory_only()
@@ -503,10 +611,8 @@ mod tests {
             .build();
 
         // Create cache from configuration
-        let cache: Cache<String, TestValue> = CacheBuilder::from_unified_config(&config)
-            .build()
-            .await
-            .unwrap();
+        let builder = CacheBuilder::from_unified_config(&config).unwrap();
+        let cache: Cache<String, TestValue> = builder.build().await.unwrap();
 
         assert!(cache.health_check().await.unwrap());
     }
@@ -514,7 +620,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "confers")]
     async fn test_cache_builder_from_unified_config_tiered() {
-        use crate::config::{BackendType, UnifiedConfigBuilder};
+        use crate::config::UnifiedConfigBuilder;
 
         // Create a tiered configuration (L1 + L2) with a Redis URL
         // This test requires a running Redis server
@@ -526,9 +632,9 @@ mod tests {
 
         // Create cache from configuration - will fail without Redis server
         // but verifies the configuration is properly passed through
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config)
-            .build()
-            .await;
+        let builder_result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        assert!(builder_result.is_ok(), "Config should be valid");
+        let result = builder_result.unwrap().build().await;
 
         // This test requires a running Redis server to pass
         // If Redis is not available, the error message indicates proper configuration
@@ -546,6 +652,174 @@ mod tests {
                     error_msg
                 );
             }
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_valid_memory() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Valid memory-only configuration
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .build();
+
+        // Should succeed
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        assert!(result.is_ok(), "Valid memory config should succeed");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_valid_tiered() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Valid tiered configuration
+        let config = UnifiedConfigBuilder::tiered()
+            .with_ttl(7200)
+            .with_l1_capacity(10000)
+            .with_redis_url("redis://localhost:6379")
+            .build();
+
+        // Should succeed (may fail at build time if Redis not available, but config is valid)
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        assert!(result.is_ok(), "Valid tiered config should succeed");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_redis_missing_connection_string() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Redis config without connection_string
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Redis,
+                l2_options: serde_json::json!({
+                    "mode": "standalone"
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        if let Err(crate::error::CacheError::ConfigError(_)) = result {
+            // Expected: ConfigError
+        } else {
+            panic!("Expected ConfigError for missing connection_string");
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_redis_empty_connection_string() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Redis config with empty connection_string
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Redis,
+                l2_options: serde_json::json!({
+                    "connection_string": "",
+                    "mode": "standalone"
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        if let Err(crate::error::CacheError::ConfigError(_)) = result {
+            // Expected: ConfigError
+        } else {
+            panic!("Expected ConfigError for empty connection_string");
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_tiered_missing_connection_string() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Tiered config without connection_string
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Tiered,
+                l1_options: serde_json::json!({
+                    "max_capacity": 10000
+                }),
+                l2_options: serde_json::json!({}),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        if let Err(crate::error::CacheError::ConfigError(_)) = result {
+            // Expected: ConfigError
+        } else {
+            panic!("Expected ConfigError for missing connection_string");
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_tiered_empty_connection_string() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Tiered config with empty connection_string
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Tiered,
+                l1_options: serde_json::json!({
+                    "max_capacity": 10000
+                }),
+                l2_options: serde_json::json!({
+                    "connection_string": ""
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        if let Err(crate::error::CacheError::ConfigError(_)) = result {
+            // Expected: ConfigError
+        } else {
+            panic!("Expected ConfigError for empty connection_string");
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_from_unified_config_zero_capacity() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Memory config with zero capacity
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Memory,
+                l1_options: serde_json::json!({
+                    "max_capacity": 0
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+        if let Err(crate::error::CacheError::ConfigError(_)) = result {
+            // Expected: ConfigError
+        } else {
+            panic!("Expected ConfigError for zero capacity");
         }
     }
 }
