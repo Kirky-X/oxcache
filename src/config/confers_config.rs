@@ -48,6 +48,7 @@ impl Default for CacheType {
 
 /// Global configuration settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct GlobalConfig {
     pub default_ttl: u64,
     pub default_tti: u64,
@@ -133,6 +134,7 @@ impl ServiceConfig {
 
 /// Performance settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PerformanceConfig {
     pub max_concurrent_operations: usize,
     pub command_timeout: u64,
@@ -141,6 +143,7 @@ pub struct PerformanceConfig {
 
 /// Security settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SecurityConfig {
     pub connection_string_redaction: bool,
     pub enable_rate_limiting: u64,
@@ -150,6 +153,7 @@ pub struct SecurityConfig {
 
 /// Metrics settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct MetricsConfig {
     pub enabled: bool,
     pub detailed: bool,
@@ -159,6 +163,7 @@ pub struct MetricsConfig {
 
 /// Recovery settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RecoveryConfig {
     pub enable_wal: bool,
     pub wal_directory: String,
@@ -490,5 +495,301 @@ impl Default for UnifiedConfigBuilder {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Configuration file format enumeration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigFormat {
+    /// TOML format (requires `toml` feature)
+    Toml,
+    /// JSON format
+    Json,
+}
+
+impl ConfigFormat {
+    /// Detect format from file path extension
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - File path to analyze
+    ///
+    /// # Returns
+    ///
+    /// * `Some(ConfigFormat)` - If extension is recognized
+    /// * `None` - If extension is not supported
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::ConfigFormat;
+    ///
+    /// let format = ConfigFormat::from_path("config.toml");
+    /// assert_eq!(format, Some(ConfigFormat::Toml));
+    ///
+    /// let format = ConfigFormat::from_path("config.json");
+    /// assert_eq!(format, Some(ConfigFormat::Json));
+    ///
+    /// let format = ConfigFormat::from_path("config.yaml");
+    /// assert_eq!(format, None);
+    /// ```
+    pub fn from_path(path: &str) -> Option<Self> {
+        use std::path::Path;
+        Path::new(path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .and_then(|ext| match ext {
+                "toml" => Some(ConfigFormat::Toml),
+                "json" => Some(ConfigFormat::Json),
+                _ => None,
+            })
+    }
+
+    /// Get the file extension for this format
+    ///
+    /// # Returns
+    ///
+    /// The file extension (without the dot)
+    #[inline]
+    pub fn extension(&self) -> &str {
+        match self {
+            ConfigFormat::Toml => "toml",
+            ConfigFormat::Json => "json",
+        }
+    }
+
+    /// Get the MIME type for this format
+    ///
+    /// # Returns
+    ///
+    /// The MIME type string
+    #[inline]
+    pub fn mime_type(&self) -> &str {
+        match self {
+            ConfigFormat::Toml => "application/toml",
+            ConfigFormat::Json => "application/json",
+        }
+    }
+}
+
+impl UnifiedConfig {
+    /// Load configuration from a TOML file
+    ///
+    /// This method reads a TOML file, parses it into a `UnifiedConfig`,
+    /// and validates the configuration using `validate_unified_config`.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the TOML configuration file
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UnifiedConfig)` - Validated configuration
+    /// * `Err(CacheError)` - File read, parse, or validation error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfig;
+    ///
+    /// let config = UnifiedConfig::from_toml_file("config.toml")?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - File cannot be read
+    /// - TOML cannot be parsed
+    /// - Configuration validation fails
+    #[cfg(feature = "confers")]
+    pub fn from_toml_file(path: &str) -> crate::error::Result<Self> {
+        use crate::error::CacheError;
+        use std::fs;
+
+        // Read file content
+        let content = fs::read_to_string(path).map_err(|e| {
+            CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e))
+        })?;
+
+        // Parse TOML
+        let config: Self = toml::from_str(&content).map_err(|e| {
+            CacheError::ConfigError(format!("Failed to parse TOML from '{}': {}", path, e))
+        })?;
+
+        // Validate configuration
+        crate::builder::cache_builder::validate_unified_config(&config)?;
+
+        Ok(config)
+    }
+
+    /// Load configuration from a JSON file
+    ///
+    /// This method reads a JSON file, parses it into a `UnifiedConfig`,
+    /// and validates the configuration using `validate_unified_config`.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the JSON configuration file
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UnifiedConfig)` - Validated configuration
+    /// * `Err(CacheError)` - File read, parse, or validation error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfig;
+    ///
+    /// let config = UnifiedConfig::from_json_file("config.json")?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - File cannot be read
+    /// - JSON cannot be parsed
+    /// - Configuration validation fails
+    pub fn from_json_file(path: &str) -> crate::error::Result<Self> {
+        use crate::error::CacheError;
+        use std::fs;
+
+        // Read file content
+        let content = fs::read_to_string(path).map_err(|e| {
+            CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e))
+        })?;
+
+        // Parse JSON
+        let config: Self = serde_json::from_str(&content).map_err(|e| {
+            CacheError::ConfigError(format!("Failed to parse JSON from '{}': {}", path, e))
+        })?;
+
+        // Validate configuration
+        crate::builder::cache_builder::validate_unified_config(&config)?;
+
+        Ok(config)
+    }
+
+    /// Load configuration from a file (auto-detect format)
+    ///
+    /// This method automatically detects the file format based on the file extension
+    /// and calls the appropriate loader.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the configuration file
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UnifiedConfig)` - Validated configuration
+    /// * `Err(CacheError)` - Unsupported format, file read, parse, or validation error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfig;
+    ///
+    /// // Automatically detects .toml or .json extension
+    /// let config = UnifiedConfig::from_file("config.toml")?;
+    /// let config = UnifiedConfig::from_file("config.json")?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - File extension is not supported
+    /// - File cannot be read
+    /// - File cannot be parsed
+    /// - Configuration validation fails
+    #[cfg(feature = "confers")]
+    pub fn from_file(path: &str) -> crate::error::Result<Self> {
+        match ConfigFormat::from_path(path) {
+            Some(ConfigFormat::Toml) => Self::from_toml_file(path),
+            Some(ConfigFormat::Json) => Self::from_json_file(path),
+            None => Err(crate::error::CacheError::ConfigError(format!(
+                "Unsupported configuration file format. Path: '{}'. Supported formats: .toml, .json",
+                path
+            ))),
+        }
+    }
+
+    /// Validate TOML content without loading from file
+    ///
+    /// This method validates TOML configuration content from a string.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - TOML configuration content
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UnifiedConfig)` - Validated configuration
+    /// * `Err(CacheError)` - Parse or validation error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfig;
+    ///
+    /// let toml_content = r#"
+    /// [global]
+    /// default_ttl = 3600
+    /// "#;
+    ///
+    /// let config = UnifiedConfig::validate_toml_content(toml_content)?;
+    /// ```
+    #[cfg(feature = "confers")]
+    pub fn validate_toml_content(content: &str) -> crate::error::Result<Self> {
+        use crate::error::CacheError;
+
+        // Parse TOML
+        let config: Self = toml::from_str(content)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to parse TOML content: {}", e)))?;
+
+        // Validate configuration
+        crate::builder::cache_builder::validate_unified_config(&config)?;
+
+        Ok(config)
+    }
+
+    /// Validate JSON content without loading from file
+    ///
+    /// This method validates JSON configuration content from a string.
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - JSON configuration content
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(UnifiedConfig)` - Validated configuration
+    /// * `Err(CacheError)` - Parse or validation error
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::config::UnifiedConfig;
+    ///
+    /// let json_content = r#"
+    /// {
+    ///   "global": {
+    ///     "default_ttl": 3600
+    ///   }
+    /// }
+    /// "#;
+    ///
+    /// let config = UnifiedConfig::validate_json_content(json_content)?;
+    /// ```
+    pub fn validate_json_content(content: &str) -> crate::error::Result<Self> {
+        use crate::error::CacheError;
+
+        // Parse JSON
+        let config: Self = serde_json::from_str(content)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to parse JSON content: {}", e)))?;
+
+        // Validate configuration
+        crate::builder::cache_builder::validate_unified_config(&config)?;
+
+        Ok(config)
     }
 }
