@@ -677,7 +677,7 @@ where
 /// - Invalid Redis connection string format (must start with redis:// or rediss://)
 ///
 #[cfg(feature = "confers")]
-fn validate_unified_config(
+pub fn validate_unified_config(
     config: &crate::config::UnifiedConfig,
 ) -> std::result::Result<(), crate::error::CacheError> {
     use crate::config::BackendType;
@@ -1620,5 +1620,389 @@ mod tests {
             }
             _ => panic!("Expected ConfigError for service capacity of zero"),
         }
+    }
+
+    // ============================================================================
+    // Configuration File Format Tests (Phase 6)
+    // ============================================================================
+
+    #[test]
+    fn test_config_format_from_path() {
+        use crate::config::ConfigFormat;
+
+        assert_eq!(
+            ConfigFormat::from_path("config.toml"),
+            Some(ConfigFormat::Toml)
+        );
+        assert_eq!(
+            ConfigFormat::from_path("config.json"),
+            Some(ConfigFormat::Json)
+        );
+        assert_eq!(ConfigFormat::from_path("config.yaml"), None);
+        assert_eq!(ConfigFormat::from_path("config.xml"), None);
+        assert_eq!(ConfigFormat::from_path("config"), None);
+    }
+
+    #[test]
+    fn test_config_format_extension() {
+        use crate::config::ConfigFormat;
+
+        assert_eq!(ConfigFormat::Toml.extension(), "toml");
+        assert_eq!(ConfigFormat::Json.extension(), "json");
+    }
+
+    #[test]
+    fn test_config_format_mime_type() {
+        use crate::config::ConfigFormat;
+
+        assert_eq!(ConfigFormat::Toml.mime_type(), "application/toml");
+        assert_eq!(ConfigFormat::Json.mime_type(), "application/json");
+    }
+
+    #[test]
+    fn test_validate_json_content_valid() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "global": {
+                "default_ttl": 3600,
+                "default_tti": 1800,
+                "health_check_interval": 30
+            },
+            "backend": {
+                "backend_type": "Memory",
+                "l1_type": "moka",
+                "l1_options": {
+                    "max_capacity": 10000
+                },
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {},
+            "performance": {
+                "max_concurrent_operations": 1000,
+                "command_timeout": 30,
+                "enable_prefetching": false,
+                "enable_batch_write": true
+            },
+            "metrics": {
+                "enabled": true
+            },
+            "recovery": {
+                "enable_wal": false
+            }
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        if let Err(e) = &result {
+            eprintln!("Validation error: {:?}", e);
+        }
+        assert!(result.is_ok(), "Valid JSON config should pass validation");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_json() {
+        use crate::config::UnifiedConfig;
+
+        let invalid_json = "{ invalid json }";
+        let result = UnifiedConfig::validate_json_content(invalid_json);
+        assert!(result.is_err(), "Invalid JSON should fail");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_ttl() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "global": {
+                "default_ttl": 40000000
+            },
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {}
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        assert!(result.is_err(), "TTL exceeding maximum should fail");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_capacity() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false,
+                "l1_options": {
+                    "max_capacity": 200000000
+                }
+            },
+            "services": {}
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        assert!(result.is_err(), "Capacity exceeding maximum should fail");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_redis_url() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "backend": {
+                "backend_type": "Redis",
+                "l1_enabled": false,
+                "l2_enabled": true,
+                "l2_options": {
+                    "connection_string": "http://invalid-url"
+                }
+            },
+            "services": {}
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        assert!(result.is_err(), "Invalid Redis URL format should fail");
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_validate_toml_content_valid() {
+        use crate::config::UnifiedConfig;
+
+        let toml_content = r#"
+        [global]
+        default_ttl = 3600
+        default_tti = 1800
+        health_check_interval = 30
+
+        [backend]
+        backend_type = "Memory"
+        l1_type = "moka"
+        l1_enabled = true
+        l2_enabled = false
+
+        [backend.l1_options]
+        max_capacity = 10000
+
+        [services]
+
+        [performance]
+        max_concurrent_operations = 1000
+        command_timeout = 30
+        enable_prefetching = false
+        enable_batch_write = true
+
+        [metrics]
+        enabled = true
+
+        [recovery]
+        enable_wal = false
+        "#;
+
+        let result = UnifiedConfig::validate_toml_content(toml_content);
+        if let Err(e) = &result {
+            eprintln!("Validation error: {:?}", e);
+        }
+        assert!(result.is_ok(), "Valid TOML config should pass validation");
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_validate_toml_content_invalid_toml() {
+        use crate::config::UnifiedConfig;
+
+        let invalid_toml = "[invalid";
+        let result = UnifiedConfig::validate_toml_content(invalid_toml);
+        assert!(result.is_err(), "Invalid TOML should fail");
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_validate_toml_content_invalid_ttl() {
+        use crate::config::UnifiedConfig;
+
+        let toml_content = r#"
+        [global]
+        default_ttl = 40000000
+
+        [backend]
+        backend_type = "Memory"
+        l1_enabled = true
+        l2_enabled = false
+
+        [services]
+        "#;
+
+        let result = UnifiedConfig::validate_toml_content(toml_content);
+        assert!(result.is_err(), "TTL exceeding maximum should fail");
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_validate_toml_content_invalid_capacity() {
+        use crate::config::UnifiedConfig;
+
+        let toml_content = r#"
+        [backend]
+        backend_type = "Memory"
+        l1_enabled = true
+        l2_enabled = false
+
+        [backend.l1_options]
+        max_capacity = 200000000
+
+        [services]
+        "#;
+
+        let result = UnifiedConfig::validate_toml_content(toml_content);
+        assert!(result.is_err(), "Capacity exceeding maximum should fail");
+    }
+
+    #[cfg(feature = "confers")]
+    #[test]
+    fn test_validate_toml_content_invalid_redis_url() {
+        use crate::config::UnifiedConfig;
+
+        let toml_content = r#"
+        [backend]
+        backend_type = "Redis"
+        l1_enabled = false
+        l2_enabled = true
+
+        [backend.l2_options]
+        connection_string = "http://invalid-url"
+
+        [services]
+        "#;
+
+        let result = UnifiedConfig::validate_toml_content(toml_content);
+        assert!(result.is_err(), "Invalid Redis URL format should fail");
+    }
+
+    #[test]
+    fn test_validate_json_content_missing_optional_fields() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "global": {
+                "default_ttl": 3600
+            },
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {}
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        if let Err(e) = &result {
+            eprintln!("Validation error: {:?}", e);
+        }
+        // Should use defaults for missing optional fields
+        assert!(
+            result.is_ok(),
+            "Missing optional fields should use defaults"
+        );
+    }
+
+    #[test]
+    fn test_validate_json_content_with_service_config() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "global": {
+                "default_ttl": 3600
+            },
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {
+                "user_cache": {
+                    "cache_type": "L1",
+                    "ttl": 600,
+                    "max_capacity": 5000,
+                    "enable_metrics": true
+                }
+            }
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        if let Err(e) = &result {
+            eprintln!("Validation error: {:?}", e);
+        }
+        assert!(result.is_ok(), "Valid service config should pass");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_service_ttl() {
+        use crate::config::UnifiedConfig;
+
+        let json_content = r#"
+        {
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {
+                "user_cache": {
+                    "cache_type": "L1",
+                    "ttl": 40000000,
+                    "enable_metrics": true
+                }
+            }
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        assert!(result.is_err(), "Service TTL exceeding maximum should fail");
+    }
+
+    #[test]
+    fn test_validate_json_content_invalid_service_capacity() {
+        use crate::config::{CacheType, UnifiedConfig};
+
+        let json_content = r#"
+        {
+            "backend": {
+                "backend_type": "Memory",
+                "l1_enabled": true,
+                "l2_enabled": false
+            },
+            "services": {
+                "user_cache": {
+                    "cache_type": "L1",
+                    "max_capacity": 200000000,
+                    "enable_metrics": true
+                }
+            }
+        }
+        "#;
+
+        let result = UnifiedConfig::validate_json_content(json_content);
+        assert!(
+            result.is_err(),
+            "Service capacity exceeding maximum should fail"
+        );
     }
 }
