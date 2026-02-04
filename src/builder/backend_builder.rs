@@ -13,11 +13,13 @@ use crate::error::Result;
 #[cfg(feature = "redis")]
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::Map;
 use std::any::Any;
 use std::sync::Arc;
+
 #[cfg(feature = "redis")]
 use std::time::Duration;
+
+use serde_json::Map;
 
 /// Empty JSON object used as default when oxcache config is missing
 static EMPTY_JSON_OBJECT: once_cell::sync::Lazy<Map<String, serde_json::Value>> =
@@ -25,7 +27,7 @@ static EMPTY_JSON_OBJECT: once_cell::sync::Lazy<Map<String, serde_json::Value>> 
 
 /// Get a reference to the empty JSON object
 #[inline]
-fn empty_json_object() -> &'static Map<String, serde_json::Value> {
+fn empty_json_object_ref<'a>() -> &'a Map<String, serde_json::Value> {
     &EMPTY_JSON_OBJECT
 }
 
@@ -682,7 +684,7 @@ impl BackendBuilder {
         // 获取oxcache配置部分，如果没有则使用空对象
         let oxcache_config: &Map<String, serde_json::Value> = match config.get("oxcache") {
             Some(serde_json::Value::Object(obj)) => obj,
-            _ => empty_json_object(),
+            _ => empty_json_object_ref(),
         };
 
         // 读取后端类型，默认为memory
@@ -699,12 +701,12 @@ impl BackendBuilder {
                     let tiered_config: &Map<String, serde_json::Value> =
                         match oxcache_config.get("tiered") {
                             Some(serde_json::Value::Object(obj)) => obj,
-                            _ => empty_json_object(),
+                            _ => empty_json_object_ref(),
                         };
                     let redis_config: &Map<String, serde_json::Value> =
                         match oxcache_config.get("redis") {
                             Some(serde_json::Value::Object(obj)) => obj,
-                            _ => empty_json_object(),
+                            _ => empty_json_object_ref(),
                         };
 
                     let l1_capacity = tiered_config
@@ -758,7 +760,7 @@ impl BackendBuilder {
                     let redis_config: &Map<String, serde_json::Value> =
                         match oxcache_config.get("redis") {
                             Some(serde_json::Value::Object(obj)) => obj,
-                            _ => empty_json_object(),
+                            _ => empty_json_object_ref(),
                         };
 
                     let connection_string = redis_config
@@ -823,7 +825,7 @@ impl BackendBuilder {
         // 获取oxcache配置部分，如果没有则使用空对象
         let oxcache_config: &Map<String, serde_json::Value> = match config.get("oxcache") {
             Some(serde_json::Value::Object(obj)) => obj,
-            _ => empty_json_object(),
+            _ => empty_json_object_ref(),
         };
 
         // 读取后端类型，默认为memory
@@ -840,11 +842,11 @@ impl BackendBuilder {
                     let tiered_config = oxcache_config
                         .get("tiered")
                         .and_then(|v| v.as_object())
-                        .unwrap_or_else(empty_json_object);
+                        .unwrap_or(&EMPTY_JSON_OBJECT);
                     let redis_config = oxcache_config
                         .get("redis")
                         .and_then(|v| v.as_object())
-                        .unwrap_or_else(empty_json_object);
+                        .unwrap_or(&EMPTY_JSON_OBJECT);
 
                     let l1_capacity = tiered_config
                         .get("l1_capacity")
@@ -895,7 +897,7 @@ impl BackendBuilder {
                     let redis_config = oxcache_config
                         .get("redis")
                         .and_then(|v| v.as_object())
-                        .unwrap_or_else(empty_json_object);
+                        .unwrap_or(&EMPTY_JSON_OBJECT);
 
                     let connection_string = redis_config
                         .get("url")

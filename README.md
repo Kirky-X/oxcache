@@ -171,6 +171,124 @@ ttl = 7200
   connection_string = "redis://127.0.0.1:6379"
 ```
 
+### 2.1 Type-Safe Configuration API (Recommended)
+
+Oxcache provides a **type-safe builder API** for configuration, enabling compile-time type checking and better IDE support. This approach is recommended over TOML configuration for most use cases.
+
+> **Note**: To use the type-safe configuration API, enable the `confers` feature:
+> ```toml
+> oxcache = { version = "0.2.0", features = ["confers"] }
+> ```
+
+#### Memory-Only Cache (L1)
+
+```rust
+use oxcache::config::UnifiedConfigBuilder;
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create type-safe configuration using builder API
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)           // Default TTL in seconds
+        .with_l1_capacity(10000)  // L1 cache capacity
+        .build();
+
+    // Create cache directly from configuration
+    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+        .build()
+        .await?;
+
+    // Use the cache
+    let user = User {
+        id: 1,
+        name: "Alice".to_string(),
+    };
+
+    cache.set(&"user:1".to_string(), &user).await?;
+    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
+
+    println!("User: {:?}", cached);
+    Ok(())
+}
+```
+
+#### Tiered Cache (L1 + L2)
+
+```rust
+use oxcache::config::UnifiedConfigBuilder;
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create tiered cache configuration
+    let config = UnifiedConfigBuilder::tiered()
+        .with_ttl(7200)            // Default TTL in seconds
+        .with_l1_capacity(10000)   // L1 memory cache capacity
+        .with_redis_url("redis://localhost:6379")  // L2 Redis connection
+        .with_redis_mode("standalone")  // Redis mode
+        .build();
+
+    // Create cache directly from configuration
+    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+        .build()
+        .await?;
+
+    // Use the cache (writes to both L1 and L2)
+    let user = User {
+        id: 1,
+        name: "Alice".to_string(),
+    };
+
+    cache.set(&"user:1".to_string(), &user).await?;
+    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
+
+    println!("User: {:?}", cached);
+    Ok(())
+}
+```
+
+#### Configuration Builder Methods
+
+| Method | Description |
+|--------|-------------|
+| `UnifiedConfigBuilder::memory_only()` | Create memory-only (L1) cache configuration |
+| `UnifiedConfigBuilder::redis_only()` | Create Redis-only (L2) cache configuration |
+| `UnifiedConfigBuilder::tiered()` | Create tiered (L1 + L2) cache configuration |
+| `.with_ttl(seconds)` | Set default TTL for cache entries |
+| `.with_tti(seconds)` | Set default TTI (time-to-inactive) |
+| `.with_health_check_interval(seconds)` | Set health check interval |
+| `.with_l1_capacity(count)` | Set L1 memory cache capacity |
+| `.with_redis_url(url)` | Set Redis connection URL |
+| `.with_redis_mode(mode)` | Set Redis mode ("standalone", "sentinel", "cluster") |
+| `.with_metrics(enabled)` | Enable/disable metrics collection |
+| `.with_wal(enabled)` | Enable/disable Write-Ahead Log |
+| `.with_auto_recovery(enabled)` | Enable/disable automatic recovery |
+| `.build()` | Build `UnifiedConfig` instance |
+| `.build_json()` | Build configuration as `serde_json::Value` |
+
+#### Benefits of Type-Safe API
+
+- **Compile-time validation**: Configuration errors caught at compile time
+- **IDE support**: Full autocomplete and type hints
+- **No runtime parsing**: Eliminates TOML parsing overhead
+- **Better error messages**: Type errors instead of configuration parse errors
+- **Refactoring friendly**: Rename refactoring works across configuration
+
 ### 3. Usage
 
 #### Using Macros (Recommended)
