@@ -8,9 +8,9 @@
 
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
+use std::sync::Once;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
-use std::sync::Once;
 
 static INIT: Once = Once::new();
 
@@ -31,7 +31,7 @@ struct TestData {
 }
 
 #[tokio::test]
-#[ignore]  // 需要真实的 Redis 环境
+#[ignore] // 需要真实的 Redis 环境
 async fn test_random_redis_failures() {
     setup_logging();
 
@@ -78,7 +78,7 @@ async fn test_random_redis_failures() {
 }
 
 #[tokio::test]
-#[ignore]  // 需要真实的 Redis 环境
+#[ignore] // 需要真实的 Redis 环境
 async fn test_distributed_lock_during_failures() {
     setup_logging();
 
@@ -120,7 +120,7 @@ async fn test_distributed_lock_during_failures() {
 }
 
 #[tokio::test]
-#[ignore]  // 需要真实的 Redis 环境
+#[ignore] // 需要真实的 Redis 环境
 async fn test_fault_recovery() {
     setup_logging();
 

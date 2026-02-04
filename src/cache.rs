@@ -184,15 +184,18 @@ where
     /// # Example
     ///
     /// ```rust,ignore
-    /// use confers::ConfersConfig;
+    /// use serde_json::json;
     /// use oxcache::Cache;
-    /// use std::sync::Arc;
     ///
-    /// // 假设已有confers配置实例
-    /// let config: Arc<dyn ConfersConfig> = /* ... */;
+    /// // 使用JSON配置
+    /// let config = json!({
+    ///     "oxcache": {
+    ///         "backend": "memory"
+    ///     }
+    /// });
     ///
     /// // 使用confers配置创建缓存
-    /// let cache: Cache<String, User> = Cache::with_confers(config).await?;
+    /// let cache: Cache<String, User> = Cache::with_confers(&config).await?;
     /// ```
     ///
     /// # Features
@@ -200,19 +203,42 @@ where
     /// 此方法仅在启用 `confers` feature 时可用。
     #[cfg(feature = "confers")]
     #[instrument(skip(config), level = "info")]
-    pub async fn with_confers(config: Arc<dyn confers::ConfersConfig>) -> Result<Self> {
+    pub async fn with_confers(config: &serde_json::Value) -> Result<Self> {
         use crate::backend::client::RedisBackend;
 
-        // 从confers读取后端类型，默认为内存缓存
-        let backend_type = config
-            .get_string("oxcache.backend")
-            .unwrap_or_else(|| "memory".to_string());
+        // 获取oxcache配置部分，如果没有则使用空对象
+        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config
+            .get("oxcache")
+        {
+            Some(serde_json::Value::Object(obj)) => obj,
+            _ => {
+                static EMPTY: once_cell::sync::Lazy<serde_json::Map<String, serde_json::Value>> =
+                    once_cell::sync::Lazy::new(serde_json::Map::new);
+                &EMPTY
+            }
+        };
 
-        let backend: Arc<dyn CacheBackend> = match backend_type.as_str() {
+        // 从confers读取后端类型，默认为内存缓存
+        let backend_type = oxcache_config
+            .get("backend")
+            .and_then(|v| v.as_str())
+            .unwrap_or("memory");
+
+        let backend: Arc<dyn CacheBackend> = match backend_type {
             "redis" => {
                 // Redis后端
-                let connection_string = config
-                    .get_string("oxcache.redis.url")
+                let redis_config: &serde_json::Map<String, serde_json::Value> = oxcache_config
+                    .get("redis")
+                    .and_then(|v| v.as_object())
+                    .unwrap_or_else(|| {
+                        static EMPTY: once_cell::sync::Lazy<
+                            serde_json::Map<String, serde_json::Value>,
+                        > = once_cell::sync::Lazy::new(serde_json::Map::new);
+                        &EMPTY
+                    });
+                let connection_string = redis_config
+                    .get("url")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
                     .unwrap_or_else(|| "redis://localhost:6379".to_string());
 
                 tracing::info!(

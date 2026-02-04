@@ -657,6 +657,7 @@ impl BackendProvider for DefaultBackendProvider {
         }
     }
 
+    #[allow(unused)]
     #[instrument(skip(self, options), level = "debug")]
     async fn create_l3(&self, options: &serde_json::Value) -> Result<Arc<dyn CacheBackend>> {
         #[cfg(feature = "redis")]
@@ -1430,6 +1431,7 @@ mod tests {
         assert_eq!(BackendType::Redis.recommended_layer(), Layer::L2);
     }
 
+    #[cfg(all(feature = "moka", feature = "redis", feature = "serialization"))]
     #[test]
     fn test_custom_tiered_config_validation() {
         let config = CustomTieredConfig::new();
@@ -1444,6 +1446,7 @@ mod tests {
         }
     }
 
+    #[cfg(all(feature = "moka", feature = "redis", feature = "serialization"))]
     #[test]
     fn test_invalid_config_auto_fix() {
         let mut config = CustomTieredConfig::new();

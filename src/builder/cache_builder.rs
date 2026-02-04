@@ -179,11 +179,19 @@ where
     /// use std::sync::Arc;
     /// use std::time::Duration;
     ///
-    /// let config: Arc<dyn ConfersConfig> = /* ... */;
+    /// use serde_json::json;
+    ///
+    /// let config = json!({
+    ///     "oxcache": {
+    ///         "backend": "memory",
+    ///         "capacity": 10000,
+    ///         "ttl": 3600
+    ///     }
+    /// });
     ///
     /// // 使用confers配置，但覆盖TTL
     /// let cache = Cache::builder()
-    ///     .with_confers(config)
+    ///     .with_confers(&config)
     ///     .ttl(Duration::from_secs(7200))  // 覆盖confers中的TTL
     ///     .build()
     ///     .await?;
@@ -193,19 +201,34 @@ where
     ///
     /// 此方法仅在启用 `confers` feature 时可用。
     #[cfg(feature = "confers")]
-    pub fn with_confers(mut self, config: Arc<dyn confers::ConfersConfig>) -> Self {
+    pub fn with_confers(mut self, config: &serde_json::Value) -> Self {
         use std::time::Duration;
+
+        // 获取oxcache配置部分，如果没有则使用空对象
+        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config
+            .get("oxcache")
+        {
+            Some(serde_json::Value::Object(obj)) => obj,
+            _ => {
+                static EMPTY: once_cell::sync::Lazy<serde_json::Map<String, serde_json::Value>> =
+                    once_cell::sync::Lazy::new(serde_json::Map::new);
+                &EMPTY
+            }
+        };
 
         // 如果尚未设置TTL，从confers读取
         if self.ttl.is_none() {
-            if let Some(ttl_secs) = config.get_int("oxcache.ttl") {
+            if let Some(ttl_secs) = oxcache_config.get("ttl").and_then(|v| v.as_i64()) {
                 self.ttl = Some(Duration::from_secs(ttl_secs as u64));
             }
         }
 
         // 如果尚未设置capacity，从confers读取
         if self.capacity.is_none() {
-            if let Some(cap) = config.get_u64("oxcache.capacity") {
+            if let Some(cap) = oxcache_config
+                .get("capacity")
+                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+            {
                 self.capacity = Some(cap);
             }
         }

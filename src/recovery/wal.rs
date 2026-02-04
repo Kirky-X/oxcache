@@ -25,6 +25,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(feature = "wal-recovery")]
 use tokio::sync::{Mutex, Notify};
 
+#[cfg(not(feature = "wal-recovery"))]
+use std::sync::Arc;
+
 #[cfg(feature = "wal-recovery")]
 #[allow(async_fn_in_trait)]
 pub trait WalReplayableBackend: Clone + Send + Sync + 'static {
@@ -450,7 +453,8 @@ use crate::error::Result;
 
 /// WAL条目（空实现）
 #[cfg(not(feature = "wal-recovery"))]
-#[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct WalEntry {
     pub timestamp: std::time::SystemTime,
     pub operation: Operation,

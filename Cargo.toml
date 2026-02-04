@@ -210,8 +210,10 @@ optional = true
 # ============================================================================
 
 [dependencies.confers]
-path = "/home/project/confers"
+version = "0.2"
 optional = true
+# Note: Using crates.io version instead of local path
+# Local confers at /home/project/confers is not available
 
 [dependencies.clap]
 version = "4.5"
