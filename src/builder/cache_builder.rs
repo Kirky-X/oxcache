@@ -671,14 +671,42 @@ where
 ///
 /// Returns `ConfigError` in the following cases:
 /// - Redis/Tiered backend missing `connection_string`
-/// - Invalid capacity value (zero or negative)
-/// - Invalid TTL value (zero when explicitly set)
+/// - Invalid capacity value (zero or negative, exceeds maximum)
+/// - Invalid TTL value (exceeds maximum of 1 year)
+/// - Invalid Redis mode (not one of: standalone, sentinel, cluster)
+/// - Invalid Redis connection string format (must start with redis:// or rediss://)
 ///
 #[cfg(feature = "confers")]
 fn validate_unified_config(
     config: &crate::config::UnifiedConfig,
 ) -> std::result::Result<(), crate::error::CacheError> {
     use crate::config::BackendType;
+
+    // Constants for validation bounds
+    const MAX_TTL_SECS: u64 = 365 * 24 * 3600; // 1 year in seconds
+    const MAX_CAPACITY: u64 = 100_000_000; // 100 million
+
+    // Helper function to validate Redis connection string format
+    let validate_redis_url = |url: &str| -> std::result::Result<(), crate::error::CacheError> {
+        if !url.starts_with("redis://") && !url.starts_with("rediss://") {
+            return Err(crate::error::CacheError::ConfigError(format!(
+                "Invalid Redis URL format '{}'. Must start with 'redis://' or 'rediss://'",
+                url
+            )));
+        }
+        Ok(())
+    };
+
+    // Helper function to validate Redis mode
+    let validate_redis_mode = |mode: &str| -> std::result::Result<(), crate::error::CacheError> {
+        match mode {
+            "standalone" | "sentinel" | "cluster" => Ok(()),
+            _ => Err(crate::error::CacheError::ConfigError(format!(
+                "Invalid Redis mode '{}'. Must be one of: standalone, sentinel, cluster",
+                mode
+            ))),
+        }
+    };
 
     match config.backend.backend_type {
         BackendType::Memory => {
@@ -692,6 +720,12 @@ fn validate_unified_config(
                         return Err(crate::error::CacheError::ConfigError(
                             "L1 capacity cannot be zero".to_string(),
                         ));
+                    }
+                    if cap > MAX_CAPACITY {
+                        return Err(crate::error::CacheError::ConfigError(format!(
+                            "L1 capacity {} exceeds maximum allowed value of {}",
+                            cap, MAX_CAPACITY
+                        )));
                     }
                 }
             }
@@ -710,6 +744,18 @@ fn validate_unified_config(
                         "Redis connection_string cannot be empty".to_string(),
                     ));
                 }
+                // Validate Redis URL format
+                validate_redis_url(cs)?;
+            }
+
+            // Validate Redis mode if specified
+            if let Some(mode) = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+            {
+                validate_redis_mode(mode)?;
             }
         }
         BackendType::Tiered => {
@@ -723,6 +769,12 @@ fn validate_unified_config(
                         return Err(crate::error::CacheError::ConfigError(
                             "L1 capacity cannot be zero".to_string(),
                         ));
+                    }
+                    if cap > MAX_CAPACITY {
+                        return Err(crate::error::CacheError::ConfigError(format!(
+                            "L1 capacity {} exceeds maximum allowed value of {}",
+                            cap, MAX_CAPACITY
+                        )));
                     }
                 }
             }
@@ -739,14 +791,55 @@ fn validate_unified_config(
                         "Redis connection_string cannot be empty".to_string(),
                     ));
                 }
+                // Validate Redis URL format
+                validate_redis_url(cs)?;
+            }
+
+            // Validate Redis mode if specified
+            if let Some(mode) = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+            {
+                validate_redis_mode(mode)?;
             }
         }
     }
 
-    // Validate TTL if explicitly set (not default)
-    if config.global.default_ttl == 0 {
-        // Zero is acceptable as "not set" (use default), but warn if it was explicitly set
-        // For now, we allow zero as "use library default"
+    // Validate global TTL if explicitly set
+    if config.global.default_ttl > MAX_TTL_SECS {
+        return Err(crate::error::CacheError::ConfigError(format!(
+            "Global TTL {} seconds exceeds maximum allowed value of {} seconds (1 year)",
+            config.global.default_ttl, MAX_TTL_SECS
+        )));
+    }
+
+    // Validate service-specific TTLs
+    for (name, service_config) in &config.services {
+        if let Some(ttl) = service_config.ttl {
+            if ttl > MAX_TTL_SECS {
+                return Err(crate::error::CacheError::ConfigError(format!(
+                    "Service '{}': TTL {} seconds exceeds maximum allowed value of {} seconds (1 year)",
+                    name, ttl, MAX_TTL_SECS
+                )));
+            }
+        }
+        // Validate service-specific capacity
+        if let Some(cap) = service_config.max_capacity {
+            if cap == 0 {
+                return Err(crate::error::CacheError::ConfigError(format!(
+                    "Service '{}': capacity cannot be zero",
+                    name
+                )));
+            }
+            if cap > MAX_CAPACITY {
+                return Err(crate::error::CacheError::ConfigError(format!(
+                    "Service '{}': capacity {} exceeds maximum allowed value of {}",
+                    name, cap, MAX_CAPACITY
+                )));
+            }
+        }
     }
 
     Ok(())
@@ -1140,5 +1233,392 @@ mod tests {
             Some(Duration::from_secs(3600)),
             "Should fall back to global TTL"
         );
+    }
+
+    // ========== Enhanced Validation Tests ==========
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_redis_invalid_mode() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Redis config with invalid mode
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Redis,
+                l2_options: serde_json::json!({
+                    "connection_string": "redis://localhost:6379",
+                    "mode": "invalid_mode"
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Should fail with ConfigError
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("Invalid Redis mode"),
+                    "Error should mention invalid mode"
+                );
+                assert!(
+                    msg.contains("standalone")
+                        && msg.contains("sentinel")
+                        && msg.contains("cluster"),
+                    "Error should list valid modes"
+                );
+            }
+            _ => panic!("Expected ConfigError for invalid Redis mode"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_redis_valid_modes() {
+        use crate::config::UnifiedConfigBuilder;
+
+        for mode in ["standalone", "sentinel", "cluster"] {
+            let config = UnifiedConfigBuilder::redis_only()
+                .with_redis_url("redis://localhost:6379")
+                .with_redis_mode(mode)
+                .build();
+
+            let result = validate_unified_config(&config);
+            assert!(result.is_ok(), "Mode '{}' should be valid", mode);
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_ttl_exceeds_maximum() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // TTL exceeds 1 year (365 days * 24 hours * 3600 seconds)
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(365 * 24 * 3600 + 1)
+            .build();
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("exceeds maximum"),
+                    "Error should mention exceeding maximum"
+                );
+                assert!(
+                    msg.contains("1 year") || msg.contains("365"),
+                    "Error should mention 1 year limit"
+                );
+            }
+            _ => panic!("Expected ConfigError for TTL exceeding maximum"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_ttl_valid_boundary() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Test maximum valid TTL (exactly 1 year)
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(365 * 24 * 3600)
+            .build();
+
+        let result = validate_unified_config(&config);
+        assert!(result.is_ok(), "Exactly 1 year TTL should be valid");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_capacity_zero() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Memory config with zero capacity
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Memory,
+                l1_options: serde_json::json!({
+                    "max_capacity": 0
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("cannot be zero"),
+                    "Error should mention zero capacity"
+                );
+            }
+            _ => panic!("Expected ConfigError for zero capacity"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_capacity_exceeds_maximum() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Memory config with capacity exceeding maximum
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Memory,
+                l1_options: serde_json::json!({
+                    "max_capacity": 100_000_001 // Exceeds max of 100 million
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("exceeds maximum"),
+                    "Error should mention exceeding maximum"
+                );
+                assert!(
+                    msg.contains("100,000,000") || msg.contains("100000000"),
+                    "Error should mention max value"
+                );
+            }
+            _ => panic!("Expected ConfigError for capacity exceeding maximum"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_capacity_valid_boundary() {
+        use crate::config::UnifiedConfigBuilder;
+
+        // Test maximum valid capacity
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_l1_capacity(100_000_000) // Exactly 100 million
+            .build();
+
+        let result = validate_unified_config(&config);
+        assert!(
+            result.is_ok(),
+            "Exactly 100 million capacity should be valid"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_redis_invalid_url() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Redis config with invalid URL format
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Redis,
+                l2_options: serde_json::json!({
+                    "connection_string": "invalid_url",
+                    "mode": "standalone"
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("Invalid Redis URL"),
+                    "Error should mention invalid URL"
+                );
+                assert!(
+                    msg.contains("redis://") || msg.contains("rediss://"),
+                    "Error should mention valid prefixes"
+                );
+            }
+            _ => panic!("Expected ConfigError for invalid Redis URL"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_redis_valid_urls() {
+        use crate::config::UnifiedConfigBuilder;
+
+        for url in [
+            "redis://localhost:6379",
+            "rediss://localhost:6379", // TLS
+            "redis://:password@localhost:6379",
+            "redis://192.168.1.1:6379",
+        ] {
+            let config = UnifiedConfigBuilder::redis_only()
+                .with_redis_url(url)
+                .build();
+
+            let result = validate_unified_config(&config);
+            assert!(result.is_ok(), "URL '{}' should be valid", url);
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_tiered_invalid_mode() {
+        use crate::config::{BackendConfig, BackendType, UnifiedConfig};
+
+        // Tiered config with invalid mode
+        let config = UnifiedConfig {
+            backend: BackendConfig {
+                backend_type: BackendType::Tiered,
+                l1_options: serde_json::json!({
+                    "max_capacity": 10000
+                }),
+                l2_options: serde_json::json!({
+                    "connection_string": "redis://localhost:6379",
+                    "mode": "invalid"
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("Invalid Redis mode"),
+                    "Error should mention invalid mode"
+                );
+            }
+            _ => panic!("Expected ConfigError for invalid tiered mode"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_service_ttl_exceeds_maximum() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Config with service TTL exceeding maximum
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .with_service("fast_cache", CacheType::L1, 365 * 24 * 3600 + 1) // Exceeds 1 year
+            .build();
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("fast_cache"),
+                    "Error should mention service name"
+                );
+                assert!(
+                    msg.contains("exceeds maximum") || msg.contains("1 year"),
+                    "Error should mention TTL limit"
+                );
+            }
+            _ => panic!("Expected ConfigError for service TTL exceeding maximum"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_service_capacity_exceeds_maximum() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Config with service capacity exceeding maximum
+        let base_config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .with_service("big_cache", CacheType::L1, 600)
+            .build();
+
+        // We need to manually set the capacity to exceed max since builder doesn't expose this
+        let config = crate::config::UnifiedConfig {
+            global: base_config.global.clone(),
+            backend: base_config.backend.clone(),
+            services: [(
+                "big_cache".to_string(),
+                crate::config::ServiceConfig {
+                    cache_type: CacheType::L1,
+                    ttl: Some(600),
+                    max_capacity: Some(100_000_001), // Exceeds max
+                    enable_metrics: true,
+                },
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+            performance: base_config.performance.clone(),
+            metrics: base_config.metrics.clone(),
+            recovery: base_config.recovery.clone(),
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("big_cache"),
+                    "Error should mention service name"
+                );
+                assert!(
+                    msg.contains("exceeds maximum"),
+                    "Error should mention exceeding maximum"
+                );
+            }
+            _ => panic!("Expected ConfigError for service capacity exceeding maximum"),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "confers")]
+    async fn test_validate_service_capacity_zero() {
+        use crate::config::{CacheType, UnifiedConfigBuilder};
+
+        // Config with service capacity of zero
+        let base_config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .with_l1_capacity(10000)
+            .with_service("empty_cache", CacheType::L1, 600)
+            .build();
+
+        // Manually set capacity to zero
+        let config = crate::config::UnifiedConfig {
+            global: base_config.global.clone(),
+            backend: base_config.backend.clone(),
+            services: [(
+                "empty_cache".to_string(),
+                crate::config::ServiceConfig {
+                    cache_type: CacheType::L1,
+                    ttl: Some(600),
+                    max_capacity: Some(0), // Zero
+                    enable_metrics: true,
+                },
+            )]
+            .iter()
+            .cloned()
+            .collect(),
+            performance: base_config.performance.clone(),
+            metrics: base_config.metrics.clone(),
+            recovery: base_config.recovery.clone(),
+        };
+
+        let result = validate_unified_config(&config);
+        match result {
+            Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(
+                    msg.contains("empty_cache"),
+                    "Error should mention service name"
+                );
+                assert!(
+                    msg.contains("cannot be zero"),
+                    "Error should mention zero capacity"
+                );
+            }
+            _ => panic!("Expected ConfigError for service capacity of zero"),
+        }
     }
 }
