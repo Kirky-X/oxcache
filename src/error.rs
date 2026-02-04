@@ -202,6 +202,12 @@ pub enum CacheError {
     /// 互斥锁获取失败，通常发生在锁被毒害（之前的持有者 panicked）
     #[error("Lock error: {0}. The lock may have been poisoned by a previous panic.")]
     LockError(String),
+
+    /// 服务配置未找到错误
+    ///
+    /// 请求的服务配置在 UnifiedConfig 中不存在
+    #[error("Service not found: {0}. The requested service configuration does not exist in the UnifiedConfig.")]
+    ServiceNotFound(String),
 }
 
 /// 缓存操作结果类型别名
