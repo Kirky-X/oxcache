@@ -4,13 +4,16 @@
 //
 // 补充配置模块测试 - 验证配置系统功能
 
-use oxcache::config::{UnifiedConfig, ServiceConfig, CacheType};
+use oxcache::config::{CacheType, ServiceConfig, UnifiedConfigBuilder};
 
 #[test]
 fn test_unified_config_creation() {
-    let config = UnifiedConfig::memory_only().build();
-    
-    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Memory);
+    let config = UnifiedConfigBuilder::memory_only().build();
+
+    assert_eq!(
+        config.backend.backend_type,
+        oxcache::config::BackendType::Memory
+    );
 }
 
 #[test]
@@ -39,19 +42,28 @@ fn test_service_config_with_ttl() {
 
 #[test]
 fn test_unified_config_memory_backend() {
-    let config = UnifiedConfig::memory_only().build();
-    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Memory);
+    let config = UnifiedConfigBuilder::memory_only().build();
+    assert_eq!(
+        config.backend.backend_type,
+        oxcache::config::BackendType::Memory
+    );
 }
 
 #[test]
 fn test_unified_config_redis_backend() {
-    let config = UnifiedConfig::redis_only().build();
-    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Redis);
+    let config = UnifiedConfigBuilder::redis_only().build();
+    assert_eq!(
+        config.backend.backend_type,
+        oxcache::config::BackendType::Redis
+    );
 }
 
 #[cfg(all(feature = "moka", feature = "redis"))]
 #[test]
 fn test_unified_config_tiered_backend() {
-    let config = UnifiedConfig::tiered().build();
-    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Tiered);
+    let config = UnifiedConfigBuilder::tiered().build();
+    assert_eq!(
+        config.backend.backend_type,
+        oxcache::config::BackendType::Tiered
+    );
 }
