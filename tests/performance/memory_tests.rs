@@ -10,10 +10,10 @@ use oxcache::Cache;
 use std::time::Duration;
 use tokio::time::sleep;
 
-// 更新路径引用
-#[path = "test_utils.rs"]
-mod test_utils;
-use test_utils::is_redis_available;
+/// 检查 Redis 是否可用
+fn is_redis_available() -> bool {
+    std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_err()
+}
 
 // ============================================================================
 // 内存测试模块
