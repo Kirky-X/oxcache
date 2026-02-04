@@ -7,9 +7,11 @@
 use thiserror::Error;
 
 /// Maximum number of asterisks to show for hidden password
+#[allow(dead_code)]
 const PASSWORD_MASK_ASTERISKS: usize = 5;
 
 /// 脱敏连接字符串，隐藏密码等敏感信息
+#[allow(dead_code)]
 fn sanitize_connection_string(conn_str: &str) -> String {
     // 使用正则表达式隐藏密码
     // 匹配模式: protocol://[:password@]host:port

@@ -29,8 +29,9 @@ impl TestConfig {
     #[allow(dead_code)]
     pub fn from_file() -> Self {
         Self {
-            postgres_url: std::env::var("TEST_POSTGRES_URL")
-                .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/test_db".to_string()),
+            postgres_url: std::env::var("TEST_POSTGRES_URL").unwrap_or_else(|_| {
+                "postgresql://postgres:postgres@localhost:5432/test_db".to_string()
+            }),
             mysql_url: std::env::var("TEST_MYSQL_URL")
                 .unwrap_or_else(|_| "mysql://root:root@localhost:3306/test_db".to_string()),
             partitioning_enabled: true,

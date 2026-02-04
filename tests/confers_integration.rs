@@ -13,9 +13,7 @@ mod tests {
     use serde_json::json;
 
     /// 创建测试用的confers配置（JSON格式）
-    fn create_test_config(
-        pairs: Vec<(&str, serde_json::Value)>,
-    ) -> serde_json::Value {
+    fn create_test_config(pairs: Vec<(&str, serde_json::Value)>) -> serde_json::Value {
         let mut config_map = serde_json::Map::new();
         for (key, value) in pairs {
             let parts: Vec<&str> = key.split('.').collect();
@@ -23,7 +21,8 @@ mod tests {
                 config_map.insert(key.to_string(), value);
             } else {
                 // 处理嵌套键
-                let mut current = config_map.entry(parts[0].to_string())
+                let mut current = config_map
+                    .entry(parts[0].to_string())
                     .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
                     .as_object_mut()
                     .unwrap();
@@ -31,7 +30,8 @@ mod tests {
                     if i == parts.len() - 1 {
                         current.insert(part.to_string(), value.clone());
                     } else {
-                        current = current.entry(part.to_string())
+                        current = current
+                            .entry(part.to_string())
                             .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
                             .as_object_mut()
                             .unwrap();

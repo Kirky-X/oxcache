@@ -5,9 +5,9 @@
 // 配置单元测试 - 使用新API
 
 use oxcache::Cache;
+use std::sync::Once;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
-use std::sync::Once;
 
 static INIT: Once = Once::new();
 
