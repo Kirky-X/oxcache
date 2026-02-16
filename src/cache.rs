@@ -100,6 +100,59 @@ where
         }
     }
 
+    /// Create a cache with default memory backend (Moka)
+    ///
+    /// This method provides a synchronous constructor that creates a cache
+    /// with the default Moka memory backend, following the di.md architecture
+    /// requirement for infrastructure layer components.
+    ///
+    /// # Requires
+    ///
+    /// - `moka` feature (enabled by default in `minimal`, `core`, `full`)
+    ///
+    /// # Returns
+    ///
+    /// Configured cache instance with Moka memory backend
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, User> = Cache::new();
+    /// ```
+    #[cfg(feature = "moka")]
+    pub fn new() -> Self {
+        use crate::backend::MokaMemoryBackend;
+        Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
+    }
+
+    /// Create a cache with DashMap memory backend
+    ///
+    /// This method provides a synchronous constructor that creates a cache
+    /// with the DashMap memory backend.
+    ///
+    /// # Requires
+    ///
+    /// - `dashmap-backend` feature
+    ///
+    /// # Returns
+    ///
+    /// Configured cache instance with DashMap memory backend
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::Cache;
+    ///
+    /// let cache: Cache<String, User> = Cache::new();
+    /// ```
+    #[cfg(all(feature = "dashmap-backend", not(feature = "moka")))]
+    pub fn new() -> Self {
+        use crate::backend::DashMapMemoryBackend;
+        Self::new_with_backend(Arc::new(DashMapMemoryBackend::new()))
+    }
+
     /// Create a cache with a memory backend
     ///
     /// # Returns
