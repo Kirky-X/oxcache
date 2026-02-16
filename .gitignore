@@ -1,113 +1,96 @@
-# ==================== Cargo/Rust ====================
-# Build artifacts
+# =============================================================================
+# Rust Build Artifacts
+# =============================================================================
 /target/
-target/*
-!target/.gitkeep
-
-# Rust-specific
 **/*.rs.bk
-
-# Dependencies lock
 Cargo.lock
 
-# ==================== IDE/Editors ====================
+# =============================================================================
+# IDE & Editors
+# =============================================================================
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+*.bak
 
-# macOS/Windows
+# =============================================================================
+# OS Generated Files
+# =============================================================================
 .DS_Store
 Thumbs.db
 
-# ==================== Environment ====================
+# =============================================================================
+# Temporary Files & Caches
+# =============================================================================
+temp/
+tmp/
+*.tmp
+*.temp
+*.log
+logs/
+.cache/
+
+# =============================================================================
+# AI Tool Caches (Temporary only)
+# =============================================================================
+.trae/
+.sisyphus/
+.claude/
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
 .env
 .env.local
 .env.*.local
+*.key
+*.pem
+secrets/
 
-# ==================== Logs & Temp ====================
-*.log
-logs/
-temp/
-*.tmp
-*.temp
-*.temp.*
-
-# ==================== Database ====================
-# WAL files
-*_wal.db
-*.wal
-*-wal.db
-wal_*
-
-# Shared memory
-*-shm
-*.sqlite-shm
-*_shm.db
-
-# ==================== Testing ====================
+# =============================================================================
+# Testing & Coverage
+# =============================================================================
 coverage/
+*.profraw
 .tarpaulin/
-tests/test_crate/
+tarpaulin-report.html
 
-# ==================== Language Specific ====================
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-.venv/
-
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# ==================== Project Specific ====================
-# Development tools
-.cargo/
-.trae/
-.iflow/
-.qoder/
-openspec/
-.sisyphus/
-.ruff_cache/
-.claude/
-.opencode/
-
-# Documentation drafts
-docs/prd.md
-docs/task.md
-docs/tdd.md
-docs/test.md
-docs/uat.md
-IFLOW.md
-CONDITIONAL_COMPILATION.md
-FEATURE_MIGRATION_GUIDE.md
-AGENTS.md
+# =============================================================================
+# Database Files (Local only)
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
 requirements.db
 
-# ==================== Additional ====================
-.cache/
-*.pid
-*.seed
-*.pid.lock
-CLAUDE.md
-.worktrees/
+# =============================================================================
+# Python (if applicable)
+# =============================================================================
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# Backup and temporary config files
-*.config.bak
-*.config.backup
-*.config.orig
-*.config.save
-*.config.fixed
-*.config.copy
-*.yaml.bak
-*.yml.bak
-*.toml.bak
-*.json.bak
+# =============================================================================
+# Node.js (if applicable)
+# =============================================================================
+node_modules/
+npm-debug.log*
+
+# =============================================================================
+# Keep These Files (Do NOT ignore)
+# =============================================================================
+# AGENTS.md - AI assistant rules
+# .iflow/ - iFlow configuration
+# .opencode/ - OpenCode configuration
+# .qoder/ - Qoder configuration
+# openspec/ - OpenSpec specifications
+# CHANGELOG.md - Change history
+# Makefile - Build commands
+# rustfmt.toml - Code formatting
+# .cargo/config.toml - Cargo configuration
+
