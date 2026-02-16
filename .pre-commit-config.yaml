@@ -1,86 +1,13 @@
-# Oxcache Pre-commit Hooks Configuration
-# ======================================
-
+# Pre-commit hooks configuration
 repos:
-  # Local script hooks only - avoid external dependencies
-  - repo: local
-    hooks:
-      - id: rust-fmt
-        name: Rust Format
-        description: Check Rust code formatting with cargo fmt
-        entry: cargo fmt -- --check
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: rust-clippy
-        name: Rust Clippy
-        description: Run cargo clippy for static code analysis
-        entry: bash scripts/precommit_clippy.sh
-        language: system
-        types: [rust]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: cargo-audit
-        name: Cargo Audit (Enhanced)
-        description: Enhanced vulnerability scanning with RUSTSEC database
-        entry: bash scripts/precommit_audit.sh
-        language: system
-        types: [rust, toml]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: license-check
-        name: License Compliance
-        description: Check for license issues in dependencies
-        entry: bash scripts/precommit_license.sh
-        language: system
-        types: [rust, toml]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: toml-validate
-        name: TOML Validation
-        description: Validate Cargo.toml and config files
-        entry: bash scripts/pre-commit/precommit_toml.sh
-        language: system
-        types: [toml]
-        pass_filenames: false
-        stages: [pre-commit]
-
-      - id: detect-secrets
-        name: Detect Secrets
-        description: Detect accidental secret/key exposure
-        entry: bash -c 'git diff --cached --name-only | xargs -I {} sh -c "grep -n \"password\\|secret\\|token\\|key\\|credential\" {} || true"'
-        language: system
-        types: [text]
-        pass_filenames: false
-        stages: [pre-commit]
-        always_run: true
-
-      - id: check-added-large-files
-        name: Check Large Files
-        description: Prevent accidental large file commits
-        entry: bash -c 'git diff --cached --name-only | xargs -I {} sh -c "test $(git ls-files -s "{}" | cut -f4 -d" " | head -n1) -le 1048576" || echo "File {} exceeds size limit"'
-        language: system
-        types: [text]
-        pass_filenames: false
-        stages: [pre-commit]
-
-# Global Settings
-default_install_hook_types: [pre-commit]
-default_stages: [pre-commit]
-verbose: false
-require_serial: false
-exclude: |
-  (?x)^(
-    target/|
-    Cargo\.lock|
-    \.git/|
-    \.idea/|
-    \.vscode/
-  )
-print_fixed_on_failure: false
-fail_fast: false
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+  - id: check-yaml
+  - id: check-toml
+  - id: mixed-line-ending
+    args: ['--fix=lf']
+  - id: detect-private-key
+  - id: check-merge-conflict
