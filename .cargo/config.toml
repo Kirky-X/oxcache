@@ -1,0 +1,8 @@
+[build]
+target-dir = "target"
+
+[term]
+verbose = false
+
+[net]
+git-fetch-with-cli = true
