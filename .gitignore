@@ -94,3 +94,4 @@ npm-debug.log*
 # rustfmt.toml - Code formatting
 # .cargo/config.toml - Cargo configuration
 
+.worktrees
