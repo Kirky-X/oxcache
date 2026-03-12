@@ -40,20 +40,20 @@
 ## 阶段 2: 现有后端改造
 
 ### Task 2.1: 改造 MokaBackend
-- [ ] **Step 1**: 修改 `src/backend/moka.rs`
-  - [ ] 添加 `use crate::backend::score::BackendScore`
-  - [ ] 实现 `impl BackendScore for MokaBackend`
-- [ ] **Step 2**: 运行测试
+- [x] **Step 1**: 修改 `src/backend/moka.rs`
+  - [x] 添加 `use crate::backend::score::BackendScore`
+  - [x] 实现 `impl BackendScoreTrait for MokaBackend`
+- [x] **Step 2**: 运行测试
 
 ### Task 2.2: 改造 DashMapBackend
-- [ ] **Step 1**: 修改 `src/backend/dashmap.rs`
-  - [ ] 实现 `BackendScore` trait
-- [ ] **Step 2**: 运行测试
+- [x] **Step 1**: 修改 `src/backend/dashmap.rs`
+  - [x] 实现 `BackendScoreTrait` trait
+- [x] **Step 2**: 运行测试
 
 ### Task 2.3: 改造 RedisBackend
-- [ ] **Step 1**: 修改 `src/backend/redis.rs`
-  - [ ] 实现 `BackendScore` trait
-- [ ] **Step 2**: 运行测试
+- [x] **Step 1**: 修改 `src/backend/redis.rs`
+  - [x] 实现 `BackendScoreTrait` trait
+- [x] **Step 2**: 运行测试
 
 ## 阶段 3: 创建 OxCacheBuilder
 
