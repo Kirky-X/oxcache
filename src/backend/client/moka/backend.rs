@@ -5,6 +5,7 @@
 //! Moka-based memory backend implementation
 
 use crate::backend::interface::CacheBackend;
+use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
 use async_trait::async_trait;
 use std::any::Any;
@@ -136,6 +137,24 @@ impl CacheBackend for MokaMemoryBackend {
 
     async fn capacity(&self) -> Result<u64> {
         Ok(self.capacity)
+    }
+}
+
+impl BackendScore for MokaMemoryBackend {
+    fn score(&self) -> u8 {
+        Scores::MOKA
+    }
+
+    fn is_persistent(&self) -> bool {
+        false
+    }
+
+    fn backend_name(&self) -> &'static str {
+        "moka"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

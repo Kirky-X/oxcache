@@ -5,6 +5,7 @@
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
 use crate::backend::interface::CacheBackend;
+use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -326,6 +327,24 @@ impl CacheBackend for DashMapMemoryBackend {
 
     async fn capacity(&self) -> Result<u64> {
         Ok(self.capacity as u64)
+    }
+}
+
+impl BackendScore for DashMapMemoryBackend {
+    fn score(&self) -> u8 {
+        Scores::DASHMAP
+    }
+
+    fn is_persistent(&self) -> bool {
+        false
+    }
+
+    fn backend_name(&self) -> &'static str {
+        "dashmap"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

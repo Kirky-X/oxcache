@@ -4,6 +4,7 @@
 //! Redis backend implementation with connection pooling
 
 use crate::backend::interface::CacheBackend;
+use crate::backend::score::{BackendScore, Scores};
 use crate::error::{CacheError, Result};
 use crate::security;
 use async_trait::async_trait;
@@ -450,6 +451,24 @@ impl CacheBackend for RedisBackend {
         // Redis doesn't have a fixed capacity limit
         // Return 0 to indicate unlimited capacity
         Ok(0)
+    }
+}
+
+impl BackendScore for RedisBackend {
+    fn score(&self) -> u8 {
+        Scores::REDIS
+    }
+
+    fn is_persistent(&self) -> bool {
+        true
+    }
+
+    fn backend_name(&self) -> &'static str {
+        "redis"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
