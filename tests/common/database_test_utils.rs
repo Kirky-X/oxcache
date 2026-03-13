@@ -2,9 +2,7 @@
 //
 // MIT License
 //
-// 该模块定义了数据库测试的通用工具函数和设置。
-
-#![allow(dead_code)]
+// 数据库测试工具 - 提供数据库测试的通用工具函数
 
 use chrono::{TimeZone, Utc};
 use oxcache::database::partition::{
@@ -14,9 +12,10 @@ use oxcache::error::Result;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 
-/// Test configuration structure
+/// 测试配置结构体
+///
+/// 用于数据库测试的配置信息，包含 PostgreSQL 和 MySQL 连接信息。
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct TestConfig {
     pub postgres_url: String,
     pub mysql_url: String,
@@ -26,7 +25,11 @@ pub struct TestConfig {
 }
 
 impl TestConfig {
-    #[allow(dead_code)]
+    /// 从环境变量加载测试配置
+    ///
+    /// 环境变量：
+    /// - `TEST_POSTGRES_URL`: PostgreSQL 连接 URL
+    /// - `TEST_MYSQL_URL`: MySQL 连接 URL
     pub fn from_file() -> Self {
         Self {
             postgres_url: std::env::var("TEST_POSTGRES_URL").unwrap_or_else(|_| {
@@ -41,7 +44,13 @@ impl TestConfig {
     }
 }
 
-/// Create partition configuration
+/// 创建分区配置
+///
+/// # Arguments
+///
+/// * `enabled` - 是否启用分区
+/// * `strategy` - 分区策略
+/// * `retention` - 保留月数
 pub fn create_partition_config(
     enabled: bool,
     strategy: PartitionStrategy,
@@ -55,24 +64,26 @@ pub fn create_partition_config(
     }
 }
 
-/// Clean up existing table using Docker command (for PostgreSQL)
-/// 验证表名格式，防止SQL注入攻击
-fn validate_table_name(table_name: &str) -> bool {
-    // 表名只能包含字母、数字、下划线，且不能以数字开头
-    let is_valid = !table_name.is_empty()
-        && table_name.chars().all(|c| c.is_alphanumeric() || c == '_')
-        && !table_name.chars().next().unwrap().is_ascii_digit();
-    is_valid
-}
-
-#[allow(dead_code)]
+/// 清理 PostgreSQL 表（使用 Docker 命令）
+///
+/// 通过 Docker 命令删除指定的表，用于测试清理。
+///
+/// # Arguments
+///
+/// * `container_name` - Docker 容器名称
+/// * `db_name` - 数据库名称
+/// * `user` - 数据库用户
+/// * `table_name` - 要删除的表名
+///
+/// # Returns
+///
+/// 成功返回 `true`，失败返回 `false`
 pub fn cleanup_postgres_table(
     container_name: &str,
     db_name: &str,
     user: &str,
     table_name: &str,
 ) -> bool {
-    // 验证表名格式，防止SQL注入
     if !validate_table_name(table_name) {
         eprintln!("Invalid table name: {}", table_name);
         return false;
@@ -111,32 +122,49 @@ pub fn cleanup_postgres_table(
     }
 }
 
-/// Create a temporary SQLite database file
+/// 验证表名格式，防止 SQL 注入
+///
+/// 表名只能包含字母、数字、下划线，且不能以数字开头。
+fn validate_table_name(table_name: &str) -> bool {
+    !table_name.is_empty()
+        && table_name.chars().all(|c| c.is_alphanumeric() || c == '_')
+        && !table_name.chars().next().unwrap().is_ascii_digit()
+}
+
+/// 创建临时 SQLite 数据库文件
+///
+/// 返回临时文件对象和 SQLite 连接字符串。
 pub fn create_temp_sqlite_db() -> Result<(NamedTempFile, String)> {
     let temp_file = NamedTempFile::new()?;
     let sqlite_path = format!("sqlite:{}", temp_file.path().display());
     Ok((temp_file, sqlite_path))
 }
 
-/// Common partition verification function
+/// 验证分区创建
+///
+/// 创建测试分区并验证分区结构。
+///
+/// # Arguments
+///
+/// * `manager` - 分区管理器
+/// * `table_name` - 表名
+/// * `_enabled` - 是否启用（未使用）
+/// * `expected_partitions` - 预期分区数量
 pub async fn verify_partition_creation<M: PartitionManager>(
     manager: &M,
     table_name: &str,
     _enabled: bool,
     expected_partitions: usize,
 ) -> Result<Vec<PartitionInfo>> {
-    // Create a test partition
     let test_date = Utc::now();
     manager
         .ensure_partition_exists(test_date, table_name)
         .await?;
     println!("✓ Partition created");
 
-    // List partitions
     let partitions = manager.get_partitions(table_name).await?;
     println!("✓ Partitions listed: {} found", partitions.len());
 
-    // Verify partition structure
     assert!(!partitions.is_empty(), "Should have at least one partition");
     assert!(
         partitions.len() >= expected_partitions,
@@ -147,13 +175,20 @@ pub async fn verify_partition_creation<M: PartitionManager>(
     Ok(partitions)
 }
 
-/// Common partition cleanup verification function
+/// 验证分区清理
+///
+/// 创建多个分区并验证清理功能。
+///
+/// # Arguments
+///
+/// * `manager` - 分区管理器
+/// * `table_name` - 表名
+/// * `retention_months` - 保留月数
 pub async fn verify_partition_cleanup<M: PartitionManager>(
     manager: &M,
     table_name: &str,
     retention_months: usize,
 ) -> Result<()> {
-    // Create partitions for different months
     let dates = vec![
         Utc.with_ymd_and_hms(2023, 1, 15, 0, 0, 0).unwrap(),
         Utc.with_ymd_and_hms(2023, 2, 15, 0, 0, 0).unwrap(),
@@ -166,12 +201,9 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
         manager.create_partition(&partition_info).await?;
     }
 
-    // List partitions before cleanup
     let partitions_before = manager.get_partitions(table_name).await?;
     println!("Partitions before cleanup: {}", partitions_before.len());
 
-    // Clean up old partitions
-    // Calculate cutoff date based on retention_months relative to the test data (May 2023)
     let mut year = 2023;
     let mut month = 5;
     let retention = retention_months as u32;
@@ -193,11 +225,9 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
         .cleanup_old_partitions(table_name, cutoff_date)
         .await?;
 
-    // List partitions after cleanup
     let partitions_after = manager.get_partitions(table_name).await?;
     println!("Partitions after cleanup: {}", partitions_after.len());
 
-    // Should have only retention_months partitions remaining
     assert!(
         partitions_after.len() <= retention_months,
         "Should have at most {} partitions after cleanup",
@@ -207,12 +237,18 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
     Ok(())
 }
 
-/// Common concurrent partition operations test
+/// 测试并发分区操作
+///
+/// 创建多个并发任务测试分区创建。
+///
+/// # Arguments
+///
+/// * `manager` - 分区管理器
+/// * `table_name` - 表名
 pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>(
     manager: Arc<M>,
     table_name: &str,
 ) -> Result<()> {
-    // Create multiple tasks that try to create partitions concurrently
     let mut tasks = vec![];
     let dates = vec![
         Utc.with_ymd_and_hms(2023, 1, 15, 0, 0, 0).unwrap(),
@@ -232,7 +268,6 @@ pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>
         tasks.push(task);
     }
 
-    // Wait for all tasks to complete
     for task in tasks {
         let result = task
             .await
@@ -240,7 +275,6 @@ pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>
         result?;
     }
 
-    // Verify all partitions were created
     let partitions: Vec<PartitionInfo> = manager.get_partitions(table_name).await?;
     println!(
         "Concurrent operations completed: {} partitions created",
