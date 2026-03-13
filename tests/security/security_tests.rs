@@ -109,10 +109,7 @@ async fn test_redis_timeout_settings() {
 
     if let Ok(b) = backend {
         let ping_result = timeout(Duration::from_secs(10), b.ping()).await;
-        let success = match ping_result {
-            Ok(Ok(_)) => true,
-            _ => false,
-        };
+        let success = matches!(ping_result, Ok(Ok(_)));
         assert!(success, "Ping should complete within timeout");
     }
 }
@@ -132,10 +129,7 @@ async fn test_connection_string_security() {
 async fn test_error_handling_security() {
     let invalid_url = "redis://invalid:port";
     let result = RedisBackend::new(invalid_url).await;
-    assert!(
-        result.is_err(),
-        "Invalid connection should return error, not panic"
-    );
+    assert!(result.is_err(), "Invalid connection should return error, not panic");
 }
 
 /// 测试配置安全性
