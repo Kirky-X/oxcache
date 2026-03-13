@@ -123,9 +123,7 @@ impl PathValidationConfig {
 
         // 检查是否绝对路径
         if !path.is_absolute() {
-            return Err(CacheError::ConfigError(
-                "Only absolute paths are allowed".to_string(),
-            ));
+            return Err(CacheError::ConfigError("Only absolute paths are allowed".to_string()));
         }
 
         // 规范化路径（移除 . 和 ..，解析冗余分隔符）
@@ -143,9 +141,7 @@ impl PathValidationConfig {
                         std::path::Component::ParentDir => {
                             // 尝试弹出父目录，但不允许超出基础
                             if !buf.pop() {
-                                return Err(CacheError::ConfigError(
-                                    "Path traversal attempt detected".to_string(),
-                                ));
+                                return Err(CacheError::ConfigError("Path traversal attempt detected".to_string()));
                             }
                         }
                         _ => {}
@@ -227,15 +223,12 @@ impl ConfigValidation {
     /// 自定义名称最大长度（256字符）
     pub const MAX_CUSTOM_NAME_LENGTH: usize = 256;
     /// 允许的自定义名称字符正则（字母、数字、下划线、连字符、点）
-    pub const VALID_NAME_CHARS: &'static str =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
+    pub const VALID_NAME_CHARS: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
 
     /// 验证容量值
     pub fn validate_capacity(capacity: u64) -> Result<u64> {
         if capacity == 0 {
-            return Err(CacheError::ConfigError(
-                "Capacity must be greater than 0".to_string(),
-            ));
+            return Err(CacheError::ConfigError("Capacity must be greater than 0".to_string()));
         }
         if capacity > Self::MAX_CAPACITY {
             return Err(CacheError::ConfigError(format!(
@@ -250,9 +243,7 @@ impl ConfigValidation {
     /// 验证 TTL 值
     pub fn validate_ttl(ttl: u64) -> Result<u64> {
         if ttl == 0 {
-            return Err(CacheError::ConfigError(
-                "TTL must be greater than 0".to_string(),
-            ));
+            return Err(CacheError::ConfigError("TTL must be greater than 0".to_string()));
         }
         if ttl > Self::MAX_TTL_SECS {
             return Err(CacheError::ConfigError(format!(
@@ -691,10 +682,7 @@ impl BackendProvider for DefaultBackendProvider {
 /// - ttl 不能超过 30 天
 /// - tti 不能超过 30 天
 #[cfg(any(feature = "serialization", feature = "full"))]
-fn apply_memory_options(
-    mut builder: MemoryBackendBuilder,
-    options: &serde_json::Value,
-) -> MemoryBackendBuilder {
+fn apply_memory_options(mut builder: MemoryBackendBuilder, options: &serde_json::Value) -> MemoryBackendBuilder {
     if let Some(options) = options.as_object() {
         if let Some(capacity) = options.get("capacity").and_then(|v| v.as_u64()) {
             // 验证容量值
@@ -1082,8 +1070,7 @@ impl ConfigValidationResult {
 
     fn add_invalid(&mut self, layer: Layer, backend_type: BackendType, error: String) {
         let backend_type_clone = backend_type.clone();
-        self.invalid_layers
-            .push((layer, backend_type, error.clone()));
+        self.invalid_layers.push((layer, backend_type, error.clone()));
 
         // 生成修复建议
         let suggested = backend_type_clone.recommended_layer();
@@ -1335,10 +1322,7 @@ impl CustomTieredConfigBuilder {
 /// * `Err(CacheError)` - 加载或验证失败
 #[cfg(feature = "confers")]
 #[instrument(skip(path, validation_config), level = "debug")]
-pub async fn load_from_file(
-    path: &str,
-    validation_config: Option<PathValidationConfig>,
-) -> Result<CustomTieredConfig> {
+pub async fn load_from_file(path: &str, validation_config: Option<PathValidationConfig>) -> Result<CustomTieredConfig> {
     use std::fs;
 
     // 使用提供的配置或默认配置
@@ -1357,8 +1341,7 @@ pub async fn load_from_file(
     }
 
     // 读取配置文件
-    let content =
-        fs::read_to_string(&safe_path).map_err(|e| CacheError::ConfigError(e.to_string()))?;
+    let content = fs::read_to_string(&safe_path).map_err(|e| CacheError::ConfigError(e.to_string()))?;
 
     // 使用标准的serde反序列化（与confers兼容的方式）
     let config: CustomTieredConfig =
@@ -1377,10 +1360,7 @@ pub async fn load_from_file(
     // 如果有自动修复，返回修复后的配置
     if let Some(fixed_config) = fixed {
         if !result.warnings.is_empty() {
-            tracing::info!(
-                "Auto-fixed tiered cache configuration: {:?}",
-                result.warnings
-            );
+            tracing::info!("Auto-fixed tiered cache configuration: {:?}", result.warnings);
         }
         Ok(fixed_config)
     } else {
@@ -1396,28 +1376,19 @@ mod tests {
     fn test_backend_type_layer_restriction() {
         #[cfg(feature = "moka")]
         {
-            assert_eq!(
-                BackendType::Moka.layer_restriction(),
-                LayerRestriction::L1Only
-            );
+            assert_eq!(BackendType::Moka.layer_restriction(), LayerRestriction::L1Only);
             assert!(BackendType::Moka.supports_layer(Layer::L1));
             assert!(!BackendType::Moka.supports_layer(Layer::L2));
         }
 
         #[cfg(feature = "redis")]
         {
-            assert_eq!(
-                BackendType::Redis.layer_restriction(),
-                LayerRestriction::L2AndL3Only
-            );
+            assert_eq!(BackendType::Redis.layer_restriction(), LayerRestriction::L2AndL3Only);
             assert!(!BackendType::Redis.supports_layer(Layer::L1));
             assert!(BackendType::Redis.supports_layer(Layer::L2));
         }
 
-        assert_eq!(
-            BackendType::Tiered.layer_restriction(),
-            LayerRestriction::Any
-        );
+        assert_eq!(BackendType::Tiered.layer_restriction(), LayerRestriction::Any);
         assert!(BackendType::Tiered.supports_layer(Layer::L1));
         assert!(BackendType::Tiered.supports_layer(Layer::L2));
     }
@@ -1558,9 +1529,7 @@ mod tests {
 
     #[test]
     fn test_auto_fix_config_builder() {
-        let config = AutoFixConfig::new()
-            .with_enabled(false)
-            .with_warn_on_fix(false);
+        let config = AutoFixConfig::new().with_enabled(false).with_warn_on_fix(false);
 
         assert!(!config.enabled);
         assert!(!config.warn_on_fix);
@@ -1647,16 +1616,10 @@ mod tests {
         // 有效自定义后端
         let result = BackendType::from_str("custom:valid_name");
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap(),
-            BackendType::Custom("valid_name".to_string())
-        );
+        assert_eq!(result.unwrap(), BackendType::Custom("valid_name".to_string()));
 
         // 无效自定义后端 - 名称太长
-        let long_name = format!(
-            "custom:{}",
-            "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH + 1)
-        );
+        let long_name = format!("custom:{}", "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH + 1));
         let result = BackendType::from_str(&long_name);
         assert!(result.is_err());
 
@@ -1686,10 +1649,7 @@ mod tests {
         let config = PathValidationConfig::new();
         let result = config.validate("/path/with\ninvalid/chars.toml");
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid character"));
+        assert!(result.unwrap_err().to_string().contains("invalid character"));
     }
 
     #[test]

@@ -28,11 +28,7 @@ async fn test_comprehensive_cache_api() {
         let key = format!("comprehensive_key_{}", i);
         let result = cache.get(&key).await;
         assert!(result.is_ok(), "GET should succeed for key {}", i);
-        assert!(
-            result.unwrap().is_some(),
-            "Value should exist for key {}",
-            i
-        );
+        assert!(result.unwrap().is_some(), "Value should exist for key {}", i);
     }
 
     println!("3. 测试批量删除");
@@ -46,11 +42,7 @@ async fn test_comprehensive_cache_api() {
     for i in 0..5 {
         let key = format!("comprehensive_key_{}", i);
         let result = cache.get(&key).await;
-        assert!(
-            result.unwrap().is_none(),
-            "Value should be None for deleted key {}",
-            i
-        );
+        assert!(result.unwrap().is_none(), "Value should be None for deleted key {}", i);
     }
 
     println!("5. 清理所有数据");
@@ -69,35 +61,20 @@ async fn test_different_cache_types() {
     let bool_cache: Cache<String, bool> = Cache::builder().build().await.unwrap();
 
     // 验证每种类型都可以正常工作
-    assert!(string_cache
-        .set(&"k1".to_string(), &"v1".to_string())
-        .await
-        .is_ok());
-    assert!(bytes_cache
-        .set(&"k2".to_string(), &vec![1u8, 2u8])
-        .await
-        .is_ok());
+    assert!(string_cache.set(&"k1".to_string(), &"v1".to_string()).await.is_ok());
+    assert!(bytes_cache.set(&"k2".to_string(), &vec![1u8, 2u8]).await.is_ok());
     assert!(i32_cache.set(&"k3".to_string(), &42).await.is_ok());
-    assert!(i64_cache
-        .set(&"k4".to_string(), &123456789i64)
-        .await
-        .is_ok());
+    assert!(i64_cache.set(&"k4".to_string(), &123456789i64).await.is_ok());
     assert!(bool_cache.set(&"k5".to_string(), &true).await.is_ok());
 
     // 验证读取
-    assert_eq!(
-        string_cache.get(&"k1".to_string()).await.unwrap().unwrap(),
-        "v1"
-    );
+    assert_eq!(string_cache.get(&"k1".to_string()).await.unwrap().unwrap(), "v1");
     assert_eq!(
         bytes_cache.get(&"k2".to_string()).await.unwrap().unwrap(),
         vec![1u8, 2u8]
     );
     assert_eq!(i32_cache.get(&"k3".to_string()).await.unwrap().unwrap(), 42);
-    assert_eq!(
-        i64_cache.get(&"k4".to_string()).await.unwrap().unwrap(),
-        123456789i64
-    );
+    assert_eq!(i64_cache.get(&"k4".to_string()).await.unwrap().unwrap(), 123456789i64);
     assert!(bool_cache.get(&"k5".to_string()).await.unwrap().unwrap());
 }
 
@@ -107,22 +84,12 @@ async fn test_edge_cases() {
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 空键测试
-    assert!(cache
-        .set(&"".to_string(), &"empty_key".to_string())
-        .await
-        .is_ok());
+    assert!(cache.set(&"".to_string(), &"empty_key".to_string()).await.is_ok());
     assert!(cache.get(&"".to_string()).await.unwrap().is_some());
 
     // 空值测试
-    assert!(cache
-        .set(&"empty_value".to_string(), &"".to_string())
-        .await
-        .is_ok());
-    assert!(cache
-        .get(&"empty_value".to_string())
-        .await
-        .unwrap()
-        .is_some());
+    assert!(cache.set(&"empty_value".to_string(), &"".to_string()).await.is_ok());
+    assert!(cache.get(&"empty_value".to_string()).await.unwrap().is_some());
 
     // 长键测试
     let long_key = "k".repeat(256);

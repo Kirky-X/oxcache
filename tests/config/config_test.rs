@@ -60,10 +60,7 @@ async fn test_cache_types() {
         .set(&"key1".to_string(), &"value".to_string())
         .await
         .is_ok());
-    assert!(bytes_cache
-        .set(&"key2".to_string(), &vec![1u8, 2u8, 3u8])
-        .await
-        .is_ok());
+    assert!(bytes_cache.set(&"key2".to_string(), &vec![1u8, 2u8, 3u8]).await.is_ok());
     assert!(i32_cache.set(&"key3".to_string(), &42).await.is_ok());
 }
 
@@ -84,28 +81,18 @@ async fn test_cache_options() {
         let key = format!("option_test_{}", i);
         let result = cache.get(&key).await;
         assert!(result.is_ok(), "GET should succeed for key {}", i);
-        assert!(
-            result.unwrap().is_some(),
-            "Value should exist for key {}",
-            i
-        );
+        assert!(result.unwrap().is_some(), "Value should exist for key {}", i);
     }
 
     // 测试DELETE
     assert!(cache.delete(&"option_test_0".to_string()).await.is_ok());
     let result = cache.get(&"option_test_0".to_string()).await;
     assert!(result.is_ok(), "GET should succeed");
-    assert!(
-        result.unwrap().is_none(),
-        "Value should be None after delete"
-    );
+    assert!(result.unwrap().is_none(), "Value should be None after delete");
 
     // 测试CLEAR
     cache.clear().await.unwrap();
     let result = cache.get(&"option_test_1".to_string()).await;
     assert!(result.is_ok(), "GET should succeed after clear");
-    assert!(
-        result.unwrap().is_none(),
-        "Value should be None after clear"
-    );
+    assert!(result.unwrap().is_none(), "Value should be None after clear");
 }

@@ -396,11 +396,7 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
         if parsed.params.is_empty() {
             return "sqlite::memory:".to_string();
         } else {
-            let params: Vec<String> = parsed
-                .params
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect();
+            let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
             return format!("sqlite::memory:?{}", params.join("&"));
         }
     }
@@ -418,11 +414,7 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
     if parsed.params.is_empty() {
         base
     } else {
-        let params: Vec<String> = parsed
-            .params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         format!("{}?{}", base, params.join("&"))
     }
 }
@@ -460,11 +452,7 @@ fn normalize_mysql(parsed: &ParsedConnectionString, redact: bool) -> String {
 
     if !parsed.params.is_empty() {
         result.push('?');
-        let params: Vec<String> = parsed
-            .params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         result.push_str(&params.join("&"));
     }
 
@@ -504,11 +492,7 @@ fn normalize_postgres(parsed: &ParsedConnectionString, redact: bool) -> String {
 
     if !parsed.params.is_empty() {
         result.push('?');
-        let params: Vec<String> = parsed
-            .params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         result.push_str(&params.join("&"));
     }
 
@@ -607,8 +591,7 @@ fn get_recommended_sqlite(environment: &str, name: &str) -> String {
         "testing" | "test" => "sqlite::memory:?cache=shared".to_string(),
         "development" | "dev" => format!("sqlite:./{}.db", name),
         "production" | "prod" => {
-            let data_dir = std::env::var("OXCACHE_DATA_DIR")
-                .unwrap_or_else(|_| "/var/data/oxcache".to_string());
+            let data_dir = std::env::var("OXCACHE_DATA_DIR").unwrap_or_else(|_| "/var/data/oxcache".to_string());
             format!("sqlite:{}/{}.db", data_dir, name)
         }
         _ => format!("sqlite:./{}.db", name),
@@ -629,10 +612,7 @@ fn get_recommended_mysql(environment: &str, name: &str) -> String {
         "production" | "prod" => {
             let host = std::env::var("MYSQL_PROD_HOST").unwrap_or_else(|_| "localhost".to_string());
             let port = std::env::var("MYSQL_PROD_PORT").unwrap_or_else(|_| "3306".to_string());
-            format!(
-                "mysql://{}:{}/{}?timeout=60s&pool_timeout=30s",
-                host, port, name
-            )
+            format!("mysql://{}:{}/{}?timeout=60s&pool_timeout=30s", host, port, name)
         }
         _ => format!("mysql://localhost:3306/{}", name),
     }
@@ -642,18 +622,15 @@ fn get_recommended_mysql(environment: &str, name: &str) -> String {
 fn get_recommended_postgres(environment: &str, name: &str) -> String {
     match environment {
         "testing" | "test" => {
-            let host =
-                std::env::var("POSTGRES_TEST_HOST").unwrap_or_else(|_| "localhost".to_string());
+            let host = std::env::var("POSTGRES_TEST_HOST").unwrap_or_else(|_| "localhost".to_string());
             format!("postgresql://{}:5432/{}?connect_timeout=10", host, name)
         }
         "development" | "dev" => {
-            let host =
-                std::env::var("POSTGRES_DEV_HOST").unwrap_or_else(|_| "localhost".to_string());
+            let host = std::env::var("POSTGRES_DEV_HOST").unwrap_or_else(|_| "localhost".to_string());
             format!("postgresql://{}:5432/{}?connect_timeout=30", host, name)
         }
         "production" | "prod" => {
-            let host =
-                std::env::var("POSTGRES_PROD_HOST").unwrap_or_else(|_| "localhost".to_string());
+            let host = std::env::var("POSTGRES_PROD_HOST").unwrap_or_else(|_| "localhost".to_string());
             let port = std::env::var("POSTGRES_PROD_PORT").unwrap_or_else(|_| "5432".to_string());
             format!(
                 "postgresql://{}:{}/{}?connect_timeout=60&pool_timeout=30",
@@ -749,11 +726,7 @@ pub fn ensure_database_directory(connection_string: &str) -> Result<String> {
                 if let Some(parent) = full_path.parent() {
                     if !parent.exists() {
                         std::fs::create_dir_all(parent).map_err(|e| {
-                            CacheError::DatabaseError(format!(
-                                "无法创建数据库目录 {}: {}",
-                                parent.display(),
-                                e
-                            ))
+                            CacheError::DatabaseError(format!("无法创建数据库目录 {}: {}", parent.display(), e))
                         })?;
                     }
                 }
@@ -800,19 +773,13 @@ pub fn normalize_connection_string_with_redaction(s: &str, redact_password: bool
 }
 
 /// 规范化 SQLite 连接字符串（带密码屏蔽）
-fn normalize_sqlite_with_redaction(
-    parsed: &ParsedConnectionString,
-    _redact_password: bool,
-) -> String {
+fn normalize_sqlite_with_redaction(parsed: &ParsedConnectionString, _redact_password: bool) -> String {
     // SQLite 连接字符串不包含密码，直接调用原函数
     normalize_sqlite(parsed)
 }
 
 /// 规范化 MySQL 连接字符串（带密码屏蔽）
-fn normalize_mysql_with_redaction(
-    parsed: &ParsedConnectionString,
-    redact_password: bool,
-) -> String {
+fn normalize_mysql_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
     let mut result = String::from("mysql://");
 
     if let Some(username) = &parsed.username {
@@ -844,11 +811,7 @@ fn normalize_mysql_with_redaction(
 
     if !parsed.params.is_empty() {
         result.push('?');
-        let params: Vec<String> = parsed
-            .params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         result.push_str(&params.join("&"));
     }
 
@@ -856,10 +819,7 @@ fn normalize_mysql_with_redaction(
 }
 
 /// 规范化 PostgreSQL 连接字符串（带密码屏蔽）
-fn normalize_postgres_with_redaction(
-    parsed: &ParsedConnectionString,
-    redact_password: bool,
-) -> String {
+fn normalize_postgres_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
     let mut result = String::from("postgresql://");
 
     if let Some(username) = &parsed.username {
@@ -891,11 +851,7 @@ fn normalize_postgres_with_redaction(
 
     if !parsed.params.is_empty() {
         result.push('?');
-        let params: Vec<String> = parsed
-            .params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         result.push_str(&params.join("&"));
     }
 
@@ -903,10 +859,7 @@ fn normalize_postgres_with_redaction(
 }
 
 /// 规范化 Redis 连接字符串（带密码屏蔽）
-fn normalize_redis_with_redaction(
-    parsed: &ParsedConnectionString,
-    redact_password: bool,
-) -> String {
+fn normalize_redis_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
     let mut result = String::from("redis://");
 
     if let Some(password) = &parsed.password {
@@ -985,8 +938,7 @@ mod tests {
 
     #[test]
     fn test_parse_mysql() {
-        let parsed =
-            ParsedConnectionString::parse("mysql://user:pass@localhost:3306/mydb?timeout=30");
+        let parsed = ParsedConnectionString::parse("mysql://user:pass@localhost:3306/mydb?timeout=30");
         assert_eq!(parsed.db_type, DbType::MySQL);
         assert_eq!(parsed.host, Some("localhost".to_string()));
         assert_eq!(parsed.port, Some(3306));
@@ -997,9 +949,7 @@ mod tests {
 
     #[test]
     fn test_parse_postgres() {
-        let parsed = ParsedConnectionString::parse(
-            "postgresql://user@localhost:5432/mydb?connect_timeout=30",
-        );
+        let parsed = ParsedConnectionString::parse("postgresql://user@localhost:5432/mydb?connect_timeout=30");
         assert_eq!(parsed.db_type, DbType::PostgreSQL);
         assert_eq!(parsed.host, Some("localhost".to_string()));
         assert_eq!(parsed.port, Some(5432));
@@ -1021,10 +971,7 @@ mod tests {
 
     #[test]
     fn test_get_recommended_sqlite() {
-        assert_eq!(
-            get_recommended_sqlite("test", "mydb"),
-            "sqlite::memory:?cache=shared"
-        );
+        assert_eq!(get_recommended_sqlite("test", "mydb"), "sqlite::memory:?cache=shared");
         assert_eq!(get_recommended_sqlite("dev", "mydb"), "sqlite:./mydb.db");
     }
 
@@ -1047,37 +994,26 @@ mod tests {
     #[test]
     fn test_normalize_with_redaction_mysql() {
         // 测试 MySQL 密码屏蔽
-        let redacted =
-            normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
+        let redacted = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
         assert_eq!(redacted, "mysql://user:****@localhost/db");
 
         // 测试不屏蔽（默认行为）
-        let visible = normalize_connection_string_with_redaction(
-            "mysql://user:secret123@localhost/db",
-            false,
-        );
+        let visible = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", false);
         assert_eq!(visible, "mysql://user:secret123@localhost/db");
 
         // 测试没有密码的情况
-        let no_password =
-            normalize_connection_string_with_redaction("mysql://user@localhost/db", true);
+        let no_password = normalize_connection_string_with_redaction("mysql://user@localhost/db", true);
         assert_eq!(no_password, "mysql://user@localhost/db");
     }
 
     #[test]
     fn test_normalize_with_redaction_postgres() {
         // 测试 PostgreSQL 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction(
-            "postgresql://user:mypass@localhost:5432/mydb",
-            true,
-        );
+        let redacted = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", true);
         assert_eq!(redacted, "postgresql://user:****@localhost:5432/mydb");
 
         // 测试不屏蔽
-        let visible = normalize_connection_string_with_redaction(
-            "postgresql://user:mypass@localhost:5432/mydb",
-            false,
-        );
+        let visible = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", false);
         assert_eq!(visible, "postgresql://user:mypass@localhost:5432/mydb");
     }
 
@@ -1117,26 +1053,22 @@ mod tests {
         let normalized = normalize_connection_string("redis://localhost:6379");
         assert_eq!(normalized, "redis://localhost:6379");
 
-        let normalized_with_pass =
-            normalize_connection_string("redis://:mypassword@localhost:6379");
+        let normalized_with_pass = normalize_connection_string("redis://:mypassword@localhost:6379");
         assert_eq!(normalized_with_pass, "redis://:mypassword@localhost:6379");
     }
 
     #[test]
     fn test_normalize_with_redaction_redis() {
         // 测试 Redis 密码屏蔽
-        let redacted =
-            normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", true);
+        let redacted = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", true);
         assert_eq!(redacted, "redis://:****@localhost:6379");
 
         // 测试不屏蔽
-        let visible =
-            normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", false);
+        let visible = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", false);
         assert_eq!(visible, "redis://:mypassword@localhost:6379");
 
         // 测试没有密码的情况
-        let no_password =
-            normalize_connection_string_with_redaction("redis://localhost:6379", true);
+        let no_password = normalize_connection_string_with_redaction("redis://localhost:6379", true);
         assert_eq!(no_password, "redis://localhost:6379");
     }
 

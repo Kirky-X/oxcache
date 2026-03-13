@@ -19,17 +19,14 @@ use crate::error::CacheError;
 
 const MAX_CACHE_KEY_LENGTH: usize = 1024;
 const VALID_KEY_CHARS: &[char] = &[
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
-    't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
-    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4',
-    '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+    'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+    'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
 pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
     if key.is_empty() {
-        return Err(CacheError::InvalidInput(
-            "Cache key cannot be empty".to_string(),
-        ));
+        return Err(CacheError::InvalidInput("Cache key cannot be empty".to_string()));
     }
 
     if key.len() > MAX_CACHE_KEY_LENGTH {

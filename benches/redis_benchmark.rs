@@ -25,11 +25,7 @@ fn bench_redis_set(c: &mut Criterion) {
             let value = vec![0u8; 100];
             if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
                 let _ = backend
-                    .set(
-                        black_box(&key),
-                        black_box(value),
-                        Some(Duration::from_secs(300)),
-                    )
+                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
                     .await;
             }
         });
@@ -45,9 +41,7 @@ fn bench_redis_get(c: &mut Criterion) {
         if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
             let key = "bench:redis:get:test";
             let value = vec![0u8; 100];
-            let _ = backend
-                .set(key, value, Some(Duration::from_secs(300)))
-                .await;
+            let _ = backend.set(key, value, Some(Duration::from_secs(300))).await;
         }
     });
 
@@ -74,11 +68,7 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
                 let value = vec![0u8; size];
                 if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
                     let _ = backend
-                        .set(
-                            black_box(&key),
-                            black_box(value),
-                            Some(Duration::from_secs(300)),
-                        )
+                        .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
                         .await;
                 }
             });
@@ -101,11 +91,7 @@ fn bench_redis_ttl(c: &mut Criterion) {
             let value = vec![0u8; 100];
             if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
                 let _ = backend
-                    .set(
-                        black_box(&key),
-                        black_box(value),
-                        Some(Duration::from_secs(60)),
-                    )
+                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(60)))
                     .await;
             }
         });

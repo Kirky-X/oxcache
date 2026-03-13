@@ -33,8 +33,8 @@ pub use cache::{SerializationCache, SerializationCacheConfig, SerializationCache
 
 // Unified serialization exports
 pub use unified::{
-    convenience, default_serializer, FormatInfo, SerializationFormat, SerializationRegistry,
-    UnifiedSerializer, UnifiedSerializerAdapter,
+    convenience, default_serializer, FormatInfo, SerializationFormat, SerializationRegistry, UnifiedSerializer,
+    UnifiedSerializerAdapter,
 };
 
 /// 序列化器特征

@@ -57,10 +57,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
         headers.insert("Cache-Control".to_string(), "max-age=3600".to_string());
-        headers.insert(
-            "Last-Modified".to_string(),
-            "Wed, 21 Oct 2015 07:28:00 GMT".to_string(),
-        );
+        headers.insert("Last-Modified".to_string(), "Wed, 21 Oct 2015 07:28:00 GMT".to_string());
 
         let response = HttpCacheResponse {
             status: 200,

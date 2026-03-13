@@ -4,9 +4,7 @@
 //!
 //! 该模块定义了SQLite分区管理器的实现。
 
-use super::connection_string::{
-    ensure_database_directory, normalize_connection_string, ParsedConnectionString,
-};
+use super::connection_string::{ensure_database_directory, normalize_connection_string, ParsedConnectionString};
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
@@ -25,9 +23,7 @@ impl SQLitePartitionManager {
     /// SQLite标识符规则：只能包含字母、数字、下划线，且不能以数字开头
     fn validate_identifier(&self, identifier: &str) -> Result<()> {
         if identifier.is_empty() {
-            return Err(CacheError::DatabaseError(
-                "Identifier cannot be empty".to_string(),
-            ));
+            return Err(CacheError::DatabaseError("Identifier cannot be empty".to_string()));
         }
 
         // 检查长度限制
@@ -62,10 +58,10 @@ impl SQLitePartitionManager {
 
         // 检查是否是SQLite保留关键字
         let reserved_keywords = [
-            "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TABLE", "INDEX",
-            "WHERE", "FROM", "JOIN", "UNION", "OR", "AND", "NOT", "NULL", "TRUE", "FALSE", "IS",
-            "IN", "LIKE", "BETWEEN", "ORDER", "BY", "GROUP", "HAVING", "LIMIT", "OFFSET",
-            "DISTINCT", "COUNT", "SUM", "AVG", "MAX", "MIN", "VIEW", "TRIGGER", "PRAGMA",
+            "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TABLE", "INDEX", "WHERE", "FROM",
+            "JOIN", "UNION", "OR", "AND", "NOT", "NULL", "TRUE", "FALSE", "IS", "IN", "LIKE", "BETWEEN", "ORDER", "BY",
+            "GROUP", "HAVING", "LIMIT", "OFFSET", "DISTINCT", "COUNT", "SUM", "AVG", "MAX", "MIN", "VIEW", "TRIGGER",
+            "PRAGMA",
         ];
 
         let upper_identifier = identifier.to_uppercase();
@@ -83,8 +79,7 @@ impl SQLitePartitionManager {
     /// 防止SQL注入攻击
     fn escape_identifier(&self, identifier: &str) -> String {
         // 首先验证标识符格式
-        self.validate_identifier(identifier)
-            .expect("Invalid identifier");
+        self.validate_identifier(identifier).expect("Invalid identifier");
 
         // 转义双引号：将 " 替换为 ""
         let escaped = identifier.replace("\"", "\"\"");
@@ -108,11 +103,7 @@ impl SQLitePartitionManager {
             let error_msg = e.to_string();
             let sanitized_msg = if error_msg.contains("/") {
                 // 只显示文件名，隐藏路径
-                error_msg
-                    .split("/")
-                    .last()
-                    .unwrap_or(&error_msg)
-                    .to_string()
+                error_msg.split("/").last().unwrap_or(&error_msg).to_string()
             } else {
                 error_msg
             };
@@ -197,15 +188,12 @@ impl PartitionManager for SQLitePartitionManager {
             // 从 schema 中提取列定义部分
             let prefix_len = "CREATE TABLE IF NOT EXISTS".len();
             let after_table_name = &schema[create_pos + prefix_len..];
-            let table_name_end = after_table_name.find('(').ok_or_else(|| {
-                CacheError::DatabaseError("Invalid schema: missing '('".to_string())
-            })?;
+            let table_name_end = after_table_name
+                .find('(')
+                .ok_or_else(|| CacheError::DatabaseError("Invalid schema: missing '('".to_string()))?;
 
             let columns = &after_table_name[table_name_end..];
-            format!(
-                "CREATE TABLE IF NOT EXISTS {} {}",
-                escaped_main_table, columns
-            )
+            format!("CREATE TABLE IF NOT EXISTS {} {}", escaped_main_table, columns)
         } else {
             return Err(CacheError::DatabaseError(
                 "Invalid schema: missing CREATE TABLE".to_string(),
@@ -224,15 +212,12 @@ impl PartitionManager for SQLitePartitionManager {
         let partition_schema = if let Some(create_pos) = schema.find("CREATE TABLE IF NOT EXISTS") {
             let prefix_len = "CREATE TABLE IF NOT EXISTS".len();
             let after_table_name = &schema[create_pos + prefix_len..];
-            let table_name_end = after_table_name.find('(').ok_or_else(|| {
-                CacheError::DatabaseError("Invalid schema: missing '('".to_string())
-            })?;
+            let table_name_end = after_table_name
+                .find('(')
+                .ok_or_else(|| CacheError::DatabaseError("Invalid schema: missing '('".to_string()))?;
 
             let columns = &after_table_name[table_name_end..];
-            format!(
-                "CREATE TABLE IF NOT EXISTS {} {}",
-                escaped_partition_table, columns
-            )
+            format!("CREATE TABLE IF NOT EXISTS {} {}", escaped_partition_table, columns)
         } else {
             return Err(CacheError::DatabaseError(
                 "Invalid schema: missing CREATE TABLE".to_string(),
@@ -398,8 +383,7 @@ impl PartitionManager for SQLitePartitionManager {
         );
 
         // 使用参数化查询
-        let statement =
-            Statement::from_string(sea_orm::DatabaseBackend::Sqlite, query_sql.to_string());
+        let statement = Statement::from_string(sea_orm::DatabaseBackend::Sqlite, query_sql.to_string());
 
         let result = self
             .connection
@@ -455,11 +439,7 @@ impl PartitionManager for SQLitePartitionManager {
         Ok(())
     }
 
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String> {
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String> {
         let partition_table = self.generate_partition_table_name(table_name, &date);
 
         let partitions = self.get_partitions(table_name).await?;
@@ -471,9 +451,7 @@ impl PartitionManager for SQLitePartitionManager {
                 .and_then(|d| d.with_hour(0))
                 .and_then(|d| d.with_minute(0))
                 .and_then(|d| d.with_second(0))
-                .ok_or_else(|| {
-                    CacheError::DatabaseError("Invalid date calculation for start_date".to_string())
-                })?;
+                .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for start_date".to_string()))?;
 
             let end_date = if date.month() == 12 {
                 date.with_year(date.year() + 1)
@@ -482,11 +460,7 @@ impl PartitionManager for SQLitePartitionManager {
                     .and_then(|d| d.with_hour(0))
                     .and_then(|d| d.with_minute(0))
                     .and_then(|d| d.with_second(0))
-                    .ok_or_else(|| {
-                        CacheError::DatabaseError(
-                            "Invalid date calculation for next year".to_string(),
-                        )
-                    })?
+                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next year".to_string()))?
             } else {
                 // 先取月份第一天，避免月末日期问题
                 date.with_day(1)
@@ -494,11 +468,7 @@ impl PartitionManager for SQLitePartitionManager {
                     .and_then(|d| d.with_hour(0))
                     .and_then(|d| d.with_minute(0))
                     .and_then(|d| d.with_second(0))
-                    .ok_or_else(|| {
-                        CacheError::DatabaseError(
-                            "Invalid date calculation for next month".to_string(),
-                        )
-                    })?
+                    .ok_or_else(|| CacheError::DatabaseError("Invalid date calculation for next month".to_string()))?
             };
 
             let partition_info = PartitionInfo {

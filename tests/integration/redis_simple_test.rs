@@ -17,10 +17,7 @@ mod redis_integration_tests {
         let redis_url = "redis://127.0.0.1:6381";
 
         if !is_redis_available().await {
-            println!(
-                "⚠️  Skipping Redis test - Redis not available at {}",
-                redis_url
-            );
+            println!("⚠️  Skipping Redis test - Redis not available at {}", redis_url);
             return;
         }
 
@@ -30,11 +27,7 @@ mod redis_integration_tests {
 
         let backend = backend.unwrap();
         let result = backend
-            .set(
-                "test:key",
-                b"test_value".to_vec(),
-                Some(Duration::from_secs(60)),
-            )
+            .set("test:key", b"test_value".to_vec(), Some(Duration::from_secs(60)))
             .await;
         assert!(result.is_ok(), "SET operation failed");
         println!("✅ SET operation successful");
@@ -65,10 +58,7 @@ mod redis_integration_tests {
         let redis_url = "redis://127.0.0.1:6381";
 
         if !is_redis_available().await {
-            println!(
-                "⚠️  Skipping Redis TTL test - Redis not available at {}",
-                redis_url
-            );
+            println!("⚠️  Skipping Redis TTL test - Redis not available at {}", redis_url);
             return;
         }
 
@@ -97,10 +87,7 @@ mod redis_integration_tests {
         let redis_url = "redis://127.0.0.1:6381";
 
         if !is_redis_available().await {
-            println!(
-                "⚠️  Skipping Redis batch test - Redis not available at {}",
-                redis_url
-            );
+            println!("⚠️  Skipping Redis batch test - Redis not available at {}", redis_url);
             return;
         }
 
@@ -109,9 +96,7 @@ mod redis_integration_tests {
         for i in 0..10 {
             let key = format!("batch:test:{}", i);
             let value = format!("value_{}", i).into_bytes();
-            let result = backend
-                .set(&key, value, Some(Duration::from_secs(60)))
-                .await;
+            let result = backend.set(&key, value, Some(Duration::from_secs(60))).await;
             assert!(result.is_ok(), "Batch SET {} failed", i);
         }
 

@@ -119,9 +119,7 @@ impl<T: DatabaseOperations> ConnectionPool<T> {
         // 池为空，检查是否可以达到最大连接数
         let mut stats = self.stats.lock().await;
         if stats.active_connections >= self.config.max_size {
-            return Err(CacheError::DatabaseError(
-                "Connection pool exhausted".to_string(),
-            ));
+            return Err(CacheError::DatabaseError("Connection pool exhausted".to_string()));
         }
 
         // 创建新连接
@@ -176,10 +174,7 @@ mod tests {
     impl MockConnection {
         fn new(id: usize, connection_count: &'static AtomicUsize) -> Self {
             connection_count.fetch_add(1, Ordering::SeqCst);
-            Self {
-                id,
-                connection_count,
-            }
+            Self { id, connection_count }
         }
     }
 
@@ -272,10 +267,7 @@ mod tests {
         // 不归还连接，尝试获取第三个连接（池已满）
         let result = pool.get_connection().await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Connection pool exhausted"));
+        assert!(result.unwrap_err().to_string().contains("Connection pool exhausted"));
 
         // 归还连接让它们正常析构
         drop(conn1);

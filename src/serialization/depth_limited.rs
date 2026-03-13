@@ -45,12 +45,9 @@ fn calculate_depth(value: &serde_json::Value) -> usize {
                 let child_depths: Vec<usize> = map.values().map(calculate_depth).collect();
                 let max_child_depth = child_depths.iter().max().unwrap_or(&1);
                 // Check if any child is a container (not just a primitive)
-                let has_container_child = map.values().any(|v| {
-                    matches!(
-                        v,
-                        serde_json::Value::Object(_) | serde_json::Value::Array(_)
-                    )
-                });
+                let has_container_child = map
+                    .values()
+                    .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
                 if has_container_child {
                     max_child_depth + 1
                 } else {
@@ -65,12 +62,9 @@ fn calculate_depth(value: &serde_json::Value) -> usize {
                 let child_depths: Vec<usize> = arr.iter().map(calculate_depth).collect();
                 let max_child_depth = child_depths.iter().max().unwrap_or(&1);
                 // Check if any child is a container (not just a primitive)
-                let has_container_child = arr.iter().any(|v| {
-                    matches!(
-                        v,
-                        serde_json::Value::Object(_) | serde_json::Value::Array(_)
-                    )
-                });
+                let has_container_child = arr
+                    .iter()
+                    .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
                 if has_container_child {
                     max_child_depth + 1
                 } else {
@@ -117,10 +111,7 @@ impl DepthLimited {
         if depth > max_depth {
             return Err(serde_json::Error::io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!(
-                    "JSON depth {} exceeds maximum allowed depth {}",
-                    depth, max_depth
-                ),
+                format!("JSON depth {} exceeds maximum allowed depth {}", depth, max_depth),
             )));
         }
         Ok(DepthLimited { value, max_depth })
@@ -216,10 +207,7 @@ mod tests {
         let data = br#"{"a": {"b": "value"}}"#;
         let result = DepthLimited::from_slice(data, 3);
         assert!(result.is_ok());
-        assert_eq!(
-            result.unwrap().value,
-            serde_json::json!({"a": {"b": "value"}})
-        );
+        assert_eq!(result.unwrap().value, serde_json::json!({"a": {"b": "value"}}));
     }
 
     #[test]

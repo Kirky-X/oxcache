@@ -90,9 +90,7 @@ impl HttpCacheKeyGenerator {
         // 考虑重要的请求头
         for (name, value) in &request.headers {
             if !self.exclude_headers.iter().any(|h| name.as_str() == h)
-                && (name == header::ACCEPT_ENCODING
-                    || name == header::VARY
-                    || name == header::AUTHORIZATION)
+                && (name == header::ACCEPT_ENCODING || name == header::VARY || name == header::AUTHORIZATION)
             {
                 key_parts.push(format!("{}:{}", name, value.to_str().unwrap_or("")));
             }
@@ -191,17 +189,10 @@ impl HttpCachePolicy {
 #[async_trait::async_trait]
 pub trait HttpCacheAdapter {
     /// 获取缓存的响应
-    async fn get_response(
-        &self,
-        key: &str,
-    ) -> Result<Option<HttpCacheResponse>, crate::error::CacheError>;
+    async fn get_response(&self, key: &str) -> Result<Option<HttpCacheResponse>, crate::error::CacheError>;
 
     /// 设置缓存响应
-    async fn set_response(
-        &self,
-        key: &str,
-        response: &HttpCacheResponse,
-    ) -> Result<(), crate::error::CacheError>;
+    async fn set_response(&self, key: &str, response: &HttpCacheResponse) -> Result<(), crate::error::CacheError>;
 
     /// 删除缓存的响应
     async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError>;
@@ -219,10 +210,7 @@ pub trait HttpCacheAdapter {
     /// # 返回值
     ///
     /// 返回失效的缓存项数量
-    async fn invalidate_by_path_pattern(
-        &self,
-        path_pattern: &str,
-    ) -> Result<u64, crate::error::CacheError> {
+    async fn invalidate_by_path_pattern(&self, path_pattern: &str) -> Result<u64, crate::error::CacheError> {
         // 默认实现：使用通用的模式匹配
         self.invalidate_by_pattern(path_pattern).await
     }
@@ -379,10 +367,9 @@ impl ConditionalRequestHandler {
                 if modified_since >= cached_time {
                     return ConditionalRequestResult::NotModified;
                 }
-            } else if let Ok(modified_since) = chrono::DateTime::parse_from_rfc2822(&format!(
-                "{}, 01 Jan 1970 00:00:00 GMT",
-                imf.trim()
-            )) {
+            } else if let Ok(modified_since) =
+                chrono::DateTime::parse_from_rfc2822(&format!("{}, 01 Jan 1970 00:00:00 GMT", imf.trim()))
+            {
                 // 尝试其他格式
                 if modified_since >= cached_response.cached_at {
                     return ConditionalRequestResult::NotModified;
@@ -402,10 +389,7 @@ impl ConditionalRequestHandler {
     /// # 返回值
     ///
     /// 返回 304 响应的 HttpCacheResponse
-    pub fn create_not_modified_response(
-        &self,
-        cached_response: &HttpCacheResponse,
-    ) -> HttpCacheResponse {
+    pub fn create_not_modified_response(&self, cached_response: &HttpCacheResponse) -> HttpCacheResponse {
         let mut headers = HashMap::new();
 
         // 复制 ETag
@@ -420,10 +404,7 @@ impl ConditionalRequestHandler {
 
         // 添加 Date 头
         let now = chrono::Utc::now();
-        headers.insert(
-            "Date".to_string(),
-            now.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
-        );
+        headers.insert("Date".to_string(), now.format("%a, %d %b %Y %H:%M:%S GMT").to_string());
 
         HttpCacheResponse {
             status: StatusCode::NOT_MODIFIED.as_u16(),
@@ -524,11 +505,7 @@ impl CacheTagManager {
     /// # 返回值
     ///
     /// 返回操作结果
-    pub async fn add_tags(
-        &self,
-        cache_key: &str,
-        tags: &[&str],
-    ) -> Result<(), crate::error::CacheError> {
+    pub async fn add_tags(&self, cache_key: &str, tags: &[&str]) -> Result<(), crate::error::CacheError> {
         for tag in tags {
             let tag_set = self.tag_mapping.entry(tag.to_string()).or_default();
             tag_set.insert(cache_key.to_string());
@@ -566,10 +543,7 @@ impl CacheTagManager {
     /// # 返回值
     ///
     /// 返回失效的缓存项数量
-    pub async fn invalidate_by_pattern(
-        &self,
-        pattern: &str,
-    ) -> Result<u64, crate::error::CacheError> {
+    pub async fn invalidate_by_pattern(&self, pattern: &str) -> Result<u64, crate::error::CacheError> {
         self.adapter.invalidate_by_pattern(pattern).await
     }
 
@@ -603,8 +577,7 @@ mod tests {
 
     #[test]
     fn test_http_cache_policy_should_cache() {
-        let policy = HttpCachePolicy::new()
-            .with_cache_status_codes(vec![StatusCode::OK, StatusCode::NOT_FOUND]);
+        let policy = HttpCachePolicy::new().with_cache_status_codes(vec![StatusCode::OK, StatusCode::NOT_FOUND]);
 
         assert!(policy.should_cache_response(StatusCode::OK));
         assert!(policy.should_cache_response(StatusCode::NOT_FOUND));

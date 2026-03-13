@@ -79,10 +79,7 @@ impl MySQLPartitionManager {
         info!("MySQL connection established in {:?}", acquire_duration);
 
         if acquire_duration > Duration::from_secs(3) {
-            warn!(
-                "MySQL connection took longer than expected: {:?}",
-                acquire_duration
-            );
+            warn!("MySQL connection took longer than expected: {:?}", acquire_duration);
         }
 
         Ok(Self {
@@ -164,8 +161,7 @@ impl MySQLPartitionManager {
             }
             Err(_) => {
                 return Err(CacheError::DatabaseError(
-                    "Reconnection timeout: MySQL server not responding within 30 seconds."
-                        .to_string(),
+                    "Reconnection timeout: MySQL server not responding within 30 seconds.".to_string(),
                 ));
             }
         };
@@ -227,8 +223,7 @@ impl PartitionManager for MySQLPartitionManager {
         let check_sql = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PARTITIONS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND PARTITION_NAME = ?";
 
-        let statement =
-            Statement::from_string(sea_orm::DatabaseBackend::MySql, check_sql.to_string());
+        let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, check_sql.to_string());
 
         let result = self.connection.query_one(statement).await?;
         if let Some(row) = result {
@@ -253,9 +248,7 @@ impl PartitionManager for MySQLPartitionManager {
         sorted_partitions.sort_by_key(|p| p.end_date);
 
         // 找到第一个 end_date > new_partition.end_date 的分区
-        let target_partition = sorted_partitions
-            .iter()
-            .find(|p| p.end_date > partition.end_date);
+        let target_partition = sorted_partitions.iter().find(|p| p.end_date > partition.end_date);
 
         // 验证所有标识符，防止 SQL 注入
         self.validate_identifier(&base_table)?;
@@ -266,10 +259,7 @@ impl PartitionManager for MySQLPartitionManager {
 
         let sql = if let Some(target) = target_partition {
             // 需要重组 target 分区
-            debug!(
-                "Reorganizing partition {} to insert {}",
-                target.name, partition_name
-            );
+            debug!("Reorganizing partition {} to insert {}", target.name, partition_name);
 
             let target_end_days_str = if target.name == "p_future" {
                 "MAXVALUE".to_string()
@@ -334,11 +324,9 @@ impl PartitionManager for MySQLPartitionManager {
             );
 
             // 解析分区信息
-            if let Some(info) = self.parse_mysql_partition(
-                table_name,
-                &partition_name,
-                partition_description.as_deref(),
-            ) {
+            if let Some(info) =
+                self.parse_mysql_partition(table_name, &partition_name, partition_description.as_deref())
+            {
                 partitions.push(info);
             }
         }
@@ -366,11 +354,7 @@ impl PartitionManager for MySQLPartitionManager {
         Ok(())
     }
 
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String> {
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String> {
         let partition = PartitionInfo::new(date, table_name)?;
 
         // 检查分区是否已存在
@@ -394,9 +378,7 @@ impl MySQLPartitionManager {
     fn validate_identifier(&self, identifier: &str) -> Result<()> {
         // 标识符只能包含字母、数字、下划线，且必须以字母或下划线开头
         if identifier.is_empty() {
-            return Err(CacheError::DatabaseError(
-                "Identifier cannot be empty".to_string(),
-            ));
+            return Err(CacheError::DatabaseError("Identifier cannot be empty".to_string()));
         }
 
         // 检查长度限制
@@ -428,10 +410,9 @@ impl MySQLPartitionManager {
 
         // 检查是否是保留关键字
         let reserved_keywords = [
-            "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TABLE", "INDEX",
-            "WHERE", "FROM", "JOIN", "UNION", "OR", "AND", "NOT", "NULL", "TRUE", "FALSE", "IS",
-            "IN", "LIKE", "BETWEEN", "ORDER", "BY", "GROUP", "HAVING", "LIMIT", "OFFSET",
-            "DISTINCT", "COUNT", "SUM", "AVG", "MAX", "MIN",
+            "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TABLE", "INDEX", "WHERE", "FROM",
+            "JOIN", "UNION", "OR", "AND", "NOT", "NULL", "TRUE", "FALSE", "IS", "IN", "LIKE", "BETWEEN", "ORDER", "BY",
+            "GROUP", "HAVING", "LIMIT", "OFFSET", "DISTINCT", "COUNT", "SUM", "AVG", "MAX", "MIN",
         ];
 
         let upper_identifier = identifier.to_uppercase();
@@ -451,11 +432,7 @@ impl MySQLPartitionManager {
     }
 
     /// 将分区子句添加到表结构
-    fn add_partition_clause_to_schema(
-        &self,
-        original_schema: &str,
-        _table_name: &str,
-    ) -> Result<String> {
+    fn add_partition_clause_to_schema(&self, original_schema: &str, _table_name: &str) -> Result<String> {
         // 获取当前日期和下一个日期（使用UTC时间）
         let now = Utc::now();
         let current_year = now.year();
@@ -484,9 +461,7 @@ impl MySQLPartitionManager {
             "created_at"
         } else if original_schema.contains("date_column") {
             "date_column"
-        } else if original_schema.contains("created_at")
-            && !original_schema.contains("created_at TIMESTAMP")
-        {
+        } else if original_schema.contains("created_at") && !original_schema.contains("created_at TIMESTAMP") {
             "created_at"
         } else {
             // 如果没有找到合适的时间列，默认使用created_at
@@ -516,10 +491,7 @@ impl MySQLPartitionManager {
     /// 将日期转换为MySQL的TO_DAYS函数值
     fn date_to_days(&self, date: &DateTime<Utc>) -> i32 {
         // MySQL的TO_DAYS函数计算从0年到指定日期的天数
-        let epoch = Utc
-            .with_ymd_and_hms(0, 1, 1, 0, 0, 0)
-            .single()
-            .unwrap_or_else(Utc::now);
+        let epoch = Utc.with_ymd_and_hms(0, 1, 1, 0, 0, 0).single().unwrap_or_else(Utc::now);
         let duration = date.signed_duration_since(epoch);
         duration.num_days() as i32
     }

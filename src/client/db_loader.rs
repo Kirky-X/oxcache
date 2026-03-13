@@ -144,12 +144,7 @@ impl DbFallbackManager {
     /// * `enabled` - 是否启用回源功能
     /// * `timeout_ms` - 回源超时时间（毫秒）
     /// * `max_retries` - 最大重试次数
-    pub fn new(
-        loader: Arc<dyn DbLoader>,
-        enabled: bool,
-        timeout_ms: u64,
-        max_retries: u32,
-    ) -> Self {
+    pub fn new(loader: Arc<dyn DbLoader>, enabled: bool, timeout_ms: u64, max_retries: u32) -> Self {
         Self {
             loader,
             enabled,
@@ -210,9 +205,7 @@ impl DbFallbackManager {
         }
 
         error!("All retry attempts failed for key: {}", key);
-        Err(last_error.unwrap_or_else(|| {
-            CacheError::DatabaseError("All fallback attempts failed".to_string())
-        }))
+        Err(last_error.unwrap_or_else(|| CacheError::DatabaseError("All fallback attempts failed".to_string())))
     }
 
     /// 批量回源加载数据
@@ -254,10 +247,7 @@ impl DbFallbackManager {
                 Err(e)
             }
             Err(_) => {
-                error!(
-                    "Batch database fallback timed out after {}ms",
-                    self.timeout_ms
-                );
+                error!("Batch database fallback timed out after {}ms", self.timeout_ms);
                 Err(CacheError::Timeout(format!(
                     "Batch fallback timeout after {}ms",
                     self.timeout_ms
@@ -276,10 +266,7 @@ impl DbFallbackManager {
         {
             Ok(result) => result,
             Err(_) => {
-                debug!(
-                    "Database load timed out after {}ms for key: {}",
-                    self.timeout_ms, key
-                );
+                debug!("Database load timed out after {}ms for key: {}", self.timeout_ms, key);
                 Ok(None)
             }
         }
@@ -391,10 +378,7 @@ impl DbLoader for SqlDbLoader {
             }
         }
 
-        let escaped_keys: Vec<String> = keys
-            .iter()
-            .map(|k| format!("'{}'", escape_sql_string(k)))
-            .collect();
+        let escaped_keys: Vec<String> = keys.iter().map(|k| format!("'{}'", escape_sql_string(k))).collect();
 
         let key_list = escaped_keys.join(",");
 

@@ -10,10 +10,7 @@ use oxcache::config::{CacheType, ServiceConfig, UnifiedConfigBuilder};
 fn test_unified_config_creation() {
     let config = UnifiedConfigBuilder::memory_only().build();
 
-    assert_eq!(
-        config.backend.backend_type,
-        oxcache::config::BackendType::Memory
-    );
+    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Memory);
 }
 
 #[test]
@@ -43,27 +40,18 @@ fn test_service_config_with_ttl() {
 #[test]
 fn test_unified_config_memory_backend() {
     let config = UnifiedConfigBuilder::memory_only().build();
-    assert_eq!(
-        config.backend.backend_type,
-        oxcache::config::BackendType::Memory
-    );
+    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Memory);
 }
 
 #[test]
 fn test_unified_config_redis_backend() {
     let config = UnifiedConfigBuilder::redis_only().build();
-    assert_eq!(
-        config.backend.backend_type,
-        oxcache::config::BackendType::Redis
-    );
+    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Redis);
 }
 
 #[cfg(all(feature = "moka", feature = "redis"))]
 #[test]
 fn test_unified_config_tiered_backend() {
     let config = UnifiedConfigBuilder::tiered().build();
-    assert_eq!(
-        config.backend.backend_type,
-        oxcache::config::BackendType::Tiered
-    );
+    assert_eq!(config.backend.backend_type, oxcache::config::BackendType::Tiered);
 }

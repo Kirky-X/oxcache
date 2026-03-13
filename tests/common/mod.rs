@@ -16,27 +16,15 @@ pub mod redis_test_utils;
 // Redis 测试工具
 #[allow(unused_imports)]
 pub use redis_test_utils::{
-    create_cluster_redis_urls,
-    create_standalone_redis_url,
-    get_redis_url,
-    get_redis_url_insecure,
-    is_redis_available,
-    is_redis_available_url,
-    wait_for_redis,
-    wait_for_redis_cluster,
-    wait_for_sentinel,
+    create_cluster_redis_urls, create_standalone_redis_url, get_redis_url, get_redis_url_insecure, is_redis_available,
+    is_redis_available_url, wait_for_redis, wait_for_redis_cluster, wait_for_sentinel,
 };
 
 // 数据库测试工具
 #[allow(unused_imports)]
 pub use database_test_utils::{
-    cleanup_postgres_table,
-    create_partition_config,
-    create_temp_sqlite_db,
-    test_concurrent_partition_operations,
-    TestConfig,
-    verify_partition_cleanup,
-    verify_partition_creation,
+    cleanup_postgres_table, create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations,
+    verify_partition_cleanup, verify_partition_creation, TestConfig,
 };
 
 // Mock 后端
@@ -100,10 +88,6 @@ pub fn generate_unique_service_name(base: &str) -> String {
 /// 测试结束后清理 WAL 数据库文件和缓存数据。
 #[allow(dead_code)]
 pub async fn cleanup_service(service_name: &str) {
-    tokio::fs::remove_file(format!("{}_wal.db", service_name))
-        .await
-        .ok();
-    tokio::fs::remove_file(format!("{}.db", service_name))
-        .await
-        .ok();
+    tokio::fs::remove_file(format!("{}_wal.db", service_name)).await.ok();
+    tokio::fs::remove_file(format!("{}.db", service_name)).await.ok();
 }

@@ -84,10 +84,7 @@ fn test_key_generator_validate_key_invalid_special_chars() {
 #[test]
 fn test_key_generator_generate_multiple_params() {
     let gen = KeyGenerator::new();
-    let key = gen.generate(
-        "user:{user_id}:post:{post_id}",
-        &[("user_id", "1"), ("post_id", "42")],
-    );
+    let key = gen.generate("user:{user_id}:post:{post_id}", &[("user_id", "1"), ("post_id", "42")]);
     assert_eq!(key, "user:1:post:42");
 }
 

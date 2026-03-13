@@ -10,10 +10,7 @@ use crate::database::{is_test_connection_string, normalize_connection_string};
 #[cfg(feature = "wal-recovery")]
 use crate::error::Result;
 #[cfg(feature = "wal-recovery")]
-use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait,
-    Value,
-};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait, Value};
 #[cfg(feature = "wal-recovery")]
 use std::env;
 #[cfg(feature = "wal-recovery")]
@@ -72,8 +69,7 @@ pub struct WalManager {
 #[cfg(feature = "wal-recovery")]
 impl WalManager {
     pub async fn new(service_name: &str) -> Result<Self> {
-        let is_test =
-            is_test_connection_string(service_name) || env::var("OXCACHE_TEST_USE_MEMORY").is_ok();
+        let is_test = is_test_connection_string(service_name) || env::var("OXCACHE_TEST_USE_MEMORY").is_ok();
 
         let raw_connection_string = if is_test {
             "sqlite::memory:?cache=shared".to_string()
@@ -88,11 +84,7 @@ impl WalManager {
             if let Some(parent) = wal_path.parent() {
                 if !parent.exists() {
                     std::fs::create_dir_all(parent).map_err(|e| {
-                        crate::error::CacheError::DatabaseError(format!(
-                            "无法创建WAL目录 {}: {}",
-                            parent.display(),
-                            e
-                        ))
+                        crate::error::CacheError::DatabaseError(format!("无法创建WAL目录 {}: {}", parent.display(), e))
                     })?;
                 }
             }
@@ -279,13 +271,7 @@ impl WalManager {
 
     /// 刷新缓冲区中的所有条目到数据库（使用事务批量提交）
     pub async fn flush(&self) -> Result<()> {
-        Self::flush_batch_internal(
-            &self.db,
-            &self.service_name,
-            &self.pending_entries,
-            self.batch_size,
-        )
-        .await;
+        Self::flush_batch_internal(&self.db, &self.service_name, &self.pending_entries, self.batch_size).await;
         Ok(())
     }
 

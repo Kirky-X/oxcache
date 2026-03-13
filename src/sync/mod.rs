@@ -155,10 +155,7 @@ impl BatchWriter {
         ))
     }
 
-    pub async fn enqueue_operation(
-        &self,
-        _operation: BatchOperation,
-    ) -> Result<(), crate::error::CacheError> {
+    pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<(), crate::error::CacheError> {
         Err(crate::error::CacheError::ConfigError(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\

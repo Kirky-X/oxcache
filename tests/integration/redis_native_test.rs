@@ -217,9 +217,7 @@ async fn test_redis_sorted_set_via_lua() {
         return 1
     "#;
 
-    let zadd_result = backend
-        .eval_lua(zadd_script, &[test_key], &["1.0", "member1"])
-        .await;
+    let zadd_result = backend.eval_lua(zadd_script, &[test_key], &["1.0", "member1"]).await;
     assert!(zadd_result.is_ok(), "ZADD via Lua should succeed");
     println!("✅ ZADD via Lua 测试通过");
 
@@ -231,9 +229,7 @@ async fn test_redis_sorted_set_via_lua() {
         return redis.call('ZRANGE', key, start, stop)
     "#;
 
-    let zrange_result = backend
-        .eval_lua(zrange_script, &[test_key], &["0", "-1"])
-        .await;
+    let zrange_result = backend.eval_lua(zrange_script, &[test_key], &["0", "-1"]).await;
     assert!(zrange_result.is_ok(), "ZRANGE via Lua should succeed");
     println!("✅ ZRANGE via Lua 测试通过");
 

@@ -18,9 +18,7 @@ use std::time::Duration;
 #[derive(Clone)]
 enum InternalBackendConfig {
     /// 内存后端配置
-    Memory {
-        capacity: u64,
-    },
+    Memory { capacity: u64 },
     /// Redis 后端配置
     #[cfg(feature = "redis")]
     Redis {
@@ -325,10 +323,12 @@ where
                     .build()
                     .await?;
 
-                Arc::new(crate::chain::ChainCache::builder()
-                    .link(crate::chain::ChainLink::from_backend(l1))
-                    .link(crate::chain::ChainLink::from_backend(l2))
-                    .build())
+                Arc::new(
+                    crate::chain::ChainCache::builder()
+                        .link(crate::chain::ChainLink::from_backend(l1))
+                        .link(crate::chain::ChainLink::from_backend(l2))
+                        .build(),
+                )
             }
             None => {
                 let capacity = self.capacity.unwrap_or(10000);
@@ -380,8 +380,7 @@ where
     /// ```
     #[cfg(feature = "confers")]
     pub fn with_confers(mut self, config: &serde_json::Value) -> Self {
-        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config.get("oxcache")
-        {
+        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config.get("oxcache") {
             Some(serde_json::Value::Object(obj)) => obj,
             _ => return self,
         };
@@ -391,10 +390,7 @@ where
             .and_then(|v| v.as_str())
             .unwrap_or("memory");
 
-        let capacity = oxcache_config
-            .get("capacity")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(10000);
+        let capacity = oxcache_config.get("capacity").and_then(|v| v.as_u64()).unwrap_or(10000);
 
         if let Some(ttl_secs) = oxcache_config.get("ttl").and_then(|v| v.as_u64()) {
             self.ttl = Some(Duration::from_secs(ttl_secs));
@@ -567,8 +563,7 @@ where
             }
         };
 
-        let backend_config =
-            backend_config_from_unified_config_with_service(config, service_config)?;
+        let backend_config = backend_config_from_unified_config_with_service(config, service_config)?;
 
         let ttl = match service_config.ttl {
             Some(service_ttl) if service_ttl > 0 => Some(Duration::from_secs(service_ttl)),
@@ -616,9 +611,7 @@ fn backend_config_from_unified_config(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .ok_or_else(|| {
-                    crate::error::CacheError::ConfigError(
-                        "Redis connection string is required".to_string(),
-                    )
+                    crate::error::CacheError::ConfigError("Redis connection string is required".to_string())
                 })?;
 
             let mode_str = config
@@ -641,9 +634,7 @@ fn backend_config_from_unified_config(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Redis => {
-            tracing::warn!(
-                "Redis backend requested but redis feature not enabled, falling back to memory"
-            );
+            tracing::warn!("Redis backend requested but redis feature not enabled, falling back to memory");
             let capacity = config
                 .backend
                 .l1_options
@@ -694,9 +685,7 @@ fn backend_config_from_unified_config(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Tiered => {
-            tracing::warn!(
-                "Tiered backend requested but redis feature not enabled, falling back to memory"
-            );
+            tracing::warn!("Tiered backend requested but redis feature not enabled, falling back to memory");
             let capacity = config
                 .backend
                 .l1_options
@@ -763,9 +752,7 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Redis => {
-            tracing::warn!(
-                "Redis backend requested but redis feature not enabled, falling back to memory"
-            );
+            tracing::warn!("Redis backend requested but redis feature not enabled, falling back to memory");
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
@@ -800,9 +787,7 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(not(all(feature = "moka", feature = "redis")))]
         crate::config::BackendType::Tiered => {
-            tracing::warn!(
-                "Tiered backend requested but required features not enabled, falling back to memory"
-            );
+            tracing::warn!("Tiered backend requested but required features not enabled, falling back to memory");
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
@@ -862,9 +847,7 @@ pub fn validate_unified_config(
     match config.backend.backend_type {
         crate::config::BackendType::Memory => {
             if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
-                let capacity_val = capacity
-                    .as_u64()
-                    .or_else(|| capacity.as_i64().map(|i| i as u64));
+                let capacity_val = capacity.as_u64().or_else(|| capacity.as_i64().map(|i| i as u64));
                 if let Some(cap) = capacity_val {
                     if cap == 0 {
                         return Err(crate::error::CacheError::ConfigError(
@@ -896,20 +879,13 @@ pub fn validate_unified_config(
                 validate_redis_url(cs)?;
             }
 
-            if let Some(mode) = config
-                .backend
-                .l2_options
-                .get("mode")
-                .and_then(|v| v.as_str())
-            {
+            if let Some(mode) = config.backend.l2_options.get("mode").and_then(|v| v.as_str()) {
                 validate_redis_mode(mode)?;
             }
         }
         crate::config::BackendType::Tiered => {
             if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
-                let capacity_val = capacity
-                    .as_u64()
-                    .or_else(|| capacity.as_i64().map(|i| i as u64));
+                let capacity_val = capacity.as_u64().or_else(|| capacity.as_i64().map(|i| i as u64));
                 if let Some(cap) = capacity_val {
                     if cap == 0 {
                         return Err(crate::error::CacheError::ConfigError(
@@ -939,12 +915,7 @@ pub fn validate_unified_config(
                 validate_redis_url(cs)?;
             }
 
-            if let Some(mode) = config
-                .backend
-                .l2_options
-                .get("mode")
-                .and_then(|v| v.as_str())
-            {
+            if let Some(mode) = config.backend.l2_options.get("mode").and_then(|v| v.as_str()) {
                 validate_redis_mode(mode)?;
             }
         }
@@ -1004,11 +975,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_builder_with_capacity() {
-        let cache: Cache<String, TestValue> = CacheBuilder::default()
-            .capacity(1000)
-            .build()
-            .await
-            .unwrap();
+        let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
         assert!(cache.health_check().await.unwrap());
     }
 
@@ -1025,11 +992,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_builder_with_backend() {
         let backend = MemoryBackend::builder().capacity(5000).build();
-        let cache: Cache<String, TestValue> = CacheBuilder::default()
-            .with_backend(backend)
-            .build()
-            .await
-            .unwrap();
+        let cache: Cache<String, TestValue> = CacheBuilder::default().with_backend(backend).build().await.unwrap();
         assert!(cache.health_check().await.unwrap());
     }
 
@@ -1239,10 +1202,7 @@ mod tests {
             .with_service("user_cache", CacheType::L1, 600)
             .build();
 
-        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
-            &config,
-            "user_cache",
-        );
+        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "user_cache");
         assert!(result.is_ok(), "Valid service config should succeed");
     }
 
@@ -1256,16 +1216,11 @@ mod tests {
             .with_l1_capacity(10000)
             .build();
 
-        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
-            &config,
-            "nonexistent_service",
-        );
+        let result =
+            CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "nonexistent_service");
         match result {
             Err(crate::error::CacheError::ServiceNotFound(msg)) => {
-                assert!(
-                    msg.contains("nonexistent_service"),
-                    "Error should mention service name"
-                );
+                assert!(msg.contains("nonexistent_service"), "Error should mention service name");
                 assert!(
                     msg.contains("Available services"),
                     "Error should list available services"
@@ -1286,11 +1241,8 @@ mod tests {
             .with_service("fast_cache", CacheType::L1, 60)
             .build();
 
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
-            &config,
-            "fast_cache",
-        )
-        .expect("Should succeed");
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "fast_cache")
+            .expect("Should succeed");
 
         assert_eq!(
             builder.ttl,
@@ -1310,11 +1262,8 @@ mod tests {
             .with_service("small_cache", CacheType::L1, 60)
             .build();
 
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
-            &config,
-            "small_cache",
-        )
-        .expect("Should succeed with service capacity override");
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "small_cache")
+            .expect("Should succeed with service capacity override");
 
         assert_eq!(builder.ttl, Some(Duration::from_secs(60)));
     }
@@ -1330,11 +1279,8 @@ mod tests {
             .with_service("no_ttl_service", crate::config::CacheType::L1, 0)
             .build();
 
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
-            &config,
-            "no_ttl_service",
-        )
-        .expect("Should succeed");
+        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "no_ttl_service")
+            .expect("Should succeed");
 
         assert_eq!(
             builder.ttl,
@@ -1363,14 +1309,9 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
+                assert!(msg.contains("Invalid Redis mode"), "Error should mention invalid mode");
                 assert!(
-                    msg.contains("Invalid Redis mode"),
-                    "Error should mention invalid mode"
-                );
-                assert!(
-                    msg.contains("standalone")
-                        && msg.contains("sentinel")
-                        && msg.contains("cluster"),
+                    msg.contains("standalone") && msg.contains("sentinel") && msg.contains("cluster"),
                     "Error should list valid modes"
                 );
             }
@@ -1424,9 +1365,7 @@ mod tests {
     async fn test_validate_ttl_valid_boundary() {
         use crate::config::UnifiedConfigBuilder;
 
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(365 * 24 * 3600)
-            .build();
+        let config = UnifiedConfigBuilder::memory_only().with_ttl(365 * 24 * 3600).build();
 
         let result = validate_unified_config(&config);
         assert!(result.is_ok(), "Exactly 1 year TTL should be valid");
@@ -1451,10 +1390,7 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("cannot be zero"),
-                    "Error should mention zero capacity"
-                );
+                assert!(msg.contains("cannot be zero"), "Error should mention zero capacity");
             }
             _ => panic!("Expected ConfigError for zero capacity"),
         }
@@ -1502,10 +1438,7 @@ mod tests {
             .build();
 
         let result = validate_unified_config(&config);
-        assert!(
-            result.is_ok(),
-            "Exactly 100 million capacity should be valid"
-        );
+        assert!(result.is_ok(), "Exactly 100 million capacity should be valid");
     }
 
     #[tokio::test]
@@ -1528,10 +1461,7 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("Invalid Redis URL"),
-                    "Error should mention invalid URL"
-                );
+                assert!(msg.contains("Invalid Redis URL"), "Error should mention invalid URL");
                 assert!(
                     msg.contains("redis://") || msg.contains("rediss://"),
                     "Error should mention valid prefixes"
@@ -1552,9 +1482,7 @@ mod tests {
             "redis://:password@localhost:6379",
             "redis://192.168.1.1:6379",
         ] {
-            let config = UnifiedConfigBuilder::redis_only()
-                .with_redis_url(url)
-                .build();
+            let config = UnifiedConfigBuilder::redis_only().with_redis_url(url).build();
 
             let result = validate_unified_config(&config);
             assert!(result.is_ok(), "URL '{}' should be valid", url);
@@ -1584,10 +1512,7 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("Invalid Redis mode"),
-                    "Error should mention invalid mode"
-                );
+                assert!(msg.contains("Invalid Redis mode"), "Error should mention invalid mode");
             }
             _ => panic!("Expected ConfigError for invalid tiered mode"),
         }
@@ -1607,10 +1532,7 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("fast_cache"),
-                    "Error should mention service name"
-                );
+                assert!(msg.contains("fast_cache"), "Error should mention service name");
                 assert!(
                     msg.contains("exceeds maximum") || msg.contains("1 year"),
                     "Error should mention TTL limit"
@@ -1654,10 +1576,7 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("big_cache"),
-                    "Error should mention service name"
-                );
+                assert!(msg.contains("big_cache"), "Error should mention service name");
                 assert!(
                     msg.contains("exceeds maximum"),
                     "Error should mention exceeding maximum"
@@ -1701,14 +1620,8 @@ mod tests {
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
-                assert!(
-                    msg.contains("empty_cache"),
-                    "Error should mention service name"
-                );
-                assert!(
-                    msg.contains("cannot be zero"),
-                    "Error should mention zero capacity"
-                );
+                assert!(msg.contains("empty_cache"), "Error should mention service name");
+                assert!(msg.contains("cannot be zero"), "Error should mention zero capacity");
             }
             _ => panic!("Expected ConfigError for service capacity of zero"),
         }
@@ -1718,14 +1631,8 @@ mod tests {
     fn test_config_format_from_path() {
         use crate::config::ConfigFormat;
 
-        assert_eq!(
-            ConfigFormat::from_path("config.toml"),
-            Some(ConfigFormat::Toml)
-        );
-        assert_eq!(
-            ConfigFormat::from_path("config.json"),
-            Some(ConfigFormat::Json)
-        );
+        assert_eq!(ConfigFormat::from_path("config.toml"), Some(ConfigFormat::Toml));
+        assert_eq!(ConfigFormat::from_path("config.json"), Some(ConfigFormat::Json));
         assert_eq!(ConfigFormat::from_path("config.yaml"), None);
         assert_eq!(ConfigFormat::from_path("config.xml"), None);
         assert_eq!(ConfigFormat::from_path("config"), None);
@@ -2002,10 +1909,7 @@ mod tests {
         if let Err(e) = &result {
             eprintln!("Validation error: {:?}", e);
         }
-        assert!(
-            result.is_ok(),
-            "Missing optional fields should use defaults"
-        );
+        assert!(result.is_ok(), "Missing optional fields should use defaults");
     }
 
     #[test]
@@ -2087,9 +1991,6 @@ mod tests {
         "#;
 
         let result = UnifiedConfig::validate_json_content(json_content);
-        assert!(
-            result.is_err(),
-            "Service capacity exceeding maximum should fail"
-        );
+        assert!(result.is_err(), "Service capacity exceeding maximum should fail");
     }
 }

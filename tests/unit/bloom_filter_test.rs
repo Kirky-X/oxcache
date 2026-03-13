@@ -19,40 +19,22 @@ mod bloom_filter_tests {
         let mut filter = BloomFilter::new(options);
 
         // 初始状态：查询不存在的键应返回false
-        assert!(
-            !filter.contains(b"hello")?,
-            "New filter should not contain 'hello'"
-        );
-        assert!(
-            !filter.contains(b"world")?,
-            "New filter should not contain 'world'"
-        );
+        assert!(!filter.contains(b"hello")?, "New filter should not contain 'hello'");
+        assert!(!filter.contains(b"world")?, "New filter should not contain 'world'");
 
         // 添加元素
         filter.add(b"hello")?;
 
         // 查询已添加的键应返回true
-        assert!(
-            filter.contains(b"hello")?,
-            "Filter should contain 'hello' after add"
-        );
-        assert!(
-            !filter.contains(b"world")?,
-            "Filter should not contain 'world'"
-        );
+        assert!(filter.contains(b"hello")?, "Filter should contain 'hello' after add");
+        assert!(!filter.contains(b"world")?, "Filter should not contain 'world'");
 
         // 添加另一个元素
         filter.add(b"world")?;
 
         // 两个元素都应该能被查询到
-        assert!(
-            filter.contains(b"hello")?,
-            "Filter should still contain 'hello'"
-        );
-        assert!(
-            filter.contains(b"world")?,
-            "Filter should contain 'world' after add"
-        );
+        assert!(filter.contains(b"hello")?, "Filter should still contain 'hello'");
+        assert!(filter.contains(b"world")?, "Filter should contain 'world' after add");
 
         Ok(())
     }
@@ -64,20 +46,11 @@ mod bloom_filter_tests {
         let mut filter = BloomFilter::new(options);
 
         // 第一次调用：元素不存在，返回false并添加
-        assert!(
-            !filter.contains_and_add(b"new_item")?,
-            "First call should return false"
-        );
-        assert!(
-            filter.contains(b"new_item")?,
-            "Item should be added after first call"
-        );
+        assert!(!filter.contains_and_add(b"new_item")?, "First call should return false");
+        assert!(filter.contains(b"new_item")?, "Item should be added after first call");
 
         // 第二次调用：元素已存在，返回true
-        assert!(
-            filter.contains_and_add(b"new_item")?,
-            "Second call should return true"
-        );
+        assert!(filter.contains_and_add(b"new_item")?, "Second call should return true");
 
         Ok(())
     }

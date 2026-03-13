@@ -95,11 +95,7 @@ fn test_no_circular_reference_leak() {
         // 存储循环引用
         let data = format!("circular_data_{}", Rc::strong_count(&node1)).into_bytes();
         cache
-            .set(
-                "circular",
-                data.clone(),
-                Some(std::time::Duration::from_secs(10)),
-            )
+            .set("circular", data.clone(), Some(std::time::Duration::from_secs(10)))
             .await
             .unwrap();
 
@@ -129,11 +125,7 @@ fn test_buffer_overflow_prevention() {
             let value = vec![42u8; size];
 
             cache
-                .set(
-                    &key,
-                    value.clone(),
-                    Some(std::time::Duration::from_secs(60)),
-                )
+                .set(&key, value.clone(), Some(std::time::Duration::from_secs(60)))
                 .await
                 .unwrap();
             let retrieved = cache.get(&key).await.unwrap();
@@ -150,8 +142,7 @@ fn test_concurrent_memory_safety() {
     use std::sync::Arc;
     use std::thread;
 
-    let cache: Arc<dyn CacheBackend + Send + Sync> =
-        Arc::new(MemoryBackend::builder().capacity(100).build());
+    let cache: Arc<dyn CacheBackend + Send + Sync> = Arc::new(MemoryBackend::builder().capacity(100).build());
     let mut handles = vec![];
 
     for thread_id in 0..5 {
@@ -166,11 +157,7 @@ fn test_concurrent_memory_safety() {
                     let value = vec![thread_id as u8; 100];
 
                     cache_clone
-                        .set(
-                            &key,
-                            value.clone(),
-                            Some(std::time::Duration::from_secs(60)),
-                        )
+                        .set(&key, value.clone(), Some(std::time::Duration::from_secs(60)))
                         .await
                         .unwrap();
                     let retrieved = cache_clone.get(&key).await.unwrap();
@@ -242,11 +229,7 @@ fn test_uninitialized_memory_prevention() {
             }
 
             cache
-                .set(
-                    &key,
-                    value.clone(),
-                    Some(std::time::Duration::from_secs(60)),
-                )
+                .set(&key, value.clone(), Some(std::time::Duration::from_secs(60)))
                 .await
                 .unwrap();
 

@@ -218,12 +218,11 @@ impl<S: Serializer + Clone> SerializationCache<S> {
 
         // 序列化
         let start = Instant::now();
-        let serialized = serde_json::to_vec(value)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let serialized =
+            serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         let elapsed = start.elapsed().as_micros() as u64;
         self.serialize_count.fetch_add(1, Ordering::Relaxed);
-        self.total_serialize_us
-            .fetch_add(elapsed, Ordering::Relaxed);
+        self.total_serialize_us.fetch_add(elapsed, Ordering::Relaxed);
 
         let serialized_len = serialized.len();
         let entry_size = key.len() + serialized_len + 64;
@@ -232,13 +231,11 @@ impl<S: Serializer + Clone> SerializationCache<S> {
         self.maybe_evict(entry_size).await;
 
         // 插入新条目
-        let entry =
-            SerializationCacheEntry::new(key.to_string(), serialized, ttl, self.serializer.clone());
+        let entry = SerializationCacheEntry::new(key.to_string(), serialized, ttl, self.serializer.clone());
 
         self.cache.insert(key.to_string(), entry);
         self.entry_count.fetch_add(1, Ordering::Relaxed);
-        self.memory_bytes
-            .fetch_add(entry_size as u64, Ordering::Relaxed);
+        self.memory_bytes.fetch_add(entry_size as u64, Ordering::Relaxed);
 
         debug!(
             "Cached key {} with {} bytes (entries: {}, memory: {} KB)",
@@ -300,8 +297,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
                 Ok(value) => {
                     let elapsed = start.elapsed().as_micros() as u64;
                     self.deserialize_count.fetch_add(1, Ordering::Relaxed);
-                    self.total_deserialize_us
-                        .fetch_add(elapsed, Ordering::Relaxed);
+                    self.total_deserialize_us.fetch_add(elapsed, Ordering::Relaxed);
                     Ok(Some(value))
                 }
                 Err(e) => {
@@ -329,8 +325,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
     pub async fn delete(&self, key: &str) -> Result<bool> {
         if let Some((_, entry)) = self.cache.remove(key) {
             self.entry_count.fetch_sub(1, Ordering::Relaxed);
-            self.memory_bytes
-                .fetch_sub(entry.size() as u64, Ordering::Relaxed);
+            self.memory_bytes.fetch_sub(entry.size() as u64, Ordering::Relaxed);
             debug!("Deleted key {}", key);
             Ok(true)
         } else {
@@ -417,8 +412,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
             if let Some((_, entry)) = self.cache.remove(&key) {
                 self.eviction_count.fetch_add(1, Ordering::Relaxed);
                 self.entry_count.fetch_sub(1, Ordering::Relaxed);
-                self.memory_bytes
-                    .fetch_sub(entry.size() as u64, Ordering::Relaxed);
+                self.memory_bytes.fetch_sub(entry.size() as u64, Ordering::Relaxed);
             }
         }
 
@@ -442,8 +436,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
 
     /// 获取统计信息
     pub fn stats(&self) -> SerializationCacheStats {
-        let total =
-            self.hit_count.load(Ordering::Relaxed) + self.miss_count.load(Ordering::Relaxed);
+        let total = self.hit_count.load(Ordering::Relaxed) + self.miss_count.load(Ordering::Relaxed);
         let hit_rate = if total > 0 {
             self.hit_count.load(Ordering::Relaxed) as f64 / total as f64 * 100.0
         } else {
@@ -451,8 +444,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
         };
 
         let avg_serialize = if self.serialize_count.load(Ordering::Relaxed) > 0 {
-            self.total_serialize_us.load(Ordering::Relaxed) as f64
-                / self.serialize_count.load(Ordering::Relaxed) as f64
+            self.total_serialize_us.load(Ordering::Relaxed) as f64 / self.serialize_count.load(Ordering::Relaxed) as f64
         } else {
             0.0
         };
@@ -521,10 +513,7 @@ mod tests {
         let cache = SerializationCache::new(serializer, config);
 
         // Test set and get
-        cache
-            .set("key1", &"value1".to_string(), None)
-            .await
-            .unwrap();
+        cache.set("key1", &"value1".to_string(), None).await.unwrap();
         let result = cache.get("key1").await.unwrap();
         assert_eq!(result, Some(b"\"value1\"".to_vec()));
 
@@ -587,14 +576,8 @@ mod tests {
 
         let cache = SerializationCache::new(serializer, config);
 
-        cache
-            .set("key1", &"value1".to_string(), None)
-            .await
-            .unwrap();
-        cache
-            .set("key2", &"value2".to_string(), None)
-            .await
-            .unwrap();
+        cache.set("key1", &"value1".to_string(), None).await.unwrap();
+        cache.set("key2", &"value2".to_string(), None).await.unwrap();
 
         assert!(!cache.is_empty());
         assert_eq!(cache.len(), 2);

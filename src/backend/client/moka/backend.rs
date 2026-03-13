@@ -116,10 +116,7 @@ impl CacheBackend for MokaMemoryBackend {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert(
-            "entry_count".to_string(),
-            self.cache.entry_count().to_string(),
-        );
+        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
         Ok(stats)
     }
 
@@ -222,10 +219,7 @@ pub fn moka_memory_with_capacity(capacity: u64) -> MokaMemoryBackend {
 
 /// Convenience function to create a Moka memory backend with capacity and TTL
 pub fn moka_memory_with_capacity_and_ttl(capacity: u64, ttl: Duration) -> MokaMemoryBackend {
-    MokaMemoryBackend::builder()
-        .capacity(capacity)
-        .ttl(ttl)
-        .build()
+    MokaMemoryBackend::builder().capacity(capacity).ttl(ttl).build()
 }
 
 /// Default memory backend (Moka-based)

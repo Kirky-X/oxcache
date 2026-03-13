@@ -47,14 +47,12 @@ impl CborSerializer {
 impl crate::serialization::Serializer for CborSerializer {
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::into_writer(data, &mut buf)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        ciborium::into_writer(data, &mut buf).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(buf)
     }
 
     fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        ciborium::from_reader(data)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+        ciborium::from_reader(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
 }
 
@@ -99,14 +97,12 @@ impl ErasedSerializer for CborSerializer {
 
     fn serialize(&self, value: &serde_json::Value) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        ciborium::into_writer(value, &mut buf).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         Ok(buf)
     }
 
     fn deserialize(&self, data: &[u8]) -> Result<serde_json::Value> {
-        ciborium::from_reader(data)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+        ciborium::from_reader(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
 }
 
@@ -149,8 +145,7 @@ impl SerializerRegistry {
 
     /// 注册 MessagePack 序列化器
     pub async fn register_msgpack(&self) {
-        self.register("msgpack", Arc::new(MessagePackSerializer))
-            .await;
+        self.register("msgpack", Arc::new(MessagePackSerializer)).await;
     }
 
     /// 注册 CBOR 序列化器
@@ -199,9 +194,7 @@ mod tests {
         assert!(!registry.contains("msgpack").await);
 
         // 注册
-        registry
-            .register("msgpack", Arc::new(MessagePackSerializer))
-            .await;
+        registry.register("msgpack", Arc::new(MessagePackSerializer)).await;
         assert!(registry.contains("msgpack").await);
 
         // 获取

@@ -81,12 +81,7 @@ impl oxcache::backend::CacheBackend for MockBackend {
         Ok(data.get(key).cloned())
     }
 
-    async fn set(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        _ttl: Option<Duration>,
-    ) -> oxcache::error::Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::Result<()> {
         let mut data = self.data.write().await;
         data.insert(key.to_string(), value);
         Ok(())

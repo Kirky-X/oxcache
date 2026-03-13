@@ -6,7 +6,7 @@
 
 #[cfg(any(feature = "metrics", feature = "moka"))]
 mod tests {
-    use oxcache::metrics::{Metrics, GLOBAL_METRICS, get_metrics_string};
+    use oxcache::metrics::{get_metrics_string, Metrics, GLOBAL_METRICS};
 
     #[test]
     fn test_record_request_l1_get_hit() {

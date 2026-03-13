@@ -203,11 +203,7 @@ fn bench_slot_calculation(c: &mut Criterion) {
     });
 
     c.bench_function("slot_tagged_key", |b| {
-        let keys = vec![
-            "{user_profile}:123",
-            "{user_profile}:456",
-            "{user_profile}:789",
-        ];
+        let keys = vec!["{user_profile}:123", "{user_profile}:456", "{user_profile}:789"];
         b.iter(|| {
             for key in &keys {
                 let slot = calculate_slot(black_box(key));

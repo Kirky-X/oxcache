@@ -32,10 +32,7 @@ async fn test_distributed_lock() {
     let cache: Cache<String, String> = match Cache::redis(&redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!(
-                "Skipping test: Failed to create cache (TLS required): {}",
-                e
-            );
+            println!("Skipping test: Failed to create cache (TLS required): {}", e);
             return;
         }
     };
@@ -44,10 +41,7 @@ async fn test_distributed_lock() {
     let _ttl = Duration::from_secs(5);
 
     // 1. 测试基本缓存功能
-    cache
-        .set(&"key1".to_string(), &"value1".to_string())
-        .await
-        .unwrap();
+    cache.set(&"key1".to_string(), &"value1".to_string()).await.unwrap();
     let val: Option<String> = cache.get(&"key1".to_string()).await.unwrap();
     assert_eq!(val, Some("value1".to_string()));
 
@@ -101,10 +95,7 @@ async fn test_distributed_lock() {
         .query_async(&mut conn)
         .await
         .expect("Failed to acquire lock after expiration");
-    assert!(
-        lock_after_expire.is_some(),
-        "Should acquire lock after expiration"
-    );
+    assert!(lock_after_expire.is_some(), "Should acquire lock after expiration");
 
     // 清理
     cache.shutdown().await.expect("Shutdown failed");
@@ -131,10 +122,7 @@ async fn test_cache_preheating() {
     let cache: Cache<String, String> = match Cache::redis(&redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!(
-                "Skipping test: Failed to create cache (TLS required): {}",
-                e
-            );
+            println!("Skipping test: Failed to create cache (TLS required): {}", e);
             return;
         }
     };

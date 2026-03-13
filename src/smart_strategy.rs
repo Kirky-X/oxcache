@@ -113,8 +113,7 @@ impl HitRateCollector {
 
     /// 旋转窗口
     fn rotate_window_if_needed(&self) {
-        let total =
-            self.recent_hits.load(Ordering::Relaxed) + self.recent_misses.load(Ordering::Relaxed);
+        let total = self.recent_hits.load(Ordering::Relaxed) + self.recent_misses.load(Ordering::Relaxed);
         if total >= self.window_size as u64 {
             self.recent_hits.store(0, Ordering::Relaxed);
             self.recent_misses.store(0, Ordering::Relaxed);
@@ -195,9 +194,8 @@ impl CompressibilityChecker {
         let estimated_ratio = 0.3 + 0.7 * normalized_entropy;
 
         // 如果熵低于阈值，认为可压缩
-        let worth_compressing = normalized_entropy < self.entropy_threshold
-            && estimated_ratio < 0.8
-            && data.len() > self.sample_size;
+        let worth_compressing =
+            normalized_entropy < self.entropy_threshold && estimated_ratio < 0.8 && data.len() > self.sample_size;
 
         (worth_compressing, estimated_ratio)
     }
@@ -285,8 +283,7 @@ impl PrefetchDecider {
         }
 
         // 检查命中率阈值
-        self.hit_rate_collector
-            .should_prefetch(self.config.prefetch_threshold)
+        self.hit_rate_collector.should_prefetch(self.config.prefetch_threshold)
     }
 
     /// 标记预取已执行

@@ -32,10 +32,7 @@ async fn test_backfill_latency() {
     let cache: Cache<String, String> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!(
-                "Skipping test: Failed to create cache (TLS required): {}",
-                e
-            );
+            println!("Skipping test: Failed to create cache (TLS required): {}", e);
             return;
         }
     };
@@ -85,8 +82,7 @@ async fn test_redis_outage_resilience() {
     let redis_url = "redis://127.0.0.1:12345"; // 错误的端口
 
     // 使用新API尝试连接到不存在的Redis
-    let cache_result: Result<Cache<String, String>, oxcache::CacheError> =
-        Cache::redis(redis_url).await;
+    let cache_result: Result<Cache<String, String>, oxcache::CacheError> = Cache::redis(redis_url).await;
 
     // 先验证缓存创建成功（因为此时只是创建客户端，不尝试连接）
     // 但后续操作应该失败

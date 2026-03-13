@@ -60,10 +60,7 @@ async fn test_sqlite_connection_relative_path() {
 
     println!("Testing with relative path: {}", db_name);
 
-    let connection_strings = [
-        format!("sqlite:{}", db_name),
-        format!("sqlite:./{}", db_name),
-    ];
+    let connection_strings = [format!("sqlite:{}", db_name), format!("sqlite:./{}", db_name)];
 
     for (i, conn_str) in connection_strings.iter().enumerate() {
         println!("Testing connection string {}: {}", i + 1, conn_str);

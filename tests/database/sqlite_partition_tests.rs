@@ -105,9 +105,7 @@ mod basic_functionality_tests {
         println!("✓ Total partitions: {}", all_partitions.len());
 
         let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
-        let cleaned_count = manager
-            .cleanup_old_partitions(test_table, cutoff_date)
-            .await?;
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;
@@ -162,9 +160,7 @@ mod basic_functionality_tests {
         println!("✓ SQLite table initialized without partitioning");
 
         let test_date = Utc::now();
-        let partition_name = manager
-            .ensure_partition_exists(test_date, test_table)
-            .await?;
+        let partition_name = manager.ensure_partition_exists(test_date, test_table).await?;
         println!(
             "✓ Partition creation called (partitioning disabled): {}",
             partition_name
@@ -303,14 +299,10 @@ mod manager_tests {
                 "#;
 
                 match tokio::runtime::Runtime::new() {
-                    Ok(rt) => {
-                        match rt
-                            .block_on(async { manager.initialize_table(table_name, schema).await })
-                        {
-                            Ok(_) => println!("✓ Table initialization (sync) succeeded"),
-                            Err(e) => println!("✗ Table initialization (sync) failed: {}", e),
-                        }
-                    }
+                    Ok(rt) => match rt.block_on(async { manager.initialize_table(table_name, schema).await }) {
+                        Ok(_) => println!("✓ Table initialization (sync) succeeded"),
+                        Err(e) => println!("✗ Table initialization (sync) failed: {}", e),
+                    },
                     Err(e) => println!("✗ Failed to create runtime: {}", e),
                 }
             }

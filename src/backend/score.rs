@@ -248,9 +248,6 @@ mod tests {
 
         assert_eq!(Scores::compare(&high, &low), std::cmp::Ordering::Greater);
         assert_eq!(Scores::compare(&low, &high), std::cmp::Ordering::Less);
-        assert_eq!(
-            Scores::compare(&high, &high),
-            std::cmp::Ordering::Equal
-        );
+        assert_eq!(Scores::compare(&high, &high), std::cmp::Ordering::Equal);
     }
 }

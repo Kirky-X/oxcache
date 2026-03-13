@@ -213,10 +213,7 @@ async fn test_mysql_partitioning() -> Result<()> {
     match init_result {
         Ok(Ok(_)) => println!("✓ MySQL table initialized with partitioning"),
         Ok(Err(e)) => {
-            println!(
-                "⚠️  MySQL table initialization failed: {}. Skipping test.",
-                e
-            );
+            println!("⚠️  MySQL table initialization failed: {}. Skipping test.", e);
             return Ok(());
         }
         Err(_) => {
@@ -246,11 +243,8 @@ async fn test_mysql_partitioning() -> Result<()> {
     }
 
     // List partitions
-    let list_result = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        manager.get_partitions(test_table),
-    )
-    .await;
+    let list_result =
+        tokio::time::timeout(std::time::Duration::from_secs(30), manager.get_partitions(test_table)).await;
 
     let partitions = match list_result {
         Ok(Ok(partitions)) => {
@@ -321,9 +315,7 @@ async fn test_sqlite_partitioning() -> Result<()> {
     }
 
     let test_date = Utc::now();
-    let partition_name = manager
-        .ensure_partition_exists(test_date, test_table)
-        .await?;
+    let partition_name = manager.ensure_partition_exists(test_date, test_table).await?;
     println!("✓ SQLite partition ensured: {}", partition_name);
 
     let all_partitions = manager.get_partitions(test_table).await?;
@@ -344,9 +336,8 @@ mod sqlite_basic_tests {
     #[tokio::test]
     async fn test_sqlite_partitioning_basic() -> Result<()> {
         // 使用TempDir创建完全隔离的临时目录，避免并行测试的文件冲突
-        let temp_dir = TempDir::new().map_err(|e| {
-            CacheError::DatabaseError(format!("Failed to create temp directory: {}", e))
-        })?;
+        let temp_dir =
+            TempDir::new().map_err(|e| CacheError::DatabaseError(format!("Failed to create temp directory: {}", e)))?;
         let db_path = temp_dir.path().join("test_partitioning.db");
         let db_path_str = db_path.to_str().unwrap();
 
@@ -410,19 +401,14 @@ mod sqlite_basic_tests {
         println!("✓ Total partitions: {}", all_partitions.len());
 
         let cutoff_date = Utc.with_ymd_and_hms(2023, 2, 2, 0, 0, 0).unwrap();
-        let cleaned_count = manager
-            .cleanup_old_partitions(test_table, cutoff_date)
-            .await?;
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ Cleaned up {} old partitions", cleaned_count);
 
         let remaining_partitions = manager.get_partitions(test_table).await?;
         println!("✓ Partitions after cleanup: {}", remaining_partitions.len());
 
         use std::path::Path;
-        assert!(
-            Path::new(db_path_str).exists(),
-            "Database file should exist"
-        );
+        assert!(Path::new(db_path_str).exists(), "Database file should exist");
 
         // TempDir会自动在drop时清理，无需手动删除
         println!("✓ SQLite partitioning test completed");
@@ -470,9 +456,7 @@ mod sqlite_basic_tests {
         println!("✓ SQLite table initialized without partitioning");
 
         let test_date = Utc::now();
-        let partition_name = manager
-            .ensure_partition_exists(test_date, test_table)
-            .await?;
+        let partition_name = manager.ensure_partition_exists(test_date, test_table).await?;
         println!(
             "✓ Partition creation called (partitioning disabled): {}",
             partition_name
@@ -610,14 +594,10 @@ mod sqlite_manager_tests {
                 "#;
 
                 match tokio::runtime::Runtime::new() {
-                    Ok(rt) => {
-                        match rt
-                            .block_on(async { manager.initialize_table(table_name, schema).await })
-                        {
-                            Ok(_) => println!("✓ Table initialization (sync) succeeded"),
-                            Err(e) => println!("✗ Table initialization (sync) failed: {}", e),
-                        }
-                    }
+                    Ok(rt) => match rt.block_on(async { manager.initialize_table(table_name, schema).await }) {
+                        Ok(_) => println!("✓ Table initialization (sync) succeeded"),
+                        Err(e) => println!("✗ Table initialization (sync) failed: {}", e),
+                    },
                     Err(e) => println!("✗ Failed to create runtime: {}", e),
                 }
             }
@@ -640,10 +620,7 @@ mod sea_orm_minimal_config_tests {
         let db_name = "test_sea_orm_minimal.db";
         let _ = std::fs::remove_file(db_name);
 
-        println!(
-            "Testing sea-orm SQLite with minimal configuration: {}",
-            db_name
-        );
+        println!("Testing sea-orm SQLite with minimal configuration: {}", db_name);
         test_basic_connection(&format!("sqlite:{}", db_name)).await;
 
         let _ = std::fs::remove_file(db_name);
@@ -781,16 +758,14 @@ async fn test_invalid_configuration() -> Result<()> {
 
     // Test with invalid PostgreSQL URL
     let invalid_postgres_url = "postgresql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config =
-        database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
 
     let result = PostgresPartitionManager::new(invalid_postgres_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid PostgreSQL URL");
 
     // Test with invalid MySQL URL
     let invalid_mysql_url = "mysql://invalid:invalid@localhost:9999/invalid_db";
-    let partition_config =
-        database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
+    let partition_config = database_test_utils::create_partition_config(true, PartitionStrategy::Monthly, 12);
     let result = MySQLPartitionManager::new(invalid_mysql_url, partition_config).await;
     assert!(result.is_err(), "Should fail with invalid MySQL URL");
 

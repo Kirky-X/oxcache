@@ -30,10 +30,7 @@ async fn test_multi_instance_invalidation() {
     let cache: Cache<String, Vec<u8>> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!(
-                "Skipping test: Failed to create cache (TLS required): {}",
-                e
-            );
+            println!("Skipping test: Failed to create cache (TLS required): {}", e);
             return;
         }
     };
@@ -46,10 +43,7 @@ async fn test_multi_instance_invalidation() {
         .set(&key_to_delete.to_string(), &vec![1, 2, 3])
         .await
         .expect("Set failed");
-    cache
-        .delete(&key_to_delete.to_string())
-        .await
-        .expect("Delete failed");
+    cache.delete(&key_to_delete.to_string()).await.expect("Delete failed");
 
     // 清理
     cache.shutdown().await.expect("Shutdown failed");

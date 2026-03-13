@@ -5,8 +5,8 @@
 // DashMap 后端单元测试
 
 use oxcache::backend::client::dashmap::{
-    DashMapMemoryBackend, DashMapBackendBuilder,
-    dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl,
+    dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder,
+    DashMapMemoryBackend,
 };
 use oxcache::backend::interface::CacheBackend;
 use oxcache::backend::score::BackendScore;
@@ -27,9 +27,7 @@ async fn test_dashmap_builder_default() {
 
 #[tokio::test]
 async fn test_dashmap_builder_with_capacity() {
-    let backend = DashMapBackendBuilder::default()
-        .capacity(5000)
-        .build();
+    let backend = DashMapBackendBuilder::default().capacity(5000).build();
     assert_eq!(backend.capacity(), 5000);
 }
 
@@ -106,7 +104,10 @@ async fn test_dashmap_close() {
 async fn test_dashmap_ttl() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set("key1", b"value1".to_vec(), Some(Duration::from_secs(60))).await.unwrap();
+    backend
+        .set("key1", b"value1".to_vec(), Some(Duration::from_secs(60)))
+        .await
+        .unwrap();
 
     let ttl = backend.ttl("key1").await.unwrap();
     assert!(ttl.is_some());
@@ -299,7 +300,10 @@ async fn test_dashmap_many_keys() {
 async fn test_dashmap_ttl_expiration() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set("key1", b"value1".to_vec(), Some(Duration::from_millis(50))).await.unwrap();
+    backend
+        .set("key1", b"value1".to_vec(), Some(Duration::from_millis(50)))
+        .await
+        .unwrap();
 
     assert!(backend.get("key1").await.unwrap().is_some());
 

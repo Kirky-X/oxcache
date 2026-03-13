@@ -64,8 +64,7 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
     }
 
     // Compile the regex
-    Regex::new(pattern)
-        .map_err(|e| CacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
+    Regex::new(pattern).map_err(|e| CacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
 }
 
 /// Matches a string against a compiled regex with input length check

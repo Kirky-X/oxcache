@@ -83,10 +83,7 @@ pub async fn test_redis_connection() -> Result<(), String> {
     let backend = match create_l2_backend_with_real_redis().await {
         Ok(b) => b,
         Err(e) => {
-            println!(
-                "[TEST-SKIP] Cannot connect to Redis at {}: {}",
-                redis_url, e
-            );
+            println!("[TEST-SKIP] Cannot connect to Redis at {}: {}", redis_url, e);
             return Err(format!("Failed to create Redis connection: {}", e));
         }
     };
@@ -147,12 +144,7 @@ pub async fn is_redis_available_url(url: &str) -> bool {
         Err(_) => return false,
     };
 
-    match tokio::time::timeout(
-        Duration::from_secs(2),
-        client.get_multiplexed_async_connection(),
-    )
-    .await
-    {
+    match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
         Ok(Ok(_)) => true,
         Ok(Err(e)) => !e.is_connection_refusal(),
         _ => false,
@@ -197,23 +189,17 @@ pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
             let nodes: Vec<String> = urls.iter().map(|s| s.to_string()).collect();
             match redis::cluster::ClusterClient::new(nodes) {
                 Ok(client) => match client.get_async_connection().await {
-                    Ok(mut conn) => {
-                        match redis::cmd("CLUSTER")
-                            .arg("INFO")
-                            .query_async::<String>(&mut conn)
-                            .await
-                        {
-                            Ok(info) => {
-                                if info.contains("cluster_state:ok") {
-                                    println!("Redis Cluster is ready.");
-                                    return true;
-                                }
-                            }
-                            Err(e) => {
-                                println!("Failed to query cluster info: {}", e);
+                    Ok(mut conn) => match redis::cmd("CLUSTER").arg("INFO").query_async::<String>(&mut conn).await {
+                        Ok(info) => {
+                            if info.contains("cluster_state:ok") {
+                                println!("Redis Cluster is ready.");
+                                return true;
                             }
                         }
-                    }
+                        Err(e) => {
+                            println!("Failed to query cluster info: {}", e);
+                        }
+                    },
                     Err(e) => {
                         println!("Failed to get cluster connection: {}", e);
                     }
@@ -258,10 +244,7 @@ pub async fn wait_for_sentinel() -> bool {
         if all_ready {
             let client = redis::Client::open(sentinel_urls[0]).unwrap();
             if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
-                let result: Result<Vec<String>, _> = redis::cmd("SENTINEL")
-                    .arg("masters")
-                    .query_async(&mut conn)
-                    .await;
+                let result: Result<Vec<String>, _> = redis::cmd("SENTINEL").arg("masters").query_async(&mut conn).await;
 
                 if let Ok(masters) = result {
                     if masters.iter().any(|m| m.contains("mymaster")) {

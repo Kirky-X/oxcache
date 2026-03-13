@@ -95,12 +95,7 @@ impl DashMapMemoryBackend {
     /// Remove oldest entries when at capacity
     fn evict_if_full(&self) {
         // Collect keys to remove first (avoid holding locks during modification)
-        let keys_to_remove: Vec<String> = self
-            .ttl_map
-            .iter()
-            .take(1)
-            .map(|r| r.key().clone())
-            .collect();
+        let keys_to_remove: Vec<String> = self.ttl_map.iter().take(1).map(|r| r.key().clone()).collect();
 
         // Remove the oldest entry
         for key in keys_to_remove {
@@ -291,14 +286,8 @@ impl CacheBackend for DashMapMemoryBackend {
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert("entry_count".to_string(), self.cache.len().to_string());
-        stats.insert(
-            "hits".to_string(),
-            self.hits.load(Ordering::Relaxed).to_string(),
-        );
-        stats.insert(
-            "misses".to_string(),
-            self.misses.load(Ordering::Relaxed).to_string(),
-        );
+        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
+        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
     }
@@ -389,10 +378,7 @@ pub fn dashmap_memory_with_capacity(capacity: usize) -> DashMapMemoryBackend {
 }
 
 /// Convenience function to create a DashMap memory backend with capacity and TTL
-pub fn dashmap_memory_with_capacity_and_ttl(
-    capacity: usize,
-    ttl: Duration,
-) -> DashMapMemoryBackend {
+pub fn dashmap_memory_with_capacity_and_ttl(capacity: usize, ttl: Duration) -> DashMapMemoryBackend {
     DashMapMemoryBackend::builder()
         .capacity(capacity)
         .default_ttl(ttl)

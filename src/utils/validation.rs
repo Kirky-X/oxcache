@@ -29,11 +29,7 @@ use crate::error::CacheError;
 /// let dangerous_chars = ['\r', '\n', '\0'];
 /// validate_no_dangerous_chars("safe_string", &dangerous_chars, "Redis key")?;
 /// ```
-pub fn validate_no_dangerous_chars(
-    input: &str,
-    dangerous_chars: &[char],
-    error_context: &str,
-) -> crate::Result<()> {
+pub fn validate_no_dangerous_chars(input: &str, dangerous_chars: &[char], error_context: &str) -> crate::Result<()> {
     for c in input.chars() {
         if dangerous_chars.contains(&c) {
             return Err(CacheError::InvalidInput(format!(
@@ -58,10 +54,7 @@ pub fn validate_no_dangerous_chars(
 /// * `Err(CacheError)` - 字符串为空
 pub fn validate_not_empty(input: &str, error_context: &str) -> crate::Result<()> {
     if input.is_empty() {
-        return Err(CacheError::InvalidInput(format!(
-            "{} cannot be empty",
-            error_context
-        )));
+        return Err(CacheError::InvalidInput(format!("{} cannot be empty", error_context)));
     }
     Ok(())
 }
@@ -78,11 +71,7 @@ pub fn validate_not_empty(input: &str, error_context: &str) -> crate::Result<()>
 ///
 /// * `Ok(())` - 验证通过
 /// * `Err(CacheError)` - 字符串过长
-pub fn validate_max_length(
-    input: &str,
-    max_length: usize,
-    error_context: &str,
-) -> crate::Result<()> {
+pub fn validate_max_length(input: &str, max_length: usize, error_context: &str) -> crate::Result<()> {
     if input.len() > max_length {
         return Err(CacheError::InvalidInput(format!(
             "{} exceeds maximum length of {} (got {})",
