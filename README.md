@@ -2,14 +2,7 @@
 
 <img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)
-[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)
-[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)
-[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
-[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)
-[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)
-[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](../README.md) | [简体中文](README_zh.md)
 
@@ -117,9 +110,9 @@ oxcache = { version = "0.2.0", features = [
 
 Create a `config.toml` file:
 
-> **Important**: To initialize from a config file, you need to enable both `config-toml` and `confers` features:
+> **Important**: To initialize from a config file, you need to enable the `confers` feature:
 > ```toml
-> oxcache = { version = "0.2.0", features = ["config-toml", "confers"] }
+> oxcache = { version = "0.2.0", features = ["confers"] }
 > ```
 
 ```toml
@@ -296,8 +289,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use oxcache::macros::cached;
 use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
-use oxcache::backend::{L1Backend, L2Backend};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -320,12 +311,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize cache using Builder pattern
-    let cache = CacheBuilder::new()
-        .backend(
-            BackendBuilder::tiered()
-                .l1_capacity(10000)
-                .l2_connection_string("redis://127.0.0.1:6379")
-        )
+    let cache: Cache<String, User> = CacheBuilder::default()
+        .tiered(10000, "redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -348,7 +335,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -359,12 +345,8 @@ struct MyData {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize cache using Builder pattern
-    let cache = CacheBuilder::new()
-        .backend(
-            BackendBuilder::tiered()
-                .l1_capacity(10000)
-                .l2_connection_string("redis://127.0.0.1:6379")
-        )
+    let cache: Cache<String, MyData> = CacheBuilder::default()
+        .tiered(10000, "redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -422,18 +404,18 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 
 ```mermaid
 graph TD
-    A[Application Code<br/>#[cached] Macro] --> B[Cache Manager<br/>Service Registry + Health Monitor]
-    
-    B --> C[TwoLevelClient]
-    B --> D[L1OnlyClient]
-    B --> E[L2OnlyClient]
-    
+    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>Unified Cache Interface]
+
+    B --> C[ChainCache<br/>Tiered Backend]
+    B --> D[MokaMemoryBackend<br/>L1 Only]
+    B --> E[RedisBackend<br/>L2 Only]
+
     C --> F[L1 Cache<br/>Moka]
     C --> G[L2 Cache<br/>Redis]
-    
+
     D --> F
     E --> G
-    
+
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
@@ -443,13 +425,13 @@ graph TD
     style G fill:#fdf2e9
 ```
 
-**L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy  
+**L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy
 **L2**: Distributed shared cache supporting Sentinel/Cluster modes
 
 ## 📊 Performance Benchmarks
 
 > Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
-> 
+>
 > **Note**: Performance varies based on hardware, network conditions, and data size.
 
 ```mermaid
