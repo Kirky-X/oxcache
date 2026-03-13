@@ -17,7 +17,7 @@ use crate::common;
 async fn test_version_control() {
     common::setup_logging();
 
-    if !common::is_redis_available() {
+    if !common::is_redis_available().await {
         println!("Skipping test_version_control because Redis is not available");
         return;
     }

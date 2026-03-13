@@ -14,6 +14,7 @@ pub mod redis_test_utils;
 // ============================================================================
 
 // Redis 测试工具
+#[allow(unused_imports)]
 pub use redis_test_utils::{
     create_cluster_redis_urls,
     create_standalone_redis_url,
@@ -27,6 +28,7 @@ pub use redis_test_utils::{
 };
 
 // 数据库测试工具
+#[allow(unused_imports)]
 pub use database_test_utils::{
     cleanup_postgres_table,
     create_partition_config,
@@ -38,6 +40,7 @@ pub use database_test_utils::{
 };
 
 // Mock 后端
+#[allow(unused_imports)]
 pub use mock_backend::MockBackend;
 
 // ============================================================================
@@ -48,11 +51,13 @@ use std::sync::Once;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
 
+#[allow(dead_code)]
 static INIT: Once = Once::new();
 
 /// 初始化日志系统
 ///
 /// 在测试开始时调用，确保日志只初始化一次。
+#[allow(dead_code)]
 pub fn setup_logging() {
     INIT.call_once(|| {
         tracing_subscriber::fmt()
@@ -72,6 +77,7 @@ use oxcache::Cache;
 /// 设置缓存 - 用于测试
 ///
 /// 创建默认的内存缓存实例，简化测试设置。
+#[allow(dead_code)]
 pub async fn setup_cache() -> Cache<String, Vec<u8>> {
     setup_logging();
 
@@ -84,6 +90,7 @@ pub async fn setup_cache() -> Cache<String, Vec<u8>> {
 /// 生成唯一的服务器名称
 ///
 /// 在基础名称后附加 UUID，确保测试之间的隔离。
+#[allow(dead_code)]
 pub fn generate_unique_service_name(base: &str) -> String {
     format!("{}_{}", base, uuid::Uuid::new_v4().simple())
 }
@@ -91,6 +98,7 @@ pub fn generate_unique_service_name(base: &str) -> String {
 /// 清理测试服务资源
 ///
 /// 测试结束后清理 WAL 数据库文件和缓存数据。
+#[allow(dead_code)]
 pub async fn cleanup_service(service_name: &str) {
     tokio::fs::remove_file(format!("{}_wal.db", service_name))
         .await

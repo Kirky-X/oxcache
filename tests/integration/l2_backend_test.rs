@@ -23,7 +23,7 @@ async fn test_sentinel_mode_success() {
 async fn test_cluster_mode_success() {
     common::setup_logging();
 
-    if !common::is_redis_available() {
+    if !common::is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -48,7 +48,7 @@ async fn test_cluster_mode_success() {
 async fn test_standalone_mode_success() {
     common::setup_logging();
 
-    if !common::is_redis_available() {
+    if !common::is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }

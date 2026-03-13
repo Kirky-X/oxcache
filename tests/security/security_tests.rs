@@ -4,6 +4,8 @@
 //
 // 安全验收测试工具 - 使用新API
 
+use crate::common;
+
 #[cfg(feature = "redis")]
 use oxcache::backend::client::RedisBackend;
 #[cfg(feature = "redis")]
@@ -45,7 +47,7 @@ impl Default for SecurityTestConfig {
 /// 测试 Redis 连接安全
 #[tokio::test]
 async fn test_redis_connection_security() {
-    if !crate::common::is_redis_available().await {
+    if !common::is_redis_available().await {
         println!("跳过测试：Redis不可用");
         return;
     }
@@ -71,7 +73,7 @@ async fn test_redis_authentication() {
 /// 测试 Redis 命令执行安全
 #[tokio::test]
 async fn test_redis_command_security() {
-    if !crate::common::is_redis_available().await {
+    if !common::is_redis_available().await {
         println!("跳过测试：Redis不可用");
         return;
     }
@@ -149,7 +151,7 @@ async fn test_configuration_security() {
 /// 测试数据加密
 #[tokio::test]
 async fn test_data_encryption() {
-    if !crate::common::is_redis_available().await {
+    if !common::is_redis_available().await {
         println!("跳过测试：Redis不可用");
         return;
     }

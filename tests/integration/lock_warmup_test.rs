@@ -18,7 +18,7 @@ use crate::common;
 /// 注意：此测试使用 Redis 直接实现锁功能，因为新API暂不直接支持锁
 #[tokio::test]
 async fn test_distributed_lock() {
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("Skipping test_distributed_lock: Redis not available");
         return;
     }
@@ -117,7 +117,7 @@ async fn test_distributed_lock() {
 /// 注意：此测试使用手动方式预热缓存，因为新API暂不直接支持warmup方法
 #[tokio::test]
 async fn test_cache_preheating() {
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("Skipping test_cache_preheating: Redis not available");
         return;
     }

@@ -403,11 +403,15 @@ opt-level = 0
 # BENCHMARKS
 # ============================================================================
 [[bench]]
-name = "cache_benchmark"
+name = "modern_api_benchmark"
 harness = false
 
 [[bench]]
 name = "optimization_benchmark"
+harness = false
+
+[[bench]]
+name = "redis_benchmark"
 harness = false
 
 # ============================================================================

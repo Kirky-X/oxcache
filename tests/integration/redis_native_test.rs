@@ -80,7 +80,7 @@ async fn test_redis_lua_script_max_keys() {
 async fn test_basic_redis_operations_new_api() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -148,7 +148,7 @@ async fn test_basic_redis_operations_new_api() {
 async fn test_redis_lua_script_execution() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -191,7 +191,7 @@ async fn test_redis_lua_script_execution() {
 async fn test_redis_sorted_set_via_lua() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }

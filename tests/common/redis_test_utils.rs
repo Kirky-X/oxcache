@@ -17,6 +17,7 @@ use std::time::Duration;
 /// 1. 环境变量 `REDIS_URL`
 /// 2. 如果设置了 `OXCACHE_ALLOW_INSECURE_REDIS`，使用 `redis://`
 /// 3. 默认使用 TLS 连接 `rediss://`
+#[allow(dead_code)]
 pub fn get_redis_url() -> String {
     if let Ok(url) = std::env::var("REDIS_URL") {
         return url;
@@ -32,6 +33,7 @@ pub fn get_redis_url() -> String {
 /// 获取 Redis URL（仅当允许非 TLS 时返回 redis://）
 ///
 /// 与 `get_redis_url` 相同，但明确表示可能返回非安全连接。
+#[allow(dead_code)]
 pub fn get_redis_url_insecure() -> String {
     get_redis_url()
 }
@@ -40,6 +42,7 @@ pub fn get_redis_url_insecure() -> String {
 ///
 /// 检查环境变量并尝试实际连接 Redis。
 /// 如果设置了 `OXCACHE_SKIP_REDIS_TESTS`，直接返回 false。
+#[allow(dead_code)]
 pub async fn is_redis_available() -> bool {
     if std::env::var("OXCACHE_SKIP_REDIS_TESTS").is_ok() {
         println!("[TEST-SKIP] Redis tests skipped via OXCACHE_SKIP_REDIS_TESTS");
@@ -61,6 +64,7 @@ pub async fn is_redis_available() -> bool {
 
 /// 创建 Redis 后端用于测试
 #[cfg(feature = "redis")]
+#[allow(dead_code)]
 pub async fn create_l2_backend_with_real_redis() -> Result<Arc<dyn CacheBackend>, String> {
     let redis_url = get_redis_url();
     match RedisBackend::new(&redis_url).await {
@@ -71,6 +75,7 @@ pub async fn create_l2_backend_with_real_redis() -> Result<Arc<dyn CacheBackend>
 
 /// 测试 Redis 连接
 #[cfg(feature = "redis")]
+#[allow(dead_code)]
 pub async fn test_redis_connection() -> Result<(), String> {
     let redis_url = get_redis_url();
     println!("[TEST-REDIS] Testing connection to: {}", redis_url);
@@ -111,11 +116,13 @@ pub async fn test_redis_connection() -> Result<(), String> {
 }
 
 /// 创建独立 Redis URL
+#[allow(dead_code)]
 pub fn create_standalone_redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
 /// 创建集群 Redis URLs
+#[allow(dead_code)]
 pub fn create_cluster_redis_urls() -> Vec<String> {
     vec![
         "redis://127.0.0.1:7000".to_string(),
@@ -125,6 +132,7 @@ pub fn create_cluster_redis_urls() -> Vec<String> {
 }
 
 /// 清理测试键（简化版）
+#[allow(dead_code)]
 pub async fn cleanup_test_keys(_pattern: &str) -> Result<(), String> {
     Ok(())
 }
@@ -132,6 +140,7 @@ pub async fn cleanup_test_keys(_pattern: &str) -> Result<(), String> {
 /// 检查 Redis 服务是否可达（实际网络检查）
 ///
 /// 尝试连接到指定 URL，超时时间为 2 秒。
+#[allow(dead_code)]
 pub async fn is_redis_available_url(url: &str) -> bool {
     let client = match redis::Client::open(url) {
         Ok(c) => c,
@@ -153,6 +162,7 @@ pub async fn is_redis_available_url(url: &str) -> bool {
 /// 等待 Redis 可用
 ///
 /// 循环检查 Redis 是否可用，直到超时（30 秒）。
+#[allow(dead_code)]
 pub async fn wait_for_redis(url: &str) -> bool {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
@@ -169,6 +179,7 @@ pub async fn wait_for_redis(url: &str) -> bool {
 /// 等待 Redis 集群可用
 ///
 /// 检查所有节点是否可用且集群状态正常。
+#[allow(dead_code)]
 pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(60);
@@ -223,6 +234,7 @@ pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
 /// 等待 Redis Sentinel 可用
 ///
 /// 检查所有 Sentinel 节点是否可用且 master 已配置。
+#[allow(dead_code)]
 pub async fn wait_for_sentinel() -> bool {
     let sentinel_urls = vec![
         "redis://127.0.0.1:26379",
@@ -268,6 +280,7 @@ pub async fn wait_for_sentinel() -> bool {
 }
 
 /// 检查默认 Redis 是否可用
+#[allow(dead_code)]
 pub async fn is_redis_available_default() -> bool {
     let redis_url = get_redis_url();
     is_redis_available_url(&redis_url).await

@@ -16,6 +16,7 @@ use tempfile::NamedTempFile;
 ///
 /// 用于数据库测试的配置信息，包含 PostgreSQL 和 MySQL 连接信息。
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TestConfig {
     pub postgres_url: String,
     pub mysql_url: String,
@@ -30,6 +31,7 @@ impl TestConfig {
     /// 环境变量：
     /// - `TEST_POSTGRES_URL`: PostgreSQL 连接 URL
     /// - `TEST_MYSQL_URL`: MySQL 连接 URL
+    #[allow(dead_code)]
     pub fn from_file() -> Self {
         Self {
             postgres_url: std::env::var("TEST_POSTGRES_URL").unwrap_or_else(|_| {
@@ -51,6 +53,7 @@ impl TestConfig {
 /// * `enabled` - 是否启用分区
 /// * `strategy` - 分区策略
 /// * `retention` - 保留月数
+#[allow(dead_code)]
 pub fn create_partition_config(
     enabled: bool,
     strategy: PartitionStrategy,
@@ -78,6 +81,7 @@ pub fn create_partition_config(
 /// # Returns
 ///
 /// 成功返回 `true`，失败返回 `false`
+#[allow(dead_code)]
 pub fn cleanup_postgres_table(
     container_name: &str,
     db_name: &str,
@@ -125,6 +129,7 @@ pub fn cleanup_postgres_table(
 /// 验证表名格式，防止 SQL 注入
 ///
 /// 表名只能包含字母、数字、下划线，且不能以数字开头。
+#[allow(dead_code)]
 fn validate_table_name(table_name: &str) -> bool {
     !table_name.is_empty()
         && table_name.chars().all(|c| c.is_alphanumeric() || c == '_')
@@ -134,6 +139,7 @@ fn validate_table_name(table_name: &str) -> bool {
 /// 创建临时 SQLite 数据库文件
 ///
 /// 返回临时文件对象和 SQLite 连接字符串。
+#[allow(dead_code)]
 pub fn create_temp_sqlite_db() -> Result<(NamedTempFile, String)> {
     let temp_file = NamedTempFile::new()?;
     let sqlite_path = format!("sqlite:{}", temp_file.path().display());
@@ -150,6 +156,7 @@ pub fn create_temp_sqlite_db() -> Result<(NamedTempFile, String)> {
 /// * `table_name` - 表名
 /// * `_enabled` - 是否启用（未使用）
 /// * `expected_partitions` - 预期分区数量
+#[allow(dead_code)]
 pub async fn verify_partition_creation<M: PartitionManager>(
     manager: &M,
     table_name: &str,
@@ -184,6 +191,7 @@ pub async fn verify_partition_creation<M: PartitionManager>(
 /// * `manager` - 分区管理器
 /// * `table_name` - 表名
 /// * `retention_months` - 保留月数
+#[allow(dead_code)]
 pub async fn verify_partition_cleanup<M: PartitionManager>(
     manager: &M,
     table_name: &str,
@@ -245,6 +253,7 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
 ///
 /// * `manager` - 分区管理器
 /// * `table_name` - 表名
+#[allow(dead_code)]
 pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>(
     manager: Arc<M>,
     table_name: &str,

@@ -20,7 +20,7 @@ use std::time::Instant;
 /// 这里主要测试代码路径的开销。
 #[tokio::test]
 async fn test_backfill_latency() {
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过 test_backfill_latency: Redis不可用");
         return;
     }
