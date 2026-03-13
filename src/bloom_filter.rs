@@ -259,11 +259,7 @@ impl BloomFilter {
 
     pub fn get_stats(&self) -> BloomFilterStats {
         let total_bits = self.bit_array.len() as u64 * 8;
-        let used_bits: u64 = self
-            .bit_array
-            .iter()
-            .map(|byte| byte.count_ones() as u64)
-            .sum();
+        let used_bits: u64 = self.bit_array.iter().map(|byte| byte.count_ones() as u64).sum();
         let added = self.added_count.load(Ordering::SeqCst);
         let checked = self.checked_count.load(Ordering::SeqCst);
         let false_positives = self.false_positive_count.load(Ordering::SeqCst);
@@ -301,11 +297,7 @@ impl BloomFilter {
 
     pub fn get_estimated_count(&self) -> usize {
         let total_bits = self.bit_array.len() as f64 * 8.0;
-        let used_bits: f64 = self
-            .bit_array
-            .iter()
-            .map(|byte| byte.count_ones() as f64)
-            .sum();
+        let used_bits: f64 = self.bit_array.iter().map(|byte| byte.count_ones() as f64).sum();
 
         if used_bits == 0.0 {
             return 0;
@@ -431,10 +423,7 @@ impl BloomFilterManager {
         }
     }
 
-    pub async fn get_or_create(
-        &self,
-        options: BloomFilterOptions,
-    ) -> Result<BloomFilterShared, CacheError> {
+    pub async fn get_or_create(&self, options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
         let mut guard: RwLockWriteGuard<'_, HashMap<String, BloomFilterShared>> = self
             .filters
             .write()
@@ -636,13 +625,8 @@ impl BloomFilterManager {
         Self
     }
 
-    pub async fn get_or_create(
-        &self,
-        _options: BloomFilterOptions,
-    ) -> Result<BloomFilterShared, CacheError> {
-        Ok(BloomFilterShared::new(BloomFilter::new(
-            BloomFilterOptions::default(),
-        )))
+    pub async fn get_or_create(&self, _options: BloomFilterOptions) -> Result<BloomFilterShared, CacheError> {
+        Ok(BloomFilterShared::new(BloomFilter::new(BloomFilterOptions::default())))
     }
 
     pub fn get(&self, _name: &str) -> Result<Option<BloomFilterShared>, CacheError> {

@@ -56,10 +56,7 @@ mod minimal_config_tests {
         let db_name = "test_sea_orm_minimal.db";
         let _ = std::fs::remove_file(db_name);
 
-        println!(
-            "Testing sea-orm SQLite with minimal configuration: {}",
-            db_name
-        );
+        println!("Testing sea-orm SQLite with minimal configuration: {}", db_name);
         test_basic_connection(&format!("sqlite:{}", db_name)).await;
 
         let _ = std::fs::remove_file(db_name);

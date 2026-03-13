@@ -6,9 +6,7 @@
 //!
 //! 提供与 Axum 框架兼容的缓存中间件。
 
-use crate::http::{
-    HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy, HttpCacheResponse, HttpRequest,
-};
+use crate::http::{HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy, HttpCacheResponse, HttpRequest};
 use axum::{body::Body, extract::State, response::Response};
 use http::Request;
 use http::StatusCode;
@@ -90,10 +88,7 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
         if let Some(etag) = &cached_response.etag {
             if let Some(if_none_match) = request.headers().get("If-None-Match") {
                 if if_none_match == etag {
-                    match Response::builder()
-                        .status(StatusCode::NOT_MODIFIED)
-                        .body(Body::empty())
-                    {
+                    match Response::builder().status(StatusCode::NOT_MODIFIED).body(Body::empty()) {
                         Ok(response) => return response,
                         Err(_) => return next.run(request).await,
                     }
@@ -144,10 +139,7 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
                 };
 
                 // 缓存响应
-                let _ = state
-                    .adapter
-                    .set_response(&cache_key, &cached_response)
-                    .await;
+                let _ = state.adapter.set_response(&cache_key, &cached_response).await;
             }
             Err(_) => {
                 return response;
@@ -205,10 +197,7 @@ mod tests {
 
     #[async_trait]
     impl HttpCacheAdapter for MemoryCacheAdapter {
-        async fn get_response(
-            &self,
-            key: &str,
-        ) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
+        async fn get_response(&self, key: &str) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
             let store = self
                 .store
                 .lock()
@@ -216,11 +205,7 @@ mod tests {
             Ok(store.get(key).cloned())
         }
 
-        async fn set_response(
-            &self,
-            key: &str,
-            response: &HttpCacheResponse,
-        ) -> Result<(), crate::error::CacheError> {
+        async fn set_response(&self, key: &str, response: &HttpCacheResponse) -> Result<(), crate::error::CacheError> {
             if let Ok(mut store) = self
                 .store
                 .lock()
@@ -239,10 +224,7 @@ mod tests {
             Ok(store_result.is_ok_and(|mut store| store.remove(key).is_some()))
         }
 
-        async fn invalidate_by_pattern(
-            &self,
-            _pattern: &str,
-        ) -> Result<u64, crate::error::CacheError> {
+        async fn invalidate_by_pattern(&self, _pattern: &str) -> Result<u64, crate::error::CacheError> {
             let store_result = self
                 .store
                 .lock()

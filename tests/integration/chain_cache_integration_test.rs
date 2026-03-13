@@ -15,11 +15,7 @@ async fn test_chain_cache_basic_operations() {
     let moka1 = MokaMemoryBackend::builder().capacity(100).build();
     let moka2 = MokaMemoryBackend::builder().capacity(100).build();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka1)
-        .backend(moka2)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(moka1).backend(moka2).build().unwrap();
 
     // 测试设置值
     chain.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -48,11 +44,7 @@ async fn test_chain_cache_auto_sort() {
     assert_eq!(high.score(), Scores::MOKA);
 
     // 构建链式缓存（后端会被自动排序）
-    let chain = OxCacheBuilder::new()
-        .backend(low)
-        .backend(high)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(low).backend(high).build().unwrap();
 
     // 验证后端数量
     assert_eq!(chain.len(), 2);
@@ -96,10 +88,7 @@ async fn test_empty_chain_cache() {
 async fn test_single_backend_chain() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
 
     assert_eq!(chain.len(), 1);
 
@@ -124,7 +113,10 @@ async fn test_chain_cache_ttl() {
         .unwrap();
 
     // 设置带 TTL 的值
-    chain.set("key", b"value".to_vec(), Some(Duration::from_secs(10))).await.unwrap();
+    chain
+        .set("key", b"value".to_vec(), Some(Duration::from_secs(10)))
+        .await
+        .unwrap();
 
     // 验证值存在
     let value = chain.get("key").await.unwrap();
@@ -136,10 +128,7 @@ async fn test_chain_cache_ttl() {
 async fn test_chain_cache_health_check() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
 
     // Moka 后端应该总是健康的
     let healthy = chain.health_check().await.unwrap();
@@ -151,10 +140,7 @@ async fn test_chain_cache_health_check() {
 async fn test_chain_cache_stats() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
 
     let stats = chain.stats().await.unwrap();
     assert_eq!(stats.get("type"), Some(&"chain".to_string()));
@@ -166,10 +152,7 @@ async fn test_chain_cache_stats() {
 async fn test_chain_cache_clear() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka)
-        .build()
-        .unwrap();
+    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
 
     // 设置多个值
     for i in 0..10 {

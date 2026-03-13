@@ -158,14 +158,12 @@ impl ClientRateLimiter {
 
         let mut per_client_map = self.per_client.lock().await;
 
-        let bucket = per_client_map
-            .entry(client_id.to_string())
-            .or_insert_with(|| {
-                Arc::new(TokenBucket::new(
-                    self.config.burst_capacity,
-                    self.config.max_requests_per_second,
-                ))
-            });
+        let bucket = per_client_map.entry(client_id.to_string()).or_insert_with(|| {
+            Arc::new(TokenBucket::new(
+                self.config.burst_capacity,
+                self.config.max_requests_per_second,
+            ))
+        });
 
         let per_client_available = bucket.available_tokens();
 
@@ -177,9 +175,8 @@ impl ClientRateLimiter {
         }
 
         if global_available < cost {
-            let wait_time = Duration::from_millis(
-                (cost - global_available) * 1000 / self.config.max_requests_per_second,
-            );
+            let wait_time =
+                Duration::from_millis((cost - global_available) * 1000 / self.config.max_requests_per_second);
             return Err(wait_time);
         }
 
@@ -262,11 +259,7 @@ pub struct RateLimitConfig;
 
 #[cfg(not(feature = "rate-limiting"))]
 impl RateLimitConfig {
-    pub fn new(
-        _max_requests_per_second: u64,
-        _burst_capacity: u64,
-        _block_duration_secs: u64,
-    ) -> Self {
+    pub fn new(_max_requests_per_second: u64, _burst_capacity: u64, _block_duration_secs: u64) -> Self {
         Self
     }
 }
@@ -306,11 +299,7 @@ impl ClientRateLimiter {
         Self
     }
 
-    pub async fn check_rate_limit(
-        &self,
-        _client_id: &str,
-        _cost: u64,
-    ) -> Result<(), std::time::Duration> {
+    pub async fn check_rate_limit(&self, _client_id: &str, _cost: u64) -> Result<(), std::time::Duration> {
         Ok(())
     }
 

@@ -5,9 +5,7 @@
 // 数据库测试工具 - 提供数据库测试的通用工具函数
 
 use chrono::{TimeZone, Utc};
-use oxcache::database::partition::{
-    PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy,
-};
+use oxcache::database::partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use oxcache::error::Result;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
@@ -34,9 +32,8 @@ impl TestConfig {
     #[allow(dead_code)]
     pub fn from_file() -> Self {
         Self {
-            postgres_url: std::env::var("TEST_POSTGRES_URL").unwrap_or_else(|_| {
-                "postgresql://postgres:postgres@localhost:5432/test_db".to_string()
-            }),
+            postgres_url: std::env::var("TEST_POSTGRES_URL")
+                .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/test_db".to_string()),
             mysql_url: std::env::var("TEST_MYSQL_URL")
                 .unwrap_or_else(|_| "mysql://root:root@localhost:3306/test_db".to_string()),
             partitioning_enabled: true,
@@ -54,11 +51,7 @@ impl TestConfig {
 /// * `strategy` - 分区策略
 /// * `retention` - 保留月数
 #[allow(dead_code)]
-pub fn create_partition_config(
-    enabled: bool,
-    strategy: PartitionStrategy,
-    retention: usize,
-) -> PartitionConfig {
+pub fn create_partition_config(enabled: bool, strategy: PartitionStrategy, retention: usize) -> PartitionConfig {
     PartitionConfig {
         enabled,
         strategy,
@@ -82,12 +75,7 @@ pub fn create_partition_config(
 ///
 /// 成功返回 `true`，失败返回 `false`
 #[allow(dead_code)]
-pub fn cleanup_postgres_table(
-    container_name: &str,
-    db_name: &str,
-    user: &str,
-    table_name: &str,
-) -> bool {
+pub fn cleanup_postgres_table(container_name: &str, db_name: &str, user: &str, table_name: &str) -> bool {
     if !validate_table_name(table_name) {
         eprintln!("Invalid table name: {}", table_name);
         return false;
@@ -164,9 +152,7 @@ pub async fn verify_partition_creation<M: PartitionManager>(
     expected_partitions: usize,
 ) -> Result<Vec<PartitionInfo>> {
     let test_date = Utc::now();
-    manager
-        .ensure_partition_exists(test_date, table_name)
-        .await?;
+    manager.ensure_partition_exists(test_date, table_name).await?;
     println!("✓ Partition created");
 
     let partitions = manager.get_partitions(table_name).await?;
@@ -229,9 +215,7 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
 
     let cutoff_date = Utc.with_ymd_and_hms(year, month, 2, 0, 0, 0).unwrap();
 
-    manager
-        .cleanup_old_partitions(table_name, cutoff_date)
-        .await?;
+    manager.cleanup_old_partitions(table_name, cutoff_date).await?;
 
     let partitions_after = manager.get_partitions(table_name).await?;
     println!("Partitions after cleanup: {}", partitions_after.len());
@@ -290,10 +274,7 @@ pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>
         partitions.len()
     );
 
-    assert!(
-        !partitions.is_empty(),
-        "Should have created partitions concurrently"
-    );
+    assert!(!partitions.is_empty(), "Should have created partitions concurrently");
 
     Ok(())
 }

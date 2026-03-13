@@ -28,10 +28,7 @@ async fn test_two_level_cache_flow() {
     let cache: Cache<String, String> = match Cache::redis(redis_url).await {
         Ok(c) => c,
         Err(e) => {
-            println!(
-                "Skipping test: Failed to create cache (TLS required): {}",
-                e
-            );
+            println!("Skipping test: Failed to create cache (TLS required): {}", e);
             return;
         }
     };

@@ -44,27 +44,18 @@ async fn test_lua_script_injection_attempts() {
 
     // 攻击 7: 大小写混合尝试绕过
     let result = validate_lua_script("return redis.call('flushall')", 0);
-    assert!(
-        result.is_err(),
-        "Case-insensitive FLUSHALL should be rejected"
-    );
+    assert!(result.is_err(), "Case-insensitive FLUSHALL should be rejected");
 
     let result = validate_lua_script("return redis.call('FlushAll')", 0);
     assert!(result.is_err(), "Mixed case FLUSHALL should be rejected");
 
     // 攻击 8: 嵌套在注释中的恶意代码
     let result = validate_lua_script("--[[ malicious ]] return redis.call('FLUSHALL')", 0);
-    assert!(
-        result.is_err(),
-        "Comment-hidden FLUSHALL should be rejected"
-    );
+    assert!(result.is_err(), "Comment-hidden FLUSHALL should be rejected");
 
     // 攻击 9: 字符串中的恶意代码（不应被检测，因为不在 redis.call 中）
     let result = validate_lua_script("local x = 'FLUSHALL'; return 'safe'", 0);
-    assert!(
-        result.is_ok(),
-        "String containing FLUSHALL should be allowed"
-    );
+    assert!(result.is_ok(), "String containing FLUSHALL should be allowed");
 
     println!("✓ All Lua script injection attempts were correctly rejected");
 }
@@ -85,10 +76,7 @@ async fn test_scan_pattern_redos_attempts() {
 
     // 攻击 3: 嵌套通配符
     let result = validate_scan_pattern("*:*:*:*:*:*:*:*:*:*:*:*");
-    assert!(
-        result.is_err(),
-        "Too many nested wildcards should be rejected"
-    );
+    assert!(result.is_err(), "Too many nested wildcards should be rejected");
 
     // 攻击 4: 边界情况 - 刚好 10 个通配符（应该通过）
     let result = validate_scan_pattern(&"*".repeat(10));
@@ -144,10 +132,7 @@ async fn test_redis_key_injection_attempts() {
 
     // 攻击 7: 协议分隔符组合
     let result = validate_redis_key("key\r\n*3\r\n$3\r\nSET\r\n");
-    assert!(
-        result.is_err(),
-        "Protocol injection attempt should be rejected"
-    );
+    assert!(result.is_err(), "Protocol injection attempt should be rejected");
 
     // 合法键应该通过
     assert!(validate_redis_key("user:123").is_ok());

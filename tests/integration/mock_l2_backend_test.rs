@@ -78,10 +78,7 @@ async fn test_redis_basic_operations() {
     // 验证删除
     let get_after_delete = backend.get(test_key).await;
     assert!(get_after_delete.is_ok(), "GET after delete should succeed");
-    assert!(
-        get_after_delete.unwrap().is_none(),
-        "Value should be None after delete"
-    );
+    assert!(get_after_delete.unwrap().is_none(), "Value should be None after delete");
 }
 
 /// 测试Redis ping操作

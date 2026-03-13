@@ -473,12 +473,7 @@ pub mod rate_limiting;
 pub mod recovery;
 
 // Sync writer
-#[cfg(any(
-    feature = "batch-write",
-    feature = "redis",
-    feature = "sync",
-    feature = "full"
-))]
+#[cfg(any(feature = "batch-write", feature = "redis", feature = "sync", feature = "full"))]
 pub mod sync;
 
 // Database Module
@@ -557,13 +552,11 @@ pub use backend::client::DashMapMemoryBackend as DashMapBackend;
 
 // Unified memory backend exports (from client implementations)
 pub use backend::{
-    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend,
-    MemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores,
+    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackend,
+    MemoryBackendType, MokaMemoryBackend, Scores,
 };
 // Client backend exports
-pub use backend::client::{
-    DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend,
-};
+pub use backend::client::{DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend};
 
 #[cfg(any(feature = "redis", feature = "core", feature = "full"))]
 pub use sync::warmup::{WarmupManager, WarmupStatus};
@@ -574,8 +567,8 @@ pub use utils::key_generator::KeyGenerator;
 // Smart Strategy exports
 #[cfg(any(feature = "smart-strategy", feature = "full"))]
 pub use smart_strategy::{
-    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider,
-    SmartStrategyConfig, SmartStrategyManager,
+    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
+    SmartStrategyManager,
 };
 
 // Enhanced Stats exports
@@ -585,8 +578,8 @@ pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_sta
 // HTTP Cache exports
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub use http::{
-    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator,
-    HttpCachePolicy, HttpCacheResponse, HttpRequest,
+    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy,
+    HttpCacheResponse, HttpRequest,
 };
 
 // Internal module exports (for #[cached] macro)
@@ -594,9 +587,7 @@ pub use http::{
 pub use internal::{__internal_get_cache, __internal_register_cache};
 
 // Feature info exports
-pub use internal::{
-    get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled,
-};
+pub use internal::{get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled};
 
 // ============================================================================
 // Configuration Macros (Feature-Gated)

@@ -53,8 +53,7 @@ impl Serializer for JsonSerializer {
     ///
     /// 返回序列化后的字节数组或错误
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        let json_bytes =
-            serde_json::to_vec(data).map_err(|e| CacheError::Serialization(e.to_string()))?;
+        let json_bytes = serde_json::to_vec(data).map_err(|e| CacheError::Serialization(e.to_string()))?;
 
         if self.compress {
             // 使用压缩
@@ -96,8 +95,8 @@ impl Serializer for JsonSerializer {
         let _ = MAX_DESERIALIZE_DEPTH; // 保留常量供将来使用
 
         // 解析 JSON 数组并提取字节
-        let json_value: serde_json::Value = serde_json::from_slice(&json_bytes)
-            .map_err(|e| CacheError::Serialization(e.to_string()))?;
+        let json_value: serde_json::Value =
+            serde_json::from_slice(&json_bytes).map_err(|e| CacheError::Serialization(e.to_string()))?;
 
         // 从 JSON 数组中提取字节
         let bytes: Vec<u8> = json_value
@@ -106,9 +105,7 @@ impl Serializer for JsonSerializer {
             .iter()
             .map(|v| {
                 v.as_u64()
-                    .ok_or_else(|| {
-                        CacheError::Serialization("Expected integer in array".to_string())
-                    })
+                    .ok_or_else(|| CacheError::Serialization("Expected integer in array".to_string()))
                     .map(|n| n as u8)
             })
             .collect::<std::result::Result<Vec<u8>, CacheError>>()?;

@@ -28,30 +28,21 @@ fn bench_l1_operations(c: &mut Criterion) {
     // 基准测试GET操作（缓存命中）
     c.bench_function("l1_get_hit", |b| {
         b.to_async(&rt).iter(|| async {
-            let _: Option<String> = cache
-                .get(black_box(&"bench_key_42".to_string()))
-                .await
-                .unwrap();
+            let _: Option<String> = cache.get(black_box(&"bench_key_42".to_string())).await.unwrap();
         });
     });
 
     // 基准测试GET操作（缓存未命中）
     c.bench_function("l1_get_miss", |b| {
         b.to_async(&rt).iter(|| async {
-            let _: Option<String> = cache
-                .get(black_box(&"nonexistent_key".to_string()))
-                .await
-                .unwrap();
+            let _: Option<String> = cache.get(black_box(&"nonexistent_key".to_string())).await.unwrap();
         });
     });
 
     // 基准测试SET操作
     c.bench_function("l1_set", |b| {
         b.to_async(&rt).iter(|| async {
-            let key = format!(
-                "set_key_{}",
-                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
-            );
+            let key = format!("set_key_{}", std::time::SystemTime::now().elapsed().unwrap().as_nanos());
             let value = "test_value".to_string();
             let _ = cache.set(black_box(&key), black_box(&value)).await;
         });

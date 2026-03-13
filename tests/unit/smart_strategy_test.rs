@@ -9,8 +9,7 @@
 #[cfg(test)]
 mod smart_strategy_tests {
     use oxcache::smart_strategy::{
-        CompressibilityChecker, CompressionDecider, HitRateCollector, PrefetchDecider,
-        SmartStrategyConfig,
+        CompressibilityChecker, CompressionDecider, HitRateCollector, PrefetchDecider, SmartStrategyConfig,
     };
 
     /// 测试命中率收集器的基本功能
@@ -126,10 +125,7 @@ mod smart_strategy_tests {
 
         // 在非常低的命中率下，应该触发预取
         let should_prefetch = decider.should_prefetch();
-        assert!(
-            should_prefetch || !config.prefetch_enabled,
-            "Prefetch decision made"
-        );
+        assert!(should_prefetch || !config.prefetch_enabled, "Prefetch decision made");
     }
 
     /// 测试预取决策器 - 禁用场景
@@ -180,10 +176,7 @@ mod smart_strategy_tests {
         let incompressible: Vec<u8> = (0..1000).map(|_| rand::random()).collect();
         let (worth_compressing, _) = checker.check_compressibility(&incompressible);
 
-        assert!(
-            !worth_compressing,
-            "Random data should not be worth compressing"
-        );
+        assert!(!worth_compressing, "Random data should not be worth compressing");
     }
 
     /// 测试可压缩性检查器 - 中等可压缩性数据
@@ -199,10 +192,7 @@ mod smart_strategy_tests {
         let (_, ratio) = checker.check_compressibility(&mixed);
 
         // 随机数据不应该太容易压缩
-        assert!(
-            ratio > 0.3,
-            "Mixed data should have moderate compression ratio"
-        );
+        assert!(ratio > 0.3, "Mixed data should have moderate compression ratio");
     }
 
     /// 测试压缩决策器 - 启用场景

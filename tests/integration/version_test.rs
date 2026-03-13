@@ -22,8 +22,7 @@ async fn test_version_control() {
         return;
     }
 
-    let redis_url =
-        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let l2: Arc<dyn CacheBackend> = match RedisBackend::new(&redis_url).await {
         Ok(backend) => Arc::new(backend),
@@ -37,18 +36,14 @@ async fn test_version_control() {
     let _ = l2.delete("version_key").await;
 
     // First set should initialize
-    l2.set("version_key", b"v1".to_vec(), None)
-        .await
-        .expect("Set failed");
+    l2.set("version_key", b"v1".to_vec(), None).await.expect("Set failed");
 
     // Get value
     let val1 = l2.get("version_key").await.expect("Get failed");
     assert_eq!(val1, Some(b"v1".to_vec()));
 
     // Second set should work
-    l2.set("version_key", b"v2".to_vec(), None)
-        .await
-        .expect("Set failed");
+    l2.set("version_key", b"v2".to_vec(), None).await.expect("Set failed");
 
     // Get value and verify it changed
     let val2 = l2.get("version_key").await.expect("Get failed");

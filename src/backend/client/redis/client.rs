@@ -84,10 +84,7 @@ pub struct RedisBackend {
 impl RedisBackend {
     /// Create a new Redis backend with connection string
     pub async fn new(connection_string: &str) -> Result<Self> {
-        Self::builder()
-            .connection_string(connection_string)
-            .build()
-            .await
+        Self::builder().connection_string(connection_string).build().await
     }
 
     /// Create a new Redis backend with connection pool
@@ -192,7 +189,9 @@ impl RedisBackendBuilder {
         if !connection_string.starts_with("rediss://") {
             // 检查是否允许非 TLS 连接（用于开发和测试）
             if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
-                tracing::warn!("Using insecure Redis connection (TLS disabled). This is only allowed in development/testing.");
+                tracing::warn!(
+                    "Using insecure Redis connection (TLS disabled). This is only allowed in development/testing."
+                );
             } else {
                 return Err(CacheError::ConfigError(
                     "Redis connection must use TLS (rediss://) in production. \
@@ -203,23 +202,18 @@ impl RedisBackendBuilder {
         }
 
         // 创建客户端并验证连接
-        let client =
-            Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
+        let client = Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
 
         // 快速验证连接是否可用（2秒超时）
         let connection_timeout = std::time::Duration::from_secs(2);
-        let connection_result =
-            tokio::time::timeout(connection_timeout, client.get_connection_manager()).await;
+        let connection_result = tokio::time::timeout(connection_timeout, client.get_connection_manager()).await;
 
         match connection_result {
             Ok(Ok(_)) => {
                 // 连接成功
             }
             Ok(Err(e)) => {
-                return Err(CacheError::Connection(format!(
-                    "Failed to connect to Redis: {}",
-                    e
-                )));
+                return Err(CacheError::Connection(format!("Failed to connect to Redis: {}", e)));
             }
             Err(_) => {
                 return Err(CacheError::Connection(
@@ -505,12 +499,7 @@ impl RedisBackend {
     ///     &[],
     /// ).await?;
     /// ```
-    pub async fn eval_lua(
-        &self,
-        script: &str,
-        keys: &[&str],
-        args: &[&str],
-    ) -> Result<redis::Value> {
+    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         // Validate the Lua script for security
         security::validate_lua_script(script, keys.len())?;
 
@@ -724,8 +713,7 @@ mod tests {
             assert!(result.is_ok());
 
             // SET is allowed
-            let result =
-                security::validate_lua_script("return redis.call('SET', KEYS[1], 'value')", 1);
+            let result = security::validate_lua_script("return redis.call('SET', KEYS[1], 'value')", 1);
             assert!(result.is_ok());
 
             // INCR is allowed

@@ -4,12 +4,10 @@
 //
 // 数据库加载器模块测试
 
-use oxcache::client::db_loader::{
-    validate_sql_identifier, validate_cache_key, DbFallbackManager, DbLoader,
-};
 use async_trait::async_trait;
-use std::sync::Arc;
+use oxcache::client::db_loader::{validate_cache_key, validate_sql_identifier, DbFallbackManager, DbLoader};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// 测试用的模拟数据库加载器
 #[derive(Debug)]
@@ -50,10 +48,7 @@ impl DbLoader for MockDbLoader {
         Ok(self.data.get(key).cloned())
     }
 
-    async fn load_batch(
-        &self,
-        keys: Vec<String>,
-    ) -> oxcache::error::Result<Vec<(String, Vec<u8>)>> {
+    async fn load_batch(&self, keys: Vec<String>) -> oxcache::error::Result<Vec<(String, Vec<u8>)>> {
         if !self.healthy.load(Ordering::SeqCst) {
             return Err(oxcache::error::CacheError::DatabaseError(
                 "Loader not healthy".to_string(),
@@ -176,10 +171,7 @@ async fn test_db_fallback_manager_batch_load_disabled() {
     let loader = Arc::new(MockDbLoader::new());
     let manager = DbFallbackManager::new(loader, false, 1000, 3);
 
-    let results = manager
-        .fallback_load_batch(vec!["key1".to_string()])
-        .await
-        .unwrap();
+    let results = manager.fallback_load_batch(vec!["key1".to_string()]).await.unwrap();
 
     assert!(results.is_empty());
 }

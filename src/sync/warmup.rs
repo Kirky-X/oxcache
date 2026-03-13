@@ -18,8 +18,7 @@ pub struct WarmupDataSource {
     /// 数据源名称
     pub name: String,
     /// 加载函数（将在预热时调用）
-    pub loader:
-        Option<Arc<dyn Fn() -> Box<dyn Future<Output = Result<()>> + Send + Sync> + Send + Sync>>,
+    pub loader: Option<Arc<dyn Fn() -> Box<dyn Future<Output = Result<()>> + Send + Sync> + Send + Sync>>,
 }
 
 /// 缓存预热配置

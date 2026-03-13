@@ -77,10 +77,7 @@ impl PostgresPartitionManager {
             })?;
 
         let acquire_duration = start.elapsed();
-        info!(
-            "PostgreSQL connection established in {:?}",
-            acquire_duration
-        );
+        info!("PostgreSQL connection established in {:?}", acquire_duration);
 
         if acquire_duration > Duration::from_secs(3) {
             warn!(
@@ -111,9 +108,7 @@ impl PostgresPartitionManager {
     /// 验证 PostgreSQL 标识符，防止 SQL 注入
     fn validate_identifier(&self, identifier: &str) -> Result<()> {
         if identifier.is_empty() {
-            return Err(CacheError::DatabaseError(
-                "Identifier cannot be empty".to_string(),
-            ));
+            return Err(CacheError::DatabaseError("Identifier cannot be empty".to_string()));
         }
 
         // PostgreSQL 标识符规则：只能包含字母、数字、下划线
@@ -132,12 +127,7 @@ impl PostgresPartitionManager {
         }
 
         // 检查是否以数字开头（PostgreSQL 不允许）
-        if identifier
-            .chars()
-            .next()
-            .map(|c| c.is_ascii_digit())
-            .unwrap_or(false)
-        {
+        if identifier.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
             return Err(CacheError::DatabaseError(
                 "Identifier cannot start with a digit".to_string(),
             ));
@@ -258,10 +248,7 @@ impl PostgresPartitionManager {
         })?;
 
         let acquire_duration = start.elapsed();
-        info!(
-            "PostgreSQL reconnection established in {:?}",
-            acquire_duration
-        );
+        info!("PostgreSQL reconnection established in {:?}", acquire_duration);
 
         self.connection = Arc::new(connection);
 
@@ -298,10 +285,7 @@ impl PostgresPartitionManager {
                 partition_column
             )
         } else {
-            format!(
-                "{}) PARTITION BY RANGE ({})",
-                partition_schema, partition_column
-            )
+            format!("{}) PARTITION BY RANGE ({})", partition_schema, partition_column)
         };
 
         debug!("Generated partition SQL: {}", partition_sql);
@@ -310,13 +294,13 @@ impl PostgresPartitionManager {
             sea_orm::DatabaseBackend::Postgres,
             partition_sql,
         ))
-            .await
-            .map_err(|e| {
-                CacheError::DatabaseError(format!(
-                    "Failed to create partitioned table: {}. Please check if the table schema is valid.",
-                    e
-                ))
-            })?;
+        .await
+        .map_err(|e| {
+            CacheError::DatabaseError(format!(
+                "Failed to create partitioned table: {}. Please check if the table schema is valid.",
+                e
+            ))
+        })?;
 
         // 创建默认分区
         let default_partition_sql = format!(
@@ -329,9 +313,7 @@ impl PostgresPartitionManager {
             default_partition_sql,
         ))
         .await
-        .map_err(|e| {
-            CacheError::DatabaseError(format!("Failed to create default partition: {}", e))
-        })?;
+        .map_err(|e| CacheError::DatabaseError(format!("Failed to create default partition: {}", e)))?;
 
         Ok(())
     }
@@ -387,20 +369,13 @@ impl PartitionManager for PostgresPartitionManager {
 
         // 使用双引号包裹标识符，这是 Sea-ORM 推荐的参数化方式
         // Sea-ORM 会自动处理值参数化
-        let sql = "CREATE TABLE IF NOT EXISTS $1 PARTITION OF $2 FOR VALUES FROM ($3) TO ($4)"
-            .to_string();
+        let sql = "CREATE TABLE IF NOT EXISTS $1 PARTITION OF $2 FOR VALUES FROM ($3) TO ($4)".to_string();
 
-        conn.execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-        ))
-        .await
-        .map_err(|e| {
-            CacheError::DatabaseError(format!(
-                "Failed to create partition {}: {}",
-                partition_table_name, e
-            ))
-        })?;
+        conn.execute(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
+            .await
+            .map_err(|e| {
+                CacheError::DatabaseError(format!("Failed to create partition {}: {}", partition_table_name, e))
+            })?;
 
         Ok(())
     }
@@ -431,9 +406,7 @@ impl PartitionManager for PostgresPartitionManager {
             let partition_range: Option<String> = row.try_get("", "partition_range")?;
 
             if let Some(range_str) = partition_range {
-                if let Some(info) =
-                    self.parse_postgres_partition_range(&partition_name, &range_str, table_name)
-                {
+                if let Some(info) = self.parse_postgres_partition_range(&partition_name, &range_str, table_name) {
                     partitions.push(info);
                 }
             }
@@ -452,27 +425,15 @@ impl PartitionManager for PostgresPartitionManager {
         let sql = format!("DROP TABLE IF EXISTS \"{}\"", partition_name);
         debug!("Executing drop SQL: {}", sql);
 
-        conn.execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            sql,
-        ))
-        .await
-        .map_err(|e| {
-            CacheError::DatabaseError(format!(
-                "Failed to drop partition {}: {}",
-                partition_name, e
-            ))
-        })?;
+        conn.execute(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
+            .await
+            .map_err(|e| CacheError::DatabaseError(format!("Failed to drop partition {}: {}", partition_name, e)))?;
 
         debug!("Successfully dropped partition: {}", partition_name);
         Ok(())
     }
 
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String> {
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String> {
         let partition = PartitionInfo::new(date, table_name)?;
 
         // 检查分区是否已存在
@@ -502,8 +463,9 @@ impl PostgresPartitionManager {
         debug!("Parsing partition range for: {}", partition_name);
 
         // More flexible regex to match various PostgreSQL date formats with optional time and timezone
-        let re = regex::Regex::new(r"FROM\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)\s+TO\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)")
-            .ok()?;
+        let re =
+            regex::Regex::new(r"FROM\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)\s+TO\s+\('(\d{4}-\d{2}-\d{2})(?:[^)]+)?'\)")
+                .ok()?;
 
         if let Some(captures) = re.captures(range_str) {
             let start_date_str = captures.get(1)?.as_str();

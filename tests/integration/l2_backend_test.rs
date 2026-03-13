@@ -37,11 +37,7 @@ async fn test_cluster_mode_success() {
     // 测试独立的 Redis 连接
     let redis_url = "redis://127.0.0.1:6379";
     let backend = RedisBackend::new(redis_url).await;
-    assert!(
-        backend.is_ok(),
-        "Backend creation failed: {:?}",
-        backend.err()
-    );
+    assert!(backend.is_ok(), "Backend creation failed: {:?}", backend.err());
 }
 
 #[tokio::test]
@@ -62,9 +58,5 @@ async fn test_standalone_mode_success() {
     // 测试独立的 Redis 连接
     let redis_url = "redis://127.0.0.1:6379";
     let backend = RedisBackend::new(redis_url).await;
-    assert!(
-        backend.is_ok(),
-        "Backend creation failed: {:?}",
-        backend.err()
-    );
+    assert!(backend.is_ok(), "Backend creation failed: {:?}", backend.err());
 }

@@ -31,12 +31,7 @@ fn sanitize_connection_string(conn_str: &str) -> String {
                         .take(PASSWORD_MASK_ASTERISKS),
                 )
                 .collect();
-            return format!(
-                "{}://{}@{}",
-                protocol,
-                sanitized_user,
-                &after_protocol[at_pos + 1..]
-            );
+            return format!("{}://{}@{}", protocol, sanitized_user, &after_protocol[at_pos + 1..]);
         }
     }
     conn_str.to_string()
@@ -80,8 +75,7 @@ pub enum CacheError {
     /// - 尝试序列化不支持的数据类型
     /// - 序列化器配置不兼容
     /// - 数据在传输过程中被损坏
-    #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible."
-    )]
+    #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible.")]
     Serialization(String),
 
     /// 操作错误
@@ -105,9 +99,7 @@ pub enum CacheError {
     /// 降级错误
     ///
     /// 缓存处于降级模式，某些功能不可用
-    #[error(
-        "Cache degraded: {0}. The cache is operating in degraded mode with limited functionality."
-    )]
+    #[error("Cache degraded: {0}. The cache is operating in degraded mode with limited functionality.")]
     Degraded(String),
 
     /// L1缓存操作失败
@@ -116,8 +108,7 @@ pub enum CacheError {
     /// - 内存不足导致缓存被逐出
     /// - 缓存容量达到上限
     /// - 缓存项过期
-    #[error("L1 cache operation failed: {0}. This may indicate memory pressure or configuration issues."
-    )]
+    #[error("L1 cache operation failed: {0}. This may indicate memory pressure or configuration issues.")]
     L1Error(String),
 
     /// L2缓存操作失败
@@ -130,8 +121,7 @@ pub enum CacheError {
     ConfigError(String),
 
     /// 操作不支持
-    #[error("Operation not supported: {0}. This feature may not be available for the current cache type."
-    )]
+    #[error("Operation not supported: {0}. This feature may not be available for the current cache type.")]
     NotSupported(String),
 
     /// WAL（预写日志）操作失败
@@ -151,8 +141,7 @@ pub enum CacheError {
 
     /// Redis错误（占位符，当 redis feature 禁用时）
     #[cfg(not(feature = "redis"))]
-    #[error("Redis connection failed: {0}. Please enable redis feature and ensure Redis server is running."
-    )]
+    #[error("Redis connection failed: {0}. Please enable redis feature and ensure Redis server is running.")]
     RedisError(String),
 
     /// IO错误
@@ -164,8 +153,7 @@ pub enum CacheError {
     BackendError(String),
 
     /// 超时错误
-    #[error("Operation timed out: {0}. Consider increasing the timeout value or check system performance."
-    )]
+    #[error("Operation timed out: {0}. Consider increasing the timeout value or check system performance.")]
     Timeout(String),
 
     /// 关闭错误
@@ -181,14 +169,13 @@ pub enum CacheError {
     ValueTooLarge(usize, usize),
 
     /// 缓冲区已满错误
-    #[error("Buffer full: {0}. The batch write buffer has reached capacity. Please retry later or increase buffer size."
+    #[error(
+        "Buffer full: {0}. The batch write buffer has reached capacity. Please retry later or increase buffer size."
     )]
     BufferFull(String),
 
     /// 无效输入错误
-    #[error(
-        "Invalid input: {0}. The provided input does not meet the required format or constraints."
-    )]
+    #[error("Invalid input: {0}. The provided input does not meet the required format or constraints.")]
     InvalidInput(String),
 
     /// 无效键错误

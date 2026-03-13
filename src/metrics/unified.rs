@@ -147,9 +147,7 @@ impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
             detailed: true,
-            histogram_buckets: vec![
-                0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0,
-            ],
+            histogram_buckets: vec![0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0],
             max_dynamic_metrics: 1000,
             retention_period: Some(Duration::from_secs(3600)), // 1 hour
         }
@@ -186,78 +184,39 @@ impl UnifiedMetrics {
         match (&operation.layer, &operation.op_type, &operation.result) {
             (CacheLayer::L1, CacheOpType::Get, CacheOpResult::Hit) => {
                 self.inner.counters.l1_hits.fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L1, CacheOpType::Get, CacheOpResult::Miss) => {
-                self.inner
-                    .counters
-                    .l1_misses
-                    .fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.l1_misses.fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L2, CacheOpType::Get, CacheOpResult::Hit) => {
                 self.inner.counters.l2_hits.fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L2, CacheOpType::Get, CacheOpResult::Miss) => {
-                self.inner
-                    .counters
-                    .l2_misses
-                    .fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.l2_misses.fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L1, CacheOpType::Set, CacheOpResult::Success) => {
                 self.inner.counters.l1_sets.fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L2, CacheOpType::Set, CacheOpResult::Success) => {
                 self.inner.counters.l2_sets.fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L1, CacheOpType::Delete, CacheOpResult::Success) => {
-                self.inner
-                    .counters
-                    .l1_deletes
-                    .fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.l1_deletes.fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (CacheLayer::L2, CacheOpType::Delete, CacheOpResult::Success) => {
-                self.inner
-                    .counters
-                    .l2_deletes
-                    .fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.l2_deletes.fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             (_, _, CacheOpResult::Error) => {
                 self.inner.counters.errors.fetch_add(1, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.inner.counters.total_operations.fetch_add(1, Ordering::Relaxed);
             }
             _ => {}
         }
@@ -286,13 +245,7 @@ impl UnifiedMetrics {
     pub fn record_custom(&self, key: &str, value: MetricValue) {
         if self.inner.dynamic_metrics.len() >= self.inner.config.max_dynamic_metrics {
             // Remove oldest metric if at capacity
-            if let Some(first_key) = self
-                .inner
-                .dynamic_metrics
-                .iter()
-                .next()
-                .map(|r| r.key().clone())
-            {
+            if let Some(first_key) = self.inner.dynamic_metrics.iter().next().map(|r| r.key().clone()) {
                 self.inner.dynamic_metrics.remove(&first_key);
             }
         }
@@ -395,16 +348,8 @@ impl UnifiedMetrics {
             total_operations: self.inner.counters.total_operations.load(Ordering::Relaxed),
             errors: self.inner.counters.errors.load(Ordering::Relaxed),
             prefetch_total: self.inner.counters.prefetch_total.load(Ordering::Relaxed),
-            compression_total: self
-                .inner
-                .counters
-                .compression_total
-                .load(Ordering::Relaxed),
-            compression_bytes_saved: self
-                .inner
-                .counters
-                .compression_bytes_saved
-                .load(Ordering::Relaxed),
+            compression_total: self.inner.counters.compression_total.load(Ordering::Relaxed),
+            compression_bytes_saved: self.inner.counters.compression_bytes_saved.load(Ordering::Relaxed),
         }
     }
 
@@ -443,23 +388,11 @@ impl UnifiedMetrics {
         self.inner.counters.l2_sets.store(0, Ordering::Relaxed);
         self.inner.counters.l1_deletes.store(0, Ordering::Relaxed);
         self.inner.counters.l2_deletes.store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .total_operations
-            .store(0, Ordering::Relaxed);
+        self.inner.counters.total_operations.store(0, Ordering::Relaxed);
         self.inner.counters.errors.store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .prefetch_total
-            .store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .compression_total
-            .store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .compression_bytes_saved
-            .store(0, Ordering::Relaxed);
+        self.inner.counters.prefetch_total.store(0, Ordering::Relaxed);
+        self.inner.counters.compression_total.store(0, Ordering::Relaxed);
+        self.inner.counters.compression_bytes_saved.store(0, Ordering::Relaxed);
 
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
@@ -618,29 +551,14 @@ impl MetricsSnapshot {
 
         // Export counters
         output.push_str(&format!("cache_l1_hits_total {}\n", self.counters.l1_hits));
-        output.push_str(&format!(
-            "cache_l1_misses_total {}\n",
-            self.counters.l1_misses
-        ));
+        output.push_str(&format!("cache_l1_misses_total {}\n", self.counters.l1_misses));
         output.push_str(&format!("cache_l2_hits_total {}\n", self.counters.l2_hits));
-        output.push_str(&format!(
-            "cache_l2_misses_total {}\n",
-            self.counters.l2_misses
-        ));
+        output.push_str(&format!("cache_l2_misses_total {}\n", self.counters.l2_misses));
         output.push_str(&format!("cache_l1_sets_total {}\n", self.counters.l1_sets));
         output.push_str(&format!("cache_l2_sets_total {}\n", self.counters.l2_sets));
-        output.push_str(&format!(
-            "cache_l1_deletes_total {}\n",
-            self.counters.l1_deletes
-        ));
-        output.push_str(&format!(
-            "cache_l2_deletes_total {}\n",
-            self.counters.l2_deletes
-        ));
-        output.push_str(&format!(
-            "cache_operations_total {}\n",
-            self.counters.total_operations
-        ));
+        output.push_str(&format!("cache_l1_deletes_total {}\n", self.counters.l1_deletes));
+        output.push_str(&format!("cache_l2_deletes_total {}\n", self.counters.l2_deletes));
+        output.push_str(&format!("cache_operations_total {}\n", self.counters.total_operations));
         output.push_str(&format!("cache_errors_total {}\n", self.counters.errors));
 
         // Export dynamic metrics
@@ -656,10 +574,7 @@ impl MetricsSnapshot {
                     output.push_str(&format!("{}_histogram_sum {}\n", key, hist.sum));
                     output.push_str(&format!("{}_histogram_count {}\n", key, hist.count));
                     for (boundary, count) in &hist.buckets {
-                        output.push_str(&format!(
-                            "{}_histogram_bucket{{le=\"{}\"}} {}\n",
-                            key, boundary, count
-                        ));
+                        output.push_str(&format!("{}_histogram_bucket{{le=\"{}\"}} {}\n", key, boundary, count));
                     }
                 }
                 MetricValue::Timer(timer) => {
@@ -817,10 +732,7 @@ mod tests {
 
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.counters.l1_sets, 1);
-        assert!(
-            snapshot.dynamic_metrics.is_empty()
-                || !snapshot.dynamic_metrics.contains_key("detailed")
-        );
+        assert!(snapshot.dynamic_metrics.is_empty() || !snapshot.dynamic_metrics.contains_key("detailed"));
 
         // Test export
         let prometheus = snapshot.export_prometheus();

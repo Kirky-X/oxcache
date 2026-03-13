@@ -68,11 +68,7 @@ mod rate_limiting_tests {
         let tokens = bucket.available_tokens();
 
         // 至少应该有1个令牌（补充了0.5个，向上取整）
-        assert!(
-            tokens >= 1,
-            "Expected at least 1 token after 50ms, but got {}",
-            tokens
-        );
+        assert!(tokens >= 1, "Expected at least 1 token after 50ms, but got {}", tokens);
     }
 
     /// 测试令牌桶的边界条件
@@ -172,10 +168,7 @@ mod rate_limiting_tests {
         // 客户端1消耗所有配额
         for _ in 0..5 {
             let result = limiter.check_rate_limit("client_1", 1).await;
-            assert!(
-                result.is_ok(),
-                "First 5 requests from client_1 should succeed"
-            );
+            assert!(result.is_ok(), "First 5 requests from client_1 should succeed");
         }
 
         // 客户端1第6个请求 - 可能被限制

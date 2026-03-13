@@ -24,10 +24,9 @@ const DEFAULT_NAMESPACE: &str = "default";
 
 /// 有效的键字符集
 const VALID_KEY_CHARS: &[char] = &[
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
-    't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
-    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4',
-    '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+    'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+    'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
 /// 缓存键生成器
@@ -161,9 +160,7 @@ impl KeyGenerator {
     /// 验证键是否有效
     pub fn validate_key(&self, key: &str) -> Result<(), CacheError> {
         if key.is_empty() {
-            return Err(CacheError::InvalidInput(
-                "Cache key cannot be empty".to_string(),
-            ));
+            return Err(CacheError::InvalidInput("Cache key cannot be empty".to_string()));
         }
         if key.len() > self.max_key_length {
             return Err(CacheError::InvalidInput(format!(

@@ -63,25 +63,14 @@ impl PartitionInfo {
         let start_date = Utc
             .with_ymd_and_hms(year, month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| {
-                CacheError::DatabaseError(format!("Invalid start date for {}-{}", year, month))
-            })?;
+            .ok_or_else(|| CacheError::DatabaseError(format!("Invalid start date for {}-{}", year, month)))?;
 
         // End of month (start of next month)
-        let (next_year, next_month) = if month == 12 {
-            (year + 1, 1)
-        } else {
-            (year, month + 1)
-        };
+        let (next_year, next_month) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
         let end_date = Utc
             .with_ymd_and_hms(next_year, next_month, 1, 0, 0, 0)
             .single()
-            .ok_or_else(|| {
-                CacheError::DatabaseError(format!(
-                    "Invalid end date for {}-{}",
-                    next_year, next_month
-                ))
-            })?;
+            .ok_or_else(|| CacheError::DatabaseError(format!("Invalid end date for {}-{}", next_year, next_month)))?;
 
         let name = format!("{}_{:04}_{:02}", table_name, year, month);
 
@@ -120,11 +109,7 @@ pub trait PartitionManager: Send + Sync {
     async fn drop_partition(&self, table_name: &str, partition_name: &str) -> Result<()>;
 
     /// 确保分区存在
-    async fn ensure_partition_exists(
-        &self,
-        date: DateTime<Utc>,
-        table_name: &str,
-    ) -> Result<String>;
+    async fn ensure_partition_exists(&self, date: DateTime<Utc>, table_name: &str) -> Result<String>;
 
     /// 预创建未来分区
     async fn precreate_partitions(&self, table_name: &str, months_ahead: u32) -> Result<()> {
@@ -142,12 +127,8 @@ pub trait PartitionManager: Send + Sync {
 
             // Construct date for 1st of the target month
             // We use single_res to handle potential ambiguity (though unlikely for 1st of month in UTC)
-            if let Some(target_date) = Utc
-                .with_ymd_and_hms(target_year, target_month, 1, 0, 0, 0)
-                .single()
-            {
-                self.ensure_partition_exists(target_date, table_name)
-                    .await?;
+            if let Some(target_date) = Utc.with_ymd_and_hms(target_year, target_month, 1, 0, 0, 0).single() {
+                self.ensure_partition_exists(target_date, table_name).await?;
             } else {
                 tracing::warn!(
                     "Failed to construct date for partition: {}-{}",
@@ -160,11 +141,7 @@ pub trait PartitionManager: Send + Sync {
     }
 
     /// 清理过期分区
-    async fn cleanup_old_partitions(
-        &self,
-        table_name: &str,
-        cutoff_date: DateTime<Utc>,
-    ) -> Result<u32> {
+    async fn cleanup_old_partitions(&self, table_name: &str, cutoff_date: DateTime<Utc>) -> Result<u32> {
         let partitions = self.get_partitions(table_name).await?;
         let mut dropped_count = 0;
 

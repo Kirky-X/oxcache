@@ -244,9 +244,8 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查无限循环模式
     let loop_patterns = [r"WHILE\s+TRUE", r"WHILE\s+1", r"REPEAT", r"GOTO"];
     for pattern in &loop_patterns {
-        let re = Regex::new(pattern).map_err(|e| {
-            CacheError::InvalidInput(format!("Invalid regex pattern '{}': {}", pattern, e))
-        })?;
+        let re = Regex::new(pattern)
+            .map_err(|e| CacheError::InvalidInput(format!("Invalid regex pattern '{}': {}", pattern, e)))?;
         if re.is_match(&cleaned_upper) {
             return Err(CacheError::InvalidInput(
                 "Lua script contains potential infinite loop patterns".to_string(),

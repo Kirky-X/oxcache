@@ -45,9 +45,7 @@ async fn test_basic_fault_recovery() {
 /// 测试并发访问
 #[tokio::test]
 async fn test_concurrent_access() {
-    let cache = Arc::new(Mutex::new(
-        Cache::<String, i32>::builder().build().await.unwrap(),
-    ));
+    let cache = Arc::new(Mutex::new(Cache::<String, i32>::builder().build().await.unwrap()));
 
     let handles: Vec<_> = (0..5)
         .map(|i| {

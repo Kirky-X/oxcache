@@ -120,62 +120,42 @@ impl Metrics {
         match (layer, op, result) {
             ("L1", "get", "hit") => {
                 self.counters.l1_get_hits.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L1", "get", "miss") => {
                 self.counters.l1_get_misses.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L2", "get", "hit") => {
                 self.counters.l2_get_hits.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L2", "get", "miss") => {
                 self.counters.l2_get_misses.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L1", "set", "attempt") => {
                 self.counters.l1_set_total.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L2", "set", "attempt") => {
                 self.counters.l2_set_total.fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L1", "delete", "attempt") => {
-                self.counters
-                    .l1_delete_total
-                    .fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.l1_delete_total.fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             ("L2", "delete", "attempt") => {
-                self.counters
-                    .l2_delete_total
-                    .fetch_add(1, Ordering::Relaxed);
-                self.counters
-                    .total_operations
-                    .fetch_add(1, Ordering::Relaxed);
+                self.counters.l2_delete_total.fetch_add(1, Ordering::Relaxed);
+                self.counters.total_operations.fetch_add(1, Ordering::Relaxed);
                 return;
             }
             _ => {}
@@ -183,10 +163,7 @@ impl Metrics {
 
         // 其他操作使用DashMap（无锁）
         let key = format!("{}:{}:{}:{}", service, layer, op, result);
-        self.requests_total
-            .entry(key)
-            .and_modify(|v| *v += 1)
-            .or_insert(1);
+        self.requests_total.entry(key).and_modify(|v| *v += 1).or_insert(1);
     }
 
     /// 记录操作耗时
@@ -233,8 +210,7 @@ impl Metrics {
 
     /// 设置批量写入吞吐量
     pub fn set_batch_throughput(&self, service: &str, throughput: f64) {
-        self.batch_throughput
-            .insert(service.to_string(), throughput);
+        self.batch_throughput.insert(service.to_string(), throughput);
     }
 
     /// 获取原子计数器的值
@@ -285,28 +261,19 @@ pub fn get_metrics_string() -> String {
     let requests: &DashMap<String, u64> = &metrics.requests_total;
     for entry in requests.iter() {
         let (key, value): (&String, &u64) = entry.pair();
-        output.push_str(&format!(
-            "cache_requests_total{{labels=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_requests_total{{labels=\"{}\"}} {}\n", key, value));
     }
 
     let health_status: &DashMap<String, u8> = &metrics.l2_health_status;
     for entry in health_status.iter() {
         let (key, value): (&String, &u8) = entry.pair();
-        output.push_str(&format!(
-            "cache_l2_health_status{{service=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_l2_health_status{{service=\"{}\"}} {}\n", key, value));
     }
 
     let wal_entries: &DashMap<String, usize> = &metrics.wal_entries;
     for entry in wal_entries.iter() {
         let (key, value): (&String, &usize) = entry.pair();
-        output.push_str(&format!(
-            "cache_wal_entries{{service=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_wal_entries{{service=\"{}\"}} {}\n", key, value));
     }
 
     let durations: &DashMap<String, (f64, u64)> = &metrics.operation_duration;
@@ -320,12 +287,9 @@ pub fn get_metrics_string() -> String {
                 let op = parts[2];
                 let avg_duration = total_duration / *count as f64;
                 output.push_str(&format!(
-                            "cache_operation_duration_seconds{{service=\"{}\",layer=\"{}\",op=\"{}\"}} {}\n",
-                            service,
-                            layer,
-                            op,
-                            avg_duration
-                        ));
+                    "cache_operation_duration_seconds{{service=\"{}\",layer=\"{}\",op=\"{}\"}} {}\n",
+                    service, layer, op, avg_duration
+                ));
             }
         }
     }
@@ -333,28 +297,19 @@ pub fn get_metrics_string() -> String {
     let buffer_sizes: &DashMap<String, usize> = &metrics.batch_buffer_size;
     for entry in buffer_sizes.iter() {
         let (key, value): (&String, &usize) = entry.pair();
-        output.push_str(&format!(
-            "cache_batch_buffer_size{{service=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_batch_buffer_size{{service=\"{}\"}} {}\n", key, value));
     }
 
     let success_rates: &DashMap<String, f64> = &metrics.batch_success_rate;
     for entry in success_rates.iter() {
         let (key, value): (&String, &f64) = entry.pair();
-        output.push_str(&format!(
-            "cache_batch_success_rate{{service=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_batch_success_rate{{service=\"{}\"}} {}\n", key, value));
     }
 
     let throughputs: &DashMap<String, f64> = &metrics.batch_throughput;
     for entry in throughputs.iter() {
         let (key, value): (&String, &f64) = entry.pair();
-        output.push_str(&format!(
-            "cache_batch_throughput{{service=\"{}\"}} {}\n",
-            key, value
-        ));
+        output.push_str(&format!("cache_batch_throughput{{service=\"{}\"}} {}\n", key, value));
     }
 
     output
@@ -511,32 +466,20 @@ impl CacheStats {
         output.push_str(&format!("cache_l2_sets_total {}\n", self.l2_sets));
         output.push_str(&format!("cache_l1_deletes_total {}\n", self.l1_deletes));
         output.push_str(&format!("cache_l2_deletes_total {}\n", self.l2_deletes));
-        output.push_str(&format!(
-            "cache_operations_total {}\n",
-            self.total_operations
-        ));
+        output.push_str(&format!("cache_operations_total {}\n", self.total_operations));
 
         // 计算并导出命中率
         output.push_str(&format!("cache_l1_hit_rate {}\n", self.l1_hit_rate()));
         output.push_str(&format!("cache_l2_hit_rate {}\n", self.l2_hit_rate()));
-        output.push_str(&format!(
-            "cache_overall_hit_rate {}\n",
-            self.overall_hit_rate()
-        ));
+        output.push_str(&format!("cache_overall_hit_rate {}\n", self.overall_hit_rate()));
 
         // 容量指标
         output.push_str(&format!("cache_l1_item_count {}\n", self.l1_item_count));
-        output.push_str(&format!(
-            "cache_l1_capacity_used_bytes {}\n",
-            self.l1_capacity_used
-        ));
+        output.push_str(&format!("cache_l1_capacity_used_bytes {}\n", self.l1_capacity_used));
 
         // 压缩指标
         output.push_str(&format!("cache_prefetch_total {}\n", self.prefetch_count));
-        output.push_str(&format!(
-            "cache_compression_total {}\n",
-            self.compression_count
-        ));
+        output.push_str(&format!("cache_compression_total {}\n", self.compression_count));
         output.push_str(&format!(
             "cache_compression_bytes_saved {}\n",
             self.compression_bytes_saved
@@ -604,10 +547,8 @@ impl Metrics {
     /// 获取命中率
     pub fn hit_rate(&self) -> f64 {
         let counters = &self.counters;
-        let hits = counters.l1_get_hits.load(Ordering::Relaxed)
-            + counters.l2_get_hits.load(Ordering::Relaxed);
-        let misses = counters.l1_get_misses.load(Ordering::Relaxed)
-            + counters.l2_get_misses.load(Ordering::Relaxed);
+        let hits = counters.l1_get_hits.load(Ordering::Relaxed) + counters.l2_get_hits.load(Ordering::Relaxed);
+        let misses = counters.l1_get_misses.load(Ordering::Relaxed) + counters.l2_get_misses.load(Ordering::Relaxed);
         let total = hits + misses;
         if total == 0 {
             1.0
@@ -628,9 +569,7 @@ impl Metrics {
 
     /// 记录压缩操作
     pub fn record_compression(&self, bytes_saved: u64) {
-        self.counters
-            .compression_total
-            .fetch_add(1, Ordering::Relaxed);
+        self.counters.compression_total.fetch_add(1, Ordering::Relaxed);
         self.counters
             .compression_bytes_saved
             .fetch_add(bytes_saved, Ordering::Relaxed);
@@ -643,9 +582,7 @@ impl Metrics {
 
     /// 设置 L1 容量使用
     pub fn set_l1_capacity_used(&self, bytes: u64) {
-        self.counters
-            .l1_capacity_used
-            .store(bytes, Ordering::Relaxed);
+        self.counters.l1_capacity_used.store(bytes, Ordering::Relaxed);
     }
 
     /// 导出 Prometheus 格式
@@ -683,7 +620,7 @@ pub fn export_json_format() -> Result<String, serde_json::Error> {
 
 // Re-export unified metrics
 pub use unified::{
-    convenience as unified_convenience, CacheLayer, CacheOpResult, CacheOpType, CacheOperation,
-    CounterSnapshot, HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot,
-    TimerData, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
+    convenience as unified_convenience, CacheLayer, CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot,
+    HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, UnifiedMetrics,
+    GLOBAL_UNIFIED_METRICS,
 };

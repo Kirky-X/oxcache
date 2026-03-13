@@ -13,9 +13,7 @@ async fn setup_partition_manager(
     database_url: &str,
 ) -> Result<Arc<dyn PartitionManager + Send + Sync>, Box<dyn std::error::Error>> {
     let db_type = DatabaseType::from_url(database_url);
-    let config = PartitionConfig {
-        ..Default::default()
-    };
+    let config = PartitionConfig { ..Default::default() };
 
     let manager: Arc<dyn PartitionManager + Send + Sync> = match db_type {
         DatabaseType::MySQL => {
@@ -46,10 +44,7 @@ async fn test_cross_database_partition_consistency() -> Result<(), Box<dyn std::
 
     let test_configs = [
         ("MySQL", "mysql://root:password@localhost:3307/oxcache_test"),
-        (
-            "PostgreSQL",
-            "postgres://user:password@localhost:5433/crawlrs_db",
-        ),
+        ("PostgreSQL", "postgres://user:password@localhost:5433/crawlrs_db"),
         (
             "SQLite",
             "sqlite:///home/project/aybss/crates/infra/oxcache/test_cross_db.db",
@@ -104,22 +99,13 @@ async fn test_cross_database_partition_consistency() -> Result<(), Box<dyn std::
 
         let partition_info = PartitionInfo::new(test_date, test_table)?;
         manager.create_partition(&partition_info).await?;
-        println!(
-            "✓ {} partition created: {}",
-            db_name, partition_info.table_name
-        );
+        println!("✓ {} partition created: {}", db_name, partition_info.table_name);
 
         results.push((db_name, partition_info.table_name.clone()));
 
         let partitions = manager.get_partitions(test_table).await?;
-        let found_partition = partitions
-            .iter()
-            .find(|p| p.table_name == partition_info.table_name);
-        assert!(
-            found_partition.is_some(),
-            "Partition not found in {} database",
-            db_name
-        );
+        let found_partition = partitions.iter().find(|p| p.table_name == partition_info.table_name);
+        assert!(found_partition.is_some(), "Partition not found in {} database", db_name);
         println!("✓ {} partition verification passed", db_name);
     }
 
@@ -132,10 +118,7 @@ async fn test_cross_database_partition_consistency() -> Result<(), Box<dyn std::
                 db_name, partition_name, first_partition
             );
         } else {
-            println!(
-                "✓ {} partition name consistent: {}",
-                db_name, partition_name
-            );
+            println!("✓ {} partition name consistent: {}", db_name, partition_name);
         }
     }
 
@@ -154,10 +137,7 @@ async fn test_cross_database_partition_cleanup() -> Result<(), Box<dyn std::erro
 
     let test_configs = vec![
         ("MySQL", "mysql://root:password@localhost:3307/oxcache_test"),
-        (
-            "PostgreSQL",
-            "postgres://user:password@localhost:5433/crawlrs_db",
-        ),
+        ("PostgreSQL", "postgres://user:password@localhost:5433/crawlrs_db"),
         (
             "SQLite",
             "sqlite:///home/project/aybss/crates/infra/oxcache/test_cross_cleanup.db",
@@ -228,20 +208,12 @@ async fn test_cross_database_partition_cleanup() -> Result<(), Box<dyn std::erro
 
         // Test cleanup with 2 months retention
         // Calculate cutoff date (2 months ago)
-        let cutoff_date = Utc::now()
-            .checked_sub_signed(chrono::Duration::days(60))
-            .unwrap();
-        let cleaned_count = manager
-            .cleanup_old_partitions(test_table, cutoff_date)
-            .await?;
+        let cutoff_date = Utc::now().checked_sub_signed(chrono::Duration::days(60)).unwrap();
+        let cleaned_count = manager.cleanup_old_partitions(test_table, cutoff_date).await?;
         println!("✓ {} cleaned up {} old partitions", db_name, cleaned_count);
 
         let partitions_after = manager.get_partitions(test_table).await?;
-        println!(
-            "✓ {} has {} partitions after cleanup",
-            db_name,
-            partitions_after.len()
-        );
+        println!("✓ {} has {} partitions after cleanup", db_name, partitions_after.len());
 
         // Verify that recent partition still exists
         let recent_exists = partitions_after

@@ -4,8 +4,8 @@
 //
 // 事件系统单元测试
 
-use oxcache::events::{CacheEvent, CacheEventType, EventPublisher};
 use async_trait::async_trait;
+use oxcache::events::{CacheEvent, CacheEventType, EventPublisher};
 
 #[test]
 fn test_cache_event_type_display() {
@@ -59,8 +59,7 @@ fn test_cache_event_with_latency() {
 
 #[test]
 fn test_cache_event_with_error() {
-    let event = CacheEvent::new(CacheEventType::Error)
-        .with_error("Connection refused");
+    let event = CacheEvent::new(CacheEventType::Error).with_error("Connection refused");
     assert_eq!(event.error, Some("Connection refused".to_string()));
 }
 
@@ -156,9 +155,15 @@ async fn test_event_publisher_publish() {
 async fn test_event_publisher_multiple_events() {
     let publisher = MockEventPublisher::new();
 
-    publisher.publish(CacheEvent::new(CacheEventType::Hit).with_key("key1")).await;
-    publisher.publish(CacheEvent::new(CacheEventType::Miss).with_key("key2")).await;
-    publisher.publish(CacheEvent::new(CacheEventType::Set).with_key("key3")).await;
+    publisher
+        .publish(CacheEvent::new(CacheEventType::Hit).with_key("key1"))
+        .await;
+    publisher
+        .publish(CacheEvent::new(CacheEventType::Miss).with_key("key2"))
+        .await;
+    publisher
+        .publish(CacheEvent::new(CacheEventType::Set).with_key("key3"))
+        .await;
 
     let events = publisher.get_events();
     assert_eq!(events.len(), 3);
@@ -184,8 +189,7 @@ fn test_cache_event_error_with_all_fields() {
 
 #[test]
 fn test_cache_event_batch_operations() {
-    let start = CacheEvent::new(CacheEventType::BatchStart)
-        .with_metadata("batch_size", "100");
+    let start = CacheEvent::new(CacheEventType::BatchStart).with_metadata("batch_size", "100");
     let end = CacheEvent::new(CacheEventType::BatchEnd)
         .with_latency(500)
         .with_metadata("success_count", "98");
@@ -197,10 +201,8 @@ fn test_cache_event_batch_operations() {
 
 #[test]
 fn test_cache_event_connection_events() {
-    let connect = CacheEvent::new(CacheEventType::Connect)
-        .with_metadata("host", "localhost:6379");
-    let disconnect = CacheEvent::new(CacheEventType::Disconnect)
-        .with_metadata("reason", "timeout");
+    let connect = CacheEvent::new(CacheEventType::Connect).with_metadata("host", "localhost:6379");
+    let disconnect = CacheEvent::new(CacheEventType::Disconnect).with_metadata("reason", "timeout");
 
     assert_eq!(connect.event_type, CacheEventType::Connect);
     assert_eq!(disconnect.event_type, CacheEventType::Disconnect);

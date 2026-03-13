@@ -11,7 +11,6 @@ pub mod confers_config;
 
 #[cfg(feature = "confers")]
 pub use confers_config::{
-    BackendConfig, BackendType, CacheType, ConfigFormat, GlobalConfig, MetricsConfig,
-    PerformanceConfig, RecoveryConfig, SecurityConfig, ServiceConfig, UnifiedConfig,
-    UnifiedConfigBuilder,
+    BackendConfig, BackendType, CacheType, ConfigFormat, GlobalConfig, MetricsConfig, PerformanceConfig,
+    RecoveryConfig, SecurityConfig, ServiceConfig, UnifiedConfig, UnifiedConfigBuilder,
 };

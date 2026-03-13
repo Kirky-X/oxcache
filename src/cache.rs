@@ -80,9 +80,7 @@ where
     V: Cacheable,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Cache")
-            .field("backend", &"<CacheBackend>")
-            .finish()
+        f.debug_struct("Cache").field("backend", &"<CacheBackend>").finish()
     }
 }
 
@@ -277,9 +275,7 @@ where
         use crate::backend::client::RedisBackend;
 
         // 获取oxcache配置部分，如果没有则使用空对象
-        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config
-            .get("oxcache")
-        {
+        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config.get("oxcache") {
             Some(serde_json::Value::Object(obj)) => obj,
             _ => {
                 static EMPTY: once_cell::sync::Lazy<serde_json::Map<String, serde_json::Value>> =
@@ -301,9 +297,8 @@ where
                     .get("redis")
                     .and_then(|v| v.as_object())
                     .unwrap_or_else(|| {
-                        static EMPTY: once_cell::sync::Lazy<
-                            serde_json::Map<String, serde_json::Value>,
-                        > = once_cell::sync::Lazy::new(serde_json::Map::new);
+                        static EMPTY: once_cell::sync::Lazy<serde_json::Map<String, serde_json::Value>> =
+                            once_cell::sync::Lazy::new(serde_json::Map::new);
                         &EMPTY
                     });
                 let connection_string = redis_config
@@ -311,10 +306,7 @@ where
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
                     .unwrap_or_else(|| "redis://localhost:6379".to_string());
 
-                tracing::info!(
-                    "Creating Redis cache backend with connection: {}",
-                    connection_string
-                );
+                tracing::info!("Creating Redis cache backend with connection: {}", connection_string);
 
                 Arc::new(RedisBackend::new(&connection_string).await?)
             }
@@ -353,8 +345,7 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
-                let value: V = serde_json::from_slice(&data)
-                    .map_err(|e| CacheError::Serialization(e.to_string()))?;
+                let value: V = serde_json::from_slice(&data).map_err(|e| CacheError::Serialization(e.to_string()))?;
                 Ok(Some(value))
             }
             None => Ok(None),
@@ -418,8 +409,7 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes =
-                serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
             self.backend.set(&key_str, bytes, ttl).await
         }
 
@@ -548,9 +538,7 @@ where
 
     /// Check if the cache supports L1-only operations
     pub fn supports_l1_only(&self) -> bool {
-        self.backend
-            .as_any()
-            .is::<crate::backend::client::MokaMemoryBackend>()
+        self.backend.as_any().is::<crate::backend::client::MokaMemoryBackend>()
     }
 
     /// Check if the cache supports L2-only operations
@@ -834,9 +822,7 @@ where
 
         // Only allow registration for Cache<String, Vec<u8>>
         // This is the expected type for #[cached] macro
-        if TypeId::of::<K>() == TypeId::of::<String>()
-            && TypeId::of::<V>() == TypeId::of::<Vec<u8>>()
-        {
+        if TypeId::of::<K>() == TypeId::of::<String>() && TypeId::of::<V>() == TypeId::of::<Vec<u8>>() {
             // Safe approach: Extract backend and create new cache with correct types
             // This avoids unsafe transmute_copy by reusing the backend safely
             let backend = self.backend.clone();
@@ -883,12 +869,7 @@ where
     /// println!("Counter: {}", result);
     /// ```
     #[cfg(feature = "lua-script")]
-    pub async fn eval_lua(
-        &self,
-        script: &str,
-        keys: &[&str],
-        args: &[&str],
-    ) -> Result<redis::Value> {
+    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         use crate::backend::client::RedisBackend;
 
         // Downcast to RedisBackend to access Lua methods
@@ -896,9 +877,7 @@ where
             .backend
             .as_any()
             .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| {
-                CacheError::Operation("Lua scripts require Redis backend".to_string())
-            })?;
+            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
 
         redis_backend.eval_lua(script, keys, args).await
     }
@@ -940,9 +919,7 @@ where
             .backend
             .as_any()
             .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| {
-                CacheError::Operation("Lua scripts require Redis backend".to_string())
-            })?;
+            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
 
         redis_backend.eval_sha(sha, keys, args).await
     }
@@ -986,9 +963,7 @@ where
             .backend
             .as_any()
             .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| {
-                CacheError::Operation("Lua scripts require Redis backend".to_string())
-            })?;
+            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
 
         redis_backend.script_load(script).await
     }
@@ -1071,20 +1046,13 @@ mod tests {
 
         // Test set_many
         cache
-            .set_many(vec![
-                (&"key1".to_string(), &value1),
-                (&"key2".to_string(), &value2),
-            ])
+            .set_many(vec![(&"key1".to_string(), &value1), (&"key2".to_string(), &value2)])
             .await
             .unwrap();
 
         // Test get_many
         let results = cache
-            .get_many(vec![
-                &"key1".to_string(),
-                &"key2".to_string(),
-                &"key3".to_string(),
-            ])
+            .get_many(vec![&"key1".to_string(), &"key2".to_string(), &"key3".to_string()])
             .await
             .unwrap();
         assert_eq!(results.len(), 2);

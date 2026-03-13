@@ -10,12 +10,7 @@ use crate::error::Result;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::SerializerEnum;
 use async_trait::async_trait;
-#[cfg(any(
-    feature = "redis",
-    feature = "futures",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
 use futures::future::join_all;
 use serde::{de::DeserializeOwned, Serialize};
 use std::any::Any;
@@ -69,54 +64,32 @@ pub trait UnifiedCache: Send + Sync + Any {
 
     /// Get from L1 cache only
     async fn get_l1_bytes(&self, _key: &str) -> Result<Option<Vec<u8>>> {
-        Err(crate::error::CacheError::NotSupported(
-            "get_l1_bytes".to_string(),
-        ))
+        Err(crate::error::CacheError::NotSupported("get_l1_bytes".to_string()))
     }
 
     /// Get from L2 cache only
     async fn get_l2_bytes(&self, _key: &str) -> Result<Option<Vec<u8>>> {
-        Err(crate::error::CacheError::NotSupported(
-            "get_l2_bytes".to_string(),
-        ))
+        Err(crate::error::CacheError::NotSupported("get_l2_bytes".to_string()))
     }
 
     /// Set in L1 cache only
-    async fn set_l1_bytes(
-        &self,
-        _key: &str,
-        _value: Vec<u8>,
-        _ttl: Option<Duration>,
-    ) -> Result<()> {
-        Err(crate::error::CacheError::NotSupported(
-            "set_l1_bytes".to_string(),
-        ))
+    async fn set_l1_bytes(&self, _key: &str, _value: Vec<u8>, _ttl: Option<Duration>) -> Result<()> {
+        Err(crate::error::CacheError::NotSupported("set_l1_bytes".to_string()))
     }
 
     /// Set in L2 cache only
-    async fn set_l2_bytes(
-        &self,
-        _key: &str,
-        _value: Vec<u8>,
-        _ttl: Option<Duration>,
-    ) -> Result<()> {
-        Err(crate::error::CacheError::NotSupported(
-            "set_l2_bytes".to_string(),
-        ))
+    async fn set_l2_bytes(&self, _key: &str, _value: Vec<u8>, _ttl: Option<Duration>) -> Result<()> {
+        Err(crate::error::CacheError::NotSupported("set_l2_bytes".to_string()))
     }
 
     /// Clear L1 cache only
     async fn clear_l1(&self) -> Result<()> {
-        Err(crate::error::CacheError::NotSupported(
-            "clear_l1".to_string(),
-        ))
+        Err(crate::error::CacheError::NotSupported("clear_l1".to_string()))
     }
 
     /// Clear L2 cache only
     async fn clear_l2(&self) -> Result<()> {
-        Err(crate::error::CacheError::NotSupported(
-            "clear_l2".to_string(),
-        ))
+        Err(crate::error::CacheError::NotSupported("clear_l2".to_string()))
     }
 
     // ============================================================================
@@ -151,14 +124,8 @@ pub trait UnifiedCache: Send + Sync + Any {
     }
 
     /// Set typed value in cache
-    async fn set_typed<T: Serialize + Send + Sync>(
-        &self,
-        key: &str,
-        value: &T,
-        ttl: Option<Duration>,
-    ) -> Result<()> {
-        let bytes = serde_json::to_vec(value)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+    async fn set_typed<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: Option<Duration>) -> Result<()> {
+        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_bytes(key, bytes, ttl).await
     }
 
@@ -169,8 +136,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let bytes = serde_json::to_vec(value)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_l1_bytes(key, bytes, ttl).await
     }
 
@@ -181,8 +147,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let bytes = serde_json::to_vec(value)
-            .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
         self.set_l2_bytes(key, bytes, ttl).await
     }
 
@@ -238,12 +203,7 @@ pub trait UnifiedCache: Send + Sync + Any {
 
         // For L2 (Redis) cache, use parallel execution
         // For L1 (memory) cache, use sequential execution to avoid overhead
-        #[cfg(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        ))]
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
         let is_l2_cache = self
             .as_any()
             .downcast_ref::<crate::backend::client::RedisBackend>()
@@ -253,22 +213,12 @@ pub trait UnifiedCache: Send + Sync + Any {
                 .downcast_ref::<crate::backend::client::redis::RedisBackend>()
                 .is_some();
 
-        #[cfg(not(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        )))]
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
         let is_l2_cache = false;
 
         if is_l2_cache && items.len() > 1 {
             // Parallel execution for Redis
-            #[cfg(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            ))]
+            #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
                 let futures: Vec<_> = items
                     .into_iter()
@@ -282,12 +232,7 @@ pub trait UnifiedCache: Send + Sync + Any {
                 }
             }
             // Sequential fallback (shouldn't be reached in minimal mode)
-            #[cfg(not(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            )))]
+            #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
             {
                 for (key, value) in items {
                     self.set_bytes(key, value, None).await?;
@@ -311,12 +256,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         let keys: Vec<_> = keys.into_iter().collect();
 
         // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        ))]
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
         let is_l2_cache = self
             .as_any()
             .downcast_ref::<crate::backend::client::RedisBackend>()
@@ -326,22 +266,12 @@ pub trait UnifiedCache: Send + Sync + Any {
                 .downcast_ref::<crate::backend::client::redis::RedisBackend>()
                 .is_some();
 
-        #[cfg(not(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        )))]
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
         let is_l2_cache = false;
 
         if is_l2_cache && keys.len() > 1 {
             // Parallel execution for Redis
-            #[cfg(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            ))]
+            #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
                 let futures: Vec<_> = keys.iter().map(|key| self.get_bytes(key)).collect();
                 let results: Vec<Result<Option<Vec<u8>>>> = join_all(futures).await;
@@ -374,12 +304,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         let keys: Vec<_> = keys.into_iter().collect();
 
         // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        ))]
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
         let is_l2_cache = self
             .as_any()
             .downcast_ref::<crate::backend::client::RedisBackend>()
@@ -389,22 +314,12 @@ pub trait UnifiedCache: Send + Sync + Any {
                 .downcast_ref::<crate::backend::client::redis::RedisBackend>()
                 .is_some();
 
-        #[cfg(not(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        )))]
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
         let is_l2_cache = false;
 
         if is_l2_cache && keys.len() > 1 {
             // Parallel execution for Redis
-            #[cfg(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            ))]
+            #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
                 let futures: Vec<_> = keys.iter().map(|key| self.delete(key)).collect();
                 let results: Vec<Result<()>> = join_all(futures).await;
@@ -433,12 +348,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         let items: Vec<_> = items.into_iter().collect();
 
         // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        ))]
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
         let is_l2_cache = self
             .as_any()
             .downcast_ref::<crate::backend::client::RedisBackend>()
@@ -448,22 +358,12 @@ pub trait UnifiedCache: Send + Sync + Any {
                 .downcast_ref::<crate::backend::client::redis::RedisBackend>()
                 .is_some();
 
-        #[cfg(not(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        )))]
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
         let is_l2_cache = false;
 
         if is_l2_cache && items.len() > 1 {
             // Parallel execution for Redis
-            #[cfg(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            ))]
+            #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
                 let futures: Vec<_> = items
                     .iter()
@@ -495,12 +395,7 @@ pub trait UnifiedCache: Send + Sync + Any {
         let keys: Vec<_> = keys.into_iter().collect();
 
         // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        ))]
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
         let is_l2_cache = self
             .as_any()
             .downcast_ref::<crate::backend::client::RedisBackend>()
@@ -510,22 +405,12 @@ pub trait UnifiedCache: Send + Sync + Any {
                 .downcast_ref::<crate::backend::client::redis::RedisBackend>()
                 .is_some();
 
-        #[cfg(not(any(
-            feature = "redis",
-            feature = "futures",
-            feature = "core",
-            feature = "full"
-        )))]
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
         let is_l2_cache = false;
 
         if is_l2_cache && keys.len() > 1 {
             // Parallel execution for Redis
-            #[cfg(any(
-                feature = "redis",
-                feature = "futures",
-                feature = "core",
-                feature = "full"
-            ))]
+            #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
                 let futures: Vec<_> = keys.iter().map(|key| self.get_typed::<T>(key)).collect();
                 let results: Vec<Result<Option<T>>> = join_all(futures).await;
@@ -650,10 +535,7 @@ mod tests {
 
         // Test basic operations using the backend's own methods directly
         // This tests that the backend works correctly
-        backend
-            .set("test_key", b"test_value".to_vec(), None)
-            .await
-            .unwrap();
+        backend.set("test_key", b"test_value".to_vec(), None).await.unwrap();
 
         // Small delay to allow async operations to complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -691,10 +573,7 @@ mod tests {
         };
 
         // Test typed operations
-        backend
-            .set_typed("typed_key", &test_val, None)
-            .await
-            .unwrap();
+        backend.set_typed("typed_key", &test_val, None).await.unwrap();
         let retrieved: Option<TestStruct> = backend.get_typed("typed_key").await.unwrap();
         assert_eq!(retrieved, Some(test_val));
 
@@ -722,8 +601,7 @@ mod tests {
         let backend = MemoryBackend::new();
 
         // Test batch set
-        let items: Vec<(&str, Vec<u8>)> =
-            vec![("key1", b"value1".to_vec()), ("key2", b"value2".to_vec())];
+        let items: Vec<(&str, Vec<u8>)> = vec![("key1", b"value1".to_vec()), ("key2", b"value2".to_vec())];
         backend
             .set_many_bytes(items.iter().map(|(k, v)| (*k, v.clone())))
             .await

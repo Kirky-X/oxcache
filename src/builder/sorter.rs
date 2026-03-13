@@ -114,9 +114,7 @@ impl BackendSorter {
         // 检查是否只有持久化后端
         let all_persistent = links.iter().all(|l| l.is_persistent);
         if all_persistent {
-            warn!(
-                "All backends are persistent. Consider adding a memory cache for better performance."
-            );
+            warn!("All backends are persistent. Consider adding a memory cache for better performance.");
         }
 
         // 检查分数是否有效
@@ -169,18 +167,13 @@ impl BackendSorter {
         // 检查是否只有持久化后端
         let all_persistent = links.iter().all(|l| l.is_persistent);
         if all_persistent {
-            warnings.push(
-                "All backends are persistent. Consider adding a memory cache.".to_string(),
-            );
+            warnings.push("All backends are persistent. Consider adding a memory cache.".to_string());
         }
 
         // 检查分数
         for link in links.iter() {
             if link.score == 0 {
-                warnings.push(format!(
-                    "Backend '{}' has score 0",
-                    link.name
-                ));
+                warnings.push(format!("Backend '{}' has score 0", link.name));
             }
         }
 
@@ -189,8 +182,10 @@ impl BackendSorter {
             if links[i].score > links[i - 1].score {
                 warnings.push(format!(
                     "Backends not sorted: '{}' (score {}) should come before '{}' (score {})",
-                    links[i].name, links[i].score,
-                    links[i - 1].name, links[i - 1].score
+                    links[i].name,
+                    links[i].score,
+                    links[i - 1].name,
+                    links[i - 1].score
                 ));
             }
         }
@@ -270,12 +265,7 @@ mod tests {
             Ok(None)
         }
 
-        async fn set(
-            &self,
-            _key: &str,
-            _value: Vec<u8>,
-            _ttl: Option<Duration>,
-        ) -> crate::error::Result<()> {
+        async fn set(&self, _key: &str, _value: Vec<u8>, _ttl: Option<Duration>) -> crate::error::Result<()> {
             Ok(())
         }
 
@@ -330,12 +320,7 @@ mod tests {
 
     #[test]
     fn test_sort_links() {
-        let high = ChainLink::new(
-            MockBackend::new("high", 100, false),
-            100,
-            false,
-            "high",
-        );
+        let high = ChainLink::new(MockBackend::new("high", 100, false), 100, false, "high");
         let low = ChainLink::new(MockBackend::new("low", 50, true), 50, true, "low");
 
         let links = vec![low, high];
@@ -355,12 +340,7 @@ mod tests {
 
     #[test]
     fn test_validate_all_persistent() {
-        let links = vec![ChainLink::new(
-            MockBackend::new("redis", 50, true),
-            50,
-            true,
-            "redis",
-        )];
+        let links = vec![ChainLink::new(MockBackend::new("redis", 50, true), 50, true, "redis")];
 
         let result = BackendSorter::validate(&links);
         assert!(result.is_valid());

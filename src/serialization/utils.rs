@@ -70,9 +70,7 @@ pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
     encoder
         .write_all(data)
         .map_err(|e| CacheError::Serialization(e.to_string()))?;
-    encoder
-        .finish()
-        .map_err(|e| CacheError::Serialization(e.to_string()))
+    encoder.finish().map_err(|e| CacheError::Serialization(e.to_string()))
 }
 
 /// 使用flate2解压缩数据

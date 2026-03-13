@@ -37,10 +37,7 @@ async fn test_e2e_basic_cache() {
 
     // Verify deletion
     let get_after_delete = cache.get(&key).await;
-    assert!(
-        get_after_delete.unwrap().is_none(),
-        "Value should be None after delete"
-    );
+    assert!(get_after_delete.unwrap().is_none(), "Value should be None after delete");
 }
 
 /// 端到端测试 - User结构体缓存

@@ -238,10 +238,7 @@ impl OxCacheBuilder {
             .build();
         let redis = crate::backend::client::RedisBackend::new(redis_connection).await?;
 
-        Ok(Self::new()
-            .backend(moka)
-            .backend(redis)
-            .enable_backfill())
+        Ok(Self::new().backend(moka).backend(redis).enable_backfill())
     }
 }
 
@@ -368,10 +365,7 @@ mod tests {
         let high = MockBackend::new("high", 100, false);
         let low = MockBackend::new("low", 50, true);
 
-        let result = OxCacheBuilder::new()
-            .backend(low)
-            .backend(high)
-            .build();
+        let result = OxCacheBuilder::new().backend(low).backend(high).build();
 
         assert!(result.is_ok());
 

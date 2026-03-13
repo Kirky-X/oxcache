@@ -82,12 +82,7 @@ impl ChainLink {
     /// * `score` - 后端分数
     /// * `is_persistent` - 是否持久化
     /// * `name` - 后端名称
-    pub fn from_arc(
-        backend: Arc<dyn CacheBackend>,
-        score: u8,
-        is_persistent: bool,
-        name: &'static str,
-    ) -> Self {
+    pub fn from_arc(backend: Arc<dyn CacheBackend>, score: u8, is_persistent: bool, name: &'static str) -> Self {
         Self {
             backend,
             score,
@@ -202,10 +197,7 @@ impl ChainCache {
 
     /// 获取所有非持久化后端
     pub fn non_persistent_backends(&self) -> Vec<&ChainLink> {
-        self.links
-            .iter()
-            .filter(|link| !link.is_persistent)
-            .collect()
+        self.links.iter().filter(|link| !link.is_persistent).collect()
     }
 
     /// 从链中读取数据
@@ -217,11 +209,7 @@ impl ChainCache {
         for (index, link) in self.links.iter().enumerate() {
             match link.backend.get(key).await {
                 Ok(Some(value)) => {
-                    debug!(
-                        backend = link.name,
-                        score = link.score,
-                        "Cache hit in chain"
-                    );
+                    debug!(backend = link.name, score = link.score, "Cache hit in chain");
 
                     // 回填到更高分后端
                     if self.backfill_enabled && index > 0 {
@@ -231,11 +219,7 @@ impl ChainCache {
                     return Ok(Some(value));
                 }
                 Ok(None) => {
-                    debug!(
-                        backend = link.name,
-                        score = link.score,
-                        "Cache miss in chain"
-                    );
+                    debug!(backend = link.name, score = link.score, "Cache miss in chain");
                     continue;
                 }
                 Err(e) => {
@@ -264,10 +248,7 @@ impl ChainCache {
                     "Failed to backfill to higher backend"
                 );
             } else {
-                debug!(
-                    backend = link.name,
-                    "Backfilled to higher backend"
-                );
+                debug!(backend = link.name, "Backfilled to higher backend");
             }
         }
     }
@@ -281,11 +262,7 @@ impl ChainCache {
         for link in &self.links {
             match link.backend.set(key, value.clone(), effective_ttl).await {
                 Ok(_) => {
-                    debug!(
-                        backend = link.name,
-                        score = link.score,
-                        "Written to backend"
-                    );
+                    debug!(backend = link.name, score = link.score, "Written to backend");
                 }
                 Err(e) => {
                     warn!(
@@ -327,11 +304,7 @@ impl ChainCache {
         for link in &self.links {
             match link.backend.delete(key).await {
                 Ok(_) => {
-                    debug!(
-                        backend = link.name,
-                        score = link.score,
-                        "Deleted from backend"
-                    );
+                    debug!(backend = link.name, score = link.score, "Deleted from backend");
                 }
                 Err(e) => {
                     warn!(
@@ -475,14 +448,8 @@ impl CacheBackend for ChainCache {
         stats.insert("backend_count".to_string(), self.links.len().to_string());
 
         for (index, link) in self.links.iter().enumerate() {
-            stats.insert(
-                format!("backend_{}_name", index),
-                link.name.to_string(),
-            );
-            stats.insert(
-                format!("backend_{}_score", index),
-                link.score.to_string(),
-            );
+            stats.insert(format!("backend_{}_name", index), link.name.to_string());
+            stats.insert(format!("backend_{}_score", index), link.score.to_string());
         }
 
         Ok(stats)
@@ -726,10 +693,7 @@ mod tests {
         let high = MockBackend::new("high", 100, false);
         let low = MockBackend::new("low", 50, true);
 
-        let chain = ChainCache::builder()
-            .backend(high)
-            .backend(low)
-            .build();
+        let chain = ChainCache::builder().backend(high).backend(low).build();
 
         // 设置值
         chain.set("key", b"value".to_vec(), None).await.unwrap();
@@ -744,10 +708,7 @@ mod tests {
         let high = MockBackend::new("high", 100, false);
         let low = MockBackend::new("low", 50, true);
 
-        let chain = ChainCache::builder()
-            .backend(high)
-            .backend(low)
-            .build();
+        let chain = ChainCache::builder().backend(high).backend(low).build();
 
         // 设置并删除
         chain.set("key", b"value".to_vec(), None).await.unwrap();
@@ -767,8 +728,18 @@ mod tests {
         low.set("key", b"value".to_vec(), None).await.unwrap();
 
         let chain = ChainCache::builder()
-            .link(ChainLink::from_arc(high.clone() as Arc<dyn CacheBackend>, 100, false, "high"))
-            .link(ChainLink::from_arc(low.clone() as Arc<dyn CacheBackend>, 50, true, "low"))
+            .link(ChainLink::from_arc(
+                high.clone() as Arc<dyn CacheBackend>,
+                100,
+                false,
+                "high",
+            ))
+            .link(ChainLink::from_arc(
+                low.clone() as Arc<dyn CacheBackend>,
+                50,
+                true,
+                "low",
+            ))
             .enable_backfill()
             .build();
 

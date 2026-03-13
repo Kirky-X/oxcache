@@ -43,19 +43,11 @@ pub use client::{
 };
 
 #[cfg(feature = "redis")]
-pub use client::{
-    RedisBackend as ClientRedisBackend, RedisBackendBuilder, RedisMode as ClientRedisMode,
-};
+pub use client::{RedisBackend as ClientRedisBackend, RedisBackendBuilder, RedisMode as ClientRedisMode};
 
 // Re-exports for custom tiered configuration
-#[cfg(any(
-    feature = "moka",
-    feature = "redis",
-    feature = "full",
-    feature = "core"
-))]
+#[cfg(any(feature = "moka", feature = "redis", feature = "full", feature = "core"))]
 pub use custom_tiered::{
-    AutoFixConfig, BackendProvider, BackendType, ConfigFix, ConfigValidationResult,
-    CustomTieredConfig, CustomTieredConfigBuilder, DefaultBackendProvider, FixedConfigResult,
-    Layer, LayerBackendConfig, LayerRestriction,
+    AutoFixConfig, BackendProvider, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
+    CustomTieredConfigBuilder, DefaultBackendProvider, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
 };

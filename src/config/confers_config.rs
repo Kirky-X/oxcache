@@ -607,14 +607,12 @@ impl UnifiedConfig {
         use std::fs;
 
         // Read file content
-        let content = fs::read_to_string(path).map_err(|e| {
-            CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e))
-        })?;
+        let content = fs::read_to_string(path)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e)))?;
 
         // Parse TOML
-        let config: Self = toml::from_str(&content).map_err(|e| {
-            CacheError::ConfigError(format!("Failed to parse TOML from '{}': {}", path, e))
-        })?;
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to parse TOML from '{}': {}", path, e)))?;
 
         // Validate configuration
         crate::builder::cache_builder::validate_unified_config(&config)?;
@@ -655,14 +653,12 @@ impl UnifiedConfig {
         use std::fs;
 
         // Read file content
-        let content = fs::read_to_string(path).map_err(|e| {
-            CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e))
-        })?;
+        let content = fs::read_to_string(path)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e)))?;
 
         // Parse JSON
-        let config: Self = serde_json::from_str(&content).map_err(|e| {
-            CacheError::ConfigError(format!("Failed to parse JSON from '{}': {}", path, e))
-        })?;
+        let config: Self = serde_json::from_str(&content)
+            .map_err(|e| CacheError::ConfigError(format!("Failed to parse JSON from '{}': {}", path, e)))?;
 
         // Validate configuration
         crate::builder::cache_builder::validate_unified_config(&config)?;

@@ -25,17 +25,16 @@ async fn debug_mysql_initialize_table() {
     let connection_string = "mysql://user:password@localhost:3307/oxcache_test";
 
     println!("1. Creating MySQL partition manager...");
-    let manager: MySQLPartitionManager =
-        match MySQLPartitionManager::new(connection_string, config).await {
-            Ok(mgr) => {
-                println!("✓ MySQL partition manager created successfully!");
-                mgr
-            }
-            Err(e) => {
-                println!("✗ Failed to create manager: {}", e);
-                return;
-            }
-        };
+    let manager: MySQLPartitionManager = match MySQLPartitionManager::new(connection_string, config).await {
+        Ok(mgr) => {
+            println!("✓ MySQL partition manager created successfully!");
+            mgr
+        }
+        Err(e) => {
+            println!("✗ Failed to create manager: {}", e);
+            return;
+        }
+    };
 
     let table_name = "debug_test_table";
     let schema = "CREATE TABLE IF NOT EXISTS debug_test_table (
@@ -55,10 +54,7 @@ async fn debug_mysql_initialize_table() {
         let result: Result<Vec<oxcache::database::partition::PartitionInfo>, _> =
             manager.get_partitions("information_schema.tables").await;
         match result {
-            Ok(partitions) => println!(
-                "✓ Connection test passed, found {} partitions",
-                partitions.len()
-            ),
+            Ok(partitions) => println!("✓ Connection test passed, found {} partitions", partitions.len()),
             Err(e) => println!("✗ Connection test failed: {}", e),
         }
     })
@@ -78,10 +74,7 @@ async fn debug_mysql_initialize_table() {
             data VARCHAR(100)
         )";
 
-        match manager
-            .initialize_table("debug_simple_table", simple_schema)
-            .await
-        {
+        match manager.initialize_table("debug_simple_table", simple_schema).await {
             Ok(_) => println!("✓ Simple table creation passed"),
             Err(e) => println!("✗ Simple table creation failed: {}", e),
         }
