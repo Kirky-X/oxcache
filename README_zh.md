@@ -2,14 +2,7 @@
 
 <img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)
-[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)
-[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)
-[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
-[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)
-[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)
-[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](../README.md) | 简体中文
 
@@ -110,7 +103,6 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 ```rust
 use oxcache::macros::cached;
 use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -133,12 +125,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 使用 Builder 模式初始化缓存
-    let cache = CacheBuilder::new()
-        .backend(
-            BackendBuilder::tiered()
-                .l1_capacity(10000)
-                .l2_connection_string("redis://127.0.0.1:6379")
-        )
+    let cache: Cache<String, User> = CacheBuilder::default()
+        .tiered(10000, "redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -161,9 +149,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 创建 `config.toml`：
 
-> **重要**：要从配置文件初始化，需要启用 `config-toml` 和 `confers` 特性：
+> **重要**：要从配置文件初始化，需要启用 `confers` 特性：
 > ```toml
-> oxcache = { version = "0.2.0", features = ["config-toml", "confers"] }
+> oxcache = { version = "0.2.0", features = ["confers"] }
 > ```
 
 ```toml
@@ -215,6 +203,124 @@ ttl = 7200
   connection_string = "redis://127.0.0.1:6379"
 ```
 
+### 类型安全配置 API（推荐）
+
+Oxcache 提供**类型安全的构建器 API** 用于配置，支持编译时类型检查和更好的 IDE 支持。对于大多数用例，推荐使用此方式而非 TOML 配置。
+
+> **注意**：要使用类型安全配置 API，需要启用 `confers` 特性：
+> ```toml
+> oxcache = { version = "0.2.0", features = ["confers"] }
+> ```
+
+#### 仅内存缓存 (L1)
+
+```rust
+use oxcache::config::UnifiedConfigBuilder;
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用构建器 API 创建类型安全配置
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)           // 默认 TTL（秒）
+        .with_l1_capacity(10000)  // L1 缓存容量
+        .build();
+
+    // 从配置直接创建缓存
+    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+        .build()
+        .await?;
+
+    // 使用缓存
+    let user = User {
+        id: 1,
+        name: "Alice".to_string(),
+    };
+
+    cache.set(&"user:1".to_string(), &user).await?;
+    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
+
+    println!("User: {:?}", cached);
+    Ok(())
+}
+```
+
+#### 分层缓存 (L1 + L2)
+
+```rust
+use oxcache::config::UnifiedConfigBuilder;
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 创建分层缓存配置
+    let config = UnifiedConfigBuilder::tiered()
+        .with_ttl(7200)            // 默认 TTL（秒）
+        .with_l1_capacity(10000)   // L1 内存缓存容量
+        .with_redis_url("redis://localhost:6379")  // L2 Redis 连接
+        .with_redis_mode("standalone")  // Redis 模式
+        .build();
+
+    // 从配置直接创建缓存
+    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+        .build()
+        .await?;
+
+    // 使用缓存（同时写入 L1 和 L2）
+    let user = User {
+        id: 1,
+        name: "Alice".to_string(),
+    };
+
+    cache.set(&"user:1".to_string(), &user).await?;
+    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
+
+    println!("User: {:?}", cached);
+    Ok(())
+}
+```
+
+#### 配置构建器方法
+
+| 方法 | 描述 |
+|--------|------|
+| `UnifiedConfigBuilder::memory_only()` | 创建仅内存 (L1) 缓存配置 |
+| `UnifiedConfigBuilder::redis_only()` | 创建仅 Redis (L2) 缓存配置 |
+| `UnifiedConfigBuilder::tiered()` | 创建分层 (L1 + L2) 缓存配置 |
+| `.with_ttl(seconds)` | 设置缓存条目的默认 TTL |
+| `.with_tti(seconds)` | 设置默认 TTI（空闲超时时间） |
+| `.with_health_check_interval(seconds)` | 设置健康检查间隔 |
+| `.with_l1_capacity(count)` | 设置 L1 内存缓存容量 |
+| `.with_redis_url(url)` | 设置 Redis 连接 URL |
+| `.with_redis_mode(mode)` | 设置 Redis 模式（"standalone"、"sentinel"、"cluster"） |
+| `.with_metrics(enabled)` | 启用/禁用指标收集 |
+| `.with_wal(enabled)` | 启用/禁用预写日志 |
+| `.with_auto_recovery(enabled)` | 启用/禁用自动恢复 |
+| `.build()` | 构建 `UnifiedConfig` 实例 |
+| `.build_json()` | 将配置构建为 `serde_json::Value` |
+
+#### 类型安全 API 的优势
+
+- **编译时验证**：配置错误在编译时被捕获
+- **IDE 支持**：完整的自动补全和类型提示
+- **无运行时解析**：消除 TOML 解析开销
+- **更好的错误信息**：类型错误而非配置解析错误
+- **重构友好**：重命名重构可在配置中生效
+
 ## 🎨 使用场景
 
 ### 场景 1: 用户信息缓存
@@ -252,7 +358,6 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -262,12 +367,8 @@ struct MyData {
 
 async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
     // 使用 Builder 模式初始化缓存
-    let cache = CacheBuilder::new()
-        .backend(
-            BackendBuilder::tiered()
-                .l1_capacity(10000)
-                .l2_connection_string("redis://127.0.0.1:6379")
-        )
+    let cache: Cache<String, MyData> = CacheBuilder::default()
+        .tiered(10000, "redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -292,18 +393,18 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 
 ```mermaid
 graph TD
-    A[Application Code<br/>#[cached] Macro] --> B[CacheManager<br/>Service Registry + Health Monitor]
-    
-    B --> C[TwoLevelClient]
-    B --> D[L1OnlyClient]
-    B --> E[L2OnlyClient]
-    
+    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>统一缓存接口]
+
+    B --> C[ChainCache<br/>分层后端]
+    B --> D[MokaMemoryBackend<br/>仅 L1]
+    B --> E[RedisBackend<br/>仅 L2]
+
     C --> F[L1 Cache<br/>Moka]
     C --> G[L2 Cache<br/>Redis]
-    
+
     D --> F
     E --> G
-    
+
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
@@ -313,13 +414,13 @@ graph TD
     style G fill:#fdf2e9
 ```
 
-**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略  
+**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
 **L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
 ## 📊 性能基准
 
 > 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
-> 
+>
 > **注意**: 性能因硬件、网络条件和数据大小而异。
 
 ```mermaid
@@ -354,6 +455,49 @@ xychart-beta
 - ✅ Redis 故障自动降级
 - ✅ 优雅关闭机制
 - ✅ 健康检查与自动恢复
+
+## 🔐 安全性
+
+Oxcache 实现了多项安全措施以防范常见攻击：
+
+### 输入验证
+
+所有用户输入在传递给 Redis 之前都会进行验证：
+
+- **键验证**：键不能为空、不能超过 512KB、不能包含危险字符（`\r`、`\n`、`\0`），以防止 Redis 协议注入攻击。
+- **Lua 脚本验证**：脚本验证包括：
+  - 最大长度 10KB
+  - 最多 100 个键
+  - 阻止危险命令：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
+- **SCAN 模式验证**：模式验证以防止 ReDoS 攻击：
+  - 最大长度 256 个字符
+  - 最多 10 个通配符（`*`）字符
+  - count 参数限制在安全范围内（1-1000）
+
+### 超时保护
+
+长时间运行的操作有超时保护：
+
+- **Lua 脚本**：30 秒超时，防止 Redis 阻塞
+- **SCAN 操作**：30 秒超时，防止扫描挂起
+
+### 安全锁值
+
+分布式锁使用库自动生成的加密安全 UUID v4 值，消除锁值预测攻击的风险。
+
+### 连接字符串脱敏
+
+连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `normalize_connection_string_with_redaction()` 进行安全日志记录。
+
+### 最佳实践
+
+1. **使用库的键验证** - 不要绕过 `validate_redis_key()` 函数
+2. **避免自定义 Lua 脚本** - 尽可能使用内置缓存操作
+3. **设置适当的超时** - 不要禁用 30 秒默认超时
+4. **轮换锁值** - 库会自动处理
+5. **永远不要记录连接字符串** - 使用脱敏工具进行调试
+
+更多详情请参阅 [安全文档](docs/SECURITY.md)。
 
 ## 📚 文档
 
