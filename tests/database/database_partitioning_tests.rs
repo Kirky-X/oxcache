@@ -18,9 +18,7 @@ use oxcache::database::PartitionStrategy;
 use oxcache::error::Result;
 use std::sync::Arc;
 
-#[path = "../common/database_test_utils.rs"]
-mod database_test_utils;
-use database_test_utils::*;
+use crate::database_test_utils::*;
 
 // 检查是否启用数据库测试
 fn should_run_database_tests() -> bool {
@@ -39,11 +37,8 @@ async fn test_postgres_partitioning() -> Result<()> {
     }
 
     let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
-        config.partitioning_enabled,
-        config.strategy,
-        config.retention_months,
-    );
+    let partition_config =
+        create_partition_config(config.partitioning_enabled, config.strategy, config.retention_months);
 
     // Create PostgreSQL partition manager with timeout
     let manager_result = tokio::time::timeout(
@@ -108,11 +103,8 @@ async fn test_mysql_partitioning() -> Result<()> {
     }
 
     let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
-        config.partitioning_enabled,
-        config.strategy,
-        config.retention_months,
-    );
+    let partition_config =
+        create_partition_config(config.partitioning_enabled, config.strategy, config.retention_months);
 
     // Create MySQL partition manager with timeout
     let manager_result = tokio::time::timeout(
@@ -159,10 +151,7 @@ async fn test_mysql_partitioning() -> Result<()> {
     match init_result {
         Ok(Ok(_)) => println!("✓ MySQL table initialized with partitioning"),
         Ok(Err(e)) => {
-            println!(
-                "⚠️  MySQL table initialization failed: {}. Skipping test.",
-                e
-            );
+            println!("⚠️  MySQL table initialization failed: {}. Skipping test.", e);
             return Ok(());
         }
         Err(_) => {
@@ -192,11 +181,8 @@ async fn test_mysql_partitioning() -> Result<()> {
     }
 
     // List partitions
-    let list_result = tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        manager.get_partitions(test_table),
-    )
-    .await;
+    let list_result =
+        tokio::time::timeout(std::time::Duration::from_secs(30), manager.get_partitions(test_table)).await;
 
     let _partitions = match list_result {
         Ok(Ok(partitions)) => {
@@ -261,16 +247,11 @@ async fn test_sqlite_partitioning() -> Result<()> {
     // 如果没有分区，先创建一个再检查
     if partitions.is_empty() {
         let test_date = Utc::now();
-        let partition_name = manager
-            .ensure_partition_exists(test_date, test_table)
-            .await?;
+        let partition_name = manager.ensure_partition_exists(test_date, test_table).await?;
         println!("✓ SQLite partition ensured: {}", partition_name);
 
         partitions = manager.get_partitions(test_table).await?;
-        println!(
-            "✓ SQLite partitions listed after creation: {} found",
-            partitions.len()
-        );
+        println!("✓ SQLite partitions listed after creation: {} found", partitions.len());
     }
 
     // Partitions will be created manually below
@@ -285,9 +266,7 @@ async fn test_sqlite_partitioning() -> Result<()> {
     }
 
     let test_date = Utc::now();
-    let partition_name = manager
-        .ensure_partition_exists(test_date, test_table)
-        .await?;
+    let partition_name = manager.ensure_partition_exists(test_date, test_table).await?;
     println!("✓ SQLite partition ensured: {}", partition_name);
 
     let all_partitions = manager.get_partitions(test_table).await?;
@@ -395,11 +374,8 @@ async fn test_concurrent_operations() -> Result<()> {
     }
 
     let config = TestConfig::from_file();
-    let partition_config = create_partition_config(
-        config.partitioning_enabled,
-        config.strategy,
-        config.retention_months,
-    );
+    let partition_config =
+        create_partition_config(config.partitioning_enabled, config.strategy, config.retention_months);
 
     // Test with PostgreSQL with timeout
     let manager_result = tokio::time::timeout(
