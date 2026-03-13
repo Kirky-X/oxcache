@@ -20,7 +20,7 @@ async fn test_degradation_logic() {
     let redis_url = common::get_redis_url();
 
     // 跳过测试如果Redis不可用
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }

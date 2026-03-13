@@ -14,7 +14,7 @@ use crate::common;
 /// 验证双层缓存系统的基本工作流程
 #[tokio::test]
 async fn test_two_level_cache_flow() {
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过test_two_level_cache_flow：Redis不可用");
         return;
     }

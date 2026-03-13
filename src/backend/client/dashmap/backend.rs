@@ -175,16 +175,6 @@ impl CacheBackend for DashMapMemoryBackend {
                 }
             }
 
-            // Update TTL atomically if configured
-            if let Some(default_ttl) = self.default_ttl {
-                let new_expires_at = now + default_ttl;
-                // Use update for atomic TTL update
-                if let Some(mut entry_mut) = self.cache.get_mut(key) {
-                    entry_mut.expires_at = Some(new_expires_at);
-                    self.ttl_map.insert(key.to_string(), new_expires_at);
-                }
-            }
-
             self.hits.fetch_add(1, Ordering::SeqCst);
             Some(entry.value.clone())
         });

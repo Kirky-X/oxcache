@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 /// let backend = MockBackend::new("test", 80, false);
 /// let backend_with_data = MockBackend::with_data("test", 80, false);
 /// ```
+#[allow(dead_code)]
 pub struct MockBackend {
     name: &'static str,
     score: u8,
@@ -36,6 +37,7 @@ impl MockBackend {
     /// * `name` - 后端名称
     /// * `score` - 后端分数 (0-100)
     /// * `persistent` - 是否持久化
+    #[allow(dead_code)]
     pub fn new(name: &'static str, score: u8, persistent: bool) -> Self {
         Self {
             name,
@@ -48,6 +50,7 @@ impl MockBackend {
     /// 创建带数据存储的 MockBackend
     ///
     /// 与 `new` 相同，但明确表示支持数据存储操作。
+    #[allow(dead_code)]
     pub fn with_data(name: &'static str, score: u8, persistent: bool) -> Self {
         Self::new(name, score, persistent)
     }
@@ -136,5 +139,14 @@ impl oxcache::backend::CacheBackend for MockBackend {
     async fn len(&self) -> oxcache::error::Result<u64> {
         let data = self.data.read().await;
         Ok(data.len() as u64)
+    }
+
+    async fn is_empty(&self) -> oxcache::error::Result<bool> {
+        let data = self.data.read().await;
+        Ok(data.is_empty())
+    }
+
+    async fn capacity(&self) -> oxcache::error::Result<u64> {
+        Ok(1000)
     }
 }

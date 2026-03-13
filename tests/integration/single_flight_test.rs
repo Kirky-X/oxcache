@@ -10,7 +10,7 @@ use crate::common::{is_redis_available, setup_logging};
 async fn test_single_flight_deduplication() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }
@@ -25,7 +25,7 @@ async fn test_single_flight_deduplication() {
 async fn test_concurrent_cache_operations() {
     setup_logging();
 
-    if !is_redis_available() {
+    if !is_redis_available().await {
         println!("跳过测试: Redis不可用");
         return;
     }

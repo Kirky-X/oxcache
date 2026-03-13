@@ -8,6 +8,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use oxcache::cache::SerializerPool;
 use oxcache::serialization::json::JsonSerializer;
 use oxcache::serialization::Serializer;
+use oxcache::Cache;
 use tokio::runtime::Runtime;
 
 // ============================================================================
@@ -75,43 +76,51 @@ fn bench_serialization_sizes(c: &mut Criterion) {
 fn bench_batch_operations(c: &mut Criterion) {
     let runtime = Runtime::new().unwrap();
 
+    let cache = runtime.block_on(async { Cache::builder().build().await.unwrap() });
+
+    runtime.block_on(async {
+        for i in 0..100 {
+            let key = format!("batch_key_{}", i);
+            let value = vec![1u8, 2, 3, 4, 5];
+            let _ = cache.set(&key, &value).await;
+        }
+    });
+
     c.bench_function("batch_set_10", |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                let items: Vec<(String, Vec<u8>)> = (0..10)
-                    .map(|i| (format!("key{}", i), vec![1, 2, 3, 4, 5]))
-                    .collect();
-                black_box(items.len());
-            });
+        b.to_async(&runtime).iter(|| async {
+            for i in 0..10 {
+                let key = format!("batch_set_{}", i);
+                let value = vec![1u8, 2, 3, 4, 5];
+                let _ = cache.set(&key, &value).await;
+            }
         })
     });
 
     c.bench_function("batch_set_100", |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                let items: Vec<(String, Vec<u8>)> = (0..100)
-                    .map(|i| (format!("key{}", i), vec![1, 2, 3, 4, 5]))
-                    .collect();
-                black_box(items.len());
-            });
+        b.to_async(&runtime).iter(|| async {
+            for i in 0..100 {
+                let key = format!("batch_set_large_{}", i);
+                let value = vec![1u8, 2, 3, 4, 5];
+                let _ = cache.set(&key, &value).await;
+            }
         })
     });
 
     c.bench_function("batch_get_10", |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                let keys: Vec<String> = (0..10).map(|i| format!("key{}", i)).collect();
-                black_box(keys.len());
-            });
+        b.to_async(&runtime).iter(|| async {
+            for i in 0..10 {
+                let key = format!("batch_key_{}", i);
+                let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
+            }
         })
     });
 
     c.bench_function("batch_get_100", |b| {
-        b.iter(|| {
-            runtime.block_on(async {
-                let keys: Vec<String> = (0..100).map(|i| format!("key{}", i)).collect();
-                black_box(keys.len());
-            });
+        b.to_async(&runtime).iter(|| async {
+            for i in 0..100 {
+                let key = format!("batch_key_{}", i);
+                let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
+            }
         })
     });
 }
