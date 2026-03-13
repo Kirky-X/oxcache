@@ -7,7 +7,7 @@
 #![cfg(feature = "redis")]
 
 use crate::common;
-use crate::redis_test_utils::test_redis_connection;
+use crate::common::redis_test_utils::test_redis_connection;
 use oxcache::backend::client::redis::RedisBackend;
 
 #[tokio::test]
