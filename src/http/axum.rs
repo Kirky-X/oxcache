@@ -90,10 +90,13 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
         if let Some(etag) = &cached_response.etag {
             if let Some(if_none_match) = request.headers().get("If-None-Match") {
                 if if_none_match == etag {
-                    return Response::builder()
+                    match Response::builder()
                         .status(StatusCode::NOT_MODIFIED)
                         .body(Body::empty())
-                        .unwrap();
+                    {
+                        Ok(response) => return response,
+                        Err(_) => return next.run(request).await,
+                    }
                 }
             }
         }
@@ -108,41 +111,48 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
     // 检查是否应该缓存
     let status = response.status();
     if state.policy.should_cache_response(status) {
-        let body_bytes = response.body_mut().collect().await.unwrap().to_bytes();
-        let body = body_bytes.to_vec();
+        match response.body_mut().collect().await {
+            Ok(collected) => {
+                let body_bytes = collected.to_bytes();
+                let body = body_bytes.to_vec();
 
-        // 构建缓存响应
-        let mut headers = HashMap::new();
-        for (name, value) in response.headers().iter() {
-            if let Ok(value_str) = value.to_str() {
-                headers.insert(name.to_string(), value_str.to_string());
+                // 构建缓存响应
+                let mut headers = HashMap::new();
+                for (name, value) in response.headers().iter() {
+                    if let Ok(value_str) = value.to_str() {
+                        headers.insert(name.to_string(), value_str.to_string());
+                    }
+                }
+
+                // 提取 TTL
+                let ttl = state
+                    .policy
+                    .extract_ttl_from_headers(response.headers())
+                    .or(Some(state.policy.default_ttl));
+
+                // 生成 ETag
+                let etag = Some(format!("{:x}", md5::compute(&body)));
+
+                let cached_response = HttpCacheResponse {
+                    status: status.as_u16(),
+                    headers,
+                    body,
+                    cached_at: chrono::Utc::now(),
+                    ttl,
+                    etag,
+                    last_modified: None,
+                };
+
+                // 缓存响应
+                let _ = state
+                    .adapter
+                    .set_response(&cache_key, &cached_response)
+                    .await;
+            }
+            Err(_) => {
+                return response;
             }
         }
-
-        // 提取 TTL
-        let ttl = state
-            .policy
-            .extract_ttl_from_headers(response.headers())
-            .or(Some(state.policy.default_ttl));
-
-        // 生成 ETag
-        let etag = Some(format!("{:x}", md5::compute(&body)));
-
-        let cached_response = HttpCacheResponse {
-            status: status.as_u16(),
-            headers,
-            body,
-            cached_at: chrono::Utc::now(),
-            ttl,
-            etag,
-            last_modified: None,
-        };
-
-        // 缓存响应
-        let _ = state
-            .adapter
-            .set_response(&cache_key, &cached_response)
-            .await;
     }
 
     response
@@ -152,7 +162,6 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
 fn build_response(cached: &HttpCacheResponse) -> Response {
     let mut builder = http::Response::builder().status(cached.status);
 
-    // 添加响应头
     for (name, value) in &cached.headers {
         builder = builder.header(name, value);
     }
@@ -165,7 +174,13 @@ fn build_response(cached: &HttpCacheResponse) -> Response {
         builder = builder.header("Cache-Control", format!("max-age={}", ttl));
     }
 
-    builder.body(Body::from(cached.body.clone())).unwrap()
+    match builder.body(Body::from(cached.body.clone())) {
+        Ok(response) => response,
+        Err(_) => http::Response::builder()
+            .status(500)
+            .body(Body::from("Failed to build cached response"))
+            .unwrap_or_else(|_| http::Response::new(Body::empty())),
+    }
 }
 
 #[cfg(test)]
