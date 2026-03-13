@@ -4,8 +4,13 @@
 //
 // 该模块定义了测试的通用工具函数和设置。
 
-// 注意：database_test_utils 和 redis_test_utils 在根目录 tests/ 下定义
-// 它们通过 include! 宏在这里被包含，以避免重复定义
+// 包含数据库测试工具
+#[path = "database_test_utils.rs"]
+pub mod database_test_utils;
+
+// 包含 Redis 测试工具
+#[path = "redis_test_utils.rs"]
+pub mod redis_test_utils;
 
 use oxcache::Cache;
 use std::sync::Once;

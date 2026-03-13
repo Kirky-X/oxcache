@@ -6,7 +6,7 @@
 
 #![cfg(feature = "redis")]
 
-use crate::redis_test_utils::{is_redis_available, test_redis_connection};
+use crate::common::redis_test_utils::{is_redis_available, test_redis_connection};
 use oxcache::backend::client::redis::RedisBackend;
 use oxcache::backend::CacheBackend;
 

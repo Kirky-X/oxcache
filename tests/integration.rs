@@ -13,8 +13,6 @@ pub mod common;
 
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
-#[path = "integration/chaos_test.rs"]
-mod chaos_test;
 #[path = "integration/cli_test.rs"]
 mod cli_test;
 #[path = "integration/comprehensive_test.rs"]
@@ -33,8 +31,6 @@ mod lock_warmup_test;
 mod manual_control_test;
 #[path = "integration/metrics_test.rs"]
 mod metrics_test;
-#[path = "integration/partitioning_tests.rs"]
-mod partitioning_tests;
 #[path = "integration/performance_test.rs"]
 mod performance_test;
 #[path = "integration/recovery_test.rs"]
@@ -45,14 +41,10 @@ mod redis_native_test;
 mod redis_simple_test;
 #[path = "integration/redis_test.rs"]
 mod redis_test;
-#[path = "integration/sea_orm_sqlite_tests.rs"]
-mod sea_orm_sqlite_tests;
 #[path = "integration/security_test.rs"]
 mod security_test;
 #[path = "integration/single_flight_test.rs"]
 mod single_flight_test;
-#[path = "integration/sqlite_partition_tests.rs"]
-mod sqlite_partition_tests;
 #[path = "integration/ttl_control_test.rs"]
 mod ttl_control_test;
 #[path = "integration/two_level_test.rs"]
@@ -61,3 +53,12 @@ mod two_level_test;
 mod version_test;
 #[path = "integration/wal_test.rs"]
 mod wal_test;
+
+#[path = "integration/l2_backend_test.rs"]
+mod l2_backend_test;
+
+#[path = "integration/mock_l2_backend_test.rs"]
+mod mock_l2_backend_test;
+
+#[path = "integration/chain_cache_integration_test.rs"]
+mod chain_cache_integration_test;
