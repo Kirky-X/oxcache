@@ -4,6 +4,9 @@
 //
 // 该模块定义了缓存系统的后端提供者。
 
+// Backend score system
+pub mod score;
+
 // Client implementations
 pub mod client;
 
@@ -22,6 +25,9 @@ pub mod custom_tiered;
 
 // Re-exports for new API
 pub use interface::CacheBackend;
+
+// Score system exports
+pub use score::{BackendScore, Scores};
 
 // Client implementations
 pub use client::{
