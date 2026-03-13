@@ -6,8 +6,12 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 ignore = [
     # RUSTSEC-2023-0071: rsa 漏洞来自 sqlx 的传递依赖，无可用修复版本
     "RUSTSEC-2023-0071",
-    # RUSTSEC-2026-0002: lru 警告来自 confers 的传递依赖
-    "RUSTSEC-2026-0002",
+    # RUSTSEC-2025-0111: tokio-tar 漏洞来自 testcontainers 的传递依赖，无可用修复版本
+    "RUSTSEC-2025-0111",
+    # RUSTSEC-2025-0141: bincode 未维护警告，项目直接依赖
+    "RUSTSEC-2025-0141",
+    # RUSTSEC-2025-0134: rustls-pemfile 未维护警告，来自 bollard 传递依赖
+    "RUSTSEC-2025-0134",
 ]
 
 [licenses]
