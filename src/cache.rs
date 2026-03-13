@@ -126,7 +126,24 @@ where
         use crate::backend::MokaMemoryBackend;
         Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
     }
+}
 
+#[cfg(feature = "moka")]
+impl<K, V> Default for Cache<K, V>
+where
+    K: CacheKey,
+    V: Cacheable,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K, V> Cache<K, V>
+where
+    K: CacheKey,
+    V: Cacheable,
+{
     /// Create a cache with DashMap memory backend
     ///
     /// This method provides a synchronous constructor that creates a cache

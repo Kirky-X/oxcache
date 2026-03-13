@@ -59,28 +59,24 @@
 //! ## Tiered Cache (L1 + L2)
 //!
 //! ```rust,ignore
-//! use oxcache::builder::BackendBuilder;
+//! use oxcache::OxCacheBuilder;
 //!
-//! let cache: Cache<String, MyType> = Cache::builder()
-//!     .backend(
-//!         BackendBuilder::tiered()
-//!             .l1_capacity(10000)
-//!             .l2_connection_string("redis://localhost:6379")
-//!     )
-//!     .build()
-//!     .await?;
+//! let cache = OxCacheBuilder::tiered(10000, "redis://localhost:6379")
+//!     .await?
+//!     .build()?;
 //! ```
 //!
 //! # Advanced Configuration
 //!
 //! ```rust,ignore
-//! use oxcache::{Cache, builder::BackendBuilder};
+//! use oxcache::{Cache, OxCacheBuilder};
 //! use std::time::Duration;
 //!
 //! let cache: Cache<String, User> = Cache::builder()
-//!     .backend(
-//!         BackendBuilder::memory()
+//!     .with_backend(
+//!         oxcache::backend::MokaMemoryBackend::builder()
 //!             .capacity(10000)
+//!             .build()
 //!     )
 //!     .ttl(Duration::from_secs(3600))
 //!     .build()
@@ -430,6 +426,7 @@ pub(crate) mod internal;
 pub mod builder;
 pub mod cache;
 pub mod cache_interface;
+pub mod chain;
 pub mod traits;
 
 // Configuration module (using Confers library)
@@ -542,7 +539,7 @@ pub use error::{CacheError, Result};
 // ============================================================================
 
 // New API exports
-pub use builder::{BackendBuilder, CacheBuilder};
+pub use builder::{CacheBuilder, OxCacheBuilder};
 pub use cache::Cache;
 
 // Configuration module exports (using Confers library)
@@ -551,6 +548,7 @@ pub use cache::Cache;
 pub use config::confers_config;
 
 pub use cache_interface::UnifiedCache;
+pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use traits::{CacheKey, Cacheable};
 
 // DashMap backend exports (client)
@@ -559,8 +557,8 @@ pub use backend::client::DashMapMemoryBackend as DashMapBackend;
 
 // Unified memory backend exports (from client implementations)
 pub use backend::{
-    dashmap_memory, default_memory_backend, moka_memory, DashMapMemoryBackend, MemoryBackend,
-    MemoryBackendType, MokaMemoryBackend,
+    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend,
+    MemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores,
 };
 // Client backend exports
 pub use backend::client::{
