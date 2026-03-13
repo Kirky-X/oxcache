@@ -4,13 +4,39 @@
 //!
 //! Cache builder for advanced configuration
 
-use super::backend_builder::BackendBuilder;
-use crate::backend::client::MokaMemoryBackend as MemoryBackend;
+use crate::backend::interface::CacheBackend;
+use crate::backend::MokaMemoryBackend as MemoryBackend;
 use crate::cache::Cache;
 use crate::error::Result;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// 内部后端配置枚举
+///
+/// 用于存储后端配置，在 build() 时异步创建后端实例。
+#[derive(Clone)]
+enum InternalBackendConfig {
+    /// 内存后端配置
+    Memory {
+        capacity: u64,
+    },
+    /// Redis 后端配置
+    #[cfg(feature = "redis")]
+    Redis {
+        connection_string: String,
+        mode: crate::backend::client::RedisMode,
+    },
+    /// 分层后端配置
+    #[cfg(feature = "redis")]
+    Tiered {
+        l1_capacity: u64,
+        l2_connection_string: String,
+        l2_mode: crate::backend::client::RedisMode,
+    },
+    /// 预构建的后端实例
+    Prebuilt(Arc<dyn CacheBackend>),
+}
 
 /// Builder for creating configured Cache instances
 ///
@@ -36,7 +62,7 @@ use std::time::Duration;
 ///     .await?;
 /// ```
 pub struct CacheBuilder<K, V> {
-    backend_builder: Option<BackendBuilder>,
+    backend_config: Option<InternalBackendConfig>,
     ttl: Option<Duration>,
     capacity: Option<u64>,
     batch_writes: bool,
@@ -47,7 +73,7 @@ pub struct CacheBuilder<K, V> {
 impl<K, V> Default for CacheBuilder<K, V> {
     fn default() -> Self {
         Self {
-            backend_builder: None,
+            backend_config: None,
             ttl: None,
             capacity: None,
             batch_writes: false,
@@ -148,117 +174,104 @@ where
         self
     }
 
-    /// 使用外部confers配置（DI支持）
-    ///
-    /// 此方法允许从confers配置实例读取缓存配置，
-    /// 并与手动配置的参数（如TTL、capacity）合并。
-    /// 手动配置的参数优先级高于confers配置。
+    /// Set a custom backend
     ///
     /// # Arguments
     ///
-    /// * `config` - confers配置实例
+    /// * `backend` - Custom backend implementing CacheBackend trait
     ///
     /// # Returns
     ///
     /// Self for method chaining
     ///
-    /// # Configuration Keys
-    ///
-    /// 从confers读取以下配置项（如果未手动设置）：
-    ///
-    /// - `oxcache.backend`: 后端类型 ("memory" | "redis" | "tiered")
-    /// - `oxcache.capacity`: 内存缓存容量（默认10000）
-    /// - `oxcache.ttl`: 默认TTL（秒）
-    /// - `oxcache.redis.url`: Redis连接URL
-    /// - `oxcache.redis.mode`: Redis模式
-    ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::Cache;
-    /// use std::sync::Arc;
-    /// use std::time::Duration;
+    /// use oxcache::backend::MokaMemoryBackend;
     ///
-    /// use serde_json::json;
-    ///
-    /// let config = json!({
-    ///     "oxcache": {
-    ///         "backend": "memory",
-    ///         "capacity": 10000,
-    ///         "ttl": 3600
-    ///     }
-    /// });
-    ///
-    /// // 使用confers配置，但覆盖TTL
-    /// let cache = Cache::builder()
-    ///     .with_confers(&config)
-    ///     .ttl(Duration::from_secs(7200))  // 覆盖confers中的TTL
-    ///     .build()
-    ///     .await?;
+    /// let backend = MokaMemoryBackend::builder().capacity(10000).build();
+    /// let builder = Cache::builder().with_backend(backend);
     /// ```
-    ///
-    /// # Features
-    ///
-    /// 此方法仅在启用 `confers` feature 时可用。
-    #[cfg(feature = "confers")]
-    pub fn with_confers(mut self, config: &serde_json::Value) -> Self {
-        use std::time::Duration;
-
-        // 获取oxcache配置部分，如果没有则使用空对象
-        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config
-            .get("oxcache")
-        {
-            Some(serde_json::Value::Object(obj)) => obj,
-            _ => {
-                static EMPTY: once_cell::sync::Lazy<serde_json::Map<String, serde_json::Value>> =
-                    once_cell::sync::Lazy::new(serde_json::Map::new);
-                &EMPTY
-            }
-        };
-
-        // 如果尚未设置TTL，从confers读取
-        if self.ttl.is_none() {
-            if let Some(ttl_secs) = oxcache_config.get("ttl").and_then(|v| v.as_i64()) {
-                self.ttl = Some(Duration::from_secs(ttl_secs as u64));
-            }
-        }
-
-        // 如果尚未设置capacity，从confers读取
-        if self.capacity.is_none() {
-            if let Some(cap) = oxcache_config
-                .get("capacity")
-                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-            {
-                self.capacity = Some(cap);
-            }
-        }
-
-        // 使用BackendBuilder::with_confers创建后端构建器
-        self.backend_builder = Some(super::BackendBuilder::with_confers(config));
-
+    pub fn with_backend<B>(mut self, backend: B) -> Self
+    where
+        B: CacheBackend + 'static,
+    {
+        self.backend_config = Some(InternalBackendConfig::Prebuilt(Arc::new(backend)));
         self
     }
 
-    /// Set the backend builder
+    /// Set a pre-built backend (Arc wrapped)
     ///
     /// # Arguments
     ///
-    /// * `builder` - Backend builder instance
+    /// * `backend` - Arc-wrapped backend
     ///
     /// # Returns
     ///
     /// Self for method chaining
+    pub fn backend(mut self, backend: Arc<dyn CacheBackend>) -> Self {
+        self.backend_config = Some(InternalBackendConfig::Prebuilt(backend));
+        self
+    }
+
+    /// Configure Redis backend
     ///
-    /// # Example
+    /// # Arguments
     ///
-    /// ```rust,ignore
-    /// use oxcache::builder::BackendBuilder;
+    /// * `connection_string` - Redis connection URL
     ///
-    /// let builder = Cache::builder()
-    ///     .backend(BackendBuilder::redis().connection_string("redis://localhost:6379"));
-    /// ```
-    pub fn backend(mut self, builder: BackendBuilder) -> Self {
-        self.backend_builder = Some(builder);
+    /// # Returns
+    ///
+    /// Self for method chaining
+    #[cfg(feature = "redis")]
+    pub fn redis(mut self, connection_string: impl Into<String>) -> Self {
+        self.backend_config = Some(InternalBackendConfig::Redis {
+            connection_string: connection_string.into(),
+            mode: crate::backend::client::RedisMode::Standalone,
+        });
+        self
+    }
+
+    /// Configure Redis backend with mode
+    ///
+    /// # Arguments
+    ///
+    /// * `connection_string` - Redis connection URL
+    /// * `mode` - Redis mode (Standalone, Sentinel, Cluster)
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
+    #[cfg(feature = "redis")]
+    pub fn redis_with_mode(
+        mut self,
+        connection_string: impl Into<String>,
+        mode: crate::backend::client::RedisMode,
+    ) -> Self {
+        self.backend_config = Some(InternalBackendConfig::Redis {
+            connection_string: connection_string.into(),
+            mode,
+        });
+        self
+    }
+
+    /// Configure tiered backend (L1 + L2)
+    ///
+    /// # Arguments
+    ///
+    /// * `l1_capacity` - L1 memory cache capacity
+    /// * `l2_connection_string` - Redis connection URL
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
+    #[cfg(feature = "redis")]
+    pub fn tiered(mut self, l1_capacity: u64, l2_connection_string: impl Into<String>) -> Self {
+        self.backend_config = Some(InternalBackendConfig::Tiered {
+            l1_capacity,
+            l2_connection_string: l2_connection_string.into(),
+            l2_mode: crate::backend::client::RedisMode::Standalone,
+        });
         self
     }
 
@@ -282,20 +295,165 @@ where
     ///     .await?;
     /// ```
     pub async fn build(self) -> Result<Cache<K, V>> {
-        let backend = if let Some(backend_builder) = self.backend_builder {
-            backend_builder.build().await?
-        } else {
-            // Default to memory backend
-            let builder = MemoryBackend::builder();
-            let backend = if let Some(capacity) = self.capacity {
-                builder.capacity(capacity).build()
-            } else {
-                builder.build()
-            };
-            Arc::new(backend)
+        let backend = match self.backend_config {
+            Some(InternalBackendConfig::Prebuilt(backend)) => backend,
+            Some(InternalBackendConfig::Memory { capacity }) => {
+                Arc::new(MemoryBackend::builder().capacity(capacity).build())
+            }
+            #[cfg(feature = "redis")]
+            Some(InternalBackendConfig::Redis {
+                connection_string,
+                mode,
+            }) => {
+                let backend = crate::backend::client::RedisBackend::builder()
+                    .connection_string(&connection_string)
+                    .mode(mode)
+                    .build()
+                    .await?;
+                Arc::new(backend)
+            }
+            #[cfg(feature = "redis")]
+            Some(InternalBackendConfig::Tiered {
+                l1_capacity,
+                l2_connection_string,
+                l2_mode,
+            }) => {
+                let l1 = MemoryBackend::builder().capacity(l1_capacity).build();
+                let l2 = crate::backend::client::RedisBackend::builder()
+                    .connection_string(&l2_connection_string)
+                    .mode(l2_mode)
+                    .build()
+                    .await?;
+
+                Arc::new(crate::chain::ChainCache::builder()
+                    .link(crate::chain::ChainLink::from_backend(l1))
+                    .link(crate::chain::ChainLink::from_backend(l2))
+                    .build())
+            }
+            None => {
+                let capacity = self.capacity.unwrap_or(10000);
+                Arc::new(MemoryBackend::builder().capacity(capacity).build())
+            }
         };
 
         Ok(Cache::new_with_backend(backend))
+    }
+
+    /// Configure from confers JSON configuration
+    ///
+    /// This method allows using external confers configuration to create a cache builder.
+    /// The configuration is parsed and applied to the builder.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - JSON configuration value
+    ///
+    /// # Returns
+    ///
+    /// Self for method chaining
+    ///
+    /// # Configuration Keys
+    ///
+    /// Reads the following from `oxcache` section:
+    /// - `backend`: Backend type ("memory" | "redis" | "tiered"), default "memory"
+    /// - `capacity`: Memory cache capacity, default 10000
+    /// - `ttl`: Default TTL in seconds
+    /// - `redis.url`: Redis connection URL
+    /// - `tiered.l1_capacity`: L1 cache capacity for tiered backend
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use serde_json::json;
+    ///
+    /// let config = json!({
+    ///     "oxcache": {
+    ///         "backend": "memory",
+    ///         "capacity": 5000
+    ///     }
+    /// });
+    ///
+    /// let cache: Cache<String, String> = Cache::builder()
+    ///     .with_confers(&config)
+    ///     .build()
+    ///     .await?;
+    /// ```
+    #[cfg(feature = "confers")]
+    pub fn with_confers(mut self, config: &serde_json::Value) -> Self {
+        let oxcache_config: &serde_json::Map<String, serde_json::Value> = match config.get("oxcache")
+        {
+            Some(serde_json::Value::Object(obj)) => obj,
+            _ => return self,
+        };
+
+        let backend_type = oxcache_config
+            .get("backend")
+            .and_then(|v| v.as_str())
+            .unwrap_or("memory");
+
+        let capacity = oxcache_config
+            .get("capacity")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10000);
+
+        if let Some(ttl_secs) = oxcache_config.get("ttl").and_then(|v| v.as_u64()) {
+            self.ttl = Some(Duration::from_secs(ttl_secs));
+        }
+
+        self.capacity = Some(capacity);
+
+        match backend_type {
+            "memory" => {
+                self.backend_config = Some(InternalBackendConfig::Memory { capacity });
+            }
+            #[cfg(feature = "redis")]
+            "redis" => {
+                let redis_config = oxcache_config
+                    .get("redis")
+                    .and_then(|v| v.as_object())
+                    .cloned()
+                    .unwrap_or_default();
+                let connection_string = redis_config
+                    .get("url")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "redis://localhost:6379".to_string());
+                self.backend_config = Some(InternalBackendConfig::Redis {
+                    connection_string,
+                    mode: crate::backend::client::RedisMode::Standalone,
+                });
+            }
+            #[cfg(feature = "redis")]
+            "tiered" => {
+                let tiered_config = oxcache_config
+                    .get("tiered")
+                    .and_then(|v| v.as_object())
+                    .cloned()
+                    .unwrap_or_default();
+                let l1_capacity = tiered_config
+                    .get("l1_capacity")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(capacity);
+                let redis_config = oxcache_config
+                    .get("redis")
+                    .and_then(|v| v.as_object())
+                    .cloned()
+                    .unwrap_or_default();
+                let l2_connection_string = redis_config
+                    .get("url")
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "redis://localhost:6379".to_string());
+                self.backend_config = Some(InternalBackendConfig::Tiered {
+                    l1_capacity,
+                    l2_connection_string,
+                    l2_mode: crate::backend::client::RedisMode::Standalone,
+                });
+            }
+            _ => {
+                self.backend_config = Some(InternalBackendConfig::Memory { capacity });
+            }
+        }
+
+        self
     }
 
     /// Create a CacheBuilder from a UnifiedConfig
@@ -336,117 +494,10 @@ where
     pub fn from_unified_config(
         config: &crate::config::UnifiedConfig,
     ) -> std::result::Result<Self, crate::error::CacheError> {
-        // Validate configuration
         validate_unified_config(config)?;
-        use std::time::Duration;
 
-        // Create BackendBuilder from UnifiedConfig
-        let backend_builder = match config.backend.backend_type {
-            crate::config::BackendType::Memory => {
-                // Extract L1 capacity from options
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
+        let backend_config = backend_config_from_unified_config(config)?;
 
-                BackendBuilder::memory().capacity(capacity)
-            }
-            #[cfg(feature = "redis")]
-            crate::config::BackendType::Redis => {
-                // Extract Redis URL from options
-                let connection_string = config
-                    .backend
-                    .l2_options
-                    .get("connection_string")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                // Extract Redis mode from options
-                let mode_str = config
-                    .backend
-                    .l2_options
-                    .get("mode")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("standalone");
-
-                let mode = match mode_str {
-                    "cluster" => crate::backend::client::RedisMode::Cluster,
-                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                    _ => crate::backend::client::RedisMode::Standalone,
-                };
-
-                BackendBuilder::redis()
-                    .connection_string(connection_string.as_deref().unwrap_or(""))
-                    .mode(mode)
-            }
-            #[cfg(not(feature = "redis"))]
-            crate::config::BackendType::Redis => {
-                tracing::warn!(
-                    "Redis backend requested but redis feature not enabled, falling back to memory"
-                );
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-                BackendBuilder::memory().capacity(capacity)
-            }
-            #[cfg(feature = "redis")]
-            crate::config::BackendType::Tiered => {
-                // Extract L1 capacity from options
-                let l1_capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-
-                // Extract Redis URL from options
-                let connection_string = config
-                    .backend
-                    .l2_options
-                    .get("connection_string")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                // Extract Redis mode from options
-                let mode_str = config
-                    .backend
-                    .l2_options
-                    .get("mode")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("standalone");
-
-                let mode = match mode_str {
-                    "cluster" => crate::backend::client::RedisMode::Cluster,
-                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                    _ => crate::backend::client::RedisMode::Standalone,
-                };
-
-                BackendBuilder::tiered()
-                    .l1_capacity(l1_capacity)
-                    .l2_connection_string(connection_string.as_deref().unwrap_or(""))
-                    .mode(mode)
-            }
-            #[cfg(not(feature = "redis"))]
-            crate::config::BackendType::Tiered => {
-                tracing::warn!(
-                    "Tiered backend requested but redis feature not enabled, falling back to memory"
-                );
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-                BackendBuilder::memory().capacity(capacity)
-            }
-        };
-
-        // Extract TTL from global config
         let ttl = if config.global.default_ttl > 0 {
             Some(Duration::from_secs(config.global.default_ttl))
         } else {
@@ -454,7 +505,7 @@ where
         };
 
         Ok(Self {
-            backend_builder: Some(backend_builder),
+            backend_config: Some(backend_config),
             ttl,
             capacity: None,
             batch_writes: false,
@@ -503,10 +554,8 @@ where
         config: &crate::config::UnifiedConfig,
         service_name: &str,
     ) -> std::result::Result<Self, crate::error::CacheError> {
-        // First validate the base configuration
         validate_unified_config(config)?;
 
-        // Look up the service configuration
         let service_config = match config.services.get(service_name) {
             Some(service) => service,
             None => {
@@ -518,120 +567,9 @@ where
             }
         };
 
-        // Build the backend based on backend type
-        let backend_builder = match config.backend.backend_type {
-            #[cfg(feature = "moka")]
-            crate::config::BackendType::Memory => {
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
+        let backend_config =
+            backend_config_from_unified_config_with_service(config, service_config)?;
 
-                // Apply service-level capacity override if specified
-                let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
-
-                crate::builder::BackendBuilder::memory().capacity(effective_capacity)
-            }
-            #[cfg(not(feature = "moka"))]
-            crate::config::BackendType::Memory => {
-                tracing::warn!("Memory backend requested but moka feature not enabled");
-                crate::builder::BackendBuilder::default()
-            }
-            #[cfg(feature = "redis")]
-            crate::config::BackendType::Redis => {
-                let connection_string = config
-                    .backend
-                    .l2_options
-                    .get("connection_string")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let mode_str = config
-                    .backend
-                    .l2_options
-                    .get("mode")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("standalone");
-
-                let mode = match mode_str {
-                    "cluster" => crate::backend::client::RedisMode::Cluster,
-                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                    _ => crate::backend::client::RedisMode::Standalone,
-                };
-
-                crate::builder::BackendBuilder::redis()
-                    .connection_string(connection_string.as_deref().unwrap_or(""))
-                    .mode(mode)
-            }
-            #[cfg(not(feature = "redis"))]
-            crate::config::BackendType::Redis => {
-                tracing::warn!(
-                    "Redis backend requested but redis feature not enabled, falling back to memory"
-                );
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-                crate::builder::BackendBuilder::memory().capacity(capacity)
-            }
-            #[cfg(feature = "moka")]
-            #[cfg(feature = "redis")]
-            crate::config::BackendType::Tiered => {
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-
-                // Apply service-level capacity override if specified
-                let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
-
-                let connection_string = config
-                    .backend
-                    .l2_options
-                    .get("connection_string")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let mode_str = config
-                    .backend
-                    .l2_options
-                    .get("mode")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("standalone");
-
-                let mode = match mode_str {
-                    "cluster" => crate::backend::client::RedisMode::Cluster,
-                    "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                    _ => crate::backend::client::RedisMode::Standalone,
-                };
-
-                crate::builder::BackendBuilder::tiered()
-                    .l1_capacity(effective_capacity)
-                    .l2_connection_string(connection_string.as_deref().unwrap_or(""))
-                    .mode(mode)
-            }
-            #[cfg(not(all(feature = "moka", feature = "redis")))]
-            crate::config::BackendType::Tiered => {
-                tracing::warn!(
-                    "Tiered backend requested but required features not enabled, falling back to memory"
-                );
-                let capacity = config
-                    .backend
-                    .l1_options
-                    .get("max_capacity")
-                    .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
-                    .unwrap_or(10000);
-                crate::builder::BackendBuilder::memory().capacity(capacity)
-            }
-        };
-
-        // Extract TTL from service config, falling back to global config
         let ttl = match service_config.ttl {
             Some(service_ttl) if service_ttl > 0 => Some(Duration::from_secs(service_ttl)),
             _ => {
@@ -644,13 +582,231 @@ where
         };
 
         Ok(Self {
-            backend_builder: Some(backend_builder),
+            backend_config: Some(backend_config),
             ttl,
             capacity: None,
             batch_writes: false,
             auto_promote: true,
             _phantom: PhantomData,
         })
+    }
+}
+
+#[cfg(feature = "confers")]
+fn backend_config_from_unified_config(
+    config: &crate::config::UnifiedConfig,
+) -> std::result::Result<InternalBackendConfig, crate::error::CacheError> {
+    match config.backend.backend_type {
+        crate::config::BackendType::Memory => {
+            let capacity = config
+                .backend
+                .l1_options
+                .get("max_capacity")
+                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                .unwrap_or(10000);
+
+            Ok(InternalBackendConfig::Memory { capacity })
+        }
+        #[cfg(feature = "redis")]
+        crate::config::BackendType::Redis => {
+            let connection_string = config
+                .backend
+                .l2_options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    crate::error::CacheError::ConfigError(
+                        "Redis connection string is required".to_string(),
+                    )
+                })?;
+
+            let mode_str = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("standalone");
+
+            let mode = match mode_str {
+                "cluster" => crate::backend::client::RedisMode::Cluster,
+                "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                _ => crate::backend::client::RedisMode::Standalone,
+            };
+
+            Ok(InternalBackendConfig::Redis {
+                connection_string,
+                mode,
+            })
+        }
+        #[cfg(not(feature = "redis"))]
+        crate::config::BackendType::Redis => {
+            tracing::warn!(
+                "Redis backend requested but redis feature not enabled, falling back to memory"
+            );
+            let capacity = config
+                .backend
+                .l1_options
+                .get("max_capacity")
+                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                .unwrap_or(10000);
+            Ok(InternalBackendConfig::Memory { capacity })
+        }
+        #[cfg(feature = "redis")]
+        crate::config::BackendType::Tiered => {
+            let l1_capacity = config
+                .backend
+                .l1_options
+                .get("max_capacity")
+                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                .unwrap_or(10000);
+
+            let connection_string = config
+                .backend
+                .l2_options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    crate::error::CacheError::ConfigError(
+                        "Redis connection string is required for tiered backend".to_string(),
+                    )
+                })?;
+
+            let mode_str = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("standalone");
+
+            let mode = match mode_str {
+                "cluster" => crate::backend::client::RedisMode::Cluster,
+                "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                _ => crate::backend::client::RedisMode::Standalone,
+            };
+
+            Ok(InternalBackendConfig::Tiered {
+                l1_capacity,
+                l2_connection_string: connection_string,
+                l2_mode: mode,
+            })
+        }
+        #[cfg(not(feature = "redis"))]
+        crate::config::BackendType::Tiered => {
+            tracing::warn!(
+                "Tiered backend requested but redis feature not enabled, falling back to memory"
+            );
+            let capacity = config
+                .backend
+                .l1_options
+                .get("max_capacity")
+                .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+                .unwrap_or(10000);
+            Ok(InternalBackendConfig::Memory { capacity })
+        }
+    }
+}
+
+#[cfg(feature = "confers")]
+fn backend_config_from_unified_config_with_service(
+    config: &crate::config::UnifiedConfig,
+    service_config: &crate::config::ServiceConfig,
+) -> std::result::Result<InternalBackendConfig, crate::error::CacheError> {
+    let capacity = config
+        .backend
+        .l1_options
+        .get("max_capacity")
+        .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
+        .unwrap_or(10000);
+
+    let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
+
+    match config.backend.backend_type {
+        #[cfg(feature = "moka")]
+        crate::config::BackendType::Memory => Ok(InternalBackendConfig::Memory {
+            capacity: effective_capacity,
+        }),
+        #[cfg(not(feature = "moka"))]
+        crate::config::BackendType::Memory => {
+            tracing::warn!("Memory backend requested but moka feature not enabled");
+            Ok(InternalBackendConfig::Memory {
+                capacity: effective_capacity,
+            })
+        }
+        #[cfg(feature = "redis")]
+        crate::config::BackendType::Redis => {
+            let connection_string = config
+                .backend
+                .l2_options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let mode_str = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("standalone");
+
+            let mode = match mode_str {
+                "cluster" => crate::backend::client::RedisMode::Cluster,
+                "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                _ => crate::backend::client::RedisMode::Standalone,
+            };
+
+            Ok(InternalBackendConfig::Redis {
+                connection_string: connection_string.unwrap_or_default(),
+                mode,
+            })
+        }
+        #[cfg(not(feature = "redis"))]
+        crate::config::BackendType::Redis => {
+            tracing::warn!(
+                "Redis backend requested but redis feature not enabled, falling back to memory"
+            );
+            Ok(InternalBackendConfig::Memory {
+                capacity: effective_capacity,
+            })
+        }
+        #[cfg(all(feature = "moka", feature = "redis"))]
+        crate::config::BackendType::Tiered => {
+            let connection_string = config
+                .backend
+                .l2_options
+                .get("connection_string")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            let mode_str = config
+                .backend
+                .l2_options
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("standalone");
+
+            let mode = match mode_str {
+                "cluster" => crate::backend::client::RedisMode::Cluster,
+                "sentinel" => crate::backend::client::RedisMode::Sentinel,
+                _ => crate::backend::client::RedisMode::Standalone,
+            };
+
+            Ok(InternalBackendConfig::Tiered {
+                l1_capacity: effective_capacity,
+                l2_connection_string: connection_string.unwrap_or_default(),
+                l2_mode: mode,
+            })
+        }
+        #[cfg(not(all(feature = "moka", feature = "redis")))]
+        crate::config::BackendType::Tiered => {
+            tracing::warn!(
+                "Tiered backend requested but required features not enabled, falling back to memory"
+            );
+            Ok(InternalBackendConfig::Memory {
+                capacity: effective_capacity,
+            })
+        }
     }
 }
 
@@ -680,13 +836,9 @@ where
 pub fn validate_unified_config(
     config: &crate::config::UnifiedConfig,
 ) -> std::result::Result<(), crate::error::CacheError> {
-    use crate::config::BackendType;
+    const MAX_TTL_SECS: u64 = 365 * 24 * 3600;
+    const MAX_CAPACITY: u64 = 100_000_000;
 
-    // Constants for validation bounds
-    const MAX_TTL_SECS: u64 = 365 * 24 * 3600; // 1 year in seconds
-    const MAX_CAPACITY: u64 = 100_000_000; // 100 million
-
-    // Helper function to validate Redis connection string format
     let validate_redis_url = |url: &str| -> std::result::Result<(), crate::error::CacheError> {
         if !url.starts_with("redis://") && !url.starts_with("rediss://") {
             return Err(crate::error::CacheError::ConfigError(format!(
@@ -697,7 +849,6 @@ pub fn validate_unified_config(
         Ok(())
     };
 
-    // Helper function to validate Redis mode
     let validate_redis_mode = |mode: &str| -> std::result::Result<(), crate::error::CacheError> {
         match mode {
             "standalone" | "sentinel" | "cluster" => Ok(()),
@@ -709,8 +860,7 @@ pub fn validate_unified_config(
     };
 
     match config.backend.backend_type {
-        BackendType::Memory => {
-            // Validate L1 capacity if specified
+        crate::config::BackendType::Memory => {
             if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
                 let capacity_val = capacity
                     .as_u64()
@@ -730,8 +880,7 @@ pub fn validate_unified_config(
                 }
             }
         }
-        BackendType::Redis => {
-            // Validate Redis connection_string is present and non-empty
+        crate::config::BackendType::Redis => {
             let connection_string = config.backend.l2_options.get("connection_string");
             if connection_string.is_none() {
                 return Err(crate::error::CacheError::ConfigError(
@@ -744,11 +893,9 @@ pub fn validate_unified_config(
                         "Redis connection_string cannot be empty".to_string(),
                     ));
                 }
-                // Validate Redis URL format
                 validate_redis_url(cs)?;
             }
 
-            // Validate Redis mode if specified
             if let Some(mode) = config
                 .backend
                 .l2_options
@@ -758,8 +905,7 @@ pub fn validate_unified_config(
                 validate_redis_mode(mode)?;
             }
         }
-        BackendType::Tiered => {
-            // Validate L1 capacity
+        crate::config::BackendType::Tiered => {
             if let Some(capacity) = config.backend.l1_options.get("max_capacity") {
                 let capacity_val = capacity
                     .as_u64()
@@ -778,7 +924,6 @@ pub fn validate_unified_config(
                     }
                 }
             }
-            // Validate Redis connection_string
             let connection_string = config.backend.l2_options.get("connection_string");
             if connection_string.is_none() {
                 return Err(crate::error::CacheError::ConfigError(
@@ -791,11 +936,9 @@ pub fn validate_unified_config(
                         "Redis connection_string cannot be empty".to_string(),
                     ));
                 }
-                // Validate Redis URL format
                 validate_redis_url(cs)?;
             }
 
-            // Validate Redis mode if specified
             if let Some(mode) = config
                 .backend
                 .l2_options
@@ -807,7 +950,6 @@ pub fn validate_unified_config(
         }
     }
 
-    // Validate global TTL if explicitly set
     if config.global.default_ttl > MAX_TTL_SECS {
         return Err(crate::error::CacheError::ConfigError(format!(
             "Global TTL {} seconds exceeds maximum allowed value of {} seconds (1 year)",
@@ -815,7 +957,6 @@ pub fn validate_unified_config(
         )));
     }
 
-    // Validate service-specific TTLs
     for (name, service_config) in &config.services {
         if let Some(ttl) = service_config.ttl {
             if ttl > MAX_TTL_SECS {
@@ -825,7 +966,6 @@ pub fn validate_unified_config(
                 )));
             }
         }
-        // Validate service-specific capacity
         if let Some(cap) = service_config.max_capacity {
             if cap == 0 {
                 return Err(crate::error::CacheError::ConfigError(format!(
@@ -883,17 +1023,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_cache_builder_with_backend() {
+        let backend = MemoryBackend::builder().capacity(5000).build();
+        let cache: Cache<String, TestValue> = CacheBuilder::default()
+            .with_backend(backend)
+            .build()
+            .await
+            .unwrap();
+        assert!(cache.health_check().await.unwrap());
+    }
+
+    #[tokio::test]
     #[cfg(feature = "confers")]
     async fn test_cache_builder_from_unified_config_memory() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Create a memory-only configuration
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(5000)
             .build();
 
-        // Create cache from configuration
         let builder = CacheBuilder::from_unified_config(&config).unwrap();
         let cache: Cache<String, TestValue> = builder.build().await.unwrap();
 
@@ -905,29 +1054,21 @@ mod tests {
     async fn test_cache_builder_from_unified_config_tiered() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Create a tiered configuration (L1 + L2) with a Redis URL
-        // This test requires a running Redis server
         let config = UnifiedConfigBuilder::tiered()
             .with_ttl(7200)
             .with_l1_capacity(10000)
             .with_redis_url("redis://localhost:6379")
             .build();
 
-        // Create cache from configuration - will fail without Redis server
-        // but verifies the configuration is properly passed through
         let builder_result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         assert!(builder_result.is_ok(), "Config should be valid");
         let result = builder_result.unwrap().build().await;
 
-        // This test requires a running Redis server to pass
-        // If Redis is not available, the error message indicates proper configuration
         match result {
             Ok(cache) => {
                 assert!(cache.health_check().await.unwrap());
             }
             Err(e) => {
-                // Expected when Redis server is not running
-                // Error should be Redis connection error, not configuration error
                 let error_msg = format!("{:?}", e);
                 assert!(
                     error_msg.contains("Redis") || error_msg.contains("connection"),
@@ -943,13 +1084,11 @@ mod tests {
     async fn test_from_unified_config_valid_memory() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Valid memory-only configuration
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
             .build();
 
-        // Should succeed
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         assert!(result.is_ok(), "Valid memory config should succeed");
     }
@@ -959,14 +1098,12 @@ mod tests {
     async fn test_from_unified_config_valid_tiered() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Valid tiered configuration
         let config = UnifiedConfigBuilder::tiered()
             .with_ttl(7200)
             .with_l1_capacity(10000)
             .with_redis_url("redis://localhost:6379")
             .build();
 
-        // Should succeed (may fail at build time if Redis not available, but config is valid)
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         assert!(result.is_ok(), "Valid tiered config should succeed");
     }
@@ -976,7 +1113,6 @@ mod tests {
     async fn test_from_unified_config_redis_missing_connection_string() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Redis config without connection_string
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Redis,
@@ -988,10 +1124,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         if let Err(crate::error::CacheError::ConfigError(_)) = result {
-            // Expected: ConfigError
         } else {
             panic!("Expected ConfigError for missing connection_string");
         }
@@ -1002,7 +1136,6 @@ mod tests {
     async fn test_from_unified_config_redis_empty_connection_string() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Redis config with empty connection_string
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Redis,
@@ -1015,10 +1148,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         if let Err(crate::error::CacheError::ConfigError(_)) = result {
-            // Expected: ConfigError
         } else {
             panic!("Expected ConfigError for empty connection_string");
         }
@@ -1029,7 +1160,6 @@ mod tests {
     async fn test_from_unified_config_tiered_missing_connection_string() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Tiered config without connection_string
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Tiered,
@@ -1042,10 +1172,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         if let Err(crate::error::CacheError::ConfigError(_)) = result {
-            // Expected: ConfigError
         } else {
             panic!("Expected ConfigError for missing connection_string");
         }
@@ -1056,7 +1184,6 @@ mod tests {
     async fn test_from_unified_config_tiered_empty_connection_string() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Tiered config with empty connection_string
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Tiered,
@@ -1071,10 +1198,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         if let Err(crate::error::CacheError::ConfigError(_)) = result {
-            // Expected: ConfigError
         } else {
             panic!("Expected ConfigError for empty connection_string");
         }
@@ -1085,7 +1210,6 @@ mod tests {
     async fn test_from_unified_config_zero_capacity() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Memory config with zero capacity
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Memory,
@@ -1097,10 +1221,8 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         if let Err(crate::error::CacheError::ConfigError(_)) = result {
-            // Expected: ConfigError
         } else {
             panic!("Expected ConfigError for zero capacity");
         }
@@ -1111,14 +1233,12 @@ mod tests {
     async fn test_from_unified_config_with_service_valid() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Create a config with a service
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
             .with_service("user_cache", CacheType::L1, 600)
             .build();
 
-        // Should succeed with valid service
         let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
             &config,
             "user_cache",
@@ -1131,13 +1251,11 @@ mod tests {
     async fn test_from_unified_config_with_service_not_found() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Create a config without services
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
             .build();
 
-        // Should fail with ServiceNotFound
         let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
             &config,
             "nonexistent_service",
@@ -1162,21 +1280,18 @@ mod tests {
     async fn test_from_unified_config_with_service_ttl_override() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Create a config with global TTL and service-specific TTL
         let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600) // Global TTL
+            .with_ttl(3600)
             .with_l1_capacity(10000)
-            .with_service("fast_cache", CacheType::L1, 60) // Service TTL = 60s
+            .with_service("fast_cache", CacheType::L1, 60)
             .build();
 
-        // Create builder with service config
         let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
             &config,
             "fast_cache",
         )
         .expect("Should succeed");
 
-        // Service TTL should override global TTL
         assert_eq!(
             builder.ttl,
             Some(Duration::from_secs(60)),
@@ -1189,22 +1304,18 @@ mod tests {
     async fn test_from_unified_config_with_service_capacity_override() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Create a config with global capacity and service-specific capacity
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
-            .with_l1_capacity(10000) // Global capacity
+            .with_l1_capacity(10000)
             .with_service("small_cache", CacheType::L1, 60)
             .build();
 
-        // We need to use BackendBuilder to verify capacity, but since it's private,
-        // we verify by checking that the builder is created successfully
         let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
             &config,
             "small_cache",
         )
         .expect("Should succeed with service capacity override");
 
-        // Verify TTL override worked (capacity is not directly accessible)
         assert_eq!(builder.ttl, Some(Duration::from_secs(60)));
     }
 
@@ -1213,21 +1324,18 @@ mod tests {
     async fn test_from_unified_config_with_service_fallback_to_global_ttl() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Create a config with global TTL but no service-specific TTL
         let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600) // Global TTL
+            .with_ttl(3600)
             .with_l1_capacity(10000)
-            .with_service("no_ttl_service", crate::config::CacheType::L1, 0) // No service TTL
+            .with_service("no_ttl_service", crate::config::CacheType::L1, 0)
             .build();
 
-        // Create builder with service config
         let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(
             &config,
             "no_ttl_service",
         )
         .expect("Should succeed");
 
-        // Should fall back to global TTL
         assert_eq!(
             builder.ttl,
             Some(Duration::from_secs(3600)),
@@ -1235,14 +1343,11 @@ mod tests {
         );
     }
 
-    // ========== Enhanced Validation Tests ==========
-
     #[tokio::test]
     #[cfg(feature = "confers")]
     async fn test_validate_redis_invalid_mode() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Redis config with invalid mode
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Redis,
@@ -1255,7 +1360,6 @@ mod tests {
             ..Default::default()
         };
 
-        // Should fail with ConfigError
         let result = validate_unified_config(&config);
         match result {
             Err(crate::error::CacheError::ConfigError(msg)) => {
@@ -1295,7 +1399,6 @@ mod tests {
     async fn test_validate_ttl_exceeds_maximum() {
         use crate::config::UnifiedConfigBuilder;
 
-        // TTL exceeds 1 year (365 days * 24 hours * 3600 seconds)
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(365 * 24 * 3600 + 1)
             .build();
@@ -1321,7 +1424,6 @@ mod tests {
     async fn test_validate_ttl_valid_boundary() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Test maximum valid TTL (exactly 1 year)
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(365 * 24 * 3600)
             .build();
@@ -1335,7 +1437,6 @@ mod tests {
     async fn test_validate_capacity_zero() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Memory config with zero capacity
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Memory,
@@ -1364,12 +1465,11 @@ mod tests {
     async fn test_validate_capacity_exceeds_maximum() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Memory config with capacity exceeding maximum
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Memory,
                 l1_options: serde_json::json!({
-                    "max_capacity": 100_000_001 // Exceeds max of 100 million
+                    "max_capacity": 100_000_001
                 }),
                 ..Default::default()
             },
@@ -1397,9 +1497,8 @@ mod tests {
     async fn test_validate_capacity_valid_boundary() {
         use crate::config::UnifiedConfigBuilder;
 
-        // Test maximum valid capacity
         let config = UnifiedConfigBuilder::memory_only()
-            .with_l1_capacity(100_000_000) // Exactly 100 million
+            .with_l1_capacity(100_000_000)
             .build();
 
         let result = validate_unified_config(&config);
@@ -1414,7 +1513,6 @@ mod tests {
     async fn test_validate_redis_invalid_url() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Redis config with invalid URL format
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Redis,
@@ -1450,7 +1548,7 @@ mod tests {
 
         for url in [
             "redis://localhost:6379",
-            "rediss://localhost:6379", // TLS
+            "rediss://localhost:6379",
             "redis://:password@localhost:6379",
             "redis://192.168.1.1:6379",
         ] {
@@ -1468,7 +1566,6 @@ mod tests {
     async fn test_validate_tiered_invalid_mode() {
         use crate::config::{BackendConfig, BackendType, UnifiedConfig};
 
-        // Tiered config with invalid mode
         let config = UnifiedConfig {
             backend: BackendConfig {
                 backend_type: BackendType::Tiered,
@@ -1501,11 +1598,10 @@ mod tests {
     async fn test_validate_service_ttl_exceeds_maximum() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Config with service TTL exceeding maximum
         let config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
-            .with_service("fast_cache", CacheType::L1, 365 * 24 * 3600 + 1) // Exceeds 1 year
+            .with_service("fast_cache", CacheType::L1, 365 * 24 * 3600 + 1)
             .build();
 
         let result = validate_unified_config(&config);
@@ -1529,14 +1625,12 @@ mod tests {
     async fn test_validate_service_capacity_exceeds_maximum() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Config with service capacity exceeding maximum
         let base_config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
             .with_service("big_cache", CacheType::L1, 600)
             .build();
 
-        // We need to manually set the capacity to exceed max since builder doesn't expose this
         let config = crate::config::UnifiedConfig {
             global: base_config.global.clone(),
             backend: base_config.backend.clone(),
@@ -1545,7 +1639,7 @@ mod tests {
                 crate::config::ServiceConfig {
                     cache_type: CacheType::L1,
                     ttl: Some(600),
-                    max_capacity: Some(100_000_001), // Exceeds max
+                    max_capacity: Some(100_000_001),
                     enable_metrics: true,
                 },
             )]
@@ -1578,14 +1672,12 @@ mod tests {
     async fn test_validate_service_capacity_zero() {
         use crate::config::{CacheType, UnifiedConfigBuilder};
 
-        // Config with service capacity of zero
         let base_config = UnifiedConfigBuilder::memory_only()
             .with_ttl(3600)
             .with_l1_capacity(10000)
             .with_service("empty_cache", CacheType::L1, 600)
             .build();
 
-        // Manually set capacity to zero
         let config = crate::config::UnifiedConfig {
             global: base_config.global.clone(),
             backend: base_config.backend.clone(),
@@ -1594,7 +1686,7 @@ mod tests {
                 crate::config::ServiceConfig {
                     cache_type: CacheType::L1,
                     ttl: Some(600),
-                    max_capacity: Some(0), // Zero
+                    max_capacity: Some(0),
                     enable_metrics: true,
                 },
             )]
@@ -1621,10 +1713,6 @@ mod tests {
             _ => panic!("Expected ConfigError for service capacity of zero"),
         }
     }
-
-    // ============================================================================
-    // Configuration File Format Tests (Phase 6)
-    // ============================================================================
 
     #[test]
     fn test_config_format_from_path() {
@@ -1914,7 +2002,6 @@ mod tests {
         if let Err(e) = &result {
             eprintln!("Validation error: {:?}", e);
         }
-        // Should use defaults for missing optional fields
         assert!(
             result.is_ok(),
             "Missing optional fields should use defaults"
@@ -1980,7 +2067,7 @@ mod tests {
 
     #[test]
     fn test_validate_json_content_invalid_service_capacity() {
-        use crate::config::{CacheType, UnifiedConfig};
+        use crate::config::UnifiedConfig;
 
         let json_content = r#"
         {
