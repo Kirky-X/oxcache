@@ -18,3 +18,27 @@ mod smart_strategy_test;
 
 #[path = "unit/rate_limiting_test.rs"]
 mod rate_limiting_test;
+
+#[path = "unit/error_test.rs"]
+mod error_test;
+
+#[path = "unit/key_generator_test.rs"]
+mod key_generator_test;
+
+#[path = "unit/depth_limited_test.rs"]
+mod depth_limited_test;
+
+#[path = "unit/traits_test.rs"]
+mod traits_test;
+
+#[path = "unit/events_test.rs"]
+mod events_test;
+
+#[path = "unit/dashmap_backend_test.rs"]
+mod dashmap_backend_test;
+
+#[path = "unit/db_loader_test.rs"]
+mod db_loader_test;
+
+#[path = "unit/metrics_test.rs"]
+mod metrics_test;
