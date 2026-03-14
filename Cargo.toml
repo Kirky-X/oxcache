@@ -210,10 +210,14 @@ optional = true
 # ============================================================================
 
 [dependencies.confers]
-version = "0.2"
+path = "/home/dev/projects/confers"
 optional = true
-# Note: Using crates.io version instead of local path
-# Local confers at /home/project/confers is not available
+features = ["toml", "json", "env", "validation", "schema"]
+
+[dependencies.garde]
+version = "0.22"
+features = ["derive"]
+optional = true
 
 [dependencies.clap]
 version = "4.5"
@@ -358,7 +362,15 @@ batch-write = ["dep:tokio-util"]
 sync = []
 
 # Configuration
-confers = ["dep:confers", "toml", "confers/validation", "confers/schema"]
+confers = [
+    "dep:confers",
+    "dep:garde",
+    "confers/toml",
+    "confers/json",
+    "confers/env",
+    "confers/validation",
+    "confers/schema"
+]
 
 # Smart Strategy Features
 smart-strategy = ["compression", "metrics", "moka"]
@@ -367,7 +379,7 @@ enhanced-stats = ["metrics"]
 ttl-control = ["redis"]
 tiered-cache = ["moka", "redis"]
 extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
-config-dynamic = ["dep:confers", "toml", "confers/validation", "confers/schema"]
+config-dynamic = ["dep:confers", "dep:garde", "toml", "confers/validation", "confers/schema"]
 http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util"]
 
 # Lua Script Execution
