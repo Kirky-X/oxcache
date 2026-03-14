@@ -4,20 +4,23 @@
 //
 // Configuration structures for the cache library.
 //
-// Note: The confers library has known issues with its Config derive macro
-// that prevent proper usage. This module provides compatible structures
-// using standard serde derive for now.
+// This module uses confers derive macros for zero-boilerplate configuration
+// management with built-in validation using garde.
 
+use confers::Config;
+use garde::Validate;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-/// Backend type enumeration for cache backends
+/// 后端类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum BackendType {
-    /// Memory-only backend (L1)
+    /// 仅内存后端 (L1)
     Memory,
-    /// Redis-only backend (L2)
+    /// 仅 Redis 后端 (L2)
     Redis,
-    /// Tiered backend (L1 + L2)
+    /// 分层后端 (L1 + L2)
     Tiered,
 }
 
@@ -28,14 +31,38 @@ impl Default for BackendType {
     }
 }
 
-/// Cache type enumeration for service configurations
+impl std::fmt::Display for BackendType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BackendType::Memory => write!(f, "Memory"),
+            BackendType::Redis => write!(f, "Redis"),
+            BackendType::Tiered => write!(f, "Tiered"),
+        }
+    }
+}
+
+impl std::str::FromStr for BackendType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Memory" => Ok(BackendType::Memory),
+            "Redis" => Ok(BackendType::Redis),
+            "Tiered" => Ok(BackendType::Tiered),
+            _ => Err(format!("Unknown backend type: {}", s)),
+        }
+    }
+}
+
+/// 缓存类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum CacheType {
-    /// L1 (memory) cache only
+    /// 仅 L1 (内存) 缓存
     L1,
-    /// L2 (Redis) cache only
+    /// 仅 L2 (Redis) 缓存
     L2,
-    /// Two-level cache (L1 + L2)
+    /// 两级缓存 (L1 + L2)
     TwoLevel,
 }
 
@@ -46,85 +73,169 @@ impl Default for CacheType {
     }
 }
 
-/// Global configuration settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+impl std::fmt::Display for CacheType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CacheType::L1 => write!(f, "L1"),
+            CacheType::L2 => write!(f, "L2"),
+            CacheType::TwoLevel => write!(f, "TwoLevel"),
+        }
+    }
+}
+
+impl std::str::FromStr for CacheType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "L1" => Ok(CacheType::L1),
+            "L2" => Ok(CacheType::L2),
+            "TwoLevel" => Ok(CacheType::TwoLevel),
+            _ => Err(format!("Unknown cache type: {}", s)),
+        }
+    }
+}
+
+/// 全局配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
+#[config(validate)]
 pub struct GlobalConfig {
+    /// 默认 TTL（秒）
+    #[config(default = 0u64)]
+    #[garde(range(max = 31_536_000))]
     pub default_ttl: u64,
+
+    /// 默认 TTI（秒）
+    #[config(default = 0u64)]
+    #[garde(range(max = 31_536_000))]
     pub default_tti: u64,
+
+    /// 健康检查间隔（秒）
+    #[config(default = 30u32)]
+    #[garde(range(min = 1, max = 3600))]
     pub health_check_interval: u32,
 }
 
-/// Backend configuration
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// 后端配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct BackendConfig {
-    /// Backend type for the cache
-    #[serde(default)]
-    pub backend_type: BackendType,
-    /// L1 cache type
-    #[serde(default)]
+    /// 后端类型（字符串形式：Memory, Redis, Tiered）
+    #[config(default = "Memory".to_string())]
+    pub backend_type: String,
+
+    /// L1 缓存类型
+    #[config(default = "moka".to_string())]
     pub l1_type: String,
-    /// L1 cache options
-    #[serde(default)]
-    pub l1_options: serde_json::Value,
-    /// L2 cache type
-    #[serde(default)]
+
+    /// L1 缓存选项（JSON 格式）
+    #[config(default = String::new())]
+    pub l1_options_json: String,
+
+    /// L2 缓存类型
+    #[config(default = "redis".to_string())]
     pub l2_type: String,
-    /// L2 cache options
-    #[serde(default)]
-    pub l2_options: serde_json::Value,
-    /// Whether L1 is enabled
-    #[serde(default)]
+
+    /// L2 缓存选项（JSON 格式）
+    #[config(default = String::new())]
+    pub l2_options_json: String,
+
+    /// 是否启用 L1
+    #[config(default = true)]
     pub l1_enabled: bool,
-    /// Whether L2 is enabled
-    #[serde(default)]
+
+    /// 是否启用 L2
+    #[config(default = false)]
     pub l2_enabled: bool,
 }
 
-/// Service-specific configuration
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+impl BackendConfig {
+    /// 获取后端类型枚举
+    pub fn backend_type_enum(&self) -> BackendType {
+        self.backend_type.parse().unwrap_or(BackendType::Memory)
+    }
+
+    /// 获取 L1 选项
+    pub fn l1_options(&self) -> serde_json::Value {
+        if self.l1_options_json.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_str(&self.l1_options_json).unwrap_or(serde_json::Value::Null)
+        }
+    }
+
+    /// 获取 L2 选项
+    pub fn l2_options(&self) -> serde_json::Value {
+        if self.l2_options_json.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_str(&self.l2_options_json).unwrap_or(serde_json::Value::Null)
+        }
+    }
+}
+
+/// 服务特定配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
+#[config(validate)]
 pub struct ServiceConfig {
-    pub cache_type: CacheType,
+    /// 缓存类型（字符串形式：L1, L2, TwoLevel）
+    #[config(default = "L1".to_string())]
+    #[garde(skip)]
+    pub cache_type: String,
+
+    /// TTL（秒）
+    #[garde(range(max = 31_536_000))]
     pub ttl: Option<u64>,
+
+    /// 最大容量
+    #[garde(custom(validate_capacity_opt))]
     pub max_capacity: Option<u64>,
+
+    /// 是否启用指标
+    #[config(default = true)]
+    #[garde(skip)]
     pub enable_metrics: bool,
 }
 
 impl ServiceConfig {
-    /// Create an L1-only service configuration
+    /// 获取缓存类型枚举
+    pub fn cache_type_enum(&self) -> CacheType {
+        self.cache_type.parse().unwrap_or(CacheType::L1)
+    }
+
+    /// 创建 L1 服务配置
     #[inline]
     pub fn l1_only() -> Self {
         Self {
-            cache_type: CacheType::L1,
+            cache_type: "L1".to_string(),
             ttl: None,
             max_capacity: None,
             enable_metrics: true,
         }
     }
 
-    /// Create an L2-only service configuration
+    /// 创建 L2 服务配置
     #[inline]
     pub fn l2_only() -> Self {
         Self {
-            cache_type: CacheType::L2,
+            cache_type: "L2".to_string(),
             ttl: None,
             max_capacity: None,
             enable_metrics: true,
         }
     }
 
-    /// Create a two-level service configuration
+    /// 创建两级服务配置
     #[inline]
     pub fn two_level() -> Self {
         Self {
-            cache_type: CacheType::TwoLevel,
+            cache_type: "TwoLevel".to_string(),
             ttl: None,
             max_capacity: None,
             enable_metrics: true,
         }
     }
 
-    /// Set the TTL for this service configuration
+    /// 设置 TTL
     #[inline]
     pub fn with_ttl(mut self, ttl: u64) -> Self {
         self.ttl = Some(ttl);
@@ -132,407 +243,473 @@ impl ServiceConfig {
     }
 }
 
-/// Performance settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+/// 验证容量值
+fn validate_capacity_opt(value: &Option<u64>, _ctx: &()) -> garde::Result {
+    if let Some(cap) = value {
+        if *cap == 0 {
+            return Err(garde::Error::new("容量不能为零"));
+        }
+        if *cap > 100_000_000 {
+            return Err(garde::Error::new("容量超过最大值 100,000,000"));
+        }
+    }
+    Ok(())
+}
+
+/// 性能配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
+#[config(validate)]
 pub struct PerformanceConfig {
+    /// 最大并发操作数
+    #[config(default = 1000usize)]
+    #[garde(range(min = 1, max = 100_000))]
     pub max_concurrent_operations: usize,
+
+    /// 命令超时（毫秒）
+    #[config(default = 5000u64)]
+    #[garde(range(min = 1, max = 300_000))]
     pub command_timeout: u64,
+
+    /// 是否启用预取
+    #[config(default = false)]
+    #[garde(skip)]
     pub enable_prefetching: bool,
 }
 
-/// Security settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+/// 安全配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
+#[config(validate)]
 pub struct SecurityConfig {
+    /// 是否隐藏连接字符串
+    #[config(default = true)]
+    #[garde(skip)]
     pub connection_string_redaction: bool,
+
+    /// 是否启用限流
+    #[config(default = 0u64)]
+    #[garde(range(max = 1_000_000))]
     pub enable_rate_limiting: u64,
+
+    /// 限流最大请求数
+    #[config(default = 1000u64)]
+    #[garde(range(min = 1, max = 1_000_000))]
     pub rate_limit_max_requests: u64,
+
+    /// 限流窗口大小（秒）
+    #[config(default = 60u64)]
+    #[garde(range(min = 1, max = 3600))]
     pub rate_limit_window_size: u64,
 }
 
-/// Metrics settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+/// 指标配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct MetricsConfig {
+    /// 是否启用
+    #[config(default = false)]
     pub enabled: bool,
+
+    /// 是否详细
+    #[config(default = false)]
     pub detailed: bool,
+
+    /// 导出格式
+    #[config(default = "prometheus".to_string())]
     pub export_format: String,
+
+    /// 导出端点
     pub export_endpoint: Option<String>,
 }
 
-/// Recovery settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+/// 恢复配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct RecoveryConfig {
+    /// 是否启用 WAL
+    #[config(default = false)]
     pub enable_wal: bool,
+
+    /// WAL 目录
+    #[config(default = "./wal".to_string())]
     pub wal_directory: String,
+
+    /// 是否启用自动恢复
+    #[config(default = true)]
     pub enable_auto_recovery: bool,
 }
 
-/// Unified configuration combining all sections
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// 统一配置
+#[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct UnifiedConfig {
+    /// 全局配置
+    #[config(flatten)]
     pub global: GlobalConfig,
+
+    /// 后端配置
+    #[config(flatten)]
     pub backend: BackendConfig,
-    pub services: std::collections::HashMap<String, ServiceConfig>,
-    #[serde(default)]
+
+    /// 服务配置（JSON 格式）
+    #[config(default = String::new())]
+    pub services_json: String,
+
+    /// 性能配置
+    #[config(flatten)]
     pub performance: PerformanceConfig,
-    #[serde(default)]
+
+    /// 指标配置
+    #[config(flatten)]
     pub metrics: MetricsConfig,
-    #[serde(default)]
+
+    /// 恢复配置
+    #[config(flatten)]
     pub recovery: RecoveryConfig,
 }
 
-/// Builder for creating UnifiedConfig instances with a fluent API
-///
-/// This builder provides type-safe configuration for oxcache services.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use oxcache::config::UnifiedConfigBuilder;
-///
-/// let config = UnifiedConfigBuilder::memory_only()
-///     .with_ttl(3600)
-///     .with_capacity(10000)
-///     .build();
-/// ```
-#[derive(Debug, Clone)]
-pub struct UnifiedConfigBuilder(UnifiedConfig);
-
-impl UnifiedConfigBuilder {
-    /// Create a new empty builder
-    #[inline]
-    pub fn new() -> Self {
-        Self(UnifiedConfig::default())
+impl UnifiedConfig {
+    /// 获取服务配置映射
+    pub fn services(&self) -> HashMap<String, ServiceConfig> {
+        if self.services_json.is_empty() {
+            HashMap::new()
+        } else {
+            serde_json::from_str(&self.services_json).unwrap_or_default()
+        }
     }
 
-    /// Create a memory-only (L1) cache configuration
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let config = UnifiedConfigBuilder::memory_only()
-    ///     .with_capacity(10000)
-    ///     .build();
-    /// ```
-    #[inline]
-    pub fn memory_only() -> Self {
-        let mut config = UnifiedConfig::default();
-        config.backend.backend_type = BackendType::Memory;
-        config.backend.l1_enabled = true;
-        config.backend.l2_enabled = false;
-        config.backend.l1_type = "moka".to_string();
-        Self(config)
+    /// 从 TOML 文件加载
+    pub fn from_toml_file(path: &str) -> crate::error::Result<Self> {
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e))
+        })?;
+
+        let config: Self = toml::from_str(&content).map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("解析 TOML '{}' 失败: {}", path, e))
+        })?;
+
+        config.validate_config()?;
+
+        Ok(config)
     }
 
-    /// Create a Redis-only (L2) cache configuration
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let config = UnifiedConfigBuilder::redis_only()
-    ///     .with_redis_url("redis://localhost:6379")
-    ///     .build();
-    /// ```
-    #[inline]
-    pub fn redis_only() -> Self {
-        let mut config = UnifiedConfig::default();
-        config.backend.backend_type = BackendType::Redis;
-        config.backend.l1_enabled = false;
-        config.backend.l2_enabled = true;
-        config.backend.l2_type = "redis".to_string();
-        Self(config)
+    /// 从 JSON 文件加载
+    pub fn from_json_file(path: &str) -> crate::error::Result<Self> {
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e))
+        })?;
+
+        let config: Self = serde_json::from_str(&content).map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("解析 JSON '{}' 失败: {}", path, e))
+        })?;
+
+        config.validate_config()?;
+
+        Ok(config)
     }
 
-    /// Create a tiered (L1 + L2) cache configuration
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let config = UnifiedConfigBuilder::tiered()
-    ///     .with_l1_capacity(10000)
-    ///     .with_redis_url("redis://localhost:6379")
-    ///     .build();
-    /// ```
-    #[inline]
-    pub fn tiered() -> Self {
-        let mut config = UnifiedConfig::default();
-        config.backend.backend_type = BackendType::Tiered;
-        config.backend.l1_enabled = true;
-        config.backend.l2_enabled = true;
-        config.backend.l1_type = "moka".to_string();
-        config.backend.l2_type = "redis".to_string();
-        Self(config)
+    /// 自动检测格式并加载
+    pub fn from_file_auto(path: &str) -> crate::error::Result<Self> {
+        let ext = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+
+        match ext {
+            "toml" => Self::from_toml_file(path),
+            "json" => Self::from_json_file(path),
+            _ => Err(crate::error::CacheError::ConfigError(format!(
+                "不支持的配置文件格式: '{}'. 支持格式: .toml, .json",
+                path
+            ))),
+        }
     }
 
-    /// Set the default TTL for cache entries
-    ///
-    /// # Arguments
-    ///
-    /// * `ttl` - Time-to-live in seconds
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_ttl(mut self, ttl: u64) -> Self {
-        self.0.global.default_ttl = ttl;
-        self
-    }
-
-    /// Set the default TTI (Time-to-Inactive) for cache entries
-    ///
-    /// # Arguments
-    ///
-    /// * `tti` - Time-to-inactive in seconds
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_tti(mut self, tti: u64) -> Self {
-        self.0.global.default_tti = tti;
-        self
-    }
-
-    /// Set the health check interval
-    ///
-    /// # Arguments
-    ///
-    /// * `interval` - Health check interval in seconds
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_health_check_interval(mut self, interval: u32) -> Self {
-        self.0.global.health_check_interval = interval;
-        self
-    }
-
-    /// Set the L1 (memory) cache capacity
-    ///
-    /// # Arguments
-    ///
-    /// * `capacity` - Maximum number of entries in L1 cache
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_l1_capacity(mut self, capacity: u64) -> Self {
-        self.0.backend.l1_options["max_capacity"] = serde_json::json!(capacity);
-        self
-    }
-
-    /// Set the Redis connection URL
-    ///
-    /// # Arguments
-    ///
-    /// * `url` - Redis connection URL
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_redis_url(mut self, url: &str) -> Self {
-        self.0.backend.l2_options["connection_string"] = serde_json::json!(url);
-        self
-    }
-
-    /// Set the Redis mode
-    ///
-    /// # Arguments
-    ///
-    /// * `mode` - Redis mode ("standalone", "sentinel", or "cluster")
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_redis_mode(mut self, mode: &str) -> Self {
-        self.0.backend.l2_options["mode"] = serde_json::json!(mode);
-        self
-    }
-
-    /// Set the maximum number of concurrent operations
-    ///
-    /// # Arguments
-    ///
-    /// * `max_ops` - Maximum concurrent operations
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_max_concurrent_operations(mut self, max_ops: usize) -> Self {
-        self.0.performance.max_concurrent_operations = max_ops;
-        self
-    }
-
-    /// Set the command timeout
-    ///
-    /// # Arguments
-    ///
-    /// * `timeout` - Command timeout in milliseconds
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_command_timeout(mut self, timeout: u64) -> Self {
-        self.0.performance.command_timeout = timeout;
-        self
-    }
-
-    /// Enable or disable metrics
-    ///
-    /// # Arguments
-    ///
-    /// * `enabled` - Whether metrics are enabled
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_metrics(mut self, enabled: bool) -> Self {
-        self.0.metrics.enabled = enabled;
-        self
-    }
-
-    /// Enable or disable WAL (Write-Ahead Log)
-    ///
-    /// # Arguments
-    ///
-    /// * `enabled` - Whether WAL is enabled
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_wal(mut self, enabled: bool) -> Self {
-        self.0.recovery.enable_wal = enabled;
-        self
-    }
-
-    /// Set the WAL directory
-    ///
-    /// # Arguments
-    ///
-    /// * `directory` - WAL directory path
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_wal_directory(mut self, directory: &str) -> Self {
-        self.0.recovery.wal_directory = directory.to_string();
-        self
-    }
-
-    /// Enable or disable auto-recovery
-    ///
-    /// # Arguments
-    ///
-    /// * `enabled` - Whether auto-recovery is enabled
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_auto_recovery(mut self, enabled: bool) -> Self {
-        self.0.recovery.enable_auto_recovery = enabled;
-        self
-    }
-
-    /// Add a service configuration
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - Service name
-    /// * `cache_type` - Cache type (CacheType::L1, CacheType::L2, or CacheType::TwoLevel)
-    /// * `ttl` - Cache TTL in seconds
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[inline]
-    pub fn with_service(mut self, name: &str, cache_type: CacheType, ttl: u64) -> Self {
-        let service = ServiceConfig {
-            cache_type,
-            ttl: Some(ttl),
-            max_capacity: None,
-            enable_metrics: true,
-        };
-        self.0.services.insert(name.to_string(), service);
-        self
-    }
-
-    /// Build the UnifiedConfig
-    ///
-    /// # Returns
-    ///
-    /// The configured UnifiedConfig instance
-    #[inline]
-    pub fn build(self) -> UnifiedConfig {
-        self.0
-    }
-
-    /// Build the UnifiedConfig as a JSON Value
-    ///
-    /// # Returns
-    ///
-    /// The configured UnifiedConfig as a serde_json::Value
-    #[inline]
-    pub fn build_json(self) -> serde_json::Value {
-        serde_json::to_value(self.0).expect("UnifiedConfig should be serializable")
+    /// 验证配置内容
+    pub fn validate_config(&self) -> crate::error::Result<()> {
+        self.global.validate().map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("全局配置验证失败: {}", e))
+        })?;
+        self.performance.validate().map_err(|e| {
+            crate::error::CacheError::ConfigError(format!("性能配置验证失败: {}", e))
+        })?;
+        for (name, service) in self.services() {
+            service.validate().map_err(|e| {
+                crate::error::CacheError::ConfigError(format!("服务 '{}' 配置验证失败: {}", name, e))
+            })?;
+        }
+        Ok(())
     }
 }
 
+/// 配置构建器（使用 confers ConfigBuilder 的便捷包装）
+pub struct UnifiedConfigBuilder {
+    builder: confers::ConfigBuilder<UnifiedConfig>,
+    services: HashMap<String, ServiceConfig>,
+}
+
 impl Default for UnifiedConfigBuilder {
-    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Configuration file format enumeration
+impl UnifiedConfigBuilder {
+    /// 创建新的构建器
+    #[inline]
+    pub fn new() -> Self {
+        let builder = confers::ConfigBuilder::new()
+            .default("global.default_ttl".to_string(), confers::ConfigValue::uint(0))
+            .default("global.default_tti".to_string(), confers::ConfigValue::uint(0))
+            .default("global.health_check_interval".to_string(), confers::ConfigValue::uint(30))
+            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Memory"))
+            .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"))
+            .default("backend.l1_options_json".to_string(), confers::ConfigValue::string(""))
+            .default("backend.l2_type".to_string(), confers::ConfigValue::string("redis"))
+            .default("backend.l2_options_json".to_string(), confers::ConfigValue::string(""))
+            .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
+            .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(false))
+            .default("services_json".to_string(), confers::ConfigValue::string(""))
+            .default("performance.max_concurrent_operations".to_string(), confers::ConfigValue::uint(1000))
+            .default("performance.command_timeout".to_string(), confers::ConfigValue::uint(5000))
+            .default("performance.enable_prefetching".to_string(), confers::ConfigValue::bool(false))
+            .default("metrics.enabled".to_string(), confers::ConfigValue::bool(false))
+            .default("metrics.detailed".to_string(), confers::ConfigValue::bool(false))
+            .default("metrics.export_format".to_string(), confers::ConfigValue::string("prometheus"))
+            .default("recovery.enable_wal".to_string(), confers::ConfigValue::bool(false))
+            .default("recovery.wal_directory".to_string(), confers::ConfigValue::string("./wal"))
+            .default("recovery.enable_auto_recovery".to_string(), confers::ConfigValue::bool(true));
+        Self { builder, services: HashMap::new() }
+    }
+
+    /// 创建仅内存缓存配置
+    #[inline]
+    pub fn memory_only() -> Self {
+        let mut builder = Self::new();
+        builder.builder = builder.builder
+            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Memory"))
+            .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
+            .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(false))
+            .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"));
+        builder
+    }
+
+    /// 创建仅 Redis 缓存配置
+    #[inline]
+    pub fn redis_only() -> Self {
+        let mut builder = Self::new();
+        builder.builder = builder.builder
+            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Redis"))
+            .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(false))
+            .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(true))
+            .default("backend.l2_type".to_string(), confers::ConfigValue::string("redis"));
+        builder
+    }
+
+    /// 创建分层缓存配置
+    #[inline]
+    pub fn tiered() -> Self {
+        let mut builder = Self::new();
+        builder.builder = builder.builder
+            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Tiered"))
+            .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
+            .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(true))
+            .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"))
+            .default("backend.l2_type".to_string(), confers::ConfigValue::string("redis"));
+        builder
+    }
+
+    /// 设置默认 TTL
+    #[inline]
+    pub fn with_ttl(mut self, ttl: u64) -> Self {
+        self.builder = self.builder.default(
+            "global.default_ttl".to_string(),
+            confers::ConfigValue::uint(ttl),
+        );
+        self
+    }
+
+    /// 设置默认 TTI
+    #[inline]
+    pub fn with_tti(mut self, tti: u64) -> Self {
+        self.builder = self.builder.default(
+            "global.default_tti".to_string(),
+            confers::ConfigValue::uint(tti),
+        );
+        self
+    }
+
+    /// 设置健康检查间隔
+    #[inline]
+    pub fn with_health_check_interval(mut self, interval: u32) -> Self {
+        self.builder = self.builder.default(
+            "global.health_check_interval".to_string(),
+            confers::ConfigValue::uint(interval as u64),
+        );
+        self
+    }
+
+    /// 设置 L1 容量
+    #[inline]
+    pub fn with_l1_capacity(mut self, capacity: u64) -> Self {
+        let options = serde_json::json!({"max_capacity": capacity}).to_string();
+        self.builder = self.builder.default(
+            "backend.l1_options_json".to_string(),
+            confers::ConfigValue::string(&options),
+        );
+        self
+    }
+
+    /// 设置 Redis URL
+    #[inline]
+    pub fn with_redis_url(mut self, url: &str) -> Self {
+        let options = serde_json::json!({"connection_string": url}).to_string();
+        self.builder = self.builder.default(
+            "backend.l2_options_json".to_string(),
+            confers::ConfigValue::string(&options),
+        );
+        self
+    }
+
+    /// 设置 Redis 模式
+    #[inline]
+    pub fn with_redis_mode(mut self, mode: &str) -> Self {
+        let options = serde_json::json!({"mode": mode}).to_string();
+        self.builder = self.builder.default(
+            "backend.l2_options_json".to_string(),
+            confers::ConfigValue::string(&options),
+        );
+        self
+    }
+
+    /// 设置最大并发操作数
+    #[inline]
+    pub fn with_max_concurrent_operations(mut self, max_ops: usize) -> Self {
+        self.builder = self.builder.default(
+            "performance.max_concurrent_operations".to_string(),
+            confers::ConfigValue::uint(max_ops as u64),
+        );
+        self
+    }
+
+    /// 设置命令超时
+    #[inline]
+    pub fn with_command_timeout(mut self, timeout: u64) -> Self {
+        self.builder = self.builder.default(
+            "performance.command_timeout".to_string(),
+            confers::ConfigValue::uint(timeout),
+        );
+        self
+    }
+
+    /// 设置是否启用指标
+    #[inline]
+    pub fn with_metrics(mut self, enabled: bool) -> Self {
+        self.builder = self.builder.default(
+            "metrics.enabled".to_string(),
+            confers::ConfigValue::bool(enabled),
+        );
+        self
+    }
+
+    /// 设置是否启用 WAL
+    #[inline]
+    pub fn with_wal(mut self, enabled: bool) -> Self {
+        self.builder = self.builder.default(
+            "recovery.enable_wal".to_string(),
+            confers::ConfigValue::bool(enabled),
+        );
+        self
+    }
+
+    /// 设置 WAL 目录
+    #[inline]
+    pub fn with_wal_directory(mut self, directory: &str) -> Self {
+        self.builder = self.builder.default(
+            "recovery.wal_directory".to_string(),
+            confers::ConfigValue::string(directory),
+        );
+        self
+    }
+
+    /// 设置是否启用自动恢复
+    #[inline]
+    pub fn with_auto_recovery(mut self, enabled: bool) -> Self {
+        self.builder = self.builder.default(
+            "recovery.enable_auto_recovery".to_string(),
+            confers::ConfigValue::bool(enabled),
+        );
+        self
+    }
+
+    /// 添加服务配置
+    #[inline]
+    pub fn with_service(mut self, name: &str, cache_type: CacheType, ttl: u64) -> Self {
+        let service = ServiceConfig {
+            cache_type: cache_type.to_string(),
+            ttl: if ttl > 0 { Some(ttl) } else { None },
+            max_capacity: None,
+            enable_metrics: true,
+        };
+        self.services.insert(name.to_string(), service);
+        let services_json = serde_json::to_string(&self.services).unwrap_or_default();
+        self.builder = self.builder.default(
+            "services_json".to_string(),
+            confers::ConfigValue::string(&services_json),
+        );
+        Self { builder: self.builder, services: self.services }
+    }
+
+    /// 从文件加载
+    #[inline]
+    pub fn file(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.builder = self.builder.file(path);
+        self
+    }
+
+    /// 从可选文件加载
+    #[inline]
+    pub fn file_optional(mut self, path: impl Into<std::path::PathBuf>) -> Self {
+        self.builder = self.builder.file_optional(path);
+        self
+    }
+
+    /// 添加环境变量源
+    #[inline]
+    pub fn env(mut self) -> Self {
+        self.builder = self.builder.env();
+        self
+    }
+
+    /// 添加带前缀的环境变量源
+    #[inline]
+    pub fn env_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.builder = self.builder.env_prefix(prefix);
+        self
+    }
+
+    /// 构建配置
+    #[inline]
+    pub fn build(self) -> confers::ConfigResult<UnifiedConfig> {
+        self.builder.build()
+    }
+
+    /// 构建为 JSON Value
+    #[inline]
+    pub fn build_json(self) -> serde_json::Value {
+        self.build()
+            .map(|c| serde_json::to_value(c).unwrap_or_default())
+            .unwrap_or_default()
+    }
+}
+
+/// 配置文件格式枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigFormat {
-    /// TOML format (requires `toml` feature)
+    /// TOML 格式
     Toml,
-    /// JSON format
+    /// JSON 格式
     Json,
 }
 
 impl ConfigFormat {
-    /// Detect format from file path extension
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - File path to analyze
-    ///
-    /// # Returns
-    ///
-    /// * `Some(ConfigFormat)` - If extension is recognized
-    /// * `None` - If extension is not supported
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::ConfigFormat;
-    ///
-    /// let format = ConfigFormat::from_path("config.toml");
-    /// assert_eq!(format, Some(ConfigFormat::Toml));
-    ///
-    /// let format = ConfigFormat::from_path("config.json");
-    /// assert_eq!(format, Some(ConfigFormat::Json));
-    ///
-    /// let format = ConfigFormat::from_path("config.yaml");
-    /// assert_eq!(format, None);
-    /// ```
+    /// 从文件路径检测格式
     pub fn from_path(path: &str) -> Option<Self> {
         use std::path::Path;
         Path::new(path)
@@ -545,11 +722,7 @@ impl ConfigFormat {
             })
     }
 
-    /// Get the file extension for this format
-    ///
-    /// # Returns
-    ///
-    /// The file extension (without the dot)
+    /// 获取文件扩展名
     #[inline]
     pub fn extension(&self) -> &str {
         match self {
@@ -558,11 +731,7 @@ impl ConfigFormat {
         }
     }
 
-    /// Get the MIME type for this format
-    ///
-    /// # Returns
-    ///
-    /// The MIME type string
+    /// 获取 MIME 类型
     #[inline]
     pub fn mime_type(&self) -> &str {
         match self {
@@ -572,220 +741,135 @@ impl ConfigFormat {
     }
 }
 
-impl UnifiedConfig {
-    /// Load configuration from a TOML file
-    ///
-    /// This method reads a TOML file, parses it into a `UnifiedConfig`,
-    /// and validates the configuration using `validate_unified_config`.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the TOML configuration file
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(UnifiedConfig)` - Validated configuration
-    /// * `Err(CacheError)` - File read, parse, or validation error
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::UnifiedConfig;
-    ///
-    /// let config = UnifiedConfig::from_toml_file("config.toml")?;
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - File cannot be read
-    /// - TOML cannot be parsed
-    /// - Configuration validation fails
-    #[cfg(feature = "confers")]
-    pub fn from_toml_file(path: &str) -> crate::error::Result<Self> {
-        use crate::error::CacheError;
-        use std::fs;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        // Read file content
-        let content = fs::read_to_string(path)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e)))?;
-
-        // Parse TOML
-        let config: Self = toml::from_str(&content)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to parse TOML from '{}': {}", path, e)))?;
-
-        // Validate configuration
-        crate::builder::cache_builder::validate_unified_config(&config)?;
-
-        Ok(config)
+    #[test]
+    fn test_backend_type_default() {
+        assert_eq!(BackendType::default(), BackendType::Memory);
     }
 
-    /// Load configuration from a JSON file
-    ///
-    /// This method reads a JSON file, parses it into a `UnifiedConfig`,
-    /// and validates the configuration using `validate_unified_config`.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the JSON configuration file
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(UnifiedConfig)` - Validated configuration
-    /// * `Err(CacheError)` - File read, parse, or validation error
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::UnifiedConfig;
-    ///
-    /// let config = UnifiedConfig::from_json_file("config.json")?;
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - File cannot be read
-    /// - JSON cannot be parsed
-    /// - Configuration validation fails
-    pub fn from_json_file(path: &str) -> crate::error::Result<Self> {
-        use crate::error::CacheError;
-        use std::fs;
-
-        // Read file content
-        let content = fs::read_to_string(path)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to read file '{}': {}", path, e)))?;
-
-        // Parse JSON
-        let config: Self = serde_json::from_str(&content)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to parse JSON from '{}': {}", path, e)))?;
-
-        // Validate configuration
-        crate::builder::cache_builder::validate_unified_config(&config)?;
-
-        Ok(config)
+    #[test]
+    fn test_cache_type_default() {
+        assert_eq!(CacheType::default(), CacheType::L1);
     }
 
-    /// Load configuration from a file (auto-detect format)
-    ///
-    /// This method automatically detects the file format based on the file extension
-    /// and calls the appropriate loader.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the configuration file
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(UnifiedConfig)` - Validated configuration
-    /// * `Err(CacheError)` - Unsupported format, file read, parse, or validation error
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::UnifiedConfig;
-    ///
-    /// // Automatically detects .toml or .json extension
-    /// let config = UnifiedConfig::from_file("config.toml")?;
-    /// let config = UnifiedConfig::from_file("config.json")?;
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - File extension is not supported
-    /// - File cannot be read
-    /// - File cannot be parsed
-    /// - Configuration validation fails
-    #[cfg(feature = "confers")]
-    pub fn from_file(path: &str) -> crate::error::Result<Self> {
-        match ConfigFormat::from_path(path) {
-            Some(ConfigFormat::Toml) => Self::from_toml_file(path),
-            Some(ConfigFormat::Json) => Self::from_json_file(path),
-            None => Err(crate::error::CacheError::ConfigError(format!(
-                "Unsupported configuration file format. Path: '{}'. Supported formats: .toml, .json",
-                path
-            ))),
-        }
+    #[test]
+    fn test_backend_type_from_str() {
+        assert_eq!("Memory".parse::<BackendType>().unwrap(), BackendType::Memory);
+        assert_eq!("Redis".parse::<BackendType>().unwrap(), BackendType::Redis);
+        assert_eq!("Tiered".parse::<BackendType>().unwrap(), BackendType::Tiered);
     }
 
-    /// Validate TOML content without loading from file
-    ///
-    /// This method validates TOML configuration content from a string.
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - TOML configuration content
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(UnifiedConfig)` - Validated configuration
-    /// * `Err(CacheError)` - Parse or validation error
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::UnifiedConfig;
-    ///
-    /// let toml_content = r#"
-    /// [global]
-    /// default_ttl = 3600
-    /// "#;
-    ///
-    /// let config = UnifiedConfig::validate_toml_content(toml_content)?;
-    /// ```
-    #[cfg(feature = "confers")]
-    pub fn validate_toml_content(content: &str) -> crate::error::Result<Self> {
-        use crate::error::CacheError;
-
-        // Parse TOML
-        let config: Self = toml::from_str(content)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to parse TOML content: {}", e)))?;
-
-        // Validate configuration
-        crate::builder::cache_builder::validate_unified_config(&config)?;
-
-        Ok(config)
+    #[test]
+    fn test_cache_type_from_str() {
+        assert_eq!("L1".parse::<CacheType>().unwrap(), CacheType::L1);
+        assert_eq!("L2".parse::<CacheType>().unwrap(), CacheType::L2);
+        assert_eq!("TwoLevel".parse::<CacheType>().unwrap(), CacheType::TwoLevel);
     }
 
-    /// Validate JSON content without loading from file
-    ///
-    /// This method validates JSON configuration content from a string.
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - JSON configuration content
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(UnifiedConfig)` - Validated configuration
-    /// * `Err(CacheError)` - Parse or validation error
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::config::UnifiedConfig;
-    ///
-    /// let json_content = r#"
-    /// {
-    ///   "global": {
-    ///     "default_ttl": 3600
-    ///   }
-    /// }
-    /// "#;
-    ///
-    /// let config = UnifiedConfig::validate_json_content(json_content)?;
-    /// ```
-    pub fn validate_json_content(content: &str) -> crate::error::Result<Self> {
-        use crate::error::CacheError;
+    #[test]
+    fn test_service_config_l1_only() {
+        let config = ServiceConfig::l1_only();
+        assert_eq!(config.cache_type_enum(), CacheType::L1);
+        assert!(config.enable_metrics);
+    }
 
-        // Parse JSON
-        let config: Self = serde_json::from_str(content)
-            .map_err(|e| CacheError::ConfigError(format!("Failed to parse JSON content: {}", e)))?;
+    #[test]
+    fn test_service_config_with_ttl() {
+        let config = ServiceConfig::l1_only().with_ttl(3600);
+        assert_eq!(config.ttl, Some(3600));
+    }
 
-        // Validate configuration
-        crate::builder::cache_builder::validate_unified_config(&config)?;
+    #[test]
+    fn test_config_format_from_path() {
+        assert_eq!(ConfigFormat::from_path("config.toml"), Some(ConfigFormat::Toml));
+        assert_eq!(ConfigFormat::from_path("config.json"), Some(ConfigFormat::Json));
+        assert_eq!(ConfigFormat::from_path("config.yaml"), None);
+    }
 
-        Ok(config)
+    #[test]
+    fn test_config_format_extension() {
+        assert_eq!(ConfigFormat::Toml.extension(), "toml");
+        assert_eq!(ConfigFormat::Json.extension(), "json");
+    }
+
+    #[test]
+    fn test_unified_config_builder_memory_only() {
+        let builder = UnifiedConfigBuilder::memory_only();
+        let config = builder.build().unwrap();
+        assert_eq!(config.backend.backend_type_enum(), BackendType::Memory);
+        assert!(config.backend.l1_enabled);
+        assert!(!config.backend.l2_enabled);
+    }
+
+    #[test]
+    fn test_unified_config_builder_redis_only() {
+        let builder = UnifiedConfigBuilder::redis_only();
+        let config = builder.build().unwrap();
+        assert_eq!(config.backend.backend_type_enum(), BackendType::Redis);
+        assert!(!config.backend.l1_enabled);
+        assert!(config.backend.l2_enabled);
+    }
+
+    #[test]
+    fn test_unified_config_builder_tiered() {
+        let builder = UnifiedConfigBuilder::tiered();
+        let config = builder.build().unwrap();
+        assert_eq!(config.backend.backend_type_enum(), BackendType::Tiered);
+        assert!(config.backend.l1_enabled);
+        assert!(config.backend.l2_enabled);
+    }
+
+    #[test]
+    fn test_unified_config_builder_with_ttl() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_ttl(3600)
+            .build()
+            .unwrap();
+        assert_eq!(config.global.default_ttl, 3600);
+    }
+
+    #[test]
+    fn test_unified_config_builder_with_l1_capacity() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_l1_capacity(10000)
+            .build()
+            .unwrap();
+        let options = config.backend.l1_options();
+        let capacity = options.get("max_capacity").unwrap().as_u64().unwrap();
+        assert_eq!(capacity, 10000);
+    }
+
+    #[test]
+    fn test_unified_config_builder_with_redis_url() {
+        let config = UnifiedConfigBuilder::redis_only()
+            .with_redis_url("redis://localhost:6379")
+            .build()
+            .unwrap();
+        let options = config.backend.l2_options();
+        let url = options.get("connection_string").unwrap().as_str().unwrap();
+        assert_eq!(url, "redis://localhost:6379");
+    }
+
+    #[test]
+    fn test_validate_capacity_opt() {
+        assert!(validate_capacity_opt(&None, &()).is_ok());
+        assert!(validate_capacity_opt(&Some(100), &()).is_ok());
+        assert!(validate_capacity_opt(&Some(0), &()).is_err());
+        assert!(validate_capacity_opt(&Some(100_000_001), &()).is_err());
+    }
+
+    #[test]
+    fn test_global_config_validation() {
+        let config = GlobalConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_performance_config_validation() {
+        let config = PerformanceConfig::default();
+        assert!(config.validate().is_ok());
     }
 }
