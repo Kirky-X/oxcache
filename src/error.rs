@@ -214,6 +214,75 @@ impl From<std::io::Error> for CacheError {
 }
 
 impl CacheError {
+    /// 获取错误码
+    ///
+    /// 返回一个唯一的错误码字符串，便于日志记录和错误追踪。
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::CacheError;
+    ///
+    /// let err = CacheError::NotFound("key".to_string());
+    /// assert_eq!(err.code(), "CACHE_001");
+    ///
+    /// let err = CacheError::Connection("failed".to_string());
+    /// assert_eq!(err.code(), "CACHE_002");
+    /// ```
+    pub fn code(&self) -> &'static str {
+        match self {
+            CacheError::NotFound(_) => "CACHE_001",
+            CacheError::Connection(_) => "CACHE_002",
+            CacheError::Serialization(_) => "CACHE_003",
+            CacheError::Operation(_) => "CACHE_004",
+            CacheError::Degraded(_) => "CACHE_005",
+            CacheError::L1Error(_) => "CACHE_006",
+            CacheError::L2Error(_) => "CACHE_007",
+            CacheError::ConfigError(_) => "CACHE_008",
+            CacheError::NotSupported(_) => "CACHE_009",
+            CacheError::WalError(_) => "CACHE_010",
+            CacheError::DatabaseError(_) => "CACHE_011",
+            CacheError::RedisError(_) => "CACHE_012",
+            CacheError::IoError(_) => "CACHE_013",
+            CacheError::BackendError(_) => "CACHE_014",
+            CacheError::Timeout(_) => "CACHE_015",
+            CacheError::ShutdownError(_) => "CACHE_016",
+            CacheError::KeyTooLong(_, _) => "CACHE_017",
+            CacheError::ValueTooLarge(_, _) => "CACHE_018",
+            CacheError::BufferFull(_) => "CACHE_019",
+            CacheError::InvalidInput(_) => "CACHE_020",
+            CacheError::InvalidKey(_) => "CACHE_021",
+            CacheError::LockError(_) => "CACHE_022",
+            CacheError::ServiceNotFound(_) => "CACHE_023",
+        }
+    }
+
+    /// 检查错误是否可恢复
+    ///
+    /// 返回 true 表示错误可能是暂时的，可以重试。
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::CacheError;
+    ///
+    /// let err = CacheError::Connection("failed".to_string());
+    /// assert!(err.is_recoverable());
+    ///
+    /// let err = CacheError::NotFound("key".to_string());
+    /// assert!(!err.is_recoverable());
+    /// ```
+    pub fn is_recoverable(&self) -> bool {
+        matches!(
+            self,
+            CacheError::Connection(_)
+                | CacheError::Timeout(_)
+                | CacheError::L2Error(_)
+                | CacheError::BackendError(_)
+                | CacheError::BufferFull(_)
+        )
+    }
+
     /// Check if this error is a "not found" error
     ///
     /// Returns true if the error indicates that a requested key was not found.

@@ -416,6 +416,7 @@ macro_rules! placeholder_module {
 // Core Modules (Always Available)
 // ============================================================================
 pub mod client;
+pub mod constants;
 pub mod error;
 
 // Internal module for #[cached] macro support
