@@ -322,7 +322,7 @@ moka = ["dep:moka", "dep:dashmap"]
 dashmap-backend = ["dep:dashmap"]
 
 # L2 Cache Implementation (Redis)
-redis = ["dep:redis"]
+redis = ["dep:redis", "dep:regex"]
 
 # Tracing support
 tracing = ["dep:tracing"]
