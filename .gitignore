@@ -84,7 +84,6 @@ npm-debug.log*
 # =============================================================================
 # Keep These Files (Do NOT ignore)
 # =============================================================================
-# AGENTS.md - AI assistant rules
 # .iflow/ - iFlow configuration
 # .opencode/ - OpenCode configuration
 # .qoder/ - Qoder configuration
@@ -93,5 +92,10 @@ npm-debug.log*
 # Makefile - Build commands
 # rustfmt.toml - Code formatting
 # .cargo/config.toml - Cargo configuration
+
+# =============================================================================
+# Project Specific Ignores
+# =============================================================================
+AGENTS.md
 
 .worktrees
