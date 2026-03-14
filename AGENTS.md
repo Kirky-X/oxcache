@@ -49,6 +49,7 @@ oxcache/
 |------|------|
 | 核心缓存 API | `src/cache.rs`, `src/cache_interface.rs` |
 | 缓存构建器 | `src/builder/` |
+| 配置模块 (confers) | `src/config/confers_config.rs` |
 | L1 后端 (Moka/DashMap) | `src/backend/client/` |
 | L2 后端 (Redis) | `src/backend/redis/` |
 | 特性配置 | `Cargo.toml` |
@@ -63,8 +64,17 @@ oxcache/
 - **minimal**: 仅 L1 内存缓存，无 Redis
 - **core**: L1 + L2 基础
 - **full**: 全部功能 (默认)
+- **confers**: 使用 confers 库进行配置管理
 
 特性依赖通过 `check_feature_dependence!` 宏校验。
+
+### 配置系统
+
+使用 confers 库进行配置管理，支持以下特性：
+- **文件加载**: TOML/JSON 配置文件
+- **环境变量**: 支持环境变量覆盖
+- **验证**: 使用 garde 进行字段验证
+- **默认值**: 通过 `#[config(default = ...)]` 属性设置
 
 ### 异步 API
 
