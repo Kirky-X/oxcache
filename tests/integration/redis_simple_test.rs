@@ -7,21 +7,22 @@
 #[cfg(test)]
 #[cfg(feature = "redis")]
 mod redis_integration_tests {
-    use crate::common::is_redis_available;
+    use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::RedisBackend;
     use oxcache::backend::CacheBackend;
     use std::time::Duration;
 
     #[tokio::test]
     async fn test_redis_connection() {
-        let redis_url = "redis://127.0.0.1:6381";
-
         if !is_redis_available().await {
-            println!("⚠️  Skipping Redis test - Redis not available at {}", redis_url);
+            println!("⚠️  Skipping Redis test - Redis not available");
             return;
         }
 
-        let backend = RedisBackend::new(redis_url).await;
+        let redis_url = get_redis_url();
+        println!("Testing Redis at: {}", redis_url);
+
+        let backend = RedisBackend::new(&redis_url).await;
         assert!(backend.is_ok(), "Failed to create Redis backend");
         println!("✅ Redis backend created");
 
@@ -55,14 +56,13 @@ mod redis_integration_tests {
 
     #[tokio::test]
     async fn test_redis_ttl() {
-        let redis_url = "redis://127.0.0.1:6381";
-
         if !is_redis_available().await {
-            println!("⚠️  Skipping Redis TTL test - Redis not available at {}", redis_url);
+            println!("⚠️  Skipping Redis TTL test - Redis not available");
             return;
         }
 
-        let backend = RedisBackend::new(redis_url).await.unwrap();
+        let redis_url = get_redis_url();
+        let backend = RedisBackend::new(&redis_url).await.unwrap();
 
         let result = backend
             .set("ttl:test", b"value".to_vec(), Some(Duration::from_secs(2)))
@@ -84,14 +84,13 @@ mod redis_integration_tests {
 
     #[tokio::test]
     async fn test_redis_batch_operations() {
-        let redis_url = "redis://127.0.0.1:6381";
-
         if !is_redis_available().await {
-            println!("⚠️  Skipping Redis batch test - Redis not available at {}", redis_url);
+            println!("⚠️  Skipping Redis batch test - Redis not available");
             return;
         }
 
-        let backend = RedisBackend::new(redis_url).await.unwrap();
+        let redis_url = get_redis_url();
+        let backend = RedisBackend::new(&redis_url).await.unwrap();
 
         for i in 0..10 {
             let key = format!("batch:test:{}", i);
