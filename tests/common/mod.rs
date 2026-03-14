@@ -6,8 +6,10 @@
 
 // 子模块
 pub mod database_test_utils;
+pub mod docker_test_utils;
 pub mod mock_backend;
 pub mod redis_test_utils;
+pub mod test_containers;
 
 // ============================================================================
 // 重新导出常用函数
@@ -26,6 +28,19 @@ pub use database_test_utils::{
     cleanup_postgres_table, create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations,
     verify_partition_cleanup, verify_partition_creation, TestConfig,
 };
+
+// Docker 测试工具
+#[allow(unused_imports)]
+pub use docker_test_utils::{
+    is_redis_available as docker_is_redis_available, setup_redis_and_postgres, setup_redis_cluster_nodes,
+    setup_redis_container, setup_postgres_container, wait_for_redis as docker_wait_for_redis, PostgresContainer,
+    RedisContainer,
+};
+
+// Testcontainers 工具
+#[allow(unused_imports)]
+pub use test_containers::{is_redis_available as tc_is_redis_available, start_redis_container, RedisClusterManager,
+    RedisContainer as AsyncRedisContainer, TestEnvironment};
 
 // Mock 后端
 #[allow(unused_imports)]
