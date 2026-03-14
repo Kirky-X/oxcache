@@ -1,0 +1,28 @@
+# 单机 Redis 测试环境
+# 用于基础集成测试
+
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: oxcache-redis-test
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - oxcache-test
+
+networks:
+  oxcache-test:
+    driver: bridge
+
+volumes:
+  redis-data:

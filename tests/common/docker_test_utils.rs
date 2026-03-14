@@ -1,68 +1,124 @@
-//! Docker test utilities using testcontainers
+//! Docker test utilities using testcontainers 0.23+
 //!
 //! This module provides helper functions for setting up Docker-based test environments
 //! using testcontainers for Redis and PostgreSQL.
 
-use testcontainers::core::WaitFor;
-use testcontainers::images::redis::Redis;
-use testcontainers::images::postgres::Postgres;
-use testcontainers::Container;
+use std::time::Duration;
+use testcontainers::core::IntoContainerPort;
+use testcontainers::runners::AsyncRunner;
+use testcontainers::{ContainerAsync, ImageExt};
 
-/// Creates a Redis testcontainer for testing
+/// Redis 容器类型别名
+pub type RedisContainer = ContainerAsync<testcontainers_modules::redis::Redis>;
+
+/// PostgreSQL 容器类型别名
+pub type PostgresContainer = ContainerAsync<testcontainers_modules::postgres::Postgres>;
+
+/// 创建 Redis 测试容器
 ///
 /// # Example
 /// ```ignore
 /// #[tokio::test]
 /// async fn test_with_redis() {
-///     let (_container, redis_url) = setup_redis_container().await;
-///     // use redis_url to connect
+///     let (container, redis_url) = setup_redis_container().await.unwrap();
+///     // 使用 redis_url 连接
 /// }
 /// ```
-pub async fn setup_redis_container() -> (Container<'static, Redis>, String) {
-    let redis = testcontainers::run("redis:7-alpine")
-        .expect("Failed to start Redis container");
+pub async fn setup_redis_container() -> Result<(RedisContainer, String), String> {
+    let redis = testcontainers_modules::redis::Redis::default()
+        .with_tag("7-alpine")
+        .start()
+        .await
+        .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
 
-    let host_port = redis.get_host_port_ipv4(6379);
-    let redis_url = format!("redis://127.0.0.1:{}", host_port);
+    let port = redis
+        .get_host_port_ipv4(6379)
+        .await
+        .map_err(|e| format!("获取端口失败: {}", e))?;
 
-    (redis, redis_url)
+    let redis_url = format!("redis://127.0.0.1:{}", port);
+
+    Ok((redis, redis_url))
 }
 
-/// Creates a PostgreSQL testcontainer for testing
+/// 创建 PostgreSQL 测试容器
 ///
 /// # Example
 /// ```ignore
 /// #[tokio::test]
 /// async fn test_with_postgres() {
-///     let (_container, connection_string) = setup_postgres_container().await;
-///     // use connection_string to connect
+///     let (container, connection_string) = setup_postgres_container().await.unwrap();
+///     // 使用 connection_string 连接
 /// }
 /// ```
-pub async fn setup_postgres_container() -> (Container<'static, Postgres>, String) {
-    let pg = testcontainers::run("postgres:15-alpine")
-        .with_env_var("POSTGRES_USER", "test")
-        .with_env_var("POSTGRES_PASSWORD", "test")
-        .with_env_var("POSTGRES_DB", "test")
-        .expect("Failed to start PostgreSQL container");
+pub async fn setup_postgres_container() -> Result<(PostgresContainer, String), String> {
+    let pg = testcontainers_modules::postgres::Postgres::default()
+        .with_tag("15-alpine")
+        .start()
+        .await
+        .map_err(|e| format!("启动 PostgreSQL 容器失败: {}", e))?;
 
-    let host_port = pg.get_host_port_ipv4(5432);
-    let connection_string = format!(
-        "postgres://test:test@127.0.0.1:{}/test",
-        host_port
-    );
+    let port = pg
+        .get_host_port_ipv4(5432)
+        .await
+        .map_err(|e| format!("获取端口失败: {}", e))?;
 
-    (pg, connection_string)
+    let connection_string = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
+
+    Ok((pg, connection_string))
 }
 
-/// Creates both Redis and PostgreSQL testcontainers
-pub async fn setup_redis_and_postgres() -> (
-    Container<'static, Redis>,
-    String,
-    Container<'static, Postgres>,
-    String,
-) {
-    let (redis_container, redis_url) = setup_redis_container().await;
-    let (pg_container, pg_url) = setup_postgres_container().await;
+/// 同时创建 Redis 和 PostgreSQL 测试容器
+pub async fn setup_redis_and_postgres() -> Result<(RedisContainer, String, PostgresContainer, String), String> {
+    let (redis_container, redis_url) = setup_redis_container().await?;
+    let (pg_container, pg_url) = setup_postgres_container().await?;
 
-    (redis_container, redis_url, pg_container, pg_url)
+    Ok((redis_container, redis_url, pg_container, pg_url))
+}
+
+/// 等待 Redis 就绪
+pub async fn wait_for_redis(url: &str, timeout_secs: u64) -> bool {
+    let client = match redis::Client::open(url) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+
+    while start.elapsed() < timeout {
+        match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
+            Ok(Ok(_)) => return true,
+            _ => tokio::time::sleep(Duration::from_millis(100)).await,
+        }
+    }
+
+    false
+}
+
+/// 检查 Redis 是否可用
+pub async fn is_redis_available(url: &str) -> bool {
+    let client = match redis::Client::open(url) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
+        Ok(Ok(_)) => true,
+        _ => false,
+    }
+}
+
+/// 创建多个 Redis 容器用于集群测试
+pub async fn setup_redis_cluster_nodes(count: usize) -> Result<Vec<(RedisContainer, String)>, String> {
+    let mut containers = Vec::new();
+
+    for i in 0..count {
+        let (container, url) = setup_redis_container()
+            .await
+            .map_err(|e| format!("创建第 {} 个 Redis 容器失败: {}", i + 1, e))?;
+        containers.push((container, url));
+    }
+
+    Ok(containers)
 }
