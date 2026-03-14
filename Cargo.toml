@@ -123,6 +123,10 @@ optional = true
 version = "0.7"
 optional = true
 
+[dependencies.base64]
+version = "0.22"
+optional = false
+
 [dependencies.sha2]
 version = "0.10"
 optional = true

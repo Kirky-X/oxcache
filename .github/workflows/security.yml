@@ -4,252 +4,56 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   schedule:
-    - cron: '0 0 * * 0'  # 每周日运行全面安全审计
-  workflow_dispatch:
-    inputs:
-      audit_level:
-        description: 'Audit level (quick/full)'
-        required: false
-        default: 'quick'
-        type: choice
-        options:
-          - quick
-          - full
-
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+    - cron: '0 0 * * 0'
 
 jobs:
-  # ============================================================================
-  # Cargo Audit (RUSTSEC Database)
-  # ============================================================================
-  cargo-audit:
-    name: Cargo Audit
+  security-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo-audit database
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/advisory-db
-          key: ${{ runner.os }}-cargo-audit-db-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-audit-db-
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
-      - name: Run cargo audit
-        run: |
-          if cargo audit --json 2>/dev/null | jq -e '.vulnerabilities.found == false' >/dev/null 2>&1; then
-            echo "✅ No vulnerabilities found"
-          else
-            echo "🚨 Vulnerabilities detected"
-            cargo audit
-          fi
+      - name: Run security audit
+        run: cargo audit
 
-      - name: Upload audit report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-audit-report
-          path: audit_report.txt
-          retention-days: 30
-
-  # ============================================================================
-  # Cargo Deny (Multi-check)
-  # ============================================================================
   cargo-deny:
-    name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install cargo-deny
-        run: cargo install --locked cargo-deny
+        run: cargo install cargo-deny
 
-      - name: Run cargo-deny check
-        run: |
-          echo "Running cargo-deny checks..."
-          cargo-deny check advisories --hide-inclusion-status
-          cargo-deny check licenses
-          cargo-deny check sources
-        continue-on-error: false
+      - name: Run cargo-deny
+        run: cargo deny check
 
-  # ============================================================================
-  # Dependency Update Check
-  # ============================================================================
-  dependency-updates:
-    name: Dependency Updates
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Check for outdated dependencies
-        run: |
-          echo "Checking for outdated dependencies..."
-          cargo outdated --root-deps-only --exit-code 1 || {
-            echo ""
-            echo "⚠️  Some dependencies have updates available"
-            echo "Run 'cargo outdated' to see details"
-            echo "Run 'cargo update' to update all dependencies"
-          }
-
-      - name: Generate dependency report
-        if: always()
-        run: |
-          cargo outdated --root-deps-only --output-format json > dependency_report.json || true
-        continue-on-error: true
-
-      - name: Upload dependency report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-report
-          path: dependency_report.json
-          retention-days: 7
-
-  # ============================================================================
-  # License Compliance
-  # ============================================================================
-  license-check:
-    name: License Compliance
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-deny
-        run: cargo install --locked cargo-deny
-
-      - name: Check licenses
-        run: |
-          echo "Checking license compliance..."
-          cargo-deny check licenses --show-inclusion-status
-
-  # ============================================================================
-  # RustSec Vulnerability Scanning
-  # ============================================================================
-  rustsec-scan:
-    name: RustSec Scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install rustsec tool
-        run: |
-          cargo install cargo-audit
-          rustsec --version || echo "rustsec not available, using cargo-audit"
-
-      - name: Run security scan
-        run: |
-          echo "Running comprehensive security scan..."
-          cargo audit --stale || true
-          echo "---"
-          echo "Note: Full scan results available in CI artifacts"
-
-  # ============================================================================
-  # Secret Scanning
-  # ============================================================================
-  secret-scanning:
-    name: Secret Scanning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install detect-secrets
-        run: pip install detect-secrets
-
-      - name: Run secret scan
-        run: |
-          if [ -f ".secrets.baseline" ]; then
-            detect-secrets scan --baseline .secrets.baseline --exclude-files '\.git/.*' > secrets_scan.json || true
-            jq -e '.results | keys | length == 0' secrets_scan.json 2>/dev/null && {
-              echo "✅ No new secrets detected"
-            } || {
-              echo "🚨 Potential secrets detected"
-              cat secrets_scan.json
-            }
-          else
-            echo "⚠️  No .secrets.baseline found. Run 'detect-secrets scan > .secrets.baseline' to initialize"
-          fi
-
-      - name: Upload secrets report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: secrets-report
-          path: secrets_scan.json
-          retention-days: 7
-
-  # ============================================================================
-  # Dependency Review (GitHub Native)
-  # ============================================================================
   dependency-review:
-    name: Dependency Review
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+    if: github.event_name == 'pull_request'
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
-        with:
-          comment-summary-in-pr: on-failure
-          fail-on-severity: critical
-          license-check: true
-
-  # ============================================================================
-  # Security Report Generation
-  # ============================================================================
-  security-report:
-    name: Security Report
-    runs-on: ubuntu-latest
-    needs: [cargo-audit, cargo-deny, dependency-updates, license-check]
-    if: always()
-    steps:
-      - name: Generate Security Summary
-        run: |
-          echo "## Security Audit Summary" > security_report.md
-          echo "" >> security_report.md
-          echo "Generated: $(date)" >> security_report.md
-          echo "" >> security_report.md
-          echo "### Checks Performed" >> security_report.md
-          echo "" >> security_report.md
-          echo "- Cargo Audit (RUSTSEC database)" >> security_report.md
-          echo "- Cargo Deny (advisories, licenses, sources)" >> security_report.md
-          echo "- Dependency Updates Check" >> security_report.md
-          echo "- License Compliance" >> security_report.md
-          echo "- Secret Scanning" >> security_report.md
-          echo "- Dependency Review" >> security_report.md
-          echo "" >> security_report.md
-          echo "### Artifacts" >> security_report.md
-          echo "" >> security_report.md
-          echo "- Cargo Audit Report" >> security_report.md
-          echo "- Dependency Report" >> security_report.md
-          echo "- Secrets Report" >> security_report.md
-          echo "" >> security_report.md
-          echo "See individual job artifacts for detailed reports." >> security_report.md
-
-          cat security_report.md

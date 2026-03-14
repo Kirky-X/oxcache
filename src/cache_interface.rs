@@ -158,17 +158,12 @@ pub trait UnifiedCache: Send + Sync + Any {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<T>> + Send,
     {
-        // Try cache first
         if let Some(cached) = self.get_typed::<T>(key).await? {
             return Ok(cached);
         }
 
-        // Cache miss, fetch from source
         let value = fetch().await?;
-
-        // Cache the result
         self.set_typed(key, &value, ttl).await?;
-
         Ok(value)
     }
 
@@ -190,8 +185,29 @@ pub trait UnifiedCache: Send + Sync + Any {
     }
 
     // ============================================================================
-    // Batch operations
+    // Batch operations (refactored with helper methods)
     // ============================================================================
+
+    /// Check if this is an L2 (Redis) cache backend
+    fn is_l2_cache(&self) -> bool {
+        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
+        {
+            self.as_any()
+                .downcast_ref::<crate::backend::client::RedisBackend>()
+                .is_some()
+                || self
+                    .as_any()
+                    .downcast_ref::<crate::backend::client::redis::RedisBackend>()
+                    .is_some()
+        }
+        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
+        { false }
+    }
+
+    /// Determine if parallel execution should be used
+    fn should_parallelize(&self, item_count: usize) -> bool {
+        self.is_l2_cache() && item_count > 1
+    }
 
     /// Set multiple values with parallel execution for L2 cache
     async fn set_many_bytes<'a, I>(&self, items: I) -> Result<()>
@@ -201,47 +217,24 @@ pub trait UnifiedCache: Send + Sync + Any {
     {
         let items: Vec<_> = items.into_iter().collect();
 
-        // For L2 (Redis) cache, use parallel execution
-        // For L1 (memory) cache, use sequential execution to avoid overhead
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        let is_l2_cache = self
-            .as_any()
-            .downcast_ref::<crate::backend::client::RedisBackend>()
-            .is_some()
-            || self
-                .as_any()
-                .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                .is_some();
-
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        let is_l2_cache = false;
-
-        if is_l2_cache && items.len() > 1 {
-            // Parallel execution for Redis
+        if self.should_parallelize(items.len()) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = items
-                    .into_iter()
-                    .map(|(key, value)| self.set_bytes(key, value, None))
-                    .collect();
+                let futures: Vec<_> = items.iter().map(|(k, v)| self.set_bytes(k, v.clone(), None)).collect();
                 let results: Vec<Result<()>> = join_all(futures).await;
-
-                // Check for any errors
                 for result in results {
                     result?;
                 }
             }
-            // Sequential fallback (shouldn't be reached in minimal mode)
             #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
             {
-                for (key, value) in items {
-                    self.set_bytes(key, value, None).await?;
+                for (key, value) in &items {
+                    self.set_bytes(key, value.clone(), None).await?;
                 }
             }
         } else {
-            // Sequential execution for L1 cache or single item
-            for (key, value) in items {
-                self.set_bytes(key, value, None).await?;
+            for (key, value) in &items {
+                self.set_bytes(key, value.clone(), None).await?;
             }
         }
         Ok(())
@@ -254,42 +247,32 @@ pub trait UnifiedCache: Send + Sync + Any {
         I::IntoIter: Send,
     {
         let keys: Vec<_> = keys.into_iter().collect();
+        let mut result = HashMap::new();
 
-        // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        let is_l2_cache = self
-            .as_any()
-            .downcast_ref::<crate::backend::client::RedisBackend>()
-            .is_some()
-            || self
-                .as_any()
-                .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                .is_some();
-
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        let is_l2_cache = false;
-
-        if is_l2_cache && keys.len() > 1 {
-            // Parallel execution for Redis
+        if self.should_parallelize(keys.len()) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = keys.iter().map(|key| self.get_bytes(key)).collect();
+                let futures: Vec<_> = keys.iter().map(|k| self.get_bytes(k)).collect();
                 let results: Vec<Result<Option<Vec<u8>>>> = join_all(futures).await;
-
-                let mut result = HashMap::new();
                 for (key, value_result) in keys.iter().zip(results) {
                     if let Ok(Some(value)) = value_result {
                         result.insert(key.to_string(), value);
                     }
                 }
-                return Ok(result);
             }
-        }
-        // Sequential execution for L1 cache or when Redis not available
-        let mut result = HashMap::new();
-        for key in keys {
-            if let Some(value) = self.get_bytes(key).await? {
-                result.insert(key.to_string(), value);
+            #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
+            {
+                for key in &keys {
+                    if let Some(value) = self.get_bytes(key).await? {
+                        result.insert(key.to_string(), value);
+                    }
+                }
+            }
+        } else {
+            for key in &keys {
+                if let Some(value) = self.get_bytes(key).await? {
+                    result.insert(key.to_string(), value);
+                }
             }
         }
         Ok(result)
@@ -303,37 +286,25 @@ pub trait UnifiedCache: Send + Sync + Any {
     {
         let keys: Vec<_> = keys.into_iter().collect();
 
-        // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        let is_l2_cache = self
-            .as_any()
-            .downcast_ref::<crate::backend::client::RedisBackend>()
-            .is_some()
-            || self
-                .as_any()
-                .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                .is_some();
-
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        let is_l2_cache = false;
-
-        if is_l2_cache && keys.len() > 1 {
-            // Parallel execution for Redis
+        if self.should_parallelize(keys.len()) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = keys.iter().map(|key| self.delete(key)).collect();
+                let futures: Vec<_> = keys.iter().map(|k| self.delete(k)).collect();
                 let results: Vec<Result<()>> = join_all(futures).await;
-
-                // Check for any errors
                 for result in results {
                     result?;
                 }
             }
-            return Ok(());
-        }
-        // Sequential execution for L1 cache or when Redis not available
-        for key in keys {
-            self.delete(key).await?;
+            #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
+            {
+                for key in &keys {
+                    self.delete(key).await?;
+                }
+            }
+        } else {
+            for key in &keys {
+                self.delete(key).await?;
+            }
         }
         Ok(())
     }
@@ -347,40 +318,25 @@ pub trait UnifiedCache: Send + Sync + Any {
     {
         let items: Vec<_> = items.into_iter().collect();
 
-        // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        let is_l2_cache = self
-            .as_any()
-            .downcast_ref::<crate::backend::client::RedisBackend>()
-            .is_some()
-            || self
-                .as_any()
-                .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                .is_some();
-
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        let is_l2_cache = false;
-
-        if is_l2_cache && items.len() > 1 {
-            // Parallel execution for Redis
+        if self.should_parallelize(items.len()) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = items
-                    .iter()
-                    .map(|(key, value)| self.set_typed(key, value, None))
-                    .collect();
+                let futures: Vec<_> = items.iter().map(|(k, v)| self.set_typed(k, v, None)).collect();
                 let results: Vec<Result<()>> = join_all(futures).await;
-
-                // Check for any errors
                 for result in results {
                     result?;
                 }
             }
-            return Ok(());
-        }
-        // Sequential execution for L1 cache or when Redis not available
-        for (key, value) in items {
-            self.set_typed(key, value, None).await?;
+            #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
+            {
+                for (key, value) in &items {
+                    self.set_typed(key, value, None).await?;
+                }
+            }
+        } else {
+            for (key, value) in &items {
+                self.set_typed(key, value, None).await?;
+            }
         }
         Ok(())
     }
@@ -393,42 +349,32 @@ pub trait UnifiedCache: Send + Sync + Any {
         I::IntoIter: Send,
     {
         let keys: Vec<_> = keys.into_iter().collect();
+        let mut result = HashMap::new();
 
-        // For L2 (Redis) cache, use parallel execution
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        let is_l2_cache = self
-            .as_any()
-            .downcast_ref::<crate::backend::client::RedisBackend>()
-            .is_some()
-            || self
-                .as_any()
-                .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                .is_some();
-
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        let is_l2_cache = false;
-
-        if is_l2_cache && keys.len() > 1 {
-            // Parallel execution for Redis
+        if self.should_parallelize(keys.len()) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = keys.iter().map(|key| self.get_typed::<T>(key)).collect();
+                let futures: Vec<_> = keys.iter().map(|k| self.get_typed::<T>(k)).collect();
                 let results: Vec<Result<Option<T>>> = join_all(futures).await;
-
-                let mut result = HashMap::new();
                 for (key, value_result) in keys.iter().zip(results) {
                     if let Ok(Some(value)) = value_result {
                         result.insert(key.to_string(), value);
                     }
                 }
-                return Ok(result);
             }
-        }
-        // Sequential execution for L1 cache or when Redis not available
-        let mut result = HashMap::new();
-        for key in keys {
-            if let Some(value) = self.get_typed::<T>(key).await? {
-                result.insert(key.to_string(), value);
+            #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
+            {
+                for key in &keys {
+                    if let Some(value) = self.get_typed::<T>(key).await? {
+                        result.insert(key.to_string(), value);
+                    }
+                }
+            }
+        } else {
+            for key in &keys {
+                if let Some(value) = self.get_typed::<T>(key).await? {
+                    result.insert(key.to_string(), value);
+                }
             }
         }
         Ok(result)
@@ -530,20 +476,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_unified_cache_backend() {
-        // Create backend using the public API
         let backend = MemoryBackend::new();
 
-        // Test basic operations using the backend's own methods directly
-        // This tests that the backend works correctly
         backend.set("test_key", b"test_value".to_vec(), None).await.unwrap();
-
-        // Small delay to allow async operations to complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
         let value = backend.get("test_key").await.unwrap();
         assert_eq!(value, Some(b"test_value".to_vec()));
 
-        // Use fully qualified method calls to avoid ambiguity
         <MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key")
             .await
             .unwrap();
@@ -572,12 +512,10 @@ mod tests {
             value: 42,
         };
 
-        // Test typed operations
         backend.set_typed("typed_key", &test_val, None).await.unwrap();
         let retrieved: Option<TestStruct> = backend.get_typed("typed_key").await.unwrap();
         assert_eq!(retrieved, Some(test_val));
 
-        // Test get_or_fetch
         let fetched: TestStruct = backend
             .get_or_fetch::<TestStruct, _, _>("fetch_key", None, || async {
                 Ok(TestStruct {
@@ -591,7 +529,6 @@ mod tests {
         assert_eq!(fetched.name, "fetched");
         assert_eq!(fetched.value, 100);
 
-        // Verify it was cached
         let cached: Option<TestStruct> = backend.get_typed("fetch_key").await.unwrap();
         assert!(cached.is_some());
     }
@@ -600,14 +537,12 @@ mod tests {
     async fn test_batch_operations() {
         let backend = MemoryBackend::new();
 
-        // Test batch set
         let items: Vec<(&str, Vec<u8>)> = vec![("key1", b"value1".to_vec()), ("key2", b"value2".to_vec())];
         backend
             .set_many_bytes(items.iter().map(|(k, v)| (*k, v.clone())))
             .await
             .unwrap();
 
-        // Test batch get
         let keys: Vec<&str> = vec!["key1", "key2", "key3"];
         let results: std::collections::HashMap<String, Vec<u8>> =
             backend.get_many_bytes(keys.iter().cloned()).await.unwrap();
@@ -616,7 +551,6 @@ mod tests {
         assert!(results.contains_key("key2"));
         assert!(!results.contains_key("key3"));
 
-        // Test batch delete
         backend.delete_many(vec!["key1", "key2"]).await.unwrap();
         assert!(!CacheBackend::exists(&backend, "key1").await.unwrap());
         assert!(!CacheBackend::exists(&backend, "key2").await.unwrap());
