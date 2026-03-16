@@ -124,7 +124,7 @@ impl SQLitePartitionManager {
 
     async fn execute(&self, sql: &str) -> Result<()> {
         (*self.connection)
-            .execute(Statement::from_string(
+            .execute_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Sqlite,
                 sql.to_string(),
             ))
@@ -138,7 +138,7 @@ impl SQLitePartitionManager {
         F: Fn(sea_orm::QueryResult) -> Result<T>,
     {
         let result = (*self.connection)
-            .query_one(Statement::from_string(
+            .query_one_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Sqlite,
                 sql.to_string(),
             ))
@@ -156,7 +156,7 @@ impl SQLitePartitionManager {
         F: Fn(sea_orm::QueryResult) -> Result<T>,
     {
         let results = (*self.connection)
-            .query_all(Statement::from_string(
+            .query_all_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Sqlite,
                 sql.to_string(),
             ))
@@ -387,7 +387,7 @@ impl PartitionManager for SQLitePartitionManager {
 
         let result = self
             .connection
-            .query_all(statement)
+            .query_all_raw(statement)
             .await
             .map_err(|e| CacheError::DatabaseError(format!("SQL query failed: {}", e)))?;
 

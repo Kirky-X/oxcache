@@ -24,7 +24,7 @@ async fn test_basic_connection(db_path: &str) -> bool {
             println!("✓ Connection succeeded: {}", db_path);
 
             let result = db
-                .execute(sea_orm::Statement::from_string(
+                .execute_raw(sea_orm::Statement::from_string(
                     sea_orm::DatabaseBackend::Sqlite,
                     "SELECT 1 as test".to_string(),
                 ))

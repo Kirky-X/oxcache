@@ -208,7 +208,7 @@ impl PostgresPartitionManager {
     /// Ping数据库以验证连接
     async fn ping(&self) -> Result<()> {
         let conn = self.connection.as_ref();
-        conn.execute(Statement::from_string(
+        conn.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             "SELECT 1".to_string(),
         ))
@@ -290,7 +290,7 @@ impl PostgresPartitionManager {
 
         debug!("Generated partition SQL: {}", partition_sql);
 
-        conn.execute(Statement::from_string(
+        conn.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             partition_sql,
         ))
@@ -308,7 +308,7 @@ impl PostgresPartitionManager {
             table_name, table_name
         );
 
-        conn.execute(Statement::from_string(
+        conn.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             default_partition_sql,
         ))
@@ -326,7 +326,7 @@ impl PartitionManager for PostgresPartitionManager {
             self.create_partitioned_table(table_name, schema).await
         } else {
             let conn = self.connection.as_ref();
-            conn.execute(Statement::from_string(
+            conn.execute_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,
                 schema.to_string(),
             ))
@@ -371,7 +371,7 @@ impl PartitionManager for PostgresPartitionManager {
         // Sea-ORM 会自动处理值参数化
         let sql = "CREATE TABLE IF NOT EXISTS $1 PARTITION OF $2 FOR VALUES FROM ($3) TO ($4)".to_string();
 
-        conn.execute(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
+        conn.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
             .await
             .map_err(|e| {
                 CacheError::DatabaseError(format!("Failed to create partition {}: {}", partition_table_name, e))
@@ -393,7 +393,7 @@ impl PartitionManager for PostgresPartitionManager {
             .to_string();
 
         let statement = Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql);
-        let result = conn.query_all(statement).await.map_err(|e| {
+        let result = conn.query_all_raw(statement).await.map_err(|e| {
             CacheError::DatabaseError(format!(
                 "Failed to get partitions: {}. Please check if the table exists.",
                 e
@@ -425,7 +425,7 @@ impl PartitionManager for PostgresPartitionManager {
         let sql = format!("DROP TABLE IF EXISTS \"{}\"", partition_name);
         debug!("Executing drop SQL: {}", sql);
 
-        conn.execute(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
+        conn.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
             .await
             .map_err(|e| CacheError::DatabaseError(format!("Failed to drop partition {}: {}", partition_name, e)))?;
 
