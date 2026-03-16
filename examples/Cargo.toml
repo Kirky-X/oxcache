@@ -34,7 +34,7 @@ oxcache = { path = "..", default-features = false, features = [
 ] }
 
 # Async runtime
-tokio = { version = "1.32", features = ["full"] }
+tokio = { version = "1.50", features = ["full"] }
 async-trait = "0.1"
 
 # Serialization
@@ -48,7 +48,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Utilities
 rand = "0.8"
-tempfile = "3.8"
+tempfile = "3.27"
 thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
