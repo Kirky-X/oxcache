@@ -355,7 +355,7 @@ full-metrics = ["metrics", "dep:tracing-opentelemetry", "dep:opentelemetry-otlp"
 
 # Database Integration
 database = ["dep:sea-orm", "dep:sqlx", "dep:regex"]
-sqlite = ["sqlx/sqlite"]
+sqlite = ["database", "sqlx/sqlite"]
 dashmap = ["dep:dashmap"]
 
 # Advanced Features
