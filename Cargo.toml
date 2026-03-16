@@ -395,25 +395,68 @@ codegen = ["dep:anyhow"] # Used for build scripts
 # ============================================================================
 # COMPILER OPTIMIZATIONS
 # ============================================================================
-# These optimizations are always applied regardless of features
+
+# Release profile: Maximum performance
 [profile.release]
 opt-level = 3
-lto = "fat"              # Enable Link-Time Optimization for better dead code elimination
-codegen-units = 1        # Single codegen unit for better optimization
-panic = "abort"          # Smaller binary by removing panic unwinding
-strip = true             # Remove debug symbols
-overflow-checks = false  # Disable overflow checks in release
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+overflow-checks = false
 
 # Optimize all dependencies equally
 [profile.release.package."*"]
 opt-level = 3
 
-# Dev profile optimizations
+# Release with debug info: For profiling and debugging release builds
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+strip = false
+
+# Dev profile: Fast compilation for development iteration
 [profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+
+# Dev optimized: Faster dev builds with some optimizations
+[profile.dev-optimized]
+inherits = "dev"
+opt-level = 2
 debug = true
 
+# Test profile
 [profile.test]
 opt-level = 0
+debug = true
+
+# Benchmark profile: Use release optimizations
+[profile.bench]
+inherits = "release"
+
+# Optimize heavy dependencies even in dev builds
+[profile.dev.package.moka]
+opt-level = 2
+
+[profile.dev.package.redis]
+opt-level = 2
+
+[profile.dev.package.sea-orm]
+opt-level = 2
+
+[profile.dev.package.sqlx]
+opt-level = 2
+
+[profile.dev.package.serde]
+opt-level = 2
+
+[profile.dev.package.serde_json]
+opt-level = 2
+
+[profile.dev.package.tokio]
+opt-level = 2
 
 # ============================================================================
 # BENCHMARKS
