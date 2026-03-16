@@ -114,7 +114,7 @@ impl WalManager {
                 service_name TEXT NOT NULL)
         "#;
 
-        db.execute(Statement::from_string(
+        db.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Sqlite,
             create_sql.to_string(),
         ))
@@ -206,10 +206,10 @@ impl WalManager {
 
         let results = self
             .db
-            .query_all(Statement::from_sql_and_values(
+            .query_all_raw(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Sqlite,
                 query_sql.to_string(),
-                vec![Value::String(Some(Box::new(self.service_name.clone())))],
+                vec![Value::String(Some(self.service_name.clone()))],
             ))
             .await
             .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
@@ -258,10 +258,10 @@ impl WalManager {
         use sea_orm::Value;
 
         self.db
-            .execute(Statement::from_sql_and_values(
+            .execute_raw(Statement::from_sql_and_values(
                 sea_orm::DatabaseBackend::Sqlite,
                 "DELETE FROM wal_entries WHERE service_name = ?",
-                [Value::String(Some(Box::new(self.service_name.clone())))],
+                [Value::String(Some(self.service_name.clone()))],
             ))
             .await
             .map_err(|e| crate::error::CacheError::DatabaseError(e.to_string()))?;
@@ -327,19 +327,19 @@ impl WalManager {
             };
 
             let result = txn
-                .execute(Statement::from_sql_and_values(
+                .execute_raw(Statement::from_sql_and_values(
                     sea_orm::DatabaseBackend::Sqlite,
                     insert_sql.to_string(),
                     vec![
                         Value::BigInt(Some(timestamp)),
-                        Value::String(Some(Box::new(operation.to_string()))),
-                        Value::String(Some(Box::new(entry.key.clone()))),
-                        Value::Bytes(entry.value.as_ref().map(|v| Box::new(v.clone()))),
+                        Value::String(Some(operation.to_string())),
+                        Value::String(Some(entry.key.clone())),
+                        Value::Bytes(entry.value.clone()),
                         match entry.ttl {
                             Some(v) => Value::BigInt(Some(v)),
                             None => Value::BigInt(None),
                         },
-                        Value::String(Some(Box::new(service_name.to_string()))),
+                        Value::String(Some(service_name.to_string())),
                     ],
                 ))
                 .await;

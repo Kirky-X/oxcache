@@ -109,7 +109,7 @@ impl MySQLPartitionManager {
     /// 测试连接是否活跃
     pub async fn ping(&self) -> Result<()> {
         let conn = self.connection.as_ref();
-        conn.execute(Statement::from_string(
+        conn.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::MySql,
             "SELECT 1".to_string(),
         ))
@@ -187,7 +187,7 @@ impl PartitionManager for MySQLPartitionManager {
             // 创建分区表
             let partition_schema = self.add_partition_clause_to_schema(schema, table_name)?;
             self.connection
-                .execute(Statement::from_string(
+                .execute_raw(Statement::from_string(
                     sea_orm::DatabaseBackend::MySql,
                     partition_schema,
                 ))
@@ -195,7 +195,7 @@ impl PartitionManager for MySQLPartitionManager {
         } else {
             // 创建普通表
             self.connection
-                .execute(Statement::from_string(
+                .execute_raw(Statement::from_string(
                     sea_orm::DatabaseBackend::MySql,
                     schema.to_string(),
                 ))
@@ -225,7 +225,7 @@ impl PartitionManager for MySQLPartitionManager {
 
         let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, check_sql.to_string());
 
-        let result = self.connection.query_one(statement).await?;
+        let result = self.connection.query_one_raw(statement).await?;
         if let Some(row) = result {
             let count: i64 = row.try_get("", "COUNT(*)")?;
             if count > 0 {
@@ -287,7 +287,7 @@ impl PartitionManager for MySQLPartitionManager {
         debug!("Generated SQL: {}", sql);
 
         self.connection
-            .execute(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
+            .execute_raw(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
             .await?;
 
         Ok(())
@@ -310,7 +310,7 @@ impl PartitionManager for MySQLPartitionManager {
 
         let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, sql.to_string());
 
-        let result = self.connection.query_all(statement).await?;
+        let result = self.connection.query_all_raw(statement).await?;
         debug!("get_partitions found {} rows", result.len());
 
         let mut partitions = Vec::new();
@@ -348,7 +348,7 @@ impl PartitionManager for MySQLPartitionManager {
         );
 
         self.connection
-            .execute(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
+            .execute_raw(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
             .await?;
 
         Ok(())

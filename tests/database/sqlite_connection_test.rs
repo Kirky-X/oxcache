@@ -34,7 +34,7 @@ async fn test_sqlite_connection_absolute_path() {
             Ok(db) => {
                 println!("✓ Connection {} succeeded!", i + 1);
                 let result = db
-                    .execute(sea_orm::Statement::from_string(
+                    .execute_raw(sea_orm::Statement::from_string(
                         sea_orm::DatabaseBackend::Sqlite,
                         "SELECT 1 as test".to_string(),
                     ))
@@ -74,7 +74,7 @@ async fn test_sqlite_connection_relative_path() {
             Ok(db) => {
                 println!("✓ Connection {} succeeded!", i + 1);
                 let result = db
-                    .execute(sea_orm::Statement::from_string(
+                    .execute_raw(sea_orm::Statement::from_string(
                         sea_orm::DatabaseBackend::Sqlite,
                         "SELECT 1 as test".to_string(),
                     ))
