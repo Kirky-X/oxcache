@@ -4,14 +4,54 @@
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
 ignore = [
-    # RUSTSEC-2023-0071: rsa 漏洞来自 sqlx 的传递依赖，无可用修复版本
-    "RUSTSEC-2023-0071",
-    # RUSTSEC-2025-0111: tokio-tar 漏洞来自 testcontainers 的传递依赖，无可用修复版本
-    "RUSTSEC-2025-0111",
-    # RUSTSEC-2025-0141: bincode 未维护警告，项目直接依赖
-    "RUSTSEC-2025-0141",
-    # RUSTSEC-2025-0134: rustls-pemfile 未维护警告，来自 bollard 传递依赖
-    "RUSTSEC-2025-0134",
+    # RUSTSEC-2023-0071: rsa Marvin Attack (CVE-2023-XXXX)
+    # 严重程度: 中 (5.9)
+    # 来源: sqlx → sqlx-mysql → rsa (传递依赖)
+    # 影响: 通过时序侧信道可能恢复密钥
+    # 缓解措施:
+    #   1. 仅在数据库功能启用时受影响 (feature = "database")
+    #   2. 本项目不直接处理加密密钥
+    #   3. 生产环境应使用TLS加密连接
+    # 计划: 跟踪 sqlx 更新，等待官方修复
+    # 参考: https://rustsec.org/advisories/RUSTSEC-2023-0071
+    { id = "RUSTSEC-2023-0071", reason = "sqlx传递依赖，无可用修复版本，仅影响数据库功能，生产环境使用TLS缓解" },
+
+    # RUSTSEC-2025-0111: tokio-tar PAX header smuggling
+    # 严重程度: 中
+    # 来源: testcontainers → tokio-tar (传递依赖)
+    # 影响: PAX扩展头解析错误，允许文件走私
+    # 缓解措施:
+    #   1. 仅在测试环境使用 testcontainers
+    #   2. 不处理来自不可信源的tar文件
+    #   3. 生产代码不受影响
+    # 计划: 跟踪 testcontainers 更新
+    # 参考: https://rustsec.org/advisories/RUSTSEC-2025-0111
+    { id = "RUSTSEC-2025-0111", reason = "testcontainers传递依赖，仅影响测试环境，生产代码不受影响" },
+
+    # RUSTSEC-2025-0141: bincode is unmaintained
+    # 严重程度: 低 (警告)
+    # 来源: 项目直接依赖
+    # 影响: 未来可能存在未修复的安全漏洞
+    # 替代方案:
+    #   1. postcard (推荐) - 更小、更快、零拷贝
+    #   2. msgpack - 跨语言支持
+    #   3. protobuf - 向后兼容性好
+    # 计划:
+    #   - 短期: 继续使用，监控安全公告
+    #   - 中期: 评估迁移到 postcard (Q2 2026)
+    # 参考: https://rustsec.org/advisories/RUSTSEC-2025-0141
+    { id = "RUSTSEC-2025-0141", reason = "直接依赖，计划Q2 2026迁移到postcard，短期继续使用并监控安全公告" },
+
+    # RUSTSEC-2025-0134: rustls-pemfile is unmaintained
+    # 严重程度: 低 (警告)
+    # 来源: bollard → rustls-pemfile (传递依赖)
+    # 影响: 未来可能存在未修复的安全漏洞
+    # 缓解措施:
+    #   1. 仅在 testcontainers (Docker) 功能启用时受影响
+    #   2. 主要用于测试环境的证书解析
+    # 计划: 跟踪 bollard 更新，等待迁移到 rustls-pemfile2
+    # 参考: https://rustsec.org/advisories/RUSTSEC-2025-0134
+    { id = "RUSTSEC-2025-0134", reason = "bollard传递依赖，仅影响Docker测试功能，跟踪bollard更新" },
 ]
 
 [licenses]
