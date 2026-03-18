@@ -7,7 +7,10 @@ scripts/
 ├── lib/
 │   └── common.sh              # 统一的公共函数库
 ├── pre-commit/
+│   ├── pre-commit             # 自定义 pre-commit hook 脚本
+│   ├── install-pre-commit.sh  # Pre-commit hook 安装脚本
 │   ├── run-all.sh             # 统一运行所有预提交检查
+│   ├── README.md              # Pre-commit hook 文档
 │   ├── precommit_audit.sh     # 安全审计
 │   ├── precommit_clippy.sh    # 代码质量检查
 │   ├── precommit_deny.sh      # 依赖安全检查
@@ -30,6 +33,23 @@ scripts/
 
 ## 使用说明
 
+### Pre-commit Hook 安装
+
+首次使用项目时，建议安装 pre-commit hooks：
+
+```bash
+# 一键安装
+./scripts/pre-commit/install-pre-commit.sh
+
+# 或手动安装
+pip install pre-commit
+pre-commit install
+```
+
+安装后，每次 `git commit` 都会自动运行代码质量检查。
+
+详细说明请参考 [scripts/pre-commit/README.md](pre-commit/README.md)。
+
 ### 预提交检查
 
 运行所有预提交检查：
@@ -43,6 +63,12 @@ scripts/
 ```bash
 ./scripts/pre-commit/precommit_audit.sh
 ./scripts/pre-commit/precommit_clippy.sh
+```
+
+运行自定义 pre-commit hook（包括格式化、clippy、编译、测试）：
+
+```bash
+./scripts/pre-commit/pre-commit
 ```
 
 ### 测试脚本
@@ -111,3 +137,10 @@ scripts/
 ```bash
 ./scripts/run-all.sh --performance
 ```
+
+## 相关配置文件
+
+| 文件 | 说明 |
+|------|------|
+| `.pre-commit-config.yaml` | Pre-commit hooks 配置 |
+| `.github/workflows/ci.yml` | CI 工作流配置 |
