@@ -98,5 +98,6 @@ npm-debug.log*
 # =============================================================================
 AGENTS.md
 openspec/
+docs/archive/
 
 .worktrees
