@@ -4,7 +4,7 @@
 //
 // 网络故障混沌测试
 
-use crate::common::{is_redis_available, setup_redis_container, wait_for_redis};
+use crate::common::{get_redis_url, is_redis_available, setup_redis_container, wait_for_redis};
 use oxcache::backend::client::redis::RedisBackend;
 use oxcache::backend::interface::CacheBackend;
 use oxcache::Cache;
@@ -21,10 +21,6 @@ struct TestData {
 }
 
 impl oxcache::traits::Cacheable for TestData {}
-
-fn get_redis_url() -> String {
-    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
-}
 
 #[tokio::test]
 async fn test_connection_recovery_after_failure() {
