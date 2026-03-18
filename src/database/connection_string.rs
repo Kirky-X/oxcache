@@ -9,6 +9,7 @@
 //! 明确不同环境（开发、测试、生产）的推荐格式。
 
 use crate::error::{CacheError, Result};
+use secrecy::{ExposeSecret, SecretString};
 use std::path::Path;
 
 /// 数据库类型
@@ -53,8 +54,8 @@ pub struct ParsedConnectionString<'a> {
     pub database: Option<String>,
     /// 用户名
     pub username: Option<String>,
-    /// 密码
-    pub password: Option<String>,
+    /// 密码（使用 SecretString 保护）
+    pub password: Option<SecretString>,
     /// SQLite 文件路径
     pub file_path: Option<String>,
     /// 是否为内存数据库
@@ -110,7 +111,7 @@ impl<'a> ParsedConnectionString<'a> {
     fn parse_mysql(s: &'a str) -> Self {
         let without_prefix = s.strip_prefix("mysql://").unwrap_or(s);
         let mut username = None;
-        let mut password = None;
+        let mut password: Option<SecretString> = None;
         let mut _host_port = ""; // host:port part
         let mut database = None;
 
@@ -118,7 +119,7 @@ impl<'a> ParsedConnectionString<'a> {
             let creds = &without_prefix[..at_pos];
             if let Some(colon_pos) = creds.find(':') {
                 username = Some(creds[..colon_pos].to_string());
-                password = Some(creds[colon_pos + 1..].to_string());
+                password = Some(SecretString::from(creds[colon_pos + 1..].to_string()));
             } else if !creds.is_empty() {
                 username = Some(creds.to_string());
             }
@@ -175,7 +176,7 @@ impl<'a> ParsedConnectionString<'a> {
             s
         };
         let mut username = None;
-        let mut password = None;
+        let mut password: Option<SecretString> = None;
         let mut _host_port;
         let mut database = None;
         let mut params = Vec::new();
@@ -184,7 +185,7 @@ impl<'a> ParsedConnectionString<'a> {
             let creds = &without_prefix[..at_pos];
             if let Some(colon_pos) = creds.find(':') {
                 username = Some(creds[..colon_pos].to_string());
-                password = Some(creds[colon_pos + 1..].to_string());
+                password = Some(SecretString::from(creds[colon_pos + 1..].to_string()));
             } else if !creds.is_empty() {
                 username = Some(creds.to_string());
             }
@@ -235,13 +236,13 @@ impl<'a> ParsedConnectionString<'a> {
     /// 解析 Redis 连接字符串
     fn parse_redis(s: &'a str) -> Self {
         let without_prefix = s.strip_prefix("redis://").unwrap_or(s);
-        let mut password = None;
+        let mut password: Option<SecretString> = None;
         let mut _host_port = ""; // host:port part
 
         if let Some(at_pos) = without_prefix.find('@') {
             // 格式: :password@host:port
             if without_prefix.starts_with(':') {
-                password = Some(without_prefix[1..at_pos].to_string());
+                password = Some(SecretString::from(without_prefix[1..at_pos].to_string()));
             }
             _host_port = &without_prefix[at_pos + 1..];
         } else {
@@ -430,7 +431,7 @@ fn normalize_mysql(parsed: &ParsedConnectionString, redact: bool) -> String {
             if redact {
                 result.push_str("****");
             } else {
-                result.push_str(password);
+                result.push_str(password.expose_secret());
             }
         }
         result.push('@');
@@ -470,7 +471,7 @@ fn normalize_postgres(parsed: &ParsedConnectionString, redact: bool) -> String {
             if redact {
                 result.push_str("****");
             } else {
-                result.push_str(password);
+                result.push_str(password.expose_secret());
             }
         }
         result.push('@');
@@ -505,7 +506,7 @@ fn normalize_redis(parsed: &ParsedConnectionString) -> String {
 
     if let Some(password) = &parsed.password {
         result.push(':');
-        result.push_str(password);
+        result.push_str(password.expose_secret());
         result.push('@');
     }
 
@@ -654,6 +655,9 @@ fn get_recommended_redis(environment: &str, _name: &str) -> String {
             if password.is_empty() {
                 format!("redis://{}:{}/0", host, port)
             } else {
+                // 注意：这里密码仍然以明文形式出现在连接字符串中
+                // 但这是为了符合 Redis 客户端的连接字符串格式要求
+                // 密码在实际使用时会被解析为 Secret<String> 保护
                 format!("redis://:{}@{}:{}/0", password, host, port)
             }
         }
@@ -789,7 +793,7 @@ fn normalize_mysql_with_redaction(parsed: &ParsedConnectionString, redact_passwo
             if redact_password {
                 result.push_str("****");
             } else {
-                result.push_str(password);
+                result.push_str(password.expose_secret());
             }
         }
         result.push('@');
@@ -829,7 +833,7 @@ fn normalize_postgres_with_redaction(parsed: &ParsedConnectionString, redact_pas
             if redact_password {
                 result.push_str("****");
             } else {
-                result.push_str(password);
+                result.push_str(password.expose_secret());
             }
         }
         result.push('@');
@@ -867,7 +871,7 @@ fn normalize_redis_with_redaction(parsed: &ParsedConnectionString, redact_passwo
         if redact_password {
             result.push_str("****");
         } else {
-            result.push_str(password);
+            result.push_str(password.expose_secret());
         }
         result.push('@');
     }
@@ -944,7 +948,10 @@ mod tests {
         assert_eq!(parsed.port, Some(3306));
         assert_eq!(parsed.database, Some("mydb".to_string()));
         assert_eq!(parsed.username, Some("user".to_string()));
-        assert_eq!(parsed.password, Some("pass".to_string()));
+        assert_eq!(
+            parsed.password.as_ref().map(|p| p.expose_secret().to_string()),
+            Some("pass".to_string())
+        );
     }
 
     #[test]
@@ -1039,7 +1046,13 @@ mod tests {
         // 测试带密码的 Redis 连接字符串
         let parsed_with_pass = ParsedConnectionString::parse("redis://:mypassword@localhost:6379");
         assert_eq!(parsed_with_pass.db_type, DbType::Redis);
-        assert_eq!(parsed_with_pass.password, Some("mypassword".to_string()));
+        assert_eq!(
+            parsed_with_pass
+                .password
+                .as_ref()
+                .map(|p| p.expose_secret().to_string()),
+            Some("mypassword".to_string())
+        );
 
         // 测试没有密码但有用户名的情况（Redis 不支持用户名，但应该能解析）
         let parsed_no_pass = ParsedConnectionString::parse("redis://localhost:6380");
