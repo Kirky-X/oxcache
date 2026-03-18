@@ -197,96 +197,11 @@ pub trait CacheBackend: Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-
-    // Mock backend for testing
-    struct MockBackend {
-        data: std::sync::Arc<tokio::sync::RwLock<HashMap<String, Vec<u8>>>>,
-    }
-
-    impl MockBackend {
-        fn new() -> Self {
-            Self {
-                data: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl CacheBackend for MockBackend {
-        async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-            let data = self.data.read().await;
-            Ok(data.get(key).cloned())
-        }
-
-        async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> Result<()> {
-            let mut data = self.data.write().await;
-            data.insert(key.to_string(), value);
-            Ok(())
-        }
-
-        async fn delete(&self, key: &str) -> Result<()> {
-            let mut data = self.data.write().await;
-            data.remove(key);
-            Ok(())
-        }
-
-        async fn exists(&self, key: &str) -> Result<bool> {
-            let data = self.data.read().await;
-            Ok(data.contains_key(key))
-        }
-
-        async fn clear(&self) -> Result<()> {
-            let mut data = self.data.write().await;
-            data.clear();
-            Ok(())
-        }
-
-        async fn close(&self) -> Result<()> {
-            Ok(())
-        }
-
-        async fn ttl(&self, _key: &str) -> Result<Option<Duration>> {
-            Ok(None)
-        }
-
-        async fn expire(&self, _key: &str, _ttl: Duration) -> Result<bool> {
-            Ok(false)
-        }
-
-        async fn health_check(&self) -> Result<bool> {
-            Ok(true)
-        }
-
-        async fn stats(&self) -> Result<HashMap<String, String>> {
-            let mut stats = HashMap::new();
-            stats.insert("type".to_string(), "mock".to_string());
-            Ok(stats)
-        }
-
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        async fn len(&self) -> Result<u64> {
-            let data = self.data.read().await;
-            Ok(data.len() as u64)
-        }
-
-        async fn is_empty(&self) -> Result<bool> {
-            let data = self.data.read().await;
-            Ok(data.is_empty())
-        }
-
-        async fn capacity(&self) -> Result<u64> {
-            // Mock backend has no fixed capacity
-            Ok(0)
-        }
-    }
+    use crate::mock::MockBackend;
 
     #[tokio::test]
     async fn test_mock_backend() {
-        let backend = MockBackend::new();
+        let backend = MockBackend::new("mock", 50, false);
 
         // Test set and get
         backend.set("key1", b"value1".to_vec(), None).await.unwrap();
