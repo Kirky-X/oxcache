@@ -634,10 +634,24 @@ where
         V: 'a,
         I: IntoIterator<Item = (&'a K, &'a V)>,
     {
-        for (key, value) in items {
-            self.set(key, value).await?;
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let mut batch_items = Vec::new();
+            for (key, value) in items {
+                let key_str = key.to_key_string();
+                let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+                batch_items.push((key_str, bytes, None));
+            }
+            self.backend.set_many(&batch_items).await
         }
-        Ok(())
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            let _ = items;
+            Err(CacheError::Serialization(
+                "Serialization feature is required for typed set_many operations".to_string(),
+            ))
+        }
     }
 
     /// Get multiple values from the cache
@@ -662,13 +676,30 @@ where
         K: 'a,
         I: IntoIterator<Item = &'a K>,
     {
-        let mut result = HashMap::new();
-        for key in keys {
-            if let Some(value) = self.get(key).await? {
-                result.insert(key.to_key_string(), value);
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let key_strings: Vec<String> = keys.into_iter().map(|k| k.to_key_string()).collect();
+            let values = self.backend.get_many(&key_strings).await?;
+
+            let mut result = HashMap::new();
+            for (key, value) in key_strings.into_iter().zip(values.into_iter()) {
+                if let Some(bytes) = value {
+                    if let Ok(decoded) = serde_json::from_slice::<V>(&bytes) {
+                        result.insert(key, decoded);
+                    }
+                }
             }
+
+            Ok(result)
         }
-        Ok(result)
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            let _ = keys;
+            Err(CacheError::Serialization(
+                "Serialization feature is required for typed get_many operations".to_string(),
+            ))
+        }
     }
 
     /// Delete multiple keys from the cache
@@ -693,10 +724,8 @@ where
         K: 'a,
         I: IntoIterator<Item = &'a K>,
     {
-        for key in keys {
-            self.delete(key).await?;
-        }
-        Ok(())
+        let key_strings: Vec<String> = keys.into_iter().map(|k| k.to_key_string()).collect();
+        self.backend.delete_many(&key_strings).await
     }
 
     /// Clear all values from the cache

@@ -559,6 +559,49 @@ impl CacheBackend for RedisBackend {
     async fn capacity(&self) -> Result<u64> {
         Ok(0)
     }
+
+    // ========================================================================
+    // Batch operations using Pipeline for better performance
+    // ========================================================================
+
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        // Convert to the format expected by set_many_pipeline
+        let pipeline_items: Vec<(&str, Vec<u8>)> = items
+            .iter()
+            .map(|(key, value, _ttl)| (key.as_str(), value.clone()))
+            .collect();
+
+        // Use the TTL from the first item for all (common use case)
+        let ttl = items.first().and_then(|(_, _, ttl)| *ttl);
+
+        self.set_many_pipeline(&pipeline_items, ttl).await
+    }
+
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+        if keys.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Convert to the format expected by get_many_pipeline
+        let keys_slice: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+
+        self.get_many_pipeline(&keys_slice).await
+    }
+
+    async fn delete_many(&self, keys: &[String]) -> Result<()> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        // Convert to the format expected by delete_many_pipeline
+        let keys_slice: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+
+        self.delete_many_pipeline(&keys_slice).await
+    }
 }
 
 impl BackendScore for RedisBackend {
