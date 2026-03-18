@@ -94,6 +94,32 @@ impl RedisBackend {
         RedisBackendBuilder::default()
     }
 
+    /// Redact sensitive information from connection string for logging
+    ///
+    /// # Example
+    /// ```
+    /// // pragma: allowlist secret
+    /// let conn_str = "redis://:secret_password@localhost:6379/0";
+    /// let redacted = RedisBackend::redact_connection_string(conn_str);
+    /// assert!(!redacted.contains("secret_password"));
+    /// ```
+    pub fn redact_connection_string(conn_str: &str) -> String {
+        // 移除密码等敏感信息
+        if let Some(start) = conn_str.find("://") {
+            let protocol = &conn_str[..start + 3];
+            let rest = &conn_str[start + 3..];
+
+            if rest.contains('@') {
+                // Support format: redis-with-password at host port db
+                // pragma: allowlist secret
+                if let Some(at_pos) = rest.find('@') {
+                    return format!("{}[REDACTED]@{}", protocol, &rest[at_pos + 1..]);
+                }
+            }
+        }
+        conn_str.to_string()
+    }
+
     /// Get the Redis mode
     pub fn mode(&self) -> RedisMode {
         self.mode
@@ -148,18 +174,32 @@ impl RedisBackendBuilder {
             .connection_string
             .ok_or_else(|| CacheError::ConfigError("Connection string is required".to_string()))?;
 
+        // 安全检查：强制使用TLS连接
         if !connection_string.starts_with("rediss://") {
-            if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
-                tracing::warn!(
-                    "Using insecure Redis connection (TLS disabled). This is only allowed in development/testing."
-                );
-            } else {
+            let allow_insecure = std::env::var("OXCACHE_ALLOW_INSECURE_REDIS")
+                .map(|v| {
+                    // 要求明确确认风险
+                    v == "I_UNDERSTAND_THE_RISKS" || v == "development-only"
+                })
+                .unwrap_or(false);
+
+            if !allow_insecure {
                 return Err(CacheError::ConfigError(
                     "Redis connection must use TLS (rediss://) in production. \
-                    For development/testing, set OXCACHE_ALLOW_INSECURE_REDIS=1 to override."
+                     To allow insecure connections for development only, \
+                     set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS"
                         .to_string(),
                 ));
             }
+
+            // 记录安全警告（使用error级别确保可见性）
+            tracing::error!(
+                target: "security",
+                "SECURITY WARNING: Using insecure Redis connection. \
+                 This should NEVER happen in production! \
+                 Connection string: {}",
+                RedisBackend::redact_connection_string(&connection_string)
+            );
         }
 
         let client = Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
@@ -477,6 +517,137 @@ mod tests {
         let _standalone = RedisMode::Standalone;
         let _sentinel = RedisMode::Sentinel;
         let _cluster = RedisMode::Cluster;
+    }
+
+    mod security_tests {
+        use super::*;
+
+        #[test]
+        fn test_redact_connection_string_with_password() {
+            let conn_str = "redis://:secret_password@localhost:6379/0"; // pragma: allowlist secret
+            let redacted = RedisBackend::redact_connection_string(conn_str);
+
+            assert!(!redacted.contains("secret_password"), "Password should be redacted");
+            assert!(redacted.contains("[REDACTED]"), "Should contain REDACTED marker");
+            assert!(redacted.contains("localhost:6379"), "Host should be visible");
+        }
+
+        #[test]
+        fn test_redact_connection_string_with_user_and_password() {
+            let conn_str = "redis://user:mypassword@redis.example.com:6379/1"; // pragma: allowlist secret
+            let redacted = RedisBackend::redact_connection_string(conn_str);
+
+            assert!(!redacted.contains("mypassword"), "Password should be redacted");
+            assert!(!redacted.contains("user"), "Username should be redacted");
+            assert!(redacted.contains("[REDACTED]"), "Should contain REDACTED marker");
+            assert!(redacted.contains("redis.example.com:6379"), "Host should be visible");
+        }
+
+        #[test]
+        fn test_redact_connection_string_without_password() {
+            let conn_str = "redis://localhost:6379/0";
+            let redacted = RedisBackend::redact_connection_string(conn_str);
+
+            assert_eq!(
+                conn_str, redacted,
+                "Connection string without password should not be modified"
+            );
+        }
+
+        #[test]
+        fn test_redact_connection_string_tls() {
+            let conn_str = "rediss://:secret@prod-redis.cluster:6379/0"; // pragma: allowlist secret
+            let redacted = RedisBackend::redact_connection_string(conn_str);
+
+            assert!(!redacted.contains("secret"), "Password should be redacted");
+            assert!(redacted.starts_with("rediss://"), "TLS protocol should be preserved");
+        }
+
+        #[test]
+        fn test_insecure_connection_rejected_by_default() {
+            // 清理环境变量
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                RedisBackend::builder()
+                    .connection_string("redis://localhost:6379")
+                    .build()
+                    .await
+            });
+
+            assert!(result.is_err(), "Insecure connection should be rejected by default");
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(err_msg.contains("TLS"), "Error message should mention TLS");
+                assert!(err_msg.contains("rediss://"), "Error message should suggest TLS");
+            }
+        }
+
+        #[test]
+        fn test_insecure_connection_requires_explicit_consent() {
+            // 清理环境
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+
+            // 测试错误的环境变量值
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "wrong_value");
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                RedisBackend::builder()
+                    .connection_string("redis://localhost:6379")
+                    .build()
+                    .await
+            });
+
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+
+            assert!(result.is_err(), "Wrong consent value should be rejected");
+
+            // 测试正确的确认值
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+
+            // 注意：这个测试需要实际的Redis连接，所以我们只验证配置验证通过
+            // 实际连接会失败，因为没有Redis服务器
+            let result = rt.block_on(async {
+                RedisBackend::builder()
+                    .connection_string("redis://nonexistent-host:6379")
+                    .build()
+                    .await
+            });
+
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+
+            // 应该是连接错误，而不是TLS错误
+            // 如果是TLS错误，说明环境变量验证没通过
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(!err_msg.contains("TLS"), "Should not fail on TLS check");
+            }
+        }
+
+        #[test]
+        fn test_development_only_consent() {
+            // 清理环境
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "development-only");
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async {
+                RedisBackend::builder()
+                    .connection_string("redis://localhost:6379")
+                    .build()
+                    .await
+            });
+
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+
+            // 应该是连接错误，而不是TLS错误
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(!err_msg.contains("TLS"), "development-only consent should be accepted");
+            }
+        }
     }
 
     #[cfg(feature = "lua-script")]
