@@ -34,6 +34,7 @@ impl MockBackend {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_data(name: &'static str, score: u8, persistent: bool) -> Self {
         Self::new(name, score, persistent)
     }
