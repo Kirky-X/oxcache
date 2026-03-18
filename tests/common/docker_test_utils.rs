@@ -3,8 +3,9 @@
 //! This module provides helper functions for setting up Docker-based test environments
 //! using testcontainers for Redis and PostgreSQL.
 
+#![allow(dead_code)]
+
 use std::time::Duration;
-use testcontainers::core::IntoContainerPort;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, ImageExt};
 

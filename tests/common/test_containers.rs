@@ -2,8 +2,9 @@
 //!
 //! 使用 testcontainers 0.23+ API 提供容器管理功能
 
+#![allow(dead_code)]
+
 use std::time::Duration;
-use testcontainers::core::IntoContainerPort;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, ImageExt};
 
