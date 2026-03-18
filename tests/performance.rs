@@ -12,3 +12,6 @@ mod memory_leak_test;
 
 #[path = "performance/miri_memory_test.rs"]
 mod miri_memory_test;
+
+#[path = "performance/pipeline_performance_test.rs"]
+mod pipeline_performance_test;
