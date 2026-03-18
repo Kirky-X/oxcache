@@ -27,7 +27,7 @@ oxcache/
 │   ├── cache.rs          # Cache<T> 主实现
 │   ├── cache_interface.rs # 统一缓存接口 UnifiedCache
 │   ├── builder/         # CacheBuilder, BackendBuilder
-│   ├── backend/         # L1/L2 后端实现 (11 .rs)
+│   ├── backend/         # L1/L2 后端实现
 │   ├── traits/          # CacheKey, Cacheable traits
 │   ├── config/          # Confers 配置
 │   ├── serialization/   # 序列化/压缩
@@ -51,7 +51,7 @@ oxcache/
 | 缓存构建器 | `src/builder/` |
 | 配置模块 (confers) | `src/config/confers_config.rs` |
 | L1 后端 (Moka/DashMap) | `src/backend/client/` |
-| L2 后端 (Redis) | `src/backend/redis/` |
+| L2 后端 (Redis) | `src/backend/client/redis/` |
 | 特性配置 | `Cargo.toml` |
 | 测试 | `tests/unit/`, `tests/integration/` |
 

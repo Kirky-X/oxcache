@@ -2,7 +2,7 @@
 
 > **⚠️ API Version Notice**
 >
-> This document describes **Oxcache v0.1.4** APIs.
+> This document describes **Oxcache v0.2.0** APIs.
 
 This document provides detailed API reference for the Oxcache library.
 
