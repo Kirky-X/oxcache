@@ -139,6 +139,146 @@ impl RedisBackend {
             .map_err(|e| CacheError::Connection(e.to_string()))?;
         Ok(result)
     }
+
+    /// Batch set multiple key-value pairs using Redis Pipeline
+    ///
+    /// This is significantly faster than individual SET commands when setting many keys,
+    /// as it reduces network round trips from N to 1.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - Slice of (key, value) tuples
+    /// * `ttl` - Optional TTL for all keys
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) on success, or an error if the operation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let items = vec![
+    ///     ("key1", b"value1".to_vec()),
+    ///     ("key2", b"value2".to_vec()),
+    /// ];
+    /// backend.set_many_pipeline(&items, Some(Duration::from_secs(60))).await?;
+    /// ```
+    pub async fn set_many_pipeline(&self, items: &[(&str, Vec<u8>)], ttl: Option<Duration>) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        // Validate all keys first
+        for (key, _) in items {
+            security::validate_redis_key(key)?;
+        }
+
+        let mut conn = self.connection_manager.clone();
+        let mut pipe = redis::pipe();
+
+        for (key, value) in items {
+            if let Some(ttl) = ttl {
+                pipe.cmd("SETEX").arg(key).arg(ttl.as_secs()).arg(value.as_slice());
+            } else {
+                pipe.cmd("SET").arg(key).arg(value.as_slice());
+            }
+        }
+
+        pipe.query_async::<()>(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Batch get multiple keys using Redis Pipeline
+    ///
+    /// This is significantly faster than individual GET commands when fetching many keys,
+    /// as it reduces network round trips from N to 1.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - Slice of keys to fetch
+    ///
+    /// # Returns
+    ///
+    /// Returns a Vec of Option<Vec<u8>> where each element corresponds to the key at the same index.
+    /// None indicates the key does not exist.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let keys = vec!["key1", "key2", "key3"];
+    /// let values = backend.get_many_pipeline(&keys).await?;
+    /// assert_eq!(values.len(), 3);
+    /// ```
+    pub async fn get_many_pipeline(&self, keys: &[&str]) -> Result<Vec<Option<Vec<u8>>>> {
+        if keys.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Validate all keys first
+        for key in keys {
+            security::validate_redis_key(key)?;
+        }
+
+        let mut conn = self.connection_manager.clone();
+        let mut pipe = redis::pipe();
+
+        for key in keys {
+            pipe.cmd("GET").arg(key);
+        }
+
+        let results: Vec<Option<Vec<u8>>> = pipe
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+
+        Ok(results)
+    }
+
+    /// Batch delete multiple keys using Redis Pipeline
+    ///
+    /// This is significantly faster than individual DEL commands when deleting many keys,
+    /// as it reduces network round trips from N to 1.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - Slice of keys to delete
+    ///
+    /// # Returns
+    ///
+    /// Returns Ok(()) on success, or an error if the operation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let keys = vec!["key1", "key2", "key3"];
+    /// backend.delete_many_pipeline(&keys).await?;
+    /// ```
+    pub async fn delete_many_pipeline(&self, keys: &[&str]) -> Result<()> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        // Validate all keys first
+        for key in keys {
+            security::validate_redis_key(key)?;
+        }
+
+        let mut conn = self.connection_manager.clone();
+        let mut pipe = redis::pipe();
+
+        for key in keys {
+            pipe.cmd("DEL").arg(key);
+        }
+
+        pipe.query_async::<()>(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 /// Builder for RedisBackend
