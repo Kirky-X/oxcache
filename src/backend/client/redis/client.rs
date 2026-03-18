@@ -99,6 +99,7 @@ impl RedisBackend {
     /// # Example
     /// ```
     /// // pragma: allowlist secret
+    /// use oxcache::backend::client::RedisBackend;
     /// let conn_str = "redis://:secret_password@localhost:6379/0";
     /// let redacted = RedisBackend::redact_connection_string(conn_str);
     /// assert!(!redacted.contains("secret_password"));
