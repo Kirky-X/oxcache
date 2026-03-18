@@ -192,6 +192,86 @@ pub trait CacheBackend: Send + Sync + 'static {
     {
         TypeId::of::<T>() == TypeId::of::<Self>()
     }
+
+    // ========================================================================
+    // Batch operations (with default implementations)
+    // ========================================================================
+
+    /// Set multiple key-value pairs in a single operation
+    ///
+    /// This method provides a batch operation for setting multiple values.
+    /// Backends like Redis can override this to use pipelining for better performance.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - Slice of (key, value, ttl) tuples
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - All values stored successfully
+    /// * `Err(CacheError)` - Operation failed
+    ///
+    /// # Default Implementation
+    ///
+    /// Iterates through items and calls `set()` for each one.
+    /// Backends should override this for better performance.
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+        for (key, value, ttl) in items {
+            self.set(key, value.clone(), *ttl).await?;
+        }
+        Ok(())
+    }
+
+    /// Get multiple values in a single operation
+    ///
+    /// This method provides a batch operation for getting multiple values.
+    /// Backends like Redis can override this to use pipelining for better performance.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - Slice of keys to retrieve
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<Option<Vec<u8>>>)` - Vector of values, None if key not found
+    /// * `Err(CacheError)` - Operation failed
+    ///
+    /// # Default Implementation
+    ///
+    /// Iterates through keys and calls `get()` for each one.
+    /// Backends should override this for better performance.
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+        let mut results = Vec::with_capacity(keys.len());
+        for key in keys {
+            results.push(self.get(key).await?);
+        }
+        Ok(results)
+    }
+
+    /// Delete multiple keys in a single operation
+    ///
+    /// This method provides a batch operation for deleting multiple keys.
+    /// Backends like Redis can override this to use pipelining for better performance.
+    ///
+    /// # Arguments
+    ///
+    /// * `keys` - Slice of keys to delete
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - All keys deleted successfully
+    /// * `Err(CacheError)` - Operation failed
+    ///
+    /// # Default Implementation
+    ///
+    /// Iterates through keys and calls `delete()` for each one.
+    /// Backends should override this for better performance.
+    async fn delete_many(&self, keys: &[String]) -> Result<()> {
+        for key in keys {
+            self.delete(key).await?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
