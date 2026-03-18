@@ -91,6 +91,10 @@ path = "src/02_advanced/example_invalidation.rs"
 name = "example_warmup"
 path = "src/02_advanced/example_warmup.rs"
 
+[[example]]
+name = "example_chain_cache"
+path = "src/02_advanced/example_chain_cache.rs"
+
 # 新功能示例
 [[example]]
 name = "example_new_api"
