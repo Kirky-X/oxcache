@@ -13,6 +13,7 @@
 //!
 
 use oxcache::Cache;
+use std::time::Duration;
 
 // 模拟 HTTP 响应
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -42,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         body: r#"{"message": "Hello, World!", "data": [1, 2, 3]}"#.to_string(),
     };
 
-    cache.set("/api/hello", &response, Some(3600)).await?;
+    cache.set_with_ttl(&"/api/hello".to_string(), &response, Some(Duration::from_secs(3600))).await?;
     println!("   ✓ 缓存 API 响应: /api/hello");
 
     // 2. 模拟请求
@@ -57,8 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for path in &requests {
-        let start = std::time::Instant::new();
-        let cached = cache.get(path).await?;
+        let start = std::time::Instant::now();
+        let path_string = path.to_string();
+        let cached = cache.get(&path_string).await?;
         let elapsed = start.elapsed();
 
         match cached {
@@ -84,26 +86,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         headers: vec![("Cache-Control".to_string(), "private, max-age=300".to_string())],
         body: r#"{"user": "private_data"}"#.to_string(),
     };
-    cache.set("/api/user/profile", &private_response, Some(300)).await?;
+    cache.set_with_ttl(&"/api/user/profile".to_string(), &private_response, Some(Duration::from_secs(300))).await?;
     println!("   ✓ 设置私有缓存: /api/user/profile (5分钟)");
 
     // 强制刷新
     println!("   强制刷新 /api/hello...");
-    cache.delete("/api/hello").await?;
+    cache.delete(&"/api/hello".to_string()).await?;
     println!("   ✓ 缓存已清除");
 
-    // 4. 统计信息
-    println!("
-4. 缓存统计");
+    // 4. 缓存统计
+    println!("\n4. 缓存统计");
     let stats = cache.stats().await?;
-    println!("   - 总条目数: {}", stats.item_count());
-    println!("   - 命中次数: {}", stats.hit_count());
-    println!("   - 未命中次数: {}", stats.miss_count());
-    if stats.hit_count() + stats.miss_count() > 0 {
-        let hit_rate = stats.hit_count() as f64
-            / (stats.hit_count() + stats.miss_count()) as f64
-            * 100.0;
-        println!("   - 命中率: {:.2}%", hit_rate);
+    for (key, value) in &stats {
+        println!("   - {}: {}", key, value);
     }
 
     // 清理
