@@ -35,6 +35,8 @@ mod metrics_test;
 mod performance_test;
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
+#[path = "integration/redis_client_comprehensive_test.rs"]
+mod redis_client_comprehensive_test;
 #[path = "integration/redis_native_test.rs"]
 mod redis_native_test;
 #[path = "integration/redis_simple_test.rs"]
