@@ -27,10 +27,7 @@ impl RedisContainer {
             .await
             .map_err(|e| format!("获取端口失败: {}", e))?;
 
-        Ok(Self {
-            container: redis,
-            port,
-        })
+        Ok(Self { container: redis, port })
     }
 
     /// 获取 Redis 连接 URL

@@ -20,28 +20,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-minimal-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-minimal-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-minimal-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run tests
         run: cargo test --features minimal --workspace
 
@@ -50,28 +50,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-core-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-core-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-core-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run tests
         run: cargo test --features core --workspace
 
@@ -80,28 +80,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-full-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-full-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-full-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run tests
         run: cargo test --features full --workspace
 
@@ -124,28 +124,28 @@ jobs:
           - "core,http-cache"
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run tests
         run: cargo test --features "${{ matrix.features }}" --workspace
 
@@ -163,10 +163,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Build
         run: cargo build --features "${{ matrix.features }}" --workspace
 
@@ -179,12 +179,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -197,30 +197,30 @@ jobs:
         features: ["minimal", "core", "full"]
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Run clippy
         run: cargo clippy --all-targets --features "${{ matrix.features }}" --workspace -- -D warnings
 
@@ -233,13 +233,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
-      
+
       - name: Run cargo-deny
         run: cargo deny check
 
@@ -252,28 +252,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-coverage-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-coverage-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Generate coverage
         run: cargo tarpaulin --verbose --features full --workspace --timeout 120 --out xml
-      
+
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
         with:

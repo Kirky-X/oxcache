@@ -201,7 +201,9 @@ pub trait UnifiedCache: Send + Sync + Any {
                     .is_some()
         }
         #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        { false }
+        {
+            false
+        }
     }
 
     /// Determine if parallel execution should be used

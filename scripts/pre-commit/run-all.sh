@@ -15,7 +15,7 @@ log_info "Starting pre-commit checks..."
 # 定义要运行的检查脚本
 checks=(
     "precommit_audit.sh"
-    "precommit_clippy.sh" 
+    "precommit_clippy.sh"
     "precommit_deny.sh"
     "precommit_license.sh"
     "precommit_secrets.sh"
@@ -33,7 +33,7 @@ total_checks=${#checks[@]}
 for check in "${checks[@]}"; do
     echo ""
     print_section "Running $check"
-    
+
     if "$SCRIPT_DIR/$check"; then
         log_success "$check passed"
     else

@@ -376,13 +376,11 @@ impl UnifiedConfig {
 
     /// 从 TOML 文件加载
     pub fn from_toml_file(path: &str) -> crate::error::Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e)))?;
 
-        let config: Self = toml::from_str(&content).map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("解析 TOML '{}' 失败: {}", path, e))
-        })?;
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("解析 TOML '{}' 失败: {}", path, e)))?;
 
         config.validate_config()?;
 
@@ -391,13 +389,11 @@ impl UnifiedConfig {
 
     /// 从 JSON 文件加载
     pub fn from_json_file(path: &str) -> crate::error::Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e)))?;
 
-        let config: Self = serde_json::from_str(&content).map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("解析 JSON '{}' 失败: {}", path, e))
-        })?;
+        let config: Self = serde_json::from_str(&content)
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("解析 JSON '{}' 失败: {}", path, e)))?;
 
         config.validate_config()?;
 
@@ -423,16 +419,16 @@ impl UnifiedConfig {
 
     /// 验证配置内容
     pub fn validate_config(&self) -> crate::error::Result<()> {
-        self.global.validate().map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("全局配置验证失败: {}", e))
-        })?;
-        self.performance.validate().map_err(|e| {
-            crate::error::CacheError::ConfigError(format!("性能配置验证失败: {}", e))
-        })?;
+        self.global
+            .validate()
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("全局配置验证失败: {}", e)))?;
+        self.performance
+            .validate()
+            .map_err(|e| crate::error::CacheError::ConfigError(format!("性能配置验证失败: {}", e)))?;
         for (name, service) in self.services() {
-            service.validate().map_err(|e| {
-                crate::error::CacheError::ConfigError(format!("服务 '{}' 配置验证失败: {}", name, e))
-            })?;
+            service
+                .validate()
+                .map_err(|e| crate::error::CacheError::ConfigError(format!("服务 '{}' 配置验证失败: {}", name, e)))?;
         }
         Ok(())
     }
@@ -457,8 +453,14 @@ impl UnifiedConfigBuilder {
         let builder = confers::ConfigBuilder::new()
             .default("global.default_ttl".to_string(), confers::ConfigValue::uint(0))
             .default("global.default_tti".to_string(), confers::ConfigValue::uint(0))
-            .default("global.health_check_interval".to_string(), confers::ConfigValue::uint(30))
-            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Memory"))
+            .default(
+                "global.health_check_interval".to_string(),
+                confers::ConfigValue::uint(30),
+            )
+            .default(
+                "backend.backend_type".to_string(),
+                confers::ConfigValue::string("Memory"),
+            )
             .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"))
             .default("backend.l1_options_json".to_string(), confers::ConfigValue::string(""))
             .default("backend.l2_type".to_string(), confers::ConfigValue::string("redis"))
@@ -466,24 +468,49 @@ impl UnifiedConfigBuilder {
             .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(false))
             .default("services_json".to_string(), confers::ConfigValue::string(""))
-            .default("performance.max_concurrent_operations".to_string(), confers::ConfigValue::uint(1000))
-            .default("performance.command_timeout".to_string(), confers::ConfigValue::uint(5000))
-            .default("performance.enable_prefetching".to_string(), confers::ConfigValue::bool(false))
+            .default(
+                "performance.max_concurrent_operations".to_string(),
+                confers::ConfigValue::uint(1000),
+            )
+            .default(
+                "performance.command_timeout".to_string(),
+                confers::ConfigValue::uint(5000),
+            )
+            .default(
+                "performance.enable_prefetching".to_string(),
+                confers::ConfigValue::bool(false),
+            )
             .default("metrics.enabled".to_string(), confers::ConfigValue::bool(false))
             .default("metrics.detailed".to_string(), confers::ConfigValue::bool(false))
-            .default("metrics.export_format".to_string(), confers::ConfigValue::string("prometheus"))
+            .default(
+                "metrics.export_format".to_string(),
+                confers::ConfigValue::string("prometheus"),
+            )
             .default("recovery.enable_wal".to_string(), confers::ConfigValue::bool(false))
-            .default("recovery.wal_directory".to_string(), confers::ConfigValue::string("./wal"))
-            .default("recovery.enable_auto_recovery".to_string(), confers::ConfigValue::bool(true));
-        Self { builder, services: HashMap::new() }
+            .default(
+                "recovery.wal_directory".to_string(),
+                confers::ConfigValue::string("./wal"),
+            )
+            .default(
+                "recovery.enable_auto_recovery".to_string(),
+                confers::ConfigValue::bool(true),
+            );
+        Self {
+            builder,
+            services: HashMap::new(),
+        }
     }
 
     /// 创建仅内存缓存配置
     #[inline]
     pub fn memory_only() -> Self {
         let mut builder = Self::new();
-        builder.builder = builder.builder
-            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Memory"))
+        builder.builder = builder
+            .builder
+            .default(
+                "backend.backend_type".to_string(),
+                confers::ConfigValue::string("Memory"),
+            )
             .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(false))
             .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"));
@@ -494,8 +521,12 @@ impl UnifiedConfigBuilder {
     #[inline]
     pub fn redis_only() -> Self {
         let mut builder = Self::new();
-        builder.builder = builder.builder
-            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Redis"))
+        builder.builder = builder
+            .builder
+            .default(
+                "backend.backend_type".to_string(),
+                confers::ConfigValue::string("Redis"),
+            )
             .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(false))
             .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l2_type".to_string(), confers::ConfigValue::string("redis"));
@@ -506,8 +537,12 @@ impl UnifiedConfigBuilder {
     #[inline]
     pub fn tiered() -> Self {
         let mut builder = Self::new();
-        builder.builder = builder.builder
-            .default("backend.backend_type".to_string(), confers::ConfigValue::string("Tiered"))
+        builder.builder = builder
+            .builder
+            .default(
+                "backend.backend_type".to_string(),
+                confers::ConfigValue::string("Tiered"),
+            )
             .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l1_type".to_string(), confers::ConfigValue::string("moka"))
@@ -518,20 +553,18 @@ impl UnifiedConfigBuilder {
     /// 设置默认 TTL
     #[inline]
     pub fn with_ttl(mut self, ttl: u64) -> Self {
-        self.builder = self.builder.default(
-            "global.default_ttl".to_string(),
-            confers::ConfigValue::uint(ttl),
-        );
+        self.builder = self
+            .builder
+            .default("global.default_ttl".to_string(), confers::ConfigValue::uint(ttl));
         self
     }
 
     /// 设置默认 TTI
     #[inline]
     pub fn with_tti(mut self, tti: u64) -> Self {
-        self.builder = self.builder.default(
-            "global.default_tti".to_string(),
-            confers::ConfigValue::uint(tti),
-        );
+        self.builder = self
+            .builder
+            .default("global.default_tti".to_string(), confers::ConfigValue::uint(tti));
         self
     }
 
@@ -601,20 +634,18 @@ impl UnifiedConfigBuilder {
     /// 设置是否启用指标
     #[inline]
     pub fn with_metrics(mut self, enabled: bool) -> Self {
-        self.builder = self.builder.default(
-            "metrics.enabled".to_string(),
-            confers::ConfigValue::bool(enabled),
-        );
+        self.builder = self
+            .builder
+            .default("metrics.enabled".to_string(), confers::ConfigValue::bool(enabled));
         self
     }
 
     /// 设置是否启用 WAL
     #[inline]
     pub fn with_wal(mut self, enabled: bool) -> Self {
-        self.builder = self.builder.default(
-            "recovery.enable_wal".to_string(),
-            confers::ConfigValue::bool(enabled),
-        );
+        self.builder = self
+            .builder
+            .default("recovery.enable_wal".to_string(), confers::ConfigValue::bool(enabled));
         self
     }
 
@@ -653,7 +684,10 @@ impl UnifiedConfigBuilder {
             "services_json".to_string(),
             confers::ConfigValue::string(&services_json),
         );
-        Self { builder: self.builder, services: self.services }
+        Self {
+            builder: self.builder,
+            services: self.services,
+        }
     }
 
     /// 从文件加载
@@ -824,10 +858,7 @@ mod tests {
 
     #[test]
     fn test_unified_config_builder_with_ttl() {
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .build()
-            .unwrap();
+        let config = UnifiedConfigBuilder::memory_only().with_ttl(3600).build().unwrap();
         assert_eq!(config.global.default_ttl, 3600);
     }
 

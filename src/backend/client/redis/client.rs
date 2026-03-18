@@ -86,10 +86,7 @@ impl RedisBackend {
 
     /// Create a new Redis backend with connection pool
     pub async fn with_pool(connection_string: &str, _pool_size: usize) -> Result<Self> {
-        Self::builder()
-            .connection_string(connection_string)
-            .build()
-            .await
+        Self::builder().connection_string(connection_string).build().await
     }
 
     /// Create a new Redis backend builder
@@ -168,8 +165,7 @@ impl RedisBackendBuilder {
         let client = Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
 
         let connection_timeout = std::time::Duration::from_secs(2);
-        let connection_result =
-            tokio::time::timeout(connection_timeout, client.get_connection_manager()).await;
+        let connection_result = tokio::time::timeout(connection_timeout, client.get_connection_manager()).await;
 
         let connection_manager = match connection_result {
             Ok(Ok(mgr)) => mgr,

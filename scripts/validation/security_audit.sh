@@ -102,10 +102,10 @@ check_dependencies() {
 # 获取项目信息
 get_project_info() {
     log_info "获取项目信息..."
-    
+
     PROJECT_NAME=$(cargo metadata --no-deps --format-version 1 | grep -o '"name":"[^"]*"' | head -1 | cut -d'"' -f4)
     PROJECT_VERSION=$(cargo metadata --no-deps --format-version 1 | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4)
-    
+
     if [[ -n "$PROJECT_NAME" ]]; then
         log_info "项目名称: $PROJECT_NAME"
         log_info "项目版本: $PROJECT_VERSION"
@@ -117,7 +117,7 @@ get_project_info() {
 # 构建忽略列表
 build_ignore_list() {
     local ignore_options=""
-    
+
     if [[ -n "$IGNORE_ADVISORIES" ]]; then
         IFS=',' read -ra ADVISORIES <<< "$IGNORE_ADVISORIES"
         for advisory in "${ADVISORIES[@]}"; do
@@ -125,55 +125,55 @@ build_ignore_list() {
             log_info "忽略advisory: $advisory"
         done
     fi
-    
+
     echo "$ignore_options"
 }
 
 # 运行cargo audit
 run_cargo_audit() {
     log_info "运行Cargo安全审计..."
-    
+
     # 检查是否存在配置文件
     if [[ -f ".cargo/audit.toml" ]]; then
         log_info "发现配置文件: .cargo/audit.toml"
         log_info "配置文件将被cargo audit自动加载"
     fi
-    
+
     local ignore_options=$(build_ignore_list)
     local audit_cmd="cargo audit $ignore_options --stale"
-    
+
     if [[ "$OUTPUT_FORMAT" == "json" ]] || [[ "$OUTPUT_FORMAT" == "both" ]]; then
         audit_cmd="$audit_cmd --json"
     fi
-    
+
     if [[ "$VERBOSE" == true ]]; then
         audit_cmd="$audit_cmd --verbose"
     fi
-    
+
     log_info "执行命令: $audit_cmd"
     echo ""
-    
+
     # 运行审计
     local output
     local exit_code
-    
+
     if output=$($audit_cmd 2>&1); then
         exit_code=0
     else
         exit_code=1
-        
+
         # 检查是否是网络连接问题
         if echo "$output" | grep -q "couldn't fetch advisory database\|network\|timeout\|IO error\|git operation failed"; then
             log_warning "网络连接失败，尝试离线模式..."
-            
+
             # 尝试使用离线模式（如果本地有缓存的数据库）
             local offline_cmd="cargo audit $ignore_options --no-fetch"
             if [[ "$OUTPUT_FORMAT" == "json" ]] || [[ "$OUTPUT_FORMAT" == "both" ]]; then
                 offline_cmd="$offline_cmd --json"
             fi
-            
+
             log_info "执行离线命令: $offline_cmd"
-            
+
             if output=$($offline_cmd 2>&1); then
                 exit_code=0
                 log_info "离线模式运行成功"
@@ -183,7 +183,7 @@ run_cargo_audit() {
             fi
         fi
     fi
-    
+
     # 处理输出
     process_audit_output "$output" "$exit_code"
 }
@@ -192,28 +192,28 @@ run_cargo_audit() {
 process_audit_output() {
     local output="$1"
     local exit_code="$2"
-    
+
     # 保存原始输出
     local raw_output="$output"
-    
+
     if [[ "$OUTPUT_FORMAT" == "json" ]] || [[ "$OUTPUT_FORMAT" == "both" ]]; then
         # JSON格式输出
         if echo "$output" | jq . &> /dev/null 2>&1; then
             local vulnerabilities=$(echo "$output" | jq '.vulnerabilities.found // false')
             local count=$(echo "$output" | jq '.vulnerabilities.count // 0')
-            
+
             if [[ "$vulnerabilities" == "true" ]] && [[ $count -gt 0 ]]; then
                 log_error "发现 $count 个安全漏洞"
-                
+
                 # 提取漏洞详情
-                echo "$output" | jq -r '.vulnerabilities.list[] | 
+                echo "$output" | jq -r '.vulnerabilities.list[] |
                     "🚨 \(.advisory.id): \(.advisory.title)
                        严重程度: \(.advisory.severity // "unknown")
                        包: \(.package.name) v\(.package.version)
                        修复版本: \(.advisory.patched_versions // ["无"] | join(", "))
                        详情: \(.advisory.description)
                     "' 2>/dev/null || echo "$output"
-                
+
                 exit_code=1
             else
                 log_success "✅ 未发现安全漏洞"
@@ -224,36 +224,36 @@ process_audit_output() {
             exit_code=1
         fi
     fi
-    
+
     if [[ "$OUTPUT_FORMAT" == "human" ]] || [[ "$OUTPUT_FORMAT" == "both" ]]; then
         # 人类可读格式
         echo ""
         log_info "审计结果摘要:"
-        
+
         if echo "$raw_output" | grep -q "Success"; then
             log_success "✅ 安全审计通过 - 未发现漏洞"
         elif echo "$raw_output" | grep -q "Vulnerability"; then
             log_error "❌ 发现安全漏洞"
-            
+
             # 提取关键信息
             echo "$raw_output" | grep -E "(Vulnerability|RUSTSEC|CVE)" | head -10
-            
+
             exit_code=1
         else
             echo "$raw_output"
             exit_code=1
         fi
     fi
-    
+
     # 保存到文件
     if [[ -n "$OUTPUT_FILE" ]]; then
         echo "$raw_output" > "$OUTPUT_FILE"
         log_info "详细报告已保存到: $OUTPUT_FILE"
-        
+
         # 生成摘要报告
         generate_summary_report "$raw_output" "$exit_code"
     fi
-    
+
     return $exit_code
 }
 
@@ -261,9 +261,9 @@ process_audit_output() {
 generate_summary_report() {
     local output="$1"
     local exit_code="$2"
-    
+
     local summary_file="${OUTPUT_FILE%.json}_summary.txt"
-    
+
     cat > "$summary_file" << EOF
 Cargo Audit安全审计摘要报告
 生成时间: $(date)
@@ -279,22 +279,22 @@ $(echo "$output" | grep -E "(Vulnerability|RUSTSEC|CVE|advisory)" | head -20)
 
 详细结果请查看: $OUTPUT_FILE
 EOF
-    
+
     log_info "摘要报告: $summary_file"
 }
 
 # 检查CI配置
 check_ci_config() {
     log_info "检查CI配置..."
-    
+
     local ci_files=(".github/workflows/security.yml" ".gitlab-ci.yml" "Jenkinsfile" "azure-pipelines.yml")
     local found_ci=false
-    
+
     for ci_file in "${ci_files[@]}"; do
         if [[ -f "$ci_file" ]]; then
             log_info "发现CI配置文件: $ci_file"
             found_ci=true
-            
+
             # 检查是否包含cargo audit
             if grep -q "cargo.*audit\|audit" "$ci_file"; then
                 log_success "CI配置已包含安全审计"
@@ -305,7 +305,7 @@ check_ci_config() {
             break
         fi
     done
-    
+
     if [[ "$found_ci" == false ]]; then
         log_warning "未发现CI配置文件"
         suggest_ci_integration ""
@@ -315,11 +315,11 @@ check_ci_config() {
 # 建议CI集成
 suggest_ci_integration() {
     local ci_file="$1"
-    
+
     echo ""
     log_info "建议的CI集成配置:"
     echo ""
-    
+
     if [[ "$ci_file" == *"github"* ]] || [[ -z "$ci_file" ]]; then
         cat << 'EOF'
 # GitHub Actions 示例 (.github/workflows/security.yml)
@@ -349,7 +349,7 @@ jobs:
       run: cargo audit
 EOF
     fi
-    
+
     if [[ "$ci_file" == *"gitlab"* ]] || [[ -z "$ci_file" ]]; then
         echo ""
         cat << 'EOF'
@@ -374,20 +374,20 @@ main() {
     echo -e "${BLUE}  Cargo Audit安全审计工具${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
-    
+
     check_dependencies
     get_project_info
-    
+
     # 运行审计
     run_cargo_audit
     local audit_result=$?
-    
+
     # 检查CI配置
     check_ci_config
-    
+
     echo ""
     echo -e "${BLUE}========================================${NC}"
-    
+
     if [[ $audit_result -eq 0 ]]; then
         echo -e "${GREEN}安全审计完成: 通过${NC}"
         exit 0

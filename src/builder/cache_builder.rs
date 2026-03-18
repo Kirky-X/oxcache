@@ -612,10 +612,7 @@ fn backend_config_from_unified_config(
                 .unwrap_or_default();
 
             let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("standalone");
+            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
 
             let mode = match mode_str {
                 "cluster" => crate::backend::client::RedisMode::Cluster,
@@ -657,10 +654,7 @@ fn backend_config_from_unified_config(
                 .unwrap_or_default();
 
             let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("standalone");
+            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
 
             let mode = match mode_str {
                 "cluster" => crate::backend::client::RedisMode::Cluster,
@@ -724,10 +718,7 @@ fn backend_config_from_unified_config_with_service(
                 .map(|s| s.to_string());
 
             let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("standalone");
+            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
 
             let mode = match mode_str {
                 "cluster" => crate::backend::client::RedisMode::Cluster,
@@ -757,10 +748,7 @@ fn backend_config_from_unified_config_with_service(
                 .map(|s| s.to_string());
 
             let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts
-                .get("mode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("standalone");
+            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
 
             let mode = match mode_str {
                 "cluster" => crate::backend::client::RedisMode::Cluster,
@@ -913,7 +901,8 @@ mod tests {
                 backend_type: "Redis".to_string(),
                 l2_options_json: serde_json::json!({
                     "mode": "standalone"
-                }).to_string(),
+                })
+                .to_string(),
                 ..Default::default()
             },
             ..Default::default()
@@ -921,7 +910,10 @@ mod tests {
 
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         // 缺少连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(result.is_ok(), "Missing connection string should be allowed at config time");
+        assert!(
+            result.is_ok(),
+            "Missing connection string should be allowed at config time"
+        );
     }
 
     #[tokio::test]
@@ -935,7 +927,8 @@ mod tests {
                 l2_options_json: serde_json::json!({
                     "connection_string": "",
                     "mode": "standalone"
-                }).to_string(),
+                })
+                .to_string(),
                 ..Default::default()
             },
             ..Default::default()
@@ -943,7 +936,10 @@ mod tests {
 
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         // 空连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(result.is_ok(), "Empty connection string should be allowed at config time");
+        assert!(
+            result.is_ok(),
+            "Empty connection string should be allowed at config time"
+        );
     }
 
     #[tokio::test]
@@ -956,7 +952,8 @@ mod tests {
                 backend_type: "Tiered".to_string(),
                 l1_options_json: serde_json::json!({
                     "max_capacity": 10000
-                }).to_string(),
+                })
+                .to_string(),
                 l2_options_json: serde_json::json!({}).to_string(),
                 ..Default::default()
             },
@@ -965,7 +962,10 @@ mod tests {
 
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         // 缺少连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(result.is_ok(), "Missing connection string should be allowed at config time");
+        assert!(
+            result.is_ok(),
+            "Missing connection string should be allowed at config time"
+        );
     }
 
     #[tokio::test]
@@ -978,10 +978,12 @@ mod tests {
                 backend_type: "Tiered".to_string(),
                 l1_options_json: serde_json::json!({
                     "max_capacity": 10000
-                }).to_string(),
+                })
+                .to_string(),
                 l2_options_json: serde_json::json!({
                     "connection_string": ""
-                }).to_string(),
+                })
+                .to_string(),
                 ..Default::default()
             },
             ..Default::default()
@@ -989,7 +991,10 @@ mod tests {
 
         let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
         // 空连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(result.is_ok(), "Empty connection string should be allowed at config time");
+        assert!(
+            result.is_ok(),
+            "Empty connection string should be allowed at config time"
+        );
     }
 
     #[tokio::test]
@@ -1002,7 +1007,8 @@ mod tests {
                 backend_type: "Memory".to_string(),
                 l1_options_json: serde_json::json!({
                     "max_capacity": 0
-                }).to_string(),
+                })
+                .to_string(),
                 ..Default::default()
             },
             ..Default::default()

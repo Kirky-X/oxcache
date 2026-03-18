@@ -668,7 +668,7 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
   # ✅ 正确做法
   [services.my_cache]
   connection_string = "redis://:${REDIS_PASSWORD}@localhost:6379/0"
-  
+
   # ❌ 错误做法
   connection_string = "redis://:mypassword123@localhost:6379/0"
   ```

@@ -1,7 +1,7 @@
 # 快速开始
 
 <cite>
-**本文引用的文件**   
+**本文引用的文件**  
 - [README.md](file://README.md)
 - [Cargo.toml](file://Cargo.toml)
 - [src/lib.rs](file://src/lib.rs)

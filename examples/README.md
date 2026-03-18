@@ -69,7 +69,7 @@ graph TD
     A --> C[README.md]
     A --> D[examples/]
     A --> E[src/]
-    
+
     D --> D1[01_basics/]
     D --> D2[02_advanced/]
     D --> D3[03_performance/]
@@ -78,7 +78,7 @@ graph TD
     D --> D6[06_features/]
     D --> D7[07_testing/]
     D --> D8[08_uat/]
-    
+
     D1 --> D1_1[Core functionality]
     D2 --> D2_1[Advanced features]
     D3 --> D3_1[Performance testing]
@@ -87,7 +87,7 @@ graph TD
     D6 --> D6_1[Additional features]
     D7 --> D7_1[Testing patterns]
     D8 --> D8_1[Acceptance tests]
-    
+
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
