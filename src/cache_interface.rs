@@ -553,7 +553,9 @@ mod tests {
         assert!(results.contains_key("key2"));
         assert!(!results.contains_key("key3"));
 
-        CacheBackend::delete_many(&backend, &["key1".to_string(), "key2".to_string()]).await.unwrap();
+        CacheBackend::delete_many(&backend, &["key1".to_string(), "key2".to_string()])
+            .await
+            .unwrap();
         assert!(!CacheBackend::exists(&backend, "key1").await.unwrap());
         assert!(!CacheBackend::exists(&backend, "key2").await.unwrap());
     }
