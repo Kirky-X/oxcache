@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 模拟用户 100 结账，需要清空其购物车
     // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
-    println!("   
+    println!("
    用户 100 结账，清空其购物车...");
 
     // 实际应用中应该维护 key 的索引列表

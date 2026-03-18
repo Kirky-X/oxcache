@@ -36,26 +36,26 @@ Oxcache is a multi-level caching system designed for high-performance, productio
 ```mermaid
 graph TD
     A[Application<br/>Functions with #[cached]] --> B[Internal Registry<br/>CACHE_REGISTRY]
-    
+
     B --> C[Cache&lt;K,V&gt;]
     B --> D[Backend Layer]
-    
+
     C --> E[CacheBuilder]
     D --> F[MemoryBackend]
     D --> G[RedisBackend]
     D --> H[TieredBackend]
-    
+
     F --> I[L1 Cache<br/>Moka]
     G --> J[L2 Cache<br/>Redis]
     H --> I
     H --> J
-    
+
     D --> K[Sync Layer<br/>Pub/Sub]
     D --> L[Recovery<br/>WAL]
-    
+
     K --> M[Pub/Sub Channel]
     L --> N[WAL Storage]
-    
+
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
@@ -485,7 +485,7 @@ flowchart TD
     L --> M[set_bytes to cache]
     K -->|no| N[Return error]
     M --> O[Return result]
-    
+
     style A fill:#e1f5fe
     style B fill:#fff3e0
     style C fill:#f3e5f5
@@ -514,7 +514,7 @@ flowchart TD
     E -->|hit| F[Populate L1]
     F --> D
     E -->|miss| G[Return None]
-    
+
     style A fill:#e1f5fe
     style B fill:#fff3e0
     style C fill:#fff3e0
@@ -543,7 +543,7 @@ flowchart TD
     K --> M[Write to L1<br/>immediate]
     M --> N[Batch write to L2]
     N --> L
-    
+
     style A fill:#e1f5fe
     style B fill:#fce4ec
     style C fill:#ffeb3b
@@ -576,7 +576,7 @@ sequenceDiagram
     participant A as Instance A
     participant P as Pub/Sub Channel
     participant B as Instance B
-    
+
     A->>P: UPDATE key:123
     P->>B: INVALIDATE key:123
     Note over B: Remove from L1 if version < v5
@@ -655,7 +655,7 @@ serialization_type = "bincode"  # "json" or "bincode"
 ### Benchmark Results
 
 > Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
-> 
+>
 > **Note**: Performance varies based on hardware, network conditions, and data size.
 
 | Operation | Throughput | Latency (P99) |
@@ -695,18 +695,18 @@ serialization_type = "bincode"  # "json" or "bincode"
 graph TD
     subgraph "Application Instances"
         I1[Instance 1]
-        I2[Instance 2] 
+        I2[Instance 2]
         I3[Instance 3]
     end
-    
+
     subgraph "Redis Cluster"
         R[Redis Cluster]
     end
-    
+
     I1 --> R
     I2 --> R
     I3 --> R
-    
+
     style I1 fill:#e1f5fe
     style I2 fill:#e1f5fe
     style I3 fill:#e1f5fe

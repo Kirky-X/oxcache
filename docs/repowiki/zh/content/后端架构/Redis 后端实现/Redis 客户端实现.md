@@ -443,19 +443,19 @@ use oxcache::Cache;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建 Redis 缓存实例
     let cache: Cache<String, User> = Cache::redis("redis://localhost:6379").await?;
-    
+
     // 基本操作
     let user = User { id: 1, name: "张三".to_string() };
-    
+
     // 设置缓存
     cache.set("user:1", &user, Some(3600)).await?;
-    
+
     // 获取缓存
     let retrieved: Option<User> = cache.get("user:1").await?;
-    
+
     // 删除缓存
     cache.delete("user:1").await?;
-    
+
     Ok(())
 }
 ```

@@ -40,9 +40,7 @@ mod byte_array {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
-        BASE64_STANDARD
-            .decode(&encoded)
-            .map_err(serde::de::Error::custom)
+        BASE64_STANDARD.decode(&encoded).map_err(serde::de::Error::custom)
     }
 }
 
@@ -80,8 +78,7 @@ impl Serializer for JsonSerializer {
     /// 返回序列化后的字节数组或错误
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         let wrapper = ByteArrayWrapper(data.to_vec());
-        let json_bytes =
-            serde_json::to_vec(&wrapper).map_err(|e| CacheError::Serialization(e.to_string()))?;
+        let json_bytes = serde_json::to_vec(&wrapper).map_err(|e| CacheError::Serialization(e.to_string()))?;
 
         if self.compress {
             compress_data(&json_bytes)
@@ -122,8 +119,8 @@ impl Serializer for JsonSerializer {
             )));
         }
 
-        let wrapper: ByteArrayWrapper = serde_json::from_slice(&json_bytes)
-            .map_err(|e| CacheError::Serialization(e.to_string()))?;
+        let wrapper: ByteArrayWrapper =
+            serde_json::from_slice(&json_bytes).map_err(|e| CacheError::Serialization(e.to_string()))?;
 
         Ok(wrapper.0)
     }

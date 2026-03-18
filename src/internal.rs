@@ -9,7 +9,7 @@ pub async fn __internal_register_cache(_name: &str, _cache: Arc<Cache<String, Ve
     // Placeholder implementation
 }
 
-/// Internal cache retrieval function  
+/// Internal cache retrieval function
 pub fn __internal_get_cache(_name: &str) -> Option<Arc<Cache<String, Vec<u8>>>> {
     None
 }

@@ -52,22 +52,22 @@ case "${1:-all}" in
         ;;
     --all)
         log_info "Running all scripts..."
-        
+
         # 运行预提交检查
         log_info "Running pre-commit checks..."
         "$SCRIPT_DIR/pre-commit/run-all.sh"
-        
+
         # 运行验证
         log_info "Running validation scripts..."
         "$SCRIPT_DIR/validation/validate-feature-combinations.sh" --all
         "$SCRIPT_DIR/validation/validate_docs.sh"
         "$SCRIPT_DIR/validation/security_audit.sh"
-        
+
         # 运行测试
         log_info "Running tests..."
         "$SCRIPT_DIR/tests/run_all_tests.sh"
         "$SCRIPT_DIR/tests/real_redis_test.sh" --all
-        
+
         # 运行性能测试
         log_info "Running performance tests..."
         "$SCRIPT_DIR/performance/redis_perf_test.sh"

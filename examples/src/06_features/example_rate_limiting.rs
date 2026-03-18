@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         burst_capacity: 20,             // 突发容量
         block_duration_secs: 1,         // 阻塞时长（秒）
     };
-    
+
     println!("   每秒最大请求数: {}", config.max_requests_per_second);
     println!("   突发容量: {}", config.burst_capacity);
     println!("   阻塞时长: {}秒", config.block_duration_secs);
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. 基础限流测试
     println!("3. 基础限流测试");
     println!("   发送 5 个请求（低于限制）:");
-    
+
     for i in 1..=5 {
         let result = inner_limiter.check_rate_limit("client_1", 1).await;
         match result {
@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. 达到限流阈值测试
     println!("4. 达到限流阈值测试");
     println!("   发送超过限制的请求:");
-    
+
     for i in 6..=15 {
         let result = inner_limiter.check_rate_limit("client_1", 1).await;
         match result {
@@ -72,17 +72,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. 多客户端限流测试
     println!("5. 多客户端限流测试");
     let clients = vec!["client_a", "client_b", "client_c"];
-    
+
     for client in &clients {
         println!("   测试客户端 '{}':", client);
-        
+
         for req in 1..=8 {
             let result = inner_limiter.check_rate_limit(client, 1).await;
             match result {
                 Ok(()) => print!("     请求{}: ✓ ", req),
                 Err(_) => print!("     请求{}: ⚠ ", req),
             }
-            
+
             if req % 4 == 0 {
                 println!(); // 每4个请求换行
             }
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 6. 实际应用场景：API 请求限流
     println!("6. 实际应用场景：API 请求限流");
-    
+
     // 模拟一个API端点的限流逻辑
     async fn simulate_api_call(
         limiter: &ClientRateLimiter,
@@ -101,14 +101,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         endpoint: &str
     ) -> Result<String, String> {
         let result = limiter.check_rate_limit(client_id, 1).await;
-        
+
         match result {
             Ok(()) => {
                 println!("   客户端 '{}' 访问 '{}' - 请求允许", client_id, endpoint);
-                
+
                 // 模拟 API 处理
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                
+
                 Ok(format!("Response from {}", endpoint))
             },
             Err(_) => {
@@ -117,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     // 模拟客户端请求
     println!("   模拟客户端 'api_client' 访问 '/users' 端点:");
     for i in 1..=12 {
@@ -126,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(response) => println!("     第 {} 次访问: {}", i, response),
             Err(error) => println!("     第 {} 次访问: 错误 - {}", i, error),
         }
-        
+
         // 添加一点延迟以模拟真实请求间隔
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
@@ -139,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // 8. 不同配置的限流器比较
-        
+
     // 严格的限流器
     let strict_config = RateLimitConfig {
         max_requests_per_second: 5,
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let strict_limiter = GlobalRateLimiter::new(Some(strict_config));
     let strict_inner = strict_limiter.inner().clone();
-        
+
     println!("   严格限流器 (5 req/s, 5 burst):");
     for _ in 1..=10 {
         let result = strict_inner.check_rate_limit("strict_client", 1).await;
@@ -158,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     println!();
-        
+
     // 宽松的限流器
     let loose_config = RateLimitConfig {
         max_requests_per_second: 50,
@@ -167,7 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let loose_limiter = GlobalRateLimiter::new(Some(loose_config));
     let loose_inner = loose_limiter.inner().clone();
-        
+
     println!("   宽松限流器 (50 req/s, 100 burst):");
     for _ in 1..=10 {
         let result = loose_inner.check_rate_limit("loose_client", 1).await;
@@ -181,17 +181,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 9. 性能测试
     println!("9. 性能测试");
     let start = std::time::Instant::now();
-    
+
     let mut allowed_count = 0;
     let mut limited_count = 0;
-    
+
     for i in 0..1000 {
         match inner_limiter.check_rate_limit(&format!("perf_test_{}", i % 10), 1).await {
             Ok(()) => allowed_count += 1,
             Err(_) => limited_count += 1,
         }
     }
-    
+
     let elapsed = start.elapsed();
     println!("   1000 次限流检查耗时: {:?}", elapsed);
     println!("   平均每次检查耗时: {:?}", elapsed / 1000);

@@ -32,15 +32,17 @@ pub use database_test_utils::{
 // Docker 测试工具
 #[allow(unused_imports)]
 pub use docker_test_utils::{
-    is_redis_available as docker_is_redis_available, setup_redis_and_postgres, setup_redis_cluster_nodes,
-    setup_redis_container, setup_postgres_container, wait_for_redis as docker_wait_for_redis, PostgresContainer,
+    is_redis_available as docker_is_redis_available, setup_postgres_container, setup_redis_and_postgres,
+    setup_redis_cluster_nodes, setup_redis_container, wait_for_redis as docker_wait_for_redis, PostgresContainer,
     RedisContainer,
 };
 
 // Testcontainers 工具
 #[allow(unused_imports)]
-pub use test_containers::{is_redis_available as tc_is_redis_available, start_redis_container, RedisClusterManager,
-    RedisContainer as AsyncRedisContainer, TestEnvironment};
+pub use test_containers::{
+    is_redis_available as tc_is_redis_available, start_redis_container, RedisClusterManager,
+    RedisContainer as AsyncRedisContainer, TestEnvironment,
+};
 
 // Mock 后端
 #[allow(unused_imports)]
