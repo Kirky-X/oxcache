@@ -147,11 +147,7 @@ fn test_redact_cache_key_all_patterns() {
                 result
             );
         } else {
-            assert_eq!(
-                result, key,
-                "Key '{}' should not be redacted, got '{}'",
-                key, result
-            );
+            assert_eq!(result, key, "Key '{}' should not be redacted, got '{}'", key, result);
         }
     }
 }
@@ -160,10 +156,7 @@ fn test_redact_cache_key_all_patterns() {
 #[test]
 fn test_redact_connection_string_edge_cases() {
     // 只有一个冒号（协议分隔符）
-    assert_eq!(
-        redact_connection_string("redis://localhost"),
-        "redis://localhost"
-    );
+    assert_eq!(redact_connection_string("redis://localhost"), "redis://localhost");
 
     // 多个冒号（密码中包含冒号）
     let result = redact_connection_string("redis://user:pass:word@host:6379");
@@ -197,10 +190,7 @@ fn test_secure_debug_macro_compiles() {
 /// 测试超长消息处理
 #[test]
 fn test_sanitize_message_very_long() {
-    let long_msg = format!(
-        "Connection: redis://user:{}@localhost:6379",
-        "a".repeat(10000)
-    );
+    let long_msg = format!("Connection: redis://user:{}@localhost:6379", "a".repeat(10000));
 
     // 主要验证不会 panic
     let _sanitized = sanitize_message(&long_msg);

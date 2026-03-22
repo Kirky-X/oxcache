@@ -37,7 +37,12 @@ fn test_sort_links_descending_order() {
 fn test_sort_links_non_persistent_first() {
     // 同分数：一个持久化，一个非持久化
     let persistent = ChainLink::new(MockBackend::new("persistent", 100, true), 100, true, "persistent");
-    let non_persistent = ChainLink::new(MockBackend::new("non_persistent", 100, false), 100, false, "non_persistent");
+    let non_persistent = ChainLink::new(
+        MockBackend::new("non_persistent", 100, false),
+        100,
+        false,
+        "non_persistent",
+    );
 
     // 故意把持久化放在前面
     let links = vec![persistent, non_persistent];
@@ -271,8 +276,8 @@ fn test_sort_links_max_score() {
 fn test_sort_links_many_backends() {
     // 使用预定义的静态名称数组
     static NAMES: [&str; 20] = [
-        "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9",
-        "b10", "b11", "b12", "b13", "b14", "b15", "b16", "b17", "b18", "b19",
+        "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8", "b9", "b10", "b11", "b12", "b13", "b14", "b15", "b16",
+        "b17", "b18", "b19",
     ];
 
     let mut links = Vec::new();
