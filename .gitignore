@@ -99,5 +99,6 @@ npm-debug.log*
 AGENTS.md
 openspec/
 docs/archive/
-
+docs/repowiki/
+.iflow/
 .worktrees
