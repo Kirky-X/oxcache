@@ -296,7 +296,11 @@ where
         let backend = match self.backend_config {
             Some(InternalBackendConfig::Prebuilt(backend)) => backend,
             Some(InternalBackendConfig::Memory { capacity }) => {
-                Arc::new(MemoryBackend::builder().capacity(capacity).build())
+                let mut builder = MemoryBackend::builder().capacity(capacity);
+                if let Some(ttl) = self.ttl {
+                    builder = builder.ttl(ttl);
+                }
+                Arc::new(builder.build())
             }
             #[cfg(feature = "redis")]
             Some(InternalBackendConfig::Redis {
@@ -332,7 +336,11 @@ where
             }
             None => {
                 let capacity = self.capacity.unwrap_or(10000);
-                Arc::new(MemoryBackend::builder().capacity(capacity).build())
+                let mut builder = MemoryBackend::builder().capacity(capacity);
+                if let Some(ttl) = self.ttl {
+                    builder = builder.ttl(ttl);
+                }
+                Arc::new(builder.build())
             }
         };
 
