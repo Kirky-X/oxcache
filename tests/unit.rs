@@ -42,3 +42,12 @@ mod db_loader_test;
 
 #[path = "unit/metrics_test.rs"]
 mod metrics_test;
+
+#[path = "unit/utils_redaction_test.rs"]
+mod utils_redaction_test;
+
+#[path = "unit/utils_security_log_test.rs"]
+mod utils_security_log_test;
+
+#[path = "unit/builder_sorter_test.rs"]
+mod builder_sorter_test;
