@@ -102,20 +102,20 @@ path = "src/01_basics/example_new_api.rs"
 
 [[example]]
 name = "example_smart_strategy"
-path = "src/smart_strategy.rs"
+path = "src/02_advanced/example_smart_strategy.rs"
 
 [[example]]
 name = "example_redis_native"
-path = "src/redis_native.rs"
+path = "src/02_advanced/example_redis_native.rs"
 
 [[example]]
 name = "example_http_cache"
-path = "src/http_cache.rs"
+path = "src/04_http/example_http_cache.rs"
 required-features = ["http-cache"]
 
 [[example]]
 name = "example_dynamic_config"
-path = "src/dynamic_config.rs"
+path = "src/03_config/example_dynamic_config.rs"
 
 [[example]]
 name = "example_cached_macro"
@@ -132,6 +132,18 @@ path = "src/06_features/example_rate_limiting.rs"
 [[example]]
 name = "example_database_integration"
 path = "src/05_database/example_database_integration.rs"
+
+[[example]]
+name = "example_cli_usage"
+path = "src/06_features/example_cli_usage.rs"
+
+[[example]]
+name = "example_events"
+path = "src/06_features/example_events.rs"
+
+[[example]]
+name = "example_security"
+path = "src/06_features/example_security.rs"
 
 [profile.release]
 opt-level = 1
