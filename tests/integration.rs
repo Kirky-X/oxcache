@@ -31,8 +31,6 @@ mod lock_warmup_test;
 mod manual_control_test;
 #[path = "integration/metrics_test.rs"]
 mod metrics_test;
-#[path = "integration/performance_test.rs"]
-mod performance_test;
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
 #[path = "integration/redis_client_comprehensive_test.rs"]
@@ -59,8 +57,8 @@ mod wal_test;
 #[path = "integration/l2_backend_test.rs"]
 mod l2_backend_test;
 
-#[path = "integration/mock_l2_backend_test.rs"]
-mod mock_l2_backend_test;
+#[path = "integration/redis_backend_integration_test.rs"]
+mod redis_backend_integration_test;
 
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
