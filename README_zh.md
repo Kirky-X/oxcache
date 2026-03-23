@@ -94,9 +94,15 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 - `wal-recovery` - 预写日志持久化
 - `bloom-filter` - 缓存穿透保护
 - `rate-limiting` - DoS 防护
-- `database` - 数据库集成
+- `database` - 数据库集成（SeaORM/SQLx）
 - `cli` - 命令行界面
 - `full-metrics` - OpenTelemetry 集成
+- `smart-strategy` - 基于熵压缩的智能缓存策略
+- `redis-native` - 原生 Redis 操作支持
+- `compression` - 数据压缩（flate2）
+- `lua-script` - Lua 脚本执行支持
+- `extra-serialization` - MessagePack、CBOR 序列化
+- `config-dynamic` - 动态配置
 
 ### 最简示例
 
@@ -125,8 +131,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 使用 Builder 模式初始化缓存
-    let cache: Cache<String, User> = CacheBuilder::default()
-        .tiered(10000, "redis://127.0.0.1:6379")
+    let cache: Cache<String, User> = Cache::builder()
+        .redis("redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -298,20 +304,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 方法 | 描述 |
 |--------|------|
-| `UnifiedConfigBuilder::memory_only()` | 创建仅内存 (L1) 缓存配置 |
-| `UnifiedConfigBuilder::redis_only()` | 创建仅 Redis (L2) 缓存配置 |
-| `UnifiedConfigBuilder::tiered()` | 创建分层 (L1 + L2) 缓存配置 |
-| `.with_ttl(seconds)` | 设置缓存条目的默认 TTL |
-| `.with_tti(seconds)` | 设置默认 TTI（空闲超时时间） |
-| `.with_health_check_interval(seconds)` | 设置健康检查间隔 |
-| `.with_l1_capacity(count)` | 设置 L1 内存缓存容量 |
-| `.with_redis_url(url)` | 设置 Redis 连接 URL |
-| `.with_redis_mode(mode)` | 设置 Redis 模式（"standalone"、"sentinel"、"cluster"） |
-| `.with_metrics(enabled)` | 启用/禁用指标收集 |
-| `.with_wal(enabled)` | 启用/禁用预写日志 |
-| `.with_auto_recovery(enabled)` | 启用/禁用自动恢复 |
-| `.build()` | 构建 `UnifiedConfig` 实例 |
-| `.build_json()` | 将配置构建为 `serde_json::Value` |
+| `Cache::builder()` | 创建新的缓存构建器 |
+| `.ttl(Duration)` | 设置缓存条目的默认 TTL |
+| `.capacity(u64)` | 设置内存缓存容量 |
+| `.redis(url)` | 配置 Redis 后端 |
+| `.redis_with_mode(url, mode)` | 配置 Redis（支持 Standalone/Sentinel/Cluster 模式）|
+| `.tiered(l1_capacity, url)` | 配置分层缓存（L1 + L2）|
+| `.with_backend(backend)` | 使用自定义后端 |
+| `.batch_writes(bool)` | 启用/禁用批量写入 |
+| `.auto_promote(bool)` | 启用/禁用从 L2 到 L1 的自动提升 |
+| `.build()` | 构建 `Cache<K, V>` 实例 |
 
 #### 类型安全 API 的优势
 
@@ -367,8 +369,8 @@ struct MyData {
 
 async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
     // 使用 Builder 模式初始化缓存
-    let cache: Cache<String, MyData> = CacheBuilder::default()
-        .tiered(10000, "redis://127.0.0.1:6379")
+    let cache: Cache<String, MyData> = Cache::builder()
+        .redis("redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -469,10 +471,29 @@ Oxcache 实现了多项安全措施以防范常见攻击：
   - 最大长度 10KB
   - 最多 100 个键
   - 阻止危险命令：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
+  - 注释和字符串内容预处理，防止通过注释绕过检测
 - **SCAN 模式验证**：模式验证以防止 ReDoS 攻击：
   - 最大长度 256 个字符
   - 最多 10 个通配符（`*`）字符
   - count 参数限制在安全范围内（1-1000）
+- **SQL/路径遍历检测**：Redis 键会扫描潜在的 SQL 注入和路径遍历模式
+
+### 安全 API（公共函数）
+
+对于高级用例，您可以直接使用安全验证函数：
+
+```rust
+use oxcache::security::{validate_redis_key, validate_lua_script, validate_scan_pattern};
+
+// 验证 Redis 键
+validate_redis_key("user:123").expect("无效的键");
+
+// 验证 Lua 脚本
+validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚本");
+
+// 验证 SCAN 模式
+validate_scan_pattern("user:*").expect("无效的模式");
+```
 
 ### 超时保护
 
