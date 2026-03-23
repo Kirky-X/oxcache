@@ -9,8 +9,10 @@
 use crate::common::redis_test_utils::{is_redis_available, test_redis_connection};
 use oxcache::backend::client::redis::RedisBackend;
 use oxcache::backend::CacheBackend;
+use serial_test::serial;
 
 /// 测试真实RedisBackend创建
+#[serial(redis)]
 #[tokio::test]
 async fn test_real_redis_backend_creation() {
     println!("测试真实RedisBackend创建...");
@@ -47,6 +49,7 @@ async fn test_real_redis_backend_creation() {
 }
 
 /// 测试Redis连接和基本操作
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_basic_operations() {
     if !is_redis_available().await {
@@ -82,6 +85,7 @@ async fn test_redis_basic_operations() {
 }
 
 /// 测试Redis ping操作
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_ping() {
     if !is_redis_available().await {

@@ -89,22 +89,42 @@ impl TokenBucket {
     }
 
     /// 尝试获取多个令牌
+    ///
+    /// 使用 compare_exchange 实现原子更新，消除竞争条件
     pub fn try_acquire_n(&self, n: u64) -> bool {
         let now = Self::now_millis();
-        let last_update = self.last_update.load(Ordering::Relaxed);
 
-        let elapsed = now.saturating_sub(last_update);
-        let refill = (elapsed * self.refill_rate) / 1000;
+        loop {
+            let last_update = self.last_update.load(Ordering::SeqCst);
+            let elapsed = now.saturating_sub(last_update);
+            let refill = (elapsed * self.refill_rate) / 1000;
 
-        let current_tokens = self.tokens.load(Ordering::Relaxed);
-        let new_tokens = (current_tokens + refill).min(self.capacity);
+            let current_tokens = self.tokens.load(Ordering::SeqCst);
+            let new_tokens = (current_tokens + refill).min(self.capacity);
 
-        if new_tokens >= n {
-            self.tokens.store(new_tokens - n, Ordering::Relaxed);
-            self.last_update.store(now, Ordering::Relaxed);
-            true
-        } else {
-            false
+            if new_tokens < n {
+                return false;
+            }
+
+            // 尝试原子更新 tokens
+            let expected = current_tokens;
+            match self
+                .tokens
+                .compare_exchange(expected, new_tokens - n, Ordering::SeqCst, Ordering::Relaxed)
+            {
+                Ok(_) => {
+                    // 成功更新 tokens，同时尝试更新 last_update
+                    // 如果 last_update 没有被其他线程修改，则更新
+                    self.last_update
+                        .compare_exchange(last_update, now, Ordering::SeqCst, Ordering::Relaxed)
+                        .ok();
+                    return true;
+                }
+                Err(_) => {
+                    // 竞争发生，重试
+                    continue;
+                }
+            }
         }
     }
 

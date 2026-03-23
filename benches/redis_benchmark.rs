@@ -12,9 +12,22 @@ use tokio::runtime::Runtime;
 
 // ============================= Redis L2 缓存基准测试 =============================
 
+/// 获取 Redis URL（优先使用环境变量）
+fn get_redis_url() -> String {
+    std::env::var("OXCACHE_REDIS_URL").unwrap_or_else(|_| {
+        // 设置环境变量以允许不安全的 Redis 连接（仅用于测试）
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        "redis://127.0.0.1:6379".to_string()
+    })
+}
+
 /// 基准测试Redis的SET操作性能
 fn bench_redis_set(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
+    let redis_url = get_redis_url();
+
+    // 预先建立连接
+    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
 
     c.bench_function("redis_set", |b| {
         b.to_async(&rt).iter(|| async {
@@ -23,11 +36,9 @@ fn bench_redis_set(c: &mut Criterion) {
                 std::time::SystemTime::now().elapsed().unwrap().as_nanos()
             );
             let value = vec![0u8; 100];
-            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
-                let _ = backend
-                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
-                    .await;
-            }
+            let _ = backend
+                .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
+                .await;
         });
     });
 }
@@ -35,21 +46,23 @@ fn bench_redis_set(c: &mut Criterion) {
 /// 基准测试Redis的GET操作性能
 fn bench_redis_get(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
+    let redis_url = get_redis_url();
 
-    // Pre-populate test data
-    rt.block_on(async {
-        if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
-            let key = "bench:redis:get:test";
-            let value = vec![0u8; 100];
-            let _ = backend.set(key, value, Some(Duration::from_secs(300))).await;
-        }
+    // 预先建立连接并准备测试数据
+    let backend = rt.block_on(async {
+        let backend = RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis");
+
+        // 预填充测试数据
+        let key = "bench:redis:get:test";
+        let value = vec![0u8; 100];
+        let _ = backend.set(key, value, Some(Duration::from_secs(300))).await;
+
+        backend
     });
 
     c.bench_function("redis_get", |b| {
         b.to_async(&rt).iter(|| async {
-            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
-                let _ = backend.get(black_box("bench:redis:get:test")).await;
-            }
+            let _ = backend.get(black_box("bench:redis:get:test")).await;
         });
     });
 }
@@ -57,6 +70,10 @@ fn bench_redis_get(c: &mut Criterion) {
 /// 基准测试Redis不同数据大小的SET性能
 fn bench_redis_different_sizes(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
+    let redis_url = get_redis_url();
+
+    // 预先建立连接
+    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
 
     let mut group = c.benchmark_group("redis_different_sizes");
 
@@ -66,11 +83,9 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
             b.to_async(&rt).iter(|| async {
                 let key = format!("bench:redis:size:{}", size);
                 let value = vec![0u8; size];
-                if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
-                    let _ = backend
-                        .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
-                        .await;
-                }
+                let _ = backend
+                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
+                    .await;
             });
         });
     }
@@ -81,6 +96,10 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
 /// 基准测试Redis的TTL操作性能
 fn bench_redis_ttl(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
+    let redis_url = get_redis_url();
+
+    // 预先建立连接
+    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
 
     c.bench_function("redis_ttl", |b| {
         b.to_async(&rt).iter(|| async {
@@ -89,11 +108,9 @@ fn bench_redis_ttl(c: &mut Criterion) {
                 std::time::SystemTime::now().elapsed().unwrap().as_nanos()
             );
             let value = vec![0u8; 100];
-            if let Ok(backend) = RedisBackend::new("redis://127.0.0.1:6381").await {
-                let _ = backend
-                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(60)))
-                    .await;
-            }
+            let _ = backend
+                .set(black_box(&key), black_box(value), Some(Duration::from_secs(60)))
+                .await;
         });
     });
 }

@@ -12,10 +12,10 @@
 //! - 处理不同类型的缓存事件
 //! - 使用事件进行性能监控和审计
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use oxcache::events::{CacheEvent, CacheEventType, EventPublisher};
-use oxcache::Cache;
+use oxcache::{Cache, CacheError};
 
 /// 自定义事件发布器示例
 ///
@@ -25,7 +25,7 @@ struct ConsoleEventPublisher;
 #[async_trait::async_trait]
 impl EventPublisher for ConsoleEventPublisher {
     /// 发布事件到控制台
-    async fn publish(&self, event: CacheEvent) {
+    async fn publish(&self, event: CacheEvent) -> Result<(), CacheError> {
         let key_str = event.key.as_deref().unwrap_or("N/A");
         let latency_str = event
             .latency_ms
@@ -44,32 +44,38 @@ impl EventPublisher for ConsoleEventPublisher {
         for (k, v) in &event.metadata {
             println!("        {}: {}", k, v);
         }
+        Ok(())
     }
 
     /// 发布命中事件
-    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) {
+    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), CacheError> {
         println!("[HIT] key={} latency={}ms", key.into(), latency_ms);
+        Ok(())
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) {
+    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), CacheError> {
         println!("[MISS] key={} latency={}ms", key.into(), latency_ms);
+        Ok(())
     }
 
     /// 发布设置事件
-    fn publish_set(&self, key: impl Into<String>) {
+    fn publish_set(&self, key: impl Into<String>) -> Result<(), CacheError> {
         println!("[SET] key={}", key.into());
+        Ok(())
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, key: impl Into<String>) {
+    fn publish_delete(&self, key: impl Into<String>) -> Result<(), CacheError> {
         println!("[DELETE] key={}", key.into());
+        Ok(())
     }
 
     /// 发布错误事件
-    fn publish_error(&self, key: Option<String>, error: impl Into<String>) {
+    fn publish_error(&self, key: Option<String>, error: impl Into<String>) -> Result<(), CacheError> {
         let key_str = key.as_deref().unwrap_or("N/A");
         println!("[ERROR] key={} error={}", key_str, error.into());
+        Ok(())
     }
 }
 
@@ -104,19 +110,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_error("Connection timeout");
 
     // 发布事件
-    publisher.publish(hit_event).await;
-    publisher.publish(miss_event).await;
-    publisher.publish(set_event).await;
-    publisher.publish(error_event).await;
+    publisher.publish(hit_event).await?;
+    publisher.publish(miss_event).await?;
+    publisher.publish(set_event).await?;
+    publisher.publish(error_event).await?;
 
     // 2. 使用便捷方法发布事件
     println!("\n--- 2. 使用便捷方法 ---");
 
-    publisher.publish_hit("cache:key:1", 3);
-    publisher.publish_miss("cache:key:2", 15);
-    publisher.publish_set("cache:key:3");
-    publisher.publish_delete("cache:key:4");
-    publisher.publish_error(Some("cache:key:5".to_string()), "Key not found");
+    publisher.publish_hit("cache:key:1", 3)?;
+    publisher.publish_miss("cache:key:2", 15)?;
+    publisher.publish_set("cache:key:3")?;
+    publisher.publish_delete("cache:key:4")?;
+    publisher.publish_error(Some("cache:key:5".to_string()), "Key not found")?;
 
     // 3. 实际缓存操作中的事件监控
     println!("\n--- 3. 缓存操作事件监控 ---");
@@ -132,7 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_value = b"test_value".to_vec();
     cache.set(&test_key, &test_value).await?;
     let elapsed = start.elapsed();
-    publisher.publish_set(&test_key);
+    publisher.publish_set(&test_key)?;
     println!("设置操作耗时: {:?}", elapsed);
 
     // 获取值并记录事件
@@ -141,9 +147,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
 
     if result.is_some() {
-        publisher.publish_hit(&test_key, elapsed.as_millis() as u64);
+        publisher.publish_hit(&test_key, elapsed.as_millis() as u64)?;
     } else {
-        publisher.publish_miss(&test_key, elapsed.as_millis() as u64);
+        publisher.publish_miss(&test_key, elapsed.as_millis() as u64)?;
     }
 
     // 获取不存在的值
@@ -153,28 +159,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
 
     if result.is_some() {
-        publisher.publish_hit(&nonexistent_key, elapsed.as_millis() as u64);
+        publisher.publish_hit(&nonexistent_key, elapsed.as_millis() as u64)?;
     } else {
-        publisher.publish_miss(&nonexistent_key, elapsed.as_millis() as u64);
+        publisher.publish_miss(&nonexistent_key, elapsed.as_millis() as u64)?;
     }
 
     // 4. 批量操作事件
     println!("\n--- 4. 批量操作事件 ---");
 
     let batch_start = CacheEvent::new(CacheEventType::BatchStart).with_metadata("count", "5");
-    publisher.publish(batch_start).await;
+    publisher.publish(batch_start).await?;
 
     for i in 0..5 {
         let key = format!("batch_key_{}", i);
         let value = format!("value_{}", i).into_bytes();
         cache.set(&key, &value).await?;
-        publisher.publish_set(&key);
+        publisher.publish_set(&key)?;
     }
 
     let batch_end = CacheEvent::new(CacheEventType::BatchEnd)
         .with_metadata("count", "5")
         .with_latency(50);
-    publisher.publish(batch_end).await;
+    publisher.publish(batch_end).await?;
 
     // 5. 自定义事件
     println!("\n--- 5. 自定义事件 ---");
@@ -183,7 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_metadata("loaded_keys", "100")
         .with_metadata("duration_ms", "500");
 
-    publisher.publish(custom_event).await;
+    publisher.publish(custom_event).await?;
 
     // 6. 所有事件类型展示
     println!("\n--- 6. 所有事件类型 ---");

@@ -206,6 +206,11 @@ optional = true
 version = "0.5"
 optional = true
 
+# LRU cache for bloom filter hash cache
+[dependencies.lru]
+version = "0.12"
+optional = true
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -303,6 +308,7 @@ full = [
     "http-cache",
     "serialization-cache",
     "lua-script",
+    "testing",
 ]
 
 # --------------------------------------------------------------------
@@ -350,13 +356,16 @@ opentelemetry = [
 metrics = ["opentelemetry", "dep:dashmap", "dep:tracing"]
 full-metrics = ["metrics", "dep:tracing-opentelemetry", "dep:opentelemetry-otlp"]
 
+# Testing support (exposes internal functions for integration tests)
+testing = []
+
 # Database Integration
 database = ["dep:sea-orm", "dep:sqlx", "dep:regex"]
 sqlite = ["database", "sqlx/sqlite"]
 dashmap = ["dep:dashmap"]
 
 # Advanced Features
-bloom-filter = ["dep:bloomfilter", "dep:murmur3"]
+bloom-filter = ["dep:bloomfilter", "dep:murmur3", "dep:lru"]
 rate-limiting = ["dashmap"]
 wal-recovery = ["database", "redis"]
 batch-write = ["dep:tokio-util"]
