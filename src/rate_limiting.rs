@@ -6,13 +6,13 @@
 //! 通过 `rate-limiting` feature 控制启用/禁用
 
 #[cfg(feature = "rate-limiting")]
+use dashmap::DashMap;
+#[cfg(feature = "rate-limiting")]
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "rate-limiting")]
 use std::sync::Arc;
 #[cfg(feature = "rate-limiting")]
 use std::time::Duration;
-#[cfg(feature = "rate-limiting")]
-use tokio::sync::Mutex;
 
 /// 速率限制配置
 #[cfg(feature = "rate-limiting")]
@@ -123,10 +123,11 @@ impl TokenBucket {
 /// 客户端级别的速率限制器
 ///
 /// 为每个客户端维护独立的速率限制状态
+/// 使用 DashMap 实现无锁并发访问
 #[cfg(feature = "rate-limiting")]
 #[derive(Debug)]
 pub struct ClientRateLimiter {
-    per_client: Mutex<std::collections::HashMap<String, Arc<TokenBucket>>>,
+    per_client: DashMap<String, Arc<TokenBucket>>,
     global_limit: TokenBucket,
     config: RateLimitConfig,
 }
@@ -136,7 +137,7 @@ impl ClientRateLimiter {
     /// 创建新的客户端速率限制器
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
-            per_client: Mutex::new(std::collections::HashMap::new()),
+            per_client: DashMap::new(),
             global_limit: TokenBucket::new(config.burst_capacity, config.max_requests_per_second),
             config,
         }
@@ -156,9 +157,8 @@ impl ClientRateLimiter {
     pub async fn check_rate_limit(&self, client_id: &str, cost: u64) -> Result<(), Duration> {
         let global_available = self.global_limit.available_tokens();
 
-        let mut per_client_map = self.per_client.lock().await;
-
-        let bucket = per_client_map.entry(client_id.to_string()).or_insert_with(|| {
+        // DashMap 无锁并发访问
+        let bucket = self.per_client.entry(client_id.to_string()).or_insert_with(|| {
             Arc::new(TokenBucket::new(
                 self.config.burst_capacity,
                 self.config.max_requests_per_second,
@@ -168,9 +168,8 @@ impl ClientRateLimiter {
         let per_client_available = bucket.available_tokens();
 
         if per_client_available < cost {
-            let wait_time = Duration::from_millis(
-                ((cost - per_client_available) * 1000 / self.config.max_requests_per_second) as u64,
-            );
+            let wait_time =
+                Duration::from_millis((cost - per_client_available) * 1000 / self.config.max_requests_per_second);
             return Err(wait_time);
         }
 
@@ -188,13 +187,11 @@ impl ClientRateLimiter {
 
     /// 获取客户端的速率限制状态
     pub async fn get_client_status(&self, client_id: &str) -> RateLimitStatus {
-        let per_client_map = self.per_client.lock().await;
-        let bucket = per_client_map.get(client_id);
-
-        if let Some(b) = bucket {
+        // DashMap 直接读取，无需异步锁
+        if let Some(bucket) = self.per_client.get(client_id) {
             RateLimitStatus {
-                client_available: b.available_tokens(),
-                client_capacity: b.capacity,
+                client_available: bucket.available_tokens(),
+                client_capacity: bucket.capacity,
                 global_available: self.global_limit.available_tokens(),
                 global_capacity: self.global_limit.capacity,
             }
