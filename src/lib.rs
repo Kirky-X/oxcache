@@ -418,6 +418,7 @@ macro_rules! placeholder_module {
 pub mod client;
 pub mod constants;
 pub mod error;
+pub mod types;
 
 // Internal module for #[cached] macro support
 #[doc(hidden)]
@@ -550,6 +551,9 @@ pub use config::confers_config;
 pub use cache_interface::UnifiedCache;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use traits::{CacheKey, Cacheable};
+
+// Type-safe enum exports
+pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]
