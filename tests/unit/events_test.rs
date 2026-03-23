@@ -133,8 +133,9 @@ impl MockEventPublisher {
 
 #[async_trait]
 impl EventPublisher for MockEventPublisher {
-    async fn publish(&self, event: CacheEvent) {
+    async fn publish(&self, event: CacheEvent) -> Result<(), oxcache::CacheError> {
         self.events.lock().unwrap().push(event);
+        Ok(())
     }
 }
 
@@ -143,7 +144,7 @@ async fn test_event_publisher_publish() {
     let publisher = MockEventPublisher::new();
     let event = CacheEvent::new(CacheEventType::Hit).with_key("test_key");
 
-    publisher.publish(event).await;
+    publisher.publish(event).await.unwrap();
 
     let events = publisher.get_events();
     assert_eq!(events.len(), 1);
@@ -157,13 +158,16 @@ async fn test_event_publisher_multiple_events() {
 
     publisher
         .publish(CacheEvent::new(CacheEventType::Hit).with_key("key1"))
-        .await;
+        .await
+        .unwrap();
     publisher
         .publish(CacheEvent::new(CacheEventType::Miss).with_key("key2"))
-        .await;
+        .await
+        .unwrap();
     publisher
         .publish(CacheEvent::new(CacheEventType::Set).with_key("key3"))
-        .await;
+        .await
+        .unwrap();
 
     let events = publisher.get_events();
     assert_eq!(events.len(), 3);

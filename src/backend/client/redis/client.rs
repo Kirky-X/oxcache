@@ -729,6 +729,13 @@ mod tests {
         let _cluster = RedisMode::Cluster;
     }
 
+    // 用于测试隔离的静态锁，防止并行测试间的环境变量污染
+    use std::sync::OnceLock;
+    static TEST_ENV_LOCK: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
+    fn get_test_env_lock() -> &'static std::sync::Mutex<()> {
+        TEST_ENV_LOCK.get_or_init(|| std::sync::Mutex::new(()))
+    }
+
     mod security_tests {
         use super::*;
 
@@ -775,6 +782,9 @@ mod tests {
 
         #[test]
         fn test_insecure_connection_rejected_by_default() {
+            // 使用锁序列化环境变量操作，防止并行测试污染
+            let _lock = get_test_env_lock().lock().unwrap();
+
             // 清理环境变量
             std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
 
@@ -796,10 +806,14 @@ mod tests {
 
         #[test]
         fn test_insecure_connection_requires_explicit_consent() {
-            // 清理环境
-            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            // 使用锁序列化环境变量操作
+            let _lock = get_test_env_lock().lock().unwrap();
+
+            // 保存原始环境变量值（使用RAII模式确保测试后恢复）
+            let original = std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").ok();
 
             // 测试错误的环境变量值
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
             std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "wrong_value");
 
             let rt = tokio::runtime::Runtime::new().unwrap();
@@ -810,27 +824,31 @@ mod tests {
                     .await
             });
 
-            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
-
-            assert!(result.is_err(), "Wrong consent value should be rejected");
-
             // 测试正确的确认值
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
             std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
 
             // 注意：这个测试需要实际的Redis连接，所以我们只验证配置验证通过
             // 实际连接会失败，因为没有Redis服务器
-            let result = rt.block_on(async {
+            let result2 = rt.block_on(async {
                 RedisBackend::builder()
                     .connection_string("redis://nonexistent-host:6379")
                     .build()
                     .await
             });
 
-            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            // 恢复原始环境变量状态（测试结束时，RAII模式）
+            if let Some(v) = original {
+                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", v);
+            } else {
+                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            }
+
+            assert!(result.is_err(), "Wrong consent value should be rejected");
 
             // 应该是连接错误，而不是TLS错误
             // 如果是TLS错误，说明环境变量验证没通过
-            if let Err(e) = result {
+            if let Err(e) = result2 {
                 let err_msg = e.to_string();
                 assert!(!err_msg.contains("TLS"), "Should not fail on TLS check");
             }
@@ -838,7 +856,12 @@ mod tests {
 
         #[test]
         fn test_development_only_consent() {
-            // 清理环境
+            // 使用锁序列化环境变量操作
+            let _lock = get_test_env_lock().lock().unwrap();
+
+            // 保存原始环境变量值
+            let original = std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").ok();
+
             std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
             std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "development-only");
 
@@ -850,7 +873,12 @@ mod tests {
                     .await
             });
 
-            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            // 恢复原始环境变量状态（测试结束时）
+            if let Some(v) = original {
+                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", v);
+            } else {
+                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            }
 
             // 应该是连接错误，而不是TLS错误
             if let Err(e) = result {
