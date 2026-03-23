@@ -651,7 +651,33 @@ impl RedisBackend {
         Ok(result)
     }
 
+    /// Execute a Lua script by its SHA1 hash
+    ///
+    /// # Arguments
+    ///
+    /// * `sha` - The SHA1 hash of the script (must be exactly 40 hexadecimal characters)
+    /// * `keys` - The keys that the script will access
+    /// * `args` - Additional arguments to pass to the script
+    ///
+    /// # Errors
+    ///
+    /// Returns `CacheError::InvalidInput` if:
+    /// - SHA is not exactly 40 hexadecimal characters
+    /// - Any key fails validation
     pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+        // SHA 格式验证：必须是40位十六进制字符
+        if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(CacheError::InvalidInput(format!(
+                "Invalid SHA format: expected 40 hexadecimal characters, got {} characters",
+                sha.len()
+            )));
+        }
+
+        // 验证所有 keys
+        for key in keys {
+            security::validate_redis_key(key)?;
+        }
+
         let mut conn = self.connection_manager.clone();
 
         let mut cmd = redis::cmd("EVALSHA");
@@ -936,6 +962,73 @@ mod tests {
                 1,
             );
             assert!(result.is_ok());
+        }
+    }
+
+    mod sha_validation_tests {
+        use super::*;
+
+        fn validate_sha_format(sha: &str) -> Result<()> {
+            if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(CacheError::InvalidInput(format!(
+                    "Invalid SHA format: expected 40 hexadecimal characters, got {} characters",
+                    sha.len()
+                )));
+            }
+            Ok(())
+        }
+
+        #[test]
+        fn test_valid_sha_format() {
+            let result = validate_sha_format("a1b2c3d4e5f6789012345678901234567890abcd");
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_valid_sha_uppercase() {
+            let result = validate_sha_format("A1B2C3D4E5F6789012345678901234567890ABCD");
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_valid_sha_mixed_case() {
+            let result = validate_sha_format("a1B2c3D4e5F6789012345678901234567890AbCd");
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn test_invalid_sha_too_short() {
+            let result = validate_sha_format("abc123");
+            assert!(result.is_err());
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(err_msg.contains("40"));
+                assert!(err_msg.contains("6"));
+            }
+        }
+
+        #[test]
+        fn test_invalid_sha_too_long() {
+            let result = validate_sha_format("a1b2c3d4e5f6789012345678901234567890abcde");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_invalid_sha_non_hex_chars() {
+            let result = validate_sha_format("ghijklmnopqrstuvwxyz12345678901234567890");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_invalid_sha_empty() {
+            let result = validate_sha_format("");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_invalid_sha_special_chars() {
+            let result = validate_sha_format("a1b2c3d4e5f6789012345678901234567890!@#$");
+            assert!(result.is_err());
         }
     }
 }
