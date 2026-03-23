@@ -134,15 +134,17 @@ async fn get_user(id: u64) -> User { ... }
 **Usage Pattern**:
 ```rust
 // Create cache using Builder
-use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
+use oxcache::Cache;
 
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
+let cache: Cache<String, User> = Cache::builder()
+    .redis("redis://localhost:6379")
+    .build()
+    .await?;
+
+// Or create tiered cache (L1 + L2)
+let cache: Cache<String, User> = Cache::builder()
+    .tiered(10000, "redis://localhost:6379")
+    .ttl(Duration::from_secs(3600))
     .build()
     .await?;
 
@@ -672,13 +674,40 @@ serialization_type = "bincode"  # "json" or "bincode"
 1. **Cache Penetration**: Attacker requests non-existent keys
 2. **Cache Breakdown**: Hot key expires, many requests hit DB
 3. **DoS Attack**: High request rate overwhelms system
+4. **SQL Injection**: Malicious patterns in Redis keys
+5. **Lua Script Injection**: Dangerous commands in Lua scripts
+6. **ReDoS**: Malicious SCAN patterns causing CPU exhaustion
 
 ### Defenses
 
-1. **Bloom Filter**: Prevent cache penetration
+1. **Bloom Filter**: Prevent cache penetration with LRU-based hash caching
 2. **Cache Locking**: Prevent cache breakdown
-3. **Rate Limiting**: Prevent DoS attacks
-4. **Sensitive Data Redaction**: Auto-redact in logs
+3. **Rate Limiting**: Token bucket algorithm for DoS protection
+4. **Input Validation**: Comprehensive validation for keys, Lua scripts, and SCAN patterns
+5. **Comment Preprocessing**: Prevent bypass via Lua comments
+6. **Sensitive Data Redaction**: Auto-redact in logs
+
+### Input Validation
+
+The security module (`security.rs`) provides comprehensive input validation:
+
+#### Redis Key Validation
+- Empty key rejection
+- 512KB size limit
+- Dangerous character detection (`\r`, `\n`, `\0`)
+- SQL injection pattern detection
+- Path traversal pattern detection
+
+#### Lua Script Validation
+- 10KB script length limit
+- 100 key limit
+- Dangerous command blocking
+- Comment preprocessing to prevent bypass
+
+#### SCAN Pattern Validation
+- 256 character length limit
+- 10 wildcard limit
+- Count parameter clamping (1-1000)
 
 ### Best Practices
 

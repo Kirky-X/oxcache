@@ -192,9 +192,6 @@ cargo add oxcache
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::l1::L1Backend;
-use oxcache::backend::l2::L2Backend;
-use oxcache::backend::Backend;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -205,24 +202,19 @@ pub struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 Builder 模式创建双层缓存
-    let cache = CacheBuilder::new()
-        .with_name("user_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,  // L1: 最大容量 10000
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
+    // 使用 Cache::builder() 创建分层缓存
+    let cache: Cache<String, User> = Cache::builder()
+        .tiered(10000, "redis://127.0.0.1:6379")
+        .build()
+        .await?;
 
     // 第一次调用：写入缓存
     let user = User { id: 1, name: "User 1".to_string() };
-    cache.set("user:1", &user, Some(600)).await?;
+    cache.set(&"user:1".to_string(), &user).await?;
     println!("First call: {:?}", user);
 
     // 第二次调用：从缓存读取
-    let cached_user: Option<User> = cache.get("user:1").await?;
+    let cached_user: Option<User> = cache.get(&"user:1".to_string()).await?;
     println!("Cached call: {:?}", cached_user);
 
     Ok(())
@@ -233,8 +225,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use oxcache::macros::cached;
-use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
+use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -256,19 +247,14 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化缓存（使用 Builder 模式）
-    let cache = CacheBuilder::new()
-        .with_name("user_cache")
-        .with_backend(
-            Backend::tiered(
-                L1Backend::new(10000)?,
-                L2Backend::new("redis://127.0.0.1:6379").await?,
-            )
-        )
-        .build()?;
+    // 初始化缓存
+    let cache = Cache::<String, Vec<u8>>::builder()
+        .redis("redis://127.0.0.1:6379")
+        .build()
+        .await?;
 
     // 注册缓存实例到全局管理器（供宏使用）
-    oxcache::manager::register_cache("user_cache".to_string(), cache).await?;
+    cache.register_for_macro("user_cache").await;
 
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
@@ -285,20 +271,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 方法三：仅 L1 缓存（内存缓存）
 
 ```rust
-use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::{Backend, L1Backend};
+use oxcache::Cache;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建仅 L1 缓存
-    let cache = CacheBuilder::new()
-        .with_name("memory_cache")
-        .with_backend(Backend::l1(L1Backend::new(10000)?))
-        .build()?;
+    // 创建仅 L1 缓存（内存缓存）
+    let cache: Cache<String, String> = Cache::builder()
+        .capacity(10000)
+        .ttl(Duration::from_secs(3600))
+        .build()
+        .await?;
 
-    cache.set("key", &"value", Some(3600)).await?;
+    cache.set(&"key".to_string(), &"value".to_string()).await?;
 
-    let val: Option<String> = cache.get("key").await?;
+    let val: Option<String> = cache.get(&"key".to_string()).await?;
     println!("Value: {:?}", val);
 
     Ok(())
@@ -308,20 +295,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 方法四：仅 L2 缓存（Redis 缓存）
 
 ```rust
-use oxcache::{Cache, CacheBuilder};
-use oxcache::backend::{Backend, L2Backend};
+use oxcache::Cache;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建仅 L2 缓存
-    let cache = CacheBuilder::new()
-        .with_name("redis_cache")
-        .with_backend(Backend::l2(L2Backend::new("redis://127.0.0.1:6379").await?))
-        .build()?;
+    // 创建仅 L2 缓存（Redis 缓存）
+    let cache: Cache<String, String> = Cache::builder()
+        .redis("redis://127.0.0.1:6379")
+        .build()
+        .await?;
 
-    cache.set("key", &"value", Some(3600)).await?;
+    cache.set(&"key".to_string(), &"value".to_string()).await?;
 
-    let val: Option<String> = cache.get("key").await?;
+    let val: Option<String> = cache.get(&"key".to_string()).await?;
     println!("Value: {:?}", val);
 
     Ok(())

@@ -102,9 +102,15 @@ oxcache = { version = "0.2.0", features = [
 - `wal-recovery` - Write-ahead log for durability
 - `bloom-filter` - Cache penetration protection
 - `rate-limiting` - DoS protection
-- `database` - Database integration
+- `database` - Database integration (SeaORM/SQLx)
 - `cli` - Command-line interface
 - `full-metrics` - OpenTelemetry integration
+- `smart-strategy` - Smart cache strategy with entropy-based compression
+- `redis-native` - Native Redis operations support
+- `compression` - Data compression (flate2)
+- `lua-script` - Lua script execution support
+- `extra-serialization` - MessagePack, CBOR serialization
+- `config-dynamic` - Dynamic configuration
 
 ### 2. Configuration
 
@@ -259,20 +265,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Method | Description |
 |--------|-------------|
-| `UnifiedConfigBuilder::memory_only()` | Create memory-only (L1) cache configuration |
-| `UnifiedConfigBuilder::redis_only()` | Create Redis-only (L2) cache configuration |
-| `UnifiedConfigBuilder::tiered()` | Create tiered (L1 + L2) cache configuration |
-| `.with_ttl(seconds)` | Set default TTL for cache entries |
-| `.with_tti(seconds)` | Set default TTI (time-to-inactive) |
-| `.with_health_check_interval(seconds)` | Set health check interval |
-| `.with_l1_capacity(count)` | Set L1 memory cache capacity |
-| `.with_redis_url(url)` | Set Redis connection URL |
-| `.with_redis_mode(mode)` | Set Redis mode ("standalone", "sentinel", "cluster") |
-| `.with_metrics(enabled)` | Enable/disable metrics collection |
-| `.with_wal(enabled)` | Enable/disable Write-Ahead Log |
-| `.with_auto_recovery(enabled)` | Enable/disable automatic recovery |
-| `.build()` | Build `UnifiedConfig` instance |
-| `.build_json()` | Build configuration as `serde_json::Value` |
+| `Cache::builder()` | Create a new cache builder |
+| `.ttl(Duration)` | Set default TTL for cache entries |
+| `.capacity(u64)` | Set memory cache capacity |
+| `.redis(url)` | Configure Redis backend |
+| `.redis_with_mode(url, mode)` | Configure Redis with mode (Standalone/Sentinel/Cluster) |
+| `.tiered(l1_capacity, url)` | Configure tiered cache (L1 + L2) |
+| `.with_backend(backend)` | Use custom backend |
+| `.batch_writes(bool)` | Enable/disable batch writes |
+| `.auto_promote(bool)` | Enable/disable auto-promote from L2 to L1 |
+| `.build()` | Build `Cache<K, V>` instance |
 
 #### Benefits of Type-Safe API
 
@@ -311,8 +313,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize cache using Builder pattern
-    let cache: Cache<String, User> = CacheBuilder::default()
-        .tiered(10000, "redis://127.0.0.1:6379")
+    let cache: Cache<String, User> = Cache::builder()
+        .redis("redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -345,8 +347,8 @@ struct MyData {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize cache using Builder pattern
-    let cache: Cache<String, MyData> = CacheBuilder::default()
-        .tiered(10000, "redis://127.0.0.1:6379")
+    let cache: Cache<String, MyData> = Cache::builder()
+        .redis("redis://127.0.0.1:6379")
         .build()
         .await?;
 
@@ -354,7 +356,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         field: "value".to_string(),
     };
 
-    // Standard operation: write to both L1 and L2
+    // Standard operation: write to cache
     cache.set(&"key".to_string(), &my_data).await?;
 
     let data: Option<MyData> = cache.get(&"key".to_string()).await?;
@@ -480,10 +482,29 @@ All user inputs are validated before being passed to Redis:
   - Maximum length of 10KB
   - Maximum of 100 keys
   - Blocking dangerous commands: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
+  - Comment and string content preprocessing to prevent bypass via comments
 - **SCAN Pattern Validation**: Patterns are validated to prevent ReDoS attacks:
   - Maximum length of 256 characters
   - Maximum of 10 wildcard (`*`) characters
   - Count parameter clamped to safe range (1-1000)
+- **SQL/Path Traversal Detection**: Redis keys are scanned for potential SQL injection and path traversal patterns
+
+### Security API (Public Functions)
+
+For advanced use cases, you can directly use the security validation functions:
+
+```rust
+use oxcache::security::{validate_redis_key, validate_lua_script, validate_scan_pattern};
+
+// Validate Redis keys
+validate_redis_key("user:123").expect("Invalid key");
+
+// Validate Lua scripts
+validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("Invalid script");
+
+// Validate SCAN patterns
+validate_scan_pattern("user:*").expect("Invalid pattern");
+```
 
 ### Timeout Protection
 
