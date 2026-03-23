@@ -31,18 +31,24 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 ### Component Features
 - **`macros`**: Required for `#[cached]` attribute macro
 - **`moka`**: L1 cache implementation (Moka)
+- **`dashmap-backend`**: Pure in-memory concurrent cache (DashMap)
 - **`redis`**: L2 cache implementation (Redis)
 - **`confers`**: Unified configuration file support (TOML)
 - **`metrics`**: Basic metrics collection
 - **`full-metrics`**: OpenTelemetry integration
+- **`smart-strategy`**: Smart cache strategy with entropy-based compression
+- **`bloom-filter`**: Cache penetration protection with LRU-based hash caching
 
 ### Advanced Features
 - **`bloom-filter`**: Cache penetration protection
-- **`rate-limiting`**: DoS protection
+- **`rate-limiting`**: DoS protection with token bucket algorithm
 - **`wal-recovery`**: Write-ahead log for durability
 - **`batch-write`**: Optimized batch writing
-- **`database`**: Database integration
+- **`database`**: Database integration (SeaORM/SQLx)
 - **`cli`**: Command-line interface
+- **`compression`**: Data compression (flate2)
+- **`lua-script`**: Lua script execution support
+- **`extra-serialization`**: MessagePack, CBOR serialization
 
 ### Example Configurations
 
@@ -150,15 +156,17 @@ For direct cache instance management, use the `Cache` and `CacheBuilder` types:
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
-use oxcache::builder::BackendBuilder;
 
-// Create cache directly
-let cache: Cache<String, User> = CacheBuilder::new()
-    .backend(
-        BackendBuilder::tiered()
-            .l1_capacity(10000)
-            .l2_connection_string("redis://localhost:6379")
-    )
+// Create cache directly using Cache::builder()
+let cache: Cache<String, User> = Cache::builder()
+    .redis("redis://localhost:6379")
+    .build()
+    .await?;
+
+// Or create tiered cache (L1 + L2)
+let cache: Cache<String, User> = Cache::builder()
+    .tiered(10000, "redis://localhost:6379")
+    .ttl(Duration::from_secs(3600))
     .build()
     .await?;
 
@@ -499,6 +507,63 @@ println!("Database: {}", conn.database());
 ```
 
 ## Security Features
+
+### Input Validation
+
+Oxcache provides comprehensive input validation to protect against common attacks.
+
+#### `validate_redis_key(key: &str) -> Result<()>`
+
+Validate Redis key format and content.
+
+```rust
+use oxcache::security::validate_redis_key;
+
+// Valid key
+validate_redis_key("user:123").expect("Valid key");
+
+// Invalid key (empty, too long, or contains dangerous characters)
+// Returns Err(CacheError::InvalidInput)
+```
+
+**Validation Rules:**
+- Key cannot be empty
+- Key cannot exceed 512KB
+- Key cannot contain dangerous characters (`\r`, `\n`, `\0`)
+- Key is scanned for SQL injection and path traversal patterns
+
+#### `validate_lua_script(script: &str, num_keys: usize) -> Result<()>`
+
+Validate Lua script for security issues.
+
+```rust
+use oxcache::security::validate_lua_script;
+
+// Valid script
+validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("Valid script");
+```
+
+**Validation Rules:**
+- Script length cannot exceed 10KB
+- Number of keys cannot exceed 100
+- Dangerous commands are blocked: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
+- Comment preprocessing prevents bypass via comments
+
+#### `validate_scan_pattern(pattern: &str) -> Result<()>`
+
+Validate SCAN pattern to prevent ReDoS attacks.
+
+```rust
+use oxcache::security::validate_scan_pattern;
+
+// Valid pattern
+validate_scan_pattern("user:*").expect("Valid pattern");
+```
+
+**Validation Rules:**
+- Pattern length cannot exceed 256 characters
+- Maximum of 10 wildcard (`*`) characters
+- Count parameter is clamped to safe range (1-1000)
 
 ### Bloom Filter
 

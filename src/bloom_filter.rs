@@ -8,6 +8,8 @@
 #[cfg(feature = "bloom-filter")]
 use crate::error::CacheError;
 #[cfg(feature = "bloom-filter")]
+use lru::LruCache;
+#[cfg(feature = "bloom-filter")]
 use murmur3::murmur3_32;
 #[cfg(feature = "bloom-filter")]
 use std::collections::HashMap;
@@ -65,7 +67,6 @@ impl BloomFilterOptions {
 /// 使用位数组和多个哈希函数实现的空间效率型概率数据结构
 /// 用于快速判断元素是否可能存在于集合中
 #[cfg(feature = "bloom-filter")]
-#[allow(clippy::type_complexity)]
 pub struct BloomFilter {
     options: BloomFilterOptions,
     bit_array: Vec<u8>,
@@ -73,8 +74,10 @@ pub struct BloomFilter {
     added_count: Arc<AtomicU64>,
     checked_count: Arc<AtomicU64>,
     false_positive_count: Arc<AtomicU64>,
-    /// 哈希缓存 - 使用 Arc<Vec<u8>> 作为键，避免重复内存分配
-    hash_cache: Arc<RwLock<HashMap<Arc<Vec<u8>>, Vec<usize>>>>,
+    /// 哈希缓存 - 使用 LRU 缓存实现真正的 LRU 淘汰策略
+    /// 避免内存无限增长，同时保持最近使用的哈希结果
+    #[allow(clippy::type_complexity)]
+    hash_cache: Arc<RwLock<LruCache<Arc<Vec<u8>>, Vec<usize>>>>,
 }
 
 #[cfg(feature = "bloom-filter")]
@@ -91,8 +94,8 @@ impl BloomFilter {
             seed = seed.wrapping_mul(0xc13fa9a9u32);
         }
 
-        // 创建哈希缓存
-        let hash_cache = Arc::new(RwLock::new(HashMap::new()));
+        // 创建 LRU 哈希缓存，限制最大容量为 10000 条
+        let hash_cache = Arc::new(RwLock::new(LruCache::new(std::num::NonZeroUsize::new(10000).unwrap())));
 
         Self {
             options,
@@ -119,15 +122,18 @@ impl BloomFilter {
     pub fn contains(&self, item: &[u8]) -> Result<bool, CacheError> {
         self.checked_count.fetch_add(1, Ordering::SeqCst);
 
-        // 尝试从缓存获取哈希位置
+        // 尝试从 LRU 缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
-        if let Some(cached_positions) = {
-            let cache = self
+        let cached_positions = {
+            let mut cache = self
                 .hash_cache
-                .read()
+                .write()
                 .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+            // LruCache::get 需要 &mut self，所以我们使用写锁
             cache.get(&item_key).cloned()
-        } {
+        };
+
+        if let Some(cached_positions) = cached_positions {
             // 使用缓存的位置进行检查
             return Ok(self.check_positions(&cached_positions));
         }
@@ -135,28 +141,13 @@ impl BloomFilter {
         // 缓存未命中，计算新的位置
         let positions = self.calculate_positions(item);
 
-        // 将结果存入缓存（限制缓存大小以避免内存无限增长）
+        // 将结果存入 LRU 缓存（容量自动管理）
         {
             let mut cache = self
                 .hash_cache
                 .write()
                 .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
-
-            // 如果缓存过大，使用 LRU 策略移除部分条目
-            if cache.len() > 10000 {
-                let mut to_remove = Vec::new();
-                for entry in cache.iter() {
-                    to_remove.push(entry.0.clone());
-                    if to_remove.len() >= 1000 {
-                        break;
-                    }
-                }
-                for key in to_remove {
-                    cache.remove(&key);
-                }
-            }
-
-            cache.insert(item_key, positions.clone());
+            cache.put(item_key, positions.clone());
         }
 
         Ok(self.check_positions(&positions))
@@ -184,44 +175,22 @@ impl BloomFilter {
     }
 
     pub fn add(&mut self, item: &[u8]) -> Result<(), CacheError> {
-        // 尝试从缓存获取哈希位置
+        // 尝试从 LRU 缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
-        let positions = if let Some(cached_positions) = {
-            let cache = self
+        let positions = {
+            let mut cache = self
                 .hash_cache
-                .read()
+                .write()
                 .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
-            cache.get(&item_key).cloned()
-        } {
-            cached_positions
-        } else {
-            let positions = self.calculate_positions(item);
-
-            // 将结果存入缓存
-            {
-                let mut cache = self
-                    .hash_cache
-                    .write()
-                    .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
-
-                // 如果缓存过大，使用 LRU 策略移除部分条目
-                if cache.len() > 10000 {
-                    let mut to_remove = Vec::new();
-                    for entry in cache.iter() {
-                        to_remove.push(entry.0.clone());
-                        if to_remove.len() >= 1000 {
-                            break;
-                        }
-                    }
-                    for key in to_remove {
-                        cache.remove(&key);
-                    }
-                }
-
-                cache.insert(item_key, positions.clone());
+            // LruCache::get 需要 &mut self，所以我们使用写锁
+            if let Some(cached_positions) = cache.get(&item_key).cloned() {
+                cached_positions
+            } else {
+                let positions = self.calculate_positions(item);
+                // 将结果存入 LRU 缓存
+                cache.put(item_key, positions.clone());
+                positions
             }
-
-            positions
         };
 
         for pos in &positions {

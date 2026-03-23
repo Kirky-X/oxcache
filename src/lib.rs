@@ -416,9 +416,8 @@ macro_rules! placeholder_module {
 // Core Modules (Always Available)
 // ============================================================================
 pub mod client;
-pub mod constants;
+pub mod core;
 pub mod error;
-pub mod types;
 
 // Internal module for #[cached] macro support
 #[doc(hidden)]
@@ -427,8 +426,6 @@ pub(crate) mod internal;
 // New modernized API modules
 pub mod builder;
 pub mod cache;
-pub mod cache_interface;
-pub mod chain;
 pub mod traits;
 
 // Configuration module (using Confers library)
@@ -512,13 +509,9 @@ pub mod http;
 #[cfg(any(feature = "redis", feature = "full"))]
 pub mod security;
 
-// Events Module (Always available)
-// 缓存事件系统，支持监控和性能跟踪
-pub mod events;
-
 // Mock Module (For testing only)
 #[cfg(test)]
-mod mock;
+mod testing;
 
 // ============================================================================
 // Public API Re-exports
@@ -548,12 +541,12 @@ pub use cache::Cache;
 #[cfg(feature = "confers")]
 pub use config::confers_config;
 
-pub use cache_interface::UnifiedCache;
-pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
+pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink};
+pub use cache::interface::UnifiedCache;
 pub use traits::{CacheKey, Cacheable};
 
 // Type-safe enum exports
-pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
+pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]

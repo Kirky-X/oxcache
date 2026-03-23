@@ -8,7 +8,7 @@
 
 #![cfg_attr(doctest, allow(unused_imports))]
 
-use crate::utils::redaction::redact_cache_key;
+use crate::security::redaction::redact_cache_key;
 
 /// 安全日志宏 - 自动脱敏连接字符串
 ///
@@ -26,7 +26,7 @@ use crate::utils::redaction::redact_cache_key;
 #[macro_export]
 macro_rules! secure_info {
     ($($arg:tt)*) => {{
-        use $crate::utils::redaction::redact_connection_string;
+        use $crate::security::redaction::redact_connection_string;
         tracing::info!("{}", format!($($arg)*)
             .replace(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '/' || c == '@' || c == '.', |c| {
                 if c == '@' || (c.is_ascii_digit() && false) {
@@ -52,7 +52,7 @@ macro_rules! secure_info {
 #[macro_export]
 macro_rules! secure_debug {
     ($($arg:tt)*) => {{
-        use $crate::utils::redaction::redact_connection_string;
+        use $crate::security::redaction::redact_connection_string;
         tracing::debug!("{}", format!($($arg)*)
             .split("://")
             .map(|part| {
@@ -142,12 +142,12 @@ pub fn sanitize_message(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::redaction::{redact_cache_key, redact_connection_string};
+    use crate::security::redaction::{redact_cache_key, redact_connection_string};
 
     #[test]
     fn test_log_connection_string() {
         // 测试日志记录功能
-        let conn_str = "redis://user:password123@localhost:6379";
+        let conn_str = "redis://user:password123@localhost:6379"; /* pragma: allowlist secret */
         let redacted = redact_connection_string(conn_str);
         assert!(!redacted.contains("password123"));
         assert!(redacted.contains("user:****"));
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_sanitize_message() {
-        let msg = "Connection: redis://user:secret123@localhost:6379";
+        let msg = "Connection: redis://user:secret123@localhost:6379"; /* pragma: allowlist secret */
         let sanitized = sanitize_message(msg);
 
         assert!(!sanitized.contains("secret123"));

@@ -38,6 +38,7 @@ logs/
 .trae/
 .sisyphus/
 .claude/
+.qoder/
 
 # =============================================================================
 # Environment & Secrets
@@ -86,7 +87,6 @@ npm-debug.log*
 # =============================================================================
 # .iflow/ - iFlow configuration
 # .opencode/ - OpenCode configuration
-# .qoder/ - Qoder configuration
 # openspec/ - OpenSpec specifications
 # CHANGELOG.md - Change history
 # Makefile - Build commands
