@@ -6,6 +6,7 @@
 //!
 //! 提供缓存事件的发布和订阅机制，支持监控缓存操作、性能跟踪和自定义处理逻辑。
 
+use crate::error::CacheError;
 use async_trait::async_trait;
 use std::fmt;
 
@@ -129,32 +130,37 @@ fn current_timestamp_ms() -> u64 {
 #[async_trait]
 pub trait EventPublisher: Send + Sync {
     /// 发布事件
-    async fn publish(&self, event: CacheEvent);
+    async fn publish(&self, event: CacheEvent) -> Result<(), CacheError>;
 
     /// 发布命中事件
-    fn publish_hit(&self, _key: impl Into<String>, _latency_ms: u64) {
+    fn publish_hit(&self, _key: impl Into<String>, _latency_ms: u64) -> Result<(), CacheError> {
         // 默认实现需要是同步的，因为 trait 中不能有异步默认实现
         // 子类可以覆盖这个方法提供异步版本
+        Ok(())
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, _key: impl Into<String>, _latency_ms: u64) {
+    fn publish_miss(&self, _key: impl Into<String>, _latency_ms: u64) -> Result<(), CacheError> {
         // 默认实现需要是同步的
+        Ok(())
     }
 
     /// 发布设置事件
-    fn publish_set(&self, _key: impl Into<String>) {
+    fn publish_set(&self, _key: impl Into<String>) -> Result<(), CacheError> {
         // 默认实现需要是同步的
+        Ok(())
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, _key: impl Into<String>) {
+    fn publish_delete(&self, _key: impl Into<String>) -> Result<(), CacheError> {
         // 默认实现需要是同步的
+        Ok(())
     }
 
     /// 发布错误事件
-    fn publish_error(&self, _key: Option<String>, _error: impl Into<String>) {
+    fn publish_error(&self, _key: Option<String>, _error: impl Into<String>) -> Result<(), CacheError> {
         // 默认实现需要是同步的
+        Ok(())
     }
 }
 

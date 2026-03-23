@@ -184,13 +184,13 @@ mod tests {
     /// 测试用内存缓存适配器
     #[derive(Clone, Debug)]
     struct MemoryCacheAdapter {
-        store: Arc<std::sync::Mutex<HashMap<String, HttpCacheResponse>>>,
+        store: Arc<tokio::sync::Mutex<HashMap<String, HttpCacheResponse>>>,
     }
 
     impl MemoryCacheAdapter {
         fn new() -> Self {
             Self {
-                store: Arc::new(std::sync::Mutex::new(HashMap::new())),
+                store: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             }
         }
     }
@@ -198,41 +198,25 @@ mod tests {
     #[async_trait]
     impl HttpCacheAdapter for MemoryCacheAdapter {
         async fn get_response(&self, key: &str) -> Result<Option<HttpCacheResponse>, crate::error::CacheError> {
-            let store = self
-                .store
-                .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))?;
+            let store = self.store.lock().await;
             Ok(store.get(key).cloned())
         }
 
         async fn set_response(&self, key: &str, response: &HttpCacheResponse) -> Result<(), crate::error::CacheError> {
-            if let Ok(mut store) = self
-                .store
-                .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()))
-            {
-                store.insert(key.to_string(), response.clone());
-            }
+            let mut store = self.store.lock().await;
+            store.insert(key.to_string(), response.clone());
             Ok(())
         }
 
         async fn delete_response(&self, key: &str) -> Result<bool, crate::error::CacheError> {
-            let store_result = self
-                .store
-                .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
-            Ok(store_result.is_ok_and(|mut store| store.remove(key).is_some()))
+            let mut store = self.store.lock().await;
+            Ok(store.remove(key).is_some())
         }
 
         async fn invalidate_by_pattern(&self, _pattern: &str) -> Result<u64, crate::error::CacheError> {
-            let store_result = self
-                .store
-                .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
-            let count = store_result.as_ref().map(|store| store.len()).unwrap_or(0);
-            if let Ok(mut store) = store_result {
-                store.clear();
-            }
+            let mut store = self.store.lock().await;
+            let count = store.len();
+            store.clear();
             Ok(count as u64)
         }
 
@@ -240,16 +224,11 @@ mod tests {
             &self,
             keys: &[&str],
         ) -> Result<HashMap<String, HttpCacheResponse>, crate::error::CacheError> {
-            let store_result = self
-                .store
-                .lock()
-                .map_err(|e| crate::error::CacheError::LockError(e.to_string()));
+            let store = self.store.lock().await;
             let mut result = HashMap::new();
-            if let Ok(store) = store_result {
-                for &key in keys {
-                    if let Some(resp) = store.get(key) {
-                        result.insert(key.to_string(), resp.clone());
-                    }
+            for &key in keys {
+                if let Some(resp) = store.get(key) {
+                    result.insert(key.to_string(), resp.clone());
                 }
             }
             Ok(result)
