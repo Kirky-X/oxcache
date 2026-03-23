@@ -12,7 +12,7 @@
 use crate::common::{is_redis_available, setup_logging};
 use oxcache::backend::client::RedisBackend;
 use oxcache::backend::CacheBackend;
-use oxcache::security::validate_lua_script;
+use oxcache::security::test_helpers::validate_lua_script;
 use std::time::Duration;
 
 /// 测试 Redis Lua 脚本验证功能

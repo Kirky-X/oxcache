@@ -7,7 +7,9 @@
 use crate::common::redis_test_utils;
 use oxcache::backend::client::redis::RedisBackend;
 use redis_test_utils::{get_redis_url, is_redis_available, test_redis_connection};
+use serial_test::serial;
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_standalone_creation() {
     println!("测试RedisBackend Standalone模式创建...");
@@ -38,6 +40,7 @@ async fn test_redis_backend_standalone_creation() {
     println!("✓ Standalone RedisBackend创建成功");
 }
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_standalone_basic_operations() {
     println!("测试RedisBackend Standalone模式基本操作...");
@@ -64,6 +67,7 @@ async fn test_redis_backend_standalone_basic_operations() {
     println!("✓ Standalone模式基本操作测试完成");
 }
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_ping() {
     println!("测试RedisBackend PING...");
@@ -85,6 +89,7 @@ async fn test_redis_backend_ping() {
     println!("✓ RedisBackend PING测试成功");
 }
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_connection_string_variations() {
     println!("测试不同连接字符串格式...");
@@ -108,6 +113,7 @@ async fn test_redis_backend_connection_string_variations() {
     println!("✓ 连接字符串格式测试完成");
 }
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_multiple_operations() {
     println!("测试RedisBackend多次连接...");
@@ -132,6 +138,7 @@ async fn test_redis_backend_multiple_operations() {
     println!("✓ 多次连接测试完成");
 }
 
+#[serial(redis)]
 #[tokio::test]
 async fn test_redis_backend_connection_error_handling() {
     println!("测试RedisBackend连接错误处理...");

@@ -4,7 +4,9 @@
 //
 // 安全模块测试 - 验证安全验证功能
 
-use oxcache::security::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
+use oxcache::security::test_helpers::{
+    clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern,
+};
 
 #[test]
 fn test_validate_redis_key_valid() {
