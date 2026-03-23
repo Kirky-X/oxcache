@@ -23,8 +23,6 @@
 //! oxcache admin warmup --file warmup.json
 //! ```
 
-use std::time::Duration;
-
 use oxcache::Cache;
 
 /// 演示 CLI 工具的基本功能

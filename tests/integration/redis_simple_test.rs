@@ -10,8 +10,10 @@ mod redis_integration_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::RedisBackend;
     use oxcache::backend::CacheBackend;
+    use serial_test::serial;
     use std::time::Duration;
 
+    #[serial(redis)]
     #[tokio::test]
     async fn test_redis_connection() {
         if !is_redis_available().await {
@@ -54,6 +56,7 @@ mod redis_integration_tests {
         );
     }
 
+    #[serial(redis)]
     #[tokio::test]
     async fn test_redis_ttl() {
         if !is_redis_available().await {
@@ -82,6 +85,7 @@ mod redis_integration_tests {
         println!("✅ TTL operation test passed");
     }
 
+    #[serial(redis)]
     #[tokio::test]
     async fn test_redis_batch_operations() {
         if !is_redis_available().await {

@@ -345,7 +345,14 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
-                let value: V = serde_json::from_slice(&data).map_err(|e| CacheError::Serialization(e.to_string()))?;
+                // 使用 serde_json 直接反序列化，避免与序列化器 API 的不匹配
+                let value: V = match serde_json::from_slice(&data) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(key = %key_str, error = %e, "Deserialization failed, returning None");
+                        return Ok(None);
+                    }
+                };
                 Ok(Some(value))
             }
             None => Ok(None),
@@ -409,7 +416,14 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            // 使用 serde_json 直接序列化
+            let bytes = match serde_json::to_vec(value) {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::error!(key = %key_str, error = %e, "Serialization failed");
+                    return Err(CacheError::Serialization(e.to_string()));
+                }
+            };
             self.backend.set(&key_str, bytes, ttl).await
         }
 
@@ -639,7 +653,14 @@ where
             let mut batch_items = Vec::new();
             for (key, value) in items {
                 let key_str = key.to_key_string();
-                let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+                // 使用 serde_json 直接序列化
+                let bytes = match serde_json::to_vec(value) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        tracing::error!(key = %key_str, error = %e, "Serialization failed in batch");
+                        return Err(CacheError::Serialization(e.to_string()));
+                    }
+                };
                 batch_items.push((key_str, bytes, None));
             }
             self.backend.set_many(&batch_items).await
