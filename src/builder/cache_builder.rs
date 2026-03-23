@@ -328,9 +328,9 @@ where
                     .await?;
 
                 Arc::new(
-                    crate::chain::ChainCache::builder()
-                        .link(crate::chain::ChainLink::from_backend(l1))
-                        .link(crate::chain::ChainLink::from_backend(l2))
+                    crate::cache::chain::ChainCache::builder()
+                        .link(crate::cache::chain::ChainLink::from_backend(l1))
+                        .link(crate::cache::chain::ChainLink::from_backend(l2))
                         .build(),
                 )
             }

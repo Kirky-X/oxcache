@@ -17,6 +17,37 @@ pub const MIN_CACHE_CAPACITY: u64 = 100;
 /// 最大缓存容量
 pub const MAX_CACHE_CAPACITY: u64 = 10_000_000;
 
+/// 类型安全的缓存容量封装
+#[derive(Debug, Clone, Copy)]
+pub struct CacheCapacity(u64);
+
+impl CacheCapacity {
+    /// 创建新的缓存容量，如果值超出范围则返回 None
+    pub fn new(capacity: u64) -> Option<Self> {
+        if (MIN_CACHE_CAPACITY..=MAX_CACHE_CAPACITY).contains(&capacity) {
+            Some(Self(capacity))
+        } else {
+            None
+        }
+    }
+
+    /// 获取容量值
+    pub fn value(&self) -> u64 {
+        self.0
+    }
+
+    /// 获取默认值
+    pub fn default_capacity() -> Self {
+        Self(DEFAULT_CACHE_CAPACITY)
+    }
+}
+
+impl Default for CacheCapacity {
+    fn default() -> Self {
+        Self::default_capacity()
+    }
+}
+
 // ============================================================================
 // Redis 相关常量
 // ============================================================================
@@ -29,6 +60,37 @@ pub const MIN_POOL_SIZE: usize = 1;
 
 /// 最大 Redis 连接池大小
 pub const MAX_POOL_SIZE: usize = 100;
+
+/// 类型安全的连接池大小封装
+#[derive(Debug, Clone, Copy)]
+pub struct PoolSize(usize);
+
+impl PoolSize {
+    /// 创建新的池大小，如果值超出范围则返回 None
+    pub fn new(size: usize) -> Option<Self> {
+        if (MIN_POOL_SIZE..=MAX_POOL_SIZE).contains(&size) {
+            Some(Self(size))
+        } else {
+            None
+        }
+    }
+
+    /// 获取池大小值
+    pub fn value(&self) -> usize {
+        self.0
+    }
+
+    /// 获取默认值
+    pub fn default_size() -> Self {
+        Self(DEFAULT_POOL_SIZE)
+    }
+}
+
+impl Default for PoolSize {
+    fn default() -> Self {
+        Self::default_size()
+    }
+}
 
 /// 默认连接超时（秒）
 pub const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 5;

@@ -10,6 +10,37 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+// ============================================================================
+// 智能策略常量定义
+// ============================================================================
+
+/// 预取触发阈值（命中率低于此值时触发预取）
+const DEFAULT_PREFETCH_THRESHOLD: f64 = 0.8;
+
+/// 预取窗口默认大小
+const DEFAULT_PREFETCH_WINDOW_SIZE: usize = 1000;
+
+/// 预取批量默认大小
+const DEFAULT_PREFETCH_BATCH_SIZE: usize = 10;
+
+/// 压缩阈值默认值（字节）
+const DEFAULT_COMPRESSION_THRESHOLD: usize = 1024;
+
+/// 最小压缩率（压缩后大小/原始大小 < 此值时才压缩）
+const MIN_COMPRESSION_RATIO: f64 = 0.8;
+
+/// 压缩采样率
+const COMPRESSION_SAMPLE_RATE: f64 = 0.1;
+
+/// 熵归一化基数（8位 = 1字节的最大熵）
+const ENTROPY_NORMALIZATION_BASE: f64 = 8.0;
+
+/// 压缩率估算的最小值
+const ESTIMATED_COMPRESSION_RATIO_MIN: f64 = 0.3;
+
+/// 压缩率估算的最大因子
+const ESTIMATED_COMPRESSION_RATIO_FACTOR: f64 = 0.7;
+
 /// 智能策略配置
 #[derive(Debug, Clone)]
 pub struct SmartStrategyConfig {
@@ -35,13 +66,13 @@ impl Default for SmartStrategyConfig {
     fn default() -> Self {
         Self {
             prefetch_enabled: true,
-            prefetch_threshold: 0.8,
-            prefetch_window_size: 1000,
-            prefetch_batch_size: 10,
+            prefetch_threshold: DEFAULT_PREFETCH_THRESHOLD,
+            prefetch_window_size: DEFAULT_PREFETCH_WINDOW_SIZE,
+            prefetch_batch_size: DEFAULT_PREFETCH_BATCH_SIZE,
             compression_enabled: true,
-            compression_threshold: 1024,
-            min_compression_ratio: 0.8,
-            compression_sample_rate: 0.1,
+            compression_threshold: DEFAULT_COMPRESSION_THRESHOLD,
+            min_compression_ratio: MIN_COMPRESSION_RATIO,
+            compression_sample_rate: COMPRESSION_SAMPLE_RATE,
         }
     }
 }
@@ -188,14 +219,15 @@ impl CompressibilityChecker {
 
         // 高熵数据（接近均匀分布）通常不可压缩
         // 低熵数据（重复模式多）通常可压缩
-        let normalized_entropy = entropy / 8.0; // 归一化到 0-1
+        let normalized_entropy = entropy / ENTROPY_NORMALIZATION_BASE;
 
         // 估计压缩率（基于熵的简化模型）
-        let estimated_ratio = 0.3 + 0.7 * normalized_entropy;
+        let estimated_ratio = ESTIMATED_COMPRESSION_RATIO_MIN + ESTIMATED_COMPRESSION_RATIO_FACTOR * normalized_entropy;
 
         // 如果熵低于阈值，认为可压缩
-        let worth_compressing =
-            normalized_entropy < self.entropy_threshold && estimated_ratio < 0.8 && data.len() > self.sample_size;
+        let worth_compressing = normalized_entropy < self.entropy_threshold
+            && estimated_ratio < MIN_COMPRESSION_RATIO
+            && data.len() > self.sample_size;
 
         (worth_compressing, estimated_ratio)
     }
