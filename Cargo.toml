@@ -360,7 +360,7 @@ dashmap = ["dep:dashmap"]
 
 # Advanced Features
 bloom-filter = ["dep:bloomfilter", "dep:murmur3"]
-rate-limiting = []
+rate-limiting = ["dashmap"]
 wal-recovery = ["database", "redis"]
 batch-write = ["dep:tokio-util"]
 sync = []
