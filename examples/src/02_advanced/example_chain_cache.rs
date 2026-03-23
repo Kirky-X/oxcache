@@ -112,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn demo_chain_cache_operations(chain: &ChainCache) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user = User {
         id: 1,

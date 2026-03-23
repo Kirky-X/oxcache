@@ -208,7 +208,9 @@ pub trait UnifiedCache: Send + Sync + Any {
 
     /// Determine if parallel execution should be used
     fn should_parallelize(&self, item_count: usize) -> bool {
-        self.is_l2_cache() && item_count > 1
+        // L2 缓存且项目数量大于 5 时才使用并行化
+        // 小批量并行化的开销可能超过收益
+        self.is_l2_cache() && item_count > 5
     }
 
     /// Set multiple values with parallel execution for L2 cache
@@ -218,11 +220,13 @@ pub trait UnifiedCache: Send + Sync + Any {
         I::IntoIter: Send,
     {
         let items: Vec<_> = items.into_iter().collect();
+        let item_count = items.len();
 
-        if self.should_parallelize(items.len()) {
+        if self.should_parallelize(item_count) {
             #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
             {
-                let futures: Vec<_> = items.iter().map(|(k, v)| self.set_bytes(k, v.clone(), None)).collect();
+                // 对于大批量，使用并行执行
+                let futures: Vec<_> = items.into_iter().map(|(k, v)| self.set_bytes(k, v, None)).collect();
                 let results: Vec<Result<()>> = join_all(futures).await;
                 for result in results {
                     result?;
@@ -230,13 +234,14 @@ pub trait UnifiedCache: Send + Sync + Any {
             }
             #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
             {
-                for (key, value) in &items {
-                    self.set_bytes(key, value.clone(), None).await?;
+                for (key, value) in items {
+                    self.set_bytes(key, value, None).await?;
                 }
             }
         } else {
-            for (key, value) in &items {
-                self.set_bytes(key, value.clone(), None).await?;
+            // 对于小批量或 L1 缓存，顺序执行更快
+            for (key, value) in items {
+                self.set_bytes(key, value, None).await?;
             }
         }
         Ok(())

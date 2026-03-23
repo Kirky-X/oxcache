@@ -16,8 +16,6 @@
 //! 2. 安全日志 - 确保日志中不泄露敏感信息
 //! 3. 配置验证 - 防止路径遍历等安全漏洞
 
-use std::time::Duration;
-
 use oxcache::utils::redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
 use oxcache::utils::security_log::sanitize_message;
 use oxcache::Cache;
