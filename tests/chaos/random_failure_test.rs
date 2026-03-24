@@ -6,6 +6,7 @@
 //
 // 本测试演示缓存存在随机Redis故障情况下的稳定性和恢复能力
 
+use crate::common::redis_test_utils::is_redis_available;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Once;
@@ -31,9 +32,14 @@ struct TestData {
 }
 
 #[tokio::test]
-#[ignore] // 需要真实的 Redis 环境
 async fn test_random_redis_failures() {
     setup_logging();
+
+    // 检查 Redis 是否可用
+    if !is_redis_available().await {
+        println!("[TEST-SKIP] Redis not available - test_random_redis_failures");
+        return;
+    }
 
     // 使用新版 Cache API 创建缓存实例
     let cache: Cache<String, TestData> = match Cache::builder().build().await {
@@ -78,9 +84,14 @@ async fn test_random_redis_failures() {
 }
 
 #[tokio::test]
-#[ignore] // 需要真实的 Redis 环境
 async fn test_distributed_lock_during_failures() {
     setup_logging();
+
+    // 检查 Redis 是否可用
+    if !is_redis_available().await {
+        println!("[TEST-SKIP] Redis not available - test_distributed_lock_during_failures");
+        return;
+    }
 
     // 使用 Arc 来共享 Cache
     let cache: Cache<String, TestData> = match Cache::builder().build().await {
@@ -120,9 +131,14 @@ async fn test_distributed_lock_during_failures() {
 }
 
 #[tokio::test]
-#[ignore] // 需要真实的 Redis 环境
 async fn test_fault_recovery() {
     setup_logging();
+
+    // 检查 Redis 是否可用
+    if !is_redis_available().await {
+        println!("[TEST-SKIP] Redis not available - test_fault_recovery");
+        return;
+    }
 
     let cache: Cache<String, TestData> = match Cache::builder().build().await {
         Ok(cache) => cache,
