@@ -19,6 +19,18 @@
 
 #![allow(unused_doc_comments)]
 
+// Submodules
+pub mod log;
+pub mod redaction;
+pub mod regex;
+pub mod validation;
+
+// Re-exports for convenience
+pub use log::{log_cache_key, sanitize_message};
+pub use redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
+pub use validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
+
 use crate::error::{CacheError, Result};
 
 /// Lua 脚本最大长度 (10KB)
@@ -51,17 +63,17 @@ static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
 
 /// 预编译的 Lua 循环检测正则
 lazy_static::lazy_static! {
-    static ref LUA_LOOP_REGEXES: Vec<regex::Regex> = {
+    static ref LUA_LOOP_REGEXES: Vec<::regex::Regex> = {
         LUA_LOOP_PATTERNS
             .iter()
-            .map(|(pattern, _)| regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
+            .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
             .collect()
     };
 }
 
 /// 空白字符替换正则
 lazy_static::lazy_static! {
-    static ref WHITESPACE_REGEX: regex::Regex = regex::Regex::new(r"\s+").expect("Invalid whitespace regex");
+    static ref WHITESPACE_REGEX: ::regex::Regex = ::regex::Regex::new(r"\s+").expect("Invalid whitespace regex");
 }
 
 /// 验证 Redis 缓存键是否安全
@@ -85,7 +97,7 @@ lazy_static::lazy_static! {
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> Result<()> {
     // 使用公共验证模块进行基础验证
-    crate::utils::validation::redis::validate_key(key)?;
+    crate::security::validation::redis::validate_key(key)?;
 
     // ========== 安全增强 ==========
 

@@ -6,7 +6,7 @@
 //
 // 根据分数对后端进行排序，并修正不合理的配置。
 
-use crate::chain::ChainLink;
+use crate::cache::chain::ChainLink;
 use std::sync::Arc;
 use tracing::{debug, warn};
 
@@ -218,7 +218,7 @@ impl ValidationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::MockBackend;
+    use crate::testing::mock::MockBackend;
 
     #[test]
     fn test_sort_links() {

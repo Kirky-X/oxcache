@@ -48,7 +48,7 @@ use crate::backend::client::moka::MokaMemoryBackend as MemoryBackend;
 use crate::backend::client::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
 use crate::backend::CacheBackend;
 use crate::error::{CacheError, Result};
-use crate::utils::redaction::redact_value;
+use crate::security::redaction::redact_value;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt;

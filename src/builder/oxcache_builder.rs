@@ -9,7 +9,7 @@
 use crate::backend::interface::CacheBackend;
 use crate::backend::score::BackendScore;
 use crate::builder::sorter::BackendSorter;
-use crate::chain::{ChainCache, ChainLink};
+use crate::cache::chain::{ChainCache, ChainLink};
 use crate::error::{CacheError, Result};
 use std::time::Duration;
 use tracing::debug;
@@ -245,7 +245,7 @@ impl OxCacheBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::MockBackend;
+    use crate::testing::mock::MockBackend;
 
     // (测试代码继续...)
 

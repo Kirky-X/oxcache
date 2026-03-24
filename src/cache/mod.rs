@@ -4,6 +4,14 @@
 //!
 //! Unified Cache interface for the modernized cache API
 
+// Submodules
+pub mod chain;
+pub mod interface;
+
+// Re-exports
+pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
+pub use interface::UnifiedCache;
+
 use crate::backend::client::MokaMemoryBackend as MemoryBackend;
 use crate::backend::CacheBackend;
 use crate::error::{CacheError, Result};
