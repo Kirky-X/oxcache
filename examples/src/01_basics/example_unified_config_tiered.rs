@@ -31,21 +31,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_redis_url("redis://localhost:6379")  // L2 Redis connection
         .with_redis_mode("standalone")      // Redis mode
         .with_metrics(true)                 // Enable metrics
-        .build();
+        .build()?;
 
     println!("Configuration created:");
     println!("  - Backend type: Tiered (L1 + L2)");
     println!("  - TTL: {} seconds", config.global.default_ttl);
     println!("  - L1 capacity: {} entries",
-             config.backend.l1_options["max_capacity"]);
+             config.backend.l1_options()["max_capacity"]);
     println!("  - Redis URL: {}",
-             config.backend.l2_options["connection_string"]);
-    println!("  - Redis mode: {}", config.backend.l2_options["mode"]);
+             config.backend.l2_options()["connection_string"]);
+    println!("  - Redis mode: {}", config.backend.l2_options()["mode"]);
     println!("  - Metrics enabled: {}", config.metrics.enabled);
 
     // Step 2: Create cache from configuration
     // Note: This will fail if Redis is not running
-    let cache: Cache<String, Product> = match CacheBuilder::from_unified_config(&config)
+    let cache: Cache<String, Product> = match CacheBuilder::from_unified_config(&config)?
         .build()
         .await
     {

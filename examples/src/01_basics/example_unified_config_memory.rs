@@ -27,17 +27,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = UnifiedConfigBuilder::memory_only()
         .with_ttl(3600)           // Default TTL: 1 hour
         .with_l1_capacity(10000) // L1 cache capacity: 10,000 entries
-        .build();
+        .build()?;
 
     println!("Configuration created:");
     println!("  - Backend type: Memory (L1 only)");
     println!("  - TTL: {} seconds", config.global.default_ttl);
     println!("  - L1 capacity: {} entries",
-             config.backend.l1_options["max_capacity"]);
+             config.backend.l1_options()["max_capacity"]);
 
     // Step 2: Create cache directly from configuration
     // The from_unified_config() method integrates UnifiedConfig with CacheBuilder
-    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)?
         .build()
         .await?;
 
