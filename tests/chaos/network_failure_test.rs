@@ -4,23 +4,24 @@
 //
 // 网络故障混沌测试
 
-use crate::common::{get_redis_url, is_redis_available, setup_redis_container, wait_for_redis};
+#[path = "../common/mod.rs"]
+mod common;
+
+use common::docker_test_utils::{setup_redis_container, RedisContainer};
+use common::redis_test_utils::{get_redis_url, is_redis_available, wait_for_redis};
 use oxcache::backend::client::redis::RedisBackend;
 use oxcache::backend::interface::CacheBackend;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
-
-#[path = "../common/mod.rs"]
-mod common;
+use tokio::sync::Mutex;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct TestData {
     id: u64,
     value: String,
 }
-
-impl oxcache::traits::Cacheable for TestData {}
 
 #[tokio::test]
 async fn test_connection_recovery_after_failure() {
@@ -35,7 +36,10 @@ async fn test_connection_recovery_after_failure() {
     let backend = RedisBackend::new(&redis_url).await.unwrap();
 
     // 正常操作
-    backend.set("recovery_key", b"initial_value".to_vec(), None).await.unwrap();
+    backend
+        .set("recovery_key", b"initial_value".to_vec(), None)
+        .await
+        .unwrap();
     let value = backend.get("recovery_key").await.unwrap();
     assert_eq!(value, Some(b"initial_value".to_vec()));
 
@@ -130,7 +134,7 @@ async fn test_graceful_degradation() {
 
     // 使用 get_or 提供降级数据
     let result: TestData = cache
-        .get_or("degraded_key", || async { Ok(fallback_data.clone()) })
+        .get_or(&"degraded_key".to_string(), || async { Ok(fallback_data.clone()) })
         .await
         .unwrap();
 
@@ -233,7 +237,10 @@ async fn test_network_latency_simulation() {
     let start = std::time::Instant::now();
 
     for _ in 0..100 {
-        backend.set("latency_key", b"latency_value".to_vec(), None).await.unwrap();
+        backend
+            .set("latency_key", b"latency_value".to_vec(), None)
+            .await
+            .unwrap();
         backend.get("latency_key").await.unwrap();
     }
 
@@ -251,23 +258,30 @@ async fn test_network_latency_simulation() {
 async fn test_with_testcontainers_network_failure() {
     println!("=== Testcontainers 网络故障测试 ===");
 
-    let (container, redis_url) = match setup_redis_container().await {
-        Ok(result) => result,
+    let result = setup_redis_container().await;
+    let (container, redis_url): (RedisContainer, String) = match result {
+        Ok(r) => r,
         Err(e) => {
             println!("跳过测试: 无法启动 Redis 容器 - {}", e);
             return;
         }
     };
 
-    if !wait_for_redis(&redis_url, 30).await {
+    if !wait_for_redis(&redis_url).await {
         println!("跳过测试: Redis 容器未就绪");
         return;
     }
 
+    // 设置环境变量以允许不安全连接（testcontainers 创建的 Redis）
+    std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+
     let backend = RedisBackend::new(&redis_url).await.unwrap();
 
     // 正常操作
-    backend.set("container_test_key", b"test_value".to_vec(), None).await.unwrap();
+    backend
+        .set("container_test_key", b"test_value".to_vec(), None)
+        .await
+        .unwrap();
     let value = backend.get("container_test_key").await.unwrap();
     assert_eq!(value, Some(b"test_value".to_vec()));
 
@@ -282,12 +296,13 @@ async fn test_memory_cache_under_stress() {
     println!("=== 内存缓存压力测试 ===");
 
     let cache: Cache<String, TestData> = Cache::memory().await.unwrap();
+    let cache = Arc::new(Mutex::new(cache));
 
     // 高并发压力测试
     let mut handles = Vec::new();
 
     for thread_id in 0..20 {
-        let cache = std::sync::Arc::new(tokio::sync::Mutex::new(cache.clone()));
+        let cache = Arc::clone(&cache);
         let handle = tokio::spawn(async move {
             for i in 0..100 {
                 let key = format!("stress_{}_{}", thread_id, i);
