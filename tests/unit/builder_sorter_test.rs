@@ -281,14 +281,14 @@ fn test_sort_links_many_backends() {
     ];
 
     let mut links = Vec::new();
-    for i in 0..20 {
+    for (i, name) in NAMES.iter().enumerate() {
         let score = (i % 5) as u8;
         let persistent = i % 3 == 0;
         links.push(ChainLink::new(
-            MockBackend::new(NAMES[i], score, persistent),
+            MockBackend::new(name, score, persistent),
             score,
             persistent,
-            NAMES[i],
+            name,
         ));
     }
 

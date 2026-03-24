@@ -150,8 +150,8 @@ pub async fn is_redis_available(url: &str) -> bool {
         Err(_) => return false,
     };
 
-    match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
-        Ok(Ok(_)) => true,
-        _ => false,
-    }
+    matches!(
+        tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await,
+        Ok(Ok(_))
+    )
 }
