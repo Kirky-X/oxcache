@@ -105,7 +105,9 @@ version = "1.1"
 optional = true
 
 [dependencies.bincode]
-version = "3.0"
+version = "3.0.0-rc.5"
+package = "bincode-next"
+features = ["serde"]
 optional = true
 
 # Extra serialization (MessagePack, CBOR)

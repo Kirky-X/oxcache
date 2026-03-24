@@ -7,6 +7,7 @@
 use super::utils::check_data_size;
 use super::Serializer;
 use crate::error::{CacheError, Result};
+use serde::{Deserialize, Serialize};
 
 /// Bincode序列化器
 ///
@@ -16,6 +17,10 @@ pub struct BincodeSerializer;
 
 /// 最大反序列化大小限制（10MB）
 const MAX_BINCODE_SIZE: usize = 10 * 1024 * 1024;
+
+/// 字节数组包装器，用于序列化字节数组
+#[derive(Serialize, Deserialize)]
+struct ByteArrayWrapper(Vec<u8>);
 
 impl Serializer for BincodeSerializer {
     /// 序列化值为Bincode字节数组
@@ -29,7 +34,9 @@ impl Serializer for BincodeSerializer {
     ///
     /// 返回序列化后的字节数组或错误
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        bincode::serialize(data).map_err(|e| CacheError::Serialization(e.to_string()))
+        let wrapper = ByteArrayWrapper(data.to_vec());
+        bincode::serde::encode_to_vec(&wrapper, bincode::config::standard())
+            .map_err(|e| CacheError::Serialization(e.to_string()))
     }
 
     /// 从Bincode字节数组反序列化值
@@ -50,6 +57,9 @@ impl Serializer for BincodeSerializer {
         // 安全检查：限制数据大小
         check_data_size(data, MAX_BINCODE_SIZE, "Bincode")?;
 
-        bincode::deserialize(data).map_err(|e| CacheError::Serialization(e.to_string()))
+        let (wrapper, _) = bincode::serde::decode_from_slice::<ByteArrayWrapper, _>(data, bincode::config::standard())
+            .map_err(|e| CacheError::Serialization(e.to_string()))?;
+
+        Ok(wrapper.0)
     }
 }
