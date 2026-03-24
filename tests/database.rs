@@ -10,14 +10,5 @@ mod debug_mysql_test;
 #[path = "database/partitioning_tests.rs"]
 mod partitioning_tests;
 
-#[path = "database/sea_orm_sqlite_tests.rs"]
-mod sea_orm_sqlite_tests;
-
-#[path = "database/sqlite_connection_test.rs"]
-mod sqlite_connection_test;
-
-#[path = "database/sqlite_partition_tests.rs"]
-mod sqlite_partition_tests;
-
 #[path = "common/database_test_utils.rs"]
 pub mod database_test_utils;

@@ -11,6 +11,7 @@ mod redis_client_comprehensive_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::redis::RedisBackend;
     use oxcache::backend::CacheBackend;
+    use oxcache::security::test_helpers::validate_lua_script;
     use serial_test::serial;
     use std::time::Duration;
 
@@ -603,6 +604,100 @@ mod redis_client_comprehensive_tests {
             client.delete("arg_test_2").await.ok();
 
             println!("✅ Lua script with multiple args test passed");
+        }
+
+        /// 测试 Lua 脚本安全验证 - 危险命令检测
+        #[test]
+        fn test_lua_script_validation_security() {
+            // 有效的 Lua 脚本应该能通过验证
+            let valid_script = r#"
+                local key = KEYS[1]
+                local value = ARGV[1]
+                return redis.call('GET', key)
+            "#;
+            assert!(validate_lua_script(valid_script, 1).is_ok());
+
+            // 包含禁止命令的脚本应该被拒绝
+            let dangerous_script = r#"
+                return redis.call('FLUSHALL')
+            "#;
+            assert!(validate_lua_script(dangerous_script, 0).is_err());
+
+            // 包含 KEYS 命令的脚本应该被拒绝
+            let keys_script = r#"
+                local keys = redis.call('KEYS', '*')
+                return keys
+            "#;
+            assert!(validate_lua_script(keys_script, 0).is_err());
+
+            println!("✅ Lua script validation security test passed");
+        }
+
+        /// 测试 Lua 脚本最大长度限制
+        #[test]
+        fn test_lua_script_max_length() {
+            // 创建超过限制的脚本
+            let long_script = "local x = 1\n".repeat(10000);
+            assert!(validate_lua_script(&long_script, 1).is_err());
+            println!("✅ Lua script max length test passed");
+        }
+
+        /// 测试 Lua 脚本最大 key 数量限制
+        #[test]
+        fn test_lua_script_max_keys() {
+            // 创建声明大量 KEYS 的脚本
+            let script = "local result = 0\n".to_string()
+                + "for i = 1, 101 do\n"
+                + "    local key = KEYS[i]\n"
+                + "    result = result + 1\n"
+                + "end\n"
+                + "return result";
+            assert!(validate_lua_script(&script, 101).is_err());
+            println!("✅ Lua script max keys test passed");
+        }
+
+        /// 测试 Sorted Set 操作（通过 Lua 脚本）
+        #[serial(redis)]
+        #[tokio::test]
+        async fn test_sorted_set_via_lua() {
+            if !is_redis_available().await {
+                println!("⚠️  Skipping - Redis not available");
+                return;
+            }
+
+            let ctx = test_context::RedisTestContext::new().await;
+            let client = ctx.create_client().await;
+
+            let test_key = "test:sorted:set1";
+
+            // 通过 Lua 脚本模拟 ZADD 操作
+            let zadd_script = r#"
+                local key = KEYS[1]
+                local score = tonumber(ARGV[1])
+                local member = ARGV[2]
+                redis.call('ZADD', key, score, member)
+                return 1
+            "#;
+
+            let zadd_result = client.eval_lua(zadd_script, &[test_key], &["1.0", "member1"]).await;
+            assert!(zadd_result.is_ok(), "ZADD via Lua should succeed");
+            println!("✅ ZADD via Lua test passed");
+
+            // 通过 Lua 脚本模拟 ZRANGE 操作
+            let zrange_script = r#"
+                local key = KEYS[1]
+                local start = tonumber(ARGV[1])
+                local stop = tonumber(ARGV[2])
+                return redis.call('ZRANGE', key, start, stop)
+            "#;
+
+            let zrange_result = client.eval_lua(zrange_script, &[test_key], &["0", "-1"]).await;
+            assert!(zrange_result.is_ok(), "ZRANGE via Lua should succeed");
+            println!("✅ ZRANGE via Lua test passed");
+
+            // 清理测试数据
+            let _ = client.delete(test_key).await;
+            println!("✅ Sorted Set via Lua test passed");
         }
     }
 
