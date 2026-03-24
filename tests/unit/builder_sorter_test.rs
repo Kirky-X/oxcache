@@ -9,7 +9,7 @@ mod common;
 
 use common::mock_backend::MockBackend;
 use oxcache::builder::sorter::{BackendSorter, ValidationResult};
-use oxcache::chain::ChainLink;
+use oxcache::cache::ChainLink;
 
 // ============================================================================
 // sort_links 函数测试

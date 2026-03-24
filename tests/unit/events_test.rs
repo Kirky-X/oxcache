@@ -5,7 +5,7 @@
 // 事件系统单元测试
 
 use async_trait::async_trait;
-use oxcache::events::{CacheEvent, CacheEventType, EventPublisher};
+use oxcache::core::events::{CacheEvent, CacheEventType, EventPublisher};
 
 #[test]
 fn test_cache_event_type_display() {

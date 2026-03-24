@@ -6,7 +6,7 @@
 
 use oxcache::backend::{BackendScore, CacheBackend, MokaMemoryBackend, Scores};
 use oxcache::builder::OxCacheBuilder;
-use oxcache::chain::{ChainCache, ChainLink};
+use oxcache::cache::{ChainCache, ChainLink};
 use std::time::Duration;
 
 /// 测试链式缓存基本读写
