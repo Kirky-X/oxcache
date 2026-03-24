@@ -548,6 +548,9 @@ pub use traits::{CacheKey, Cacheable};
 // Type-safe enum exports
 pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
+// Events module export
+pub use core::events;
+
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]
 pub use backend::client::DashMapMemoryBackend as DashMapBackend;
