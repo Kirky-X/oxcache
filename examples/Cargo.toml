@@ -122,6 +122,14 @@ name = "example_cached_macro"
 path = "src/01_basics/example_cached_macro.rs"
 
 [[example]]
+name = "example_unified_config_memory"
+path = "src/01_basics/example_unified_config_memory.rs"
+
+[[example]]
+name = "example_unified_config_tiered"
+path = "src/01_basics/example_unified_config_tiered.rs"
+
+[[example]]
 name = "example_bloom_filter"
 path = "src/06_features/example_bloom_filter.rs"
 
