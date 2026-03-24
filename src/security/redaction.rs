@@ -35,7 +35,7 @@ pub fn redact_value(value: &str, visible_chars: usize) -> String {
 /// 脱敏连接字符串
 ///
 /// 移除密码部分，防止敏感信息泄露
-/// 格式: redis://:password@host:port 或 redis://user:password@host:port
+/// 格式: redis://:password@host:port 或 redis://user:password@host:port /* pragma: allowlist secret */
 ///
 /// # 参数
 /// * `connection_string` - 连接字符串
@@ -200,11 +200,11 @@ mod tests {
     #[test]
     fn test_redact_connection_string() {
         assert_eq!(
-            redact_connection_string("redis://:mypassword@localhost:6379"),
+            redact_connection_string("redis://:mypassword@localhost:6379"), /* pragma: allowlist secret */
             "redis://:****@localhost:6379"
         );
         assert_eq!(
-            redact_connection_string("redis://user:mypassword@localhost:6379"),
+            redact_connection_string("redis://user:mypassword@localhost:6379"), /* pragma: allowlist secret */
             "redis://user:****@localhost:6379"
         );
         assert_eq!(

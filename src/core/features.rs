@@ -32,16 +32,8 @@ macro_rules! feature_check {
 // Generate individual feature availability functions
 feature_check!("moka", l1_available, "Check if L1 cache is available");
 feature_check!("redis", l2_available, "Check if L2 cache is available");
-feature_check!(
-    "metrics",
-    metrics_available,
-    "Check if metrics are available"
-);
-feature_check!(
-    "bloom-filter",
-    bloom_available,
-    "Check if bloom filter is available"
-);
+feature_check!("metrics", metrics_available, "Check if metrics are available");
+feature_check!("bloom-filter", bloom_available, "Check if bloom filter is available");
 feature_check!(
     "rate-limiting",
     rate_limiting_available,
@@ -67,11 +59,7 @@ feature_check!(
     compression_available,
     "Check if compression is available"
 );
-feature_check!(
-    "database",
-    database_available,
-    "Check if database is available"
-);
+feature_check!("database", database_available, "Check if database is available");
 feature_check!("cli", cli_available, "Check if CLI is available");
 feature_check!(
     "opentelemetry",

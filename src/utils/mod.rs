@@ -2,18 +2,11 @@
 //!
 //! MIT License
 //!
-//! 统一工具模块
+//! 工具模块
 //!
-//! 提供测试和示例共用的工具函数，包括：
-//! - 缓存键生成器
-//! - 安全日志工具
+//! 提供缓存键生成器等工具函数。
 
 pub(crate) mod key_generator;
-pub mod redaction;
-#[cfg(feature = "database")]
-pub mod regex_security;
-pub mod security_log;
-pub mod validation;
 
 use crate::error::CacheError;
 

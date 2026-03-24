@@ -550,7 +550,7 @@ impl ChainCacheBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::MockBackend;
+    use crate::testing::mock::MockBackend;
 
     #[test]
     fn test_chain_link_creation() {

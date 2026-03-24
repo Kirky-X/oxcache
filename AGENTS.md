@@ -24,21 +24,23 @@ oxcache 是一个 Rust 实现的高性能多层缓存库 (v0.2.0)，提供 L1 �
 oxcache/
 ├── src/
 │   ├── lib.rs            # 入口点，导出所有模块和宏
-│   ├── cache.rs          # Cache<T> 主实现
-│   ├── cache_interface.rs # 统一缓存接口 UnifiedCache
-│   ├── builder/         # CacheBuilder, BackendBuilder
-│   ├── backend/         # L1/L2 后端实现
-│   ├── traits/          # CacheKey, Cacheable traits
-│   ├── config/          # Confers 配置
-│   ├── serialization/   # 序列化/压缩
-│   ├── database/        # SQLite 集成
-│   ├── recovery/        # WAL 恢复
-│   ├── metrics/         # 指标收集
-│   └── smart_strategy/  # 智能策略
-├── tests/               # 测试套件 (unit/integration/e2e/chaos)
-├── examples/            # 示例代码
-├── macros/              # 内部宏 crate
-└── Cargo.toml          # 特性配置
+│   ├── core/             # 核心基础模块 (constants, types, features, events)
+│   ├── cache/            # 核心缓存模块 (Cache, UnifiedCache, ChainCache)
+│   ├── builder/          # CacheBuilder, BackendBuilder
+│   ├── backend/          # L1/L2 后端实现
+│   ├── traits/           # CacheKey, Cacheable traits
+│   ├── config/           # Confers 配置
+│   ├── serialization/    # 序列化/压缩
+│   ├── database/         # SQLite/MySQL/PostgreSQL 集成
+│   ├── security/         # 安全验证模块
+│   ├── testing/          # 测试辅助模块 (MockBackend)
+│   ├── metrics/          # 指标收集
+│   ├── recovery/         # WAL 恢复
+│   └── smart_strategy/   # 智能策略
+├── tests/                # 测试套件 (unit/integration/e2e/chaos)
+├── examples/             # 示例代码
+├── macros/               # 内部宏 crate
+└── Cargo.toml           # 特性配置
 ```
 
 ---
@@ -47,8 +49,10 @@ oxcache/
 
 | 任务 | 位置 |
 |------|------|
-| 核心缓存 API | `src/cache.rs`, `src/cache_interface.rs` |
+| 核心缓存 API | `src/cache/` |
 | 缓存构建器 | `src/builder/` |
+| 基础类型/常量 | `src/core/` |
+| 安全验证 | `src/security/` |
 | 配置模块 (confers) | `src/config/confers_config.rs` |
 | L1 后端 (Moka/DashMap) | `src/backend/client/` |
 | L2 后端 (Redis) | `src/backend/client/redis/` |

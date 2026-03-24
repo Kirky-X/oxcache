@@ -277,7 +277,7 @@ pub trait CacheBackend: Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::MockBackend;
+    use crate::testing::mock::MockBackend;
 
     #[tokio::test]
     async fn test_mock_backend() {
