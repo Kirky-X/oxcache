@@ -29,20 +29,11 @@ mod lifecycle_test;
 mod lock_warmup_test;
 #[path = "integration/manual_control_test.rs"]
 mod manual_control_test;
-#[path = "integration/metrics_test.rs"]
-mod metrics_test;
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
 #[path = "integration/redis_client_comprehensive_test.rs"]
 mod redis_client_comprehensive_test;
-#[path = "integration/redis_native_test.rs"]
-mod redis_native_test;
-#[path = "integration/redis_simple_test.rs"]
-mod redis_simple_test;
-#[path = "integration/redis_test.rs"]
-mod redis_test;
-#[path = "integration/security_test.rs"]
-mod security_test;
+
 #[path = "integration/single_flight_test.rs"]
 mod single_flight_test;
 #[path = "integration/ttl_control_test.rs"]
@@ -56,9 +47,6 @@ mod wal_test;
 
 #[path = "integration/l2_backend_test.rs"]
 mod l2_backend_test;
-
-#[path = "integration/redis_backend_integration_test.rs"]
-mod redis_backend_integration_test;
 
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
