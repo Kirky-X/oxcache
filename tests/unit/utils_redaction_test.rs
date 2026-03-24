@@ -4,7 +4,7 @@
 //
 // 敏感数据脱敏工具单元测试
 
-use oxcache::utils::redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+use oxcache::security::redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
 
 // ============================================================================
 // redact_value 函数测试

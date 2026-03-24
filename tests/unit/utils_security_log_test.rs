@@ -4,8 +4,8 @@
 //
 // 安全日志工具单元测试
 
-use oxcache::utils::redaction::{redact_cache_key, redact_connection_string};
-use oxcache::utils::security_log::sanitize_message;
+use oxcache::security::log::sanitize_message;
+use oxcache::security::redaction::{redact_cache_key, redact_connection_string};
 
 // ============================================================================
 // log_cache_key 函数测试
@@ -17,30 +17,30 @@ use oxcache::utils::security_log::sanitize_message;
 fn test_log_cache_key_sensitive_key() {
     // 使用不同日志级别测试
     // 主要验证函数不会因敏感键而 panic
-    oxcache::utils::security_log::log_cache_key("info", "Test message", "user_token_abc123");
-    oxcache::utils::security_log::log_cache_key("debug", "Debug log", "api_key_secret");
-    oxcache::utils::security_log::log_cache_key("warn", "Warning", "password_reset");
-    oxcache::utils::security_log::log_cache_key("error", "Error", "session_token_xyz");
+    oxcache::security::log::log_cache_key("info", "Test message", "user_token_abc123");
+    oxcache::security::log::log_cache_key("debug", "Debug log", "api_key_secret");
+    oxcache::security::log::log_cache_key("warn", "Warning", "password_reset");
+    oxcache::security::log::log_cache_key("error", "Error", "session_token_xyz");
 }
 
 /// 测试 log_cache_key 处理非敏感键
 #[test]
 fn test_log_cache_key_non_sensitive() {
-    oxcache::utils::security_log::log_cache_key("info", "Normal key", "user_profile_123");
-    oxcache::utils::security_log::log_cache_key("debug", "Cache hit", "product_info_456");
+    oxcache::security::log::log_cache_key("info", "Normal key", "user_profile_123");
+    oxcache::security::log::log_cache_key("debug", "Cache hit", "product_info_456");
 }
 
 /// 测试 log_cache_key 处理空键
 #[test]
 fn test_log_cache_key_empty() {
-    oxcache::utils::security_log::log_cache_key("info", "Empty key test", "");
+    oxcache::security::log::log_cache_key("info", "Empty key test", "");
 }
 
 /// 测试 log_cache_key 处理未知日志级别
 #[test]
 fn test_log_cache_key_unknown_level() {
     // 未知级别应该默认为 info
-    oxcache::utils::security_log::log_cache_key("unknown", "Test", "normal_key");
+    oxcache::security::log::log_cache_key("unknown", "Test", "normal_key");
 }
 
 // ============================================================================
