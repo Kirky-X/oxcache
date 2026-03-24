@@ -4,6 +4,9 @@
 //
 // 测试公共模块 - 统一导出所有测试工具
 
+// 禁用 clippy 警告 - Rust 测试框架正常行为，多个测试入口文件会重复加载此模块
+#![allow(clippy::duplicate_mod)]
+
 // 子模块
 pub mod database_test_utils;
 pub mod docker_test_utils;

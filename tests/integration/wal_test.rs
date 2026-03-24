@@ -59,11 +59,10 @@ mod tests {
     }
 
     fn is_same_operation(a: &Operation, b: &Operation) -> bool {
-        match (a, b) {
-            (Operation::Set, Operation::Set) => true,
-            (Operation::Delete, Operation::Delete) => true,
-            _ => false,
-        }
+        matches!(
+            (a, b),
+            (Operation::Set, Operation::Set) | (Operation::Delete, Operation::Delete)
+        )
     }
 
     // ========================================================================
