@@ -16,8 +16,9 @@
 use oxcache::backend::CacheBackend;
 #[cfg(feature = "redis")]
 use oxcache::backend::client::RedisBackend;
-use oxcache::{Cache, ChainCache};
+use oxcache::{Cache, ChainCache, OxCacheBuilder};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct User {

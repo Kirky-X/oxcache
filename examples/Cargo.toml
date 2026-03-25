@@ -58,7 +58,7 @@ http = { version = "1.0", optional = true }
 [features]
 default = []
 http-cache = ["oxcache/http-cache", "axum", "http"]
-redis = []
+redis = ["oxcache/redis"]
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
