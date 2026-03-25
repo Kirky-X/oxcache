@@ -33,13 +33,15 @@ oxcache = { path = "..", default-features = false, features = [
 ] }
 
 # Tracing for logging (minimal features)
-tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "~0.3", default-features = false, features = ["env-filter", "fmt"] }
 
 # Utilities needed by examples
-tempfile = "3.15"
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
-axum = { version = "0.8", optional = true, default-features = false, features = ["tokio"] }
-http = { version = "1.4", optional = true }
+tempfile = "~3.15"
+serde = { version = "~1.0", features = ["derive"] }
+tokio = { version = "~1.50", default-features = false, features = ["rt", "macros"] }
+chrono = { version = "~0.4", default-features = false, features = ["serde"] }
+axum = { version = "~0.8", optional = true, default-features = false, features = ["tokio"] }
+http = { version = "~1.4", optional = true }
 
 [features]
 default = []
