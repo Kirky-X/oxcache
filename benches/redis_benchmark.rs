@@ -14,11 +14,10 @@ use tokio::runtime::Runtime;
 
 /// 获取 Redis URL（优先使用环境变量）
 fn get_redis_url() -> String {
-    std::env::var("OXCACHE_REDIS_URL").unwrap_or_else(|_| {
-        // 设置环境变量以允许不安全的 Redis 连接（仅用于测试）
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-        "redis://127.0.0.1:6379".to_string()
-    })
+    // 先设置环境变量以允许不安全的 Redis 连接（仅用于测试）
+    // 必须在读取 URL 之前设置
+    std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    std::env::var("OXCACHE_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
 /// 基准测试Redis的SET操作性能
