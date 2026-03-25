@@ -21,8 +21,15 @@ path = "src/lib.rs"
 # Internal macros
 oxcache_macros = { path = "macros", version = "0.2.0", optional = true }
 
-# Async Runtime
-tokio = { version = "1.50", features = ["full"] }
+# Async Runtime - 精简特性
+tokio = { version = "1.50", default-features = false, features = [
+    "rt",
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "bytes",
+] }
 async-trait = "0.1"
 lazy_static = "1.5"
 once_cell = "1.21"
@@ -35,13 +42,19 @@ paste = "1.0"
 
 # Error Handling
 thiserror = "2.0"
-anyhow = "1.0"
+[dependencies.anyhow]
+version = "1.0"
+optional = true
 
 # Tracing for logging and instrumentation
-tracing = { version = "0.1", optional = true }
+[dependencies.tracing]
+version = "0.1"
+optional = true
 
 # Configuration
-toml = { version = "0.8", optional = true }
+[dependencies.toml]
+version = "0.8"
+optional = true
 
 # HTTP support for http-cache feature
 [dependencies.http]
@@ -79,21 +92,18 @@ version = "6.1"
 optional = true
 
 # ============================================================================
-# L2 CACHE DEPENDENCIES (Redis Distributed Cache)
-# ============================================================================
+# L2 Cache Dependencies (Redis) - 精简特性
 [dependencies.redis]
-version = "1.0"
+version = "0.27"
 default-features = false
-features = ["aio", "tokio-comp", "cluster-async", "sentinel", "connection-manager", "script"]
+features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentinel"]
 optional = true
 
 # ============================================================================
-# SERIALIZATION & COMPRESSION
-# ============================================================================
+# Serialization & Compression - 精简特性
 [dependencies.serde]
 version = "1.0"
-default-features = false
-features = ["derive", "alloc"]
+features = ["derive"]
 optional = true
 
 [dependencies.serde_json]
@@ -190,6 +200,7 @@ version = "1.9"
 version = "1.12"
 optional = true
 
+# Chrono - 精简特性
 [dependencies.chrono]
 version = "0.4"
 default-features = false
@@ -228,17 +239,17 @@ version = "0.22"
 features = ["derive"]
 optional = true
 
+# CLI - 精简特性
 [dependencies.clap]
 version = "4.6"
-default-features = false
-features = ["std", "derive", "env", "cargo"]
+features = ["derive", "env"]
 optional = true
 
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
 [dev-dependencies]
-tempfile = "3.27"
+tempfile = "3.15"
 serial_test = "3.4"
 rand = "0.10"
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -246,15 +257,14 @@ ctor = "0.2"
 mockall = "0.14.0"
 
 # ============================================================================
-# BUILD DEPENDENCIES
+# TEST DEPENDENCIES
 # ============================================================================
-[build-dependencies]
-anyhow = { version = "1.0", optional = true }
+[dev-dependencies.testcontainers]
+version = "0.23"
 
-
-# ============================================================================
-# FEATURE DEFINITIONS
-# ============================================================================
+[dev-dependencies.testcontainers-modules]
+version = "0.11"
+features = ["redis", "postgres"]
 
 [features]
 
@@ -481,13 +491,3 @@ harness = false
 [[bench]]
 name = "redis_benchmark"
 harness = false
-
-# ============================================================================
-# TEST DEPENDENCIES
-# ============================================================================
-[dev-dependencies.testcontainers]
-version = "0.23"
-
-[dev-dependencies.testcontainers-modules]
-version = "0.11"
-features = ["redis", "postgres"]

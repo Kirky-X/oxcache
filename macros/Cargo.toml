@@ -10,6 +10,7 @@ repository = "https://github.com/kirky-x/oxcache"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0", features = ["full", "extra-traits"] }
+# 精简 syn 特性，避免引入不必要的依赖
+syn = { version = "2.0", features = ["extra-traits", "parsing", "proc-macro"] }
 quote = "1.0"
 proc-macro2 = "1.0"
