@@ -184,7 +184,7 @@ version = "0.3"
 optional = true
 
 [dependencies.arc-swap]
-version = "1.8"
+version = "1.9"
 
 [dependencies.regex]
 version = "1.12"
