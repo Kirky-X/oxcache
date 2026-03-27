@@ -12,6 +12,82 @@ use garde::Validate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// 配置提供者 Trait（用于依赖注入）
+///
+/// 此 trait 定义了配置访问的抽象接口，遵循 di.md 架构规范中的
+/// Infrastructure Layer 要求。允许不同配置源（文件、环境变量、远程配置等）
+/// 的注入，实现配置的统一访问。
+///
+/// # 设计原则
+///
+/// - 继承 `Send + Sync`，确保可在 `Arc` 中安全共享
+/// - 使用 `&self` 而非 `&mut self`，内部状态变更通过内部可变性实现
+/// - 返回值使用 `Option<T>`，不 panic
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use oxcache::config::ConfigProvider;
+///
+/// // 注入配置提供者
+/// let config: Arc<dyn ConfigProvider> = Arc::new(UnifiedConfig::default());
+///
+/// // 获取配置值
+/// let ttl: Option<i64> = config.get_int("global.default_ttl");
+/// ```
+pub trait ConfigProvider: Send + Sync {
+    /// 获取字符串配置值
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - 配置键路径，使用点分隔（如 "global.default_ttl"）
+    ///
+    /// # Returns
+    ///
+    /// * `Some(value)` - 配置值存在
+    /// * `None` - 配置值不存在或路径无效
+    fn get_string(&self, key: &str) -> Option<String>;
+
+    /// 获取整数配置值
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - 配置键路径
+    ///
+    /// # Returns
+    ///
+    /// * `Some(value)` - 配置值存在且可解析为整数
+    /// * `None` - 配置值不存在或解析失败
+    fn get_int(&self, key: &str) -> Option<i64>;
+
+    /// 获取布尔配置值
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - 配置键路径
+    ///
+    /// # Returns
+    ///
+    /// * `Some(value)` - 配置值存在且可解析为布尔值
+    /// * `None` - 配置值不存在或解析失败
+    fn get_bool(&self, key: &str) -> Option<bool>;
+
+    /// 获取 JSON 配置值
+    ///
+    /// 用于获取复杂配置结构，如对象或数组。
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - 配置键路径
+    ///
+    /// # Returns
+    ///
+    /// * `Some(value)` - 配置值存在且可解析为 JSON
+    /// * `None` - 配置值不存在或解析失败
+    fn get_json(&self, key: &str) -> Option<serde_json::Value>;
+}
+
 /// 后端类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -434,6 +510,124 @@ impl UnifiedConfig {
     }
 }
 
+/// 为 UnifiedConfig 实现 ConfigProvider trait，支持依赖注入
+impl ConfigProvider for UnifiedConfig {
+    fn get_string(&self, key: &str) -> Option<String> {
+        // 通过 key 路径获取配置值
+        // 例如 "global.default_ttl" -> self.global.default_ttl
+        let parts: Vec<&str> = key.split('.').collect();
+        if parts.len() < 2 {
+            return None;
+        }
+
+        match parts[0] {
+            "global" => match *parts.get(1)? {
+                "default_ttl" => Some(self.global.default_ttl.to_string()),
+                "default_tti" => Some(self.global.default_tti.to_string()),
+                "health_check_interval" => Some(self.global.health_check_interval.to_string()),
+                _ => None,
+            },
+            "backend" => match *parts.get(1)? {
+                "backend_type" => Some(self.backend.backend_type.clone()),
+                "l1_type" => Some(self.backend.l1_type.clone()),
+                "l1_options_json" => Some(self.backend.l1_options_json.clone()),
+                "l2_type" => Some(self.backend.l2_type.clone()),
+                "l2_options_json" => Some(self.backend.l2_options_json.clone()),
+                "l1_enabled" => Some(self.backend.l1_enabled.to_string()),
+                "l2_enabled" => Some(self.backend.l2_enabled.to_string()),
+                _ => None,
+            },
+            "performance" => match *parts.get(1)? {
+                "max_concurrent_operations" => Some(self.performance.max_concurrent_operations.to_string()),
+                "command_timeout" => Some(self.performance.command_timeout.to_string()),
+                "enable_prefetching" => Some(self.performance.enable_prefetching.to_string()),
+                _ => None,
+            },
+            "metrics" => match *parts.get(1)? {
+                "enabled" => Some(self.metrics.enabled.to_string()),
+                "detailed" => Some(self.metrics.detailed.to_string()),
+                "export_format" => Some(self.metrics.export_format.clone()),
+                "export_endpoint" => self.metrics.export_endpoint.clone(),
+                _ => None,
+            },
+            "recovery" => match *parts.get(1)? {
+                "enable_wal" => Some(self.recovery.enable_wal.to_string()),
+                "wal_directory" => Some(self.recovery.wal_directory.clone()),
+                "enable_auto_recovery" => Some(self.recovery.enable_auto_recovery.to_string()),
+                _ => None,
+            },
+            "services" => {
+                // 对于 services，直接返回 services_json
+                if *parts.get(1)? == "json" {
+                    Some(self.services_json.clone())
+                } else {
+                    // 支持通过路径访问特定服务配置
+                    let services = self.services();
+                    let service_name = *parts.get(1)?;
+                    if let Some(service) = services.get(service_name) {
+                        match *parts.get(2)? {
+                            "cache_type" => Some(service.cache_type.clone()),
+                            "ttl" => service.ttl.map(|v| v.to_string()),
+                            "max_capacity" => service.max_capacity.map(|v| v.to_string()),
+                            "enable_metrics" => Some(service.enable_metrics.to_string()),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn get_int(&self, key: &str) -> Option<i64> {
+        self.get_string(key).and_then(|v| v.parse().ok())
+    }
+
+    fn get_bool(&self, key: &str) -> Option<bool> {
+        self.get_string(key).and_then(|v| v.parse().ok())
+    }
+
+    fn get_json(&self, key: &str) -> Option<serde_json::Value> {
+        // 对于 JSON 类型字段，直接解析
+        let parts: Vec<&str> = key.split('.').collect();
+        if parts.len() < 2 {
+            return None;
+        }
+
+        // 特殊处理 JSON 配置字段
+        if parts[0] == "backend" {
+            match *parts.get(1)? {
+                "l1_options" => {
+                    if self.backend.l1_options_json.is_empty() {
+                        return Some(serde_json::Value::Null);
+                    }
+                    serde_json::from_str(&self.backend.l1_options_json).ok()
+                }
+                "l2_options" => {
+                    if self.backend.l2_options_json.is_empty() {
+                        return Some(serde_json::Value::Null);
+                    }
+                    serde_json::from_str(&self.backend.l2_options_json).ok()
+                }
+                _ => {
+                    // 尝试将字符串值转换为 JSON
+                    let value = self.get_string(key)?;
+                    serde_json::from_str(&format!("\"{}\"", value)).ok()
+                }
+            }
+        } else if parts[0] == "services" && *parts.get(1)? == "all" {
+            // 返回所有服务配置的 JSON
+            serde_json::to_value(self.services()).ok()
+        } else {
+            // 尝试将字符串值转换为 JSON
+            let value = self.get_string(key)?;
+            serde_json::from_str(&format!("\"{}\"", value)).ok()
+        }
+    }
+}
+
 /// 配置构建器（使用 confers ConfigBuilder 的便捷包装）
 pub struct UnifiedConfigBuilder {
     builder: confers::ConfigBuilder<UnifiedConfig>,
@@ -730,6 +924,135 @@ impl UnifiedConfigBuilder {
         self.build()
             .map(|c| serde_json::to_value(c).unwrap_or_default())
             .unwrap_or_default()
+    }
+
+    /// 使用预构建的 UnifiedConfig 创建构建器（完全依赖注入模式）
+    ///
+    /// 此方法遵循 di.md 架构规范中的模式 3（完全注入），允许
+    /// 应用层完全控制配置的生命周期和单例共享。
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - 预构建的 UnifiedConfig 实例
+    ///
+    /// # Returns
+    ///
+    /// 使用预构建配置初始化的 UnifiedConfigBuilder 实例
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use std::sync::Arc;
+    /// use oxcache::config::{ConfigProvider, UnifiedConfig, UnifiedConfigBuilder};
+    ///
+    /// // 应用层创建并管理配置单例
+    /// let config = UnifiedConfig::from_toml_file("config.toml")?;
+    ///
+    /// // 通过完全注入创建构建器（用于进一步修改或直接使用）
+    /// let builder = UnifiedConfigBuilder::with_dependencies(config);
+    ///
+    /// // 可以在 builder 上继续修改配置
+    /// let final_config = builder.with_ttl(7200).build()?;
+    /// ```
+    pub fn with_dependencies(config: UnifiedConfig) -> Self {
+        let builder = confers::ConfigBuilder::new();
+        let services = config.services();
+        let services_json = serde_json::to_string(&services).unwrap_or_default();
+
+        // 使用预构建的配置值初始化 builder
+        let builder = builder
+            .default(
+                "global.default_ttl".to_string(),
+                confers::ConfigValue::uint(config.global.default_ttl),
+            )
+            .default(
+                "global.default_tti".to_string(),
+                confers::ConfigValue::uint(config.global.default_tti),
+            )
+            .default(
+                "global.health_check_interval".to_string(),
+                confers::ConfigValue::uint(config.global.health_check_interval as u64),
+            )
+            .default(
+                "backend.backend_type".to_string(),
+                confers::ConfigValue::string(&config.backend.backend_type),
+            )
+            .default(
+                "backend.l1_type".to_string(),
+                confers::ConfigValue::string(&config.backend.l1_type),
+            )
+            .default(
+                "backend.l1_options_json".to_string(),
+                confers::ConfigValue::string(&config.backend.l1_options_json),
+            )
+            .default(
+                "backend.l2_type".to_string(),
+                confers::ConfigValue::string(&config.backend.l2_type),
+            )
+            .default(
+                "backend.l2_options_json".to_string(),
+                confers::ConfigValue::string(&config.backend.l2_options_json),
+            )
+            .default(
+                "backend.l1_enabled".to_string(),
+                confers::ConfigValue::bool(config.backend.l1_enabled),
+            )
+            .default(
+                "backend.l2_enabled".to_string(),
+                confers::ConfigValue::bool(config.backend.l2_enabled),
+            )
+            .default(
+                "services_json".to_string(),
+                confers::ConfigValue::string(&services_json),
+            )
+            .default(
+                "performance.max_concurrent_operations".to_string(),
+                confers::ConfigValue::uint(config.performance.max_concurrent_operations as u64),
+            )
+            .default(
+                "performance.command_timeout".to_string(),
+                confers::ConfigValue::uint(config.performance.command_timeout),
+            )
+            .default(
+                "performance.enable_prefetching".to_string(),
+                confers::ConfigValue::bool(config.performance.enable_prefetching),
+            )
+            .default(
+                "metrics.enabled".to_string(),
+                confers::ConfigValue::bool(config.metrics.enabled),
+            )
+            .default(
+                "metrics.detailed".to_string(),
+                confers::ConfigValue::bool(config.metrics.detailed),
+            )
+            .default(
+                "metrics.export_format".to_string(),
+                confers::ConfigValue::string(&config.metrics.export_format),
+            )
+            .default(
+                "recovery.enable_wal".to_string(),
+                confers::ConfigValue::bool(config.recovery.enable_wal),
+            )
+            .default(
+                "recovery.wal_directory".to_string(),
+                confers::ConfigValue::string(&config.recovery.wal_directory),
+            )
+            .default(
+                "recovery.enable_auto_recovery".to_string(),
+                confers::ConfigValue::bool(config.recovery.enable_auto_recovery),
+            );
+
+        // 处理可选的 export_endpoint
+        let builder = if let Some(endpoint) = &config.metrics.export_endpoint {
+            builder.default(
+                "metrics.export_endpoint".to_string(),
+                confers::ConfigValue::string(endpoint),
+            )
+        } else {
+            builder
+        };
+
+        Self { builder, services }
     }
 }
 
