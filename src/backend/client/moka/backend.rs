@@ -73,13 +73,8 @@ impl CacheBackend for MokaMemoryBackend {
 
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         // Moka 不支持单条目的 TTL 设置，TTL 在缓存创建时全局设置
-        if ttl.is_some() {
-            tracing::warn!(
-                target: "oxcache::backend",
-                key = %key,
-                "Moka backend does not support per-entry TTL, ignoring TTL for key"
-            );
-        }
+        // 注意：传入的 TTL 参数将被忽略
+        let _ = ttl;
         self.cache.insert(key.to_string(), value).await;
         Ok(())
     }

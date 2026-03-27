@@ -15,7 +15,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, instrument, warn};
+use tracing::instrument;
 
 /// 链式缓存中的一个后端链接
 ///
@@ -209,8 +209,6 @@ impl ChainCache {
         for (index, link) in self.links.iter().enumerate() {
             match link.backend.get(key).await {
                 Ok(Some(value)) => {
-                    debug!(backend = link.name, score = link.score, "Cache hit in chain");
-
                     // 回填到更高分后端
                     if self.backfill_enabled && index > 0 {
                         self.backfill_to_higher_backends(key, &value, index).await;
@@ -219,37 +217,21 @@ impl ChainCache {
                     return Ok(Some(value));
                 }
                 Ok(None) => {
-                    debug!(backend = link.name, score = link.score, "Cache miss in chain");
                     continue;
                 }
-                Err(e) => {
-                    warn!(
-                        backend = link.name,
-                        score = link.score,
-                        error = %e,
-                        "Backend error in chain, trying next"
-                    );
+                Err(_) => {
                     continue;
                 }
             }
         }
 
-        debug!("Cache miss in all backends");
         Ok(None)
     }
 
     /// 回填数据到更高分后端
     async fn backfill_to_higher_backends(&self, key: &str, value: &[u8], from_index: usize) {
         for link in &self.links[..from_index] {
-            if let Err(e) = link.backend.set(key, value.to_vec(), self.default_ttl).await {
-                warn!(
-                    backend = link.name,
-                    error = %e,
-                    "Failed to backfill to higher backend"
-                );
-            } else {
-                debug!(backend = link.name, "Backfilled to higher backend");
-            }
+            let _ = link.backend.set(key, value.to_vec(), self.default_ttl).await;
         }
     }
 
@@ -260,37 +242,14 @@ impl ChainCache {
         let mut errors = Vec::new();
 
         for link in &self.links {
-            match link.backend.set(key, value.clone(), effective_ttl).await {
-                Ok(_) => {
-                    debug!(backend = link.name, score = link.score, "Written to backend");
-                }
-                Err(e) => {
-                    warn!(
-                        backend = link.name,
-                        score = link.score,
-                        error = %e,
-                        "Failed to write to backend"
-                    );
-                    errors.push((link.name, e));
-                }
+            if let Err(e) = link.backend.set(key, value.clone(), effective_ttl).await {
+                errors.push((link.name, e));
             }
         }
 
         // 如果所有后端都失败，返回错误
         if errors.len() == self.links.len() {
-            return Err(CacheError::Operation(format!(
-                "All backends failed to write: {:?}",
-                errors
-            )));
-        }
-
-        // 如果部分后端失败，记录警告但不返回错误
-        if !errors.is_empty() {
-            warn!(
-                failed_count = errors.len(),
-                total_count = self.links.len(),
-                "Partial write failure in chain"
-            );
+            return Err(CacheError::Operation("All backends failed to write".to_string()));
         }
 
         Ok(())
@@ -302,19 +261,8 @@ impl ChainCache {
         let mut errors = Vec::new();
 
         for link in &self.links {
-            match link.backend.delete(key).await {
-                Ok(_) => {
-                    debug!(backend = link.name, score = link.score, "Deleted from backend");
-                }
-                Err(e) => {
-                    warn!(
-                        backend = link.name,
-                        score = link.score,
-                        error = %e,
-                        "Failed to delete from backend"
-                    );
-                    errors.push((link.name, e));
-                }
+            if let Err(e) = link.backend.delete(key).await {
+                errors.push((link.name, e));
             }
         }
 

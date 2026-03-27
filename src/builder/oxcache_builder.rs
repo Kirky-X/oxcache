@@ -12,7 +12,6 @@ use crate::builder::sorter::BackendSorter;
 use crate::cache::chain::{ChainCache, ChainLink};
 use crate::error::{CacheError, Result};
 use std::time::Duration;
-use tracing::debug;
 
 /// OxCacheBuilder - 新的缓存构建器
 ///
@@ -166,17 +165,8 @@ impl OxCacheBuilder {
             )));
         }
 
-        // 打印警告
-        for warning in &validation.warnings {
-            debug!("Backend configuration warning: {}", warning);
-        }
-
-        debug!(
-            backend_count = sorted_links.len(),
-            scores = ?sorted_links.iter().map(|l| l.score).collect::<Vec<_>>(),
-            backfill = self.backfill_enabled,
-            "Building ChainCache"
-        );
+        // 打印警告（静默处理）
+        let _ = &validation.warnings;
 
         Ok(ChainCache::builder()
             .links(sorted_links)

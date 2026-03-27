@@ -314,13 +314,10 @@ where
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
                     .unwrap_or_else(|| "redis://localhost:6379".to_string());
 
-                tracing::info!("Creating Redis cache backend with connection: {}", connection_string);
-
                 Arc::new(RedisBackend::new(&connection_string).await?)
             }
             _ => {
                 // 内存缓存（默认）
-                tracing::info!("Creating memory cache backend");
                 Arc::new(MemoryBackend::new())
             }
         };
@@ -356,8 +353,7 @@ where
                 // 使用 serde_json 直接反序列化，避免与序列化器 API 的不匹配
                 let value: V = match serde_json::from_slice(&data) {
                     Ok(v) => v,
-                    Err(e) => {
-                        tracing::warn!(key = %key_str, error = %e, "Deserialization failed, returning None");
+                    Err(_) => {
                         return Ok(None);
                     }
                 };
@@ -428,7 +424,6 @@ where
             let bytes = match serde_json::to_vec(value) {
                 Ok(b) => b,
                 Err(e) => {
-                    tracing::error!(key = %key_str, error = %e, "Serialization failed");
                     return Err(CacheError::Serialization(e.to_string()));
                 }
             };
@@ -665,7 +660,6 @@ where
                 let bytes = match serde_json::to_vec(value) {
                     Ok(b) => b,
                     Err(e) => {
-                        tracing::error!(key = %key_str, error = %e, "Serialization failed in batch");
                         return Err(CacheError::Serialization(e.to_string()));
                     }
                 };

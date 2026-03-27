@@ -129,13 +129,8 @@ pub trait PartitionManager: Send + Sync {
             // We use single_res to handle potential ambiguity (though unlikely for 1st of month in UTC)
             if let Some(target_date) = Utc.with_ymd_and_hms(target_year, target_month, 1, 0, 0, 0).single() {
                 self.ensure_partition_exists(target_date, table_name).await?;
-            } else {
-                tracing::warn!(
-                    "Failed to construct date for partition: {}-{}",
-                    target_year,
-                    target_month
-                );
             }
+            // 如果日期构造失败，跳过该分区
         }
         Ok(())
     }

@@ -11,7 +11,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use std::sync::Arc;
-use tracing::debug;
 
 pub struct SQLitePartitionManager {
     config: PartitionConfig,
@@ -95,8 +94,6 @@ impl SQLitePartitionManager {
         opt.max_connections(1)
             .min_connections(1)
             .connect_timeout(std::time::Duration::from_secs(30));
-
-        debug!("Connecting to database with: {}", normalized);
 
         let connection = Database::connect(opt).await.map_err(|e| {
             // 脱敏错误信息，避免泄露敏感路径信息
@@ -200,7 +197,6 @@ impl PartitionManager for SQLitePartitionManager {
             ));
         };
 
-        debug!("Creating main table with SQL: {}", main_table_sql);
         self.execute(&main_table_sql).await?;
 
         let now = Utc::now();
@@ -223,11 +219,6 @@ impl PartitionManager for SQLitePartitionManager {
                 "Invalid schema: missing CREATE TABLE".to_string(),
             ));
         };
-
-        debug!(
-            "Creating partition table {} with SQL: {}",
-            partition_table_name, partition_schema
-        );
         self.execute(&partition_schema).await?;
 
         // 使用参数化查询检查视图是否存在
@@ -368,8 +359,8 @@ impl PartitionManager for SQLitePartitionManager {
 
         // 使用参数化查询防止 SQL 注入
         // 先查询匹配前缀的表
-        let prefix_pattern = format!("{}_%", table_name);
-        let main_table = format!("{}_main", table_name);
+        let _prefix_pattern = format!("{}_%", table_name);
+        let _main_table = format!("{}_main", table_name);
 
         let query_sql = "SELECT name FROM sqlite_master
              WHERE type='table'
@@ -377,10 +368,6 @@ impl PartitionManager for SQLitePartitionManager {
              ORDER BY name";
 
         // 调试：打印查询SQL
-        debug!(
-            "get_partitions query: {} with pattern={} and main={}",
-            query_sql, prefix_pattern, main_table
-        );
 
         // 使用参数化查询
         let statement = Statement::from_string(sea_orm::DatabaseBackend::Sqlite, query_sql.to_string());
@@ -392,15 +379,12 @@ impl PartitionManager for SQLitePartitionManager {
             .map_err(|e| CacheError::DatabaseError(format!("SQL query failed: {}", e)))?;
 
         // 调试：打印查询结果
-        debug!("get_partitions found {} tables", result.len());
 
         let mut partitions = Vec::new();
         for row in result {
             let table_name: String = row
                 .try_get("", "name")
                 .map_err(|e| CacheError::DatabaseError(e.to_string()))?;
-
-            debug!("  Found table: {}", table_name);
 
             // 验证分区表名
             if let Some(start_date) = self.parse_partition_date(&table_name) {

@@ -299,8 +299,7 @@ impl WalManager {
         // 使用事务批量插入
         let txn = match db.begin().await {
             Ok(txn) => txn,
-            Err(e) => {
-                tracing::error!("Failed to begin transaction for WAL batch write: {}", e);
+            Err(_) => {
                 return;
             }
         };
@@ -314,8 +313,7 @@ impl WalManager {
         for entry in &entries_to_flush {
             let timestamp = match entry.timestamp.duration_since(UNIX_EPOCH) {
                 Ok(d) => d.as_secs() as i64,
-                Err(e) => {
-                    tracing::error!("Failed to convert timestamp: {}", e);
+                Err(_) => {
                     success = false;
                     break;
                 }
@@ -344,16 +342,14 @@ impl WalManager {
                 ))
                 .await;
 
-            if let Err(e) = result {
-                tracing::error!("Failed to insert WAL entry: {}", e);
+            if result.is_err() {
                 success = false;
                 break;
             }
         }
 
         if success {
-            if let Err(e) = txn.commit().await {
-                tracing::error!("Failed to commit WAL batch transaction: {}", e);
+            if txn.commit().await.is_err() {
                 // 回滚：将条目放回缓冲区
                 let mut pending = pending_entries.lock().await;
                 for entry in entries_to_flush {
@@ -361,9 +357,7 @@ impl WalManager {
                 }
             }
         } else {
-            if let Err(e) = txn.rollback().await {
-                tracing::error!("Failed to rollback WAL batch transaction: {}", e);
-            }
+            let _ = txn.rollback().await;
             // 回滚：将条目放回缓冲区
             let mut pending = pending_entries.lock().await;
             for entry in entries_to_flush {
@@ -398,32 +392,15 @@ impl WalManager {
             return Ok(0);
         }
 
-        // 记录开始重放
-        tracing::info!(
-            "Starting WAL replay for service '{}': {} entries",
-            self.service_name,
-            count
-        );
-
         // 尝试重放所有条目
         match backend.pipeline_replay(entries.clone()).await {
             Ok(_) => {
                 // 只有在所有条目都成功重放后才清空 WAL
-                tracing::info!(
-                    "WAL replay successful for service '{}': clearing {} entries",
-                    self.service_name,
-                    count
-                );
                 self.clear_entries().await?;
                 Ok(count)
             }
             Err(e) => {
                 // 重放失败，保留 WAL 条目以便下次重试
-                tracing::error!(
-                    "WAL replay failed for service '{}': {}. WAL entries preserved for retry.",
-                    self.service_name,
-                    e
-                );
                 Err(e)
             }
         }

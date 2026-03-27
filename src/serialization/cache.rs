@@ -13,7 +13,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{debug, warn};
 
 const DEFAULT_MAX_MEMORY_BYTES: usize = 100 * 1024 * 1024; // 100MB
 
@@ -237,14 +236,6 @@ impl<S: Serializer + Clone> SerializationCache<S> {
         self.entry_count.fetch_add(1, Ordering::Relaxed);
         self.memory_bytes.fetch_add(entry_size as u64, Ordering::Relaxed);
 
-        debug!(
-            "Cached key {} with {} bytes (entries: {}, memory: {} KB)",
-            key,
-            serialized_len,
-            self.entry_count.load(Ordering::Relaxed),
-            self.memory_bytes.load(Ordering::Relaxed) / 1024
-        );
-
         Ok(())
     }
 
@@ -300,12 +291,9 @@ impl<S: Serializer + Clone> SerializationCache<S> {
                     self.total_deserialize_us.fetch_add(elapsed, Ordering::Relaxed);
                     Ok(Some(value))
                 }
-                Err(e) => {
-                    warn!("Failed to deserialize cache entry: {}", e);
+                Err(_) => {
                     // Best-effort cleanup: try to delete corrupted entry
-                    if let Err(delete_err) = self.delete(key).await {
-                        debug!("Failed to delete corrupted entry: {}", delete_err);
-                    }
+                    let _ = self.delete(key).await;
                     Ok(None)
                 }
             },
@@ -326,7 +314,6 @@ impl<S: Serializer + Clone> SerializationCache<S> {
         if let Some((_, entry)) = self.cache.remove(key) {
             self.entry_count.fetch_sub(1, Ordering::Relaxed);
             self.memory_bytes.fetch_sub(entry.size() as u64, Ordering::Relaxed);
-            debug!("Deleted key {}", key);
             Ok(true)
         } else {
             Ok(false)
@@ -355,7 +342,6 @@ impl<S: Serializer + Clone> SerializationCache<S> {
         self.cache.clear();
         self.entry_count.store(0, Ordering::Relaxed);
         self.memory_bytes.store(0, Ordering::Relaxed);
-        debug!("Serialization cache cleared");
     }
 
     /// 触发淘汰
@@ -405,7 +391,7 @@ impl<S: Serializer + Clone> SerializationCache<S> {
             .map(|entry| entry.key().clone())
             .collect();
 
-        let remove_count = to_remove.len();
+        let _remove_count = to_remove.len();
 
         // 淘汰条目
         for key in to_remove {
@@ -414,10 +400,6 @@ impl<S: Serializer + Clone> SerializationCache<S> {
                 self.entry_count.fetch_sub(1, Ordering::Relaxed);
                 self.memory_bytes.fetch_sub(entry.size() as u64, Ordering::Relaxed);
             }
-        }
-
-        if remove_count > 0 {
-            debug!("Evicted {} entries", remove_count);
         }
     }
 
