@@ -236,6 +236,36 @@ where
         crate::builder::CacheBuilder::default()
     }
 
+    /// 所有依赖由调用方提供，用于应用容器和严格单例控制
+    ///
+    /// 此方法遵循 di.md 架构规范，提供完全依赖注入模式（模式 3），
+    /// 允许应用层完全控制底层组件的生命周期和单例共享。
+    ///
+    /// # Arguments
+    ///
+    /// * `backend` - 缓存后端实现
+    ///
+    /// # Returns
+    ///
+    /// 配置好的 Cache 实例
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use std::sync::Arc;
+    /// use oxcache::backend::MokaMemoryBackend;
+    /// use oxcache::Cache;
+    ///
+    /// // 应用层创建并管理 backend 单例
+    /// let backend = Arc::new(MokaMemoryBackend::new());
+    ///
+    /// // 通过完全注入创建 Cache，共享 backend 单例
+    /// let cache: Cache<String, User> = Cache::with_dependencies(backend);
+    /// ```
+    pub fn with_dependencies(backend: Arc<dyn CacheBackend>) -> Self {
+        Self::new_with_backend(backend)
+    }
+
     /// 使用外部confers配置创建缓存实例（DI模式）
     ///
     /// 此方法允许功能组件层（inklog, limiteron）注入配置好的confers实例，
