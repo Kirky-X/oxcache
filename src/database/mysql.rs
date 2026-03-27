@@ -13,7 +13,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 use tokio::time::timeout;
-use tracing::{debug, info, warn};
 
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 
@@ -76,11 +75,8 @@ impl MySQLPartitionManager {
         };
 
         let acquire_duration = start.elapsed();
-        info!("MySQL connection established in {:?}", acquire_duration);
 
-        if acquire_duration > Duration::from_secs(3) {
-            warn!("MySQL connection took longer than expected: {:?}", acquire_duration);
-        }
+        let _ = acquire_duration > Duration::from_secs(3);
 
         Ok(Self {
             config,
@@ -99,8 +95,7 @@ impl MySQLPartitionManager {
 
     /// 验证连接健康状态
     pub async fn health_check(&self) -> bool {
-        if let Err(e) = self.ping().await {
-            warn!("MySQL health check failed: {}", e);
+        if let Err(_e) = self.ping().await {
             return false;
         }
         true
@@ -130,8 +125,6 @@ impl MySQLPartitionManager {
 
     /// 重新建立连接（用于恢复）
     pub async fn reconnect(&mut self, connection_string: &str) -> Result<()> {
-        info!("Attempting to reconnect to MySQL...");
-
         let mut opt = ConnectOptions::new(connection_string.to_string());
         opt.max_connections(10)
             .min_connections(2)
@@ -167,7 +160,6 @@ impl MySQLPartitionManager {
         };
 
         let acquire_duration = start.elapsed();
-        info!("MySQL reconnection established in {:?}", acquire_duration);
 
         self.connection = Arc::new(connection);
 
@@ -236,12 +228,6 @@ impl PartitionManager for MySQLPartitionManager {
 
         // 获取现有分区
         let existing_partitions = self.get_partitions(&base_table).await?;
-        debug!(
-            "Creating partition {} for table {}, existing partitions: {}",
-            partition_name,
-            base_table,
-            existing_partitions.len()
-        );
 
         // 按 end_date 排序现有分区
         let mut sorted_partitions = existing_partitions.clone();
@@ -259,7 +245,6 @@ impl PartitionManager for MySQLPartitionManager {
 
         let sql = if let Some(target) = target_partition {
             // 需要重组 target 分区
-            debug!("Reorganizing partition {} to insert {}", target.name, partition_name);
 
             let target_end_days_str = if target.name == "p_future" {
                 "MAXVALUE".to_string()
@@ -284,8 +269,6 @@ impl PartitionManager for MySQLPartitionManager {
             )
         };
 
-        debug!("Generated SQL: {}", sql);
-
         self.connection
             .execute_raw(Statement::from_string(sea_orm::DatabaseBackend::MySql, sql))
             .await?;
@@ -306,22 +289,14 @@ impl PartitionManager for MySQLPartitionManager {
              FROM INFORMATION_SCHEMA.PARTITIONS
              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND PARTITION_NAME IS NOT NULL";
 
-        debug!("get_partitions SQL: {} with table_name={}", sql, table_name);
-
         let statement = Statement::from_string(sea_orm::DatabaseBackend::MySql, sql.to_string());
 
         let result = self.connection.query_all_raw(statement).await?;
-        debug!("get_partitions found {} rows", result.len());
 
         let mut partitions = Vec::new();
         for row in result {
             let partition_name: String = row.try_get("", "PARTITION_NAME")?;
             let partition_description: Option<String> = row.try_get("", "PARTITION_DESCRIPTION")?;
-
-            debug!(
-                "Found partition: name={}, description={:?}",
-                partition_name, partition_description
-            );
 
             // 解析分区信息
             if let Some(info) =
@@ -330,8 +305,6 @@ impl PartitionManager for MySQLPartitionManager {
                 partitions.push(info);
             }
         }
-
-        debug!("get_partitions returning {} partitions", partitions.len());
 
         Ok(partitions)
     }
@@ -484,7 +457,6 @@ impl MySQLPartitionManager {
             format!("{}{}", original_schema, partition_clause)
         };
 
-        debug!("Modified schema: {}", modified_schema);
         Ok(modified_schema)
     }
 
@@ -502,11 +474,8 @@ impl MySQLPartitionManager {
         partition_name: &str,
         _description: Option<&str>,
     ) -> Option<PartitionInfo> {
-        debug!("parse_mysql_partition called with name: {}", partition_name);
-
         // 处理特殊的p_future分区（MAXVALUE分区）
         if partition_name == "p_future" {
-            debug!("Found p_future partition (MAXVALUE)");
             // 使用一个遥远的未来日期作为结束日期
             let max_date = Utc.with_ymd_and_hms(9999, 12, 31, 23, 59, 59).single()?;
             let mut info = PartitionInfo::new(max_date, table_name).ok()?;
@@ -520,22 +489,18 @@ impl MySQLPartitionManager {
         // MySQL分区名格式: p2024_1, p2024_2等
         if let Some(stripped) = partition_name.strip_prefix('p') {
             let parts: Vec<&str> = stripped.split('_').collect();
-            debug!("Parsed parts: {:?}", parts);
             if parts.len() == 2 {
                 if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                    debug!("Parsed year={}, month={}", year, month);
                     if let Some(date) = Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single() {
                         let mut info = PartitionInfo::new(date, table_name).ok()?;
                         info.name = partition_name.to_string();
                         info.created = true;
-                        debug!("Successfully parsed partition: {:?}", info.name);
                         return Some(info);
                     }
                 }
             }
         }
 
-        debug!("Failed to parse partition: {}", partition_name);
         None
     }
 }

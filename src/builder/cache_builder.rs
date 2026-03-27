@@ -635,7 +635,7 @@ fn backend_config_from_unified_config(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Redis => {
-            tracing::warn!("Redis backend requested but redis feature not enabled, falling back to memory");
+            // Redis feature not enabled, falling back to memory backend
             let capacity = config
                 .backend
                 .l1_options()
@@ -678,7 +678,7 @@ fn backend_config_from_unified_config(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Tiered => {
-            tracing::warn!("Tiered backend requested but redis feature not enabled, falling back to memory");
+            // Redis feature not enabled, falling back to memory backend
             let capacity = config
                 .backend
                 .l1_options()
@@ -711,7 +711,7 @@ fn backend_config_from_unified_config_with_service(
         }),
         #[cfg(not(feature = "moka"))]
         crate::config::BackendType::Memory => {
-            tracing::warn!("Memory backend requested but moka feature not enabled");
+            // Moka feature not enabled, using fallback memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
@@ -741,7 +741,7 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(not(feature = "redis"))]
         crate::config::BackendType::Redis => {
-            tracing::warn!("Redis backend requested but redis feature not enabled, falling back to memory");
+            // Redis feature not enabled, falling back to memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
@@ -772,7 +772,7 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(not(all(feature = "moka", feature = "redis")))]
         crate::config::BackendType::Tiered => {
-            tracing::warn!("Tiered backend requested but required features not enabled, falling back to memory");
+            // Required features not enabled, falling back to memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })

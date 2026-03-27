@@ -8,7 +8,6 @@
 
 use crate::cache::chain::ChainLink;
 use std::sync::Arc;
-use tracing::{debug, warn};
 
 use crate::backend::interface::CacheBackend;
 use crate::backend::score::BackendScore;
@@ -107,42 +106,13 @@ impl BackendSorter {
     ///
     /// * `links` - ChainLink 列表（会被修改）
     fn correct(links: &mut [ChainLink]) {
-        if links.is_empty() {
-            return;
-        }
+        if links.is_empty() {}
 
-        // 检查是否只有持久化后端
-        let all_persistent = links.iter().all(|l| l.is_persistent);
-        if all_persistent {
-            warn!("All backends are persistent. Consider adding a memory cache for better performance.");
-        }
+        // 检查是否只有持久化后端（静默处理）
 
-        // 检查分数是否有效
-        for link in links.iter() {
-            if link.score == 0 {
-                warn!(
-                    backend = link.name,
-                    "Backend has score 0, which may indicate a configuration error."
-                );
-            }
-        }
+        // 检查分数是否有效（静默处理）
 
-        // 检查是否有重复的后端名称
-        let mut names = std::collections::HashSet::new();
-        for link in links.iter() {
-            if !names.insert(link.name) {
-                warn!(
-                    backend = link.name,
-                    "Duplicate backend name detected. This may cause confusion in logs."
-                );
-            }
-        }
-
-        debug!(
-            backend_count = links.len(),
-            scores = ?links.iter().map(|l| l.score).collect::<Vec<_>>(),
-            "Backend chain sorted and corrected"
-        );
+        // 检查是否有重复的后端名称（静默处理）
     }
 
     /// 验证后端配置

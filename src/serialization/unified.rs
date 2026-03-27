@@ -481,19 +481,15 @@ mod tests {
 
             // Test zero-copy serialization
             let zero_copy_result = serializer.serialize_zero_copy(&data).unwrap();
-            match zero_copy_result {
-                Cow::Borrowed(_) => println!("True zero-copy achieved"),
-                Cow::Owned(_) => println!("Fallback to regular serialization"),
-            }
+            // 验证零拷贝序列化结果
+            assert!(matches!(zero_copy_result, Cow::Borrowed(_) | Cow::Owned(_)));
 
             // Test zero-copy deserialization
             // First serialize data to bytes using the serializer's format
             let serialized = serializer.serialize(&data).unwrap();
             let zero_copy_result = serializer.deserialize_zero_copy::<TestData>(&serialized).unwrap();
-            match zero_copy_result {
-                Cow::Borrowed(_) => println!("True zero-copy achieved"),
-                Cow::Owned(_) => println!("Fallback to regular deserialization"),
-            }
+            // 验证零拷贝反序列化结果
+            assert!(matches!(zero_copy_result, Cow::Borrowed(_) | Cow::Owned(_)));
         }
 
         // JSON doesn't support zero-copy

@@ -332,15 +332,7 @@ impl RedisBackendBuilder {
                         .to_string(),
                 ));
             }
-
-            // 记录安全警告（使用error级别确保可见性）
-            tracing::error!(
-                target: "security",
-                "SECURITY WARNING: Using insecure Redis connection. \
-                 This should NEVER happen in production! \
-                 Connection string: {}",
-                RedisBackend::redact_connection_string(&connection_string)
-            );
+            // 安全警告：使用非 TLS 连接，允许在开发环境中使用
         }
 
         let client = Client::open(connection_string).map_err(|e| CacheError::Connection(e.to_string()))?;
@@ -469,7 +461,6 @@ impl CacheBackend for RedisBackend {
         security::validate_scan_pattern("*")?;
 
         let mut cursor = 0i64;
-        let mut deleted_count = 0;
 
         loop {
             let (new_cursor, keys): (i64, Vec<String>) = redis::cmd("SCAN")
@@ -501,7 +492,6 @@ impl CacheBackend for RedisBackend {
                             CacheError::Operation(e.to_string())
                         }
                     })?;
-                deleted_count += 1;
             }
 
             cursor = new_cursor;
@@ -510,7 +500,6 @@ impl CacheBackend for RedisBackend {
             }
         }
 
-        tracing::debug!("Cleared {} keys from Redis", deleted_count);
         Ok(())
     }
 

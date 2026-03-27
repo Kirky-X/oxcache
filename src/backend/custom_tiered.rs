@@ -178,8 +178,7 @@ impl PathValidationConfig {
             // 此处仅作为预防性检查
             if let Some(file_name) = normalized.file_name() {
                 if file_name.to_string_lossy().starts_with('.') {
-                    // 隐藏文件可能有问题，进行警告
-                    tracing::warn!("Loading configuration from hidden file: {}", path.display());
+                    // 隐藏文件，继续处理
                 }
             }
         }
@@ -622,25 +621,12 @@ impl BackendProvider for DefaultBackendProvider {
                 .and_then(|v| v.as_str())
                 .unwrap_or("redis://localhost:6379");
 
-            // 记录脱敏后的连接字符串，防止敏感信息泄露
-            tracing::debug!(
-                "Creating Redis backend with connection: redis://***@{}",
-                connection_string
-                    .split('@')
-                    .nth(1)
-                    .unwrap_or(connection_string)
-                    .split(':')
-                    .next()
-                    .unwrap_or("unknown")
-            );
-
             let backend = Arc::new(RedisBackend::new(connection_string).await?);
             Ok(backend)
         }
         #[cfg(not(feature = "redis"))]
         {
             // 如果没有 redis feature，降级到内存后端
-            tracing::warn!("Redis backend not available, falling back to memory backend");
             let mut builder = MemoryBackend::builder();
             builder = apply_memory_options(builder, options);
             let backend = builder.build();
@@ -690,8 +676,8 @@ fn apply_memory_options(mut builder: MemoryBackendBuilder, options: &serde_json:
                 Ok(validated) => {
                     builder = builder.capacity(validated);
                 }
-                Err(e) => {
-                    tracing::warn!("Invalid capacity: {}", e);
+                Err(_) => {
+                    // 无效容量值，忽略
                 }
             }
         }
@@ -701,8 +687,8 @@ fn apply_memory_options(mut builder: MemoryBackendBuilder, options: &serde_json:
                 Ok(validated) => {
                     builder = builder.ttl(std::time::Duration::from_secs(validated));
                 }
-                Err(e) => {
-                    tracing::warn!("Invalid TTL: {}", e);
+                Err(_) => {
+                    // 无效 TTL 值，忽略
                 }
             }
         }
@@ -712,8 +698,8 @@ fn apply_memory_options(mut builder: MemoryBackendBuilder, options: &serde_json:
                 Ok(validated) => {
                     builder = builder.time_to_idle(std::time::Duration::from_secs(validated));
                 }
-                Err(e) => {
-                    tracing::warn!("Invalid TTI: {}", e);
+                Err(_) => {
+                    // 无效 TTI 值，忽略
                 }
             }
         }
@@ -1000,33 +986,12 @@ impl CustomTieredConfig {
         for fix in fixes {
             match fix.layer {
                 Layer::L1 => {
-                    if self.auto_fix.warn_on_fix {
-                        tracing::warn!(
-                            "L1 backend '{}' is not suitable for L1, auto-fixing to '{}'",
-                            fix.from_backend,
-                            fix.to_backend
-                        );
-                    }
                     fixed.l1.backend_type = fix.to_backend.clone();
                 }
                 Layer::L2 => {
-                    if self.auto_fix.warn_on_fix {
-                        tracing::warn!(
-                            "L2 backend '{}' is not suitable for L2, auto-fixing to '{}'",
-                            fix.from_backend,
-                            fix.to_backend
-                        );
-                    }
                     fixed.l2.backend_type = fix.to_backend.clone();
                 }
                 Layer::L3 => {
-                    if self.auto_fix.warn_on_fix {
-                        tracing::warn!(
-                            "L3 backend '{}' is not suitable for L3, auto-fixing to '{}'",
-                            fix.from_backend,
-                            fix.to_backend
-                        );
-                    }
                     fixed.l3.backend_type = fix.to_backend.clone();
                 }
             }
@@ -1041,7 +1006,6 @@ impl CustomTieredConfig {
             (fixed_result, Some(fixed))
         } else {
             // 修复失败，返回原始验证结果
-            tracing::error!("Auto-fix failed for tiered cache configuration");
             (FixedConfigResult::from(validation), None)
         }
     }
@@ -1359,9 +1323,6 @@ pub async fn load_from_file(path: &str, validation_config: Option<PathValidation
 
     // 如果有自动修复，返回修复后的配置
     if let Some(fixed_config) = fixed {
-        if !result.warnings.is_empty() {
-            tracing::info!("Auto-fixed tiered cache configuration: {:?}", result.warnings);
-        }
         Ok(fixed_config)
     } else {
         Ok(config)

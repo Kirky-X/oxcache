@@ -15,7 +15,7 @@ use crate::utils::validate_cache_key as utils_validate_cache_key;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::instrument;
 
 /// 安全的SQL标识符验证
 /// 验证SQL标识符（表名、列名等）
@@ -165,35 +165,24 @@ impl DbFallbackManager {
     #[instrument(skip(self), level = "info")]
     pub async fn fallback_load(&self, key: &str) -> Result<Option<Vec<u8>>> {
         if !self.enabled {
-            debug!("Database fallback is disabled");
             return Ok(None);
         }
 
         if !self.loader.is_healthy() {
-            error!("Database loader is not healthy, skipping fallback");
             return Ok(None);
         }
-
-        info!("Attempting database fallback for key: {}", key);
 
         // 尝试加载数据，支持重试机制
         let mut last_error = None;
         for attempt in 0..=self.max_retries {
-            if attempt > 0 {
-                debug!("Retry attempt {} for key: {}", attempt, key);
-            }
-
             match self.try_load_with_timeout(key).await {
                 Ok(Some(data)) => {
-                    info!("Successfully loaded data from database for key: {}", key);
                     return Ok(Some(data));
                 }
                 Ok(None) => {
-                    debug!("No data found in database for key: {}", key);
                     return Ok(None);
                 }
                 Err(e) => {
-                    error!("Failed to load data from database for key {}: {}", key, e);
                     last_error = Some(e);
                     if attempt < self.max_retries {
                         // 指数退避重试
@@ -204,7 +193,6 @@ impl DbFallbackManager {
             }
         }
 
-        error!("All retry attempts failed for key: {}", key);
         Err(last_error.unwrap_or_else(|| CacheError::DatabaseError("All fallback attempts failed".to_string())))
     }
 
@@ -220,16 +208,12 @@ impl DbFallbackManager {
     #[instrument(skip(self), level = "info")]
     pub async fn fallback_load_batch(&self, keys: Vec<String>) -> Result<Vec<(String, Vec<u8>)>> {
         if !self.enabled {
-            debug!("Database fallback is disabled");
             return Ok(Vec::new());
         }
 
         if !self.loader.is_healthy() {
-            error!("Database loader is not healthy, skipping batch fallback");
             return Ok(Vec::new());
         }
-
-        info!("Attempting batch database fallback for {} keys", keys.len());
 
         // 使用超时机制
         match tokio::time::timeout(
@@ -238,21 +222,12 @@ impl DbFallbackManager {
         )
         .await
         {
-            Ok(Ok(results)) => {
-                info!("Successfully loaded {} items from database", results.len());
-                Ok(results)
-            }
-            Ok(Err(e)) => {
-                error!("Failed to batch load from database: {}", e);
-                Err(e)
-            }
-            Err(_) => {
-                error!("Batch database fallback timed out after {}ms", self.timeout_ms);
-                Err(CacheError::Timeout(format!(
-                    "Batch fallback timeout after {}ms",
-                    self.timeout_ms
-                )))
-            }
+            Ok(Ok(results)) => Ok(results),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(CacheError::Timeout(format!(
+                "Batch fallback timeout after {}ms",
+                self.timeout_ms
+            ))),
         }
     }
 
@@ -265,10 +240,7 @@ impl DbFallbackManager {
         .await
         {
             Ok(result) => result,
-            Err(_) => {
-                debug!("Database load timed out after {}ms for key: {}", self.timeout_ms, key);
-                Ok(None)
-            }
+            Err(_) => Ok(None),
         }
     }
 
@@ -345,7 +317,6 @@ impl DbLoader for SqlDbLoader {
     #[instrument(skip(self), level = "debug")]
     async fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
         if !validate_cache_key(key) {
-            warn!("Invalid cache key format: {}", key);
             return Err(CacheError::InvalidInput(format!(
                 "Invalid cache key format: {}. Key must be alphanumeric or contain -_.:/ and be <= 1024 characters.",
                 key
@@ -357,7 +328,6 @@ impl DbLoader for SqlDbLoader {
             "SELECT {} FROM {} WHERE {} = '{}'",
             self.value_column, self.table_name, self.key_column, escaped_key
         );
-        debug!("Executing database query: {}", query);
 
         self.pool.execute_query(&query).await
     }
@@ -370,7 +340,6 @@ impl DbLoader for SqlDbLoader {
 
         for key in &keys {
             if !validate_cache_key(key) {
-                warn!("Invalid cache key in batch: {}", key);
                 return Err(CacheError::InvalidInput(format!(
                     "Invalid cache key format: {}. Key must be alphanumeric or contain -_.:/ and be <= 1024 characters.",
                     key
@@ -407,7 +376,6 @@ impl DbLoader for SqlDbLoader {
             self.key_column, self.value_column, self.table_name, self.key_column, key_list
         );
 
-        debug!("Executing batch database query for {} keys", keys.len());
         self.pool.execute_batch_query(&query).await
     }
 

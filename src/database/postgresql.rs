@@ -12,7 +12,6 @@ use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Sta
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
 
 use crate::database::partition::{PartitionConfig, PartitionInfo, PartitionManager};
 
@@ -77,14 +76,6 @@ impl PostgresPartitionManager {
             })?;
 
         let acquire_duration = start.elapsed();
-        info!("PostgreSQL connection established in {:?}", acquire_duration);
-
-        if acquire_duration > Duration::from_secs(3) {
-            warn!(
-                "PostgreSQL connection took longer than expected: {:?}",
-                acquire_duration
-            );
-        }
 
         Ok(Self {
             config,
@@ -198,8 +189,7 @@ impl PostgresPartitionManager {
 
     /// 验证连接健康状态
     pub async fn health_check(&self) -> bool {
-        if let Err(e) = self.ping().await {
-            warn!("PostgreSQL health check failed: {}", e);
+        if let Err(_e) = self.ping().await {
             return false;
         }
         true
@@ -219,8 +209,6 @@ impl PostgresPartitionManager {
 
     /// 重新建立连接（用于恢复）
     pub async fn reconnect(&mut self, connection_string: &str) -> Result<()> {
-        info!("Attempting to reconnect to PostgreSQL...");
-
         let mut opt = ConnectOptions::new(connection_string.to_string());
         opt.max_connections(10)
             .min_connections(2)
@@ -248,7 +236,6 @@ impl PostgresPartitionManager {
         })?;
 
         let acquire_duration = start.elapsed();
-        info!("PostgreSQL reconnection established in {:?}", acquire_duration);
 
         self.connection = Arc::new(connection);
 
@@ -287,8 +274,6 @@ impl PostgresPartitionManager {
         } else {
             format!("{}) PARTITION BY RANGE ({})", partition_schema, partition_column)
         };
-
-        debug!("Generated partition SQL: {}", partition_sql);
 
         conn.execute_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
@@ -344,9 +329,6 @@ impl PartitionManager for PostgresPartitionManager {
     async fn create_partition(&self, partition: &PartitionInfo) -> Result<()> {
         let conn = self.connection.as_ref();
 
-        debug!("Creating partition with name: {}", partition.name);
-        debug!("Partition table_name: {}", partition.table_name);
-
         let parts: Vec<&str> = partition.name.rsplitn(3, '_').collect();
         let base_table_name = if parts.len() >= 3 {
             parts[2..].join("_")
@@ -360,8 +342,6 @@ impl PartitionManager for PostgresPartitionManager {
             partition.start_date.year(),
             partition.start_date.month()
         );
-
-        debug!("Final partition table name: {}", partition_table_name);
 
         // 验证所有标识符以防止 SQL 注入
         self.validate_identifier(&base_table_name)?;
@@ -423,13 +403,11 @@ impl PartitionManager for PostgresPartitionManager {
 
         // 使用双引号包裹标识符以避免关键字冲突
         let sql = format!("DROP TABLE IF EXISTS \"{}\"", partition_name);
-        debug!("Executing drop SQL: {}", sql);
 
         conn.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql))
             .await
             .map_err(|e| CacheError::DatabaseError(format!("Failed to drop partition {}: {}", partition_name, e)))?;
 
-        debug!("Successfully dropped partition: {}", partition_name);
         Ok(())
     }
 
@@ -460,7 +438,6 @@ impl PostgresPartitionManager {
         table_name: &str,
     ) -> Option<PartitionInfo> {
         // PostgreSQL分区范围格式: FOR VALUES FROM ('2024-01-01') TO ('2024-02-01')
-        debug!("Parsing partition range for: {}", partition_name);
 
         // More flexible regex to match various PostgreSQL date formats with optional time and timezone
         let re =
@@ -470,9 +447,6 @@ impl PostgresPartitionManager {
         if let Some(captures) = re.captures(range_str) {
             let start_date_str = captures.get(1)?.as_str();
             let end_date_str = captures.get(2)?.as_str();
-
-            debug!("Parsed start date: {}", start_date_str);
-            debug!("Parsed end date: {}", end_date_str);
 
             // Parse the dates properly
             let start_date = NaiveDate::parse_from_str(start_date_str, "%Y-%m-%d")
@@ -485,9 +459,6 @@ impl PostgresPartitionManager {
                 .and_hms_opt(0, 0, 0)?
                 .and_utc();
 
-            debug!("Parsed start date as DateTime: {}", start_date);
-            debug!("Parsed end date as DateTime: {}", end_date);
-
             // Create PartitionInfo using the table name from the partition
             let mut info = PartitionInfo::new(start_date, table_name).ok()?;
             info.name = partition_name.to_string();
@@ -495,11 +466,9 @@ impl PostgresPartitionManager {
             info.end_date = end_date;
             info.created = true;
 
-            debug!("Successfully created PartitionInfo");
             return Some(info);
         }
 
-        debug!("Failed to parse partition range");
         None
     }
 }
