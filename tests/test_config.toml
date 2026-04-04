@@ -1,13 +1,5 @@
 # Test configuration for database partitioning
 [database]
-# PostgreSQL connection for testing
-# 安全修复：使用环境变量
-postgres_url = "postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/oxcache_test"
-
-# MySQL connection for testing
-# 安全修复：使用环境变量
-mysql_url = "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@localhost:3306/oxcache_test"
-
 # SQLite connection for testing
 sqlite_path = "/tmp/oxcache_test.db"
 
@@ -21,12 +13,6 @@ strategy = "monthly"
 # Number of partitions to keep
 retention_partitions = 12
 
-# Partition size for different databases (in days)
-[partitioning.postgres]
-partition_days = 30
-
-[partitioning.mysql]
-partition_days = 30
-
+# Partition size for SQLite (in days)
 [partitioning.sqlite]
 partition_days = 30

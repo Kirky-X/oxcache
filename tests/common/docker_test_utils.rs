@@ -1,19 +1,16 @@
 //! Docker test utilities using testcontainers 0.23+
 //!
 //! This module provides helper functions for setting up Docker-based test environments
-//! using testcontainers for Redis and PostgreSQL.
+//! using testcontainers for Redis.
 
 #![allow(dead_code)]
 
 use std::time::Duration;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt};
+use testcontainers::ImageExt;
 
 /// Redis 容器类型别名
-pub type RedisContainer = ContainerAsync<testcontainers_modules::redis::Redis>;
-
-/// PostgreSQL 容器类型别名
-pub type PostgresContainer = ContainerAsync<testcontainers_modules::postgres::Postgres>;
+pub type RedisContainer = testcontainers::ContainerAsync<testcontainers_modules::redis::Redis>;
 
 /// 创建 Redis 测试容器
 ///
@@ -40,41 +37,6 @@ pub async fn setup_redis_container() -> Result<(RedisContainer, String), String>
     let redis_url = format!("redis://127.0.0.1:{}", port);
 
     Ok((redis, redis_url))
-}
-
-/// 创建 PostgreSQL 测试容器
-///
-/// # Example
-/// ```ignore
-/// #[tokio::test]
-/// async fn test_with_postgres() {
-///     let (container, connection_string) = setup_postgres_container().await.unwrap();
-///     // 使用 connection_string 连接
-/// }
-/// ```
-pub async fn setup_postgres_container() -> Result<(PostgresContainer, String), String> {
-    let pg = testcontainers_modules::postgres::Postgres::default()
-        .with_tag("15-alpine")
-        .start()
-        .await
-        .map_err(|e| format!("启动 PostgreSQL 容器失败: {}", e))?;
-
-    let port = pg
-        .get_host_port_ipv4(5432)
-        .await
-        .map_err(|e| format!("获取端口失败: {}", e))?;
-
-    let connection_string = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
-
-    Ok((pg, connection_string))
-}
-
-/// 同时创建 Redis 和 PostgreSQL 测试容器
-pub async fn setup_redis_and_postgres() -> Result<(RedisContainer, String, PostgresContainer, String), String> {
-    let (redis_container, redis_url) = setup_redis_container().await?;
-    let (pg_container, pg_url) = setup_postgres_container().await?;
-
-    Ok((redis_container, redis_url, pg_container, pg_url))
 }
 
 /// 等待 Redis 就绪
