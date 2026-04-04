@@ -177,6 +177,17 @@ mod tests {
     }
 
     #[test]
+    fn test_redis_mode_type_from_str() {
+        assert_eq!(
+            "standalone".parse::<RedisModeType>().unwrap(),
+            RedisModeType::Standalone
+        );
+        assert_eq!("SENTINEL".parse::<RedisModeType>().unwrap(), RedisModeType::Sentinel);
+        assert_eq!("Cluster".parse::<RedisModeType>().unwrap(), RedisModeType::Cluster);
+        assert!("invalid".parse::<RedisModeType>().is_err());
+    }
+
+    #[test]
     fn test_backend_type_serialize() {
         let backend = BackendType::Moka;
         let json = serde_json::to_string(&backend).unwrap();
@@ -200,6 +211,12 @@ mod tests {
     fn test_cache_layer_deserialize() {
         let layer: CacheLayer = serde_json::from_str("\"L2\"").unwrap();
         assert_eq!(layer, CacheLayer::L2);
+    }
+
+    #[test]
+    fn test_cache_layer_l3() {
+        let layer = CacheLayer::L3;
+        assert_eq!(format!("{}", layer), "L3");
     }
 
     #[test]

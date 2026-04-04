@@ -19,7 +19,7 @@ use std::fmt;
 ///
 /// # 示例
 /// ```
-/// use oxcache::security::redaction::redact_value;
+/// use oxcache::redact_value;
 /// let masked = redact_value("password123", 3);
 /// assert_eq!(masked, "****123");
 /// ```

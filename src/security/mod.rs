@@ -25,10 +25,14 @@ pub mod redaction;
 pub mod regex;
 pub mod validation;
 
-// Re-exports for convenience
+// Re-exports for convenience (used by external tests via lib.rs re-exports)
+#[allow(unused_imports)]
 pub use log::{log_cache_key, sanitize_message};
+#[allow(unused_imports)]
 pub use redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+#[allow(unused_imports)]
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
+#[allow(unused_imports)]
 pub use validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
 
 use crate::error::{CacheError, Result};
@@ -792,6 +796,7 @@ mod tests {
 // 测试辅助模块 - 为集成测试提供访问
 // 注意：这些函数仅供测试使用，生产代码应使用公共 API
 #[cfg(any(test, feature = "testing"))]
+#[allow(unused_imports)]
 pub mod test_helpers {
     pub use super::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
 }

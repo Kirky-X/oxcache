@@ -5,8 +5,7 @@
 //! 连接字符串规范化模块
 //!
 //! 提供数据库连接字符串的验证、解析和规范化功能。
-//! 支持 SQLite、MySQL、PostgreSQL 和 Redis 四种类型，
-//! 明确不同环境（开发、测试、生产）的推荐格式。
+//! 支持 SQLite 和 Redis 两种类型。
 
 use crate::error::{CacheError, Result};
 use secrecy::{ExposeSecret, SecretString};
@@ -16,8 +15,6 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DbType {
     SQLite,
-    MySQL,
-    PostgreSQL,
     Redis,
 }
 
@@ -27,10 +24,6 @@ impl DbType {
         let lower = s.to_lowercase();
         if lower.starts_with("sqlite") {
             DbType::SQLite
-        } else if lower.starts_with("mysql") {
-            DbType::MySQL
-        } else if lower.starts_with("postgres") {
-            DbType::PostgreSQL
         } else if lower.starts_with("redis") {
             DbType::Redis
         } else {
@@ -107,140 +100,13 @@ impl<'a> ParsedConnectionString<'a> {
         }
     }
 
-    /// 解析 MySQL 连接字符串
-    fn parse_mysql(s: &'a str) -> Self {
-        let without_prefix = s.strip_prefix("mysql://").unwrap_or(s);
-        let mut username = None;
-        let mut password: Option<SecretString> = None;
-        let mut _host_port = ""; // host:port part
-        let mut database = None;
-
-        if let Some(at_pos) = without_prefix.find('@') {
-            let creds = &without_prefix[..at_pos];
-            if let Some(colon_pos) = creds.find(':') {
-                username = Some(creds[..colon_pos].to_string());
-                password = Some(SecretString::from(creds[colon_pos + 1..].to_string()));
-            } else if !creds.is_empty() {
-                username = Some(creds.to_string());
-            }
-            _host_port = &without_prefix[at_pos + 1..];
-        } else {
-            _host_port = without_prefix;
-        }
-
-        if let Some(slash_pos) = _host_port.find('/') {
-            database = Some(_host_port[slash_pos + 1..].to_string());
-            _host_port = &_host_port[..slash_pos];
-        }
-
-        let mut host = _host_port.to_string();
-        let mut port = None;
-        if let Some(colon_pos) = _host_port.rfind(':') {
-            let port_str = &_host_port[colon_pos + 1..];
-            if let Ok(p) = port_str.parse::<u16>() {
-                host = _host_port[..colon_pos].to_string();
-                port = Some(p);
-            }
-        }
-
-        let mut params = Vec::new();
-        if let Some(qmark_pos) = database.as_ref().and_then(|d| d.find('?')) {
-            if let Some(db_str) = database.clone() {
-                let db_without_params = &db_str[..qmark_pos];
-                database = Some(db_without_params.to_string());
-                params = extract_params(&db_str[qmark_pos + 1..]);
-            }
-        }
-
-        Self {
-            db_type: DbType::MySQL,
-            original: s,
-            host: if host.is_empty() { None } else { Some(host) },
-            port,
-            database,
-            username,
-            password,
-            file_path: None,
-            is_memory: false,
-            params,
-        }
-    }
-
-    /// 解析 PostgreSQL 连接字符串
-    fn parse_postgres(s: &'a str) -> Self {
-        let without_prefix = if let Some(stripped) = s.strip_prefix("postgresql://") {
-            stripped
-        } else if let Some(stripped) = s.strip_prefix("postgres://") {
-            stripped
-        } else {
-            s
-        };
-        let mut username = None;
-        let mut password: Option<SecretString> = None;
-        let mut _host_port;
-        let mut database = None;
-        let mut params = Vec::new();
-
-        if let Some(at_pos) = without_prefix.find('@') {
-            let creds = &without_prefix[..at_pos];
-            if let Some(colon_pos) = creds.find(':') {
-                username = Some(creds[..colon_pos].to_string());
-                password = Some(SecretString::from(creds[colon_pos + 1..].to_string()));
-            } else if !creds.is_empty() {
-                username = Some(creds.to_string());
-            }
-            _host_port = &without_prefix[at_pos + 1..];
-        } else {
-            _host_port = without_prefix;
-        }
-
-        if let Some(slash_pos) = _host_port.find('/') {
-            let after_slash = &_host_port[slash_pos + 1..];
-            let mut db_name = after_slash.to_string();
-
-            if let Some(qmark_pos) = db_name.find('?') {
-                db_name = db_name[..qmark_pos].to_string();
-                params = extract_params(&after_slash[qmark_pos + 1..]);
-            }
-
-            database = Some(db_name);
-            _host_port = &_host_port[..slash_pos];
-        } else if let Some(qmark_pos) = _host_port.find('?') {
-            _host_port = &_host_port[..qmark_pos];
-        }
-
-        let mut host = _host_port.to_string();
-        let mut port = None;
-        if let Some(colon_pos) = _host_port.rfind(':') {
-            let port_str = &_host_port[colon_pos + 1..];
-            if let Ok(p) = port_str.parse::<u16>() {
-                host = _host_port[..colon_pos].to_string();
-                port = Some(p);
-            }
-        }
-
-        Self {
-            db_type: DbType::PostgreSQL,
-            original: s,
-            host: if host.is_empty() { None } else { Some(host) },
-            port,
-            database,
-            username,
-            password,
-            file_path: None,
-            is_memory: false,
-            params,
-        }
-    }
-
     /// 解析 Redis 连接字符串
     fn parse_redis(s: &'a str) -> Self {
         let without_prefix = s.strip_prefix("redis://").unwrap_or(s);
         let mut password: Option<SecretString> = None;
-        let mut _host_port = ""; // host:port part
+        let mut _host_port = "";
 
         if let Some(at_pos) = without_prefix.find('@') {
-            // 格式: :password@host:port
             if without_prefix.starts_with(':') {
                 password = Some(SecretString::from(without_prefix[1..at_pos].to_string()));
             }
@@ -278,10 +144,6 @@ impl<'a> ParsedConnectionString<'a> {
         let lower = s.to_lowercase();
         if lower.starts_with("sqlite") {
             Self::parse_sqlite(s)
-        } else if lower.starts_with("mysql") {
-            Self::parse_mysql(s)
-        } else if lower.starts_with("postgres") {
-            Self::parse_postgres(s)
         } else if lower.starts_with("redis") {
             Self::parse_redis(s)
         } else {
@@ -363,14 +225,6 @@ impl ValidationResult {
 /// - 内存数据库: `sqlite::memory:` 或 `sqlite::memory:?cache=shared`
 /// - 不推荐: `sqlite:///path` (三个斜杠会被错误解析)
 ///
-/// ## MySQL
-/// - 标准格式: `mysql://host:port/database?params`
-/// - 简写格式: `mysql://host/database`
-///
-/// ## PostgreSQL
-/// - 标准格式: `postgresql://host:port/database?params`
-/// - 简写格式: `postgres://host/database`
-///
 /// # 环境推荐格式
 ///
 /// - **开发环境**: 使用相对路径或内存数据库
@@ -379,14 +233,10 @@ impl ValidationResult {
 ///   - SQLite: `sqlite::memory:?cache=shared`
 /// - **生产环境**: 使用绝对路径
 ///   - SQLite: `sqlite:/var/data/oxcache/prod.db`
-///   - MySQL: `mysql://prod-host:3306/oxcache?timeout=30s`
-///   - PostgreSQL: `postgresql://prod-host:5432/oxcache?pool_timeout=30s`
 pub fn normalize_connection_string(s: &str) -> String {
     let parsed = ParsedConnectionString::parse(s);
     match parsed.db_type {
         DbType::SQLite => normalize_sqlite(&parsed),
-        DbType::MySQL => normalize_mysql(&parsed, false), // 不脱敏用于显示
-        DbType::PostgreSQL => normalize_postgres(&parsed, false), // 不脱敏用于显示
         DbType::Redis => normalize_redis(&parsed),
     }
 }
@@ -420,86 +270,6 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
     }
 }
 
-/// 规范化 MySQL 连接字符串
-fn normalize_mysql(parsed: &ParsedConnectionString, redact: bool) -> String {
-    let mut result = String::from("mysql://");
-
-    if let Some(username) = &parsed.username {
-        result.push_str(username);
-        if let Some(password) = &parsed.password {
-            result.push(':');
-            if redact {
-                result.push_str("****");
-            } else {
-                result.push_str(password.expose_secret());
-            }
-        }
-        result.push('@');
-    }
-
-    if let Some(host) = &parsed.host {
-        result.push_str(host);
-    }
-
-    if let Some(port) = &parsed.port {
-        result.push(':');
-        result.push_str(&port.to_string());
-    }
-
-    if let Some(database) = &parsed.database {
-        result.push('/');
-        result.push_str(database);
-    }
-
-    if !parsed.params.is_empty() {
-        result.push('?');
-        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
-        result.push_str(&params.join("&"));
-    }
-
-    result
-}
-
-/// 规范化 PostgreSQL 连接字符串
-fn normalize_postgres(parsed: &ParsedConnectionString, redact: bool) -> String {
-    let mut result = String::from("postgresql://");
-
-    if let Some(username) = &parsed.username {
-        result.push_str(username);
-        if let Some(password) = &parsed.password {
-            result.push(':');
-            if redact {
-                result.push_str("****");
-            } else {
-                result.push_str(password.expose_secret());
-            }
-        }
-        result.push('@');
-    }
-
-    if let Some(host) = &parsed.host {
-        result.push_str(host);
-    }
-
-    if let Some(port) = &parsed.port {
-        result.push(':');
-        result.push_str(&port.to_string());
-    }
-
-    if let Some(database) = &parsed.database {
-        result.push('/');
-        result.push_str(database);
-    }
-
-    if !parsed.params.is_empty() {
-        result.push('?');
-        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
-        result.push_str(&params.join("&"));
-    }
-
-    result
-}
-
 /// 规范化 Redis 连接字符串
 fn normalize_redis(parsed: &ParsedConnectionString) -> String {
     let mut result = String::from("redis://");
@@ -527,8 +297,7 @@ fn normalize_redis(parsed: &ParsedConnectionString) -> String {
 /// # 验证规则
 ///
 /// - SQLite: 文件路径必须存在或可创建，目录必须有写权限
-/// - MySQL: 必须包含主机地址
-/// - PostgreSQL: 必须包含主机地址
+/// - Redis: 必须包含主机地址
 pub fn validate_connection_string(s: &str) -> ValidationResult {
     let parsed = ParsedConnectionString::parse(s);
     let normalized = normalize_connection_string(s);
@@ -555,7 +324,7 @@ pub fn validate_connection_string(s: &str) -> ValidationResult {
                 }
             }
         }
-        DbType::MySQL | DbType::PostgreSQL | DbType::Redis => {
+        DbType::Redis => {
             if parsed.host.as_ref().is_none_or(|h| h.is_empty()) {
                 errors.push("必须指定主机地址".to_string());
             }
@@ -580,8 +349,6 @@ pub fn validate_connection_string(s: &str) -> ValidationResult {
 pub fn get_recommended_connection_string(db_type: DbType, environment: &str, name: &str) -> String {
     match db_type {
         DbType::SQLite => get_recommended_sqlite(environment, name),
-        DbType::MySQL => get_recommended_mysql(environment, name),
-        DbType::PostgreSQL => get_recommended_postgres(environment, name),
         DbType::Redis => get_recommended_redis(environment, name),
     }
 }
@@ -599,49 +366,6 @@ fn get_recommended_sqlite(environment: &str, name: &str) -> String {
     }
 }
 
-/// 获取 MySQL 推荐连接字符串
-fn get_recommended_mysql(environment: &str, name: &str) -> String {
-    match environment {
-        "testing" | "test" => {
-            let host = std::env::var("MYSQL_TEST_HOST").unwrap_or_else(|_| "localhost".to_string());
-            format!("mysql://{}:3306/{}?socket_timeout=10s", host, name)
-        }
-        "development" | "dev" => {
-            let host = std::env::var("MYSQL_DEV_HOST").unwrap_or_else(|_| "localhost".to_string());
-            format!("mysql://{}:3306/{}?timeout=30s", host, name)
-        }
-        "production" | "prod" => {
-            let host = std::env::var("MYSQL_PROD_HOST").unwrap_or_else(|_| "localhost".to_string());
-            let port = std::env::var("MYSQL_PROD_PORT").unwrap_or_else(|_| "3306".to_string());
-            format!("mysql://{}:{}/{}?timeout=60s&pool_timeout=30s", host, port, name)
-        }
-        _ => format!("mysql://localhost:3306/{}", name),
-    }
-}
-
-/// 获取 PostgreSQL 推荐连接字符串
-fn get_recommended_postgres(environment: &str, name: &str) -> String {
-    match environment {
-        "testing" | "test" => {
-            let host = std::env::var("POSTGRES_TEST_HOST").unwrap_or_else(|_| "localhost".to_string());
-            format!("postgresql://{}:5432/{}?connect_timeout=10", host, name)
-        }
-        "development" | "dev" => {
-            let host = std::env::var("POSTGRES_DEV_HOST").unwrap_or_else(|_| "localhost".to_string());
-            format!("postgresql://{}:5432/{}?connect_timeout=30", host, name)
-        }
-        "production" | "prod" => {
-            let host = std::env::var("POSTGRES_PROD_HOST").unwrap_or_else(|_| "localhost".to_string());
-            let port = std::env::var("POSTGRES_PROD_PORT").unwrap_or_else(|_| "5432".to_string());
-            format!(
-                "postgresql://{}:{}/{}?connect_timeout=60&pool_timeout=30",
-                host, port, name
-            )
-        }
-        _ => format!("postgresql://localhost:5432/{}", name),
-    }
-}
-
 /// 获取 Redis 推荐连接字符串
 fn get_recommended_redis(environment: &str, _name: &str) -> String {
     let host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "localhost".to_string());
@@ -655,9 +379,6 @@ fn get_recommended_redis(environment: &str, _name: &str) -> String {
             if password.is_empty() {
                 format!("redis://{}:{}/0", host, port)
             } else {
-                // 注意：这里密码仍然以明文形式出现在连接字符串中
-                // 但这是为了符合 Redis 客户端的连接字符串格式要求
-                // 密码在实际使用时会被解析为 Secret<String> 保护
                 format!("redis://:{}@{}:{}/0", password, host, port)
             }
         }
@@ -696,8 +417,6 @@ pub fn is_test_connection_string(s: &str) -> bool {
                 || s.contains("debug_")
                 || s.contains("_test_")
                 || s.contains("manual_control")
-                || s.contains("mysql")
-                || s.contains("postgres")
                 || s.contains("single_flight")
                 || s.contains("rate_limit")
                 || s.contains("bloom")
@@ -756,110 +475,17 @@ pub fn ensure_database_directory(connection_string: &str) -> Result<String> {
 /// # 返回值
 ///
 /// 返回规范化后的连接字符串
-///
-/// # 示例
-///
-/// ```ignore
-/// let normalized = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
-/// assert_eq!(normalized, "mysql://user:****@localhost/db");
-///
-/// let visible = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", false);
-/// assert_eq!(visible, "mysql://user:secret123@localhost/db");
-/// ```
 pub fn normalize_connection_string_with_redaction(s: &str, redact_password: bool) -> String {
     let parsed = ParsedConnectionString::parse(s);
     match parsed.db_type {
         DbType::SQLite => normalize_sqlite_with_redaction(&parsed, redact_password),
-        DbType::MySQL => normalize_mysql_with_redaction(&parsed, redact_password),
-        DbType::PostgreSQL => normalize_postgres_with_redaction(&parsed, redact_password),
         DbType::Redis => normalize_redis_with_redaction(&parsed, redact_password),
     }
 }
 
 /// 规范化 SQLite 连接字符串（带密码屏蔽）
 fn normalize_sqlite_with_redaction(parsed: &ParsedConnectionString, _redact_password: bool) -> String {
-    // SQLite 连接字符串不包含密码，直接调用原函数
     normalize_sqlite(parsed)
-}
-
-/// 规范化 MySQL 连接字符串（带密码屏蔽）
-fn normalize_mysql_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
-    let mut result = String::from("mysql://");
-
-    if let Some(username) = &parsed.username {
-        result.push_str(username);
-        if let Some(password) = &parsed.password {
-            result.push(':');
-            if redact_password {
-                result.push_str("****");
-            } else {
-                result.push_str(password.expose_secret());
-            }
-        }
-        result.push('@');
-    }
-
-    if let Some(host) = &parsed.host {
-        result.push_str(host);
-    }
-
-    if let Some(port) = &parsed.port {
-        result.push(':');
-        result.push_str(&port.to_string());
-    }
-
-    if let Some(database) = &parsed.database {
-        result.push('/');
-        result.push_str(database);
-    }
-
-    if !parsed.params.is_empty() {
-        result.push('?');
-        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
-        result.push_str(&params.join("&"));
-    }
-
-    result
-}
-
-/// 规范化 PostgreSQL 连接字符串（带密码屏蔽）
-fn normalize_postgres_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
-    let mut result = String::from("postgresql://");
-
-    if let Some(username) = &parsed.username {
-        result.push_str(username);
-        if let Some(password) = &parsed.password {
-            result.push(':');
-            if redact_password {
-                result.push_str("****");
-            } else {
-                result.push_str(password.expose_secret());
-            }
-        }
-        result.push('@');
-    }
-
-    if let Some(host) = &parsed.host {
-        result.push_str(host);
-    }
-
-    if let Some(port) = &parsed.port {
-        result.push(':');
-        result.push_str(&port.to_string());
-    }
-
-    if let Some(database) = &parsed.database {
-        result.push('/');
-        result.push_str(database);
-    }
-
-    if !parsed.params.is_empty() {
-        result.push('?');
-        let params: Vec<String> = parsed.params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
-        result.push_str(&params.join("&"));
-    }
-
-    result
 }
 
 /// 规范化 Redis 连接字符串（带密码屏蔽）
@@ -941,30 +567,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_mysql() {
-        let parsed = ParsedConnectionString::parse("mysql://user:pass@localhost:3306/mydb?timeout=30");
-        assert_eq!(parsed.db_type, DbType::MySQL);
-        assert_eq!(parsed.host, Some("localhost".to_string()));
-        assert_eq!(parsed.port, Some(3306));
-        assert_eq!(parsed.database, Some("mydb".to_string()));
-        assert_eq!(parsed.username, Some("user".to_string()));
-        assert_eq!(
-            parsed.password.as_ref().map(|p| p.expose_secret().to_string()),
-            Some("pass".to_string())
-        );
-    }
-
-    #[test]
-    fn test_parse_postgres() {
-        let parsed = ParsedConnectionString::parse("postgresql://user@localhost:5432/mydb?connect_timeout=30");
-        assert_eq!(parsed.db_type, DbType::PostgreSQL);
-        assert_eq!(parsed.host, Some("localhost".to_string()));
-        assert_eq!(parsed.port, Some(5432));
-        assert_eq!(parsed.database, Some("mydb".to_string()));
-        assert_eq!(parsed.username, Some("user".to_string()));
-    }
-
-    #[test]
     fn test_validate_sqlite_memory() {
         let result = validate_connection_string("sqlite::memory:");
         assert!(result.is_valid);
@@ -995,38 +597,10 @@ mod tests {
     fn test_is_test_connection_string() {
         assert!(is_test_connection_string("sqlite::memory:"));
         assert!(is_test_connection_string("sqlite:test.db"));
-        assert!(is_test_connection_string("mysql://localhost/testdb"));
-    }
-
-    #[test]
-    fn test_normalize_with_redaction_mysql() {
-        // 测试 MySQL 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", true);
-        assert_eq!(redacted, "mysql://user:****@localhost/db");
-
-        // 测试不屏蔽（默认行为）
-        let visible = normalize_connection_string_with_redaction("mysql://user:secret123@localhost/db", false);
-        assert_eq!(visible, "mysql://user:secret123@localhost/db");
-
-        // 测试没有密码的情况
-        let no_password = normalize_connection_string_with_redaction("mysql://user@localhost/db", true);
-        assert_eq!(no_password, "mysql://user@localhost/db");
-    }
-
-    #[test]
-    fn test_normalize_with_redaction_postgres() {
-        // 测试 PostgreSQL 密码屏蔽
-        let redacted = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", true);
-        assert_eq!(redacted, "postgresql://user:****@localhost:5432/mydb");
-
-        // 测试不屏蔽
-        let visible = normalize_connection_string_with_redaction("postgresql://user:mypass@localhost:5432/mydb", false);
-        assert_eq!(visible, "postgresql://user:mypass@localhost:5432/mydb");
     }
 
     #[test]
     fn test_normalize_with_redaction_sqlite() {
-        // SQLite 不包含密码，应该正常工作
         let result = normalize_connection_string_with_redaction("sqlite:./test.db", true);
         assert_eq!(result, "sqlite:./test.db");
 
@@ -1036,14 +610,12 @@ mod tests {
 
     #[test]
     fn test_parse_redis() {
-        // 测试解析 Redis 连接字符串
         let parsed = ParsedConnectionString::parse("redis://localhost:6379");
         assert_eq!(parsed.db_type, DbType::Redis);
         assert_eq!(parsed.host, Some("localhost".to_string()));
         assert_eq!(parsed.port, Some(6379));
         assert!(parsed.password.is_none());
 
-        // 测试带密码的 Redis 连接字符串
         let parsed_with_pass = ParsedConnectionString::parse("redis://:mypassword@localhost:6379");
         assert_eq!(parsed_with_pass.db_type, DbType::Redis);
         assert_eq!(
@@ -1054,7 +626,6 @@ mod tests {
             Some("mypassword".to_string())
         );
 
-        // 测试没有密码但有用户名的情况（Redis 不支持用户名，但应该能解析）
         let parsed_no_pass = ParsedConnectionString::parse("redis://localhost:6380");
         assert_eq!(parsed_no_pass.db_type, DbType::Redis);
         assert_eq!(parsed_no_pass.port, Some(6380));
@@ -1062,7 +633,6 @@ mod tests {
 
     #[test]
     fn test_normalize_redis() {
-        // 测试规范化 Redis 连接字符串
         let normalized = normalize_connection_string("redis://localhost:6379");
         assert_eq!(normalized, "redis://localhost:6379");
 
@@ -1072,23 +642,13 @@ mod tests {
 
     #[test]
     fn test_normalize_with_redaction_redis() {
-        // 测试 Redis 密码屏蔽
         let redacted = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", true);
         assert_eq!(redacted, "redis://:****@localhost:6379");
 
-        // 测试不屏蔽
         let visible = normalize_connection_string_with_redaction("redis://:mypassword@localhost:6379", false);
         assert_eq!(visible, "redis://:mypassword@localhost:6379");
 
-        // 测试没有密码的情况
         let no_password = normalize_connection_string_with_redaction("redis://localhost:6379", true);
         assert_eq!(no_password, "redis://localhost:6379");
-    }
-
-    #[test]
-    fn test_backward_compatibility() {
-        // 测试原有的 normalize_connection_string 仍然工作（默认不屏蔽密码）
-        let result = normalize_connection_string("mysql://user:pass123@localhost/db");
-        assert_eq!(result, "mysql://user:pass123@localhost/db");
     }
 }

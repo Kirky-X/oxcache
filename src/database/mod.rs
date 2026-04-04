@@ -4,14 +4,12 @@
 //!
 //! 数据库分区管理模块
 //!
-//! 提供PostgreSQL和MySQL的按月分区功能
+//! 提供 SQLite 的按月分区功能
 
 use serde::{Deserialize, Serialize};
 
 pub mod common;
 pub mod connection_string;
-pub mod mysql;
-pub mod postgresql;
 pub mod sqlite;
 
 #[cfg(any(feature = "database", test))]
@@ -23,20 +21,12 @@ pub use partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionS
 /// 数据库类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DatabaseType {
-    PostgreSQL,
-    MySQL,
-    SQLite, // 用于测试和开发
+    SQLite,
 }
 
 impl DatabaseType {
     /// 从URL字符串解析数据库类型
-    pub fn from_url(url: &str) -> Self {
-        if url.starts_with("postgres://") || url.starts_with("postgresql://") {
-            DatabaseType::PostgreSQL
-        } else if url.starts_with("mysql://") {
-            DatabaseType::MySQL
-        } else {
-            DatabaseType::SQLite
-        }
+    pub fn from_url(_url: &str) -> Self {
+        DatabaseType::SQLite
     }
 }
