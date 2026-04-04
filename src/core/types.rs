@@ -5,7 +5,6 @@
 //! 类型安全的枚举定义，用于替代硬编码字符串常量
 
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 /// Redis 连接模式
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
