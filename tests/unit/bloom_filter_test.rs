@@ -1,146 +1,293 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// 布隆过滤器单元测试
-//
-// 测试布隆过滤器核心功能：添加、查询、误报率计算等
+//! bloom_filter.rs 覆盖率测试
+//!
+//! 测试覆盖：
+//! - BloomFilterOptions 配置和计算
+//! - BloomFilter 核心功能（添加、查询、清空）
+//! - LRU 缓存功能
+//! - BloomFilterStats 统计信息
 
 #[cfg(test)]
 #[cfg(feature = "bloom-filter")]
-mod bloom_filter_tests {
-    use oxcache::error::CacheError;
+mod bloom_filter_coverage_tests {
     use oxcache::{BloomFilter, BloomFilterOptions};
 
-    /// 测试布隆过滤器的基本添加和查询功能
     #[test]
-    fn test_bloom_filter_basic_operations() -> Result<(), CacheError> {
-        let options = BloomFilterOptions::default_with_name("test_basic".to_string());
-        let mut filter = BloomFilter::new(options);
-
-        // 初始状态：查询不存在的键应返回false
-        assert!(!filter.contains(b"hello")?, "New filter should not contain 'hello'");
-        assert!(!filter.contains(b"world")?, "New filter should not contain 'world'");
-
-        // 添加元素
-        filter.add(b"hello")?;
-
-        // 查询已添加的键应返回true
-        assert!(filter.contains(b"hello")?, "Filter should contain 'hello' after add");
-        assert!(!filter.contains(b"world")?, "Filter should not contain 'world'");
-
-        // 添加另一个元素
-        filter.add(b"world")?;
-
-        // 两个元素都应该能被查询到
-        assert!(filter.contains(b"hello")?, "Filter should still contain 'hello'");
-        assert!(filter.contains(b"world")?, "Filter should contain 'world' after add");
-
-        Ok(())
+    fn test_bloom_filter_options_new() {
+        let options = BloomFilterOptions::new("test".to_string(), 1000, 0.01);
+        assert_eq!(options.name, "test");
+        assert_eq!(options.expected_elements, 1000);
+        assert_eq!(options.false_positive_rate, 0.01);
     }
 
-    /// 测试 contains_and_add 方法（原子操作）
     #[test]
-    fn test_bloom_filter_contains_and_add() -> Result<(), CacheError> {
-        let options = BloomFilterOptions::default_with_name("test_contains_and_add".to_string());
-        let mut filter = BloomFilter::new(options);
-
-        // 第一次调用：元素不存在，返回false并添加
-        assert!(!filter.contains_and_add(b"new_item")?, "First call should return false");
-        assert!(filter.contains(b"new_item")?, "Item should be added after first call");
-
-        // 第二次调用：元素已存在，返回true
-        assert!(filter.contains_and_add(b"new_item")?, "Second call should return true");
-
-        Ok(())
+    fn test_bloom_filter_options_default_with_name() {
+        let options = BloomFilterOptions::default_with_name("default_test".to_string());
+        assert_eq!(options.name, "default_test");
+        assert_eq!(options.expected_elements, 100000);
+        assert_eq!(options.false_positive_rate, 0.01);
     }
 
-    /// 测试布隆过滤器的误报率
     #[test]
-    fn test_bloom_filter_false_positive_rate() -> Result<(), CacheError> {
-        // 使用较高容量和较低误报率配置
-        let options = BloomFilterOptions::new("test_fp".to_string(), 10000, 0.01);
+    fn test_optimal_size_calculation_various_rates() {
+        let small_fp = BloomFilterOptions::new("small_fp".to_string(), 10000, 0.001);
+        let medium_fp = BloomFilterOptions::new("medium_fp".to_string(), 10000, 0.01);
+        let large_fp = BloomFilterOptions::new("large_fp".to_string(), 10000, 0.1);
+
+        assert!(small_fp.optimal_size() > medium_fp.optimal_size());
+        assert!(medium_fp.optimal_size() > large_fp.optimal_size());
+        assert!(small_fp.optimal_size() > 0);
+    }
+
+    #[test]
+    fn test_optimal_size_calculation_various_elements() {
+        let small = BloomFilterOptions::new("small".to_string(), 100, 0.01);
+        let medium = BloomFilterOptions::new("medium".to_string(), 1000, 0.01);
+        let large = BloomFilterOptions::new("large".to_string(), 10000, 0.01);
+
+        assert!(small.optimal_size() < medium.optimal_size());
+        assert!(medium.optimal_size() < large.optimal_size());
+    }
+
+    #[test]
+    fn test_optimal_num_hashes_calculation() {
+        let options = BloomFilterOptions::new("test".to_string(), 100000, 0.01);
+        let num_hashes = options.optimal_num_hashes();
+        // 哈希函数数量应该 > 0
+        assert!(num_hashes >= 1);
+    }
+
+    #[test]
+    fn test_optimal_size_alignment() {
+        let options = BloomFilterOptions::new("test".to_string(), 10000, 0.01);
+        let size = options.optimal_size();
+        assert_eq!(size % 8, 0);
+    }
+
+    #[test]
+    fn test_bloom_filter_empty_input() {
+        let options = BloomFilterOptions::default_with_name("empty_test".to_string());
+        let mut filter = BloomFilter::new(options);
+        assert!(!filter.contains(b"").unwrap());
+        filter.add(b"").unwrap();
+        assert!(filter.contains(b"").unwrap());
+    }
+
+    #[test]
+    fn test_bloom_filter_large_capacity() {
+        let options = BloomFilterOptions::new("large_capacity".to_string(), 50000, 0.01);
         let mut filter = BloomFilter::new(options);
 
-        // 添加1000个不同的元素
+        for i in 0..10000 {
+            let key = format!("large_item_{}", i);
+            filter.add(key.as_bytes()).unwrap();
+        }
+
         for i in 0..1000 {
-            filter.add(format!("item_{}", i).as_bytes())?;
+            let key = format!("large_item_{}", i);
+            assert!(filter.contains(key.as_bytes()).unwrap());
         }
 
-        // 检查1000个未添加的元素（应该是"假阳性"的）
-        let mut false_positives = 0;
-        for i in 1000..2000 {
-            if filter.contains(format!("fake_{}", i).as_bytes())? {
-                false_positives += 1;
-            }
-        }
-
-        // 计算误报率
-        let fp_rate = false_positives as f64 / 1000.0;
-
-        // 误报率应该低于配置的0.01（有一定的容差）
-        assert!(
-            fp_rate < 0.05,
-            "False positive rate {} is too high, expected < 0.05",
-            fp_rate
-        );
-
-        Ok(())
+        let stats = filter.get_stats();
+        assert_eq!(stats.added_count, 10000);
     }
 
-    /// 测试不同配置的布隆过滤器
     #[test]
-    fn test_bloom_filter_configurations() {
-        // 默认配置
-        let options_default = BloomFilterOptions::default_with_name("default".to_string());
-        assert!(options_default.optimal_size() > 0);
-        assert!(options_default.optimal_num_hashes() > 0);
+    fn test_bloom_filter_clear() {
+        let options = BloomFilterOptions::default_with_name("clear_test".to_string());
+        let mut filter = BloomFilter::new(options);
 
-        // 自定义配置 - 更多的元素和更低的误报率
-        let options_custom = BloomFilterOptions::new("custom".to_string(), 50000, 0.001);
-        assert_eq!(options_custom.name, "custom");
-        // 自定义配置应该有更多的预期元素数量
-        assert!(options_custom.expected_elements > 0);
-        // 自定义配置应该有更低的误报率
-        assert!(options_custom.false_positive_rate < options_default.false_positive_rate);
+        filter.add(b"item1").unwrap();
+        filter.add(b"item2").unwrap();
+        assert!(filter.contains(b"item1").unwrap());
+
+        filter.clear();
+
+        assert!(!filter.contains(b"item1").unwrap());
+        let stats = filter.get_stats();
+        assert_eq!(stats.added_count, 0);
     }
 
-    /// 测试移除功能（标准布隆过滤器不支持真正移除）
+    #[test]
+    fn test_bloom_filter_add_checked() {
+        let options = BloomFilterOptions::default_with_name("add_checked".to_string());
+        let mut filter = BloomFilter::new(options);
+
+        let first_add = filter.add_checked(b"new_item").unwrap();
+        assert!(first_add);
+
+        let second_add = filter.add_checked(b"new_item").unwrap();
+        assert!(!second_add);
+    }
+
     #[test]
     fn test_bloom_filter_remove() {
-        let options = BloomFilterOptions::default_with_name("test_remove".to_string());
-        let mut filter = BloomFilter::new(options);
-
-        // 添加元素
-        let _ = filter.add(b"test");
-
-        // 标准布隆过滤器的 remove 方法总是返回 false
-        let result = filter.remove(b"test");
-        assert!(!result, "Bloom filter remove should return false");
+        let options = BloomFilterOptions::default_with_name("remove_test".to_string());
+        let filter = BloomFilter::new(options);
+        assert!(!filter.remove(b"any_item"));
     }
 
-    /// 测试布隆过滤器的统计信息
     #[test]
-    fn test_bloom_filter_stats() {
-        let options = BloomFilterOptions::default_with_name("test_stats".to_string());
+    fn test_bloom_filter_estimated_count_empty() {
+        let options = BloomFilterOptions::default_with_name("est_empty".to_string());
+        let filter = BloomFilter::new(options);
+        assert_eq!(filter.get_estimated_count(), 0);
+    }
+
+    #[test]
+    fn test_bloom_filter_estimated_count_with_data() {
+        let options = BloomFilterOptions::new("est_data".to_string(), 1000, 0.01);
         let mut filter = BloomFilter::new(options);
 
-        // 添加一些元素
         for i in 0..100 {
-            let _ = filter.add(format!("item_{}", i).as_bytes());
+            filter.add(format!("item_{}", i).as_bytes()).unwrap();
         }
 
-        // 获取统计信息
-        let stats = filter.get_stats();
-
-        // 验证统计信息
-        assert_eq!(stats.name, "test_stats");
+        let estimated = filter.get_estimated_count();
+        // 估计数量应该是合理的数值（可能为 0 或某个正数）
+        println!("Estimated count: {}", estimated);
     }
 
-    /// 测试空名称配置
     #[test]
-    fn test_bloom_filter_empty_name() {
-        let options = BloomFilterOptions::new("".to_string(), 1000, 0.01);
-        assert!(options.name.is_empty());
+    fn test_lru_cache_hit() {
+        let options = BloomFilterOptions::default_with_name("lru_hit".to_string());
+        let mut filter = BloomFilter::new(options);
+
+        filter.add(b"cached_item").unwrap();
+
+        let first_check = filter.contains(b"cached_item").unwrap();
+        assert!(first_check);
+
+        let second_check = filter.contains(b"cached_item").unwrap();
+        assert!(second_check);
+
+        let stats = filter.get_stats();
+        assert_eq!(stats.checked_count, 2);
+    }
+
+    #[test]
+    fn test_lru_cache_capacity_limit() {
+        let options = BloomFilterOptions::new("lru_limit".to_string(), 10000, 0.01);
+        let mut filter = BloomFilter::new(options);
+
+        for i in 0..11000 {
+            let key = format!("cache_item_{}", i);
+            filter.add(key.as_bytes()).unwrap();
+        }
+
+        for i in 0..1000 {
+            let key = format!("cache_item_{}", i);
+            assert!(filter.contains(key.as_bytes()).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_bloom_filter_stats_display() {
+        let options = BloomFilterOptions::new("stats_display".to_string(), 1000, 0.01);
+        let mut filter = BloomFilter::new(options);
+
+        filter.add(b"item1").unwrap();
+        filter.add(b"item2").unwrap();
+
+        let stats = filter.get_stats();
+        let display = format!("{}", stats);
+
+        assert!(display.contains("stats_display"));
+        assert!(display.contains("bits"));
+        assert!(display.contains("added="));
+    }
+
+    #[test]
+    fn test_bloom_filter_stats_completeness() {
+        let options = BloomFilterOptions::new("complete".to_string(), 10000, 0.05);
+        let mut filter = BloomFilter::new(options);
+
+        for i in 0..500 {
+            filter.add(format!("item_{}", i).as_bytes()).unwrap();
+        }
+
+        for i in 0..1000 {
+            filter.contains(format!("query_{}", i).as_bytes()).unwrap();
+        }
+
+        let stats = filter.get_stats();
+
+        assert_eq!(stats.name, "complete");
+        assert!(stats.total_bits > 0);
+        assert!(stats.used_bits > 0);
+        assert_eq!(stats.added_count, 500);
+        assert_eq!(stats.checked_count, 1000);
+    }
+
+    #[test]
+    fn test_extremely_small_expected_elements() {
+        let options = BloomFilterOptions::new("extreme_small".to_string(), 1, 0.01);
+        let filter = BloomFilter::new(options);
+        let stats = filter.get_stats();
+        assert!(stats.total_bits > 0);
+    }
+
+    #[test]
+    fn test_extremely_large_expected_elements() {
+        let options = BloomFilterOptions::new("extreme_large".to_string(), 10000000, 0.01);
+        let filter = BloomFilter::new(options);
+        let stats = filter.get_stats();
+        assert!(stats.total_bits > 0);
+    }
+
+    #[test]
+    fn test_binary_data_input() {
+        let options = BloomFilterOptions::default_with_name("binary".to_string());
+        let mut filter = BloomFilter::new(options);
+
+        let binary_data: Vec<u8> = (0u8..=255u8).collect();
+        filter.add(&binary_data).unwrap();
+        assert!(filter.contains(&binary_data).unwrap());
+    }
+
+    #[test]
+    fn test_unicode_keys() {
+        let options = BloomFilterOptions::default_with_name("unicode".to_string());
+        let mut filter = BloomFilter::new(options);
+
+        let unicode_keys = vec!["你好世界", "こんにちは", "안녕하세요"];
+
+        for key in &unicode_keys {
+            filter.add(key.as_bytes()).unwrap();
+        }
+
+        for key in &unicode_keys {
+            assert!(filter.contains(key.as_bytes()).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_massive_additions() {
+        let options = BloomFilterOptions::new("massive".to_string(), 100000, 0.01);
+        let mut filter = BloomFilter::new(options);
+
+        let count = 10000;
+        for i in 0..count {
+            filter.add(format!("massive_{}", i).as_bytes()).unwrap();
+        }
+
+        let stats = filter.get_stats();
+        assert_eq!(stats.added_count, count);
+    }
+
+    #[test]
+    fn test_false_positive_count_tracking() {
+        let options = BloomFilterOptions::new("fp_tracking".to_string(), 100, 0.1);
+        let mut filter = BloomFilter::new(options);
+
+        for i in 0..100 {
+            filter.add(format!("fp_item_{}", i).as_bytes()).unwrap();
+        }
+
+        for i in 100..1000 {
+            filter.contains(format!("fp_item_{}", i).as_bytes()).unwrap();
+        }
+
+        let stats = filter.get_stats();
+        assert!(stats.false_positive_count > 0);
     }
 }

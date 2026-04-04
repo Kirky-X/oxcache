@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 /// let backend = MockBackend::new("test", 80, false);
 /// let backend_with_data = MockBackend::with_data("test", 80, false);
 /// ```
+#[derive(Clone)]
 #[allow(dead_code)]
 pub struct MockBackend {
     name: &'static str,

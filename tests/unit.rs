@@ -51,3 +51,12 @@ mod utils_security_log_test;
 
 #[path = "unit/builder_sorter_test.rs"]
 mod builder_sorter_test;
+
+#[path = "unit/cache_test.rs"]
+mod cache_test;
+
+#[path = "unit/mock_backend_test.rs"]
+mod mock_backend_test;
+
+#[path = "unit/wal_stub_test.rs"]
+mod wal_stub_test;
