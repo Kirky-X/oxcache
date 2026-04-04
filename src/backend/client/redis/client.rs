@@ -5,6 +5,7 @@
 
 use crate::backend::interface::CacheBackend;
 use crate::backend::score::{BackendScore, Scores};
+use crate::core::types::RedisModeType;
 use crate::error::{CacheError, Result};
 use crate::security;
 use async_trait::async_trait;
@@ -14,17 +15,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Redis connection mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RedisMode {
-    /// Standalone Redis server
-    #[default]
-    Standalone,
-    /// Redis Sentinel for high availability
-    Sentinel,
-    /// Redis Cluster for horizontal scaling
-    Cluster,
-}
+/// 类型别名，保持 API 兼容性
+pub type RedisMode = RedisModeType;
 
 /// Redis configuration for connection setup
 #[derive(Debug, Clone, PartialEq, Eq)]

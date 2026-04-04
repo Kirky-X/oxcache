@@ -4,6 +4,7 @@
 //!
 //! Unified metrics collection system that consolidates all metrics functionality
 
+use crate::core::types::CacheLayer;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::Serialize;
@@ -447,22 +448,6 @@ pub struct CacheOperation {
     pub layer: CacheLayer,
     pub op_type: CacheOpType,
     pub result: CacheOpResult,
-}
-
-/// Cache layer
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CacheLayer {
-    L1,
-    L2,
-}
-
-impl std::fmt::Display for CacheLayer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CacheLayer::L1 => write!(f, "L1"),
-            CacheLayer::L2 => write!(f, "L2"),
-        }
-    }
 }
 
 /// Cache operation type

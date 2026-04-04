@@ -47,14 +47,16 @@
 use crate::backend::client::moka::MokaMemoryBackend as MemoryBackend;
 use crate::backend::client::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
 use crate::backend::CacheBackend;
+use crate::core::types::{BackendType, CacheLayer};
 use crate::error::{CacheError, Result};
-use crate::security::redaction::redact_value;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::instrument;
+
+/// 类型别名，保持 API 兼容性
+pub type Layer = CacheLayer;
 
 /// 路径验证配置
 #[derive(Debug, Clone)]
@@ -296,28 +298,6 @@ impl ConfigValidation {
     }
 }
 
-/// 缓存层级
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-pub enum Layer {
-    /// 第一层缓存 - 通常是本地高速内存缓存
-    #[default]
-    L1,
-    /// 第二层缓存 - 本地持久化或分布式缓存
-    L2,
-    /// 第三层缓存 - 分布式存储或外部服务
-    L3,
-}
-
-impl fmt::Display for Layer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Layer::L1 => write!(f, "L1"),
-            Layer::L2 => write!(f, "L2"),
-            Layer::L3 => write!(f, "L3"),
-        }
-    }
-}
-
 /// 后端支持的层级限制
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayerRestriction {
@@ -349,58 +329,7 @@ impl LayerRestriction {
     }
 }
 
-/// 缓存后端类型枚举
-///
-/// 每个后端类型都有其推荐的层级限制：
-/// - `Moka` - L1/L2/L3（高性能内存缓存）
-/// - `DashMap` - L1/L2/L3（纯并发HashMap）
-/// - `Redis` - L2/L3（分布式缓存）
-/// - `Sqlite` - L2/L3（持久化存储）
-/// - `Tiered` - 任意层级（用于组合）
-/// - `Custom` - 任意层级（自定义后端）
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum BackendType {
-    /// Moka 高性能内存缓存（推荐 L1/L2）
-    #[cfg(feature = "moka")]
-    Moka,
-    /// DashMap 纯并发HashMap（推荐 L1/L2，无驱逐策略）
-    #[cfg(feature = "dashmap")]
-    DashMap,
-    /// Redis 分布式缓存（推荐 L2/L3）
-    #[cfg(feature = "redis")]
-    Redis,
-    /// Sqlite 持久化存储（推荐 L2/L3）
-    #[cfg(feature = "sqlite")]
-    Sqlite,
-    /// 分层缓存组合（任意层级）
-    #[default]
-    Tiered,
-    /// 自定义后端（任意层级，通过 BackendProvider 注入）
-    Custom(String),
-}
-
-impl fmt::Display for BackendType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            #[cfg(feature = "moka")]
-            BackendType::Moka => write!(f, "moka"),
-            #[cfg(feature = "dashmap")]
-            BackendType::DashMap => write!(f, "dashmap"),
-            #[cfg(feature = "redis")]
-            BackendType::Redis => write!(f, "redis"),
-            #[cfg(feature = "sqlite")]
-            BackendType::Sqlite => write!(f, "sqlite"),
-            BackendType::Tiered => write!(f, "tiered"),
-            // 脱敏自定义名称，防止敏感信息泄露
-            BackendType::Custom(name) => {
-                let masked = redact_value(name, 8);
-                write!(f, "custom:{}", masked)
-            }
-        }
-    }
-}
-
+/// BackendType 的扩展方法，用于层级限制和配置验证
 impl BackendType {
     /// 获取后端类型的层级限制
     pub fn layer_restriction(&self) -> LayerRestriction {
@@ -408,7 +337,7 @@ impl BackendType {
             #[cfg(feature = "moka")]
             BackendType::Moka => LayerRestriction::L1Only,
             #[cfg(feature = "dashmap")]
-            BackendType::DashMap => LayerRestriction::L1Only,
+            BackendType::Dashmap => LayerRestriction::L1Only,
             #[cfg(feature = "redis")]
             BackendType::Redis => LayerRestriction::L2AndL3Only,
             #[cfg(feature = "sqlite")]
@@ -424,7 +353,7 @@ impl BackendType {
             #[cfg(feature = "moka")]
             BackendType::Moka => Layer::L1,
             #[cfg(feature = "dashmap")]
-            BackendType::DashMap => Layer::L1,
+            BackendType::Dashmap => Layer::L1,
             #[cfg(feature = "redis")]
             BackendType::Redis => Layer::L2,
             #[cfg(feature = "sqlite")]
@@ -445,7 +374,7 @@ impl BackendType {
             #[cfg(feature = "moka")]
             BackendType::Moka,
             #[cfg(feature = "dashmap")]
-            BackendType::DashMap,
+            BackendType::Dashmap,
             #[cfg(feature = "redis")]
             BackendType::Redis,
             #[cfg(feature = "sqlite")]
@@ -466,7 +395,7 @@ impl BackendType {
             "moka" => Ok(BackendType::Moka),
 
             #[cfg(feature = "dashmap")]
-            "dashmap" => Ok(BackendType::DashMap),
+            "dashmap" => Ok(BackendType::Dashmap),
 
             #[cfg(feature = "redis")]
             "redis" => Ok(BackendType::Redis),
@@ -858,7 +787,7 @@ impl CustomTieredConfig {
     #[cfg(all(feature = "dashmap", feature = "redis"))]
     pub fn dashmap_redis() -> Self {
         Self {
-            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l1: LayerBackendConfig::new(BackendType::Dashmap),
             l2: LayerBackendConfig::new(BackendType::Redis),
             l3: LayerBackendConfig {
                 backend_type: BackendType::Tiered,
@@ -874,7 +803,7 @@ impl CustomTieredConfig {
     pub fn moka_dashmap_redis() -> Self {
         Self {
             l1: LayerBackendConfig::new(BackendType::Moka),
-            l2: LayerBackendConfig::new(BackendType::DashMap),
+            l2: LayerBackendConfig::new(BackendType::Dashmap),
             l3: LayerBackendConfig::new(BackendType::Redis),
             auto_fix: AutoFixConfig::new(),
         }
@@ -895,7 +824,7 @@ impl CustomTieredConfig {
     #[cfg(all(feature = "dashmap", feature = "sqlite"))]
     pub fn dashmap_sqlite() -> Self {
         Self {
-            l1: LayerBackendConfig::new(BackendType::DashMap),
+            l1: LayerBackendConfig::new(BackendType::Dashmap),
             l2: LayerBackendConfig::new(BackendType::Sqlite),
             l3: LayerBackendConfig {
                 backend_type: BackendType::Tiered,
