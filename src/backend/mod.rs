@@ -48,6 +48,9 @@ pub use client::{RedisBackend as ClientRedisBackend, RedisBackendBuilder, RedisM
 // Re-exports for custom tiered configuration
 #[cfg(any(feature = "moka", feature = "redis", feature = "full", feature = "core"))]
 pub use custom_tiered::{
-    AutoFixConfig, BackendProvider, BackendType, ConfigFix, ConfigValidationResult, CustomTieredConfig,
-    CustomTieredConfigBuilder, DefaultBackendProvider, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
+    AutoFixConfig, BackendProvider, ConfigFix, ConfigValidationResult, CustomTieredConfig, CustomTieredConfigBuilder,
+    DefaultBackendProvider, FixedConfigResult, Layer, LayerBackendConfig, LayerRestriction,
 };
+
+// 从 core::types 重新导出统一的枚举类型
+pub use crate::core::types::{BackendType, CacheLayer};

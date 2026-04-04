@@ -29,38 +29,80 @@ impl std::fmt::Display for RedisModeType {
     }
 }
 
+impl std::str::FromStr for RedisModeType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "standalone" => Ok(Self::Standalone),
+            "sentinel" => Ok(Self::Sentinel),
+            "cluster" => Ok(Self::Cluster),
+            _ => Err(format!(
+                "Invalid RedisModeType: '{}'. Expected: standalone, sentinel, or cluster",
+                s
+            )),
+        }
+    }
+}
+
 /// 缓存后端类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+///
+/// 每个后端类型都有其推荐的层级限制：
+/// - `Moka` - L1（高性能内存缓存）
+/// - `Dashmap` - L1（纯并发HashMap）
+/// - `Redis` - L2/L3（分布式缓存）
+/// - `Sqlite` - L2/L3（持久化存储）
+/// - `Tiered` - 任意层级（用于组合）
+/// - `Custom` - 任意层级（自定义后端）
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum BackendType {
-    /// Moka 内存缓存
+    /// Moka 高性能内存缓存（推荐 L1/L2）
+    #[cfg(feature = "moka")]
     Moka,
-    /// DashMap 内存缓存
+    /// DashMap 纯并发HashMap（推荐 L1/L2，无驱逐策略）
+    #[cfg(feature = "dashmap")]
     Dashmap,
-    /// Redis 分布式缓存
+    /// Redis 分布式缓存（推荐 L2/L3）
+    #[cfg(feature = "redis")]
     Redis,
-    /// 分层缓存（L1 + L2）
+    /// Sqlite 持久化存储（推荐 L2/L3）
+    #[cfg(feature = "sqlite")]
+    Sqlite,
+    /// 分层缓存组合（任意层级）
+    #[default]
     Tiered,
+    /// 自定义后端（任意层级，通过 BackendProvider 注入）
+    Custom(String),
 }
 
 impl std::fmt::Display for BackendType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "moka")]
             Self::Moka => write!(f, "moka"),
+            #[cfg(feature = "dashmap")]
             Self::Dashmap => write!(f, "dashmap"),
+            #[cfg(feature = "redis")]
             Self::Redis => write!(f, "redis"),
+            #[cfg(feature = "sqlite")]
+            Self::Sqlite => write!(f, "sqlite"),
             Self::Tiered => write!(f, "tiered"),
+            Self::Custom(name) => write!(f, "custom:{}", name),
         }
     }
 }
 
 /// 缓存层级
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CacheLayer {
     /// L1 内存缓存
+    #[default]
     L1,
     /// L2 分布式缓存
     L2,
+    /// L3 持久化/外部存储
+    L3,
 }
 
 impl std::fmt::Display for CacheLayer {
@@ -68,6 +110,7 @@ impl std::fmt::Display for CacheLayer {
         match self {
             Self::L1 => write!(f, "L1"),
             Self::L2 => write!(f, "L2"),
+            Self::L3 => write!(f, "L3"),
         }
     }
 }
