@@ -620,7 +620,9 @@ pub fn export_json_format() -> Result<String, serde_json::Error> {
 
 // Re-export unified metrics
 pub use unified::{
-    convenience as unified_convenience, CacheLayer, CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot,
-    HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, UnifiedMetrics,
-    GLOBAL_UNIFIED_METRICS,
+    convenience as unified_convenience, CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, HistogramData,
+    HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
 };
+
+// 从 core::types 重新导出 CacheLayer
+pub use crate::core::types::CacheLayer;

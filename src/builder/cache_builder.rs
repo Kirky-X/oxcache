@@ -7,10 +7,16 @@
 use crate::backend::interface::CacheBackend;
 use crate::backend::MokaMemoryBackend as MemoryBackend;
 use crate::cache::Cache;
+use crate::core::types::RedisModeType;
 use crate::error::Result;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// 解析 Redis 模式字符串，失败时返回默认值
+fn parse_redis_mode(mode_str: &str) -> RedisModeType {
+    mode_str.parse().unwrap_or_default()
+}
 
 /// 内部后端配置枚举
 ///
@@ -621,12 +627,7 @@ fn backend_config_from_unified_config(
 
             let l2_opts = config.backend.l2_options();
             let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-
-            let mode = match mode_str {
-                "cluster" => crate::backend::client::RedisMode::Cluster,
-                "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                _ => crate::backend::client::RedisMode::Standalone,
-            };
+            let mode = parse_redis_mode(mode_str);
 
             Ok(InternalBackendConfig::Redis {
                 connection_string,
@@ -663,12 +664,7 @@ fn backend_config_from_unified_config(
 
             let l2_opts = config.backend.l2_options();
             let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-
-            let mode = match mode_str {
-                "cluster" => crate::backend::client::RedisMode::Cluster,
-                "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                _ => crate::backend::client::RedisMode::Standalone,
-            };
+            let mode = parse_redis_mode(mode_str);
 
             Ok(InternalBackendConfig::Tiered {
                 l1_capacity,
@@ -727,12 +723,7 @@ fn backend_config_from_unified_config_with_service(
 
             let l2_opts = config.backend.l2_options();
             let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-
-            let mode = match mode_str {
-                "cluster" => crate::backend::client::RedisMode::Cluster,
-                "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                _ => crate::backend::client::RedisMode::Standalone,
-            };
+            let mode = parse_redis_mode(mode_str);
 
             Ok(InternalBackendConfig::Redis {
                 connection_string: connection_string.unwrap_or_default(),
@@ -757,12 +748,7 @@ fn backend_config_from_unified_config_with_service(
 
             let l2_opts = config.backend.l2_options();
             let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-
-            let mode = match mode_str {
-                "cluster" => crate::backend::client::RedisMode::Cluster,
-                "sentinel" => crate::backend::client::RedisMode::Sentinel,
-                _ => crate::backend::client::RedisMode::Standalone,
-            };
+            let mode = parse_redis_mode(mode_str);
 
             Ok(InternalBackendConfig::Tiered {
                 l1_capacity: effective_capacity,
