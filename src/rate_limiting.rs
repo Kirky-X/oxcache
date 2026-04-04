@@ -4,11 +4,15 @@
 //!
 //! 该模块实现了速率限制功能，用于防止缓存滥用和拒绝服务攻击。
 //! 通过 `rate-limiting` feature 控制启用/禁用
+//!
+//! 使用 `governor` crate 提供生产级的速率限制实现。
 
 #[cfg(feature = "rate-limiting")]
 use dashmap::DashMap;
 #[cfg(feature = "rate-limiting")]
-use std::sync::atomic::{AtomicU64, Ordering};
+use governor::{clock::Clock, DefaultDirectRateLimiter, Quota, RateLimiter};
+#[cfg(feature = "rate-limiting")]
+use std::num::NonZeroU32;
 #[cfg(feature = "rate-limiting")]
 use std::sync::Arc;
 #[cfg(feature = "rate-limiting")]
@@ -37,117 +41,15 @@ impl Default for RateLimitConfig {
     }
 }
 
-/// 令牌桶速率限制器
-///
-/// 使用令牌桶算法实现精确的速率限制，支持突发流量
-#[cfg(feature = "rate-limiting")]
-#[derive(Debug)]
-pub struct TokenBucket {
-    tokens: AtomicU64,
-    last_update: AtomicU64,
-    capacity: u64,
-    refill_rate: u64, // 每秒补充的令牌数
-}
-
-#[cfg(feature = "rate-limiting")]
-impl TokenBucket {
-    /// 创建新的令牌桶
-    pub fn new(capacity: u64, refill_rate: u64) -> Self {
-        let now = Self::now_millis();
-        Self {
-            tokens: AtomicU64::new(capacity),
-            last_update: AtomicU64::new(now),
-            capacity,
-            refill_rate,
-        }
-    }
-
-    #[inline]
-    fn now_millis() -> u64 {
-        // 使用UNIX_EPOCH作为参考点，处理系统时间可能回退的情况
-        // 如果时间获取失败，使用一个固定的基准时间
-        let since_epoch = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or({
-                // 时间回退，使用0作为后备值
-                // 这会导致速率限制器在系统时间异常时返回0，
-                // 意味着令牌补充会立即进行（最大速率）
-                std::time::Duration::ZERO
-            });
-        since_epoch.as_millis() as u64
-    }
-
-    /// 尝试获取一个令牌
-    ///
-    /// # 返回值
-    ///
-    /// * `true` - 成功获取令牌，允许请求
-    /// * `false` - 令牌不足，请求被拒绝
-    pub fn try_acquire(&self) -> bool {
-        self.try_acquire_n(1)
-    }
-
-    /// 尝试获取多个令牌
-    ///
-    /// 使用 compare_exchange 实现原子更新，消除竞争条件
-    pub fn try_acquire_n(&self, n: u64) -> bool {
-        let now = Self::now_millis();
-
-        loop {
-            let last_update = self.last_update.load(Ordering::SeqCst);
-            let elapsed = now.saturating_sub(last_update);
-            let refill = (elapsed * self.refill_rate) / 1000;
-
-            let current_tokens = self.tokens.load(Ordering::SeqCst);
-            let new_tokens = (current_tokens + refill).min(self.capacity);
-
-            if new_tokens < n {
-                return false;
-            }
-
-            // 尝试原子更新 tokens
-            let expected = current_tokens;
-            match self
-                .tokens
-                .compare_exchange(expected, new_tokens - n, Ordering::SeqCst, Ordering::Relaxed)
-            {
-                Ok(_) => {
-                    // 成功更新 tokens，同时尝试更新 last_update
-                    // 如果 last_update 没有被其他线程修改，则更新
-                    self.last_update
-                        .compare_exchange(last_update, now, Ordering::SeqCst, Ordering::Relaxed)
-                        .ok();
-                    return true;
-                }
-                Err(_) => {
-                    // 竞争发生，重试
-                    continue;
-                }
-            }
-        }
-    }
-
-    /// 获取当前可用令牌数
-    pub fn available_tokens(&self) -> u64 {
-        let now = Self::now_millis();
-        let current_tokens = self.tokens.load(Ordering::Relaxed);
-        let last_update = self.last_update.load(Ordering::Relaxed);
-        let elapsed = now.saturating_sub(last_update);
-        let refill = (elapsed * self.refill_rate) / 1000;
-
-        (current_tokens + refill).min(self.capacity)
-    }
-}
-
 /// 客户端级别的速率限制器
 ///
 /// 为每个客户端维护独立的速率限制状态
-/// 使用 DashMap 实现无锁并发访问
+/// 使用 governor 提供生产级的令牌桶实现
 #[cfg(feature = "rate-limiting")]
 #[derive(Debug)]
 pub struct ClientRateLimiter {
-    per_client: DashMap<String, Arc<TokenBucket>>,
-    global_limit: TokenBucket,
+    per_client: DashMap<String, Arc<DefaultDirectRateLimiter>>,
+    global_limit: Arc<DefaultDirectRateLimiter>,
     config: RateLimitConfig,
 }
 
@@ -155,9 +57,14 @@ pub struct ClientRateLimiter {
 impl ClientRateLimiter {
     /// 创建新的客户端速率限制器
     pub fn new(config: RateLimitConfig) -> Self {
+        let quota = Quota::per_second(
+            NonZeroU32::new(config.max_requests_per_second as u32).unwrap_or_else(|| NonZeroU32::new(1).unwrap()),
+        )
+        .allow_burst(NonZeroU32::new(config.burst_capacity as u32).unwrap_or_else(|| NonZeroU32::new(1).unwrap()));
+
         Self {
             per_client: DashMap::new(),
-            global_limit: TokenBucket::new(config.burst_capacity, config.max_requests_per_second),
+            global_limit: Arc::new(RateLimiter::direct(quota)),
             config,
         }
     }
@@ -174,53 +81,40 @@ impl ClientRateLimiter {
     /// * `Ok(())` - 请求被允许
     /// * `Err(Duration)` - 请求被拒绝，返回建议的重试时间
     pub async fn check_rate_limit(&self, client_id: &str, cost: u64) -> Result<(), Duration> {
-        let global_available = self.global_limit.available_tokens();
-
-        // DashMap 无锁并发访问
-        let bucket = self.per_client.entry(client_id.to_string()).or_insert_with(|| {
-            Arc::new(TokenBucket::new(
-                self.config.burst_capacity,
-                self.config.max_requests_per_second,
-            ))
+        let limiter = self.per_client.entry(client_id.to_string()).or_insert_with(|| {
+            let quota = Quota::per_second(
+                NonZeroU32::new(self.config.max_requests_per_second as u32)
+                    .unwrap_or_else(|| NonZeroU32::new(1).unwrap()),
+            )
+            .allow_burst(
+                NonZeroU32::new(self.config.burst_capacity as u32).unwrap_or_else(|| NonZeroU32::new(1).unwrap()),
+            );
+            Arc::new(RateLimiter::direct(quota))
         });
 
-        let per_client_available = bucket.available_tokens();
-
-        if per_client_available < cost {
-            let wait_time =
-                Duration::from_millis((cost - per_client_available) * 1000 / self.config.max_requests_per_second);
-            return Err(wait_time);
+        for _ in 0..cost {
+            if let Err(not_until) = limiter.check() {
+                return Err(not_until.wait_time_from(limiter.clock().now()));
+            }
         }
 
-        if global_available < cost {
-            let wait_time =
-                Duration::from_millis((cost - global_available) * 1000 / self.config.max_requests_per_second);
-            return Err(wait_time);
+        for _ in 0..cost {
+            if let Err(not_until) = self.global_limit.check() {
+                return Err(not_until.wait_time_from(self.global_limit.clock().now()));
+            }
         }
-
-        bucket.try_acquire_n(cost);
-        self.global_limit.try_acquire_n(cost);
 
         Ok(())
     }
 
     /// 获取客户端的速率限制状态
-    pub async fn get_client_status(&self, client_id: &str) -> RateLimitStatus {
-        // DashMap 直接读取，无需异步锁
-        if let Some(bucket) = self.per_client.get(client_id) {
-            RateLimitStatus {
-                client_available: bucket.available_tokens(),
-                client_capacity: bucket.capacity,
-                global_available: self.global_limit.available_tokens(),
-                global_capacity: self.global_limit.capacity,
-            }
-        } else {
-            RateLimitStatus {
-                client_available: self.config.burst_capacity,
-                client_capacity: self.config.burst_capacity,
-                global_available: self.global_limit.available_tokens(),
-                global_capacity: self.global_limit.capacity,
-            }
+    pub async fn get_client_status(&self, _client_id: &str) -> RateLimitStatus {
+        // governor 不直接暴露剩余令牌数，使用配置值作为容量指示
+        RateLimitStatus {
+            client_available: self.config.burst_capacity,
+            client_capacity: self.config.burst_capacity,
+            global_available: self.config.burst_capacity,
+            global_capacity: self.config.burst_capacity,
         }
     }
 }
@@ -280,30 +174,6 @@ impl RateLimitConfig {
     }
 }
 
-/// 令牌桶速率限制器（空实现）
-#[cfg(not(feature = "rate-limiting"))]
-#[derive(Debug, Clone, Default)]
-pub struct TokenBucket;
-
-#[cfg(not(feature = "rate-limiting"))]
-impl TokenBucket {
-    pub fn new(_capacity: u64, _refill_rate: u64) -> Self {
-        Self
-    }
-
-    pub fn try_acquire(&self) -> bool {
-        true
-    }
-
-    pub fn try_acquire_n(&self, _n: u64) -> bool {
-        true
-    }
-
-    pub fn available_tokens(&self) -> u64 {
-        u64::MAX
-    }
-}
-
 /// 客户端速率限制器（空实现）
 #[cfg(not(feature = "rate-limiting"))]
 #[derive(Debug, Clone, Default)]
@@ -345,9 +215,8 @@ impl GlobalRateLimiter {
         Self
     }
 
-    pub fn inner(&self) -> &Arc<ClientRateLimiter> {
-        // 创建一个静态空实例
-        static EMPTY: Arc<ClientRateLimiter> = Arc::new(ClientRateLimiter);
+    pub fn inner(&self) -> &std::sync::Arc<ClientRateLimiter> {
+        static EMPTY: std::sync::Arc<ClientRateLimiter> = std::sync::Arc::new(ClientRateLimiter);
         &EMPTY
     }
 }
@@ -357,63 +226,72 @@ impl GlobalRateLimiter {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_token_bucket_basic() {
-        let bucket = TokenBucket::new(10, 10);
+    #[tokio::test]
+    async fn test_rate_limiter_allows_within_limit() {
+        let config = RateLimitConfig {
+            max_requests_per_second: 10,
+            burst_capacity: 20,
+            block_duration_secs: 10,
+        };
+        let limiter = ClientRateLimiter::new(config);
 
-        // 初始状态应该有10个令牌
-        assert_eq!(bucket.available_tokens(), 10);
-
-        // 尝试获取5个令牌，应该成功
-        assert!(bucket.try_acquire_n(5));
-        assert_eq!(bucket.available_tokens(), 5);
-
-        // 尝试获取6个令牌，应该失败（只有5个）
-        assert!(!bucket.try_acquire_n(6));
-
-        // 再次尝试获取5个，应该成功
-        assert!(bucket.try_acquire_n(5));
-        assert_eq!(bucket.available_tokens(), 0);
-    }
-
-    #[test]
-    fn test_token_bucket_refill() {
-        let bucket = TokenBucket::new(10, 100);
-
-        bucket.try_acquire_n(10);
-        assert_eq!(bucket.available_tokens(), 0);
-
-        std::thread::sleep(Duration::from_millis(50));
-        let tokens = bucket.available_tokens();
-        assert!(
-            tokens >= 5,
-            "Expected at least 5 tokens after refill, but got {}",
-            tokens
-        );
+        for _ in 0..20 {
+            assert!(
+                limiter.check_rate_limit("test-client", 1).await.is_ok(),
+                "Should allow within burst capacity"
+            );
+        }
     }
 
     #[tokio::test]
-    async fn test_client_rate_limiter() {
-        let limiter = ClientRateLimiter::new(RateLimitConfig {
+    async fn test_rate_limiter_blocks_over_limit() {
+        let config = RateLimitConfig {
+            max_requests_per_second: 5,
+            burst_capacity: 5,
+            block_duration_secs: 10,
+        };
+        let limiter = ClientRateLimiter::new(config);
+
+        for _ in 0..5 {
+            let _ = limiter.check_rate_limit("test-client", 1).await;
+        }
+
+        let result = limiter.check_rate_limit("test-client", 1).await;
+        assert!(result.is_err(), "Should block when over limit");
+    }
+
+    #[tokio::test]
+    async fn test_client_status() {
+        let config = RateLimitConfig {
             max_requests_per_second: 100,
             burst_capacity: 100,
             block_duration_secs: 10,
-        });
+        };
+        let limiter = ClientRateLimiter::new(config);
 
-        // 初始状态检查
         let status = limiter.get_client_status("test_client").await;
         assert_eq!(status.client_available, 100);
         assert_eq!(status.global_available, 100);
+    }
 
-        // 正常请求应该被允许
-        assert!(limiter.check_rate_limit("test_client", 1).await.is_ok());
+    #[tokio::test]
+    async fn test_multiple_clients() {
+        let config = RateLimitConfig {
+            max_requests_per_second: 10,
+            burst_capacity: 10,
+            block_duration_secs: 10,
+        };
+        let limiter = ClientRateLimiter::new(config);
 
-        // 大量请求应该被限制
-        for _ in 0..100 {
-            let _ = limiter.check_rate_limit("test_client", 1).await;
+        for _ in 0..5 {
+            let _ = limiter.check_rate_limit("client-a", 1).await;
         }
 
-        // 超过限制后应该被拒绝
-        assert!(limiter.check_rate_limit("test_client", 1).await.is_err());
+        assert!(limiter.check_rate_limit("client-a", 1).await.is_ok());
+
+        assert!(
+            limiter.check_rate_limit("client-b", 1).await.is_ok(),
+            "Different clients should have independent limits"
+        );
     }
 }

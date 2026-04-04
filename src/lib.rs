@@ -176,6 +176,7 @@
 //! ```
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.2.0")]
+#![deny(unsafe_code)]
 
 // ============================================================================
 // Feature Flags and Macros
@@ -448,7 +449,11 @@ pub mod backend;
 
 // Bloom Filter Module
 #[cfg(any(feature = "bloom-filter", feature = "full"))]
-pub mod bloom_filter;
+pub(crate) mod bloom_filter;
+
+// Re-export bloom filter public API
+#[cfg(any(feature = "bloom-filter", feature = "full"))]
+pub use bloom_filter::{BloomFilter, BloomFilterOptions};
 
 // Metrics Module - also needed for L1-only mode
 #[cfg(any(
@@ -465,7 +470,11 @@ pub mod metrics;
 
 // Rate Limiting Module
 #[cfg(any(feature = "rate-limiting", feature = "full"))]
-pub mod rate_limiting;
+pub(crate) mod rate_limiting;
+
+// Re-export rate limiting public API
+#[cfg(any(feature = "rate-limiting", feature = "full"))]
+pub use rate_limiting::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig, RateLimitStatus};
 
 // WAL Recovery Module
 #[cfg(any(feature = "wal-recovery", feature = "redis", feature = "full"))]
@@ -499,7 +508,14 @@ pub mod utils;
 
 // Smart Strategy Module
 #[cfg(any(feature = "smart-strategy", feature = "full"))]
-pub mod smart_strategy;
+pub(crate) mod smart_strategy;
+
+// Re-export smart strategy public API
+#[cfg(any(feature = "smart-strategy", feature = "full"))]
+pub use smart_strategy::{
+    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
+    SmartStrategyManager,
+};
 
 // HTTP Cache Module
 #[cfg(any(feature = "http-cache", feature = "full"))]
@@ -507,7 +523,16 @@ pub mod http;
 
 // Security Module (Only needed for Redis validation)
 #[cfg(any(feature = "redis", feature = "full"))]
-pub mod security;
+pub(crate) mod security;
+
+// Re-export security public API for external use
+#[cfg(any(feature = "redis", feature = "full"))]
+pub use security::{
+    clamp_scan_count,
+    log::{log_cache_key, sanitize_message},
+    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
+    validate_lua_script, validate_redis_key, validate_scan_pattern,
+};
 
 // Mock Module (For testing only)
 #[cfg(test)]
@@ -568,13 +593,6 @@ pub use sync::warmup::{WarmupManager, WarmupStatus};
 
 #[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
 pub use utils::key_generator::KeyGenerator;
-
-// Smart Strategy exports
-#[cfg(any(feature = "smart-strategy", feature = "full"))]
-pub use smart_strategy::{
-    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
-    SmartStrategyManager,
-};
 
 // Enhanced Stats exports
 #[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]

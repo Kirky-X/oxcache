@@ -8,9 +8,7 @@
 
 #[cfg(test)]
 mod smart_strategy_tests {
-    use oxcache::smart_strategy::{
-        CompressibilityChecker, CompressionDecider, HitRateCollector, PrefetchDecider, SmartStrategyConfig,
-    };
+    use oxcache::{CompressibilityChecker, CompressionDecider, HitRateCollector, PrefetchDecider, SmartStrategyConfig};
 
     /// 测试命中率收集器的基本功能
     #[test]

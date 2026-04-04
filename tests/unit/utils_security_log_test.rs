@@ -4,8 +4,7 @@
 //
 // 安全日志工具单元测试
 
-use oxcache::security::log::sanitize_message;
-use oxcache::security::redaction::{redact_cache_key, redact_connection_string};
+use oxcache::{log_cache_key, redact_cache_key, redact_connection_string, sanitize_message};
 
 // ============================================================================
 // log_cache_key 函数测试
@@ -17,30 +16,30 @@ use oxcache::security::redaction::{redact_cache_key, redact_connection_string};
 fn test_log_cache_key_sensitive_key() {
     // 使用不同日志级别测试
     // 主要验证函数不会因敏感键而 panic
-    oxcache::security::log::log_cache_key("info", "Test message", "user_token_abc123");
-    oxcache::security::log::log_cache_key("debug", "Debug log", "api_key_secret");
-    oxcache::security::log::log_cache_key("warn", "Warning", "password_reset");
-    oxcache::security::log::log_cache_key("error", "Error", "session_token_xyz");
+    log_cache_key("info", "Test message", "user_token_abc123");
+    log_cache_key("debug", "Debug log", "api_key_secret");
+    log_cache_key("warn", "Warning", "password_reset");
+    log_cache_key("error", "Error", "session_token_xyz");
 }
 
 /// 测试 log_cache_key 处理非敏感键
 #[test]
 fn test_log_cache_key_non_sensitive() {
-    oxcache::security::log::log_cache_key("info", "Normal key", "user_profile_123");
-    oxcache::security::log::log_cache_key("debug", "Cache hit", "product_info_456");
+    log_cache_key("info", "Normal key", "user_profile_123");
+    log_cache_key("debug", "Cache hit", "product_info_456");
 }
 
 /// 测试 log_cache_key 处理空键
 #[test]
 fn test_log_cache_key_empty() {
-    oxcache::security::log::log_cache_key("info", "Empty key test", "");
+    log_cache_key("info", "Empty key test", "");
 }
 
 /// 测试 log_cache_key 处理未知日志级别
 #[test]
 fn test_log_cache_key_unknown_level() {
     // 未知级别应该默认为 info
-    oxcache::security::log::log_cache_key("unknown", "Test", "normal_key");
+    log_cache_key("unknown", "Test", "normal_key");
 }
 
 // ============================================================================

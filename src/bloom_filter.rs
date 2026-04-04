@@ -5,6 +5,8 @@
 //! 布隆过滤器实现 - 用于缓存穿透防护
 //! 通过 `bloom-filter` feature 控制启用/禁用
 
+#![allow(dead_code)]
+
 #[cfg(feature = "bloom-filter")]
 use crate::error::CacheError;
 #[cfg(feature = "bloom-filter")]
@@ -95,7 +97,9 @@ impl BloomFilter {
         }
 
         // 创建 LRU 哈希缓存，限制最大容量为 10000 条
-        let hash_cache = Arc::new(RwLock::new(LruCache::new(std::num::NonZeroUsize::new(10000).unwrap())));
+        let hash_cache = Arc::new(RwLock::new(LruCache::new(
+            std::num::NonZeroUsize::new(10000).expect("10000 is a valid non-zero usize"),
+        )));
 
         Self {
             options,
