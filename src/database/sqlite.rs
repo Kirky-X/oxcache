@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use std::sync::Arc;
+use tracing::debug;
 
 pub struct SQLitePartitionManager {
     config: PartitionConfig,
@@ -76,13 +77,13 @@ impl SQLitePartitionManager {
 
     /// 转义SQL标识符（使用双引号并转义内部双引号）
     /// 防止SQL注入攻击
-    fn escape_identifier(&self, identifier: &str) -> String {
+    fn escape_identifier(&self, identifier: &str) -> Result<String> {
         // 首先验证标识符格式
-        self.validate_identifier(identifier).expect("Invalid identifier");
+        self.validate_identifier(identifier)?;
 
         // 转义双引号：将 " 替换为 ""
         let escaped = identifier.replace("\"", "\"\"");
-        format!("\"{}\"", escaped)
+        Ok(format!("\"{}\"", escaped))
     }
 
     pub async fn new(connection_string: &str, config: PartitionConfig) -> Result<Self> {
@@ -178,7 +179,7 @@ impl PartitionManager for SQLitePartitionManager {
         // 验证表名
         self.validate_identifier(table_name)?;
 
-        let escaped_main_table = self.escape_identifier(&format!("{}_main", table_name));
+        let escaped_main_table = self.escape_identifier(&format!("{}_main", table_name))?;
 
         // 使用更安全的 schema 构建方式
         let main_table_sql = if let Some(create_pos) = schema.find("CREATE TABLE IF NOT EXISTS") {
@@ -197,12 +198,17 @@ impl PartitionManager for SQLitePartitionManager {
             ));
         };
 
+        debug!(
+            table_name = %table_name,
+            sql_length = main_table_sql.len(),
+            "Executing dynamic SQL for main table creation"
+        );
         self.execute(&main_table_sql).await?;
 
         let now = Utc::now();
         let partition_table_name = self.generate_partition_table_name(table_name, &now);
         self.validate_identifier(&partition_table_name)?;
-        let escaped_partition_table = self.escape_identifier(&partition_table_name);
+        let escaped_partition_table = self.escape_identifier(&partition_table_name)?;
 
         // 安全构建分区表 schema
         let partition_schema = if let Some(create_pos) = schema.find("CREATE TABLE IF NOT EXISTS") {
@@ -232,7 +238,7 @@ impl PartitionManager for SQLitePartitionManager {
             .is_some();
 
         if !view_exists {
-            let escaped_table = self.escape_identifier(table_name);
+            let escaped_table = self.escape_identifier(table_name)?;
             let view_sql = format!(
                 "CREATE VIEW IF NOT EXISTS {} AS SELECT * FROM {} UNION ALL SELECT * FROM {}",
                 escaped_table, escaped_main_table, escaped_partition_table
@@ -251,9 +257,9 @@ impl PartitionManager for SQLitePartitionManager {
         self.validate_identifier(&base_table)?;
         self.validate_identifier(&partition.table_name)?;
 
-        let escaped_base_table = self.escape_identifier(&base_table);
-        let escaped_main_table = self.escape_identifier(&format!("{}_main", base_table));
-        let escaped_partition_table = self.escape_identifier(&partition.table_name);
+        let escaped_base_table = self.escape_identifier(&base_table)?;
+        let escaped_main_table = self.escape_identifier(&format!("{}_main", base_table))?;
+        let escaped_partition_table = self.escape_identifier(&partition.table_name)?;
 
         // 先删除已存在的view（如果存在）
         let drop_view_sql = format!("DROP VIEW IF EXISTS {}", escaped_base_table);
@@ -290,6 +296,12 @@ impl PartitionManager for SQLitePartitionManager {
             escaped_partition_table, escaped_main_table
         );
 
+        debug!(
+            partition_name = %partition.table_name,
+            base_table = %base_table,
+            sql_length = create_sql.len(),
+            "Executing dynamic SQL for partition creation"
+        );
         self.execute(&create_sql).await?;
 
         // 使用参数化查询获取分区表列表
@@ -312,13 +324,13 @@ impl PartitionManager for SQLitePartitionManager {
         }
 
         if !partition_tables.is_empty() {
-            let union_parts: Vec<String> = partition_tables
+            let union_parts = partition_tables
                 .iter()
                 .map(|t| {
-                    let escaped = self.escape_identifier(t);
-                    format!("SELECT * FROM {}", escaped)
+                    self.escape_identifier(t)
+                        .map(|escaped| format!("SELECT * FROM {}", escaped))
                 })
-                .collect();
+                .collect::<std::result::Result<Vec<String>, _>>()?;
             let union_sql = union_parts.join(" UNION ALL ");
 
             // 先删除已存在的表或视图
@@ -417,8 +429,14 @@ impl PartitionManager for SQLitePartitionManager {
         // 验证分区名
         self.validate_identifier(partition_name)?;
 
-        let escaped_partition = self.escape_identifier(partition_name);
+        let escaped_partition = self.escape_identifier(partition_name)?;
         let drop_sql = format!("DROP TABLE IF EXISTS {}", escaped_partition);
+
+        debug!(
+            partition_name = %partition_name,
+            sql_length = drop_sql.len(),
+            "Executing dynamic SQL for partition deletion"
+        );
         self.execute(&drop_sql).await?;
         Ok(())
     }

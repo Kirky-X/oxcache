@@ -11,13 +11,9 @@ use std::sync::Arc;
 use tempfile::NamedTempFile;
 
 /// 测试配置结构体
-///
-/// 用于数据库测试的配置信息，包含 PostgreSQL 和 MySQL 连接信息。
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct TestConfig {
-    pub postgres_url: String,
-    pub mysql_url: String,
     pub partitioning_enabled: bool,
     pub strategy: PartitionStrategy,
     pub retention_months: usize,
@@ -25,17 +21,9 @@ pub struct TestConfig {
 
 impl TestConfig {
     /// 从环境变量加载测试配置
-    ///
-    /// 环境变量：
-    /// - `TEST_POSTGRES_URL`: PostgreSQL 连接 URL
-    /// - `TEST_MYSQL_URL`: MySQL 连接 URL
     #[allow(dead_code)]
     pub fn from_file() -> Self {
         Self {
-            postgres_url: std::env::var("TEST_POSTGRES_URL")
-                .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/test_db".to_string()),
-            mysql_url: std::env::var("TEST_MYSQL_URL")
-                .unwrap_or_else(|_| "mysql://root:root@localhost:3306/test_db".to_string()),
             partitioning_enabled: true,
             strategy: PartitionStrategy::Monthly,
             retention_months: 12,
@@ -44,12 +32,6 @@ impl TestConfig {
 }
 
 /// 创建分区配置
-///
-/// # Arguments
-///
-/// * `enabled` - 是否启用分区
-/// * `strategy` - 分区策略
-/// * `retention` - 保留月数
 #[allow(dead_code)]
 pub fn create_partition_config(enabled: bool, strategy: PartitionStrategy, retention: usize) -> PartitionConfig {
     PartitionConfig {
@@ -60,63 +42,7 @@ pub fn create_partition_config(enabled: bool, strategy: PartitionStrategy, reten
     }
 }
 
-/// 清理 PostgreSQL 表（使用 Docker 命令）
-///
-/// 通过 Docker 命令删除指定的表，用于测试清理。
-///
-/// # Arguments
-///
-/// * `container_name` - Docker 容器名称
-/// * `db_name` - 数据库名称
-/// * `user` - 数据库用户
-/// * `table_name` - 要删除的表名
-///
-/// # Returns
-///
-/// 成功返回 `true`，失败返回 `false`
-#[allow(dead_code)]
-pub fn cleanup_postgres_table(container_name: &str, db_name: &str, user: &str, table_name: &str) -> bool {
-    if !validate_table_name(table_name) {
-        eprintln!("Invalid table name: {}", table_name);
-        return false;
-    }
-
-    let cleanup_result = std::process::Command::new("docker")
-        .args([
-            "exec",
-            container_name,
-            "psql",
-            "-U",
-            user,
-            "-d",
-            db_name,
-            "-c",
-            &format!("DROP TABLE IF EXISTS {} CASCADE", table_name),
-        ])
-        .output();
-
-    match cleanup_result {
-        Ok(output) if output.status.success() => {
-            println!("✓ Cleaned up existing PostgreSQL table");
-            true
-        }
-        Ok(output) => {
-            println!(
-                "Warning: Failed to clean up existing table: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-            false
-        }
-        Err(e) => {
-            println!("Warning: Could not execute cleanup command: {}", e);
-            false
-        }
-    }
-}
-
 /// 验证表名格式，防止 SQL 注入
-///
-/// 表名只能包含字母、数字、下划线，且不能以数字开头。
 #[allow(dead_code)]
 fn validate_table_name(table_name: &str) -> bool {
     !table_name.is_empty()
@@ -125,8 +51,6 @@ fn validate_table_name(table_name: &str) -> bool {
 }
 
 /// 创建临时 SQLite 数据库文件
-///
-/// 返回临时文件对象和 SQLite 连接字符串。
 #[allow(dead_code)]
 pub fn create_temp_sqlite_db() -> Result<(NamedTempFile, String)> {
     let temp_file = NamedTempFile::new()?;
@@ -135,15 +59,6 @@ pub fn create_temp_sqlite_db() -> Result<(NamedTempFile, String)> {
 }
 
 /// 验证分区创建
-///
-/// 创建测试分区并验证分区结构。
-///
-/// # Arguments
-///
-/// * `manager` - 分区管理器
-/// * `table_name` - 表名
-/// * `_enabled` - 是否启用（未使用）
-/// * `expected_partitions` - 预期分区数量
 #[allow(dead_code)]
 pub async fn verify_partition_creation<M: PartitionManager>(
     manager: &M,
@@ -169,14 +84,6 @@ pub async fn verify_partition_creation<M: PartitionManager>(
 }
 
 /// 验证分区清理
-///
-/// 创建多个分区并验证清理功能。
-///
-/// # Arguments
-///
-/// * `manager` - 分区管理器
-/// * `table_name` - 表名
-/// * `retention_months` - 保留月数
 #[allow(dead_code)]
 pub async fn verify_partition_cleanup<M: PartitionManager>(
     manager: &M,
@@ -230,13 +137,6 @@ pub async fn verify_partition_cleanup<M: PartitionManager>(
 }
 
 /// 测试并发分区操作
-///
-/// 创建多个并发任务测试分区创建。
-///
-/// # Arguments
-///
-/// * `manager` - 分区管理器
-/// * `table_name` - 表名
 #[allow(dead_code)]
 pub async fn test_concurrent_partition_operations<M: PartitionManager + 'static>(
     manager: Arc<M>,

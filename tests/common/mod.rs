@@ -28,16 +28,15 @@ pub use redis_test_utils::{
 // 数据库测试工具
 #[allow(unused_imports)]
 pub use database_test_utils::{
-    cleanup_postgres_table, create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations,
-    verify_partition_cleanup, verify_partition_creation, TestConfig,
+    create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations, verify_partition_cleanup,
+    verify_partition_creation, TestConfig,
 };
 
 // Docker 测试工具
 #[allow(unused_imports)]
 pub use docker_test_utils::{
-    is_redis_available as docker_is_redis_available, setup_postgres_container, setup_redis_and_postgres,
-    setup_redis_cluster_nodes, setup_redis_container, wait_for_redis as docker_wait_for_redis, PostgresContainer,
-    RedisContainer,
+    is_redis_available as docker_is_redis_available, setup_redis_cluster_nodes, setup_redis_container,
+    wait_for_redis as docker_wait_for_redis, RedisContainer,
 };
 
 // Testcontainers 工具
