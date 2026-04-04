@@ -6,6 +6,8 @@
 //!
 //! 提供跨模块的字符串验证功能，避免代码重复
 
+#![allow(dead_code)]
+
 use crate::error::CacheError;
 
 /// 验证字符串中是否包含危险字符

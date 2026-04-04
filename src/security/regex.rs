@@ -6,6 +6,8 @@
 //
 // Provides protection against ReDoS attacks and regex complexity limits.
 
+#![allow(dead_code)]
+
 use crate::error::{CacheError, Result};
 use regex::Regex;
 

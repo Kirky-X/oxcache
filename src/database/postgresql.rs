@@ -102,6 +102,11 @@ impl PostgresPartitionManager {
             return Err(CacheError::DatabaseError("Identifier cannot be empty".to_string()));
         }
 
+        // 确保 ASCII only（更严格的安全检查，防止 Unicode 绕过）
+        if !identifier.is_ascii() {
+            return Err(CacheError::DatabaseError("Identifier must be ASCII only".to_string()));
+        }
+
         // PostgreSQL 标识符规则：只能包含字母、数字、下划线
         if !identifier.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err(CacheError::DatabaseError(format!(
@@ -185,6 +190,15 @@ impl PostgresPartitionManager {
         }
 
         Ok(())
+    }
+
+    /// 转义 PostgreSQL 标识符（使用双引号并转义内部双引号）
+    #[allow(dead_code)]
+    fn escape_identifier(&self, identifier: &str) -> Result<String> {
+        self.validate_identifier(identifier)?;
+
+        let escaped = identifier.replace("\"", "\"\"");
+        Ok(format!("\"{}\"", escaped))
     }
 
     /// 验证连接健康状态

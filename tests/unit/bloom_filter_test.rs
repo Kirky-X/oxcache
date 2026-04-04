@@ -9,8 +9,8 @@
 #[cfg(test)]
 #[cfg(feature = "bloom-filter")]
 mod bloom_filter_tests {
-    use oxcache::bloom_filter::{BloomFilter, BloomFilterOptions};
     use oxcache::error::CacheError;
+    use oxcache::{BloomFilter, BloomFilterOptions};
 
     /// 测试布隆过滤器的基本添加和查询功能
     #[test]
