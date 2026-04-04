@@ -24,7 +24,7 @@ pub fn get_redis_url() -> String {
     }
 
     if std::env::var("OXCACHE_ALLOW_INSECURE_REDIS").is_ok() {
-        "redis://127.0.0.1:6379".to_string()
+        "redis://localhost:6380".to_string()
     } else {
         "rediss://127.0.0.1:6379".to_string()
     }
