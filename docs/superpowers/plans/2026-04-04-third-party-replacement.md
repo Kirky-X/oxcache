@@ -2,6 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** ✅ 已完成 100% (2026-04-05 验证)
+>
+> **验证结果:**
+> - `governor` 依赖已添加 ✅
+> - `rate_limiting.rs` 已使用 governor 重写 ✅
+> - TokenBucket 结构体已删除 ✅
+> - API 兼容性保持 ✅
+> - 熔断器保留自实现（评估后决策）✅
+
 **Goal:** 使用成熟的第三方 crate 替换自实现的速率限制和熔断器
 
 **Architecture:**
@@ -28,27 +37,27 @@
 
 - Modify: `Cargo.toml`
 
-- [ ] **Step 1: 添加 governor 到依赖**
+- [x] **Step 1: 添加 governor 到依赖**
 
 ```toml
 # Cargo.toml 在 [dependencies] 部分
-governor = { version = "0.6", optional = true }
+governor = { version = "0.8", optional = true }
 ```
 
-- [ ] **Step 2: 添加到 features**
+- [x] **Step 2: 添加到 features**
 
 ```toml
 # 在 [features] 部分
-rate-limiting = ["dep:governor", "dep:dashmap"]
+rate-limiting = ["dep:governor", "dashmap"]
 ```
 
-- [ ] **Step 3: 验证依赖下载**
+- [x] **Step 3: 验证依赖下载**
 
 ```bash
 cargo fetch
 ```
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add Cargo.toml
@@ -64,7 +73,7 @@ git commit -m "chore: 添加 governor crate 作为 rate-limiting 依赖"
 - Rewrite: `src/rate_limiting.rs`
 - Test: `src/rate_limiting.rs` 内置测试
 
-- [ ] **Step 1: 理解 governor API**
+- [x] **Step 1: 理解 governor API**
 
 `governor` 提供两种主要类型：
 
@@ -87,7 +96,7 @@ if limiter.check().is_ok() {
 }
 ```
 
-- [ ] **Step 2: 重写 RateLimitConfig**
+- [x] **Step 2: 重写 RateLimitConfig**
 
 ```rust
 // src/rate_limiting.rs 完全重写
@@ -122,7 +131,7 @@ impl Default for RateLimitConfig {
 }
 ```
 
-- [ ] **Step 3: 重写 ClientRateLimiter**
+- [x] **Step 3: 重写 ClientRateLimiter**
 
 ```rust
 // src/rate_limiting.rs 继续
@@ -181,7 +190,7 @@ impl ClientRateLimiter {
 }
 ```
 
-- [ ] **Step 4: 保持 API 兼容性**
+- [x] **Step 4: 保持 API 兼容性**
 
 导出相同的公共 API：
 
@@ -191,7 +200,7 @@ pub use self::RateLimitConfig;
 pub use self::ClientRateLimiter;
 ```
 
-- [ ] **Step 5: 更新测试**
+- [x] **Step 5: 更新测试**
 
 ```rust
 #[cfg(test)]
@@ -229,13 +238,13 @@ mod tests {
 }
 ```
 
-- [ ] **Step 6: 验证测试**
+- [x] **Step 6: 验证测试**
 
 ```bash
 cargo test rate_limiting --features rate-limiting -- --nocapture
 ```
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add src/rate_limiting.rs
@@ -255,7 +264,7 @@ git commit -m "refactor: 使用 governor crate 替换自实现的 TokenBucket
 
 - Analyze: `src/circuit_breaker/mod.rs`
 
-- [ ] **Step 1: 分析当前实现**
+- [x] **Step 1: 分析当前实现**
 
 读取 `src/circuit_breaker/mod.rs`，理解其特性：
 
@@ -264,7 +273,7 @@ git commit -m "refactor: 使用 governor crate 替换自实现的 TokenBucket
 - 恢复超时
 - 手动/自动恢复
 
-- [ ] **Step 2: 评估第三方选项**
+- [x] **Step 2: 评估第三方选项**
 
 | Crate             | 优点     | 缺点         |
 | ----------------- | -------- | ------------ |
@@ -274,7 +283,7 @@ git commit -m "refactor: 使用 governor crate 替换自实现的 TokenBucket
 
 **建议**: 当前实现已经足够精简，建议保留自实现但添加 `#[deny(unsafe_code)]` 和更多测试。
 
-- [ ] **Step 3: 添加改进（可选）**
+- [x] **Step 3: 添加改进（可选）**
 
 如果决定保留自实现，添加以下改进：
 
@@ -288,7 +297,7 @@ pub struct CircuitBreakerMetrics {
 }
 ```
 
-- [ ] **Step 4: 提交分析结果**
+- [x] **Step 4: 提交分析结果**
 
 ```bash
 git add docs/superpowers/plans/2026-04-04-third-party-replacement.md
@@ -303,15 +312,15 @@ git commit -m "docs: 熔断器保留自实现，已评估第三方选项"
 
 - Modify: `src/rate_limiting.rs`
 
-- [ ] **Step 1: 删除 TokenBucket 结构体定义**
+- [x] **Step 1: 删除 TokenBucket 结构体定义**
 
 删除 `TokenBucket` 结构体及其所有方法（约行 44-140）。
 
-- [ ] **Step 2: 删除 now_millis 辅助函数**
+- [x] **Step 2: 删除 now_millis 辅助函数**
 
 不再需要，因为 governor 使用自己的时钟。
 
-- [ ] **Step 3: 验证没有遗漏的引用**
+- [x] **Step 3: 验证没有遗漏的引用**
 
 ```bash
 grep -rn "TokenBucket" src/
@@ -319,7 +328,7 @@ grep -rn "TokenBucket" src/
 
 Expected: 无结果
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add src/rate_limiting.rs
@@ -330,13 +339,13 @@ git commit -m "refactor: 删除废弃的 TokenBucket 实现"
 
 ## Task 5: 最终验证
 
-- [ ] **Step 1: 运行完整测试**
+- [x] **Step 1: 运行完整测试**
 
 ```bash
 cargo test --all-features
 ```
 
-- [ ] **Step 2: 检查依赖树**
+- [x] **Step 2: 检查依赖树**
 
 ```bash
 cargo tree -i governor
@@ -344,7 +353,7 @@ cargo tree -i governor
 
 Expected: 显示 governor 被正确引入
 
-- [ ] **Step 3: 性能基准测试（可选）**
+- [x] **Step 3: 性能基准测试（可选）**
 
 比较新旧实现的性能差异。
 
@@ -352,8 +361,8 @@ Expected: 显示 governor 被正确引入
 
 ## 完成标准
 
-- [ ] `governor` 已添加到 Cargo.toml
-- [ ] `rate_limiting.rs` 使用 governor 重写
-- [ ] 所有测试通过
-- [ ] API 保持向后兼容
-- [ ] 熔断器已评估并记录决策
+- [x] `governor` 已添加到 Cargo.toml
+- [x] `rate_limiting.rs` 使用 governor 重写
+- [x] 所有测试通过
+- [x] API 保持向后兼容
+- [x] 熔断器已评估并记录决策
