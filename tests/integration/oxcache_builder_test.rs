@@ -202,7 +202,7 @@ fn test_multiple_config_options() {
 fn test_empty_builder_error() {
     let result = OxCacheBuilder::new().build();
     assert!(result.is_err());
-    assert!(matches!(result, Err(oxcache::error::CacheError::ConfigError(_))));
+    assert!(matches!(result, Err(oxcache::error::CacheError::InvalidInput(_))));
 }
 
 /// 测试默认状态：backfill 默认启用

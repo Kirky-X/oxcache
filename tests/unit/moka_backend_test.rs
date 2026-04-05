@@ -8,7 +8,7 @@ use oxcache::backend::client::moka::{
     moka_memory, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl, MokaMemoryBackend,
     MokaMemoryBackendBuilder,
 };
-use oxcache::backend::interface::CacheBackend;
+use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::backend::score::BackendScore;
 use std::time::Duration;
 
@@ -109,7 +109,7 @@ async fn test_moka_close() {
     let backend = MokaMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
-    backend.close().await.unwrap();
+    backend.shutdown().await;
 
     assert!(backend.is_empty().await.unwrap());
 }
@@ -154,8 +154,7 @@ async fn test_moka_expire_nonexistent() {
 #[tokio::test]
 async fn test_moka_health_check() {
     let backend = MokaMemoryBackend::new();
-    let healthy = backend.health_check().await.unwrap();
-    assert!(healthy);
+    backend.health_check().await.unwrap();
 }
 
 #[tokio::test]

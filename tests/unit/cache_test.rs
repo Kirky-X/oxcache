@@ -2,7 +2,7 @@
 //
 // MIT License
 
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -48,28 +48,13 @@ impl oxcache::backend::BackendScore for TestMockBackend {
     fn backend_name(&self) -> &'static str {
         "test_mock"
     }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 #[async_trait::async_trait]
-impl CacheBackend for TestMockBackend {
+impl CacheReader for TestMockBackend {
     async fn get(&self, key: &str) -> oxcache::error::Result<Option<Vec<u8>>> {
         let data = self.data.read().await;
         Ok(data.get(key).cloned())
-    }
-
-    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.insert(key.to_string(), value);
-        Ok(())
-    }
-
-    async fn delete(&self, key: &str) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.remove(key);
-        Ok(())
     }
 
     async fn exists(&self, key: &str) -> oxcache::error::Result<bool> {
@@ -77,38 +62,8 @@ impl CacheBackend for TestMockBackend {
         Ok(data.contains_key(key))
     }
 
-    async fn clear(&self) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.clear();
-        Ok(())
-    }
-
-    async fn close(&self) -> oxcache::error::Result<()> {
-        Ok(())
-    }
-
     async fn ttl(&self, _key: &str) -> oxcache::error::Result<Option<Duration>> {
         Ok(None)
-    }
-
-    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::Result<bool> {
-        Ok(false)
-    }
-
-    async fn health_check(&self) -> oxcache::error::Result<bool> {
-        Ok(self.healthy)
-    }
-
-    async fn stats(&self) -> oxcache::error::Result<std::collections::HashMap<String, String>> {
-        let data = self.data.read().await;
-        let mut stats = std::collections::HashMap::new();
-        stats.insert("type".to_string(), "test_mock".to_string());
-        stats.insert("entries".to_string(), data.len().to_string());
-        Ok(stats)
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 
     async fn len(&self) -> oxcache::error::Result<u64> {
@@ -125,12 +80,12 @@ impl CacheBackend for TestMockBackend {
         Ok(10000)
     }
 
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        for (key, value, _) in items {
-            data.insert(key.clone(), value.clone());
-        }
-        Ok(())
+    async fn stats(&self) -> oxcache::error::Result<std::collections::HashMap<String, String>> {
+        let data = self.data.read().await;
+        let mut stats = std::collections::HashMap::new();
+        stats.insert("type".to_string(), "test_mock".to_string());
+        stats.insert("entries".to_string(), data.len().to_string());
+        Ok(stats)
     }
 
     async fn get_many(&self, keys: &[String]) -> oxcache::error::Result<Vec<Option<Vec<u8>>>> {
@@ -141,6 +96,39 @@ impl CacheBackend for TestMockBackend {
         }
         Ok(results)
     }
+}
+
+#[async_trait::async_trait]
+impl CacheWriter for TestMockBackend {
+    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.insert(key.to_string(), value);
+        Ok(())
+    }
+
+    async fn delete(&self, key: &str) -> oxcache::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.remove(key);
+        Ok(())
+    }
+
+    async fn clear(&self) -> oxcache::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.clear();
+        Ok(())
+    }
+
+    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::Result<bool> {
+        Ok(false)
+    }
+
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> oxcache::error::Result<()> {
+        let mut data = self.data.write().await;
+        for (key, value, _) in items {
+            data.insert(key.clone(), value.clone());
+        }
+        Ok(())
+    }
 
     async fn delete_many(&self, keys: &[String]) -> oxcache::error::Result<()> {
         let mut data = self.data.write().await;
@@ -148,6 +136,21 @@ impl CacheBackend for TestMockBackend {
             data.remove(key);
         }
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheConnector for TestMockBackend {
+    async fn health_check(&self) -> oxcache::error::Result<()> {
+        Ok(())
+    }
+
+    async fn shutdown(&self) {
+        // no-op
+    }
+
+    fn backend_kind(&self) -> oxcache::backend::interface::BackendKind {
+        oxcache::backend::interface::BackendKind::Mock
     }
 }
 
@@ -324,8 +327,7 @@ async fn test_cache_get_many_partial_results() {
 #[tokio::test]
 async fn test_cache_health_check() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    let healthy = cache.health_check().await.unwrap();
-    assert!(healthy);
+    cache.health_check().await.unwrap();
 }
 
 #[tokio::test]
@@ -368,13 +370,14 @@ async fn test_cache_supports_l2_only() {
 async fn test_cache_supports_l1_only_with_mock() {
     let backend = Arc::new(TestMockBackend::new());
     let cache: Cache<String, TestValue> = Cache::with_dependencies(backend);
-    assert!(!cache.supports_l1_only());
+    // Mock backend is considered a memory backend (BackendKind::Mock.is_memory() == true)
+    assert!(cache.supports_l1_only());
 }
 
 #[tokio::test]
 async fn test_cache_serializer() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    let serializer = cache.serializer();
+    let _serializer = cache.serializer();
     let data = TestValue::default();
     let bytes = serde_json::to_vec(&data).unwrap();
     assert!(!bytes.is_empty());
@@ -423,13 +426,13 @@ async fn test_cache_shutdown() {
         .set(&"shutdown_key".to_string(), &TestValue::default())
         .await
         .unwrap();
-    cache.shutdown().await.unwrap();
+    cache.shutdown().await;
 }
 
 #[tokio::test]
 async fn test_cache_shutdown_empty() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    cache.shutdown().await.unwrap();
+    cache.shutdown().await;
 }
 
 #[tokio::test]

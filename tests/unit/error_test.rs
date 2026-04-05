@@ -51,9 +51,9 @@ fn test_cache_error_l2() {
 }
 
 #[test]
-fn test_cache_error_config() {
-    let err = CacheError::ConfigError("missing required field".to_string());
-    assert!(err.to_string().contains("Configuration error"));
+fn test_cache_error_invalid_input_missing_field() {
+    let err = CacheError::InvalidInput("missing required field".to_string());
+    assert!(err.to_string().contains("Invalid input"));
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn test_cache_error_buffer_full() {
 }
 
 #[test]
-fn test_cache_error_invalid_input() {
+fn test_cache_error_invalid_input_bad_format() {
     let err = CacheError::InvalidInput("bad format".to_string());
     assert!(err.to_string().contains("Invalid input"));
 }
@@ -235,9 +235,9 @@ fn test_error_code_l2() {
 }
 
 #[test]
-fn test_error_code_config() {
-    let err = CacheError::ConfigError("missing".to_string());
-    assert_eq!(err.code(), "CACHE_008");
+fn test_error_code_invalid_input_missing() {
+    let err = CacheError::InvalidInput("missing".to_string());
+    assert_eq!(err.code(), "CACHE_020");
 }
 
 #[test]
@@ -309,7 +309,7 @@ fn test_error_code_buffer_full() {
 }
 
 #[test]
-fn test_error_code_invalid_input() {
+fn test_error_code_invalid_input_bad() {
     let err = CacheError::InvalidInput("bad".to_string());
     assert_eq!(err.code(), "CACHE_020");
 }
@@ -379,13 +379,13 @@ fn test_is_not_recoverable_serialization() {
 }
 
 #[test]
-fn test_is_not_recoverable_config() {
-    let err = CacheError::ConfigError("missing".to_string());
+fn test_is_not_recoverable_invalid_input_first() {
+    let err = CacheError::InvalidInput("bad".to_string());
     assert!(!err.is_recoverable());
 }
 
 #[test]
-fn test_is_not_recoverable_invalid_input() {
+fn test_is_not_recoverable_invalid_input_second() {
     let err = CacheError::InvalidInput("bad".to_string());
     assert!(!err.is_recoverable());
 }
