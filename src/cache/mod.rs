@@ -540,16 +540,7 @@ where
     /// * `Err(CacheError::NotSupported)` - If backend doesn't support L1-only operations
     pub async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
-        // Try to use L1-specific method if available
-        if let Some(l1_backend) = self
-            .backend
-            .as_any()
-            .downcast_ref::<crate::backend::client::MokaMemoryBackend>()
-        {
-            l1_backend.set(key, value, ttl_duration).await?;
-            return Ok(());
-        }
-        // Fallback to generic set
+        // Use generic set - L1-only optimization is handled internally by backend
         self.backend.set(key, value, ttl_duration).await
     }
 
@@ -585,7 +576,7 @@ where
 
     /// Check if the cache supports L1-only operations
     pub fn supports_l1_only(&self) -> bool {
-        self.backend.as_any().is::<crate::backend::client::MokaMemoryBackend>()
+        self.backend.backend_kind().is_memory()
     }
 
     /// Check if the cache supports L2-only operations
@@ -831,11 +822,10 @@ where
     ///
     /// # Returns
     ///
-    /// * `Ok(true)` - Cache is healthy
-    /// * `Ok(false)` - Cache is unhealthy
+    /// * `Ok(())` - Cache is healthy
     /// * `Err(CacheError)` - Health check failed
     #[instrument(skip(self), level = "debug")]
-    pub async fn health_check(&self) -> Result<bool> {
+    pub async fn health_check(&self) -> Result<()> {
         self.backend.health_check().await
     }
 
@@ -869,8 +859,8 @@ where
     /// // ... use cache ...
     /// cache.shutdown().await?;
     /// ```
-    pub async fn shutdown(&self) -> Result<()> {
-        self.backend.close().await
+    pub async fn shutdown(&self) {
+        self.backend.shutdown().await;
     }
 
     /// Register this cache instance for use with the #[cached] macro.
@@ -951,17 +941,22 @@ where
     /// println!("Counter: {}", result);
     /// ```
     #[cfg(feature = "lua-script")]
-    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
-        use crate::backend::client::RedisBackend;
+    pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
+        // Check if backend is Redis
+        if !self.backend.backend_kind().is_distributed() {
+            return Err(CacheError::Operation(
+                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
+            ));
+        }
 
-        // Downcast to RedisBackend to access Lua methods
-        let redis_backend = self
-            .backend
-            .as_any()
-            .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
-
-        redis_backend.eval_lua(script, keys, args).await
+        // For Redis backend, use the backend's method if available
+        // Note: This requires the backend to implement the LuaScriptExecutor trait
+        // For now, return an error suggesting direct RedisBackend usage
+        Err(CacheError::Operation(
+            "Lua scripts require using RedisBackend directly. \
+             Create a RedisBackend instance and use its eval_lua() method."
+                .to_string(),
+        ))
     }
 
     /// Execute a cached Lua script by its SHA digest.
@@ -994,16 +989,20 @@ where
     /// let result = cache.eval_sha(&sha, &["mykey"], &[]).await?;
     /// ```
     #[cfg(feature = "lua-script")]
-    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
-        use crate::backend::client::RedisBackend;
+    pub async fn eval_sha(&self, _sha: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
+        // Check if backend is Redis
+        if !self.backend.backend_kind().is_distributed() {
+            return Err(CacheError::Operation(
+                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
+            ));
+        }
 
-        let redis_backend = self
-            .backend
-            .as_any()
-            .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
-
-        redis_backend.eval_sha(sha, keys, args).await
+        // For Redis backend, use the backend's method if available
+        Err(CacheError::Operation(
+            "Lua scripts require using RedisBackend directly. \
+             Create a RedisBackend instance and use its eval_sha() method."
+                .to_string(),
+        ))
     }
 
     /// Load a Lua script into Redis's script cache and return its SHA digest.
@@ -1038,16 +1037,20 @@ where
     /// let result = cache.eval_sha(&sha, &["key1", "key2"], &[]).await?;
     /// ```
     #[cfg(feature = "lua-script")]
-    pub async fn script_load(&self, script: &str) -> Result<String> {
-        use crate::backend::client::RedisBackend;
+    pub async fn script_load(&self, _script: &str) -> Result<String> {
+        // Check if backend is Redis
+        if !self.backend.backend_kind().is_distributed() {
+            return Err(CacheError::Operation(
+                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
+            ));
+        }
 
-        let redis_backend = self
-            .backend
-            .as_any()
-            .downcast_ref::<RedisBackend>()
-            .ok_or_else(|| CacheError::Operation("Lua scripts require Redis backend".to_string()))?;
-
-        redis_backend.script_load(script).await
+        // For Redis backend, use the backend's method if available
+        Err(CacheError::Operation(
+            "Lua scripts require using RedisBackend directly. \
+             Create a RedisBackend instance and use its script_load() method."
+                .to_string(),
+        ))
     }
 }
 

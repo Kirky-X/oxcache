@@ -7,11 +7,10 @@
 // ChainCache 提供多后端链式访问，按分数从高到低遍历后端。
 // 读取时从高分后端开始，写入时写入所有后端。
 
-use crate::backend::interface::CacheBackend;
+use crate::backend::interface::{BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::BackendScore;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -279,26 +278,12 @@ impl ChainCache {
 }
 
 #[async_trait]
-impl CacheBackend for ChainCache {
+impl CacheReader for ChainCache {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         if self.links.is_empty() {
             return Ok(None);
         }
         self.read_from_chain(key).await
-    }
-
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        if self.links.is_empty() {
-            return Err(CacheError::ConfigError("Chain has no backends".to_string()));
-        }
-        self.write_to_all_backends(key, value, ttl).await
-    }
-
-    async fn delete(&self, key: &str) -> Result<()> {
-        if self.links.is_empty() {
-            return Ok(());
-        }
-        self.delete_from_all_backends(key).await
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
@@ -312,44 +297,6 @@ impl CacheBackend for ChainCache {
         Ok(false)
     }
 
-    async fn clear(&self) -> Result<()> {
-        let mut errors = Vec::new();
-
-        for link in &self.links {
-            if let Err(e) = link.backend.clear().await {
-                errors.push((link.name, e));
-            }
-        }
-
-        if errors.len() == self.links.len() && !self.links.is_empty() {
-            return Err(CacheError::Operation(format!(
-                "All backends failed to clear: {:?}",
-                errors
-            )));
-        }
-
-        Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        let mut errors = Vec::new();
-
-        for link in &self.links {
-            if let Err(e) = link.backend.close().await {
-                errors.push((link.name, e));
-            }
-        }
-
-        if errors.len() == self.links.len() && !self.links.is_empty() {
-            return Err(CacheError::Operation(format!(
-                "All backends failed to close: {:?}",
-                errors
-            )));
-        }
-
-        Ok(())
-    }
-
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
         // 返回第一个找到的 TTL
         for link in &self.links {
@@ -360,51 +307,6 @@ impl CacheBackend for ChainCache {
             }
         }
         Ok(None)
-    }
-
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
-        let mut any_success = false;
-
-        for link in &self.links {
-            match link.backend.expire(key, ttl).await {
-                Ok(true) => any_success = true,
-                _ => continue,
-            }
-        }
-
-        Ok(any_success)
-    }
-
-    async fn health_check(&self) -> Result<bool> {
-        if self.links.is_empty() {
-            return Ok(true);
-        }
-
-        // 至少有一个后端健康即可
-        for link in &self.links {
-            if link.backend.health_check().await.unwrap_or(false) {
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
-    }
-
-    async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut stats = HashMap::new();
-        stats.insert("type".to_string(), "chain".to_string());
-        stats.insert("backend_count".to_string(), self.links.len().to_string());
-
-        for (index, link) in self.links.iter().enumerate() {
-            stats.insert(format!("backend_{}_name", index), link.name.to_string());
-            stats.insert(format!("backend_{}_score", index), link.score.to_string());
-        }
-
-        Ok(stats)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     async fn len(&self) -> Result<u64> {
@@ -432,7 +334,97 @@ impl CacheBackend for ChainCache {
             Ok(0)
         }
     }
+
+    async fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), "chain".to_string());
+        stats.insert("backend_count".to_string(), self.links.len().to_string());
+
+        for (index, link) in self.links.iter().enumerate() {
+            stats.insert(format!("backend_{}_name", index), link.name.to_string());
+            stats.insert(format!("backend_{}_score", index), link.score.to_string());
+        }
+
+        Ok(stats)
+    }
 }
+
+#[async_trait]
+impl CacheWriter for ChainCache {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        if self.links.is_empty() {
+            return Err(CacheError::Operation("Chain has no backends".to_string()));
+        }
+        self.write_to_all_backends(key, value, ttl).await
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        if self.links.is_empty() {
+            return Ok(());
+        }
+        self.delete_from_all_backends(key).await
+    }
+
+    async fn clear(&self) -> Result<()> {
+        let mut errors = Vec::new();
+
+        for link in &self.links {
+            if let Err(e) = link.backend.clear().await {
+                errors.push((link.name, e));
+            }
+        }
+
+        if errors.len() == self.links.len() && !self.links.is_empty() {
+            return Err(CacheError::Operation(format!(
+                "All backends failed to clear: {:?}",
+                errors
+            )));
+        }
+
+        Ok(())
+    }
+
+    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        let mut any_success = false;
+
+        for link in &self.links {
+            match link.backend.expire(key, ttl).await {
+                Ok(true) => any_success = true,
+                _ => continue,
+            }
+        }
+
+        Ok(any_success)
+    }
+}
+
+#[async_trait]
+impl CacheConnector for ChainCache {
+    async fn health_check(&self) -> Result<()> {
+        if self.links.is_empty() {
+            return Ok(());
+        }
+
+        // All links must be healthy
+        for link in &self.links {
+            link.backend.health_check().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn shutdown(&self) {
+        for link in &self.links {
+            link.backend.shutdown().await;
+        }
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Chain
+    }
+}
+
+// CacheBackend is automatically implemented via blanket implementation
 
 /// 链式缓存构建器
 #[derive(Default)]

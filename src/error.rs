@@ -37,6 +37,49 @@ fn sanitize_connection_string(conn_str: &str) -> String {
     conn_str.to_string()
 }
 
+/// Configuration error type for cache initialization
+///
+/// This error type is used during the configuration phase (factory functions, builders)
+/// and is separate from runtime errors. It represents errors that occur when setting up
+/// a cache instance, such as invalid configuration values or missing required fields.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use oxcache::error::CacheConfigError;
+///
+/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+///     if config.l1.capacity == 0 {
+///         return Err(CacheConfigError::InvalidValue {
+///             field: "capacity".to_string(),
+///             reason: "capacity must be greater than 0".to_string(),
+///         });
+///     }
+///     Ok(())
+/// }
+/// ```
+#[derive(Debug, Error)]
+pub enum CacheConfigError {
+    /// Missing required configuration field
+    #[error("Missing required field: {0}")]
+    MissingField(String),
+
+    /// Invalid value for a configuration field
+    #[error("Invalid value for field '{field}': {reason}")]
+    InvalidValue { field: String, reason: String },
+
+    /// Unsupported backend combination
+    #[error("Unsupported backend combination: {0}")]
+    UnsupportedBackend(String),
+
+    /// Connection failed during initialization
+    #[error("Connection failed during initialization: {0}")]
+    ConnectionFailed(String),
+}
+
+/// Result type for configuration operations
+pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
+
 /// 缓存系统错误类型枚举
 ///
 /// 定义了缓存系统中可能发生的各种错误类型。
@@ -44,27 +87,43 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 ///
 /// # 错误分类
 ///
-/// - **配置错误** ([`CacheError::ConfigError`]): 配置问题，如缺少必需字段
 /// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
 /// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
-/// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
+/// - **连接错误** ([`CacheError::ConnectionError`]): �络连接问题
 /// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
 /// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
 /// - **未找到错误** ([`CacheError::NotFound`]): 请求的键不存在
 /// - **降级错误** ([`CacheError::Degraded`]): 缓存处于降级模式
 /// - **操作错误** ([`CacheError::Operation`]): 一般操作错误
 ///
+/// # 配置阶段错误
+///
+/// 配置阶段的错误（如缺少必需字段、无效值等）使用 [`CacheConfigError`] 类型，
+/// 通过 [`ConfigResult`] 类型别名返回。
+///
 /// # 示例
 ///
 /// ```rust,ignore
-/// use oxcache::error::CacheError;
+/// use oxcache::error::{CacheError, CacheConfigError, ConfigResult};
 ///
+/// // 运行时错误
 /// async fn safe_cache_operation() -> Result<String, CacheError> {
 ///     let result = cache.get("key").await?;
 ///     match result {
 ///         Some(value) => Ok(value),
 ///         None => Err(CacheError::NotFound("Key not found".to_string()))
 ///     }
+/// }
+///
+/// // 配置阶段错误
+/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+///     if config.capacity == 0 {
+///         return Err(CacheConfigError::InvalidValue {
+///             field: "capacity".to_string(),
+///             reason: "must be greater than 0".to_string(),
+///         });
+///     }
+///     Ok(())
 /// }
 /// ```
 #[derive(Error, Debug)]
@@ -114,11 +173,6 @@ pub enum CacheError {
     /// L2缓存操作失败
     #[error("L2 cache operation failed: {0}. Please check Redis connection and server status.")]
     L2Error(String),
-
-    /// 配置错误
-    #[error("Configuration error: {0}. Please review your configuration file and ensure all required settings are provided."
-    )]
-    ConfigError(String),
 
     /// 操作不支持
     #[error("Operation not supported: {0}. This feature may not be available for the current cache type.")]
@@ -238,7 +292,6 @@ impl CacheError {
             CacheError::Degraded(_) => "CACHE_005",
             CacheError::L1Error(_) => "CACHE_006",
             CacheError::L2Error(_) => "CACHE_007",
-            CacheError::ConfigError(_) => "CACHE_008",
             CacheError::NotSupported(_) => "CACHE_009",
             CacheError::WalError(_) => "CACHE_010",
             CacheError::DatabaseError(_) => "CACHE_011",

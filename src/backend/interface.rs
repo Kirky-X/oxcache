@@ -3,17 +3,187 @@
 //! MIT License
 //!
 //! CacheBackend trait for the modernized cache API
+//!
+//! This module provides ISP-compliant trait hierarchy:
+//! - `CacheReader` - Read-only operations
+//! - `CacheWriter` - Write operations
+//! - `CacheConnector` - Lifecycle management
+//! - `CacheBackend` - Combines all traits for backward compatibility
 
 use crate::error::Result;
 use async_trait::async_trait;
-use std::any::{Any, TypeId};
 use std::time::Duration;
 
-/// Backend strategy trait for cache implementations
+/// Backend kind enumeration for runtime type identification
 ///
-/// This trait defines the interface that all cache backends must implement.
-/// It provides a pluggable architecture allowing different storage backends
-/// (memory, Redis, tiered, etc.) to be used interchangeably.
+/// This replaces `as_any()` for type checking, following the Brick Architecture
+/// principle that concrete implementations should be invisible to consumers.
+/// Unlike `core::types::BackendType` (used for configuration), this enum is
+/// used for runtime identification without feature gates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackendKind {
+    /// Moka in-memory cache
+    Moka,
+    /// DashMap in-memory cache
+    DashMap,
+    /// Redis distributed cache
+    Redis,
+    /// Chain cache (multi-tier)
+    Chain,
+    /// Mock backend for testing
+    Mock,
+    /// Unknown or custom backend
+    Unknown,
+}
+
+impl BackendKind {
+    /// Returns true if this is an in-memory cache (L1)
+    pub fn is_memory(&self) -> bool {
+        matches!(self, BackendKind::Moka | BackendKind::DashMap | BackendKind::Mock)
+    }
+
+    /// Returns true if this is a distributed cache (L2)
+    pub fn is_distributed(&self) -> bool {
+        matches!(self, BackendKind::Redis)
+    }
+}
+
+// ============================================================================
+// ISP-Compliant Trait Hierarchy
+// ============================================================================
+
+/// Read-only cache operations.
+///
+/// This trait provides methods for reading data from the cache.
+/// It can be used by consumers that only need read access.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// fn get_value(cache: &dyn CacheReader, key: &str) -> Result<Option<Vec<u8>>> {
+///     cache.get(key)
+/// }
+/// ```
+#[async_trait]
+pub trait CacheReader: Send + Sync + 'static {
+    /// Get a value from the cache.
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
+
+    /// Check if a key exists in the cache.
+    async fn exists(&self, key: &str) -> Result<bool>;
+
+    /// Get the time-to-live for a key.
+    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
+
+    /// Get the number of entries in the cache.
+    async fn len(&self) -> Result<u64>;
+
+    /// Check if the cache is empty.
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.len().await?.eq(&0))
+    }
+
+    /// Get the capacity of the cache.
+    async fn capacity(&self) -> Result<u64>;
+
+    /// Get backend statistics.
+    async fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
+
+    /// Get multiple values in a single operation.
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+        let mut results = Vec::with_capacity(keys.len());
+        for key in keys {
+            results.push(self.get(key).await?);
+        }
+        Ok(results)
+    }
+}
+
+/// Write operations for the cache.
+///
+/// This trait provides methods for modifying data in the cache.
+/// It can be used by consumers that only need write access.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// fn set_value(cache: &mut dyn CacheWriter, key: &str, value: Vec<u8>) -> Result<()> {
+///     cache.set(key, value, None)
+/// }
+/// ```
+#[async_trait]
+pub trait CacheWriter: Send + Sync + 'static {
+    /// Set a value in the cache.
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+
+    /// Delete a value from the cache.
+    async fn delete(&self, key: &str) -> Result<()>;
+
+    /// Clear all values from the cache.
+    async fn clear(&self) -> Result<()>;
+
+    /// Set the time-to-live for an existing key.
+    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
+
+    /// Set multiple key-value pairs in a single operation.
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+        for (key, value, ttl) in items {
+            self.set(key, value.clone(), *ttl).await?;
+        }
+        Ok(())
+    }
+
+    /// Delete multiple keys in a single operation.
+    async fn delete_many(&self, keys: &[String]) -> Result<()> {
+        for key in keys {
+            self.delete(key).await?;
+        }
+        Ok(())
+    }
+}
+
+/// Lifecycle management for cache backends.
+///
+/// This trait provides methods for connection management and health monitoring.
+/// It can be used by infrastructure code that manages backend lifecycle.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// fn check_and_shutdown(backend: &dyn CacheConnector) {
+///     if backend.health_check().await.is_err() {
+///         backend.shutdown().await;
+///     }
+/// }
+/// ```
+#[async_trait]
+pub trait CacheConnector: Send + Sync + 'static {
+    /// Check if the backend is healthy.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Backend is healthy
+    /// * `Err(CacheError)` - Health check failed (backend is unhealthy)
+    async fn health_check(&self) -> Result<()>;
+
+    /// Shutdown the backend and release resources.
+    ///
+    /// Internal errors are logged but not propagated.
+    async fn shutdown(&self);
+
+    /// Get the backend kind for runtime identification.
+    fn backend_kind(&self) -> BackendKind;
+}
+
+// ============================================================================
+// Combined CacheBackend Trait (Backward Compatibility)
+// ============================================================================
+
+/// Full cache backend interface combining all ISP traits.
+///
+/// This trait combines `CacheReader`, `CacheWriter`, and `CacheConnector`
+/// for consumers that need full cache functionality. It maintains backward
+/// compatibility with existing code.
 ///
 /// # Design Pattern
 ///
@@ -31,12 +201,10 @@ use std::time::Duration;
 /// #[async_trait]
 /// impl CacheBackend for MyCustomBackend {
 ///     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-///         // Custom implementation
 ///         Ok(None)
 ///     }
 ///
 ///     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-///         // Custom implementation
 ///         Ok(())
 ///     }
 ///
@@ -44,235 +212,18 @@ use std::time::Duration;
 /// }
 /// ```
 #[async_trait]
-pub trait CacheBackend: Send + Sync + 'static {
-    /// Get a value from the cache
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to retrieve
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some(bytes))` - Value found
-    /// * `Ok(None)` - Key not found
-    /// * `Err(CacheError)` - Operation failed
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
-
-    /// Set a value in the cache
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to set
-    /// * `value` - The value bytes to store
-    /// * `ttl` - Optional time-to-live duration
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - Value stored successfully
-    /// * `Err(CacheError)` - Operation failed
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
-
-    /// Delete a value from the cache
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to delete
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - Key deleted successfully
-    /// * `Err(CacheError)` - Operation failed
-    async fn delete(&self, key: &str) -> Result<()>;
-
-    /// Check if a key exists in the cache
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to check
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(true)` - Key exists
-    /// * `Ok(false)` - Key does not exist
-    /// * `Err(CacheError)` - Operation failed
-    async fn exists(&self, key: &str) -> Result<bool>;
-
-    /// Clear all values from the cache
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - Cache cleared successfully
-    /// * `Err(CacheError)` - Operation failed
-    async fn clear(&self) -> Result<()>;
-
-    /// Close the backend and release resources
-    ///
-    /// This method should be called when the cache is no longer needed.
-    /// It should gracefully close connections and release any held resources.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - Backend closed successfully
-    /// * `Err(CacheError)` - Operation failed
-    async fn close(&self) -> Result<()>;
-
-    /// Get the time-to-live for a key
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to check
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Some(duration))` - TTL remaining
-    /// * `Ok(None)` - Key exists but has no expiration
-    /// * `Err(CacheError)` - Operation failed or key not found
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
-
-    /// Set the time-to-live for an existing key
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The cache key to update
-    /// * `ttl` - The new TTL duration
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(true)` - TTL updated successfully
-    /// * `Ok(false)` - Key does not exist
-    /// * `Err(CacheError)` - Operation failed
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
-
-    /// Check if the backend is healthy
-    ///
-    /// This method can be used for health checks and monitoring.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(true)` - Backend is healthy
-    /// * `Ok(false)` - Backend is unhealthy or degraded
-    /// * `Err(CacheError)` - Health check failed
-    async fn health_check(&self) -> Result<bool>;
-
-    /// Get backend statistics
-    ///
-    /// Returns a map of statistic names to values.
-    /// The exact statistics depend on the backend implementation.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(stats)` - Map of statistics
-    /// * `Err(CacheError)` - Failed to retrieve statistics
-    async fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
-
-    /// Get as_any reference for type downcasting
-    fn as_any(&self) -> &dyn Any;
-
-    /// Get the number of entries in the cache
-    async fn len(&self) -> Result<u64>;
-
-    /// Check if the cache is empty
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(true)` - Cache has no entries
-    /// * `Ok(false)` - Cache has entries
-    /// * `Err(CacheError)` - Operation failed
-    async fn is_empty(&self) -> Result<bool> {
-        Ok(self.len().await?.eq(&0))
-    }
-
-    /// Get the capacity of the cache
-    async fn capacity(&self) -> Result<u64>;
-
-    /// Check if backend is of specific type
-    fn is<T: Any>(&self) -> bool
-    where
-        Self: Sized,
-    {
-        TypeId::of::<T>() == TypeId::of::<Self>()
-    }
-
-    // ========================================================================
-    // Batch operations (with default implementations)
-    // ========================================================================
-
-    /// Set multiple key-value pairs in a single operation
-    ///
-    /// This method provides a batch operation for setting multiple values.
-    /// Backends like Redis can override this to use pipelining for better performance.
-    ///
-    /// # Arguments
-    ///
-    /// * `items` - Slice of (key, value, ttl) tuples
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - All values stored successfully
-    /// * `Err(CacheError)` - Operation failed
-    ///
-    /// # Default Implementation
-    ///
-    /// Iterates through items and calls `set()` for each one.
-    /// Backends should override this for better performance.
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
-        for (key, value, ttl) in items {
-            self.set(key, value.clone(), *ttl).await?;
-        }
-        Ok(())
-    }
-
-    /// Get multiple values in a single operation
-    ///
-    /// This method provides a batch operation for getting multiple values.
-    /// Backends like Redis can override this to use pipelining for better performance.
-    ///
-    /// # Arguments
-    ///
-    /// * `keys` - Slice of keys to retrieve
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Vec<Option<Vec<u8>>>)` - Vector of values, None if key not found
-    /// * `Err(CacheError)` - Operation failed
-    ///
-    /// # Default Implementation
-    ///
-    /// Iterates through keys and calls `get()` for each one.
-    /// Backends should override this for better performance.
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
-        let mut results = Vec::with_capacity(keys.len());
-        for key in keys {
-            results.push(self.get(key).await?);
-        }
-        Ok(results)
-    }
-
-    /// Delete multiple keys in a single operation
-    ///
-    /// This method provides a batch operation for deleting multiple keys.
-    /// Backends like Redis can override this to use pipelining for better performance.
-    ///
-    /// # Arguments
-    ///
-    /// * `keys` - Slice of keys to delete
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - All keys deleted successfully
-    /// * `Err(CacheError)` - Operation failed
-    ///
-    /// # Default Implementation
-    ///
-    /// Iterates through keys and calls `delete()` for each one.
-    /// Backends should override this for better performance.
-    async fn delete_many(&self, keys: &[String]) -> Result<()> {
-        for key in keys {
-            self.delete(key).await?;
-        }
-        Ok(())
-    }
+pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {
+    // All methods are provided via supertraits
+    // This trait exists for backward compatibility and type bounds
 }
+
+/// Blanket implementation of CacheBackend for any type implementing all required traits.
+#[async_trait]
+impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T {}
+
+// ============================================================================
+// Re-exports for backward compatibility
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -297,10 +248,28 @@ mod tests {
         assert!(!backend.exists("key1").await.unwrap());
 
         // Test health check
-        assert!(backend.health_check().await.unwrap());
+        backend.health_check().await.unwrap();
 
         // Test stats
         let stats = backend.stats().await.unwrap();
         assert_eq!(stats.get("type"), Some(&"mock".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_isp_traits() {
+        let backend = MockBackend::new("mock", 50, false);
+
+        // Test CacheReader trait object
+        let reader: &dyn CacheReader = &backend;
+        assert!(reader.get("nonexistent").await.unwrap().is_none());
+
+        // Test CacheWriter trait object
+        let writer: &dyn CacheWriter = &backend;
+        writer.set("key", b"value".to_vec(), None).await.unwrap();
+
+        // Test CacheConnector trait object
+        let connector: &dyn CacheConnector = &backend;
+        connector.health_check().await.unwrap();
+        assert_eq!(connector.backend_kind(), BackendKind::Mock);
     }
 }

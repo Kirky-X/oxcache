@@ -53,30 +53,14 @@ impl crate::backend::BackendScore for MockBackend {
     fn backend_name(&self) -> &'static str {
         self.name
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 #[cfg(test)]
 #[async_trait::async_trait]
-impl crate::backend::CacheBackend for MockBackend {
+impl crate::backend::CacheReader for MockBackend {
     async fn get(&self, key: &str) -> crate::error::Result<Option<Vec<u8>>> {
         let data = self.data.read().await;
         Ok(data.get(key).cloned())
-    }
-
-    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> crate::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.insert(key.to_string(), value);
-        Ok(())
-    }
-
-    async fn delete(&self, key: &str) -> crate::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.remove(key);
-        Ok(())
     }
 
     async fn exists(&self, key: &str) -> crate::error::Result<bool> {
@@ -84,36 +68,8 @@ impl crate::backend::CacheBackend for MockBackend {
         Ok(data.contains_key(key))
     }
 
-    async fn clear(&self) -> crate::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.clear();
-        Ok(())
-    }
-
-    async fn close(&self) -> crate::error::Result<()> {
-        Ok(())
-    }
-
     async fn ttl(&self, _key: &str) -> crate::error::Result<Option<Duration>> {
         Ok(None)
-    }
-
-    async fn expire(&self, _key: &str, _ttl: Duration) -> crate::error::Result<bool> {
-        Ok(false)
-    }
-
-    async fn health_check(&self) -> crate::error::Result<bool> {
-        Ok(true)
-    }
-
-    async fn stats(&self) -> crate::error::Result<HashMap<String, String>> {
-        let mut stats = HashMap::new();
-        stats.insert("type".to_string(), self.name.to_string());
-        Ok(stats)
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 
     async fn len(&self) -> crate::error::Result<u64> {
@@ -129,4 +85,52 @@ impl crate::backend::CacheBackend for MockBackend {
     async fn capacity(&self) -> crate::error::Result<u64> {
         Ok(0)
     }
+
+    async fn stats(&self) -> crate::error::Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), self.name.to_string());
+        Ok(stats)
+    }
 }
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl crate::backend::CacheWriter for MockBackend {
+    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> crate::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.insert(key.to_string(), value);
+        Ok(())
+    }
+
+    async fn delete(&self, key: &str) -> crate::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.remove(key);
+        Ok(())
+    }
+
+    async fn clear(&self) -> crate::error::Result<()> {
+        let mut data = self.data.write().await;
+        data.clear();
+        Ok(())
+    }
+
+    async fn expire(&self, _key: &str, _ttl: Duration) -> crate::error::Result<bool> {
+        Ok(false)
+    }
+}
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl crate::backend::CacheConnector for MockBackend {
+    async fn health_check(&self) -> crate::error::Result<()> {
+        Ok(())
+    }
+
+    async fn shutdown(&self) {}
+
+    fn backend_kind(&self) -> crate::backend::interface::BackendKind {
+        crate::backend::interface::BackendKind::Mock
+    }
+}
+
+// CacheBackend is automatically implemented via blanket implementation
