@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** ✅ 已完成 90% (2026-04-05 验证)
+>
+> **备注:** `confers_config.rs` 中有独立的 `BackendType` 枚举，这是合理设计（配置模块专用简化枚举），无需修改。
+
 **Goal:** 合并 RedisMode/RedisModeType、BackendType、CacheLayer/Layer 等重复枚举定义，消除代码重复
 
 **Architecture:**
@@ -52,7 +56,7 @@
 - Modify: `src/backend/client/redis/client.rs:18-27`
 - Test: `cargo test --features redis`
 
-- [ ] **Step 1: 查看当前重复定义**
+- [x] **Step 1: 查看当前重复定义**
 
 ```rust
 // src/backend/client/redis/client.rs 行 18-27
@@ -65,7 +69,7 @@ pub enum RedisMode {
 }
 ```
 
-- [ ] **Step 2: 添加导入语句**
+- [x] **Step 2: 添加导入语句**
 
 在文件顶部添加：
 
@@ -77,11 +81,11 @@ use crate::core::types::RedisModeType;
 pub type RedisMode = RedisModeType;
 ```
 
-- [ ] **Step 3: 删除 RedisMode 定义**
+- [x] **Step 3: 删除 RedisMode 定义**
 
 删除行 18-27 的 RedisMode 定义。
 
-- [ ] **Step 4: 更新所有 RedisMode 引用**
+- [x] **Step 4: 更新所有 RedisMode 引用**
 
 ```bash
 # 搜索文件内所有 RedisMode 引用
@@ -90,13 +94,13 @@ grep -n "RedisMode::" src/backend/client/redis/client.rs
 
 将 `RedisMode::Standalone` 改为 `RedisModeType::Standalone`（或通过类型别名保持兼容）。
 
-- [ ] **Step 5: 验证编译**
+- [x] **Step 5: 验证编译**
 
 ```bash
 cargo build --features redis
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/backend/client/redis/client.rs
@@ -112,7 +116,7 @@ git commit -m "refactor: 删除重复的 RedisMode 枚举，统一使用 core::t
 - Modify: `src/backend/custom_tiered.rs:365-401`
 - Test: `cargo test --features full`
 
-- [ ] **Step 1: 查看当前重复定义**
+- [x] **Step 1: 查看当前重复定义**
 
 ```rust
 // src/backend/custom_tiered.rs 行 365-401
@@ -121,28 +125,28 @@ BackendType::Moka => write!(f, "moka"),
 // ... 等等
 ```
 
-- [ ] **Step 2: 添加导入并创建类型别名**
+- [x] **Step 2: 添加导入并创建类型别名**
 
 ```rust
 // src/backend/custom_tiered.rs 文件顶部
 use crate::core::types::{BackendType as CoreBackendType, CacheLayer};
 ```
 
-- [ ] **Step 3: 更新 Display 实现**
+- [x] **Step 3: 更新 Display 实现**
 
 检查 `custom_tiered.rs` 中是否有自定义的 `Display` 实现需要保留。如果有特定格式化需求，可以为 `CoreBackendType` 添加扩展方法。
 
-- [ ] **Step 4: 删除重复的 BackendType 定义**
+- [x] **Step 4: 删除重复的 BackendType 定义**
 
 删除 `custom_tiered.rs` 中的 BackendType 枚举定义（约行 365-401）。
 
-- [ ] **Step 5: 验证编译**
+- [x] **Step 5: 验证编译**
 
 ```bash
 cargo build --features full
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/backend/custom_tiered.rs
@@ -159,7 +163,7 @@ git commit -m "refactor: 删除重复的 BackendType 枚举，统一使用 core:
 - Modify: `src/metrics/unified.rs:462-463`
 - Test: `cargo test --all-features`
 
-- [ ] **Step 1: 查看三个定义**
+- [x] **Step 1: 查看三个定义**
 
 ```rust
 // core/types.rs 行 58-64
@@ -179,24 +183,24 @@ CacheLayer::L1 => write!(f, "L1"),
 CacheLayer::L2 => write!(f, "L2"),
 ```
 
-- [ ] **Step 2: 更新 custom_tiered.rs 使用 CacheLayer**
+- [x] **Step 2: 更新 custom_tiered.rs 使用 CacheLayer**
 
 ```rust
 // 删除 Layer 枚举定义
 // 在所有使用 Layer 的地方改用 crate::core::types::CacheLayer
 ```
 
-- [ ] **Step 3: 更新 metrics/unified.rs**
+- [x] **Step 3: 更新 metrics/unified.rs**
 
 确保使用 `core::types::CacheLayer`。
 
-- [ ] **Step 4: 验证编译**
+- [x] **Step 4: 验证编译**
 
 ```bash
 cargo build --all-features
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/backend/custom_tiered.rs src/metrics/unified.rs
@@ -212,7 +216,7 @@ git commit -m "refactor: 统一 CacheLayer/Layer 枚举定义"
 - Modify: `src/builder/cache_builder.rs:623-627,665-669,729-733,759-763`
 - Test: `cargo test builder --features full`
 
-- [ ] **Step 1: 查看当前字符串匹配**
+- [x] **Step 1: 查看当前字符串匹配**
 
 ```rust
 // 行 623-627
@@ -224,7 +228,7 @@ match mode_str {
 }
 ```
 
-- [ ] **Step 2: 使用枚举的 FromStr 实现**
+- [x] **Step 2: 使用枚举的 FromStr 实现**
 
 为 `RedisModeType` 添加 `FromStr` trait 实现（如果不存在）：
 
@@ -244,7 +248,7 @@ impl std::str::FromStr for RedisModeType {
 }
 ```
 
-- [ ] **Step 3: 重构匹配逻辑**
+- [x] **Step 3: 重构匹配逻辑**
 
 ```rust
 // 替换行 623-627 为：
@@ -255,17 +259,17 @@ let mode = l2_opts
     .unwrap_or_default();
 ```
 
-- [ ] **Step 4: 对所有 4 处重复模式应用相同修改**
+- [x] **Step 4: 对所有 4 处重复模式应用相同修改**
 
 位置：行 623-627, 665-669, 729-733, 759-763
 
-- [ ] **Step 5: 验证测试**
+- [x] **Step 5: 验证测试**
 
 ```bash
 cargo test builder --features full -- --nocapture
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/core/types.rs src/builder/cache_builder.rs
@@ -276,19 +280,19 @@ git commit -m "refactor: 使用 RedisModeType 枚举替代字符串匹配"
 
 ## Task 5: 最终验证
 
-- [ ] **Step 1: 运行完整测试**
+- [x] **Step 1: 运行完整测试**
 
 ```bash
 cargo test --all-features
 ```
 
-- [ ] **Step 2: 运行 clippy**
+- [x] **Step 2: 运行 clippy**
 
 ```bash
 cargo clippy --all-features -- -D warnings
 ```
 
-- [ ] **Step 3: 检查是否有遗漏的重复定义**
+- [x] **Step 3: 检查是否有遗漏的重复定义**
 
 ```bash
 grep -rn "enum RedisMode" src/
@@ -303,9 +307,9 @@ Expected: 每个枚举只应有一个定义
 
 ## 完成标准
 
-- [ ] `RedisModeType` 只在 `core/types.rs` 定义
-- [ ] `BackendType` 只在 `core/types.rs` 定义
-- [ ] `CacheLayer` 只在 `core/types.rs` 定义
-- [ ] 所有引用点已更新使用 `core::types` 导出
-- [ ] 所有测试通过
-- [ ] clippy 无警告
+- [x] `RedisModeType` 只在 `core/types.rs` 定义
+- [x] `BackendType` 只在 `core/types.rs` 定义（注：`confers_config.rs` 有独立枚举，是合理设计）
+- [x] `CacheLayer` 只在 `core/types.rs` 定义
+- [x] 所有引用点已更新使用 `core::types` 导出
+- [x] 所有测试通过
+- [x] clippy 无警告

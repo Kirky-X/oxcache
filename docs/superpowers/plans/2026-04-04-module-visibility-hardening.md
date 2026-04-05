@@ -2,6 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** ✅ 已完成 100% (2026-04-05 验证)
+>
+> **验证结果:**
+> - `security` 模块 `pub(crate)` ✅
+> - `bloom_filter` 模块 `pub(crate)` ✅
+> - `rate_limiting` 模块 `pub(crate)` ✅
+> - `smart_strategy` 模块 `pub(crate)` ✅
+> - `#![deny(unsafe_code)]` 已添加 ✅
+> - 公共 API re-export 已添加 ✅
+
 **Goal:** 将内部实现模块的可见性从 `pub` 改为 `pub(crate)`，遵循最小权限原则
 
 **Architecture:**
@@ -31,7 +41,7 @@
 
 - Modify: `src/lib.rs:509-510`
 
-- [ ] **Step 1: 查看当前声明**
+- [x] **Step 1: 查看当前声明**
 
 ```rust
 // src/lib.rs 行 509-510
@@ -39,7 +49,7 @@
 pub mod security;
 ```
 
-- [ ] **Step 2: 改为 pub(crate)**
+- [x] **Step 2: 改为 pub(crate)**
 
 ```rust
 // 修改为
@@ -47,7 +57,7 @@ pub mod security;
 pub(crate) mod security;
 ```
 
-- [ ] **Step 3: 检查外部依赖**
+- [x] **Step 3: 检查外部依赖**
 
 搜索是否有外部代码使用 `oxcache::security`：
 
@@ -57,7 +67,7 @@ grep -rn "oxcache::security" src/
 
 如果找到内部使用，确认这些使用仍在同一 crate 内。
 
-- [ ] **Step 4: 添加 re-export（如果需要公共 API）**
+- [x] **Step 4: 添加 re-export（如果需要公共 API）**
 
 如果某些 security 函数需要对外暴露，在 `lib.rs` 添加选择性 re-export：
 
@@ -67,13 +77,13 @@ grep -rn "oxcache::security" src/
 pub use security::redaction::{redact_connection_string, redact_cache_key};
 ```
 
-- [ ] **Step 5: 验证编译**
+- [x] **Step 5: 验证编译**
 
 ```bash
 cargo build --features full
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add src/lib.rs
@@ -88,7 +98,7 @@ git commit -m "refactor(visibility): security 模块改为 pub(crate)"
 
 - Modify: `src/lib.rs:450-451`
 
-- [ ] **Step 1: 查看当前声明**
+- [x] **Step 1: 查看当前声明**
 
 ```rust
 // src/lib.rs 行 450-451
@@ -96,7 +106,7 @@ git commit -m "refactor(visibility): security 模块改为 pub(crate)"
 pub mod bloom_filter;
 ```
 
-- [ ] **Step 2: 改为 pub(crate)**
+- [x] **Step 2: 改为 pub(crate)**
 
 ```rust
 // 修改为
@@ -104,7 +114,7 @@ pub mod bloom_filter;
 pub(crate) mod bloom_filter;
 ```
 
-- [ ] **Step 3: 检查是否有公共 bloom_filter 使用**
+- [x] **Step 3: 检查是否有公共 bloom_filter 使用**
 
 ```bash
 grep -rn "use.*bloom_filter" src/
@@ -112,13 +122,13 @@ grep -rn "use.*bloom_filter" src/
 
 确认所有使用都在 crate 内部。
 
-- [ ] **Step 4: 验证编译**
+- [x] **Step 4: 验证编译**
 
 ```bash
 cargo build --features bloom-filter
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/lib.rs
@@ -133,7 +143,7 @@ git commit -m "refactor(visibility): bloom_filter 模块改为 pub(crate)"
 
 - Modify: `src/lib.rs:467-468`
 
-- [ ] **Step 1: 查看当前声明**
+- [x] **Step 1: 查看当前声明**
 
 ```rust
 // src/lib.rs 行 467-468
@@ -141,7 +151,7 @@ git commit -m "refactor(visibility): bloom_filter 模块改为 pub(crate)"
 pub mod rate_limiting;
 ```
 
-- [ ] **Step 2: 改为 pub(crate)**
+- [x] **Step 2: 改为 pub(crate)**
 
 ```rust
 // 修改为
@@ -149,7 +159,7 @@ pub mod rate_limiting;
 pub(crate) mod rate_limiting;
 ```
 
-- [ ] **Step 3: 检查是否有导出的类型需要保留**
+- [x] **Step 3: 检查是否有导出的类型需要保留**
 
 查看 `lib.rs` 中是否有 `pub use rate_limiting::*`：
 
@@ -165,13 +175,13 @@ grep -n "pub use.*rate_limiting" src/lib.rs
 pub use rate_limiting::{RateLimitConfig, ClientRateLimiter};
 ```
 
-- [ ] **Step 4: 验证编译和测试**
+- [x] **Step 4: 验证编译和测试**
 
 ```bash
 cargo test --features rate-limiting
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/lib.rs
@@ -186,7 +196,7 @@ git commit -m "refactor(visibility): rate_limiting 模块改为 pub(crate)"
 
 - Modify: `src/lib.rs:500-501,573-577`
 
-- [ ] **Step 1: 查看当前声明**
+- [x] **Step 1: 查看当前声明**
 
 ```rust
 // src/lib.rs 行 500-501
@@ -201,7 +211,7 @@ pub use smart_strategy::{
 };
 ```
 
-- [ ] **Step 2: 改模块声明为 pub(crate)**
+- [x] **Step 2: 改模块声明为 pub(crate)**
 
 ```rust
 // 修改为
@@ -209,7 +219,7 @@ pub use smart_strategy::{
 pub(crate) mod smart_strategy;
 ```
 
-- [ ] **Step 3: 保持必要的 re-export**
+- [x] **Step 3: 保持必要的 re-export**
 
 如果 `SmartStrategyManager` 等类型需要对外暴露，保留 re-export：
 
@@ -221,13 +231,13 @@ pub use smart_strategy::{SmartStrategyManager, SmartStrategyConfig};
 
 如果这些类型完全不需要对外暴露，删除 re-export。
 
-- [ ] **Step 4: 验证编译**
+- [x] **Step 4: 验证编译**
 
 ```bash
 cargo build --features smart-strategy
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/lib.rs
@@ -242,14 +252,14 @@ git commit -m "refactor(visibility): smart_strategy 模块改为 pub(crate)"
 
 - Modify: `src/lib.rs`
 
-- [ ] **Step 1: 在 lib.rs 顶部添加 lint**
+- [x] **Step 1: 在 lib.rs 顶部添加 lint**
 
 ```rust
 // src/lib.rs 在现有 lints 附近添加
 #![deny(unsafe_code)]
 ```
 
-- [ ] **Step 2: 处理编译错误**
+- [x] **Step 2: 处理编译错误**
 
 如果有 unsafe 代码，需要：
 
@@ -262,7 +272,7 @@ git commit -m "refactor(visibility): smart_strategy 模块改为 pub(crate)"
 grep -rn "unsafe" src/
 ```
 
-- [ ] **Step 3: 为现有 unsafe 添加注释**
+- [x] **Step 3: 为现有 unsafe 添加注释**
 
 对于每个 `unsafe` 块，添加 `// SAFETY:` 注释：
 
@@ -273,13 +283,13 @@ unsafe {
 }
 ```
 
-- [ ] **Step 4: 验证编译**
+- [x] **Step 4: 验证编译**
 
 ```bash
 cargo build --all-features
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add src/lib.rs
@@ -290,19 +300,19 @@ git commit -m "security: 添加 #![deny(unsafe_code)] lint"
 
 ## Task 6: 最终验证
 
-- [ ] **Step 1: 运行完整测试**
+- [x] **Step 1: 运行完整测试**
 
 ```bash
 cargo test --all-features
 ```
 
-- [ ] **Step 2: 检查 clippy**
+- [x] **Step 2: 检查 clippy**
 
 ```bash
 cargo clippy --all-features -- -D warnings
 ```
 
-- [ ] **Step 3: 检查公开 API 文档**
+- [x] **Step 3: 检查公开 API 文档**
 
 ```bash
 cargo doc --all-features --no-deps --open
@@ -310,7 +320,7 @@ cargo doc --all-features --no-deps --open
 
 确认只有预期的类型出现在公开文档中。
 
-- [ ] **Step 4: 更新 AGENTS.md（可选）**
+- [x] **Step 4: 更新 AGENTS.md（可选）**
 
 如果可见性规则需要记录，更新 `AGENTS.md`：
 
@@ -334,8 +344,8 @@ cargo doc --all-features --no-deps --open
 
 ## 完成标准
 
-- [ ] 4 个模块已改为 `pub(crate)`
-- [ ] 必要的公共 API 已 re-export
-- [ ] `#![deny(unsafe_code)]` 已添加
-- [ ] 所有测试通过
-- [ ] 公开 API 文档正确
+- [x] 4 个模块已改为 `pub(crate)`
+- [x] 必要的公共 API 已 re-export
+- [x] `#![deny(unsafe_code)]` 已添加
+- [x] 所有测试通过
+- [x] 公开 API 文档正确
