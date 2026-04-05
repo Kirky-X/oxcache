@@ -47,6 +47,6 @@ async fn test_two_level_cache_flow() {
     assert!(val.is_none());
 
     // 清理
-    cache.shutdown().await.expect("Shutdown failed");
+    cache.shutdown().await;
     cleanup_service(&service_name).await;
 }

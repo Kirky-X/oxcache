@@ -81,7 +81,11 @@ async fn test_sentinel_master_operations() {
 
     // 测试基本操作
     backend
-        .set("sentinel_key_1", b"sentinel_value_1".to_vec(), Some(Duration::from_secs(60)))
+        .set(
+            "sentinel_key_1",
+            b"sentinel_value_1".to_vec(),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
@@ -164,10 +168,16 @@ async fn test_sentinel_expire() {
     };
 
     // 设置不带 TTL 的键
-    backend.set("sentinel_expire_key", b"expire_value".to_vec(), None).await.unwrap();
+    backend
+        .set("sentinel_expire_key", b"expire_value".to_vec(), None)
+        .await
+        .unwrap();
 
     // 设置过期时间
-    let result = backend.expire("sentinel_expire_key", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("sentinel_expire_key", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(result);
 
     // 验证 TTL 已设置
@@ -203,8 +213,7 @@ async fn test_sentinel_health_check() {
         }
     };
 
-    let healthy = backend.health_check().await.unwrap();
-    assert!(healthy);
+    backend.health_check().await.unwrap();
 
     println!("✓ Redis Sentinel 健康检查测试成功");
 }
@@ -233,7 +242,10 @@ async fn test_sentinel_stats() {
         }
     };
 
-    backend.set("sentinel_stats_key", b"stats_value".to_vec(), None).await.unwrap();
+    backend
+        .set("sentinel_stats_key", b"stats_value".to_vec(), None)
+        .await
+        .unwrap();
 
     let stats = backend.stats().await.unwrap();
     assert_eq!(stats.get("type"), Some(&"redis".to_string()));
@@ -318,7 +330,10 @@ async fn test_sentinel_large_value() {
     // 1MB 数据
     let large_value = vec![0u8; 1024 * 1024];
 
-    backend.set("sentinel_large_key", large_value.clone(), None).await.unwrap();
+    backend
+        .set("sentinel_large_key", large_value.clone(), None)
+        .await
+        .unwrap();
     let retrieved = backend.get("sentinel_large_key").await.unwrap();
     assert_eq!(retrieved, Some(large_value));
 

@@ -35,11 +35,7 @@ async fn test_cache_builder_default() {
 
 #[tokio::test]
 async fn test_cache_builder_with_capacity() {
-    let cache: Cache<String, TestUser> = Cache::builder()
-        .capacity(1000)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, TestUser> = Cache::builder().capacity(1000).build().await.unwrap();
 
     let user = TestUser {
         id: 1,
@@ -55,11 +51,7 @@ async fn test_cache_builder_with_capacity() {
 
 #[tokio::test]
 async fn test_cache_builder_with_ttl() {
-    let cache: Cache<String, TestUser> = Cache::builder()
-        .ttl(Duration::from_secs(60))
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, TestUser> = Cache::builder().ttl(Duration::from_secs(60)).build().await.unwrap();
 
     let user = TestUser {
         id: 1,
@@ -430,8 +422,7 @@ async fn test_cache_shutdown() {
 
     cache.set("shutdown_key", &user).await.unwrap();
 
-    let result = cache.shutdown().await;
-    assert!(result.is_ok());
+    cache.shutdown().await;
 }
 
 #[tokio::test]

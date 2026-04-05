@@ -7,7 +7,7 @@
 //! 测试 UnifiedCache trait 的默认实现、适配器模式和批量操作。
 
 use oxcache::backend::client::MokaMemoryBackend;
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::cache::UnifiedCache;
 use oxcache::error::CacheError;
 use serde::{Deserialize, Serialize};
@@ -427,9 +427,9 @@ async fn test_set_many_bytes_small_batch() {
     UnifiedCache::set_many_bytes(&backend, items).await.unwrap();
 
     // 验证所有值都被设置
-    assert!(CacheBackend::exists(&backend, "batch_key1").await.unwrap());
-    assert!(CacheBackend::exists(&backend, "batch_key2").await.unwrap());
-    assert!(CacheBackend::exists(&backend, "batch_key3").await.unwrap());
+    assert!(CacheReader::exists(&backend, "batch_key1").await.unwrap());
+    assert!(CacheReader::exists(&backend, "batch_key2").await.unwrap());
+    assert!(CacheReader::exists(&backend, "batch_key3").await.unwrap());
 
     assert_eq!(backend.get("batch_key1").await.unwrap(), Some(b"value1".to_vec()));
 }
@@ -463,9 +463,9 @@ async fn test_delete_many_small_batch() {
     let keys: Vec<&str> = vec!["del_batch1", "del_batch2"];
     UnifiedCache::delete_many(&backend, keys).await.unwrap();
 
-    assert!(!CacheBackend::exists(&backend, "del_batch1").await.unwrap());
-    assert!(!CacheBackend::exists(&backend, "del_batch2").await.unwrap());
-    assert!(CacheBackend::exists(&backend, "del_batch3").await.unwrap());
+    assert!(!CacheReader::exists(&backend, "del_batch1").await.unwrap());
+    assert!(!CacheReader::exists(&backend, "del_batch2").await.unwrap());
+    assert!(CacheReader::exists(&backend, "del_batch3").await.unwrap());
 }
 
 // ============================================================================
@@ -546,7 +546,7 @@ async fn test_expire_not_supported_for_moka() {
         .await
         .unwrap();
 
-    let result = CacheBackend::expire(&backend, "expire_key", Duration::from_secs(100))
+    let result = CacheWriter::expire(&backend, "expire_key", Duration::from_secs(100))
         .await
         .unwrap();
     // Moka 不支持在插入后更新 TTL
@@ -557,7 +557,7 @@ async fn test_expire_not_supported_for_moka() {
 async fn test_expire_nonexistent_key() {
     let backend = MokaMemoryBackend::new();
 
-    let result = CacheBackend::expire(&backend, "nonexistent_expire", Duration::from_secs(100))
+    let result = CacheWriter::expire(&backend, "nonexistent_expire", Duration::from_secs(100))
         .await
         .unwrap();
     assert!(!result);
@@ -572,7 +572,7 @@ async fn test_ttl_not_exposed_by_moka() {
         .await
         .unwrap();
 
-    let ttl = CacheBackend::ttl(&backend, "ttl_key").await.unwrap();
+    let ttl = CacheReader::ttl(&backend, "ttl_key").await.unwrap();
     // Moka 不暴露每个条目的 TTL 信息
     assert!(ttl.is_none());
 }
@@ -581,7 +581,7 @@ async fn test_ttl_not_exposed_by_moka() {
 async fn test_ttl_nonexistent_key() {
     let backend = MokaMemoryBackend::new();
 
-    let ttl = CacheBackend::ttl(&backend, "nonexistent_ttl").await.unwrap();
+    let ttl = CacheReader::ttl(&backend, "nonexistent_ttl").await.unwrap();
     // 不存在的键 TTL 应该是 None
     assert!(ttl.is_none());
 }
@@ -594,40 +594,42 @@ async fn test_ttl_nonexistent_key() {
 async fn test_health_check() {
     let backend = MokaMemoryBackend::new();
 
-    let healthy = CacheBackend::health_check(&backend).await.unwrap();
-    assert!(healthy);
+    // health_check returns Ok(()) for healthy backends
+    CacheConnector::health_check(&backend).await.unwrap();
 }
 
 #[tokio::test]
 async fn test_stats() {
     let backend = MokaMemoryBackend::new();
 
-    let stats = CacheBackend::stats(&backend).await.unwrap();
+    let stats = CacheReader::stats(&backend).await.unwrap();
     assert!(!stats.is_empty());
 }
 
 // ============================================================================
-// 测试 as_any 和 into_any_arc
+// 测试 backend_kind 运行时类型识别
 // ============================================================================
 
 #[tokio::test]
-async fn test_as_any() {
+async fn test_backend_kind() {
     let backend = MokaMemoryBackend::new();
 
-    let any_ref = UnifiedCache::as_any(&backend);
-    // 应该能够 downcast 回具体类型
-    let downcast = any_ref.downcast_ref::<MokaMemoryBackend>();
-    assert!(downcast.is_some());
+    let kind = CacheConnector::backend_kind(&backend);
+    assert_eq!(kind, oxcache::backend::interface::BackendKind::Moka);
+    assert!(kind.is_memory());
+    assert!(!kind.is_distributed());
 }
 
 #[tokio::test]
-async fn test_into_any_arc() {
-    let backend = Arc::new(MokaMemoryBackend::new());
-    let any_arc = UnifiedCache::into_any_arc(backend);
+async fn test_backend_kind_redis() {
+    // Redis backend would be tested separately when redis feature is enabled
+    // For now, just verify the BackendKind enum has the right variants
+    use oxcache::backend::interface::BackendKind;
 
-    // 应该能够 downcast 回具体类型
-    let downcast: Option<Arc<MokaMemoryBackend>> = any_arc.downcast::<MokaMemoryBackend>().ok();
-    assert!(downcast.is_some());
+    assert!(BackendKind::Moka.is_memory());
+    assert!(BackendKind::DashMap.is_memory());
+    assert!(BackendKind::Redis.is_distributed());
+    assert!(!BackendKind::Redis.is_memory());
 }
 
 // ============================================================================
@@ -765,8 +767,8 @@ async fn test_close() {
     // 设置一些数据
     backend.set("close_key", b"value".to_vec(), None).await.unwrap();
 
-    // close 应该成功
-    CacheBackend::close(&backend).await.unwrap();
+    // shutdown 应该成功
+    CacheConnector::shutdown(&backend).await;
 }
 
 // ============================================================================
@@ -783,11 +785,11 @@ async fn test_clear() {
     backend.set("clear3", b"v3".to_vec(), None).await.unwrap();
 
     // clear 应该删除所有值
-    CacheBackend::clear(&backend).await.unwrap();
+    CacheWriter::clear(&backend).await.unwrap();
 
-    assert!(!CacheBackend::exists(&backend, "clear1").await.unwrap());
-    assert!(!CacheBackend::exists(&backend, "clear2").await.unwrap());
-    assert!(!CacheBackend::exists(&backend, "clear3").await.unwrap());
+    assert!(!CacheReader::exists(&backend, "clear1").await.unwrap());
+    assert!(!CacheReader::exists(&backend, "clear2").await.unwrap());
+    assert!(!CacheReader::exists(&backend, "clear3").await.unwrap());
 }
 
 // ============================================================================
@@ -799,10 +801,10 @@ async fn test_delete_existing() {
     let backend = MokaMemoryBackend::new();
 
     backend.set("delete_key", b"value".to_vec(), None).await.unwrap();
-    assert!(CacheBackend::exists(&backend, "delete_key").await.unwrap());
+    assert!(CacheReader::exists(&backend, "delete_key").await.unwrap());
 
-    CacheBackend::delete(&backend, "delete_key").await.unwrap();
-    assert!(!CacheBackend::exists(&backend, "delete_key").await.unwrap());
+    CacheWriter::delete(&backend, "delete_key").await.unwrap();
+    assert!(!CacheReader::exists(&backend, "delete_key").await.unwrap());
 }
 
 #[tokio::test]
@@ -810,5 +812,5 @@ async fn test_delete_nonexistent() {
     let backend = MokaMemoryBackend::new();
 
     // 删除不存在的键应该成功
-    CacheBackend::delete(&backend, "nonexistent_delete").await.unwrap();
+    CacheWriter::delete(&backend, "nonexistent_delete").await.unwrap();
 }

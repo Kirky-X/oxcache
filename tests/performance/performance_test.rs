@@ -72,7 +72,7 @@ async fn test_backfill_latency() {
     }
 
     // 清理
-    cache.shutdown().await.expect("Shutdown failed");
+    cache.shutdown().await;
     cleanup_service(&service_name).await;
 }
 

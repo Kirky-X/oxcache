@@ -9,7 +9,7 @@ use crate::common;
 #[cfg(feature = "redis")]
 use oxcache::backend::client::RedisBackend;
 #[cfg(feature = "redis")]
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use std::time::Duration;
 use tokio::time::timeout;
 
