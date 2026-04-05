@@ -453,10 +453,10 @@ impl UnifiedConfig {
     /// 从 TOML 文件加载
     pub fn from_toml_file(path: &str) -> crate::error::Result<Self> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("读取文件 '{}' 失败: {}", path, e)))?;
 
         let config: Self = toml::from_str(&content)
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("解析 TOML '{}' 失败: {}", path, e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("解析 TOML '{}' 失败: {}", path, e)))?;
 
         config.validate_config()?;
 
@@ -466,10 +466,10 @@ impl UnifiedConfig {
     /// 从 JSON 文件加载
     pub fn from_json_file(path: &str) -> crate::error::Result<Self> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("读取文件 '{}' 失败: {}", path, e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("读取文件 '{}' 失败: {}", path, e)))?;
 
         let config: Self = serde_json::from_str(&content)
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("解析 JSON '{}' 失败: {}", path, e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("解析 JSON '{}' 失败: {}", path, e)))?;
 
         config.validate_config()?;
 
@@ -486,7 +486,7 @@ impl UnifiedConfig {
         match ext {
             "toml" => Self::from_toml_file(path),
             "json" => Self::from_json_file(path),
-            _ => Err(crate::error::CacheError::ConfigError(format!(
+            _ => Err(crate::error::CacheError::InvalidInput(format!(
                 "不支持的配置文件格式: '{}'. 支持格式: .toml, .json",
                 path
             ))),
@@ -497,14 +497,14 @@ impl UnifiedConfig {
     pub fn validate_config(&self) -> crate::error::Result<()> {
         self.global
             .validate()
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("全局配置验证失败: {}", e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("全局配置验证失败: {}", e)))?;
         self.performance
             .validate()
-            .map_err(|e| crate::error::CacheError::ConfigError(format!("性能配置验证失败: {}", e)))?;
+            .map_err(|e| crate::error::CacheError::InvalidInput(format!("性能配置验证失败: {}", e)))?;
         for (name, service) in self.services() {
             service
                 .validate()
-                .map_err(|e| crate::error::CacheError::ConfigError(format!("服务 '{}' 配置验证失败: {}", name, e)))?;
+                .map_err(|e| crate::error::CacheError::InvalidInput(format!("服务 '{}' 配置验证失败: {}", name, e)))?;
         }
         Ok(())
     }

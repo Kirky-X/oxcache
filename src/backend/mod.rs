@@ -24,7 +24,10 @@ pub mod interface;
 pub mod custom_tiered;
 
 // Re-exports for new API
-pub use interface::CacheBackend;
+pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
+
+// Re-export BackendKind for runtime type identification
+pub use interface::BackendKind;
 
 // Score system exports
 pub use score::{BackendScore, Scores};

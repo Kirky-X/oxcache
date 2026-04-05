@@ -114,7 +114,7 @@ impl PathValidationConfig {
     pub fn validate(&self, path: &str) -> Result<PathBuf> {
         // 检查路径长度
         if path.len() > self.max_path_length {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Path exceeds maximum length of {} characters",
                 self.max_path_length
             )));
@@ -125,7 +125,7 @@ impl PathValidationConfig {
 
         // 检查是否绝对路径
         if !path.is_absolute() {
-            return Err(CacheError::ConfigError("Only absolute paths are allowed".to_string()));
+            return Err(CacheError::InvalidInput("Only absolute paths are allowed".to_string()));
         }
 
         // 规范化路径（移除 . 和 ..，解析冗余分隔符）
@@ -143,7 +143,7 @@ impl PathValidationConfig {
                         std::path::Component::ParentDir => {
                             // 尝试弹出父目录，但不允许超出基础
                             if !buf.pop() {
-                                return Err(CacheError::ConfigError("Path traversal attempt detected".to_string()));
+                                return Err(CacheError::InvalidInput("Path traversal attempt detected".to_string()));
                             }
                         }
                         _ => {}
@@ -167,7 +167,7 @@ impl PathValidationConfig {
                 }
             }
             if !within_allowed {
-                return Err(CacheError::ConfigError(format!(
+                return Err(CacheError::InvalidInput(format!(
                     "Path is not within allowed directories: {}",
                     normalized.display()
                 )));
@@ -200,7 +200,7 @@ fn validate_path_chars(path: &Path) -> Result<()> {
 
     for ch in invalid_chars {
         if path_str.contains(ch) {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Path contains invalid character: {:?}",
                 ch
             )));
@@ -229,10 +229,10 @@ impl ConfigValidation {
     /// 验证容量值
     pub fn validate_capacity(capacity: u64) -> Result<u64> {
         if capacity == 0 {
-            return Err(CacheError::ConfigError("Capacity must be greater than 0".to_string()));
+            return Err(CacheError::InvalidInput("Capacity must be greater than 0".to_string()));
         }
         if capacity > Self::MAX_CAPACITY {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Capacity {} exceeds maximum allowed value of {}",
                 capacity,
                 Self::MAX_CAPACITY
@@ -244,10 +244,10 @@ impl ConfigValidation {
     /// 验证 TTL 值
     pub fn validate_ttl(ttl: u64) -> Result<u64> {
         if ttl == 0 {
-            return Err(CacheError::ConfigError("TTL must be greater than 0".to_string()));
+            return Err(CacheError::InvalidInput("TTL must be greater than 0".to_string()));
         }
         if ttl > Self::MAX_TTL_SECS {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "TTL {} seconds exceeds maximum allowed value of {} seconds (30 days)",
                 ttl,
                 Self::MAX_TTL_SECS
@@ -259,7 +259,7 @@ impl ConfigValidation {
     /// 验证 TTI 值
     pub fn validate_tti(tti: u64) -> Result<u64> {
         if tti > Self::MAX_TTI_SECS {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Time to idle {} seconds exceeds maximum allowed value of {} seconds (30 days)",
                 tti,
                 Self::MAX_TTI_SECS
@@ -272,12 +272,12 @@ impl ConfigValidation {
     pub fn validate_custom_name(name: &str) -> Result<String> {
         // 检查长度
         if name.is_empty() {
-            return Err(CacheError::ConfigError(
+            return Err(CacheError::InvalidInput(
                 "Custom backend name cannot be empty".to_string(),
             ));
         }
         if name.len() > Self::MAX_CUSTOM_NAME_LENGTH {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Custom backend name exceeds maximum length of {} characters",
                 Self::MAX_CUSTOM_NAME_LENGTH
             )));
@@ -286,7 +286,7 @@ impl ConfigValidation {
         // 检查字符有效性
         for ch in name.chars() {
             if !Self::VALID_NAME_CHARS.contains(ch) {
-                return Err(CacheError::ConfigError(format!(
+                return Err(CacheError::InvalidInput(format!(
                     "Custom backend name contains invalid character '{}'. Allowed characters: {}",
                     ch,
                     Self::VALID_NAME_CHARS
@@ -424,7 +424,7 @@ impl BackendType {
                     ];
                     available.extend(["tiered", "custom:<name>"]);
 
-                    Err(CacheError::ConfigError(format!(
+                    Err(CacheError::InvalidInput(format!(
                         "Unknown backend type: '{}'. Available backends: {}",
                         s,
                         available.join(", ")
@@ -492,7 +492,7 @@ impl LayerBackendConfig {
         }
 
         if !self.backend_type.supports_layer(layer) {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Backend type '{}' does not support layer {}. {}",
                 self.backend_type,
                 layer,
@@ -582,7 +582,7 @@ impl BackendProvider for DefaultBackendProvider {
         #[cfg(not(feature = "redis"))]
         {
             // 如果没有 redis feature，L3 不可用
-            Err(CacheError::ConfigError(
+            Err(CacheError::InvalidInput(
                 "L3 backend requires Redis feature to be enabled".to_string(),
             ))
         }
@@ -1227,24 +1227,24 @@ pub async fn load_from_file(path: &str, validation_config: Option<PathValidation
     // 读取文件前再次检查是否为符号链接（防御性检查）
     if let Ok(metadata) = fs::metadata(&safe_path) {
         if metadata.file_type().is_symlink() {
-            return Err(CacheError::ConfigError(
+            return Err(CacheError::InvalidInput(
                 "Symbolic links are not allowed for configuration files".to_string(),
             ));
         }
     }
 
     // 读取配置文件
-    let content = fs::read_to_string(&safe_path).map_err(|e| CacheError::ConfigError(e.to_string()))?;
+    let content = fs::read_to_string(&safe_path).map_err(|e| CacheError::InvalidInput(e.to_string()))?;
 
     // 使用标准的serde反序列化（与confers兼容的方式）
     let config: CustomTieredConfig =
-        serde_json::from_str(&content).map_err(|e| CacheError::ConfigError(e.to_string()))?;
+        serde_json::from_str(&content).map_err(|e| CacheError::InvalidInput(e.to_string()))?;
 
     // 验证配置
     let (result, fixed) = config.validate_and_fix();
 
     if !result.is_valid() {
-        return Err(CacheError::ConfigError(format!(
+        return Err(CacheError::InvalidInput(format!(
             "Invalid tiered cache configuration: {}",
             result.get_report()
         )));
