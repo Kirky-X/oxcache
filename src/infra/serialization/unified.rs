@@ -21,13 +21,13 @@ pub struct UnifiedSerializer {
 }
 
 enum UnifiedSerializerInner {
-    Json(crate::serialization::json::JsonSerializer),
+    Json(crate::infra::serialization::json::JsonSerializer),
     #[cfg(feature = "bincode")]
-    Bincode(crate::serialization::bincode::BincodeSerializer),
+    Bincode(crate::infra::serialization::bincode::BincodeSerializer),
     #[cfg(feature = "extra-serialization")]
-    Cbor(crate::serialization::extra::CborSerializer),
+    Cbor(crate::infra::serialization::extra::CborSerializer),
     #[cfg(feature = "extra-serialization")]
-    MessagePack(crate::serialization::extra::MessagePackSerializer),
+    MessagePack(crate::infra::serialization::extra::MessagePackSerializer),
 }
 
 impl std::fmt::Debug for UnifiedSerializerInner {
@@ -65,17 +65,19 @@ impl UnifiedSerializer {
     pub fn new(format: SerializationFormat) -> Self {
         let inner = match format {
             SerializationFormat::Json => {
-                UnifiedSerializerInner::Json(crate::serialization::json::JsonSerializer::new())
+                UnifiedSerializerInner::Json(crate::infra::serialization::json::JsonSerializer::new())
             }
             #[cfg(feature = "bincode")]
             SerializationFormat::Bincode => {
-                UnifiedSerializerInner::Bincode(crate::serialization::bincode::BincodeSerializer)
+                UnifiedSerializerInner::Bincode(crate::infra::serialization::bincode::BincodeSerializer)
             }
             #[cfg(feature = "extra-serialization")]
-            SerializationFormat::Cbor => UnifiedSerializerInner::Cbor(crate::serialization::extra::CborSerializer),
+            SerializationFormat::Cbor => {
+                UnifiedSerializerInner::Cbor(crate::infra::serialization::extra::CborSerializer)
+            }
             #[cfg(feature = "extra-serialization")]
             SerializationFormat::MessagePack => {
-                UnifiedSerializerInner::MessagePack(crate::serialization::extra::MessagePackSerializer)
+                UnifiedSerializerInner::MessagePack(crate::infra::serialization::extra::MessagePackSerializer)
             }
         };
 
@@ -297,7 +299,7 @@ impl UnifiedSerializerAdapter {
     }
 }
 
-impl crate::serialization::Serializer for UnifiedSerializerAdapter {
+impl crate::infra::serialization::Serializer for UnifiedSerializerAdapter {
     fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         self.inner.serialize_with_type(type_name, data)
     }

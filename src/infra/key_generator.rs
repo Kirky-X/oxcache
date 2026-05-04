@@ -210,3 +210,363 @@ impl KeyGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // Default / Constructor tests
+    // ========================================================================
+
+    #[test]
+    fn test_new_uses_defaults() {
+        let gen = KeyGenerator::new();
+        assert_eq!(gen.namespace, DEFAULT_NAMESPACE);
+        assert!(gen.prefix.is_empty());
+        assert_eq!(gen.max_key_length, DEFAULT_MAX_KEY_LENGTH);
+    }
+
+    #[test]
+    fn test_default_trait() {
+        let gen = KeyGenerator::default();
+        assert_eq!(gen.namespace, DEFAULT_NAMESPACE);
+        assert!(gen.prefix.is_empty());
+    }
+
+    #[test]
+    fn test_with_prefix_constructor() {
+        let gen = KeyGenerator::with_prefix("session:");
+        assert_eq!(gen.prefix, "session:");
+        assert_eq!(gen.namespace, DEFAULT_NAMESPACE);
+        assert_eq!(gen.max_key_length, DEFAULT_MAX_KEY_LENGTH);
+    }
+
+    // ========================================================================
+    // Builder pattern tests
+    // ========================================================================
+
+    #[test]
+    fn test_with_namespace() {
+        let gen = KeyGenerator::new().with_namespace("app:v1");
+        assert_eq!(gen.namespace, "app:v1");
+    }
+
+    #[test]
+    fn test_with_prefix_str() {
+        let gen = KeyGenerator::new().with_prefix_str("cache:");
+        assert_eq!(gen.prefix, "cache:");
+    }
+
+    #[test]
+    fn test_with_max_key_length() {
+        let gen = KeyGenerator::new().with_max_key_length(512);
+        assert_eq!(gen.max_key_length, 512);
+    }
+
+    #[test]
+    fn test_builder_chaining() {
+        let gen = KeyGenerator::new()
+            .with_namespace("app:v2")
+            .with_prefix_str("usr:")
+            .with_max_key_length(128);
+        assert_eq!(gen.namespace, "app:v2");
+        assert_eq!(gen.prefix, "usr:");
+        assert_eq!(gen.max_key_length, 128);
+    }
+
+    #[test]
+    fn test_with_eviction_policy() {
+        #[cfg(feature = "moka")]
+        {
+            let gen = KeyGenerator::new().with_eviction_policy(EvictionPolicy::lru());
+            assert_eq!(gen.max_key_length, DEFAULT_MAX_KEY_LENGTH);
+        }
+        #[cfg(not(feature = "moka"))]
+        {
+            let gen = KeyGenerator::new().with_eviction_policy(());
+            assert_eq!(gen.max_key_length, DEFAULT_MAX_KEY_LENGTH);
+        }
+    }
+
+    // ========================================================================
+    // generate() tests
+    // ========================================================================
+
+    #[test]
+    fn test_generate_single_param() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("user:{id}", &[("id", "123")]);
+        assert_eq!(key, "user:123");
+    }
+
+    #[test]
+    fn test_generate_multiple_params() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("user:{id}:profile:{section}", &[("id", "42"), ("section", "prefs")]);
+        assert_eq!(key, "user:42:profile:prefs");
+    }
+
+    #[test]
+    fn test_generate_no_params() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("static-key", &[]);
+        assert_eq!(key, "static-key");
+    }
+
+    #[test]
+    fn test_generate_no_placeholders() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("literal-key", &[("id", "123")]);
+        assert_eq!(key, "literal-key");
+    }
+
+    #[test]
+    fn test_generate_empty_template() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("", &[("id", "123")]);
+        assert_eq!(key, "");
+    }
+
+    #[test]
+    fn test_generate_missing_placeholder() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("user:{id}", &[]);
+        assert_eq!(key, "user:{id}");
+    }
+
+    #[test]
+    fn test_generate_repeated_placeholder() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("{x}:{x}", &[("x", "val")]);
+        assert_eq!(key, "val:val");
+    }
+
+    // ========================================================================
+    // generate_full() tests
+    // ========================================================================
+
+    #[test]
+    fn test_generate_full_default_namespace() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate_full("user:{id}", &[("id", "123")]);
+        assert_eq!(key, "user:123");
+    }
+
+    #[test]
+    fn test_generate_full_custom_namespace() {
+        let gen = KeyGenerator::new().with_namespace("app:v1");
+        let key = gen.generate_full("user:{id}", &[("id", "123")]);
+        assert_eq!(key, "app:v1:user:123");
+    }
+
+    #[test]
+    fn test_generate_full_with_prefix() {
+        let gen = KeyGenerator::with_prefix("session:");
+        let key = gen.generate_full("user:{id}", &[("id", "123")]);
+        assert_eq!(key, "session:user:123");
+    }
+
+    #[test]
+    fn test_generate_full_namespace_and_prefix() {
+        let gen = KeyGenerator::new().with_namespace("app:v1").with_prefix_str("cache:");
+        let key = gen.generate_full("user:{id}", &[("id", "456")]);
+        assert_eq!(key, "app:v1:cache:user:456");
+    }
+
+    // ========================================================================
+    // apply_prefix() tests (private method, tested through generate_full)
+    // ========================================================================
+
+    #[test]
+    fn test_apply_prefix_empty() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate_full("mykey", &[]);
+        assert_eq!(key, "mykey");
+    }
+
+    #[test]
+    fn test_apply_prefix_non_empty() {
+        let gen = KeyGenerator::with_prefix("pre:");
+        let key = gen.generate_full("mykey", &[]);
+        assert_eq!(key, "pre:mykey");
+    }
+
+    // ========================================================================
+    // validate_key() tests
+    // ========================================================================
+
+    #[test]
+    fn test_validate_key_valid() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("valid-key_123.test:456@path").is_ok());
+    }
+
+    #[test]
+    fn test_validate_key_empty() {
+        let gen = KeyGenerator::new();
+        let result = gen.validate_key("");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("empty")),
+            other => panic!("Expected InvalidInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_key_too_long() {
+        let gen = KeyGenerator::new().with_max_key_length(10);
+        let result = gen.validate_key("this-is-way-too-long");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("exceeds maximum length")),
+            other => panic!("Expected InvalidInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_key_invalid_char_space() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("has space").is_err());
+    }
+
+    #[test]
+    fn test_validate_key_invalid_char_hash() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("has#hash").is_err());
+    }
+
+    #[test]
+    fn test_validate_key_invalid_char_percent() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("100%").is_err());
+    }
+
+    #[test]
+    fn test_validate_key_boundary_length() {
+        let gen = KeyGenerator::new().with_max_key_length(5);
+        assert!(gen.validate_key("abcde").is_ok());
+        assert!(gen.validate_key("abcdef").is_err());
+    }
+
+    #[test]
+    fn test_validate_key_all_valid_char_categories() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("abcdefghijklmnopqrstuvwxyz").is_ok());
+        assert!(gen.validate_key("ABCDEFGHIJKLMNOPQRSTUVWXYZ").is_ok());
+        assert!(gen.validate_key("0123456789").is_ok());
+        assert!(gen.validate_key("a-b_c.d:e/f@g").is_ok());
+    }
+
+    // ========================================================================
+    // namespaced_key() tests
+    // ========================================================================
+
+    #[test]
+    fn test_namespaced_key_custom_namespace() {
+        let gen = KeyGenerator::new().with_namespace("myapp");
+        assert_eq!(gen.namespaced_key("user:1"), "myapp:user:1");
+    }
+
+    #[test]
+    fn test_namespaced_key_default_namespace_omitted() {
+        let gen = KeyGenerator::new();
+        assert_eq!(gen.namespaced_key("user:1"), "user:1");
+    }
+
+    #[test]
+    fn test_namespaced_key_empty_namespace() {
+        let gen = KeyGenerator::new().with_namespace("");
+        assert_eq!(gen.namespaced_key("user:1"), "user:1");
+    }
+
+    // ========================================================================
+    // generate_fingerprint() tests (bloom-filter feature)
+    // ========================================================================
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_generate_fingerprint_format() {
+        let gen = KeyGenerator::new();
+        let fp = gen.generate_fingerprint("test-key");
+        assert!(fp.starts_with("_fp"));
+        assert_eq!(fp.len(), 11);
+    }
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_generate_fingerprint_deterministic() {
+        let gen = KeyGenerator::new();
+        let fp1 = gen.generate_fingerprint("same-key");
+        let fp2 = gen.generate_fingerprint("same-key");
+        assert_eq!(fp1, fp2);
+    }
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_generate_fingerprint_different_keys() {
+        let gen = KeyGenerator::new();
+        let fp1 = gen.generate_fingerprint("key-a");
+        let fp2 = gen.generate_fingerprint("key-b");
+        assert_ne!(fp1, fp2);
+    }
+
+    // ========================================================================
+    // normalize() tests (bloom-filter feature)
+    // ========================================================================
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_normalize_short_key() {
+        let gen = KeyGenerator::new();
+        let result = gen.normalize("short-key");
+        assert_eq!(result, "short-key");
+    }
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_normalize_trims_whitespace() {
+        let gen = KeyGenerator::new();
+        let result = gen.normalize("  padded  ");
+        assert_eq!(result, "padded");
+    }
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_normalize_long_key_truncated_with_fingerprint() {
+        let gen = KeyGenerator::new().with_max_key_length(50);
+        let long_key = "a".repeat(200);
+        let result = gen.normalize(&long_key);
+        assert!(result.len() <= 50);
+        assert!(result.contains("_fp"));
+    }
+
+    #[test]
+    #[cfg(feature = "bloom-filter")]
+    fn test_normalize_boundary_exact_length() {
+        let gen = KeyGenerator::new().with_max_key_length(20);
+        let exact_key = "b".repeat(20);
+        let result = gen.normalize(&exact_key);
+        assert_eq!(result, exact_key);
+    }
+
+    // ========================================================================
+    // Clone / Debug tests
+    // ========================================================================
+
+    #[test]
+    fn test_clone() {
+        let gen = KeyGenerator::new().with_namespace("clone-test");
+        let cloned = gen.clone();
+        assert_eq!(gen.namespace, cloned.namespace);
+        assert_eq!(gen.prefix, cloned.prefix);
+        assert_eq!(gen.max_key_length, cloned.max_key_length);
+    }
+
+    #[test]
+    fn test_debug_format() {
+        let gen = KeyGenerator::new();
+        let debug = format!("{:?}", gen);
+        assert!(debug.contains("KeyGenerator"));
+    }
+}
