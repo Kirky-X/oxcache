@@ -214,6 +214,38 @@ impl BloomFilter {
         Ok(result)
     }
 
+    /// Clear all entries from the bloom filter.
+    pub fn clear(&mut self) {
+        for byte in &mut self.bit_array {
+            *byte = 0;
+        }
+        self.added_count.store(0, Ordering::SeqCst);
+        self.checked_count.store(0, Ordering::SeqCst);
+        self.false_positive_count.store(0, Ordering::SeqCst);
+    }
+
+    /// Try to add an item, returning whether it was NOT already present.
+    /// Returns Ok(true) if the item was newly added.
+    /// Returns Ok(false) if the item was already present.
+    pub fn add_checked(&mut self, item: &[u8]) -> Result<bool, CacheError> {
+        let already_present = self.contains(item)?;
+        if !already_present {
+            self.add(item)?;
+        }
+        Ok(!already_present)
+    }
+
+    /// Remove an item from the bloom filter (not supported by standard bloom filters).
+    /// Always returns false.
+    pub fn remove(&mut self, _item: &[u8]) -> bool {
+        false
+    }
+
+    /// Get the estimated number of items in the bloom filter.
+    pub fn get_estimated_count(&self) -> u64 {
+        self.added_count.load(Ordering::SeqCst)
+    }
+
     pub fn get_stats(&self) -> BloomFilterStats {
         let total_bits = self.bit_array.len() as u64 * 8;
         let used_bits: u64 = self.bit_array.iter().map(|byte| byte.count_ones() as u64).sum();
@@ -340,6 +372,20 @@ impl BloomFilter {
 
     pub fn contains_and_add(&mut self, _item: &[u8]) -> Result<bool, CacheError> {
         Ok(false)
+    }
+
+    pub fn clear(&mut self) {}
+
+    pub fn add_checked(&mut self, _item: &[u8]) -> Result<bool, CacheError> {
+        Ok(false)
+    }
+
+    pub fn remove(&mut self, _item: &[u8]) -> bool {
+        false
+    }
+
+    pub fn get_estimated_count(&self) -> u64 {
+        0
     }
 
     pub fn get_stats(&self) -> BloomFilterStats {

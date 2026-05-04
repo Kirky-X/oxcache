@@ -488,3 +488,455 @@ impl WalManager {
         Ok(0)
     }
 }
+
+#[cfg(feature = "wal-recovery")]
+#[cfg(test)]
+mod tests_wal_recovery {
+    use super::*;
+    use crate::error::CacheError;
+
+    // ========================================================================
+    // WalManager real implementation tests (SQLite in-memory)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_wal_manager_new_in_memory() {
+        // Using a service name with "test" triggers in-memory SQLite
+        let manager = WalManager::new("test_service_wal").await.unwrap();
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_add_and_get_entries() {
+        let manager = WalManager::new("test_add_get").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "test_key".to_string(),
+            value: Some(b"test_value".to_vec()),
+            ttl: Some(3600),
+        };
+        manager.add_entry(&entry).await.unwrap();
+        manager.flush().await;
+
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].key, "test_key");
+        assert_eq!(entries[0].value, Some(b"test_value".to_vec()));
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_clear_entries() {
+        let manager = WalManager::new("test_clear").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "temp_key".to_string(),
+            value: Some(b"temp".to_vec()),
+            ttl: None,
+        };
+        manager.add_entry(&entry).await.unwrap();
+        manager.flush().await;
+
+        // Verify entry exists
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 1);
+
+        // Clear
+        manager.clear_entries().await.unwrap();
+        let entries = manager.get_entries().await.unwrap();
+        assert!(entries.is_empty());
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_multiple_entries() {
+        let manager = WalManager::new("test_multi").await.unwrap();
+
+        for i in 0..5 {
+            let entry = WalEntry {
+                timestamp: SystemTime::now(),
+                operation: Operation::Set,
+                key: format!("key_{}", i),
+                value: Some(format!("value_{}", i).into_bytes()),
+                ttl: None,
+            };
+            manager.add_entry(&entry).await.unwrap();
+        }
+        manager.flush().await;
+
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 5);
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_delete_operation() {
+        let manager = WalManager::new("test_delete").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Delete,
+            key: "deleted_key".to_string(),
+            value: None,
+            ttl: None,
+        };
+        manager.add_entry(&entry).await.unwrap();
+        manager.flush().await;
+
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(matches!(entries[0].operation, Operation::Delete));
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_flush_empty() {
+        let manager = WalManager::new("test_flush_empty").await.unwrap();
+        // Flushing when there are no pending entries should not error
+        manager.flush().await.unwrap();
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_append() {
+        let manager = WalManager::new("test_append").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "append_key".to_string(),
+            value: Some(b"append_value".to_vec()),
+            ttl: Some(60),
+        };
+        manager.append(entry).await.unwrap();
+        manager.flush().await;
+
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].key, "append_key");
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_clear() {
+        let manager = WalManager::new("test_clear_method").await.unwrap();
+        manager.clear().await.unwrap();
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_replay_all_empty() {
+        let manager = WalManager::new("test_replay_empty").await.unwrap();
+        let mock_backend = MockReplayableBackend::new();
+        let result = manager.replay_all(&mock_backend).await.unwrap();
+        assert_eq!(result, 0);
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_replay_all_success() {
+        let manager = WalManager::new("test_replay_success").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "replay_key".to_string(),
+            value: Some(b"replay_value".to_vec()),
+            ttl: None,
+        };
+        manager.add_entry(&entry).await.unwrap();
+        manager.flush().await;
+
+        let mock_backend = MockReplayableBackend::new();
+        let result = manager.replay_all(&mock_backend).await.unwrap();
+        assert_eq!(result, 1);
+
+        // After successful replay, WAL should be cleared
+        let entries = manager.get_entries().await.unwrap();
+        assert!(entries.is_empty());
+
+        manager.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_replay_all_failure() {
+        let manager = WalManager::new("test_replay_fail").await.unwrap();
+
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "fail_key".to_string(),
+            value: Some(b"fail_value".to_vec()),
+            ttl: None,
+        };
+        manager.add_entry(&entry).await.unwrap();
+        manager.flush().await;
+
+        let mock_backend = FailingReplayableBackend::new();
+        let result = manager.replay_all(&mock_backend).await;
+        assert!(result.is_err());
+
+        // After failed replay, WAL entries should be preserved
+        let entries = manager.get_entries().await.unwrap();
+        assert_eq!(entries.len(), 1);
+
+        manager.shutdown().await;
+    }
+
+    #[test]
+    fn test_wal_entry_clone_and_debug() {
+        let entry = WalEntry {
+            timestamp: SystemTime::now(),
+            operation: Operation::Set,
+            key: "debug_key".to_string(),
+            value: Some(vec![1, 2, 3]),
+            ttl: Some(100),
+        };
+        let cloned = entry.clone();
+        assert_eq!(cloned.key, "debug_key");
+        let debug_str = format!("{:?}", entry);
+        assert!(debug_str.contains("WalEntry"));
+    }
+
+    #[test]
+    fn test_operation_debug() {
+        assert!(format!("{:?}", Operation::Set).contains("Set"));
+        assert!(format!("{:?}", Operation::Delete).contains("Delete"));
+    }
+
+    // ========================================================================
+    // Mock backends for testing
+    // ========================================================================
+
+    #[derive(Clone)]
+    struct MockReplayableBackend {
+        replayed: Arc<Mutex<usize>>,
+    }
+
+    impl MockReplayableBackend {
+        fn new() -> Self {
+            Self {
+                replayed: Arc::new(Mutex::new(0)),
+            }
+        }
+    }
+
+    impl WalReplayableBackend for MockReplayableBackend {
+        async fn pipeline_replay(&self, entries: Vec<WalEntry>) -> Result<()> {
+            let mut count = self.replayed.lock().await;
+            *count += entries.len();
+            Ok(())
+        }
+    }
+
+    #[derive(Clone)]
+    struct FailingReplayableBackend;
+
+    impl FailingReplayableBackend {
+        fn new() -> Self {
+            Self
+        }
+    }
+
+    impl WalReplayableBackend for FailingReplayableBackend {
+        async fn pipeline_replay(&self, _entries: Vec<WalEntry>) -> Result<()> {
+            Err(CacheError::BackendError("simulated replay failure".to_string()))
+        }
+    }
+}
+
+#[cfg(not(feature = "wal-recovery"))]
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // WalManager stub implementation tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_wal_manager_new() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        assert!(std::mem::size_of_val(&manager) > 0);
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_new_empty_service_name() {
+        let manager = WalManager::new("").await.unwrap();
+        drop(manager);
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_add_entry() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let entry = WalEntry {
+            timestamp: std::time::SystemTime::now(),
+            operation: Operation::Set,
+            key: "test_key".to_string(),
+            value: Some(b"test_value".to_vec()),
+            ttl: Some(3600),
+        };
+        let result = manager.add_entry(&entry).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_append() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let entry = WalEntry {
+            timestamp: std::time::SystemTime::now(),
+            operation: Operation::Delete,
+            key: "del_key".to_string(),
+            value: None,
+            ttl: None,
+        };
+        let result = manager.append(entry).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_get_entries() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let result = manager.get_entries().await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_clear_entries() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let result = manager.clear_entries().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_flush() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let result = manager.flush().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_clear() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let result = manager.clear().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wal_manager_replay_all() {
+        let manager = WalManager::new("test_service").await.unwrap();
+        let mock_backend = MockReplayableBackend;
+        let result = manager.replay_all(&mock_backend).await.unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_wal_manager_default() {
+        let manager = WalManager::default();
+        drop(manager);
+    }
+
+    #[test]
+    fn test_wal_manager_debug() {
+        let manager = WalManager::default();
+        let debug_str = format!("{:?}", manager);
+        assert!(debug_str.contains("WalManager"));
+    }
+
+    // ========================================================================
+    // WalEntry stub tests
+    // ========================================================================
+
+    #[test]
+    fn test_wal_entry_clone() {
+        let entry = WalEntry {
+            timestamp: std::time::SystemTime::now(),
+            operation: Operation::Set,
+            key: "test".to_string(),
+            value: Some(vec![1, 2, 3]),
+            ttl: Some(100),
+        };
+        let cloned = entry.clone();
+        assert_eq!(cloned.key, "test");
+        assert_eq!(cloned.ttl, Some(100));
+    }
+
+    #[test]
+    fn test_wal_entry_debug() {
+        let entry = WalEntry {
+            timestamp: std::time::SystemTime::now(),
+            operation: Operation::Set,
+            key: "debug_test".to_string(),
+            value: None,
+            ttl: None,
+        };
+        let debug_str = format!("{:?}", entry);
+        assert!(debug_str.contains("WalEntry"));
+        assert!(debug_str.contains("debug_test"));
+    }
+
+    // ========================================================================
+    // Operation stub tests
+    // ========================================================================
+
+    #[test]
+    fn test_operation_default() {
+        let op = Operation::default();
+        assert!(matches!(op, Operation::Set));
+    }
+
+    #[test]
+    fn test_operation_clone_copy() {
+        let op = Operation::Delete;
+        let cloned = op;
+        assert!(matches!(cloned, Operation::Delete));
+    }
+
+    #[test]
+    fn test_operation_debug() {
+        assert!(format!("{:?}", Operation::Set).contains("Set"));
+        assert!(format!("{:?}", Operation::Delete).contains("Delete"));
+    }
+
+    // ========================================================================
+    // WalReplayableBackend for Arc tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_arc_replayable_backend() {
+        let backend = MockReplayableBackend;
+        let arc_backend = Arc::new(backend);
+        let entries = vec![WalEntry {
+            timestamp: std::time::SystemTime::now(),
+            operation: Operation::Set,
+            key: "key1".to_string(),
+            value: Some(b"val1".to_vec()),
+            ttl: None,
+        }];
+        let result = arc_backend.pipeline_replay(entries).await;
+        assert!(result.is_ok());
+    }
+
+    // ========================================================================
+    // Mock backend for testing
+    // ========================================================================
+
+    #[derive(Clone)]
+    struct MockReplayableBackend;
+
+    #[async_trait::async_trait]
+    impl WalReplayableBackend for MockReplayableBackend {
+        async fn pipeline_replay(&self, _entries: Vec<WalEntry>) -> Result<()> {
+            Ok(())
+        }
+    }
+}
