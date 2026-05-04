@@ -22,25 +22,40 @@ pub fn __internal_get_cache(name: &str) -> Option<Arc<Cache<String, Vec<u8>>>> {
 
 /// Get all feature information
 pub fn get_all_feature_info() -> Vec<&'static str> {
-    vec!["features"]
+    let mut features = Vec::new();
+    if cfg!(feature = "moka") {
+        features.push("moka");
+    }
+    if cfg!(feature = "redis") {
+        features.push("redis");
+    }
+    features
 }
 
 /// Get L1 feature information
 pub fn get_l1_feature_info() -> Vec<&'static str> {
-    vec!["moka"]
+    let mut features = Vec::new();
+    if cfg!(feature = "moka") {
+        features.push("moka");
+    }
+    features
 }
 
 /// Get L2 feature information
 pub fn get_l2_feature_info() -> Vec<&'static str> {
-    vec!["redis"]
+    let mut features = Vec::new();
+    if cfg!(feature = "redis") {
+        features.push("redis");
+    }
+    features
 }
 
 /// Check if L1 is enabled
 pub fn is_l1_enabled() -> bool {
-    true
+    cfg!(feature = "moka")
 }
 
 /// Check if L2 is enabled
 pub fn is_l2_enabled() -> bool {
-    true
+    cfg!(feature = "redis")
 }

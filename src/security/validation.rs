@@ -117,7 +117,6 @@ pub mod lua_script {
     pub const MAX_SCRIPT_LENGTH: usize = 10 * 1024;
 
     /// Lua 脚本中的危险模式（用于简单检查）
-    #[allow(dead_code)]
     pub const DANGEROUS_PATTERNS: &[&str] = &[
         "FLUSHALL", "FLUSHDB", "KEYS", "SHUTDOWN", "DEBUG", "CONFIG", "SAVE", "BGSAVE", "MONITOR",
     ];
@@ -132,7 +131,6 @@ pub mod lua_script {
     ///
     /// * `Ok(())` - 长度有效
     /// * `Err(CacheError)` - 脚本过长
-    #[allow(dead_code)]
     pub fn validate_length(script: &str) -> crate::Result<()> {
         super::validate_max_length(script, MAX_SCRIPT_LENGTH, "Lua script")
     }

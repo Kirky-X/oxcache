@@ -10,11 +10,9 @@ use crate::error::{CacheError, Result};
 use regex::Regex;
 
 /// Maximum allowed pattern length
-#[allow(dead_code)]
 pub const MAX_PATTERN_LENGTH: usize = 256;
 
 /// Maximum number of wildcards allowed in a pattern
-#[allow(dead_code)]
 pub const MAX_WILDCARDS: usize = 10;
 
 /// Compiles a regex pattern with safety checks
@@ -27,7 +25,6 @@ pub const MAX_WILDCARDS: usize = 10;
 ///
 /// * `Ok(Regex)` - Successfully compiled regex
 /// * `Err(CacheError)` - Compilation failed or pattern is unsafe
-#[allow(dead_code)]
 pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
@@ -81,7 +78,6 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
 ///
 /// * `Ok(bool)` - Match result
 /// * `Err(CacheError)` - Input too long
-#[allow(dead_code)]
 pub fn match_safe(regex: &Regex, input: &str) -> Result<bool> {
     // Check input length for extremely long inputs
     if input.len() > 1_000_000 {
@@ -104,7 +100,6 @@ pub fn match_safe(regex: &Regex, input: &str) -> Result<bool> {
 ///
 /// * `Ok(String)` - Regex pattern
 /// * `Err(CacheError)` - Pattern conversion failed or unsafe
-#[allow(dead_code)]
 pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
@@ -201,7 +196,6 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String>
 ///
 /// * `Ok(Regex)` - Compiled regex
 /// * `Err(CacheError)` - Validation or compilation failed
-#[allow(dead_code)]
 pub fn compile_glob_pattern(pattern: &str, double_star_allowed: bool) -> Result<Regex> {
     let regex_pattern = glob_to_regex(pattern, double_star_allowed)?;
     compile_regex(&regex_pattern)
