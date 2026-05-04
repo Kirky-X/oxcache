@@ -942,21 +942,12 @@ where
     /// ```
     #[cfg(feature = "lua-script")]
     pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
-        // Check if backend is Redis
-        if !self.backend.backend_kind().is_distributed() {
-            return Err(CacheError::Operation(
-                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
-            ));
-        }
-
-        // For Redis backend, use the backend's method if available
-        // Note: This requires the backend to implement the LuaScriptExecutor trait
-        // For now, return an error suggesting direct RedisBackend usage
-        Err(CacheError::Operation(
-            "Lua scripts require using RedisBackend directly. \
-             Create a RedisBackend instance and use its eval_lua() method."
-                .to_string(),
-        ))
+        let executor = self.backend.as_lua_executor().ok_or_else(|| {
+            CacheError::Operation(
+                "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
+            )
+        })?;
+        executor.eval_lua(_script, _keys, _args).await
     }
 
     /// Execute a cached Lua script by its SHA digest.
@@ -990,19 +981,11 @@ where
     /// ```
     #[cfg(feature = "lua-script")]
     pub async fn eval_sha(&self, _sha: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
-        // Check if backend is Redis
-        if !self.backend.backend_kind().is_distributed() {
-            return Err(CacheError::Operation(
-                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
-            ));
-        }
-
-        // For Redis backend, use the backend's method if available
-        Err(CacheError::Operation(
-            "Lua scripts require using RedisBackend directly. \
-             Create a RedisBackend instance and use its eval_sha() method."
-                .to_string(),
-        ))
+        let executor = self
+            .backend
+            .as_lua_executor()
+            .ok_or_else(|| CacheError::Operation("Lua scripts require a Redis backend.".to_string()))?;
+        executor.eval_sha(_sha, _keys, _args).await
     }
 
     /// Load a Lua script into Redis's script cache and return its SHA digest.
@@ -1038,19 +1021,11 @@ where
     /// ```
     #[cfg(feature = "lua-script")]
     pub async fn script_load(&self, _script: &str) -> Result<String> {
-        // Check if backend is Redis
-        if !self.backend.backend_kind().is_distributed() {
-            return Err(CacheError::Operation(
-                "Lua scripts require Redis backend. Use RedisBackend directly for Lua support.".to_string(),
-            ));
-        }
-
-        // For Redis backend, use the backend's method if available
-        Err(CacheError::Operation(
-            "Lua scripts require using RedisBackend directly. \
-             Create a RedisBackend instance and use its script_load() method."
-                .to_string(),
-        ))
+        let executor = self
+            .backend
+            .as_lua_executor()
+            .ok_or_else(|| CacheError::Operation("Lua scripts require a Redis backend.".to_string()))?;
+        executor.script_load(_script).await
     }
 }
 

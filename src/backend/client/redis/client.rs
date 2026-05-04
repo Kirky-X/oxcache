@@ -585,6 +585,11 @@ impl CacheConnector for RedisBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Redis
     }
+
+    #[cfg(feature = "lua-script")]
+    fn as_lua_executor(&self) -> Option<&dyn crate::backend::interface::LuaExecutor> {
+        Some(self)
+    }
 }
 
 // CacheBackend is automatically implemented via blanket implementation
@@ -608,8 +613,9 @@ fn is_connection_error(e: &RedisError) -> bool {
 }
 
 #[cfg(feature = "lua-script")]
-impl RedisBackend {
-    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+#[async_trait::async_trait]
+impl crate::backend::interface::LuaExecutor for RedisBackend {
+    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         security::validate_lua_script(script, keys.len())?;
 
         let mut conn = self.connection_manager.clone();
@@ -644,7 +650,7 @@ impl RedisBackend {
     /// Returns `CacheError::InvalidInput` if:
     /// - SHA is not exactly 40 hexadecimal characters
     /// - Any key fails validation
-    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         // SHA 格式验证：必须是40位十六进制字符
         if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(CacheError::InvalidInput(format!(
@@ -677,7 +683,7 @@ impl RedisBackend {
         Ok(result)
     }
 
-    pub async fn script_load(&self, script: &str) -> Result<String> {
+    async fn script_load(&self, script: &str) -> Result<String> {
         security::validate_lua_script(script, 0)?;
 
         let mut conn = self.connection_manager.clone();
