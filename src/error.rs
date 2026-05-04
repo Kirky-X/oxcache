@@ -9,28 +9,19 @@ use thiserror::Error;
 /// Maximum number of asterisks to show for hidden password
 const PASSWORD_MASK_ASTERISKS: usize = 5;
 
-/// 脱敏连接字符串，隐藏密码等敏感信息
 fn sanitize_connection_string(conn_str: &str) -> String {
-    // 使用正则表达式隐藏密码
-    // 匹配模式: protocol://[:password@]host:port
     if let Some(start) = conn_str.find("://") {
         let protocol = &conn_str[..start];
         let after_protocol = &conn_str[start + 3..];
 
-        // 检查是否包含密码 (@ 符号)
         if let Some(at_pos) = after_protocol.find('@') {
             let user_part = &after_protocol[..at_pos];
-            // 隐藏密码部分
-            let sanitized_user: String = user_part
-                .chars()
-                .take_while(|c| *c != ':')
-                .chain(std::iter::once('*'))
-                .chain(
-                    std::iter::once(':')
-                        .chain(std::iter::once('*'))
-                        .take(PASSWORD_MASK_ASTERISKS),
-                )
-                .collect();
+            let sanitized_user = if let Some(colon_pos) = user_part.find(':') {
+                let username = &user_part[..colon_pos];
+                format!("{}:{}", username, "*".repeat(PASSWORD_MASK_ASTERISKS))
+            } else {
+                format!("{}:{}", user_part, "*".repeat(PASSWORD_MASK_ASTERISKS))
+            };
             return format!("{}://{}@{}", protocol, sanitized_user, &after_protocol[at_pos + 1..]);
         }
     }
@@ -247,6 +238,12 @@ pub enum CacheError {
     /// 请求的服务配置在 UnifiedConfig 中不存在
     #[error("Service not found: {0}. The requested service configuration does not exist in the UnifiedConfig.")]
     ServiceNotFound(String),
+
+    /// 内部错误
+    ///
+    /// 内部组件错误，通常表示不可恢复的内部状态异常
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 /// 缓存操作结果类型别名
@@ -307,6 +304,7 @@ impl CacheError {
             CacheError::InvalidKey(_) => "CACHE_021",
             CacheError::LockError(_) => "CACHE_022",
             CacheError::ServiceNotFound(_) => "CACHE_023",
+            CacheError::Internal(_) => "CACHE_024",
         }
     }
 
@@ -333,6 +331,7 @@ impl CacheError {
                 | CacheError::L2Error(_)
                 | CacheError::BackendError(_)
                 | CacheError::BufferFull(_)
+                | CacheError::Internal(_)
         )
     }
 
