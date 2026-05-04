@@ -7,11 +7,15 @@
 // Backend score system
 pub mod score;
 
-// Client implementations
-pub mod client;
+// Memory backend implementations
+pub mod memory;
 
 // Modernized API backend interface
 pub mod interface;
+
+// Storage module (database backends)
+#[cfg(any(feature = "database", feature = "full", test))]
+pub mod storage;
 
 // Custom tiered backend configuration (always available)
 #[cfg(any(
@@ -32,8 +36,8 @@ pub use interface::BackendKind;
 // Score system exports
 pub use score::{BackendScore, Scores};
 
-// Client implementations
-pub use client::{
+// Memory backend implementations
+pub use memory::{
     dashmap_memory,
     default_memory_backend,
     // Convenience functions
@@ -46,7 +50,7 @@ pub use client::{
 };
 
 #[cfg(feature = "redis")]
-pub use client::{RedisBackend as ClientRedisBackend, RedisBackendBuilder, RedisMode as ClientRedisMode};
+pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
 // Re-exports for custom tiered configuration
 #[cfg(any(feature = "moka", feature = "redis", feature = "full", feature = "core"))]

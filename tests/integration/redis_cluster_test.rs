@@ -5,7 +5,7 @@
 // Redis Cluster 集成测试
 
 use crate::common::{is_redis_available, wait_for_redis_cluster};
-use oxcache::backend::client::redis::RedisBackend;
+use oxcache::backend::memory::redis::RedisBackend;
 use oxcache::backend::interface::CacheBackend;
 use std::time::Duration;
 

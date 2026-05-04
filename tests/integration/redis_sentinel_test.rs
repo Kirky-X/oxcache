@@ -5,7 +5,7 @@
 // Redis Sentinel 集成测试
 
 use crate::common::{is_redis_available, wait_for_sentinel};
-use oxcache::backend::client::redis::RedisBackend;
+use oxcache::backend::memory::redis::RedisBackend;
 use oxcache::backend::interface::CacheBackend;
 use std::time::Duration;
 

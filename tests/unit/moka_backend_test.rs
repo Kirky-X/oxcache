@@ -4,7 +4,7 @@
 //
 // Moka 后端单元测试
 
-use oxcache::backend::client::moka::{
+use oxcache::backend::memory::moka::{
     moka_memory, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl, MokaMemoryBackend,
     MokaMemoryBackendBuilder,
 };

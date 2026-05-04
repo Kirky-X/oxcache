@@ -11,8 +11,17 @@ pub mod events;
 pub mod features;
 pub mod types;
 
+#[cfg(feature = "confers")]
+pub mod confers_config;
+
+// Traits moved from top-level
+pub mod traits;
+
 // Re-export commonly used items for convenience
 pub use constants::*;
 pub use events::{CacheEvent, CacheEventType, EventPublisher};
 pub use features::FeatureSet;
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
+
+#[cfg(feature = "confers")]
+pub use confers_config::*;

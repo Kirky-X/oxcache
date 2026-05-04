@@ -8,7 +8,7 @@
 #![allow(clippy::duplicate_mod)]
 
 // 子模块
-pub mod database_test_utils;
+pub mod storage_test_utils;
 pub mod docker_test_utils;
 pub mod mock_backend;
 pub mod redis_test_utils;
@@ -27,7 +27,7 @@ pub use redis_test_utils::{
 
 // 数据库测试工具
 #[allow(unused_imports)]
-pub use database_test_utils::{
+pub use storage_test_utils::{
     create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations, verify_partition_cleanup,
     verify_partition_creation, TestConfig,
 };

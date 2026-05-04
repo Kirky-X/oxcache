@@ -6,7 +6,7 @@
 
 #![cfg(feature = "redis")]
 
-use oxcache::backend::client::redis::RedisBackend;
+use oxcache::backend::memory::redis::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter, CacheConnector};
 
 /// 测试指定Redis版本的Standalone模式兼容性

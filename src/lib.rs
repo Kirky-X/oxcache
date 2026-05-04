@@ -268,7 +268,6 @@ macro_rules! add_feature_if_enabled {
 // ============================================================================
 // Core Modules (Always Available)
 // ============================================================================
-pub mod client;
 pub mod core;
 pub mod error;
 
@@ -279,18 +278,12 @@ pub(crate) mod internal;
 // Registry module for explicit cache initialization
 pub mod registry;
 
-// New modernized API modules
-pub mod builder;
+// ============================================================================
+// Primary Modules (Feature-Gated)
+// ============================================================================
+
+// Cache module (modern Cache<K,V> API)
 pub mod cache;
-pub mod traits;
-
-// Configuration module (using Confers library)
-#[cfg(feature = "confers")]
-pub mod config;
-
-// ============================================================================
-// Optional Feature-Gated Modules
-// ============================================================================
 
 // Backend module (L1/L2 cache implementation)
 #[cfg(any(
@@ -302,15 +295,19 @@ pub mod config;
 ))]
 pub mod backend;
 
-// Bloom Filter Module
-#[cfg(any(feature = "bloom-filter", feature = "full"))]
-pub(crate) mod bloom_filter;
+// Features module (optional capabilities)
+#[cfg(any(
+    feature = "bloom-filter",
+    feature = "rate-limiting",
+    feature = "smart-strategy",
+    feature = "http-cache",
+    feature = "wal-recovery",
+    feature = "redis",
+    feature = "full"
+))]
+pub mod features;
 
-// Re-export bloom filter public API
-#[cfg(any(feature = "bloom-filter", feature = "full"))]
-pub use bloom_filter::{BloomFilter, BloomFilterOptions};
-
-// Metrics Module - also needed for L1-only mode
+// Infrastructure module (metrics, serialization, telemetry, etc.)
 #[cfg(any(
     feature = "metrics",
     feature = "moka",
@@ -321,73 +318,7 @@ pub use bloom_filter::{BloomFilter, BloomFilterOptions};
     feature = "batch-write",
     feature = "cli"
 ))]
-pub mod metrics;
-
-// Rate Limiting Module
-#[cfg(any(feature = "rate-limiting", feature = "full"))]
-pub(crate) mod rate_limiting;
-
-// Re-export rate limiting public API
-#[cfg(any(feature = "rate-limiting", feature = "full"))]
-pub use rate_limiting::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig, RateLimitStatus};
-
-// WAL Recovery Module
-#[cfg(any(feature = "wal-recovery", feature = "redis", feature = "full"))]
-pub mod recovery;
-
-// Sync writer
-#[cfg(any(feature = "batch-write", feature = "redis", feature = "sync", feature = "full"))]
-pub mod sync;
-
-// Database Module
-#[cfg(any(feature = "database", feature = "full"))]
-pub mod database;
-
-// OpenTelemetry Module
-#[cfg(any(feature = "opentelemetry", feature = "full"))]
-pub mod telemetry;
-
-// Serialization Module
-#[cfg(any(feature = "serialization", feature = "full"))]
-pub mod serialization;
-
-// Utils Module
-#[cfg(any(
-    feature = "full",
-    feature = "minimal",
-    feature = "core",
-    feature = "moka",
-    feature = "redis"
-))]
-pub mod utils;
-
-// Smart Strategy Module
-#[cfg(any(feature = "smart-strategy", feature = "full"))]
-pub(crate) mod smart_strategy;
-
-// Re-export smart strategy public API
-#[cfg(any(feature = "smart-strategy", feature = "full"))]
-pub use smart_strategy::{
-    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
-    SmartStrategyManager,
-};
-
-// HTTP Cache Module
-#[cfg(any(feature = "http-cache", feature = "full"))]
-pub mod http;
-
-// Security Module (Only needed for Redis validation)
-#[cfg(any(feature = "redis", feature = "full"))]
-pub(crate) mod security;
-
-// Re-export security public API for external use
-#[cfg(any(feature = "redis", feature = "full"))]
-pub use security::{
-    clamp_scan_count,
-    log::{log_cache_key, sanitize_message},
-    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
-    validate_lua_script, validate_redis_key, validate_scan_pattern,
-};
+pub mod infra;
 
 // Mock Module (For testing only)
 #[cfg(test)]
@@ -413,17 +344,52 @@ pub use error::{CacheConfigError, CacheError, ConfigResult, Result};
 // ============================================================================
 
 // New API exports
-pub use builder::{CacheBuilder, OxCacheBuilder};
+pub use cache::builder::{CacheBuilder, OxCacheBuilder};
 pub use cache::Cache;
 
-// Configuration module exports (using Confers library)
-// Note: confers_config types are exported when confers feature is enabled
-#[cfg(feature = "confers")]
-pub use config::confers_config;
+// Re-exports from features module
+#[cfg(any(feature = "bloom-filter", feature = "full"))]
+pub use features::{BloomFilter, BloomFilterOptions};
 
+#[cfg(any(feature = "rate-limiting", feature = "full"))]
+pub use features::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig, RateLimitStatus};
+
+#[cfg(any(feature = "smart-strategy", feature = "full"))]
+pub use features::{
+    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
+    SmartStrategyManager,
+};
+
+// Re-exports from infra module
+#[cfg(any(feature = "redis", feature = "core", feature = "full"))]
+pub use infra::{WarmupManager, WarmupStatus};
+
+#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
+pub use infra::KeyGenerator;
+
+#[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
+pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
+
+// Re-exports from features module (security public API)
+#[cfg(any(feature = "redis", feature = "full"))]
+pub use features::security::{
+    clamp_scan_count,
+    log::{log_cache_key, sanitize_message},
+    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
+    validate_lua_script, validate_redis_key, validate_scan_pattern,
+};
+
+// HTTP Cache exports from features module
+#[cfg(any(feature = "http-cache", feature = "full"))]
+pub use features::{
+    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy,
+    HttpCacheResponse, HttpRequest,
+};
+
+// Public API re-exports (after features re-exports)
 pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use cache::interface::UnifiedCache;
-pub use traits::{CacheKey, Cacheable};
+pub use core::traits::{CacheKey, Cacheable};
 
 // Type-safe enum exports
 pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
@@ -433,32 +399,20 @@ pub use core::events;
 
 // DashMap backend exports (client)
 #[cfg(feature = "dashmap")]
-pub use backend::client::DashMapMemoryBackend as DashMapBackend;
+pub use backend::memory::DashMapMemoryBackend as DashMapBackend;
 
-// Unified memory backend exports (from client implementations)
+// Unified memory backend exports
 pub use backend::{
     dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackend,
     MemoryBackendType, MokaMemoryBackend, Scores,
 };
-// Client backend exports
-pub use backend::client::{DashMapMemoryBackend as ClientDashMapBackend, MokaMemoryBackend as ClientMokaMemoryBackend};
 
-#[cfg(any(feature = "redis", feature = "core", feature = "full"))]
-pub use sync::warmup::{WarmupManager, WarmupStatus};
+#[cfg(feature = "redis")]
+pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 
-#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
-pub use utils::key_generator::KeyGenerator;
-
-// Enhanced Stats exports
-#[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
-pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
-
-// HTTP Cache exports
-#[cfg(any(feature = "http-cache", feature = "full"))]
-pub use http::{
-    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy,
-    HttpCacheResponse, HttpRequest,
-};
+// Configuration module exports (using Confers library)
+#[cfg(feature = "confers")]
+pub use core::confers_config;
 
 // Internal module exports (for #[cached] macro)
 #[doc(hidden)]
@@ -500,8 +454,8 @@ pub use registry::{clear, get, init, init_empty, is_initialized, register, remov
 ///
 /// This function requires the `moka` feature (included in `minimal`, `core`, and `full`).
 #[cfg(any(feature = "moka", feature = "minimal", feature = "core", feature = "full"))]
-pub fn new_in_memory() -> backend::client::MokaMemoryBackend {
-    backend::client::MokaMemoryBackend::new()
+pub fn new_in_memory() -> backend::memory::MokaMemoryBackend {
+    backend::memory::MokaMemoryBackend::new()
 }
 
 /// Create a new cache backend from configuration.
@@ -535,17 +489,17 @@ pub fn new_in_memory() -> backend::client::MokaMemoryBackend {
 /// - `redis` feature for Redis backend
 #[cfg(feature = "confers")]
 pub async fn new_with_config(
-    config: config::confers_config::BackendConfig,
+    config: core::confers_config::BackendConfig,
 ) -> error::Result<std::sync::Arc<dyn backend::interface::CacheBackend>> {
     use std::sync::Arc;
 
     let backend_type = config.backend_type_enum();
 
     match backend_type {
-        config::confers_config::BackendType::Memory => {
+        core::confers_config::BackendType::Memory => {
             #[cfg(feature = "moka")]
             {
-                Ok(Arc::new(backend::client::MokaMemoryBackend::new()))
+                Ok(Arc::new(backend::memory::MokaMemoryBackend::new()))
             }
             #[cfg(not(feature = "moka"))]
             {
@@ -554,12 +508,12 @@ pub async fn new_with_config(
                 ))
             }
         }
-        config::confers_config::BackendType::Redis => {
+        core::confers_config::BackendType::Redis => {
             #[cfg(feature = "redis")]
             {
                 let _redis_config = config.l2_options();
                 // Create Redis backend with config
-                let builder = backend::client::RedisBackend::builder();
+                let builder = backend::memory::RedisBackend::builder();
                 // TODO: Parse redis_config and configure builder
                 Ok(Arc::new(builder.build().await?))
             }
@@ -570,7 +524,7 @@ pub async fn new_with_config(
                 ))
             }
         }
-        config::confers_config::BackendType::Tiered => Err(error::CacheError::InvalidInput(
+        core::confers_config::BackendType::Tiered => Err(error::CacheError::InvalidInput(
             "Tiered backend requires manual construction. Use ChainCache or TwoLevelCache builders.".to_string(),
         )),
     }
