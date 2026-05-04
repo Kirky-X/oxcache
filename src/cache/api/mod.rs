@@ -17,18 +17,18 @@ use std::sync::Arc;
 /// 序列化器实例复用管理器
 #[cfg(any(feature = "serialization", feature = "full"))]
 pub(crate) struct SerializerPool {
-    json: Arc<crate::serialization::json::JsonSerializer>,
+    json: Arc<crate::infra::serialization::json::JsonSerializer>,
 }
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 impl SerializerPool {
     pub(crate) fn new() -> Self {
         Self {
-            json: Arc::new(crate::serialization::json::JsonSerializer::new()),
+            json: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
         }
     }
 
-    pub(crate) fn json(&self) -> Arc<crate::serialization::json::JsonSerializer> {
+    pub(crate) fn json(&self) -> Arc<crate::infra::serialization::json::JsonSerializer> {
         self.json.clone()
     }
 }
@@ -80,8 +80,8 @@ where
         Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
     }
 
-    pub fn builder() -> crate::builder::CacheBuilder<K, V> {
-        crate::builder::CacheBuilder::default()
+    pub fn builder() -> crate::cache::builder::CacheBuilder<K, V> {
+        crate::cache::builder::CacheBuilder::default()
     }
 
     pub fn with_dependencies(backend: Arc<dyn CacheBackend>) -> Self {
@@ -140,7 +140,8 @@ where
     pub async fn with_confers(config: &serde_json::Value) -> crate::error::Result<Self> {
         use crate::backend::memory::RedisBackend;
 
-        let oxcache_config = config.get("oxcache").unwrap_or(&serde_json::json!({}));
+        let default = serde_json::json!({});
+        let oxcache_config = config.get("oxcache").unwrap_or(&default);
         let backend_type = oxcache_config
             .get("backend")
             .and_then(|v| v.as_str())
@@ -173,5 +174,48 @@ where
         use crate::backend::memory::MokaMemoryBackend as MemoryBackend;
         let backend = MemoryBackend::new();
         Ok(Self::new_with_backend(Arc::new(backend)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cache_memory() {
+        let cache: Cache<String, String> = Cache::memory().await.unwrap();
+        assert!(cache.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cache_new_with_backend() {
+        use crate::backend::memory::MokaMemoryBackend;
+        let backend = Arc::new(MokaMemoryBackend::new());
+        let cache: Cache<String, String> = Cache::new_with_backend(backend);
+        assert!(cache.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cache_builder_default() {
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+        cache.set(&"key".to_string(), &42).await.unwrap();
+        let val = cache.get(&"key".to_string()).await.unwrap().unwrap();
+        assert_eq!(val, 42);
+    }
+
+    #[tokio::test]
+    async fn test_cache_serializer_pool() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"test".to_string(), &"value".to_string()).await.unwrap();
+        assert!(cache.get(&"test".to_string()).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_cache_unified_serializer() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+        let data = b"binary data".to_vec();
+        cache.set(&"bin".to_string(), &data.clone()).await.unwrap();
+        let retrieved = cache.get(&"bin".to_string()).await.unwrap().unwrap();
+        assert_eq!(retrieved, data);
     }
 }

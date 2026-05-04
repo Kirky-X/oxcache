@@ -490,7 +490,7 @@ impl ChainCacheBuilder {
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
         let mut links = self.links;
-        links.sort_by(|a, b| b.score.cmp(&a.score));
+        links.sort_by_key(|link| std::cmp::Reverse(link.score));
 
         ChainCache {
             links,

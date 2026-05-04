@@ -441,7 +441,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
                 crate::serialization::SerializationFormat::Bincode => {
                     SerializerEnum::Bincode(crate::serialization::bincode::BincodeSerializer)
                 }
-                _ => SerializerEnum::Json(crate::serialization::json::JsonSerializer::new()),
+                _ => SerializerEnum::Json(crate::infra::serialization::json::JsonSerializer::new()),
             }
         });
 
