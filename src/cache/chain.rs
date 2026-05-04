@@ -239,9 +239,22 @@ impl ChainCache {
     async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         let effective_ttl = ttl.or(self.default_ttl);
         let mut errors = Vec::new();
+        let count = self.links.len();
 
-        for link in &self.links {
+        if count == 0 {
+            return Ok(());
+        }
+
+        // Clone for all but the last backend
+        for link in self.links.iter().take(count - 1) {
             if let Err(e) = link.backend.set(key, value.clone(), effective_ttl).await {
+                errors.push((link.name, e));
+            }
+        }
+
+        // Last backend: use the owned value directly (no clone)
+        if let Some(link) = self.links.last() {
+            if let Err(e) = link.backend.set(key, value, effective_ttl).await {
                 errors.push((link.name, e));
             }
         }

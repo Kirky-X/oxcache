@@ -21,6 +21,7 @@ use tracing::instrument;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::json::JsonSerializer;
+use crate::serialization::unified::UnifiedSerializer;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::serialization::Serializer;
 use crate::traits::{CacheKey, Cacheable};
@@ -79,6 +80,7 @@ impl Default for SerializerPool {
 pub struct Cache<K, V> {
     backend: Arc<dyn CacheBackend>,
     serializer_pool: Arc<SerializerPool>,
+    unified_serializer: UnifiedSerializer,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 
@@ -102,6 +104,7 @@ where
         Self {
             backend,
             serializer_pool: Arc::new(SerializerPool::new()),
+            unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -213,6 +216,7 @@ where
         Ok(Self {
             backend: Arc::new(backend),
             serializer_pool: Arc::new(SerializerPool::new()),
+            unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         })
     }
@@ -570,8 +574,8 @@ where
 
     /// Get the unified serializer for this cache (simplified interface for macros)
     #[cfg(any(feature = "serialization", feature = "full"))]
-    pub fn unified_serializer(&self) -> crate::serialization::unified::UnifiedSerializer {
-        crate::serialization::unified::UnifiedSerializer::json()
+    pub fn unified_serializer(&self) -> UnifiedSerializer {
+        self.unified_serializer.clone()
     }
 
     /// Check if the cache supports L1-only operations

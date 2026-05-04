@@ -93,11 +93,8 @@ impl DashMapMemoryBackend {
 
     /// Remove oldest entries when at capacity
     fn evict_if_full(&self) {
-        // Collect keys to remove first (avoid holding locks during modification)
-        let keys_to_remove: Vec<String> = self.ttl_map.iter().take(1).map(|r| r.key().clone()).collect();
-
-        // Remove the oldest entry
-        for key in keys_to_remove {
+        // Find the entry with the oldest (soonest) expiration time
+        if let Some(key) = self.ttl_map.iter().min_by_key(|r| *r.value()).map(|r| r.key().clone()) {
             self.cache.remove(&key);
             self.ttl_map.remove(&key);
         }
