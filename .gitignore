@@ -39,6 +39,7 @@ logs/
 .sisyphus/
 .claude/
 .qoder/
+CLAUDE.md
 
 # =============================================================================
 # Environment & Secrets
@@ -102,3 +103,4 @@ docs/archive/
 docs/repowiki/
 .iflow/
 .worktrees
+.gitnexus

@@ -195,6 +195,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "redis")]
     fn test_backend_type_deserialize() {
         let backend: BackendType = serde_json::from_str("\"redis\"").unwrap();
         assert_eq!(backend, BackendType::Redis);
