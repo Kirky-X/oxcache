@@ -600,6 +600,26 @@ where
     }
 }
 
+/// Extract Redis/L2 configuration from unified config
+///
+/// Returns a tuple of (connection_string, mode) extracted from the L2 options.
+#[cfg(all(feature = "redis", feature = "confers"))]
+fn extract_l2_config(config: &crate::config::UnifiedConfig) -> (String, crate::backend::client::RedisMode) {
+    let connection_string = config
+        .backend
+        .l2_options()
+        .get("connection_string")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    let l2_opts = config.backend.l2_options();
+    let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
+    let mode = parse_redis_mode(mode_str);
+
+    (connection_string, mode)
+}
+
 #[cfg(feature = "confers")]
 fn backend_config_from_unified_config(
     config: &crate::config::UnifiedConfig,
@@ -617,18 +637,7 @@ fn backend_config_from_unified_config(
         }
         #[cfg(feature = "redis")]
         crate::config::BackendType::Redis => {
-            let connection_string = config
-                .backend
-                .l2_options()
-                .get("connection_string")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-
-            let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-            let mode = parse_redis_mode(mode_str);
-
+            let (connection_string, mode) = extract_l2_config(config);
             Ok(InternalBackendConfig::Redis {
                 connection_string,
                 mode,
@@ -654,17 +663,7 @@ fn backend_config_from_unified_config(
                 .and_then(|v| v.as_u64().or(v.as_i64().map(|i| i as u64)))
                 .unwrap_or(10000);
 
-            let connection_string = config
-                .backend
-                .l2_options()
-                .get("connection_string")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-
-            let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-            let mode = parse_redis_mode(mode_str);
+            let (connection_string, mode) = extract_l2_config(config);
 
             Ok(InternalBackendConfig::Tiered {
                 l1_capacity,
@@ -714,19 +713,10 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(feature = "redis")]
         crate::config::BackendType::Redis => {
-            let connection_string = config
-                .backend
-                .l2_options()
-                .get("connection_string")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-            let mode = parse_redis_mode(mode_str);
+            let (connection_string, mode) = extract_l2_config(config);
 
             Ok(InternalBackendConfig::Redis {
-                connection_string: connection_string.unwrap_or_default(),
+                connection_string,
                 mode,
             })
         }
@@ -739,20 +729,11 @@ fn backend_config_from_unified_config_with_service(
         }
         #[cfg(all(feature = "moka", feature = "redis"))]
         crate::config::BackendType::Tiered => {
-            let connection_string = config
-                .backend
-                .l2_options()
-                .get("connection_string")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-
-            let l2_opts = config.backend.l2_options();
-            let mode_str = l2_opts.get("mode").and_then(|v| v.as_str()).unwrap_or("standalone");
-            let mode = parse_redis_mode(mode_str);
+            let (connection_string, mode) = extract_l2_config(config);
 
             Ok(InternalBackendConfig::Tiered {
                 l1_capacity: effective_capacity,
-                l2_connection_string: connection_string.unwrap_or_default(),
+                l2_connection_string: connection_string,
                 l2_mode: mode,
             })
         }
