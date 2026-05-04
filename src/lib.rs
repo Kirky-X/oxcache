@@ -201,44 +201,6 @@
 // Feature Flags and Macros
 // ============================================================================
 
-/// 检查是否启用了指定的功能特性
-#[macro_export]
-macro_rules! has_feature {
-    ($feature:expr) => {
-        cfg!(feature = $feature)
-    };
-}
-
-/// 编译时特性依赖检查
-///
-/// 使用 `compile_error!` 提供清晰的编译时错误信息。
-/// 注意：$required 应为特性名称字符串，而非 cfg 表达式。
-///
-/// # Example
-///
-/// ```rust,ignore
-/// require_feature!("moka", "bloom-filter");
-/// ```
-///
-/// 如果启用了 `bloom-filter` 但没有启用 `moka`，编译时会报错。
-#[macro_export]
-macro_rules! require_feature {
-    ($required:expr, $dependent:expr) => {
-        #[cfg(all(feature = $dependent, not(feature = $required)))]
-        compile_error!(concat!(
-            "Feature '",
-            $dependent,
-            "' requires the '",
-            $required,
-            "' feature to be enabled.\n",
-            "Add '",
-            $required,
-            "' to your Cargo.toml features, ",
-            "or use the 'full' feature for all capabilities."
-        ));
-    };
-}
-
 /// 编译时特性依赖检查（支持 full 特性）
 ///
 /// 注意：$required 应为特性名称字符串，而非 cfg 表达式。
@@ -279,135 +241,6 @@ macro_rules! add_feature_if_enabled {
         if cfg!(feature = $name) {
             $features.push($name);
         }
-    };
-}
-
-/// 为禁用的特性生成空实现结构体及其基本实现
-///
-/// # Example
-///
-/// ```rust,ignore
-/// empty_struct!(BatchWriter, Debug, Clone, Default);
-/// ```
-///
-/// 生成：
-/// - `#[cfg(not(feature = "batch-write"))]`
-/// - `#[derive(Debug, Clone, Default)] pub struct BatchWriter;`
-/// - `impl BatchWriter { pub fn new() -> Self { Self } }
-#[macro_export]
-macro_rules! empty_struct {
-    ($name:ident, $($traits:ident),+ $(,)?) => {
-        #[cfg(not(feature = "batch-write"))]
-        #[derive($($traits),+)]
-        pub struct $name;
-        #[cfg(not(feature = "batch-write"))]
-        impl $name {
-            pub fn new() -> Self {
-                Self
-            }
-        }
-    };
-}
-
-/// 为禁用的特性生成空实现结构体（带泛型参数）
-///
-/// # Example
-///
-/// ```rust,ignore
-/// empty_struct_generic!(HealthChecker<T: HealthCheckableBackend>, Debug);
-/// ```
-#[macro_export]
-macro_rules! empty_struct_generic {
-    ($name:ident $(<$($generics:tt),+>)?, $($traits:ident),+ $(,)?) => {
-        #[cfg(not(feature = "wal-recovery"))]
-        #[derive($($traits),+)]
-        pub struct $name $(<$($generics),+>)?;
-        #[cfg(not(feature = "wal-recovery"))]
-        impl $(<$($generics),+>)? $name $(<$($generics),+>)? {
-            pub fn new() -> Self {
-                Self
-            }
-        }
-    };
-}
-
-/// 为禁用的特性生成带有 async 方法的空实现
-///
-/// # Example
-///
-/// ```rust,ignore
-/// empty_async_methods!(MyStruct, {
-///     pub async fn start(&self) {}
-///     pub async fn shutdown(&self) {}
-/// });
-/// ```
-#[macro_export]
-macro_rules! empty_async_methods {
-    ($name:ident, { $(pub async fn $fn_name:ident(&self $(, $param:ident: $param_type: ty)* $(,)? ) -> Result<()> { $($body:stmt)* })+ }) => {
-        #[cfg(not(feature = "batch-write"))]
-        #[derive(Debug, Clone, Default)]
-        pub struct $name;
-        #[cfg(not(feature = "batch-write"))]
-        impl $name {
-            $(
-                pub async fn $fn_name(&self $(, $param: $param_type)*) -> Result<()> {
-                    $($body)*
-                    Ok(())
-                }
-            )+
-        }
-    };
-}
-
-/// 为禁用的特性生成空 trait 定义
-///
-/// # Example
-///
-/// ```rust,ignore
-/// empty_trait!(HealthCheckableBackend, Clone + Send + Sync + 'static {
-///     async fn ping(&self) -> Result<()>;
-///     fn command_timeout_ms(&self) -> u64;
-/// });
-/// ```
-#[macro_export]
-macro_rules! empty_trait {
-    ($name:ident, $($bounds:tt)*) => {
-        #[cfg(not(feature = "wal-recovery"))]
-        #[async_trait::async_trait]
-        pub trait $name: $($bounds)* {}
-    };
-}
-
-/// 生成空的 Result 返回方法
-///
-/// # Example
-///
-/// ```rust,ignore
-/// empty_async_fn!(pub async fn foo(&self) -> Result<()>);
-/// empty_async_fn!(pub async fn bar(&self, key: &str) -> Result<()>);
-/// ```
-#[macro_export]
-macro_rules! empty_async_fn {
-    (pub async fn $fn_name:ident (&self $(, $param:ident: $param_type: ty)*) -> Result<()>) => {
-        #[cfg(not(feature = "batch-write"))]
-        pub async fn $fn_name(&self $(, $param: $param_type)*) -> Result<()> {
-            Ok(())
-        }
-    };
-}
-
-/// 为禁用功能的模块生成占位符模块声明
-///
-/// # Example
-///
-/// ```rust,ignore
-/// placeholder_module!(batch_writer, "batch-write");
-/// ```
-#[macro_export]
-macro_rules! placeholder_module {
-    ($module:ident, $feature:expr) => {
-        #[cfg(not(feature = $feature))]
-        pub(crate) mod $module;
     };
 }
 
@@ -542,10 +375,6 @@ pub use smart_strategy::{
 // HTTP Cache Module
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub mod http;
-
-// SingleFlight Module
-#[cfg(any(feature = "singleflight", feature = "full"))]
-pub(crate) mod singleflight;
 
 // Security Module (Only needed for Redis validation)
 #[cfg(any(feature = "redis", feature = "full"))]
