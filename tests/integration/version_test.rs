@@ -7,7 +7,7 @@
 #[cfg(feature = "redis")]
 use oxcache::backend::client::RedisBackend;
 #[cfg(feature = "redis")]
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
 
 use crate::common;
@@ -24,7 +24,7 @@ async fn test_version_control() {
 
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
-    let l2: Arc<dyn CacheBackend> = match RedisBackend::new(&redis_url).await {
+    let l2: Arc<dyn oxcache::backend::CacheBackend> = match RedisBackend::new(&redis_url).await {
         Ok(backend) => Arc::new(backend),
         Err(e) => {
             println!("无法创建Redis后端: {:?}", e);

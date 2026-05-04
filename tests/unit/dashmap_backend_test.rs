@@ -8,7 +8,7 @@ use oxcache::backend::client::dashmap::{
     dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder,
     DashMapMemoryBackend,
 };
-use oxcache::backend::interface::CacheBackend;
+use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::backend::score::BackendScore;
 use std::time::Duration;
 
@@ -95,7 +95,7 @@ async fn test_dashmap_close() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
-    backend.close().await.unwrap();
+    backend.shutdown().await;
 
     assert!(backend.is_empty().await.unwrap());
 }
@@ -146,8 +146,7 @@ async fn test_dashmap_expire_nonexistent() {
 #[tokio::test]
 async fn test_dashmap_health_check() {
     let backend = DashMapMemoryBackend::new();
-    let healthy = backend.health_check().await.unwrap();
-    assert!(healthy);
+    backend.health_check().await.unwrap();
 }
 
 #[tokio::test]

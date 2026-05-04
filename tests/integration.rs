@@ -56,3 +56,6 @@ mod oxcache_builder_test;
 
 #[path = "integration/redis_client_test.rs"]
 mod redis_client_test;
+
+#[path = "integration/new_in_memory_test.rs"]
+mod new_in_memory_test;

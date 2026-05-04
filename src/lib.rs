@@ -7,6 +7,25 @@
 //! 提供L1内存缓存和L2分布式缓存的两级缓存解决方案，
 //! 支持缓存降级、故障恢复和优雅关闭等功能。
 //!
+//! # 初始化（可选）
+//!
+//! 如果使用 `#[cached]` 宏，需要先初始化全局注册表：
+//!
+//! ```rust,ignore
+//! use std::sync::Arc;
+//! use oxcache::{new_in_memory, init};
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     // 初始化缓存注册表
+//!     let cache = Arc::new(new_in_memory());
+//!     oxcache::init(cache);
+//!
+//!     // 现在可以使用 #[cached] 宏
+//!     run_app().await;
+//! }
+//! ```
+//!
 //! # Modern API (Recommended)
 //!
 //! The new API (v0.2.0+) provides a type-safe, independent cache interface:
@@ -424,6 +443,9 @@ pub mod error;
 #[doc(hidden)]
 pub(crate) mod internal;
 
+// Registry module for explicit cache initialization
+pub mod registry;
+
 // New modernized API modules
 pub mod builder;
 pub mod cache;
@@ -521,6 +543,10 @@ pub use smart_strategy::{
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub mod http;
 
+// SingleFlight Module
+#[cfg(any(feature = "singleflight", feature = "full"))]
+pub(crate) mod singleflight;
+
 // Security Module (Only needed for Redis validation)
 #[cfg(any(feature = "redis", feature = "full"))]
 pub(crate) mod security;
@@ -551,7 +577,7 @@ pub mod macros {
     pub use oxcache_macros::*;
 }
 
-pub use error::{CacheError, Result};
+pub use error::{CacheConfigError, CacheError, ConfigResult, Result};
 
 // ============================================================================
 // New API (Recommended)
@@ -611,6 +637,115 @@ pub use internal::{__internal_get_cache, __internal_register_cache};
 
 // Feature info exports
 pub use internal::{get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled};
+
+// Registry exports (for explicit initialization)
+pub use registry::{clear, get, init, init_empty, is_initialized, register, remove};
+
+// ============================================================================
+// Factory Functions (Brick Architecture Standard)
+// ============================================================================
+
+/// Create a new in-memory cache backend with zero configuration.
+///
+/// This factory function provides a simple, dependency-free way to create
+/// a cache instance for unit tests, feature module `new()` patterns, and
+/// rapid prototyping.
+///
+/// # Returns
+///
+/// A new `MokaMemoryBackend` instance with default capacity.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use oxcache::new_in_memory;
+///
+/// let cache = new_in_memory();
+///
+/// // Use the cache directly
+/// cache.set("key", b"value".to_vec(), None).await?;
+/// let value = cache.get("key").await?;
+/// ```
+///
+/// # Feature Requirements
+///
+/// This function requires the `moka` feature (included in `minimal`, `core`, and `full`).
+#[cfg(any(feature = "moka", feature = "minimal", feature = "core", feature = "full"))]
+pub fn new_in_memory() -> backend::client::MokaMemoryBackend {
+    backend::client::MokaMemoryBackend::new()
+}
+
+/// Create a new cache backend from configuration.
+///
+/// This factory function creates a cache instance based on the provided
+/// configuration, supporting Memory, Redis, and Tiered backends.
+///
+/// # Arguments
+///
+/// * `config` - Backend configuration specifying type and options
+///
+/// # Returns
+///
+/// A new cache backend instance wrapped in `Arc<dyn CacheBackend>`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use oxcache::{new_with_config, config::BackendConfig};
+///
+/// let config = BackendConfig::default();
+/// let cache = new_with_config(config).await?;
+///
+/// // Use the cache
+/// cache.set("key", b"value".to_vec(), None).await?;
+/// ```
+///
+/// # Feature Requirements
+///
+/// - `moka` feature for Memory backend
+/// - `redis` feature for Redis backend
+#[cfg(feature = "confers")]
+pub async fn new_with_config(
+    config: config::confers_config::BackendConfig,
+) -> error::Result<std::sync::Arc<dyn backend::interface::CacheBackend>> {
+    use std::sync::Arc;
+
+    let backend_type = config.backend_type_enum();
+
+    match backend_type {
+        config::confers_config::BackendType::Memory => {
+            #[cfg(feature = "moka")]
+            {
+                Ok(Arc::new(backend::client::MokaMemoryBackend::new()))
+            }
+            #[cfg(not(feature = "moka"))]
+            {
+                Err(error::CacheError::InvalidInput(
+                    "Memory backend requires 'moka' feature".to_string(),
+                ))
+            }
+        }
+        config::confers_config::BackendType::Redis => {
+            #[cfg(feature = "redis")]
+            {
+                let _redis_config = config.l2_options();
+                // Create Redis backend with config
+                let builder = backend::client::RedisBackend::builder();
+                // TODO: Parse redis_config and configure builder
+                Ok(Arc::new(builder.build().await?))
+            }
+            #[cfg(not(feature = "redis"))]
+            {
+                Err(error::CacheError::InvalidInput(
+                    "Redis backend requires 'redis' feature".to_string(),
+                ))
+            }
+        }
+        config::confers_config::BackendType::Tiered => Err(error::CacheError::InvalidInput(
+            "Tiered backend requires manual construction. Use ChainCache or TwoLevelCache builders.".to_string(),
+        )),
+    }
+}
 
 // ============================================================================
 // Configuration Macros (Feature-Gated)

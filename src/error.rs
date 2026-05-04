@@ -9,33 +9,67 @@ use thiserror::Error;
 /// Maximum number of asterisks to show for hidden password
 const PASSWORD_MASK_ASTERISKS: usize = 5;
 
-/// 脱敏连接字符串，隐藏密码等敏感信息
 fn sanitize_connection_string(conn_str: &str) -> String {
-    // 使用正则表达式隐藏密码
-    // 匹配模式: protocol://[:password@]host:port
     if let Some(start) = conn_str.find("://") {
         let protocol = &conn_str[..start];
         let after_protocol = &conn_str[start + 3..];
 
-        // 检查是否包含密码 (@ 符号)
         if let Some(at_pos) = after_protocol.find('@') {
             let user_part = &after_protocol[..at_pos];
-            // 隐藏密码部分
-            let sanitized_user: String = user_part
-                .chars()
-                .take_while(|c| *c != ':')
-                .chain(std::iter::once('*'))
-                .chain(
-                    std::iter::once(':')
-                        .chain(std::iter::once('*'))
-                        .take(PASSWORD_MASK_ASTERISKS),
-                )
-                .collect();
+            let sanitized_user = if let Some(colon_pos) = user_part.find(':') {
+                let username = &user_part[..colon_pos];
+                format!("{}:{}", username, "*".repeat(PASSWORD_MASK_ASTERISKS))
+            } else {
+                format!("{}:{}", user_part, "*".repeat(PASSWORD_MASK_ASTERISKS))
+            };
             return format!("{}://{}@{}", protocol, sanitized_user, &after_protocol[at_pos + 1..]);
         }
     }
     conn_str.to_string()
 }
+
+/// Configuration error type for cache initialization
+///
+/// This error type is used during the configuration phase (factory functions, builders)
+/// and is separate from runtime errors. It represents errors that occur when setting up
+/// a cache instance, such as invalid configuration values or missing required fields.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use oxcache::error::CacheConfigError;
+///
+/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+///     if config.l1.capacity == 0 {
+///         return Err(CacheConfigError::InvalidValue {
+///             field: "capacity".to_string(),
+///             reason: "capacity must be greater than 0".to_string(),
+///         });
+///     }
+///     Ok(())
+/// }
+/// ```
+#[derive(Debug, Error)]
+pub enum CacheConfigError {
+    /// Missing required configuration field
+    #[error("Missing required field: {0}")]
+    MissingField(String),
+
+    /// Invalid value for a configuration field
+    #[error("Invalid value for field '{field}': {reason}")]
+    InvalidValue { field: String, reason: String },
+
+    /// Unsupported backend combination
+    #[error("Unsupported backend combination: {0}")]
+    UnsupportedBackend(String),
+
+    /// Connection failed during initialization
+    #[error("Connection failed during initialization: {0}")]
+    ConnectionFailed(String),
+}
+
+/// Result type for configuration operations
+pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
 
 /// 缓存系统错误类型枚举
 ///
@@ -44,27 +78,43 @@ fn sanitize_connection_string(conn_str: &str) -> String {
 ///
 /// # 错误分类
 ///
-/// - **配置错误** ([`CacheError::ConfigError`]): 配置问题，如缺少必需字段
 /// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
 /// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
-/// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
+/// - **连接错误** ([`CacheError::ConnectionError`]): �络连接问题
 /// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
 /// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
 /// - **未找到错误** ([`CacheError::NotFound`]): 请求的键不存在
 /// - **降级错误** ([`CacheError::Degraded`]): 缓存处于降级模式
 /// - **操作错误** ([`CacheError::Operation`]): 一般操作错误
 ///
+/// # 配置阶段错误
+///
+/// 配置阶段的错误（如缺少必需字段、无效值等）使用 [`CacheConfigError`] 类型，
+/// 通过 [`ConfigResult`] 类型别名返回。
+///
 /// # 示例
 ///
 /// ```rust,ignore
-/// use oxcache::error::CacheError;
+/// use oxcache::error::{CacheError, CacheConfigError, ConfigResult};
 ///
+/// // 运行时错误
 /// async fn safe_cache_operation() -> Result<String, CacheError> {
 ///     let result = cache.get("key").await?;
 ///     match result {
 ///         Some(value) => Ok(value),
 ///         None => Err(CacheError::NotFound("Key not found".to_string()))
 ///     }
+/// }
+///
+/// // 配置阶段错误
+/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+///     if config.capacity == 0 {
+///         return Err(CacheConfigError::InvalidValue {
+///             field: "capacity".to_string(),
+///             reason: "must be greater than 0".to_string(),
+///         });
+///     }
+///     Ok(())
 /// }
 /// ```
 #[derive(Error, Debug)]
@@ -114,11 +164,6 @@ pub enum CacheError {
     /// L2缓存操作失败
     #[error("L2 cache operation failed: {0}. Please check Redis connection and server status.")]
     L2Error(String),
-
-    /// 配置错误
-    #[error("Configuration error: {0}. Please review your configuration file and ensure all required settings are provided."
-    )]
-    ConfigError(String),
 
     /// 操作不支持
     #[error("Operation not supported: {0}. This feature may not be available for the current cache type.")]
@@ -193,6 +238,12 @@ pub enum CacheError {
     /// 请求的服务配置在 UnifiedConfig 中不存在
     #[error("Service not found: {0}. The requested service configuration does not exist in the UnifiedConfig.")]
     ServiceNotFound(String),
+
+    /// 内部错误
+    ///
+    /// 内部组件错误，通常表示不可恢复的内部状态异常
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 /// 缓存操作结果类型别名
@@ -238,7 +289,6 @@ impl CacheError {
             CacheError::Degraded(_) => "CACHE_005",
             CacheError::L1Error(_) => "CACHE_006",
             CacheError::L2Error(_) => "CACHE_007",
-            CacheError::ConfigError(_) => "CACHE_008",
             CacheError::NotSupported(_) => "CACHE_009",
             CacheError::WalError(_) => "CACHE_010",
             CacheError::DatabaseError(_) => "CACHE_011",
@@ -254,6 +304,7 @@ impl CacheError {
             CacheError::InvalidKey(_) => "CACHE_021",
             CacheError::LockError(_) => "CACHE_022",
             CacheError::ServiceNotFound(_) => "CACHE_023",
+            CacheError::Internal(_) => "CACHE_024",
         }
     }
 
@@ -280,6 +331,7 @@ impl CacheError {
                 | CacheError::L2Error(_)
                 | CacheError::BackendError(_)
                 | CacheError::BufferFull(_)
+                | CacheError::Internal(_)
         )
     }
 

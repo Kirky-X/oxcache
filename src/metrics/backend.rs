@@ -98,19 +98,14 @@ impl LatencyHistogram {
     pub fn new(bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::CacheError> {
         // 验证桶数量限制，防止内存过度分配
         if bucket_bounds_us.len() > MAX_HISTOGRAM_BUCKETS {
-            return Err(crate::error::CacheError::ConfigError(
-                format!(
-                    "Histogram bucket bounds exceed maximum of {} (got {})",
-                    MAX_HISTOGRAM_BUCKETS,
-                    bucket_bounds_us.len()
-                )
-            ));
+            return Err(crate::error::CacheError::InvalidInput(format!(
+                "Histogram bucket bounds exceed maximum of {} (got {})",
+                MAX_HISTOGRAM_BUCKETS,
+                bucket_bounds_us.len()
+            )));
         }
 
-        let bucket_counts: Vec<_> = bucket_bounds_us
-            .iter()
-            .map(|_| Arc::new(AtomicU64::new(0)))
-            .collect();
+        let bucket_counts: Vec<_> = bucket_bounds_us.iter().map(|_| Arc::new(AtomicU64::new(0))).collect();
 
         let max_latency = u64::MAX;
 
@@ -182,11 +177,7 @@ impl LatencyHistogram {
     pub fn buckets(&self) -> Vec<HistogramBucket> {
         let total = self.total_count.load(Ordering::Relaxed);
         if total == 0 {
-            return self
-                .buckets
-                .iter()
-                .map(|b| HistogramBucket::new(*b))
-                .collect();
+            return self.buckets.iter().map(|b| HistogramBucket::new(*b)).collect();
         }
 
         let mut result = Vec::new();
@@ -303,7 +294,11 @@ impl OperationCounter {
             total_count: total,
             success_count: success,
             failure_count: failure,
-            success_rate: if total > 0 { success as f64 / total as f64 * 100.0 } else { 0.0 },
+            success_rate: if total > 0 {
+                success as f64 / total as f64 * 100.0
+            } else {
+                0.0
+            },
             avg_latency_us: summary.avg_latency_us,
             min_latency_us: summary.min_latency_us,
             max_latency_us: summary.max_latency_us,
@@ -393,9 +388,7 @@ impl MetricsCollector {
 
     /// 获取操作计数器
     pub fn operation_counter(&self, op_type: OperationType) -> Option<&OperationCounter> {
-        self.operation_counters
-            .iter()
-            .find(|c| c.op_type == op_type)
+        self.operation_counters.iter().find(|c| c.op_type == op_type)
     }
 
     /// 记录 L1 命中
@@ -443,19 +436,23 @@ impl MetricsCollector {
         let l1_total = l1_hits + l1_misses;
         let l2_total = l2_hits + l2_misses;
 
-        let op_stats: Vec<_> = self
-            .operation_counters
-            .iter()
-            .map(|c| c.stats())
-            .collect();
+        let op_stats: Vec<_> = self.operation_counters.iter().map(|c| c.stats()).collect();
 
         FullMetrics {
             l1_hits,
             l1_misses,
-            l1_hit_rate: if l1_total > 0 { l1_hits as f64 / l1_total as f64 * 100.0 } else { 0.0 },
+            l1_hit_rate: if l1_total > 0 {
+                l1_hits as f64 / l1_total as f64 * 100.0
+            } else {
+                0.0
+            },
             l2_hits,
             l2_misses,
-            l2_hit_rate: if l2_total > 0 { l2_hits as f64 / l2_total as f64 * 100.0 } else { 0.0 },
+            l2_hit_rate: if l2_total > 0 {
+                l2_hits as f64 / l2_total as f64 * 100.0
+            } else {
+                0.0
+            },
             connections: self.connections.load(Ordering::Relaxed),
             active_tasks: self.active_tasks.load(Ordering::Relaxed),
             queue_depth: self.queue_depth.load(Ordering::Relaxed),
@@ -657,14 +654,26 @@ impl SlidingWindowMetrics {
         WindowMetricsSummary {
             snapshot_count: count,
             window_secs: self.window_secs,
-            avg_l1_hit_rate: if l1_total > 0 { total_l1_hits as f64 / l1_total as f64 * 100.0 } else { 0.0 },
-            avg_l2_hit_rate: if l2_total > 0 { total_l2_hits as f64 / l2_total as f64 * 100.0 } else { 0.0 },
+            avg_l1_hit_rate: if l1_total > 0 {
+                total_l1_hits as f64 / l1_total as f64 * 100.0
+            } else {
+                0.0
+            },
+            avg_l2_hit_rate: if l2_total > 0 {
+                total_l2_hits as f64 / l2_total as f64 * 100.0
+            } else {
+                0.0
+            },
             total_l1_hits,
             total_l1_misses,
             total_l2_hits,
             total_l2_misses,
             total_operations: total_ops,
-            success_rate: if total_ops > 0 { total_success as f64 / total_ops as f64 * 100.0 } else { 0.0 },
+            success_rate: if total_ops > 0 {
+                total_success as f64 / total_ops as f64 * 100.0
+            } else {
+                0.0
+            },
         }
     }
 }

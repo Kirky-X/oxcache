@@ -481,7 +481,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns `CacheError::ConfigError` if the configuration is invalid:
+    /// Returns `CacheError::InvalidInput` if the configuration is invalid:
     /// - Missing `connection_string` for Redis or Tiered backends
     /// - Invalid capacity or TTL values
     ///
@@ -780,13 +780,13 @@ mod tests {
     #[tokio::test]
     async fn test_cache_builder_default() {
         let cache: Cache<String, TestValue> = CacheBuilder::default().build().await.unwrap();
-        assert!(cache.health_check().await.unwrap());
+        cache.health_check().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_cache_builder_with_capacity() {
         let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
-        assert!(cache.health_check().await.unwrap());
+        cache.health_check().await.unwrap();
     }
 
     #[tokio::test]
@@ -796,14 +796,14 @@ mod tests {
             .build()
             .await
             .unwrap();
-        assert!(cache.health_check().await.unwrap());
+        cache.health_check().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_cache_builder_with_backend() {
         let backend = MemoryBackend::builder().capacity(5000).build();
         let cache: Cache<String, TestValue> = CacheBuilder::default().with_backend(backend).build().await.unwrap();
-        assert!(cache.health_check().await.unwrap());
+        cache.health_check().await.unwrap();
     }
 
     #[tokio::test]
@@ -820,7 +820,7 @@ mod tests {
         let builder = CacheBuilder::from_unified_config(&config).unwrap();
         let cache: Cache<String, TestValue> = builder.build().await.unwrap();
 
-        assert!(cache.health_check().await.unwrap());
+        cache.health_check().await.unwrap();
     }
 
     #[tokio::test]
@@ -841,7 +841,7 @@ mod tests {
 
         match result {
             Ok(cache) => {
-                assert!(cache.health_check().await.unwrap());
+                cache.health_check().await.unwrap();
             }
             Err(e) => {
                 let error_msg = format!("{:?}", e);

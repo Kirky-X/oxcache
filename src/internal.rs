@@ -1,17 +1,23 @@
-//! Internal module for #[cached] macro support
-//! This module is intentionally documented
-
 use crate::Cache;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
-/// Internal cache registration function
-pub async fn __internal_register_cache(_name: &str, _cache: Arc<Cache<String, Vec<u8>>>) {
-    // Placeholder implementation
+type MacroCacheMap = Mutex<HashMap<String, Arc<Cache<String, Vec<u8>>>>>;
+
+static MACRO_CACHES: once_cell::sync::OnceCell<MacroCacheMap> = once_cell::sync::OnceCell::new();
+
+fn caches() -> &'static MacroCacheMap {
+    MACRO_CACHES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Internal cache retrieval function
-pub fn __internal_get_cache(_name: &str) -> Option<Arc<Cache<String, Vec<u8>>>> {
-    None
+pub async fn __internal_register_cache(name: &str, cache: Arc<Cache<String, Vec<u8>>>) {
+    if let Ok(mut map) = caches().lock() {
+        map.insert(name.to_string(), cache);
+    }
+}
+
+pub fn __internal_get_cache(name: &str) -> Option<Arc<Cache<String, Vec<u8>>>> {
+    caches().lock().ok()?.get(name).cloned()
 }
 
 /// Get all feature information

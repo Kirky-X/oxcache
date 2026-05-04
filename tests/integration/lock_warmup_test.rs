@@ -53,13 +53,13 @@ async fn test_distributed_lock() {
             Ok(conn) => conn,
             Err(e) => {
                 println!("Skipping lock test: Failed to get Redis connection: {}", e);
-                cache.shutdown().await.ok();
+                cache.shutdown().await;
                 return;
             }
         },
         Err(e) => {
             println!("Skipping lock test: Failed to create Redis client: {}", e);
-            cache.shutdown().await.ok();
+            cache.shutdown().await;
             return;
         }
     };
@@ -98,7 +98,7 @@ async fn test_distributed_lock() {
     assert!(lock_after_expire.is_some(), "Should acquire lock after expiration");
 
     // 清理
-    cache.shutdown().await.expect("Shutdown failed");
+    cache.shutdown().await;
     cleanup_service(&service_name).await;
 }
 
@@ -153,6 +153,6 @@ async fn test_cache_preheating() {
     }
 
     // 清理
-    cache.shutdown().await.expect("Shutdown failed");
+    cache.shutdown().await;
     cleanup_service(&service_name).await;
 }

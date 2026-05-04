@@ -4,11 +4,10 @@
 //!
 //! Moka-based memory backend implementation
 
-use crate::backend::interface::CacheBackend;
+use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
 use async_trait::async_trait;
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -66,63 +65,18 @@ impl std::fmt::Debug for MokaMemoryBackend {
 }
 
 #[async_trait]
-impl CacheBackend for MokaMemoryBackend {
+impl CacheReader for MokaMemoryBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         Ok(self.cache.get(key).await)
-    }
-
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        // Moka 不支持单条目的 TTL 设置，TTL 在缓存创建时全局设置
-        // 注意：传入的 TTL 参数将被忽略
-        let _ = ttl;
-        self.cache.insert(key.to_string(), value).await;
-        Ok(())
-    }
-
-    async fn delete(&self, key: &str) -> Result<()> {
-        self.cache.invalidate(key).await;
-        Ok(())
     }
 
     async fn exists(&self, key: &str) -> Result<bool> {
         Ok(self.cache.contains_key(key))
     }
 
-    async fn clear(&self) -> Result<()> {
-        self.cache.invalidate_all();
-        Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        self.cache.invalidate_all();
-        Ok(())
-    }
-
     async fn ttl(&self, _key: &str) -> Result<Option<Duration>> {
         // Moka doesn't expose per-entry TTL information
         Ok(None)
-    }
-
-    async fn expire(&self, _key: &str, _ttl: Duration) -> Result<bool> {
-        // Moka doesn't support per-entry TTL updates after insertion
-        Ok(false)
-    }
-
-    async fn health_check(&self) -> Result<bool> {
-        // Moka is always healthy as it's in-memory
-        Ok(true)
-    }
-
-    async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut stats = HashMap::new();
-        stats.insert("type".to_string(), "moka".to_string());
-        stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
-        Ok(stats)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     async fn len(&self) -> Result<u64> {
@@ -136,7 +90,59 @@ impl CacheBackend for MokaMemoryBackend {
     async fn capacity(&self) -> Result<u64> {
         Ok(self.capacity)
     }
+
+    async fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), "moka".to_string());
+        stats.insert("capacity".to_string(), self.capacity.to_string());
+        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
+        Ok(stats)
+    }
 }
+
+#[async_trait]
+impl CacheWriter for MokaMemoryBackend {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        // Moka 不支持单条目的 TTL 设置，TTL 在缓存创建时全局设置
+        // 注意：传入的 TTL 参数将被忽略
+        let _ = ttl;
+        self.cache.insert(key.to_string(), value).await;
+        Ok(())
+    }
+
+    async fn delete(&self, key: &str) -> Result<()> {
+        self.cache.invalidate(key).await;
+        Ok(())
+    }
+
+    async fn clear(&self) -> Result<()> {
+        self.cache.invalidate_all();
+        Ok(())
+    }
+
+    async fn expire(&self, _key: &str, _ttl: Duration) -> Result<bool> {
+        // Moka doesn't support per-entry TTL updates after insertion
+        Ok(false)
+    }
+}
+
+#[async_trait]
+impl CacheConnector for MokaMemoryBackend {
+    async fn health_check(&self) -> Result<()> {
+        // Moka is always healthy as it's in-memory
+        Ok(())
+    }
+
+    async fn shutdown(&self) {
+        self.cache.invalidate_all();
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Moka
+    }
+}
+
+// CacheBackend is automatically implemented via blanket implementation
 
 impl BackendScore for MokaMemoryBackend {
     fn score(&self) -> u8 {
@@ -149,10 +155,6 @@ impl BackendScore for MokaMemoryBackend {
 
     fn backend_name(&self) -> &'static str {
         "moka"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 

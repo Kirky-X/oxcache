@@ -10,7 +10,8 @@
 mod redis_client_comprehensive_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::redis::RedisBackend;
-    use oxcache::backend::CacheBackend;
+    use oxcache::backend::interface::LuaExecutor;
+    use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     use oxcache::validate_lua_script;
     use serial_test::serial;
     use std::time::Duration;
@@ -71,9 +72,7 @@ mod redis_client_comprehensive_tests {
             let client = ctx.create_client().await;
 
             // 测试健康检查
-            let health = client.health_check().await;
-            assert!(health.is_ok(), "Health check failed");
-            assert!(health.unwrap(), "Health check should return true");
+            client.health_check().await.expect("Health check failed");
             println!("✅ Connection establishment test passed");
         }
 
@@ -833,9 +832,7 @@ mod redis_client_comprehensive_tests {
             let client = ctx.create_client().await;
 
             // 健康检查应该成功
-            let health = client.health_check().await;
-            assert!(health.is_ok(), "Health check failed");
-            assert!(health.unwrap(), "Health check should return true");
+            client.health_check().await.expect("Health check failed");
 
             println!("✅ Health check test passed");
         }
@@ -1089,8 +1086,7 @@ mod redis_client_comprehensive_tests {
             let client = ctx.create_client().await;
 
             // 关闭连接
-            let result = client.close().await;
-            assert!(result.is_ok(), "Close should succeed");
+            client.shutdown().await;
 
             // 关闭后操作可能失败
             let _result = client.ping().await;

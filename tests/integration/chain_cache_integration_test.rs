@@ -4,7 +4,8 @@
 //
 // 链式缓存集成测试
 
-use oxcache::backend::{BackendScore, CacheBackend, MokaMemoryBackend, Scores};
+use oxcache::backend::{BackendScore, MokaMemoryBackend, Scores};
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::builder::OxCacheBuilder;
 use oxcache::cache::{ChainCache, ChainLink};
 use std::time::Duration;
@@ -131,8 +132,7 @@ async fn test_chain_cache_health_check() {
     let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
 
     // Moka 后端应该总是健康的
-    let healthy = chain.health_check().await.unwrap();
-    assert!(healthy);
+    chain.health_check().await.unwrap();
 }
 
 /// 测试链式缓存统计信息

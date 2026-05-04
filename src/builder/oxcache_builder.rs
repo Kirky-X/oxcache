@@ -148,7 +148,7 @@ impl OxCacheBuilder {
     /// 如果没有配置后端，返回错误。
     pub fn build(self) -> Result<ChainCache> {
         if self.backends.is_empty() {
-            return Err(CacheError::ConfigError(
+            return Err(CacheError::InvalidInput(
                 "No backends configured. Use .backend() to add at least one backend.".to_string(),
             ));
         }
@@ -159,7 +159,7 @@ impl OxCacheBuilder {
         // 验证配置
         let validation = BackendSorter::validate(&sorted_links);
         if !validation.is_valid() {
-            return Err(CacheError::ConfigError(format!(
+            return Err(CacheError::InvalidInput(format!(
                 "Invalid backend configuration: {:?}",
                 validation.errors
             )));

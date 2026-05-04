@@ -118,6 +118,10 @@ name = "example_unified_config_tiered"
 path = "src/01_basics/example_unified_config_tiered.rs"
 
 [[example]]
+name = "example_explicit_init"
+path = "src/01_basics/example_explicit_init.rs"
+
+[[example]]
 name = "example_bloom_filter"
 path = "src/06_features/example_bloom_filter.rs"
 

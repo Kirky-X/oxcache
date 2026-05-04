@@ -5,8 +5,6 @@
 //! 布隆过滤器实现 - 用于缓存穿透防护
 //! 通过 `bloom-filter` feature 控制启用/禁用
 
-#![allow(dead_code)]
-
 #[cfg(feature = "bloom-filter")]
 use crate::error::CacheError;
 #[cfg(feature = "bloom-filter")]
@@ -210,6 +208,7 @@ impl BloomFilter {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn add_checked(&mut self, item: &[u8]) -> Result<bool, CacheError> {
         let existed = self.contains(item)?;
         if !existed {
@@ -226,6 +225,7 @@ impl BloomFilter {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     pub fn remove(&self, _item: &[u8]) -> bool {
         false
     }
@@ -268,6 +268,7 @@ impl BloomFilter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_estimated_count(&self) -> usize {
         let total_bits = self.bit_array.len() as f64 * 8.0;
         let used_bits: f64 = self.bit_array.iter().map(|byte| byte.count_ones() as f64).sum();
@@ -282,6 +283,7 @@ impl BloomFilter {
         ((-total_bits * ln_2_sq / used_bits).exp() * num_hashes) as usize
     }
 
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         for byte in &mut self.bit_array {
             *byte = 0;
@@ -330,12 +332,14 @@ impl std::fmt::Display for BloomFilterStats {
 /// 使用Arc包装布隆过滤器，支持多线程共享
 #[cfg(feature = "bloom-filter")]
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct BloomFilterShared {
     filter: Arc<RwLock<BloomFilter>>,
     name: String,
 }
 
 #[cfg(feature = "bloom-filter")]
+#[allow(dead_code)]
 impl BloomFilterShared {
     pub fn new(filter: BloomFilter) -> Self {
         let name = filter.options.name.clone();
@@ -384,11 +388,13 @@ impl BloomFilterShared {
 /// 管理和复用多个布隆过滤器实例
 #[cfg(feature = "bloom-filter")]
 #[derive(Clone, Default)]
+#[allow(dead_code)]
 pub struct BloomFilterManager {
     filters: Arc<RwLock<HashMap<String, BloomFilterShared>>>,
 }
 
 #[cfg(feature = "bloom-filter")]
+#[allow(dead_code)]
 impl BloomFilterManager {
     pub fn new() -> Self {
         Self {
