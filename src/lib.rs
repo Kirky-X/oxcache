@@ -543,6 +543,10 @@ pub use smart_strategy::{
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub mod http;
 
+// SingleFlight Module
+#[cfg(any(feature = "singleflight", feature = "full"))]
+pub(crate) mod singleflight;
+
 // Security Module (Only needed for Redis validation)
 #[cfg(any(feature = "redis", feature = "full"))]
 pub(crate) mod security;

@@ -326,6 +326,7 @@ full = [
     "serialization-cache",
     "lua-script",
     "testing",
+    "singleflight",
 ]
 
 # --------------------------------------------------------------------
@@ -408,6 +409,9 @@ tiered-cache = ["moka", "redis"]
 extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
 config-dynamic = ["dep:confers", "dep:garde", "toml", "confers/validation", "confers/schema"]
 http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util"]
+
+# SingleFlight (cache stampede prevention)
+singleflight = ["dep:tokio-util"]
 
 # Lua Script Execution
 lua-script = ["redis"]
