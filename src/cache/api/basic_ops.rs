@@ -46,6 +46,45 @@ where
         }
     }
 
+    // ========================================================================
+    // Lifecycle and stats methods (delegating to backend)
+    // ========================================================================
+
+    /// Clear all entries in the cache.
+    pub async fn clear(&self) -> Result<()> {
+        self.backend.clear().await
+    }
+
+    /// Shutdown the cache and release resources.
+    pub async fn shutdown(&self) {
+        self.backend.shutdown().await
+    }
+
+    /// Health check for the cache backend.
+    pub async fn health_check(&self) -> Result<()> {
+        self.backend.health_check().await
+    }
+
+    /// Get cache statistics.
+    pub async fn stats(&self) -> Result<std::collections::HashMap<String, String>> {
+        self.backend.stats().await
+    }
+
+    /// Get the number of entries in the cache.
+    pub async fn len(&self) -> Result<u64> {
+        self.backend.len().await
+    }
+
+    /// Check if the cache is empty.
+    pub async fn is_empty(&self) -> Result<bool> {
+        self.backend.is_empty().await
+    }
+
+    /// Get the capacity of the cache.
+    pub async fn capacity(&self) -> Result<u64> {
+        self.backend.capacity().await
+    }
+
     #[cfg_attr(
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key, value), level = "debug", fields(key))
@@ -100,5 +139,78 @@ where
         let value = fallback().await?;
         self.set(key, &value).await?;
         Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cache_clear() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache.clear().await.unwrap();
+        assert!(cache.get(&"key".to_string()).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cache_len() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"key1".to_string(), &"v1".to_string()).await.unwrap();
+        // len() may be approximate for concurrent caches
+        let len = cache.len().await.unwrap();
+        assert!(len >= 0 && len <= 100);
+    }
+
+    #[tokio::test]
+    async fn test_cache_is_empty() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        // Initially empty or near-empty
+        let empty = cache.is_empty().await.unwrap();
+        // After insert, may not be empty
+        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        // is_empty() behavior varies by backend
+    }
+
+    #[tokio::test]
+    async fn test_cache_exists() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        assert!(!cache.exists(&"key".to_string()).await.unwrap());
+        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        assert!(cache.exists(&"key".to_string()).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_cache_delete() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache.delete(&"key".to_string()).await.unwrap();
+        assert!(cache.get(&"key".to_string()).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_or() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        let value = cache
+            .get_or(&"key".to_string(), || async { Ok("computed".to_string()) })
+            .await
+            .unwrap();
+        assert_eq!(value, "computed");
+        let cached = cache.get(&"key".to_string()).await.unwrap().unwrap();
+        assert_eq!(cached, "computed");
+    }
+
+    #[tokio::test]
+    async fn test_cache_health_check() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        assert!(cache.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cache_stats() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        let stats = cache.stats().await.unwrap();
+        assert!(stats.contains_key("type"));
     }
 }

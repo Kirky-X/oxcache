@@ -89,8 +89,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
 
 impl<K, V> CacheBuilder<K, V>
 where
-    K: crate::traits::CacheKey,
-    V: crate::traits::Cacheable,
+    K: crate::core::traits::CacheKey,
+    V: crate::core::traits::Cacheable,
 {
     /// Set the default TTL for cache entries
     ///
@@ -604,7 +604,9 @@ where
 ///
 /// Returns a tuple of (connection_string, mode) extracted from the L2 options.
 #[cfg(all(feature = "redis", feature = "confers"))]
-fn extract_l2_config(config: &crate::core::confers_config::UnifiedConfig) -> (String, crate::backend::memory::RedisMode) {
+fn extract_l2_config(
+    config: &crate::core::confers_config::UnifiedConfig,
+) -> (String, crate::backend::memory::RedisMode) {
     let connection_string = config
         .backend
         .l2_options()

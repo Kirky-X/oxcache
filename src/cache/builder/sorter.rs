@@ -218,4 +218,47 @@ mod tests {
         assert!(result.is_valid());
         assert!(result.has_warnings());
     }
+
+    #[test]
+    fn test_sort_links_same_score() {
+        let a = ChainLink::new(MockBackend::new("a", 50, false), 50, false, "a");
+        let b = ChainLink::new(MockBackend::new("b", 50, true), 50, true, "b");
+
+        let sorted = BackendSorter::sort_links(vec![b, a]);
+        assert_eq!(sorted[0].is_persistent, false);
+    }
+
+    #[test]
+    fn test_sort_links_empty() {
+        let sorted = BackendSorter::sort_links(vec![]);
+        assert!(sorted.is_empty());
+    }
+
+    #[test]
+    fn test_sort_links_single() {
+        let link = ChainLink::new(MockBackend::new("single", 75, false), 75, false, "single");
+        let sorted = BackendSorter::sort_links(vec![link]);
+        assert_eq!(sorted.len(), 1);
+    }
+
+    #[test]
+    fn test_validate_mixed_backends() {
+        let links = vec![
+            ChainLink::new(MockBackend::new("moka", 100, false), 100, false, "moka"),
+            ChainLink::new(MockBackend::new("redis", 50, true), 50, true, "redis"),
+        ];
+
+        let result = BackendSorter::validate(&links);
+        assert!(result.is_valid());
+        assert!(!result.has_warnings());
+    }
+
+    #[test]
+    fn test_validation_result_no_warnings() {
+        let result = ValidationResult {
+            warnings: vec![],
+            errors: vec![],
+        };
+        assert!(!result.has_warnings());
+    }
 }

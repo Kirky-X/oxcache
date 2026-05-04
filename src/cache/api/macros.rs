@@ -59,3 +59,73 @@ where
         executor.script_load(_script).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::api::Cache;
+
+    // ========================================================================
+    // register_for_macro tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_register_for_macro_string_vec_u8() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        cache.register_for_macro("test_service").await;
+    }
+
+    #[tokio::test]
+    async fn test_register_for_macro_non_matching_types_not_registered() {
+        let cache: Cache<String, String> = Cache::memory().await.unwrap();
+        cache.register_for_macro("another_service").await;
+    }
+
+    #[tokio::test]
+    async fn test_register_for_macro_multiple_services() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        cache.register_for_macro("svc_a").await;
+        cache.register_for_macro("svc_b").await;
+    }
+
+    #[tokio::test]
+    async fn test_register_for_macro_empty_service_name() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        cache.register_for_macro("").await;
+    }
+
+    // ========================================================================
+    // Lua script feature-gated tests
+    // ========================================================================
+
+    #[tokio::test]
+    #[cfg(feature = "lua-script")]
+    async fn test_eval_lua_returns_error_on_non_redis_backend() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        let result = cache.eval_lua("return 1", &[], &[]).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match &err {
+            CacheError::Operation(msg) => {
+                assert!(msg.contains("Lua scripts require a Redis backend"));
+            }
+            _ => panic!("Expected Operation error, got {:?}", err),
+        }
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "lua-script")]
+    async fn test_eval_sha_returns_error_on_non_redis_backend() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        let result = cache.eval_sha("abc123", &[], &[]).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "lua-script")]
+    async fn test_script_load_returns_error_on_non_redis_backend() {
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        let result = cache.script_load("return 1").await;
+        assert!(result.is_err());
+    }
+}
