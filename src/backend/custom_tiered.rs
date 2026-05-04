@@ -140,11 +140,11 @@ impl PathValidationConfig {
                             buf.push(part);
                         }
                         std::path::Component::CurDir => {} // 忽略 .
-                        std::path::Component::ParentDir => {
+                        std::path::Component::ParentDir
                             // 尝试弹出父目录，但不允许超出基础
-                            if !buf.pop() {
-                                return Err(CacheError::InvalidInput("Path traversal attempt detected".to_string()));
-                            }
+                            if !buf.pop() =>
+                        {
+                            return Err(CacheError::InvalidInput("Path traversal attempt detected".to_string()));
                         }
                         _ => {}
                     }

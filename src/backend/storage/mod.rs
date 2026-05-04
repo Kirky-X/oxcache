@@ -30,3 +30,43 @@ impl DatabaseType {
         DatabaseType::SQLite
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_database_type_from_url_sqlite() {
+        assert_eq!(DatabaseType::from_url("sqlite:./test.db"), DatabaseType::SQLite);
+    }
+
+    #[test]
+    fn test_database_type_from_url_redis() {
+        // Currently always returns SQLite
+        assert_eq!(DatabaseType::from_url("redis://localhost"), DatabaseType::SQLite);
+    }
+
+    #[test]
+    fn test_database_type_from_url_empty() {
+        assert_eq!(DatabaseType::from_url(""), DatabaseType::SQLite);
+    }
+
+    #[test]
+    fn test_database_type_debug() {
+        let debug = format!("{:?}", DatabaseType::SQLite);
+        assert!(debug.contains("SQLite"));
+    }
+
+    #[test]
+    fn test_database_type_clone_eq() {
+        let t = DatabaseType::SQLite;
+        let cloned = t;
+        assert_eq!(t, cloned);
+    }
+
+    #[test]
+    fn test_database_type_serialize() {
+        let serialized = serde_json::to_string(&DatabaseType::SQLite).unwrap();
+        assert!(serialized.contains("SQLite"));
+    }
+}

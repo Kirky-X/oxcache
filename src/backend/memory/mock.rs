@@ -134,3 +134,97 @@ impl crate::backend::CacheConnector for MockBackend {
 }
 
 // CacheBackend is automatically implemented via blanket implementation
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+    use crate::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter};
+
+    #[tokio::test]
+    async fn test_mock_backend_new() {
+        let backend = MockBackend::new("test", 50, false);
+        assert_eq!(BackendScore::score(&backend), 50);
+        assert_eq!(BackendScore::backend_name(&backend), "test");
+        assert!(!BackendScore::is_persistent(&backend));
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_set_get() {
+        let backend = MockBackend::new("test", 50, false);
+        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+            .await
+            .unwrap();
+        let result = CacheReader::get(&backend, "key").await.unwrap();
+        assert_eq!(result, Some(b"value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_delete() {
+        let backend = MockBackend::new("test", 50, false);
+        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+            .await
+            .unwrap();
+        CacheWriter::delete(&backend, "key").await.unwrap();
+        assert!(CacheReader::get(&backend, "key").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_clear() {
+        let backend = MockBackend::new("test", 50, false);
+        CacheWriter::set(&backend, "k1", b"v1".to_vec(), None).await.unwrap();
+        CacheWriter::clear(&backend).await.unwrap();
+        assert!(CacheReader::is_empty(&backend).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_exists() {
+        let backend = MockBackend::new("test", 50, false);
+        assert!(!CacheReader::exists(&backend, "key").await.unwrap());
+        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+            .await
+            .unwrap();
+        assert!(CacheReader::exists(&backend, "key").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_len() {
+        let backend = MockBackend::new("test", 50, false);
+        assert_eq!(CacheReader::len(&backend).await.unwrap(), 0);
+        CacheWriter::set(&backend, "k1", b"v1".to_vec(), None).await.unwrap();
+        assert_eq!(CacheReader::len(&backend).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_stats() {
+        let backend = MockBackend::new("test", 50, false);
+        let stats = CacheReader::stats(&backend).await.unwrap();
+        assert_eq!(stats.get("type"), Some(&"test".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_health_check() {
+        let backend = MockBackend::new("test", 50, false);
+        assert!(CacheConnector::health_check(&backend).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_shutdown() {
+        let backend = MockBackend::new("test", 50, false);
+        CacheConnector::shutdown(&backend).await;
+    }
+
+    #[test]
+    fn test_mock_backend_kind() {
+        let backend = MockBackend::new("test", 50, false);
+        assert_eq!(
+            CacheConnector::backend_kind(&backend),
+            crate::backend::interface::BackendKind::Mock
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_persistent() {
+        let backend = MockBackend::new("test", 50, true);
+        assert!(BackendScore::is_persistent(&backend));
+    }
+}

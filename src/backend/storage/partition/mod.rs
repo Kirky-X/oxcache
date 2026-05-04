@@ -208,3 +208,278 @@ pub trait PartitionManager: Send + Sync {
             .unwrap_or_else(Utc::now) // Fallback to now if invalid
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Datelike, TimeZone, Timelike};
+
+    struct TestManager;
+    #[async_trait]
+    impl PartitionManager for TestManager {
+        async fn initialize_table(&self, _table_name: &str, _schema: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn create_partition(&self, _partition: &PartitionInfo) -> Result<()> {
+            Ok(())
+        }
+        async fn get_partitions(&self, _table_name: &str) -> Result<Vec<PartitionInfo>> {
+            Ok(vec![])
+        }
+        async fn drop_partition(&self, _table_name: &str, _partition_name: &str) -> Result<()> {
+            Ok(())
+        }
+        async fn ensure_partition_exists(&self, _date: DateTime<Utc>, _table_name: &str) -> Result<String> {
+            Ok(String::new())
+        }
+        fn get_config(&self) -> PartitionConfig {
+            PartitionConfig::default()
+        }
+    }
+
+    #[test]
+    fn test_partition_config_default() {
+        let config = PartitionConfig::default();
+        assert!(config.enabled);
+        assert_eq!(config.strategy, PartitionStrategy::Monthly);
+        assert_eq!(config.retention_months, 12);
+        assert_eq!(config.precreate_months, 3);
+    }
+
+    #[test]
+    fn test_partition_config_custom() {
+        let config = PartitionConfig {
+            enabled: false,
+            strategy: PartitionStrategy::Range,
+            retention_months: 6,
+            precreate_months: 1,
+        };
+        assert!(!config.enabled);
+        assert_eq!(config.strategy, PartitionStrategy::Range);
+    }
+
+    #[test]
+    fn test_partition_config_clone_debug() {
+        let config = PartitionConfig::default();
+        let cloned = config.clone();
+        assert_eq!(config.enabled, cloned.enabled);
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("PartitionConfig"));
+    }
+
+    #[test]
+    fn test_partition_strategy_equality() {
+        assert_eq!(PartitionStrategy::Monthly, PartitionStrategy::Monthly);
+        assert_ne!(PartitionStrategy::Monthly, PartitionStrategy::Range);
+    }
+
+    #[test]
+    fn test_partition_strategy_debug() {
+        assert_eq!(format!("{:?}", PartitionStrategy::Monthly), "Monthly");
+        assert_eq!(format!("{:?}", PartitionStrategy::Range), "Range");
+    }
+
+    #[test]
+    fn test_partition_strategy_serialize() {
+        let s = PartitionStrategy::Monthly;
+        let serialized = serde_json::to_string(&s).unwrap();
+        assert!(serialized.contains("Monthly"));
+    }
+
+    #[test]
+    fn test_partition_info_new() {
+        let date = Utc.with_ymd_and_hms(2024, 3, 15, 10, 30, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "cache").unwrap();
+        assert_eq!(info.name, "cache_2024_03");
+        assert_eq!(info.table_name, "cache");
+        assert_eq!(info.start_date.year(), 2024);
+        assert_eq!(info.start_date.month(), 3);
+        assert_eq!(info.start_date.day(), 1);
+        assert_eq!(info.start_date.hour(), 0);
+        assert!(!info.created);
+    }
+
+    #[test]
+    fn test_partition_info_new_december() {
+        let date = Utc.with_ymd_and_hms(2024, 12, 25, 0, 0, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "data").unwrap();
+        assert_eq!(info.name, "data_2024_12");
+        assert_eq!(info.end_date.year(), 2025);
+        assert_eq!(info.end_date.month(), 1);
+    }
+
+    #[test]
+    fn test_partition_info_new_january() {
+        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "logs").unwrap();
+        assert_eq!(info.start_date.month(), 1);
+        assert_eq!(info.end_date.month(), 2);
+    }
+
+    #[test]
+    fn test_partition_info_clone_debug() {
+        let date = Utc.with_ymd_and_hms(2024, 5, 10, 0, 0, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "test").unwrap();
+        let cloned = info.clone();
+        assert_eq!(cloned.name, info.name);
+        let debug = format!("{:?}", info);
+        assert!(debug.contains("PartitionInfo"));
+    }
+
+    #[test]
+    fn test_partition_info_serialize_deserialize() {
+        let date = Utc.with_ymd_and_hms(2024, 7, 20, 0, 0, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "cache").unwrap();
+        let serialized = serde_json::to_string(&info).unwrap();
+        let deserialized: PartitionInfo = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.name, info.name);
+    }
+
+    #[test]
+    fn test_extract_base_table_partition_format() {
+        let manager = TestManager;
+        assert_eq!(manager.extract_base_table("cache_2024_03"), "cache");
+        assert_eq!(manager.extract_base_table("my_table_2023_12"), "my_table");
+        assert_eq!(manager.extract_base_table("data_2025_01"), "data");
+    }
+
+    #[test]
+    fn test_extract_base_table_non_partition() {
+        let manager = TestManager;
+        assert_eq!(manager.extract_base_table("simple_table"), "simple_table");
+        assert_eq!(manager.extract_base_table("cache"), "cache");
+    }
+
+    #[test]
+    fn test_extract_base_table_multi_part_name() {
+        let manager = TestManager;
+        assert_eq!(manager.extract_base_table("my_app_cache_2024_06"), "my_app_cache");
+    }
+
+    #[test]
+    fn test_generate_partition_name() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 3, 15, 0, 0, 0).single().unwrap();
+        assert_eq!(manager.generate_partition_name(&date, "cache"), "cache_2024_03");
+        assert_eq!(manager.generate_partition_name(&date, "data"), "data_2024_03");
+    }
+
+    #[test]
+    fn test_generate_partition_name_single_digit_month() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap();
+        assert_eq!(manager.generate_partition_name(&date, "cache"), "cache_2024_01");
+    }
+
+    #[test]
+    fn test_generate_partition_table_name() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 11, 10, 0, 0, 0).single().unwrap();
+        assert_eq!(manager.generate_partition_table_name("cache", &date), "cache_2024_11");
+    }
+
+    #[test]
+    fn test_parse_partition_date_valid() {
+        let manager = TestManager;
+        let result = manager.parse_partition_date("cache_2024_03");
+        assert!(result.is_some());
+        let date = result.unwrap();
+        assert_eq!(date.year(), 2024);
+        assert_eq!(date.month(), 3);
+    }
+
+    #[test]
+    fn test_parse_partition_date_invalid() {
+        let manager = TestManager;
+        assert!(manager.parse_partition_date("simple").is_none());
+        assert!(manager.parse_partition_date("table_abc").is_none());
+        assert!(manager.parse_partition_date("cache_2024").is_none());
+    }
+
+    #[test]
+    fn test_get_next_month_first_day_normal() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 3, 15, 10, 30, 0).single().unwrap();
+        let next = manager.get_next_month_first_day(&date);
+        assert_eq!(next.year(), 2024);
+        assert_eq!(next.month(), 4);
+        assert_eq!(next.day(), 1);
+    }
+
+    #[test]
+    fn test_get_next_month_first_day_december() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 12, 31, 0, 0, 0).single().unwrap();
+        let next = manager.get_next_month_first_day(&date);
+        assert_eq!(next.year(), 2025);
+        assert_eq!(next.month(), 1);
+    }
+
+    #[test]
+    fn test_get_config_returns_config() {
+        let manager = TestManager;
+        let config = manager.get_config();
+        assert!(config.enabled);
+        assert_eq!(config.retention_months, 12);
+    }
+
+    #[tokio::test]
+    async fn test_default_methods_initialize_table() {
+        let manager = TestManager;
+        assert!(manager
+            .initialize_table("cache", "CREATE TABLE IF NOT EXISTS test (id INTEGER)")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_default_methods_create_partition() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).single().unwrap();
+        let info = PartitionInfo::new(date, "cache").unwrap();
+        assert!(manager.create_partition(&info).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_default_methods_get_partitions() {
+        let manager = TestManager;
+        let partitions = manager.get_partitions("cache").await.unwrap();
+        assert!(partitions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_default_methods_drop_partition() {
+        let manager = TestManager;
+        assert!(manager.drop_partition("cache", "cache_2024_03").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_default_methods_ensure_partition_exists() {
+        let manager = TestManager;
+        let date = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).single().unwrap();
+        let result = manager.ensure_partition_exists(date, "cache").await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_precreate_partitions_zero() {
+        let manager = TestManager;
+        let result = manager.precreate_partitions("cache", 0).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_precreate_partitions_multiple() {
+        let manager = TestManager;
+        let result = manager.precreate_partitions("events", 2).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_old_partitions_empty() {
+        let manager = TestManager;
+        let cutoff = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).single().unwrap();
+        let dropped = manager.cleanup_old_partitions("cache", cutoff).await.unwrap();
+        assert_eq!(dropped, 0);
+    }
+}

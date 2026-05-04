@@ -487,3 +487,74 @@ impl PartitionManager for SQLitePartitionManager {
         Ok(partition_table)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn create_memory_manager() -> Result<SQLitePartitionManager> {
+        SQLitePartitionManager::new("sqlite::memory:", PartitionConfig::default()).await
+    }
+
+    #[tokio::test]
+    async fn test_validate_identifier_valid() {
+        let manager = create_memory_manager().await.unwrap();
+        assert!(manager.validate_identifier("valid_name").is_ok());
+        assert!(manager.validate_identifier("_underscore").is_ok());
+        assert!(manager.validate_identifier("CamelCase").is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_validate_identifier_empty() {
+        let manager = create_memory_manager().await.unwrap();
+        let result = manager.validate_identifier("");
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_identifier_starts_digit() {
+        let manager = create_memory_manager().await.unwrap();
+        let result = manager.validate_identifier("123table");
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_identifier_reserved_keyword() {
+        let manager = create_memory_manager().await.unwrap();
+        assert!(manager.validate_identifier("SELECT").is_err());
+        assert!(manager.validate_identifier("DROP").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_validate_identifier_too_long() {
+        let manager = create_memory_manager().await.unwrap();
+        let result = manager.validate_identifier(&"a".repeat(129));
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_escape_identifier() {
+        let manager = create_memory_manager().await.unwrap();
+        assert_eq!(manager.escape_identifier("valid").unwrap(), "\"valid\"");
+    }
+
+    #[tokio::test]
+    async fn test_new_memory_database() {
+        assert!(create_memory_manager().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_initialize_table() {
+        let manager = create_memory_manager().await.unwrap();
+        let schema = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)";
+        assert!(manager.initialize_table("test", schema).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_partitions_empty() {
+        let manager = create_memory_manager().await.unwrap();
+        let schema = "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)";
+        manager.initialize_table("test", schema).await.unwrap();
+        assert!(manager.get_partitions("test").await.unwrap().is_empty());
+    }
+}
