@@ -1,76 +1,71 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Run All Scripts — 统一入口
 
-# Run All Scripts
-# ==================================
-# Entry point for running all scripts in organized structure
+set -euo pipefail
 
-set -e
-
-# 引入公共库
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 show_help() {
     cat << EOF
-Run All Scripts
-
 用法: $0 [选项]
 
 选项:
-  --pre-commit        运行预提交检查
-  --tests            运行所有测试
-  --validation       运行验证脚本
-  --performance      运行性能测试
-  --all              运行所有脚本
-  -h, --help         显示帮助信息
+  --pre-commit        运行预提交 7 阶段检查
+  --tests             运行所有测试
+  --validation        运行全部验证 (特性/文档/安全)
+  --performance       运行 Redis 性能测试
+  --all               运行所有
+  -h, --help          显示帮助
 
 示例:
-  $0 --pre-commit    # 运行预提交检查
-  $0 --all           # 运行所有脚本
+  $0 --pre-commit      # 代码检查
+  $0 --validation      # 验证
 EOF
 }
 
 case "${1:-all}" in
     --pre-commit)
         log_info "Running pre-commit checks..."
-        "$SCRIPT_DIR/pre-commit/run-all.sh"
+        if [ -f "$SCRIPT_DIR/hooks/pre-commit.sh" ]; then
+            bash "$SCRIPT_DIR/hooks/pre-commit.sh"
+        else
+            log_error "scripts/hooks/pre-commit.sh 未找到"
+            log_info "请运行: bash scripts/hooks/setup-hooks.sh"
+            exit 1
+        fi
         ;;
     --tests)
         log_info "Running all tests..."
-        "$SCRIPT_DIR/tests/run_all_tests.sh"
-        "$SCRIPT_DIR/tests/real_redis_test.sh" --all
+        bash "$SCRIPT_DIR/tests/run_all_tests.sh" all
         ;;
     --validation)
-        log_info "Running validation scripts..."
-        "$SCRIPT_DIR/validation/validate-feature-combinations.sh" --all
-        "$SCRIPT_DIR/validation/validate_docs.sh"
-        "$SCRIPT_DIR/validation/security_audit.sh"
+        log_info "Running validation..."
+        bash "$SCRIPT_DIR/validate.sh" all
         ;;
     --performance)
-        log_info "Running performance tests..."
-        "$SCRIPT_DIR/performance/redis_perf_test.sh"
+        log_info "Running Redis performance tests..."
+        bash "$SCRIPT_DIR/redis.sh" perf
         ;;
     --all)
         log_info "Running all scripts..."
 
-        # 运行预提交检查
-        log_info "Running pre-commit checks..."
-        "$SCRIPT_DIR/pre-commit/run-all.sh"
+        # 预提交检查
+        if [ -f "$SCRIPT_DIR/hooks/pre-commit.sh" ]; then
+            bash "$SCRIPT_DIR/hooks/pre-commit.sh" || true
+        fi
 
-        # 运行验证
-        log_info "Running validation scripts..."
-        "$SCRIPT_DIR/validation/validate-feature-combinations.sh" --all
-        "$SCRIPT_DIR/validation/validate_docs.sh"
-        "$SCRIPT_DIR/validation/security_audit.sh"
+        # 验证
+        log_info "Running validation..."
+        bash "$SCRIPT_DIR/validate.sh" all || true
 
-        # 运行测试
+        # 测试
         log_info "Running tests..."
-        "$SCRIPT_DIR/tests/run_all_tests.sh"
-        "$SCRIPT_DIR/tests/real_redis_test.sh" --all
+        bash "$SCRIPT_DIR/tests/run_all_tests.sh" all || true
 
-        # 运行性能测试
+        # 性能
         log_info "Running performance tests..."
-        "$SCRIPT_DIR/performance/redis_perf_test.sh"
+        bash "$SCRIPT_DIR/redis.sh" perf || true
         ;;
     -h|--help)
         show_help

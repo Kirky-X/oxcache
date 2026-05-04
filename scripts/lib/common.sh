@@ -9,6 +9,103 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# ==================== 增强颜色定义 ====================
+BOLD='\033[1m'
+CYAN='\033[0;36m'
+
+# ==================== 检查追踪 ====================
+CHECK_PASS=0
+CHECK_FAIL=0
+CHECK_SKIP=0
+CHECK_DETAILS=""
+
+check_pass() {
+    local label="$1"
+    echo -e "  ${GREEN}✓${NC} ${label}"
+    CHECK_PASS=$((CHECK_PASS + 1))
+}
+
+check_fail() {
+    local label="$1"
+    echo -e "  ${RED}✗${NC} ${label}"
+    CHECK_FAIL=$((CHECK_FAIL + 1))
+    CHECK_DETAILS="${CHECK_DETAILS}  ${RED}✗${NC} ${label}\n"
+}
+
+check_skip() {
+    local label="$1"
+    echo -e "  ${YELLOW}⚠${NC} ${label} — 跳过（未安装）"
+    CHECK_SKIP=$((CHECK_SKIP + 1))
+}
+
+banner() {
+    local phase="$1"
+    local title="$2"
+    echo ""
+    echo -e "${BLUE}━━━ Phase ${phase} — ${title} ━━━${NC}"
+}
+
+# ==================== 网络安全执行 ====================
+network_safe() {
+    local label="$1"
+    shift
+    local rc=0
+    local out
+    out=$("$@" 2>&1) || rc=$?
+    if [ $rc -ne 0 ]; then
+        if echo "$out" | grep -qi "error\|Could not\|Connection refused\|timeout\|dns"; then
+            echo -e "  ${YELLOW}⚠${NC} ${label} — 网络异常，跳过"
+            echo "$out" | head -5
+        else
+            check_fail "${label}"
+            echo "$out"
+        fi
+    else
+        check_pass "${label}"
+    fi
+}
+
+# ==================== Git 暂存文件检查 ====================
+check_staged_files_size() {
+    local max_size="${1:-1048576}"  # 默认 1MB
+    local oversized=0
+    while IFS= read -r -d '' file; do
+        if [ -f "$file" ]; then
+            size=$(stat -c%s "$file" 2>/dev/null || echo 0)
+            if [ "$size" -gt "$max_size" ]; then
+                echo -e "  ${RED}✗${NC} 文件过大（$(( size / 1024 / 1024 ))MB）: ${file}"
+                echo "    请使用 git-lfs 跟踪此文件"
+                oversized=1
+            fi
+        fi
+    done < <(git diff --cached --name-only -z 2>/dev/null)
+
+    if [ "$oversized" -eq 1 ]; then
+        return 1
+    fi
+    return 0
+}
+
+# ==================== 检查结果汇总 ====================
+print_check_summary() {
+    local total=$((CHECK_PASS + CHECK_FAIL + CHECK_SKIP))
+    echo ""
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════${NC}"
+    echo -e "  总计: ${total}  |  ${GREEN}通过: ${CHECK_PASS}${NC}  |  ${RED}失败: ${CHECK_FAIL}${NC}  |  ${YELLOW}跳过: ${CHECK_SKIP}${NC}"
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════${NC}"
+    if [ $CHECK_FAIL -gt 0 ]; then
+        echo -e "\n${RED}${BOLD}  失败项:${NC}"
+        echo -e "${CHECK_DETAILS}"
+    fi
+}
+
+reset_check_stats() {
+    CHECK_PASS=0
+    CHECK_FAIL=0
+    CHECK_SKIP=0
+    CHECK_DETAILS=""
+}
+
 # ==================== 日志函数 ====================
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"

@@ -5,7 +5,7 @@
 //! Redis L2 缓存性能基准测试
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use oxcache::backend::client::RedisBackend;
+use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::CacheBackend;
 use std::time::Duration;
 use tokio::runtime::Runtime;
