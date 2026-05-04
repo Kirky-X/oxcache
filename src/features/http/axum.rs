@@ -276,4 +276,204 @@ mod tests {
         // 验证删除
         assert!(adapter.get_response("test_key").await.unwrap().is_none());
     }
+
+    #[test]
+    fn test_config_with_key_generator() {
+        let adapter = Arc::new(MemoryCacheAdapter::new());
+        let key_gen = HttpCacheKeyGenerator::new().with_include_method(true);
+        let config = CacheMiddlewareConfig::new(adapter).with_key_generator(key_gen);
+        // Verify key_generator is set (no public field access)
+        assert!(format!("{:?}", config).contains("key_generator"));
+    }
+
+    #[test]
+    fn test_config_default_values() {
+        let adapter = Arc::new(MemoryCacheAdapter::new());
+        let config = CacheMiddlewareConfig::new(adapter);
+        assert!(config.bypass_header.is_none());
+        assert_eq!(config.policy.default_ttl, 0);
+    }
+
+    #[test]
+    fn test_middleware_state_clone() {
+        let adapter = Arc::new(MemoryCacheAdapter::new());
+        let state = CacheMiddlewareState {
+            adapter: adapter.clone(),
+            key_generator: HttpCacheKeyGenerator::new(),
+            policy: HttpCachePolicy::new(),
+            bypass_header: Some("X-Bypass".to_string()),
+        };
+        let cloned = state.clone();
+        assert_eq!(cloned.bypass_header, state.bypass_header);
+    }
+
+    #[tokio::test]
+    async fn test_adapter_invalidate_by_pattern() {
+        let adapter = MemoryCacheAdapter::new();
+        let response = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: vec![],
+            cached_at: chrono::Utc::now(),
+            ttl: Some(3600),
+            etag: None,
+            last_modified: None,
+        };
+        adapter.set_response("key1", &response).await.unwrap();
+        adapter.set_response("key2", &response).await.unwrap();
+        let count = adapter.invalidate_by_pattern("key*").await.unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_adapter_get_responses() {
+        let adapter = MemoryCacheAdapter::new();
+        let response = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: vec![1, 2, 3],
+            cached_at: chrono::Utc::now(),
+            ttl: Some(3600),
+            etag: None,
+            last_modified: None,
+        };
+        adapter.set_response("k1", &response).await.unwrap();
+        adapter.set_response("k2", &response).await.unwrap();
+        let results = adapter.get_responses(&["k1", "k2", "k3"]).await.unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results.contains_key("k1"));
+        assert!(results.contains_key("k2"));
+    }
+
+    #[test]
+    fn test_config_debug_format() {
+        let adapter = Arc::new(MemoryCacheAdapter::new());
+        let config = CacheMiddlewareConfig::new(adapter);
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("CacheMiddlewareConfig"));
+    }
+
+    #[test]
+    fn test_build_response_with_etag() {
+        let cached = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: b"test body".to_vec(),
+            cached_at: chrono::Utc::now(),
+            ttl: Some(3600),
+            etag: Some("test-etag".to_string()),
+            last_modified: None,
+        };
+
+        let response = build_response(&cached);
+        assert_eq!(response.status(), 200);
+        assert!(response.headers().contains_key("ETag"));
+    }
+
+    #[test]
+    fn test_build_response_with_ttl() {
+        let cached = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: vec![],
+            cached_at: chrono::Utc::now(),
+            ttl: Some(600),
+            etag: None,
+            last_modified: None,
+        };
+
+        let response = build_response(&cached);
+        assert!(response.headers().contains_key("Cache-Control"));
+        let cache_control = response.headers().get("Cache-Control").unwrap();
+        assert!(cache_control.to_str().unwrap().contains("max-age=600"));
+    }
+
+    #[test]
+    fn test_build_response_with_headers() {
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        headers.insert("X-Custom".to_string(), "custom-value".to_string());
+
+        let cached = HttpCacheResponse {
+            status: 201,
+            headers,
+            body: b"created".to_vec(),
+            cached_at: chrono::Utc::now(),
+            ttl: None,
+            etag: None,
+            last_modified: None,
+        };
+
+        let response = build_response(&cached);
+        assert_eq!(response.status(), 201);
+        assert!(response.headers().contains_key("Content-Type"));
+        assert!(response.headers().contains_key("X-Custom"));
+    }
+
+    #[tokio::test]
+    async fn test_adapter_get_responses_empty_keys() {
+        let adapter = MemoryCacheAdapter::new();
+        let results = adapter.get_responses(&[]).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_adapter_delete_nonexistent() {
+        let adapter = MemoryCacheAdapter::new();
+        let deleted = adapter.delete_response("nonexistent").await.unwrap();
+        assert!(!deleted);
+    }
+
+    #[test]
+    fn test_cache_middleware_state_from_config() {
+        let adapter = Arc::new(MemoryCacheAdapter::new());
+        let config = CacheMiddlewareConfig::new(adapter)
+            .with_bypass_header("X-Bypass".to_string())
+            .with_policy(HttpCachePolicy::new().with_default_ttl(300));
+
+        let state = CacheMiddlewareState {
+            adapter: config.cache_adapter,
+            key_generator: config.key_generator,
+            policy: config.policy,
+            bypass_header: config.bypass_header,
+        };
+
+        assert_eq!(state.policy.default_ttl, 300);
+        assert_eq!(state.bypass_header, Some("X-Bypass".to_string()));
+    }
+
+    #[test]
+    fn test_http_cache_response_debug() {
+        let response = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: vec![],
+            cached_at: chrono::Utc::now(),
+            ttl: None,
+            etag: None,
+            last_modified: None,
+        };
+
+        let debug_str = format!("{:?}", response);
+        assert!(debug_str.contains("HttpCacheResponse"));
+        assert!(debug_str.contains("status: 200"));
+    }
+
+    #[test]
+    fn test_http_cache_response_clone() {
+        let response = HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: b"data".to_vec(),
+            cached_at: chrono::Utc::now(),
+            ttl: Some(100),
+            etag: Some("etag123".to_string()),
+            last_modified: None,
+        };
+
+        let cloned = response.clone();
+        assert_eq!(cloned.status, response.status);
+        assert_eq!(cloned.body, response.body);
+        assert_eq!(cloned.etag, response.etag);
+    }
 }

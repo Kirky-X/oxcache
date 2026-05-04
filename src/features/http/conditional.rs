@@ -4,7 +4,7 @@
 //!
 //! HTTP 条件请求处理器
 
-use http::header::{self, HeaderMap};
+use http::header::HeaderMap;
 use http::StatusCode;
 use std::collections::HashMap;
 
@@ -127,5 +127,212 @@ impl ConditionalRequestHandler {
     pub fn generate_weak_etag(&self, body: &[u8]) -> String {
         let digest = md5::compute(body);
         format!("W/\"{:x}\"", digest)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn make_cached_response(etag: Option<String>, last_modified: Option<String>) -> HttpCacheResponse {
+        HttpCacheResponse {
+            status: 200,
+            headers: HashMap::new(),
+            body: b"Hello, World!".to_vec(),
+            cached_at: chrono::DateTime::parse_from_rfc2822("Mon, 01 Jan 2024 12:00:00 +0000")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            ttl: Some(3600),
+            etag,
+            last_modified,
+        }
+    }
+
+    #[test]
+    fn test_check_conditional_etag_match_with_quotes() {
+        // cached_etag = "\"abc123\"", request_etag = "\"abc123\""
+        // Logic: request_etag == cached_etag.trim_matches('"') || request_etag == cached_etag
+        // trim_matches('"') on "\"abc123\"" -> "abc123"
+        // So: "\"abc123\"" == "abc123" -> false, "\"abc123\"" == "\"abc123\"" -> true
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(Some("\"abc123\"".to_string()), None);
+        let result = handler.check_conditional(&response, Some("\"abc123\""), None);
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
+    }
+
+    #[test]
+    fn test_check_conditional_etag_match_without_quotes() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(Some("abc123".to_string()), None);
+        let result = handler.check_conditional(&response, Some("abc123"), None);
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
+    }
+
+    #[test]
+    fn test_check_conditional_etag_no_match() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(Some("abc123".to_string()), None);
+        let result = handler.check_conditional(&response, Some("\"xyz789\""), None);
+        assert!(matches!(result, ConditionalRequestResult::FullResponse(_)));
+    }
+
+    #[test]
+    fn test_check_conditional_etag_cached_has_none() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(None, None);
+        let result = handler.check_conditional(&response, Some("abc123"), None);
+        assert!(matches!(result, ConditionalRequestResult::FullResponse(_)));
+    }
+
+    #[test]
+    fn test_check_conditional_no_conditionals_returns_full() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(Some("abc123".to_string()), None);
+        let result = handler.check_conditional(&response, None, None);
+        match result {
+            ConditionalRequestResult::FullResponse(resp) => assert_eq!(resp.etag, Some("abc123".to_string())),
+            _ => panic!("Expected FullResponse"),
+        }
+    }
+
+    #[test]
+    fn test_check_conditional_if_modified_since_not_modified() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(None, None);
+        let result = handler.check_conditional(&response, None, Some("Tue, 02 Jan 2024 12:00:00 +0000"));
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
+    }
+
+    #[test]
+    fn test_check_conditional_if_modified_since_still_modified() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(None, None);
+        let result = handler.check_conditional(&response, None, Some("Sun, 31 Dec 2023 12:00:00 +0000"));
+        assert!(matches!(result, ConditionalRequestResult::FullResponse(_)));
+    }
+
+    #[test]
+    fn test_check_conditional_if_modified_since_invalid_date() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(None, None);
+        let result = handler.check_conditional(&response, None, Some("not-a-date"));
+        assert!(matches!(result, ConditionalRequestResult::FullResponse(_)));
+    }
+
+    #[test]
+    fn test_check_conditional_etag_takes_precedence() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(Some("abc123".to_string()), None);
+        let result = handler.check_conditional(&response, Some("abc123"), Some("Sun, 31 Dec 2023 12:00:00 +0000"));
+        assert!(matches!(result, ConditionalRequestResult::NotModified));
+    }
+
+    #[test]
+    fn test_create_not_modified_response_with_etag_and_last_modified() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(
+            Some("\"myetag\"".to_string()),
+            Some("Mon, 01 Jan 2024 12:00:00 GMT".to_string()),
+        );
+        let result = handler.create_not_modified_response(&response);
+        assert_eq!(result.status, StatusCode::NOT_MODIFIED.as_u16());
+        assert_eq!(result.headers.get("ETag"), Some(&"\"myetag\"".to_string()));
+        assert_eq!(
+            result.headers.get("Last-Modified"),
+            Some(&"Mon, 01 Jan 2024 12:00:00 GMT".to_string())
+        );
+        assert!(result.headers.contains_key("Date"));
+        assert!(result.body.is_empty());
+    }
+
+    #[test]
+    fn test_create_not_modified_response_without_etag_or_last_modified() {
+        let handler = ConditionalRequestHandler::new();
+        let response = make_cached_response(None, None);
+        let result = handler.create_not_modified_response(&response);
+        assert_eq!(result.status, StatusCode::NOT_MODIFIED.as_u16());
+        assert!(!result.headers.contains_key("ETag"));
+        assert!(!result.headers.contains_key("Last-Modified"));
+        assert!(result.headers.contains_key("Date"));
+        assert!(result.body.is_empty());
+    }
+
+    #[test]
+    fn test_extract_conditionals_both_present() {
+        let handler = ConditionalRequestHandler::new();
+        let mut headers = HeaderMap::new();
+        headers.insert(http::header::IF_NONE_MATCH, "\"abc123\"".parse().unwrap());
+        headers.insert(
+            http::header::IF_MODIFIED_SINCE,
+            "Mon, 01 Jan 2024 12:00:00 GMT".parse().unwrap(),
+        );
+        let (if_none_match, if_modified_since) = handler.extract_conditionals(&headers);
+        assert_eq!(if_none_match, Some("\"abc123\"".to_string()));
+        assert_eq!(if_modified_since, Some("Mon, 01 Jan 2024 12:00:00 GMT".to_string()));
+    }
+
+    #[test]
+    fn test_extract_conditionals_neither_present() {
+        let handler = ConditionalRequestHandler::new();
+        let headers = HeaderMap::new();
+        let (if_none_match, if_modified_since) = handler.extract_conditionals(&headers);
+        assert!(if_none_match.is_none());
+        assert!(if_modified_since.is_none());
+    }
+
+    #[test]
+    fn test_extract_conditionals_only_if_none_match() {
+        let handler = ConditionalRequestHandler::new();
+        let mut headers = HeaderMap::new();
+        headers.insert(http::header::IF_NONE_MATCH, "\"xyz\"".parse().unwrap());
+        let (if_none_match, if_modified_since) = handler.extract_conditionals(&headers);
+        assert_eq!(if_none_match, Some("\"xyz\"".to_string()));
+        assert!(if_modified_since.is_none());
+    }
+
+    #[test]
+    #[cfg(not(feature = "sha2"))]
+    fn test_generate_strong_etag_md5() {
+        let handler = ConditionalRequestHandler::new();
+        let etag = handler.generate_strong_etag(b"hello");
+        assert!(etag.starts_with('"'));
+        assert!(etag.ends_with('"'));
+        assert_eq!(etag.len(), 34);
+    }
+
+    #[test]
+    #[cfg(not(feature = "sha2"))]
+    fn test_generate_weak_etag_md5() {
+        let handler = ConditionalRequestHandler::new();
+        let etag = handler.generate_weak_etag(b"hello");
+        assert!(etag.starts_with("W/\""));
+        assert!(etag.ends_with('"'));
+    }
+
+    #[test]
+    #[cfg(not(feature = "sha2"))]
+    fn test_generate_strong_etag_empty_body() {
+        let handler = ConditionalRequestHandler::new();
+        let etag = handler.generate_strong_etag(b"");
+        assert!(!etag.is_empty());
+    }
+
+    #[test]
+    #[cfg(not(feature = "sha2"))]
+    fn test_generate_strong_etag_deterministic() {
+        let handler = ConditionalRequestHandler::new();
+        let etag1 = handler.generate_strong_etag(b"same content");
+        let etag2 = handler.generate_strong_etag(b"same content");
+        assert_eq!(etag1, etag2);
+    }
+
+    #[test]
+    #[cfg(not(feature = "sha2"))]
+    fn test_generate_strong_etag_different_content() {
+        let handler = ConditionalRequestHandler::new();
+        let etag1 = handler.generate_strong_etag(b"content1");
+        let etag2 = handler.generate_strong_etag(b"content2");
+        assert_ne!(etag1, etag2);
     }
 }

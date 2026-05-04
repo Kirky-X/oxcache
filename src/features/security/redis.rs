@@ -236,11 +236,11 @@ fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level:
 /// 防止 Redis 坐标注入和协议污染攻击。
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> Result<()> {
-    crate::security::validation::redis::validate_key(key)?;
+    crate::features::security::validation::redis::validate_key(key)?;
     check_unicode_control_chars(key)?;
-    crate::security::injection::check_sql_injection(key)?;
-    crate::security::path::check_path_traversal(key)?;
-    crate::security::injection::check_command_injection(key)?;
+    crate::features::security::injection::check_sql_injection(key)?;
+    crate::features::security::path::check_path_traversal(key)?;
+    crate::features::security::injection::check_command_injection(key)?;
     Ok(())
 }
 

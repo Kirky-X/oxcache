@@ -24,24 +24,20 @@ pub(crate) fn check_sql_injection(key: &str) -> Result<()> {
 
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
-        if key_upper.contains(&pattern.to_uppercase()) {
-            if *pattern == "1=1" || *pattern == "1=2" {
-                if key_upper.contains("V1_")
-                    || key_upper.contains("_V1")
-                    || key_upper.contains("V2_")
-                    || key_upper.contains("_V2")
-                    || key_upper.contains("KEY_")
-                    || key_upper.contains("_KEY")
-                    || key_upper.contains("DATA_")
-                    || key_upper.contains("_DATA")
-                    || key_upper.contains("_STATUS")
-                    || key_upper.contains("_ID")
-                    || key_upper.contains("_NAME")
-                    || key_upper.contains("_TYPE")
-                {
-                    continue;
-                }
-            }
+        let is_common_key = (*pattern == "1=1" || *pattern == "1=2")
+            && (key_upper.contains("V1_")
+                || key_upper.contains("_V1")
+                || key_upper.contains("V2_")
+                || key_upper.contains("_V2")
+                || key_upper.contains("KEY_")
+                || key_upper.contains("_KEY")
+                || key_upper.contains("DATA_")
+                || key_upper.contains("_DATA")
+                || key_upper.contains("_STATUS")
+                || key_upper.contains("_ID")
+                || key_upper.contains("_NAME")
+                || key_upper.contains("_TYPE"));
+        if key_upper.contains(&pattern.to_uppercase()) && !is_common_key {
             return Err(CacheError::InvalidInput(format!(
                 "Redis key contains suspicious SQL injection pattern: {}",
                 description

@@ -60,7 +60,8 @@ pub use redis::{clamp_scan_count, validate_lua_script, validate_redis_key, valid
 #[cfg(test)]
 mod tests {
     use super::*;
-    use redis::{
+    use crate::error::CacheError;
+    use crate::features::security::redis::{
         MAX_LUA_SCRIPT_KEYS, MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS, SCAN_COUNT_MAX,
         SCAN_COUNT_MIN,
     };

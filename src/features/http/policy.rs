@@ -78,3 +78,133 @@ impl HttpCachePolicy {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_policy() {
+        let policy = HttpCachePolicy::default();
+        assert_eq!(policy.default_ttl, 0);
+        assert!(!policy.use_header_ttl);
+        assert!(policy.ignore_patterns.is_empty());
+        assert!(policy.key_prefix.is_empty());
+    }
+
+    #[test]
+    fn test_new_policy() {
+        let policy = HttpCachePolicy::new();
+        assert_eq!(policy.default_ttl, 0);
+    }
+
+    #[test]
+    fn test_with_cache_status_codes() {
+        let policy = HttpCachePolicy::new().with_cache_status_codes(vec![StatusCode::OK, StatusCode::NOT_MODIFIED]);
+        assert!(policy.should_cache_response(StatusCode::OK));
+        assert!(policy.should_cache_response(StatusCode::NOT_MODIFIED));
+        assert!(!policy.should_cache_response(StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn test_with_default_ttl() {
+        let policy = HttpCachePolicy::new().with_default_ttl(7200);
+        assert_eq!(policy.default_ttl, 7200);
+    }
+
+    #[test]
+    fn test_with_use_header_ttl() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        assert!(policy.use_header_ttl);
+    }
+
+    #[test]
+    fn test_with_ignore_patterns() {
+        let policy = HttpCachePolicy::new().with_ignore_patterns(vec!["/health".to_string(), "/metrics".to_string()]);
+        assert_eq!(policy.ignore_patterns.len(), 2);
+        assert_eq!(policy.ignore_patterns[0], "/health");
+    }
+
+    #[test]
+    fn test_should_cache_response_ok() {
+        let policy = HttpCachePolicy::new().with_cache_status_codes(vec![StatusCode::OK]);
+        assert!(policy.should_cache_response(StatusCode::OK));
+        assert!(!policy.should_cache_response(StatusCode::NOT_FOUND));
+    }
+
+    #[test]
+    fn test_should_cache_response_empty_codes() {
+        let policy = HttpCachePolicy::new();
+        assert!(!policy.should_cache_response(StatusCode::OK));
+    }
+
+    #[test]
+    fn test_extract_ttl_disabled() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(false);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, "max-age=300".parse().unwrap());
+        assert!(policy.extract_ttl_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_ttl_from_max_age() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, "max-age=300, public".parse().unwrap());
+        let ttl = policy.extract_ttl_from_headers(&headers);
+        assert_eq!(ttl, Some(300));
+    }
+
+    #[test]
+    fn test_extract_ttl_no_cache_control() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        let headers = HeaderMap::new();
+        assert!(policy.extract_ttl_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_ttl_invalid_max_age() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, "max-age=not-a-number".parse().unwrap());
+        assert!(policy.extract_ttl_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_ttl_no_max_age_directive() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, "no-cache, private".parse().unwrap());
+        assert!(policy.extract_ttl_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn test_extract_ttl_zero() {
+        let policy = HttpCachePolicy::new().with_use_header_ttl(true);
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CACHE_CONTROL, "max-age=0".parse().unwrap());
+        let ttl = policy.extract_ttl_from_headers(&headers);
+        assert_eq!(ttl, Some(0));
+    }
+
+    #[test]
+    fn test_chained_builder() {
+        let policy = HttpCachePolicy::new()
+            .with_cache_status_codes(vec![StatusCode::OK, StatusCode::CREATED])
+            .with_default_ttl(3600)
+            .with_use_header_ttl(true)
+            .with_ignore_patterns(vec!["/admin/*".to_string()]);
+
+        assert!(policy.should_cache_response(StatusCode::OK));
+        assert_eq!(policy.default_ttl, 3600);
+        assert!(policy.use_header_ttl);
+        assert_eq!(policy.ignore_patterns, vec!["/admin/*".to_string()]);
+    }
+
+    #[test]
+    fn test_clone() {
+        let policy = HttpCachePolicy::new().with_default_ttl(100);
+        let cloned = policy.clone();
+        assert_eq!(cloned.default_ttl, 100);
+    }
+}

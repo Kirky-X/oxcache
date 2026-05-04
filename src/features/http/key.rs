@@ -89,3 +89,179 @@ pub struct HttpRequest {
     pub headers: HeaderMap,
     pub body: Vec<u8>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_request(method: Method, path: &str, query: Option<&str>) -> HttpRequest {
+        let uri: Uri = if let Some(q) = query {
+            format!("{}?{}", path, q).parse().unwrap()
+        } else {
+            path.parse().unwrap()
+        };
+
+        HttpRequest {
+            method,
+            uri,
+            version: Version::HTTP_11,
+            headers: HeaderMap::new(),
+            body: Vec::new(),
+        }
+    }
+
+    fn make_request_with_headers(method: Method, path: &str, headers: Vec<(&str, &str)>) -> HttpRequest {
+        let mut hm = HeaderMap::new();
+        for (k, v) in headers {
+            hm.insert(k.parse::<http::header::HeaderName>().unwrap(), v.parse().unwrap());
+        }
+        HttpRequest {
+            method,
+            uri: path.parse().unwrap(),
+            version: Version::HTTP_11,
+            headers: hm,
+            body: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_default_key_generator() {
+        let gen = HttpCacheKeyGenerator::default();
+        let req = make_request(Method::GET, "/api/users", None);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_new_key_generator() {
+        let gen = HttpCacheKeyGenerator::new();
+        let req = make_request(Method::GET, "/api/users", None);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_key_deterministic() {
+        let gen = HttpCacheKeyGenerator::new();
+        let req = make_request(Method::GET, "/api/users", None);
+        let key1 = gen.generate_key(&req);
+        let key2 = gen.generate_key(&req);
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn test_key_different_paths() {
+        let gen = HttpCacheKeyGenerator::new();
+        let req1 = make_request(Method::GET, "/api/users", None);
+        let req2 = make_request(Method::GET, "/api/posts", None);
+        assert_ne!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_include_query_true() {
+        let gen = HttpCacheKeyGenerator::new().with_include_query(true);
+        let req1 = make_request(Method::GET, "/api/users", Some("page=1"));
+        let req2 = make_request(Method::GET, "/api/users", Some("page=2"));
+        assert_ne!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_include_query_false() {
+        let gen = HttpCacheKeyGenerator::new().with_include_query(false);
+        let req1 = make_request(Method::GET, "/api/users", Some("page=1"));
+        let req2 = make_request(Method::GET, "/api/users", Some("page=2"));
+        assert_eq!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_include_query_no_query_param() {
+        let gen = HttpCacheKeyGenerator::new().with_include_query(true);
+        let req = make_request(Method::GET, "/api/users", None);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_include_method_true() {
+        let gen = HttpCacheKeyGenerator::new().with_include_method(true);
+        let get_req = make_request(Method::GET, "/api/resource", None);
+        let post_req = make_request(Method::POST, "/api/resource", None);
+        assert_ne!(gen.generate_key(&get_req), gen.generate_key(&post_req));
+    }
+
+    #[test]
+    fn test_include_method_false() {
+        let gen = HttpCacheKeyGenerator::new().with_include_method(false);
+        let get_req = make_request(Method::GET, "/api/resource", None);
+        let post_req = make_request(Method::POST, "/api/resource", None);
+        assert_eq!(gen.generate_key(&get_req), gen.generate_key(&post_req));
+    }
+
+    #[test]
+    fn test_include_version_true() {
+        let gen = HttpCacheKeyGenerator::new().with_include_version(true);
+        let req = make_request(Method::GET, "/api/users", None);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_include_version_different() {
+        let gen = HttpCacheKeyGenerator::new().with_include_version(true);
+        let mut req1 = make_request(Method::GET, "/api/users", None);
+        let mut req2 = make_request(Method::GET, "/api/users", None);
+        req1.version = Version::HTTP_11;
+        req2.version = Version::HTTP_2;
+        assert_ne!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_include_headers_accept_encoding() {
+        let gen = HttpCacheKeyGenerator::new();
+        let req = make_request_with_headers(Method::GET, "/api/users", vec![("Accept-Encoding", "gzip")]);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_include_headers_authorization() {
+        let gen = HttpCacheKeyGenerator::new();
+        let req1 = make_request_with_headers(Method::GET, "/api/users", vec![("Authorization", "Bearer token1")]);
+        let req2 = make_request_with_headers(Method::GET, "/api/users", vec![("Authorization", "Bearer token2")]);
+        assert_ne!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_exclude_headers() {
+        let gen = HttpCacheKeyGenerator::new()
+            .with_include_method(true)
+            .with_exclude_headers(vec!["Authorization".to_string()]);
+        // Both requests have no relevant headers that pass the filter
+        // (Authorization is excluded, and no Accept-Encoding/Vary present)
+        // So keys should be identical since only method + path are used
+        let req1 = make_request(Method::GET, "/api/users", None);
+        let req2 = make_request(Method::GET, "/api/users", None);
+        assert_eq!(gen.generate_key(&req1), gen.generate_key(&req2));
+    }
+
+    #[test]
+    fn test_builder_chaining() {
+        let gen = HttpCacheKeyGenerator::new()
+            .with_include_query(true)
+            .with_include_method(true)
+            .with_include_version(true)
+            .with_exclude_headers(vec!["X-Custom".to_string()]);
+        let req = make_request_with_headers(Method::GET, "/api/users", vec![("Accept-Encoding", "gzip")]);
+        let key = gen.generate_key(&req);
+        assert!(!key.is_empty());
+    }
+
+    #[test]
+    fn test_http_request_clone() {
+        let req = make_request(Method::GET, "/api/users", Some("page=1"));
+        let cloned = req.clone();
+        assert_eq!(req.method, cloned.method);
+        assert_eq!(req.uri, cloned.uri);
+        assert_eq!(req.version, cloned.version);
+    }
+}
