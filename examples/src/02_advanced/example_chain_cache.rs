@@ -15,7 +15,7 @@
 
 use oxcache::backend::CacheBackend;
 #[cfg(feature = "redis")]
-use oxcache::backend::client::RedisBackend;
+use oxcache::backend::memory::RedisBackend;
 use oxcache::{Cache, ChainCache, OxCacheBuilder};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
