@@ -8,7 +8,7 @@
 use crate::error::Result;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
-use crate::serialization::SerializerEnum;
+use crate::infra::serialization::SerializerEnum;
 use async_trait::async_trait;
 #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
 use futures::future::join_all;
@@ -431,7 +431,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &SerializerEnum {
-        use crate::serialization::unified::default_serializer;
+        use crate::infra::serialization::unified::default_serializer;
         use once_cell::sync::Lazy;
 
         static DEFAULT_SERIALIZER: Lazy<SerializerEnum> = Lazy::new(|| {
@@ -456,7 +456,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::client::MokaMemoryBackend as MemoryBackend;
+    use crate::backend::memory::MokaMemoryBackend as MemoryBackend;
     use crate::backend::{CacheReader, CacheWriter};
     use serde::Deserialize;
 

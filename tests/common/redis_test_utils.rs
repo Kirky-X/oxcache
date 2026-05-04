@@ -5,7 +5,7 @@
 // Redis 测试工具 - 支持环境变量控制测试跳过
 
 #[cfg(feature = "redis")]
-use oxcache::backend::client::redis::RedisBackend;
+use oxcache::backend::memory::redis::RedisBackend;
 #[cfg(feature = "redis")]
 use oxcache::backend::{CacheReader, CacheWriter};
 use std::sync::Arc;

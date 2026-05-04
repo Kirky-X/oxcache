@@ -6,7 +6,7 @@
 //!
 //! 测试 UnifiedCache trait 的默认实现、适配器模式和批量操作。
 
-use oxcache::backend::client::MokaMemoryBackend;
+use oxcache::backend::memory::MokaMemoryBackend;
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::cache::UnifiedCache;
 use oxcache::error::CacheError;

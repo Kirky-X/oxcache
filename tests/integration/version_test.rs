@@ -5,7 +5,7 @@
 // 版本管理集成测试
 
 #[cfg(feature = "redis")]
-use oxcache::backend::client::RedisBackend;
+use oxcache::backend::memory::RedisBackend;
 #[cfg(feature = "redis")]
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
