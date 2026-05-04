@@ -20,7 +20,6 @@ pub mod traits;
 // Re-export commonly used items for convenience
 pub use constants::*;
 pub use events::{CacheEvent, CacheEventType, EventPublisher};
-pub use features::FeatureSet;
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 #[cfg(feature = "confers")]
