@@ -11,6 +11,7 @@
 mod redis_client_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::redis::{RedisBackend, RedisBackendBuilder, RedisMode};
+    use oxcache::backend::interface::LuaExecutor;
     use oxcache::backend::score::BackendScore;
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     use serial_test::serial;

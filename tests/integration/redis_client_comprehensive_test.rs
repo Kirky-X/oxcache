@@ -10,6 +10,7 @@
 mod redis_client_comprehensive_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::client::redis::RedisBackend;
+    use oxcache::backend::interface::LuaExecutor;
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     use oxcache::validate_lua_script;
     use serial_test::serial;
