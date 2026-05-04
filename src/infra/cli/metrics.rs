@@ -4,9 +4,9 @@
 //!
 //! 该模块定义了指标查询命令的实现。
 
-use anyhow::Result;
+use crate::infra::cli::MetricsArgs;
 
-pub async fn execute(args: &MetricsArgs) -> Result<()> {
+pub async fn execute(args: &MetricsArgs) -> anyhow::Result<()> {
     if args.prometheus || args.json {
         println!("Metrics export requires the metrics feature with OpenTelemetry.");
         return Ok(());

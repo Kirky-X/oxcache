@@ -4,16 +4,17 @@
 //!
 //! 该模块定义了状态查询命令的实现。
 
-use anyhow::Result;
+use crate::infra::cli::StatusArgs;
 
 /// 缓存服务状态（占位实现）
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ServiceStatus {
     pub name: String,
     pub healthy: bool,
 }
 
-pub async fn execute(_args: &StatusArgs) -> Result<()> {
+pub async fn execute(_args: &StatusArgs) -> anyhow::Result<()> {
     println!("Cache status check requires the new Cache API.");
     println!("Use the Cache::memory(), Cache::redis(), or Cache::builder() functions.");
     println!();

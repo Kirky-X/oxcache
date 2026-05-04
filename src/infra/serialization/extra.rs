@@ -24,7 +24,7 @@ impl MessagePackSerializer {
     }
 }
 
-impl crate::serialization::Serializer for MessagePackSerializer {
+impl crate::infra::serialization::Serializer for MessagePackSerializer {
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         encode::to_vec(data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
     }
@@ -44,7 +44,7 @@ impl CborSerializer {
     }
 }
 
-impl crate::serialization::Serializer for CborSerializer {
+impl crate::infra::serialization::Serializer for CborSerializer {
     fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         let mut buf = Vec::new();
         ciborium::into_writer(data, &mut buf).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;

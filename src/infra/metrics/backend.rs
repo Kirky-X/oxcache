@@ -8,10 +8,9 @@
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
-use tracing::{debug, info, warn};
 
 /// 最大延迟直方图桶数量
 const MAX_HISTOGRAM_BUCKETS: usize = 100;
@@ -468,7 +467,7 @@ impl MetricsCollector {
         let l2_misses = self.l2_misses.load(Ordering::Relaxed);
 
         let l1_total = l1_hits + l1_misses;
-        let l2_total = l2_hits + l2_misses;
+        let _l2_total = l2_hits + l2_misses;
 
         // 全局命中率（从 L1 获得的比例）
         let global_hit_rate = if l1_total > 0 {
@@ -598,14 +597,14 @@ impl SlidingWindowMetrics {
 
     /// 捕获当前指标
     pub fn capture(&self) {
-        let mut last = self.last_capture.lock().await;
+        let mut last = self.last_capture.lock().unwrap();
         let now = Instant::now();
         let interval = now.duration_since(*last).as_secs_f64();
 
         let metrics = self.collector.full_stats();
         let snapshot = PerformanceSnapshot::new(metrics, interval);
 
-        let mut snapshots = self.snapshots.lock().await;
+        let mut snapshots = self.snapshots.lock().unwrap();
         snapshots.push_back(snapshot);
 
         // 清理过期的快照
@@ -622,7 +621,7 @@ impl SlidingWindowMetrics {
 
     /// 获取窗口指标摘要
     pub async fn window_summary(&self) -> WindowMetricsSummary {
-        let snapshots = self.snapshots.lock().await;
+        let snapshots = self.snapshots.lock().unwrap();
         let count = snapshots.len();
 
         if count == 0 {

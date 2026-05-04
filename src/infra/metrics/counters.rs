@@ -4,7 +4,7 @@
 //!
 //! 原子计数器集合
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 
 /// 原子计数器集合
 ///
