@@ -6,8 +6,7 @@
 
 use thiserror::Error;
 
-/// Maximum number of asterisks to show for hidden password
-const PASSWORD_MASK_ASTERISKS: usize = 5;
+use crate::core::constants::PASSWORD_MASK_ASTERISKS;
 
 fn sanitize_connection_string(conn_str: &str) -> String {
     if let Some(start) = conn_str.find("://") {
