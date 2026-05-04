@@ -1,20 +1,25 @@
-//! Singleflight 模块 - 请求去重机制
-
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
-
-use tokio::sync::Mutex;
-use tokio::sync::broadcast;
-
 use crate::error::{CacheError, Result};
+use std::fmt;
 
-type SharedResult = Arc<Result<Vec<u8>>>;
+#[cfg(feature = "singleflight")]
+use std::collections::HashMap;
+#[cfg(feature = "singleflight")]
+use std::sync::Arc;
+#[cfg(feature = "singleflight")]
+use tokio::sync::broadcast;
+#[cfg(feature = "singleflight")]
+use tokio::sync::Mutex;
 
+#[cfg(feature = "singleflight")]
+type InflightMap = Arc<Mutex<HashMap<String, broadcast::Sender<Arc<Vec<u8>>>>>>;
+
+#[cfg(feature = "singleflight")]
 pub struct SingleFlight {
-    inflight: Arc<Mutex<HashMap<String, broadcast::Sender<SharedResult>>>>,
+    inflight: InflightMap,
 }
 
+#[cfg(feature = "singleflight")]
+#[allow(dead_code)]
 impl SingleFlight {
     pub fn new() -> Self {
         Self {
@@ -27,37 +32,34 @@ impl SingleFlight {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<Vec<u8>>> + Send,
     {
-        let (tx_option, mut rx) = {
+        let rx = {
             let mut map = self.inflight.lock().await;
-
-            if let Some(sender) = map.get(key) {
-                (None, sender.subscribe())
+            if let Some(tx) = map.get(key) {
+                Some(tx.subscribe())
             } else {
-                let (tx, rx) = broadcast::channel(1);
-                map.insert(key.to_string(), tx.clone());
-                (Some(tx), rx)
+                let (tx, _) = broadcast::channel(1);
+                map.insert(key.to_string(), tx);
+                None
             }
         };
 
-        match tx_option {
-            Some(tx) => {
+        match rx {
+            None => {
                 let result = work().await;
-                let shared = Arc::new(result.clone());
-                let _ = tx.send(shared);
-
                 {
                     let mut map = self.inflight.lock().await;
-                    map.remove(key);
+                    if let Some(tx) = map.remove(key) {
+                        if let Ok(ref val) = result {
+                            let _ = tx.send(Arc::new(val.clone()));
+                        }
+                    }
                 }
-
                 result
             }
-            None => {
-                match rx.recv().await {
-                    Ok(shared) => (*shared).clone(),
-                    Err(_) => Err(CacheError::Internal("SingleFlight: sender dropped".into())),
-                }
-            }
+            Some(mut rx) => match rx.recv().await {
+                Ok(shared) => Ok((*shared).clone()),
+                Err(_) => Err(CacheError::Internal("SingleFlight: sender dropped".into())),
+            },
         }
     }
 
@@ -70,10 +72,14 @@ impl SingleFlight {
     }
 }
 
+#[cfg(feature = "singleflight")]
 impl Default for SingleFlight {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
+#[cfg(feature = "singleflight")]
 impl fmt::Debug for SingleFlight {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SingleFlight")
@@ -83,23 +89,40 @@ impl fmt::Debug for SingleFlight {
 }
 
 #[cfg(not(feature = "singleflight"))]
-pub struct SingleFlight { _phantom: std::marker::PhantomData<()> }
+pub struct SingleFlight {
+    _phantom: std::marker::PhantomData<()>,
+}
 
 #[cfg(not(feature = "singleflight"))]
 impl SingleFlight {
-    pub fn new() -> Self { Self { _phantom: std::marker::PhantomData } }
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
     pub async fn call<F, Fut>(&self, _key: &str, work: F) -> Result<Vec<u8>>
-    where F: FnOnce() -> Fut + Send, Fut: std::future::Future<Output = Result<Vec<u8>>> + Send {
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<Vec<u8>>> + Send,
+    {
         work().await
     }
-    pub async fn active_calls(&self) -> usize { 0 }
+    pub async fn active_calls(&self) -> usize {
+        0
+    }
     pub async fn reset(&self) {}
 }
 
 #[cfg(not(feature = "singleflight"))]
-impl Default for SingleFlight { fn default() -> Self { Self::new() } }
+impl Default for SingleFlight {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(not(feature = "singleflight"))]
 impl fmt::Debug for SingleFlight {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.debug_struct("SingleFlight").finish() }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SingleFlight").finish()
+    }
 }
