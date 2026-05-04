@@ -122,7 +122,7 @@ mod bloom_filter_coverage_tests {
     #[test]
     fn test_bloom_filter_remove() {
         let options = BloomFilterOptions::default_with_name("remove_test".to_string());
-        let filter = BloomFilter::new(options);
+        let mut filter = BloomFilter::new(options);
         assert!(!filter.remove(b"any_item"));
     }
 
