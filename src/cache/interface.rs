@@ -13,7 +13,6 @@ use async_trait::async_trait;
 #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
 use futures::future::join_all;
 use serde::{de::DeserializeOwned, Serialize};
-use std::any::Any;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -23,7 +22,7 @@ use std::time::Duration;
 /// into a single, comprehensive interface. It provides both low-level byte operations
 /// and high-level typed operations.
 #[async_trait]
-pub trait UnifiedCache: Send + Sync + Any {
+pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
     // Core byte-level operations (from CacheBackend)
     // ============================================================================
@@ -43,8 +42,8 @@ pub trait UnifiedCache: Send + Sync + Any {
     /// Clear all cache entries
     async fn clear(&self) -> Result<()>;
 
-    /// Close the cache and release resources
-    async fn close(&self) -> Result<()>;
+    /// Shutdown the cache and release resources
+    async fn shutdown(&self);
 
     /// Get TTL for a key
     async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
@@ -53,7 +52,7 @@ pub trait UnifiedCache: Send + Sync + Any {
     async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
 
     /// Health check for the cache backend
-    async fn health_check(&self) -> Result<bool>;
+    async fn health_check(&self) -> Result<()>;
 
     /// Get cache statistics
     async fn stats(&self) -> Result<HashMap<String, String>>;
@@ -190,20 +189,7 @@ pub trait UnifiedCache: Send + Sync + Any {
 
     /// Check if this is an L2 (Redis) cache backend
     fn is_l2_cache(&self) -> bool {
-        #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
-        {
-            self.as_any()
-                .downcast_ref::<crate::backend::client::RedisBackend>()
-                .is_some()
-                || self
-                    .as_any()
-                    .downcast_ref::<crate::backend::client::redis::RedisBackend>()
-                    .is_some()
-        }
-        #[cfg(not(any(feature = "redis", feature = "futures", feature = "core", feature = "full")))]
-        {
-            false
-        }
+        self.backend_kind().is_distributed()
     }
 
     /// Determine if parallel execution should be used
@@ -394,16 +380,13 @@ pub trait UnifiedCache: Send + Sync + Any {
     /// Get the serializer used by this cache
     fn serializer(&self) -> &SerializerEnum;
 
-    /// Convert to Any for downcasting
-    fn as_any(&self) -> &dyn Any;
-
-    /// Convert Arc<Self> to Arc<dyn Any>
-    fn into_any_arc(self: std::sync::Arc<Self>) -> std::sync::Arc<dyn Any + Send + Sync>;
+    /// Get the backend type for runtime identification
+    fn backend_kind(&self) -> crate::backend::interface::BackendKind;
 }
 
 /// Blanket implementation for all CacheBackend implementations
 #[async_trait]
-impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
+impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Core operations
     async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.get(key).await
@@ -425,8 +408,8 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
         self.clear().await
     }
 
-    async fn close(&self) -> Result<()> {
-        self.close().await
+    async fn shutdown(&self) {
+        self.shutdown().await
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
@@ -437,7 +420,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
         self.expire(key, ttl).await
     }
 
-    async fn health_check(&self) -> Result<bool> {
+    async fn health_check(&self) -> Result<()> {
         self.health_check().await
     }
 
@@ -465,12 +448,8 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
         &DEFAULT_SERIALIZER
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn into_any_arc(self: std::sync::Arc<Self>) -> std::sync::Arc<dyn Any + Send + Sync> {
-        self as std::sync::Arc<dyn Any + Send + Sync>
+    fn backend_kind(&self) -> crate::backend::interface::BackendKind {
+        self.backend_kind()
     }
 }
 
@@ -478,7 +457,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync + Any> UnifiedCache for T {
 mod tests {
     use super::*;
     use crate::backend::client::MokaMemoryBackend as MemoryBackend;
-    use crate::backend::CacheBackend;
+    use crate::backend::{CacheReader, CacheWriter};
     use serde::Deserialize;
 
     #[tokio::test]
@@ -491,14 +470,14 @@ mod tests {
         let value = backend.get("test_key").await.unwrap();
         assert_eq!(value, Some(b"test_value".to_vec()));
 
-        <MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key")
+        <MemoryBackend as crate::backend::CacheReader>::exists(&backend, "test_key")
             .await
             .unwrap();
-        <MemoryBackend as crate::backend::CacheBackend>::delete(&backend, "test_key")
+        <MemoryBackend as crate::backend::CacheWriter>::delete(&backend, "test_key")
             .await
             .unwrap();
         assert!(
-            !<MemoryBackend as crate::backend::CacheBackend>::exists(&backend, "test_key")
+            !<MemoryBackend as crate::backend::CacheReader>::exists(&backend, "test_key")
                 .await
                 .unwrap()
         );
@@ -558,10 +537,10 @@ mod tests {
         assert!(results.contains_key("key2"));
         assert!(!results.contains_key("key3"));
 
-        CacheBackend::delete_many(&backend, &["key1".to_string(), "key2".to_string()])
+        CacheWriter::delete_many(&backend, &["key1".to_string(), "key2".to_string()])
             .await
             .unwrap();
-        assert!(!CacheBackend::exists(&backend, "key1").await.unwrap());
-        assert!(!CacheBackend::exists(&backend, "key2").await.unwrap());
+        assert!(!CacheReader::exists(&backend, "key1").await.unwrap());
+        assert!(!CacheReader::exists(&backend, "key2").await.unwrap());
     }
 }

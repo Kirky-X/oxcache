@@ -3,14 +3,13 @@
 //!
 //! Redis backend implementation with ConnectionManager
 
-use crate::backend::interface::CacheBackend;
+use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
 use crate::core::types::RedisModeType;
 use crate::error::{CacheError, Result};
 use crate::security;
 use async_trait::async_trait;
 use redis::{Client, RedisError};
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -305,7 +304,7 @@ impl RedisBackendBuilder {
     pub async fn build(self) -> Result<RedisBackend> {
         let connection_string = self
             .connection_string
-            .ok_or_else(|| CacheError::ConfigError("Connection string is required".to_string()))?;
+            .ok_or_else(|| CacheError::InvalidInput("Connection string is required".to_string()))?;
 
         // 安全检查：强制使用TLS连接
         if !connection_string.starts_with("rediss://") {
@@ -317,7 +316,7 @@ impl RedisBackendBuilder {
                 .unwrap_or(false);
 
             if !allow_insecure {
-                return Err(CacheError::ConfigError(
+                return Err(CacheError::InvalidInput(
                     "Redis connection must use TLS (rediss://) in production. \
                      To allow insecure connections for development only, \
                      set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS"
@@ -353,7 +352,7 @@ impl RedisBackendBuilder {
 }
 
 #[async_trait]
-impl CacheBackend for RedisBackend {
+impl CacheReader for RedisBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         security::validate_redis_key(key)?;
 
@@ -366,6 +365,79 @@ impl CacheBackend for RedisBackend {
         Ok(result)
     }
 
+    async fn exists(&self, key: &str) -> Result<bool> {
+        security::validate_redis_key(key)?;
+
+        let mut conn = self.connection_manager.clone();
+        let n: i64 = redis::cmd("EXISTS")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        Ok(n > 0)
+    }
+
+    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        security::validate_redis_key(key)?;
+
+        let mut conn = self.connection_manager.clone();
+        let n: i64 = redis::cmd("TTL")
+            .arg(key)
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+
+        if n <= 0 {
+            Ok(None)
+        } else {
+            Ok(Some(Duration::from_secs(n as u64)))
+        }
+    }
+
+    async fn len(&self) -> Result<u64> {
+        let mut conn = self.connection_manager.clone();
+        let len: i64 = redis::cmd("DBSIZE")
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        Ok(len as u64)
+    }
+
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.len().await?.eq(&0))
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        Ok(0)
+    }
+
+    async fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut conn = self.connection_manager.clone();
+        let info: String = redis::cmd("INFO")
+            .arg("memory")
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| CacheError::Operation(e.to_string()))?;
+
+        let mut stats = HashMap::new();
+        stats.insert("memory_info".to_string(), info);
+        Ok(stats)
+    }
+
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+        if keys.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Convert to the format expected by get_many_pipeline
+        let keys_slice: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
+
+        self.get_many_pipeline(&keys_slice).await
+    }
+}
+
+#[async_trait]
+impl CacheWriter for RedisBackend {
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         security::validate_redis_key(key)?;
 
@@ -402,49 +474,6 @@ impl CacheBackend for RedisBackend {
             .await
             .map_err(|e| CacheError::Connection(e.to_string()))?;
         Ok(())
-    }
-
-    async fn exists(&self, key: &str) -> Result<bool> {
-        security::validate_redis_key(key)?;
-
-        let mut conn = self.connection_manager.clone();
-        let n: i64 = redis::cmd("EXISTS")
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-        Ok(n > 0)
-    }
-
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
-        security::validate_redis_key(key)?;
-
-        let mut conn = self.connection_manager.clone();
-        let n: i64 = redis::cmd("TTL")
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-
-        if n <= 0 {
-            Ok(None)
-        } else {
-            Ok(Some(Duration::from_secs(n as u64)))
-        }
-    }
-
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
-        security::validate_redis_key(key)?;
-
-        let mut conn = self.connection_manager.clone();
-        let result: i64 = redis::cmd("EXPIRE")
-            .arg(key)
-            .arg(ttl.as_secs())
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| CacheError::Operation(e.to_string()))?;
-
-        Ok(result > 0)
     }
 
     async fn clear(&self) -> Result<()> {
@@ -495,56 +524,19 @@ impl CacheBackend for RedisBackend {
         Ok(())
     }
 
-    async fn close(&self) -> Result<()> {
-        Ok(())
-    }
+    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        security::validate_redis_key(key)?;
 
-    async fn health_check(&self) -> Result<bool> {
         let mut conn = self.connection_manager.clone();
-        let result: String = redis::cmd("PING")
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-        Ok(result == "PONG")
-    }
-
-    async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut conn = self.connection_manager.clone();
-        let info: String = redis::cmd("INFO")
-            .arg("memory")
+        let result: i64 = redis::cmd("EXPIRE")
+            .arg(key)
+            .arg(ttl.as_secs())
             .query_async(&mut conn)
             .await
             .map_err(|e| CacheError::Operation(e.to_string()))?;
 
-        let mut stats = HashMap::new();
-        stats.insert("memory_info".to_string(), info);
-        Ok(stats)
+        Ok(result > 0)
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    async fn len(&self) -> Result<u64> {
-        let mut conn = self.connection_manager.clone();
-        let len: i64 = redis::cmd("DBSIZE")
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| CacheError::Connection(e.to_string()))?;
-        Ok(len as u64)
-    }
-
-    async fn is_empty(&self) -> Result<bool> {
-        Ok(self.len().await?.eq(&0))
-    }
-
-    async fn capacity(&self) -> Result<u64> {
-        Ok(0)
-    }
-
-    // ========================================================================
-    // Batch operations using Pipeline for better performance
-    // ========================================================================
 
     async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
         if items.is_empty() {
@@ -563,17 +555,6 @@ impl CacheBackend for RedisBackend {
         self.set_many_pipeline(&pipeline_items, ttl).await
     }
 
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
-        if keys.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // Convert to the format expected by get_many_pipeline
-        let keys_slice: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
-
-        self.get_many_pipeline(&keys_slice).await
-    }
-
     async fn delete_many(&self, keys: &[String]) -> Result<()> {
         if keys.is_empty() {
             return Ok(());
@@ -585,6 +566,33 @@ impl CacheBackend for RedisBackend {
         self.delete_many_pipeline(&keys_slice).await
     }
 }
+
+#[async_trait]
+impl CacheConnector for RedisBackend {
+    async fn health_check(&self) -> Result<()> {
+        let mut conn = self.connection_manager.clone();
+        redis::cmd("PING")
+            .query_async::<String>(&mut conn)
+            .await
+            .map_err(|e| CacheError::Connection(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn shutdown(&self) {
+        // Redis connection is managed by the connection pool; no explicit close needed
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Redis
+    }
+
+    #[cfg(feature = "lua-script")]
+    fn as_lua_executor(&self) -> Option<&dyn crate::backend::interface::LuaExecutor> {
+        Some(self)
+    }
+}
+
+// CacheBackend is automatically implemented via blanket implementation
 
 impl BackendScore for RedisBackend {
     fn score(&self) -> u8 {
@@ -598,10 +606,6 @@ impl BackendScore for RedisBackend {
     fn backend_name(&self) -> &'static str {
         "redis"
     }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 fn is_connection_error(e: &RedisError) -> bool {
@@ -609,8 +613,9 @@ fn is_connection_error(e: &RedisError) -> bool {
 }
 
 #[cfg(feature = "lua-script")]
-impl RedisBackend {
-    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+#[async_trait::async_trait]
+impl crate::backend::interface::LuaExecutor for RedisBackend {
+    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         security::validate_lua_script(script, keys.len())?;
 
         let mut conn = self.connection_manager.clone();
@@ -645,7 +650,7 @@ impl RedisBackend {
     /// Returns `CacheError::InvalidInput` if:
     /// - SHA is not exactly 40 hexadecimal characters
     /// - Any key fails validation
-    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
         // SHA 格式验证：必须是40位十六进制字符
         if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(CacheError::InvalidInput(format!(
@@ -678,7 +683,7 @@ impl RedisBackend {
         Ok(result)
     }
 
-    pub async fn script_load(&self, script: &str) -> Result<String> {
+    async fn script_load(&self, script: &str) -> Result<String> {
         security::validate_lua_script(script, 0)?;
 
         let mut conn = self.connection_manager.clone();

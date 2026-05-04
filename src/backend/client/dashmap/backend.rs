@@ -4,12 +4,11 @@
 //!
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
-use crate::backend::interface::CacheBackend;
+use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -150,7 +149,7 @@ impl std::fmt::Debug for DashMapMemoryBackend {
 }
 
 #[async_trait]
-impl CacheBackend for DashMapMemoryBackend {
+impl CacheReader for DashMapMemoryBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let now = Instant::now();
 
@@ -181,6 +180,74 @@ impl CacheBackend for DashMapMemoryBackend {
         Ok(result.flatten())
     }
 
+    async fn exists(&self, key: &str) -> Result<bool> {
+        let now = Instant::now();
+
+        if let Some(entry_ref) = self.cache.get(key) {
+            let entry = entry_ref.value();
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at <= now {
+                    // Entry expired, remove it
+                    drop(entry_ref);
+                    self.cache.remove(key);
+                    self.ttl_map.remove(key);
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        let now = Instant::now();
+
+        if let Some(entry_ref) = self.cache.get(key) {
+            let entry = entry_ref.value();
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at > now {
+                    return Ok(Some(expires_at.duration_since(now)));
+                } else {
+                    // Entry expired
+                    drop(entry_ref);
+                    self.cache.remove(key);
+                    self.ttl_map.remove(key);
+                    return Ok(None);
+                }
+            }
+            Ok(None) // No expiration set
+        } else {
+            Ok(None) // Key doesn't exist
+        }
+    }
+
+    async fn len(&self) -> Result<u64> {
+        Ok(self.cache.len() as u64)
+    }
+
+    async fn is_empty(&self) -> Result<bool> {
+        Ok(self.cache.is_empty())
+    }
+
+    async fn capacity(&self) -> Result<u64> {
+        Ok(self.capacity as u64)
+    }
+
+    async fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), "dashmap".to_string());
+        stats.insert("capacity".to_string(), self.capacity.to_string());
+        stats.insert("entry_count".to_string(), self.cache.len().to_string());
+        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
+        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
+        stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
+        Ok(stats)
+    }
+}
+
+#[async_trait]
+impl CacheWriter for DashMapMemoryBackend {
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
@@ -209,58 +276,12 @@ impl CacheBackend for DashMapMemoryBackend {
         Ok(())
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
-        let now = Instant::now();
-
-        if let Some(entry_ref) = self.cache.get(key) {
-            let entry = entry_ref.value();
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at <= now {
-                    // Entry expired, remove it
-                    drop(entry_ref);
-                    self.cache.remove(key);
-                    self.ttl_map.remove(key);
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
     async fn clear(&self) -> Result<()> {
         self.cache.clear();
         self.ttl_map.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        self.clear().await
-    }
-
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
-        let now = Instant::now();
-
-        if let Some(entry_ref) = self.cache.get(key) {
-            let entry = entry_ref.value();
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at > now {
-                    return Ok(Some(expires_at.duration_since(now)));
-                } else {
-                    // Entry expired
-                    drop(entry_ref);
-                    self.cache.remove(key);
-                    self.ttl_map.remove(key);
-                    return Ok(None);
-                }
-            }
-            Ok(None) // No expiration set
-        } else {
-            Ok(None) // Key doesn't exist
-        }
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
@@ -275,39 +296,26 @@ impl CacheBackend for DashMapMemoryBackend {
             Ok(false) // Key doesn't exist
         }
     }
+}
 
-    async fn health_check(&self) -> Result<bool> {
-        // DashMap is always healthy as it's in-memory
-        Ok(true)
+#[async_trait]
+impl CacheConnector for DashMapMemoryBackend {
+    async fn health_check(&self) -> Result<()> {
+        // DashMap is always healthy as in-memory
+        Ok(())
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
-        let mut stats = HashMap::new();
-        stats.insert("type".to_string(), "dashmap".to_string());
-        stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert("entry_count".to_string(), self.cache.len().to_string());
-        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
-        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
-        stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
-        Ok(stats)
+    async fn shutdown(&self) {
+        self.cache.clear();
+        self.ttl_map.clear();
     }
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    async fn len(&self) -> Result<u64> {
-        Ok(self.cache.len() as u64)
-    }
-
-    async fn is_empty(&self) -> Result<bool> {
-        Ok(self.cache.is_empty())
-    }
-
-    async fn capacity(&self) -> Result<u64> {
-        Ok(self.capacity as u64)
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::DashMap
     }
 }
+
+// CacheBackend is automatically implemented via blanket implementation
 
 impl BackendScore for DashMapMemoryBackend {
     fn score(&self) -> u8 {
@@ -320,10 +328,6 @@ impl BackendScore for DashMapMemoryBackend {
 
     fn backend_name(&self) -> &'static str {
         "dashmap"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
@@ -424,7 +428,7 @@ mod tests {
         assert!(!backend.exists("key1").await.unwrap());
 
         // Test health check
-        assert!(backend.health_check().await.unwrap());
+        backend.health_check().await.unwrap();
 
         // Test stats
         let stats = backend.stats().await.unwrap();

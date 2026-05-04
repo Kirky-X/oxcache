@@ -8,7 +8,7 @@
 mod mock_backend;
 
 use mock_backend::MockBackend;
-use oxcache::backend::{BackendScore, CacheBackend};
+use oxcache::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter};
 use std::time::Duration;
 
 #[test]
@@ -125,8 +125,7 @@ async fn test_mock_backend_expire_returns_false() {
 #[tokio::test]
 async fn test_mock_backend_health_check() {
     let backend = MockBackend::new("health", 80, false);
-    let healthy = backend.health_check().await.unwrap();
-    assert!(healthy);
+    backend.health_check().await.unwrap();
 }
 
 #[tokio::test]
@@ -148,17 +147,16 @@ async fn test_mock_backend_capacity() {
 #[tokio::test]
 async fn test_mock_backend_close() {
     let backend = MockBackend::new("close", 80, false);
-    let result = backend.close().await;
-    assert!(result.is_ok());
+    backend.shutdown().await;
 }
 
 #[test]
-fn test_mock_backend_as_any() {
-    let backend = MockBackend::new("any", 80, false);
-    let any_ref = BackendScore::as_any(&backend);
+fn test_mock_backend_kind() {
+    let backend = MockBackend::new("kind", 80, false);
+    let kind = backend.backend_kind();
 
-    let downcast = any_ref.downcast_ref::<MockBackend>();
-    assert!(downcast.is_some());
+    assert_eq!(kind, oxcache::backend::interface::BackendKind::Mock);
+    assert!(kind.is_memory());
 }
 
 #[tokio::test]
@@ -218,9 +216,9 @@ fn test_mock_backend_backend_score_trait() {
 async fn test_mock_backend_cache_backend_trait() {
     let backend = MockBackend::new("cache_trait", 80, false);
 
-    CacheBackend::set(&backend, "tkey", b"tval".to_vec(), None)
+    CacheWriter::set(&backend, "tkey", b"tval".to_vec(), None)
         .await
         .unwrap();
-    let val = CacheBackend::get(&backend, "tkey").await.unwrap();
+    let val = CacheReader::get(&backend, "tkey").await.unwrap();
     assert_eq!(val, Some(b"tval".to_vec()));
 }

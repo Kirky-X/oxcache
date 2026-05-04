@@ -6,7 +6,7 @@
 // 测试 Redis Pipeline 批量操作的性能提升
 
 use oxcache::backend::client::RedisBackend;
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use std::time::{Duration, Instant};
 
 /// 获取 Redis 测试 URL

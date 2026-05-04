@@ -7,7 +7,7 @@
 #[cfg(feature = "redis")]
 use oxcache::backend::client::redis::RedisBackend;
 #[cfg(feature = "redis")]
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -65,7 +65,7 @@ pub async fn is_redis_available() -> bool {
 /// 创建 Redis 后端用于测试
 #[cfg(feature = "redis")]
 #[allow(dead_code)]
-pub async fn create_l2_backend_with_real_redis() -> Result<Arc<dyn CacheBackend>, String> {
+pub async fn create_l2_backend_with_real_redis() -> Result<Arc<dyn oxcache::backend::CacheBackend>, String> {
     let redis_url = get_redis_url();
     match RedisBackend::new(&redis_url).await {
         Ok(backend) => Ok(Arc::new(backend)),

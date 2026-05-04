@@ -72,7 +72,11 @@ async fn test_redis_cluster_basic_operations() {
 
     // 测试基本操作
     backend
-        .set("cluster_key_1", b"cluster_value_1".to_vec(), Some(Duration::from_secs(60)))
+        .set(
+            "cluster_key_1",
+            b"cluster_value_1".to_vec(),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
@@ -187,8 +191,7 @@ async fn test_redis_cluster_health_check() {
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
-    let healthy = backend.health_check().await.unwrap();
-    assert!(healthy);
+    backend.health_check().await.unwrap();
 
     println!("✓ Redis Cluster 健康检查测试成功");
 }
@@ -212,7 +215,10 @@ async fn test_redis_cluster_stats() {
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
-    backend.set("stats_test_key", b"stats_value".to_vec(), None).await.unwrap();
+    backend
+        .set("stats_test_key", b"stats_value".to_vec(), None)
+        .await
+        .unwrap();
 
     let stats = backend.stats().await.unwrap();
     assert_eq!(stats.get("type"), Some(&"redis".to_string()));

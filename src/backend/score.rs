@@ -7,8 +7,6 @@
 // 每个缓存后端都有一个内置分数，用于自动排序。
 // 分数越高，后端越快，越靠近链式缓存的前端。
 
-use std::any::Any;
-
 /// 后端分数 trait - 每个后端必须实现
 ///
 /// 分数用于自动排序链式缓存中的后端顺序。
@@ -68,9 +66,6 @@ pub trait BackendScore: Send + Sync + 'static {
     fn backend_name(&self) -> &'static str {
         "unknown"
     }
-
-    /// 获取 as_any 引用，用于类型转换
-    fn as_any(&self) -> &dyn Any;
 }
 
 /// 内置后端分数常量
@@ -216,10 +211,6 @@ mod tests {
 
         fn backend_name(&self) -> &'static str {
             "test"
-        }
-
-        fn as_any(&self) -> &dyn Any {
-            self
         }
     }
 

@@ -46,6 +46,6 @@ async fn test_multi_instance_invalidation() {
     cache.delete(&key_to_delete.to_string()).await.expect("Delete failed");
 
     // 清理
-    cache.shutdown().await.expect("Shutdown failed");
+    cache.shutdown().await;
     common::cleanup_service(&service_name).await;
 }

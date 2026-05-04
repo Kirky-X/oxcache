@@ -13,9 +13,7 @@ mod tests {
     use serde_json::json;
 
     /// 创建测试用的confers配置（JSON格式）
-    fn create_test_config(
-        pairs: Vec<(&str, serde_json::Value)>,
-    ) -> serde_json::Value {
+    fn create_test_config(pairs: Vec<(&str, serde_json::Value)>) -> serde_json::Value {
         let mut config_map = serde_json::Map::new();
         for (key, value) in pairs {
             let parts: Vec<&str> = key.split('.').collect();
@@ -23,7 +21,8 @@ mod tests {
                 config_map.insert(key.to_string(), value);
             } else {
                 // 处理嵌套键
-                let mut current = config_map.entry(parts[0].to_string())
+                let mut current = config_map
+                    .entry(parts[0].to_string())
                     .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
                     .as_object_mut()
                     .unwrap();
@@ -31,7 +30,8 @@ mod tests {
                     if i == parts.len() - 1 {
                         current.insert(part.to_string(), value.clone());
                     } else {
-                        current = current.entry(part.to_string())
+                        current = current
+                            .entry(part.to_string())
                             .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()))
                             .as_object_mut()
                             .unwrap();
@@ -44,10 +44,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_with_confers_memory_backend() {
-        let config = create_test_config(vec![
-            ("backend", json!("memory")),
-            ("capacity", json!(5000)),
-        ]);
+        let config = create_test_config(vec![("backend", json!("memory")), ("capacity", json!(5000))]);
 
         let cache: Cache<String, String> = Cache::with_confers(&config)
             .await
@@ -56,10 +53,7 @@ mod tests {
         // 验证缓存功能正常
         let key1 = "key1".to_string();
         let value1 = "value1".to_string();
-        cache
-            .set(&key1, &value1)
-            .await
-            .expect("Failed to set value");
+        cache.set(&key1, &value1).await.expect("Failed to set value");
 
         let value = cache.get(&key1).await.expect("Failed to get value");
 
@@ -83,10 +77,7 @@ mod tests {
         // 验证功能正常
         let test_key = "test_key".to_string();
         let test_value = "test_value".to_string();
-        cache
-            .set(&test_key, &test_value)
-            .await
-            .expect("Failed to set value");
+        cache.set(&test_key, &test_value).await.expect("Failed to set value");
 
         let value = cache.get(&test_key).await.expect("Failed to get value");
 
@@ -116,9 +107,7 @@ mod tests {
         // 不指定backend，应该默认使用memory
         let config = create_test_config(vec![("capacity", json!(2000))]);
 
-        let cache: Cache<String, String> = Cache::with_confers(&config)
-            .await
-            .expect("Failed to create cache");
+        let cache: Cache<String, String> = Cache::with_confers(&config).await.expect("Failed to create cache");
 
         let default_key = "default_key".to_string();
         let default_value = "default_value".to_string();
@@ -141,17 +130,10 @@ mod tests {
         ]);
 
         let backend_builder = oxcache::builder::BackendBuilder::with_confers(&config);
-        let backend = backend_builder
-            .build()
-            .await
-            .expect("Failed to build backend");
+        let backend = backend_builder.build().await.expect("Failed to build backend");
 
         // 验证health check
-        let healthy = backend
-            .health_check()
-            .await
-            .expect("Failed to check health");
-        assert!(healthy);
+        backend.health_check().await.expect("Failed to check health");
     }
 
     #[tokio::test]
@@ -178,15 +160,9 @@ mod tests {
             let config = create_test_config(vec![("backend", json!("tiered"))]);
 
             let backend_builder = oxcache::builder::BackendBuilder::with_confers(&config);
-            let backend = backend_builder
-                .build()
-                .await
-                .expect("Fallback to memory should work");
+            let backend = backend_builder.build().await.expect("Fallback to memory should work");
 
-            let healthy = backend
-                .health_check()
-                .await
-                .expect("Failed to check health");
+            let healthy = backend.health_check().await.expect("Failed to check health");
             assert!(healthy);
         }
     }

@@ -70,7 +70,7 @@ impl BatchWriter {
         _l2: std::sync::Arc<dyn crate::backend::CacheBackend>,
         _config: BatchWriterConfig,
     ) -> Result<Self, crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -86,7 +86,7 @@ impl BatchWriter {
         _service_name: String,
         _l2: std::sync::Arc<dyn crate::backend::CacheBackend>,
     ) -> Result<Self, crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -99,7 +99,7 @@ impl BatchWriter {
     }
 
     pub async fn shutdown(&self) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -112,7 +112,7 @@ impl BatchWriter {
     }
 
     pub async fn start(&self) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -130,7 +130,7 @@ impl BatchWriter {
         _value: Vec<u8>,
         _ttl: Option<u64>,
     ) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -143,7 +143,7 @@ impl BatchWriter {
     }
 
     pub async fn enqueue_delete(&self, _key: String) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -156,7 +156,7 @@ impl BatchWriter {
     }
 
     pub async fn enqueue_operation(&self, _operation: BatchOperation) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "BatchWriter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -192,7 +192,7 @@ pub struct CacheInvalidator;
 #[cfg(not(feature = "batch-write"))]
 impl CacheInvalidator {
     pub fn new(_config: InvalidationConfig) -> Result<Self, crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -205,7 +205,7 @@ impl CacheInvalidator {
     }
 
     pub async fn invalidate(&self, _key: &str) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -218,7 +218,7 @@ impl CacheInvalidator {
     }
 
     pub async fn invalidate_pattern(&self, _pattern: &str) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -231,7 +231,7 @@ impl CacheInvalidator {
     }
 
     pub async fn invalidate_all(&self) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CacheInvalidator requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -267,7 +267,7 @@ pub struct CachePromoter;
 #[cfg(not(feature = "batch-write"))]
 impl CachePromoter {
     pub fn new(_config: PromotionConfig) -> Result<Self, crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -280,7 +280,7 @@ impl CachePromoter {
     }
 
     pub async fn promote(&self, _key: &str) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
@@ -293,7 +293,7 @@ impl CachePromoter {
     }
 
     pub async fn promote_many(&self, _keys: &[String]) -> Result<(), crate::error::CacheError> {
-        Err(crate::error::CacheError::ConfigError(
+        Err(crate::error::CacheError::NotSupported(
             "CachePromoter requires the 'batch-write' feature to be enabled. \
              \n\n\
              Solution 1: Enable the batch-write feature:\n\
