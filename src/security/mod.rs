@@ -98,14 +98,7 @@ lazy_static::lazy_static! {
 ///
 /// * `Ok(())` - 键是安全的
 /// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
-#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
-pub fn validate_redis_key(key: &str) -> Result<()> {
-    // 使用公共验证模块进行基础验证
-    crate::security::validation::redis::validate_key(key)?;
-
-    // ========== 安全增强 ==========
-
-    // 检查 Unicode 控制字符（除了 \r, \n, \0 已在基础验证中检查）
+fn check_unicode_control_chars(key: &str) -> Result<()> {
     for c in key.chars() {
         if c.is_control() && !matches!(c, '\r' | '\n' | '\0' | '\t') {
             return Err(CacheError::InvalidInput(format!(
@@ -114,11 +107,10 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查 SQL 注入模式
-    // 注意：这些模式用于检测潜在的 SQL 注入攻击，
-    // 但在 Redis 键验证上下文中可能产生误报
-    // 因此我们使用更严格的匹配规则：只匹配独立的 SQL 关键字上下文
+fn check_sql_injection(key: &str) -> Result<()> {
     const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
         ("' OR '", "单引号后跟 OR 模式"),
         ("'--", "SQL 注释模式"),
@@ -135,11 +127,8 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
 
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
-        // 使用词边界匹配，避免误报（如 "api_v1_data" 中的 "1" 不应匹配 "1=1"）
         if key_upper.contains(&pattern.to_uppercase()) {
-            // 额外检查：如果是 1=1 模式，检查是否在数字上下文中
             if *pattern == "1=1" || *pattern == "1=2" {
-                // 排除正常的键名模式（如 api_v1_data, user_1_status）
                 if key_upper.contains("V1_")
                     || key_upper.contains("_V1")
                     || key_upper.contains("V2_")
@@ -162,8 +151,10 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查路径遍历模式
+fn check_path_traversal(key: &str) -> Result<()> {
     const PATH_TRAVERSAL_PATTERNS: &[&str] = &[
         "../",
         "..\\",
@@ -183,9 +174,10 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查命令注入模式
-    // 直接检测危险字符，不使用可能绕过的不安全条件
+fn check_command_injection(key: &str) -> Result<()> {
     const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
 
     for c in key.chars() {
@@ -196,7 +188,36 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
             )));
         }
     }
+    Ok(())
+}
 
+/// 验证 Redis 缓存键是否安全
+///
+/// 防止 Redis 命令注入和协议污染攻击。
+///
+/// # 验证规则
+///
+/// 1. 键不能为空
+/// 2. 键长度不能超过 512KB
+/// 3. 键不能包含危险字符（\r, \n, \0）
+///
+/// # 参数
+///
+/// * `key` - 要验证的缓存键
+///
+/// # 返回值
+///
+/// * `Ok(())` - 键是安全的
+/// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
+#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+pub fn validate_redis_key(key: &str) -> Result<()> {
+    // 使用公共验证模块进行基础验证
+    crate::security::validation::redis::validate_key(key)?;
+
+    check_unicode_control_chars(key)?;
+    check_sql_injection(key)?;
+    check_path_traversal(key)?;
+    check_command_injection(key)?;
     Ok(())
 }
 
