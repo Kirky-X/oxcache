@@ -178,3 +178,99 @@ pub const FORBIDDEN_LUA_COMMANDS: &[&str] = &[
     "CLUSTER",
     "ADMIN",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cache_capacity_valid() {
+        assert!(CacheCapacity::new(100).is_some());
+        assert!(CacheCapacity::new(10_000).is_some());
+        assert!(CacheCapacity::new(10_000_000).is_some());
+    }
+
+    #[test]
+    fn test_cache_capacity_invalid() {
+        assert!(CacheCapacity::new(0).is_none());
+        assert!(CacheCapacity::new(99).is_none());
+        assert!(CacheCapacity::new(10_000_001).is_none());
+    }
+
+    #[test]
+    fn test_cache_capacity_default() {
+        let cap = CacheCapacity::default();
+        assert_eq!(cap.value(), DEFAULT_CACHE_CAPACITY);
+    }
+
+    #[test]
+    fn test_cache_capacity_value() {
+        let cap = CacheCapacity::new(5000).unwrap();
+        assert_eq!(cap.value(), 5000);
+    }
+
+    #[test]
+    fn test_cache_capacity_debug() {
+        let cap = CacheCapacity::new(1000).unwrap();
+        let debug = format!("{:?}", cap);
+        assert!(debug.contains("CacheCapacity"));
+    }
+
+    #[test]
+    fn test_pool_size_valid() {
+        assert!(PoolSize::new(1).is_some());
+        assert!(PoolSize::new(10).is_some());
+        assert!(PoolSize::new(100).is_some());
+    }
+
+    #[test]
+    fn test_pool_size_invalid() {
+        assert!(PoolSize::new(0).is_none());
+        assert!(PoolSize::new(101).is_none());
+    }
+
+    #[test]
+    fn test_pool_size_default() {
+        let size = PoolSize::default();
+        assert_eq!(size.value(), DEFAULT_POOL_SIZE);
+    }
+
+    #[test]
+    fn test_pool_size_value() {
+        let size = PoolSize::new(50).unwrap();
+        assert_eq!(size.value(), 50);
+    }
+
+    #[test]
+    fn test_pool_size_debug() {
+        let size = PoolSize::new(10).unwrap();
+        let debug = format!("{:?}", size);
+        assert!(debug.contains("PoolSize"));
+    }
+
+    #[test]
+    fn test_constants_values() {
+        assert_eq!(DEFAULT_CONNECT_TIMEOUT_SECS, 5);
+        assert_eq!(DEFAULT_COMMAND_TIMEOUT_SECS, 5);
+        assert_eq!(DEFAULT_SCAN_COUNT, 100);
+        assert_eq!(MAX_LUA_SCRIPT_SIZE, 10 * 1024);
+        assert_eq!(MAX_LUA_SCRIPT_KEYS, 100);
+        assert_eq!(MAX_JSON_SIZE, 5 * 1024 * 1024);
+        assert_eq!(MAX_JSON_DEPTH, 64);
+        assert_eq!(MAX_KEY_LENGTH, 1024);
+        assert_eq!(MAX_VALUE_SIZE, 100 * 1024 * 1024);
+        assert_eq!(DEFAULT_BATCH_SIZE, 100);
+        assert_eq!(MAX_BATCH_SIZE, 10_000);
+        assert_eq!(DEFAULT_TTL_SECS, 3600);
+        assert_eq!(MAX_TTL_SECS, 30 * 24 * 60 * 60);
+        assert_eq!(PASSWORD_MASK_ASTERISKS, 5);
+    }
+
+    #[test]
+    fn test_forbidden_lua_commands_not_empty() {
+        assert!(!FORBIDDEN_LUA_COMMANDS.is_empty());
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"FLUSHALL"));
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"SHUTDOWN"));
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"KEYS"));
+    }
+}

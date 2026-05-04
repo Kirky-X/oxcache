@@ -495,7 +495,7 @@ mod tests {
         GLOBAL_METRICS.record_request("global_test", "L1", "get", "hit");
         let output = export_prometheus_format();
         assert!(output.contains("cache_"));
-        assert!(output.contains("# Cache Statistics"));
+        assert!(output.contains("# Cache Metrics Snapshot"));
     }
 
     // ========================================

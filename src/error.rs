@@ -394,3 +394,552 @@ impl CacheError {
         matches!(self, CacheError::Degraded(_))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========================================================================
+    // sanitize_connection_string tests
+    // ========================================================================
+
+    #[test]
+    fn test_sanitize_connection_string_with_password() {
+        let result = sanitize_connection_string("redis://user:secret@localhost:6379/0");
+        assert_eq!(
+            result,
+            format!("redis://user:{}@localhost:6379/0", "*".repeat(PASSWORD_MASK_ASTERISKS))
+        );
+    }
+
+    #[test]
+    fn test_sanitize_connection_string_without_password() {
+        let result = sanitize_connection_string("redis://user@localhost:6379/0");
+        assert_eq!(
+            result,
+            format!("redis://user:{}@localhost:6379/0", "*".repeat(PASSWORD_MASK_ASTERISKS))
+        );
+    }
+
+    #[test]
+    fn test_sanitize_connection_string_no_at_sign() {
+        let result = sanitize_connection_string("redis://localhost:6379/0");
+        assert_eq!(result, "redis://localhost:6379/0");
+    }
+
+    #[test]
+    fn test_sanitize_connection_string_no_protocol() {
+        let result = sanitize_connection_string("localhost:6379");
+        assert_eq!(result, "localhost:6379");
+    }
+
+    #[test]
+    fn test_sanitize_connection_string_empty() {
+        let result = sanitize_connection_string("");
+        assert_eq!(result, "");
+    }
+
+    // ========================================================================
+    // CacheConfigError tests
+    // ========================================================================
+
+    #[test]
+    fn test_config_error_missing_field() {
+        let err = CacheConfigError::MissingField("capacity".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Missing required field"));
+        assert!(msg.contains("capacity"));
+    }
+
+    #[test]
+    fn test_config_error_invalid_value() {
+        let err = CacheConfigError::InvalidValue {
+            field: "capacity".to_string(),
+            reason: "must be greater than 0".to_string(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("Invalid value for field 'capacity'"));
+        assert!(msg.contains("must be greater than 0"));
+    }
+
+    #[test]
+    fn test_config_error_unsupported_backend() {
+        let err = CacheConfigError::UnsupportedBackend("sqlite".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Unsupported backend combination"));
+        assert!(msg.contains("sqlite"));
+    }
+
+    #[test]
+    fn test_config_error_connection_failed() {
+        let err = CacheConfigError::ConnectionFailed("timeout".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Connection failed during initialization"));
+        assert!(msg.contains("timeout"));
+    }
+
+    #[test]
+    fn test_config_error_debug_format() {
+        let err = CacheConfigError::MissingField("host".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("MissingField"));
+    }
+
+    // ========================================================================
+    // CacheError Display tests
+    // ========================================================================
+
+    #[test]
+    fn test_error_display_serialization() {
+        let err = CacheError::Serialization("invalid format".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Serialization error"));
+        assert!(msg.contains("invalid format"));
+    }
+
+    #[test]
+    fn test_error_display_operation() {
+        let err = CacheError::Operation("retry failed".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Operation failed"));
+    }
+
+    #[test]
+    fn test_error_display_connection() {
+        let err = CacheError::Connection("refused".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Connection error"));
+    }
+
+    #[test]
+    fn test_error_display_not_found() {
+        let err = CacheError::NotFound("user:123".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Key not found"));
+        assert!(msg.contains("user:123"));
+    }
+
+    #[test]
+    fn test_error_display_degraded() {
+        let err = CacheError::Degraded("L2 unavailable".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Cache degraded"));
+    }
+
+    #[test]
+    fn test_error_display_l1_error() {
+        let err = CacheError::L1Error("memory pressure".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("L1 cache operation failed"));
+    }
+
+    #[test]
+    fn test_error_display_l2_error() {
+        let err = CacheError::L2Error("redis down".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("L2 cache operation failed"));
+    }
+
+    #[test]
+    fn test_error_display_not_supported() {
+        let err = CacheError::NotSupported("batch delete".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Operation not supported"));
+    }
+
+    #[test]
+    fn test_error_display_wal_error() {
+        let err = CacheError::WalError("disk full".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("WAL (Write-Ahead Log) operation failed"));
+    }
+
+    #[test]
+    fn test_error_display_database_error() {
+        let err = CacheError::DatabaseError("query failed".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Database error"));
+    }
+
+    #[test]
+    fn test_error_display_redis_error_placeholder() {
+        #[cfg(not(feature = "redis"))]
+        {
+            let err = CacheError::RedisError("connection refused".to_string());
+            let msg = err.to_string();
+            assert!(msg.contains("Redis connection failed"));
+        }
+    }
+
+    #[test]
+    fn test_error_display_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let err = CacheError::IoError(io_err);
+        let msg = err.to_string();
+        assert!(msg.contains("I/O error"));
+        assert!(msg.contains("access denied"));
+    }
+
+    #[test]
+    fn test_error_display_backend_error() {
+        let err = CacheError::BackendError("unexpected".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Backend error"));
+    }
+
+    #[test]
+    fn test_error_display_timeout() {
+        let err = CacheError::Timeout("30s exceeded".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Operation timed out"));
+    }
+
+    #[test]
+    fn test_error_display_shutdown_error() {
+        let err = CacheError::ShutdownError("incomplete".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Shutdown error"));
+    }
+
+    #[test]
+    fn test_error_display_key_too_long() {
+        let err = CacheError::KeyTooLong(2048, 1024);
+        let msg = err.to_string();
+        assert!(msg.contains("Key too long"));
+        assert!(msg.contains("2048"));
+        assert!(msg.contains("1024"));
+    }
+
+    #[test]
+    fn test_error_display_value_too_large() {
+        let err = CacheError::ValueTooLarge(200_000_000, 100_000_000);
+        let msg = err.to_string();
+        assert!(msg.contains("Value too large"));
+        assert!(msg.contains("200000000"));
+    }
+
+    #[test]
+    fn test_error_display_buffer_full() {
+        let err = CacheError::BufferFull("write queue saturated".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Buffer full"));
+    }
+
+    #[test]
+    fn test_error_display_invalid_input() {
+        let err = CacheError::InvalidInput("empty key".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Invalid input"));
+    }
+
+    #[test]
+    fn test_error_display_invalid_key() {
+        let err = CacheError::InvalidKey("contains null byte".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Invalid key"));
+    }
+
+    #[test]
+    fn test_error_display_lock_error() {
+        let err = CacheError::LockError("poisoned".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Lock error"));
+        assert!(msg.contains("poisoned"));
+    }
+
+    #[test]
+    fn test_error_display_service_not_found() {
+        let err = CacheError::ServiceNotFound("analytics".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Service not found"));
+    }
+
+    #[test]
+    fn test_error_display_internal() {
+        let err = CacheError::Internal("unexpected state".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Internal error"));
+    }
+
+    #[test]
+    fn test_error_debug_format() {
+        let err = CacheError::NotFound("key".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("NotFound"));
+    }
+
+    // ========================================================================
+    // CacheError::code() tests
+    // ========================================================================
+
+    #[test]
+    fn test_error_code_not_found() {
+        assert_eq!(CacheError::NotFound("k".to_string()).code(), "CACHE_001");
+    }
+
+    #[test]
+    fn test_error_code_connection() {
+        assert_eq!(CacheError::Connection("r".to_string()).code(), "CACHE_002");
+    }
+
+    #[test]
+    fn test_error_code_serialization() {
+        assert_eq!(CacheError::Serialization("s".to_string()).code(), "CACHE_003");
+    }
+
+    #[test]
+    fn test_error_code_operation() {
+        assert_eq!(CacheError::Operation("o".to_string()).code(), "CACHE_004");
+    }
+
+    #[test]
+    fn test_error_code_degraded() {
+        assert_eq!(CacheError::Degraded("d".to_string()).code(), "CACHE_005");
+    }
+
+    #[test]
+    fn test_error_code_l1_error() {
+        assert_eq!(CacheError::L1Error("l".to_string()).code(), "CACHE_006");
+    }
+
+    #[test]
+    fn test_error_code_l2_error() {
+        assert_eq!(CacheError::L2Error("l".to_string()).code(), "CACHE_007");
+    }
+
+    #[test]
+    fn test_error_code_not_supported() {
+        assert_eq!(CacheError::NotSupported("n".to_string()).code(), "CACHE_009");
+    }
+
+    #[test]
+    fn test_error_code_wal_error() {
+        assert_eq!(CacheError::WalError("w".to_string()).code(), "CACHE_010");
+    }
+
+    #[test]
+    fn test_error_code_database_error() {
+        assert_eq!(CacheError::DatabaseError("d".to_string()).code(), "CACHE_011");
+    }
+
+    #[test]
+    fn test_error_code_redis_error() {
+        #[cfg(not(feature = "redis"))]
+        {
+            assert_eq!(CacheError::RedisError("r".to_string()).code(), "CACHE_012");
+        }
+    }
+
+    #[test]
+    fn test_error_code_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "err");
+        assert_eq!(CacheError::IoError(io_err).code(), "CACHE_013");
+    }
+
+    #[test]
+    fn test_error_code_backend_error() {
+        assert_eq!(CacheError::BackendError("b".to_string()).code(), "CACHE_014");
+    }
+
+    #[test]
+    fn test_error_code_timeout() {
+        assert_eq!(CacheError::Timeout("t".to_string()).code(), "CACHE_015");
+    }
+
+    #[test]
+    fn test_error_code_shutdown_error() {
+        assert_eq!(CacheError::ShutdownError("s".to_string()).code(), "CACHE_016");
+    }
+
+    #[test]
+    fn test_error_code_key_too_long() {
+        assert_eq!(CacheError::KeyTooLong(100, 50).code(), "CACHE_017");
+    }
+
+    #[test]
+    fn test_error_code_value_too_large() {
+        assert_eq!(CacheError::ValueTooLarge(100, 50).code(), "CACHE_018");
+    }
+
+    #[test]
+    fn test_error_code_buffer_full() {
+        assert_eq!(CacheError::BufferFull("f".to_string()).code(), "CACHE_019");
+    }
+
+    #[test]
+    fn test_error_code_invalid_input() {
+        assert_eq!(CacheError::InvalidInput("i".to_string()).code(), "CACHE_020");
+    }
+
+    #[test]
+    fn test_error_code_invalid_key() {
+        assert_eq!(CacheError::InvalidKey("i".to_string()).code(), "CACHE_021");
+    }
+
+    #[test]
+    fn test_error_code_lock_error() {
+        assert_eq!(CacheError::LockError("l".to_string()).code(), "CACHE_022");
+    }
+
+    #[test]
+    fn test_error_code_service_not_found() {
+        assert_eq!(CacheError::ServiceNotFound("s".to_string()).code(), "CACHE_023");
+    }
+
+    #[test]
+    fn test_error_code_internal() {
+        assert_eq!(CacheError::Internal("i".to_string()).code(), "CACHE_024");
+    }
+
+    // ========================================================================
+    // CacheError::is_recoverable() tests
+    // ========================================================================
+
+    #[test]
+    fn test_is_recoverable_connection() {
+        assert!(CacheError::Connection("refused".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_recoverable_timeout() {
+        assert!(CacheError::Timeout("expired".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_recoverable_l2_error() {
+        assert!(CacheError::L2Error("down".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_recoverable_backend_error() {
+        assert!(CacheError::BackendError("err".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_recoverable_buffer_full() {
+        assert!(CacheError::BufferFull("full".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_recoverable_internal() {
+        assert!(CacheError::Internal("state".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_not_recoverable_not_found() {
+        assert!(!CacheError::NotFound("k".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_not_recoverable_serialization() {
+        assert!(!CacheError::Serialization("bad".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_not_recoverable_degraded() {
+        assert!(!CacheError::Degraded("down".to_string()).is_recoverable());
+    }
+
+    #[test]
+    fn test_is_not_recoverable_invalid_input() {
+        assert!(!CacheError::InvalidInput("empty".to_string()).is_recoverable());
+    }
+
+    // ========================================================================
+    // CacheError::is_not_found() tests
+    // ========================================================================
+
+    #[test]
+    fn test_is_not_found_true() {
+        assert!(CacheError::NotFound("k".to_string()).is_not_found());
+    }
+
+    #[test]
+    fn test_is_not_found_false_for_other_errors() {
+        assert!(!CacheError::Connection("r".to_string()).is_not_found());
+        assert!(!CacheError::Serialization("s".to_string()).is_not_found());
+        assert!(!CacheError::Operation("o".to_string()).is_not_found());
+    }
+
+    // ========================================================================
+    // CacheError::is_connection_error() tests
+    // ========================================================================
+
+    #[test]
+    fn test_is_connection_error_direct() {
+        assert!(CacheError::Connection("refused".to_string()).is_connection_error());
+    }
+
+    #[test]
+    fn test_is_connection_error_l2() {
+        assert!(CacheError::L2Error("redis down".to_string()).is_connection_error());
+    }
+
+    #[test]
+    fn test_is_not_connection_error() {
+        assert!(!CacheError::NotFound("k".to_string()).is_connection_error());
+        assert!(!CacheError::Timeout("t".to_string()).is_connection_error());
+        assert!(!CacheError::Degraded("d".to_string()).is_connection_error());
+    }
+
+    // ========================================================================
+    // CacheError::is_degraded() tests
+    // ========================================================================
+
+    #[test]
+    fn test_is_degraded_true() {
+        assert!(CacheError::Degraded("L2 unavailable".to_string()).is_degraded());
+    }
+
+    #[test]
+    fn test_is_degraded_false_for_other_errors() {
+        assert!(!CacheError::NotFound("k".to_string()).is_degraded());
+        assert!(!CacheError::Connection("r".to_string()).is_degraded());
+    }
+
+    // ========================================================================
+    // From<std::io::Error> tests
+    // ========================================================================
+
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let cache_err: CacheError = io_err.into();
+        match cache_err {
+            CacheError::IoError(_) => {}
+            other => panic!("Expected IoError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_io_error_question_mark() {
+        fn may_fail() -> std::result::Result<(), CacheError> {
+            let _ = std::fs::read("/nonexistent/path/that/does/not/exist")?;
+            Ok(())
+        }
+        let result = may_fail();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "CACHE_013");
+    }
+
+    // ========================================================================
+    // Result type alias tests
+    // ========================================================================
+
+    #[test]
+    fn test_result_type_alias() {
+        fn returns_result() -> std::result::Result<String, CacheError> {
+            Ok("success".to_string())
+        }
+        assert_eq!(returns_result().unwrap(), "success");
+    }
+
+    #[test]
+    fn test_config_result_type_alias() {
+        fn returns_config_result() -> ConfigResult<i32> {
+            Err(CacheConfigError::MissingField("port".to_string()))
+        }
+        let result = returns_config_result();
+        assert!(result.is_err());
+    }
+}

@@ -425,6 +425,72 @@ pub use internal::{get_all_feature_info, get_l1_feature_info, get_l2_feature_inf
 pub use registry::{clear, get, init, init_empty, is_initialized, register, remove};
 
 // ============================================================================
+// Legacy Module Re-exports (for integration test compatibility)
+// ============================================================================
+
+// Legacy module paths that tests import directly (oxcache::config, oxcache::storage, etc.)
+// These are thin wrappers that re-export from the new hierarchical paths.
+
+/// Legacy path: oxcache::config -- re-exports from core::confers_config
+#[cfg(any(feature = "confers", feature = "full", test))]
+pub mod config {
+    pub use crate::core::confers_config;
+    pub use crate::core::confers_config::*;
+}
+
+/// Legacy path: oxcache::storage -- re-exports from backend::storage
+#[cfg(any(feature = "database", feature = "full", test))]
+pub mod storage {
+    pub use crate::backend::storage::connection_string;
+    pub use crate::backend::storage::partition;
+    pub use crate::backend::storage::sqlite;
+    pub use connection_string::*;
+    pub use partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
+}
+
+/// Legacy path: oxcache::http -- re-exports from features::http
+#[cfg(any(feature = "http-cache", feature = "full"))]
+pub mod http {
+    pub use crate::features::http::*;
+}
+
+/// Legacy path: oxcache::serialization -- re-exports from infra::serialization
+#[cfg(any(feature = "serialization", feature = "full"))]
+pub mod serialization {
+    pub use crate::infra::serialization::*;
+}
+
+/// Legacy path: oxcache::builder -- re-exports from cache::builder
+pub mod builder {
+    pub use crate::cache::builder::*;
+}
+
+/// Legacy path: oxcache::metrics -- re-exports from infra::metrics
+#[cfg(any(feature = "metrics", feature = "moka", feature = "full"))]
+pub mod metrics {
+    pub use crate::infra::metrics::*;
+}
+
+/// Legacy path: oxcache::recovery -- re-exports from features::recovery
+#[cfg(any(feature = "wal-recovery", feature = "redis", feature = "full"))]
+pub mod recovery {
+    pub mod wal {
+        pub use crate::features::recovery::wal::*;
+    }
+}
+
+/// Legacy path: oxcache::client -- re-exports from infra::db_loader
+pub mod client {
+    pub use crate::infra::db_loader;
+    pub use db_loader::*;
+}
+
+/// Legacy path: oxcache::traits -- re-exports from core::traits
+pub mod traits {
+    pub use crate::core::traits::*;
+}
+
+// ============================================================================
 // Factory Functions (Brick Architecture Standard)
 // ============================================================================
 
@@ -511,10 +577,25 @@ pub async fn new_with_config(
         core::confers_config::BackendType::Redis => {
             #[cfg(feature = "redis")]
             {
-                let _redis_config = config.l2_options();
-                // Create Redis backend with config
-                let builder = backend::memory::RedisBackend::builder();
-                // TODO: Parse redis_config and configure builder
+                let redis_config = config.l2_options();
+                let mut builder = backend::memory::RedisBackend::builder();
+
+                if let Some(url) = redis_config.get("url").and_then(|v| v.as_str()) {
+                    builder = builder.connection_string(url);
+                } else if let Some(url) = redis_config.get("connection_string").and_then(|v| v.as_str()) {
+                    builder = builder.connection_string(url);
+                } else {
+                    builder = builder.connection_string("redis://127.0.0.1:6379");
+                }
+
+                if let Some(mode) = redis_config.get("mode").and_then(|v| v.as_str()) {
+                    builder = builder.mode(match mode {
+                        "cluster" => core::types::RedisModeType::Cluster,
+                        "sentinel" => core::types::RedisModeType::Sentinel,
+                        _ => core::types::RedisModeType::Standalone,
+                    });
+                }
+
                 Ok(Arc::new(builder.build().await?))
             }
             #[cfg(not(feature = "redis"))]

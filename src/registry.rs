@@ -112,20 +112,141 @@ pub fn clear() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::interface::CacheConnector;
+    use crate::testing::mock::MockBackend;
 
     #[test]
     fn test_is_initialized_false_before_init() {
-        // Registry should not be initialized before init()
-        // Note: This test might fail if other tests initialized the registry
-        // In practice, use a fresh process or reset mechanism
+        // In a fresh process, registry should not be initialized
+        let initialized = is_initialized();
+        if !initialized {
+            assert!(get("nonexistent").is_none());
+        }
     }
 
     #[test]
     fn test_get_returns_none_when_not_initialized() {
-        // get() should return None if registry is not initialized
-        // Note: This test depends on registry state
         if !is_initialized() {
             assert!(get("nonexistent").is_none());
         }
+    }
+
+    #[test]
+    fn test_init_and_get() {
+        // Register a named cache and verify retrieval works regardless of init state
+        if !is_initialized() {
+            let backend = Arc::new(MockBackend::new("test", 100, false));
+            init(backend);
+        }
+
+        assert!(is_initialized());
+
+        // Register a test cache regardless of whether "default" exists
+        let cache = Arc::new(MockBackend::new("named_test", 50, false));
+        register("named_test", cache.clone());
+
+        let retrieved = get("named_test");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().backend_kind(), cache.backend_kind());
+
+        // Non-existent should return None
+        assert!(get("__nonexistent_key_123__").is_none());
+    }
+
+    #[test]
+    fn test_init_panics_on_double_init() {
+        // If already initialized, double init would panic (which is expected)
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let backend = Arc::new(MockBackend::new("test_panic", 100, false));
+            init(backend);
+        }));
+        // Either it was already initialized (so panics) or it initializes for the first time
+        // We can't reliably test this in parallel, so just verify init() exists
+        if is_initialized() {
+            assert!(result.is_err(), "Should panic when double-init");
+        }
+    }
+
+    #[test]
+    fn test_init_empty() {
+        let result = std::panic::catch_unwind(init_empty);
+        if result.is_err() {
+            // Expected if registry was already initialized by previous test
+        }
+    }
+
+    #[test]
+    fn test_register_and_get() {
+        if !is_initialized() {
+            let backend = Arc::new(MockBackend::new("test", 100, false));
+            init(backend);
+        }
+
+        let cache = Arc::new(MockBackend::new("registered", 50, false));
+        register("my_cache", cache.clone());
+
+        let retrieved = get("my_cache");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().backend_kind(), cache.backend_kind());
+    }
+
+    #[test]
+    fn test_remove() {
+        if !is_initialized() {
+            let backend = Arc::new(MockBackend::new("test", 100, false));
+            init(backend);
+        }
+
+        let cache = Arc::new(MockBackend::new("removable", 50, false));
+        register("to_remove", cache);
+
+        let removed = remove("to_remove");
+        assert!(removed.is_some());
+
+        assert!(get("to_remove").is_none());
+    }
+
+    #[test]
+    fn test_remove_nonexistent() {
+        if !is_initialized() {
+            let backend = Arc::new(MockBackend::new("test", 100, false));
+            init(backend);
+        }
+
+        let result = remove("does_not_exist");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_clear() {
+        if !is_initialized() {
+            let backend = Arc::new(MockBackend::new("test", 100, false));
+            init(backend);
+        }
+
+        let cache1 = Arc::new(MockBackend::new("clear1", 50, false));
+        let cache2 = Arc::new(MockBackend::new("clear2", 50, false));
+        register("clear1", cache1);
+        register("clear2", cache2);
+
+        clear();
+
+        assert!(get("clear1").is_none());
+        assert!(get("clear2").is_none());
+        assert!(get("default").is_none());
+    }
+
+    #[test]
+    fn test_registry_debug_format() {
+        let registry = Registry::new();
+        let debug = format!("{:?}", registry);
+        assert!(debug.contains("Registry"));
+        assert!(debug.contains("cache_count"));
+    }
+
+    #[test]
+    fn test_registry_new_empty() {
+        let registry = Registry::new();
+        assert_eq!(registry.caches.len(), 0);
     }
 }

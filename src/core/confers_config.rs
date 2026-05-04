@@ -7,7 +7,6 @@
 // This module uses confers derive macros for zero-boilerplate configuration
 // management with built-in validation using garde.
 
-use confers::Config;
 use garde::Validate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -173,55 +172,68 @@ impl std::str::FromStr for CacheType {
 }
 
 /// 全局配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
-#[config(validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct GlobalConfig {
     /// 默认 TTL（秒）
-    #[config(default = 0u64)]
     #[garde(range(max = 31_536_000))]
     pub default_ttl: u64,
 
     /// 默认 TTI（秒）
-    #[config(default = 0u64)]
     #[garde(range(max = 31_536_000))]
     pub default_tti: u64,
 
     /// 健康检查间隔（秒）
-    #[config(default = 30u32)]
     #[garde(range(min = 1, max = 3600))]
     pub health_check_interval: u32,
 }
 
+impl Default for GlobalConfig {
+    fn default() -> Self {
+        Self {
+            default_ttl: 0,
+            default_tti: 0,
+            health_check_interval: 30,
+        }
+    }
+}
+
 /// 后端配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackendConfig {
     /// 后端类型（字符串形式：Memory, Redis, Tiered）
-    #[config(default = "Memory".to_string())]
     pub backend_type: String,
 
     /// L1 缓存类型
-    #[config(default = "moka".to_string())]
     pub l1_type: String,
 
     /// L1 缓存选项（JSON 格式）
-    #[config(default = String::new())]
     pub l1_options_json: String,
 
     /// L2 缓存类型
-    #[config(default = "redis".to_string())]
     pub l2_type: String,
 
     /// L2 缓存选项（JSON 格式）
-    #[config(default = String::new())]
     pub l2_options_json: String,
 
     /// 是否启用 L1
-    #[config(default = true)]
     pub l1_enabled: bool,
 
     /// 是否启用 L2
-    #[config(default = false)]
     pub l2_enabled: bool,
+}
+
+impl Default for BackendConfig {
+    fn default() -> Self {
+        Self {
+            backend_type: "Memory".to_string(),
+            l1_type: "moka".to_string(),
+            l1_options_json: String::new(),
+            l2_type: "redis".to_string(),
+            l2_options_json: String::new(),
+            l1_enabled: true,
+            l2_enabled: false,
+        }
+    }
 }
 
 impl BackendConfig {
@@ -250,11 +262,9 @@ impl BackendConfig {
 }
 
 /// 服务特定配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
-#[config(validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct ServiceConfig {
     /// 缓存类型（字符串形式：L1, L2, TwoLevel）
-    #[config(default = "L1".to_string())]
     #[garde(skip)]
     pub cache_type: String,
 
@@ -267,9 +277,19 @@ pub struct ServiceConfig {
     pub max_capacity: Option<u64>,
 
     /// 是否启用指标
-    #[config(default = true)]
     #[garde(skip)]
     pub enable_metrics: bool,
+}
+
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            cache_type: "L1".to_string(),
+            ttl: None,
+            max_capacity: None,
+            enable_metrics: true,
+        }
+    }
 }
 
 impl ServiceConfig {
@@ -333,110 +353,131 @@ fn validate_capacity_opt(value: &Option<u64>, _ctx: &()) -> garde::Result {
 }
 
 /// 性能配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
-#[config(validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PerformanceConfig {
     /// 最大并发操作数
-    #[config(default = 1000usize)]
     #[garde(range(min = 1, max = 100_000))]
     pub max_concurrent_operations: usize,
 
     /// 命令超时（毫秒）
-    #[config(default = 5000u64)]
     #[garde(range(min = 1, max = 300_000))]
     pub command_timeout: u64,
 
     /// 是否启用预取
-    #[config(default = false)]
     #[garde(skip)]
     pub enable_prefetching: bool,
 }
 
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_operations: 1000,
+            command_timeout: 5000,
+            enable_prefetching: false,
+        }
+    }
+}
+
 /// 安全配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config, Validate)]
-#[config(validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct SecurityConfig {
     /// 是否隐藏连接字符串
-    #[config(default = true)]
     #[garde(skip)]
     pub connection_string_redaction: bool,
 
     /// 是否启用限流
-    #[config(default = 0u64)]
     #[garde(range(max = 1_000_000))]
     pub enable_rate_limiting: u64,
 
     /// 限流最大请求数
-    #[config(default = 1000u64)]
     #[garde(range(min = 1, max = 1_000_000))]
     pub rate_limit_max_requests: u64,
 
     /// 限流窗口大小（秒）
-    #[config(default = 60u64)]
     #[garde(range(min = 1, max = 3600))]
     pub rate_limit_window_size: u64,
 }
 
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            connection_string_redaction: true,
+            enable_rate_limiting: 0,
+            rate_limit_max_requests: 1000,
+            rate_limit_window_size: 60,
+        }
+    }
+}
+
 /// 指标配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsConfig {
     /// 是否启用
-    #[config(default = false)]
     pub enabled: bool,
 
     /// 是否详细
-    #[config(default = false)]
     pub detailed: bool,
 
     /// 导出格式
-    #[config(default = "prometheus".to_string())]
     pub export_format: String,
 
     /// 导出端点
     pub export_endpoint: Option<String>,
 }
 
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            detailed: false,
+            export_format: "prometheus".to_string(),
+            export_endpoint: None,
+        }
+    }
+}
+
 /// 恢复配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecoveryConfig {
     /// 是否启用 WAL
-    #[config(default = false)]
     pub enable_wal: bool,
 
     /// WAL 目录
-    #[config(default = "./wal".to_string())]
     pub wal_directory: String,
 
     /// 是否启用自动恢复
-    #[config(default = true)]
     pub enable_auto_recovery: bool,
 }
 
+impl Default for RecoveryConfig {
+    fn default() -> Self {
+        Self {
+            enable_wal: false,
+            wal_directory: "./wal".to_string(),
+            enable_auto_recovery: true,
+        }
+    }
+}
+
 /// 统一配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UnifiedConfig {
     /// 全局配置
-    #[config(flatten)]
     pub global: GlobalConfig,
 
     /// 后端配置
-    #[config(flatten)]
     pub backend: BackendConfig,
 
     /// 服务配置（JSON 格式）
-    #[config(default = String::new())]
     pub services_json: String,
 
     /// 性能配置
-    #[config(flatten)]
     pub performance: PerformanceConfig,
 
     /// 指标配置
-    #[config(flatten)]
     pub metrics: MetricsConfig,
 
     /// 恢复配置
-    #[config(flatten)]
     pub recovery: RecoveryConfig,
 }
 
@@ -1225,5 +1266,886 @@ mod tests {
     fn test_performance_config_validation() {
         let config = PerformanceConfig::default();
         assert!(config.validate().is_ok());
+    }
+
+    // ========================================================================
+    // BackendType: Display and error paths
+    // ========================================================================
+
+    #[test]
+    fn test_backend_type_display() {
+        assert_eq!(format!("{}", BackendType::Memory), "Memory");
+        assert_eq!(format!("{}", BackendType::Redis), "Redis");
+        assert_eq!(format!("{}", BackendType::Tiered), "Tiered");
+    }
+
+    #[test]
+    fn test_backend_type_from_str_invalid() {
+        let result = "Unknown".parse::<BackendType>();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown backend type"));
+    }
+
+    #[test]
+    fn test_backend_type_from_str_case_sensitive() {
+        // Only exact match works
+        assert!("memory".parse::<BackendType>().is_err());
+        assert!("REDIS".parse::<BackendType>().is_err());
+    }
+
+    // ========================================================================
+    // CacheType: Display and error paths
+    // ========================================================================
+
+    #[test]
+    fn test_cache_type_display() {
+        assert_eq!(format!("{}", CacheType::L1), "L1");
+        assert_eq!(format!("{}", CacheType::L2), "L2");
+        assert_eq!(format!("{}", CacheType::TwoLevel), "TwoLevel");
+    }
+
+    #[test]
+    fn test_cache_type_from_str_invalid() {
+        let result = "Unknown".parse::<CacheType>();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown cache type"));
+    }
+
+    #[test]
+    fn test_cache_type_from_str_case_sensitive() {
+        assert!("l1".parse::<CacheType>().is_err());
+        assert!("L2_ONLY".parse::<CacheType>().is_err());
+    }
+
+    // ========================================================================
+    // BackendConfig: comprehensive
+    // ========================================================================
+
+    #[test]
+    fn test_backend_config_default() {
+        let config = BackendConfig::default();
+        assert_eq!(config.backend_type, "Memory");
+        assert_eq!(config.l1_type, "moka");
+        assert_eq!(config.l2_type, "redis");
+        assert!(config.l1_enabled);
+        assert!(!config.l2_enabled);
+        assert!(config.l1_options_json.is_empty());
+        assert!(config.l2_options_json.is_empty());
+    }
+
+    #[test]
+    fn test_backend_config_backend_type_enum_valid() {
+        let mut config = BackendConfig::default();
+        assert_eq!(config.backend_type_enum(), BackendType::Memory);
+
+        config.backend_type = "Redis".to_string();
+        assert_eq!(config.backend_type_enum(), BackendType::Redis);
+
+        config.backend_type = "Tiered".to_string();
+        assert_eq!(config.backend_type_enum(), BackendType::Tiered);
+    }
+
+    #[test]
+    fn test_backend_config_backend_type_enum_invalid() {
+        let mut config = BackendConfig::default();
+        config.backend_type = "Invalid".to_string();
+        assert_eq!(config.backend_type_enum(), BackendType::Memory); // fallback
+    }
+
+    #[test]
+    fn test_backend_config_l1_options_empty() {
+        let config = BackendConfig::default();
+        assert_eq!(config.l1_options(), serde_json::Value::Null);
+    }
+
+    #[test]
+    fn test_backend_config_l1_options_valid_json() {
+        let mut config = BackendConfig::default();
+        config.l1_options_json = r#"{"max_capacity": 5000}"#.to_string();
+        let options = config.l1_options();
+        assert_eq!(options["max_capacity"].as_u64().unwrap(), 5000);
+    }
+
+    #[test]
+    fn test_backend_config_l1_options_invalid_json() {
+        let mut config = BackendConfig::default();
+        config.l1_options_json = "not valid json".to_string();
+        assert_eq!(config.l1_options(), serde_json::Value::Null);
+    }
+
+    #[test]
+    fn test_backend_config_l2_options_empty() {
+        let config = BackendConfig::default();
+        assert_eq!(config.l2_options(), serde_json::Value::Null);
+    }
+
+    #[test]
+    fn test_backend_config_l2_options_valid_json() {
+        let mut config = BackendConfig::default();
+        config.l2_options_json = r#"{"connection_string": "redis://localhost"}"#.to_string();
+        let options = config.l2_options();
+        assert_eq!(options["connection_string"].as_str().unwrap(), "redis://localhost");
+    }
+
+    #[test]
+    fn test_backend_config_l2_options_invalid_json() {
+        let mut config = BackendConfig::default();
+        config.l2_options_json = "{broken".to_string();
+        assert_eq!(config.l2_options(), serde_json::Value::Null);
+    }
+
+    // ========================================================================
+    // ServiceConfig: comprehensive
+    // ========================================================================
+
+    #[test]
+    fn test_service_config_default() {
+        let config = ServiceConfig::default();
+        assert_eq!(config.cache_type, "L1");
+        assert!(config.ttl.is_none());
+        assert!(config.max_capacity.is_none());
+        assert!(config.enable_metrics);
+    }
+
+    #[test]
+    fn test_service_config_l2_only() {
+        let config = ServiceConfig::l2_only();
+        assert_eq!(config.cache_type_enum(), CacheType::L2);
+    }
+
+    #[test]
+    fn test_service_config_two_level() {
+        let config = ServiceConfig::two_level();
+        assert_eq!(config.cache_type_enum(), CacheType::TwoLevel);
+    }
+
+    #[test]
+    fn test_service_config_cache_type_enum_invalid() {
+        let mut config = ServiceConfig::default();
+        config.cache_type = "Invalid".to_string();
+        assert_eq!(config.cache_type_enum(), CacheType::L1); // fallback
+    }
+
+    #[test]
+    fn test_service_config_with_ttl_chain() {
+        let config = ServiceConfig::l1_only().with_ttl(7200);
+        assert_eq!(config.ttl, Some(7200));
+    }
+
+    #[test]
+    fn test_service_config_validation_valid() {
+        let config = ServiceConfig::l1_only();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_service_config_validation_invalid_capacity() {
+        let mut config = ServiceConfig::l1_only();
+        config.max_capacity = Some(0);
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_service_config_validation_capacity_too_large() {
+        let mut config = ServiceConfig::l1_only();
+        config.max_capacity = Some(100_000_001);
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_service_config_validation_ttl_too_large() {
+        let mut config = ServiceConfig::l1_only().with_ttl(31_536_001);
+        assert!(config.validate().is_err());
+    }
+
+    // ========================================================================
+    // GlobalConfig: validation boundaries
+    // ========================================================================
+
+    #[test]
+    fn test_global_config_validation_ttl_too_large() {
+        let config = GlobalConfig {
+            default_ttl: 31_536_001,
+            default_tti: 0,
+            health_check_interval: 30,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_config_validation_tti_too_large() {
+        let config = GlobalConfig {
+            default_ttl: 0,
+            default_tti: 31_536_001,
+            health_check_interval: 30,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_config_validation_health_check_too_low() {
+        let config = GlobalConfig {
+            default_ttl: 0,
+            default_tti: 0,
+            health_check_interval: 0,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_config_validation_health_check_too_high() {
+        let config = GlobalConfig {
+            default_ttl: 0,
+            default_tti: 0,
+            health_check_interval: 3601,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_global_config_validation_boundary_max_ttl() {
+        let config = GlobalConfig {
+            default_ttl: 31_536_000,
+            default_tti: 0,
+            health_check_interval: 30,
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    // ========================================================================
+    // PerformanceConfig: validation boundaries
+    // ========================================================================
+
+    #[test]
+    fn test_performance_config_validation_max_concurrent_too_low() {
+        let config = PerformanceConfig {
+            max_concurrent_operations: 0,
+            command_timeout: 5000,
+            enable_prefetching: false,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_performance_config_validation_command_timeout_too_low() {
+        let config = PerformanceConfig {
+            max_concurrent_operations: 1000,
+            command_timeout: 0,
+            enable_prefetching: false,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_performance_config_validation_command_timeout_too_high() {
+        let config = PerformanceConfig {
+            max_concurrent_operations: 1000,
+            command_timeout: 300_001,
+            enable_prefetching: false,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_performance_config_validation_boundary_max() {
+        let config = PerformanceConfig {
+            max_concurrent_operations: 100_000,
+            command_timeout: 300_000,
+            enable_prefetching: true,
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    // ========================================================================
+    // SecurityConfig
+    // ========================================================================
+
+    #[test]
+    fn test_security_config_default() {
+        let config = SecurityConfig::default();
+        assert!(config.connection_string_redaction);
+        assert_eq!(config.enable_rate_limiting, 0);
+        assert_eq!(config.rate_limit_max_requests, 1000);
+        assert_eq!(config.rate_limit_window_size, 60);
+    }
+
+    #[test]
+    fn test_security_config_validation_rate_limit_too_high() {
+        let config = SecurityConfig {
+            connection_string_redaction: true,
+            enable_rate_limiting: 1_000_001,
+            rate_limit_max_requests: 1000,
+            rate_limit_window_size: 60,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_security_config_validation_max_requests_too_low() {
+        let config = SecurityConfig {
+            connection_string_redaction: true,
+            enable_rate_limiting: 1,
+            rate_limit_max_requests: 0,
+            rate_limit_window_size: 60,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_security_config_validation_window_too_low() {
+        let config = SecurityConfig {
+            connection_string_redaction: true,
+            enable_rate_limiting: 1,
+            rate_limit_max_requests: 100,
+            rate_limit_window_size: 0,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_security_config_validation_window_too_high() {
+        let config = SecurityConfig {
+            connection_string_redaction: true,
+            enable_rate_limiting: 1,
+            rate_limit_max_requests: 100,
+            rate_limit_window_size: 3601,
+        };
+        assert!(config.validate().is_err());
+    }
+
+    // ========================================================================
+    // MetricsConfig & RecoveryConfig
+    // ========================================================================
+
+    #[test]
+    fn test_metrics_config_default() {
+        let config = MetricsConfig::default();
+        assert!(!config.enabled);
+        assert!(!config.detailed);
+        assert_eq!(config.export_format, "prometheus");
+        assert!(config.export_endpoint.is_none());
+    }
+
+    #[test]
+    fn test_recovery_config_default() {
+        let config = RecoveryConfig::default();
+        assert!(!config.enable_wal);
+        assert_eq!(config.wal_directory, "./wal");
+        assert!(config.enable_auto_recovery);
+    }
+
+    // ========================================================================
+    // UnifiedConfig: comprehensive
+    // ========================================================================
+
+    #[test]
+    fn test_unified_config_default() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.global.default_ttl, 0);
+        assert_eq!(config.backend.backend_type, "Memory");
+        assert!(config.services_json.is_empty());
+        assert_eq!(config.performance.max_concurrent_operations, 1000);
+        assert!(!config.metrics.enabled);
+        assert!(!config.recovery.enable_wal);
+    }
+
+    #[test]
+    fn test_unified_config_services_empty() {
+        let config = UnifiedConfig::default();
+        let services = config.services();
+        assert!(services.is_empty());
+    }
+
+    #[test]
+    fn test_unified_config_services_valid_json() {
+        let mut config = UnifiedConfig::default();
+        config.services_json =
+            r#"{"auth": {"cache_type": "L1", "ttl": null, "max_capacity": null, "enable_metrics": true}}"#.to_string();
+        let services = config.services();
+        assert!(services.contains_key("auth"));
+        assert_eq!(services["auth"].cache_type, "L1");
+    }
+
+    #[test]
+    fn test_unified_config_services_invalid_json() {
+        let mut config = UnifiedConfig::default();
+        config.services_json = "{invalid".to_string();
+        let services = config.services();
+        assert!(services.is_empty()); // falls back to default
+    }
+
+    #[test]
+    fn test_unified_config_validate_config_valid() {
+        let config = UnifiedConfig::default();
+        assert!(config.validate_config().is_ok());
+    }
+
+    #[test]
+    fn test_unified_config_validate_config_invalid_global() {
+        let mut config = UnifiedConfig::default();
+        config.global.default_ttl = 31_536_001;
+        assert!(config.validate_config().is_err());
+    }
+
+    #[test]
+    fn test_unified_config_validate_config_invalid_service() {
+        let mut config = UnifiedConfig::default();
+        config.services_json =
+            r#"{"bad": {"cache_type": "L1", "ttl": null, "max_capacity": 0, "enable_metrics": true}}"#.to_string();
+        assert!(config.validate_config().is_err());
+    }
+
+    #[test]
+    fn test_unified_config_validate_config_invalid_performance() {
+        let mut config = UnifiedConfig::default();
+        config.performance.max_concurrent_operations = 0;
+        assert!(config.validate_config().is_err());
+    }
+
+    // ========================================================================
+    // UnifiedConfig: file loading (error paths only; file I/O blocked in sandbox)
+    // ========================================================================
+
+    #[test]
+    fn test_unified_config_from_toml_file_not_found() {
+        let result = UnifiedConfig::from_toml_file("/nonexistent/path/config.toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unified_config_from_json_file_not_found() {
+        let result = UnifiedConfig::from_json_file("/nonexistent/config.json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unified_config_from_file_auto_unsupported_format() {
+        let result = UnifiedConfig::from_file_auto("/some/config.yaml");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("不支持的配置文件格式"));
+    }
+
+    #[test]
+    fn test_unified_config_from_file_auto_no_extension() {
+        let result = UnifiedConfig::from_file_auto("/some/config");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unified_config_toml_deserialize() {
+        // Test TOML deserialization via confers ConfigBuilder (the standard path)
+        let builder = UnifiedConfigBuilder::new()
+            .with_ttl(3600)
+            .with_tti(1800)
+            .with_health_check_interval(60);
+        let config = builder.build().unwrap();
+        assert_eq!(config.global.default_ttl, 3600);
+        assert_eq!(config.global.default_tti, 1800);
+        assert_eq!(config.global.health_check_interval, 60);
+    }
+
+    #[test]
+    fn test_unified_config_json_deserialize() {
+        let json_str = serde_json::json!({
+            "global": {"default_ttl": 7200, "default_tti": 3600, "health_check_interval": 30},
+            "backend": {
+                "backend_type": "Memory", "l1_type": "moka", "l1_options_json": "",
+                "l2_type": "redis", "l2_options_json": "", "l1_enabled": true, "l2_enabled": false
+            },
+            "services_json": "",
+            "performance": {"max_concurrent_operations": 1000, "command_timeout": 5000, "enable_prefetching": false},
+            "metrics": {"enabled": false, "detailed": false, "export_format": "prometheus"},
+            "recovery": {"enable_wal": false, "wal_directory": "./wal", "enable_auto_recovery": true}
+        });
+        let config: UnifiedConfig = serde_json::from_value(json_str).unwrap();
+        assert_eq!(config.global.default_ttl, 7200);
+        assert_eq!(config.performance.max_concurrent_operations, 1000);
+    }
+
+    #[test]
+    fn test_unified_config_invalid_toml_parse() {
+        let result: Result<UnifiedConfig, _> = toml::from_str("this is not toml {{{");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unified_config_invalid_json_parse() {
+        let result = serde_json::from_str::<UnifiedConfig>("{invalid json}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_format_from_path_edge_cases() {
+        assert_eq!(ConfigFormat::from_path("config.TOML"), None); // case sensitive
+        assert_eq!(ConfigFormat::from_path("config.json"), Some(ConfigFormat::Json));
+        assert_eq!(ConfigFormat::from_path("dir/sub/config.toml"), Some(ConfigFormat::Toml));
+        assert_eq!(ConfigFormat::from_path(""), None);
+    }
+
+    // ========================================================================
+    // ConfigProvider trait on UnifiedConfig
+    // ========================================================================
+
+    #[test]
+    fn test_config_provider_get_string_global() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("global.default_ttl"), Some("0".to_string()));
+        assert_eq!(
+            config.get_string("global.health_check_interval"),
+            Some("30".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_provider_get_string_backend() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("backend.backend_type"), Some("Memory".to_string()));
+        assert_eq!(config.get_string("backend.l1_type"), Some("moka".to_string()));
+        assert_eq!(config.get_string("backend.l1_enabled"), Some("true".to_string()));
+        assert_eq!(config.get_string("backend.l2_enabled"), Some("false".to_string()));
+    }
+
+    #[test]
+    fn test_config_provider_get_string_performance() {
+        let config = UnifiedConfig::default();
+        assert_eq!(
+            config.get_string("performance.max_concurrent_operations"),
+            Some("1000".to_string())
+        );
+        assert_eq!(
+            config.get_string("performance.enable_prefetching"),
+            Some("false".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_provider_get_string_metrics() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("metrics.enabled"), Some("false".to_string()));
+        assert_eq!(
+            config.get_string("metrics.export_format"),
+            Some("prometheus".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_provider_get_string_recovery() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("recovery.enable_wal"), Some("false".to_string()));
+        assert_eq!(config.get_string("recovery.wal_directory"), Some("./wal".to_string()));
+    }
+
+    #[test]
+    fn test_config_provider_get_string_invalid_key() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("invalid"), None);
+        assert_eq!(config.get_string("global"), None);
+        assert_eq!(config.get_string("global.nonexistent"), None);
+        assert_eq!(config.get_string("unknown.field"), None);
+    }
+
+    #[test]
+    fn test_config_provider_get_string_services() {
+        let mut config = UnifiedConfig::default();
+        config.services_json =
+            r#"{"auth": {"cache_type": "L1", "ttl": 3600, "max_capacity": 1000, "enable_metrics": true}}"#.to_string();
+        assert_eq!(config.get_string("services.json"), Some(config.services_json.clone()));
+        assert_eq!(config.get_string("services.auth.cache_type"), Some("L1".to_string()));
+        assert_eq!(config.get_string("services.auth.ttl"), Some("3600".to_string()));
+        assert_eq!(
+            config.get_string("services.auth.max_capacity"),
+            Some("1000".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_provider_get_string_services_nonexistent() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_string("services.nonexistent.cache_type"), None);
+    }
+
+    #[test]
+    fn test_config_provider_get_int() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_int("global.default_ttl"), Some(0));
+        assert_eq!(config.get_int("performance.max_concurrent_operations"), Some(1000));
+        assert_eq!(config.get_int("global.nonexistent"), None);
+    }
+
+    #[test]
+    fn test_config_provider_get_bool() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_bool("backend.l1_enabled"), Some(true));
+        assert_eq!(config.get_bool("backend.l2_enabled"), Some(false));
+        assert_eq!(config.get_bool("metrics.enabled"), Some(false));
+        assert_eq!(config.get_bool("invalid.key"), None);
+    }
+
+    #[test]
+    fn test_config_provider_get_json_backend_options_empty() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_json("backend.l1_options"), Some(serde_json::Value::Null));
+        assert_eq!(config.get_json("backend.l2_options"), Some(serde_json::Value::Null));
+    }
+
+    #[test]
+    fn test_config_provider_get_json_backend_options_valid() {
+        let mut config = UnifiedConfig::default();
+        config.backend.l1_options_json = r#"{"max_capacity": 10000}"#.to_string();
+        let json = config.get_json("backend.l1_options").unwrap();
+        assert_eq!(json["max_capacity"], 10000);
+    }
+
+    #[test]
+    fn test_config_provider_get_json_services_all() {
+        let mut config = UnifiedConfig::default();
+        config.services_json =
+            r#"{"auth": {"cache_type": "L1", "ttl": null, "max_capacity": null, "enable_metrics": true}}"#.to_string();
+        let json = config.get_json("services.all").unwrap();
+        assert!(json.is_object());
+        assert!(json.as_object().unwrap().contains_key("auth"));
+    }
+
+    #[test]
+    fn test_config_provider_get_json_fallback() {
+        let config = UnifiedConfig::default();
+        // Falls back to wrapping string value in JSON
+        let result = config.get_json("backend.backend_type");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_config_provider_get_json_invalid_key() {
+        let config = UnifiedConfig::default();
+        assert_eq!(config.get_json("invalid"), None);
+    }
+
+    // ========================================================================
+    // UnifiedConfigBuilder: all builder methods
+    // ========================================================================
+
+    #[test]
+    fn test_builder_default() {
+        let builder = UnifiedConfigBuilder::new();
+        let config = builder.build().unwrap();
+        assert_eq!(config.global.default_ttl, 0);
+        assert_eq!(config.global.default_tti, 0);
+    }
+
+    #[test]
+    fn test_builder_with_tti() {
+        let config = UnifiedConfigBuilder::memory_only().with_tti(1800).build().unwrap();
+        assert_eq!(config.global.default_tti, 1800);
+    }
+
+    #[test]
+    fn test_builder_with_health_check_interval() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_health_check_interval(120)
+            .build()
+            .unwrap();
+        assert_eq!(config.global.health_check_interval, 120);
+    }
+
+    #[test]
+    fn test_builder_with_redis_mode() {
+        let config = UnifiedConfigBuilder::redis_only()
+            .with_redis_mode("cluster")
+            .build()
+            .unwrap();
+        let options = config.backend.l2_options();
+        assert_eq!(options["mode"].as_str().unwrap(), "cluster");
+    }
+
+    #[test]
+    fn test_builder_with_max_concurrent_operations() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_max_concurrent_operations(5000)
+            .build()
+            .unwrap();
+        assert_eq!(config.performance.max_concurrent_operations, 5000);
+    }
+
+    #[test]
+    fn test_builder_with_command_timeout() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_command_timeout(10000)
+            .build()
+            .unwrap();
+        assert_eq!(config.performance.command_timeout, 10000);
+    }
+
+    #[test]
+    fn test_builder_with_metrics() {
+        let config = UnifiedConfigBuilder::memory_only().with_metrics(true).build().unwrap();
+        assert!(config.metrics.enabled);
+    }
+
+    #[test]
+    fn test_builder_with_wal() {
+        let config = UnifiedConfigBuilder::memory_only().with_wal(true).build().unwrap();
+        assert!(config.recovery.enable_wal);
+    }
+
+    #[test]
+    fn test_builder_with_wal_directory() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_wal_directory("/var/wal")
+            .build()
+            .unwrap();
+        assert_eq!(config.recovery.wal_directory, "/var/wal");
+    }
+
+    #[test]
+    fn test_builder_with_auto_recovery() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_auto_recovery(false)
+            .build()
+            .unwrap();
+        assert!(!config.recovery.enable_auto_recovery);
+    }
+
+    #[test]
+    fn test_builder_with_service() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_service("auth", CacheType::L1, 3600)
+            .build()
+            .unwrap();
+        let services = config.services();
+        assert!(services.contains_key("auth"));
+        assert_eq!(services["auth"].cache_type, "L1");
+        assert_eq!(services["auth"].ttl, Some(3600));
+    }
+
+    #[test]
+    fn test_builder_with_service_zero_ttl() {
+        let config = UnifiedConfigBuilder::memory_only()
+            .with_service("auth", CacheType::L1, 0)
+            .build()
+            .unwrap();
+        let services = config.services();
+        assert!(services["auth"].ttl.is_none()); // 0 -> None
+    }
+
+    #[test]
+    fn test_builder_build_json() {
+        let json = UnifiedConfigBuilder::memory_only().with_ttl(3600).build_json();
+        assert!(json.is_object());
+        assert_eq!(json["global"]["default_ttl"], 3600);
+    }
+
+    #[test]
+    fn test_builder_build_json_default() {
+        let json = UnifiedConfigBuilder::default().build_json();
+        assert!(json.is_object());
+    }
+
+    // ========================================================================
+    // UnifiedConfigBuilder::with_dependencies
+    // ========================================================================
+
+    #[test]
+    fn test_builder_with_dependencies() {
+        let config = UnifiedConfig::default();
+        let builder = UnifiedConfigBuilder::with_dependencies(config);
+        let result = builder.build().unwrap();
+        assert_eq!(result.global.default_ttl, 0);
+        assert_eq!(result.backend.backend_type, "Memory");
+    }
+
+    #[test]
+    fn test_builder_with_dependencies_custom() {
+        let config = UnifiedConfig {
+            global: GlobalConfig {
+                default_ttl: 7200,
+                default_tti: 3600,
+                health_check_interval: 60,
+            },
+            backend: BackendConfig {
+                backend_type: "Tiered".to_string(),
+                l1_type: "moka".to_string(),
+                l1_options_json: r#"{"max_capacity": 5000}"#.to_string(),
+                l2_type: "redis".to_string(),
+                l2_options_json: r#"{"connection_string": "redis://localhost"}"#.to_string(),
+                l1_enabled: true,
+                l2_enabled: true,
+            },
+            services_json: String::new(),
+            performance: PerformanceConfig {
+                max_concurrent_operations: 2000,
+                command_timeout: 10000,
+                enable_prefetching: true,
+            },
+            metrics: MetricsConfig {
+                enabled: true,
+                detailed: true,
+                export_format: "opentelemetry".to_string(),
+                export_endpoint: Some("http://localhost:4318".to_string()),
+            },
+            recovery: RecoveryConfig {
+                enable_wal: true,
+                wal_directory: "/var/wal".to_string(),
+                enable_auto_recovery: false,
+            },
+        };
+        let builder = UnifiedConfigBuilder::with_dependencies(config);
+        let result = builder.build().unwrap();
+        assert_eq!(result.global.default_ttl, 7200);
+        assert_eq!(result.global.default_tti, 3600);
+        assert_eq!(result.global.health_check_interval, 60);
+        assert_eq!(result.backend.backend_type, "Tiered");
+        assert!(result.backend.l1_enabled);
+        assert!(result.backend.l2_enabled);
+        assert_eq!(result.performance.max_concurrent_operations, 2000);
+        assert!(result.metrics.enabled);
+        assert!(result.metrics.detailed);
+        assert_eq!(result.metrics.export_format, "opentelemetry");
+        assert_eq!(
+            result.metrics.export_endpoint,
+            Some("http://localhost:4318".to_string())
+        );
+        assert!(result.recovery.enable_wal);
+        assert_eq!(result.recovery.wal_directory, "/var/wal");
+        assert!(!result.recovery.enable_auto_recovery);
+    }
+
+    // ========================================================================
+    // ConfigFormat: mime_type
+    // ========================================================================
+
+    #[test]
+    fn test_config_format_mime_type() {
+        assert_eq!(ConfigFormat::Toml.mime_type(), "application/toml");
+        assert_eq!(ConfigFormat::Json.mime_type(), "application/json");
+    }
+
+    // ========================================================================
+    // Serialization round-trip
+    // ========================================================================
+
+    #[test]
+    fn test_unified_config_serialize_deserialize() {
+        let config = UnifiedConfig::default();
+        let serialized = serde_json::to_string(&config).unwrap();
+        let deserialized: UnifiedConfig = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.global.default_ttl, config.global.default_ttl);
+        assert_eq!(deserialized.backend.backend_type, config.backend.backend_type);
+    }
+
+    #[test]
+    fn test_service_config_serialize_deserialize() {
+        let config = ServiceConfig::l1_only().with_ttl(3600);
+        let serialized = serde_json::to_string(&config).unwrap();
+        let deserialized: ServiceConfig = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.cache_type, config.cache_type);
+        assert_eq!(deserialized.ttl, config.ttl);
+    }
+
+    #[test]
+    fn test_backend_config_serialize_deserialize() {
+        let config = BackendConfig::default();
+        let serialized = serde_json::to_string(&config).unwrap();
+        let deserialized: BackendConfig = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.backend_type, config.backend_type);
     }
 }
