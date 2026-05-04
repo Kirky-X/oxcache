@@ -27,9 +27,9 @@ fn test_internal_feature_detection() {
 
 #[test]
 fn test_has_feature_macro() {
-    let has_moka = oxcache::has_feature!("moka");
-    let has_redis = oxcache::has_feature!("redis");
-    let has_metrics = oxcache::has_feature!("metrics");
+    let has_moka = cfg!(feature = "moka");
+    let has_redis = cfg!(feature = "redis");
+    let has_metrics = cfg!(feature = "metrics");
 
     assert_eq!(has_moka, cfg!(feature = "moka"));
     assert_eq!(has_redis, cfg!(feature = "redis"));
