@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了缓存系统的遥测和链路追踪功能。
 
+#![allow(dead_code)]
+
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;

@@ -35,11 +35,6 @@ impl MokaMemoryBackend {
     pub fn entry_count(&self) -> u64 {
         self.cache.entry_count()
     }
-
-    /// Get the underlying cache
-    pub(crate) fn cache(&self) -> &moka::future::Cache<String, Vec<u8>> {
-        &self.cache
-    }
 }
 
 impl Default for MokaMemoryBackend {

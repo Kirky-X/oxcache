@@ -597,14 +597,20 @@ impl SlidingWindowMetrics {
 
     /// 捕获当前指标
     pub fn capture(&self) {
-        let mut last = self.last_capture.lock().unwrap();
+        let mut last = self
+            .last_capture
+            .lock()
+            .expect("metrics last_capture lock poisoned - previous panic detected");
         let now = Instant::now();
         let interval = now.duration_since(*last).as_secs_f64();
 
         let metrics = self.collector.full_stats();
         let snapshot = PerformanceSnapshot::new(metrics, interval);
 
-        let mut snapshots = self.snapshots.lock().unwrap();
+        let mut snapshots = self
+            .snapshots
+            .lock()
+            .expect("metrics snapshots lock poisoned - previous panic detected");
         snapshots.push_back(snapshot);
 
         // 清理过期的快照
@@ -621,7 +627,10 @@ impl SlidingWindowMetrics {
 
     /// 获取窗口指标摘要
     pub async fn window_summary(&self) -> WindowMetricsSummary {
-        let snapshots = self.snapshots.lock().unwrap();
+        let snapshots = self
+            .snapshots
+            .lock()
+            .expect("metrics snapshots lock poisoned - previous panic detected");
         let count = snapshots.len();
 
         if count == 0 {

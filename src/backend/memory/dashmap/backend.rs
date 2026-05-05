@@ -98,11 +98,6 @@ impl DashMapMemoryBackend {
             hits as f64 / total as f64
         }
     }
-
-    /// Get the underlying cache
-    pub(crate) fn cache(&self) -> &DashMap<String, CacheEntry> {
-        &self.cache
-    }
 }
 
 impl Default for DashMapMemoryBackend {

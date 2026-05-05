@@ -548,7 +548,7 @@ impl BackendProvider for DefaultBackendProvider {
             let connection_string = options
                 .get("connection_string")
                 .and_then(|v| v.as_str())
-                .unwrap_or("redis://localhost:6379");
+                .unwrap_or(crate::core::constants::DEFAULT_REDIS_URL);
 
             let backend = Arc::new(RedisBackend::new(connection_string).await?);
             Ok(backend)
@@ -574,7 +574,7 @@ impl BackendProvider for DefaultBackendProvider {
             let connection_string = options
                 .get("connection_string")
                 .and_then(|v| v.as_str())
-                .unwrap_or("redis://localhost:6379");
+                .unwrap_or(crate::core::constants::DEFAULT_REDIS_URL);
 
             let backend = Arc::new(RedisBackend::new(connection_string).await?);
             Ok(backend)
