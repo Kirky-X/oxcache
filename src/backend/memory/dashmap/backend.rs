@@ -7,6 +7,7 @@
 use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
+use crate::impl_backend_builder;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -16,7 +17,7 @@ use std::time::{Duration, Instant};
 
 /// Entry with metadata for TTL tracking
 #[derive(Clone, Debug)]
-pub struct CacheEntry {
+pub(crate) struct CacheEntry {
     value: Vec<u8>,
     expires_at: Option<Instant>,
 }
@@ -63,34 +64,9 @@ pub struct DashMapMemoryBackend {
     default_ttl: Option<Duration>,
 }
 
+impl_backend_builder!(DashMapMemoryBackend, DashMapBackendBuilder);
+
 impl DashMapMemoryBackend {
-    /// Create a new DashMap backend with default settings
-    ///
-    /// # Default Settings
-    ///
-    /// - Capacity: 10,000 entries
-    /// - TTL: None (no expiration)
-    pub fn new() -> Self {
-        Self::builder().build()
-    }
-
-    /// Create a new builder for configuring the DashMap backend
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use oxcache::backend::memory::dashmap::DashMapMemoryBackend;
-    /// use std::time::Duration;
-    ///
-    /// let backend = DashMapMemoryBackend::builder()
-    ///     .capacity(10000)
-    ///     .default_ttl(Duration::from_secs(3600))
-    ///     .build();
-    /// ```
-    pub fn builder() -> DashMapBackendBuilder {
-        DashMapBackendBuilder::default()
-    }
-
     /// Remove oldest entries when at capacity
     fn evict_if_full(&self) {
         // Find the entry with the oldest (soonest) expiration time
@@ -124,7 +100,7 @@ impl DashMapMemoryBackend {
     }
 
     /// Get the underlying cache
-    pub fn cache(&self) -> &DashMap<String, CacheEntry> {
+    pub(crate) fn cache(&self) -> &DashMap<String, CacheEntry> {
         &self.cache
     }
 }

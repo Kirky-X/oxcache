@@ -7,6 +7,7 @@
 use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
+use crate::impl_backend_builder;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,17 +23,9 @@ pub struct MokaMemoryBackend {
     capacity: u64,
 }
 
+impl_backend_builder!(MokaMemoryBackend, MokaMemoryBackendBuilder);
+
 impl MokaMemoryBackend {
-    /// Create a new Moka memory backend
-    pub fn new() -> Self {
-        Self::builder().build()
-    }
-
-    /// Create a builder for Moka backend
-    pub fn builder() -> MokaMemoryBackendBuilder {
-        MokaMemoryBackendBuilder::default()
-    }
-
     /// Get the capacity
     pub fn capacity(&self) -> u64 {
         self.capacity
@@ -44,7 +37,7 @@ impl MokaMemoryBackend {
     }
 
     /// Get the underlying cache
-    pub fn cache(&self) -> &moka::future::Cache<String, Vec<u8>> {
+    pub(crate) fn cache(&self) -> &moka::future::Cache<String, Vec<u8>> {
         &self.cache
     }
 }
