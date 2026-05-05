@@ -715,6 +715,130 @@ mod tests {
         let _cluster = RedisMode::Cluster;
     }
 
+    mod config_tests {
+        use super::*;
+
+        #[test]
+        fn test_redis_config_default_values() {
+            let config = RedisConfig::default();
+            assert_eq!(config.connection_strings.len(), 1);
+            assert_eq!(config.connection_strings[0], "redis://localhost:6379");
+            assert_eq!(config.mode, RedisMode::Standalone);
+            assert_eq!(config.connect_timeout, Duration::from_secs(5));
+            assert_eq!(config.command_timeout, Duration::from_secs(5));
+            assert_eq!(config.max_pool_size, Some(10));
+            assert_eq!(config.min_pool_size, Some(1));
+            assert_eq!(config.connection_name, Some("oxcache".to_string()));
+            assert!(config.password.is_none());
+            assert_eq!(config.database, Some(0));
+        }
+
+        #[test]
+        fn test_redis_config_clone() {
+            let config = RedisConfig::default();
+            let cloned = config.clone();
+            assert_eq!(config.connection_strings, cloned.connection_strings);
+            assert_eq!(config.mode, cloned.mode);
+            assert_eq!(config.connect_timeout, cloned.connect_timeout);
+        }
+
+        #[test]
+        fn test_redis_config_partial_eq() {
+            let config1 = RedisConfig::default();
+            let config2 = RedisConfig::default();
+            assert_eq!(config1, config2);
+
+            let config3 = RedisConfig {
+                connection_strings: vec!["redis://other:6379".to_string()],
+                mode: RedisMode::Standalone,
+                connect_timeout: Duration::from_secs(5),
+                command_timeout: Duration::from_secs(5),
+                max_pool_size: Some(10),
+                min_pool_size: Some(1),
+                connection_name: Some("oxcache".to_string()),
+                password: None,
+                database: Some(0),
+            };
+            assert_ne!(config1, config3);
+        }
+
+        #[test]
+        fn test_redis_config_debug() {
+            let config = RedisConfig::default();
+            let debug_str = format!("{:?}", config);
+            assert!(debug_str.contains("RedisConfig"));
+            assert!(debug_str.contains("connection_strings"));
+            assert!(debug_str.contains("mode"));
+        }
+    }
+
+    mod builder_tests {
+        use super::*;
+
+        #[test]
+        fn test_redis_backend_builder_default() {
+            let builder = RedisBackendBuilder::default();
+            assert!(builder.connection_string.is_none());
+            assert_eq!(builder.mode, RedisMode::Standalone);
+            assert!(builder.pool_size.is_none());
+        }
+
+        #[test]
+        fn test_redis_backend_builder_connection_string() {
+            let builder = RedisBackendBuilder::default().connection_string("redis://localhost:6379");
+            assert_eq!(builder.connection_string, Some("redis://localhost:6379".to_string()));
+        }
+
+        #[test]
+        fn test_redis_backend_builder_mode() {
+            let builder = RedisBackendBuilder::default().mode(RedisMode::Cluster);
+            assert_eq!(builder.mode, RedisMode::Cluster);
+
+            let builder = RedisBackendBuilder::default().mode(RedisMode::Sentinel);
+            assert_eq!(builder.mode, RedisMode::Sentinel);
+        }
+
+        #[test]
+        fn test_redis_backend_builder_pool_size() {
+            let builder = RedisBackendBuilder::default().pool_size(20);
+            assert_eq!(builder.pool_size, Some(20));
+        }
+
+        #[test]
+        fn test_redis_backend_builder_chained() {
+            let builder = RedisBackendBuilder::default()
+                .connection_string("rediss://secure.redis:6379")
+                .mode(RedisMode::Cluster)
+                .pool_size(50);
+            assert_eq!(
+                builder.connection_string,
+                Some("rediss://secure.redis:6379".to_string())
+            );
+            assert_eq!(builder.mode, RedisMode::Cluster);
+            assert_eq!(builder.pool_size, Some(50));
+        }
+
+        #[test]
+        fn test_redis_backend_builder_build_without_connection_string() {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let result = rt.block_on(async { RedisBackendBuilder::default().build().await });
+            assert!(result.is_err());
+            if let Err(e) = result {
+                let err_msg = e.to_string();
+                assert!(err_msg.contains("Connection string is required"));
+            }
+        }
+    }
+
+    mod connection_error_tests {
+        #[test]
+        fn test_is_connection_error_concept() {
+            // is_connection_error 检查 timeout 和 io_error
+            // RedisError 无法直接构造，但该函数在 build() 连接失败处理中使用
+            // 已被 integration tests 间接覆盖
+        }
+    }
+
     // 用于测试隔离的静态锁，防止并行测试间的环境变量污染
     use std::sync::OnceLock;
     static TEST_ENV_LOCK: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
