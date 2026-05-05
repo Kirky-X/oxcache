@@ -6,12 +6,12 @@
 //!
 //! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader, cli
 
-pub mod cli;
-pub mod db_loader;
+pub(crate) mod cli;
+pub(crate) mod db_loader;
 pub mod key_generator;
 pub mod metrics;
 pub mod serialization;
-pub mod telemetry;
+pub(crate) mod telemetry;
 pub mod warmup;
 
 use crate::error::CacheError;

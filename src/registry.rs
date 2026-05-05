@@ -114,7 +114,25 @@ mod tests {
     use super::*;
     use crate::backend::interface::CacheConnector;
     use crate::testing::mock::MockBackend;
+    use serial_test::serial;
 
+    /// Tests that do NOT access global registry — can run in parallel
+    #[test]
+    fn test_registry_debug_format() {
+        let registry = Registry::new();
+        let debug = format!("{:?}", registry);
+        assert!(debug.contains("Registry"));
+        assert!(debug.contains("cache_count"));
+    }
+
+    #[test]
+    fn test_registry_new_empty() {
+        let registry = Registry::new();
+        assert_eq!(registry.caches.len(), 0);
+    }
+
+    /// Remaining tests access global CACHE_REGISTRY — must run serially
+    #[serial]
     #[test]
     fn test_is_initialized_false_before_init() {
         // In a fresh process, registry should not be initialized
@@ -124,6 +142,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_get_returns_none_when_not_initialized() {
         if !is_initialized() {
@@ -131,6 +150,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_init_and_get() {
         // Register a named cache and verify retrieval works regardless of init state
@@ -153,6 +173,7 @@ mod tests {
         assert!(get("__nonexistent_key_123__").is_none());
     }
 
+    #[serial]
     #[test]
     fn test_init_panics_on_double_init() {
         // If already initialized, double init would panic (which is expected)
@@ -167,6 +188,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_init_empty() {
         let result = std::panic::catch_unwind(init_empty);
@@ -175,6 +197,7 @@ mod tests {
         }
     }
 
+    #[serial]
     #[test]
     fn test_register_and_get() {
         if !is_initialized() {
@@ -190,6 +213,7 @@ mod tests {
         assert_eq!(retrieved.unwrap().backend_kind(), cache.backend_kind());
     }
 
+    #[serial]
     #[test]
     fn test_remove() {
         if !is_initialized() {
@@ -206,6 +230,7 @@ mod tests {
         assert!(get("to_remove").is_none());
     }
 
+    #[serial]
     #[test]
     fn test_remove_nonexistent() {
         if !is_initialized() {
@@ -217,6 +242,7 @@ mod tests {
         assert!(result.is_none());
     }
 
+    #[serial]
     #[test]
     fn test_clear() {
         if !is_initialized() {
@@ -234,19 +260,5 @@ mod tests {
         assert!(get("clear1").is_none());
         assert!(get("clear2").is_none());
         assert!(get("default").is_none());
-    }
-
-    #[test]
-    fn test_registry_debug_format() {
-        let registry = Registry::new();
-        let debug = format!("{:?}", registry);
-        assert!(debug.contains("Registry"));
-        assert!(debug.contains("cache_count"));
-    }
-
-    #[test]
-    fn test_registry_new_empty() {
-        let registry = Registry::new();
-        assert_eq!(registry.caches.len(), 0);
     }
 }

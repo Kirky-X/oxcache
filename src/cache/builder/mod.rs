@@ -10,4 +10,3 @@ pub mod sorter;
 
 pub use cache_builder::CacheBuilder;
 pub use oxcache_builder::OxCacheBuilder;
-pub use sorter::{BackendSorter, ValidationResult};

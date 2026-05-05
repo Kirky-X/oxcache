@@ -44,11 +44,11 @@ impl BackendSorter {
 
         // 按分数降序排序，同分数时非持久化在前
         links.sort_by(|a, b| {
-            let score_cmp = b.score.cmp(&a.score);
+            let score_cmp = b.score().cmp(&a.score());
             if score_cmp != std::cmp::Ordering::Equal {
                 return score_cmp;
             }
-            a.is_persistent.cmp(&b.is_persistent)
+            a.is_persistent().cmp(&b.is_persistent())
         });
 
         // 修正配置
@@ -87,11 +87,11 @@ impl BackendSorter {
 
         // 排序
         links.sort_by(|a, b| {
-            let score_cmp = b.score.cmp(&a.score);
+            let score_cmp = b.score().cmp(&a.score());
             if score_cmp != std::cmp::Ordering::Equal {
                 return score_cmp;
             }
-            a.is_persistent.cmp(&b.is_persistent)
+            a.is_persistent().cmp(&b.is_persistent())
         });
 
         // 修正配置
@@ -135,27 +135,27 @@ impl BackendSorter {
         }
 
         // 检查是否只有持久化后端
-        let all_persistent = links.iter().all(|l| l.is_persistent);
+        let all_persistent = links.iter().all(|l| l.is_persistent());
         if all_persistent {
             warnings.push("All backends are persistent. Consider adding a memory cache.".to_string());
         }
 
         // 检查分数
         for link in links.iter() {
-            if link.score == 0 {
-                warnings.push(format!("Backend '{}' has score 0", link.name));
+            if link.score() == 0 {
+                warnings.push(format!("Backend '{}' has score 0", link.name()));
             }
         }
 
         // 检查顺序
         for i in 1..links.len() {
-            if links[i].score > links[i - 1].score {
+            if links[i].score() > links[i - 1].score() {
                 warnings.push(format!(
                     "Backends not sorted: '{}' (score {}) should come before '{}' (score {})",
-                    links[i].name,
-                    links[i].score,
-                    links[i - 1].name,
-                    links[i - 1].score
+                    links[i].name(),
+                    links[i].score(),
+                    links[i - 1].name(),
+                    links[i - 1].score()
                 ));
             }
         }
@@ -199,8 +199,8 @@ mod tests {
         let sorted = BackendSorter::sort_links(links);
 
         assert_eq!(sorted.len(), 2);
-        assert_eq!(sorted[0].score, 100);
-        assert_eq!(sorted[1].score, 50);
+        assert_eq!(sorted[0].score(), 100);
+        assert_eq!(sorted[1].score(), 50);
     }
 
     #[test]
@@ -225,7 +225,7 @@ mod tests {
         let b = ChainLink::new(MockBackend::new("b", 50, true), 50, true, "b");
 
         let sorted = BackendSorter::sort_links(vec![b, a]);
-        assert_eq!(sorted[0].is_persistent, false);
+        assert_eq!(sorted[0].is_persistent(), false);
     }
 
     #[test]

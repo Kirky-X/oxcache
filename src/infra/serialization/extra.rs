@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
+use crate::core::types::SerializationType;
 use crate::error::Result;
 use rmp_serde::{decode, encode};
 
@@ -59,9 +60,10 @@ impl crate::infra::serialization::Serializer for CborSerializer {
 /// 序列化器注册表
 ///
 /// 使用 serde_json::Value 作为中间类型来实现动态序列化器注册。
+/// 使用 SerializationType 作为键类型，避免字符串键名不一致的问题。
 #[derive(Default)]
 pub struct SerializerRegistry {
-    serializers: RwLock<HashMap<String, Arc<dyn ErasedSerializer>>>,
+    serializers: RwLock<HashMap<SerializationType, Arc<dyn ErasedSerializer>>>,
 }
 
 /// 擦除类型的序列化器 Trait
@@ -78,7 +80,7 @@ pub trait ErasedSerializer: Send + Sync {
 
 impl ErasedSerializer for MessagePackSerializer {
     fn name(&self) -> &'static str {
-        "msgpack"
+        "messagepack"
     }
 
     fn serialize(&self, value: &serde_json::Value) -> Result<Vec<u8>> {
@@ -114,27 +116,27 @@ impl SerializerRegistry {
     }
 
     /// 注册自定义序列化器
-    pub async fn register(&self, name: &str, serializer: Arc<dyn ErasedSerializer>) {
+    pub async fn register(&self, format: SerializationType, serializer: Arc<dyn ErasedSerializer>) {
         let mut cache = self.serializers.write().await;
-        cache.insert(name.to_string(), serializer);
+        cache.insert(format, serializer);
     }
 
     /// 获取序列化器
-    pub async fn get(&self, name: &str) -> Option<Arc<dyn ErasedSerializer>> {
+    pub async fn get(&self, format: &SerializationType) -> Option<Arc<dyn ErasedSerializer>> {
         let cache = self.serializers.read().await;
-        cache.get(name).cloned()
+        cache.get(format).cloned()
     }
 
     /// 检查是否存在
-    pub async fn contains(&self, name: &str) -> bool {
+    pub async fn contains(&self, format: &SerializationType) -> bool {
         let cache = self.serializers.read().await;
-        cache.contains_key(name)
+        cache.contains_key(format)
     }
 
     /// 移除序列化器
-    pub async fn remove(&self, name: &str) -> bool {
+    pub async fn remove(&self, format: &SerializationType) -> bool {
         let mut cache = self.serializers.write().await;
-        cache.remove(name).is_some()
+        cache.remove(format).is_some()
     }
 
     /// 清空所有
@@ -145,12 +147,13 @@ impl SerializerRegistry {
 
     /// 注册 MessagePack 序列化器
     pub async fn register_msgpack(&self) {
-        self.register("msgpack", Arc::new(MessagePackSerializer)).await;
+        self.register(SerializationType::Messagepack, Arc::new(MessagePackSerializer))
+            .await;
     }
 
     /// 注册 CBOR 序列化器
     pub async fn register_cbor(&self) {
-        self.register("cbor", Arc::new(CborSerializer)).await;
+        self.register(SerializationType::Cbor, Arc::new(CborSerializer)).await;
     }
 
     /// 注册所有可用的额外序列化器
@@ -163,6 +166,7 @@ impl SerializerRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SerializationType;
 
     #[test]
     fn test_messagepack_serializer() {
@@ -191,25 +195,29 @@ mod tests {
         let registry = SerializerRegistry::new();
 
         // 初始为空
-        assert!(!registry.contains("msgpack").await);
+        assert!(!registry.contains(&SerializationType::Messagepack).await);
 
         // 注册
-        registry.register("msgpack", Arc::new(MessagePackSerializer)).await;
-        assert!(registry.contains("msgpack").await);
+        registry
+            .register(SerializationType::Messagepack, Arc::new(MessagePackSerializer))
+            .await;
+        assert!(registry.contains(&SerializationType::Messagepack).await);
 
         // 获取
-        let serializer = registry.get("msgpack").await;
+        let serializer = registry.get(&SerializationType::Messagepack).await;
         assert!(serializer.is_some());
-        assert_eq!(serializer.unwrap().name(), "msgpack");
+        assert_eq!(serializer.unwrap().name(), "messagepack");
 
         // 移除
-        assert!(registry.remove("msgpack").await);
-        assert!(!registry.contains("msgpack").await);
+        assert!(registry.remove(&SerializationType::Messagepack).await);
+        assert!(!registry.contains(&SerializationType::Messagepack).await);
 
         // 清空
-        registry.register("cbor", Arc::new(CborSerializer)).await;
+        registry
+            .register(SerializationType::Cbor, Arc::new(CborSerializer))
+            .await;
         registry.clear().await;
-        assert!(!registry.contains("cbor").await);
+        assert!(!registry.contains(&SerializationType::Cbor).await);
     }
 
     #[tokio::test]
@@ -218,7 +226,7 @@ mod tests {
         registry.register_all().await;
 
         // 使用 MessagePack
-        let serializer = registry.get("msgpack").await.unwrap();
+        let serializer = registry.get(&SerializationType::Messagepack).await.unwrap();
         let json_value = serde_json::json!({"key": "value"});
         let bytes = serializer.serialize(&json_value).unwrap();
         let decoded: serde_json::Value = serializer.deserialize(&bytes).unwrap();
