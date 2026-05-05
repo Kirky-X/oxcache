@@ -11,6 +11,33 @@ pub mod moka;
 #[cfg(feature = "redis")]
 pub mod redis;
 
+/// Macro to implement the common `new()` and `builder()` pattern for backends.
+///
+/// # Example
+///
+/// ```ignore
+/// impl_backend_builder!(MyBackend, MyBackendBuilder);
+/// // Expands to:
+/// // impl MyBackend {
+/// //     pub fn new() -> Self { Self::builder().build() }
+/// //     pub fn builder() -> MyBackendBuilder { MyBackendBuilder::default() }
+/// // }
+/// ```
+#[macro_export]
+macro_rules! impl_backend_builder {
+    ($backend:ty, $builder:ty) => {
+        impl $backend {
+            pub fn new() -> Self {
+                Self::builder().build()
+            }
+
+            pub fn builder() -> $builder {
+                <$builder>::default()
+            }
+        }
+    };
+}
+
 // Memory backend type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MemoryBackendType {
