@@ -59,15 +59,18 @@ impl ConditionalRequestHandler {
         let mut headers = HashMap::new();
 
         if let Some(etag) = &cached_response.etag {
-            headers.insert("ETag".to_string(), etag.clone());
+            headers.insert(http::header::ETAG.as_str().to_string(), etag.clone());
         }
 
         if let Some(lm) = &cached_response.last_modified {
-            headers.insert("Last-Modified".to_string(), lm.clone());
+            headers.insert(http::header::LAST_MODIFIED.as_str().to_string(), lm.clone());
         }
 
         let now = chrono::Utc::now();
-        headers.insert("Date".to_string(), now.format("%a, %d %b %Y %H:%M:%S GMT").to_string());
+        headers.insert(
+            http::header::DATE.as_str().to_string(),
+            now.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+        );
 
         HttpCacheResponse {
             status: StatusCode::NOT_MODIFIED.as_u16(),
@@ -237,12 +240,15 @@ mod tests {
         );
         let result = handler.create_not_modified_response(&response);
         assert_eq!(result.status, StatusCode::NOT_MODIFIED.as_u16());
-        assert_eq!(result.headers.get("ETag"), Some(&"\"myetag\"".to_string()));
         assert_eq!(
-            result.headers.get("Last-Modified"),
+            result.headers.get(http::header::ETAG.as_str()),
+            Some(&"\"myetag\"".to_string())
+        );
+        assert_eq!(
+            result.headers.get(http::header::LAST_MODIFIED.as_str()),
             Some(&"Mon, 01 Jan 2024 12:00:00 GMT".to_string())
         );
-        assert!(result.headers.contains_key("Date"));
+        assert!(result.headers.contains_key(http::header::DATE.as_str()));
         assert!(result.body.is_empty());
     }
 
@@ -252,9 +258,9 @@ mod tests {
         let response = make_cached_response(None, None);
         let result = handler.create_not_modified_response(&response);
         assert_eq!(result.status, StatusCode::NOT_MODIFIED.as_u16());
-        assert!(!result.headers.contains_key("ETag"));
-        assert!(!result.headers.contains_key("Last-Modified"));
-        assert!(result.headers.contains_key("Date"));
+        assert!(!result.headers.contains_key(http::header::ETAG.as_str()));
+        assert!(!result.headers.contains_key(http::header::LAST_MODIFIED.as_str()));
+        assert!(result.headers.contains_key(http::header::DATE.as_str()));
         assert!(result.body.is_empty());
     }
 

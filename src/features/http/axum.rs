@@ -86,7 +86,7 @@ pub async fn cache_middleware<A: HttpCacheAdapter + Send + Sync + 'static>(
     if let Ok(Some(cached_response)) = state.adapter.get_response(&cache_key).await {
         // 检查条件请求
         if let Some(etag) = &cached_response.etag {
-            if let Some(if_none_match) = request.headers().get("If-None-Match") {
+            if let Some(if_none_match) = request.headers().get(http::header::IF_NONE_MATCH) {
                 if if_none_match == etag {
                     match Response::builder().status(StatusCode::NOT_MODIFIED).body(Body::empty()) {
                         Ok(response) => return response,
@@ -159,11 +159,11 @@ fn build_response(cached: &HttpCacheResponse) -> Response {
     }
 
     if let Some(ref etag) = cached.etag {
-        builder = builder.header("ETag", etag);
+        builder = builder.header(http::header::ETAG, etag);
     }
 
     if let Some(ttl) = cached.ttl {
-        builder = builder.header("Cache-Control", format!("max-age={}", ttl));
+        builder = builder.header(http::header::CACHE_CONTROL, format!("max-age={}", ttl));
     }
 
     match builder.body(Body::from(cached.body.clone())) {
@@ -252,9 +252,12 @@ mod tests {
 
         let response = HttpCacheResponse {
             status: 200,
-            headers: vec![("Content-Type".to_string(), "text/plain".to_string())]
-                .into_iter()
-                .collect(),
+            headers: vec![(
+                http::header::CONTENT_TYPE.as_str().to_string(),
+                "text/plain".to_string(),
+            )]
+            .into_iter()
+            .collect(),
             body: b"Hello, World!".to_vec(),
             cached_at: chrono::Utc::now(),
             ttl: Some(3600),
@@ -367,7 +370,7 @@ mod tests {
 
         let response = build_response(&cached);
         assert_eq!(response.status(), 200);
-        assert!(response.headers().contains_key("ETag"));
+        assert!(response.headers().contains_key(http::header::ETAG));
     }
 
     #[test]
@@ -383,15 +386,18 @@ mod tests {
         };
 
         let response = build_response(&cached);
-        assert!(response.headers().contains_key("Cache-Control"));
-        let cache_control = response.headers().get("Cache-Control").unwrap();
+        assert!(response.headers().contains_key(http::header::CACHE_CONTROL));
+        let cache_control = response.headers().get(http::header::CACHE_CONTROL).unwrap();
         assert!(cache_control.to_str().unwrap().contains("max-age=600"));
     }
 
     #[test]
     fn test_build_response_with_headers() {
         let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        headers.insert(
+            http::header::CONTENT_TYPE.as_str().to_string(),
+            "application/json".to_string(),
+        );
         headers.insert("X-Custom".to_string(), "custom-value".to_string());
 
         let cached = HttpCacheResponse {
@@ -406,7 +412,7 @@ mod tests {
 
         let response = build_response(&cached);
         assert_eq!(response.status(), 201);
-        assert!(response.headers().contains_key("Content-Type"));
+        assert!(response.headers().contains_key(http::header::CONTENT_TYPE));
         assert!(response.headers().contains_key("X-Custom"));
     }
 
