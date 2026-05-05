@@ -114,6 +114,36 @@ impl CacheEvent {
         self.metadata.push((key.into(), value.into()));
         self
     }
+
+    /// 获取事件类型
+    pub fn event_type(&self) -> &CacheEventType {
+        &self.event_type
+    }
+
+    /// 获取缓存键
+    pub fn key(&self) -> Option<&String> {
+        self.key.as_ref()
+    }
+
+    /// 获取事件时间戳
+    pub fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
+
+    /// 获取延迟
+    pub fn latency_ms(&self) -> Option<u64> {
+        self.latency_ms
+    }
+
+    /// 获取错误信息
+    pub fn error(&self) -> Option<&String> {
+        self.error.as_ref()
+    }
+
+    /// 获取元数据
+    pub fn metadata(&self) -> &[(String, String)] {
+        &self.metadata
+    }
 }
 
 /// 获取当前时间戳（毫秒）
