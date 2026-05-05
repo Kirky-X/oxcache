@@ -54,6 +54,18 @@ impl Default for CacheCapacity {
 // Redis 相关常量
 // ============================================================================
 
+/// 默认 Redis 连接 URL
+pub const DEFAULT_REDIS_URL: &str = "redis://localhost:6379";
+
+/// 默认 Redis 端口
+pub const DEFAULT_REDIS_PORT: u16 = 6379;
+
+/// 默认 Redis 主机
+pub const DEFAULT_REDIS_HOST: &str = "localhost";
+
+/// 默认 OTLP 收集器端点
+pub const DEFAULT_OTLP_ENDPOINT: &str = "http://localhost:4318";
+
 /// 默认 Redis 连接池大小
 pub const DEFAULT_POOL_SIZE: usize = 10;
 
@@ -266,6 +278,14 @@ mod tests {
         assert_eq!(DEFAULT_TTL_SECS, 3600);
         assert_eq!(MAX_TTL_SECS, 30 * 24 * 60 * 60);
         assert_eq!(PASSWORD_MASK_ASTERISKS, 5);
+    }
+
+    #[test]
+    fn test_redis_url_constants() {
+        assert_eq!(DEFAULT_REDIS_URL, "redis://localhost:6379");
+        assert_eq!(DEFAULT_REDIS_PORT, 6379);
+        assert_eq!(DEFAULT_REDIS_HOST, "localhost");
+        assert_eq!(DEFAULT_OTLP_ENDPOINT, "http://localhost:4318");
     }
 
     #[test]
