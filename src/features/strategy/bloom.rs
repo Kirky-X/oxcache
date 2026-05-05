@@ -12,11 +12,9 @@ use lru::LruCache;
 #[cfg(feature = "bloom-filter")]
 use murmur3::murmur3_32;
 #[cfg(feature = "bloom-filter")]
-use std::sync::Arc;
-#[cfg(feature = "bloom-filter")]
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    RwLock,
+    Arc, Mutex,
 };
 
 /// 布隆过滤器配置
@@ -75,7 +73,7 @@ pub struct BloomFilter {
     /// 哈希缓存 - 使用 LRU 缓存实现真正的 LRU 淘汰策略
     /// 避免内存无限增长，同时保持最近使用的哈希结果
     #[allow(clippy::type_complexity)]
-    hash_cache: Arc<RwLock<LruCache<Arc<Vec<u8>>, Vec<usize>>>>,
+    hash_cache: Arc<Mutex<LruCache<Arc<Vec<u8>>, Vec<usize>>>>,
 }
 
 #[cfg(feature = "bloom-filter")]
@@ -93,7 +91,7 @@ impl BloomFilter {
         }
 
         // 创建 LRU 哈希缓存，限制最大容量为 10000 条
-        let hash_cache = Arc::new(RwLock::new(LruCache::new(
+        let hash_cache = Arc::new(Mutex::new(LruCache::new(
             std::num::NonZeroUsize::new(10000).expect("10000 is a valid non-zero usize"),
         )));
 
@@ -127,9 +125,8 @@ impl BloomFilter {
         let cached_positions = {
             let mut cache = self
                 .hash_cache
-                .write()
-                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
-            // LruCache::get 需要 &mut self，所以我们使用写锁
+                .lock()
+                .expect("BloomFilter hash_cache lock poisoned");
             cache.get(&item_key).cloned()
         };
 
@@ -145,8 +142,8 @@ impl BloomFilter {
         {
             let mut cache = self
                 .hash_cache
-                .write()
-                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
+                .lock()
+                .expect("BloomFilter hash_cache lock poisoned");
             cache.put(item_key, positions.clone());
         }
 
@@ -180,9 +177,8 @@ impl BloomFilter {
         let positions = {
             let mut cache = self
                 .hash_cache
-                .write()
-                .map_err(|_| CacheError::L1Error("Hash cache lock poisoned".to_string()))?;
-            // LruCache::get 需要 &mut self，所以我们使用写锁
+                .lock()
+                .expect("BloomFilter hash_cache lock poisoned");
             if let Some(cached_positions) = cache.get(&item_key).cloned() {
                 cached_positions
             } else {
