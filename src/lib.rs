@@ -583,7 +583,7 @@ pub async fn new_with_config(
                 } else if let Some(url) = redis_config.get("connection_string").and_then(|v| v.as_str()) {
                     builder = builder.connection_string(url);
                 } else {
-                    builder = builder.connection_string("redis://127.0.0.1:6379");
+                    builder = builder.connection_string(core::constants::DEFAULT_REDIS_URL);
                 }
 
                 if let Some(mode) = redis_config.get("mode").and_then(|v| v.as_str()) {

@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了CLI命令行接口。
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -52,6 +54,7 @@ mod admin;
 mod metrics;
 mod status;
 
+#[allow(unused_imports)]
 pub use admin::{AdminArgs, AdminSubcommand, CleanArgs, WarmupArgs};
 
 pub async fn run() -> Result<()> {

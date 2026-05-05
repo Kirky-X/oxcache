@@ -245,8 +245,7 @@ impl SerializationRegistry {
     pub fn get_or_create(&mut self, format: SerializationFormat) -> &UnifiedSerializer {
         self.serializers
             .entry(format)
-            .or_insert_with(|| UnifiedSerializer::new(format));
-        self.serializers.get(&format).unwrap()
+            .or_insert_with(|| UnifiedSerializer::new(format))
     }
 
     /// List all registered formats

@@ -44,7 +44,7 @@ pub struct RedisConfig {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            connection_strings: vec!["redis://localhost:6379".to_string()],
+            connection_strings: vec![crate::core::constants::DEFAULT_REDIS_URL.to_string()],
             mode: RedisMode::Standalone,
             connect_timeout: Duration::from_secs(5),
             command_timeout: Duration::from_secs(5),
