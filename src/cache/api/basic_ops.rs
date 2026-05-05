@@ -5,12 +5,62 @@
 //! Cache 基础操作方法
 
 use super::Cache;
+use crate::core::constants::MAX_JSON_DEPTH;
 use crate::core::traits::{CacheKey, Cacheable};
 use crate::error::{CacheError, Result};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[cfg(any(feature = "tracing", feature = "full"))]
 use tracing::instrument;
+
+/// 计算 JSON 值的嵌套深度（用于防止栈溢出攻击）
+fn json_depth(value: &serde_json::Value) -> usize {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.is_empty() {
+                1
+            } else {
+                map.values().map(json_depth).max().unwrap_or(0) + 1
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                1
+            } else {
+                arr.iter().map(json_depth).max().unwrap_or(0) + 1
+            }
+        }
+        _ => 1,
+    }
+}
+
+/// 全局 get_or 去重锁，防止缓存击穿（thundering herd）。
+/// 当多个并发请求同时调用 `get_or` 且缓存未命中时，
+/// 只让第一个请求执行 fallback，其余请求等待结果。
+static GET_OR_LOCKS: Lazy<Mutex<HashMap<String, Arc<tokio::sync::Notify>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// 用于 panic 安全地清理 GET_OR_LOCKS 中的条目。
+///
+/// 如果 leader 在插入条目后 panic，此守卫会在 Drop 时移除该条目，
+/// 防止锁永远留在 HashMap 中导致后续所有 get_or 调用死锁。
+struct GetOrGuard<'a> {
+    map: &'a Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
+    key: String,
+    removed: bool,
+}
+
+impl Drop for GetOrGuard<'_> {
+    fn drop(&mut self) {
+        if !self.removed {
+            if let Ok(mut map) = self.map.lock() {
+                map.remove(&self.key);
+            }
+        }
+    }
+}
 
 impl<K, V> Cache<K, V>
 where
@@ -28,10 +78,20 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
             Some(data) => {
-                let value: V = match serde_json::from_slice(&data) {
-                    Ok(v) => v,
-                    Err(_) => return Ok(None),
-                };
+                // 检查 JSON 嵌套深度，防止栈溢出攻击
+                let depth_limit: usize = MAX_JSON_DEPTH;
+                let json_value: serde_json::Value =
+                    serde_json::from_slice(&data).map_err(|e| CacheError::Serialization(e.to_string()))?;
+                if json_depth(&json_value) > depth_limit {
+                    return Err(CacheError::Serialization(format!(
+                        "JSON深度 {} 超过最大限制 {}",
+                        json_depth(&json_value),
+                        depth_limit
+                    )));
+                }
+
+                let value: V =
+                    serde_json::from_value(json_value).map_err(|e| CacheError::Serialization(e.to_string()))?;
                 Ok(Some(value))
             }
             None => Ok(None),
@@ -133,12 +193,68 @@ where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<V>>,
     {
+        // 快速路径：缓存命中
         if let Some(value) = self.get(key).await? {
             return Ok(value);
         }
-        let value = fallback().await?;
-        self.set(key, &value).await?;
-        Ok(value)
+
+        let key_str = key.to_key_string();
+
+        // 尝试注册为 leader；如果 key 已存在则成为 follower
+        let notify = {
+            let mut map = GET_OR_LOCKS.lock().unwrap();
+            match map.entry(key_str.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => {
+                    // 已有其他请求在执行 fallback，等待结果
+                    let notify = entry.get().clone();
+                    drop(map);
+                    notify.notified().await;
+                    // leader 应将结果写入缓存
+                    return self.get(key).await?.ok_or_else(|| {
+                        CacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
+                    });
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let n = Arc::new(tokio::sync::Notify::new());
+                    entry.insert(n.clone());
+                    n
+                }
+            }
+        };
+
+        // 创建 panic 安全守卫，确保 leader 即使在 panic 时也会清理锁条目
+        let mut guard = GetOrGuard {
+            map: &GET_OR_LOCKS,
+            key: key_str.clone(),
+            removed: false,
+        };
+
+        // leader：二次检查缓存（避免与另一个刚刚完成的 leader 竞争）
+        if let Some(value) = self.get(key).await? {
+            GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+            guard.removed = true;
+            notify.notify_waiters();
+            return Ok(value);
+        }
+
+        // leader：执行 fallback
+        let result = fallback().await;
+        match result {
+            Ok(value) => {
+                self.set(key, &value).await?;
+                GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+                guard.removed = true;
+                notify.notify_waiters();
+                Ok(value)
+            }
+            Err(e) => {
+                // leader 失败时清理锁，让后续重试可以重新尝试
+                GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+                guard.removed = true;
+                notify.notify_waiters();
+                Err(e)
+            }
+        }
     }
 }
 
