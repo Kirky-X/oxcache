@@ -426,7 +426,7 @@ where
                 let connection_string = redis_config
                     .get("url")
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
-                    .unwrap_or_else(|| "redis://localhost:6379".to_string());
+                    .unwrap_or_else(|| crate::core::constants::DEFAULT_REDIS_URL.to_string());
                 self.backend_config = Some(InternalBackendConfig::Redis {
                     connection_string,
                     mode: crate::backend::memory::RedisMode::Standalone,
@@ -451,7 +451,7 @@ where
                 let l2_connection_string = redis_config
                     .get("url")
                     .and_then(|v| v.as_str().map(|s| s.to_string()))
-                    .unwrap_or_else(|| "redis://localhost:6379".to_string());
+                    .unwrap_or_else(|| crate::core::constants::DEFAULT_REDIS_URL.to_string());
                 self.backend_config = Some(InternalBackendConfig::Tiered {
                     l1_capacity,
                     l2_connection_string,
