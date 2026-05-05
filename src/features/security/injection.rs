@@ -47,9 +47,12 @@ pub(crate) fn check_sql_injection(key: &str) -> Result<()> {
     Ok(())
 }
 
-/// 检查命令注入字符
+/// 检查命令注入字符（仅限 Redis 协议级别的注入向量）
+///
+/// Redis RESP 协议中只有 `\r`, `\n`, `\0` 具有特殊含义，
+/// `;`, `|`, `&`, `` ` `` 等 shell 元字符在 RESP 协议中无特殊含义。
 pub(crate) fn check_command_injection(key: &str) -> Result<()> {
-    const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
+    const COMMAND_INJECTION_CHARS: &[char] = &['\r', '\n', '\0'];
 
     for c in key.chars() {
         if COMMAND_INJECTION_CHARS.contains(&c) {
