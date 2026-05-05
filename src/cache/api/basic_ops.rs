@@ -201,26 +201,32 @@ where
         let key_str = key.to_key_string();
 
         // 尝试注册为 leader；如果 key 已存在则成为 follower
-        let notify = {
-            let mut map = GET_OR_LOCKS.lock().unwrap();
+        // 注意：锁必须在 await 之前释放，避免 await_holding_lock
+        let (is_follower, notify) = {
+            let mut map = GET_OR_LOCKS
+                .lock()
+                .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected");
             match map.entry(key_str.clone()) {
                 std::collections::hash_map::Entry::Occupied(entry) => {
                     // 已有其他请求在执行 fallback，等待结果
-                    let notify = entry.get().clone();
-                    drop(map);
-                    notify.notified().await;
-                    // leader 应将结果写入缓存
-                    return self.get(key).await?.ok_or_else(|| {
-                        CacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
-                    });
+                    (true, entry.get().clone())
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
                     let n = Arc::new(tokio::sync::Notify::new());
                     entry.insert(n.clone());
-                    n
+                    (false, n)
                 }
             }
-        };
+        }; // 锁在此处释放
+
+        if is_follower {
+            // follower：等待 leader 完成后获取结果
+            notify.notified().await;
+            // leader 应将结果写入缓存
+            return self.get(key).await?.ok_or_else(|| {
+                CacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
+            });
+        }
 
         // 创建 panic 安全守卫，确保 leader 即使在 panic 时也会清理锁条目
         let mut guard = GetOrGuard {
@@ -231,7 +237,10 @@ where
 
         // leader：二次检查缓存（避免与另一个刚刚完成的 leader 竞争）
         if let Some(value) = self.get(key).await? {
-            GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+            GET_OR_LOCKS
+                .lock()
+                .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
+                .remove(&key_str);
             guard.removed = true;
             notify.notify_waiters();
             return Ok(value);
@@ -242,14 +251,20 @@ where
         match result {
             Ok(value) => {
                 self.set(key, &value).await?;
-                GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+                GET_OR_LOCKS
+                    .lock()
+                    .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
+                    .remove(&key_str);
                 guard.removed = true;
                 notify.notify_waiters();
                 Ok(value)
             }
             Err(e) => {
                 // leader 失败时清理锁，让后续重试可以重新尝试
-                GET_OR_LOCKS.lock().unwrap().remove(&key_str);
+                GET_OR_LOCKS
+                    .lock()
+                    .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
+                    .remove(&key_str);
                 guard.removed = true;
                 notify.notify_waiters();
                 Err(e)

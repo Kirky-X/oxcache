@@ -153,7 +153,7 @@ where
                     .get("redis")
                     .and_then(|r| r.get("url"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("redis://localhost:6379");
+                    .unwrap_or(crate::core::constants::DEFAULT_REDIS_URL);
                 let backend = RedisBackend::new(redis_url).await?;
                 Ok(Self::new_with_backend(Arc::new(backend)))
             }
