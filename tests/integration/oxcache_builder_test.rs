@@ -51,9 +51,9 @@ fn test_backends_method() {
     assert_eq!(cache.len(), 3);
 
     // 验证已排序（高分在前）
-    assert_eq!(cache.links()[0].score, 100);
-    assert_eq!(cache.links()[1].score, 75);
-    assert_eq!(cache.links()[2].score, 50);
+    assert_eq!(cache.links()[0].score(), 100);
+    assert_eq!(cache.links()[1].score(), 75);
+    assert_eq!(cache.links()[2].score(), 50);
 }
 
 /// 测试 default_ttl() 方法
@@ -157,8 +157,8 @@ fn test_chained_calls() {
     let cache = result.unwrap();
     assert_eq!(cache.len(), 2);
     // 验证排序
-    assert_eq!(cache.links()[0].score, 100);
-    assert_eq!(cache.links()[1].score, 50);
+    assert_eq!(cache.links()[0].score(), 100);
+    assert_eq!(cache.links()[1].score(), 50);
 }
 
 /// 测试混合使用 backend() 和 link()
@@ -175,8 +175,8 @@ fn test_mixed_backend_and_link() {
     let cache = result.unwrap();
     assert_eq!(cache.len(), 2);
     // 验证排序
-    assert_eq!(cache.links()[0].score, 100);
-    assert_eq!(cache.links()[1].score, 75);
+    assert_eq!(cache.links()[0].score(), 100);
+    assert_eq!(cache.links()[1].score(), 75);
 }
 
 /// 测试多个配置选项组合
@@ -271,7 +271,7 @@ fn test_single_backend_full_chain() {
 
     let cache = result.unwrap();
     assert_eq!(cache.len(), 1);
-    assert_eq!(cache.links()[0].score, 100);
+    assert_eq!(cache.links()[0].score(), 100);
 }
 
 /// 测试后端排序 - 相同分数不同持久化
@@ -291,8 +291,8 @@ fn test_backend_sorting_same_score() {
     let cache = result.unwrap();
     assert_eq!(cache.len(), 2);
     // 非持久化应该在前
-    assert!(!cache.links()[0].is_persistent);
-    assert!(cache.links()[1].is_persistent);
+    assert!(!cache.links()[0].is_persistent());
+    assert!(cache.links()[1].is_persistent());
 }
 
 /// 测试多个后端复杂排序
@@ -314,19 +314,19 @@ fn test_complex_backend_sorting() {
 
     // 验证排序顺序
     // 分数 100：非持久化在前，然后持久化
-    assert_eq!(cache.links()[0].score, 100);
-    assert!(!cache.links()[0].is_persistent);
-    assert_eq!(cache.links()[1].score, 100);
-    assert!(cache.links()[1].is_persistent);
+    assert_eq!(cache.links()[0].score(), 100);
+    assert!(!cache.links()[0].is_persistent());
+    assert_eq!(cache.links()[1].score(), 100);
+    assert!(cache.links()[1].is_persistent());
 
     // 分数 75
-    assert_eq!(cache.links()[2].score, 75);
+    assert_eq!(cache.links()[2].score(), 75);
 
     // 分数 50
-    assert_eq!(cache.links()[3].score, 50);
+    assert_eq!(cache.links()[3].score(), 50);
 
     // 分数 30
-    assert_eq!(cache.links()[4].score, 30);
+    assert_eq!(cache.links()[4].score(), 30);
 }
 
 /// 测试链式调用返回类型正确性

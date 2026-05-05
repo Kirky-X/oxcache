@@ -190,7 +190,7 @@ async fn test_chain_link_creation() {
 
     let link = ChainLink::from_backend(moka);
 
-    assert_eq!(link.score, Scores::MOKA);
-    assert!(!link.is_persistent);
-    assert_eq!(link.name, "moka");
+    assert_eq!(link.score(), Scores::MOKA);
+    assert!(!link.is_persistent());
+    assert_eq!(link.name(), "moka");
 }

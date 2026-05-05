@@ -8,10 +8,10 @@
 #![allow(clippy::duplicate_mod)]
 
 // 子模块
-pub mod storage_test_utils;
 pub mod docker_test_utils;
 pub mod mock_backend;
 pub mod redis_test_utils;
+pub mod storage_test_utils;
 pub mod test_containers;
 
 // ============================================================================

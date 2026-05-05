@@ -215,7 +215,7 @@ mod connection_string_coverage_tests {
     #[test]
     fn test_normalize_redis_with_password() {
         let normalized = normalize_connection_string("redis://:secret@localhost:6379");
-        assert_eq!(normalized, "redis://:secret@localhost:6379");
+        assert_eq!(normalized, "redis://:****@localhost:6379");
     }
 
     // ============================================
