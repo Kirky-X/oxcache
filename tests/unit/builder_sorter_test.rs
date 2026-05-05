@@ -27,9 +27,9 @@ fn test_sort_links_descending_order() {
     let sorted = BackendSorter::sort_links(links);
 
     assert_eq!(sorted.len(), 3);
-    assert_eq!(sorted[0].score, 100);
-    assert_eq!(sorted[1].score, 75);
-    assert_eq!(sorted[2].score, 50);
+    assert_eq!(sorted[0].score(), 100);
+    assert_eq!(sorted[1].score(), 75);
+    assert_eq!(sorted[2].score(), 50);
 }
 
 /// 测试同分数时非持久化优先
@@ -50,8 +50,8 @@ fn test_sort_links_non_persistent_first() {
 
     assert_eq!(sorted.len(), 2);
     // 非持久化应该在前面
-    assert!(!sorted[0].is_persistent);
-    assert!(sorted[1].is_persistent);
+    assert!(!sorted[0].is_persistent());
+    assert!(sorted[1].is_persistent());
 }
 
 /// 测试空列表处理
@@ -71,8 +71,8 @@ fn test_sort_links_single_element() {
     let sorted = BackendSorter::sort_links(links);
 
     assert_eq!(sorted.len(), 1);
-    assert_eq!(sorted[0].score, 100);
-    assert_eq!(sorted[0].name, "single");
+    assert_eq!(sorted[0].score(), 100);
+    assert_eq!(sorted[0].name(), "single");
 }
 
 /// 测试多个同分数元素排序
@@ -88,9 +88,9 @@ fn test_sort_links_same_score() {
 
     assert_eq!(sorted.len(), 3);
     // 所有非持久化应该在持久化之前
-    assert!(!sorted[0].is_persistent);
-    assert!(!sorted[1].is_persistent);
-    assert!(sorted[2].is_persistent);
+    assert!(!sorted[0].is_persistent());
+    assert!(!sorted[1].is_persistent());
+    assert!(sorted[2].is_persistent());
 }
 
 /// 测试分数 0 的后端
@@ -103,8 +103,8 @@ fn test_sort_links_zero_score() {
     let sorted = BackendSorter::sort_links(links);
 
     // 分数 0 应该排在最后
-    assert_eq!(sorted[0].score, 100);
-    assert_eq!(sorted[1].score, 0);
+    assert_eq!(sorted[0].score(), 100);
+    assert_eq!(sorted[1].score(), 0);
 }
 
 // ============================================================================
@@ -235,8 +235,8 @@ fn test_correct_duplicate_names() {
 
     // 验证排序仍然正确
     assert_eq!(sorted.len(), 2);
-    assert_eq!(sorted[0].score, 100);
-    assert_eq!(sorted[1].score, 50);
+    assert_eq!(sorted[0].score(), 100);
+    assert_eq!(sorted[1].score(), 50);
 }
 
 /// 测试全持久化后端配置修正警告
@@ -250,8 +250,8 @@ fn test_correct_all_persistent_warning() {
 
     // 验证排序正确
     assert_eq!(sorted.len(), 2);
-    assert!(sorted[0].is_persistent);
-    assert!(sorted[1].is_persistent);
+    assert!(sorted[0].is_persistent());
+    assert!(sorted[1].is_persistent());
 }
 
 // ============================================================================
@@ -267,8 +267,8 @@ fn test_sort_links_max_score() {
     let links = vec![min, max];
     let sorted = BackendSorter::sort_links(links);
 
-    assert_eq!(sorted[0].score, 255);
-    assert_eq!(sorted[1].score, 1);
+    assert_eq!(sorted[0].score(), 255);
+    assert_eq!(sorted[1].score(), 1);
 }
 
 /// 测试大量后端排序（使用预定义的静态名称）
@@ -298,10 +298,10 @@ fn test_sort_links_many_backends() {
     assert_eq!(sorted.len(), 20);
     for i in 1..sorted.len() {
         // 分数应该降序
-        assert!(sorted[i].score <= sorted[i - 1].score);
+        assert!(sorted[i].score() <= sorted[i - 1].score());
         // 同分数时，非持久化在前
-        if sorted[i].score == sorted[i - 1].score {
-            assert!(sorted[i - 1].is_persistent <= sorted[i].is_persistent);
+        if sorted[i].score() == sorted[i - 1].score() {
+            assert!(sorted[i - 1].is_persistent() <= sorted[i].is_persistent());
         }
     }
 }

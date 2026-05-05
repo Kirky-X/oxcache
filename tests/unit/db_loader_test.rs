@@ -5,7 +5,7 @@
 // 数据库加载器模块测试
 
 use async_trait::async_trait;
-use oxcache::client::db_loader::{
+use oxcache::client::{
     validate_cache_key, validate_sql_identifier, DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader,
     SqlDbLoader,
 };
