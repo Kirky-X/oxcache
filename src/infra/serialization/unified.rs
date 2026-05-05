@@ -30,6 +30,21 @@ enum UnifiedSerializerInner {
     MessagePack(crate::infra::serialization::extra::MessagePackSerializer),
 }
 
+/// Dispatch to the inner serializer's method, avoiding repeated match blocks.
+macro_rules! with_inner {
+    ($self:ident, $method:ident($($arg:expr),* $(,)?)) => {
+        match &*$self.inner {
+            UnifiedSerializerInner::Json(s) => s.$method($($arg),*),
+            #[cfg(feature = "bincode")]
+            UnifiedSerializerInner::Bincode(s) => s.$method($($arg),*),
+            #[cfg(feature = "extra-serialization")]
+            UnifiedSerializerInner::Cbor(s) => s.$method($($arg),*),
+            #[cfg(feature = "extra-serialization")]
+            UnifiedSerializerInner::MessagePack(s) => s.$method($($arg),*),
+        }
+    };
+}
+
 impl std::fmt::Debug for UnifiedSerializerInner {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -129,15 +144,7 @@ impl UnifiedSerializer {
 
     /// Serialize with explicit type name (for internal use)
     pub fn serialize_with_type(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => serializer.serialize(type_name, data),
-            #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => serializer.serialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::Cbor(serializer) => serializer.serialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::MessagePack(serializer) => serializer.serialize(type_name, data),
-        }
+        with_inner!(self, serialize(type_name, data))
     }
 
     /// Deserialize bytes to a value
@@ -149,56 +156,21 @@ impl UnifiedSerializer {
 
     /// Deserialize with explicit type name (for internal use)
     pub fn deserialize_with_type(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::Cbor(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::MessagePack(serializer) => serializer.deserialize(type_name, data),
-        }
+        with_inner!(self, deserialize(type_name, data))
     }
 
     /// Zero-copy serialize (when supported)
     pub fn serialize_zero_copy<'a, T: Serialize>(&self, value: &'a T) -> Result<Cow<'a, [u8]>> {
         let type_name = std::any::type_name::<T>();
         let data = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
-        match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => {
-                let result = serializer.serialize(type_name, &data)?;
-                Ok(Cow::Owned(result))
-            }
-            #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => {
-                let result = serializer.serialize(type_name, &data)?;
-                Ok(Cow::Owned(result))
-            }
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::Cbor(serializer) => {
-                let result = serializer.serialize(type_name, &data)?;
-                Ok(Cow::Owned(result))
-            }
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::MessagePack(serializer) => {
-                let result = serializer.serialize(type_name, &data)?;
-                Ok(Cow::Owned(result))
-            }
-        }
+        let result = with_inner!(self, serialize(type_name, &data))?;
+        Ok(Cow::Owned(result))
     }
 
     /// Zero-copy deserialize (when supported)
     pub fn deserialize_zero_copy<'a, T: DeserializeOwned + Clone>(&self, data: &'a [u8]) -> Result<Cow<'a, T>> {
         let type_name = std::any::type_name::<T>();
-        let result_data = match &*self.inner {
-            UnifiedSerializerInner::Json(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "bincode")]
-            UnifiedSerializerInner::Bincode(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::Cbor(serializer) => serializer.deserialize(type_name, data),
-            #[cfg(feature = "extra-serialization")]
-            UnifiedSerializerInner::MessagePack(serializer) => serializer.deserialize(type_name, data),
-        }?;
+        let result_data = with_inner!(self, deserialize(type_name, data))?;
 
         let value: T =
             serde_json::from_slice(&result_data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;

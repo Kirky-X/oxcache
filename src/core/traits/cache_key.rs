@@ -62,47 +62,19 @@ impl CacheKey for &str {
     }
 }
 
-impl CacheKey for u64 {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
+macro_rules! impl_cache_key_for_int {
+    ($($t:ty),*) => {
+        $(
+            impl CacheKey for $t {
+                fn to_key_string(&self) -> String {
+                    self.to_string()
+                }
+            }
+        )*
+    };
 }
 
-impl CacheKey for u128 {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl CacheKey for i64 {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl CacheKey for i32 {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl CacheKey for u32 {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl CacheKey for usize {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl CacheKey for isize {
-    fn to_key_string(&self) -> String {
-        self.to_string()
-    }
-}
+impl_cache_key_for_int!(u64, u128, i64, i32, u32, usize, isize);
 
 #[cfg(test)]
 mod tests {

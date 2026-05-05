@@ -29,23 +29,23 @@ use tracing::{span, Level};
 #[derive(Clone, Debug, Default)]
 pub struct Metrics {
     /// 原子计数器（高频指标，无锁）
-    pub counters: Arc<AtomicCounters>,
+    pub(crate) counters: Arc<AtomicCounters>,
     /// 请求总数统计（低频指标，保留DashMap用于动态服务名）
     /// key: "service:layer:op:result"
-    pub requests_total: Arc<DashMap<String, u64>>,
+    pub(crate) requests_total: Arc<DashMap<String, u64>>,
     /// L2健康状态
-    pub l2_health_status: Arc<DashMap<String, u8>>,
+    pub(crate) l2_health_status: Arc<DashMap<String, u8>>,
     /// WAL条目数
-    pub wal_entries: Arc<DashMap<String, usize>>,
+    pub(crate) wal_entries: Arc<DashMap<String, usize>>,
     /// 操作耗时（简单的累积时间和计数，用于计算平均值，更复杂的直方图建议使用OpenTelemetry Metrics）
     /// key: "service:layer:op" -> (total_duration_secs, count)
-    pub operation_duration: Arc<DashMap<String, (f64, u64)>>,
+    pub(crate) operation_duration: Arc<DashMap<String, (f64, u64)>>,
     /// 批量写入缓冲区大小
-    pub batch_buffer_size: Arc<DashMap<String, usize>>,
+    pub(crate) batch_buffer_size: Arc<DashMap<String, usize>>,
     /// 批量写入成功率
-    pub batch_success_rate: Arc<DashMap<String, f64>>,
+    pub(crate) batch_success_rate: Arc<DashMap<String, f64>>,
     /// 批量写入吞吐量 (ops/sec)
-    pub batch_throughput: Arc<DashMap<String, f64>>,
+    pub(crate) batch_throughput: Arc<DashMap<String, f64>>,
 }
 
 /// 全局指标实例

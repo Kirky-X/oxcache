@@ -414,10 +414,6 @@ pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 #[cfg(feature = "confers")]
 pub use core::confers_config;
 
-// Internal module exports (for #[cached] macro)
-#[doc(hidden)]
-pub use internal::{__internal_get_cache, __internal_register_cache};
-
 // Feature info exports
 pub use internal::{get_all_feature_info, get_l1_feature_info, get_l2_feature_info, is_l1_enabled, is_l2_enabled};
 
@@ -481,8 +477,10 @@ pub mod recovery {
 
 /// Legacy path: oxcache::client -- re-exports from infra::db_loader
 pub mod client {
-    pub use crate::infra::db_loader;
-    pub use db_loader::*;
+    pub use crate::infra::db_loader::{
+        validate_cache_key, validate_sql_identifier, DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader,
+        SqlDbLoader,
+    };
 }
 
 /// Legacy path: oxcache::traits -- re-exports from core::traits

@@ -102,7 +102,10 @@ impl<'a> ParsedConnectionString<'a> {
 
     /// 解析 Redis 连接字符串
     fn parse_redis(s: &'a str) -> Self {
-        let without_prefix = s.strip_prefix("redis://").unwrap_or(s);
+        let without_prefix = s
+            .strip_prefix("redis://")
+            .or_else(|| s.strip_prefix("rediss://"))
+            .unwrap_or(s);
         let mut password: Option<SecretString> = None;
         let mut _host_port = "";
 
@@ -270,26 +273,9 @@ fn normalize_sqlite(parsed: &ParsedConnectionString) -> String {
     }
 }
 
-/// 规范化 Redis 连接字符串
+/// 规范化 Redis 连接字符串（密码将脱敏以防止泄露）
 fn normalize_redis(parsed: &ParsedConnectionString) -> String {
-    let mut result = String::from("redis://");
-
-    if let Some(password) = &parsed.password {
-        result.push(':');
-        result.push_str(password.expose_secret());
-        result.push('@');
-    }
-
-    if let Some(host) = &parsed.host {
-        result.push_str(host);
-    }
-
-    if let Some(port) = &parsed.port {
-        result.push(':');
-        result.push_str(&port.to_string());
-    }
-
-    result
+    normalize_redis_with_redaction(parsed, true)
 }
 
 /// 验证连接字符串
@@ -490,7 +476,12 @@ fn normalize_sqlite_with_redaction(parsed: &ParsedConnectionString, _redact_pass
 
 /// 规范化 Redis 连接字符串（带密码屏蔽）
 fn normalize_redis_with_redaction(parsed: &ParsedConnectionString, redact_password: bool) -> String {
-    let mut result = String::from("redis://");
+    let scheme = if parsed.original.to_lowercase().starts_with("rediss://") {
+        "rediss://"
+    } else {
+        "redis://"
+    };
+    let mut result = String::from(scheme);
 
     if let Some(password) = &parsed.password {
         result.push(':');
@@ -637,7 +628,7 @@ mod tests {
         assert_eq!(normalized, "redis://localhost:6379");
 
         let normalized_with_pass = normalize_connection_string("redis://:mypassword@localhost:6379");
-        assert_eq!(normalized_with_pass, "redis://:mypassword@localhost:6379");
+        assert_eq!(normalized_with_pass, "redis://:****@localhost:6379");
     }
 
     #[test]

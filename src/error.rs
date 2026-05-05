@@ -6,26 +6,8 @@
 
 use thiserror::Error;
 
-use crate::core::constants::PASSWORD_MASK_ASTERISKS;
-
-fn sanitize_connection_string(conn_str: &str) -> String {
-    if let Some(start) = conn_str.find("://") {
-        let protocol = &conn_str[..start];
-        let after_protocol = &conn_str[start + 3..];
-
-        if let Some(at_pos) = after_protocol.find('@') {
-            let user_part = &after_protocol[..at_pos];
-            let sanitized_user = if let Some(colon_pos) = user_part.find(':') {
-                let username = &user_part[..colon_pos];
-                format!("{}:{}", username, "*".repeat(PASSWORD_MASK_ASTERISKS))
-            } else {
-                format!("{}:{}", user_part, "*".repeat(PASSWORD_MASK_ASTERISKS))
-            };
-            return format!("{}://{}@{}", protocol, sanitized_user, &after_protocol[at_pos + 1..]);
-        }
-    }
-    conn_str.to_string()
-}
+#[cfg(feature = "redis")]
+use crate::features::security::redaction::redact_connection_string;
 
 /// Configuration error type for cache initialization
 ///
@@ -179,7 +161,7 @@ pub enum CacheError {
     /// Redis错误（脱敏后的错误信息）
     #[cfg(feature = "redis")]
     #[error("Redis connection failed: {}. Please ensure Redis server is running and the connection string is correct.",
-        sanitize_connection_string(&0.to_string())
+        redact_connection_string(&0.to_string())
     )]
     RedisError(#[from] redis::RedisError),
 
@@ -311,6 +293,9 @@ impl CacheError {
     ///
     /// 返回 true 表示错误可能是暂时的，可以重试。
     ///
+    /// `Internal` 错误代表内部状态损坏（如锁中毒、数据不一致），不可恢复。
+    /// 调用者不应重试此类错误，而应停止操作或重新初始化缓存实例。
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -330,7 +315,6 @@ impl CacheError {
                 | CacheError::L2Error(_)
                 | CacheError::BackendError(_)
                 | CacheError::BufferFull(_)
-                | CacheError::Internal(_)
         )
     }
 
@@ -399,45 +383,8 @@ impl CacheError {
 mod tests {
     use super::*;
 
-    // ========================================================================
-    // sanitize_connection_string tests
-    // ========================================================================
-
-    #[test]
-    fn test_sanitize_connection_string_with_password() {
-        let result = sanitize_connection_string("redis://user:secret@localhost:6379/0");
-        assert_eq!(
-            result,
-            format!("redis://user:{}@localhost:6379/0", "*".repeat(PASSWORD_MASK_ASTERISKS))
-        );
-    }
-
-    #[test]
-    fn test_sanitize_connection_string_without_password() {
-        let result = sanitize_connection_string("redis://user@localhost:6379/0");
-        assert_eq!(
-            result,
-            format!("redis://user:{}@localhost:6379/0", "*".repeat(PASSWORD_MASK_ASTERISKS))
-        );
-    }
-
-    #[test]
-    fn test_sanitize_connection_string_no_at_sign() {
-        let result = sanitize_connection_string("redis://localhost:6379/0");
-        assert_eq!(result, "redis://localhost:6379/0");
-    }
-
-    #[test]
-    fn test_sanitize_connection_string_no_protocol() {
-        let result = sanitize_connection_string("localhost:6379");
-        assert_eq!(result, "localhost:6379");
-    }
-
-    #[test]
-    fn test_sanitize_connection_string_empty() {
-        let result = sanitize_connection_string("");
-        assert_eq!(result, "");
-    }
+    // sanitize_connection_string tests removed — replaced by
+    // redact_connection_string tests in features::security::redaction
 
     // ========================================================================
     // CacheConfigError tests
@@ -822,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_is_recoverable_internal() {
-        assert!(CacheError::Internal("state".to_string()).is_recoverable());
+        assert!(!CacheError::Internal("state".to_string()).is_recoverable());
     }
 
     #[test]

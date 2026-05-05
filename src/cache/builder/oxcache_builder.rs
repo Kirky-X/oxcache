@@ -268,8 +268,8 @@ mod tests {
         assert_eq!(cache.len(), 2);
 
         // 验证排序
-        assert_eq!(cache.links()[0].score, 100);
-        assert_eq!(cache.links()[1].score, 50);
+        assert_eq!(cache.links()[0].score(), 100);
+        assert_eq!(cache.links()[1].score(), 50);
     }
 
     #[test]
