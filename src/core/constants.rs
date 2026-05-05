@@ -4,6 +4,8 @@
 //!
 //! 该模块定义了缓存系统中使用的常量。
 
+use crate::core::command::RedisCommand;
+
 // ============================================================================
 // 缓存容量相关常量
 // ============================================================================
@@ -163,20 +165,20 @@ pub const PASSWORD_MASK_ASTERISKS: usize = 5;
 // ============================================================================
 
 /// 禁止的 Lua 脚本命令列表
-pub const FORBIDDEN_LUA_COMMANDS: &[&str] = &[
-    "FLUSHALL",
-    "FLUSHDB",
-    "KEYS",
-    "SHUTDOWN",
-    "DEBUG",
-    "CONFIG",
-    "SAVE",
-    "BGSAVE",
-    "BGREWRITEAOF",
-    "SLAVEOF",
-    "REPLICAOF",
-    "CLUSTER",
-    "ADMIN",
+pub const FORBIDDEN_LUA_COMMANDS: &[RedisCommand] = &[
+    RedisCommand::FlushAll,
+    RedisCommand::FlushDb,
+    RedisCommand::Keys,
+    RedisCommand::Shutdown,
+    RedisCommand::Debug,
+    RedisCommand::Config,
+    RedisCommand::Save,
+    RedisCommand::BgSave,
+    RedisCommand::BgRewriteAof,
+    RedisCommand::SlaveOf,
+    RedisCommand::ReplicaOf,
+    RedisCommand::Cluster,
+    RedisCommand::Admin,
 ];
 
 #[cfg(test)]
@@ -269,8 +271,8 @@ mod tests {
     #[test]
     fn test_forbidden_lua_commands_not_empty() {
         assert!(!FORBIDDEN_LUA_COMMANDS.is_empty());
-        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"FLUSHALL"));
-        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"SHUTDOWN"));
-        assert!(FORBIDDEN_LUA_COMMANDS.contains(&"KEYS"));
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&RedisCommand::FlushAll));
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&RedisCommand::Shutdown));
+        assert!(FORBIDDEN_LUA_COMMANDS.contains(&RedisCommand::Keys));
     }
 }
