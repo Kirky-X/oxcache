@@ -27,13 +27,13 @@
 // Submodules
 // ============================================================================
 
-pub mod injection;
-pub mod log;
-pub mod path;
-pub mod redaction;
-pub mod redis;
-pub mod regex;
-pub mod validation;
+pub(crate) mod injection;
+pub(crate) mod log;
+pub(crate) mod path;
+pub(crate) mod redaction;
+pub(crate) mod redis;
+pub(crate) mod regex;
+pub(crate) mod validation;
 
 // ============================================================================
 // Re-exports for convenience (used by external tests via lib.rs re-exports)
@@ -248,13 +248,13 @@ mod tests {
 
     #[test]
     fn test_command_injection_patterns() {
-        // 命令注入尝试应该被检测（长键会触发检测）
-        assert!(validate_redis_key("some_long_key_name;ls").is_err());
-        assert!(validate_redis_key("some_long_key_name|cat").is_err());
-        assert!(validate_redis_key("some_long_key_name&whoami").is_err());
-        // 单独的危险字符也会被检测
-        assert!(validate_redis_key("key;value").is_err());
-        assert!(validate_redis_key("key|value").is_err());
+        // Redis RESP 协议注入字符应该被检测
+        assert!(validate_redis_key("key\rvalue").is_err());
+        assert!(validate_redis_key("key\nvalue").is_err());
+        assert!(validate_redis_key("key\0value").is_err());
+        // Shell 元字符在 RESP 协议中无特殊含义，不触发检测
+        assert!(validate_redis_key("key;value").is_ok());
+        assert!(validate_redis_key("key|value").is_ok());
     }
 
     #[test]
@@ -329,8 +329,8 @@ mod tests {
 
 // 测试辅助模块 - 为集成测试提供访问
 // 注意：这些函数仅供测试使用，生产代码应使用公共 API
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 #[allow(unused_imports)]
-pub mod test_helpers {
+pub(crate) mod test_helpers {
     pub use super::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
 }

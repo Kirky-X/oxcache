@@ -127,7 +127,16 @@ pub(crate) fn preprocess_lua_script(script: &str) -> String {
                     break;
                 } else if next_c == '\\' {
                     chars.next();
-                    chars.next();
+                    if chars.next().map_or(true, |c| c != 'x') {
+                        // Not a hex escape, skip the escaped char
+                    } else {
+                        // \xHH hex escape: skip up to 2 hex digits
+                        for _ in 0..2 {
+                            if chars.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                                chars.next();
+                            }
+                        }
+                    }
                 } else if next_c == '\n' {
                     break;
                 } else {
@@ -146,7 +155,14 @@ pub(crate) fn preprocess_lua_script(script: &str) -> String {
                     } else if next_c == '\\' {
                         chars.next();
                         if let Some(escaped) = chars.next() {
-                            if escaped.is_alphanumeric() || escaped == '_' {
+                            if escaped == 'x' {
+                                // \xHH hex escape: skip up to 2 hex digits
+                                for _ in 0..2 {
+                                    if chars.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                                        chars.next();
+                                    }
+                                }
+                            } else if escaped.is_alphanumeric() || escaped == '_' {
                                 result.push(escaped);
                             }
                         }
@@ -267,31 +283,38 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     let cleaned = preprocess_lua_script(script);
     let cleaned_upper = cleaned.to_uppercase();
 
-    let forbidden_patterns = [
-        ("REDIS.CALL('FLUSHALL')", "FLUSHALL"),
-        ("REDIS.CALL(\"FLUSHALL\")", "FLUSHALL"),
-        ("REDIS.PCALL('FLUSHALL')", "FLUSHALL via PCALL"),
-        ("REDIS.PCALL(\"FLUSHALL\")", "FLUSHALL via PCALL"),
-        ("REDIS.CALL('FLUSHDB')", "FLUSHDB"),
-        ("REDIS.CALL(\"FLUSHDB\")", "FLUSHDB"),
-        ("REDIS.PCALL('FLUSHDB')", "FLUSHDB via PCALL"),
-        ("REDIS.PCALL(\"FLUSHDB\")", "FLUSHDB via PCALL"),
-        ("REDIS.CALL('KEYS'", "KEYS"),
-        ("REDIS.CALL(\"KEYS\"", "KEYS"),
-        ("REDIS.PCALL('KEYS'", "KEYS via PCALL"),
-        ("REDIS.PCALL(\"KEYS\"", "KEYS via PCALL"),
-        ("REDIS.CALL('SHUTDOWN')", "SHUTDOWN"),
-        ("REDIS.CALL(\"SHUTDOWN\")", "SHUTDOWN"),
-        ("REDIS.CALL('CONFIG'", "CONFIG"),
-        ("REDIS.CALL(\"CONFIG\"", "CONFIG"),
-        ("REDIS.CALL('DEBUG'", "DEBUG"),
-        ("REDIS.CALL(\"DEBUG\"", "DEBUG"),
-        ("REDIS.CALL('SAVE')", "SAVE"),
-        ("REDIS.CALL(\"SAVE\")", "SAVE"),
-        ("REDIS.CALL('BGSAVE')", "BGSAVE"),
-        ("REDIS.CALL(\"BGSAVE\")", "BGSAVE"),
-        ("REDIS.CALL('MONITOR')", "MONITOR"),
-        ("REDIS.CALL(\"MONITOR\")", "MONITOR"),
+    // 检查危险 Redis 命令（通过 RedisCommand 枚举统一管理）
+    let dangerous_commands: &[crate::core::command::RedisCommand] = &[
+        crate::core::command::RedisCommand::FlushAll,
+        crate::core::command::RedisCommand::FlushDb,
+        crate::core::command::RedisCommand::Keys,
+        crate::core::command::RedisCommand::Shutdown,
+        crate::core::command::RedisCommand::Config,
+        crate::core::command::RedisCommand::Debug,
+        crate::core::command::RedisCommand::Save,
+        crate::core::command::RedisCommand::BgSave,
+        crate::core::command::RedisCommand::Monitor,
+    ];
+
+    for cmd in dangerous_commands {
+        let cmd_str = cmd.as_str();
+        // REDIS.CALL / REDIS.PCALL with single or double quotes
+        for call_type in &["CALL", "PCALL"] {
+            for quote in &["'", "\""] {
+                let pattern = format!("REDIS.{}({}{}", call_type, quote, cmd_str);
+                if cleaned_upper.contains(&pattern) {
+                    return Err(CacheError::InvalidInput(format!(
+                        "Lua script contains forbidden command: {} via redis.{}",
+                        cmd_str,
+                        call_type.to_lowercase(),
+                    )));
+                }
+            }
+        }
+    }
+
+    // 非 Redis 命令的危险模式
+    let non_redis_patterns = [
         ("OS.EXECUTE", "os.execute"),
         ("OS.EXEC", "os.exec"),
         ("IO.POPEN", "io.popen"),
@@ -299,7 +322,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
         ("LOAD(", "load()"),
     ];
 
-    for (pattern, description) in &forbidden_patterns {
+    for (pattern, description) in &non_redis_patterns {
         if cleaned_upper.contains(pattern) {
             return Err(CacheError::InvalidInput(format!(
                 "Lua script contains forbidden pattern: {}",

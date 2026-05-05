@@ -113,12 +113,22 @@ pub mod redis {
 
 /// Lua 脚本验证常量
 pub mod lua_script {
+    use crate::core::command::RedisCommand;
+
     /// Lua 脚本的最大长度
     pub const MAX_SCRIPT_LENGTH: usize = 10 * 1024;
 
     /// Lua 脚本中的危险模式（用于简单检查）
-    pub const DANGEROUS_PATTERNS: &[&str] = &[
-        "FLUSHALL", "FLUSHDB", "KEYS", "SHUTDOWN", "DEBUG", "CONFIG", "SAVE", "BGSAVE", "MONITOR",
+    pub const DANGEROUS_PATTERNS: &[RedisCommand] = &[
+        RedisCommand::FlushAll,
+        RedisCommand::FlushDb,
+        RedisCommand::Keys,
+        RedisCommand::Shutdown,
+        RedisCommand::Debug,
+        RedisCommand::Config,
+        RedisCommand::Save,
+        RedisCommand::BgSave,
+        RedisCommand::Monitor,
     ];
 
     /// 验证 Lua 脚本长度
