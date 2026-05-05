@@ -127,12 +127,12 @@ pub(crate) fn preprocess_lua_script(script: &str) -> String {
                     break;
                 } else if next_c == '\\' {
                     chars.next();
-                    if chars.next().map_or(true, |c| c != 'x') {
+                    if chars.next().is_none_or(|c| c != 'x') {
                         // Not a hex escape, skip the escaped char
                     } else {
                         // \xHH hex escape: skip up to 2 hex digits
                         for _ in 0..2 {
-                            if chars.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                            if chars.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
                                 chars.next();
                             }
                         }
@@ -158,7 +158,7 @@ pub(crate) fn preprocess_lua_script(script: &str) -> String {
                             if escaped == 'x' {
                                 // \xHH hex escape: skip up to 2 hex digits
                                 for _ in 0..2 {
-                                    if chars.peek().map_or(false, |c| c.is_ascii_hexdigit()) {
+                                    if chars.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
                                         chars.next();
                                     }
                                 }
