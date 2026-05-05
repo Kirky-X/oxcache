@@ -23,13 +23,13 @@ use tracing::instrument;
 #[derive(Clone)]
 pub struct ChainLink {
     /// 后端实例
-    pub backend: Arc<dyn CacheBackend>,
+    backend: Arc<dyn CacheBackend>,
     /// 后端分数（越高越快）
-    pub score: u8,
+    score: u8,
     /// 是否为持久化后端
-    pub is_persistent: bool,
+    is_persistent: bool,
     /// 后端名称
-    pub name: &'static str,
+    name: &'static str,
 }
 
 impl ChainLink {
@@ -88,6 +88,26 @@ impl ChainLink {
             is_persistent,
             name,
         }
+    }
+
+    /// 获取后端实例引用
+    pub fn backend(&self) -> &Arc<dyn CacheBackend> {
+        &self.backend
+    }
+
+    /// 获取后端分数
+    pub fn score(&self) -> u8 {
+        self.score
+    }
+
+    /// 是否为持久化后端
+    pub fn is_persistent(&self) -> bool {
+        self.is_persistent
+    }
+
+    /// 获取后端名称
+    pub fn name(&self) -> &'static str {
+        self.name
     }
 }
 
@@ -176,7 +196,7 @@ impl ChainCache {
 
     /// 获取指定分数的后端
     pub fn get_by_score(&self, score: u8) -> Option<&ChainLink> {
-        self.links.iter().find(|link| link.score == score)
+        self.links.iter().find(|link| link.score() == score)
     }
 
     /// 获取最高分后端
@@ -191,12 +211,12 @@ impl ChainCache {
 
     /// 获取所有持久化后端
     pub fn persistent_backends(&self) -> Vec<&ChainLink> {
-        self.links.iter().filter(|link| link.is_persistent).collect()
+        self.links.iter().filter(|link| link.is_persistent()).collect()
     }
 
     /// 获取所有非持久化后端
     pub fn non_persistent_backends(&self) -> Vec<&ChainLink> {
-        self.links.iter().filter(|link| !link.is_persistent).collect()
+        self.links.iter().filter(|link| !link.is_persistent()).collect()
     }
 
     /// 从链中读取数据
@@ -206,7 +226,7 @@ impl ChainCache {
     #[instrument(skip(self), fields(key = %key))]
     async fn read_from_chain(&self, key: &str) -> Result<Option<Vec<u8>>> {
         for (index, link) in self.links.iter().enumerate() {
-            match link.backend.get(key).await {
+            match link.backend().get(key).await {
                 Ok(Some(value)) => {
                     // 回填到更高分后端
                     if self.backfill_enabled && index > 0 {
@@ -230,7 +250,7 @@ impl ChainCache {
     /// 回填数据到更高分后端
     async fn backfill_to_higher_backends(&self, key: &str, value: &[u8], from_index: usize) {
         for link in &self.links[..from_index] {
-            let _ = link.backend.set(key, value.to_vec(), self.default_ttl).await;
+            let _ = link.backend().set(key, value.to_vec(), self.default_ttl).await;
         }
     }
 
@@ -247,15 +267,15 @@ impl ChainCache {
 
         // Clone for all but the last backend
         for link in self.links.iter().take(count - 1) {
-            if let Err(e) = link.backend.set(key, value.clone(), effective_ttl).await {
-                errors.push((link.name, e));
+            if let Err(e) = link.backend().set(key, value.clone(), effective_ttl).await {
+                errors.push((link.name(), e));
             }
         }
 
         // Last backend: use the owned value directly (no clone)
         if let Some(link) = self.links.last() {
-            if let Err(e) = link.backend.set(key, value, effective_ttl).await {
-                errors.push((link.name, e));
+            if let Err(e) = link.backend().set(key, value, effective_ttl).await {
+                errors.push((link.name(), e));
             }
         }
 
@@ -273,8 +293,8 @@ impl ChainCache {
         let mut errors = Vec::new();
 
         for link in &self.links {
-            if let Err(e) = link.backend.delete(key).await {
-                errors.push((link.name, e));
+            if let Err(e) = link.backend().delete(key).await {
+                errors.push((link.name(), e));
             }
         }
 
@@ -301,7 +321,7 @@ impl CacheReader for ChainCache {
 
     async fn exists(&self, key: &str) -> Result<bool> {
         for link in &self.links {
-            match link.backend.exists(key).await {
+            match link.backend().exists(key).await {
                 Ok(true) => return Ok(true),
                 Ok(false) => continue,
                 Err(_) => continue,
@@ -313,7 +333,7 @@ impl CacheReader for ChainCache {
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
         // 返回第一个找到的 TTL
         for link in &self.links {
-            match link.backend.ttl(key).await {
+            match link.backend().ttl(key).await {
                 Ok(Some(ttl)) => return Ok(Some(ttl)),
                 Ok(None) => continue,
                 Err(_) => continue,
@@ -325,7 +345,7 @@ impl CacheReader for ChainCache {
     async fn len(&self) -> Result<u64> {
         // 返回最高分后端的长度
         if let Some(link) = self.links.first() {
-            link.backend.len().await
+            link.backend().len().await
         } else {
             Ok(0)
         }
@@ -333,7 +353,7 @@ impl CacheReader for ChainCache {
 
     async fn is_empty(&self) -> Result<bool> {
         if let Some(link) = self.links.first() {
-            link.backend.is_empty().await
+            link.backend().is_empty().await
         } else {
             Ok(true)
         }
@@ -342,7 +362,7 @@ impl CacheReader for ChainCache {
     async fn capacity(&self) -> Result<u64> {
         // 返回最高分后端的容量
         if let Some(link) = self.links.first() {
-            link.backend.capacity().await
+            link.backend().capacity().await
         } else {
             Ok(0)
         }
@@ -354,8 +374,8 @@ impl CacheReader for ChainCache {
         stats.insert("backend_count".to_string(), self.links.len().to_string());
 
         for (index, link) in self.links.iter().enumerate() {
-            stats.insert(format!("backend_{}_name", index), link.name.to_string());
-            stats.insert(format!("backend_{}_score", index), link.score.to_string());
+            stats.insert(format!("backend_{}_name", index), link.name().to_string());
+            stats.insert(format!("backend_{}_score", index), link.score().to_string());
         }
 
         Ok(stats)
@@ -382,8 +402,8 @@ impl CacheWriter for ChainCache {
         let mut errors = Vec::new();
 
         for link in &self.links {
-            if let Err(e) = link.backend.clear().await {
-                errors.push((link.name, e));
+            if let Err(e) = link.backend().clear().await {
+                errors.push((link.name(), e));
             }
         }
 
@@ -401,7 +421,7 @@ impl CacheWriter for ChainCache {
         let mut any_success = false;
 
         for link in &self.links {
-            match link.backend.expire(key, ttl).await {
+            match link.backend().expire(key, ttl).await {
                 Ok(true) => any_success = true,
                 _ => continue,
             }
@@ -420,7 +440,7 @@ impl CacheConnector for ChainCache {
 
         // All links must be healthy
         for link in &self.links {
-            link.backend.health_check().await?;
+            link.backend().health_check().await?;
         }
 
         Ok(())
@@ -428,7 +448,7 @@ impl CacheConnector for ChainCache {
 
     async fn shutdown(&self) {
         for link in &self.links {
-            link.backend.shutdown().await;
+            link.backend().shutdown().await;
         }
     }
 
@@ -490,7 +510,7 @@ impl ChainCacheBuilder {
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
         let mut links = self.links;
-        links.sort_by_key(|link| std::cmp::Reverse(link.score));
+        links.sort_by_key(|link| std::cmp::Reverse(link.score()));
 
         ChainCache {
             links,
@@ -510,9 +530,9 @@ mod tests {
         let backend = MockBackend::new("test", 50, false);
         let link = ChainLink::from_backend(backend);
 
-        assert_eq!(link.score, 50);
-        assert!(!link.is_persistent);
-        assert_eq!(link.name, "test");
+        assert_eq!(link.score(), 50);
+        assert!(!link.is_persistent());
+        assert_eq!(link.name(), "test");
     }
 
     #[test]
@@ -528,8 +548,8 @@ mod tests {
 
         // 应该按分数降序排列
         assert_eq!(chain.links().len(), 2);
-        assert_eq!(chain.links()[0].score, 100);
-        assert_eq!(chain.links()[1].score, 50);
+        assert_eq!(chain.links()[0].score(), 100);
+        assert_eq!(chain.links()[1].score(), 50);
     }
 
     #[tokio::test]
