@@ -130,41 +130,6 @@ where
     }
 }
 
-#[cfg(feature = "confers")]
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: Cacheable,
-{
-    #[tracing::instrument(skip(config), level = "info")]
-    pub async fn with_confers(config: &serde_json::Value) -> crate::error::Result<Self> {
-        use crate::backend::memory::RedisBackend;
-
-        let default = serde_json::json!({});
-        let oxcache_config = config.get("oxcache").unwrap_or(&default);
-        let backend_type = oxcache_config
-            .get("backend")
-            .and_then(|v| v.as_str())
-            .unwrap_or("memory");
-
-        match backend_type {
-            "redis" => {
-                let redis_url = oxcache_config
-                    .get("redis")
-                    .and_then(|r| r.get("url"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(crate::core::constants::DEFAULT_REDIS_URL);
-                let backend = RedisBackend::new(redis_url).await?;
-                Ok(Self::new_with_backend(Arc::new(backend)))
-            }
-            _ => {
-                use crate::backend::MokaMemoryBackend;
-                Ok(Self::new_with_backend(Arc::new(MokaMemoryBackend::new())))
-            }
-        }
-    }
-}
-
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,

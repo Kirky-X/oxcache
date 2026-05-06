@@ -5,8 +5,8 @@
 // 数据库测试工具 - 提供数据库测试的通用工具函数
 
 use chrono::{TimeZone, Utc};
+use oxcache::backend::storage::partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use oxcache::error::Result;
-use oxcache::storage::partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 

@@ -51,9 +51,6 @@ mod l2_backend_test;
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
 
-#[path = "integration/oxcache_builder_test.rs"]
-mod oxcache_builder_test;
-
 #[path = "integration/redis_client_test.rs"]
 mod redis_client_test;
 

@@ -12,7 +12,7 @@ mod tests {
     use axum::{body::Body, middleware, routing::get, Router};
     use http::{Request, StatusCode};
     use http_body_util::BodyExt;
-    use oxcache::http::{
+    use oxcache::features::http::{
         CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy,
         HttpCacheResponse, HttpRequest,
     };
@@ -195,7 +195,7 @@ mod tests {
             .route("/api/test", get(|| async { "Hello, World!" }))
             .layer(middleware::from_fn_with_state(
                 state,
-                oxcache::http::axum::cache_middleware,
+                oxcache::features::http::axum::cache_middleware,
             ))
     }
 
@@ -214,7 +214,7 @@ mod tests {
             .route("/api/test", get(|| async { "Hello, World!" }))
             .layer(middleware::from_fn_with_state(
                 state,
-                oxcache::http::axum::cache_middleware,
+                oxcache::features::http::axum::cache_middleware,
             ))
     }
 
@@ -486,7 +486,7 @@ mod tests {
             .route("/api/test2", get(|| async { "Response 2" }))
             .layer(middleware::from_fn_with_state(
                 state,
-                oxcache::http::axum::cache_middleware,
+                oxcache::features::http::axum::cache_middleware,
             ));
 
         // 请求不同路径
@@ -551,7 +551,7 @@ mod tests {
             .route("/api/test", get(|| async { "GET Response" }))
             .layer(middleware::from_fn_with_state(
                 state,
-                oxcache::http::axum::cache_middleware,
+                oxcache::features::http::axum::cache_middleware,
             ));
 
         // GET 请求
@@ -586,7 +586,7 @@ mod tests {
             .route("/api/test", get(|| async { "Query Response" }))
             .layer(middleware::from_fn_with_state(
                 state,
-                oxcache::http::axum::cache_middleware,
+                oxcache::features::http::axum::cache_middleware,
             ));
 
         // 带查询参数的请求

@@ -6,7 +6,7 @@
 
 #[cfg(not(feature = "wal-recovery"))]
 mod tests {
-    use oxcache::recovery::wal::{Operation, WalEntry, WalManager, WalReplayableBackend};
+    use oxcache::features::recovery::wal::{Operation, WalEntry, WalManager, WalReplayableBackend};
     use std::sync::Arc;
     use std::time::SystemTime;
 

@@ -6,8 +6,8 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use oxcache::cache::SerializerPool;
-use oxcache::serialization::json::JsonSerializer;
-use oxcache::serialization::Serializer;
+use oxcache::infra::serialization::json::JsonSerializer;
+use oxcache::infra::serialization::Serializer;
 use oxcache::Cache;
 use tokio::runtime::Runtime;
 

@@ -5,11 +5,11 @@
 // 数据库加载器模块测试
 
 use async_trait::async_trait;
-use oxcache::client::{
+use oxcache::error::CacheError;
+use oxcache::infra::{
     validate_cache_key, validate_sql_identifier, DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader,
     SqlDbLoader,
 };
-use oxcache::error::CacheError;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -94,20 +94,20 @@ fn test_validate_sql_identifier_invalid() {
 
 #[test]
 fn test_validate_cache_key_valid() {
-    assert!(validate_cache_key("user:123"));
-    assert!(validate_cache_key("session-abc"));
-    assert!(validate_cache_key("cache_key"));
-    assert!(validate_cache_key("data.json"));
-    assert!(validate_cache_key("path/to/data"));
-    assert!(validate_cache_key("abc123"));
+    assert!(validate_cache_key("user:123").is_ok());
+    assert!(validate_cache_key("session-abc").is_ok());
+    assert!(validate_cache_key("cache_key").is_ok());
+    assert!(validate_cache_key("data.json").is_ok());
+    assert!(validate_cache_key("path/to/data").is_ok());
+    assert!(validate_cache_key("abc123").is_ok());
 }
 
 #[test]
 fn test_validate_cache_key_invalid() {
-    assert!(!validate_cache_key(""));
-    assert!(!validate_cache_key(&"a".repeat(1025)));
-    assert!(!validate_cache_key("key with spaces"));
-    assert!(!validate_cache_key("key;drop"));
+    assert!(validate_cache_key("").is_err());
+    assert!(validate_cache_key(&"a".repeat(1025)).is_err());
+    assert!(validate_cache_key("key with spaces").is_err());
+    assert!(validate_cache_key("key;drop").is_err());
 }
 
 #[tokio::test]

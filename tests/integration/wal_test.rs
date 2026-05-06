@@ -9,7 +9,7 @@ mod tests {
 
     use anyhow::Result;
     use oxcache::error::{CacheError, Result as OxResult};
-    use oxcache::recovery::wal::{Operation, WalEntry, WalManager, WalReplayableBackend};
+    use oxcache::features::recovery::wal::{Operation, WalEntry, WalManager, WalReplayableBackend};
     use tokio::sync::Mutex;
 
     /// 用于测试的 MockBackend
