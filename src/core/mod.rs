@@ -9,7 +9,6 @@
 pub mod command;
 pub mod constants;
 pub mod events;
-pub mod features;
 pub mod types;
 
 #[cfg(feature = "confers")]
@@ -30,4 +29,7 @@ pub use events::{CacheEvent, CacheEventType, EventPublisher};
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 #[cfg(feature = "confers")]
-pub use confers_config::*;
+pub use confers_config::{
+    BackendConfig, CacheType, ConfigFormat, ConfigProvider, GlobalConfig, MetricsConfig, PerformanceConfig,
+    RecoveryConfig, SecurityConfig, ServiceConfig, UnifiedConfig, UnifiedConfigBuilder,
+};

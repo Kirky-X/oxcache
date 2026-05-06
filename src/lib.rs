@@ -234,16 +234,6 @@ macro_rules! check_feature_dependence {
     };
 }
 
-/// 运行时检查特性是否启用（用于available_features等场景）
-#[macro_export]
-macro_rules! add_feature_if_enabled {
-    ($features:ident, $name:expr) => {
-        if cfg!(feature = $name) {
-            $features.push($name);
-        }
-    };
-}
-
 /// Initialize cache configuration from a function.
 ///
 /// This macro generates code that calls the provided function to get configuration,
@@ -397,10 +387,6 @@ pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType}
 // Events module export
 pub use core::events;
 
-// DashMap backend exports (client)
-#[cfg(feature = "dashmap")]
-pub use backend::memory::DashMapMemoryBackend as DashMapBackend;
-
 // Unified memory backend exports
 pub use backend::{
     dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackend,
@@ -431,7 +417,10 @@ pub use registry::{clear, get, init, init_empty, is_initialized, register, remov
 #[cfg(any(feature = "confers", feature = "full", test))]
 pub mod config {
     pub use crate::core::confers_config;
-    pub use crate::core::confers_config::*;
+    pub use crate::core::confers_config::{
+        BackendConfig, CacheType, ConfigFormat, ConfigProvider, GlobalConfig, MetricsConfig, PerformanceConfig,
+        RecoveryConfig, SecurityConfig, ServiceConfig, UnifiedConfig, UnifiedConfigBuilder,
+    };
 }
 
 /// Legacy path: oxcache::storage -- re-exports from backend::storage
@@ -560,7 +549,7 @@ pub async fn new_with_config(
     let backend_type = config.backend_type_enum();
 
     match backend_type {
-        core::confers_config::BackendType::Memory => {
+        core::confers_config::ConfigBackendType::Memory => {
             #[cfg(feature = "moka")]
             {
                 Ok(Arc::new(backend::memory::MokaMemoryBackend::new()))
@@ -572,7 +561,7 @@ pub async fn new_with_config(
                 ))
             }
         }
-        core::confers_config::BackendType::Redis => {
+        core::confers_config::ConfigBackendType::Redis => {
             #[cfg(feature = "redis")]
             {
                 let redis_config = config.l2_options();
@@ -603,7 +592,7 @@ pub async fn new_with_config(
                 ))
             }
         }
-        core::confers_config::BackendType::Tiered => Err(error::CacheError::InvalidInput(
+        core::confers_config::ConfigBackendType::Tiered => Err(error::CacheError::InvalidInput(
             "Tiered backend requires manual construction. Use ChainCache or TwoLevelCache builders.".to_string(),
         )),
     }

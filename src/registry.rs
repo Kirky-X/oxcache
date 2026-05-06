@@ -94,7 +94,7 @@ pub fn register(name: &str, cache: Arc<dyn CacheBackend>) {
 ///
 /// Returns None if the registry is not initialized or the cache doesn't exist.
 pub fn get(name: &str) -> Option<Arc<dyn CacheBackend>> {
-    CACHE_REGISTRY.get()?.caches.get(name).map(|r| r.clone())
+    CACHE_REGISTRY.get()?.caches.get(name).map(|r| Arc::clone(r.value()))
 }
 
 /// Remove a cache instance

@@ -77,7 +77,7 @@ pub struct ConnectionPool<T: DatabaseOperations> {
     /// 配置
     config: PoolConfig,
     /// 连接创建器（用于动态创建连接）
-    creator: Arc<Box<dyn Fn() -> Result<Arc<T>> + Send + Sync>>,
+    creator: Arc<dyn Fn() -> Result<Arc<T>> + Send + Sync>,
     /// 统计信息
     stats: Arc<Mutex<PoolStats>>,
 }
@@ -96,7 +96,7 @@ impl<T: DatabaseOperations> ConnectionPool<T> {
         Ok(Self {
             pool: Arc::new(Mutex::new(connections)),
             config,
-            creator: Arc::new(Box::new(creator)),
+            creator: Arc::new(creator),
             stats: Arc::new(Mutex::new(PoolStats::new())),
         })
     }
