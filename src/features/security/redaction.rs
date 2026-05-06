@@ -8,6 +8,24 @@
 
 use std::fmt;
 
+/// Sensitive keywords that indicate potentially sensitive data
+pub const SENSITIVE_KEYWORDS: &[&str] = &[
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "auth",
+    "credential",
+    "session",
+    "cookie",
+    "jwt",
+    "private_key",
+    "access_token",
+    "refresh_token",
+    "session_key",
+];
+
 /// 脱敏敏感信息
 ///
 /// # 参数
@@ -83,30 +101,13 @@ pub fn redact_connection_string(connection_string: &str) -> String {
 /// # 返回值
 /// 返回脱敏后的键，如果键看起来不敏感则返回原值
 pub fn redact_cache_key(key: &str) -> String {
-    // 检查键是否可能包含敏感信息
-    let sensitive_patterns = [
-        "token",
-        "password",
-        "secret",
-        "api_key",
-        "apikey",
-        "auth",
-        "credential",
-        "session",
-        "cookie",
-        "jwt",
-    ];
-
     let key_lower = key.to_lowercase();
-    for pattern in &sensitive_patterns {
+    for pattern in SENSITIVE_KEYWORDS {
         if key_lower.contains(pattern) {
-            // 键可能包含敏感信息，进行脱敏
             return redact_value(key, 4);
         }
     }
 
-    // 如果键看起来不敏感，返回原值
-    // 但仍然限制长度，防止日志过大
     if key.len() > 100 {
         format!("{}...", &key[..97])
     } else {
@@ -123,28 +124,12 @@ pub fn redact_cache_key(key: &str) -> String {
 /// # 返回值
 /// 如果字段名表明是敏感字段，则返回脱敏后的值；否则返回原值
 pub fn redact_field(field_name: &str, value: &str) -> String {
-    let sensitive_fields = [
-        "password",
-        "secret",
-        "token",
-        "api_key",
-        "apikey",
-        "auth",
-        "credential",
-        "private_key",
-        "access_token",
-        "refresh_token",
-        "session_key",
-        "cookie",
-    ];
-
     let field_lower = field_name.to_lowercase();
-    for sensitive in &sensitive_fields {
+    for sensitive in SENSITIVE_KEYWORDS {
         if field_lower.contains(sensitive) {
             return redact_value(value, 4);
         }
     }
-
     value.to_string()
 }
 

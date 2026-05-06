@@ -176,7 +176,7 @@ pub const PASSWORD_MASK_ASTERISKS: usize = 5;
 // 安全相关常量
 // ============================================================================
 
-/// 禁止的 Lua 脚本命令列表
+/// Forbidden Lua script commands
 pub const FORBIDDEN_LUA_COMMANDS: &[RedisCommand] = &[
     RedisCommand::FlushAll,
     RedisCommand::FlushDb,
@@ -191,6 +191,7 @@ pub const FORBIDDEN_LUA_COMMANDS: &[RedisCommand] = &[
     RedisCommand::ReplicaOf,
     RedisCommand::Cluster,
     RedisCommand::Admin,
+    RedisCommand::Monitor,
 ];
 
 #[cfg(test)]
