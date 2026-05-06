@@ -13,31 +13,37 @@ mod confers_config_tests {
     use std::collections::HashMap;
 
     // ============================================================================
-    // BackendType 测试
+    // ConfigBackendType 测试
     // ============================================================================
 
     #[test]
     fn test_backend_type_default() {
-        assert_eq!(BackendType::default(), BackendType::Memory);
+        assert_eq!(ConfigBackendType::default(), ConfigBackendType::Memory);
     }
 
     #[test]
     fn test_backend_type_display() {
-        assert_eq!(BackendType::Memory.to_string(), "Memory");
-        assert_eq!(BackendType::Redis.to_string(), "Redis");
-        assert_eq!(BackendType::Tiered.to_string(), "Tiered");
+        assert_eq!(ConfigBackendType::Memory.to_string(), "Memory");
+        assert_eq!(ConfigBackendType::Redis.to_string(), "Redis");
+        assert_eq!(ConfigBackendType::Tiered.to_string(), "Tiered");
     }
 
     #[test]
     fn test_backend_type_from_str_valid() {
-        assert_eq!("Memory".parse::<BackendType>().unwrap(), BackendType::Memory);
-        assert_eq!("Redis".parse::<BackendType>().unwrap(), BackendType::Redis);
-        assert_eq!("Tiered".parse::<BackendType>().unwrap(), BackendType::Tiered);
+        assert_eq!(
+            "Memory".parse::<ConfigBackendType>().unwrap(),
+            ConfigBackendType::Memory
+        );
+        assert_eq!("Redis".parse::<ConfigBackendType>().unwrap(), ConfigBackendType::Redis);
+        assert_eq!(
+            "Tiered".parse::<ConfigBackendType>().unwrap(),
+            ConfigBackendType::Tiered
+        );
     }
 
     #[test]
     fn test_backend_type_from_str_invalid() {
-        let result = "InvalidType".parse::<BackendType>();
+        let result = "InvalidType".parse::<ConfigBackendType>();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Unknown backend type"));
     }
@@ -151,7 +157,7 @@ mod confers_config_tests {
             l1_enabled: false,
             l2_enabled: true,
         };
-        assert_eq!(config.backend_type_enum(), BackendType::Redis);
+        assert_eq!(config.backend_type_enum(), ConfigBackendType::Redis);
     }
 
     #[test]
@@ -161,7 +167,7 @@ mod confers_config_tests {
             ..Default::default()
         };
         // 应返回默认值 Memory
-        assert_eq!(config.backend_type_enum(), BackendType::Memory);
+        assert_eq!(config.backend_type_enum(), ConfigBackendType::Memory);
     }
 
     #[test]
@@ -811,14 +817,14 @@ mod confers_config_tests {
         assert_eq!(config.global.default_ttl, 0);
         assert_eq!(config.global.default_tti, 0);
         assert_eq!(config.global.health_check_interval, 30);
-        assert_eq!(config.backend.backend_type_enum(), BackendType::Memory);
+        assert_eq!(config.backend.backend_type_enum(), ConfigBackendType::Memory);
     }
 
     #[test]
     fn test_unified_config_builder_memory_only() {
         let config = UnifiedConfigBuilder::memory_only().build().unwrap();
 
-        assert_eq!(config.backend.backend_type_enum(), BackendType::Memory);
+        assert_eq!(config.backend.backend_type_enum(), ConfigBackendType::Memory);
         assert!(config.backend.l1_enabled);
         assert!(!config.backend.l2_enabled);
         assert_eq!(config.backend.l1_type, "moka");
@@ -828,7 +834,7 @@ mod confers_config_tests {
     fn test_unified_config_builder_redis_only() {
         let config = UnifiedConfigBuilder::redis_only().build().unwrap();
 
-        assert_eq!(config.backend.backend_type_enum(), BackendType::Redis);
+        assert_eq!(config.backend.backend_type_enum(), ConfigBackendType::Redis);
         assert!(!config.backend.l1_enabled);
         assert!(config.backend.l2_enabled);
         assert_eq!(config.backend.l2_type, "redis");
@@ -838,7 +844,7 @@ mod confers_config_tests {
     fn test_unified_config_builder_tiered() {
         let config = UnifiedConfigBuilder::tiered().build().unwrap();
 
-        assert_eq!(config.backend.backend_type_enum(), BackendType::Tiered);
+        assert_eq!(config.backend.backend_type_enum(), ConfigBackendType::Tiered);
         assert!(config.backend.l1_enabled);
         assert!(config.backend.l2_enabled);
         assert_eq!(config.backend.l1_type, "moka");
@@ -1157,10 +1163,14 @@ mod confers_config_tests {
     #[test]
     fn test_backend_type_all_variants() {
         // 确保测试所有枚举变体
-        let variants = [BackendType::Memory, BackendType::Redis, BackendType::Tiered];
+        let variants = [
+            ConfigBackendType::Memory,
+            ConfigBackendType::Redis,
+            ConfigBackendType::Tiered,
+        ];
         for variant in variants.iter() {
             let display = variant.to_string();
-            let parsed: BackendType = display.parse().unwrap();
+            let parsed: ConfigBackendType = display.parse().unwrap();
             assert_eq!(*variant, parsed);
         }
     }
