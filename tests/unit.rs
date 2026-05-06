@@ -22,6 +22,9 @@ mod rate_limiting_test;
 #[path = "unit/error_test.rs"]
 mod error_test;
 
+#[path = "unit/error_display_test.rs"]
+mod error_display_test;
+
 #[path = "unit/key_generator_test.rs"]
 mod key_generator_test;
 
@@ -36,6 +39,9 @@ mod events_test;
 
 #[path = "unit/dashmap_backend_test.rs"]
 mod dashmap_backend_test;
+
+#[path = "unit/redis_client_test.rs"]
+mod redis_client_test;
 
 #[path = "unit/db_loader_test.rs"]
 mod db_loader_test;
@@ -52,6 +58,9 @@ mod utils_security_log_test;
 #[path = "unit/builder_sorter_test.rs"]
 mod builder_sorter_test;
 
+#[path = "unit/cache_builder_test.rs"]
+mod cache_builder_test;
+
 #[path = "unit/cache_test.rs"]
 mod cache_test;
 
@@ -60,3 +69,6 @@ mod mock_backend_test;
 
 #[path = "unit/wal_stub_test.rs"]
 mod wal_stub_test;
+
+#[path = "unit/confers_config_test.rs"]
+mod confers_config_test;

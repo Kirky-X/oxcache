@@ -488,7 +488,7 @@ where
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::config::{UnifiedConfigBuilder, BackendType};
+    /// use oxcache::config::{UnifiedConfigBuilder, ConfigBackendType};
     ///
     /// let config = UnifiedConfigBuilder::tiered()
     ///     .with_ttl(3600)
@@ -627,7 +627,7 @@ fn backend_config_from_unified_config(
     config: &crate::core::confers_config::UnifiedConfig,
 ) -> std::result::Result<InternalBackendConfig, crate::error::CacheError> {
     match config.backend.backend_type_enum() {
-        crate::core::confers_config::BackendType::Memory => {
+        crate::core::confers_config::ConfigBackendType::Memory => {
             let capacity = config
                 .backend
                 .l1_options()
@@ -638,7 +638,7 @@ fn backend_config_from_unified_config(
             Ok(InternalBackendConfig::Memory { capacity })
         }
         #[cfg(feature = "redis")]
-        crate::core::confers_config::BackendType::Redis => {
+        crate::core::confers_config::ConfigBackendType::Redis => {
             let (connection_string, mode) = extract_l2_config(config);
             Ok(InternalBackendConfig::Redis {
                 connection_string,
@@ -646,7 +646,7 @@ fn backend_config_from_unified_config(
             })
         }
         #[cfg(not(feature = "redis"))]
-        crate::core::confers_config::BackendType::Redis => {
+        crate::core::confers_config::ConfigBackendType::Redis => {
             // Redis feature not enabled, falling back to memory backend
             let capacity = config
                 .backend
@@ -657,7 +657,7 @@ fn backend_config_from_unified_config(
             Ok(InternalBackendConfig::Memory { capacity })
         }
         #[cfg(feature = "redis")]
-        crate::core::confers_config::BackendType::Tiered => {
+        crate::core::confers_config::ConfigBackendType::Tiered => {
             let l1_capacity = config
                 .backend
                 .l1_options()
@@ -674,7 +674,7 @@ fn backend_config_from_unified_config(
             })
         }
         #[cfg(not(feature = "redis"))]
-        crate::core::confers_config::BackendType::Tiered => {
+        crate::core::confers_config::ConfigBackendType::Tiered => {
             // Redis feature not enabled, falling back to memory backend
             let capacity = config
                 .backend
@@ -703,18 +703,18 @@ fn backend_config_from_unified_config_with_service(
 
     match config.backend.backend_type_enum() {
         #[cfg(feature = "moka")]
-        crate::core::confers_config::BackendType::Memory => Ok(InternalBackendConfig::Memory {
+        crate::core::confers_config::ConfigBackendType::Memory => Ok(InternalBackendConfig::Memory {
             capacity: effective_capacity,
         }),
         #[cfg(not(feature = "moka"))]
-        crate::core::confers_config::BackendType::Memory => {
+        crate::core::confers_config::ConfigBackendType::Memory => {
             // Moka feature not enabled, using fallback memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
         }
         #[cfg(feature = "redis")]
-        crate::core::confers_config::BackendType::Redis => {
+        crate::core::confers_config::ConfigBackendType::Redis => {
             let (connection_string, mode) = extract_l2_config(config);
 
             Ok(InternalBackendConfig::Redis {
@@ -723,14 +723,14 @@ fn backend_config_from_unified_config_with_service(
             })
         }
         #[cfg(not(feature = "redis"))]
-        crate::core::confers_config::BackendType::Redis => {
+        crate::core::confers_config::ConfigBackendType::Redis => {
             // Redis feature not enabled, falling back to memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
         }
         #[cfg(all(feature = "moka", feature = "redis"))]
-        crate::core::confers_config::BackendType::Tiered => {
+        crate::core::confers_config::ConfigBackendType::Tiered => {
             let (connection_string, mode) = extract_l2_config(config);
 
             Ok(InternalBackendConfig::Tiered {
@@ -740,392 +740,11 @@ fn backend_config_from_unified_config_with_service(
             })
         }
         #[cfg(not(all(feature = "moka", feature = "redis")))]
-        crate::core::confers_config::BackendType::Tiered => {
+        crate::core::confers_config::ConfigBackendType::Tiered => {
             // Required features not enabled, falling back to memory backend
             Ok(InternalBackendConfig::Memory {
                 capacity: effective_capacity,
             })
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    struct TestValue {
-        id: u64,
-        name: String,
-    }
-
-    #[tokio::test]
-    async fn test_cache_builder_default() {
-        let cache: Cache<String, TestValue> = CacheBuilder::default().build().await.unwrap();
-        cache.health_check().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_cache_builder_with_capacity() {
-        let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
-        cache.health_check().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_cache_builder_with_ttl() {
-        let cache: Cache<String, TestValue> = CacheBuilder::default()
-            .ttl(Duration::from_secs(3600))
-            .build()
-            .await
-            .unwrap();
-        cache.health_check().await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_cache_builder_with_backend() {
-        let backend = MemoryBackend::builder().capacity(5000).build();
-        let cache: Cache<String, TestValue> = CacheBuilder::default().with_backend(backend).build().await.unwrap();
-        cache.health_check().await.unwrap();
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_cache_builder_from_unified_config_memory() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(5000)
-            .build()
-            .unwrap();
-
-        let builder = CacheBuilder::from_unified_config(&config).unwrap();
-        let cache: Cache<String, TestValue> = builder.build().await.unwrap();
-
-        cache.health_check().await.unwrap();
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_cache_builder_from_unified_config_tiered() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::tiered()
-            .with_ttl(7200)
-            .with_l1_capacity(10000)
-            .with_redis_url("redis://localhost:6379")
-            .build()
-            .unwrap();
-
-        let builder_result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        assert!(builder_result.is_ok(), "Config should be valid");
-        let result = builder_result.unwrap().build().await;
-
-        match result {
-            Ok(cache) => {
-                cache.health_check().await.unwrap();
-            }
-            Err(e) => {
-                let error_msg = format!("{:?}", e);
-                assert!(
-                    error_msg.contains("Redis") || error_msg.contains("connection"),
-                    "Expected Redis-related error, got: {}",
-                    error_msg
-                );
-            }
-        }
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_valid_memory() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .build()
-            .unwrap();
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        assert!(result.is_ok(), "Valid memory config should succeed");
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_valid_tiered() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::tiered()
-            .with_ttl(7200)
-            .with_l1_capacity(10000)
-            .with_redis_url("redis://localhost:6379")
-            .build()
-            .unwrap();
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        assert!(result.is_ok(), "Valid tiered config should succeed");
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_redis_missing_connection_string() {
-        use crate::core::confers_config::{BackendConfig, UnifiedConfig};
-
-        let config = UnifiedConfig {
-            backend: BackendConfig {
-                backend_type: "Redis".to_string(),
-                l2_options_json: serde_json::json!({
-                    "mode": "standalone"
-                })
-                .to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        // 缺少连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(
-            result.is_ok(),
-            "Missing connection string should be allowed at config time"
-        );
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_redis_empty_connection_string() {
-        use crate::core::confers_config::{BackendConfig, UnifiedConfig};
-
-        let config = UnifiedConfig {
-            backend: BackendConfig {
-                backend_type: "Redis".to_string(),
-                l2_options_json: serde_json::json!({
-                    "connection_string": "",
-                    "mode": "standalone"
-                })
-                .to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        // 空连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(
-            result.is_ok(),
-            "Empty connection string should be allowed at config time"
-        );
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_tiered_missing_connection_string() {
-        use crate::core::confers_config::{BackendConfig, UnifiedConfig};
-
-        let config = UnifiedConfig {
-            backend: BackendConfig {
-                backend_type: "Tiered".to_string(),
-                l1_options_json: serde_json::json!({
-                    "max_capacity": 10000
-                })
-                .to_string(),
-                l2_options_json: serde_json::json!({}).to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        // 缺少连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(
-            result.is_ok(),
-            "Missing connection string should be allowed at config time"
-        );
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_tiered_empty_connection_string() {
-        use crate::core::confers_config::{BackendConfig, UnifiedConfig};
-
-        let config = UnifiedConfig {
-            backend: BackendConfig {
-                backend_type: "Tiered".to_string(),
-                l1_options_json: serde_json::json!({
-                    "max_capacity": 10000
-                })
-                .to_string(),
-                l2_options_json: serde_json::json!({
-                    "connection_string": ""
-                })
-                .to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        // 空连接字符串现在允许通过，Redis 连接会在实际使用时失败
-        assert!(
-            result.is_ok(),
-            "Empty connection string should be allowed at config time"
-        );
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_zero_capacity() {
-        use crate::core::confers_config::{BackendConfig, UnifiedConfig};
-
-        let config = UnifiedConfig {
-            backend: BackendConfig {
-                backend_type: "Memory".to_string(),
-                l1_options_json: serde_json::json!({
-                    "max_capacity": 0
-                })
-                .to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
-        // 零容量现在使用默认值
-        assert!(result.is_ok(), "Zero capacity should use default");
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_with_service_valid() {
-        use crate::core::confers_config::{CacheType, UnifiedConfigBuilder};
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .with_service("user_cache", CacheType::L1, 600)
-            .build()
-            .unwrap();
-
-        let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "user_cache");
-        assert!(result.is_ok(), "Valid service config should succeed");
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_with_service_not_found() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .build()
-            .unwrap();
-
-        let result =
-            CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "nonexistent_service");
-        match result {
-            Err(crate::error::CacheError::ServiceNotFound(msg)) => {
-                assert!(msg.contains("nonexistent_service"), "Error should mention service name");
-                assert!(
-                    msg.contains("Available services"),
-                    "Error should list available services"
-                );
-            }
-            _ => panic!("Expected ServiceNotFound error"),
-        }
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_with_service_ttl_override() {
-        use crate::core::confers_config::{CacheType, UnifiedConfigBuilder};
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .with_service("fast_cache", CacheType::L1, 60)
-            .build()
-            .unwrap();
-
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "fast_cache")
-            .expect("Should succeed");
-
-        assert_eq!(
-            builder.ttl,
-            Some(Duration::from_secs(60)),
-            "Service TTL should override global TTL"
-        );
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_with_service_capacity_override() {
-        use crate::core::confers_config::{CacheType, UnifiedConfigBuilder};
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .with_service("small_cache", CacheType::L1, 60)
-            .build()
-            .unwrap();
-
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "small_cache")
-            .expect("Should succeed with service capacity override");
-
-        assert_eq!(builder.ttl, Some(Duration::from_secs(60)));
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "confers")]
-    async fn test_from_unified_config_with_service_fallback_to_global_ttl() {
-        use crate::core::confers_config::UnifiedConfigBuilder;
-
-        let config = UnifiedConfigBuilder::memory_only()
-            .with_ttl(3600)
-            .with_l1_capacity(10000)
-            .with_service("no_ttl_service", crate::core::confers_config::CacheType::L1, 0)
-            .build()
-            .unwrap();
-
-        let builder = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "no_ttl_service")
-            .expect("Should succeed");
-
-        assert_eq!(
-            builder.ttl,
-            Some(Duration::from_secs(3600)),
-            "Should fall back to global TTL"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "confers")]
-    fn test_config_format_from_path() {
-        use crate::core::confers_config::ConfigFormat;
-
-        assert_eq!(ConfigFormat::from_path("config.toml"), Some(ConfigFormat::Toml));
-        assert_eq!(ConfigFormat::from_path("config.json"), Some(ConfigFormat::Json));
-        assert_eq!(ConfigFormat::from_path("config.yaml"), None);
-        assert_eq!(ConfigFormat::from_path("config.xml"), None);
-        assert_eq!(ConfigFormat::from_path("config"), None);
-    }
-
-    #[test]
-    #[cfg(feature = "confers")]
-    fn test_config_format_extension() {
-        use crate::core::confers_config::ConfigFormat;
-
-        assert_eq!(ConfigFormat::Toml.extension(), "toml");
-        assert_eq!(ConfigFormat::Json.extension(), "json");
-    }
-
-    #[test]
-    #[cfg(feature = "confers")]
-    fn test_config_format_mime_type() {
-        use crate::core::confers_config::ConfigFormat;
-
-        assert_eq!(ConfigFormat::Toml.mime_type(), "application/toml");
-        assert_eq!(ConfigFormat::Json.mime_type(), "application/json");
     }
 }

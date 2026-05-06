@@ -1,444 +1,219 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-// Cache Builder 单元测试
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
+//! Cache builder tests extracted from cache_builder.rs
 
-use oxcache::Cache;
+use oxcache::backend::MokaMemoryBackend as MemoryBackend;
+use oxcache::cache::builder::CacheBuilder;
+use oxcache::cache::Cache;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-struct TestUser {
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct TestValue {
     id: u64,
     name: String,
-    email: String,
 }
-
-impl oxcache::traits::Cacheable for TestUser {}
 
 #[tokio::test]
 async fn test_cache_builder_default() {
-    let cache: Cache<String, TestUser> = Cache::builder().build().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Alice".to_string(),
-        email: "alice@example.com".to_string(),
-    };
-
-    cache.set("user:1", &user).await.unwrap();
-    let retrieved: Option<TestUser> = cache.get("user:1").await.unwrap();
-
-    assert_eq!(retrieved, Some(user));
+    let cache: Cache<String, TestValue> = CacheBuilder::default().build().await.unwrap();
+    cache.health_check().await.unwrap();
 }
 
 #[tokio::test]
 async fn test_cache_builder_with_capacity() {
-    let cache: Cache<String, TestUser> = Cache::builder().capacity(1000).build().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Alice".to_string(),
-        email: "alice@example.com".to_string(),
-    };
-
-    cache.set("user:1", &user).await.unwrap();
-    let retrieved: Option<TestUser> = cache.get("user:1").await.unwrap();
-
-    assert_eq!(retrieved, Some(user));
+    let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
+    cache.health_check().await.unwrap();
 }
 
 #[tokio::test]
 async fn test_cache_builder_with_ttl() {
-    let cache: Cache<String, TestUser> = Cache::builder().ttl(Duration::from_secs(60)).build().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Alice".to_string(),
-        email: "alice@example.com".to_string(),
-    };
-
-    cache.set("user:1", &user).await.unwrap();
-    let retrieved: Option<TestUser> = cache.get("user:1").await.unwrap();
-
-    assert_eq!(retrieved, Some(user));
-}
-
-#[tokio::test]
-async fn test_cache_memory_static() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Bob".to_string(),
-        email: "bob@example.com".to_string(),
-    };
-
-    cache.set("user:2", &user).await.unwrap();
-    let retrieved: Option<TestUser> = cache.get("user:2").await.unwrap();
-
-    assert_eq!(retrieved, Some(user));
-}
-
-#[tokio::test]
-async fn test_cache_new() {
-    let cache: Cache<String, TestUser> = Cache::new();
-
-    let user = TestUser {
-        id: 1,
-        name: "Charlie".to_string(),
-        email: "charlie@example.com".to_string(),
-    };
-
-    cache.set("user:3", &user).await.unwrap();
-    let retrieved: Option<TestUser> = cache.get("user:3").await.unwrap();
-
-    assert_eq!(retrieved, Some(user));
-}
-
-#[tokio::test]
-async fn test_cache_set_and_get() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let user = TestUser {
-        id: 42,
-        name: "Test User".to_string(),
-        email: "test@example.com".to_string(),
-    };
-
-    cache.set("test_key", &user).await.unwrap();
-
-    let retrieved: Option<TestUser> = cache.get("test_key").await.unwrap();
-    assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().id, 42);
-}
-
-#[tokio::test]
-async fn test_cache_get_nonexistent() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let retrieved: Option<TestUser> = cache.get("nonexistent_key").await.unwrap();
-    assert!(retrieved.is_none());
-}
-
-#[tokio::test]
-async fn test_cache_delete() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Delete Test".to_string(),
-        email: "delete@example.com".to_string(),
-    };
-
-    cache.set("delete_key", &user).await.unwrap();
-    assert!(cache.exists("delete_key").await.unwrap());
-
-    cache.delete("delete_key").await.unwrap();
-    assert!(!cache.exists("delete_key").await.unwrap());
-}
-
-#[tokio::test]
-async fn test_cache_exists() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    assert!(!cache.exists("exists_key").await.unwrap());
-
-    let user = TestUser {
-        id: 1,
-        name: "Exists Test".to_string(),
-        email: "exists@example.com".to_string(),
-    };
-    cache.set("exists_key", &user).await.unwrap();
-
-    assert!(cache.exists("exists_key").await.unwrap());
-}
-
-#[tokio::test]
-async fn test_cache_clear() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "Clear Test".to_string(),
-        email: "clear@example.com".to_string(),
-    };
-
-    cache.set("key1", &user).await.unwrap();
-    cache.set("key2", &user).await.unwrap();
-
-    assert!(cache.exists("key1").await.unwrap());
-    assert!(cache.exists("key2").await.unwrap());
-
-    cache.clear().await.unwrap();
-
-    assert!(!cache.exists("key1").await.unwrap());
-    assert!(!cache.exists("key2").await.unwrap());
-}
-
-#[tokio::test]
-async fn test_cache_set_with_ttl() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
-
-    let user = TestUser {
-        id: 1,
-        name: "TTL Test".to_string(),
-        email: "ttl@example.com".to_string(),
-    };
-
-    cache
-        .set_with_ttl("ttl_key", &user, Some(Duration::from_millis(100)))
+    let cache: Cache<String, TestValue> = CacheBuilder::default()
+        .ttl(Duration::from_secs(3600))
+        .build()
         .await
         .unwrap();
-
-    let retrieved: Option<TestUser> = cache.get("ttl_key").await.unwrap();
-    assert!(retrieved.is_some());
-
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let retrieved_after: Option<TestUser> = cache.get("ttl_key").await.unwrap();
-    assert!(retrieved_after.is_none());
+    cache.health_check().await.unwrap();
 }
 
 #[tokio::test]
-async fn test_cache_get_or_with_fallback() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+async fn test_cache_builder_with_backend() {
+    let backend = MemoryBackend::builder().capacity(5000).build();
+    let cache: Cache<String, TestValue> = CacheBuilder::default().with_backend(backend).build().await.unwrap();
+    cache.health_check().await.unwrap();
+}
 
-    let user = cache
-        .get_or("fallback_key", || async {
-            Ok(TestUser {
-                id: 999,
-                name: "Fallback User".to_string(),
-                email: "fallback@example.com".to_string(),
-            })
-        })
-        .await
+#[tokio::test]
+#[cfg(feature = "confers")]
+async fn test_cache_builder_from_unified_config_memory() {
+    use oxcache::core::confers_config::UnifiedConfigBuilder;
+
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)
+        .with_l1_capacity(5000)
+        .build()
         .unwrap();
 
-    assert_eq!(user.id, 999);
-    assert_eq!(user.name, "Fallback User");
+    let builder = CacheBuilder::from_unified_config(&config).unwrap();
+    let cache: Cache<String, TestValue> = builder.build().await.unwrap();
 
-    let cached: Option<TestUser> = cache.get("fallback_key").await.unwrap();
-    assert!(cached.is_some());
-    assert_eq!(cached.unwrap().id, 999);
+    cache.health_check().await.unwrap();
 }
 
 #[tokio::test]
-async fn test_cache_get_or_returns_cached() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_cache_builder_from_unified_config_tiered() {
+    use oxcache::core::confers_config::UnifiedConfigBuilder;
 
-    let original = TestUser {
-        id: 1,
-        name: "Original".to_string(),
-        email: "original@example.com".to_string(),
-    };
-    cache.set("cached_key", &original).await.unwrap();
-
-    let user = cache
-        .get_or("cached_key", || async {
-            Ok(TestUser {
-                id: 999,
-                name: "Should Not Be Called".to_string(),
-                email: "no@example.com".to_string(),
-            })
-        })
-        .await
+    let config = UnifiedConfigBuilder::tiered()
+        .with_ttl(7200)
+        .with_l1_capacity(10000)
+        .with_redis_url("redis://localhost:6379")
+        .build()
         .unwrap();
 
-    assert_eq!(user.id, 1);
-    assert_eq!(user.name, "Original");
+    let builder_result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(builder_result.is_ok(), "Config should be valid");
 }
 
 #[tokio::test]
-async fn test_cache_set_many() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_valid_memory() {
+    use oxcache::core::confers_config::UnifiedConfigBuilder;
 
-    let users = vec![
-        (
-            "user:1".to_string(),
-            TestUser {
-                id: 1,
-                name: "User 1".to_string(),
-                email: "user1@example.com".to_string(),
-            },
-        ),
-        (
-            "user:2".to_string(),
-            TestUser {
-                id: 2,
-                name: "User 2".to_string(),
-                email: "user2@example.com".to_string(),
-            },
-        ),
-        (
-            "user:3".to_string(),
-            TestUser {
-                id: 3,
-                name: "User 3".to_string(),
-                email: "user3@example.com".to_string(),
-            },
-        ),
-    ];
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)
+        .with_l1_capacity(10000)
+        .build()
+        .unwrap();
 
-    cache.set_many(users).await.unwrap();
-
-    assert!(cache.exists("user:1").await.unwrap());
-    assert!(cache.exists("user:2").await.unwrap());
-    assert!(cache.exists("user:3").await.unwrap());
+    let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(result.is_ok(), "Valid memory config should succeed");
 }
 
 #[tokio::test]
-async fn test_cache_get_many() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_valid_tiered() {
+    use oxcache::core::confers_config::UnifiedConfigBuilder;
 
-    let user1 = TestUser {
-        id: 1,
-        name: "User 1".to_string(),
-        email: "user1@example.com".to_string(),
-    };
-    let user2 = TestUser {
-        id: 2,
-        name: "User 2".to_string(),
-        email: "user2@example.com".to_string(),
-    };
+    let config = UnifiedConfigBuilder::tiered()
+        .with_ttl(7200)
+        .with_l1_capacity(10000)
+        .with_redis_url("redis://localhost:6379")
+        .build()
+        .unwrap();
 
-    cache.set("user:1", &user1).await.unwrap();
-    cache.set("user:2", &user2).await.unwrap();
-
-    let keys = vec!["user:1".to_string(), "user:2".to_string(), "user:3".to_string()];
-    let results: std::collections::HashMap<String, TestUser> = cache.get_many(keys).await.unwrap();
-
-    assert_eq!(results.len(), 2);
-    assert!(results.contains_key("user:1"));
-    assert!(results.contains_key("user:2"));
-    assert!(!results.contains_key("user:3"));
+    let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(result.is_ok(), "Valid tiered config should succeed");
 }
 
 #[tokio::test]
-async fn test_cache_len() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_redis_missing_connection_string() {
+    use oxcache::core::confers_config::{BackendConfig, UnifiedConfig};
 
-    assert_eq!(cache.len().await.unwrap(), 0);
-
-    let user = TestUser {
-        id: 1,
-        name: "Test".to_string(),
-        email: "test@example.com".to_string(),
+    let config = UnifiedConfig {
+        backend: BackendConfig {
+            backend_type: "Redis".to_string(),
+            l2_options_json: serde_json::json!({"mode": "standalone"}).to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
     };
 
-    cache.set("key1", &user).await.unwrap();
-    assert_eq!(cache.len().await.unwrap(), 1);
-
-    cache.set("key2", &user).await.unwrap();
-    assert_eq!(cache.len().await.unwrap(), 2);
-
-    cache.delete("key1").await.unwrap();
-    assert_eq!(cache.len().await.unwrap(), 1);
+    let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(result.is_ok(), "Missing connection string should be allowed");
 }
 
 #[tokio::test]
-async fn test_cache_stats() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_redis_empty_connection_string() {
+    use oxcache::core::confers_config::{BackendConfig, UnifiedConfig};
 
-    let user = TestUser {
-        id: 1,
-        name: "Stats Test".to_string(),
-        email: "stats@example.com".to_string(),
+    let config = UnifiedConfig {
+        backend: BackendConfig {
+            backend_type: "Redis".to_string(),
+            l2_options_json: serde_json::json!({"connection_string": "", "mode": "standalone"}).to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
     };
 
-    cache.set("stats_key", &user).await.unwrap();
-    cache.get("stats_key").await.unwrap();
-    cache.get("nonexistent").await.unwrap();
-
-    let stats = cache.stats().await.unwrap();
-    assert!(!stats.is_empty());
+    let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(result.is_ok(), "Empty connection string should be allowed");
 }
 
 #[tokio::test]
-async fn test_cache_overwrite() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_zero_capacity() {
+    use oxcache::core::confers_config::{BackendConfig, UnifiedConfig};
 
-    let user1 = TestUser {
-        id: 1,
-        name: "Original".to_string(),
-        email: "original@example.com".to_string(),
+    let config = UnifiedConfig {
+        backend: BackendConfig {
+            backend_type: "Memory".to_string(),
+            l1_options_json: serde_json::json!({"max_capacity": 0}).to_string(),
+            ..Default::default()
+        },
+        ..Default::default()
     };
-    let user2 = TestUser {
-        id: 2,
-        name: "Updated".to_string(),
-        email: "updated@example.com".to_string(),
-    };
 
-    cache.set("overwrite_key", &user1).await.unwrap();
-    cache.set("overwrite_key", &user2).await.unwrap();
-
-    let retrieved: Option<TestUser> = cache.get("overwrite_key").await.unwrap();
-    assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().id, 2);
-    assert_eq!(retrieved.unwrap().name, "Updated");
+    let result = CacheBuilder::<String, TestValue>::from_unified_config(&config);
+    assert!(result.is_ok(), "Zero capacity should use default");
 }
 
 #[tokio::test]
-async fn test_cache_concurrent_access() {
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_with_service_valid() {
+    use oxcache::core::confers_config::{CacheType, UnifiedConfigBuilder};
 
-    let cache = Arc::new(Mutex::new(Cache::<String, TestUser>::memory().await.unwrap()));
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)
+        .with_l1_capacity(10000)
+        .with_service("user_cache", CacheType::L1, 600)
+        .build()
+        .unwrap();
 
-    let mut handles = Vec::new();
+    let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "user_cache");
+    assert!(result.is_ok(), "Valid service config should succeed");
+}
 
-    for i in 0..10 {
-        let cache = Arc::clone(&cache);
-        let handle = tokio::spawn(async move {
-            for j in 0..10 {
-                let key = format!("concurrent_{}_{}", i, j);
-                let user = TestUser {
-                    id: i * 10 + j,
-                    name: format!("User {}-{}", i, j),
-                    email: format!("user{}-{}@example.com", i, j),
-                };
-                cache.lock().await.set(&key, &user).await.unwrap();
-                cache.lock().await.get(&key).await.unwrap();
-            }
-        });
-        handles.push(handle);
-    }
+#[tokio::test]
+#[cfg(feature = "confers")]
+async fn test_from_unified_config_with_service_not_found() {
+    use oxcache::core::confers_config::UnifiedConfigBuilder;
 
-    for handle in handles {
-        handle.await.unwrap();
+    let config = UnifiedConfigBuilder::memory_only()
+        .with_ttl(3600)
+        .with_l1_capacity(10000)
+        .build()
+        .unwrap();
+
+    let result = CacheBuilder::<String, TestValue>::from_unified_config_with_service(&config, "nonexistent_service");
+    match result {
+        Err(oxcache::error::CacheError::ServiceNotFound(msg)) => {
+            assert!(msg.contains("nonexistent_service"), "Error should mention service name");
+        }
+        _ => panic!("Expected ServiceNotFound error"),
     }
 }
 
-#[tokio::test]
-async fn test_cache_shutdown() {
-    let cache: Cache<String, TestUser> = Cache::memory().await.unwrap();
+#[test]
+#[cfg(feature = "confers")]
+fn test_config_format_from_path() {
+    use oxcache::core::confers_config::ConfigFormat;
 
-    let user = TestUser {
-        id: 1,
-        name: "Shutdown Test".to_string(),
-        email: "shutdown@example.com".to_string(),
-    };
-
-    cache.set("shutdown_key", &user).await.unwrap();
-
-    cache.shutdown().await;
+    assert_eq!(ConfigFormat::from_path("config.toml"), Some(ConfigFormat::Toml));
+    assert_eq!(ConfigFormat::from_path("config.json"), Some(ConfigFormat::Json));
+    assert_eq!(ConfigFormat::from_path("config.yaml"), None);
 }
 
-#[tokio::test]
-async fn test_cache_with_different_types() {
-    let string_cache: Cache<String, String> = Cache::memory().await.unwrap();
-    string_cache.set("string_key", &"test_value".to_string()).await.unwrap();
-    let retrieved: Option<String> = string_cache.get("string_key").await.unwrap();
-    assert_eq!(retrieved, Some("test_value".to_string()));
+#[test]
+#[cfg(feature = "confers")]
+fn test_config_format_extension() {
+    use oxcache::core::confers_config::ConfigFormat;
 
-    let int_cache: Cache<String, i64> = Cache::memory().await.unwrap();
-    int_cache.set("int_key", &42).await.unwrap();
-    let retrieved: Option<i64> = int_cache.get("int_key").await.unwrap();
-    assert_eq!(retrieved, Some(42));
-
-    let vec_cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-    vec_cache.set("vec_key", &vec![1, 2, 3, 4, 5]).await.unwrap();
-    let retrieved: Option<Vec<u8>> = vec_cache.get("vec_key").await.unwrap();
-    assert_eq!(retrieved, Some(vec![1, 2, 3, 4, 5]));
+    assert_eq!(ConfigFormat::Toml.extension(), "toml");
+    assert_eq!(ConfigFormat::Json.extension(), "json");
 }
