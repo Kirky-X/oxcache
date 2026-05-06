@@ -104,3 +104,4 @@ docs/repowiki/
 .iflow/
 .worktrees
 .gitnexus
+.semgrep-results/
