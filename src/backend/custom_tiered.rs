@@ -47,7 +47,7 @@
 use crate::backend::config_validation::ConfigValidation;
 use crate::backend::memory::moka::MokaMemoryBackend as MemoryBackend;
 use crate::backend::memory::moka::MokaMemoryBackendBuilder as MemoryBackendBuilder;
-use crate::backend::validation_result::{ConfigValidationResult, FixedConfigResult, Layer};
+use crate::backend::validation_result::Layer;
 use crate::backend::CacheBackend;
 use crate::core::types::BackendType;
 use crate::error::{CacheError, Result};
@@ -394,384 +394,41 @@ fn apply_memory_options(mut builder: MemoryBackendBuilder, options: &serde_json:
     builder
 }
 
-/// 分层后端工厂
-///
-/// 用户自定义分层缓存配置
-///
-/// 允许用户灵活配置 L1、L2 和 L3 的后端类型：
-/// - L1 可以选择：Moka、DashMap（内存缓存，高速访问）
-/// - L2 可以选择：Moka、DashMap、Redis、Sqlite（持久化或分布式）
-/// - L3 可以选择：Redis、Sqlite（分布式或持久化存储）
-/// - 支持自动验证和修复不合理的配置
-///
-/// # 示例（三层缓存）
-///
-/// ```toml
-/// [cache.my_service]
-/// # 三层缓存配置
-/// l1_backend = "moka"
-/// l1_capacity = 10000
-///
-/// l2_backend = "dashmap"
-/// l2_capacity = 50000
-///
-/// l3_backend = "redis"
-/// l3_connection_string = "redis://localhost:6379"
-/// ```
-///
-/// # 示例（两层 Redis）
-///
-/// ```toml
-/// [cache.my_service]
-/// l1_backend = "moka"
-/// l2_backend = "redis"
-/// ```
-///
-/// 自定义分层缓存配置
-///
-/// 支持灵活的多层缓存配置，每层可以独立配置不同的后端类型。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CustomTieredConfig {
-    /// L1 后端配置（本地高速内存缓存）
-    pub l1: LayerBackendConfig,
-    /// L2 后端配置（本地持久化或分布式缓存）
-    pub l2: LayerBackendConfig,
-    /// L3 后端配置（分布式存储或外部服务）
-    #[serde(default)]
-    pub l3: LayerBackendConfig,
-    /// 自动修复配置
-    #[serde(default)]
-    pub auto_fix: AutoFixConfig,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// 自动修复配置
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AutoFixConfig {
-    /// 是否启用自动修复
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    /// 是否在修复时输出警告日志
-    #[serde(default = "default_true")]
-    pub warn_on_fix: bool,
-}
-
-impl Default for AutoFixConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            warn_on_fix: true,
-        }
-    }
-}
-
-fn default_true() -> bool {
-    true
-}
-
-impl AutoFixConfig {
-    pub fn new() -> Self {
-        Self {
-            enabled: true,
-            warn_on_fix: true,
-        }
+    #[test]
+    fn test_layer_restriction_l1() {
+        assert!(LayerRestriction::L1Only.supports(Layer::L1));
+        assert!(!LayerRestriction::L1Only.supports(Layer::L2));
     }
 
-    pub fn with_enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
+    #[test]
+    fn test_layer_restriction_description() {
+        assert_eq!(LayerRestriction::L1Only.description(), "仅支持 L1 层级");
     }
 
-    pub fn with_warn_on_fix(mut self, warn: bool) -> Self {
-        self.warn_on_fix = warn;
-        self
-    }
-}
-
-impl CustomTieredConfig {
-    /// 创建新配置（默认 L1=Moka, L2=Redis, L3=禁用）
-    #[cfg(all(feature = "moka", feature = "redis", feature = "serialization"))]
-    pub fn new() -> Self {
-        Self::moka_redis()
+    #[test]
+    fn test_backend_type_layer_restriction() {
+        let bt = BackendType::Moka;
+        assert!(bt.supports_layer(Layer::L1));
+        assert!(!bt.supports_layer(Layer::L2));
     }
 
-    // ============ 便捷构造方法 ============
-
-    /// 仅使用 Redis（单层）
-    #[cfg(feature = "redis")]
-    pub fn redis_only(connection_string: &str) -> Self {
-        let mut options = serde_json::Value::Null;
-        if !connection_string.is_empty() {
-            options = serde_json::json!({
-                "connection_string": connection_string
-            });
-        }
-        Self {
-            l1: LayerBackendConfig {
-                backend_type: BackendType::Tiered,
-                options: serde_json::Value::Null,
-                enabled: false,
-            },
-            l2: LayerBackendConfig {
-                backend_type: BackendType::Redis,
-                options,
-                enabled: true,
-            },
-            l3: LayerBackendConfig {
-                backend_type: BackendType::Tiered,
-                options: serde_json::Value::Null,
-                enabled: false,
-            },
-            auto_fix: AutoFixConfig::new(),
-        }
+    #[test]
+    fn test_available_backends() {
+        let backends = BackendType::available_backends();
+        #[cfg(feature = "moka")]
+        assert!(backends.contains(&BackendType::Moka));
+        #[cfg(feature = "redis")]
+        assert!(backends.contains(&BackendType::Redis));
     }
 
-    /// Moka + Redis（双层）
-    #[cfg(all(feature = "moka", feature = "redis"))]
-    pub fn moka_redis() -> Self {
-        Self {
-            l1: LayerBackendConfig::new(BackendType::Moka),
-            l2: LayerBackendConfig::new(BackendType::Redis),
-            l3: LayerBackendConfig {
-                backend_type: BackendType::Tiered,
-                options: serde_json::Value::Null,
-                enabled: false,
-            },
-            auto_fix: AutoFixConfig::new(),
-        }
-    }
-
-    /// DashMap + Redis（双层）
-    #[cfg(all(feature = "dashmap", feature = "redis"))]
-    pub fn dashmap_redis() -> Self {
-        Self {
-            l1: LayerBackendConfig::new(BackendType::Dashmap),
-            l2: LayerBackendConfig::new(BackendType::Redis),
-            l3: LayerBackendConfig {
-                backend_type: BackendType::Tiered,
-                options: serde_json::Value::Null,
-                enabled: false,
-            },
-            auto_fix: AutoFixConfig::new(),
-        }
-    }
-
-    /// Moka + DashMap + Redis（三层）
-    #[cfg(all(feature = "moka", feature = "dashmap", feature = "redis"))]
-    pub fn moka_dashmap_redis() -> Self {
-        Self {
-            l1: LayerBackendConfig::new(BackendType::Moka),
-            l2: LayerBackendConfig::new(BackendType::Dashmap),
-            l3: LayerBackendConfig::new(BackendType::Redis),
-            auto_fix: AutoFixConfig::new(),
-        }
-    }
-
-    /// Moka + Redis + Sqlite（三层持久化）
-    #[cfg(all(feature = "moka", feature = "redis", feature = "sqlite"))]
-    pub fn moka_redis_sqlite() -> Self {
-        Self {
-            l1: LayerBackendConfig::new(BackendType::Moka),
-            l2: LayerBackendConfig::new(BackendType::Redis),
-            l3: LayerBackendConfig::new(BackendType::Sqlite),
-            auto_fix: AutoFixConfig::new(),
-        }
-    }
-
-    /// DashMap + Sqlite（双层持久化）
-    #[cfg(all(feature = "dashmap", feature = "sqlite"))]
-    pub fn dashmap_sqlite() -> Self {
-        Self {
-            l1: LayerBackendConfig::new(BackendType::Dashmap),
-            l2: LayerBackendConfig::new(BackendType::Sqlite),
-            l3: LayerBackendConfig {
-                backend_type: BackendType::Tiered,
-                options: serde_json::Value::Null,
-                enabled: false,
-            },
-            auto_fix: AutoFixConfig::new(),
-        }
-    }
-
-    /// 设置 L1 后端
-    pub fn l1_backend(mut self, backend_type: BackendType) -> Self {
-        self.l1.backend_type = backend_type;
-        self
-    }
-
-    /// 设置 L2 后端
-    pub fn l2_backend(mut self, backend_type: BackendType) -> Self {
-        self.l2.backend_type = backend_type;
-        self
-    }
-
-    /// 启用/禁用自动修复
-    pub fn auto_fix(mut self, enabled: bool) -> Self {
-        self.auto_fix.enabled = enabled;
-        self
-    }
-
-    /// 验证配置
-    ///
-    /// 返回验证结果和修复信息
-    pub fn validate(&self) -> ConfigValidationResult {
-        let mut result = ConfigValidationResult::new();
-
-        // 验证 L1 配置
-        if self.l1.enabled {
-            match self.l1.validate(Layer::L1) {
-                Ok(_) => {
-                    result.add_valid(Layer::L1, self.l1.backend_type.clone());
-                }
-                Err(e) => {
-                    result.add_invalid(Layer::L1, self.l1.backend_type.clone(), e.to_string());
-                }
-            }
-        }
-
-        // 验证 L2 配置
-        if self.l2.enabled {
-            match self.l2.validate(Layer::L2) {
-                Ok(_) => {
-                    result.add_valid(Layer::L2, self.l2.backend_type.clone());
-                }
-                Err(e) => {
-                    result.add_invalid(Layer::L2, self.l2.backend_type.clone(), e.to_string());
-                }
-            }
-        }
-
-        // 验证 L3 配置
-        if self.l3.enabled {
-            match self.l3.validate(Layer::L3) {
-                Ok(_) => {
-                    result.add_valid(Layer::L3, self.l3.backend_type.clone());
-                }
-                Err(e) => {
-                    result.add_invalid(Layer::L3, self.l3.backend_type.clone(), e.to_string());
-                }
-            }
-        }
-
-        result
-    }
-
-    /// 验证并自动修复配置
-    ///
-    /// 如果配置不合法且启用了自动修复，会返回修复后的配置
-    pub fn validate_and_fix(&self) -> (FixedConfigResult, Option<CustomTieredConfig>) {
-        let validation = self.validate();
-        let fixes = validation.get_fixes();
-
-        if fixes.is_empty() || !self.auto_fix.enabled {
-            return (FixedConfigResult::from(validation), None);
-        }
-
-        // 创建修复后的配置
-        let mut fixed = self.clone();
-
-        for fix in fixes {
-            match fix.layer {
-                Layer::L1 => {
-                    fixed.l1.backend_type = fix.to_backend.clone();
-                }
-                Layer::L2 => {
-                    fixed.l2.backend_type = fix.to_backend.clone();
-                }
-                Layer::L3 => {
-                    fixed.l3.backend_type = fix.to_backend.clone();
-                }
-            }
-        }
-
-        // 重新验证修复后的配置
-        let fixed_validation = fixed.validate();
-        let fixed_result = FixedConfigResult::from(fixed_validation);
-
-        // 验证修复是否成功
-        if fixed_result.is_valid() {
-            (fixed_result, Some(fixed))
-        } else {
-            // 修复失败，返回原始验证结果
-            (FixedConfigResult::from(validation), None)
-        }
-    }
-}
-
-/// Builder 模式的便捷构造器
-#[derive(Default)]
-pub struct CustomTieredConfigBuilder(CustomTieredConfig);
-
-impl CustomTieredConfigBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// 设置 L1 后端类型
-    pub fn l1(mut self, backend_type: BackendType) -> Self {
-        self.0.l1.backend_type = backend_type;
-        self
-    }
-
-    /// 设置 L1 配置选项
-    #[cfg(any(feature = "serialization", feature = "full"))]
-    pub fn l1_options(mut self, options: serde_json::Value) -> Self {
-        self.0.l1.options = options;
-        self
-    }
-
-    /// 设置 L2 后端类型
-    pub fn l2(mut self, backend_type: BackendType) -> Self {
-        self.0.l2.backend_type = backend_type;
-        self
-    }
-
-    /// 设置 L2 配置选项
-    #[cfg(any(feature = "serialization", feature = "full"))]
-    pub fn l2_options(mut self, options: serde_json::Value) -> Self {
-        self.0.l2.options = options;
-        self
-    }
-
-    /// 设置 L3 后端类型
-    pub fn l3(mut self, backend_type: BackendType) -> Self {
-        self.0.l3.backend_type = backend_type;
-        self
-    }
-
-    /// 设置 L3 配置选项
-    #[cfg(any(feature = "serialization", feature = "full"))]
-    pub fn l3_options(mut self, options: serde_json::Value) -> Self {
-        self.0.l3.options = options;
-        self
-    }
-
-    /// 启用 L1
-    pub fn enable_l1(mut self, enabled: bool) -> Self {
-        self.0.l1.enabled = enabled;
-        self
-    }
-
-    /// 启用 L2
-    pub fn enable_l2(mut self, enabled: bool) -> Self {
-        self.0.l2.enabled = enabled;
-        self
-    }
-
-    /// 启用 L3
-    pub fn enable_l3(mut self, enabled: bool) -> Self {
-        self.0.l3.enabled = enabled;
-        self
-    }
-
-    /// 启用自动修复
-    pub fn auto_fix(mut self, enabled: bool) -> Self {
-        self.0.auto_fix.enabled = enabled;
-        self
-    }
-
-    /// 构建配置
-    pub fn build(self) -> CustomTieredConfig {
-        self.0
+    #[test]
+    fn test_layer_backend_config_new() {
+        let config = LayerBackendConfig::new(BackendType::Moka);
+        assert_eq!(config.backend_type, BackendType::Moka);
+        assert!(config.enabled);
     }
 }

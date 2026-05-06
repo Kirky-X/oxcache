@@ -26,51 +26,6 @@ impl ConfigValidationResult {
         }
     }
 
-    pub(crate) fn add_valid(&mut self, layer: Layer, backend_type: BackendType) {
-        self.valid_layers.push((layer, backend_type));
-    }
-
-    pub(crate) fn add_invalid(&mut self, layer: Layer, backend_type: BackendType, error: String) {
-        let backend_type_clone = backend_type.clone();
-        self.invalid_layers.push((layer, backend_type, error.clone()));
-
-        // 生成修复建议
-        let suggested = backend_type_clone.recommended_layer();
-        if suggested != layer {
-            // 查找该层级推荐的后端
-            let recommended = match layer {
-                Layer::L1 => BackendType::default(),
-                Layer::L2 => {
-                    #[cfg(feature = "redis")]
-                    {
-                        BackendType::Redis
-                    }
-                    #[cfg(not(feature = "redis"))]
-                    {
-                        BackendType::Tiered
-                    }
-                }
-                Layer::L3 => {
-                    #[cfg(feature = "redis")]
-                    {
-                        BackendType::Redis
-                    }
-                    #[cfg(not(feature = "redis"))]
-                    {
-                        BackendType::Tiered
-                    }
-                }
-            };
-
-            self.fixes.push(ConfigFix {
-                layer,
-                from_backend: backend_type_clone,
-                to_backend: recommended,
-                reason: error,
-            });
-        }
-    }
-
     pub fn is_valid(&self) -> bool {
         self.invalid_layers.is_empty()
     }
