@@ -43,7 +43,9 @@ pub(crate) mod validation;
 pub use log::{log_cache_key, sanitize_message};
 
 #[allow(unused_imports)]
-pub use redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+pub use redaction::{
+    redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted, SENSITIVE_KEYWORDS,
+};
 
 #[allow(unused_imports)]
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};

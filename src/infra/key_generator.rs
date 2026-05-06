@@ -20,14 +20,9 @@ use murmur3::murmur3_32;
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;
 
 /// 默认命名空间
-const DEFAULT_NAMESPACE: &str = "default";
+use super::VALID_KEY_CHARS;
 
-/// 有效的键字符集
-const VALID_KEY_CHARS: &[char] = &[
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-    'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-    'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
-];
+const DEFAULT_NAMESPACE: &str = "default";
 
 /// 缓存键生成器
 ///
