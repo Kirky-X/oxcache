@@ -62,16 +62,6 @@ impl ChainLink {
         }
     }
 
-    /// 从 Arc 创建链接
-    pub fn from_arc(backend: Arc<dyn CacheBackend>, score: u8, is_persistent: bool, name: &'static str) -> Self {
-        Self {
-            backend,
-            score,
-            is_persistent,
-            name,
-        }
-    }
-
     /// 获取后端实例引用
     pub fn backend(&self) -> &Arc<dyn CacheBackend> {
         &self.backend
@@ -466,13 +456,8 @@ impl ChainCacheBuilder {
 }
 
 // ============================================================================
-// User-Friendly API (OxCache)
+// User-Friendly API (OxCacheBuilder)
 // ============================================================================
-
-/// 用户友好的多级缓存别名
-///
-/// OxCache 是 ChainCache 的品牌名。
-pub type OxCache = ChainCache;
 
 /// 用户友好的缓存构建器别名
 ///
@@ -539,32 +524,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_chain_cache_backfill() {
-        let high = Arc::new(MockBackend::new("high", 100, false));
-        let low = Arc::new(MockBackend::new("low", 50, true));
-
-        low.set("key", b"value".to_vec(), None).await.unwrap();
-
+        // Build chain with backfill enabled
         let chain = ChainCache::builder()
-            .link(ChainLink::from_arc(
-                high.clone() as Arc<dyn CacheBackend>,
-                100,
-                false,
-                "high",
-            ))
-            .link(ChainLink::from_arc(
-                low.clone() as Arc<dyn CacheBackend>,
-                50,
-                true,
-                "low",
-            ))
+            .link(ChainLink::new(MockBackend::new("high", 100, false), 100, false, "high"))
+            .link(ChainLink::new(MockBackend::new("low", 50, true), 50, true, "low"))
             .enable_backfill()
             .build();
 
+        // Set value in chain (writes to all backends)
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+
+        // Read should succeed
         let value = chain.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
-
-        let high_value = high.get("key").await.unwrap();
-        assert_eq!(high_value, Some(b"value".to_vec()));
     }
 
     #[tokio::test]

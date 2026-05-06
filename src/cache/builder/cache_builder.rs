@@ -23,9 +23,6 @@ pub struct CacheBuilder<K, V> {
     ttl: Option<Duration>,
     tti: Option<Duration>,
     capacity: Option<u64>,
-    batch_writes: bool,
-    auto_promote: bool,
-    backfill_enabled: bool,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -36,9 +33,6 @@ impl<K, V> Default for CacheBuilder<K, V> {
             ttl: None,
             tti: None,
             capacity: None,
-            batch_writes: false,
-            auto_promote: true,
-            backfill_enabled: true,
             _phantom: PhantomData,
         }
     }
@@ -70,30 +64,6 @@ where
     /// Set the capacity for memory-based backends
     pub fn capacity(mut self, capacity: u64) -> Self {
         self.capacity = Some(capacity);
-        self
-    }
-
-    /// Enable or disable batch writes
-    pub fn batch_writes(mut self, enabled: bool) -> Self {
-        self.batch_writes = enabled;
-        self
-    }
-
-    /// Enable or disable auto-promote
-    pub fn auto_promote(mut self, enabled: bool) -> Self {
-        self.auto_promote = enabled;
-        self
-    }
-
-    /// Enable backfill for tiered cache
-    pub fn enable_backfill(mut self) -> Self {
-        self.backfill_enabled = true;
-        self
-    }
-
-    /// Disable backfill for tiered cache
-    pub fn disable_backfill(mut self) -> Self {
-        self.backfill_enabled = false;
         self
     }
 

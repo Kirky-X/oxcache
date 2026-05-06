@@ -226,7 +226,7 @@ pub use features::{
 };
 
 // Public API re-exports (after features re-exports)
-pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink, OxCache, OxCacheBuilder};
+pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink, OxCacheBuilder};
 pub use cache::interface::UnifiedCache;
 pub use core::traits::{CacheKey, Cacheable};
 
