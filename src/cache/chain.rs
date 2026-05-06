@@ -34,13 +34,6 @@ pub struct ChainLink {
 
 impl ChainLink {
     /// 创建新的链式链接
-    ///
-    /// # Arguments
-    ///
-    /// * `backend` - 后端实例
-    /// * `score` - 后端分数
-    /// * `is_persistent` - 是否持久化
-    /// * `name` - 后端名称
     pub fn new<B>(backend: B, score: u8, is_persistent: bool, name: &'static str) -> Self
     where
         B: CacheBackend + BackendScore + 'static,
@@ -54,10 +47,6 @@ impl ChainLink {
     }
 
     /// 从实现了 BackendScore 的后端创建链接
-    ///
-    /// # Arguments
-    ///
-    /// * `backend` - 实现了 BackendScore 的后端
     pub fn from_backend<B>(backend: B) -> Self
     where
         B: CacheBackend + BackendScore + 'static,
@@ -74,13 +63,6 @@ impl ChainLink {
     }
 
     /// 从 Arc 创建链接
-    ///
-    /// # Arguments
-    ///
-    /// * `backend` - Arc 包装的后端
-    /// * `score` - 后端分数
-    /// * `is_persistent` - 是否持久化
-    /// * `name` - 后端名称
     pub fn from_arc(backend: Arc<dyn CacheBackend>, score: u8, is_persistent: bool, name: &'static str) -> Self {
         Self {
             backend,
@@ -126,50 +108,37 @@ impl std::fmt::Debug for ChainLink {
 /// ChainCache 管理多个后端，按分数从高到低排序。
 /// 读取时从高分后端开始，找到即返回；写入时写入所有后端。
 ///
-/// # 工作原理
+/// # TTL 行为
 ///
-/// 1. **读取**: 从高分后端开始，找到数据即返回（并回填到更高分后端）
-/// 2. **写入**: 写入所有后端，确保数据一致性
-/// 3. **删除**: 从所有后端删除
+/// - `chain.set(key, value, None)` → 各 backend 使用自己的默认 TTL
+/// - `chain.set(key, value, Some(ttl))` → 所有 backend 使用传入的 TTL
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxcache::chain::{ChainCache, ChainLink};
-/// use oxcache::backend::{MokaMemoryBackend, RedisBackend, BackendScore};
+/// use oxcache::cache::{ChainCache, ChainLink};
+/// use oxcache::backend::MokaMemoryBackend;
 ///
-/// // 创建后端
-/// let moka = MokaMemoryBackend::new();
-/// let redis = RedisBackend::new("redis://localhost:6379").await?;
+/// let l1 = MokaMemoryBackend::builder().capacity(10000).ttl(Duration::from_secs(300)).build();
+/// let l2 = oxcache::backend::RedisBackend::builder().ttl(Duration::from_secs(3600)).build().await?;
 ///
-/// // 创建链式链接
-/// let links = vec![
-///     ChainLink::from_backend(moka),
-///     ChainLink::from_backend(redis),
-/// ];
+/// let chain = ChainCache::builder()
+///     .link(ChainLink::from_backend(l1))  // L1: 5分钟 TTL
+///     .link(ChainLink::from_backend(l2))  // L2: 1小时 TTL
+///     .enable_backfill()
+///     .build();
 ///
-/// // 创建链式缓存
-/// let chain = ChainCache::new(links);
-///
-/// // 使用链式缓存
-/// chain.set("key", b"value".to_vec(), None).await?;
-/// let value = chain.get("key").await?;
+/// chain.set("key", value, None).await?;  // L1 用 5分钟，L2 用 1小时
 /// ```
 pub struct ChainCache {
     /// 后端链接列表（按分数降序排列）
     links: Vec<ChainLink>,
-    /// 默认 TTL
-    default_ttl: Option<Duration>,
     /// 是否启用回填
     backfill_enabled: bool,
 }
 
 impl ChainCache {
     /// 创建新的链式缓存
-    ///
-    /// # Arguments
-    ///
-    /// * `links` - 后端链接列表（将被自动排序）
     pub fn new(links: Vec<ChainLink>) -> Self {
         Self::builder().links(links).build()
     }
@@ -220,9 +189,6 @@ impl ChainCache {
     }
 
     /// 从链中读取数据
-    ///
-    /// 从高分后端开始读取，找到即返回。
-    /// 如果启用回填，会将数据写入更高分后端。
     #[instrument(skip(self), fields(key = %key))]
     async fn read_from_chain(&self, key: &str) -> Result<Option<Vec<u8>>> {
         for (index, link) in self.links.iter().enumerate() {
@@ -232,32 +198,27 @@ impl ChainCache {
                     if self.backfill_enabled && index > 0 {
                         self.backfill_to_higher_backends(key, &value, index).await;
                     }
-
                     return Ok(Some(value));
                 }
-                Ok(None) => {
-                    continue;
-                }
-                Err(_) => {
-                    continue;
-                }
+                Ok(None) => continue,
+                Err(_) => continue,
             }
         }
-
         Ok(None)
     }
 
-    /// 回填数据到更高分后端
+    /// 回填数据到更高分后端（使用各 backend 自己的默认 TTL）
     async fn backfill_to_higher_backends(&self, key: &str, value: &[u8], from_index: usize) {
         for link in &self.links[..from_index] {
-            let _ = link.backend().set(key, value.to_vec(), self.default_ttl).await;
+            let _ = link.backend().set(key, value.to_vec(), None).await;
         }
     }
 
     /// 写入数据到所有后端
+    /// ttl=None 时各 backend 用自己的默认 TTL
+    /// ttl=Some 时所有 backend 用同一个 TTL
     #[instrument(skip(self, value), fields(key = %key))]
     async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-        let effective_ttl = ttl.or(self.default_ttl);
         let mut errors = Vec::new();
         let count = self.links.len();
 
@@ -267,19 +228,18 @@ impl ChainCache {
 
         // Clone for all but the last backend
         for link in self.links.iter().take(count - 1) {
-            if let Err(e) = link.backend().set(key, value.clone(), effective_ttl).await {
+            if let Err(e) = link.backend().set(key, value.clone(), ttl).await {
                 errors.push((link.name(), e));
             }
         }
 
         // Last backend: use the owned value directly (no clone)
         if let Some(link) = self.links.last() {
-            if let Err(e) = link.backend().set(key, value, effective_ttl).await {
+            if let Err(e) = link.backend().set(key, value, ttl).await {
                 errors.push((link.name(), e));
             }
         }
 
-        // 如果所有后端都失败，返回错误
         if errors.len() == self.links.len() {
             return Err(CacheError::Operation("All backends failed to write".to_string()));
         }
@@ -298,7 +258,6 @@ impl ChainCache {
             }
         }
 
-        // 如果所有后端都失败，返回错误
         if errors.len() == self.links.len() {
             return Err(CacheError::Operation(format!(
                 "All backends failed to delete: {:?}",
@@ -331,7 +290,6 @@ impl CacheReader for ChainCache {
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
-        // 返回第一个找到的 TTL
         for link in &self.links {
             match link.backend().ttl(key).await {
                 Ok(Some(ttl)) => return Ok(Some(ttl)),
@@ -343,7 +301,6 @@ impl CacheReader for ChainCache {
     }
 
     async fn len(&self) -> Result<u64> {
-        // 返回最高分后端的长度
         if let Some(link) = self.links.first() {
             link.backend().len().await
         } else {
@@ -360,7 +317,6 @@ impl CacheReader for ChainCache {
     }
 
     async fn capacity(&self) -> Result<u64> {
-        // 返回最高分后端的容量
         if let Some(link) = self.links.first() {
             link.backend().capacity().await
         } else {
@@ -438,7 +394,6 @@ impl CacheConnector for ChainCache {
             return Ok(());
         }
 
-        // All links must be healthy
         for link in &self.links {
             link.backend().health_check().await?;
         }
@@ -457,13 +412,10 @@ impl CacheConnector for ChainCache {
     }
 }
 
-// CacheBackend is automatically implemented via blanket implementation
-
 /// 链式缓存构建器
 #[derive(Default)]
 pub struct ChainCacheBuilder {
     links: Vec<ChainLink>,
-    default_ttl: Option<Duration>,
     backfill_enabled: bool,
 }
 
@@ -488,12 +440,6 @@ impl ChainCacheBuilder {
         self.link(ChainLink::from_backend(backend))
     }
 
-    /// 设置默认 TTL
-    pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.default_ttl = Some(ttl);
-        self
-    }
-
     /// 启用回填
     pub fn enable_backfill(mut self) -> Self {
         self.backfill_enabled = true;
@@ -514,11 +460,24 @@ impl ChainCacheBuilder {
 
         ChainCache {
             links,
-            default_ttl: self.default_ttl,
             backfill_enabled: self.backfill_enabled,
         }
     }
 }
+
+// ============================================================================
+// User-Friendly API (OxCache)
+// ============================================================================
+
+/// 用户友好的多级缓存别名
+///
+/// OxCache 是 ChainCache 的品牌名。
+pub type OxCache = ChainCache;
+
+/// 用户友好的缓存构建器别名
+///
+/// 与 ChainCacheBuilder 功能相同，但名称更简洁。
+pub type OxCacheBuilder = ChainCacheBuilder;
 
 #[cfg(test)]
 mod tests {
@@ -546,7 +505,6 @@ mod tests {
             .enable_backfill()
             .build();
 
-        // 应该按分数降序排列
         assert_eq!(chain.links().len(), 2);
         assert_eq!(chain.links()[0].score(), 100);
         assert_eq!(chain.links()[1].score(), 50);
@@ -559,10 +517,8 @@ mod tests {
 
         let chain = ChainCache::builder().backend(high).backend(low).build();
 
-        // 设置值
         chain.set("key", b"value".to_vec(), None).await.unwrap();
 
-        // 获取值
         let value = chain.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
     }
@@ -574,11 +530,9 @@ mod tests {
 
         let chain = ChainCache::builder().backend(high).backend(low).build();
 
-        // 设置并删除
         chain.set("key", b"value".to_vec(), None).await.unwrap();
         chain.delete("key").await.unwrap();
 
-        // 应该不存在
         let exists = chain.exists("key").await.unwrap();
         assert!(!exists);
     }
@@ -588,7 +542,6 @@ mod tests {
         let high = Arc::new(MockBackend::new("high", 100, false));
         let low = Arc::new(MockBackend::new("low", 50, true));
 
-        // 只在低分后端设置值
         low.set("key", b"value".to_vec(), None).await.unwrap();
 
         let chain = ChainCache::builder()
@@ -607,11 +560,9 @@ mod tests {
             .enable_backfill()
             .build();
 
-        // 读取应该触发回填
         let value = chain.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
 
-        // 高分后端现在应该有值了
         let high_value = high.get("key").await.unwrap();
         assert_eq!(high_value, Some(b"value".to_vec()));
     }
@@ -620,11 +571,9 @@ mod tests {
     async fn test_empty_chain() {
         let chain = ChainCache::new(vec![]);
 
-        // 空链应该返回 None
         let value = chain.get("key").await.unwrap();
         assert!(value.is_none());
 
-        // 空链的 exists 应该返回 false
         let exists = chain.exists("key").await.unwrap();
         assert!(!exists);
     }
