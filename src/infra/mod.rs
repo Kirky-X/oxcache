@@ -50,7 +50,9 @@ pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
 }
 
 // Re-exports
-pub use db_loader::{DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader, SqlDbLoader};
+pub use db_loader::{
+    validate_sql_identifier, DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader, SqlDbLoader,
+};
 pub use key_generator::KeyGenerator;
 pub use warmup::{WarmupManager, WarmupStatus};
 

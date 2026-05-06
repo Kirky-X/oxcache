@@ -4,19 +4,20 @@
 //
 //! ChainCache 链式缓存示例
 //!
-//! 本示例演示如何使用 ChainCache 实现多级缓存策略：
-//! - L1 内存缓存（快速访问）
-//! - L2 Redis 缓存（持久化）
+//! 本示例演示两种创建多级缓存的方式：
+//! - OxCacheBuilder（推荐）：简洁 API
+//! - ChainCache::builder()：高级控制
 //!
 //! 运行方式：
 //! ```bash
 //! cd examples && cargo run --example example_chain_cache
 //! ```
 
-use oxcache::backend::CacheBackend;
 #[cfg(feature = "redis")]
 use oxcache::backend::memory::RedisBackend;
-use oxcache::{Cache, ChainCache, OxCacheBuilder};
+use oxcache::backend::CacheBackend;
+use oxcache::cache::{ChainCache, ChainLink, OxCacheBuilder};
+use oxcache::{backend::MokaMemoryBackend, Cache};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -29,10 +30,10 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== ChainCache 链式缓存示例 ===\n");
+    println!("=== 链式缓存示例 ===\n");
 
-    // 示例 1: 使用 OxCacheBuilder 创建多级缓存（推荐方式）
-    println!("1. 创建多级缓存（内存 + Redis）");
+    // 示例 1: 使用 OxCacheBuilder（推荐 - 简洁 API）
+    println!("1. OxCacheBuilder 创建多级缓存");
 
     #[cfg(feature = "redis")]
     {
@@ -42,14 +43,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         match RedisBackend::new(&redis_url).await {
             Ok(l2) => {
-                let l1 = oxcache::backend::MokaMemoryBackend::builder().capacity(1000).build();
+                let l1 = MokaMemoryBackend::builder().capacity(1000).build();
 
-                let chain: ChainCache = OxCacheBuilder::new()
-                    .backend(l1)
-                    .backend(l2)
+                let chain = OxCacheBuilder::new()
+                    .backend(l1)  // L1 内存缓存
+                    .backend(l2)  // L2 Redis 缓存
+                    .enable_backfill()
+                    .build();
                     .default_ttl(Duration::from_secs(3600))
                     .enable_backfill()
-                    .build()?;
+                    .build();
 
                 println!("   ✓ 创建了2级缓存链：L1(Moka) -> L2(Redis)\n");
 
@@ -93,9 +96,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("3. 批量操作示例");
 
     let users = vec![
-        User { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
-        User { id: 2, name: "Charlie".to_string(), email: "charlie@example.com".to_string() },
-        User { id: 3, name: "Diana".to_string(), email: "diana@example.com".to_string() },
+        User {
+            id: 1,
+            name: "Alice".to_string(),
+            email: "alice@example.com".to_string(),
+        },
+        User {
+            id: 2,
+            name: "Charlie".to_string(),
+            email: "charlie@example.com".to_string(),
+        },
+        User {
+            id: 3,
+            name: "Diana".to_string(),
+            email: "diana@example.com".to_string(),
+        },
     ];
 
     cache.set(&"user:1".to_string(), &users[0]).await?;
@@ -131,12 +146,10 @@ async fn demo_chain_cache_operations(chain: &ChainCache) -> Result<(), Box<dyn s
     println!("   读取数据：");
     let cached = chain.get("user:1").await?;
     match cached {
-        Some(data) => {
-            match serde_json::from_slice::<User>(&data) {
-                Ok(u) => println!("   ✓ 命中: {:?}\n", u),
-                Err(_) => println!("   ✗ 数据解析失败\n"),
-            }
-        }
+        Some(data) => match serde_json::from_slice::<User>(&data) {
+            Ok(u) => println!("   ✓ 命中: {:?}\n", u),
+            Err(_) => println!("   ✗ 数据解析失败\n"),
+        },
         None => println!("   ✗ 未找到\n"),
     }
 
@@ -151,7 +164,9 @@ async fn demo_chain_cache_operations(chain: &ChainCache) -> Result<(), Box<dyn s
     Ok(())
 }
 
-async fn demo_simple_cache_operations(cache: &Cache<String, User>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn demo_simple_cache_operations(
+    cache: &Cache<String, User>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user = User {
         id: 1,
         name: "Alice".to_string(),

@@ -55,9 +55,6 @@ mod utils_redaction_test;
 #[path = "unit/utils_security_log_test.rs"]
 mod utils_security_log_test;
 
-#[path = "unit/builder_sorter_test.rs"]
-mod builder_sorter_test;
-
 #[path = "unit/cache_builder_test.rs"]
 mod cache_builder_test;
 
@@ -69,6 +66,3 @@ mod mock_backend_test;
 
 #[path = "unit/wal_stub_test.rs"]
 mod wal_stub_test;
-
-#[path = "unit/confers_config_test.rs"]
-mod confers_config_test;

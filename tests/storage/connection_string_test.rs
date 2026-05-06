@@ -7,7 +7,7 @@
 #[cfg(test)]
 #[cfg(feature = "database")]
 mod connection_string_coverage_tests {
-    use oxcache::storage::connection_string::*;
+    use oxcache::backend::storage::connection_string::*;
     use secrecy::ExposeSecret;
 
     // ============================================

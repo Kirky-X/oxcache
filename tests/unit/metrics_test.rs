@@ -6,7 +6,7 @@
 
 #[cfg(any(feature = "metrics", feature = "moka"))]
 mod tests {
-    use oxcache::metrics::{
+    use oxcache::infra::metrics::{
         export_json_format, export_prometheus_format, get_enhanced_stats, AtomicCounters, CacheLayer, CacheOpResult,
         CacheOpType, CacheOperation, CacheStats, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
     };

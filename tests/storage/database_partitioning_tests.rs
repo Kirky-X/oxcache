@@ -10,10 +10,10 @@
 // - 或使用 --features database 特性标志
 
 use chrono::Utc;
+use oxcache::backend::storage::partition::{PartitionConfig, PartitionManager};
+use oxcache::backend::storage::sqlite::SQLitePartitionManager;
+use oxcache::backend::storage::PartitionStrategy;
 use oxcache::error::Result;
-use oxcache::storage::partition::{PartitionConfig, PartitionManager};
-use oxcache::storage::sqlite::SQLitePartitionManager;
-use oxcache::storage::PartitionStrategy;
 use std::sync::Arc;
 
 use crate::storage_test_utils::*;

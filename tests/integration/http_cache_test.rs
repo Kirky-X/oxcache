@@ -9,7 +9,7 @@
 #[cfg(all(feature = "http-cache", feature = "redis"))]
 #[cfg(feature = "redis")]
 mod tests {
-    use oxcache::http::HttpCacheResponse;
+    use oxcache::features::http::HttpCacheResponse;
     use std::collections::HashMap;
 
     // ============================================================================

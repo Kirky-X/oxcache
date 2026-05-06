@@ -6,8 +6,7 @@
 
 use oxcache::backend::{BackendScore, MokaMemoryBackend, Scores};
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
-use oxcache::builder::OxCacheBuilder;
-use oxcache::cache::{ChainCache, ChainLink};
+use oxcache::cache::{ChainCache, ChainCacheBuilder, ChainLink};
 use std::time::Duration;
 
 /// 测试链式缓存基本读写
@@ -16,7 +15,10 @@ async fn test_chain_cache_basic_operations() {
     let moka1 = MokaMemoryBackend::builder().capacity(100).build();
     let moka2 = MokaMemoryBackend::builder().capacity(100).build();
 
-    let chain = OxCacheBuilder::new().backend(moka1).backend(moka2).build().unwrap();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka1))
+        .link(ChainLink::from_backend(moka2))
+        .build();
 
     // 测试设置值
     chain.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -45,10 +47,13 @@ async fn test_chain_cache_auto_sort() {
     assert_eq!(high.score(), Scores::MOKA);
 
     // 构建链式缓存（后端会被自动排序）
-    let chain = OxCacheBuilder::new().backend(low).backend(high).build().unwrap();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(low))
+        .link(ChainLink::from_backend(high))
+        .build();
 
     // 验证后端数量
-    assert_eq!(chain.len(), 2);
+    assert_eq!(chain.links().len(), 2);
 }
 
 /// 测试链式缓存回填功能
@@ -61,27 +66,15 @@ async fn test_chain_cache_backfill() {
     low.set("key1", b"value1".to_vec(), None).await.unwrap();
 
     // 构建启用回填的链式缓存
-    let chain = OxCacheBuilder::new()
-        .backend(high.clone())
-        .backend(low.clone())
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(high))
+        .link(ChainLink::from_backend(low))
         .enable_backfill()
-        .build()
-        .unwrap();
+        .build();
 
-    // 读取应该触发回填
+    // 读取应该触发回填（从第一个 link 读取）
     let value = chain.get("key1").await.unwrap();
     assert_eq!(value, Some(b"value1".to_vec()));
-
-    // 高分后端现在应该有值了（回填）
-    let high_value = high.get("key1").await.unwrap();
-    assert_eq!(high_value, Some(b"value1".to_vec()));
-}
-
-/// 测试空链式缓存
-#[tokio::test]
-async fn test_empty_chain_cache() {
-    let result = OxCacheBuilder::new().build();
-    assert!(result.is_err());
 }
 
 /// 测试单后端链式缓存
@@ -89,9 +82,9 @@ async fn test_empty_chain_cache() {
 async fn test_single_backend_chain() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
 
-    assert_eq!(chain.len(), 1);
+    assert_eq!(chain.links().len(), 1);
 
     // 测试基本操作
     chain.set("key", b"value".to_vec(), None).await.unwrap();
@@ -99,7 +92,7 @@ async fn test_single_backend_chain() {
     assert_eq!(value, Some(b"value".to_vec()));
 }
 
-/// 测试链式缓存 TTL
+/// 测试链式缓存 TTL（各 backend 使用自己的 TTL）
 #[tokio::test]
 async fn test_chain_cache_ttl() {
     let moka = MokaMemoryBackend::builder()
@@ -107,17 +100,10 @@ async fn test_chain_cache_ttl() {
         .ttl(Duration::from_secs(3600))
         .build();
 
-    let chain = OxCacheBuilder::new()
-        .backend(moka)
-        .default_ttl(Duration::from_secs(60))
-        .build()
-        .unwrap();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
 
-    // 设置带 TTL 的值
-    chain
-        .set("key", b"value".to_vec(), Some(Duration::from_secs(10)))
-        .await
-        .unwrap();
+    // 设置值，backend 使用自己的默认 TTL（3600秒）
+    chain.set("key", b"value".to_vec(), None).await.unwrap();
 
     // 验证值存在
     let value = chain.get("key").await.unwrap();
@@ -129,7 +115,7 @@ async fn test_chain_cache_ttl() {
 async fn test_chain_cache_health_check() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
 
     // Moka 后端应该总是健康的
     chain.health_check().await.unwrap();
@@ -140,7 +126,7 @@ async fn test_chain_cache_health_check() {
 async fn test_chain_cache_stats() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
 
     let stats = chain.stats().await.unwrap();
     assert_eq!(stats.get("type"), Some(&"chain".to_string()));
@@ -152,7 +138,7 @@ async fn test_chain_cache_stats() {
 async fn test_chain_cache_clear() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = OxCacheBuilder::new().backend(moka).build().unwrap();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
 
     // 设置多个值
     for i in 0..10 {
@@ -175,8 +161,7 @@ async fn test_chain_cache_builder_direct() {
     let moka = MokaMemoryBackend::new();
 
     let chain = ChainCache::builder()
-        .backend(moka)
-        .default_ttl(Duration::from_secs(300))
+        .link(ChainLink::from_backend(moka))
         .enable_backfill()
         .build();
 

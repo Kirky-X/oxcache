@@ -5,10 +5,10 @@
 // 数据库分区测试 - SQLite 测试
 
 use chrono::{TimeZone, Utc};
+use oxcache::backend::storage::partition::{PartitionConfig, PartitionInfo, PartitionManager};
+use oxcache::backend::storage::sqlite::SQLitePartitionManager;
+use oxcache::backend::storage::PartitionStrategy;
 use oxcache::error::{CacheError, Result};
-use oxcache::storage::partition::{PartitionConfig, PartitionInfo, PartitionManager};
-use oxcache::storage::sqlite::SQLitePartitionManager;
-use oxcache::storage::PartitionStrategy;
 use sea_orm::{ConnectOptions, ConnectionTrait, Database};
 use std::fs::File;
 use std::sync::Arc;
@@ -300,7 +300,7 @@ mod sqlite_basic_tests {
 
 mod sqlite_manager_tests {
     use super::*;
-    use oxcache::storage::PartitionStrategy;
+    use oxcache::backend::storage::PartitionStrategy;
 
     #[tokio::test]
     async fn test_sqlite_partition_manager_basic() {
