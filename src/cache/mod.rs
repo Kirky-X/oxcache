@@ -12,8 +12,8 @@ pub mod interface;
 
 // Re-exports
 pub use api::Cache;
-pub use builder::{CacheBuilder, OxCacheBuilder};
-pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
+pub use builder::CacheBuilder;
+pub use chain::{ChainCache, ChainCacheBuilder, ChainLink, OxCache, OxCacheBuilder};
 pub use interface::UnifiedCache;
 
 #[cfg(test)]
