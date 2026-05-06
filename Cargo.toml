@@ -234,16 +234,6 @@ optional = true
 # CONFIGURATION
 # ============================================================================
 
-[dependencies.confers]
-path = "/home/dev/projects/confers"
-optional = true
-features = ["toml", "json", "env", "validation", "schema"]
-
-[dependencies.garde]
-version = "0.22"
-features = ["derive"]
-optional = true
-
 # CLI - 精简特性
 [dependencies.clap]
 version = "4.6"
@@ -313,7 +303,6 @@ full = [
     "cli",
     "full-metrics",
     "batch-write",
-    "dep:confers",
     "codegen",
     "compression",
     "smart-strategy",
@@ -322,7 +311,6 @@ full = [
     "ttl-control",
     "tiered-cache",
     "extra-serialization",
-    "config-dynamic",
     "http-cache",
     "serialization-cache",
     "lua-script",
@@ -390,17 +378,6 @@ wal-recovery = ["database", "redis"]
 batch-write = ["dep:tokio-util"]
 sync = []
 
-# Configuration
-confers = [
-    "dep:confers",
-    "dep:garde",
-    "confers/toml",
-    "confers/json",
-    "confers/env",
-    "confers/validation",
-    "confers/schema"
-]
-
 # Smart Strategy Features
 smart-strategy = ["compression", "metrics", "moka"]
 redis-native = ["redis"]
@@ -408,7 +385,6 @@ enhanced-stats = ["metrics"]
 ttl-control = ["redis"]
 tiered-cache = ["moka", "redis"]
 extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
-config-dynamic = ["dep:confers", "dep:garde", "toml", "confers/validation", "confers/schema"]
 http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util", "dep:glob-match"]
 
 # SingleFlight (cache stampede prevention)
