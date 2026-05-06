@@ -8,7 +8,7 @@
 use crate::error::Result;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
-use crate::infra::serialization::SerializerEnum;
+use crate::infra::serialization::Serializer;
 use async_trait::async_trait;
 #[cfg(any(feature = "redis", feature = "futures", feature = "core", feature = "full"))]
 use futures::future::join_all;
@@ -378,7 +378,7 @@ pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
 
     /// Get the serializer used by this cache
-    fn serializer(&self) -> &SerializerEnum;
+    fn serializer(&self) -> &dyn Serializer;
 
     /// Get the backend type for runtime identification
     fn backend_kind(&self) -> crate::backend::interface::BackendKind;
@@ -430,22 +430,15 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
 
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
-    fn serializer(&self) -> &SerializerEnum {
-        use crate::infra::serialization::unified::default_serializer;
+    fn serializer(&self) -> &dyn Serializer {
+        use crate::infra::serialization::unified::{default_serializer, UnifiedSerializerAdapter};
         use once_cell::sync::Lazy;
+        use std::sync::Arc;
 
-        static DEFAULT_SERIALIZER: Lazy<SerializerEnum> = Lazy::new(|| {
-            let unified = default_serializer();
-            match unified.format() {
-                #[cfg(feature = "bincode")]
-                crate::serialization::SerializationFormat::Bincode => {
-                    SerializerEnum::Bincode(crate::serialization::bincode::BincodeSerializer)
-                }
-                _ => SerializerEnum::Json(crate::infra::serialization::json::JsonSerializer::new()),
-            }
-        });
+        static DEFAULT_SERIALIZER: Lazy<Arc<UnifiedSerializerAdapter>> =
+            Lazy::new(|| Arc::new(UnifiedSerializerAdapter::new(default_serializer())));
 
-        &DEFAULT_SERIALIZER
+        DEFAULT_SERIALIZER.as_ref() as &dyn Serializer
     }
 
     fn backend_kind(&self) -> crate::backend::interface::BackendKind {
