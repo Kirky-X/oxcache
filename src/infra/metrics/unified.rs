@@ -80,6 +80,10 @@ pub struct AtomicCounters {
     pub compression_total: AtomicU64,
     /// Compression bytes saved
     pub compression_bytes_saved: AtomicU64,
+    /// L1 cache item count
+    pub l1_items: AtomicU64,
+    /// L1 cache capacity used (bytes)
+    pub l1_capacity_used: AtomicU64,
 }
 
 /// Metric value types
@@ -140,6 +144,8 @@ impl Default for AtomicCounters {
             prefetch_total: AtomicU64::new(0),
             compression_total: AtomicU64::new(0),
             compression_bytes_saved: AtomicU64::new(0),
+            l1_items: AtomicU64::new(0),
+            l1_capacity_used: AtomicU64::new(0),
         }
     }
 }

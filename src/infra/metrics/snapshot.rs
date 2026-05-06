@@ -6,6 +6,9 @@
 
 use serde::Serialize;
 
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+use crate::infra::metrics::unified::MetricsSnapshot;
+
 /// 缓存统计快照
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CacheStats {
@@ -24,6 +27,29 @@ pub struct CacheStats {
     pub compression_count: u64,
     pub compression_bytes_saved: u64,
     pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+impl From<MetricsSnapshot> for CacheStats {
+    fn from(snapshot: MetricsSnapshot) -> Self {
+        Self {
+            l1_hits: snapshot.counters.l1_hits,
+            l1_misses: snapshot.counters.l1_misses,
+            l2_hits: snapshot.counters.l2_hits,
+            l2_misses: snapshot.counters.l2_misses,
+            l1_sets: snapshot.counters.l1_sets,
+            l2_sets: snapshot.counters.l2_sets,
+            l1_deletes: snapshot.counters.l1_deletes,
+            l2_deletes: snapshot.counters.l2_deletes,
+            total_operations: snapshot.counters.total_operations,
+            l1_item_count: 0,
+            l1_capacity_used: 0,
+            prefetch_count: snapshot.counters.prefetch_total,
+            compression_count: snapshot.counters.compression_total,
+            compression_bytes_saved: snapshot.counters.compression_bytes_saved,
+            timestamp: snapshot.timestamp,
+        }
+    }
 }
 
 #[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
