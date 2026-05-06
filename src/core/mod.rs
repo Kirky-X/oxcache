@@ -11,9 +11,6 @@ pub mod constants;
 pub mod events;
 pub mod types;
 
-#[cfg(feature = "confers")]
-pub mod confers_config;
-
 // Traits moved from top-level
 pub mod traits;
 
@@ -27,9 +24,3 @@ pub use constants::{
 };
 pub use events::{CacheEvent, CacheEventType, EventPublisher};
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
-
-#[cfg(feature = "confers")]
-pub use confers_config::{
-    BackendConfig, CacheType, ConfigFormat, ConfigProvider, GlobalConfig, MetricsConfig, PerformanceConfig,
-    RecoveryConfig, SecurityConfig, ServiceConfig, UnifiedConfig, UnifiedConfigBuilder,
-};
