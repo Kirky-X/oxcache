@@ -370,18 +370,11 @@ impl PartitionManager for SQLitePartitionManager {
         self.validate_identifier(table_name)?;
 
         // 使用参数化查询防止 SQL 注入
-        // 先查询匹配前缀的表
-        let _prefix_pattern = format!("{}_%", table_name);
-        let _main_table = format!("{}_main", table_name);
-
         let query_sql = "SELECT name FROM sqlite_master
              WHERE type='table'
              AND (name LIKE ? OR name = ?)
              ORDER BY name";
 
-        // 调试：打印查询SQL
-
-        // 使用参数化查询
         let statement = Statement::from_string(sea_orm::DatabaseBackend::Sqlite, query_sql.to_string());
 
         let result = self

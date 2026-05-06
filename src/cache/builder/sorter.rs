@@ -51,9 +51,6 @@ impl BackendSorter {
             a.is_persistent().cmp(&b.is_persistent())
         });
 
-        // 修正配置
-        Self::correct(&mut links);
-
         links
     }
 
@@ -94,25 +91,7 @@ impl BackendSorter {
             a.is_persistent().cmp(&b.is_persistent())
         });
 
-        // 修正配置
-        Self::correct(&mut links);
-
         links
-    }
-
-    /// 修正不合理的配置
-    ///
-    /// # Arguments
-    ///
-    /// * `links` - ChainLink 列表（会被修改）
-    fn correct(links: &mut [ChainLink]) {
-        if links.is_empty() {}
-
-        // 检查是否只有持久化后端（静默处理）
-
-        // 检查分数是否有效（静默处理）
-
-        // 检查是否有重复的后端名称（静默处理）
     }
 
     /// 验证后端配置

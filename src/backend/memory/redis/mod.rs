@@ -7,4 +7,4 @@
 pub mod client;
 
 // Re-export main types for convenience
-pub use client::{RedisBackend, RedisBackendBuilder, RedisConfig, RedisMode};
+pub use client::{RedisBackend, RedisBackendBuilder, RedisMode};

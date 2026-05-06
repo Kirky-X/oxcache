@@ -123,10 +123,7 @@ impl BloomFilter {
         // 尝试从 LRU 缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         let cached_positions = {
-            let mut cache = self
-                .hash_cache
-                .lock()
-                .expect("BloomFilter hash_cache lock poisoned");
+            let mut cache = self.hash_cache.lock().expect("BloomFilter hash_cache lock poisoned");
             cache.get(&item_key).cloned()
         };
 
@@ -140,10 +137,7 @@ impl BloomFilter {
 
         // 将结果存入 LRU 缓存（容量自动管理）
         {
-            let mut cache = self
-                .hash_cache
-                .lock()
-                .expect("BloomFilter hash_cache lock poisoned");
+            let mut cache = self.hash_cache.lock().expect("BloomFilter hash_cache lock poisoned");
             cache.put(item_key, positions.clone());
         }
 
@@ -175,10 +169,7 @@ impl BloomFilter {
         // 尝试从 LRU 缓存获取哈希位置
         let item_key = Arc::new(item.to_vec());
         let positions = {
-            let mut cache = self
-                .hash_cache
-                .lock()
-                .expect("BloomFilter hash_cache lock poisoned");
+            let mut cache = self.hash_cache.lock().expect("BloomFilter hash_cache lock poisoned");
             if let Some(cached_positions) = cache.get(&item_key).cloned() {
                 cached_positions
             } else {
