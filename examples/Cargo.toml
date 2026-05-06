@@ -25,10 +25,8 @@ oxcache = { path = "..", default-features = false, features = [
     "cli",
     "full-metrics",
     "batch-write",
-    "confers",
     "smart-strategy",
     "http-cache",
-    "config-dynamic",
     "extra-serialization",
 ] }
 
@@ -108,18 +106,6 @@ path = "src/03_config/example_dynamic_config.rs"
 [[example]]
 name = "example_cached_macro"
 path = "src/01_basics/example_cached_macro.rs"
-
-[[example]]
-name = "example_unified_config_memory"
-path = "src/01_basics/example_unified_config_memory.rs"
-
-[[example]]
-name = "example_unified_config_tiered"
-path = "src/01_basics/example_unified_config_tiered.rs"
-
-[[example]]
-name = "example_explicit_init"
-path = "src/01_basics/example_explicit_init.rs"
 
 [[example]]
 name = "example_bloom_filter"
