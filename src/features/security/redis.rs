@@ -209,7 +209,7 @@ fn count_lua_long_string_level(chars: &mut std::iter::Peekable<std::str::Chars>,
 
 /// 跳过 Lua 长字符串内容
 fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level: usize) {
-    let closing: String = format!("]{}{}]", "=".repeat(level - 1), "=".repeat(level - 1));
+    let closing: String = format!("]{}]", "=".repeat(level - 1));
     let closing_chars: Vec<char> = closing.chars().collect();
     let mut pos = 0;
     let closing_len = closing.len();

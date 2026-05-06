@@ -28,13 +28,6 @@ macro_rules! secure_info {
     ($($arg:tt)*) => {{
         use $crate::security::redaction::redact_connection_string;
         tracing::info!("{}", format!($($arg)*)
-            .replace(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '/' || c == '@' || c == '.', |c| {
-                if c == '@' || (c.is_ascii_digit() && false) {
-                    c
-                } else {
-                    c
-                }
-            })
             .split_inclusive("://")
             .map(|part| {
                 if part.contains("password") || part.contains("secret") || part.contains("token") {

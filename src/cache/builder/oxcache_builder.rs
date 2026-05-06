@@ -168,11 +168,17 @@ impl OxCacheBuilder {
         // 打印警告（静默处理）
         let _ = &validation.warnings;
 
-        Ok(ChainCache::builder()
+        let chain_builder = ChainCache::builder()
             .links(sorted_links)
-            .default_ttl(self.default_ttl.unwrap_or_else(|| Duration::from_secs(3600)))
-            .enable_backfill()
-            .build())
+            .default_ttl(self.default_ttl.unwrap_or_else(|| Duration::from_secs(3600)));
+
+        let chain_builder = if self.backfill_enabled {
+            chain_builder.enable_backfill()
+        } else {
+            chain_builder
+        };
+
+        Ok(chain_builder.build())
     }
 
     /// 构建链式缓存（异步版本）
