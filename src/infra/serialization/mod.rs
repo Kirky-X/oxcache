@@ -26,7 +26,7 @@ pub use json::JsonSerializer;
 pub use bincode::BincodeSerializer;
 
 #[cfg(feature = "extra-serialization")]
-pub use extra::{CborSerializer, MessagePackSerializer, SerializerRegistry};
+pub use extra::{CborSerializer, MessagePackSerializer};
 
 #[cfg(feature = "serialization-cache")]
 pub use cache::{SerializationCache, SerializationCacheConfig, SerializationCacheStats};
@@ -98,49 +98,5 @@ pub trait Serializer: Send + Sync {
     /// 返回反序列化后的字节数组或错误
     fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
         self.deserialize(type_name, data)
-    }
-}
-
-/// 序列化器枚举
-///
-/// 用于支持多态的序列化器
-#[derive(Clone, Debug)]
-pub enum SerializerEnum {
-    Json(JsonSerializer),
-    #[cfg(feature = "bincode")]
-    Bincode(bincode::BincodeSerializer),
-}
-
-impl Serializer for SerializerEnum {
-    fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match self {
-            SerializerEnum::Json(s) => s.serialize(type_name, data),
-            #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.serialize(type_name, data),
-        }
-    }
-
-    fn deserialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match self {
-            SerializerEnum::Json(s) => s.deserialize(type_name, data),
-            #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.deserialize(type_name, data),
-        }
-    }
-
-    fn serialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match self {
-            SerializerEnum::Json(s) => s.serialize_zero_copy(type_name, data),
-            #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.serialize_zero_copy(type_name, data),
-        }
-    }
-
-    fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
-        match self {
-            SerializerEnum::Json(s) => s.deserialize_zero_copy(type_name, data),
-            #[cfg(feature = "bincode")]
-            SerializerEnum::Bincode(s) => s.deserialize_zero_copy(type_name, data),
-        }
     }
 }

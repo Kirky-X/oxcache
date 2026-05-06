@@ -107,23 +107,22 @@ impl<'a> ParsedConnectionString<'a> {
             .or_else(|| s.strip_prefix("rediss://"))
             .unwrap_or(s);
         let mut password: Option<SecretString> = None;
-        let mut _host_port = "";
 
-        if let Some(at_pos) = without_prefix.find('@') {
+        let host_port = if let Some(at_pos) = without_prefix.find('@') {
             if without_prefix.starts_with(':') {
                 password = Some(SecretString::from(without_prefix[1..at_pos].to_string()));
             }
-            _host_port = &without_prefix[at_pos + 1..];
+            &without_prefix[at_pos + 1..]
         } else {
-            _host_port = without_prefix;
-        }
+            without_prefix
+        };
 
-        let mut host = _host_port.to_string();
+        let mut host = host_port.to_string();
         let mut port = None;
-        if let Some(colon_pos) = _host_port.rfind(':') {
-            let port_str = &_host_port[colon_pos + 1..];
+        if let Some(colon_pos) = host_port.rfind(':') {
+            let port_str = &host_port[colon_pos + 1..];
             if let Ok(p) = port_str.parse::<u16>() {
-                host = _host_port[..colon_pos].to_string();
+                host = host_port[..colon_pos].to_string();
                 port = Some(p);
             }
         }
