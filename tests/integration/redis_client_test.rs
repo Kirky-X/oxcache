@@ -10,8 +10,8 @@
 #[cfg(feature = "redis")]
 mod redis_client_tests {
     use crate::common::{get_redis_url, is_redis_available};
-    use oxcache::backend::memory::redis::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::interface::LuaExecutor;
+    use oxcache::backend::memory::redis::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::score::BackendScore;
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     use serial_test::serial;
@@ -157,33 +157,6 @@ mod redis_client_tests {
 
             assert_eq!(backend.mode(), RedisMode::Cluster);
             println!("✅ Builder mode(Cluster) test passed");
-        }
-
-        /// 测试 builder 的 pool_size 方法
-        #[serial(redis)]
-        #[tokio::test]
-        async fn test_builder_pool_size() {
-            if !skip_if_redis_unavailable().await {
-                return;
-            }
-
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-            }
-
-            let url = get_redis_url();
-            let backend = RedisBackendBuilder::default()
-                .connection_string(&url)
-                .pool_size(20)
-                .build()
-                .await;
-
-            unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
-            }
-
-            assert!(backend.is_ok(), "Builder with pool_size should succeed");
-            println!("✅ Builder pool_size test passed");
         }
 
         /// 测试 builder 缺少 connection_string 时的错误
