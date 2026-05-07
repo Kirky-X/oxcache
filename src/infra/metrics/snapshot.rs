@@ -47,7 +47,10 @@ impl From<MetricsSnapshot> for CacheStats {
             prefetch_count: snapshot.counters.prefetch_total,
             compression_count: snapshot.counters.compression_total,
             compression_bytes_saved: snapshot.counters.compression_bytes_saved,
+            #[cfg(feature = "chrono")]
             timestamp: snapshot.timestamp,
+            #[cfg(not(feature = "chrono"))]
+            timestamp: chrono::DateTime::from_timestamp(snapshot.timestamp as i64, 0).unwrap_or_else(chrono::Utc::now),
         }
     }
 }
