@@ -30,7 +30,7 @@ mod redis_client_tests {
         let url = get_redis_url();
         let result = RedisBackend::new(&url).await;
         unsafe {
-            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+            // 不删除环境变量 — 并行测试中其他模块依赖此变量
         }
         result.expect("Redis should be running on localhost:6380")
     }
@@ -68,7 +68,7 @@ mod redis_client_tests {
             let backend = RedisBackendBuilder::default().connection_string(&url).build().await;
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert!(backend.is_ok(), "Builder should create backend successfully");
@@ -96,7 +96,7 @@ mod redis_client_tests {
                 .expect("Backend creation should succeed");
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert_eq!(backend.mode(), RedisMode::Standalone);
@@ -124,7 +124,7 @@ mod redis_client_tests {
                 .expect("Backend creation should succeed");
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert_eq!(backend.mode(), RedisMode::Sentinel);
@@ -152,7 +152,7 @@ mod redis_client_tests {
                 .expect("Backend creation should succeed");
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert_eq!(backend.mode(), RedisMode::Cluster);
@@ -190,7 +190,7 @@ mod redis_client_tests {
             let backend = RedisBackend::with_pool(&url, 10).await;
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert!(backend.is_ok(), "with_pool should create backend successfully");
@@ -642,7 +642,7 @@ mod redis_client_tests {
             let mode = backend.mode();
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert_eq!(mode, RedisMode::Standalone);
@@ -665,7 +665,7 @@ mod redis_client_tests {
             let _client = backend.client();
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             println!("✅ client method test passed");
@@ -687,7 +687,7 @@ mod redis_client_tests {
             let result = backend.ping().await;
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
 
             assert!(result.is_ok(), "ping should succeed");
@@ -960,7 +960,7 @@ mod redis_client_tests {
             assert!(result.is_err(), "Connection to invalid host should fail");
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
             println!("✅ Connection to invalid host test passed");
         }
@@ -1043,7 +1043,7 @@ mod redis_client_tests {
             assert!(ttl.unwrap().is_none(), "TTL for expired key should be None");
 
             unsafe {
-                std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+                // 不删除环境变量 — 并行测试中其他模块依赖此变量
             }
             println!("✅ TTL expired key test passed");
         }
