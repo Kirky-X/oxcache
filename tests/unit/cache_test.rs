@@ -26,14 +26,14 @@ impl Default for TestValue {
 
 struct TestMockBackend {
     data: RwLock<std::collections::HashMap<String, Vec<u8>>>,
-    healthy: bool,
+    _healthy: bool,
 }
 
 impl TestMockBackend {
     fn new() -> Self {
         Self {
             data: RwLock::new(std::collections::HashMap::new()),
-            healthy: true,
+            _healthy: true,
         }
     }
 }
