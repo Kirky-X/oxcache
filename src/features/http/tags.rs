@@ -194,7 +194,7 @@ mod tests {
         let manager = CacheTagManager::new(adapter.clone());
         let count = manager.invalidate_by_pattern("/api/*").await.unwrap();
         // The mock returns the number of items it had before clearing
-        assert!(count >= 0);
+        assert!(count <= 100);
     }
 
     #[tokio::test]
