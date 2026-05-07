@@ -291,14 +291,14 @@ mod tests {
         cache.set(&"key1".to_string(), &"v1".to_string()).await.unwrap();
         // len() may be approximate for concurrent caches
         let len = cache.len().await.unwrap();
-        assert!(len >= 0 && len <= 100);
+        assert!(len <= 100);
     }
 
     #[tokio::test]
     async fn test_cache_is_empty() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         // Initially empty or near-empty
-        let empty = cache.is_empty().await.unwrap();
+        let _empty = cache.is_empty().await.unwrap();
         // After insert, may not be empty
         cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
         // is_empty() behavior varies by backend
