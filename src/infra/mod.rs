@@ -6,13 +6,9 @@
 //!
 //! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader, cli
 
-pub(crate) mod cli;
-pub(crate) mod db_loader;
-pub mod key_generator;
 pub mod metrics;
 pub mod serialization;
 pub(crate) mod telemetry;
-pub mod warmup;
 
 use crate::error::CacheError;
 
@@ -48,13 +44,6 @@ pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
 
     Ok(())
 }
-
-// Re-exports
-pub use db_loader::{
-    validate_sql_identifier, DbConnectionPool, DbFallbackConfig, DbFallbackManager, DbLoader, SqlDbLoader,
-};
-pub use key_generator::KeyGenerator;
-pub use warmup::{WarmupManager, WarmupStatus};
 
 #[cfg(feature = "metrics")]
 pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};

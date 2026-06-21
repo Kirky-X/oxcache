@@ -299,7 +299,6 @@ full = [
     "dep:moka",
     "dep:redis",
     "dep:tracing",
-    "cli",
     "full-metrics",
     "batch-write",
     "codegen",

@@ -8,7 +8,6 @@
 
 pub mod command;
 pub mod constants;
-pub mod events;
 pub mod types;
 
 // Traits moved from top-level
@@ -22,5 +21,5 @@ pub use constants::{
     MAX_LUA_SCRIPT_SIZE, MAX_POOL_SIZE, MAX_TTL_SECS, MAX_VALUE_SIZE, MIN_CACHE_CAPACITY, MIN_POOL_SIZE,
     PASSWORD_MASK_ASTERISKS,
 };
-pub use events::{CacheEvent, CacheEventType, EventPublisher};
+
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};

@@ -6,7 +6,7 @@
 
 use super::Cache;
 use crate::core::constants::MAX_JSON_DEPTH;
-use crate::core::traits::{CacheKey, Cacheable};
+use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -65,7 +65,7 @@ impl Drop for GetOrGuard<'_> {
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     #[cfg_attr(
         any(feature = "tracing", feature = "full"),
