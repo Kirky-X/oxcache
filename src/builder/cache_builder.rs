@@ -259,26 +259,6 @@ where
         self
     }
 
-    /// Configure tiered backend (L1 + L2)
-    ///
-    /// # Arguments
-    ///
-    /// * `l1_capacity` - L1 memory cache capacity
-    /// * `l2_connection_string` - Redis connection URL
-    ///
-    /// # Returns
-    ///
-    /// Self for method chaining
-    #[cfg(feature = "redis")]
-    pub fn tiered(mut self, l1_capacity: u64, l2_connection_string: impl Into<String>) -> Self {
-        self.backend_config = Some(InternalBackendConfig::Tiered {
-            l1_capacity,
-            l2_connection_string: l2_connection_string.into(),
-            l2_mode: crate::backend::client::RedisMode::Standalone,
-        });
-        self
-    }
-
     /// Build the cache instance
     ///
     /// # Returns
@@ -701,11 +681,11 @@ fn backend_config_from_unified_config_with_service(
     let effective_capacity = service_config.max_capacity.unwrap_or(capacity);
 
     match config.backend.backend_type_enum() {
-        #[cfg(feature = "moka")]
+        #[cfg(feature = "memory")]
         crate::config::BackendType::Memory => Ok(InternalBackendConfig::Memory {
             capacity: effective_capacity,
         }),
-        #[cfg(not(feature = "moka"))]
+        #[cfg(not(feature = "memory"))]
         crate::config::BackendType::Memory => {
             // Moka feature not enabled, using fallback memory backend
             Ok(InternalBackendConfig::Memory {
@@ -737,7 +717,7 @@ fn backend_config_from_unified_config_with_service(
                 capacity: effective_capacity,
             })
         }
-        #[cfg(all(feature = "moka", feature = "redis"))]
+        #[cfg(all(feature = "memory", feature = "redis"))]
         crate::config::BackendType::Tiered => {
             let connection_string = config
                 .backend
@@ -756,7 +736,7 @@ fn backend_config_from_unified_config_with_service(
                 l2_mode: mode,
             })
         }
-        #[cfg(not(all(feature = "moka", feature = "redis")))]
+        #[cfg(not(all(feature = "memory", feature = "redis")))]
         crate::config::BackendType::Tiered => {
             // Required features not enabled, falling back to memory backend
             Ok(InternalBackendConfig::Memory {

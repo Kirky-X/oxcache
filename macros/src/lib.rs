@@ -18,7 +18,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut ttl = quote! { None };
     let mut key_pattern = None;
     let mut key_prefix = None;
-    let mut cache_type = quote! { "two-level" };
 
     for arg in args {
         if let Meta::NameValue(nv) = arg {
@@ -45,13 +44,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 if let Expr::Lit(expr_lit) = nv.value {
                     if let Lit::Str(lit) = expr_lit.lit {
                         key_prefix = Some(lit.value());
-                    }
-                }
-            } else if nv.path.is_ident("cache_type") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Str(lit) = expr_lit.lit {
-                        let val = lit.value();
-                        cache_type = quote! { #val };
                     }
                 }
             }
@@ -165,11 +157,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             // Cache result if Ok
             if let Ok(ref val) = result {
                 if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                    let _ = match #cache_type {
-                        "l1-only" => cache.set_l1_bytes(&cache_key, bytes, #ttl).await,
-                        "l2-only" => cache.set_l2_bytes(&cache_key, bytes, #ttl).await,
-                        _ => cache.set_bytes(&cache_key, bytes, #ttl).await,
-                    };
+                    let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
                 }
             }
 

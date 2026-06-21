@@ -11,7 +11,7 @@
 //! - 长键的哈希指纹生成
 
 use crate::error::CacheError;
-#[cfg(feature = "moka")]
+#[cfg(feature = "memory")]
 use moka::policy::EvictionPolicy;
 #[cfg(feature = "bloom-filter")]
 use murmur3::murmur3_32;
@@ -108,13 +108,13 @@ impl KeyGenerator {
     }
 
     /// 设置淘汰策略
-    #[cfg(feature = "moka")]
+    #[cfg(feature = "memory")]
     pub fn with_eviction_policy(self, _policy: EvictionPolicy) -> Self {
         // 暂时忽略淘汰策略，用于接口兼容性
         self
     }
 
-    #[cfg(not(feature = "moka"))]
+    #[cfg(not(feature = "memory"))]
     pub fn with_eviction_policy(self, _policy: ()) -> Self {
         self
     }

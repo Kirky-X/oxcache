@@ -40,6 +40,7 @@ mod ttl_control_test;
 mod two_level_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
+#[cfg(feature = "wal-recovery")]
 #[path = "integration/wal_test.rs"]
 mod wal_test;
 
@@ -48,9 +49,3 @@ mod l2_backend_test;
 
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
-
-#[path = "integration/redis_client_test.rs"]
-mod redis_client_test;
-
-#[path = "integration/new_in_memory_test.rs"]
-mod new_in_memory_test;

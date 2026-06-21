@@ -266,12 +266,12 @@ features = ["redis"]
 default = ["full"]
 
 # --------------------------------------------------------------------
-# TIERED FEATURES (Build on top of individual features)
+# TIERED FEATURES
 # --------------------------------------------------------------------
 
-# Minimal: Only L1 memory cache - no Redis, no external services
+# Minimal: L1 memory cache only
 minimal = [
-    "moka",
+    "memory",
     "tokio/time",
     "tracing",
     "metrics",
@@ -279,7 +279,7 @@ minimal = [
     "dep:chrono",
 ]
 
-# Core: L1 + L2 basic functionality (Redis)
+# Core: L1 + L2 (Redis)
 core = [
     "minimal",
     "redis",
@@ -290,66 +290,42 @@ core = [
 full = [
     "core",
     "macros",
+    "compression",
     "bloom-filter",
     "rate-limiting",
-    "wal-recovery",
     "database",
-    "sqlite",
-    "dashmap",
-    "dep:moka",
-    "dep:redis",
-    "dep:tracing",
-    "full-metrics",
-    "batch-write",
-    "codegen",
-    "compression",
-    "smart-strategy",
-    "redis-native",
-    "enhanced-stats",
-    "ttl-control",
-    "tiered-cache",
-    "extra-serialization",
     "http-cache",
-    "serialization-cache",
-    "lua-script",
-    "testing",
+    "batch-write",
     "singleflight",
+    "lua-script",
+    "cli",
+    "testing",
 ]
 
 # --------------------------------------------------------------------
-# COMPONENT FEATURES
+# CORE COMPONENT FEATURES
 # --------------------------------------------------------------------
 
-# Cache Macros
+# L1 Memory Cache (Moka + DashMap)
+memory = ["dep:moka", "dep:dashmap"]
+
+# L2 Distributed Cache (Redis)
+redis = ["dep:redis", "dep:regex"]
+
+# Proc macros for #[cached]
 macros = ["dep:oxcache_macros"]
 
-# L1 Cache Implementation (Moka)
-moka = ["dep:moka", "dep:dashmap"]
+# Serialization (JSON)
+serialization = ["dep:serde", "dep:serde_json"]
 
-# DashMap Backend (Pure in-memory concurrent cache)
-dashmap-backend = ["dep:dashmap"]
-
-# L2 Cache Implementation (Redis)
-redis = ["dep:redis", "dep:regex"]
+# Compression (flate2)
+compression = ["dep:flate2"]
 
 # Tracing support
 tracing = ["dep:tracing"]
 
-# SHA-256 hashing support
-sha2 = ["dep:sha2"]
-
-# Serialization Support
-serialization = ["dep:serde", "dep:serde_json"]
-bincode = ["serialization", "dep:bincode"]
-compression = ["dep:flate2"]
-flate2 = ["dep:flate2"]
-
-# Serialization Cache
-serialization-cache = ["serialization", "dep:dashmap"]
-
-# Metrics & Observability
-chrono = ["dep:chrono"]
-opentelemetry = [
+# Metrics & Observability (OpenTelemetry)
+metrics = [
     "dep:opentelemetry",
     "dep:opentelemetry_sdk",
     "dep:tracing-subscriber",
@@ -357,47 +333,48 @@ opentelemetry = [
     "dep:opentelemetry-otlp",
     "dep:chrono",
     "dep:tracing",
+    "dep:dashmap",
 ]
-metrics = ["opentelemetry", "dep:dashmap", "dep:tracing"]
-full-metrics = ["metrics", "dep:tracing-opentelemetry", "dep:opentelemetry-otlp"]
-
-# Testing support (exposes internal functions for integration tests)
-testing = []
 
 # Database Integration
 database = ["dep:sea-orm", "dep:sqlx", "dep:regex"]
-sqlite = ["database", "sqlx/sqlite"]
-dashmap = ["dep:dashmap"]
 
-# Advanced Features
+# Bloom Filter (cache penetration prevention)
 bloom-filter = ["dep:bloomfilter", "dep:murmur3", "dep:lru"]
-rate-limiting = ["dep:governor", "dashmap"]
-wal-recovery = ["database", "redis"]
-batch-write = ["dep:tokio-util"]
-sync = []
 
-# Smart Strategy Features
-smart-strategy = ["compression", "metrics", "moka"]
-redis-native = ["redis"]
-enhanced-stats = ["metrics"]
-ttl-control = ["redis"]
-tiered-cache = ["moka", "redis"]
-extra-serialization = ["dep:rmp-serde", "dep:ciborium"]
-http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http", "dep:tower", "dep:axum", "dep:hyper", "dep:http-body-util", "dep:glob-match"]
+# Rate Limiting (DoS prevention)
+rate-limiting = ["dep:governor", "dep:dashmap"]
+
+# HTTP Cache (Axum/Tower middleware)
+http-cache = [
+    "serialization",
+    "memory",
+    "redis",
+    "dep:md5",
+    "dep:sha2",
+    "dep:http",
+    "dep:tower",
+    "dep:axum",
+    "dep:hyper",
+    "dep:http-body-util",
+    "dep:glob-match",
+]
+
+# Batch Write (buffered L2 writes)
+batch-write = ["dep:tokio-util"]
 
 # SingleFlight (cache stampede prevention)
 singleflight = ["dep:tokio-util"]
 
-# Confęrs (declarative cache configuration) — disabled, local dep not available
-# confers = ["dep:confers"]
-
 # Lua Script Execution
 lua-script = ["redis"]
 
+# CLI tools
 cli = ["dep:clap", "dep:dashmap", "dep:tracing", "metrics"]
-codegen = ["dep:anyhow"] # Used for build scripts
 
-# ============================================================================
+# Testing support (exposes internal functions)
+testing = []
+
 # COMPILER OPTIMIZATIONS
 # ============================================================================
 

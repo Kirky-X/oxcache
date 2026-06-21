@@ -74,7 +74,7 @@ where
         }
     }
 
-    #[cfg(feature = "moka")]
+    #[cfg(any(feature = "memory", feature = "memory"))]
     pub fn new() -> Self {
         use crate::backend::MokaMemoryBackend;
         Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
@@ -89,7 +89,7 @@ where
     }
 }
 
-#[cfg(feature = "moka")]
+#[cfg(any(feature = "memory", feature = "memory"))]
 impl<K, V> Default for Cache<K, V>
 where
     K: CacheKey,
@@ -100,7 +100,7 @@ where
     }
 }
 
-#[cfg(all(feature = "dashmap-backend", not(feature = "moka")))]
+#[cfg(all(feature = "dashmap-backend", not(feature = "memory"), not(feature = "memory")))]
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,

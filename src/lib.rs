@@ -128,7 +128,7 @@ pub mod cache;
 
 // Backend module (L1/L2 cache implementation)
 #[cfg(any(
-    feature = "moka",
+    feature = "memory",
     feature = "redis",
     feature = "minimal",
     feature = "core",
@@ -151,7 +151,7 @@ pub mod features;
 // Infrastructure module (metrics, serialization, telemetry, etc.)
 #[cfg(any(
     feature = "metrics",
-    feature = "moka",
+    feature = "memory",
     feature = "redis",
     feature = "minimal",
     feature = "core",
@@ -198,9 +198,6 @@ pub mod database;
 
 // Telemetry module: observability
 pub mod telemetry;
-
-// Serialization module: JSON/Bincode/MessagePack
-pub mod serialization;
 
 // Utils module: key generation utilities
 pub mod utils;
@@ -280,7 +277,7 @@ pub use features::{
 };
 
 // Public API re-exports (after features re-exports)
-pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink, OxCacheBuilder};
+pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use cache::interface::UnifiedCache;
 pub use core::traits::CacheKey;
 
@@ -304,12 +301,6 @@ pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 // ============================================================================
 // Factory Functions (Brick Architecture Standard)
 // ============================================================================
-
-/// Create a new in-memory cache backend with zero configuration.
-#[cfg(any(feature = "moka", feature = "minimal", feature = "core", feature = "full"))]
-pub fn new_in_memory() -> backend::memory::MokaMemoryBackend {
-    backend::memory::MokaMemoryBackend::new()
-}
 
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -466,15 +466,6 @@ impl ChainCacheBuilder {
     }
 }
 
-// ============================================================================
-// User-Friendly API (OxCacheBuilder)
-// ============================================================================
-
-/// 用户友好的缓存构建器别名
-///
-/// 与 ChainCacheBuilder 功能相同，但名称更简洁。
-pub type OxCacheBuilder = ChainCacheBuilder;
-
 #[cfg(test)]
 mod tests {
     use super::*;

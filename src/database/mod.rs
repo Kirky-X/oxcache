@@ -14,7 +14,6 @@ pub mod sqlite;
 
 #[cfg(any(feature = "database", test))]
 pub use connection_string::normalize_connection_string_with_redaction;
-pub(crate) use connection_string::{is_test_connection_string, normalize_connection_string};
 pub mod partition;
 pub use partition::{PartitionConfig, PartitionInfo, PartitionManager, PartitionStrategy};
 

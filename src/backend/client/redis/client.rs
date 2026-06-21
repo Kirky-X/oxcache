@@ -278,7 +278,6 @@ impl RedisBackend {
 pub struct RedisBackendBuilder {
     connection_string: Option<String>,
     mode: RedisMode,
-    pool_size: Option<usize>,
 }
 
 impl RedisBackendBuilder {
@@ -291,12 +290,6 @@ impl RedisBackendBuilder {
     /// Set the Redis mode
     pub fn mode(mut self, mode: RedisMode) -> Self {
         self.mode = mode;
-        self
-    }
-
-    /// Set connection pool size (deprecated: ConnectionManager manages this automatically)
-    pub fn pool_size(mut self, size: usize) -> Self {
-        self.pool_size = Some(size);
         self
     }
 
