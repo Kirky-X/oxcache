@@ -98,11 +98,15 @@ npm-debug.log*
 # Project Specific Ignores
 # =============================================================================
 AGENTS.md
+CLAUDE.md
 openspec/
 docs/archive/
 docs/agents/
+docs/superpowers/
 docs/repowiki/
 .iflow/
 .worktrees
 .gitnexus
 .semgrep-results/
+lcov.info
+cobertura.xml
