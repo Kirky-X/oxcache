@@ -55,5 +55,6 @@ mod cache_test;
 #[path = "unit/mock_backend_test.rs"]
 mod mock_backend_test;
 
+#[cfg(feature = "wal-recovery")]
 #[path = "unit/wal_stub_test.rs"]
 mod wal_stub_test;

@@ -7,28 +7,40 @@
 use super::Cache;
 use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
-use std::any::TypeId;
 use std::sync::Arc;
+
+impl Cache<String, Vec<u8>> {
+    /// Register this cache for use with the `#[cached]` macro.
+    ///
+    /// Only `Cache<String, Vec<u8>>` can be registered for macro usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `service_name` - Unique service name for the macro
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Registration successful
+    /// * `Err(CacheError)` - Registration failed
+    pub async fn register_for_macro(&self, service_name: &str) -> Result<()> {
+        use crate::internal::__internal_register_cache;
+
+        if service_name.is_empty() {
+            return Err(CacheError::InvalidInput("service_name must not be empty".to_string()));
+        }
+
+        let backend = self.backend.clone();
+        let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
+        __internal_register_cache(service_name, Arc::new(cache)).await;
+        Ok(())
+    }
+}
 
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    pub async fn register_for_macro(&self, service_name: &str)
-    where
-        K: 'static,
-        V: 'static,
-    {
-        use crate::internal::__internal_register_cache;
-
-        if TypeId::of::<K>() == TypeId::of::<String>() && TypeId::of::<V>() == TypeId::of::<Vec<u8>>() {
-            let backend = self.backend.clone();
-            let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
-            __internal_register_cache(service_name, Arc::new(cache)).await;
-        }
-    }
-
     #[cfg(feature = "lua-script")]
     pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
@@ -72,26 +84,22 @@ mod tests {
     #[tokio::test]
     async fn test_register_for_macro_string_vec_u8() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        cache.register_for_macro("test_service").await;
-    }
-
-    #[tokio::test]
-    async fn test_register_for_macro_non_matching_types_not_registered() {
-        let cache: Cache<String, String> = Cache::memory().await.unwrap();
-        cache.register_for_macro("another_service").await;
+        let result = cache.register_for_macro("test_service").await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_register_for_macro_multiple_services() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        cache.register_for_macro("svc_a").await;
-        cache.register_for_macro("svc_b").await;
+        assert!(cache.register_for_macro("svc_a").await.is_ok());
+        assert!(cache.register_for_macro("svc_b").await.is_ok());
     }
 
     #[tokio::test]
     async fn test_register_for_macro_empty_service_name() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        cache.register_for_macro("").await;
+        let result = cache.register_for_macro("").await;
+        assert!(result.is_err());
     }
 
     // ========================================================================

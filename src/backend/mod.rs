@@ -25,7 +25,7 @@ pub mod config_validation;
 
 // Custom tiered backend configuration (always available)
 #[cfg(any(
-    feature = "moka",
+    feature = "memory",
     feature = "redis",
     feature = "minimal",
     feature = "core",
@@ -59,7 +59,7 @@ pub use memory::{
 pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
 // Re-exports for custom tiered configuration
-#[cfg(any(feature = "moka", feature = "redis", feature = "full", feature = "core"))]
+#[cfg(any(feature = "memory", feature = "redis", feature = "full", feature = "core"))]
 pub use custom_tiered::LayerRestriction;
 
 // 从 core::types 重新导出统一的枚举类型

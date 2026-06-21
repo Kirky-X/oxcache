@@ -85,7 +85,7 @@ impl BackendType {
     /// 获取后端类型的层级限制
     pub fn layer_restriction(&self) -> LayerRestriction {
         match self {
-            #[cfg(feature = "moka")]
+            #[cfg(feature = "memory")]
             BackendType::Moka => LayerRestriction::L1Only,
             #[cfg(feature = "dashmap")]
             BackendType::Dashmap => LayerRestriction::L1Only,
@@ -101,7 +101,7 @@ impl BackendType {
     /// 获取后端类型的推荐层级
     pub fn recommended_layer(&self) -> Layer {
         match self {
-            #[cfg(feature = "moka")]
+            #[cfg(feature = "memory")]
             BackendType::Moka => Layer::L1,
             #[cfg(feature = "dashmap")]
             BackendType::Dashmap => Layer::L1,
@@ -122,7 +122,7 @@ impl BackendType {
     /// 获取可用的后端类型列表（基于启用的 feature）
     pub fn available_backends() -> Vec<BackendType> {
         vec![
-            #[cfg(feature = "moka")]
+            #[cfg(feature = "memory")]
             BackendType::Moka,
             #[cfg(feature = "dashmap")]
             BackendType::Dashmap,
@@ -142,7 +142,7 @@ impl BackendType {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
-            #[cfg(feature = "moka")]
+            #[cfg(feature = "memory")]
             "moka" => Ok(BackendType::Moka),
 
             #[cfg(feature = "dashmap")]
@@ -164,7 +164,7 @@ impl BackendType {
                 } else {
                     // 构建可用后端列表
                     let mut available = vec![
-                        #[cfg(feature = "moka")]
+                        #[cfg(feature = "memory")]
                         "moka",
                         #[cfg(feature = "dashmap")]
                         "dashmap",

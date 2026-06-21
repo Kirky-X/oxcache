@@ -155,12 +155,6 @@ impl CacheConnector for TestMockBackend {
 }
 
 #[tokio::test]
-async fn test_cache_new_with_moka() {
-    let cache: Cache<String, TestValue> = Cache::new();
-    assert!(cache.supports_l1_only());
-}
-
-#[tokio::test]
 async fn test_cache_memory_constructor() {
     let cache: Cache<String, TestValue> = Cache::memory().await.unwrap();
     let value = TestValue::default();
@@ -213,42 +207,6 @@ async fn test_cache_set_bytes_with_ttl() {
     let data = b"ttl_data".to_vec();
     cache.set_bytes("ttl_key", data.clone(), Some(60)).await.unwrap();
     let result = cache.get_bytes("ttl_key").await.unwrap();
-    assert_eq!(result, Some(data));
-}
-
-#[tokio::test]
-async fn test_cache_set_l1_bytes() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    let data = b"l1_data".to_vec();
-    cache.set_l1_bytes("l1_key", data.clone(), None).await.unwrap();
-    let result = cache.get_bytes("l1_key").await.unwrap();
-    assert_eq!(result, Some(data));
-}
-
-#[tokio::test]
-async fn test_cache_set_l1_bytes_with_ttl() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    let data = b"l1_ttl_data".to_vec();
-    cache.set_l1_bytes("l1_ttl_key", data.clone(), Some(30)).await.unwrap();
-    let result = cache.get_bytes("l1_ttl_key").await.unwrap();
-    assert_eq!(result, Some(data));
-}
-
-#[tokio::test]
-async fn test_cache_set_l2_bytes() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    let data = b"l2_data".to_vec();
-    cache.set_l2_bytes("l2_key", data.clone(), None).await.unwrap();
-    let result = cache.get_bytes("l2_key").await.unwrap();
-    assert_eq!(result, Some(data));
-}
-
-#[tokio::test]
-async fn test_cache_set_l2_bytes_with_ttl() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    let data = b"l2_ttl_data".to_vec();
-    cache.set_l2_bytes("l2_ttl_key", data.clone(), Some(45)).await.unwrap();
-    let result = cache.get_bytes("l2_ttl_key").await.unwrap();
     assert_eq!(result, Some(data));
 }
 
@@ -352,26 +310,6 @@ async fn test_cache_capacity() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
     let capacity = cache.capacity().await.unwrap();
     assert!(capacity > 0);
-}
-
-#[tokio::test]
-async fn test_cache_supports_l1_only() {
-    let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    assert!(cache.supports_l1_only());
-}
-
-#[tokio::test]
-async fn test_cache_supports_l2_only() {
-    let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    assert!(!cache.supports_l2_only());
-}
-
-#[tokio::test]
-async fn test_cache_supports_l1_only_with_mock() {
-    let backend = Arc::new(TestMockBackend::new());
-    let cache: Cache<String, TestValue> = Cache::with_dependencies(backend);
-    // Mock backend is considered a memory backend (BackendKind::Mock.is_memory() == true)
-    assert!(cache.supports_l1_only());
 }
 
 #[tokio::test]
@@ -588,11 +526,13 @@ async fn test_cache_overwrite_value() {
 #[tokio::test]
 async fn test_cache_register_for_macro_string_bytes() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    cache.register_for_macro("test_service").await;
+    let result = cache.register_for_macro("test_service").await;
+    assert!(result.is_ok());
 }
 
 #[tokio::test]
-async fn test_cache_register_for_macro_wrong_type() {
-    let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    cache.register_for_macro("wrong_type_service").await;
+async fn test_cache_register_for_macro_empty_name() {
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+    let result = cache.register_for_macro("").await;
+    assert!(result.is_err());
 }

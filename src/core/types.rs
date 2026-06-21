@@ -58,7 +58,7 @@ impl std::str::FromStr for RedisModeType {
 #[serde(rename_all = "snake_case")]
 pub enum BackendType {
     /// Moka 高性能内存缓存（推荐 L1/L2）
-    #[cfg(feature = "moka")]
+    #[cfg(feature = "memory")]
     Moka,
     /// DashMap 纯并发HashMap（推荐 L1/L2，无驱逐策略）
     #[cfg(feature = "dashmap")]
@@ -79,7 +79,7 @@ pub enum BackendType {
 impl std::fmt::Display for BackendType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            #[cfg(feature = "moka")]
+            #[cfg(feature = "memory")]
             Self::Moka => write!(f, "moka"),
             #[cfg(feature = "dashmap")]
             Self::Dashmap => write!(f, "dashmap"),
@@ -188,6 +188,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "memory")]
     fn test_backend_type_serialize() {
         let backend = BackendType::Moka;
         let json = serde_json::to_string(&backend).unwrap();

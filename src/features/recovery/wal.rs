@@ -20,9 +20,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(feature = "wal-recovery")]
 use tokio::sync::{Mutex, Notify};
 
-#[cfg(not(feature = "wal-recovery"))]
-use std::sync::Arc;
-
 #[cfg(feature = "wal-recovery")]
 #[allow(async_fn_in_trait)]
 pub trait WalReplayableBackend: Clone + Send + Sync + 'static {

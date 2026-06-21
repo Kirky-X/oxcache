@@ -6,8 +6,6 @@
 
 use crate::backend::interface::CacheBackend;
 use crate::backend::memory::moka::MokaMemoryBackend;
-#[cfg(feature = "redis")]
-use crate::backend::memory::redis::RedisBackend;
 use crate::cache::Cache;
 use crate::core::traits::CacheKey;
 use crate::error::Result;
@@ -68,16 +66,10 @@ where
     }
 
     /// Configure tiered backend (Moka + Redis)
-    #[cfg(feature = "redis")]
-    pub async fn tiered(mut self, l1_capacity: u64, l2_connection_string: impl Into<String>) -> Result<Self> {
-        let l1 = MokaMemoryBackend::builder().capacity(l1_capacity).build();
-        let conn = l2_connection_string.into();
-        let l2 = RedisBackend::builder().connection_string(&conn).build().await?;
-        self.backends.push(Arc::new(l1));
-        self.backends.push(Arc::new(l2));
-        Ok(self)
-    }
-
+    ///
+    /// # Deprecated
+    ///
+    /// Use `ChainCache::builder()` instead for more flexible multi-backend configuration.
     /// Build the cache instance
     pub async fn build(self) -> Result<Cache<K, V>> {
         let backend = if self.backends.is_empty() {

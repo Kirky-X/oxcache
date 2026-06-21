@@ -14,11 +14,11 @@ pub use snapshot::CacheStats;
 pub use unified::{AtomicCounters, UnifiedMetrics};
 
 // 当 metrics 和 moka 功能都禁用时的空实现
-#[cfg(not(any(feature = "metrics", feature = "moka")))]
+#[cfg(not(any(feature = "metrics", feature = "memory")))]
 #[derive(Debug, Clone, Default)]
 pub struct Metrics;
 
-#[cfg(not(any(feature = "metrics", feature = "moka")))]
+#[cfg(not(any(feature = "metrics", feature = "memory")))]
 impl Metrics {
     /// 记录请求指标（空实现）
     pub fn record_request(&self, _service: &str, _layer: &str, _op: &str, _result: &str) {}
@@ -47,13 +47,13 @@ impl Metrics {
     }
 }
 
-#[cfg(not(any(feature = "metrics", feature = "moka")))]
+#[cfg(not(any(feature = "metrics", feature = "memory")))]
 lazy_static! {
     /// 全局空指标实例
     pub static ref GLOBAL_METRICS: Metrics = Metrics;
 }
 
-#[cfg(not(any(feature = "metrics", feature = "moka")))]
+#[cfg(not(any(feature = "metrics", feature = "memory")))]
 /// 当 metrics 功能禁用时返回空字符串
 pub fn get_metrics_string() -> String {
     String::new()

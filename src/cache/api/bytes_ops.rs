@@ -27,16 +27,6 @@ where
         self.backend.set(key, value, ttl_duration).await
     }
 
-    pub async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
-        let ttl_duration = ttl.map(Duration::from_secs);
-        self.backend.set(key, value, ttl_duration).await
-    }
-
-    pub async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
-        let ttl_duration = ttl.map(Duration::from_secs);
-        self.backend.set(key, value, ttl_duration).await
-    }
-
     #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn serializer(&self) -> Arc<dyn Serializer> {
         self.serializer_pool.json()
@@ -44,14 +34,6 @@ where
 
     pub fn unified_serializer(&self) -> crate::infra::serialization::unified::UnifiedSerializer {
         self.unified_serializer.clone()
-    }
-
-    pub fn supports_l1_only(&self) -> bool {
-        true
-    }
-
-    pub fn supports_l2_only(&self) -> bool {
-        false
     }
 }
 
@@ -119,60 +101,6 @@ mod tests {
         cache.set_bytes("empty", empty_data.clone(), None).await.unwrap();
         let result = cache.get_bytes("empty").await.unwrap();
         assert_eq!(result, Some(empty_data));
-    }
-
-    // ========================================================================
-    // set_l1_bytes tests
-    // ========================================================================
-
-    #[tokio::test]
-    async fn test_set_l1_bytes_stores_value() {
-        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        let data = b"l1_data".to_vec();
-        cache.set_l1_bytes("l1_key", data.clone(), None).await.unwrap();
-        let result = cache.get_bytes("l1_key").await.unwrap();
-        assert_eq!(result, Some(data));
-    }
-
-    #[tokio::test]
-    async fn test_set_l1_bytes_with_ttl() {
-        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        let data = b"l1_ttl".to_vec();
-        cache
-            .set_l1_bytes("l1_ttl_key", data.clone(), Some(1800))
-            .await
-            .unwrap();
-        let result = cache.get_bytes("l1_ttl_key").await.unwrap();
-        assert_eq!(result, Some(data));
-    }
-
-    // ========================================================================
-    // set_l2_bytes tests
-    // ========================================================================
-
-    #[tokio::test]
-    async fn test_set_l2_bytes_stores_value() {
-        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        let data = b"l2_data".to_vec();
-        cache.set_l2_bytes("l2_key", data.clone(), None).await.unwrap();
-        let result = cache.get_bytes("l2_key").await.unwrap();
-        assert_eq!(result, Some(data));
-    }
-
-    // ========================================================================
-    // Feature flag methods tests
-    // ========================================================================
-
-    #[tokio::test]
-    async fn test_supports_l1_only_returns_true() {
-        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        assert!(cache.supports_l1_only());
-    }
-
-    #[tokio::test]
-    async fn test_supports_l2_only_returns_false() {
-        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
-        assert!(!cache.supports_l2_only());
     }
 
     #[tokio::test]
