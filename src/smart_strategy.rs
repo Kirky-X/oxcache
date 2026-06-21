@@ -3,6 +3,7 @@
 //! MIT License
 //!
 //! 智能预取/压缩策略模块
+// ponytail: dead code until wiring to the new builder API is complete
 //!
 //! 提供基于命中率的自动预取决策和启发式可压缩性检查。
 

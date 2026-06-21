@@ -14,9 +14,6 @@
 ))]
 pub mod strategy;
 
-#[cfg(any(feature = "redis", feature = "full"))]
-pub mod security;
-
 #[cfg(any(feature = "http-cache", feature = "full"))]
 pub mod http;
 
@@ -34,15 +31,6 @@ pub use strategy::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig, RateLi
 pub use strategy::{
     CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
     SmartStrategyManager,
-};
-
-// Re-exports for security (public API)
-#[cfg(any(feature = "redis", feature = "full"))]
-pub use security::{
-    clamp_scan_count,
-    log::{log_cache_key, sanitize_message},
-    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
-    validate_lua_script, validate_redis_key, validate_scan_pattern,
 };
 
 // Re-exports for HTTP cache

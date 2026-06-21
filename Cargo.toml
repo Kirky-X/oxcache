@@ -388,6 +388,9 @@ http-cache = ["serialization", "tiered-cache", "dep:md5", "dep:sha2", "dep:http"
 # SingleFlight (cache stampede prevention)
 singleflight = ["dep:tokio-util"]
 
+# Confęrs (declarative cache configuration) — disabled, local dep not available
+# confers = ["dep:confers"]
+
 # Lua Script Execution
 lua-script = ["redis"]
 
@@ -474,3 +477,6 @@ harness = false
 [[bench]]
 name = "redis_benchmark"
 harness = false
+
+[lints.rust]
+unexpected_cfgs = "allow"

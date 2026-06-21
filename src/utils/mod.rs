@@ -6,7 +6,8 @@
 //!
 //! 提供缓存键生成器等工具函数。
 
-pub(crate) mod key_generator;
+pub mod key_generator;
+pub use key_generator::KeyGenerator;
 
 use crate::error::CacheError;
 

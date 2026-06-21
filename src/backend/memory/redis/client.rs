@@ -8,7 +8,7 @@ use crate::backend::score::{BackendScore, Scores};
 use crate::core::command::RedisCommand;
 use crate::core::types::RedisModeType;
 use crate::error::{CacheError, Result};
-use crate::features::security;
+use crate::security;
 use async_trait::async_trait;
 use redis::{Client, RedisError};
 use std::collections::HashMap;

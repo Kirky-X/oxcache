@@ -48,6 +48,8 @@
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.2.0")]
 #![deny(unsafe_code)]
+// ponytail: dead code from brick architecture modules not yet fully wired
+#![allow(dead_code)]
 
 // ============================================================================
 // Feature Flags and Macros
@@ -164,6 +166,64 @@ pub mod infra;
 mod testing;
 
 // ============================================================================
+// Brick Architecture Modules
+// ============================================================================
+
+// Client module
+pub mod client;
+
+// Registry module for #[cached] macro support
+pub mod registry;
+
+// Builder module: CacheBuilder, OxCacheBuilder
+pub mod builder;
+
+// Traits module: CacheKey, Cacheable
+pub mod traits;
+
+// Config module: confers-based configuration
+pub mod config;
+
+// Metrics module: OpenTelemetry metrics
+pub mod metrics;
+
+// Recovery module: WAL recovery
+pub mod recovery;
+
+// Sync module: batch writes and warmup
+pub mod sync;
+
+// Database module: SQLite partition support
+pub mod database;
+
+// Telemetry module: observability
+pub mod telemetry;
+
+// Serialization module: JSON/Bincode/MessagePack
+pub mod serialization;
+
+// Utils module: key generation utilities
+pub mod utils;
+
+// HTTP cache module: axum middleware
+pub mod http;
+
+// Bloom filter module
+pub(crate) mod bloom_filter;
+
+// Rate limiting module
+pub(crate) mod rate_limiting;
+
+// Smart strategy module
+pub(crate) mod smart_strategy;
+
+// Singleflight module: request coalescing
+pub(crate) mod singleflight;
+
+// Security module: Redis security validation
+pub(crate) mod security;
+
+// ============================================================================
 // Public API Re-exports
 // ============================================================================
 
@@ -203,9 +263,9 @@ pub use features::{
 #[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
-// Re-exports from features module (security public API)
+// Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]
-pub use features::security::{
+pub use crate::security::{
     clamp_scan_count,
     log::{log_cache_key, sanitize_message},
     redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
@@ -226,6 +286,9 @@ pub use core::traits::CacheKey;
 
 // Type-safe enum exports
 pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
+
+// Key generator export
+pub use crate::utils::KeyGenerator;
 
 // Events module export
 

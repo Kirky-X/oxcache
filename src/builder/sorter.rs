@@ -6,11 +6,9 @@
 //
 // 根据分数对后端进行排序，并修正不合理的配置。
 
-use crate::cache::chain::ChainLink;
-use std::sync::Arc;
-
 use crate::backend::interface::CacheBackend;
 use crate::backend::score::BackendScore;
+use crate::cache::chain::ChainLink;
 
 /// 后端排序器
 ///
@@ -44,11 +42,11 @@ impl BackendSorter {
 
         // 按分数降序排序，同分数时非持久化在前
         links.sort_by(|a, b| {
-            let score_cmp = b.score.cmp(&a.score);
+            let score_cmp = b.score().cmp(&a.score());
             if score_cmp != std::cmp::Ordering::Equal {
                 return score_cmp;
             }
-            a.is_persistent.cmp(&b.is_persistent)
+            a.is_persistent().cmp(&b.is_persistent())
         });
 
         // 修正配置
@@ -81,17 +79,17 @@ impl BackendSorter {
                 let score = b.score();
                 let is_persistent = b.is_persistent();
                 let name = b.backend_name();
-                ChainLink::from_arc(Arc::new(b) as Arc<dyn CacheBackend>, score, is_persistent, name)
+                ChainLink::new(b, score, is_persistent, name)
             })
             .collect();
 
         // 排序
         links.sort_by(|a, b| {
-            let score_cmp = b.score.cmp(&a.score);
+            let score_cmp = b.score().cmp(&a.score());
             if score_cmp != std::cmp::Ordering::Equal {
                 return score_cmp;
             }
-            a.is_persistent.cmp(&b.is_persistent)
+            a.is_persistent().cmp(&b.is_persistent())
         });
 
         // 修正配置
@@ -135,27 +133,27 @@ impl BackendSorter {
         }
 
         // 检查是否只有持久化后端
-        let all_persistent = links.iter().all(|l| l.is_persistent);
+        let all_persistent = links.iter().all(|l| l.is_persistent());
         if all_persistent {
             warnings.push("All backends are persistent. Consider adding a memory cache.".to_string());
         }
 
         // 检查分数
         for link in links.iter() {
-            if link.score == 0 {
-                warnings.push(format!("Backend '{}' has score 0", link.name));
+            if link.score() == 0 {
+                warnings.push(format!("Backend '{}' has score 0", link.name()));
             }
         }
 
         // 检查顺序
         for i in 1..links.len() {
-            if links[i].score > links[i - 1].score {
+            if links[i].score() > links[i - 1].score() {
                 warnings.push(format!(
                     "Backends not sorted: '{}' (score {}) should come before '{}' (score {})",
-                    links[i].name,
-                    links[i].score,
-                    links[i - 1].name,
-                    links[i - 1].score
+                    links[i].name(),
+                    links[i].score(),
+                    links[i - 1].name(),
+                    links[i - 1].score()
                 ));
             }
         }
@@ -199,8 +197,8 @@ mod tests {
         let sorted = BackendSorter::sort_links(links);
 
         assert_eq!(sorted.len(), 2);
-        assert_eq!(sorted[0].score, 100);
-        assert_eq!(sorted[1].score, 50);
+        assert_eq!(sorted[0].score(), 100);
+        assert_eq!(sorted[1].score(), 50);
     }
 
     #[test]

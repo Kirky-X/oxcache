@@ -170,7 +170,7 @@ impl OxCacheBuilder {
 
         Ok(ChainCache::builder()
             .links(sorted_links)
-            .default_ttl(self.default_ttl.unwrap_or_else(|| Duration::from_secs(3600)))
+            .default_time_to_live(self.default_ttl.unwrap_or_else(|| Duration::from_secs(3600)))
             .enable_backfill()
             .build())
     }
@@ -268,8 +268,8 @@ mod tests {
         assert_eq!(cache.len(), 2);
 
         // 验证排序
-        assert_eq!(cache.links()[0].score, 100);
-        assert_eq!(cache.links()[1].score, 50);
+        assert_eq!(cache.links()[0].score(), 100);
+        assert_eq!(cache.links()[1].score(), 50);
     }
 
     #[test]

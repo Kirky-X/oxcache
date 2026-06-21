@@ -89,8 +89,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
 
 impl<K, V> CacheBuilder<K, V>
 where
-    K: crate::traits::CacheKey,
-    V: crate::traits::Cacheable,
+    K: crate::core::traits::CacheKey,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     /// Set the default TTL for cache entries
     ///

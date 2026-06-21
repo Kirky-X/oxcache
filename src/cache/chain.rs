@@ -125,6 +125,8 @@ pub struct ChainCache {
     links: Vec<ChainLink>,
     /// 是否启用回填
     backfill_enabled: bool,
+    /// 默认 TTL
+    default_ttl: Option<Duration>,
 }
 
 impl ChainCache {
@@ -217,15 +219,16 @@ impl ChainCache {
         }
 
         // Clone for all but the last backend
+        let effective_ttl = ttl.or(self.default_ttl);
         for link in self.links.iter().take(count - 1) {
-            if let Err(e) = link.backend().set(key, value.clone(), ttl).await {
+            if let Err(e) = link.backend().set(key, value.clone(), effective_ttl).await {
                 errors.push((link.name(), e));
             }
         }
 
         // Last backend: use the owned value directly (no clone)
         if let Some(link) = self.links.last() {
-            if let Err(e) = link.backend().set(key, value, ttl).await {
+            if let Err(e) = link.backend().set(key, value, effective_ttl).await {
                 errors.push((link.name(), e));
             }
         }
@@ -407,6 +410,7 @@ impl CacheConnector for ChainCache {
 pub struct ChainCacheBuilder {
     links: Vec<ChainLink>,
     backfill_enabled: bool,
+    default_ttl: Option<Duration>,
 }
 
 impl ChainCacheBuilder {
@@ -430,6 +434,12 @@ impl ChainCacheBuilder {
         self.link(ChainLink::from_backend(backend))
     }
 
+    /// 设置默认 TTL
+    pub fn default_time_to_live(mut self, ttl: Duration) -> Self {
+        self.default_ttl = Some(ttl);
+        self
+    }
+
     /// 启用回填
     pub fn enable_backfill(mut self) -> Self {
         self.backfill_enabled = true;
@@ -451,6 +461,7 @@ impl ChainCacheBuilder {
         ChainCache {
             links,
             backfill_enabled: self.backfill_enabled,
+            default_ttl: self.default_ttl,
         }
     }
 }
