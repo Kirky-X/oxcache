@@ -5,7 +5,7 @@
 //! Cache 字节操作方法（用于宏兼容）
 
 use super::Cache;
-use crate::core::traits::{CacheKey, Cacheable};
+use crate::core::traits::CacheKey;
 use crate::error::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +16,7 @@ use crate::infra::serialization::Serializer;
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.backend.get(key).await

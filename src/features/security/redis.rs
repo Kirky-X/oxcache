@@ -9,38 +9,20 @@
 use crate::error::{CacheError, Result};
 
 /// Lua 脚本最大长度 (10KB)
-#[cfg(not(test))]
 pub(crate) const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
-#[cfg(test)]
-pub const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
 
 /// Lua 脚本最大键数量
-#[cfg(not(test))]
 pub(crate) const MAX_LUA_SCRIPT_KEYS: usize = 100;
-#[cfg(test)]
-pub const MAX_LUA_SCRIPT_KEYS: usize = 100;
 
 /// SCAN 模式最大长度
-#[cfg(not(test))]
 pub(crate) const MAX_SCAN_PATTERN_LENGTH: usize = 256;
-#[cfg(test)]
-pub const MAX_SCAN_PATTERN_LENGTH: usize = 256;
 
 /// SCAN 模式最大通配符数量
-#[cfg(not(test))]
 pub(crate) const MAX_SCAN_WILDCARDS: usize = 10;
-#[cfg(test)]
-pub const MAX_SCAN_WILDCARDS: usize = 10;
 
 /// SCAN count 参数安全范围
-#[cfg(not(test))]
 pub(crate) const SCAN_COUNT_MIN: usize = 1;
-#[cfg(test)]
-pub const SCAN_COUNT_MIN: usize = 1;
-#[cfg(not(test))]
 pub(crate) const SCAN_COUNT_MAX: usize = 1000;
-#[cfg(test)]
-pub const SCAN_COUNT_MAX: usize = 1000;
 
 // ============================================================================
 // 预编译的正则表达式

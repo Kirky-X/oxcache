@@ -200,12 +200,6 @@ pub use features::{
 };
 
 // Re-exports from infra module
-#[cfg(any(feature = "redis", feature = "core", feature = "full"))]
-pub use infra::{WarmupManager, WarmupStatus};
-
-#[cfg(any(feature = "full", feature = "minimal", feature = "core"))]
-pub use infra::KeyGenerator;
-
 #[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
@@ -228,13 +222,12 @@ pub use features::{
 // Public API re-exports (after features re-exports)
 pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink, OxCacheBuilder};
 pub use cache::interface::UnifiedCache;
-pub use core::traits::{CacheKey, Cacheable};
+pub use core::traits::CacheKey;
 
 // Type-safe enum exports
 pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 // Events module export
-pub use core::events;
 
 // Backend exports
 pub use backend::{

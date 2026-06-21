@@ -6,12 +6,12 @@
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use oxcache::{Cache, CacheBackend, Cacheable};
+    use oxcache::{Cache, CacheBackend};
     use serde::{Deserialize, Serialize};
     use std::sync::Arc;
     use tokio::sync::RwLock;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Cacheable)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     struct TestData {
         id: u64,
         value: String,

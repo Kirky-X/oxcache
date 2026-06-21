@@ -9,7 +9,7 @@ use crate::backend::memory::moka::MokaMemoryBackend;
 #[cfg(feature = "redis")]
 use crate::backend::memory::redis::RedisBackend;
 use crate::cache::Cache;
-use crate::core::traits::{CacheKey, Cacheable};
+use crate::core::traits::CacheKey;
 use crate::error::Result;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -41,7 +41,7 @@ impl<K, V> Default for CacheBuilder<K, V> {
 impl<K, V> CacheBuilder<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     /// Add a pre-built backend
     pub fn backend_arc(mut self, backend: Arc<dyn CacheBackend>) -> Self {

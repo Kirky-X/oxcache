@@ -5,14 +5,14 @@
 //! Cache 批量操作方法
 
 use super::Cache;
-use crate::core::traits::{CacheKey, Cacheable};
+use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
 use std::collections::HashMap;
 
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn set_many<'a, I>(&self, items: I) -> Result<()>
     where

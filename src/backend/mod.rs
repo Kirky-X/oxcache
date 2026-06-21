@@ -17,14 +17,8 @@ pub mod interface;
 #[cfg(any(feature = "database", feature = "full", test))]
 pub mod storage;
 
-// Path validation utilities
-pub mod path_validation;
-
 // Configuration validation utilities
 pub mod config_validation;
-
-// Validation result types
-pub mod validation_result;
 
 // Custom tiered backend configuration (always available)
 #[cfg(any(
@@ -61,14 +55,9 @@ pub use memory::{
 #[cfg(feature = "redis")]
 pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
-// Path and config validation utilities
-pub use config_validation::ConfigValidation;
-pub use path_validation::PathValidationConfig;
-pub use validation_result::{ConfigFix, ConfigValidationResult, FixedConfigResult, Layer};
-
 // Re-exports for custom tiered configuration
 #[cfg(any(feature = "moka", feature = "redis", feature = "full", feature = "core"))]
-pub use custom_tiered::{BackendProvider, DefaultBackendProvider, LayerBackendConfig, LayerRestriction};
+pub use custom_tiered::LayerRestriction;
 
 // 从 core::types 重新导出统一的枚举类型
 pub use crate::core::types::{BackendType, CacheLayer};

@@ -4,7 +4,7 @@
 //
 // 真实场景端到端测试
 
-use oxcache::{Cache, Cacheable};
+use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,8 +18,6 @@ struct User {
     created_at: i64,
 }
 
-impl Cacheable for User {}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Session {
     session_id: String,
@@ -28,8 +26,6 @@ struct Session {
     data: std::collections::HashMap<String, String>,
 }
 
-impl Cacheable for Session {}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct ApiResponse {
     status: u16,
@@ -37,7 +33,7 @@ struct ApiResponse {
     cached_at: i64,
 }
 
-impl Cacheable for ApiResponse {}
+
 
 #[tokio::test]
 async fn test_web_application_cache_scenario() {

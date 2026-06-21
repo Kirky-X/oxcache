@@ -4,7 +4,7 @@
 //
 // 资源耗尽混沌测试
 
-use oxcache::{Cache, Cacheable};
+use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +16,7 @@ struct LargeData {
     data: Vec<u8>,
 }
 
-impl Cacheable for LargeData {}
+
 
 #[tokio::test]
 async fn test_memory_pressure() {

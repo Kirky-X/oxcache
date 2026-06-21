@@ -13,8 +13,6 @@ pub mod common;
 
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
-#[path = "integration/cli_test.rs"]
-mod cli_test;
 #[path = "integration/comprehensive_test.rs"]
 mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]

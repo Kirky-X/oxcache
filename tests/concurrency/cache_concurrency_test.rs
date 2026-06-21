@@ -4,14 +4,14 @@
 
 #[cfg(test)]
 mod tests {
-    use oxcache::{Cache, Cacheable};
+    use oxcache::Cache;
     use serde::{Deserialize, Serialize};
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::sync::RwLock;
     use tokio::task;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Cacheable)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     struct User {
         id: u64,
         name: String,

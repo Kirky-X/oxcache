@@ -111,16 +111,14 @@ pub mod redis {
     }
 }
 
-/// Lua 脚本验证（实际验证逻辑已移至 security::redis 模块，
-/// 此处保留常量供测试引用）
+/// Lua 脚本验证（实际验证逻辑已移至 security::redis 模块）
 #[cfg(test)]
 pub mod lua_script {
-    /// Lua 脚本的最大长度（与 security::redis::MAX_LUA_SCRIPT_LENGTH 保持一致）
-    pub const MAX_SCRIPT_LENGTH: usize = 10 * 1024;
+    use crate::features::security::redis::MAX_LUA_SCRIPT_LENGTH;
 
     /// 验证 Lua 脚本长度
     pub fn validate_length(script: &str) -> crate::Result<()> {
-        super::validate_max_length(script, MAX_SCRIPT_LENGTH, "Lua script")
+        super::validate_max_length(script, MAX_LUA_SCRIPT_LENGTH, "Lua script")
     }
 }
 
@@ -200,13 +198,13 @@ mod tests {
 
     #[test]
     fn test_lua_validate_length_too_long() {
-        let long_script = "a".repeat(lua_script::MAX_SCRIPT_LENGTH + 1);
+        let long_script = "a".repeat(crate::features::security::redis::MAX_LUA_SCRIPT_LENGTH + 1);
         let result = lua_script::validate_length(&long_script);
         if result.is_ok() {
             panic!(
                 "Expected error for script length {} > max {}, but got Ok",
                 long_script.len(),
-                lua_script::MAX_SCRIPT_LENGTH
+                crate::features::security::redis::MAX_LUA_SCRIPT_LENGTH
             );
         }
     }

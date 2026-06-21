@@ -10,7 +10,7 @@ mod bytes_ops;
 mod macros;
 
 use crate::backend::CacheBackend;
-use crate::core::traits::{CacheKey, Cacheable};
+use crate::core::traits::CacheKey;
 use crate::infra::serialization::unified::UnifiedSerializer;
 use std::sync::Arc;
 
@@ -52,7 +52,7 @@ pub struct Cache<K, V> {
 impl<K, V> std::fmt::Debug for Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cache").field("backend", &"<CacheBackend>").finish()
@@ -62,7 +62,7 @@ where
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub(crate) fn new_with_backend(backend: Arc<dyn CacheBackend>) -> Self {
         Self {
@@ -93,7 +93,7 @@ where
 impl<K, V> Default for Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     fn default() -> Self {
         Self::new()
@@ -104,7 +104,7 @@ where
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub fn new() -> Self {
         use crate::backend::DashMapMemoryBackend;
@@ -116,7 +116,7 @@ where
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn redis(connection_string: &str) -> crate::error::Result<Self> {
         let backend = crate::backend::memory::RedisBackend::new(connection_string).await?;
@@ -133,7 +133,7 @@ where
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
-    V: Cacheable,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn memory() -> crate::error::Result<Self> {
         use crate::backend::memory::MokaMemoryBackend as MemoryBackend;

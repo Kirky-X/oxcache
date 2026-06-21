@@ -18,7 +18,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut ttl = quote! { None };
     let mut key_pattern = None;
     let mut key_prefix = None;
-    let mut key_generator_type = "default".to_string();
     let mut cache_type = quote! { "two-level" };
 
     for arg in args {
@@ -46,12 +45,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 if let Expr::Lit(expr_lit) = nv.value {
                     if let Lit::Str(lit) = expr_lit.lit {
                         key_prefix = Some(lit.value());
-                    }
-                }
-            } else if nv.path.is_ident("key_generator") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Str(lit) = expr_lit.lit {
-                        key_generator_type = lit.value();
                     }
                 }
             } else if nv.path.is_ident("cache_type") {
@@ -128,86 +121,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {
             format!(#pattern)
         }
-    } else if key_generator_type != "default" {
-        // Use KeyGenerator for structured key generation
-        match key_generator_type.as_str() {
-            "simple" => {
-                if arg_names.is_empty() {
-                    quote! {
-                        oxcache::KeyGenerator::simple(#service_name, stringify!(#fn_name))
-                    }
-                } else {
-                    quote! {
-                        oxcache::KeyGenerator::simple_with_args(
-                            #service_name,
-                            stringify!(#fn_name),
-                            &(#(#arg_names_cloned),*)
-                        )
-                    }
-                }
-            }
-            "md5" => {
-                if arg_names.is_empty() {
-                    quote! {
-                        oxcache::KeyGenerator::md5(#service_name, stringify!(#fn_name), "")
-                    }
-                } else {
-                    quote! {
-                        oxcache::KeyGenerator::md5_with_args(
-                            #service_name,
-                            stringify!(#fn_name),
-                            &(#(#arg_names_cloned),*)
-                        )
-                    }
-                }
-            }
-            "murmur3" => {
-                if arg_names.is_empty() {
-                    quote! {
-                        oxcache::KeyGenerator::murmur3(#service_name, stringify!(#fn_name), "")
-                    }
-                } else {
-                    quote! {
-                        oxcache::KeyGenerator::murmur3_with_args(
-                            #service_name,
-                            stringify!(#fn_name),
-                            &(#(#arg_names_cloned),*)
-                        )
-                    }
-                }
-            }
-            "namespace" => {
-                if arg_names.is_empty() {
-                    quote! {
-                        oxcache::KeyGenerator::namespace(
-                            #service_name,
-                            #key_prefix.unwrap_or("default"),
-                            stringify!(#fn_name),
-                            ""
-                        )
-                    }
-                } else {
-                    quote! {
-                        oxcache::KeyGenerator::namespace_with_args(
-                            #service_name,
-                            #key_prefix.unwrap_or("default"),
-                            stringify!(#fn_name),
-                            &(#(#arg_names_cloned),*)
-                        )
-                    }
-                }
-            }
-            _ => {
-                // Fallback to default format
-                if arg_names.is_empty() {
-                    quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
-                } else {
-                    quote! {
-                        format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names_cloned),*))
-                    }
-                }
-            }
-        }
     } else if let Some(prefix) = key_prefix {
         // Use key_prefix with default generation
         if arg_names.is_empty() {
@@ -231,15 +144,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let output = quote! {
         #vis async fn #fn_name(#fn_args) #fn_output {
             let cache_key = #key_gen_with_cloned_args;
-
-            // Validate cache key length and characters using library's validation function
-            if let Err(e) = ::oxcache::utils::validate_cache_key(&cache_key) {
-                tracing::warn!(
-                    "Invalid cache key: {}. Falling back to uncached execution",
-                    e
-                );
-                return async { #fn_block }.await;
-            }
 
             // Try to get cache instance, if fails, run original function
             let cache = match ::oxcache::__internal_get_cache(#service_name) {
