@@ -8,7 +8,6 @@
 
 pub mod metrics;
 pub mod serialization;
-pub(crate) mod telemetry;
 
 use crate::error::CacheError;
 

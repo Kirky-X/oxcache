@@ -13,9 +13,6 @@ mod serialization_test;
 #[path = "unit/error_test.rs"]
 mod error_test;
 
-#[path = "unit/error_display_test.rs"]
-mod error_display_test;
-
 #[path = "unit/depth_limited_test.rs"]
 mod depth_limited_test;
 
@@ -45,3 +42,6 @@ mod cache_test;
 
 #[path = "unit/mock_backend_test.rs"]
 mod mock_backend_test;
+
+#[path = "unit/moka_backend_test.rs"]
+mod moka_backend_test;

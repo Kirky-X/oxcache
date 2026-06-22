@@ -9,6 +9,23 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
+/// Poll until a condition is true or timeout. Replaces fixed sleep for timing-dependent tests.
+/// ponytail: simple polling loop, add exponential backoff if CI flakiness persists.
+async fn poll_until<F, Fut>(timeout: Duration, interval: Duration, f: F) -> bool
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if f().await {
+            return true;
+        }
+        tokio::time::sleep(interval).await;
+    }
+    false
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct TestValue {
     id: u64,
@@ -296,9 +313,8 @@ async fn test_cache_stats() {
 }
 
 #[tokio::test]
-async fn test_cache_len() {
+async fn test_set_multiple_get_returns_all() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    let _initial_len = cache.len().await.unwrap();
     cache.set(&"key1".to_string(), &TestValue::default()).await.unwrap();
     cache.set(&"key2".to_string(), &TestValue::default()).await.unwrap();
     assert!(cache.get(&"key1".to_string()).await.unwrap().is_some());
@@ -313,12 +329,13 @@ async fn test_cache_capacity() {
 }
 
 #[tokio::test]
-async fn test_cache_serializer() {
+async fn test_cache_serializer_roundtrip() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    let _serializer = cache.serializer();
-    let data = TestValue::default();
-    let bytes = serde_json::to_vec(&data).unwrap();
-    assert!(!bytes.is_empty());
+    let serializer = cache.serializer();
+    let data = serde_json::to_vec(&TestValue::default()).unwrap();
+    let bytes = serializer.serialize("test", &data).unwrap();
+    let deserialized = serializer.deserialize("test", &bytes).unwrap();
+    assert_eq!(deserialized, data);
 }
 
 #[tokio::test]
@@ -388,7 +405,19 @@ async fn test_cache_clear_removes_all() {
             .await
             .unwrap();
     }
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(
+        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
+            let mut all_exist = true;
+            for i in 1..=5u64 {
+                if !cache.exists(&format!("clear_key_{}", i).to_string()).await.unwrap() {
+                    all_exist = false;
+                    break;
+                }
+            }
+            all_exist
+        })
+        .await
+    );
     for i in 1..=5 {
         assert!(cache.exists(&format!("clear_key_{}", i).to_string()).await.unwrap());
     }

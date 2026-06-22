@@ -62,6 +62,29 @@ impl Drop for GetOrGuard<'_> {
     }
 }
 
+#[cfg(any(feature = "serialization", feature = "full"))]
+fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> Result<V> {
+    let depth_limit: usize = MAX_JSON_DEPTH;
+    let json_value: serde_json::Value =
+        serde_json::from_slice(data).map_err(|e| CacheError::Serialization(e.to_string()))?;
+    if json_depth(&json_value) > depth_limit {
+        return Err(CacheError::Serialization(format!(
+            "JSON深度 {} 超过最大限制 {}",
+            json_depth(&json_value),
+            depth_limit
+        )));
+    }
+    serde_json::from_value(json_value).map_err(|e| CacheError::Serialization(e.to_string()))
+}
+
+#[cfg(not(any(feature = "serialization", feature = "full")))]
+fn deserialize_value<V>(data: &[u8]) -> Result<V> {
+    let _ = data;
+    Err(CacheError::Serialization(
+        "Serialization feature is required for typed get operations".to_string(),
+    ))
+}
+
 impl<K, V> Cache<K, V>
 where
     K: CacheKey,
@@ -74,35 +97,9 @@ where
     pub async fn get(&self, key: &K) -> Result<Option<V>> {
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
-
-        #[cfg(any(feature = "serialization", feature = "full"))]
         match bytes {
-            Some(data) => {
-                // 检查 JSON 嵌套深度，防止栈溢出攻击
-                let depth_limit: usize = MAX_JSON_DEPTH;
-                let json_value: serde_json::Value =
-                    serde_json::from_slice(&data).map_err(|e| CacheError::Serialization(e.to_string()))?;
-                if json_depth(&json_value) > depth_limit {
-                    return Err(CacheError::Serialization(format!(
-                        "JSON深度 {} 超过最大限制 {}",
-                        json_depth(&json_value),
-                        depth_limit
-                    )));
-                }
-
-                let value: V =
-                    serde_json::from_value(json_value).map_err(|e| CacheError::Serialization(e.to_string()))?;
-                Ok(Some(value))
-            }
+            Some(data) => deserialize_value(&data).map(Some),
             None => Ok(None),
-        }
-
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = bytes;
-            Err(CacheError::Serialization(
-                "Serialization feature is required for typed get operations".to_string(),
-            ))
         }
     }
 
@@ -246,7 +243,23 @@ where
             return Ok(value);
         }
 
-        // leader：执行 fallback
+        self.execute_fallback(key, &key_str, fallback, &notify, &mut guard)
+            .await
+    }
+
+    /// Execute the fallback function and notify waiters of the result.
+    async fn execute_fallback<F, Fut>(
+        &self,
+        key: &K,
+        key_str: &str,
+        fallback: F,
+        notify: &Arc<tokio::sync::Notify>,
+        guard: &mut GetOrGuard<'_>,
+    ) -> Result<V>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<V>>,
+    {
         let result = fallback().await;
         match result {
             Ok(value) => {
@@ -254,17 +267,16 @@ where
                 GET_OR_LOCKS
                     .lock()
                     .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
-                    .remove(&key_str);
+                    .remove(key_str);
                 guard.removed = true;
                 notify.notify_waiters();
                 Ok(value)
             }
             Err(e) => {
-                // leader 失败时清理锁，让后续重试可以重新尝试
                 GET_OR_LOCKS
                     .lock()
                     .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
-                    .remove(&key_str);
+                    .remove(key_str);
                 guard.removed = true;
                 notify.notify_waiters();
                 Err(e)

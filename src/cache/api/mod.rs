@@ -14,37 +14,11 @@ use crate::core::traits::CacheKey;
 use crate::infra::serialization::unified::UnifiedSerializer;
 use std::sync::Arc;
 
-/// 序列化器实例复用管理器
-#[cfg(any(feature = "serialization", feature = "full"))]
-pub(crate) struct SerializerPool {
-    json: Arc<crate::infra::serialization::json::JsonSerializer>,
-}
-
-#[cfg(any(feature = "serialization", feature = "full"))]
-impl SerializerPool {
-    pub(crate) fn new() -> Self {
-        Self {
-            json: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
-        }
-    }
-
-    pub(crate) fn json(&self) -> Arc<crate::infra::serialization::json::JsonSerializer> {
-        self.json.clone()
-    }
-}
-
-#[cfg(any(feature = "serialization", feature = "full"))]
-impl Default for SerializerPool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// 核心 Cache 类型
 pub struct Cache<K, V> {
     pub(crate) backend: Arc<dyn CacheBackend>,
     #[cfg(any(feature = "serialization", feature = "full"))]
-    pub(crate) serializer_pool: Arc<SerializerPool>,
+    pub(crate) serializer: Arc<crate::infra::serialization::json::JsonSerializer>,
     pub(crate) unified_serializer: UnifiedSerializer,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
@@ -68,7 +42,7 @@ where
         Self {
             backend,
             #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer_pool: Arc::new(SerializerPool::new()),
+            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         }
@@ -123,7 +97,7 @@ where
         Ok(Self {
             backend: Arc::new(backend),
             #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer_pool: Arc::new(SerializerPool::new()),
+            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         })

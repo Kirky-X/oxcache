@@ -29,7 +29,7 @@ where
 
     #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn serializer(&self) -> Arc<dyn Serializer> {
-        self.serializer_pool.json()
+        self.serializer.clone()
     }
 
     pub fn unified_serializer(&self) -> crate::infra::serialization::unified::UnifiedSerializer {
