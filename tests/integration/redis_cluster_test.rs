@@ -164,6 +164,7 @@ async fn test_redis_cluster_ttl() {
     assert!(ttl.is_some());
 
     // 等待过期
+    // ponytail: requires Docker, polling not feasible without container
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     // 验证键已过期

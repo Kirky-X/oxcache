@@ -89,6 +89,7 @@ async fn test_distributed_lock() {
     assert_eq!(unlocked, 1, "Should unlock successfully");
 
     // 3. 测试锁过期
+    // ponytail: requires Docker, polling not feasible without container
     sleep(Duration::from_secs(6)).await;
     let lock_after_expire: Option<String> = redis::cmd("SET")
         .arg(&[lock_key, "lock_holder", "NX", "EX", "5"])
