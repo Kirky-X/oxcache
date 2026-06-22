@@ -13,7 +13,6 @@ mod redis_client_tests {
     use oxcache::backend::interface::LuaExecutor;
     use oxcache::backend::memory::redis::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::score::BackendScore;
-    use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     use oxcache::validate_lua_script;
     use serial_test::serial;
     use std::time::Duration;

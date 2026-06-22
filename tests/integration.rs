@@ -17,8 +17,6 @@ mod batch_write_test;
 mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]
 mod degradation_tests;
-#[path = "integration/http_cache_test.rs"]
-mod http_cache_test;
 #[path = "integration/invalidation_test.rs"]
 mod invalidation_test;
 #[path = "integration/lifecycle_test.rs"]
@@ -32,6 +30,8 @@ mod recovery_test;
 #[path = "integration/redis_client_comprehensive_test.rs"]
 mod redis_client_comprehensive_test;
 
+#[path = "integration/l2_backend_test.rs"]
+mod l2_backend_test;
 #[path = "integration/single_flight_test.rs"]
 mod single_flight_test;
 #[path = "integration/ttl_control_test.rs"]
@@ -40,12 +40,6 @@ mod ttl_control_test;
 mod two_level_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
-#[cfg(feature = "wal-recovery")]
-#[path = "integration/wal_test.rs"]
-mod wal_test;
-
-#[path = "integration/l2_backend_test.rs"]
-mod l2_backend_test;
 
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;

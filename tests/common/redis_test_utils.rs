@@ -6,8 +6,7 @@
 
 #[cfg(feature = "redis")]
 use oxcache::backend::memory::redis::RedisBackend;
-#[cfg(feature = "redis")]
-use oxcache::backend::{CacheReader, CacheWriter};
+
 use std::sync::Arc;
 use std::time::Duration;
 

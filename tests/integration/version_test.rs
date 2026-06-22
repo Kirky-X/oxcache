@@ -6,8 +6,7 @@
 
 #[cfg(feature = "redis")]
 use oxcache::backend::memory::RedisBackend;
-#[cfg(feature = "redis")]
-use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
+
 use std::sync::Arc;
 
 use crate::common;
