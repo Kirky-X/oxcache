@@ -165,13 +165,6 @@ pub mod infra;
 #[cfg(test)]
 mod testing;
 
-// ============================================================================
-// Brick Architecture Modules
-// ============================================================================
-
-// Client module
-pub mod client;
-
 // Registry module for #[cached] macro support
 pub mod registry;
 
@@ -184,35 +177,8 @@ pub mod traits;
 // Config module: confers-based configuration
 pub mod config;
 
-// Metrics module: OpenTelemetry metrics
-pub mod metrics;
-
-// Recovery module: WAL recovery
-pub mod recovery;
-
-// Sync module: batch writes and warmup
-pub mod sync;
-
-// Database module: SQLite partition support
-pub mod database;
-
-// Telemetry module: observability
-pub mod telemetry;
-
 // Utils module: key generation utilities
 pub mod utils;
-
-// HTTP cache module: axum middleware
-pub mod http;
-
-// Bloom filter module
-pub(crate) mod bloom_filter;
-
-// Rate limiting module
-pub(crate) mod rate_limiting;
-
-// Smart strategy module
-pub(crate) mod smart_strategy;
 
 // Singleflight module: request coalescing
 pub(crate) mod singleflight;
