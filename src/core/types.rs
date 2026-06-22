@@ -52,7 +52,7 @@ impl std::str::FromStr for RedisModeType {
 /// - `Dashmap` - L1（纯并发HashMap）
 /// - `Redis` - L2/L3（分布式缓存）
 /// - `Sqlite` - L2/L3（持久化存储）
-/// - `Tiered` - 任意层级（用于组合）
+/// - `None` - 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
 /// - `Custom` - 任意层级（自定义后端）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -69,9 +69,10 @@ pub enum BackendType {
     /// Sqlite 持久化存储（推荐 L2/L3）
     #[cfg(feature = "sqlite")]
     Sqlite,
-    /// 分层缓存组合（任意层级）
+    /// 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
+    #[serde(rename = "none")]
     #[default]
-    Tiered,
+    None,
     /// 自定义后端（任意层级，通过 BackendProvider 注入）
     Custom(String),
 }
@@ -87,7 +88,7 @@ impl std::fmt::Display for BackendType {
             Self::Redis => write!(f, "redis"),
             #[cfg(feature = "sqlite")]
             Self::Sqlite => write!(f, "sqlite"),
-            Self::Tiered => write!(f, "tiered"),
+            Self::None => write!(f, "none"),
             Self::Custom(name) => write!(f, "custom:{}", name),
         }
     }
