@@ -45,11 +45,6 @@ feature_check!(
     "Check if batch write is available"
 );
 feature_check!(
-    "wal-recovery",
-    wal_recovery_available,
-    "Check if WAL recovery is available"
-);
-feature_check!(
     "serialization",
     serialization_available,
     "Check if serialization is available"
@@ -86,8 +81,6 @@ pub struct FeatureSet {
     rate_limiting_available: bool,
     /// Batch write available
     batch_write_available: bool,
-    /// WAL recovery available
-    wal_recovery_available: bool,
     /// Serialization available
     serialization_available: bool,
     /// Compression available
@@ -110,7 +103,6 @@ impl FeatureSet {
             bloom_available: bloom_available(),
             rate_limiting_available: rate_limiting_available(),
             batch_write_available: batch_write_available(),
-            wal_recovery_available: wal_recovery_available(),
             serialization_available: serialization_available(),
             compression_available: compression_available(),
             database_available: database_available(),
@@ -160,11 +152,6 @@ impl FeatureSet {
     /// Check if batch write is available
     pub fn is_batch_write_available(&self) -> bool {
         self.batch_write_available
-    }
-
-    /// Check if WAL recovery is available
-    pub fn is_wal_recovery_available(&self) -> bool {
-        self.wal_recovery_available
     }
 
     /// Check if serialization is available

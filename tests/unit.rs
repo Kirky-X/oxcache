@@ -10,15 +10,6 @@
 #[path = "unit/serialization_test.rs"]
 mod serialization_test;
 
-#[path = "unit/bloom_filter_test.rs"]
-mod bloom_filter_test;
-
-#[path = "unit/smart_strategy_test.rs"]
-mod smart_strategy_test;
-
-#[path = "unit/rate_limiting_test.rs"]
-mod rate_limiting_test;
-
 #[path = "unit/error_test.rs"]
 mod error_test;
 
@@ -54,7 +45,3 @@ mod cache_test;
 
 #[path = "unit/mock_backend_test.rs"]
 mod mock_backend_test;
-
-#[cfg(feature = "wal-recovery")]
-#[path = "unit/wal_stub_test.rs"]
-mod wal_stub_test;

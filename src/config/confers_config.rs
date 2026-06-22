@@ -396,22 +396,6 @@ pub struct MetricsConfig {
     pub export_endpoint: Option<String>,
 }
 
-/// 恢复配置
-#[derive(Debug, Clone, Serialize, Deserialize, Config)]
-pub struct RecoveryConfig {
-    /// 是否启用 WAL
-    #[config(default = false)]
-    pub enable_wal: bool,
-
-    /// WAL 目录
-    #[config(default = "./wal".to_string())]
-    pub wal_directory: String,
-
-    /// 是否启用自动恢复
-    #[config(default = true)]
-    pub enable_auto_recovery: bool,
-}
-
 /// 统一配置
 #[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct UnifiedConfig {
@@ -434,10 +418,6 @@ pub struct UnifiedConfig {
     /// 指标配置
     #[config(flatten)]
     pub metrics: MetricsConfig,
-
-    /// 恢复配置
-    #[config(flatten)]
-    pub recovery: RecoveryConfig,
 }
 
 impl UnifiedConfig {
@@ -548,12 +528,6 @@ impl ConfigProvider for UnifiedConfig {
                 "detailed" => Some(self.metrics.detailed.to_string()),
                 "export_format" => Some(self.metrics.export_format.clone()),
                 "export_endpoint" => self.metrics.export_endpoint.clone(),
-                _ => None,
-            },
-            "recovery" => match *parts.get(1)? {
-                "enable_wal" => Some(self.recovery.enable_wal.to_string()),
-                "wal_directory" => Some(self.recovery.wal_directory.clone()),
-                "enable_auto_recovery" => Some(self.recovery.enable_auto_recovery.to_string()),
                 _ => None,
             },
             "services" => {
@@ -679,15 +653,6 @@ impl UnifiedConfigBuilder {
             .default(
                 "metrics.export_format".to_string(),
                 confers::ConfigValue::string("prometheus"),
-            )
-            .default("recovery.enable_wal".to_string(), confers::ConfigValue::bool(false))
-            .default(
-                "recovery.wal_directory".to_string(),
-                confers::ConfigValue::string("./wal"),
-            )
-            .default(
-                "recovery.enable_auto_recovery".to_string(),
-                confers::ConfigValue::bool(true),
             );
         Self {
             builder,
@@ -831,35 +796,6 @@ impl UnifiedConfigBuilder {
         self.builder = self
             .builder
             .default("metrics.enabled".to_string(), confers::ConfigValue::bool(enabled));
-        self
-    }
-
-    /// 设置是否启用 WAL
-    #[inline]
-    pub fn with_wal(mut self, enabled: bool) -> Self {
-        self.builder = self
-            .builder
-            .default("recovery.enable_wal".to_string(), confers::ConfigValue::bool(enabled));
-        self
-    }
-
-    /// 设置 WAL 目录
-    #[inline]
-    pub fn with_wal_directory(mut self, directory: &str) -> Self {
-        self.builder = self.builder.default(
-            "recovery.wal_directory".to_string(),
-            confers::ConfigValue::string(directory),
-        );
-        self
-    }
-
-    /// 设置是否启用自动恢复
-    #[inline]
-    pub fn with_auto_recovery(mut self, enabled: bool) -> Self {
-        self.builder = self.builder.default(
-            "recovery.enable_auto_recovery".to_string(),
-            confers::ConfigValue::bool(enabled),
-        );
         self
     }
 
@@ -1028,18 +964,6 @@ impl UnifiedConfigBuilder {
             .default(
                 "metrics.export_format".to_string(),
                 confers::ConfigValue::string(&config.metrics.export_format),
-            )
-            .default(
-                "recovery.enable_wal".to_string(),
-                confers::ConfigValue::bool(config.recovery.enable_wal),
-            )
-            .default(
-                "recovery.wal_directory".to_string(),
-                confers::ConfigValue::string(&config.recovery.wal_directory),
-            )
-            .default(
-                "recovery.enable_auto_recovery".to_string(),
-                confers::ConfigValue::bool(config.recovery.enable_auto_recovery),
             );
 
         // 处理可选的 export_endpoint

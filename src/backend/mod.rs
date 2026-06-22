@@ -16,10 +16,6 @@ pub mod interface;
 // Client module (backend implementations: dashmap, moka, redis)
 pub mod client;
 
-// Storage module (database backends)
-#[cfg(any(feature = "database", feature = "full", test))]
-pub mod storage;
-
 // Configuration validation utilities
 pub mod config_validation;
 

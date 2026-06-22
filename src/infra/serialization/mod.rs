@@ -4,16 +4,8 @@
 //!
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
-#[cfg(feature = "bincode")]
-pub mod bincode;
 pub mod depth_limited;
 pub mod json;
-
-#[cfg(feature = "extra-serialization")]
-pub mod extra;
-
-#[cfg(feature = "serialization-cache")]
-pub mod cache;
 
 pub mod unified;
 pub mod utils;
@@ -22,20 +14,8 @@ use crate::error::Result;
 
 pub use json::JsonSerializer;
 
-#[cfg(feature = "bincode")]
-pub use bincode::BincodeSerializer;
-
-#[cfg(feature = "extra-serialization")]
-pub use extra::{CborSerializer, MessagePackSerializer};
-
-#[cfg(feature = "serialization-cache")]
-pub use cache::{SerializationCache, SerializationCacheConfig, SerializationCacheStats};
-
 // Unified serialization exports
-pub use unified::{
-    convenience, default_serializer, FormatInfo, SerializationFormat, SerializationRegistry, UnifiedSerializer,
-    UnifiedSerializerAdapter,
-};
+pub use unified::{default_serializer, UnifiedSerializer, UnifiedSerializerAdapter};
 
 /// 序列化器特征
 ///

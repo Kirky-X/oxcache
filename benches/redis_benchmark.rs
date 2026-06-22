@@ -6,7 +6,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use oxcache::backend::memory::RedisBackend;
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
