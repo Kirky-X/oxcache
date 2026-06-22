@@ -16,7 +16,7 @@
 //! cd examples && cargo run --example example_rate_limiting
 //! ```
 
-use oxcache::rate_limiting::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig};
+use oxcache::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
