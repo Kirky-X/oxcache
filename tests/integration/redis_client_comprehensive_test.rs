@@ -172,6 +172,7 @@ mod redis_client_tests {
                 .await
                 .unwrap();
             assert!(backend.get("key_with_ttl").await.unwrap().is_some());
+            // ponytail: requires Docker, polling not feasible without container
             tokio::time::sleep(Duration::from_millis(1100)).await;
             assert!(backend.get("key_with_ttl").await.unwrap().is_none());
         }
@@ -223,6 +224,7 @@ mod redis_client_tests {
             let result = backend.expire("expire_test_key", Duration::from_secs(1)).await.unwrap();
             assert!(result);
             assert!(backend.ttl("expire_test_key").await.unwrap().is_some());
+            // ponytail: requires Docker, polling not feasible without container
             tokio::time::sleep(Duration::from_millis(1100)).await;
             assert!(backend.get("expire_test_key").await.unwrap().is_none());
         }
@@ -313,6 +315,7 @@ mod redis_client_tests {
                 let ttl = backend.ttl(key).await.unwrap();
                 assert!(ttl.is_some() && ttl.unwrap().as_secs() <= 2);
             }
+            // ponytail: requires Docker, polling not feasible without container
             tokio::time::sleep(Duration::from_millis(2100)).await;
             for (key, _) in &items {
                 assert!(backend.get(key).await.unwrap().is_none());
@@ -659,6 +662,7 @@ mod redis_client_tests {
                 .await
                 .unwrap();
             assert!(backend.ttl("expire_quick_key").await.unwrap().is_some());
+            // ponytail: requires Docker, polling not feasible without container
             tokio::time::sleep(Duration::from_millis(2100)).await;
             assert!(backend.ttl("expire_quick_key").await.unwrap().is_none());
         }

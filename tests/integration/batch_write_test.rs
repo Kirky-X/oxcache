@@ -55,6 +55,7 @@ async fn test_batch_write_performance_writes_and_verifies_100_items() {
     }
 
     // 2. 等待写入完成（增加等待时间）
+    // ponytail: requires Docker, polling not feasible without container
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // 3. 验证数据存在（带重试机制）
@@ -66,6 +67,7 @@ async fn test_batch_write_performance_writes_and_verifies_100_items() {
                 break;
             }
             Err(e) if attempt < 2 => {
+                // ponytail: requires Docker, polling not feasible without container
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
             Err(e) => {

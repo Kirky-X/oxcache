@@ -55,6 +55,7 @@ async fn test_degradation_logic() {
                 .set_with_ttl(&ttl_key, &"ttl_value".to_string(), Some(Duration::from_secs(1)))
                 .await
                 .unwrap();
+            // ponytail: requires Docker, polling not feasible without container
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             let expired_value = cache.get(&ttl_key).await.unwrap();
             assert_eq!(expired_value, None);

@@ -907,8 +907,19 @@ impl UnifiedConfigBuilder {
         let services = config.services();
         let services_json = serde_json::to_string(&services).unwrap_or_default();
 
-        // 使用预构建的配置值初始化 builder
-        let builder = builder
+        let builder = Self::apply_global_defaults(builder, &config, &services_json);
+        let builder = Self::apply_performance_defaults(builder, &config);
+        let builder = Self::apply_optional_endpoint(builder, &config);
+
+        Self { builder, services }
+    }
+
+    fn apply_global_defaults(
+        builder: confers::ConfigBuilder<UnifiedConfig>,
+        config: &UnifiedConfig,
+        services_json: &str,
+    ) -> confers::ConfigBuilder<UnifiedConfig> {
+        builder
             .default(
                 "global.default_ttl".to_string(),
                 confers::ConfigValue::uint(config.global.default_ttl),
@@ -949,10 +960,14 @@ impl UnifiedConfigBuilder {
                 "backend.l2_enabled".to_string(),
                 confers::ConfigValue::bool(config.backend.l2_enabled),
             )
-            .default(
-                "services_json".to_string(),
-                confers::ConfigValue::string(&services_json),
-            )
+            .default("services_json".to_string(), confers::ConfigValue::string(services_json))
+    }
+
+    fn apply_performance_defaults(
+        builder: confers::ConfigBuilder<UnifiedConfig>,
+        config: &UnifiedConfig,
+    ) -> confers::ConfigBuilder<UnifiedConfig> {
+        builder
             .default(
                 "performance.max_concurrent_operations".to_string(),
                 confers::ConfigValue::uint(config.performance.max_concurrent_operations as u64),
@@ -976,19 +991,21 @@ impl UnifiedConfigBuilder {
             .default(
                 "metrics.export_format".to_string(),
                 confers::ConfigValue::string(&config.metrics.export_format),
-            );
+            )
+    }
 
-        // 处理可选的 export_endpoint
-        let builder = if let Some(endpoint) = &config.metrics.export_endpoint {
+    fn apply_optional_endpoint(
+        builder: confers::ConfigBuilder<UnifiedConfig>,
+        config: &UnifiedConfig,
+    ) -> confers::ConfigBuilder<UnifiedConfig> {
+        if let Some(endpoint) = &config.metrics.export_endpoint {
             builder.default(
                 "metrics.export_endpoint".to_string(),
                 confers::ConfigValue::string(endpoint),
             )
         } else {
             builder
-        };
-
-        Self { builder, services }
+        }
     }
 }
 

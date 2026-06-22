@@ -66,31 +66,32 @@ feature_check!(
 // FeatureSet Structure
 // ============================================================================
 
+// ponytail: pub(crate) fields; add getters if external read access needed
 /// Unified feature availability check
 #[derive(Debug, Clone)]
 pub struct FeatureSet {
     /// L1 cache available
-    pub l1_available: bool,
+    pub(crate) l1_available: bool,
     /// L2 cache available
-    pub l2_available: bool,
+    pub(crate) l2_available: bool,
     /// Metrics available
-    pub metrics_available: bool,
+    pub(crate) metrics_available: bool,
     /// Bloom filter available
-    pub bloom_available: bool,
+    pub(crate) bloom_available: bool,
     /// Rate limiting available
-    pub rate_limiting_available: bool,
+    pub(crate) rate_limiting_available: bool,
     /// Batch write available
-    pub batch_write_available: bool,
+    pub(crate) batch_write_available: bool,
     /// Serialization available
-    pub serialization_available: bool,
+    pub(crate) serialization_available: bool,
     /// Compression available
-    pub compression_available: bool,
+    pub(crate) compression_available: bool,
     /// Database available
-    pub database_available: bool,
+    pub(crate) database_available: bool,
     /// CLI available
-    pub cli_available: bool,
+    pub(crate) cli_available: bool,
     /// OpenTelemetry available
-    pub opentelemetry_available: bool,
+    pub(crate) opentelemetry_available: bool,
 }
 
 impl FeatureSet {
