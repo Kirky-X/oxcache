@@ -13,8 +13,6 @@
 use crate::error::CacheError;
 #[cfg(feature = "memory")]
 use moka::policy::EvictionPolicy;
-#[cfg(feature = "bloom-filter")]
-use murmur3::murmur3_32;
 
 /// 默认键最大长度
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;
@@ -177,28 +175,6 @@ impl KeyGenerator {
             }
         }
         Ok(())
-    }
-
-    /// 生成哈希指纹（用于长键）
-    #[cfg(feature = "bloom-filter")]
-    pub fn generate_fingerprint(&self, key: &str) -> String {
-        let key_bytes = key.as_bytes();
-        let hash = murmur3_32(&mut &key_bytes[..], 0).unwrap_or(0);
-        format!("_fp{:08x}", hash)
-    }
-
-    /// 生成规范化的键（自动处理长键和特殊字符）
-    #[cfg(feature = "bloom-filter")]
-    pub fn normalize(&self, key: &str) -> String {
-        let key = key.trim().to_string();
-        if key.len() <= self.max_key_length {
-            key
-        } else {
-            let fingerprint = self.generate_fingerprint(&key);
-            let max_key_length = self.max_key_length.saturating_sub(fingerprint.len());
-            let truncated = &key[..max_key_length.max(1)];
-            format!("{}{}", truncated, fingerprint)
-        }
     }
 
     /// 生成带有命名空间的键

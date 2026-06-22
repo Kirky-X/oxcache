@@ -142,7 +142,6 @@ pub mod backend;
     feature = "rate-limiting",
     feature = "smart-strategy",
     feature = "http-cache",
-    feature = "wal-recovery",
     feature = "redis",
     feature = "full"
 ))]
@@ -168,10 +167,7 @@ mod testing;
 // Registry module for #[cached] macro support
 pub mod registry;
 
-// Builder module: CacheBuilder, OxCacheBuilder
-pub mod builder;
-
-// Traits module: CacheKey, Cacheable
+// Traits module: CacheKey
 pub mod traits;
 
 // Config module: confers-based configuration
@@ -179,9 +175,6 @@ pub mod config;
 
 // Utils module: key generation utilities
 pub mod utils;
-
-// Singleflight module: request coalescing
-pub(crate) mod singleflight;
 
 // Security module: Redis security validation
 pub(crate) mod security;
@@ -209,19 +202,6 @@ pub use error::{CacheConfigError, CacheError, ConfigResult, Result};
 pub use cache::builder::CacheBuilder;
 pub use cache::Cache;
 
-// Re-exports from features module
-#[cfg(any(feature = "bloom-filter", feature = "full"))]
-pub use features::{BloomFilter, BloomFilterOptions};
-
-#[cfg(any(feature = "rate-limiting", feature = "full"))]
-pub use features::{ClientRateLimiter, GlobalRateLimiter, RateLimitConfig, RateLimitStatus};
-
-#[cfg(any(feature = "smart-strategy", feature = "full"))]
-pub use features::{
-    CompressibilityChecker, CompressionDecider, HitRateCollector, HitRateStats, PrefetchDecider, SmartStrategyConfig,
-    SmartStrategyManager,
-};
-
 // Re-exports from infra module
 #[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
@@ -233,13 +213,6 @@ pub use crate::security::{
     log::{log_cache_key, sanitize_message},
     redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
     validate_lua_script, validate_redis_key, validate_scan_pattern,
-};
-
-// HTTP Cache exports from features module
-#[cfg(any(feature = "http-cache", feature = "full"))]
-pub use features::{
-    CacheMiddlewareConfig, CacheMiddlewareState, HttpCacheAdapter, HttpCacheKeyGenerator, HttpCachePolicy,
-    HttpCacheResponse, HttpRequest,
 };
 
 // Public API re-exports (after features re-exports)
@@ -275,8 +248,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const _: fn() = || {
     check_feature_dependence!("moka", "bloom-filter");
     check_feature_dependence!("moka", "rate-limiting");
-    check_feature_dependence!("redis", "wal-recovery");
     check_feature_dependence!("redis", "batch-write");
     check_feature_dependence!("metrics", "opentelemetry");
-    check_feature_dependence!("redis", "database");
 };

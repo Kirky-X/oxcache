@@ -122,29 +122,6 @@ pub enum SerializationType {
     /// JSON 格式
     #[default]
     Json,
-    /// Bincode 格式
-    #[cfg(feature = "bincode")]
-    Bincode,
-    /// CBOR 格式
-    #[cfg(feature = "extra-serialization")]
-    Cbor,
-    /// MessagePack 格式
-    #[cfg(feature = "extra-serialization")]
-    Messagepack,
-}
-
-impl std::fmt::Display for SerializationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Json => write!(f, "json"),
-            #[cfg(feature = "bincode")]
-            Self::Bincode => write!(f, "bincode"),
-            #[cfg(feature = "extra-serialization")]
-            Self::Cbor => write!(f, "cbor"),
-            #[cfg(feature = "extra-serialization")]
-            Self::Messagepack => write!(f, "messagepack"),
-        }
-    }
 }
 
 #[cfg(test)]

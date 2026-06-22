@@ -14,20 +14,6 @@ categories = ["caching", "asynchronous", "educational"]
 # Path dependency to the main oxcache project
 oxcache = { path = "..", default-features = false, features = [
     "full",
-    "moka",
-    "redis",
-    "serialization",
-    "compression",
-    "bloom-filter",
-    "rate-limiting",
-    "wal-recovery",
-    "database",
-    "cli",
-    "full-metrics",
-    "batch-write",
-    "smart-strategy",
-    "http-cache",
-    "extra-serialization",
 ] }
 
 # Tracing for logging (minimal features)
@@ -114,10 +100,6 @@ path = "src/06_features/example_bloom_filter.rs"
 [[example]]
 name = "example_rate_limiting"
 path = "src/06_features/example_rate_limiting.rs"
-
-[[example]]
-name = "example_database_integration"
-path = "src/05_database/example_database_integration.rs"
 
 [[example]]
 name = "example_cli_usage"
