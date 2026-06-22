@@ -11,7 +11,6 @@
 pub mod docker_test_utils;
 pub mod mock_backend;
 pub mod redis_test_utils;
-pub mod storage_test_utils;
 pub mod test_containers;
 
 // ============================================================================
@@ -23,13 +22,6 @@ pub mod test_containers;
 pub use redis_test_utils::{
     create_cluster_redis_urls, create_standalone_redis_url, get_redis_url, get_redis_url_insecure, is_redis_available,
     is_redis_available_url, wait_for_redis, wait_for_redis_cluster, wait_for_sentinel,
-};
-
-// 数据库测试工具
-#[allow(unused_imports)]
-pub use storage_test_utils::{
-    create_partition_config, create_temp_sqlite_db, test_concurrent_partition_operations, verify_partition_cleanup,
-    verify_partition_creation, TestConfig,
 };
 
 // Docker 测试工具

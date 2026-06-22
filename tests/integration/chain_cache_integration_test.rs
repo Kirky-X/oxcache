@@ -5,8 +5,7 @@
 // 链式缓存集成测试
 
 use oxcache::backend::{BackendScore, MokaMemoryBackend, Scores};
-use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
-use oxcache::cache::{ChainCache, ChainCacheBuilder, ChainLink};
+use oxcache::cache::{ChainCache, ChainLink};
 use std::time::Duration;
 
 /// 测试链式缓存基本读写
