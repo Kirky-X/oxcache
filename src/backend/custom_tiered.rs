@@ -93,7 +93,7 @@ impl BackendType {
             BackendType::Redis => LayerRestriction::L2AndL3Only,
             #[cfg(feature = "sqlite")]
             BackendType::Sqlite => LayerRestriction::L2AndL3Only,
-            BackendType::Tiered => LayerRestriction::Any,
+            BackendType::None => LayerRestriction::Any,
             BackendType::Custom(_) => LayerRestriction::Any,
         }
     }
@@ -109,7 +109,7 @@ impl BackendType {
             BackendType::Redis => Layer::L2,
             #[cfg(feature = "sqlite")]
             BackendType::Sqlite => Layer::L2,
-            BackendType::Tiered => Layer::L1,
+            BackendType::None => Layer::L1,
             BackendType::Custom(_) => Layer::L1,
         }
     }
@@ -130,7 +130,6 @@ impl BackendType {
             BackendType::Redis,
             #[cfg(feature = "sqlite")]
             BackendType::Sqlite,
-            BackendType::Tiered,
         ]
     }
 
@@ -154,8 +153,6 @@ impl BackendType {
             #[cfg(feature = "sqlite")]
             "sqlite" | "persist" => Ok(BackendType::Sqlite),
 
-            "tiered" | "multi" | "two-level" | "three-level" => Ok(BackendType::Tiered),
-
             _ => {
                 if let Some(custom_name) = s.strip_prefix("custom:") {
                     // 验证自定义名称
@@ -173,7 +170,7 @@ impl BackendType {
                         #[cfg(feature = "sqlite")]
                         "sqlite",
                     ];
-                    available.extend(["tiered", "custom:<name>"]);
+                    available.push("custom:<name>");
 
                     Err(CacheError::InvalidInput(format!(
                         "Unknown backend type: '{}'. Available backends: {}",

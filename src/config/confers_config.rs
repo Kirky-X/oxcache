@@ -96,8 +96,6 @@ pub enum BackendType {
     Memory,
     /// 仅 Redis 后端 (L2)
     Redis,
-    /// 分层后端 (L1 + L2)
-    Tiered,
 }
 
 impl Default for BackendType {
@@ -112,7 +110,6 @@ impl std::fmt::Display for BackendType {
         match self {
             BackendType::Memory => write!(f, "Memory"),
             BackendType::Redis => write!(f, "Redis"),
-            BackendType::Tiered => write!(f, "Tiered"),
         }
     }
 }
@@ -124,8 +121,7 @@ impl std::str::FromStr for BackendType {
         match s {
             "Memory" => Ok(BackendType::Memory),
             "Redis" => Ok(BackendType::Redis),
-            "Tiered" => Ok(BackendType::Tiered),
-            _ => Err(format!("Unknown backend type: {}", s)),
+            _ => Err(format!("Unknown backend type: '{}'. Use 'Memory' or 'Redis', or construct ChainCache directly for multi-backend setups.", s)),
         }
     }
 }
@@ -195,7 +191,7 @@ pub struct GlobalConfig {
 /// 后端配置
 #[derive(Debug, Clone, Serialize, Deserialize, Config)]
 pub struct BackendConfig {
-    /// 后端类型（字符串形式：Memory, Redis, Tiered）
+    /// 后端类型（字符串形式：Memory, Redis）
     #[config(default = "Memory".to_string())]
     pub backend_type: String,
 
@@ -712,7 +708,7 @@ impl UnifiedConfigBuilder {
             .builder
             .default(
                 "backend.backend_type".to_string(),
-                confers::ConfigValue::string("Tiered"),
+                confers::ConfigValue::string("Memory"),
             )
             .default("backend.l1_enabled".to_string(), confers::ConfigValue::bool(true))
             .default("backend.l2_enabled".to_string(), confers::ConfigValue::bool(true))
@@ -1069,7 +1065,6 @@ mod tests {
     fn test_backend_type_from_str() {
         assert_eq!("Memory".parse::<BackendType>().unwrap(), BackendType::Memory);
         assert_eq!("Redis".parse::<BackendType>().unwrap(), BackendType::Redis);
-        assert_eq!("Tiered".parse::<BackendType>().unwrap(), BackendType::Tiered);
     }
 
     #[test]
@@ -1127,7 +1122,7 @@ mod tests {
     fn test_unified_config_builder_tiered() {
         let builder = UnifiedConfigBuilder::tiered();
         let config = builder.build().unwrap();
-        assert_eq!(config.backend.backend_type_enum(), BackendType::Tiered);
+        assert_eq!(config.backend.backend_type_enum(), BackendType::Memory);
         assert!(config.backend.l1_enabled);
         assert!(config.backend.l2_enabled);
     }
