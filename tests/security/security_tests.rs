@@ -132,15 +132,7 @@ async fn test_error_handling_security() {
     assert!(result.is_err(), "Invalid connection should return error, not panic");
 }
 
-/// 测试配置安全性
-#[tokio::test]
-async fn test_configuration_security() {
-    let config = "redis://127.0.0.1:6379";
-    assert!(
-        !config.contains("password"),
-        "Connection string should not contain password in plain text"
-    );
-}
+// ponytail: deleted liar test that always passed on a literal string
 
 /// 测试数据加密
 #[tokio::test]

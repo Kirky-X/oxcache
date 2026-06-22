@@ -21,12 +21,19 @@ struct TestValue {
 async fn test_cache_builder_default() {
     let cache: Cache<String, TestValue> = CacheBuilder::default().build().await.unwrap();
     cache.health_check().await.unwrap();
+    let value = TestValue {
+        id: 1,
+        name: "default".to_string(),
+    };
+    cache.set(&"key".to_string(), &value).await.unwrap();
+    assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), value);
 }
 
 #[tokio::test]
 async fn test_cache_builder_with_capacity() {
     let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
     cache.health_check().await.unwrap();
+    assert_eq!(cache.capacity().await.unwrap(), 1000);
 }
 
 #[tokio::test]
@@ -37,6 +44,12 @@ async fn test_cache_builder_with_ttl() {
         .await
         .unwrap();
     cache.health_check().await.unwrap();
+    let value = TestValue {
+        id: 2,
+        name: "ttl-test".to_string(),
+    };
+    cache.set(&"key".to_string(), &value).await.unwrap();
+    assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), value);
 }
 
 #[tokio::test]
@@ -48,4 +61,5 @@ async fn test_cache_builder_with_backend() {
         .await
         .unwrap();
     cache.health_check().await.unwrap();
+    assert_eq!(cache.capacity().await.unwrap(), 5000);
 }

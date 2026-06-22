@@ -48,8 +48,6 @@
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.2.0")]
 #![deny(unsafe_code)]
-// ponytail: dead code from brick architecture modules not yet fully wired
-#![allow(dead_code)]
 
 // ============================================================================
 // Feature Flags and Macros

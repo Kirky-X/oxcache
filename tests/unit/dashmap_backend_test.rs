@@ -12,8 +12,25 @@ use oxcache::backend::memory::dashmap::{
 use oxcache::backend::score::BackendScore;
 use std::time::Duration;
 
+/// Poll until a condition is true or timeout. Replaces fixed sleep for timing-dependent tests.
+/// ponytail: simple polling loop, add exponential backoff if CI flakiness persists.
+async fn poll_until<F, Fut>(timeout: Duration, interval: Duration, f: F) -> bool
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if f().await {
+            return true;
+        }
+        tokio::time::sleep(interval).await;
+    }
+    false
+}
+
 #[tokio::test]
-async fn test_dashmap_new() {
+async fn test_dashmap_new_default_state() {
     let backend = DashMapMemoryBackend::new();
     assert!(backend.capacity() > 0);
     assert!(backend.is_empty().await.unwrap());
@@ -26,13 +43,13 @@ async fn test_dashmap_builder_default() {
 }
 
 #[tokio::test]
-async fn test_dashmap_builder_with_capacity() {
+async fn test_dashmap_builder_with_capacity_custom() {
     let backend = DashMapBackendBuilder::default().capacity(5000).build();
     assert_eq!(backend.capacity(), 5000);
 }
 
 #[tokio::test]
-async fn test_dashmap_builder_with_ttl() {
+async fn test_dashmap_builder_with_ttl_default_ttl() {
     let backend = DashMapBackendBuilder::default()
         .capacity(1000)
         .default_ttl(Duration::from_secs(60))
@@ -41,7 +58,7 @@ async fn test_dashmap_builder_with_ttl() {
 }
 
 #[tokio::test]
-async fn test_dashmap_set_and_get() {
+async fn test_dashmap_set_and_get_basic_roundtrip() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -50,14 +67,14 @@ async fn test_dashmap_set_and_get() {
 }
 
 #[tokio::test]
-async fn test_dashmap_get_nonexistent() {
+async fn test_dashmap_get_nonexistent_returns_none() {
     let backend = DashMapMemoryBackend::new();
     let value = backend.get("nonexistent").await.unwrap();
     assert!(value.is_none());
 }
 
 #[tokio::test]
-async fn test_dashmap_delete() {
+async fn test_dashmap_delete_removes_key() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -68,7 +85,7 @@ async fn test_dashmap_delete() {
 }
 
 #[tokio::test]
-async fn test_dashmap_exists() {
+async fn test_dashmap_exists_checks_key_presence() {
     let backend = DashMapMemoryBackend::new();
 
     assert!(!backend.exists("key1").await.unwrap());
@@ -77,7 +94,7 @@ async fn test_dashmap_exists() {
 }
 
 #[tokio::test]
-async fn test_dashmap_clear() {
+async fn test_dashmap_clear_empties_all() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -91,7 +108,7 @@ async fn test_dashmap_clear() {
 }
 
 #[tokio::test]
-async fn test_dashmap_close() {
+async fn test_dashmap_close_shutdown_empties() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -101,7 +118,7 @@ async fn test_dashmap_close() {
 }
 
 #[tokio::test]
-async fn test_dashmap_ttl() {
+async fn test_dashmap_ttl_returns_remaining() {
     let backend = DashMapMemoryBackend::new();
 
     backend
@@ -115,14 +132,14 @@ async fn test_dashmap_ttl() {
 }
 
 #[tokio::test]
-async fn test_dashmap_ttl_nonexistent() {
+async fn test_dashmap_ttl_nonexistent_returns_none() {
     let backend = DashMapMemoryBackend::new();
     let ttl = backend.ttl("nonexistent").await.unwrap();
     assert!(ttl.is_none());
 }
 
 #[tokio::test]
-async fn test_dashmap_expire() {
+async fn test_dashmap_expire_sets_ttl() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -137,20 +154,20 @@ async fn test_dashmap_expire() {
 }
 
 #[tokio::test]
-async fn test_dashmap_expire_nonexistent() {
+async fn test_dashmap_expire_nonexistent_returns_false() {
     let backend = DashMapMemoryBackend::new();
     let result = backend.expire("nonexistent", Duration::from_secs(30)).await.unwrap();
     assert!(!result);
 }
 
 #[tokio::test]
-async fn test_dashmap_health_check() {
+async fn test_dashmap_health_check_returns_ok() {
     let backend = DashMapMemoryBackend::new();
     backend.health_check().await.unwrap();
 }
 
 #[tokio::test]
-async fn test_dashmap_stats() {
+async fn test_dashmap_stats_returns_metrics() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -167,7 +184,7 @@ async fn test_dashmap_stats() {
 }
 
 #[tokio::test]
-async fn test_dashmap_len() {
+async fn test_dashmap_len_tracks_count() {
     let backend = DashMapMemoryBackend::new();
 
     assert_eq!(backend.len().await.unwrap(), 0);
@@ -183,7 +200,7 @@ async fn test_dashmap_len() {
 }
 
 #[tokio::test]
-async fn test_dashmap_capacity_method() {
+async fn test_dashmap_capacity_method_returns_positive() {
     let backend = DashMapMemoryBackend::new();
     let capacity = backend.capacity();
     assert!(capacity > 0);
@@ -209,13 +226,13 @@ async fn test_dashmap_hit_rate_with_hits() {
 }
 
 #[test]
-fn test_dashmap_entry_count() {
+fn test_dashmap_entry_count_initial_zero() {
     let backend = DashMapMemoryBackend::new();
     assert_eq!(backend.entry_count(), 0);
 }
 
 #[test]
-fn test_dashmap_backend_score() {
+fn test_dashmap_backend_score_returns_positive() {
     let backend = DashMapMemoryBackend::new();
     assert!(backend.score() > 0);
     assert!(!backend.is_persistent());
@@ -223,39 +240,39 @@ fn test_dashmap_backend_score() {
 }
 
 #[test]
-fn test_dashmap_clone() {
+fn test_dashmap_clone_copies_capacity() {
     let backend1 = DashMapMemoryBackend::new();
     let backend2 = backend1.clone();
     assert_eq!(backend1.capacity(), backend2.capacity());
 }
 
 #[test]
-fn test_dashmap_debug() {
+fn test_dashmap_debug_includes_name() {
     let backend = DashMapMemoryBackend::new();
     let debug_str = format!("{:?}", backend);
     assert!(debug_str.contains("DashMapMemoryBackend"));
 }
 
 #[test]
-fn test_convenience_dashmap_memory() {
+fn test_convenience_dashmap_memory_default_has_capacity() {
     let backend = dashmap_memory();
     assert!(backend.capacity() > 0);
 }
 
 #[test]
-fn test_convenience_dashmap_memory_with_capacity() {
+fn test_convenience_dashmap_memory_with_capacity_custom() {
     let backend = dashmap_memory_with_capacity(2000);
     assert_eq!(backend.capacity(), 2000);
 }
 
 #[test]
-fn test_convenience_dashmap_memory_with_capacity_and_ttl() {
+fn test_convenience_dashmap_memory_with_capacity_and_ttl_custom() {
     let backend = dashmap_memory_with_capacity_and_ttl(3000, Duration::from_secs(120));
     assert_eq!(backend.capacity(), 3000);
 }
 
 #[tokio::test]
-async fn test_dashmap_overwrite() {
+async fn test_dashmap_overwrite_replaces_value() {
     let backend = DashMapMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
@@ -266,7 +283,7 @@ async fn test_dashmap_overwrite() {
 }
 
 #[tokio::test]
-async fn test_dashmap_large_value() {
+async fn test_dashmap_large_value_handles_1mb() {
     let backend = DashMapMemoryBackend::new();
     let large_value = vec![0u8; 1024 * 1024];
 
@@ -276,7 +293,7 @@ async fn test_dashmap_large_value() {
 }
 
 #[tokio::test]
-async fn test_dashmap_many_keys() {
+async fn test_dashmap_many_keys_handles_100() {
     let backend = DashMapMemoryBackend::builder().capacity(1000).build();
 
     for i in 0..100 {
@@ -296,7 +313,7 @@ async fn test_dashmap_many_keys() {
 }
 
 #[tokio::test]
-async fn test_dashmap_ttl_expiration() {
+async fn test_dashmap_ttl_expiration_evicts_after_ttl() {
     let backend = DashMapMemoryBackend::new();
 
     backend
@@ -306,13 +323,16 @@ async fn test_dashmap_ttl_expiration() {
 
     assert!(backend.get("key1").await.unwrap().is_some());
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    assert!(backend.get("key1").await.unwrap().is_none());
+    assert!(
+        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
+            backend.get("key1").await.unwrap().is_none()
+        })
+        .await
+    );
 }
 
 #[tokio::test]
-async fn test_dashmap_default_ttl() {
+async fn test_dashmap_default_ttl_evicts_after_default() {
     let backend = DashMapMemoryBackend::builder()
         .default_ttl(Duration::from_millis(100))
         .build();
@@ -321,7 +341,10 @@ async fn test_dashmap_default_ttl() {
 
     assert!(backend.get("key1").await.unwrap().is_some());
 
-    tokio::time::sleep(Duration::from_millis(150)).await;
-
-    assert!(backend.get("key1").await.unwrap().is_none());
+    assert!(
+        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
+            backend.get("key1").await.unwrap().is_none()
+        })
+        .await
+    );
 }

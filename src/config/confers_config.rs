@@ -488,68 +488,80 @@ impl UnifiedConfig {
         }
         Ok(())
     }
+
+    fn get_global_string(&self, field: &str) -> Option<String> {
+        match field {
+            "default_ttl" => Some(self.global.default_ttl.to_string()),
+            "default_tti" => Some(self.global.default_tti.to_string()),
+            "health_check_interval" => Some(self.global.health_check_interval.to_string()),
+            _ => None,
+        }
+    }
+
+    fn get_backend_string(&self, field: &str) -> Option<String> {
+        match field {
+            "backend_type" => Some(self.backend.backend_type.clone()),
+            "l1_type" => Some(self.backend.l1_type.clone()),
+            "l1_options_json" => Some(self.backend.l1_options_json.clone()),
+            "l2_type" => Some(self.backend.l2_type.clone()),
+            "l2_options_json" => Some(self.backend.l2_options_json.clone()),
+            "l1_enabled" => Some(self.backend.l1_enabled.to_string()),
+            "l2_enabled" => Some(self.backend.l2_enabled.to_string()),
+            _ => None,
+        }
+    }
+
+    fn get_performance_string(&self, field: &str) -> Option<String> {
+        match field {
+            "max_concurrent_operations" => Some(self.performance.max_concurrent_operations.to_string()),
+            "command_timeout" => Some(self.performance.command_timeout.to_string()),
+            "enable_prefetching" => Some(self.performance.enable_prefetching.to_string()),
+            _ => None,
+        }
+    }
+
+    fn get_metrics_string(&self, field: &str) -> Option<String> {
+        match field {
+            "enabled" => Some(self.metrics.enabled.to_string()),
+            "detailed" => Some(self.metrics.detailed.to_string()),
+            "export_format" => Some(self.metrics.export_format.clone()),
+            "export_endpoint" => self.metrics.export_endpoint.clone(),
+            _ => None,
+        }
+    }
+
+    fn get_services_string(&self, service_name: &str, field: &str) -> Option<String> {
+        let services = self.services();
+        let service = services.get(service_name)?;
+        match field {
+            "cache_type" => Some(service.cache_type.clone()),
+            "ttl" => service.ttl.map(|v| v.to_string()),
+            "max_capacity" => service.max_capacity.map(|v| v.to_string()),
+            "enable_metrics" => Some(service.enable_metrics.to_string()),
+            _ => None,
+        }
+    }
 }
 
 /// 为 UnifiedConfig 实现 ConfigProvider trait，支持依赖注入
 impl ConfigProvider for UnifiedConfig {
     fn get_string(&self, key: &str) -> Option<String> {
-        // 通过 key 路径获取配置值
-        // 例如 "global.default_ttl" -> self.global.default_ttl
         let parts: Vec<&str> = key.split('.').collect();
         if parts.len() < 2 {
             return None;
         }
-
         match parts[0] {
-            "global" => match *parts.get(1)? {
-                "default_ttl" => Some(self.global.default_ttl.to_string()),
-                "default_tti" => Some(self.global.default_tti.to_string()),
-                "health_check_interval" => Some(self.global.health_check_interval.to_string()),
-                _ => None,
-            },
-            "backend" => match *parts.get(1)? {
-                "backend_type" => Some(self.backend.backend_type.clone()),
-                "l1_type" => Some(self.backend.l1_type.clone()),
-                "l1_options_json" => Some(self.backend.l1_options_json.clone()),
-                "l2_type" => Some(self.backend.l2_type.clone()),
-                "l2_options_json" => Some(self.backend.l2_options_json.clone()),
-                "l1_enabled" => Some(self.backend.l1_enabled.to_string()),
-                "l2_enabled" => Some(self.backend.l2_enabled.to_string()),
-                _ => None,
-            },
-            "performance" => match *parts.get(1)? {
-                "max_concurrent_operations" => Some(self.performance.max_concurrent_operations.to_string()),
-                "command_timeout" => Some(self.performance.command_timeout.to_string()),
-                "enable_prefetching" => Some(self.performance.enable_prefetching.to_string()),
-                _ => None,
-            },
-            "metrics" => match *parts.get(1)? {
-                "enabled" => Some(self.metrics.enabled.to_string()),
-                "detailed" => Some(self.metrics.detailed.to_string()),
-                "export_format" => Some(self.metrics.export_format.clone()),
-                "export_endpoint" => self.metrics.export_endpoint.clone(),
-                _ => None,
-            },
+            "global" => self.get_global_string(parts[1]),
+            "backend" => self.get_backend_string(parts[1]),
+            "performance" => self.get_performance_string(parts[1]),
+            "metrics" => self.get_metrics_string(parts[1]),
             "services" => {
-                // 对于 services，直接返回 services_json
-                if *parts.get(1)? == "json" {
-                    Some(self.services_json.clone())
-                } else {
-                    // 支持通过路径访问特定服务配置
-                    let services = self.services();
-                    let service_name = *parts.get(1)?;
-                    if let Some(service) = services.get(service_name) {
-                        match *parts.get(2)? {
-                            "cache_type" => Some(service.cache_type.clone()),
-                            "ttl" => service.ttl.map(|v| v.to_string()),
-                            "max_capacity" => service.max_capacity.map(|v| v.to_string()),
-                            "enable_metrics" => Some(service.enable_metrics.to_string()),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
+                if parts[1] == "json" {
+                    return Some(self.services_json.clone());
                 }
+                let service_name = parts[1];
+                let field = *parts.get(2)?;
+                self.get_services_string(service_name, field)
             }
             _ => None,
         }

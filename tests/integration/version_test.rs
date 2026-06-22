@@ -13,7 +13,7 @@ use crate::common;
 
 #[tokio::test]
 #[cfg(feature = "redis")]
-async fn test_version_control() {
+async fn test_version_control_set_and_update_value() {
     common::setup_logging();
 
     if !common::is_redis_available().await {

@@ -12,7 +12,7 @@ use std::time::Duration;
 ///
 /// 验证批量写入功能是否能正确工作并提高性能
 #[tokio::test]
-async fn test_batch_write_performance() {
+async fn test_batch_write_performance_writes_and_verifies_100_items() {
     if !is_redis_available().await {
         println!("Skipping test: Redis not available");
         return;

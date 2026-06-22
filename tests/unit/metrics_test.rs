@@ -538,11 +538,3 @@ mod tests {
         assert_eq!(counters.total_operations, 20);
     }
 }
-
-#[cfg(not(any(feature = "metrics", feature = "memory")))]
-mod tests {
-    #[test]
-    fn test_metrics_not_available() {
-        assert!(true);
-    }
-}
