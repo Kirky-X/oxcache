@@ -15,7 +15,7 @@
 //! cd examples && cargo run --example example_bloom_filter
 //! ```
 
-use oxcache::bloom_filter::{BloomFilter, BloomFilterOptions};
+use oxcache::{BloomFilter, BloomFilterOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
