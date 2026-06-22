@@ -49,6 +49,17 @@ jobs:
           cargo deny check --all-features
         continue-on-error: false
 
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+
   outdated-check:
     name: Outdated Dependencies Check
     runs-on: ubuntu-latest
