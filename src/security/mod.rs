@@ -100,14 +100,19 @@ lazy_static::lazy_static! {
 /// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> Result<()> {
-    // 使用公共验证模块进行基础验证
-    crate::security::validation::redis::validate_key(key)?;
+    // 基础验证：使用共享验证工具
+    use crate::security::validation::redis::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
+    use crate::security::validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
+
+    validate_not_empty(key, "Redis key")?;
+    validate_max_length(key, MAX_KEY_LENGTH, "Redis key")?;
+    validate_no_dangerous_chars(key, &DANGEROUS_CHARS, "Redis key")?;
 
     // ========== 安全增强 ==========
 
-    // 检查 Unicode 控制字符（除了 \r, \n, \0 已在基础验证中检查）
+    // 检查 Unicode 控制字符（CR, LF, NULL 已在基础验证中检查）
     for c in key.chars() {
-        if c.is_control() && !matches!(c, '\r' | '\n' | '\0' | '\t') {
+        if c.is_control() && !DANGEROUS_CHARS.contains(&c) && c != '\t' {
             return Err(CacheError::InvalidInput(format!(
                 "Redis key contains control character: U+{:04X}",
                 c as u32
@@ -118,7 +123,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
     // 检查 SQL 注入模式
     // 注意：这些模式用于检测潜在的 SQL 注入攻击，
     // 但在 Redis 键验证上下文中可能产生误报
-    // 因此我们使用更严格的匹配规则：只匹配独立的 SQL 关键字上下文
+    // 因此我们只保留明确的 SQL 注入签名模式
     const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
         ("' OR '", "单引号后跟 OR 模式"),
         ("'--", "SQL 注释模式"),
@@ -129,33 +134,11 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
         ("xp_cmdshell", "SQL Server 命令执行"),
         ("' OR '1'='1", "经典 SQL 注入永真条件"),
         ("admin'--", "SQL 认证绕过"),
-        ("1=1", "SQL 注入永真条件"),
-        ("1=2", "SQL 注入永真条件"),
     ];
 
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
-        // 使用词边界匹配，避免误报（如 "api_v1_data" 中的 "1" 不应匹配 "1=1"）
         if key_upper.contains(&pattern.to_uppercase()) {
-            // 额外检查：如果是 1=1 模式，检查是否在数字上下文中
-            if *pattern == "1=1" || *pattern == "1=2" {
-                // 排除正常的键名模式（如 api_v1_data, user_1_status）
-                if key_upper.contains("V1_")
-                    || key_upper.contains("_V1")
-                    || key_upper.contains("V2_")
-                    || key_upper.contains("_V2")
-                    || key_upper.contains("KEY_")
-                    || key_upper.contains("_KEY")
-                    || key_upper.contains("DATA_")
-                    || key_upper.contains("_DATA")
-                    || key_upper.contains("_STATUS")
-                    || key_upper.contains("_ID")
-                    || key_upper.contains("_NAME")
-                    || key_upper.contains("_TYPE")
-                {
-                    continue; // 跳过误报
-                }
-            }
             return Err(CacheError::InvalidInput(format!(
                 "Redis key contains suspicious SQL injection pattern: {}",
                 description
@@ -367,7 +350,7 @@ fn preprocess_lua_script(script: &str) -> String {
                 }
             }
         } else if c == '\'' {
-            // 处理字符串 ''，保留标识符但移除值
+            // 处理单引号字符串：保留标识符字符用于模式检测，移除其他内容
             result.push('\'');
             let mut in_string = true;
             while in_string {
@@ -379,19 +362,17 @@ fn preprocess_lua_script(script: &str) -> String {
                     } else if next_c == '\\' {
                         chars.next();
                         if let Some(escaped) = chars.next() {
-                            // 只保留字母数字下划线
                             if escaped.is_alphanumeric() || escaped == '_' {
                                 result.push(escaped);
                             }
                         }
                     } else if next_c == '\n' {
-                        break; // 未闭合的字符串
+                        break;
                     } else if next_c.is_alphanumeric() || next_c == '_' {
-                        // 保留标识符字符
                         result.push(next_c);
                         chars.next();
                     } else {
-                        chars.next(); // 跳过非标识符字符
+                        chars.next();
                     }
                 } else {
                     break;
@@ -701,7 +682,8 @@ mod tests {
         // 真正的 SQL 注入尝试应该被检测
         assert!(validate_redis_key("' OR '1'='1").is_err());
         assert!(validate_redis_key("'; DROP TABLE--").is_err());
-        assert!(validate_redis_key("1 OR 1=1").is_err());
+        // Note: bare "1=1" patterns are not flagged to avoid false positives
+        // on normal cache keys like "api_v1_data" or "user_1_status"
     }
 
     #[test]

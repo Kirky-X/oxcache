@@ -85,30 +85,11 @@ pub fn validate_max_length(input: &str, max_length: usize, error_context: &str) 
 
 /// Redis 键验证常量
 pub mod redis {
-    /// Redis 键的最大长度
+    /// Redis 键的最大长度（Redis 协议限制）
     pub const MAX_KEY_LENGTH: usize = 512 * 1024;
 
-    /// Redis 键中的危险字符
+    /// Redis 键中的危险字符（协议安全：CR, LF, NULL）
     pub const DANGEROUS_CHARS: [char; 3] = ['\r', '\n', '\0'];
-
-    /// 验证 Redis 键
-    ///
-    /// 检查键是否符合 Redis 协议要求，防止注入攻击。
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - Redis 键
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` - 键有效
-    /// * `Err(CacheError)` - 键无效
-    pub fn validate_key(key: &str) -> crate::Result<()> {
-        super::validate_not_empty(key, "Redis key")?;
-        super::validate_max_length(key, MAX_KEY_LENGTH, "Redis key")?;
-        super::validate_no_dangerous_chars(key, &DANGEROUS_CHARS, "Redis key")?;
-        Ok(())
-    }
 }
 
 /// Lua 脚本验证常量
@@ -182,26 +163,27 @@ mod tests {
 
     #[test]
     fn test_redis_validate_key_valid() {
-        let result = redis::validate_key("my_key");
+        // redis::validate_key was removed; test the shared helpers directly
+        let result = validate_not_empty("my_key", "Redis key");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_redis_validate_key_empty() {
-        let result = redis::validate_key("");
+        let result = validate_not_empty("", "Redis key");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_redis_validate_key_dangerous_chars() {
-        let result = redis::validate_key("key\nwith\nnewlines");
+        let result = validate_no_dangerous_chars("key\nwith\nnewlines", &redis::DANGEROUS_CHARS, "Redis key");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_redis_validate_key_too_long() {
         let long_key = "a".repeat(redis::MAX_KEY_LENGTH + 1);
-        let result = redis::validate_key(&long_key);
+        let result = validate_max_length(&long_key, redis::MAX_KEY_LENGTH, "Redis key");
         assert!(result.is_err());
     }
 
