@@ -10,9 +10,6 @@ pub mod command;
 pub mod constants;
 pub mod types;
 
-// Traits moved from top-level
-pub mod traits;
-
 // Re-export commonly used items for convenience
 pub use constants::{
     CacheCapacity, PoolSize, DEFAULT_BATCH_SIZE, DEFAULT_CACHE_CAPACITY, DEFAULT_COMMAND_TIMEOUT_SECS,

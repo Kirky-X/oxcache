@@ -5,8 +5,8 @@
 //! Cache 字节操作方法（用于宏兼容）
 
 use super::Cache;
-use crate::core::traits::CacheKey;
 use crate::error::Result;
+use crate::traits::CacheKey;
 use std::sync::Arc;
 use std::time::Duration;
 

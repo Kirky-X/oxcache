@@ -7,8 +7,8 @@
 use crate::backend::interface::CacheBackend;
 use crate::backend::memory::moka::MokaMemoryBackend;
 use crate::cache::Cache;
-use crate::core::traits::CacheKey;
 use crate::error::Result;
+use crate::traits::CacheKey;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;

@@ -5,8 +5,8 @@
 //! Cache 批量操作方法
 
 use super::Cache;
-use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
+use crate::traits::CacheKey;
 use std::collections::HashMap;
 
 impl<K, V> Cache<K, V>

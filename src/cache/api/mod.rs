@@ -10,8 +10,8 @@ mod bytes_ops;
 mod macros;
 
 use crate::backend::CacheBackend;
-use crate::core::traits::CacheKey;
 use crate::infra::serialization::unified::UnifiedSerializer;
+use crate::traits::CacheKey;
 use std::sync::Arc;
 
 /// 核心 Cache 类型
@@ -48,7 +48,7 @@ where
         }
     }
 
-    #[cfg(any(feature = "memory", feature = "memory"))]
+    #[cfg(feature = "memory")]
     pub fn new() -> Self {
         use crate::backend::MokaMemoryBackend;
         Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
@@ -63,7 +63,7 @@ where
     }
 }
 
-#[cfg(any(feature = "memory", feature = "memory"))]
+#[cfg(feature = "memory")]
 impl<K, V> Default for Cache<K, V>
 where
     K: CacheKey,

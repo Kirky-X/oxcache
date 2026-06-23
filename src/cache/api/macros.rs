@@ -5,8 +5,8 @@
 //! Cache 宏注册和 Lua 脚本方法
 
 use super::Cache;
-use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
+use crate::traits::CacheKey;
 use std::sync::Arc;
 
 impl Cache<String, Vec<u8>> {
