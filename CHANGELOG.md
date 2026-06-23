@@ -7,20 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 新增 CacheKey trait 示例 (`example_cache_key.rs`)
+- 新增数据压缩功能示例 (`example_compression.rs`)
+
+### Changed
+- 更新文档以反映当前代码实现
+- 修正特性分层表，与 Cargo.toml 实际定义对齐
+- 移除不存在的特性引用（bloom-filter、rate-limiting、wal-recovery 等）
+
 ## [0.2.0] - 2026-03-14
 
 ### Added
 - 新增 `Cache::new()` 方法，支持特性门控的后端初始化
 - 新增后端评分系统 (`BackendScoreTrait`)，支持智能后端选择
-- 新增链式缓存功能 (`tiered-cache`)
-- 新增 HTTP 缓存支持 (`http-cache` feature)
+- 新增链式缓存功能 (`ChainCache`)
 - 新增 Lua 脚本执行支持 (`lua-script` feature)
-- 新增布隆过滤器优化 (`bloom-filter` feature)
-- 新增 WAL 恢复机制 (`wal-recovery` feature)
 - 新增批量写入功能 (`batch-write` feature)
-- 新增智能策略模块 (`smart-strategy` feature)
-- 新增额外序列化支持：MessagePack 和 CBOR (`extra-serialization`)
-- 新增动态配置支持 (`config-dynamic` feature)
 - 新增 CLI 工具支持 (`cli` feature)
 - 新增 OpenTelemetry 可观测性集成
 - 新增单元测试和集成测试，提升测试覆盖率
