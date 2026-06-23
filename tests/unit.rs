@@ -7,6 +7,10 @@
 // Contains all unit tests for the cache system.
 // These tests verify individual component functionality.
 
+#![allow(clippy::duplicate_mod)]
+
+mod common;
+
 #[path = "unit/serialization_test.rs"]
 mod serialization_test;
 
