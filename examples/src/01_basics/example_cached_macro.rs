@@ -63,10 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ");
 
     // 初始化缓存
-    let cache: Cache<String, User> = Cache::builder().build().await?;
+    // 注意：register_for_macro 仅支持 Cache<String, Vec<u8>>
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
     // 注册缓存实例到全局管理器（供宏使用）
-    cache.register_for_macro("user_cache").await;
+    cache.register_for_macro("user_cache").await?;
     println!("✓ 缓存已注册供 #[cached] 宏使用
 ");
 

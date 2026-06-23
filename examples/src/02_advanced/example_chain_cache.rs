@@ -4,20 +4,18 @@
 //
 //! ChainCache 链式缓存示例
 //!
-//! 本示例演示两种创建多级缓存的方式：
-//! - OxCacheBuilder（推荐）：简洁 API
-//! - ChainCache::builder()：高级控制
+//! 本示例演示使用 ChainCache::builder() 创建多级缓存的方式。
 //!
 //! 运行方式：
 //! ```bash
 //! cd examples && cargo run --example example_chain_cache
 //! ```
 
-#[cfg(feature = "redis")]
-use oxcache::backend::memory::RedisBackend;
-use oxcache::backend::CacheBackend;
-use oxcache::cache::{ChainCache, ChainLink, OxCacheBuilder};
-use oxcache::{backend::MokaMemoryBackend, Cache};
+use oxcache::backend::RedisBackend;
+use oxcache::cache::{ChainCache, ChainLink};
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::UnifiedCache;
+use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -32,49 +30,37 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== 链式缓存示例 ===\n");
 
-    // 示例 1: 使用 OxCacheBuilder（推荐 - 简洁 API）
-    println!("1. OxCacheBuilder 创建多级缓存");
+    // 示例 1: 使用 ChainCache::builder() 创建多级缓存
+    println!("1. ChainCache::builder() 创建多级缓存");
 
-    #[cfg(feature = "redis")]
-    {
-        let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
-        println!("   连接 Redis: {}", redis_url);
+    println!("   连接 Redis: {}", redis_url);
 
-        match RedisBackend::new(&redis_url).await {
-            Ok(l2) => {
-                let l1 = MokaMemoryBackend::builder().capacity(1000).build();
+    match RedisBackend::new(&redis_url).await {
+        Ok(l2) => {
+            let l1 = MokaMemoryBackend::builder().capacity(1000).build();
 
-                let chain = OxCacheBuilder::new()
-                    .backend(l1)  // L1 内存缓存
-                    .backend(l2)  // L2 Redis 缓存
-                    .enable_backfill()
-                    .build();
-                    .default_ttl(Duration::from_secs(3600))
-                    .enable_backfill()
-                    .build();
+            let chain = ChainCache::builder()
+                .link(ChainLink::from_backend(l1))
+                .link(ChainLink::from_backend(l2))
+                .enable_backfill()
+                .default_time_to_live(Duration::from_secs(3600))
+                .build();
 
-                println!("   ✓ 创建了2级缓存链：L1(Moka) -> L2(Redis)\n");
+            println!("   ✓ 创建了2级缓存链：L1(Moka) -> L2(Redis)\n");
 
-                demo_chain_cache_operations(&chain).await?;
+            demo_chain_cache_operations(&chain).await?;
 
-                chain.clear().await?;
-            }
-            Err(e) => {
-                println!("   ✗ 无法连接到 Redis: {}", e);
-                println!("   跳过 Redis 示例，使用仅内存缓存\n");
-
-                let cache: Cache<String, User> = Cache::builder().build().await?;
-                demo_simple_cache_operations(&cache).await?;
-            }
+            chain.clear().await?;
         }
-    }
+        Err(e) => {
+            println!("   ✗ 无法连接到 Redis: {}", e);
+            println!("   跳过 Redis 示例，使用仅内存缓存\n");
 
-    #[cfg(not(feature = "redis"))]
-    {
-        println!("   Redis feature 未启用，使用仅内存缓存\n");
-        let cache: Cache<String, User> = Cache::builder().build().await?;
-        demo_simple_cache_operations(&cache).await?;
+            let cache: Cache<String, User> = Cache::builder().build().await?;
+            demo_simple_cache_operations(&cache).await?;
+        }
     }
 
     // 示例 2: 仅内存缓存（适用于简单场景）
@@ -140,11 +126,11 @@ async fn demo_chain_cache_operations(chain: &ChainCache) -> Result<(), Box<dyn s
 
     println!("   写入数据...");
     let user_bytes: Vec<u8> = serde_json::to_vec(&user)?;
-    chain.set("user:1", user_bytes, None).await?;
+    chain.set_bytes("user:1", user_bytes, None).await?;
     println!("   ✓ 数据已写入缓存链\n");
 
     println!("   读取数据：");
-    let cached = chain.get("user:1").await?;
+    let cached = chain.get_bytes("user:1").await?;
     match cached {
         Some(data) => match serde_json::from_slice::<User>(&data) {
             Ok(u) => println!("   ✓ 命中: {:?}\n", u),
