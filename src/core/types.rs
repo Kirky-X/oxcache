@@ -61,14 +61,11 @@ pub enum BackendType {
     #[cfg(feature = "memory")]
     Moka,
     /// DashMap 纯并发HashMap（推荐 L1/L2，无驱逐策略）
-    #[cfg(feature = "dashmap")]
+    #[cfg(feature = "memory")]
     Dashmap,
     /// Redis 分布式缓存（推荐 L2/L3）
     #[cfg(feature = "redis")]
     Redis,
-    /// Sqlite 持久化存储（推荐 L2/L3）
-    #[cfg(feature = "sqlite")]
-    Sqlite,
     /// 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
     #[serde(rename = "none")]
     #[default]
@@ -82,12 +79,10 @@ impl std::fmt::Display for BackendType {
         match self {
             #[cfg(feature = "memory")]
             Self::Moka => write!(f, "moka"),
-            #[cfg(feature = "dashmap")]
+            #[cfg(feature = "memory")]
             Self::Dashmap => write!(f, "dashmap"),
             #[cfg(feature = "redis")]
             Self::Redis => write!(f, "redis"),
-            #[cfg(feature = "sqlite")]
-            Self::Sqlite => write!(f, "sqlite"),
             Self::None => write!(f, "none"),
             Self::Custom(name) => write!(f, "custom:{}", name),
         }
@@ -202,5 +197,129 @@ mod tests {
     #[test]
     fn test_serialization_type_default() {
         assert_eq!(SerializationType::default(), SerializationType::Json);
+    }
+
+    // ============================================================================
+    // BackendType Display 测试 (lines 78-87)
+    // ============================================================================
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_moka_display() {
+        assert_eq!(format!("{}", BackendType::Moka), "moka");
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_dashmap_display() {
+        assert_eq!(format!("{}", BackendType::Dashmap), "dashmap");
+    }
+
+    #[test]
+    #[cfg(feature = "redis")]
+    fn test_backend_type_redis_display() {
+        assert_eq!(format!("{}", BackendType::Redis), "redis");
+    }
+
+    #[test]
+    fn test_backend_type_none_display() {
+        assert_eq!(format!("{}", BackendType::None), "none");
+    }
+
+    #[test]
+    fn test_backend_type_custom_display() {
+        let backend = BackendType::Custom("my_backend".to_string());
+        assert_eq!(format!("{}", backend), "custom:my_backend");
+    }
+
+    #[test]
+    fn test_backend_type_custom_empty_display() {
+        let backend = BackendType::Custom(String::new());
+        assert_eq!(format!("{}", backend), "custom:");
+    }
+
+    #[test]
+    fn test_backend_type_default_is_none() {
+        assert_eq!(BackendType::default(), BackendType::None);
+    }
+
+    // ============================================================================
+    // BackendType 序列化/反序列化测试
+    // ============================================================================
+
+    #[test]
+    fn test_backend_type_none_serialize() {
+        let backend = BackendType::None;
+        let json = serde_json::to_string(&backend).unwrap();
+        assert_eq!(json, "\"none\"");
+    }
+
+    #[test]
+    fn test_backend_type_none_deserialize() {
+        let backend: BackendType = serde_json::from_str("\"none\"").unwrap();
+        assert_eq!(backend, BackendType::None);
+    }
+
+    #[test]
+    fn test_backend_type_custom_serialize() {
+        let backend = BackendType::Custom("test".to_string());
+        let json = serde_json::to_string(&backend).unwrap();
+        assert_eq!(json, "{\"custom\":\"test\"}");
+    }
+
+    #[test]
+    fn test_backend_type_custom_deserialize() {
+        let backend: BackendType = serde_json::from_str("{\"custom\":\"test\"}").unwrap();
+        assert_eq!(backend, BackendType::Custom("test".to_string()));
+    }
+
+    // ============================================================================
+    // BackendType Debug 和 PartialEq 测试
+    // ============================================================================
+
+    #[test]
+    fn test_backend_type_debug() {
+        let backend = BackendType::None;
+        let debug_str = format!("{:?}", backend);
+        assert!(debug_str.contains("None"));
+    }
+
+    #[test]
+    fn test_backend_type_equality() {
+        assert_eq!(BackendType::None, BackendType::None);
+        assert_ne!(
+            BackendType::Custom("a".to_string()),
+            BackendType::Custom("b".to_string())
+        );
+        assert_eq!(
+            BackendType::Custom("a".to_string()),
+            BackendType::Custom("a".to_string())
+        );
+    }
+
+    // ============================================================================
+    // CacheLayer Display 测试
+    // ============================================================================
+
+    #[test]
+    fn test_cache_layer_display() {
+        assert_eq!(format!("{}", CacheLayer::L1), "L1");
+        assert_eq!(format!("{}", CacheLayer::L2), "L2");
+        assert_eq!(format!("{}", CacheLayer::L3), "L3");
+    }
+
+    #[test]
+    fn test_cache_layer_default() {
+        assert_eq!(CacheLayer::default(), CacheLayer::L1);
+    }
+
+    // ============================================================================
+    // SerializationType 测试
+    // ============================================================================
+
+    #[test]
+    fn test_serialization_type_debug() {
+        let debug_str = format!("{:?}", SerializationType::Json);
+        assert!(debug_str.contains("Json"));
     }
 }

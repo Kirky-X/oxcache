@@ -111,3 +111,164 @@ impl Scores {
     /// 适合作为 L2/L3 分布式缓存。
     pub const MEMCACHED: u8 = 40;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ============================================================================
+    // Scores 常量测试
+    // ============================================================================
+
+    #[test]
+    fn test_scores_moka() {
+        assert_eq!(Scores::MOKA, 100);
+    }
+
+    #[test]
+    fn test_scores_dashmap() {
+        assert_eq!(Scores::DASHMAP, 90);
+    }
+
+    #[test]
+    fn test_scores_lmdb() {
+        assert_eq!(Scores::LMDB, 85);
+    }
+
+    #[test]
+    fn test_scores_sqlite() {
+        assert_eq!(Scores::SQLITE, 70);
+    }
+
+    #[test]
+    fn test_scores_redis() {
+        assert_eq!(Scores::REDIS, 50);
+    }
+
+    #[test]
+    fn test_scores_memcached() {
+        assert_eq!(Scores::MEMCACHED, 40);
+    }
+
+    #[test]
+    fn test_scores_ordering() {
+        // 验证分数顺序：Moka > DashMap > LMDB > SQLite > Redis > Memcached
+        assert!(Scores::MOKA > Scores::DASHMAP);
+        assert!(Scores::DASHMAP > Scores::LMDB);
+        assert!(Scores::LMDB > Scores::SQLITE);
+        assert!(Scores::SQLITE > Scores::REDIS);
+        assert!(Scores::REDIS > Scores::MEMCACHED);
+    }
+
+    // ============================================================================
+    // BackendScore trait 测试
+    // ============================================================================
+
+    struct TestMemoryBackend;
+
+    impl BackendScore for TestMemoryBackend {
+        fn score(&self) -> u8 {
+            Scores::MOKA
+        }
+
+        fn is_persistent(&self) -> bool {
+            false
+        }
+
+        fn backend_name(&self) -> &'static str {
+            "test_memory"
+        }
+    }
+
+    struct TestPersistentBackend;
+
+    impl BackendScore for TestPersistentBackend {
+        fn score(&self) -> u8 {
+            Scores::SQLITE
+        }
+
+        fn is_persistent(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &'static str {
+            "test_persistent"
+        }
+    }
+
+    struct TestDefaultNameBackend;
+
+    impl BackendScore for TestDefaultNameBackend {
+        fn score(&self) -> u8 {
+            50
+        }
+
+        fn is_persistent(&self) -> bool {
+            false
+        }
+        // 使用默认 backend_name 实现
+    }
+
+    #[test]
+    fn test_backend_score_memory() {
+        let backend = TestMemoryBackend;
+        assert_eq!(backend.score(), 100);
+        assert!(!backend.is_persistent());
+        assert_eq!(backend.backend_name(), "test_memory");
+    }
+
+    #[test]
+    fn test_backend_score_persistent() {
+        let backend = TestPersistentBackend;
+        assert_eq!(backend.score(), 70);
+        assert!(backend.is_persistent());
+        assert_eq!(backend.backend_name(), "test_persistent");
+    }
+
+    #[test]
+    fn test_backend_score_default_name() {
+        let backend = TestDefaultNameBackend;
+        assert_eq!(backend.score(), 50);
+        assert!(!backend.is_persistent());
+        // 默认 backend_name 应该返回 "unknown"
+        assert_eq!(backend.backend_name(), "unknown");
+    }
+
+    #[test]
+    fn test_backend_score_trait_object() {
+        // 测试 trait 对象动态分发
+        let backends: Vec<Box<dyn BackendScore>> = vec![
+            Box::new(TestMemoryBackend),
+            Box::new(TestPersistentBackend),
+            Box::new(TestDefaultNameBackend),
+        ];
+
+        assert_eq!(backends[0].score(), 100);
+        assert_eq!(backends[1].score(), 70);
+        assert_eq!(backends[2].score(), 50);
+
+        assert!(!backends[0].is_persistent());
+        assert!(backends[1].is_persistent());
+        assert!(!backends[2].is_persistent());
+
+        assert_eq!(backends[0].backend_name(), "test_memory");
+        assert_eq!(backends[1].backend_name(), "test_persistent");
+        assert_eq!(backends[2].backend_name(), "unknown");
+    }
+
+    #[test]
+    fn test_backend_score_sorting_by_score() {
+        // 测试按分数排序
+        let mut backends: Vec<Box<dyn BackendScore>> = vec![
+            Box::new(TestPersistentBackend),  // 70
+            Box::new(TestMemoryBackend),      // 100
+            Box::new(TestDefaultNameBackend), // 50
+        ];
+
+        backends.sort_by(|a, b| b.score().cmp(&a.score()));
+
+        assert_eq!(backends[0].score(), 100);
+        assert_eq!(backends[1].score(), 70);
+        assert_eq!(backends[2].score(), 50);
+    }
+}
