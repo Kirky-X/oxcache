@@ -6,12 +6,12 @@
 // 这个文件包含专门用于Miri检测的内存安全测试
 // 运行方式: cargo +nightly miri test --test miri_memory_test
 
-use oxcache::backend::{CacheBackend, MemoryBackend};
+use oxcache::backend::{CacheBackend, MokaMemoryBackend};
 
 /// 测试基本的内存安全 - 无内存泄漏
 #[test]
 fn test_basic_memory_safety() {
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(100).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(100).build());
 
     // 简单的set/get操作
     let key = "test_key";
@@ -34,7 +34,7 @@ fn test_basic_memory_safety() {
 /// 测试内存释放 - 确保删除后内存被释放
 #[test]
 fn test_memory_release_on_delete() {
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -75,7 +75,7 @@ fn test_no_circular_reference_leak() {
         next: Option<Rc<RefCell<Node>>>,
     }
 
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(5).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(5).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -113,7 +113,7 @@ fn test_no_circular_reference_leak() {
 /// 测试缓冲区溢出 - 确保没有缓冲区溢出
 #[test]
 fn test_buffer_overflow_prevention() {
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -142,7 +142,7 @@ fn test_concurrent_memory_safety() {
     use std::sync::Arc;
     use std::thread;
 
-    let cache: Arc<dyn CacheBackend + Send + Sync> = Arc::new(MemoryBackend::builder().capacity(100).build());
+    let cache: Arc<dyn CacheBackend + Send + Sync> = Arc::new(MokaMemoryBackend::builder().capacity(100).build());
     let mut handles = vec![];
 
     for thread_id in 0..5 {
@@ -180,7 +180,7 @@ fn test_concurrent_memory_safety() {
 /// 测试内存对齐 - 确保数据结构正确对齐
 #[test]
 fn test_memory_alignment() {
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(10).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(10).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -210,7 +210,7 @@ fn test_memory_alignment() {
 /// 测试使用未初始化内存 - 确保没有使用未初始化内存
 #[test]
 fn test_uninitialized_memory_prevention() {
-    let cache: Box<dyn CacheBackend> = Box::new(MemoryBackend::builder().capacity(5).build());
+    let cache: Box<dyn CacheBackend> = Box::new(MokaMemoryBackend::builder().capacity(5).build());
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {

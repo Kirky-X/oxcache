@@ -88,44 +88,6 @@ pub trait ConfigProvider: Send + Sync {
     fn get_json(&self, key: &str) -> Option<serde_json::Value>;
 }
 
-/// 后端类型枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub enum BackendType {
-    /// 仅内存后端 (L1)
-    Memory,
-    /// 仅 Redis 后端 (L2)
-    Redis,
-}
-
-impl Default for BackendType {
-    #[inline]
-    fn default() -> Self {
-        BackendType::Memory
-    }
-}
-
-impl std::fmt::Display for BackendType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BackendType::Memory => write!(f, "Memory"),
-            BackendType::Redis => write!(f, "Redis"),
-        }
-    }
-}
-
-impl std::str::FromStr for BackendType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Memory" => Ok(BackendType::Memory),
-            "Redis" => Ok(BackendType::Redis),
-            _ => Err(format!("Unknown backend type: '{}'. Use 'Memory' or 'Redis', or construct ChainCache directly for multi-backend setups.", s)),
-        }
-    }
-}
-
 /// 缓存类型枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -221,11 +183,6 @@ pub struct BackendConfig {
 }
 
 impl BackendConfig {
-    /// 获取后端类型枚举
-    pub fn backend_type_enum(&self) -> BackendType {
-        self.backend_type.parse().unwrap_or(BackendType::Memory)
-    }
-
     /// 获取 L1 选项
     pub fn l1_options(&self) -> serde_json::Value {
         if self.l1_options_json.is_empty() {

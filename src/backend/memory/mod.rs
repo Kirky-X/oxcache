@@ -50,7 +50,6 @@ pub enum MemoryBackendType {
 // Re-export all client backends for convenience
 pub use dashmap::DashMapMemoryBackend;
 pub use moka::MokaMemoryBackend;
-pub use moka::MokaMemoryBackend as MemoryBackend; // 为向后兼容提供别名
 #[cfg(feature = "redis")]
 pub use redis::{RedisBackend, RedisBackendBuilder, RedisMode};
 

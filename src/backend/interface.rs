@@ -8,7 +8,7 @@
 //! - `CacheReader` - Read-only operations
 //! - `CacheWriter` - Write operations
 //! - `CacheConnector` - Lifecycle management
-//! - `CacheBackend` - Combines all traits for backward compatibility
+//! - `CacheBackend` - Combines all traits
 
 use crate::error::Result;
 use async_trait::async_trait;
@@ -194,54 +194,49 @@ pub trait LuaExecutor: Send + Sync {
 }
 
 // ============================================================================
-// Combined CacheBackend Trait (Backward Compatibility)
+// Combined CacheBackend Trait
 // ============================================================================
 
 /// Full cache backend interface combining all ISP traits.
 ///
-/// This trait combines `CacheReader`, `CacheWriter`, and `CacheConnector`
-/// for consumers that need full cache functionality. It maintains backward
-/// compatibility with existing code.
+/// Combines `CacheReader`, `CacheWriter`, and `CacheConnector` for consumers
+/// that need full cache functionality. Single trait object type for backends.
 ///
 /// # Design Pattern
 ///
-/// This uses the Strategy pattern, allowing different backend implementations
-/// to be swapped without changing the cache interface.
+/// Strategy pattern: allows different backend implementations to be swapped
+/// without changing the cache interface.
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxcache::backend::CacheBackend;
+/// use oxcache::backend::{CacheReader, CacheWriter, CacheConnector};
 /// use async_trait::async_trait;
 ///
 /// struct MyCustomBackend;
 ///
 /// #[async_trait]
-/// impl CacheBackend for MyCustomBackend {
-///     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-///         Ok(None)
-///     }
-///
-///     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
-///         Ok(())
-///     }
-///
-///     // ... implement other methods
+/// impl CacheReader for MyCustomBackend {
+///     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> { Ok(None) }
+///     async fn exists(&self, key: &str) -> Result<bool> { Ok(false) }
+///     async fn ttl(&self, key: &str) -> Result<Option<std::time::Duration>> { Ok(None) }
+///     async fn len(&self) -> Result<u64> { Ok(0) }
+///     async fn capacity(&self) -> Result<u64> { Ok(0) }
+///     async fn stats(&self) -> Result<std::collections::HashMap<String, String>> { Ok(HashMap::new()) }
 /// }
+///
+/// #[async_trait]
+/// impl CacheWriter for MyCustomBackend { /* ... */ }
+///
+/// #[async_trait]
+/// impl CacheConnector for MyCustomBackend { /* ... */ }
+/// // CacheBackend is automatically provided via blanket impl
 /// ```
 #[async_trait]
-pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {
-    // All methods are provided via supertraits
-    // This trait exists for backward compatibility and type bounds
-}
+pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 
-/// Blanket implementation of CacheBackend for any type implementing all required traits.
 #[async_trait]
 impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T {}
-
-// ============================================================================
-// Re-exports for backward compatibility
-// ============================================================================
 
 #[cfg(test)]
 mod tests {

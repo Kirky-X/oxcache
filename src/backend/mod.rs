@@ -42,7 +42,6 @@ pub use memory::{
     // Convenience functions
     moka_memory,
     DashMapMemoryBackend,
-    MemoryBackend,
     // Type definitions
     MemoryBackendType,
     MokaMemoryBackend,
