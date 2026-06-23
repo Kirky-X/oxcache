@@ -132,7 +132,8 @@ impl LatencyHistogram {
         // 更新最小/最大
         loop {
             let current_min = self.min_latency_us.load(Ordering::Relaxed);
-            if latency_us >= current_min || current_min == u64::MAX {
+            // 仅当 min 已设置（非 u64::MAX）且新延迟不小于当前最小值时才跳过更新
+            if current_min != u64::MAX && latency_us >= current_min {
                 break;
             }
             if self
@@ -709,4 +710,396 @@ pub struct WindowMetricsSummary {
     pub total_operations: u64,
     /// 成功率
     pub success_rate: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ----------------------------------------------------------------
+    // OperationType tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_operation_type_name() {
+        assert_eq!(OperationType::Get.name(), "get");
+        assert_eq!(OperationType::Set.name(), "set");
+        assert_eq!(OperationType::Delete.name(), "delete");
+        assert_eq!(OperationType::Exists.name(), "exists");
+        assert_eq!(OperationType::Batch.name(), "batch");
+        assert_eq!(OperationType::Other.name(), "other");
+    }
+
+    // ----------------------------------------------------------------
+    // LatencyHistogram tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_latency_histogram_new() {
+        let hist = LatencyHistogram::new(vec![100, 500, 1000]).unwrap();
+        let summary = hist.summary();
+        assert_eq!(summary.total_count, 0);
+        assert_eq!(summary.avg_latency_us, 0.0);
+        assert_eq!(summary.min_latency_us, 0);
+        assert_eq!(summary.max_latency_us, 0);
+    }
+
+    #[test]
+    fn test_latency_histogram_new_too_many_buckets() {
+        let bounds: Vec<u64> = (0..MAX_HISTOGRAM_BUCKETS + 1).map(|i| i as u64 * 100).collect();
+        let result = LatencyHistogram::new(bounds);
+        assert!(result.is_err(), "Should reject too many buckets");
+    }
+
+    #[test]
+    fn test_latency_histogram_record_within_bounds() {
+        let hist = LatencyHistogram::new(vec![100, 500, 1000]).unwrap();
+        // 50us <= 100 -> bucket 0
+        hist.record(Duration::from_micros(50));
+        // 200us <= 500 -> bucket 1
+        hist.record(Duration::from_micros(200));
+        // 800us <= 1000 -> bucket 2
+        hist.record(Duration::from_micros(800));
+
+        let summary = hist.summary();
+        assert_eq!(summary.total_count, 3);
+        assert_eq!(summary.min_latency_us, 50);
+        assert_eq!(summary.max_latency_us, 800);
+        // avg = (50 + 200 + 800) / 3 = 350
+        assert!((summary.avg_latency_us - 350.0).abs() < 0.01);
+
+        let buckets = hist.buckets();
+        assert_eq!(buckets.len(), 3);
+        assert_eq!(buckets[0].count, 1);
+        assert_eq!(buckets[1].count, 1);
+        assert_eq!(buckets[2].count, 1);
+        // cumulative percentiles
+        assert!((buckets[0].cumulative_percentile - 100.0 / 3.0).abs() < 0.01);
+        assert!((buckets[1].cumulative_percentile - 200.0 / 3.0).abs() < 0.01);
+        assert!((buckets[2].cumulative_percentile - 100.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_latency_histogram_record_exceeds_all_bounds() {
+        let hist = LatencyHistogram::new(vec![100, 500]).unwrap();
+        // 1000us exceeds all bounds -> falls into last bucket
+        hist.record(Duration::from_micros(1000));
+
+        let buckets = hist.buckets();
+        assert_eq!(buckets.len(), 2);
+        // Last bucket gets the overflow count
+        assert_eq!(buckets[1].count, 1);
+        assert_eq!(buckets[0].count, 0);
+    }
+
+    #[test]
+    fn test_latency_histogram_buckets_empty() {
+        let hist = LatencyHistogram::new(vec![100, 500]).unwrap();
+        let buckets = hist.buckets();
+        assert_eq!(buckets.len(), 2);
+        assert_eq!(buckets[0].count, 0);
+        assert_eq!(buckets[0].upper_bound_us, 100);
+        assert_eq!(buckets[0].cumulative_percentile, 0.0);
+    }
+
+    #[test]
+    fn test_latency_histogram_reset() {
+        let hist = LatencyHistogram::new(vec![100, 500]).unwrap();
+        hist.record(Duration::from_micros(50));
+        hist.record(Duration::from_micros(200));
+        assert_eq!(hist.summary().total_count, 2);
+
+        hist.reset();
+        let summary = hist.summary();
+        assert_eq!(summary.total_count, 0);
+        assert_eq!(summary.min_latency_us, 0);
+        assert_eq!(summary.max_latency_us, 0);
+        assert_eq!(summary.avg_latency_us, 0.0);
+
+        let buckets = hist.buckets();
+        assert_eq!(buckets[0].count, 0);
+        assert_eq!(buckets[1].count, 0);
+    }
+
+    #[test]
+    fn test_latency_histogram_min_max_updates() {
+        let hist = LatencyHistogram::new(vec![10000]).unwrap();
+        hist.record(Duration::from_micros(500));
+        assert_eq!(hist.summary().min_latency_us, 500);
+        assert_eq!(hist.summary().max_latency_us, 500);
+
+        // New min
+        hist.record(Duration::from_micros(100));
+        assert_eq!(hist.summary().min_latency_us, 100);
+        assert_eq!(hist.summary().max_latency_us, 500);
+
+        // New max
+        hist.record(Duration::from_micros(5000));
+        assert_eq!(hist.summary().min_latency_us, 100);
+        assert_eq!(hist.summary().max_latency_us, 5000);
+    }
+
+    // ----------------------------------------------------------------
+    // OperationCounter tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_operation_counter_record_success_and_failure() {
+        let counter = OperationCounter::new(OperationType::Get, vec![100, 500]).unwrap();
+        counter.record_success(Duration::from_micros(50));
+        counter.record_success(Duration::from_micros(200));
+        counter.record_failure(Duration::from_micros(400));
+
+        let stats = counter.stats();
+        assert_eq!(stats.op_type, "get");
+        assert_eq!(stats.total_count, 3);
+        assert_eq!(stats.success_count, 2);
+        assert_eq!(stats.failure_count, 1);
+        // success_rate = 2/3 * 100 = 66.66...
+        assert!((stats.success_rate - 66.6667).abs() < 0.01);
+        assert_eq!(stats.min_latency_us, 50);
+        assert_eq!(stats.max_latency_us, 400);
+    }
+
+    #[test]
+    fn test_operation_counter_stats_empty() {
+        let counter = OperationCounter::new(OperationType::Set, vec![100]).unwrap();
+        let stats = counter.stats();
+        assert_eq!(stats.op_type, "set");
+        assert_eq!(stats.total_count, 0);
+        assert_eq!(stats.success_count, 0);
+        assert_eq!(stats.failure_count, 0);
+        assert_eq!(stats.success_rate, 0.0);
+        assert_eq!(stats.avg_latency_us, 0.0);
+    }
+
+    #[test]
+    fn test_operation_counter_new_too_many_buckets() {
+        let bounds: Vec<u64> = (0..MAX_HISTOGRAM_BUCKETS + 1).map(|i| i as u64).collect();
+        let result = OperationCounter::new(OperationType::Get, bounds);
+        assert!(result.is_err());
+    }
+
+    // ----------------------------------------------------------------
+    // MetricsCollector tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_metrics_collector_new() {
+        let collector = MetricsCollector::new().unwrap();
+        // All operation counters should be present
+        assert!(collector.operation_counter(OperationType::Get).is_some());
+        assert!(collector.operation_counter(OperationType::Set).is_some());
+        assert!(collector.operation_counter(OperationType::Delete).is_some());
+        assert!(collector.operation_counter(OperationType::Exists).is_some());
+        assert!(collector.operation_counter(OperationType::Batch).is_some());
+        // Other is not in the predefined list
+        assert!(collector.operation_counter(OperationType::Other).is_none());
+    }
+
+    #[test]
+    fn test_metrics_collector_default() {
+        let collector = MetricsCollector::default();
+        let stats = collector.full_stats();
+        assert_eq!(stats.l1_hits, 0);
+        assert_eq!(stats.l1_misses, 0);
+        assert_eq!(stats.l2_hits, 0);
+        assert_eq!(stats.l2_misses, 0);
+        assert_eq!(stats.connections, 0);
+        assert_eq!(stats.active_tasks, 0);
+        assert_eq!(stats.queue_depth, 0);
+        assert_eq!(stats.operation_stats.len(), 5);
+    }
+
+    #[test]
+    fn test_metrics_collector_l1_l2_hits_misses() {
+        let collector = MetricsCollector::new().unwrap();
+        collector.record_l1_hit();
+        collector.record_l1_hit();
+        collector.record_l1_miss();
+        collector.record_l2_hit();
+        collector.record_l2_miss();
+        collector.record_l2_miss();
+
+        let stats = collector.full_stats();
+        assert_eq!(stats.l1_hits, 2);
+        assert_eq!(stats.l1_misses, 1);
+        assert_eq!(stats.l2_hits, 1);
+        assert_eq!(stats.l2_misses, 2);
+        // l1_hit_rate = 2 / 3 * 100 = 66.66...
+        assert!((stats.l1_hit_rate - 66.6667).abs() < 0.01);
+        // l2_hit_rate = 1 / 3 * 100 = 33.33...
+        assert!((stats.l2_hit_rate - 33.3333).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_metrics_collector_set_state() {
+        let collector = MetricsCollector::new().unwrap();
+        collector.set_connections(10);
+        collector.set_active_tasks(5);
+        collector.set_queue_depth(20);
+
+        let stats = collector.full_stats();
+        assert_eq!(stats.connections, 10);
+        assert_eq!(stats.active_tasks, 5);
+        assert_eq!(stats.queue_depth, 20);
+    }
+
+    #[test]
+    fn test_metrics_collector_full_stats_zero_hit_rate() {
+        let collector = MetricsCollector::new().unwrap();
+        let stats = collector.full_stats();
+        // No hits or misses -> hit rate is 0
+        assert_eq!(stats.l1_hit_rate, 0.0);
+        assert_eq!(stats.l2_hit_rate, 0.0);
+    }
+
+    #[test]
+    fn test_metrics_collector_cache_hit_rates() {
+        let collector = MetricsCollector::new().unwrap();
+        // L1: 3 hits, 1 miss -> global_hit_rate = 75%
+        collector.record_l1_hit();
+        collector.record_l1_hit();
+        collector.record_l1_hit();
+        collector.record_l1_miss();
+        // L2: 1 hit out of 1 L1 miss -> l2_hit_rate = 100%
+        collector.record_l2_hit();
+
+        let rates = collector.cache_hit_rates();
+        assert!((rates.l1_hit_rate - 75.0).abs() < 0.01);
+        assert!((rates.l2_hit_rate - 100.0).abs() < 0.01);
+        assert_eq!(rates.l1_hits, 3);
+        assert_eq!(rates.l1_misses, 1);
+        assert_eq!(rates.l2_hits, 1);
+        assert_eq!(rates.l2_misses, 0);
+    }
+
+    #[test]
+    fn test_metrics_collector_cache_hit_rates_no_l1_misses() {
+        let collector = MetricsCollector::new().unwrap();
+        // Only L1 hits, no misses -> l2_hit_rate = 0 (no L1 misses to compute against)
+        collector.record_l1_hit();
+        collector.record_l1_hit();
+
+        let rates = collector.cache_hit_rates();
+        assert!((rates.l1_hit_rate - 100.0).abs() < 0.01);
+        assert_eq!(rates.l2_hit_rate, 0.0);
+    }
+
+    #[test]
+    fn test_metrics_collector_operation_stats_via_counter() {
+        let collector = MetricsCollector::new().unwrap();
+        if let Some(counter) = collector.operation_counter(OperationType::Get) {
+            counter.record_success(Duration::from_micros(100));
+            counter.record_failure(Duration::from_micros(200));
+        }
+
+        let stats = collector.full_stats();
+        let get_stats = stats.operation_stats.iter().find(|s| s.op_type == "get").unwrap();
+        assert_eq!(get_stats.total_count, 2);
+        assert_eq!(get_stats.success_count, 1);
+        assert_eq!(get_stats.failure_count, 1);
+        assert!((get_stats.success_rate - 50.0).abs() < 0.01);
+    }
+
+    // ----------------------------------------------------------------
+    // PerformanceSnapshot tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_performance_snapshot_new() {
+        let metrics = FullMetrics {
+            l1_hits: 10,
+            l1_misses: 5,
+            l1_hit_rate: 66.67,
+            l2_hits: 3,
+            l2_misses: 2,
+            l2_hit_rate: 60.0,
+            connections: 4,
+            active_tasks: 2,
+            queue_depth: 8,
+            operation_stats: vec![],
+        };
+        let snapshot = PerformanceSnapshot::new(metrics.clone(), 1.5);
+        assert_eq!(snapshot.metrics.l1_hits, 10);
+        assert_eq!(snapshot.metrics.l2_hits, 3);
+        assert!((snapshot.interval_secs - 1.5).abs() < 0.001);
+    }
+
+    // ----------------------------------------------------------------
+    // SlidingWindowMetrics tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_sliding_window_metrics_new() {
+        let collector = Arc::new(MetricsCollector::new().unwrap());
+        let sw = SlidingWindowMetrics::new(collector, 60, 10);
+        // No captures yet
+        assert_eq!(sw.max_snapshots, 10);
+        assert_eq!(sw.window_secs, 60);
+    }
+
+    #[tokio::test]
+    async fn test_sliding_window_metrics_window_summary_empty() {
+        let collector = Arc::new(MetricsCollector::new().unwrap());
+        let sw = SlidingWindowMetrics::new(collector, 60, 10);
+        let summary = sw.window_summary().await;
+        // Empty window returns Default (snapshot_count=0, window_secs=0)
+        assert_eq!(summary.snapshot_count, 0);
+        assert_eq!(summary.avg_l1_hit_rate, 0.0);
+        assert_eq!(summary.total_operations, 0);
+    }
+
+    #[tokio::test]
+    async fn test_sliding_window_metrics_capture_and_summary() {
+        let collector = Arc::new(MetricsCollector::new().unwrap());
+        // Record some metrics before capture
+        collector.record_l1_hit();
+        collector.record_l1_hit();
+        collector.record_l1_miss();
+        collector.record_l2_hit();
+        if let Some(c) = collector.operation_counter(OperationType::Get) {
+            c.record_success(Duration::from_micros(100));
+        }
+
+        let sw = SlidingWindowMetrics::new(collector.clone(), 60, 10);
+        sw.capture();
+
+        let summary = sw.window_summary().await;
+        assert_eq!(summary.snapshot_count, 1);
+        assert_eq!(summary.window_secs, 60);
+        assert_eq!(summary.total_l1_hits, 2);
+        assert_eq!(summary.total_l1_misses, 1);
+        assert_eq!(summary.total_l2_hits, 1);
+        // l1_hit_rate = 2/3 * 100 = 66.66...
+        assert!((summary.avg_l1_hit_rate - 66.6667).abs() < 0.01);
+        // 1 operation total, 1 success -> 100%
+        assert_eq!(summary.total_operations, 1);
+        assert!((summary.success_rate - 100.0).abs() < 0.01);
+    }
+
+    #[tokio::test]
+    async fn test_sliding_window_metrics_max_snapshots() {
+        let collector = Arc::new(MetricsCollector::new().unwrap());
+        let sw = SlidingWindowMetrics::new(collector, 60, 2);
+
+        sw.capture();
+        sw.capture();
+        sw.capture(); // should evict the oldest
+
+        let summary = sw.window_summary().await;
+        assert_eq!(summary.snapshot_count, 2, "Should cap at max_snapshots");
+    }
+
+    #[tokio::test]
+    async fn test_sliding_window_metrics_window_summary_zero_division() {
+        let collector = Arc::new(MetricsCollector::new().unwrap());
+        let sw = SlidingWindowMetrics::new(collector, 60, 10);
+        sw.capture();
+        let summary = sw.window_summary().await;
+        // No hits/misses -> rates are 0
+        assert_eq!(summary.avg_l1_hit_rate, 0.0);
+        assert_eq!(summary.avg_l2_hit_rate, 0.0);
+        assert_eq!(summary.success_rate, 0.0);
+    }
 }
