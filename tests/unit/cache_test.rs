@@ -2,12 +2,10 @@
 //
 // MIT License
 
-use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 /// Poll until a condition is true or timeout. Replaces fixed sleep for timing-dependent tests.
 /// ponytail: simple polling loop, add exponential backoff if CI flakiness persists.
@@ -41,135 +39,7 @@ impl Default for TestValue {
     }
 }
 
-struct TestMockBackend {
-    data: RwLock<std::collections::HashMap<String, Vec<u8>>>,
-    _healthy: bool,
-}
-
-impl TestMockBackend {
-    fn new() -> Self {
-        Self {
-            data: RwLock::new(std::collections::HashMap::new()),
-            _healthy: true,
-        }
-    }
-}
-
-impl oxcache::backend::BackendScore for TestMockBackend {
-    fn score(&self) -> u8 {
-        80
-    }
-    fn is_persistent(&self) -> bool {
-        false
-    }
-    fn backend_name(&self) -> &'static str {
-        "test_mock"
-    }
-}
-
-#[async_trait::async_trait]
-impl CacheReader for TestMockBackend {
-    async fn get(&self, key: &str) -> oxcache::error::Result<Option<Vec<u8>>> {
-        let data = self.data.read().await;
-        Ok(data.get(key).cloned())
-    }
-
-    async fn exists(&self, key: &str) -> oxcache::error::Result<bool> {
-        let data = self.data.read().await;
-        Ok(data.contains_key(key))
-    }
-
-    async fn ttl(&self, _key: &str) -> oxcache::error::Result<Option<Duration>> {
-        Ok(None)
-    }
-
-    async fn len(&self) -> oxcache::error::Result<u64> {
-        let data = self.data.read().await;
-        Ok(data.len() as u64)
-    }
-
-    async fn is_empty(&self) -> oxcache::error::Result<bool> {
-        let data = self.data.read().await;
-        Ok(data.is_empty())
-    }
-
-    async fn capacity(&self) -> oxcache::error::Result<u64> {
-        Ok(10000)
-    }
-
-    async fn stats(&self) -> oxcache::error::Result<std::collections::HashMap<String, String>> {
-        let data = self.data.read().await;
-        let mut stats = std::collections::HashMap::new();
-        stats.insert("type".to_string(), "test_mock".to_string());
-        stats.insert("entries".to_string(), data.len().to_string());
-        Ok(stats)
-    }
-
-    async fn get_many(&self, keys: &[String]) -> oxcache::error::Result<Vec<Option<Vec<u8>>>> {
-        let data = self.data.read().await;
-        let mut results = Vec::with_capacity(keys.len());
-        for key in keys {
-            results.push(data.get(key).cloned());
-        }
-        Ok(results)
-    }
-}
-
-#[async_trait::async_trait]
-impl CacheWriter for TestMockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.insert(key.to_string(), value);
-        Ok(())
-    }
-
-    async fn delete(&self, key: &str) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.remove(key);
-        Ok(())
-    }
-
-    async fn clear(&self) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        data.clear();
-        Ok(())
-    }
-
-    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::Result<bool> {
-        Ok(false)
-    }
-
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        for (key, value, _) in items {
-            data.insert(key.clone(), value.clone());
-        }
-        Ok(())
-    }
-
-    async fn delete_many(&self, keys: &[String]) -> oxcache::error::Result<()> {
-        let mut data = self.data.write().await;
-        for key in keys {
-            data.remove(key);
-        }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl CacheConnector for TestMockBackend {
-    async fn health_check(&self) -> oxcache::error::Result<()> {
-        Ok(())
-    }
-
-    async fn shutdown(&self) {
-        // no-op
-    }
-
-    fn backend_kind(&self) -> oxcache::backend::interface::BackendKind {
-        oxcache::backend::interface::BackendKind::Mock
-    }
-}
+use crate::common::MockBackend;
 
 #[tokio::test]
 async fn test_cache_memory_constructor() {
@@ -182,7 +52,7 @@ async fn test_cache_memory_constructor() {
 
 #[tokio::test]
 async fn test_cache_with_dependencies() {
-    let backend = Arc::new(TestMockBackend::new());
+    let backend = Arc::new(MockBackend::new("test_mock", 80, false));
     let cache: Cache<String, TestValue> = Cache::with_dependencies(backend);
     let value = TestValue::default();
     cache.set(&"di_key".to_string(), &value).await.unwrap();
