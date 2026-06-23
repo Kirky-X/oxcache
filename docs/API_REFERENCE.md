@@ -15,7 +15,6 @@ This document provides detailed API reference for the Oxcache library.
 - [Configuration](#configuration)
 - [Synchronization](#synchronization)
 - [Recovery](#recovery)
-- [Database Integration](#database-integration)
 - [Security Features](#security-features)
 - [Observability](#observability)
 
@@ -24,31 +23,24 @@ This document provides detailed API reference for the Oxcache library.
 Oxcache uses feature gates to control functionality. Here are the key features and their requirements:
 
 ### Core Features
-- **`minimal`**: L1 cache only (Moka)
+- **`minimal`**: L1 cache only (Memory backends)
 - **`core`**: L1 + L2 cache (Redis)
 - **`full`**: All features enabled
 
 ### Component Features
-- **`macros`**: Required for `#[cached]` attribute macro
-- **`moka`**: L1 cache implementation (Moka)
-- **`dashmap-backend`**: Pure in-memory concurrent cache (DashMap)
+- **`memory`**: L1 cache backends (Moka + DashMap)
 - **`redis`**: L2 cache implementation (Redis)
-- **`confers`**: Unified configuration file support (TOML)
-- **`metrics`**: Basic metrics collection
-- **`full-metrics`**: OpenTelemetry integration
-- **`smart-strategy`**: Smart cache strategy with entropy-based compression
-- **`bloom-filter`**: Cache penetration protection with LRU-based hash caching
+- **`macros`**: Required for `#[cached]` attribute macro
+- **`serialization`**: JSON serialization (serde + serde_json)
+- **`metrics`**: OpenTelemetry metrics and observability
+- **`tracing`**: Structured logging support
 
 ### Advanced Features
-- **`bloom-filter`**: Cache penetration protection
-- **`rate-limiting`**: DoS protection with token bucket algorithm
-- **`wal-recovery`**: Write-ahead log for durability
-- **`batch-write`**: Optimized batch writing
-- **`database`**: Database integration (SeaORM/SQLx)
-- **`cli`**: Command-line interface
 - **`compression`**: Data compression (flate2)
+- **`batch-write`**: Optimized batch writing (tokio-util)
 - **`lua-script`**: Lua script execution support
-- **`extra-serialization`**: MessagePack, CBOR serialization
+- **`cli`**: Command-line interface (clap)
+- **`testing`**: Testing support utilities
 
 ### Example Configurations
 
@@ -64,15 +56,6 @@ oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # Custom selection
 oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
-
-# Development with specific features
-oxcache = { version = "0.2.0", features = [
-    "moka",      # L1 cache (Moka)
-    "redis",     # L2 cache (Redis)
-    "macros",       # #[cached] macro
-    "batch-write",  # Optimized batch writing
-    "metrics",      # Basic metrics
-] }
 ```
 
 ### Feature Dependencies
@@ -81,15 +64,10 @@ Some features require other features to be enabled:
 
 | Feature | Required Features | Description |
 |---------|-------------------|-------------|
-| `bloom-filter` | `moka` | Cache penetration protection |
-| `rate-limiting` | `moka` | DoS protection |
-| `wal-recovery` | `redis` | Write-ahead log for durability |
-| `batch-write` | `redis` | Optimized batch writing |
-| `cli` | `confers` | Command-line interface |
-| `opentelemetry` | `metrics` | OpenTelemetry integration |
-| `database` | `redis` | Database integration |
-
-**Note**: Using the `full` feature automatically enables all dependencies.
+| `lua-script` | `redis` | Lua script execution |
+| `cli` | `metrics`, `dashmap`, `tracing` | Command-line interface |
+| `core` | `minimal`, `redis`, `futures` | Core L1 + L2 cache |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | All features |
 
 ## Cache Macro
 
@@ -471,41 +449,6 @@ wal.append_entry("SET user:123 value 3600").await?;
 wal.replay().await?;
 ```
 
-## Database Integration
-
-### Database Loader
-
-#### `DbLoader`
-
-Load data from database into cache.
-
-```rust
-use oxcache::database::DbLoader;
-use oxcache::database::DbLoaderConfig;
-
-let config = DbLoaderConfig::new(
-    "mysql://user:pass@localhost/db",
-    "SELECT id, name FROM users WHERE id = ?",
-);
-
-let loader = DbLoader::new(config)?;
-let user: Option<User> = loader.load(&["123"]).await?;
-```
-
-### Connection String Parser
-
-#### `ConnectionString`
-
-Parse database connection strings.
-
-```rust
-use oxcache::database::ConnectionString;
-
-let conn = ConnectionString::parse("mysql://user:pass@localhost:3306/db")?;
-println!("Host: {}", conn.host());
-println!("Database: {}", conn.database());
-```
-
 ## Security Features
 
 ### Input Validation
@@ -564,31 +507,6 @@ validate_scan_pattern("user:*").expect("Valid pattern");
 - Pattern length cannot exceed 256 characters
 - Maximum of 10 wildcard (`*`) characters
 - Count parameter is clamped to safe range (1-1000)
-
-### Bloom Filter
-
-#### `BloomFilter`
-
-Prevent cache penetration attacks.
-
-```rust
-use oxcache::{BloomFilterConfig, BloomFilterOptions};
-
-let options = BloomFilterOptions::new(
-    "my_filter".to_string(),
-    100000,  // expected elements
-    0.01,    // false positive rate
-);
-
-let filter = options.build()?;
-
-// Check if key might exist
-if filter.might_contain("user:123") {
-    // Proceed with cache lookup
-} else {
-    // Skip cache lookup, go directly to database
-}
-```
 
 ### Rate Limiting
 
@@ -682,13 +600,10 @@ pub type CacheClient = Arc<dyn CacheOps>;
 
 ## Examples
 
-See the [examples/](examples/) directory for more usage examples:
+See the [examples/](../examples/) directory for more usage examples:
 
-- [Basic Operations](examples/01_basics/)
-- [Advanced Features](examples/02_advanced/)
-- [Performance Testing](examples/03_performance/)
-- [Redis Modes](examples/04_redis_modes/)
-- [Database Integration](examples/05_database/)
-- [Security Features](examples/06_features/)
-- [Testing](examples/07_testing/)
-- [UAT](examples/08_uat/)
+- [Basic Operations](../examples/src/01_basics/)
+- [Advanced Features](../examples/src/02_advanced/)
+- [Configuration](../examples/src/03_config/)
+- [Database Integration](../examples/src/05_database/)
+- [Feature Demos](../examples/src/06_features/)

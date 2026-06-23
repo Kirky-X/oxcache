@@ -164,12 +164,10 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
-| `bloom-filter` | `moka` | 缓存穿透保护 |
-| `rate-limiting` | `moka` | DoS 防护 |
-| `wal-recovery` | `redis` | 预写日志持久化 |
-| `batch-write` | `redis` | 优化的批量写入 |
-| `cli` | `confers` | 命令行界面 |
-| `database` | `redis` | 数据库集成 |
+| `lua-script` | `redis` | Lua 脚本执行 |
+| `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
+| `core` | `minimal`, `redis`, `futures` | 核心 L1 + L2 缓存 |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能 |
 
 如果需要最小依赖或自定义特性：
 

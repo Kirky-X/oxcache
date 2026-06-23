@@ -100,32 +100,31 @@ cache.register_for_macro("my_service").await;
 async fn get_user(id: u64) -> User { ... }
 ```
 
-### 2. Feature Information (`manager.rs`)
-
-**Responsibility**: Provide runtime feature status information
-
-**Public Functions**:
-- `get_l1_feature_info()`: Get L1 cache feature status
-- `get_l2_feature_info()`: Get L2 cache feature status
-- `get_all_feature_info()`: Get all feature status
-- `is_l1_enabled()`: Check if L1 is enabled
-- `is_l2_enabled()`: Check if L2 is enabled
-
-### 3. Cache Interface (`cache.rs`)
+### 2. Cache Interface (`cache/`)
 
 **Responsibility**: Unified type-safe cache interface
+
+**Module Structure**:
+- `cache/mod.rs` - Module root and re-exports
+- `cache/builder/` - CacheBuilder implementation
+- `cache/api/` - Cache operation implementations (basic_ops, batch_ops, bytes_ops, macros)
+- `cache/chain.rs` - ChainCache for multi-level backends
+- `cache/interface.rs` - UnifiedCache trait
 
 **Key Types**:
 - `Cache<K, V>`: Main cache type with generic key and value types
 - `CacheBuilder`: Builder for creating configured cache instances
-- `BackendBuilder`: Builder for creating cache backends
+- `ChainCache`: Multi-level cache chain
+- `ChainLink`: Individual link in a cache chain
 
 **Key Methods**:
 - `new()`: Create cache with default memory backend
 - `builder()`: Create cache builder for advanced configuration
 - `get(key)`: Get value from cache
 - `set(key, value)`: Set value in cache
-- `get_or(key, fallback)`: Get value or compute using fallback
+- `get_or(key, fallback)`: Get value or compute using fallback (single-flight)
+- `get_bytes(key)`: Get raw bytes from cache
+- `set_bytes(key, value)`: Set raw bytes in cache
 - `register_for_macro(service_name)`: Register for #[cached] macro
 - `shutdown()`: Shutdown cache and release resources
 
@@ -156,68 +155,38 @@ cache.set(&"user:1".to_string(), &user).await?;
 let user: Option<User> = cache.get(&"user:1".to_string()).await?;
 ```
 
-### 2. L1 Cache Backend (`backend/l1.rs`)
-
-**Technology**: Moka (high-performance concurrent cache)
-
-**Eviction Policy**: TinyLFU (Least Frequently Used with frequency sketch)
-
-**Configuration**:
-```rust
-pub struct L1Config {
-    pub max_capacity: u64,         // Maximum number of entries
-    pub max_key_length: usize,      // Maximum key length in bytes
-    pub max_value_size: usize,      // Maximum value size in bytes
-    pub cleanup_interval_secs: u64,  // Cleanup interval in seconds
-}
-```
-
-**Performance Characteristics**:
-- Read: 50-100ns (P99, in-memory)
-- Write: 50-200ns (P99, in-memory)
-- Thread-safe with lock-free design
-
-> **Note**: Performance varies based on hardware, data size, and access patterns
-
-### 3. L2 Cache Backend (`backend/l2.rs`)
-
-**Technology**: Redis (Standalone/Sentinel/Cluster)
-
-**Connection Management**:
-- Connection pooling via `connection-manager`
-- Automatic reconnection on failure
-- Cluster topology awareness
-
-**Serialization**:
-- JSON: Human-readable, larger size
-- Bincode: Binary, smaller size, faster
-
-**Features**:
-- Batch write optimization
-- Pub/Sub for invalidation
-- Write-ahead logging
-
-### 4. Backend Layer (`backend/`)
+### 3. Backend Layer (`backend/`)
 
 **Responsibility**: Pluggable cache backend implementations
 
-**Backend Types**:
-- `MemoryBackend`: In-memory cache using Moka
-- `RedisBackend`: Redis distributed cache
-- `TieredBackend`: Two-level cache (L1 + L2)
+**Module Structure**:
+- `backend/mod.rs` - Module root and re-exports
+- `backend/interface.rs` - CacheBackend, CacheReader, CacheWriter traits
+- `backend/memory/` - Memory backend implementations (Moka, DashMap, Redis)
+- `backend/custom_tiered.rs` - Custom tiered backend configuration
+- `backend/score.rs` - Backend scoring system
 
-**Backend Trait**:
+**Backend Types**:
+- `MokaMemoryBackend`: In-memory cache using Moka (LRU/TinyLFU eviction)
+- `DashMapMemoryBackend`: Pure in-memory concurrent cache using DashMap
+- `RedisBackend`: Redis distributed cache (Standalone/Sentinel/Cluster)
+- `ChainCache`: Multi-level cache chain
+
+**Backend Traits**:
 ```rust
 #[async_trait]
-pub trait CacheBackend: Send + Sync {
+pub trait CacheReader: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
-    async fn delete(&self, key: &str) -> Result<()>;
     async fn exists(&self, key: &str) -> Result<bool>;
-    async fn clear(&self) -> Result<()>;
     async fn stats(&self) -> Result<HashMap<String, String>>;
     async fn health_check(&self) -> Result<bool>;
-    async fn close(&self) -> Result<()>;
+}
+
+#[async_trait]
+pub trait CacheWriter: Send + Sync {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+    async fn delete(&self, key: &str) -> Result<()>;
+    async fn clear(&self) -> Result<()>;
 }
 ```
 
@@ -238,162 +207,140 @@ pub trait CacheBackend: Send + Sync {
 4. Publish invalidation if needed
 ```
 
-### 5. Client Layer (`client/`)
+### 4. Features Module (`features/`)
 
-**Responsibility**: Cache client implementations and database integration
+**Responsibility**: Optional capabilities and runtime feature information
 
-**Client Types**:
-- `L1Client`: L1 cache client
-- `L2Client`: L2 cache client
-- `TieredCacheClient`: Two-level cache client
-- `DbLoader`: Database loader for cache-aside pattern
+**Key Functions**:
+- `get_l1_feature_info()`: Get L1 cache feature status
+- `get_l2_feature_info()`: Get L2 cache feature status
+- `get_all_feature_info()`: Get all feature status
+- `is_l1_enabled()`: Check if L1 is enabled
+- `is_l2_enabled()`: Check if L2 is enabled
 
-**CacheOps Trait**:
+### 5. Infrastructure Module (`infra/`)
+
+**Responsibility**: Metrics, serialization, telemetry, and observability
+
+**Sub-modules**:
+- `metrics/` - Cache metrics collection and export
+- `serialization/` - Data serialization utilities
+- Telemetry integration with OpenTelemetry
+
+**Key Types**:
+- `CacheStats`: Enhanced statistics with hit rates
+- `MetricsCollector`: Metrics collection
+- Export functions for Prometheus and JSON formats
+
+### 6. Security Module (`security/`)
+
+**Responsibility**: Input validation and security measures
+
+**Sub-modules**:
+- `validation.rs` - Redis key, Lua script, SCAN pattern validation
+- `redaction.rs` - Sensitive data redaction in logs
+- `log.rs` - Secure logging utilities
+- `regex.rs` - Pattern matching for security checks
+
+**Key Functions**:
+- `validate_redis_key(key)`: Validate Redis key format
+- `validate_lua_script(script, num_keys)`: Validate Lua scripts
+- `validate_scan_pattern(pattern)`: Validate SCAN patterns
+- `clamp_scan_count(count)`: Clamp SCAN count to safe range
+- `redact_value(value)`: Redact sensitive values in logs
+
+### 7. Key Generator (`utils/`)
+
+**Responsibility**: Cache key generation and management
+
+**Key Types**:
+- `KeyGenerator`: Utility for generating cache keys with namespaces and prefixes
+
+**Key Methods**:
+- `new()`: Create default key generator
+- `with_namespace(ns)`: Set namespace for key isolation
+- `with_prefix_str(prefix)`: Set prefix for key organization
+- `generate(template, params)`: Generate key from template
+- `generate_full(template, params)`: Generate key with namespace and prefix
+- `validate_key(key)`: Validate key format
+
+**Usage Pattern**:
 ```rust
-#[async_trait]
-pub trait CacheOps: Send + Sync {
-    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
-    async fn set_l1_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
-    async fn set_l2_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()>;
-    async fn delete(&self, key: &str) -> Result<()>;
-    async fn clear_l1(&self) -> Result<()>;
-    async fn clear_l2(&self) -> Result<()>;
-    async fn shutdown(&self) -> Result<()>;
-    fn serializer(&self) -> &SerializerEnum;
-    fn as_any(&self) -> &dyn Any;
-    fn into_any_arc(self: Arc<Self>) -> Arc<dyn Any + Send + Sync>;
-}
+let gen = KeyGenerator::new()
+    .with_namespace("myapp")
+    .with_prefix_str("cache");
+
+let key = gen.generate_full("user:{id}", &[("id", "123")]);
+// Result: "myapp:cache:user:123"
 ```
 
-### 6. Batch Writer (`sync/batch_writer.rs`)
+### 8. Events Module (`core/events.rs`)
 
-**Purpose**: Optimize L2 write throughput by batching multiple operations
+**Responsibility**: Cache event system for monitoring and hooks
 
-**Algorithm**:
-1. Accumulate operations in buffer
-2. Flush when buffer size > threshold OR timeout
-3. Use Redis MSET for batch writes
+**Key Types**:
+- `CacheEvent`: Event data structure
+- `CacheEventType`: Event type enum (Hit, Miss, Set, Delete, etc.)
+- `EventPublisher`: Event publishing interface
 
-**Performance**: 10-50x improvement in throughput for write-heavy workloads
-
-### 7. Invalidation Service (`sync/invalidation.rs`)
-
-**Purpose**: Ensure consistency across multiple instances
-
-**Protocol**:
-```
-1. Instance A updates key "user:123"
-2. Instance A publishes invalidation message:
-   {
-     "key": "user:123",
-     "version": "v5",
-     "timestamp": 1704921600
-   }
-3. Instance B receives message via Pub/Sub
-4. Instance B removes "user:123" from L1 if version < v5
-```
-
-**Version-Based Invalidation**: Prevents race conditions and thundering herd
-
-### 8. Recovery Layer (`recovery/`)
-
-#### Write-Ahead Log (WAL) (`wal.rs`)
-
-**Purpose**: Ensure no data loss during Redis failures
-
-**Structure**:
-```
-WAL Entry:
-{
-  "type": "SET" | "DELETE",
-  "key": "user:123",
-  "value": "...",  // Base64 encoded
-  "timestamp": 1704921600
-}
-```
-
-**Replay Logic**:
-```
-1. Redis recovers
-2. System reads WAL entries
-3. Replay entries to Redis in order
-4. Clear WAL after successful replay
-```
-
-#### Health Checker (`health.rs`)
-
-**Health Checks**:
-- L1 availability (memory usage)
-- L2 connectivity (ping/pong)
-- WAL size (disk space)
-
-**Degradation Modes**:
-- **L2 failure**: Operate in L1-only mode
-- **Low memory**: Reduce L1 capacity
-- **Disk full**: Pause WAL, log warning
-
-### 9. Database Integration (`database/`)
-
-**Supported Databases**:
-- MySQL (`sqlx-mysql`)
-- PostgreSQL (`sqlx-postgres`)
-- SQLite (`sqlx-sqlite`)
-
-**Partition Support**:
+**Usage Pattern**:
 ```rust
-pub enum PartitionStrategy {
-    TimeBased(TimeUnit),  // Partition by time
-    HashBased(u32),       // Partition by hash
-    Custom(Box<dyn Fn(&str) -> String>),  // Custom logic
-}
+let publisher = EventPublisher::new();
+publisher.publish(CacheEvent {
+    event_type: CacheEventType::Hit,
+    key: "user:123".to_string(),
+    timestamp: chrono::Utc::now(),
+});
 ```
 
-**Cache-Aside Pattern**:
-```
-1. Check cache
-2. If miss, load from database
-3. Populate cache
-4. Return value
+### 9. Config Module (`config/`)
+
+**Responsibility**: Cache configuration management
+
+**Key Types**:
+- `UnifiedConfigBuilder`: Type-safe configuration builder
+- `ServiceConfig`: Service-level configuration
+- `L1Config`: L1 cache configuration
+- `L2Config`: L2 cache configuration
+
+**Configuration Options**:
+```rust
+let config = UnifiedConfigBuilder::tiered()
+    .with_ttl(7200)
+    .with_l1_capacity(10000)
+    .with_redis_url("redis://localhost:6379")
+    .with_redis_mode("standalone")
+    .build();
 ```
 
 ### 10. Security Features
 
-#### Bloom Filter (`bloom_filter.rs`)
+#### Input Validation
 
-**Purpose**: Prevent cache penetration attacks
+The security module (`security/`) provides comprehensive input validation:
 
-**Algorithm**: MurmurHash3 with bit array
+#### Redis Key Validation
+- Empty key rejection
+- 512KB size limit
+- Dangerous character detection (`\r`, `\n`, `\0`)
+- SQL injection pattern detection
+- Path traversal pattern detection
 
-**Configuration**:
-```rust
-pub struct BloomFilterConfig {
-    pub expected_elements: u64,
-    pub false_positive_rate: f64,
-}
-```
+#### Lua Script Validation
+- 10KB script length limit
+- 100 key limit
+- Dangerous command blocking: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
+- Comment preprocessing to prevent bypass
 
-**Usage**:
-```
-Before cache lookup → Check Bloom filter
-If filter says "definitely not" → Skip cache, go to DB
-If filter says "maybe" → Check cache
-```
+#### SCAN Pattern Validation
+- 256 character length limit
+- 10 wildcard limit
+- Count parameter clamping (1-1000)
 
-#### Rate Limiter (`rate_limiting.rs`)
-
-**Purpose**: Prevent DoS attacks
-
-**Algorithm**: Token bucket with refill
-
-**Configuration**:
-```rust
-pub struct RateLimitConfig {
-    pub max_requests_per_second: u32,
-    pub burst_capacity: u32,
-    pub block_duration_secs: u64,
-}
-```
+#### Sensitive Data Redaction
+- Connection string password redaction
+- Cache key redaction in logs
+- Value redaction for sensitive fields
 
 ## Data Flow
 
@@ -632,11 +579,11 @@ Compare versions lexicographically:
 
 ### Optimization Techniques
 
-1. **Batch Write**: Buffer multiple operations, flush with MSET
+1. **Batch Write**: Buffer multiple operations, flush with Redis MSET
 2. **Connection Pooling**: Reuse Redis connections
 3. **Lock-Free L1**: Moka's concurrent cache design
-4. **Binary Serialization**: Bincode for smaller payload size
-5. **AHash**: High-performance hash algorithm
+4. **JSON Serialization**: Human-readable, widely supported
+5. **Compression**: Optional flate2 compression for large values
 
 ### Performance Tuning
 
@@ -651,7 +598,7 @@ l2_batch_size = 100
 l2_batch_timeout_ms = 50
 
 # Serialization
-serialization_type = "bincode"  # "json" or "bincode"
+serialization_type = "json"
 ```
 
 ### Benchmark Results
@@ -680,16 +627,15 @@ serialization_type = "bincode"  # "json" or "bincode"
 
 ### Defenses
 
-1. **Bloom Filter**: Prevent cache penetration with LRU-based hash caching
-2. **Cache Locking**: Prevent cache breakdown
-3. **Rate Limiting**: Token bucket algorithm for DoS protection
-4. **Input Validation**: Comprehensive validation for keys, Lua scripts, and SCAN patterns
-5. **Comment Preprocessing**: Prevent bypass via Lua comments
-6. **Sensitive Data Redaction**: Auto-redact in logs
+1. **Single-Flight**: Prevent cache breakdown with request deduplication
+2. **Input Validation**: Comprehensive validation for keys, Lua scripts, and SCAN patterns
+3. **Comment Preprocessing**: Prevent bypass via Lua comments
+4. **Sensitive Data Redaction**: Auto-redact in logs
+5. **Rate Limiting**: Token bucket algorithm for DoS protection
 
 ### Input Validation
 
-The security module (`security.rs`) provides comprehensive input validation:
+The security module (`security/`) provides comprehensive input validation:
 
 #### Redis Key Validation
 - Empty key rejection
@@ -758,11 +704,11 @@ PartitionConfig::hash_based(16)                // 16 shards
 
 ## Future Enhancements
 
-1. **L3 Cache**: Add support for other distributed caches (Cassandra, Memcached)
+1. **L3 Cache**: Add support for other distributed caches (Memcached, Cassandra)
 2. **Adaptive TTL**: Machine learning-based TTL optimization
 3. **Geo-Distribution**: Multi-region replication
 4. **Cache Warming**: Intelligent warmup strategies
-5. **Compression**: Zstd compression for large values
+5. **Advanced Compression**: Zstd compression for large values
 
 ## References
 

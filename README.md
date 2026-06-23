@@ -79,47 +79,29 @@ oxcache = { version = "0.2.0", features = ["minimal"] }
 
 # Custom selection
 oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
-
-# Development with specific features
-oxcache = { version = "0.2.0", features = [
-    "moka",      # L1 cache (Moka)
-    "redis",     # L2 cache (Redis)
-    "macros",       # #[cached] macro
-    "batch-write",  # Optimized batch writing
-    "metrics",      # Basic metrics
-] }
 ```
 
 | Tier | Features | Description |
 |------|----------|-------------|
-| **minimal** | `moka`, `serialization`, `metrics` | L1 cache only |
-| **core** | `minimal` + `redis` | L1 + L2 cache |
-| **full** | `core` + all advanced features | Complete functionality |
+| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | L1 cache only |
+| **core** | `minimal` + `redis`, `futures` | L1 + L2 cache |
+| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | Complete functionality |
 
-**Advanced Features** (included in `full`):
+**Individual Features**:
+- `memory` - L1 cache backends (Moka + DashMap)
+- `redis` - L2 distributed cache (Redis)
 - `macros` - `#[cached]` attribute macro
-- `batch-write` - Optimized batch writing
-- `wal-recovery` - Write-ahead log for durability
-- `bloom-filter` - Cache penetration protection
-- `rate-limiting` - DoS protection
-- `database` - Database integration (SeaORM/SQLx)
-- `cli` - Command-line interface
-- `full-metrics` - OpenTelemetry integration
-- `smart-strategy` - Smart cache strategy with entropy-based compression
-- `redis-native` - Native Redis operations support
+- `serialization` - JSON serialization (serde + serde_json)
 - `compression` - Data compression (flate2)
+- `metrics` - OpenTelemetry metrics and observability
+- `batch-write` - Optimized batch writing (tokio-util)
 - `lua-script` - Lua script execution support
-- `extra-serialization` - MessagePack, CBOR serialization
-- `config-dynamic` - Dynamic configuration
+- `cli` - Command-line interface (clap)
+- `tracing` - Structured logging support
 
 ### 2. Configuration
 
 Create a `config.toml` file:
-
-> **Important**: To initialize from a config file, you need to enable the `confers` feature:
-> ```toml
-> oxcache = { version = "0.2.0", features = ["confers"] }
-> ```
 
 ```toml
 [global]
@@ -173,11 +155,6 @@ ttl = 7200
 ### 2.1 Type-Safe Configuration API (Recommended)
 
 Oxcache provides a **type-safe builder API** for configuration, enabling compile-time type checking and better IDE support. This approach is recommended over TOML configuration for most use cases.
-
-> **Note**: To use the type-safe configuration API, enable the `confers` feature:
-> ```toml
-> oxcache = { version = "0.2.0", features = ["confers"] }
-> ```
 
 #### Memory-Only Cache (L1)
 
@@ -535,7 +512,7 @@ For more details, see [Security Documentation](docs/SECURITY.md).
 
 - [📖 User Guide](docs/USER_GUIDE.md)
 - [📘 API Documentation](https://docs.rs/oxcache)
-- [💻 Examples](../examples/)
+- [💻 Examples](examples/)
 
 ## 🤝 Contributing
 
