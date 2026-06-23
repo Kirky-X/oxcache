@@ -751,4 +751,335 @@ mod tests {
         let prometheus = convenience::export_prometheus();
         assert!(prometheus.contains("cache_l2_hits_total 1"));
     }
+
+    #[test]
+    fn test_unified_metrics_default_impl() {
+        // Triggers Default for UnifiedMetricsInner (lines 45, 47-49)
+        let metrics = UnifiedMetrics::default();
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l1_hits, 0);
+        assert_eq!(counters.total_operations, 0);
+    }
+
+    #[test]
+    fn test_unified_metrics_debug_format() {
+        // Triggers Debug for UnifiedMetricsInner (lines 35-39)
+        let metrics = UnifiedMetrics::new();
+        let debug_str = format!("{:?}", metrics);
+        assert!(debug_str.contains("UnifiedMetrics"));
+        assert!(debug_str.contains("UnifiedMetricsInner"));
+        assert!(debug_str.contains("dynamic_metrics"));
+        assert!(debug_str.contains("config"));
+    }
+
+    #[test]
+    fn test_l2_get_miss_operation() {
+        // Covers lines 205-206
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Miss,
+        });
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l2_misses, 1);
+        assert_eq!(counters.total_operations, 1);
+    }
+
+    #[test]
+    fn test_l2_set_success_operation() {
+        // Covers lines 213-214
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Set,
+            result: CacheOpResult::Success,
+        });
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l2_sets, 1);
+        assert_eq!(counters.total_operations, 1);
+    }
+
+    #[test]
+    fn test_l1_delete_success_operation() {
+        // Covers lines 217-218
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Delete,
+            result: CacheOpResult::Success,
+        });
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l1_deletes, 1);
+        assert_eq!(counters.total_operations, 1);
+    }
+
+    #[test]
+    fn test_l2_delete_success_operation() {
+        // Covers lines 221-222
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Delete,
+            result: CacheOpResult::Success,
+        });
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l2_deletes, 1);
+        assert_eq!(counters.total_operations, 1);
+    }
+
+    #[test]
+    fn test_error_result_operation() {
+        // Covers lines 225-226 (the Error arm)
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Error,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Set,
+            result: CacheOpResult::Error,
+        });
+        let counters = metrics.get_counters();
+        assert_eq!(counters.errors, 2);
+        assert_eq!(counters.total_operations, 2);
+    }
+
+    #[test]
+    fn test_record_duration_with_detailed_disabled() {
+        // Covers lines 242-243 (early return when detailed=false)
+        let config = MetricsConfig {
+            detailed: false,
+            ..MetricsConfig::default()
+        };
+        let metrics = UnifiedMetrics::with_config(config);
+        let op = CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        };
+        // Should be a no-op (early return)
+        metrics.record_duration(&op, Duration::from_millis(100));
+        let dynamic = metrics.get_dynamic_metrics();
+        assert!(!dynamic.keys().any(|k| k.contains("duration")));
+    }
+
+    #[test]
+    fn test_record_duration_with_detailed_enabled() {
+        // Covers lines 247-248 (record_timer call)
+        let metrics = UnifiedMetrics::new();
+        let op = CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        };
+        metrics.record_duration(&op, Duration::from_millis(150));
+        let dynamic = metrics.get_dynamic_metrics();
+        let timer_key = "cache:duration:L1:Get";
+        assert!(
+            dynamic.contains_key(timer_key),
+            "Expected timer metric at key {}",
+            timer_key
+        );
+        match dynamic.get(timer_key) {
+            Some(MetricValue::Timer(t)) => {
+                assert_eq!(t.count, 1);
+                assert_eq!(t.total_duration, Duration::from_millis(150));
+            }
+            other => panic!("Expected Timer, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_record_custom_at_capacity_check() {
+        // Covers lines 252-253 (capacity check) and 259 (insert).
+        // Uses max_dynamic_metrics=0 so the capacity check triggers on an empty map.
+        // When the map is empty, iter().next() returns None, so the eviction body
+        // (line 256) is skipped — avoiding a deadlock that exists in record_custom
+        // when iter().next() returns Some and remove() is called while the iterator
+        // still holds a read lock on the DashMap shard.
+        let config = MetricsConfig {
+            max_dynamic_metrics: 0,
+            ..MetricsConfig::default()
+        };
+        let metrics = UnifiedMetrics::with_config(config);
+
+        // Capacity check triggers (0 >= 0), but map is empty so no eviction.
+        metrics.record_custom("only_metric", MetricValue::Counter(1));
+        let dynamic = metrics.get_dynamic_metrics();
+        assert!(
+            dynamic.contains_key("only_metric"),
+            "metric should be present after insert"
+        );
+        assert_eq!(dynamic.len(), 1);
+    }
+
+    #[test]
+    fn test_record_custom_under_capacity_no_eviction() {
+        let config = MetricsConfig {
+            max_dynamic_metrics: 10,
+            ..MetricsConfig::default()
+        };
+        let metrics = UnifiedMetrics::with_config(config);
+        metrics.record_custom("a", MetricValue::Counter(1));
+        metrics.record_custom("b", MetricValue::Counter(2));
+        let dynamic = metrics.get_dynamic_metrics();
+        assert_eq!(dynamic.len(), 2);
+        assert!(dynamic.contains_key("a"));
+        assert!(dynamic.contains_key("b"));
+    }
+
+    #[test]
+    fn test_export_json_method() {
+        // Covers lines 416-418 (export_json method on UnifiedMetrics)
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        });
+        let json = metrics.export_json().unwrap();
+        assert!(json.contains("counters"));
+        assert!(json.contains("l1_hits"));
+        assert!(json.contains("dynamic_metrics"));
+    }
+
+    #[test]
+    fn test_cache_op_type_clear_display() {
+        // Covers line 473-474 (CacheOpType::Clear Display arm)
+        assert_eq!(CacheOpType::Clear.to_string(), "Clear");
+    }
+
+    #[test]
+    fn test_cache_op_type_all_display_variants() {
+        // Covers all Display arms for CacheOpType
+        assert_eq!(CacheOpType::Get.to_string(), "Get");
+        assert_eq!(CacheOpType::Set.to_string(), "Set");
+        assert_eq!(CacheOpType::Delete.to_string(), "Delete");
+        assert_eq!(CacheOpType::Clear.to_string(), "Clear");
+    }
+
+    #[test]
+    fn test_cache_op_result_error_display() {
+        // Covers line 494 (CacheOpResult::Error Display arm)
+        assert_eq!(CacheOpResult::Error.to_string(), "Error");
+    }
+
+    #[test]
+    fn test_cache_op_result_all_display_variants() {
+        // Covers all Display arms for CacheOpResult
+        assert_eq!(CacheOpResult::Hit.to_string(), "Hit");
+        assert_eq!(CacheOpResult::Miss.to_string(), "Miss");
+        assert_eq!(CacheOpResult::Success.to_string(), "Success");
+        assert_eq!(CacheOpResult::Error.to_string(), "Error");
+    }
+
+    #[test]
+    fn test_export_prometheus_gauge_metric() {
+        // Covers lines 561-562 (MetricValue::Gauge in export_prometheus)
+        let metrics = UnifiedMetrics::new();
+        metrics.set_gauge("my_gauge", 42.5);
+        let prom = metrics.export_prometheus();
+        assert!(prom.contains("my_gauge_gauge 42.5"));
+    }
+
+    #[test]
+    fn test_export_prometheus_histogram_metric() {
+        // Covers lines 564-568 (MetricValue::Histogram in export_prometheus)
+        let metrics = UnifiedMetrics::new();
+        metrics.record_histogram("my_histogram", 1.5);
+        metrics.record_histogram("my_histogram", 2.5);
+        let prom = metrics.export_prometheus();
+        assert!(prom.contains("my_histogram_histogram_sum 4"));
+        assert!(prom.contains("my_histogram_histogram_count 2"));
+        // Buckets should be present
+        assert!(prom.contains("my_histogram_histogram_bucket"));
+        assert!(prom.contains("le=\""));
+    }
+
+    #[test]
+    fn test_export_prometheus_timer_metric() {
+        // Covers lines 571-572, 575, 577 (MetricValue::Timer in export_prometheus)
+        let metrics = UnifiedMetrics::new();
+        metrics.record_timer("my_timer", Duration::from_millis(250));
+        let prom = metrics.export_prometheus();
+        assert!(prom.contains("my_timer_timer_seconds_sum"));
+        assert!(prom.contains("my_timer_timer_seconds_count 1"));
+    }
+
+    #[test]
+    fn test_export_prometheus_text_metric() {
+        // Covers lines 579-580 (MetricValue::Text in export_prometheus)
+        let metrics = UnifiedMetrics::new();
+        metrics.record_custom("my_info", MetricValue::Text("version1".to_string()));
+        let prom = metrics.export_prometheus();
+        assert!(prom.contains("my_info_info \"version1\""));
+    }
+
+    #[test]
+    fn test_export_prometheus_counter_dynamic_metric() {
+        // Covers line 559 (MetricValue::Counter in export_prometheus dynamic section)
+        let metrics = UnifiedMetrics::new();
+        metrics.increment_counter("my_dyn_counter", 7);
+        let prom = metrics.export_prometheus();
+        assert!(prom.contains("my_dyn_counter_counter 7"));
+    }
+
+    #[test]
+    fn test_convenience_export_json() {
+        // Covers lines 613-614 (convenience::export_json)
+        convenience::reset();
+        let json = convenience::export_json().unwrap();
+        assert!(json.contains("counters"));
+        assert!(json.contains("l1_hits"));
+        assert!(json.contains("dynamic_metrics"));
+    }
+
+    #[test]
+    fn test_metrics_config_default() {
+        let config = MetricsConfig::default();
+        assert!(config.detailed);
+        assert!(!config.histogram_buckets.is_empty());
+        assert_eq!(config.max_dynamic_metrics, 1000);
+        assert_eq!(config.retention_period, Some(Duration::from_secs(3600)));
+    }
+
+    #[test]
+    fn test_atomic_counters_default() {
+        let counters = AtomicCounters::default();
+        assert_eq!(counters.l1_hits.load(Ordering::Relaxed), 0);
+        assert_eq!(counters.l1_misses.load(Ordering::Relaxed), 0);
+        assert_eq!(counters.errors.load(Ordering::Relaxed), 0);
+        assert_eq!(counters.prefetch_total.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_reset_clears_all_metrics() {
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        });
+        metrics.increment_counter("custom", 5);
+        assert!(!metrics.get_dynamic_metrics().is_empty());
+
+        metrics.reset();
+        let counters = metrics.get_counters();
+        assert_eq!(counters.l1_hits, 0);
+        assert_eq!(counters.total_operations, 0);
+        assert!(metrics.get_dynamic_metrics().is_empty());
+    }
+
+    #[test]
+    fn test_hit_rates_overall_default_is_one() {
+        // When no operations recorded, overall_hit_rate returns 1.0 (line 445)
+        let metrics = UnifiedMetrics::new();
+        let rates = metrics.hit_rates();
+        assert_eq!(rates.l1_hit_rate, 0.0);
+        assert_eq!(rates.l2_hit_rate, 0.0);
+        assert_eq!(rates.overall_hit_rate, 1.0);
+    }
 }

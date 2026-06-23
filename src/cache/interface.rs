@@ -150,3 +150,154 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
         self.backend_kind()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::memory::MokaMemoryBackend;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct TestData {
+        id: u64,
+        name: String,
+    }
+
+    fn make_backend() -> MokaMemoryBackend {
+        MokaMemoryBackend::builder().capacity(100).build()
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_get_bytes_set_bytes() {
+        let backend = make_backend();
+        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        let result = backend.get_bytes("key1").await.unwrap();
+        assert_eq!(result, Some(b"value1".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_get_bytes_missing() {
+        let backend = make_backend();
+        let result = backend.get_bytes("nonexistent").await.unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_set_bytes_with_ttl() {
+        let backend = make_backend();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+        let result = backend.get_bytes("key1").await.unwrap();
+        assert_eq!(result, Some(b"value1".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_delete() {
+        let backend = make_backend();
+        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        assert!(backend.exists("key1").await.unwrap());
+        backend.delete("key1").await.unwrap();
+        assert!(!backend.exists("key1").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_exists() {
+        let backend = make_backend();
+        assert!(!backend.exists("missing").await.unwrap());
+        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        assert!(backend.exists("key1").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_clear() {
+        let backend = make_backend();
+        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set_bytes("key2", b"value2".to_vec(), None).await.unwrap();
+        backend.clear().await.unwrap();
+        assert!(!backend.exists("key1").await.unwrap());
+        assert!(!backend.exists("key2").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_health_check() {
+        let backend = make_backend();
+        assert!(backend.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_stats() {
+        let backend = make_backend();
+        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        let stats = backend.stats().await.unwrap();
+        assert!(!stats.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_shutdown() {
+        let backend = make_backend();
+        // Should not panic
+        backend.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_get_typed() {
+        let backend = make_backend();
+        let data = TestData {
+            id: 42,
+            name: "test".to_string(),
+        };
+        backend.set_typed("key1", &data, None).await.unwrap();
+        let result: Option<TestData> = backend.get_typed("key1").await.unwrap();
+        assert_eq!(result, Some(data));
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_get_typed_missing() {
+        let backend = make_backend();
+        let result: Option<TestData> = backend.get_typed("nonexistent").await.unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_set_typed_with_ttl() {
+        let backend = make_backend();
+        let data = TestData {
+            id: 1,
+            name: "hello".to_string(),
+        };
+        backend
+            .set_typed("key1", &data, Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+        let result: Option<TestData> = backend.get_typed("key1").await.unwrap();
+        assert_eq!(result, Some(data));
+    }
+
+    #[tokio::test]
+    async fn test_unified_cache_get_typed_deserialization_error() {
+        let backend = make_backend();
+        // Store invalid JSON bytes
+        backend
+            .set_bytes("key1", b"not valid json".to_vec(), None)
+            .await
+            .unwrap();
+        let result: Result<Option<TestData>> = backend.get_typed("key1").await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unified_cache_serializer() {
+        let backend = make_backend();
+        let _serializer = backend.serializer();
+    }
+
+    #[test]
+    fn test_unified_cache_backend_kind() {
+        let backend = make_backend();
+        let kind = backend.backend_kind();
+        // MokaMemoryBackend should return Moka variant
+        assert_eq!(kind, crate::backend::interface::BackendKind::Moka);
+    }
+}

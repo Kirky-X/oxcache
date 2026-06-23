@@ -216,4 +216,267 @@ mod tests {
         let result = DepthLimited::from_slice(data, 3);
         assert!(result.is_err());
     }
+
+    // ============================================================================
+    // into_inner() 方法测试 (lines 121-122)
+    // ============================================================================
+
+    #[test]
+    fn test_depth_limited_into_inner() {
+        let data = br#"{"key": "value"}"#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        let value = limited.into_inner();
+        assert_eq!(value, serde_json::json!({"key": "value"}));
+    }
+
+    #[test]
+    fn test_depth_limited_into_inner_array() {
+        let data = br#"[1, 2, 3]"#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        let value = limited.into_inner();
+        assert_eq!(value, serde_json::json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn test_depth_limited_into_inner_primitive() {
+        let data = br#""hello""#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        let value = limited.into_inner();
+        assert_eq!(value, serde_json::json!("hello"));
+    }
+
+    // ============================================================================
+    // max_depth() 方法测试 (lines 126-127)
+    // ============================================================================
+
+    #[test]
+    fn test_depth_limited_max_depth() {
+        let data = br#"{"key": "value"}"#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        assert_eq!(limited.max_depth(), 10);
+    }
+
+    #[test]
+    fn test_depth_limited_max_depth_custom() {
+        let data = br#"{"key": "value"}"#;
+        let limited = DepthLimited::from_slice(data, 5).unwrap();
+        assert_eq!(limited.max_depth(), 5);
+    }
+
+    // ============================================================================
+    // Deserialize trait 测试 (lines 136-146)
+    // ============================================================================
+
+    #[test]
+    fn test_depth_limited_deserialize_valid() {
+        let data = br#"{"key": "value"}"#;
+        let value: serde_json::Value = serde_json::from_slice(data).unwrap();
+
+        // 使用 serde_json::Deserializer 来测试 Deserialize impl
+        let json_str = serde_json::to_string(&value).unwrap();
+        let mut deserializer = serde_json::Deserializer::from_str(&json_str);
+        let limited: DepthLimited = DepthLimited::deserialize(&mut deserializer).unwrap();
+        assert_eq!(limited.value, value);
+        assert_eq!(limited.max_depth(), MAX_DESERIALIZE_DEPTH);
+    }
+
+    #[test]
+    fn test_depth_limited_deserialize_simple() {
+        let json_str = r#"{"a": 1}"#;
+        let mut deserializer = serde_json::Deserializer::from_str(json_str);
+        let limited: DepthLimited = DepthLimited::deserialize(&mut deserializer).unwrap();
+        assert_eq!(limited.value, serde_json::json!({"a": 1}));
+        assert_eq!(limited.max_depth(), MAX_DESERIALIZE_DEPTH);
+    }
+
+    #[test]
+    fn test_depth_limited_deserialize_array() {
+        let json_str = r#"[1, 2, 3]"#;
+        let mut deserializer = serde_json::Deserializer::from_str(json_str);
+        let limited: DepthLimited = DepthLimited::deserialize(&mut deserializer).unwrap();
+        assert_eq!(limited.value, serde_json::json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn test_depth_limited_deserialize_exceeds_depth() {
+        // 创建一个超过 MAX_DESERIALIZE_DEPTH 的嵌套 JSON
+        let mut json_str = String::new();
+        for _ in 0..(MAX_DESERIALIZE_DEPTH + 5) {
+            json_str.push_str("{\"a\":");
+        }
+        json_str.push_str("1");
+        for _ in 0..(MAX_DESERIALIZE_DEPTH + 5) {
+            json_str.push('}');
+        }
+
+        let mut deserializer = serde_json::Deserializer::from_str(&json_str);
+        let result: Result<DepthLimited, _> = DepthLimited::deserialize(&mut deserializer);
+        assert!(result.is_err());
+    }
+
+    // ============================================================================
+    // calculate_depth 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_calculate_depth_deeply_nested_object() {
+        let value = serde_json::json!({"a": {"b": {"c": {"d": "value"}}}});
+        assert_eq!(calculate_depth(&value), 4);
+    }
+
+    #[test]
+    fn test_calculate_depth_deeply_nested_array() {
+        let value = serde_json::json!([[[["value"]]]]);
+        assert_eq!(calculate_depth(&value), 4);
+    }
+
+    #[test]
+    fn test_calculate_depth_mixed_nested() {
+        let value = serde_json::json!({"a": [{"b": [{"c": 1}]}]});
+        assert_eq!(calculate_depth(&value), 5);
+    }
+
+    #[test]
+    fn test_calculate_depth_object_with_array_of_primitives() {
+        let value = serde_json::json!({"a": [1, 2, 3]});
+        assert_eq!(calculate_depth(&value), 2);
+    }
+
+    #[test]
+    fn test_calculate_depth_array_with_objects_of_primitives() {
+        let value = serde_json::json!([{"a": 1}, {"b": 2}]);
+        assert_eq!(calculate_depth(&value), 2);
+    }
+
+    // ============================================================================
+    // would_exceed_depth_limit 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_would_exceed_depth_limit_invalid_json() {
+        let data = b"invalid json";
+        let result = would_exceed_depth_limit(data, 10);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_would_exceed_depth_limit_empty_object() {
+        let data = b"{}";
+        let result = would_exceed_depth_limit(data, 1);
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+
+    #[test]
+    fn test_would_exceed_depth_limit_exact_depth() {
+        let data = br#"{"a": {"b": "value"}}"#;
+        // depth is 2, max_depth is 2, so 2 > 2 is false
+        let result = would_exceed_depth_limit(data, 2);
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+
+    #[test]
+    fn test_would_exceed_depth_limit_one_over() {
+        let data = br#"{"a": {"b": "value"}}"#;
+        // depth is 2, max_depth is 1, so 2 > 1 is true
+        let result = would_exceed_depth_limit(data, 1);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    // ============================================================================
+    // DepthLimited from_slice 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_depth_limited_from_slice_invalid_json() {
+        let data = b"invalid json";
+        let result = DepthLimited::from_slice(data, 10);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_depth_limited_from_slice_empty_object() {
+        let data = b"{}";
+        let result = DepthLimited::from_slice(data, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_depth_limited_from_slice_empty_array() {
+        let data = b"[]";
+        let result = DepthLimited::from_slice(data, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value, serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_depth_limited_from_slice_null() {
+        let data = b"null";
+        let result = DepthLimited::from_slice(data, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn test_depth_limited_from_slice_debug() {
+        let data = br#"{"key": "value"}"#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        let debug_str = format!("{:?}", limited);
+        assert!(debug_str.contains("DepthLimited"));
+    }
+
+    #[test]
+    fn test_depth_limited_clone() {
+        let data = br#"{"key": "value"}"#;
+        let limited = DepthLimited::from_slice(data, 10).unwrap();
+        let cloned = limited.clone();
+        assert_eq!(limited.value, cloned.value);
+        assert_eq!(limited.max_depth, cloned.max_depth);
+    }
+
+    // ============================================================================
+    // DepthLimitExceededError 测试
+    // ============================================================================
+
+    #[test]
+    fn test_depth_limit_exceeded_error_equality() {
+        let err1 = DepthLimitExceededError {
+            depth: 10,
+            max_depth: 5,
+        };
+        let err2 = DepthLimitExceededError {
+            depth: 10,
+            max_depth: 5,
+        };
+        let err3 = DepthLimitExceededError {
+            depth: 10,
+            max_depth: 6,
+        };
+        assert_eq!(err1, err2);
+        assert_ne!(err1, err3);
+    }
+
+    #[test]
+    fn test_depth_limit_exceeded_error_debug() {
+        let err = DepthLimitExceededError {
+            depth: 10,
+            max_depth: 5,
+        };
+        let debug_str = format!("{:?}", err);
+        assert!(debug_str.contains("DepthLimitExceededError"));
+        assert!(debug_str.contains("10"));
+        assert!(debug_str.contains("5"));
+    }
+
+    #[test]
+    fn test_depth_limit_exceeded_error_is_std_error() {
+        let err = DepthLimitExceededError {
+            depth: 10,
+            max_depth: 5,
+        };
+        let _: &dyn std::error::Error = &err;
+    }
 }

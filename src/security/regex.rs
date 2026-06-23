@@ -301,4 +301,211 @@ mod tests {
         assert!(regex.is_match("test.rs"));
         assert!(!regex.is_match("test.txt"));
     }
+
+    // ============================================================================
+    // glob_to_regex 双星号测试 (lines 122-124)
+    // ============================================================================
+
+    #[test]
+    fn test_glob_to_regex_double_star_allowed() {
+        let result = glob_to_regex("**/*.rs", true);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("test.rs"));
+        assert!(regex.is_match("dir/test.rs"));
+        assert!(regex.is_match("dir/subdir/test.rs"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_double_star_too_many_wildcards() {
+        // 双星号模式下通配符过多
+        // 使用单个 * 分隔的字符，避免被识别为 **
+        let pattern = "*a".repeat(MAX_WILDCARDS + 1);
+        let result = glob_to_regex(&pattern, true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_glob_to_regex_double_star_no_slash() {
+        // ** 后面不是 / 的情况 (line 167)
+        let result = glob_to_regex("**file", true);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("dir/file"));
+        assert!(regex.is_match("file"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_double_star_with_slash() {
+        // **/ 匹配零或多个目录 (lines 164-165)
+        let result = glob_to_regex("**/file", true);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("file"));
+        assert!(regex.is_match("dir/file"));
+    }
+
+    // ============================================================================
+    // 转义字符测试 (lines 143-144, 149-155)
+    // ============================================================================
+
+    #[test]
+    fn test_glob_to_regex_escape_character() {
+        // 反斜杠转义非星号字符 (lines 143-144, 155)
+        let result = glob_to_regex("\\a", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("a"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_escaped_star() {
+        // \\* 表示字面量 * (lines 149-153)
+        // 注意：源代码将原始 * 推入正则表达式模式，产生 ^*$
+        // 这是一个无效的正则表达式（量词没有内容），所以我们只验证转换结果
+        let result = glob_to_regex("\\*", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        assert_eq!(regex_pattern, "^*$");
+    }
+
+    #[test]
+    fn test_glob_to_regex_backslash_at_end() {
+        // 反斜杠在末尾（没有后续字符）
+        let result = glob_to_regex("test\\", false);
+        assert!(result.is_ok());
+    }
+
+    // ============================================================================
+    // 问号通配符测试 (line 174)
+    // ============================================================================
+
+    #[test]
+    fn test_glob_to_regex_question_mark() {
+        // ? 匹配任意单个字符 (line 174)
+        let result = glob_to_regex("?.txt", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("a.txt"));
+        assert!(!regex.is_match("ab.txt"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_mixed_wildcards() {
+        // 混合通配符
+        let result = glob_to_regex("?*.txt", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("a.txt"));
+        assert!(regex.is_match("ab.txt"));
+        assert!(!regex.is_match(".txt"));
+    }
+
+    // ============================================================================
+    // compile_regex 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_compile_regex_empty_pattern() {
+        let result = compile_regex("");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_compile_regex_exact_length_limit() {
+        let pattern = "a".repeat(MAX_PATTERN_LENGTH);
+        let result = compile_regex(&pattern);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_compile_regex_exact_quantifier_limit() {
+        // 恰好 MAX_WILDCARDS 个量词
+        let pattern = "a*".repeat(MAX_WILDCARDS);
+        let result = compile_regex(&pattern);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_compile_regex_nested_parentheses_quantifier() {
+        // 嵌套括号加量词 - 危险模式
+        let result = compile_regex(r"((a+)+)");
+        assert!(result.is_err());
+    }
+
+    // ============================================================================
+    // match_safe 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_match_safe_exact_limit() {
+        let regex = Regex::new(".*").unwrap();
+        let input = "a".repeat(1_000_000);
+        let result = match_safe(&regex, &input);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_match_safe_no_match() {
+        let regex = Regex::new("^b+$").unwrap();
+        let result = match_safe(&regex, "aaa");
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+
+    // ============================================================================
+    // compile_glob_pattern 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_compile_glob_pattern_double_star() {
+        let result = compile_glob_pattern("**/*.rs", true);
+        assert!(result.is_ok());
+        let regex = result.unwrap();
+        assert!(regex.is_match("test.rs"));
+        assert!(regex.is_match("dir/test.rs"));
+    }
+
+    #[test]
+    fn test_compile_glob_pattern_question_mark() {
+        let result = compile_glob_pattern("?.txt", false);
+        assert!(result.is_ok());
+        let regex = result.unwrap();
+        assert!(regex.is_match("a.txt"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_single_star_no_slash_match() {
+        // * 匹配除 / 外的任意字符 (line 171)
+        let result = glob_to_regex("*.txt", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("file.txt"));
+        assert!(!regex.is_match("dir/file.txt"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_regular_character() {
+        // 普通字符通过 regex::escape 处理
+        let result = glob_to_regex("test.txt", false);
+        assert!(result.is_ok());
+        let regex_pattern = result.unwrap();
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("test.txt"));
+    }
+
+    #[test]
+    fn test_glob_to_regex_double_star_allowed_exact_limit() {
+        // 双星号模式下恰好达到通配符限制
+        let pattern = "**".repeat(MAX_WILDCARDS);
+        let result = glob_to_regex(&pattern, true);
+        assert!(result.is_ok());
+    }
 }

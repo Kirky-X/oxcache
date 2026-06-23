@@ -170,4 +170,97 @@ mod tests {
         assert!(!sanitized.contains("secret123"));
         assert!(sanitized.contains("**"));
     }
+
+    // ============================================================================
+    // log_cache_key 测试 (lines 85-86, 89-93)
+    // ============================================================================
+
+    #[test]
+    fn test_log_cache_key_info_level() {
+        // 测试 info 级别日志 (line 89)
+        // 这个测试验证函数不会 panic
+        log_cache_key("info", "Cache hit", "user_token_abc123");
+    }
+
+    #[test]
+    fn test_log_cache_key_debug_level() {
+        // 测试 debug 级别日志 (line 90)
+        log_cache_key("debug", "Cache debug", "session_xyz");
+    }
+
+    #[test]
+    fn test_log_cache_key_warn_level() {
+        // 测试 warn 级别日志 (line 91)
+        log_cache_key("warn", "Cache warning", "password_123");
+    }
+
+    #[test]
+    fn test_log_cache_key_error_level() {
+        // 测试 error 级别日志 (line 92)
+        log_cache_key("error", "Cache error", "api_key_test");
+    }
+
+    #[test]
+    fn test_log_cache_key_default_level() {
+        // 测试默认级别（未知级别）(line 93)
+        log_cache_key("trace", "Cache trace", "normal_key");
+        log_cache_key("unknown_level", "Cache unknown", "another_key");
+    }
+
+    #[test]
+    fn test_log_cache_key_non_sensitive_key() {
+        // 测试非敏感键
+        log_cache_key("info", "Cache access", "user_profile_123");
+    }
+
+    #[test]
+    fn test_log_cache_key_empty_key() {
+        // 测试空键
+        log_cache_key("info", "Empty key", "");
+    }
+
+    #[test]
+    fn test_log_cache_key_empty_message() {
+        // 测试空消息
+        log_cache_key("info", "", "some_key");
+    }
+
+    // ============================================================================
+    // sanitize_message 边界测试
+    // ============================================================================
+
+    #[test]
+    fn test_sanitize_message_no_connection_string() {
+        let msg = "This is a normal message without connection string";
+        let sanitized = sanitize_message(msg);
+        assert_eq!(sanitized, msg);
+    }
+
+    #[test]
+    fn test_sanitize_message_empty() {
+        let sanitized = sanitize_message("");
+        assert_eq!(sanitized, "");
+    }
+
+    #[test]
+    fn test_sanitize_message_no_at_symbol() {
+        let msg = "redis://localhost:6379";
+        let sanitized = sanitize_message(msg);
+        assert_eq!(sanitized, msg);
+    }
+
+    #[test]
+    fn test_sanitize_message_with_password() {
+        let msg = "redis://user:password123@host:6379"; /* pragma: allowlist secret */
+        let sanitized = sanitize_message(msg);
+        assert!(!sanitized.contains("password123"));
+    }
+
+    #[test]
+    fn test_sanitize_message_multiple_protocols() {
+        let msg = "redis://user:pass1@host1:6379 and redis://user:pass2@host2:6380"; /* pragma: allowlist secret */
+        let sanitized = sanitize_message(msg);
+        // 只处理第一个 ://
+        assert!(!sanitized.contains("pass1"));
+    }
 }

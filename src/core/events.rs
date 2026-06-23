@@ -249,4 +249,138 @@ mod tests {
         assert_eq!(event.key, cloned.key);
         assert_eq!(event.latency_ms, cloned.latency_ms);
     }
+
+    // ============================================================================
+    // Display 测试 - Set 和 Delete (lines 49-50)
+    // ============================================================================
+
+    #[test]
+    fn test_cache_event_type_set_display() {
+        assert_eq!(CacheEventType::Set.to_string(), "set");
+    }
+
+    #[test]
+    fn test_cache_event_type_delete_display() {
+        assert_eq!(CacheEventType::Delete.to_string(), "delete");
+    }
+
+    // ============================================================================
+    // EventPublisher 默认方法测试 (lines 136-163)
+    // ============================================================================
+
+    struct NoopPublisher;
+
+    #[async_trait]
+    impl EventPublisher for NoopPublisher {
+        async fn publish(&self, _event: CacheEvent) -> Result<(), CacheError> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_hit_default() {
+        // 测试 publish_hit 默认实现 (lines 136-139)
+        let publisher = NoopPublisher;
+        let result = publisher.publish_hit("key1", 10);
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_miss_default() {
+        // 测试 publish_miss 默认实现 (lines 143-145)
+        let publisher = NoopPublisher;
+        let result = publisher.publish_miss("key1", 10);
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_set_default() {
+        // 测试 publish_set 默认实现 (lines 149-151)
+        let publisher = NoopPublisher;
+        let result = publisher.publish_set("key1");
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_delete_default() {
+        // 测试 publish_delete 默认实现 (lines 155-157)
+        let publisher = NoopPublisher;
+        let result = publisher.publish_delete("key1");
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_error_default() {
+        // 测试 publish_error 默认实现 (lines 161-163)
+        let publisher = NoopPublisher;
+        let result = publisher.publish_error(Some("key1".to_string()), "timeout");
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish_error_default_none_key() {
+        let publisher = NoopPublisher;
+        let result = publisher.publish_error(None, "connection failed");
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_event_publisher_publish() {
+        // 测试 publish 方法
+        let publisher = NoopPublisher;
+        let event = CacheEvent::new(CacheEventType::Hit).with_key("key1");
+        let result = publisher.publish(event).await;
+        assert!(result.is_ok());
+    }
+
+    // ============================================================================
+    // CacheEvent 额外测试
+    // ============================================================================
+
+    #[test]
+    fn test_cache_event_new_default_fields() {
+        let event = CacheEvent::new(CacheEventType::Set);
+        assert_eq!(event.event_type, CacheEventType::Set);
+        assert!(event.key.is_none());
+        assert!(event.latency_ms.is_none());
+        assert!(event.error.is_none());
+        assert!(event.metadata.is_empty());
+        assert!(event.timestamp > 0);
+    }
+
+    #[test]
+    fn test_cache_event_with_multiple_metadata() {
+        let event = CacheEvent::new(CacheEventType::Get)
+            .with_key("test_key")
+            .with_metadata("node", "node1")
+            .with_metadata("service", "service1")
+            .with_metadata("region", "us-east");
+
+        assert_eq!(event.metadata.len(), 3);
+        assert_eq!(event.metadata[0], ("node".to_string(), "node1".to_string()));
+        assert_eq!(event.metadata[1], ("service".to_string(), "service1".to_string()));
+        assert_eq!(event.metadata[2], ("region".to_string(), "us-east".to_string()));
+    }
+
+    #[test]
+    fn test_cache_event_type_equality() {
+        assert_eq!(CacheEventType::Hit, CacheEventType::Hit);
+        assert_ne!(CacheEventType::Hit, CacheEventType::Miss);
+        assert_eq!(
+            CacheEventType::Custom("test".to_string()),
+            CacheEventType::Custom("test".to_string())
+        );
+        assert_ne!(
+            CacheEventType::Custom("test1".to_string()),
+            CacheEventType::Custom("test2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_cache_event_debug() {
+        let event = CacheEvent::new(CacheEventType::Hit).with_key("key");
+        let debug_str = format!("{:?}", event);
+        assert!(debug_str.contains("CacheEvent"));
+        assert!(debug_str.contains("Hit"));
+    }
 }
