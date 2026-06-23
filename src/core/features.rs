@@ -3,8 +3,6 @@
 //! This module provides a centralized way to check which features are enabled
 //! at compile time, enabling zero-cost abstractions for feature detection.
 
-use paste::paste;
-
 // ============================================================================
 // Feature Flag Macro
 // ============================================================================
@@ -13,32 +11,24 @@ use paste::paste;
 /// Reduces code duplication for feature check functions
 macro_rules! feature_check {
     ($feature:literal, $name:ident, $doc:expr) => {
-        paste! {
-            #[cfg(feature = $feature)]
-            #[doc = $doc]
-            pub fn $name() -> bool {
-                true
-            }
+        #[cfg(feature = $feature)]
+        #[doc = $doc]
+        pub fn $name() -> bool {
+            true
+        }
 
-            #[cfg(not(feature = $feature))]
-            #[doc = $doc]
-            pub fn $name() -> bool {
-                false
-            }
+        #[cfg(not(feature = $feature))]
+        #[doc = $doc]
+        pub fn $name() -> bool {
+            false
         }
     };
 }
 
 // Generate individual feature availability functions
-feature_check!("moka", l1_available, "Check if L1 cache is available");
+feature_check!("memory", l1_available, "Check if L1 cache is available");
 feature_check!("redis", l2_available, "Check if L2 cache is available");
 feature_check!("metrics", metrics_available, "Check if metrics are available");
-feature_check!("bloom-filter", bloom_available, "Check if bloom filter is available");
-feature_check!(
-    "rate-limiting",
-    rate_limiting_available,
-    "Check if rate limiting is available"
-);
 feature_check!(
     "batch-write",
     batch_write_available,
@@ -54,19 +44,12 @@ feature_check!(
     compression_available,
     "Check if compression is available"
 );
-feature_check!("database", database_available, "Check if database is available");
 feature_check!("cli", cli_available, "Check if CLI is available");
-feature_check!(
-    "opentelemetry",
-    opentelemetry_available,
-    "Check if OpenTelemetry is available"
-);
 
 // ============================================================================
 // FeatureSet Structure
 // ============================================================================
 
-// ponytail: pub(crate) fields; add getters if external read access needed
 /// Unified feature availability check
 #[derive(Debug, Clone)]
 pub struct FeatureSet {
@@ -76,22 +59,8 @@ pub struct FeatureSet {
     pub(crate) l2_available: bool,
     /// Metrics available
     pub(crate) metrics_available: bool,
-    /// Bloom filter available
-    pub(crate) bloom_available: bool,
-    /// Rate limiting available
-    pub(crate) rate_limiting_available: bool,
-    /// Batch write available
-    pub(crate) batch_write_available: bool,
-    /// Serialization available
-    pub(crate) serialization_available: bool,
-    /// Compression available
-    pub(crate) compression_available: bool,
-    /// Database available
-    pub(crate) database_available: bool,
     /// CLI available
     pub(crate) cli_available: bool,
-    /// OpenTelemetry available
-    pub(crate) opentelemetry_available: bool,
 }
 
 impl FeatureSet {
@@ -101,20 +70,13 @@ impl FeatureSet {
             l1_available: l1_available(),
             l2_available: l2_available(),
             metrics_available: metrics_available(),
-            bloom_available: bloom_available(),
-            rate_limiting_available: rate_limiting_available(),
-            batch_write_available: batch_write_available(),
-            serialization_available: serialization_available(),
-            compression_available: compression_available(),
-            database_available: database_available(),
             cli_available: cli_available(),
-            opentelemetry_available: opentelemetry_available(),
         }
     }
 
     /// Get tier name
     pub fn tier_name(&self) -> &'static str {
-        if self.opentelemetry_available && self.database_available && self.cli_available {
+        if self.cli_available && self.metrics_available {
             "full"
         } else if self.l2_available && self.metrics_available {
             "core"
@@ -124,11 +86,123 @@ impl FeatureSet {
             "core"
         }
     }
-
 }
 
 impl Default for FeatureSet {
     fn default() -> Self {
         Self::current()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feature_set_current() {
+        let fs = FeatureSet::current();
+        // With "full" feature, all should be available
+        assert!(fs.l1_available);
+        assert!(fs.l2_available);
+        assert!(fs.metrics_available);
+        assert!(fs.cli_available);
+    }
+
+    #[test]
+    fn test_feature_set_default() {
+        let fs = FeatureSet::default();
+        // Default should match current
+        let current = FeatureSet::current();
+        assert_eq!(fs.l1_available, current.l1_available);
+        assert_eq!(fs.l2_available, current.l2_available);
+        assert_eq!(fs.metrics_available, current.metrics_available);
+        assert_eq!(fs.cli_available, current.cli_available);
+    }
+
+    #[test]
+    fn test_feature_set_tier_name_full() {
+        let fs = FeatureSet {
+            l1_available: true,
+            l2_available: true,
+            metrics_available: true,
+            cli_available: true,
+        };
+        assert_eq!(fs.tier_name(), "full");
+    }
+
+    #[test]
+    fn test_feature_set_tier_name_core_with_l2() {
+        let fs = FeatureSet {
+            l1_available: true,
+            l2_available: true,
+            metrics_available: true,
+            cli_available: false,
+        };
+        assert_eq!(fs.tier_name(), "core");
+    }
+
+    #[test]
+    fn test_feature_set_tier_name_minimal() {
+        let fs = FeatureSet {
+            l1_available: true,
+            l2_available: false,
+            metrics_available: false,
+            cli_available: false,
+        };
+        assert_eq!(fs.tier_name(), "minimal");
+    }
+
+    #[test]
+    fn test_feature_set_tier_name_core_fallback() {
+        // No l1 available -> falls to "core"
+        let fs = FeatureSet {
+            l1_available: false,
+            l2_available: false,
+            metrics_available: false,
+            cli_available: false,
+        };
+        assert_eq!(fs.tier_name(), "core");
+    }
+
+    #[test]
+    fn test_l1_available() {
+        // With "memory" feature, l1 should be available
+        assert!(l1_available());
+    }
+
+    #[test]
+    fn test_l2_available() {
+        // With "redis" feature, l2 should be available
+        assert!(l2_available());
+    }
+
+    #[test]
+    fn test_metrics_available() {
+        // With "metrics" feature, should be available
+        assert!(metrics_available());
+    }
+
+    #[test]
+    fn test_cli_available() {
+        // With "cli" feature, should be available
+        assert!(cli_available());
+    }
+
+    #[test]
+    fn test_batch_write_available() {
+        // With "batch-write" feature
+        assert!(batch_write_available());
+    }
+
+    #[test]
+    fn test_serialization_available() {
+        // With "serialization" feature
+        assert!(serialization_available());
+    }
+
+    #[test]
+    fn test_compression_available() {
+        // compression may or may not be available depending on features
+        let _ = compression_available();
     }
 }
