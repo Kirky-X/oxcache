@@ -84,25 +84,21 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 
 | 层级 | 包含特性 | 描述 |
 |------|----------|------|
-| **minimal** | `moka`, `serialization`, `metrics` | 仅 L1 缓存 |
-| **core** | `minimal` + `redis` | L1 + L2 缓存 |
-| **full** | `core` + 所有高级特性 | 完整功能 |
+| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
+| **core** | `minimal` + `redis`, `futures` | L1 + L2 缓存 |
+| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
 
-**高级特性**（包含在 `full` 中）：
+**独立特性**：
+- `memory` - L1 缓存后端（Moka + DashMap）
+- `redis` - L2 分布式缓存（Redis）
 - `macros` - `#[cached]` 属性宏
-- `batch-write` - 优化的批量写入
-- `wal-recovery` - 预写日志持久化
-- `bloom-filter` - 缓存穿透保护
-- `rate-limiting` - DoS 防护
-- `database` - 数据库集成（SeaORM/SQLx）
-- `cli` - 命令行界面
-- `full-metrics` - OpenTelemetry 集成
-- `smart-strategy` - 基于熵压缩的智能缓存策略
-- `redis-native` - 原生 Redis 操作支持
+- `serialization` - JSON 序列化（serde + serde_json）
 - `compression` - 数据压缩（flate2）
+- `metrics` - OpenTelemetry 指标与可观测性
+- `batch-write` - 优化的批量写入（tokio-util）
 - `lua-script` - Lua 脚本执行支持
-- `extra-serialization` - MessagePack、CBOR 序列化
-- `config-dynamic` - 动态配置
+- `cli` - 命令行界面（clap）
+- `tracing` - 结构化日志支持
 
 ### 最简示例
 
@@ -154,11 +150,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 配置文件
 
 创建 `config.toml`：
-
-> **重要**：要从配置文件初始化，需要启用 `confers` 特性：
-> ```toml
-> oxcache = { version = "0.2.0", features = ["confers"] }
-> ```
 
 ```toml
 [global]
@@ -212,11 +203,6 @@ ttl = 7200
 ### 类型安全配置 API（推荐）
 
 Oxcache 提供**类型安全的构建器 API** 用于配置，支持编译时类型检查和更好的 IDE 支持。对于大多数用例，推荐使用此方式而非 TOML 配置。
-
-> **注意**：要使用类型安全配置 API，需要启用 `confers` 特性：
-> ```toml
-> oxcache = { version = "0.2.0", features = ["confers"] }
-> ```
 
 #### 仅内存缓存 (L1)
 
@@ -524,7 +510,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 - [📖 用户指南](docs/USER_GUIDE.md)
 - [📘 API 文档](https://docs.rs/oxcache)
-- [💻 示例代码](../examples/)
+- [💻 示例代码](examples/)
 
 ## 🤝 贡献
 
