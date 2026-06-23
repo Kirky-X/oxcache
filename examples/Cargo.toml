@@ -138,5 +138,13 @@ path = "src/06_features/example_metrics.rs"
 name = "example_security_validation"
 path = "src/06_features/example_security_validation.rs"
 
+[[example]]
+name = "example_cache_key"
+path = "src/01_basics/example_cache_key.rs"
+
+[[example]]
+name = "example_compression"
+path = "src/06_features/example_compression.rs"
+
 [profile.release]
 opt-level = 1
