@@ -469,6 +469,7 @@ impl ChainCacheBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::MokaMemoryBackend;
     use crate::testing::mock::MockBackend;
 
     #[test]
@@ -550,5 +551,453 @@ mod tests {
 
         let exists = chain.exists("key").await.unwrap();
         assert!(!exists);
+    }
+
+    // ========================================================================
+    // ChainLink tests
+    // ========================================================================
+
+    #[test]
+    fn test_chain_link_new_constructor() {
+        let backend = MokaMemoryBackend::new();
+        let link = ChainLink::new(backend, 75, true, "custom");
+
+        assert_eq!(link.score(), 75);
+        assert!(link.is_persistent());
+        assert_eq!(link.name(), "custom");
+        // backend() getter should return a usable reference
+        let _backend_ref = link.backend();
+    }
+
+    #[test]
+    fn test_chain_link_from_backend_moka() {
+        let backend = MokaMemoryBackend::new();
+        let link = ChainLink::from_backend(backend);
+
+        // Moka scores 100 (Scores::MOKA), non-persistent, name "moka"
+        assert_eq!(link.score(), 100);
+        assert!(!link.is_persistent());
+        assert_eq!(link.name(), "moka");
+    }
+
+    #[test]
+    fn test_chain_link_debug() {
+        let backend = MokaMemoryBackend::new();
+        let link = ChainLink::new(backend, 80, true, "dbg");
+
+        let debug_str = format!("{:?}", link);
+        assert!(debug_str.contains("ChainLink"));
+        assert!(debug_str.contains("80"));
+        assert!(debug_str.contains("dbg"));
+    }
+
+    // ========================================================================
+    // ChainCache accessor tests
+    // ========================================================================
+
+    #[test]
+    fn test_chain_cache_new_constructor() {
+        let link = ChainLink::from_backend(MokaMemoryBackend::new());
+        let chain = ChainCache::new(vec![link]);
+
+        assert_eq!(chain.len(), 1);
+        assert!(!chain.is_empty());
+    }
+
+    #[test]
+    fn test_chain_cache_len_is_empty() {
+        let empty = ChainCache::new(vec![]);
+        assert!(empty.is_empty());
+        assert_eq!(empty.len(), 0);
+
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+        assert!(!chain.is_empty());
+        assert_eq!(chain.len(), 1);
+    }
+
+    #[test]
+    fn test_chain_cache_get_by_score() {
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"))
+            .link(ChainLink::new(MokaMemoryBackend::new(), 50, true, "low"))
+            .build();
+
+        assert!(chain.get_by_score(100).is_some());
+        assert!(chain.get_by_score(50).is_some());
+        assert!(chain.get_by_score(75).is_none());
+    }
+
+    #[test]
+    fn test_chain_cache_highest_lowest_backend() {
+        // Add low first to verify sorting works
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(MokaMemoryBackend::new(), 50, true, "low"))
+            .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"))
+            .build();
+
+        let highest = chain.highest_score_backend().unwrap();
+        assert_eq!(highest.score(), 100);
+        assert_eq!(highest.name(), "high");
+
+        let lowest = chain.lowest_score_backend().unwrap();
+        assert_eq!(lowest.score(), 50);
+        assert_eq!(lowest.name(), "low");
+    }
+
+    #[test]
+    fn test_chain_cache_highest_lowest_empty() {
+        let chain = ChainCache::new(vec![]);
+        assert!(chain.highest_score_backend().is_none());
+        assert!(chain.lowest_score_backend().is_none());
+    }
+
+    #[test]
+    fn test_chain_cache_persistent_filters() {
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"))
+            .link(ChainLink::new(MokaMemoryBackend::new(), 50, true, "low"))
+            .build();
+
+        let persistent = chain.persistent_backends();
+        assert_eq!(persistent.len(), 1);
+        assert_eq!(persistent[0].name(), "low");
+
+        let non_persistent = chain.non_persistent_backends();
+        assert_eq!(non_persistent.len(), 1);
+        assert_eq!(non_persistent[0].name(), "high");
+    }
+
+    #[test]
+    fn test_chain_cache_links_accessor() {
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"))
+            .build();
+
+        let links = chain.links();
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].name(), "high");
+    }
+
+    // ========================================================================
+    // Builder tests
+    // ========================================================================
+
+    #[test]
+    fn test_builder_link_method() {
+        let link = ChainLink::new(MokaMemoryBackend::new(), 100, false, "moka");
+        let chain = ChainCache::builder().link(link).build();
+        assert_eq!(chain.len(), 1);
+    }
+
+    #[test]
+    fn test_builder_links_method() {
+        let links = vec![
+            ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"),
+            ChainLink::new(MokaMemoryBackend::new(), 50, true, "low"),
+        ];
+        let chain = ChainCache::builder().links(links).build();
+        assert_eq!(chain.len(), 2);
+        // Verify sorting by score descending
+        assert_eq!(chain.links()[0].score(), 100);
+        assert_eq!(chain.links()[1].score(), 50);
+    }
+
+    #[tokio::test]
+    async fn test_builder_default_time_to_live() {
+        let chain = ChainCache::builder()
+            .backend(MokaMemoryBackend::new())
+            .default_time_to_live(Duration::from_secs(60))
+            .build();
+
+        // set with None should use default_ttl
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(value, Some(b"value".to_vec()));
+    }
+
+    #[test]
+    fn test_builder_disable_backfill() {
+        let chain = ChainCache::builder()
+            .backend(MokaMemoryBackend::new())
+            .enable_backfill()
+            .disable_backfill()
+            .build();
+
+        assert_eq!(chain.len(), 1);
+    }
+
+    // ========================================================================
+    // UnifiedCache trait tests (get_bytes / set_bytes)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_cache_get_bytes_set_bytes() {
+        use crate::UnifiedCache;
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        chain.set_bytes("key", b"value".to_vec(), None).await.unwrap();
+        let value = chain.get_bytes("key").await.unwrap();
+        assert_eq!(value, Some(b"value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_get_bytes_missing() {
+        use crate::UnifiedCache;
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        let value = chain.get_bytes("missing").await.unwrap();
+        assert!(value.is_none());
+    }
+
+    // ========================================================================
+    // CacheWriter tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_cache_clear() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+        assert!(chain.exists("key").await.unwrap());
+
+        chain.clear().await.unwrap();
+        assert!(!chain.exists("key").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_clear_empty() {
+        let chain = ChainCache::new(vec![]);
+        assert!(chain.clear().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_expire() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+        // Moka doesn't support per-entry TTL updates, returns false
+        let result = chain.expire("key", Duration::from_secs(60)).await.unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_expire_missing_key() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        let result = chain.expire("missing", Duration::from_secs(60)).await.unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_set_empty_chain_error() {
+        let chain = ChainCache::new(vec![]);
+        let result = chain.set("key", b"value".to_vec(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_delete_empty_chain() {
+        let chain = ChainCache::new(vec![]);
+        assert!(chain.delete("key").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_set_with_explicit_ttl() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        chain
+            .set("key", b"value".to_vec(), Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(value, Some(b"value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_multi_backend_set_writes_all() {
+        let high = MokaMemoryBackend::new();
+        let low = MokaMemoryBackend::new();
+
+        let high_ref = high.clone();
+        let low_ref = low.clone();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(high, 100, false, "high"))
+            .link(ChainLink::new(low, 50, true, "low"))
+            .build();
+
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+
+        // Both backends should have the value
+        assert_eq!(high_ref.get("key").await.unwrap(), Some(b"value".to_vec()));
+        assert_eq!(low_ref.get("key").await.unwrap(), Some(b"value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_delete_removes_from_all() {
+        let high = MokaMemoryBackend::new();
+        let low = MokaMemoryBackend::new();
+
+        let high_ref = high.clone();
+        let low_ref = low.clone();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(high, 100, false, "high"))
+            .link(ChainLink::new(low, 50, true, "low"))
+            .build();
+
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+        chain.delete("key").await.unwrap();
+
+        assert!(high_ref.get("key").await.unwrap().is_none());
+        assert!(low_ref.get("key").await.unwrap().is_none());
+    }
+
+    // ========================================================================
+    // Backfill behavior tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_cache_backfill_populates_higher() {
+        let high = MokaMemoryBackend::new();
+        let low = MokaMemoryBackend::new();
+
+        let high_ref = high.clone();
+        let low_ref = low.clone();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(high, 100, false, "high"))
+            .link(ChainLink::new(low, 50, true, "low"))
+            .enable_backfill()
+            .build();
+
+        // Set value only in low backend (bypass chain)
+        low_ref.set("key", b"low_value".to_vec(), None).await.unwrap();
+
+        // Verify high doesn't have it yet
+        assert!(high_ref.get("key").await.unwrap().is_none());
+
+        // Get from chain - should find in low and backfill to high
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(value, Some(b"low_value".to_vec()));
+
+        // Verify high now has the value (backfilled)
+        let high_value = high_ref.get("key").await.unwrap();
+        assert_eq!(high_value, Some(b"low_value".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_no_backfill_when_disabled() {
+        let high = MokaMemoryBackend::new();
+        let low = MokaMemoryBackend::new();
+
+        let high_ref = high.clone();
+        let low_ref = low.clone();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(high, 100, false, "high"))
+            .link(ChainLink::new(low, 50, true, "low"))
+            .build(); // backfill disabled by default
+
+        // Set value only in low backend (bypass chain)
+        low_ref.set("key", b"low_value".to_vec(), None).await.unwrap();
+
+        // Get from chain - should find in low but NOT backfill to high
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(value, Some(b"low_value".to_vec()));
+
+        // Verify high still doesn't have the value
+        assert!(high_ref.get("key").await.unwrap().is_none());
+    }
+
+    // ========================================================================
+    // CacheReader trait tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_cache_ttl_len_capacity() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
+
+        // ttl - Moka returns None for per-entry TTL
+        let ttl = chain.ttl("key").await.unwrap();
+        assert!(ttl.is_none());
+
+        // len (CacheReader trait) - Moka's entry_count is approximate
+        let len = CacheReader::len(&chain).await.unwrap();
+        assert!(len <= 100, "len should be reasonable after single insert");
+
+        // capacity
+        let capacity = chain.capacity().await.unwrap();
+        assert!(capacity > 0);
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_reader_empty() {
+        let chain = ChainCache::new(vec![]);
+
+        assert_eq!(CacheReader::len(&chain).await.unwrap(), 0);
+        assert!(CacheReader::is_empty(&chain).await.unwrap());
+        assert_eq!(chain.capacity().await.unwrap(), 0);
+
+        let ttl = chain.ttl("key").await.unwrap();
+        assert!(ttl.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_stats() {
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "high"))
+            .link(ChainLink::new(MokaMemoryBackend::new(), 50, true, "low"))
+            .build();
+
+        let stats = chain.stats().await.unwrap();
+        assert_eq!(stats.get("type"), Some(&"chain".to_string()));
+        assert_eq!(stats.get("backend_count"), Some(&"2".to_string()));
+        assert_eq!(stats.get("backend_0_name"), Some(&"high".to_string()));
+        assert_eq!(stats.get("backend_0_score"), Some(&"100".to_string()));
+        assert_eq!(stats.get("backend_1_name"), Some(&"low".to_string()));
+        assert_eq!(stats.get("backend_1_score"), Some(&"50".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_stats_empty() {
+        let chain = ChainCache::new(vec![]);
+        let stats = chain.stats().await.unwrap();
+        assert_eq!(stats.get("type"), Some(&"chain".to_string()));
+        assert_eq!(stats.get("backend_count"), Some(&"0".to_string()));
+    }
+
+    // ========================================================================
+    // CacheConnector trait tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_cache_health_check() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        assert!(chain.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_health_check_empty() {
+        let chain = ChainCache::new(vec![]);
+        assert!(chain.health_check().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chain_cache_shutdown() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        // Should not panic
+        chain.shutdown().await;
+    }
+
+    #[test]
+    fn test_chain_cache_backend_kind() {
+        let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+
+        assert_eq!(chain.backend_kind(), BackendKind::Chain);
     }
 }

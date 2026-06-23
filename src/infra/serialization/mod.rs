@@ -80,3 +80,138 @@ pub trait Serializer: Send + Sync {
         self.deserialize(type_name, data)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试用的简单序列化器实现
+    struct TestSerializer;
+
+    impl Serializer for TestSerializer {
+        fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+            Ok(data.to_vec())
+        }
+
+        fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+            Ok(data.to_vec())
+        }
+    }
+
+    #[test]
+    fn test_serializer_serialize() {
+        let serializer = TestSerializer;
+        let data = b"test data";
+        let result = serializer.serialize("TestType", data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_deserialize() {
+        let serializer = TestSerializer;
+        let data = b"test data";
+        let result = serializer.deserialize("TestType", data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_serialize_zero_copy_default() {
+        // 测试默认的 serialize_zero_copy 方法
+        let serializer = TestSerializer;
+        let data = b"test data";
+        let result = serializer.serialize_zero_copy("TestType", data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_deserialize_zero_copy_default() {
+        // 测试默认的 deserialize_zero_copy 方法
+        let serializer = TestSerializer;
+        let data = b"test data";
+        let result = serializer.deserialize_zero_copy("TestType", data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_serialize_empty_data() {
+        let serializer = TestSerializer;
+        let data = b"";
+        let result = serializer.serialize("TestType", data);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_serializer_deserialize_empty_data() {
+        let serializer = TestSerializer;
+        let data = b"";
+        let result = serializer.deserialize("TestType", data);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_serializer_serialize_zero_copy_empty() {
+        let serializer = TestSerializer;
+        let data = b"";
+        let result = serializer.serialize_zero_copy("TestType", data);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_serializer_deserialize_zero_copy_empty() {
+        let serializer = TestSerializer;
+        let data = b"";
+        let result = serializer.deserialize_zero_copy("TestType", data);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_serializer_trait_object() {
+        // 测试 trait 对象动态分发
+        let serializer: &dyn Serializer = &TestSerializer;
+        let data = b"test data";
+
+        let serialized = serializer.serialize("TestType", data).unwrap();
+        assert_eq!(serialized, data.to_vec());
+
+        let deserialized = serializer.deserialize("TestType", data).unwrap();
+        assert_eq!(deserialized, data.to_vec());
+
+        let zero_copy_serialized = serializer.serialize_zero_copy("TestType", data).unwrap();
+        assert_eq!(zero_copy_serialized, data.to_vec());
+
+        let zero_copy_deserialized = serializer.deserialize_zero_copy("TestType", data).unwrap();
+        assert_eq!(zero_copy_deserialized, data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_roundtrip() {
+        // 测试序列化-反序列化往返
+        let serializer = TestSerializer;
+        let original_data = b"roundtrip test data";
+
+        let serialized = serializer.serialize("TestType", original_data).unwrap();
+        let deserialized = serializer.deserialize("TestType", &serialized).unwrap();
+
+        assert_eq!(deserialized, original_data.to_vec());
+    }
+
+    #[test]
+    fn test_serializer_zero_copy_roundtrip() {
+        // 测试零拷贝序列化-反序列化往返
+        let serializer = TestSerializer;
+        let original_data = b"zero copy roundtrip test";
+
+        let serialized = serializer.serialize_zero_copy("TestType", original_data).unwrap();
+        let deserialized = serializer.deserialize_zero_copy("TestType", &serialized).unwrap();
+
+        assert_eq!(deserialized, original_data.to_vec());
+    }
+}

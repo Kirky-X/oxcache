@@ -354,4 +354,251 @@ mod tests {
         let stats = cache.stats().await.unwrap();
         assert!(stats.contains_key("type"));
     }
+
+    // ========================================================================
+    // get / set / delete scenarios
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cache_get_miss_returns_none() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        let result = cache.get(&"missing".to_string()).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cache_set_overwrite() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+        cache.set(&"k".to_string(), &"v1".to_string()).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v1".to_string());
+
+        // Overwrite with a new value
+        cache.set(&"k".to_string(), &"v2".to_string()).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v2".to_string());
+    }
+
+    #[tokio::test]
+    async fn test_cache_delete_missing_key_no_error() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        // Deleting a key that was never set should not error
+        assert!(cache.delete(&"never".to_string()).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_cache_exists_after_delete() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+        cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+        assert!(cache.exists(&"k".to_string()).await.unwrap());
+
+        cache.delete(&"k".to_string()).await.unwrap();
+        assert!(!cache.exists(&"k".to_string()).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_cache_set_with_ttl() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+        cache
+            .set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v".to_string());
+    }
+
+    #[tokio::test]
+    async fn test_cache_set_with_ttl_none() {
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+
+        cache.set_with_ttl(&"k".to_string(), &42, None).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_set_integer_type() {
+        let cache: Cache<String, i64> = Cache::builder().build().await.unwrap();
+
+        cache.set(&"count".to_string(), &12345).await.unwrap();
+        assert_eq!(cache.get(&"count".to_string()).await.unwrap().unwrap(), 12345);
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_set_struct_type() {
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Debug, Serialize, Deserialize, PartialEq)]
+        struct User {
+            id: u64,
+            name: String,
+        }
+
+        let cache: Cache<String, User> = Cache::builder().build().await.unwrap();
+        let user = User {
+            id: 1,
+            name: "alice".to_string(),
+        };
+
+        cache.set(&"user:1".to_string(), &user).await.unwrap();
+        let result = cache.get(&"user:1".to_string()).await.unwrap().unwrap();
+        assert_eq!(result, user);
+    }
+
+    // ========================================================================
+    // get_or scenarios
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cache_get_or_cache_hit_fast_path() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+        // Pre-populate cache
+        cache.set(&"k".to_string(), &"cached".to_string()).await.unwrap();
+
+        // get_or should return cached value without calling fallback
+        let value = cache
+            .get_or(&"k".to_string(), || async {
+                Err(CacheError::Operation("fallback should not be called".to_string()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(value, "cached");
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_or_fallback_error_propagates() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+        let result: Result<String> = cache
+            .get_or(&"missing".to_string(), || async {
+                Err(CacheError::Operation("db down".to_string()))
+            })
+            .await;
+
+        assert!(result.is_err());
+        match result {
+            Err(CacheError::Operation(msg)) => assert_eq!(msg, "db down"),
+            _ => panic!("expected CacheError::Operation"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cache_get_or_writes_to_cache() {
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+
+        // First call: miss, fallback computes and caches
+        let v1 = cache.get_or(&"k".to_string(), || async { Ok(99) }).await.unwrap();
+        assert_eq!(v1, 99);
+
+        // Verify it was cached: a direct get should return the value
+        let cached = cache.get(&"k".to_string()).await.unwrap().unwrap();
+        assert_eq!(cached, 99);
+    }
+
+    // ========================================================================
+    // capacity / shutdown
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cache_capacity() {
+        let cache: Cache<String, String> = Cache::builder().capacity(500).build().await.unwrap();
+
+        let capacity = cache.capacity().await.unwrap();
+        assert_eq!(capacity, 500);
+    }
+
+    #[tokio::test]
+    async fn test_cache_shutdown() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+
+        // Should not panic
+        cache.shutdown().await;
+    }
+
+    // ========================================================================
+    // json_depth / deserialize_value internal functions
+    // ========================================================================
+
+    #[test]
+    fn test_json_depth_scalar() {
+        let v = serde_json::json!(42);
+        assert_eq!(json_depth(&v), 1);
+    }
+
+    #[test]
+    fn test_json_depth_empty_object() {
+        let v = serde_json::json!({});
+        assert_eq!(json_depth(&v), 1);
+    }
+
+    #[test]
+    fn test_json_depth_empty_array() {
+        let v = serde_json::json!([]);
+        assert_eq!(json_depth(&v), 1);
+    }
+
+    #[test]
+    fn test_json_depth_nested_object() {
+        let v = serde_json::json!({"a": {"b": {"c": 1}}});
+        assert_eq!(json_depth(&v), 4);
+    }
+
+    #[test]
+    fn test_json_depth_nested_array() {
+        let v = serde_json::json!([[[1]]]);
+        assert_eq!(json_depth(&v), 4);
+    }
+
+    #[test]
+    fn test_json_depth_mixed() {
+        let v = serde_json::json!({"a": [1, {"b": 2}]});
+        // object -> array -> object -> scalar = 4
+        assert_eq!(json_depth(&v), 4);
+    }
+
+    #[tokio::test]
+    async fn test_deserialize_value_valid() {
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+        cache.set(&"k".to_string(), &42).await.unwrap();
+
+        // get() internally calls deserialize_value
+        let v = cache.get(&"k".to_string()).await.unwrap().unwrap();
+        assert_eq!(v, 42);
+    }
+
+    #[tokio::test]
+    async fn test_deserialize_value_invalid_json() {
+        // Store invalid JSON bytes directly via backend
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+        cache.backend.set("bad", b"not json".to_vec(), None).await.unwrap();
+
+        // get() should return a serialization error
+        let result = cache.get(&"bad".to_string()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_deserialize_value_depth_exceeded() {
+        // Build a deeply nested JSON that exceeds MAX_JSON_DEPTH (64)
+        let mut json_str = String::new();
+        for _ in 0..(MAX_JSON_DEPTH + 5) {
+            json_str.push('[');
+        }
+        for _ in 0..(MAX_JSON_DEPTH + 5) {
+            json_str.push(']');
+        }
+
+        let cache: Cache<String, serde_json::Value> = Cache::builder().build().await.unwrap();
+        cache.backend.set("deep", json_str.into_bytes(), None).await.unwrap();
+
+        let result = cache.get(&"deep".to_string()).await;
+        assert!(result.is_err());
+        match result {
+            Err(CacheError::Serialization(msg)) => {
+                assert!(msg.contains("深度") || msg.contains("depth"));
+            }
+            _ => panic!("expected CacheError::Serialization"),
+        }
+    }
 }

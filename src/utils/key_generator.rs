@@ -186,3 +186,182 @@ impl KeyGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_key_generator_new() {
+        let gen = KeyGenerator::new();
+        assert_eq!(gen.namespace, "default");
+        assert_eq!(gen.prefix, "");
+        assert_eq!(gen.max_key_length, 256);
+    }
+
+    #[test]
+    fn test_key_generator_default() {
+        let gen = KeyGenerator::default();
+        assert_eq!(gen.namespace, "default");
+    }
+
+    #[test]
+    fn test_key_generator_with_prefix() {
+        let gen = KeyGenerator::with_prefix("session:");
+        assert_eq!(gen.prefix, "session:");
+        assert_eq!(gen.namespace, "default");
+    }
+
+    #[test]
+    fn test_key_generator_with_namespace() {
+        let gen = KeyGenerator::new().with_namespace("myapp");
+        assert_eq!(gen.namespace, "myapp");
+    }
+
+    #[test]
+    fn test_key_generator_with_prefix_str() {
+        let gen = KeyGenerator::new().with_prefix_str("v2:");
+        assert_eq!(gen.prefix, "v2:");
+    }
+
+    #[test]
+    fn test_key_generator_with_max_key_length() {
+        let gen = KeyGenerator::new().with_max_key_length(512);
+        assert_eq!(gen.max_key_length, 512);
+    }
+
+    #[test]
+    fn test_key_generator_generate_basic() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("user:{id}", &[("id", "123")]);
+        assert_eq!(key, "user:123");
+    }
+
+    #[test]
+    fn test_key_generator_generate_multiple_params() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("search:{type}:{query}", &[("type", "products"), ("query", "laptop")]);
+        assert_eq!(key, "search:products:laptop");
+    }
+
+    #[test]
+    fn test_key_generator_generate_no_params() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("static:key", &[]);
+        assert_eq!(key, "static:key");
+    }
+
+    #[test]
+    fn test_key_generator_generate_unreplaced_placeholder() {
+        let gen = KeyGenerator::new();
+        let key = gen.generate("user:{id}", &[]);
+        assert_eq!(key, "user:{id}");
+    }
+
+    #[test]
+    fn test_key_generator_generate_full_with_namespace() {
+        let gen = KeyGenerator::new().with_namespace("app");
+        let key = gen.generate_full("user:{id}", &[("id", "42")]);
+        assert_eq!(key, "app:user:42");
+    }
+
+    #[test]
+    fn test_key_generator_generate_full_with_prefix() {
+        let gen = KeyGenerator::with_prefix("cache:").with_namespace("app");
+        let key = gen.generate_full("user:{id}", &[("id", "1")]);
+        assert_eq!(key, "app:cache:user:1");
+    }
+
+    #[test]
+    fn test_key_generator_generate_full_default_namespace() {
+        // Default namespace "default" should not be prefixed
+        let gen = KeyGenerator::new();
+        let key = gen.generate_full("user:{id}", &[("id", "1")]);
+        assert_eq!(key, "user:1");
+    }
+
+    #[test]
+    fn test_key_generator_namespaced_key_with_namespace() {
+        let gen = KeyGenerator::new().with_namespace("myapp");
+        assert_eq!(gen.namespaced_key("user:1"), "myapp:user:1");
+    }
+
+    #[test]
+    fn test_key_generator_namespaced_key_default_namespace() {
+        let gen = KeyGenerator::new();
+        assert_eq!(gen.namespaced_key("user:1"), "user:1");
+    }
+
+    #[test]
+    fn test_key_generator_namespaced_key_empty_namespace() {
+        let gen = KeyGenerator::new().with_namespace("");
+        assert_eq!(gen.namespaced_key("user:1"), "user:1");
+    }
+
+    #[test]
+    fn test_key_generator_validate_key_valid() {
+        let gen = KeyGenerator::new();
+        assert!(gen.validate_key("user:123").is_ok());
+        assert!(gen.validate_key("cache/item").is_ok());
+        assert!(gen.validate_key("session@abc").is_ok());
+        assert!(gen.validate_key("a.b-c_d").is_ok());
+    }
+
+    #[test]
+    fn test_key_generator_validate_key_empty() {
+        let gen = KeyGenerator::new();
+        let result = gen.validate_key("");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            crate::error::CacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_key_generator_validate_key_too_long() {
+        let gen = KeyGenerator::new().with_max_key_length(10);
+        let result = gen.validate_key("this_key_is_way_too_long");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            crate::error::CacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_key_generator_validate_key_invalid_chars() {
+        let gen = KeyGenerator::new();
+        // Space is not in VALID_KEY_CHARS
+        let result = gen.validate_key("key with spaces");
+        assert!(result.is_err());
+        // Null byte
+        let result = gen.validate_key("key\0null");
+        assert!(result.is_err());
+        // Newline
+        let result = gen.validate_key("key\nnewline");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_key_generator_apply_prefix_empty() {
+        let gen = KeyGenerator::new();
+        assert_eq!(gen.apply_prefix("key"), "key");
+    }
+
+    #[test]
+    fn test_key_generator_apply_prefix_nonempty() {
+        let gen = KeyGenerator::with_prefix("cache:");
+        assert_eq!(gen.apply_prefix("key"), "cache:key");
+    }
+
+    #[cfg(feature = "memory")]
+    #[test]
+    fn test_key_generator_with_eviction_policy() {
+        use moka::policy::EvictionPolicy;
+        let gen = KeyGenerator::new().with_eviction_policy(EvictionPolicy::lru());
+        assert_eq!(gen.namespace, "default");
+    }
+}

@@ -157,4 +157,66 @@ mod tests {
         let retrieved = cache.get(&"bin".to_string()).await.unwrap().unwrap();
         assert_eq!(retrieved, data);
     }
+
+    #[tokio::test]
+    async fn test_cache_new() {
+        // Cache::new() uses MokaMemoryBackend under the memory feature
+        let cache: Cache<String, String> = Cache::new();
+        assert!(cache.health_check().await.is_ok());
+
+        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        let val = cache.get(&"key".to_string()).await.unwrap().unwrap();
+        assert_eq!(val, "value");
+    }
+
+    #[tokio::test]
+    async fn test_cache_with_dependencies() {
+        use crate::backend::memory::MokaMemoryBackend;
+        let backend = Arc::new(MokaMemoryBackend::new());
+        let cache: Cache<String, i32> = Cache::with_dependencies(backend);
+
+        assert!(cache.health_check().await.is_ok());
+        cache.set(&"k".to_string(), &42).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn test_cache_default() {
+        // Default impl delegates to Cache::new()
+        let cache: Cache<String, String> = Cache::default();
+        assert!(cache.health_check().await.is_ok());
+
+        cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v".to_string());
+    }
+
+    #[test]
+    fn test_cache_debug() {
+        let cache: Cache<String, String> = Cache::new();
+        let debug_str = format!("{:?}", cache);
+        assert!(debug_str.contains("Cache"));
+    }
+
+    #[tokio::test]
+    async fn test_cache_new_with_backend_custom() {
+        // Verify new_with_backend works with a builder-configured Moka backend
+        use crate::backend::memory::MokaMemoryBackend;
+        let backend = Arc::new(MokaMemoryBackend::builder().capacity(50).build());
+        let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
+
+        let data = b"hello".to_vec();
+        cache.set(&"k".to_string(), &data.clone()).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), data);
+    }
+
+    #[tokio::test]
+    async fn test_cache_builder_with_backend_arc() {
+        // Verify builder() works with a pre-built backend
+        use crate::backend::memory::MokaMemoryBackend;
+        let backend = Arc::new(MokaMemoryBackend::new());
+        let cache: Cache<String, i32> = Cache::builder().backend_arc(backend).build().await.unwrap();
+
+        cache.set(&"n".to_string(), &7).await.unwrap();
+        assert_eq!(cache.get(&"n".to_string()).await.unwrap().unwrap(), 7);
+    }
 }
