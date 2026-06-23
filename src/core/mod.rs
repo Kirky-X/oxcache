@@ -8,6 +8,7 @@
 
 pub mod command;
 pub mod constants;
+pub mod events;
 pub mod types;
 
 // Re-export commonly used items for convenience
