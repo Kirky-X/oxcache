@@ -22,15 +22,10 @@ tracing-subscriber = { version = "~0.3", default-features = false, features = ["
 # Utilities needed by examples
 tempfile = "~3.15"
 serde = { version = "~1.0", features = ["derive"] }
-tokio = { version = "~1.50", default-features = false, features = ["rt", "macros"] }
+serde_json = "~1.0"
+tokio = { version = "~1.52", default-features = false, features = ["rt", "macros", "rt-multi-thread"] }
 chrono = { version = "~0.4", default-features = false, features = ["serde"] }
-axum = { version = "~0.8", optional = true, default-features = false, features = ["tokio"] }
-http = { version = "~1.4", optional = true }
-
-[features]
-default = []
-http-cache = ["oxcache/http-cache", "axum", "http"]
-redis = ["oxcache/redis"]
+async-trait = "~0.1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async_tokio"] }
@@ -67,7 +62,6 @@ path = "src/02_advanced/example_warmup.rs"
 name = "example_chain_cache"
 path = "src/02_advanced/example_chain_cache.rs"
 
-# 新功能示例
 [[example]]
 name = "example_new_api"
 path = "src/01_basics/example_new_api.rs"
@@ -81,25 +75,12 @@ name = "example_redis_native"
 path = "src/02_advanced/example_redis_native.rs"
 
 [[example]]
-name = "example_http_cache"
-path = "src/04_http/example_http_cache.rs"
-required-features = ["http-cache"]
-
-[[example]]
 name = "example_dynamic_config"
 path = "src/03_config/example_dynamic_config.rs"
 
 [[example]]
 name = "example_cached_macro"
 path = "src/01_basics/example_cached_macro.rs"
-
-[[example]]
-name = "example_bloom_filter"
-path = "src/06_features/example_bloom_filter.rs"
-
-[[example]]
-name = "example_rate_limiting"
-path = "src/06_features/example_rate_limiting.rs"
 
 [[example]]
 name = "example_cli_usage"
@@ -112,6 +93,50 @@ path = "src/06_features/example_events.rs"
 [[example]]
 name = "example_security"
 path = "src/06_features/example_security.rs"
+
+[[example]]
+name = "example_explicit_init"
+path = "src/01_basics/example_explicit_init.rs"
+
+[[example]]
+name = "example_get_or"
+path = "src/01_basics/example_get_or.rs"
+
+[[example]]
+name = "example_byte_ops"
+path = "src/01_basics/example_byte_ops.rs"
+
+[[example]]
+name = "example_cache_builder"
+path = "src/01_basics/example_cache_builder.rs"
+
+[[example]]
+name = "example_dashmap_backend"
+path = "src/02_advanced/example_dashmap_backend.rs"
+
+[[example]]
+name = "example_lua_script"
+path = "src/02_advanced/example_lua_script.rs"
+
+[[example]]
+name = "example_redis_pipeline"
+path = "src/02_advanced/example_redis_pipeline.rs"
+
+[[example]]
+name = "example_redis_modes"
+path = "src/02_advanced/example_redis_modes.rs"
+
+[[example]]
+name = "example_key_generator"
+path = "src/03_config/example_key_generator.rs"
+
+[[example]]
+name = "example_metrics"
+path = "src/06_features/example_metrics.rs"
+
+[[example]]
+name = "example_security_validation"
+path = "src/06_features/example_security_validation.rs"
 
 [profile.release]
 opt-level = 1
