@@ -4,7 +4,7 @@
 //
 // Traits 单元测试
 
-use oxcache::core::traits::CacheKey;
+use oxcache::CacheKey;
 use serde::{Deserialize, Serialize};
 
 #[test]

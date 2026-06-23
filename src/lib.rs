@@ -216,7 +216,7 @@ pub use crate::security::{
 // Public API re-exports (after features re-exports)
 pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use cache::interface::UnifiedCache;
-pub use core::traits::CacheKey;
+pub use traits::CacheKey;
 
 // Type-safe enum exports
 pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};

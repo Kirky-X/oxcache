@@ -6,8 +6,8 @@
 
 use super::Cache;
 use crate::core::constants::MAX_JSON_DEPTH;
-use crate::core::traits::CacheKey;
 use crate::error::{CacheError, Result};
+use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -301,19 +301,17 @@ mod tests {
     async fn test_cache_len() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         cache.set(&"key1".to_string(), &"v1".to_string()).await.unwrap();
-        // len() may be approximate for concurrent caches
+        // Moka's entry_count() is approximate; verify it returns a reasonable value
         let len = cache.len().await.unwrap();
-        assert!(len <= 100);
+        assert!(len <= 100, "len should be reasonable after single insert");
     }
 
     #[tokio::test]
     async fn test_cache_is_empty() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        // Initially empty or near-empty
-        let _empty = cache.is_empty().await.unwrap();
-        // After insert, may not be empty
         cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
-        // is_empty() behavior varies by backend
+        // Moka's is_empty is based on approximate entry_count; just verify no error
+        let _ = cache.is_empty().await.unwrap();
     }
 
     #[tokio::test]
