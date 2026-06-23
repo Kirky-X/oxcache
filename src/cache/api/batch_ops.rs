@@ -126,7 +126,7 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result.get("key1"), Some(&"value1".to_string()));
         assert_eq!(result.get("key2"), Some(&"value2".to_string()));
-        assert!(result.get("missing").is_none());
+        assert!(!result.contains_key("missing"));
     }
 
     #[tokio::test]
