@@ -679,3 +679,914 @@ impl crate::backend::interface::LuaExecutor for RedisBackend {
         Ok(sha)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
+    use crate::backend::score::BackendScore;
+    use crate::core::types::RedisModeType;
+    use serial_test::serial;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// Redis 测试连接地址（Docker 中运行的 Redis）
+    const REDIS_URL: &str = "redis://127.0.0.1:6379";
+    /// 使用独立数据库用于 clear 测试，避免影响其他并行测试
+    const REDIS_URL_DB1: &str = "redis://127.0.0.1:6379/1";
+    /// 测试 key 前缀，确保测试间互不干扰
+    const KEY_PREFIX: &str = "test_client:";
+
+    /// 全局唯一 ID 生成器，保证每个测试 key 唯一
+    static UID: AtomicU64 = AtomicU64::new(0);
+
+    /// 生成唯一测试 key
+    fn unique_key(suffix: &str) -> String {
+        let id = UID.fetch_add(1, Ordering::SeqCst);
+        format!("{}{}_{}", KEY_PREFIX, id, suffix)
+    }
+
+    /// 设置允许非 TLS 连接的环境变量并创建 RedisBackend
+    async fn make_backend() -> RedisBackend {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        RedisBackend::new(REDIS_URL).await.expect("Failed to connect to Redis")
+    }
+
+    /// 创建连接到指定数据库的 RedisBackend
+    async fn make_backend_with_url(url: &str) -> RedisBackend {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        RedisBackend::new(url).await.expect("Failed to connect to Redis")
+    }
+
+    /// 清理指定 key
+    async fn cleanup(backend: &RedisBackend, key: &str) {
+        let _ = backend.delete(key).await;
+    }
+
+    // =========================================================================
+    // redact_connection_string 测试（不需要 Redis 连接）
+    // =========================================================================
+
+    #[test]
+    fn test_redact_connection_string_with_password() {
+        // pragma: allowlist secret
+        let conn_str = "redis://:secret_password@localhost:6379/0";
+        let redacted = RedisBackend::redact_connection_string(conn_str);
+        assert!(!redacted.contains("secret_password"));
+        assert!(redacted.contains("[REDACTED]"));
+        assert!(redacted.contains("localhost:6379/0"));
+    }
+
+    #[test]
+    fn test_redact_connection_string_without_password() {
+        let conn_str = "redis://localhost:6379/0";
+        let redacted = RedisBackend::redact_connection_string(conn_str);
+        // 没有密码时，原样返回
+        assert_eq!(redacted, conn_str);
+    }
+
+    #[test]
+    fn test_redact_connection_string_no_protocol() {
+        let conn_str = "localhost:6379";
+        let redacted = RedisBackend::redact_connection_string(conn_str);
+        assert_eq!(redacted, conn_str);
+    }
+
+    #[test]
+    fn test_redact_connection_string_rediss_protocol() {
+        // pragma: allowlist secret
+        let conn_str = "rediss://:mypw@example.com:6380/2";
+        let redacted = RedisBackend::redact_connection_string(conn_str);
+        assert!(!redacted.contains("mypw"));
+        assert!(redacted.starts_with("rediss://[REDACTED]@"));
+        assert!(redacted.contains("example.com:6380/2"));
+    }
+
+    // =========================================================================
+    // Builder 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_builder_missing_connection_string() {
+        let result = RedisBackend::builder().build().await;
+        assert!(result.is_err());
+        if let Err(CacheError::InvalidInput(msg)) = result {
+            assert!(msg.contains("Connection string is required"));
+        } else {
+            panic!("Expected InvalidInput error");
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_builder_insecure_rejected_without_env() {
+        // 临时移除环境变量，验证非 TLS 连接被拒绝
+        std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+        let result = RedisBackend::builder()
+            .connection_string("redis://127.0.0.1:6379")
+            .build()
+            .await;
+        assert!(result.is_err());
+        if let Err(CacheError::InvalidInput(msg)) = result {
+            assert!(msg.contains("TLS") || msg.contains("insecure"));
+        } else {
+            panic!("Expected InvalidInput error");
+        }
+        // 恢复环境变量，避免影响后续测试
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_builder_insecure_allowed_with_env() {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
+        assert!(backend.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_builder_insecure_allowed_with_dev_value() {
+        // "development-only" 也应被接受
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "development-only");
+        let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
+        assert!(backend.is_ok());
+        // 恢复环境变量
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_builder_with_mode() {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        let backend = RedisBackend::builder()
+            .connection_string(REDIS_URL)
+            .mode(RedisModeType::Standalone)
+            .build()
+            .await;
+        assert!(backend.is_ok());
+        assert_eq!(backend.unwrap().mode(), RedisModeType::Standalone);
+    }
+
+    #[tokio::test]
+    async fn test_builder_default_mode_is_standalone() {
+        let backend = make_backend().await;
+        assert_eq!(backend.mode(), RedisModeType::Standalone);
+    }
+
+    // =========================================================================
+    // new() / with_pool() 连接测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_new_connects_to_redis() {
+        let backend = make_backend().await;
+        backend.health_check().await.expect("health check failed");
+    }
+
+    #[tokio::test]
+    async fn test_with_pool_connects_to_redis() {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        let backend = RedisBackend::with_pool(REDIS_URL, 4).await;
+        assert!(backend.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_new_invalid_url_returns_error() {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        let result = RedisBackend::new("redis://127.0.0.1:1/0").await;
+        assert!(result.is_err());
+        if let Err(CacheError::Connection(msg)) = result {
+            assert!(msg.contains("Redis") || msg.contains("timeout") || msg.contains("connect"));
+        } else {
+            panic!("Expected Connection error");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_new_unreachable_host_times_out() {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        // 使用不可路由的地址触发超时
+        let result = RedisBackend::new("redis://10.255.255.1:6379/0").await;
+        assert!(result.is_err());
+        if let Err(CacheError::Connection(msg)) = result {
+            assert!(msg.contains("timeout") || msg.contains("Redis"));
+        } else {
+            panic!("Expected Connection/timeout error");
+        }
+    }
+
+    // =========================================================================
+    // ping / health_check 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_ping_returns_pong() {
+        let backend = make_backend().await;
+        let result = backend.ping().await.expect("ping failed");
+        assert_eq!(result, "PONG");
+    }
+
+    #[tokio::test]
+    async fn test_health_check_ok() {
+        let backend = make_backend().await;
+        backend.health_check().await.expect("health check failed");
+    }
+
+    // =========================================================================
+    // CacheReader: get / exists / ttl 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_get_nonexistent_returns_none() {
+        let backend = make_backend().await;
+        let key = unique_key("no_such_key");
+        let result = backend.get(&key).await.expect("get failed");
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_set_then_get() {
+        let backend = make_backend().await;
+        let key = unique_key("set_get");
+        backend
+            .set(&key, b"hello world".to_vec(), None)
+            .await
+            .expect("set failed");
+        let value = backend.get(&key).await.expect("get failed");
+        assert_eq!(value, Some(b"hello world".to_vec()));
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_set_empty_value() {
+        let backend = make_backend().await;
+        let key = unique_key("empty_val");
+        backend.set(&key, vec![], None).await.expect("set failed");
+        let value = backend.get(&key).await.expect("get failed");
+        assert_eq!(value, Some(vec![]));
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_set_binary_value() {
+        let backend = make_backend().await;
+        let key = unique_key("binary");
+        let data: Vec<u8> = (0..=255).collect();
+        backend.set(&key, data.clone(), None).await.expect("set failed");
+        let value = backend.get(&key).await.expect("get failed");
+        assert_eq!(value, Some(data));
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_exists_true_after_set() {
+        let backend = make_backend().await;
+        let key = unique_key("exists_yes");
+        backend.set(&key, b"v".to_vec(), None).await.expect("set failed");
+        assert!(backend.exists(&key).await.expect("exists failed"));
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_exists_false_for_missing() {
+        let backend = make_backend().await;
+        let key = unique_key("exists_no");
+        assert!(!backend.exists(&key).await.expect("exists failed"));
+    }
+
+    #[tokio::test]
+    async fn test_ttl_returns_none_for_key_without_expiry() {
+        let backend = make_backend().await;
+        let key = unique_key("no_ttl");
+        backend.set(&key, b"v".to_vec(), None).await.expect("set failed");
+        let ttl = backend.ttl(&key).await.expect("ttl failed");
+        assert_eq!(ttl, None);
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_ttl_returns_none_for_missing_key() {
+        let backend = make_backend().await;
+        let key = unique_key("missing_ttl");
+        let ttl = backend.ttl(&key).await.expect("ttl failed");
+        assert_eq!(ttl, None);
+    }
+
+    #[tokio::test]
+    async fn test_ttl_returns_some_after_set_with_ttl() {
+        let backend = make_backend().await;
+        let key = unique_key("with_ttl");
+        backend
+            .set(&key, b"v".to_vec(), Some(Duration::from_secs(100)))
+            .await
+            .expect("set failed");
+        let ttl = backend.ttl(&key).await.expect("ttl failed");
+        assert!(ttl.is_some());
+        let secs = ttl.unwrap().as_secs();
+        // 允许少量误差
+        assert!(secs > 90 && secs <= 100, "ttl secs = {}", secs);
+        cleanup(&backend, &key).await;
+    }
+
+    // =========================================================================
+    // CacheWriter: set / delete / expire 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_delete_removes_key() {
+        let backend = make_backend().await;
+        let key = unique_key("del");
+        backend.set(&key, b"v".to_vec(), None).await.expect("set failed");
+        assert!(backend.exists(&key).await.unwrap());
+        backend.delete(&key).await.expect("delete failed");
+        assert!(!backend.exists(&key).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_delete_nonexistent_is_ok() {
+        let backend = make_backend().await;
+        let key = unique_key("del_missing");
+        // 删除不存在的 key 不应报错
+        backend.delete(&key).await.expect("delete missing key should be ok");
+    }
+
+    #[tokio::test]
+    async fn test_expire_sets_ttl_on_existing_key() {
+        let backend = make_backend().await;
+        let key = unique_key("expire_ok");
+        backend.set(&key, b"v".to_vec(), None).await.expect("set failed");
+        let ok = backend
+            .expire(&key, Duration::from_secs(50))
+            .await
+            .expect("expire failed");
+        assert!(ok, "expire should return true for existing key");
+        let ttl = backend.ttl(&key).await.unwrap();
+        assert!(ttl.is_some());
+        let secs = ttl.unwrap().as_secs();
+        assert!(secs > 40 && secs <= 50, "ttl secs = {}", secs);
+        cleanup(&backend, &key).await;
+    }
+
+    #[tokio::test]
+    async fn test_expire_returns_false_for_missing_key() {
+        let backend = make_backend().await;
+        let key = unique_key("expire_missing");
+        let ok = backend
+            .expire(&key, Duration::from_secs(50))
+            .await
+            .expect("expire call failed");
+        assert!(!ok, "expire should return false for missing key");
+    }
+
+    #[tokio::test]
+    async fn test_set_with_ttl_expires() {
+        let backend = make_backend().await;
+        let key = unique_key("short_ttl");
+        backend
+            .set(&key, b"v".to_vec(), Some(Duration::from_secs(1)))
+            .await
+            .expect("set failed");
+        assert!(backend.exists(&key).await.unwrap());
+        // 等待过期
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        assert!(!backend.exists(&key).await.unwrap());
+    }
+
+    // =========================================================================
+    // 批量操作: set_many / get_many / delete_many
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_set_many_and_get_many() {
+        let backend = make_backend().await;
+        let k1 = unique_key("m1");
+        let k2 = unique_key("m2");
+        let k3 = unique_key("m3");
+        let items = vec![
+            (k1.clone(), b"v1".to_vec(), None),
+            (k2.clone(), b"v2".to_vec(), None),
+            (k3.clone(), b"v3".to_vec(), None),
+        ];
+        backend.set_many(&items).await.expect("set_many failed");
+
+        let keys = vec![k1.clone(), k2.clone(), k3.clone()];
+        let values = backend.get_many(&keys).await.expect("get_many failed");
+        assert_eq!(values.len(), 3);
+        assert_eq!(values[0], Some(b"v1".to_vec()));
+        assert_eq!(values[1], Some(b"v2".to_vec()));
+        assert_eq!(values[2], Some(b"v3".to_vec()));
+
+        backend.delete_many(&keys).await.expect("delete_many failed");
+        for k in &keys {
+            assert!(!backend.exists(k).await.unwrap());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_set_many_empty_is_ok() {
+        let backend = make_backend().await;
+        backend.set_many(&[]).await.expect("set_many empty should be ok");
+    }
+
+    #[tokio::test]
+    async fn test_get_many_empty_returns_empty() {
+        let backend = make_backend().await;
+        let result = backend.get_many(&[]).await.expect("get_many empty failed");
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_many_empty_is_ok() {
+        let backend = make_backend().await;
+        backend.delete_many(&[]).await.expect("delete_many empty should be ok");
+    }
+
+    #[tokio::test]
+    async fn test_get_many_with_missing_keys() {
+        let backend = make_backend().await;
+        let k1 = unique_key("gm_present");
+        let k2 = unique_key("gm_absent");
+        backend.set(&k1, b"v".to_vec(), None).await.unwrap();
+        let keys = vec![k1.clone(), k2.clone()];
+        let values = backend.get_many(&keys).await.expect("get_many failed");
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0], Some(b"v".to_vec()));
+        assert_eq!(values[1], None);
+        cleanup(&backend, &k1).await;
+    }
+
+    #[tokio::test]
+    async fn test_set_many_with_ttl() {
+        let backend = make_backend().await;
+        let k1 = unique_key("mttl1");
+        let k2 = unique_key("mttl2");
+        let items = vec![
+            (k1.clone(), b"v1".to_vec(), Some(Duration::from_secs(100))),
+            (k2.clone(), b"v2".to_vec(), Some(Duration::from_secs(100))),
+        ];
+        backend.set_many(&items).await.expect("set_many failed");
+        let ttl1 = backend.ttl(&k1).await.unwrap();
+        let ttl2 = backend.ttl(&k2).await.unwrap();
+        assert!(ttl1.is_some() && ttl1.unwrap().as_secs() > 90);
+        assert!(ttl2.is_some() && ttl2.unwrap().as_secs() > 90);
+        cleanup(&backend, &k1).await;
+        cleanup(&backend, &k2).await;
+    }
+
+    // =========================================================================
+    // Pipeline 批量操作: set_many_pipeline / get_many_pipeline / delete_many_pipeline
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_set_many_pipeline_and_get_many_pipeline() {
+        let backend = make_backend().await;
+        let k1 = unique_key("p1");
+        let k2 = unique_key("p2");
+        let items: Vec<(&str, Vec<u8>)> = vec![(k1.as_str(), b"pv1".to_vec()), (k2.as_str(), b"pv2".to_vec())];
+        backend
+            .set_many_pipeline(&items, None)
+            .await
+            .expect("set_many_pipeline failed");
+
+        let keys: Vec<&str> = vec![k1.as_str(), k2.as_str()];
+        let values = backend
+            .get_many_pipeline(&keys)
+            .await
+            .expect("get_many_pipeline failed");
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[0], Some(b"pv1".to_vec()));
+        assert_eq!(values[1], Some(b"pv2".to_vec()));
+
+        backend
+            .delete_many_pipeline(&keys)
+            .await
+            .expect("delete_many_pipeline failed");
+        for k in &keys {
+            assert!(!backend.exists(k).await.unwrap());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_set_many_pipeline_empty_is_ok() {
+        let backend = make_backend().await;
+        backend
+            .set_many_pipeline(&[], None)
+            .await
+            .expect("set_many_pipeline empty should be ok");
+    }
+
+    #[tokio::test]
+    async fn test_get_many_pipeline_empty_returns_empty() {
+        let backend = make_backend().await;
+        let result = backend
+            .get_many_pipeline(&[])
+            .await
+            .expect("get_many_pipeline empty failed");
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_many_pipeline_empty_is_ok() {
+        let backend = make_backend().await;
+        backend
+            .delete_many_pipeline(&[])
+            .await
+            .expect("delete_many_pipeline empty should be ok");
+    }
+
+    #[tokio::test]
+    async fn test_set_many_pipeline_with_ttl() {
+        let backend = make_backend().await;
+        let k1 = unique_key("pttl1");
+        let items: Vec<(&str, Vec<u8>)> = vec![(k1.as_str(), b"v".to_vec())];
+        backend
+            .set_many_pipeline(&items, Some(Duration::from_secs(80)))
+            .await
+            .expect("set_many_pipeline failed");
+        let ttl = backend.ttl(&k1).await.unwrap();
+        assert!(ttl.is_some() && ttl.unwrap().as_secs() > 70);
+        cleanup(&backend, &k1).await;
+    }
+
+    // =========================================================================
+    // stats / len / is_empty / capacity 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_stats_returns_memory_info() {
+        let backend = make_backend().await;
+        let stats = backend.stats().await.expect("stats failed");
+        let info = stats.get("memory_info").expect("memory_info key missing");
+        assert!(!info.is_empty());
+        // INFO memory 应包含内存相关字段
+        assert!(info.contains("memory") || info.contains("used_memory"));
+    }
+
+    #[tokio::test]
+    async fn test_len_returns_u64() {
+        let backend = make_backend().await;
+        let len = backend.len().await.expect("len failed");
+        // 数据库不为空时 len > 0（其他测试会写入数据）
+        // 这里只验证返回类型正确且不报错
+        let _ = len;
+    }
+
+    #[tokio::test]
+    async fn test_is_empty_returns_bool() {
+        let backend = make_backend().await;
+        let _ = backend.is_empty().await.expect("is_empty failed");
+    }
+
+    #[tokio::test]
+    async fn test_capacity_returns_zero() {
+        let backend = make_backend().await;
+        let cap = backend.capacity().await.expect("capacity failed");
+        // Redis 后端 capacity 固定为 0
+        assert_eq!(cap, 0);
+    }
+
+    // =========================================================================
+    // 访问器: mode / client / backend_kind / BackendScore 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_mode_accessor() {
+        let backend = make_backend().await;
+        assert_eq!(backend.mode(), RedisModeType::Standalone);
+    }
+
+    #[tokio::test]
+    async fn test_client_accessor() {
+        let backend = make_backend().await;
+        let _client: &Client = backend.client();
+    }
+
+    #[tokio::test]
+    async fn test_backend_kind_is_redis() {
+        let backend = make_backend().await;
+        assert_eq!(backend.backend_kind(), BackendKind::Redis);
+        assert!(backend.backend_kind().is_distributed());
+        assert!(!backend.backend_kind().is_memory());
+    }
+
+    #[tokio::test]
+    async fn test_backend_score() {
+        let backend = make_backend().await;
+        assert_eq!(backend.score(), 50);
+    }
+
+    #[tokio::test]
+    async fn test_is_persistent_true() {
+        let backend = make_backend().await;
+        assert!(backend.is_persistent());
+    }
+
+    #[tokio::test]
+    async fn test_backend_name() {
+        let backend = make_backend().await;
+        assert_eq!(backend.backend_name(), "redis");
+    }
+
+    // =========================================================================
+    // shutdown 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_shutdown_is_noop() {
+        let backend = make_backend().await;
+        // shutdown 是 no-op，不应 panic
+        backend.shutdown().await;
+        // shutdown 后仍可正常使用
+        backend
+            .health_check()
+            .await
+            .expect("health check after shutdown failed");
+    }
+
+    // =========================================================================
+    // 错误用例：键校验
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_get_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.get("").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(_) => {}
+            other => panic!("Expected InvalidInput, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_set_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.set("", b"v".to_vec(), None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.delete("").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_exists_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.exists("").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_ttl_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.ttl("").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_expire_empty_key_rejected() {
+        let backend = make_backend().await;
+        let result = backend.expire("", Duration::from_secs(10)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_with_newline_rejected() {
+        let backend = make_backend().await;
+        let result = backend.get("key\nwith\nnewline").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_with_null_rejected() {
+        let backend = make_backend().await;
+        let result = backend.get("key\0null").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_with_command_injection_char_rejected() {
+        let backend = make_backend().await;
+        // 分号是命令注入字符
+        let result = backend.get("key;rm -rf").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_with_pipe_rejected() {
+        let backend = make_backend().await;
+        let result = backend.get("key|pipe").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_with_path_traversal_rejected() {
+        let backend = make_backend().await;
+        let result = backend.get("../etc/passwd").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_set_many_with_invalid_key_rejected() {
+        let backend = make_backend().await;
+        let items = vec![
+            ("valid_key".to_string(), b"v".to_vec(), None),
+            ("bad;key".to_string(), b"v".to_vec(), None),
+        ];
+        let result = backend.set_many(&items).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_set_many_pipeline_with_invalid_key_rejected() {
+        let backend = make_backend().await;
+        let items: Vec<(&str, Vec<u8>)> = vec![("bad;key", b"v".to_vec())];
+        let result = backend.set_many_pipeline(&items, None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_many_pipeline_with_invalid_key_rejected() {
+        let backend = make_backend().await;
+        let keys: Vec<&str> = vec!["bad;key"];
+        let result = backend.get_many_pipeline(&keys).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_delete_many_pipeline_with_invalid_key_rejected() {
+        let backend = make_backend().await;
+        let keys: Vec<&str> = vec!["bad;key"];
+        let result = backend.delete_many_pipeline(&keys).await;
+        assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // clear 测试（使用独立数据库避免干扰其他并行测试）
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_clear_removes_all_keys() {
+        // 使用数据库 1 隔离 clear 测试
+        let backend = make_backend_with_url(REDIS_URL_DB1).await;
+        let key = unique_key("clear_target");
+        backend.set(&key, b"v".to_vec(), None).await.expect("set failed");
+        assert!(backend.exists(&key).await.unwrap());
+
+        backend.clear().await.expect("clear failed");
+
+        // clear 后 key 应不存在
+        assert!(!backend.exists(&key).await.unwrap());
+    }
+
+    // =========================================================================
+    // Lua 脚本测试（需要 lua-script feature）
+    // =========================================================================
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_lua_simple_return() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        // 返回常量字符串
+        let script = "return 'hello'";
+        let result = backend.eval_lua(script, &[], &[]).await.expect("eval_lua failed");
+        match result {
+            redis::Value::BulkString(s) => assert_eq!(s, b"hello"),
+            redis::Value::SimpleString(s) => assert_eq!(s, "hello"),
+            other => panic!("Expected string, got {:?}", other),
+        }
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_lua_returns_int() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        let script = "return 42";
+        let result = backend.eval_lua(script, &[], &[]).await.expect("eval_lua failed");
+        match result {
+            redis::Value::Int(n) => assert_eq!(n, 42),
+            other => panic!("Expected Int(42), got {:?}", other),
+        }
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_lua_with_keys_and_args() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        let key = unique_key("lua_key");
+        backend.set(&key, b"100".to_vec(), None).await.unwrap();
+
+        // 读取 key 的值并加 arg
+        let script = "local v = redis.call('GET', KEYS[1]); return tonumber(v) + tonumber(ARGV[1])";
+        let result = backend
+            .eval_lua(script, &[&key], &["5"])
+            .await
+            .expect("eval_lua failed");
+        match result {
+            redis::Value::Int(n) => assert_eq!(n, 105),
+            other => panic!("Expected Int(105), got {:?}", other),
+        }
+        cleanup(&backend, &key).await;
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_script_load_and_eval_sha() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        let script = "return 1 + 1";
+        let sha = backend.script_load(script).await.expect("script_load failed");
+        // SHA 应为 40 位十六进制
+        assert_eq!(sha.len(), 40);
+        assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+
+        let result = backend.eval_sha(&sha, &[], &[]).await.expect("eval_sha failed");
+        match result {
+            redis::Value::Int(n) => assert_eq!(n, 2),
+            other => panic!("Expected Int(2), got {:?}", other),
+        }
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_sha_invalid_format_rejected() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        // 太短
+        let result = backend.eval_sha("abc123", &[], &[]).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("SHA")),
+            other => panic!("Expected InvalidInput, got {:?}", other),
+        }
+
+        // 长度对但含非十六进制字符
+        let result = backend
+            .eval_sha("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", &[], &[])
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_lua_forbidden_command_rejected() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        // FLUSHALL 是被禁止的命令
+        let script = "redis.call('FLUSHALL')";
+        let result = backend.eval_lua(script, &[], &[]).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(_) => {}
+            other => panic!("Expected InvalidInput, got {:?}", other),
+        }
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_eval_lua_too_many_keys_rejected() {
+        use crate::backend::interface::LuaExecutor;
+        let backend = make_backend().await;
+        let keys: Vec<&str> = (0..200).map(|_| "k").collect();
+        let result = backend.eval_lua("return 1", &keys, &[]).await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "lua-script")]
+    #[tokio::test]
+    async fn test_as_lua_executor_returns_some() {
+        use crate::backend::interface::CacheConnector;
+        let backend = make_backend().await;
+        let executor = backend.as_lua_executor();
+        assert!(executor.is_some());
+    }
+
+    #[cfg(not(feature = "lua-script"))]
+    #[tokio::test]
+    async fn test_as_lua_executor_returns_none_without_feature() {
+        use crate::backend::interface::CacheConnector;
+        let backend = make_backend().await;
+        assert!(backend.as_lua_executor().is_none());
+    }
+
+    // =========================================================================
+    // CacheBackend blanket impl 测试
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_redis_backend_implements_all_traits() {
+        use crate::backend::interface::CacheBackend;
+        let backend = make_backend().await;
+        // 验证可作为 CacheBackend 使用（blanket impl）
+        let _: &dyn CacheBackend = &backend;
+        let _: &dyn CacheReader = &backend;
+        let _: &dyn CacheWriter = &backend;
+        let _: &dyn CacheConnector = &backend;
+    }
+}

@@ -87,12 +87,10 @@ impl BackendType {
         match self {
             #[cfg(feature = "memory")]
             BackendType::Moka => LayerRestriction::L1Only,
-            #[cfg(feature = "dashmap")]
+            #[cfg(feature = "memory")]
             BackendType::Dashmap => LayerRestriction::L1Only,
             #[cfg(feature = "redis")]
             BackendType::Redis => LayerRestriction::L2AndL3Only,
-            #[cfg(feature = "sqlite")]
-            BackendType::Sqlite => LayerRestriction::L2AndL3Only,
             BackendType::None => LayerRestriction::Any,
             BackendType::Custom(_) => LayerRestriction::Any,
         }
@@ -103,12 +101,10 @@ impl BackendType {
         match self {
             #[cfg(feature = "memory")]
             BackendType::Moka => Layer::L1,
-            #[cfg(feature = "dashmap")]
+            #[cfg(feature = "memory")]
             BackendType::Dashmap => Layer::L1,
             #[cfg(feature = "redis")]
             BackendType::Redis => Layer::L2,
-            #[cfg(feature = "sqlite")]
-            BackendType::Sqlite => Layer::L2,
             BackendType::None => Layer::L1,
             BackendType::Custom(_) => Layer::L1,
         }
@@ -124,12 +120,10 @@ impl BackendType {
         vec![
             #[cfg(feature = "memory")]
             BackendType::Moka,
-            #[cfg(feature = "dashmap")]
+            #[cfg(feature = "memory")]
             BackendType::Dashmap,
             #[cfg(feature = "redis")]
             BackendType::Redis,
-            #[cfg(feature = "sqlite")]
-            BackendType::Sqlite,
         ]
     }
 
@@ -144,14 +138,11 @@ impl BackendType {
             #[cfg(feature = "memory")]
             "moka" => Ok(BackendType::Moka),
 
-            #[cfg(feature = "dashmap")]
+            #[cfg(feature = "memory")]
             "dashmap" => Ok(BackendType::Dashmap),
 
             #[cfg(feature = "redis")]
             "redis" => Ok(BackendType::Redis),
-
-            #[cfg(feature = "sqlite")]
-            "sqlite" | "persist" => Ok(BackendType::Sqlite),
 
             _ => {
                 if let Some(custom_name) = s.strip_prefix("custom:") {
@@ -163,12 +154,10 @@ impl BackendType {
                     let mut available = vec![
                         #[cfg(feature = "memory")]
                         "moka",
-                        #[cfg(feature = "dashmap")]
+                        #[cfg(feature = "memory")]
                         "dashmap",
                         #[cfg(feature = "redis")]
                         "redis",
-                        #[cfg(feature = "sqlite")]
-                        "sqlite",
                     ];
                     available.push("custom:<name>");
 
@@ -179,6 +168,158 @@ impl BackendType {
                     )))
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ----------------------------------------------------------------
+    // LayerRestriction tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn test_layer_restriction_l1_only() {
+        let lr = LayerRestriction::L1Only;
+        assert!(lr.supports(Layer::L1));
+        assert!(!lr.supports(Layer::L2));
+        assert!(!lr.supports(Layer::L3));
+    }
+
+    #[test]
+    fn test_layer_restriction_l2_and_l3_only() {
+        let lr = LayerRestriction::L2AndL3Only;
+        assert!(!lr.supports(Layer::L1));
+        assert!(lr.supports(Layer::L2));
+        assert!(lr.supports(Layer::L3));
+    }
+
+    #[test]
+    fn test_layer_restriction_any() {
+        let lr = LayerRestriction::Any;
+        assert!(lr.supports(Layer::L1));
+        assert!(lr.supports(Layer::L2));
+        assert!(lr.supports(Layer::L3));
+    }
+
+    #[test]
+    fn test_layer_restriction_description() {
+        assert_eq!(LayerRestriction::L1Only.description(), "仅支持 L1 层级");
+        assert_eq!(LayerRestriction::L2AndL3Only.description(), "仅支持 L2/L3 层级");
+        assert_eq!(LayerRestriction::Any.description(), "支持任意层级");
+    }
+
+    // ----------------------------------------------------------------
+    // BackendType extension method tests
+    // ----------------------------------------------------------------
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_layer_restriction() {
+        assert_eq!(BackendType::Moka.layer_restriction(), LayerRestriction::L1Only);
+        assert_eq!(BackendType::Dashmap.layer_restriction(), LayerRestriction::L1Only);
+    }
+
+    #[test]
+    #[cfg(feature = "redis")]
+    fn test_backend_type_layer_restriction_redis() {
+        assert_eq!(BackendType::Redis.layer_restriction(), LayerRestriction::L2AndL3Only);
+    }
+
+    #[test]
+    fn test_backend_type_layer_restriction_none() {
+        assert_eq!(BackendType::None.layer_restriction(), LayerRestriction::Any);
+    }
+
+    #[test]
+    fn test_backend_type_layer_restriction_custom() {
+        assert_eq!(
+            BackendType::Custom("test".to_string()).layer_restriction(),
+            LayerRestriction::Any
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_recommended_layer() {
+        assert_eq!(BackendType::Moka.recommended_layer(), Layer::L1);
+        assert_eq!(BackendType::Dashmap.recommended_layer(), Layer::L1);
+    }
+
+    #[test]
+    #[cfg(feature = "redis")]
+    fn test_backend_type_recommended_layer_redis() {
+        assert_eq!(BackendType::Redis.recommended_layer(), Layer::L2);
+    }
+
+    #[test]
+    fn test_backend_type_recommended_layer_none() {
+        assert_eq!(BackendType::None.recommended_layer(), Layer::L1);
+    }
+
+    #[test]
+    fn test_backend_type_recommended_layer_custom() {
+        assert_eq!(BackendType::Custom("test".to_string()).recommended_layer(), Layer::L1);
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_supports_layer() {
+        assert!(BackendType::Moka.supports_layer(Layer::L1));
+        assert!(!BackendType::Moka.supports_layer(Layer::L2));
+    }
+
+    #[test]
+    fn test_backend_type_supports_layer_none() {
+        assert!(BackendType::None.supports_layer(Layer::L1));
+        assert!(BackendType::None.supports_layer(Layer::L2));
+        assert!(BackendType::None.supports_layer(Layer::L3));
+    }
+
+    #[test]
+    fn test_backend_type_available_backends() {
+        let backends = BackendType::available_backends();
+        // With "full" feature, should include Moka, Dashmap, Redis
+        assert!(!backends.is_empty());
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_from_str_moka() {
+        let bt = BackendType::from_str("moka").unwrap();
+        assert_eq!(bt, BackendType::Moka);
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn test_backend_type_from_str_case_insensitive() {
+        let bt = BackendType::from_str("Moka").unwrap();
+        assert_eq!(bt, BackendType::Moka);
+        let bt = BackendType::from_str("MOKA").unwrap();
+        assert_eq!(bt, BackendType::Moka);
+    }
+
+    #[test]
+    fn test_backend_type_from_str_custom() {
+        let bt = BackendType::from_str("custom:my_backend").unwrap();
+        assert_eq!(bt, BackendType::Custom("my_backend".to_string()));
+    }
+
+    #[test]
+    fn test_backend_type_from_str_custom_invalid_name() {
+        let result = BackendType::from_str("custom:invalid name!");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_backend_type_from_str_unknown() {
+        let result = BackendType::from_str("unknown");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("Unknown backend type")),
+            _ => panic!("Expected InvalidInput error"),
         }
     }
 }

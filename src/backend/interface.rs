@@ -285,4 +285,201 @@ mod tests {
         connector.health_check().await.unwrap();
         assert_eq!(connector.backend_kind(), BackendKind::Mock);
     }
+
+    // ============================================================================
+    // BackendKind 方法测试 (lines 41-42, 46-47)
+    // ============================================================================
+
+    #[test]
+    fn test_backend_kind_is_memory_moka() {
+        assert!(BackendKind::Moka.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_dashmap() {
+        assert!(BackendKind::DashMap.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_mock() {
+        assert!(BackendKind::Mock.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_redis_false() {
+        assert!(!BackendKind::Redis.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_chain_false() {
+        assert!(!BackendKind::Chain.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_unknown_false() {
+        assert!(!BackendKind::Unknown.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_redis() {
+        assert!(BackendKind::Redis.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_moka_false() {
+        assert!(!BackendKind::Moka.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_dashmap_false() {
+        assert!(!BackendKind::DashMap.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_chain_false() {
+        assert!(!BackendKind::Chain.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_mock_false() {
+        assert!(!BackendKind::Mock.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_unknown_false() {
+        assert!(!BackendKind::Unknown.is_distributed());
+    }
+
+    // ============================================================================
+    // BackendKind Debug, Clone, PartialEq 测试
+    // ============================================================================
+
+    #[test]
+    fn test_backend_kind_debug() {
+        let kind = BackendKind::Moka;
+        let debug_str = format!("{:?}", kind);
+        assert!(debug_str.contains("Moka"));
+    }
+
+    #[test]
+    fn test_backend_kind_clone() {
+        let kind = BackendKind::Redis;
+        let cloned = kind.clone();
+        assert_eq!(kind, cloned);
+    }
+
+    #[test]
+    fn test_backend_kind_equality() {
+        assert_eq!(BackendKind::Moka, BackendKind::Moka);
+        assert_ne!(BackendKind::Moka, BackendKind::Redis);
+    }
+
+    // ============================================================================
+    // CacheReader is_empty 默认方法测试 (lines 82-83)
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_reader_is_empty_default() {
+        let backend = MockBackend::new("mock", 50, false);
+        let reader: &dyn CacheReader = &backend;
+        // 空缓存应该返回 true
+        assert!(reader.is_empty().await.unwrap());
+
+        // 添加数据后应该返回 false
+        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        assert!(!reader.is_empty().await.unwrap());
+    }
+
+    // ============================================================================
+    // CacheReader get_many 默认方法测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_reader_get_many_default() {
+        let backend = MockBackend::new("mock", 50, false);
+        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set("key2", b"value2".to_vec(), None).await.unwrap();
+
+        let reader: &dyn CacheReader = &backend;
+        let keys = vec!["key1".to_string(), "key2".to_string(), "key3".to_string()];
+        let results = reader.get_many(&keys).await.unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0], Some(b"value1".to_vec()));
+        assert_eq!(results[1], Some(b"value2".to_vec()));
+        assert_eq!(results[2], None);
+    }
+
+    #[tokio::test]
+    async fn test_cache_reader_get_many_empty() {
+        let backend = MockBackend::new("mock", 50, false);
+        let reader: &dyn CacheReader = &backend;
+        let keys: Vec<String> = vec![];
+        let results = reader.get_many(&keys).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    // ============================================================================
+    // CacheWriter set_many 和 delete_many 默认方法测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_writer_set_many_default() {
+        let backend = MockBackend::new("mock", 50, false);
+        let writer: &dyn CacheWriter = &backend;
+        let items = vec![
+            ("key1".to_string(), b"value1".to_vec(), None),
+            ("key2".to_string(), b"value2".to_vec(), None),
+        ];
+        writer.set_many(&items).await.unwrap();
+
+        assert!(backend.exists("key1").await.unwrap());
+        assert!(backend.exists("key2").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_cache_writer_delete_many_default() {
+        let backend = MockBackend::new("mock", 50, false);
+        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set("key2", b"value2".to_vec(), None).await.unwrap();
+
+        let writer: &dyn CacheWriter = &backend;
+        let keys = vec!["key1".to_string(), "key2".to_string()];
+        writer.delete_many(&keys).await.unwrap();
+
+        assert!(!backend.exists("key1").await.unwrap());
+        assert!(!backend.exists("key2").await.unwrap());
+    }
+
+    // ============================================================================
+    // CacheConnector backend_kind 测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_connector_backend_kind_mock() {
+        let backend = MockBackend::new("mock", 50, false);
+        let connector: &dyn CacheConnector = &backend;
+        assert_eq!(connector.backend_kind(), BackendKind::Mock);
+    }
+
+    #[tokio::test]
+    async fn test_cache_connector_shutdown() {
+        let backend = MockBackend::new("mock", 50, false);
+        let connector: &dyn CacheConnector = &backend;
+        // shutdown 不应 panic
+        connector.shutdown().await;
+    }
+
+    // ============================================================================
+    // CacheBackend blanket impl 测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_backend_trait_object() {
+        let backend = MockBackend::new("mock", 50, false);
+        let backend_dyn: &dyn CacheBackend = &backend;
+        // 测试 CacheBackend 可以作为 trait 对象使用
+        backend_dyn.set("key", b"value".to_vec(), None).await.unwrap();
+        let value = backend_dyn.get("key").await.unwrap();
+        assert_eq!(value, Some(b"value".to_vec()));
+    }
 }

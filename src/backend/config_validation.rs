@@ -49,3 +49,88 @@ impl ConfigValidation {
         Ok(name.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_custom_name_valid() {
+        assert_eq!(
+            ConfigValidation::validate_custom_name("my_backend").unwrap(),
+            "my_backend"
+        );
+        assert_eq!(
+            ConfigValidation::validate_custom_name("backend-1").unwrap(),
+            "backend-1"
+        );
+        assert_eq!(ConfigValidation::validate_custom_name("app.v2").unwrap(), "app.v2");
+        assert_eq!(ConfigValidation::validate_custom_name("ABC123").unwrap(), "ABC123");
+        assert_eq!(ConfigValidation::validate_custom_name("a").unwrap(), "a");
+    }
+
+    #[test]
+    fn test_validate_custom_name_empty() {
+        let result = ConfigValidation::validate_custom_name("");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_custom_name_too_long() {
+        let long_name = "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH + 1);
+        let result = ConfigValidation::validate_custom_name(&long_name);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            _ => panic!("Expected InvalidInput error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_custom_name_exactly_max_length() {
+        let name = "a".repeat(ConfigValidation::MAX_CUSTOM_NAME_LENGTH);
+        assert!(ConfigValidation::validate_custom_name(&name).is_ok());
+    }
+
+    #[test]
+    fn test_validate_custom_name_invalid_chars() {
+        // Space
+        assert!(ConfigValidation::validate_custom_name("name with space").is_err());
+        // Colon
+        assert!(ConfigValidation::validate_custom_name("name:colon").is_err());
+        // Slash
+        assert!(ConfigValidation::validate_custom_name("name/slash").is_err());
+        // At sign
+        assert!(ConfigValidation::validate_custom_name("name@at").is_err());
+        // Special chars
+        assert!(ConfigValidation::validate_custom_name("name#hash").is_err());
+        assert!(ConfigValidation::validate_custom_name("name$dollar").is_err());
+    }
+
+    #[test]
+    fn test_validate_custom_name_all_valid_chars() {
+        // All chars in VALID_NAME_CHARS should be accepted
+        let name: String = ConfigValidation::VALID_NAME_CHARS.chars().collect();
+        assert!(ConfigValidation::validate_custom_name(&name).is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_constants() {
+        assert_eq!(ConfigValidation::MAX_CUSTOM_NAME_LENGTH, 256);
+        // Verify VALID_NAME_CHARS contains expected characters
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('a'));
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('Z'));
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('0'));
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('_'));
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('-'));
+        assert!(ConfigValidation::VALID_NAME_CHARS.contains('.'));
+        // Should not contain invalid chars
+        assert!(!ConfigValidation::VALID_NAME_CHARS.contains(':'));
+        assert!(!ConfigValidation::VALID_NAME_CHARS.contains('/'));
+        assert!(!ConfigValidation::VALID_NAME_CHARS.contains(' '));
+    }
+}
