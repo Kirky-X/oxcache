@@ -65,11 +65,6 @@ where
         self
     }
 
-    /// Configure tiered backend (Moka + Redis)
-    ///
-    /// # Deprecated
-    ///
-    /// Use `ChainCache::builder()` instead for more flexible multi-backend configuration.
     /// Build the cache instance
     pub async fn build(self) -> Result<Cache<K, V>> {
         let backend = if self.backends.is_empty() {

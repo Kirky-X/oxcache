@@ -228,8 +228,8 @@ pub use crate::utils::KeyGenerator;
 
 // Backend exports
 pub use backend::{
-    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackend,
-    MemoryBackendType, MokaMemoryBackend, Scores,
+    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackendType,
+    MokaMemoryBackend, Scores,
 };
 
 #[cfg(feature = "redis")]
