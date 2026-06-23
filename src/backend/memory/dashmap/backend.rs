@@ -53,8 +53,6 @@ pub(crate) struct CacheEntry {
 pub struct DashMapMemoryBackend {
     /// The main cache storage
     cache: Arc<DashMap<String, CacheEntry>>,
-    /// TTL tracking for expiration
-    ttl_map: Arc<DashMap<String, Instant>>,
     /// Statistics counters
     hits: Arc<AtomicUsize>,
     misses: Arc<AtomicUsize>,
@@ -70,9 +68,17 @@ impl DashMapMemoryBackend {
     /// Remove oldest entries when at capacity
     fn evict_if_full(&self) {
         // Find the entry with the oldest (soonest) expiration time
-        if let Some(key) = self.ttl_map.iter().min_by_key(|r| *r.value()).map(|r| r.key().clone()) {
+        if let Some(key) = self
+            .cache
+            .iter()
+            .filter_map(|r| {
+                let entry = r.value();
+                entry.expires_at.map(|exp| (r.key().clone(), exp))
+            })
+            .min_by_key(|(_, exp)| *exp)
+            .map(|(key, _)| key)
+        {
             self.cache.remove(&key);
-            self.ttl_map.remove(&key);
         }
     }
 
@@ -128,10 +134,8 @@ impl CacheReader for DashMapMemoryBackend {
             // Check expiration atomically
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
-                    // Atomically remove expired entry
-                    drop(entry_ref);
-                    self.cache.remove(key);
-                    self.ttl_map.remove(key);
+                    // Entry expired — cannot remove while holding Ref, just return None
+                    // The expired entry will be cleaned up on next access or eviction
                     self.misses.fetch_add(1, Ordering::SeqCst);
                     return None;
                 }
@@ -155,10 +159,6 @@ impl CacheReader for DashMapMemoryBackend {
             let entry = entry_ref.value();
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
-                    // Entry expired, remove it
-                    drop(entry_ref);
-                    self.cache.remove(key);
-                    self.ttl_map.remove(key);
                     return Ok(false);
                 }
             }
@@ -177,16 +177,12 @@ impl CacheReader for DashMapMemoryBackend {
                 if expires_at > now {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
-                    // Entry expired
-                    drop(entry_ref);
-                    self.cache.remove(key);
-                    self.ttl_map.remove(key);
                     return Ok(None);
                 }
             }
-            Ok(None) // No expiration set
+            Ok(None)
         } else {
-            Ok(None) // Key doesn't exist
+            Ok(None)
         }
     }
 
@@ -223,12 +219,7 @@ impl CacheWriter for DashMapMemoryBackend {
         let entry = CacheEntry { value, expires_at };
 
         // Insert the entry
-        self.cache.insert(key.to_string(), entry.clone());
-
-        // Track TTL if applicable
-        if let Some(expiration) = entry.expires_at {
-            self.ttl_map.insert(key.to_string(), expiration);
-        }
+        self.cache.insert(key.to_string(), entry);
 
         // Evict if at capacity
         if self.cache.len() > self.capacity {
@@ -240,13 +231,11 @@ impl CacheWriter for DashMapMemoryBackend {
 
     async fn delete(&self, key: &str) -> Result<()> {
         self.cache.remove(key);
-        self.ttl_map.remove(key);
         Ok(())
     }
 
     async fn clear(&self) -> Result<()> {
         self.cache.clear();
-        self.ttl_map.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
@@ -258,10 +247,9 @@ impl CacheWriter for DashMapMemoryBackend {
 
         if let Some(mut entry_ref) = self.cache.get_mut(key) {
             entry_ref.expires_at = Some(new_expires_at);
-            self.ttl_map.insert(key.to_string(), new_expires_at);
             Ok(true)
         } else {
-            Ok(false) // Key doesn't exist
+            Ok(false)
         }
     }
 }
@@ -275,7 +263,6 @@ impl CacheConnector for DashMapMemoryBackend {
 
     async fn shutdown(&self) {
         self.cache.clear();
-        self.ttl_map.clear();
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -330,7 +317,6 @@ impl DashMapBackendBuilder {
 
         DashMapMemoryBackend {
             cache: Arc::new(DashMap::new()),
-            ttl_map: Arc::new(DashMap::new()),
             hits: Arc::new(AtomicUsize::new(0)),
             misses: Arc::new(AtomicUsize::new(0)),
             capacity,
