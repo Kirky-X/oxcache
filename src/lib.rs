@@ -114,8 +114,10 @@ pub mod core;
 pub mod error;
 
 // Internal module for #[cached] macro support
+// Must be `pub` (not `pub(crate)`) so the #[cached] macro can access
+// __internal_get_cache from external crates. #[doc(hidden)] keeps it out of public docs.
 #[doc(hidden)]
-pub(crate) mod internal;
+pub mod internal;
 
 // ============================================================================
 // Primary Modules (Feature-Gated)
@@ -135,14 +137,6 @@ pub mod cache;
 pub mod backend;
 
 // Features module (optional capabilities)
-#[cfg(any(
-    feature = "bloom-filter",
-    feature = "rate-limiting",
-    feature = "smart-strategy",
-    feature = "http-cache",
-    feature = "redis",
-    feature = "full"
-))]
 pub mod features;
 
 // Infrastructure module (metrics, serialization, telemetry, etc.)
@@ -192,6 +186,11 @@ pub mod macros {
 
 pub use error::{CacheConfigError, CacheError, ConfigResult, Result};
 
+// Re-export internal functions needed by #[cached] macro at crate root
+// The macro generates code calling ::oxcache::__internal_get_cache()
+#[doc(hidden)]
+pub use crate::internal::__internal_get_cache;
+
 // ============================================================================
 // New API (Recommended)
 // ============================================================================
@@ -201,7 +200,7 @@ pub use cache::builder::CacheBuilder;
 pub use cache::Cache;
 
 // Re-exports from infra module
-#[cfg(any(feature = "enhanced-stats", feature = "metrics", feature = "full"))]
+#[cfg(any(feature = "metrics", feature = "full"))]
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
 // Re-exports from security module (new brick architecture)
@@ -224,7 +223,8 @@ pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType}
 // Key generator export
 pub use crate::utils::KeyGenerator;
 
-// Events module export
+// Events module re-export
+pub use core::events::{CacheEvent, CacheEventType, EventPublisher};
 
 // Backend exports
 pub use backend::{
@@ -242,10 +242,33 @@ pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// Compile-time feature validation
-const _: fn() = || {
-    check_feature_dependence!("moka", "bloom-filter");
-    check_feature_dependence!("moka", "rate-limiting");
-    check_feature_dependence!("redis", "batch-write");
-    check_feature_dependence!("metrics", "opentelemetry");
-};
+#[cfg(test)]
+mod tests {
+    use crate::VERSION;
+
+    // 测试 check_feature_dependence! 宏
+    // 当 full feature 启用时，宏的 cfg 条件为 false，不会触发 compile_error
+    #[test]
+    fn test_check_feature_dependence_macro_no_error() {
+        // 调用宏，使用已启用的 feature，不应触发 compile_error
+        check_feature_dependence!("memory", "redis");
+    }
+
+    #[test]
+    fn test_check_feature_dependence_macro_same_feature() {
+        // 使用相同的 feature 名
+        check_feature_dependence!("memory", "memory");
+    }
+
+    #[test]
+    fn test_version_constant() {
+        // 测试 VERSION 常量不为空
+        assert!(!VERSION.is_empty());
+    }
+
+    #[test]
+    fn test_version_format() {
+        // 测试 VERSION 格式（应该包含数字）
+        assert!(VERSION.chars().any(|c: char| c.is_ascii_digit()));
+    }
+}

@@ -6,7 +6,7 @@
 
 use serde::Serialize;
 
-#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+#[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::MetricsSnapshot;
 
 /// 缓存统计快照
@@ -29,7 +29,7 @@ pub struct CacheStats {
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
-#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+#[cfg(feature = "metrics")]
 impl From<MetricsSnapshot> for CacheStats {
     fn from(snapshot: MetricsSnapshot) -> Self {
         Self {
@@ -55,7 +55,7 @@ impl From<MetricsSnapshot> for CacheStats {
     }
 }
 
-#[cfg(any(feature = "enhanced-stats", feature = "metrics"))]
+#[cfg(feature = "metrics")]
 impl CacheStats {
     pub fn l1_hit_rate(&self) -> f64 {
         let total = self.l1_hits + self.l1_misses;
@@ -132,5 +132,223 @@ impl CacheStats {
 
     pub fn export_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use super::*;
+    use crate::core::types::CacheLayer;
+    use crate::infra::metrics::unified::{CacheOpResult, CacheOpType, CacheOperation, UnifiedMetrics};
+
+    #[test]
+    fn test_cache_stats_default_all_zero() {
+        let stats = CacheStats::default();
+        assert_eq!(stats.l1_hits, 0);
+        assert_eq!(stats.l1_misses, 0);
+        assert_eq!(stats.l2_hits, 0);
+        assert_eq!(stats.l2_misses, 0);
+        assert_eq!(stats.l1_sets, 0);
+        assert_eq!(stats.l2_sets, 0);
+        assert_eq!(stats.l1_deletes, 0);
+        assert_eq!(stats.l2_deletes, 0);
+        assert_eq!(stats.total_operations, 0);
+        assert_eq!(stats.l1_item_count, 0);
+        assert_eq!(stats.l1_capacity_used, 0);
+        assert_eq!(stats.prefetch_count, 0);
+        assert_eq!(stats.compression_count, 0);
+        assert_eq!(stats.compression_bytes_saved, 0);
+    }
+
+    #[test]
+    fn test_hit_rates_zero_when_no_ops() {
+        let stats = CacheStats::default();
+        assert_eq!(stats.l1_hit_rate(), 0.0);
+        assert_eq!(stats.l2_hit_rate(), 0.0);
+        assert_eq!(stats.overall_hit_rate(), 0.0);
+        assert_eq!(stats.l1_hit_rate_percent(), "0.00%");
+        assert_eq!(stats.l2_hit_rate_percent(), "0.00%");
+        assert_eq!(stats.overall_hit_rate_percent(), "0.00%");
+    }
+
+    #[test]
+    fn test_l1_hit_rate() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 7;
+        stats.l1_misses = 3;
+        assert_eq!(stats.l1_hit_rate(), 0.7);
+        assert_eq!(stats.l1_hit_rate_percent(), "70.00%");
+    }
+
+    #[test]
+    fn test_l2_hit_rate() {
+        let mut stats = CacheStats::default();
+        stats.l2_hits = 4;
+        stats.l2_misses = 6;
+        assert_eq!(stats.l2_hit_rate(), 0.4);
+        assert_eq!(stats.l2_hit_rate_percent(), "40.00%");
+    }
+
+    #[test]
+    fn test_overall_hit_rate() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 7;
+        stats.l1_misses = 3;
+        stats.l2_hits = 4;
+        stats.l2_misses = 6;
+        // total hits = 11, total = 20
+        assert_eq!(stats.overall_hit_rate(), 0.55);
+        assert_eq!(stats.overall_hit_rate_percent(), "55.00%");
+    }
+
+    #[test]
+    fn test_l1_hit_rate_all_hits() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 10;
+        stats.l1_misses = 0;
+        assert_eq!(stats.l1_hit_rate(), 1.0);
+        assert_eq!(stats.l1_hit_rate_percent(), "100.00%");
+    }
+
+    #[test]
+    fn test_export_prometheus_contains_all_counters() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 5;
+        stats.l1_misses = 2;
+        stats.l2_hits = 3;
+        stats.l2_misses = 1;
+        stats.l1_sets = 4;
+        stats.l2_sets = 2;
+        stats.l1_deletes = 1;
+        stats.l2_deletes = 1;
+        stats.total_operations = 19;
+        stats.l1_item_count = 100;
+        stats.l1_capacity_used = 4096;
+        stats.prefetch_count = 7;
+        stats.compression_count = 3;
+        stats.compression_bytes_saved = 2048;
+
+        let prom = stats.export_prometheus();
+        assert!(prom.contains("# Cache Metrics Snapshot"));
+        assert!(prom.contains("cache_l1_hits_total 5"));
+        assert!(prom.contains("cache_l1_misses_total 2"));
+        assert!(prom.contains("cache_l2_hits_total 3"));
+        assert!(prom.contains("cache_l2_misses_total 1"));
+        assert!(prom.contains("cache_l1_sets_total 4"));
+        assert!(prom.contains("cache_l2_sets_total 2"));
+        assert!(prom.contains("cache_l1_deletes_total 1"));
+        assert!(prom.contains("cache_l2_deletes_total 1"));
+        assert!(prom.contains("cache_operations_total 19"));
+        assert!(prom.contains("cache_l1_hit_rate"));
+        assert!(prom.contains("cache_l2_hit_rate"));
+        assert!(prom.contains("cache_overall_hit_rate"));
+        assert!(prom.contains("cache_l1_item_count 100"));
+        assert!(prom.contains("cache_l1_capacity_used_bytes 4096"));
+        assert!(prom.contains("cache_prefetch_total 7"));
+        assert!(prom.contains("cache_compression_total 3"));
+        assert!(prom.contains("cache_compression_bytes_saved 2048"));
+    }
+
+    #[test]
+    fn test_export_json_serializes_all_fields() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 5;
+        stats.l1_misses = 2;
+        stats.l2_hits = 3;
+        stats.total_operations = 10;
+
+        let json = stats.export_json().unwrap();
+        assert!(json.contains("\"l1_hits\": 5"));
+        assert!(json.contains("\"l1_misses\": 2"));
+        assert!(json.contains("\"l2_hits\": 3"));
+        assert!(json.contains("\"total_operations\": 10"));
+        assert!(json.contains("\"timestamp\""));
+    }
+
+    #[test]
+    fn test_from_metrics_snapshot() {
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Set,
+            result: CacheOpResult::Success,
+        });
+
+        let snapshot = metrics.snapshot();
+        let stats: CacheStats = snapshot.into();
+        assert_eq!(stats.l1_hits, 1);
+        assert_eq!(stats.l2_sets, 1);
+        // l1_item_count and l1_capacity_used are hardcoded to 0 in conversion
+        assert_eq!(stats.l1_item_count, 0);
+        assert_eq!(stats.l1_capacity_used, 0);
+        assert_eq!(stats.total_operations, 2);
+    }
+
+    #[test]
+    fn test_from_metrics_snapshot_preserves_all_counters() {
+        let metrics = UnifiedMetrics::new();
+        // L1 hit, L1 miss, L2 hit, L2 miss
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Miss,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Miss,
+        });
+        // L1 delete, L2 delete
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Delete,
+            result: CacheOpResult::Success,
+        });
+        metrics.record_operation(CacheOperation {
+            layer: CacheLayer::L2,
+            op_type: CacheOpType::Delete,
+            result: CacheOpResult::Success,
+        });
+
+        let snapshot = metrics.snapshot();
+        let stats: CacheStats = snapshot.into();
+        assert_eq!(stats.l1_hits, 1);
+        assert_eq!(stats.l1_misses, 1);
+        assert_eq!(stats.l2_hits, 1);
+        assert_eq!(stats.l2_misses, 1);
+        assert_eq!(stats.l1_deletes, 1);
+        assert_eq!(stats.l2_deletes, 1);
+        assert_eq!(stats.total_operations, 6);
+    }
+
+    #[test]
+    fn test_cache_stats_clone() {
+        let mut stats = CacheStats::default();
+        stats.l1_hits = 42;
+        let cloned = stats.clone();
+        assert_eq!(cloned.l1_hits, 42);
+    }
+
+    #[test]
+    fn test_cache_stats_debug() {
+        let stats = CacheStats::default();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("CacheStats"));
+        assert!(debug_str.contains("l1_hits"));
     }
 }
