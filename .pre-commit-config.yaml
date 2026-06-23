@@ -46,6 +46,7 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+        stages: [pre-push]
 
       - id: cargo-clippy
         name: cargo clippy
@@ -54,6 +55,7 @@ repos:
         types: [rust]
         pass_filenames: false
         args: ['--', '-D', 'warnings']
+        stages: [pre-push]
 
 ci:
   autoupdate_commit_msg: "chore: update pre-commit hooks"
