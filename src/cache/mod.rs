@@ -53,7 +53,7 @@ mod tests {
             })
         }
 
-        let result = cache.get_or(&"test:2".to_string(), || fallback1()).await.unwrap();
+        let result = cache.get_or(&"test:2".to_string(), fallback1).await.unwrap();
         assert_eq!(result.name, "fallback");
 
         // Second call should use cache
@@ -61,7 +61,7 @@ mod tests {
             panic!("Should not be called");
         }
 
-        let result = cache.get_or(&"test:2".to_string(), || fallback2()).await.unwrap();
+        let result = cache.get_or(&"test:2".to_string(), fallback2).await.unwrap();
         assert_eq!(result.name, "fallback");
     }
 
@@ -69,7 +69,7 @@ mod tests {
     async fn test_cache_batch_operations() {
         let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
-        let items = vec![
+        let items = [
             (
                 "batch:1".to_string(),
                 TestValue {
