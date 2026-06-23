@@ -39,6 +39,8 @@ repos:
         entry: rustfmt --check
         language: system
         types: [rust]
+        pass_filenames: false
+        stages: [pre-push]
 
       - id: cargo-check
         name: cargo check
