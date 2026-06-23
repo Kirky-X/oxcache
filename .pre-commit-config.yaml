@@ -35,11 +35,10 @@ repos:
     hooks:
       - id: cargo-fmt
         name: Format Rust code
-        description: Run rustfmt on Rust files
-        entry: cargo fmt
+        description: Check Rust formatting with rustfmt
+        entry: rustfmt --check
         language: system
         types: [rust]
-        pass_filenames: false
 
       - id: cargo-check
         name: cargo check
