@@ -9,7 +9,7 @@ mod batch_ops;
 mod bytes_ops;
 mod macros;
 
-use crate::backend::CacheBackend;
+use crate::backend::{CacheBackend, SyncCacheBackend};
 use crate::infra::serialization::unified::UnifiedSerializer;
 use crate::traits::CacheKey;
 use std::sync::Arc;
@@ -17,6 +17,9 @@ use std::sync::Arc;
 /// 核心 Cache 类型
 pub struct Cache<K, V> {
     pub(crate) backend: Arc<dyn CacheBackend>,
+    /// 同步后端（可选）。当 builder 启用 `sync_mode` 且后端支持 SyncCacheBackend 时填充。
+    /// sync API（get_sync/set_sync 等）通过此字段派发；为 None 时返回 Err(NotSupported)。
+    pub(crate) backend_sync: Option<Arc<dyn SyncCacheBackend>>,
     #[cfg(any(feature = "serialization", feature = "full"))]
     pub(crate) serializer: Arc<crate::infra::serialization::json::JsonSerializer>,
     pub(crate) unified_serializer: UnifiedSerializer,
@@ -29,7 +32,10 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Cache").field("backend", &"<CacheBackend>").finish()
+        f.debug_struct("Cache")
+            .field("backend", &"<CacheBackend>")
+            .field("backend_sync", &self.backend_sync.is_some())
+            .finish()
     }
 }
 
@@ -41,6 +47,7 @@ where
     pub(crate) fn new_with_backend(backend: Arc<dyn CacheBackend>) -> Self {
         Self {
             backend,
+            backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
             serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
@@ -60,6 +67,13 @@ where
 
     pub fn with_dependencies(backend: Arc<dyn CacheBackend>) -> Self {
         Self::new_with_backend(backend)
+    }
+
+    /// 设置同步后端（供 CacheBuilder::sync_mode 在 build() 中调用）。
+    /// 当 backend 已实现 SyncCacheBackend 时，将其 Arc 升级为 trait 对象。
+    #[allow(dead_code, reason = "wired up by CacheBuilder::sync_mode in task group 10; currently exercised by sync_tests::make_sync_cache")]
+    pub(crate) fn set_sync_backend(&mut self, backend: Arc<dyn SyncCacheBackend>) {
+        self.backend_sync = Some(backend);
     }
 }
 
@@ -96,6 +110,7 @@ where
         let backend = crate::backend::memory::RedisBackend::new(connection_string).await?;
         Ok(Self {
             backend: Arc::new(backend),
+            backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
             serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
