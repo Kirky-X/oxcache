@@ -5,6 +5,9 @@
 //! Moka-based memory backend implementation
 
 use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
+// Sync trait 实现使用全限定路径（`crate::backend::interface::SyncCacheReader`），
+// 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
+// 与同名 async trait 方法（如 `get`）产生歧义。
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::Result;
 use crate::impl_backend_builder;
@@ -186,6 +189,123 @@ impl CacheConnector for MokaMemoryBackend {
     }
 
     async fn shutdown(&self) {
+        self.cache.invalidate_all();
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Moka
+    }
+}
+
+// ============================================================================
+// Synchronous trait implementations (任务组 6)
+// ============================================================================
+//
+// Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/
+// `invalidate` 的前台 future 不依赖 tokio runtime 驱动（无 `tokio::spawn`/
+// `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 优先复用
+// 当前 multi-thread runtime（`block_in_place`），否则惰性创建 current-thread
+// runtime 供同步路径使用。
+
+fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle)
+            if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread =>
+        {
+            tokio::task::block_in_place(|| handle.block_on(fut))
+        }
+        _ => {
+            use std::sync::OnceLock;
+            static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+            let rt = RT.get_or_init(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                    .expect("failed to build tokio runtime for sync moka ops")
+            });
+            rt.block_on(fut)
+        }
+    }
+}
+
+impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        Ok(sync_block_on(self.cache.get(key)).map(|e| e.value))
+    }
+
+    fn exists(&self, key: &str) -> Result<bool> {
+        Ok(self.cache.contains_key(key))
+    }
+
+    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        let now = Instant::now();
+        Ok(sync_block_on(self.cache.get(key))
+            .and_then(|e| e.expires_at.and_then(|exp| exp.checked_duration_since(now))))
+    }
+
+    fn len(&self) -> Result<u64> {
+        Ok(self.cache.entry_count())
+    }
+
+    fn capacity(&self) -> Result<u64> {
+        Ok(self.capacity)
+    }
+
+    fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), "moka".to_string());
+        stats.insert("capacity".to_string(), self.capacity.to_string());
+        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
+        Ok(stats)
+    }
+}
+
+impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        let entry = MokaEntry { value, expires_at };
+        sync_block_on(self.cache.insert(key.to_string(), entry));
+        Ok(())
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        sync_block_on(self.cache.invalidate(key));
+        Ok(())
+    }
+
+    fn clear(&self) -> Result<()> {
+        self.cache.invalidate_all();
+        Ok(())
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        let new_expires_at = Instant::now() + ttl;
+        let result = sync_block_on(self.cache.entry(key.to_string()).and_compute_with(
+            |maybe_entry: Option<moka::Entry<String, MokaEntry>>| async move {
+                match maybe_entry {
+                    Some(entry) => {
+                        let mut old = entry.into_value();
+                        old.expires_at = Some(new_expires_at);
+                        Op::Put(old)
+                    }
+                    None => Op::Nop,
+                }
+            },
+        ));
+        match result {
+            CompResult::ReplacedWith(_) => Ok(true),
+            _ => Ok(false),
+        }
+    }
+}
+
+impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
+    fn health_check(&self) -> Result<()> {
+        // Moka is always healthy as it's in-memory
+        Ok(())
+    }
+
+    fn shutdown(&self) {
         self.cache.invalidate_all();
     }
 
@@ -462,5 +582,159 @@ mod tests {
         let backend = MokaMemoryBackend::new();
         let ok = backend.expire("missing", Duration::from_secs(60)).await.unwrap();
         assert!(!ok, "expire on missing key should return false");
+    }
+
+    // ========================================================================
+    // Synchronous trait hierarchy tests (任务组 6)
+    //
+    // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
+    // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生
+    // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
+    // ========================================================================
+    mod sync_tests {
+        use crate::backend::interface::{
+            BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
+        };
+        use super::MokaMemoryBackend;
+        use std::time::Duration;
+
+        #[test]
+        fn test_moka_sync_get_set_basic() {
+            let backend = MokaMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("key1", b"value1".to_vec(), None)
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            assert_eq!(
+                reader.get("key1").unwrap(),
+                Some(b"value1".to_vec())
+            );
+            assert!(reader.exists("key1").unwrap());
+            assert!(!reader.exists("key2").unwrap());
+            assert!(reader.capacity().unwrap() > 0);
+
+            let stats = reader.stats().unwrap();
+            assert_eq!(stats.get("type"), Some(&"moka".to_string()));
+        }
+
+        #[test]
+        fn test_moka_sync_set_with_ttl_expires() {
+            let backend = MokaMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            // 立即可读
+            assert_eq!(reader.get("k").unwrap(), Some(b"v".to_vec()));
+
+            // 等待过期（moka 读时按 per-entry TTL 校验，无需后台驱逐）
+            std::thread::sleep(Duration::from_millis(120));
+            let mut expired = false;
+            for _ in 0..10 {
+                if reader.get("k").unwrap().is_none() {
+                    expired = true;
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            assert!(expired, "entry should expire after TTL via sync get");
+        }
+
+        #[test]
+        fn test_moka_sync_ttl_returns_remaining() {
+            let backend = MokaMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            let ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some for TTL'd key");
+            assert!(
+                ttl > Duration::from_secs(58),
+                "ttl={} should be > 58s",
+                ttl.as_secs_f64()
+            );
+            assert!(
+                ttl <= Duration::from_secs(60),
+                "ttl={} should be <= 60s",
+                ttl.as_secs_f64()
+            );
+
+            // 无 TTL 的 key 返回 None
+            writer.set("no_ttl", b"v".to_vec(), None).unwrap();
+            assert_eq!(reader.ttl("no_ttl").unwrap(), None);
+            // 不存在的 key 返回 None
+            assert_eq!(reader.ttl("missing").unwrap(), None);
+        }
+
+        #[test]
+        fn test_moka_sync_expire_works() {
+            let backend = MokaMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+                .unwrap();
+
+            // expire 已存在 key → true，TTL 延长至 120s
+            let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
+            assert!(ok, "expire on existing key should return true");
+
+            let reader: &dyn SyncCacheReader = &backend;
+            let new_ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some after expire");
+            assert!(
+                new_ttl > Duration::from_secs(118),
+                "new_ttl={} should be > 118s",
+                new_ttl.as_secs_f64()
+            );
+
+            // expire 不存在 key → false
+            let ok = writer.expire("missing", Duration::from_secs(10)).unwrap();
+            assert!(!ok, "expire on missing key should return false");
+        }
+
+        #[test]
+        fn test_moka_sync_delete_clear() {
+            let backend = MokaMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer.set("k1", b"v1".to_vec(), None).unwrap();
+            writer.set("k2", b"v2".to_vec(), None).unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            assert!(reader.exists("k1").unwrap());
+            assert!(reader.exists("k2").unwrap());
+
+            // delete 单个 key
+            writer.delete("k1").unwrap();
+            assert!(!reader.exists("k1").unwrap());
+            assert!(reader.exists("k2").unwrap());
+
+            // clear 清空全部
+            writer.clear().unwrap();
+            assert!(!reader.exists("k2").unwrap());
+            assert_eq!(reader.len().unwrap(), 0);
+            assert!(reader.is_empty().unwrap());
+
+            // connector: health_check / shutdown / backend_kind
+            let connector: &dyn SyncCacheConnector = &backend;
+            connector.health_check().unwrap();
+            assert_eq!(connector.backend_kind(), BackendKind::Moka);
+            connector.shutdown();
+        }
     }
 }
