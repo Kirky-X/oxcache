@@ -595,6 +595,110 @@ impl BackendScore for RedisBackend {
     }
 }
 
+// ============================================================================
+// Synchronous Trait Implementations (via block_in_place)
+// ============================================================================
+//
+// Sync counterparts of the async `CacheReader`/`CacheWriter`/`CacheConnector`
+// traits. Because Redis is inherently async, these bridge to the async impl
+// using `tokio::task::block_in_place`, which requires a multi-thread runtime.
+//
+// Behavior:
+// - Outside any Tokio runtime: return `Err(NotSupported(...))`.
+// - On a current-thread runtime: return `Err(NotSupported(...))` (block_in_place
+//   would panic).
+// - On a multi-thread runtime: `block_in_place(|| handle.block_on(async {...}))`.
+
+impl RedisBackend {
+    /// 获取当前 Tokio runtime handle，要求是 multi-thread runtime。
+    ///
+    /// - 不在任何 Tokio runtime 中：返回 `Err(NotSupported)`。
+    /// - current-thread runtime：返回 `Err(NotSupported)`，因为 `block_in_place`
+    ///   在 current-thread runtime 上会 panic。
+    fn multi_thread_handle() -> Result<tokio::runtime::Handle> {
+        let handle = tokio::runtime::Handle::try_current().map_err(|e| {
+            CacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))
+        })?;
+        if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
+            return Err(CacheError::NotSupported(
+                "sync API requires a multi-thread runtime; block_in_place is unavailable on current_thread runtime"
+                    .to_string(),
+            ));
+        }
+        Ok(handle)
+    }
+}
+
+impl crate::backend::interface::SyncCacheReader for RedisBackend {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::get(self, key)))
+    }
+
+    fn exists(&self, key: &str) -> Result<bool> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::exists(self, key)))
+    }
+
+    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::ttl(self, key)))
+    }
+
+    fn len(&self) -> Result<u64> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::len(self)))
+    }
+
+    fn capacity(&self) -> Result<u64> {
+        // Redis 后端 capacity 固定为 0，与 async 实现一致，无需 runtime 调用。
+        Ok(0)
+    }
+
+    fn stats(&self) -> Result<HashMap<String, String>> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::stats(self)))
+    }
+}
+
+impl crate::backend::interface::SyncCacheWriter for RedisBackend {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::set(self, key, value, ttl)))
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::delete(self, key)))
+    }
+
+    fn clear(&self) -> Result<()> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::clear(self)))
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::expire(self, key, ttl)))
+    }
+}
+
+impl crate::backend::interface::SyncCacheConnector for RedisBackend {
+    fn health_check(&self) -> Result<()> {
+        let handle = Self::multi_thread_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheConnector::health_check(self)))
+    }
+
+    fn shutdown(&self) {
+        // Redis 连接由 ConnectionManager 管理，无需显式关闭。
+        // 与 async CacheConnector::shutdown 一致（no-op）。
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Redis
+    }
+}
+
 fn is_connection_error(e: &RedisError) -> bool {
     e.is_timeout() || e.is_io_error()
 }
