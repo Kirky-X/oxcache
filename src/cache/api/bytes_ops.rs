@@ -5,7 +5,7 @@
 //! Cache 字节操作方法（用于宏兼容）
 
 use super::Cache;
-use crate::error::Result;
+use crate::error::{CacheError, Result};
 use crate::traits::CacheKey;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,6 +25,36 @@ where
     pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
         self.backend.set(key, value, ttl_duration).await
+    }
+
+    /// Synchronously get raw bytes from the cache (macro-compatible sync path).
+    ///
+    /// Returns `Err(NotSupported)` if `sync_mode(true)` was not set on the
+    /// builder (i.e., `backend_sync` is `None`).
+    pub fn get_bytes_sync(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let backend = self.backend_sync.as_ref().ok_or_else(|| {
+            CacheError::NotSupported(
+                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None"
+                    .to_string(),
+            )
+        })?;
+        backend.get(key)
+    }
+
+    /// Synchronously set raw bytes in the cache (macro-compatible sync path).
+    ///
+    /// `ttl` is in seconds (matching the async `set_bytes` signature for
+    /// macro symmetry). Returns `Err(NotSupported)` if `sync_mode(true)` was
+    /// not set on the builder.
+    pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+        let backend = self.backend_sync.as_ref().ok_or_else(|| {
+            CacheError::NotSupported(
+                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None"
+                    .to_string(),
+            )
+        })?;
+        let ttl_duration = ttl.map(Duration::from_secs);
+        backend.set(key, value, ttl_duration)
     }
 
     #[cfg(any(feature = "serialization", feature = "full"))]
@@ -141,5 +171,59 @@ mod tests {
         cache.set_bytes("large", large_data.clone(), None).await.unwrap();
         let result = cache.get_bytes("large").await.unwrap();
         assert_eq!(result, Some(large_data));
+    }
+
+    // ========================================================================
+    // get_bytes_sync / set_bytes_sync tests
+    // ========================================================================
+
+    // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
+    // uses block_in_place, which panics on current_thread runtimes.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_bytes_sync_returns_none_for_missing_key() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
+        let result = cache.get_bytes_sync("nonexistent_key").unwrap();
+        assert!(result.is_none(), "missing key should return None");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_set_bytes_sync_then_get_bytes_sync_roundtrip() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
+        let data = vec![1, 2, 3, 4, 5];
+        cache.set_bytes_sync("test_key", data.clone(), None).unwrap();
+        let result = cache.get_bytes_sync("test_key").unwrap();
+        assert_eq!(result, Some(data));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_set_bytes_sync_with_ttl_roundtrip() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
+        let data = b"expiring".to_vec();
+        cache.set_bytes_sync("temp", data.clone(), Some(3600)).unwrap();
+        let result = cache.get_bytes_sync("temp").unwrap();
+        assert_eq!(result, Some(data));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_bytes_sync_without_sync_mode_returns_not_supported() {
+        // Default builder (sync_mode=false) should return Err(NotSupported)
+        let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+        let result = cache.get_bytes_sync("any_key");
+        assert!(
+            matches!(result, Err(crate::error::CacheError::NotSupported(_))),
+            "expected Err(NotSupported) when sync_mode is false, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_set_bytes_sync_without_sync_mode_returns_not_supported() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+        let result = cache.set_bytes_sync("any_key", vec![1], None);
+        assert!(
+            matches!(result, Err(crate::error::CacheError::NotSupported(_))),
+            "expected Err(NotSupported) when sync_mode is false, got {:?}",
+            result
+        );
     }
 }

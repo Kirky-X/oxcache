@@ -30,7 +30,11 @@ impl Cache<String, Vec<u8>> {
         }
 
         let backend = self.backend.clone();
-        let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
+        let mut cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
+        // Propagate backend_sync so the #[cached(sync)] macro can use sync byte ops.
+        if let Some(sync_backend) = &self.backend_sync {
+            cache.set_sync_backend(sync_backend.clone());
+        }
         __internal_register_cache(service_name, Arc::new(cache)).await;
         Ok(())
     }
