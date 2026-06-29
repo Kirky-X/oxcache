@@ -71,7 +71,6 @@ where
 
     /// 设置同步后端（供 CacheBuilder::sync_mode 在 build() 中调用）。
     /// 当 backend 已实现 SyncCacheBackend 时，将其 Arc 升级为 trait 对象。
-    #[allow(dead_code, reason = "wired up by CacheBuilder::sync_mode in task group 10; currently exercised by sync_tests::make_sync_cache")]
     pub(crate) fn set_sync_backend(&mut self, backend: Arc<dyn SyncCacheBackend>) {
         self.backend_sync = Some(backend);
     }
