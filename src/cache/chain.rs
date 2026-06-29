@@ -775,9 +775,9 @@ mod tests {
         let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
 
         chain.set("key", b"value".to_vec(), None).await.unwrap();
-        // Moka doesn't support per-entry TTL updates, returns false
+        // Moka now supports per-entry TTL via Expiry trait; expire on existing key returns true
         let result = chain.expire("key", Duration::from_secs(60)).await.unwrap();
-        assert!(!result);
+        assert!(result);
     }
 
     #[tokio::test]
