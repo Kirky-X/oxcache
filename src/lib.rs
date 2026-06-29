@@ -46,7 +46,7 @@
 //! - `metrics`: OpenTelemetry metrics
 //! - `full`: All features
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.2.0")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.0")]
 #![deny(unsafe_code)]
 
 // ============================================================================
