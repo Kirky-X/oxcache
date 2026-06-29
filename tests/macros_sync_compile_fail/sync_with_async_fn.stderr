@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> tests/macros_sync_compile_fail/sync_with_async_fn.rs:7:1
+  |
+7 | #[cached(service = "compile_fail_test", sync)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: `#[cached(sync)]` cannot be used with `async fn`; either remove `async` from the function signature or remove `sync` from the `#[cached]` arguments
