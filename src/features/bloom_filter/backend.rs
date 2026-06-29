@@ -19,6 +19,7 @@ use async_trait::async_trait;
 
 use crate::backend::{
     BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter,
+    SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
 };
 use crate::error::{CacheError, Result};
 
@@ -219,6 +220,103 @@ impl<B: CacheBackend + BackendScore> BackendScore for BloomFilterBackend<B> {
 
     fn backend_name(&self) -> &'static str {
         self.inner.backend_name()
+    }
+}
+
+// ============================================================================
+// Synchronous trait hierarchy (任务组 14)
+// ============================================================================
+//
+// Mirror of the async `CacheBackend` impl. Only available when the inner
+// backend `B` also supports sync access (`B: SyncCacheBackend`). UFCS is used
+// throughout the bodies to disambiguate from the async trait methods that `B`
+// also implements (both hierarchies define `get`/`set`/etc.).
+
+impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<B> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        // BF first: if the filter says the key is absent, skip the inner
+        // backend entirely (no false negatives). Mirrors the async impl.
+        if !self.bloom.contains(key) {
+            return Ok(None);
+        }
+        // BF says maybe present — delegate to inner's sync get. If inner
+        // returns None (e.g. TTL expiry) the BF is left untouched.
+        SyncCacheReader::get(&self.inner, key)
+    }
+
+    fn exists(&self, key: &str) -> Result<bool> {
+        // BF cannot confirm existence (only filter), so always delegate.
+        SyncCacheReader::exists(&self.inner, key)
+    }
+
+    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        SyncCacheReader::ttl(&self.inner, key)
+    }
+
+    fn len(&self) -> Result<u64> {
+        SyncCacheReader::len(&self.inner)
+    }
+
+    fn capacity(&self) -> Result<u64> {
+        SyncCacheReader::capacity(&self.inner)
+    }
+
+    fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = SyncCacheReader::stats(&self.inner)?;
+        stats.insert(
+            "bloom_capacity".to_string(),
+            self.bloom.capacity().to_string(),
+        );
+        stats.insert(
+            "bloom_load_factor".to_string(),
+            self.bloom.load_factor().to_string(),
+        );
+        stats.insert(
+            "bloom_false_positive_rate".to_string(),
+            self.bloom.false_positive_rate().to_string(),
+        );
+        stats.insert(
+            "bloom_estimated_count".to_string(),
+            self.bloom.len().to_string(),
+        );
+        Ok(stats)
+    }
+}
+
+impl<B: CacheBackend + SyncCacheBackend> SyncCacheWriter for BloomFilterBackend<B> {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        // Record the key in the BF first, then delegate (with TTL) to inner.
+        self.bloom.insert(key);
+        SyncCacheWriter::set(&self.inner, key, value, ttl)
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        // Only delegate to inner; BF does not support removal.
+        SyncCacheWriter::delete(&self.inner, key)
+    }
+
+    fn clear(&self) -> Result<()> {
+        SyncCacheWriter::clear(&self.inner)?;
+        self.bloom.clear();
+        Ok(())
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        SyncCacheWriter::expire(&self.inner, key, ttl)
+    }
+}
+
+impl<B: CacheBackend + SyncCacheBackend> SyncCacheConnector for BloomFilterBackend<B> {
+    fn health_check(&self) -> Result<()> {
+        SyncCacheConnector::health_check(&self.inner)
+    }
+
+    fn shutdown(&self) {
+        SyncCacheConnector::shutdown(&self.inner)
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        SyncCacheConnector::backend_kind(&self.inner)
     }
 }
 
@@ -495,5 +593,224 @@ mod tests {
         assert!(stats.contains_key("bloom_load_factor"));
         assert!(stats.contains_key("bloom_false_positive_rate"));
         assert!(stats.contains_key("bloom_estimated_count"));
+    }
+
+    // ========================================================================
+    // Synchronous trait hierarchy tests (任务组 14)
+    // ========================================================================
+    //
+    // Isolated in a nested module so the sync trait methods (imported below)
+    // don't conflict with the async trait methods in the outer `tests` module.
+    // All sync calls use UFCS to disambiguate from async methods on the same
+    // `MockSyncInner` type (which implements both hierarchies).
+    mod sync_tests {
+        use super::*;
+        // Bring the sync traits into scope explicitly (the outer `use super::*`
+        // only pulls in the async traits from the backend.rs root imports).
+        use crate::backend::{SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
+
+        #[derive(Default, Debug)]
+        struct SyncCallLog {
+            get_calls: Vec<String>,
+            set_calls: Vec<(String, Vec<u8>, Option<Duration>)>,
+        }
+
+        /// Inner mock implementing both `CacheBackend` (async) and
+        /// `SyncCacheBackend` (sync). Async methods delegate to the sync ones so
+        /// both hierarchies share one state. Sync `get`/`set` record calls so
+        /// tests can assert whether the Bloom filter short-circuited.
+        struct MockSyncInner {
+            log: Arc<Mutex<SyncCallLog>>,
+            data: Arc<Mutex<HashMap<String, (Vec<u8>, Option<Duration>)>>>,
+        }
+
+        impl MockSyncInner {
+            fn new() -> Self {
+                Self {
+                    log: Arc::new(Mutex::new(SyncCallLog::default())),
+                    data: Arc::new(Mutex::new(HashMap::new())),
+                }
+            }
+
+            /// Clone the call-log handle before the mock is moved into a backend.
+            fn log_handle(&self) -> Arc<Mutex<SyncCallLog>> {
+                Arc::clone(&self.log)
+            }
+        }
+
+        // --- Async trait impls (required because `B: CacheBackend`).
+        // Delegate to the sync methods; no `.await` is needed because the sync
+        // impls are trivial and non-blocking.
+
+        #[async_trait]
+        impl CacheReader for MockSyncInner {
+            async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+                SyncCacheReader::get(self, key)
+            }
+            async fn exists(&self, key: &str) -> Result<bool> {
+                SyncCacheReader::exists(self, key)
+            }
+            async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+                SyncCacheReader::ttl(self, key)
+            }
+            async fn len(&self) -> Result<u64> {
+                SyncCacheReader::len(self)
+            }
+            async fn capacity(&self) -> Result<u64> {
+                SyncCacheReader::capacity(self)
+            }
+            async fn stats(&self) -> Result<HashMap<String, String>> {
+                SyncCacheReader::stats(self)
+            }
+        }
+
+        #[async_trait]
+        impl CacheWriter for MockSyncInner {
+            async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+                SyncCacheWriter::set(self, key, value, ttl)
+            }
+            async fn delete(&self, key: &str) -> Result<()> {
+                SyncCacheWriter::delete(self, key)
+            }
+            async fn clear(&self) -> Result<()> {
+                SyncCacheWriter::clear(self)
+            }
+            async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+                SyncCacheWriter::expire(self, key, ttl)
+            }
+        }
+
+        #[async_trait]
+        impl CacheConnector for MockSyncInner {
+            async fn health_check(&self) -> Result<()> {
+                SyncCacheConnector::health_check(self)
+            }
+            async fn shutdown(&self) {
+                SyncCacheConnector::shutdown(self)
+            }
+            fn backend_kind(&self) -> BackendKind {
+                SyncCacheConnector::backend_kind(self)
+            }
+        }
+
+        // CacheBackend via blanket impl.
+
+        // --- Sync trait impls ---
+
+        impl SyncCacheReader for MockSyncInner {
+            fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+                self.log.lock().unwrap().get_calls.push(key.to_string());
+                let data = self.data.lock().unwrap();
+                Ok(data.get(key).map(|(v, _)| v.clone()))
+            }
+            fn exists(&self, key: &str) -> Result<bool> {
+                let data = self.data.lock().unwrap();
+                Ok(data.contains_key(key))
+            }
+            fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+                let data = self.data.lock().unwrap();
+                Ok(data.get(key).and_then(|(_, ttl)| *ttl))
+            }
+            fn len(&self) -> Result<u64> {
+                Ok(self.data.lock().unwrap().len() as u64)
+            }
+            fn capacity(&self) -> Result<u64> {
+                Ok(1000)
+            }
+            fn stats(&self) -> Result<HashMap<String, String>> {
+                let mut stats = HashMap::new();
+                stats.insert("type".to_string(), "mock_sync_inner".to_string());
+                Ok(stats)
+            }
+        }
+
+        impl SyncCacheWriter for MockSyncInner {
+            fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+                self.log
+                    .lock()
+                    .unwrap()
+                    .set_calls
+                    .push((key.to_string(), value.clone(), ttl));
+                self.data
+                    .lock()
+                    .unwrap()
+                    .insert(key.to_string(), (value, ttl));
+                Ok(())
+            }
+            fn delete(&self, key: &str) -> Result<()> {
+                self.data.lock().unwrap().remove(key);
+                Ok(())
+            }
+            fn clear(&self) -> Result<()> {
+                self.data.lock().unwrap().clear();
+                Ok(())
+            }
+            fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+                let mut data = self.data.lock().unwrap();
+                if let Some(entry) = data.get_mut(key) {
+                    entry.1 = Some(ttl);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+
+        impl SyncCacheConnector for MockSyncInner {
+            fn health_check(&self) -> Result<()> {
+                Ok(())
+            }
+            fn shutdown(&self) {
+                let _ = SyncCacheWriter::clear(self);
+            }
+            fn backend_kind(&self) -> BackendKind {
+                BackendKind::Mock
+            }
+        }
+
+        // SyncCacheBackend via blanket impl.
+
+        // --- Tests (Red phase: all three panic via `unimplemented!()`) ---
+
+        #[test]
+        fn test_bf_backend_sync_get_miss_skips_inner() {
+            let inner = MockSyncInner::new();
+            let log = inner.log_handle();
+            let backend = BloomFilterBackend::new(inner);
+            // Key never inserted → BF miss → inner.get not called.
+            let result = SyncCacheReader::get(&backend, "never_inserted").unwrap();
+            assert!(result.is_none());
+            let log = log.lock().unwrap();
+            assert!(
+                log.get_calls.is_empty(),
+                "inner.get should not be called on BF miss"
+            );
+        }
+
+        #[test]
+        fn test_bf_backend_sync_get_hit_calls_inner() {
+            let inner = MockSyncInner::new();
+            let log = inner.log_handle();
+            let backend = BloomFilterBackend::new(inner);
+            // set via sync writer to populate both BF and inner.
+            SyncCacheWriter::set(&backend, "k", b"v".to_vec(), None).unwrap();
+            let result = SyncCacheReader::get(&backend, "k").unwrap();
+            assert_eq!(result, Some(b"v".to_vec()));
+            let log = log.lock().unwrap();
+            assert_eq!(log.get_calls.len(), 1);
+            assert_eq!(log.get_calls[0], "k");
+        }
+
+        #[test]
+        fn test_bf_backend_sync_set_with_ttl_passes_through() {
+            let inner = MockSyncInner::new();
+            let log = inner.log_handle();
+            let backend = BloomFilterBackend::new(inner);
+            let ttl = Duration::from_secs(60);
+            SyncCacheWriter::set(&backend, "k", b"v".to_vec(), Some(ttl)).unwrap();
+            let log = log.lock().unwrap();
+            assert_eq!(log.set_calls.len(), 1);
+            assert_eq!(log.set_calls[0].2, Some(ttl));
+        }
     }
 }
