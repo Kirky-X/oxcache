@@ -7,7 +7,9 @@
 // ChainCache 提供多后端链式访问，按分数从高到低遍历后端。
 // 读取时从高分后端开始，写入时写入所有后端。
 
-use crate::backend::interface::{BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter};
+use crate::backend::interface::{
+    BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
+};
 use crate::backend::score::BackendScore;
 use crate::error::{CacheError, Result};
 use async_trait::async_trait;
@@ -22,8 +24,10 @@ use tracing::instrument;
 /// 分数用于确定链式访问的顺序。
 #[derive(Clone)]
 pub struct ChainLink {
-    /// 后端实例
+    /// 后端实例（async trait object）
     backend: Arc<dyn CacheBackend>,
+    /// 同步后端实例（可选，当后端实现 SyncCacheBackend 时填充）
+    backend_sync: Option<Arc<dyn SyncCacheBackend>>,
     /// 后端分数（越高越快）
     score: u8,
     /// 是否为持久化后端
@@ -40,6 +44,7 @@ impl ChainLink {
     {
         Self {
             backend: Arc::new(backend),
+            backend_sync: None,
             score,
             is_persistent,
             name,
@@ -56,6 +61,31 @@ impl ChainLink {
         let name = backend.backend_name();
         Self {
             backend: Arc::new(backend),
+            backend_sync: None,
+            score,
+            is_persistent,
+            name,
+        }
+    }
+
+    /// 从实现了 SyncCacheBackend 的后端创建链接（同时支持 async 与 sync API）
+    ///
+    /// 与 `from_backend` 不同，此构造函数要求后端同时实现 `SyncCacheBackend`，
+    /// 会同时填充 `backend`（async trait object）和 `backend_sync`（sync trait object），
+    /// 使该链接可参与 `ChainCache` 的 sync API。
+    pub fn from_sync_backend<B>(backend: B) -> Self
+    where
+        B: CacheBackend + BackendScore + SyncCacheBackend + 'static,
+    {
+        let score = backend.score();
+        let is_persistent = backend.is_persistent();
+        let name = backend.backend_name();
+        let arc = Arc::new(backend);
+        // 显式标注 sync_arc 类型以触发 unsized coercion（Option 不传播 coercion）
+        let sync_arc: Arc<dyn SyncCacheBackend> = arc.clone();
+        Self {
+            backend: arc,
+            backend_sync: Some(sync_arc),
             score,
             is_persistent,
             name,
@@ -65,6 +95,14 @@ impl ChainLink {
     /// 获取后端实例引用
     pub fn backend(&self) -> &Arc<dyn CacheBackend> {
         &self.backend
+    }
+
+    /// 尝试获取同步后端实例
+    ///
+    /// 返回 `Some` 当且仅当该链接通过 `from_sync_backend` 创建（或后端同时实现
+    /// `SyncCacheBackend`）。返回 `None` 表示该链接不支持 sync API。
+    pub fn try_as_sync_backend(&self) -> Option<Arc<dyn SyncCacheBackend>> {
+        self.backend_sync.clone()
     }
 
     /// 获取后端分数
@@ -262,6 +300,103 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
+            return Err(CacheError::Operation(format!(
+                "All backends failed to delete: {:?}",
+                errors
+            )));
+        }
+
+        Ok(())
+    }
+
+    // ========================================================================
+    // Sync API (任务组 15)
+    //
+    // 同步版链式访问。语义与 async 版一致：get_sync 按分数从高到低遍历，
+    // set_sync 写入所有链接（透传 TTL），delete_sync 从所有链接删除。
+    //
+    // 契约：链中任一链接未实现 SyncCacheBackend（`try_as_sync_backend` 返回
+    // None）时，所有 sync API 返回 `Err(NotSupported)`。这避免部分链接静默
+    // 跳过导致的写丢失风险。
+    // ========================================================================
+
+    /// 收集链中所有链接的 sync backend。
+    ///
+    /// 链中任一链接未实现 `SyncCacheBackend` 时返回 `Err(NotSupported)`。
+    /// links 已按分数降序排列，故返回的 Vec 也是降序。
+    fn collect_sync_backends(&self) -> Result<Vec<Arc<dyn SyncCacheBackend>>> {
+        self.links
+            .iter()
+            .map(|link| link.try_as_sync_backend())
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| {
+                CacheError::NotSupported(
+                    "chain sync API requires all links to support SyncCacheBackend".to_string(),
+                )
+            })
+    }
+
+    /// 同步读取：按分数从高到低遍历 sync backends，返回首个命中
+    pub fn get_sync(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let sync_backends = self.collect_sync_backends()?;
+        for backend in &sync_backends {
+            match backend.get(key) {
+                Ok(Some(value)) => return Ok(Some(value)),
+                Ok(None) => continue,
+                Err(_) => continue,
+            }
+        }
+        Ok(None)
+    }
+
+    /// 同步写入：写入所有 sync backends，透传 TTL
+    pub fn set_sync(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        let sync_backends = self.collect_sync_backends()?;
+
+        if sync_backends.is_empty() {
+            return Err(CacheError::Operation("Chain has no backends".to_string()));
+        }
+
+        let effective_ttl = ttl.or(self.default_ttl);
+        let mut errors = Vec::new();
+        let count = sync_backends.len();
+
+        // Clone for all but the last backend
+        for backend in sync_backends.iter().take(count - 1) {
+            if let Err(e) = backend.set(key, value.clone(), effective_ttl) {
+                errors.push(e);
+            }
+        }
+
+        // Last backend: use the owned value directly (no clone)
+        if let Some(backend) = sync_backends.last() {
+            if let Err(e) = backend.set(key, value, effective_ttl) {
+                errors.push(e);
+            }
+        }
+
+        if errors.len() == sync_backends.len() {
+            return Err(CacheError::Operation(
+                "All backends failed to write".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// 同步删除：从所有 sync backends 删除
+    pub fn delete_sync(&self, key: &str) -> Result<()> {
+        let sync_backends = self.collect_sync_backends()?;
+
+        let mut errors = Vec::new();
+
+        for backend in &sync_backends {
+            if let Err(e) = backend.delete(key) {
+                errors.push(e);
+            }
+        }
+
+        if errors.len() == sync_backends.len() && !sync_backends.is_empty() {
             return Err(CacheError::Operation(format!(
                 "All backends failed to delete: {:?}",
                 errors
@@ -1123,5 +1258,124 @@ mod tests {
 
         let result = chain.expire("missing", Duration::from_secs(60)).await.unwrap();
         assert!(!result, "chain expire should return false when all links miss");
+    }
+
+    // ========================================================================
+    // Sync API tests (任务组 15)
+    //
+    // 验证 ChainCache 的 sync API：get_sync / set_sync / delete_sync
+    // 契约：链中任一链接未实现 SyncCacheBackend 时返回 Err(NotSupported)
+    // ========================================================================
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_chain_sync_get_set() {
+        // 链中所有链接实现 SyncCacheBackend（Moka + DashMap）
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_sync_backend(moka))
+            .link(ChainLink::from_sync_backend(dashmap))
+            .build();
+
+        // sync set + get roundtrip
+        chain.set_sync("k", b"v".to_vec(), None).unwrap();
+        let value = chain.get_sync("k").unwrap();
+        assert_eq!(value, Some(b"v".to_vec()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_chain_sync_get_returns_highest_score_hit() {
+        // Moka (score=100) + DashMap (score=90)
+        // 两个后端都存有 "k"，但值不同
+        // get_sync 应返回最高分链接 Moka 的值
+        use crate::backend::interface::SyncCacheWriter;
+
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        // 直接通过 sync API 在各后端写入不同值
+        SyncCacheWriter::set(&moka, "k", b"high".to_vec(), None).unwrap();
+        SyncCacheWriter::set(&dashmap, "k", b"low".to_vec(), None).unwrap();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_sync_backend(moka))
+            .link(ChainLink::from_sync_backend(dashmap))
+            .build();
+
+        let value = chain.get_sync("k").unwrap();
+        assert_eq!(
+            value,
+            Some(b"high".to_vec()),
+            "get_sync should return highest-score link's value (Moka=100 > DashMap=90)"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_chain_sync_with_unsupported_link_falls_back_to_err() {
+        // Moka (sync) + MockBackend (async-only，不实现 SyncCacheBackend)
+        // 链中含非 sync backend，sync API 应返回 Err(NotSupported)
+        use crate::error::CacheError;
+
+        let moka = MokaMemoryBackend::new();
+        let mock = MockBackend::new("mock", 30, false);
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_sync_backend(moka))
+            .link(ChainLink::from_backend(mock)) // async-only
+            .build();
+
+        let result = chain.get_sync("k");
+        assert!(
+            matches!(result, Err(CacheError::NotSupported(_))),
+            "get_sync should return NotSupported when chain has non-sync link, got {:?}",
+            result
+        );
+
+        let result = chain.set_sync("k", b"v".to_vec(), None);
+        assert!(
+            matches!(result, Err(CacheError::NotSupported(_))),
+            "set_sync should return NotSupported when chain has non-sync link, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_chain_sync_set_propagates_ttl() {
+        // Moka (score=100) + DashMap (score=90)
+        // set_sync with 50ms TTL，等 100ms，get_sync 应返回 None（两者皆过期）
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_sync_backend(moka))
+            .link(ChainLink::from_sync_backend(dashmap))
+            .build();
+
+        // set with 50ms TTL
+        chain
+            .set_sync("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+            .unwrap();
+
+        // 立即 get_sync 应返回 Some
+        let value = chain.get_sync("k").unwrap();
+        assert_eq!(value, Some(b"v".to_vec()));
+
+        // 等 100ms 让 TTL 过期
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Moka 后端：moka 异步清理可能略有延迟，循环等待
+        let mut expired = false;
+        for _ in 0..10 {
+            if chain.get_sync("k").unwrap().is_none() {
+                expired = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(
+            expired,
+            "chain get_sync should return None after TTL expires on all links"
+        );
     }
 }
