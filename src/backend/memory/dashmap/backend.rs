@@ -270,6 +270,157 @@ impl CacheConnector for DashMapMemoryBackend {
     }
 }
 
+// ============================================================================
+// Synchronous trait implementations (任务组 7)
+// ============================================================================
+//
+// DashMap 本身是同步的，sync impl 直接复用 async 方法逻辑（去掉 async/.await），
+// 无需像 moka 那样通过 `block_on` 桥接。实现使用全限定路径
+// (`impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend`)，
+// 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
+// 与同名 async trait 方法（如 `get`）产生歧义。
+
+impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let now = Instant::now();
+
+        // Use atomic operations to reduce race conditions
+        let result = self.cache.get(key).map(|entry_ref| {
+            let entry = entry_ref.value();
+
+            // Check expiration atomically
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at <= now {
+                    // Entry expired — cannot remove while holding Ref, just return None
+                    // The expired entry will be cleaned up on next access or eviction
+                    self.misses.fetch_add(1, Ordering::SeqCst);
+                    return None;
+                }
+            }
+
+            self.hits.fetch_add(1, Ordering::SeqCst);
+            Some(entry.value.clone())
+        });
+
+        if result.is_none() {
+            self.misses.fetch_add(1, Ordering::SeqCst);
+        }
+
+        Ok(result.flatten())
+    }
+
+    fn exists(&self, key: &str) -> Result<bool> {
+        let now = Instant::now();
+
+        if let Some(entry_ref) = self.cache.get(key) {
+            let entry = entry_ref.value();
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at <= now {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        let now = Instant::now();
+
+        if let Some(entry_ref) = self.cache.get(key) {
+            let entry = entry_ref.value();
+            if let Some(expires_at) = entry.expires_at {
+                if expires_at > now {
+                    return Ok(Some(expires_at.duration_since(now)));
+                } else {
+                    return Ok(None);
+                }
+            }
+            Ok(None)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn len(&self) -> Result<u64> {
+        Ok(self.cache.len() as u64)
+    }
+
+    fn capacity(&self) -> Result<u64> {
+        Ok(self.capacity as u64)
+    }
+
+    fn stats(&self) -> Result<HashMap<String, String>> {
+        let mut stats = HashMap::new();
+        stats.insert("type".to_string(), "dashmap".to_string());
+        stats.insert("capacity".to_string(), self.capacity.to_string());
+        stats.insert("entry_count".to_string(), self.cache.len().to_string());
+        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
+        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
+        stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
+        Ok(stats)
+    }
+}
+
+impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        let now = Instant::now();
+        let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
+
+        let entry = CacheEntry { value, expires_at };
+
+        // Insert the entry
+        self.cache.insert(key.to_string(), entry);
+
+        // Evict if at capacity
+        if self.cache.len() > self.capacity {
+            self.evict_if_full();
+        }
+
+        Ok(())
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        self.cache.remove(key);
+        Ok(())
+    }
+
+    fn clear(&self) -> Result<()> {
+        self.cache.clear();
+        self.hits.store(0, Ordering::Relaxed);
+        self.misses.store(0, Ordering::Relaxed);
+        Ok(())
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        let now = Instant::now();
+        let new_expires_at = now + ttl;
+
+        if let Some(mut entry_ref) = self.cache.get_mut(key) {
+            entry_ref.expires_at = Some(new_expires_at);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
+impl crate::backend::interface::SyncCacheConnector for DashMapMemoryBackend {
+    fn health_check(&self) -> Result<()> {
+        // DashMap is always healthy as in-memory
+        Ok(())
+    }
+
+    fn shutdown(&self) {
+        self.cache.clear();
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::DashMap
+    }
+}
+
 // CacheBackend is automatically implemented via blanket implementation
 
 impl BackendScore for DashMapMemoryBackend {
@@ -419,5 +570,136 @@ mod tests {
         assert!(backend1.capacity() > 0);
         assert_eq!(backend2.capacity(), 1000);
         assert_eq!(backend3.capacity(), 1000);
+    }
+
+    // ========================================================================
+    // Synchronous trait hierarchy tests (任务组 7)
+    //
+    // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
+    // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生
+    // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
+    // ========================================================================
+    mod sync_tests {
+        use crate::backend::interface::{
+            BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
+        };
+        use super::DashMapMemoryBackend;
+        use std::time::Duration;
+
+        #[test]
+        fn test_dashmap_sync_get_set_basic() {
+            let backend = DashMapMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("key1", b"value1".to_vec(), None)
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            assert_eq!(
+                reader.get("key1").unwrap(),
+                Some(b"value1".to_vec())
+            );
+            assert!(reader.exists("key1").unwrap());
+            assert!(!reader.exists("key2").unwrap());
+            assert!(reader.capacity().unwrap() > 0);
+            assert_eq!(reader.len().unwrap(), 1);
+            assert!(!reader.is_empty().unwrap());
+
+            let stats = reader.stats().unwrap();
+            assert_eq!(stats.get("type"), Some(&"dashmap".to_string()));
+        }
+
+        #[test]
+        fn test_dashmap_sync_set_with_ttl() {
+            let backend = DashMapMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            // 立即可读
+            assert_eq!(reader.get("k").unwrap(), Some(b"v".to_vec()));
+
+            // DashMap 在访问时按 expires_at 校验，无后台驱逐；等待过期后读应返回 None
+            std::thread::sleep(Duration::from_millis(120));
+            assert_eq!(reader.get("k").unwrap(), None);
+            assert!(!reader.exists("k").unwrap());
+        }
+
+        #[test]
+        fn test_dashmap_sync_expire() {
+            let backend = DashMapMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+                .unwrap();
+
+            // expire 已存在 key → true，TTL 延长至 120s
+            let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
+            assert!(ok, "expire on existing key should return true");
+
+            let reader: &dyn SyncCacheReader = &backend;
+            let new_ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some after expire");
+            assert!(
+                new_ttl > Duration::from_secs(118),
+                "new_ttl={} should be > 118s",
+                new_ttl.as_secs_f64()
+            );
+
+            // expire 不存在 key → false
+            let ok = writer.expire("missing", Duration::from_secs(10)).unwrap();
+            assert!(!ok, "expire on missing key should return false");
+
+            // shrink TTL 后应过期
+            let ok = writer.expire("k", Duration::from_millis(50)).unwrap();
+            assert!(ok, "expire shrink on existing key should return true");
+            std::thread::sleep(Duration::from_millis(120));
+            assert_eq!(reader.get("k").unwrap(), None);
+        }
+
+        #[test]
+        fn test_dashmap_sync_ttl_query() {
+            let backend = DashMapMemoryBackend::new();
+
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer
+                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+                .unwrap();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            let ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some for TTL'd key");
+            assert!(
+                ttl > Duration::from_secs(58),
+                "ttl={} should be > 58s",
+                ttl.as_secs_f64()
+            );
+            assert!(
+                ttl <= Duration::from_secs(60),
+                "ttl={} should be <= 60s",
+                ttl.as_secs_f64()
+            );
+
+            // 无 TTL 的 key 返回 None
+            writer.set("no_ttl", b"v".to_vec(), None).unwrap();
+            assert_eq!(reader.ttl("no_ttl").unwrap(), None);
+            // 不存在的 key 返回 None
+            assert_eq!(reader.ttl("missing").unwrap(), None);
+
+            // connector: health_check / shutdown / backend_kind
+            let connector: &dyn SyncCacheConnector = &backend;
+            connector.health_check().unwrap();
+            assert_eq!(connector.backend_kind(), BackendKind::DashMap);
+            connector.shutdown();
+        }
     }
 }
