@@ -3,3 +3,6 @@
 //! MIT License
 //!
 //! Features module
+
+#[cfg(feature = "bloom-filter")]
+pub mod bloom_filter;
