@@ -7,14 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-30
+
+### BREAKING
+- `MokaMemoryBackend::set(ttl=Some(_))` 不再静默忽略 TTL，改为真实生效（基于 `moka::Expiry` trait）
+- `MokaMemoryBackend::ttl(key)` 不再永远返回 `Ok(None)`，改为返回剩余 TTL
+- `MokaMemoryBackend::expire(key, ttl)` 不再永远返回 `Ok(false)`，改为真实更新并返回 `Ok(true)`
+- `MockBackend::set(ttl=Some(_))` 不再忽略 TTL，改为真实生效（用 `Instant` 跟踪 + lazy 过期清理）
+- `MockBackend::ttl(key)` / `expire(key, ttl)` 行为对齐 DashMap/Redis
+
 ### Added
+- 新增同步 API 路径：`SyncCacheBackend` trait 层级（`SyncCacheReader` + `SyncCacheWriter` + `SyncCacheConnector`）
+- 新增 `Cache<K,V>` 同步方法：`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `get_or_sync` 等
+- 新增 `CacheBuilder::sync_mode(bool)` 配置
+- 新增 `#[cached(service = "...", sync)]` 宏模式，生成同步函数
+- 新增 `bloom-filter` feature：`BloomFilter` 类型 + `BloomFilterBackend` 装饰器，过滤负查询
+- 新增 `CacheError::UnsupportedOperation(String)` 错误变体
+- 新增跨后端 TTL 行为一致性回归测试套件
 - 新增 CacheKey trait 示例 (`example_cache_key.rs`)
 - 新增数据压缩功能示例 (`example_compression.rs`)
 
 ### Changed
+- `MokaMemoryBackend` 内部 `cache` 字段类型改为 `moka::future::Cache<String, MokaEntry, MokaExpiry>`，使用 `Expiry` trait 支持 per-entry TTL
+- `MockBackend` 内部数据结构扩展为 `HashMap<String, (Vec<u8>, Option<Instant>)>`，支持 TTL 跟踪
+- `ChainCache` TTL 透传行为契约化（透传 + 返回最高分链接 TTL）
 - 更新文档以反映当前代码实现
 - 修正特性分层表，与 Cargo.toml 实际定义对齐
-- 移除不存在的特性引用（bloom-filter、rate-limiting、wal-recovery 等）
+- 移除不存在的特性引用（rate-limiting、wal-recovery 等）
+
+### Fixed
+- 修复 `MokaMemoryBackend` per-entry TTL 静默忽略的问题（违反"失败必须显性化"原则）
+- 修复 `MockBackend` TTL 静默忽略的问题
 
 ## [0.2.0] - 2026-03-14
 
