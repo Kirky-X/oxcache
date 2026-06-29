@@ -98,10 +98,20 @@ impl std::fmt::Debug for ChainLink {
 /// ChainCache 管理多个后端，按分数从高到低排序。
 /// 读取时从高分后端开始，找到即返回；写入时写入所有后端。
 ///
-/// # TTL 行为
+/// # TTL 行为契约
 ///
-/// - `chain.set(key, value, None)` → 各 backend 使用自己的默认 TTL
-/// - `chain.set(key, value, Some(ttl))` → 所有 backend 使用传入的 TTL
+/// ChainCache 不存储 TTL，所有 TTL 操作透传给链中后端。契约如下：
+///
+/// - **`set(key, value, ttl=Some(d))`**：所有链接用同一 TTL `d`（透传）
+/// - **`set(key, value, ttl=None)`**：所有链接用 `default_ttl.or(None)`；
+///   `default_ttl=None` 时各链接使用自己的全局 TTL（如 Moka 的 `time_to_live`）
+/// - **`ttl(key)`**：遍历链接（按分数从高到低），返回首个 `Some(ttl)`；
+///   即"最高分链接的剩余 TTL"。所有链接都返回 `None` 时（key 不存在或无
+///   per-entry TTL）返回 `None`
+/// - **`expire(key, ttl)`**：透传给所有链接，任一返回 `Ok(true)` 则返回
+///   `Ok(true)`；所有链接都返回 `Ok(false)`（key 不存在）才返回 `Ok(false)`
+///
+/// `default_ttl` 优先级：`set(ttl=Some) > default_ttl > 各后端自己的全局 TTL`
 ///
 /// # Example
 ///
@@ -469,7 +479,7 @@ impl ChainCacheBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::MokaMemoryBackend;
+    use crate::backend::{DashMapMemoryBackend, MokaMemoryBackend};
     use crate::testing::mock::MockBackend;
 
     #[test]
@@ -999,5 +1009,119 @@ mod tests {
         let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
 
         assert_eq!(chain.backend_kind(), BackendKind::Chain);
+    }
+
+    // ========================================================================
+    // TTL 透传契约测试 (spec: universal-per-entry-ttl / Decision 4c)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_set_with_ttl_propagates_to_all_links() {
+        // 链中 Moka (score=100) + DashMap (score=50) + Mock (score=30)
+        // set 50ms TTL，等 100ms，三者皆过期
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+        let mock = MockBackend::new("mock", 30, false);
+
+        let moka_ref = moka.clone();
+        let dashmap_ref = dashmap.clone();
+        // MockBackend 是 #[cfg(test)] 且不 Clone（Arc<RwLock<...>> 内部，但 struct 未 derive Clone）
+        // 用 ChainLink::new + 独立实例验证：这里我们用 mock 的 backend() 引用直接查询
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(moka))
+            .link(ChainLink::from_backend(dashmap))
+            .link(ChainLink::new(mock, 30, false, "mock"))
+            .build();
+
+        chain
+            .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+            .await
+            .unwrap();
+
+        // 立即链式 get 应返回 Some
+        assert_eq!(chain.get("k").await.unwrap(), Some(b"v".to_vec()));
+
+        // 等 100ms 让 TTL 过期
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Moka 后端：moka 异步清理可能略有延迟，循环等待最多 500ms
+        let mut moka_expired = false;
+        for _ in 0..10 {
+            if moka_ref.get("k").await.unwrap().is_none() {
+                moka_expired = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(moka_expired, "moka link should expire after TTL");
+
+        // DashMap 后端：lazy 过期，get 应返回 None
+        assert_eq!(dashmap_ref.get("k").await.unwrap(), None, "dashmap link should expire after TTL");
+
+        // 链式 get：所有链接都过期，应返回 None
+        assert_eq!(chain.get("k").await.unwrap(), None, "chain get should return None after all links expired");
+    }
+
+    #[tokio::test]
+    async fn test_chain_ttl_returns_highest_score_link_ttl() {
+        // Moka (score=100) + DashMap (score=50) 都 set 60s TTL
+        // chain.ttl 应返回 Moka 的 ttl（最高分优先）
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(moka))
+            .link(ChainLink::from_backend(dashmap))
+            .build();
+
+        chain
+            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+
+        let ttl = chain.ttl("k").await.unwrap();
+        assert!(ttl.is_some(), "chain ttl should return Some for highest-score link");
+        let ttl = ttl.unwrap();
+        // 58s < ttl <= 60s（最高分链接 Moka 的剩余 TTL）
+        assert!(
+            ttl > Duration::from_secs(58) && ttl <= Duration::from_secs(60),
+            "chain ttl={} should be in (58s, 60s]",
+            ttl.as_secs_f64()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_expire_any_link_success_returns_true() {
+        // Moka + DashMap 都已 set，expire 任一成功返回 true
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(moka))
+            .link(ChainLink::from_backend(dashmap))
+            .build();
+
+        chain
+            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .await
+            .unwrap();
+
+        let result = chain.expire("k", Duration::from_secs(120)).await.unwrap();
+        assert!(result, "chain expire should return true when any link succeeds");
+    }
+
+    #[tokio::test]
+    async fn test_chain_expire_all_missing_returns_false() {
+        // 所有链接都没有 "missing" 键
+        let moka = MokaMemoryBackend::new();
+        let dashmap = DashMapMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(moka))
+            .link(ChainLink::from_backend(dashmap))
+            .build();
+
+        let result = chain.expire("missing", Duration::from_secs(60)).await.unwrap();
+        assert!(!result, "chain expire should return false when all links miss");
     }
 }
