@@ -47,6 +47,9 @@ cache) + L2 (Redis distributed cache) architecture.
 - **🔄 Auto Recovery**: Automatic degradation on Redis failure, WAL replay on recovery
 - **🌐 Multi-Instance Sync**: Pub/Sub + version-based invalidation synchronization
 - **⚡ Batch Optimization**: Intelligent batch writes for significantly improved throughput
+- **🧪 Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
+- **🌸 Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
+- **⏱️ Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
 - **🛡️ Production Grade**: Complete observability, health checks, chaos testing verified
 
 ## 📦 Quick Start
@@ -57,28 +60,28 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.2.0"
+oxcache = "0.3.0"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-`oxcache = { version = "0.2.0", default-features = false }` and add them manually.
+`oxcache = { version = "0.3.0", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.2.0", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.3.0", features = ["macros"] }`
 
 #### Feature Tiers
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.2.0", features = ["full"] }
+oxcache = { version = "0.3.0", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.2.0", features = ["core"] }
+oxcache = { version = "0.3.0", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.2.0", features = ["minimal"] }
+oxcache = { version = "0.3.0", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.3.0", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 | Tier | Features | Description |
@@ -98,6 +101,7 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 - `lua-script` - Lua script execution support
 - `cli` - Command-line interface (clap)
 - `tracing` - Structured logging support
+- `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
 
 ### 2. Configuration
 
@@ -378,6 +382,126 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
     session_store::load(session_id).await
 }
 ```
+
+## 🧪 Sync API (0.3.0)
+
+Oxcache 0.3.0 introduces a **synchronous API path** alongside the async API. Enable it on the builder:
+
+```rust
+use oxcache::Cache;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+struct User { id: u64, name: String }
+
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // sync_mode(true) makes the Cache<K,V> also hold an Arc<dyn SyncCacheBackend>
+    let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
+
+    // Synchronous operations (no .await)
+    cache.set_sync(&"user:1".to_string(), &User { id: 1, name: "Alice".into() })?;
+    let cached = cache.get_sync(&"user:1".to_string())?;
+    assert_eq!(cached, Some(User { id: 1, name: "Alice".into() }));
+
+    // Per-entry TTL
+    cache.set_with_ttl_sync(&"temp".to_string(), &User { id: 2, name: "Temp".into() }, Some(std::time::Duration::from_secs(60)))?;
+
+    // Single-flight get_or_sync: concurrent callers share one fallback execution
+    let value = cache.get_or_sync(&"user:42".to_string(), || {
+        Ok(User { id: 42, name: "Bob".into() })
+    })?;
+
+    // Sync and async APIs coexist on the same Cache<K,V>
+    cache.set(&"async_key".to_string(), &User { id: 99, name: "Async".into() }).await?;
+    let v = cache.get_sync(&"async_key".to_string())?;
+    Ok(())
+}
+```
+
+**When to use sync API**:
+- Blocking call sites (legacy code, FFI, sync handlers)
+- Tests that don't want to thread `async` through every assertion
+- Avoiding runtime overhead when the caller is already synchronous
+
+**Runtime notes**:
+- `sync_mode(true)` works on `multi_thread` tokio runtime. On `current_thread` runtime, Moka's `sync_block_on` will panic (use `#[tokio::main(flavor = "multi_thread")]` or call from outside a runtime).
+- Without `sync_mode(true)`, calling any `*_sync` method returns `Err(CacheError::NotSupported)`.
+
+**`#[cached(sync)]` macro**:
+
+```rust
+use oxcache::macros::cached;
+
+#[cached(service = "user_cache", ttl = 600, sync)]
+fn get_user_sync(id: u64) -> Result<User, String> {
+    // Synchronous body — no async runtime required
+    Ok(User { id, name: format!("User {}", id) })
+}
+```
+
+## 🌸 Bloom Filter (0.3.0)
+
+The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
+
+```toml
+[dependencies]
+oxcache = { version = "0.3.0", features = ["memory", "bloom-filter"] }
+```
+
+```rust
+use oxcache::backend::interface::{CacheReader, CacheWriter};
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Standalone BloomFilter type
+    let bf = BloomFilter::new(10_000, 0.01);  // capacity, false-positive rate
+    bf.insert("existing_key");
+    assert!(bf.contains("existing_key"));    // no false negatives
+    assert!(!bf.contains("missing_key"));    // may have false positives
+
+    // 2. BloomFilterBackend decorator: wraps any CacheBackend
+    let inner = MokaMemoryBackend::new();
+    let backend = BloomFilterBackend::builder()
+        .capacity(10_000)
+        .false_positive_rate(0.01)
+        .inner(inner)
+        .build()?;
+
+    // On `get`: BF says "absent" → skip inner entirely. BF says "maybe present" → query inner.
+    backend.set("user:1", b"Alice".to_vec(), None).await?;
+    let value = backend.get("user:1").await?;       // Some(b"Alice")
+    let miss  = backend.get("user:999").await?;     // None — BF filtered, inner untouched
+
+    Ok(())
+}
+```
+
+**Properties**:
+- No false negatives (inserted keys always `contains == true`)
+- `set` updates both BF and inner; `delete` only updates inner (BF doesn't support removal)
+- `clear` clears both; TTL passes through unchanged
+- Also implements `SyncCacheBackend` when inner backend does
+
+## ⏱️ TTL Behavior Reference (0.3.0)
+
+All backends honor per-entry TTL since 0.3.0. Behavior summary:
+
+| Backend | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | Notes |
+|---------|-----------------|------------|------------------------|-------|
+| **MokaMemoryBackend** | Real per-entry TTL via `moka::Expiry` | Remaining TTL | Updates + returns `true` | Global TTL (`builder.ttl(...)`) is overridden by per-entry TTL |
+| **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read | Remaining TTL (None if no TTL) | Updates + returns `true` | Lazy expiry — entries removed on next access |
+| **RedisBackend** | `SET key value EX ttl` | `TTL key` (Redis native) | `EXPIRE key ttl` | Uses Redis native TTL |
+| **MockBackend** | Stores `(value, expiry Instant)`; lazy expiry | Remaining TTL | Updates + returns `true` | Test-only; aligns with DashMap semantics |
+| **ChainCache** | Passes `ttl` through to all links | Returns TTL from highest-scored link that has the key | Passes through to all links | All links receive the same TTL |
+| **BloomFilterBackend** | Passes `ttl` through to inner (also inserts key into BF) | Delegates to inner | Delegates to inner | BF itself has no TTL concept |
+
+**Global vs per-entry TTL**:
+- `MokaMemoryBackend::builder().ttl(Duration)` sets a global TTL applied to every entry
+- `set(key, value, Some(ttl))` overrides the global TTL for that specific entry
+- `set(key, value, None)` uses the global TTL (if set); otherwise the entry never expires
 
 ## 🏗️ Architecture
 
