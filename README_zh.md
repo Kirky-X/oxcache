@@ -46,6 +46,9 @@
 - **🔄 自动故障恢复**: Redis 故障时自动降级，恢复后自动重放 WAL
 - **🌐 多实例同步**: 基于 Pub/Sub + 版本号的失效同步机制
 - **⚡ 批量优化**: 智能批量写入，大幅提升吞吐量
+- **🧪 同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
+- **🌸 布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
+- **⏱️ 全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
 - **🛡️ 生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
 
 ## 📦 快速开始
@@ -56,28 +59,28 @@
 
 ```toml
 [dependencies]
-oxcache = "0.2.0"
+oxcache = "0.3.0"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.2.0", default-features = false }` 手动添加。
+`oxcache = { version = "0.3.0", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.2.0", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.0", features = ["macros"] }`
 
 #### 特性分层
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.2.0", features = ["full"] }
+oxcache = { version = "0.3.0", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.2.0", features = ["core"] }
+oxcache = { version = "0.3.0", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.2.0", features = ["minimal"] }
+oxcache = { version = "0.3.0", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
+oxcache = { version = "0.3.0", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 #### 可用特性
@@ -99,6 +102,7 @@ oxcache = { version = "0.2.0", features = ["core", "macros", "metrics"] }
 - `lua-script` - Lua 脚本执行支持
 - `cli` - 命令行界面（clap）
 - `tracing` - 结构化日志支持
+- `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 
 ### 最简示例
 
@@ -376,6 +380,126 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## 🧪 同步 API（0.3.0）
+
+Oxcache 0.3.0 在异步 API 之外引入了**同步 API 路径**。在 builder 上启用：
+
+```rust
+use oxcache::Cache;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+struct User { id: u64, name: String }
+
+#[tokio::main(flavor = "multi_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // sync_mode(true) 使 Cache<K,V> 同时持有 Arc<dyn SyncCacheBackend>
+    let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
+
+    // 同步操作（无 .await）
+    cache.set_sync(&"user:1".to_string(), &User { id: 1, name: "Alice".into() })?;
+    let cached = cache.get_sync(&"user:1".to_string())?;
+    assert_eq!(cached, Some(User { id: 1, name: "Alice".into() }));
+
+    // per-entry TTL
+    cache.set_with_ttl_sync(&"temp".to_string(), &User { id: 2, name: "Temp".into() }, Some(std::time::Duration::from_secs(60)))?;
+
+    // 单飞 get_or_sync：并发调用共享一次 fallback 执行
+    let value = cache.get_or_sync(&"user:42".to_string(), || {
+        Ok(User { id: 42, name: "Bob".into() })
+    })?;
+
+    // sync 与 async API 在同一 Cache<K,V> 上共存
+    cache.set(&"async_key".to_string(), &User { id: 99, name: "Async".into() }).await?;
+    let v = cache.get_sync(&"async_key".to_string())?;
+    Ok(())
+}
+```
+
+**何时使用同步 API**：
+- 阻塞调用点（遗留代码、FFI、同步处理器）
+- 不想在每个断言中穿过 `async` 的测试
+- 调用方本身是同步的，避免运行时开销
+
+**运行时注意事项**：
+- `sync_mode(true)` 在 `multi_thread` tokio 运行时上工作。在 `current_thread` 运行时上，Moka 的 `sync_block_on` 会 panic（使用 `#[tokio::main(flavor = "multi_thread")]` 或在运行时上下文之外调用）。
+- 不启用 `sync_mode(true)` 时，调用任何 `*_sync` 方法返回 `Err(CacheError::NotSupported)`。
+
+**`#[cached(sync)]` 宏**：
+
+```rust
+use oxcache::macros::cached;
+
+#[cached(service = "user_cache", ttl = 600, sync)]
+fn get_user_sync(id: u64) -> Result<User, String> {
+    // 同步函数体 —— 无需 async 运行时
+    Ok(User { id, name: format!("User {}", id) })
+}
+```
+
+## 🌸 布隆过滤器（0.3.0）
+
+`bloom-filter` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
+
+```toml
+[dependencies]
+oxcache = { version = "0.3.0", features = ["memory", "bloom-filter"] }
+```
+
+```rust
+use oxcache::backend::interface::{CacheReader, CacheWriter};
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 1. 独立 BloomFilter 类型
+    let bf = BloomFilter::new(10_000, 0.01);  // 容量、误判率
+    bf.insert("existing_key");
+    assert!(bf.contains("existing_key"));    // 无假阴性
+    assert!(!bf.contains("missing_key"));    // 可能有假阳性
+
+    // 2. BloomFilterBackend 装饰器：包装任何 CacheBackend
+    let inner = MokaMemoryBackend::new();
+    let backend = BloomFilterBackend::builder()
+        .capacity(10_000)
+        .false_positive_rate(0.01)
+        .inner(inner)
+        .build()?;
+
+    // `get` 时：BF 说"不存在" → 完全跳过 inner。BF 说"可能存在" → 查询 inner。
+    backend.set("user:1", b"Alice".to_vec(), None).await?;
+    let value = backend.get("user:1").await?;       // Some(b"Alice")
+    let miss  = backend.get("user:999").await?;     // None —— BF 过滤，inner 未触及
+
+    Ok(())
+}
+```
+
+**特性**：
+- 无假阴性（插入的 key 总是 `contains == true`）
+- `set` 更新 BF 和 inner；`delete` 只更新 inner（BF 不支持删除）
+- `clear` 同时清空两者；TTL 原样透传
+- 当 inner 后端实现 `SyncCacheBackend` 时，装饰器也实现
+
+## ⏱️ TTL 行为对照表（0.3.0）
+
+自 0.3.0 起所有后端都遵守 per-entry TTL。行为汇总：
+
+| 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
+|---------|-----------------|------------|------------------------|-------|
+| **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
+| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期 —— 条目在下次访问时移除 |
+| **RedisBackend** | `SET key value EX ttl` | `TTL key`（Redis 原生） | `EXPIRE key ttl` | 使用 Redis 原生 TTL |
+| **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用；与 DashMap 语义对齐 |
+| **ChainCache** | 将 `ttl` 透传到所有链接 | 返回拥有该 key 的最高分链接的 TTL | 透传到所有链接 | 所有链接接收相同 TTL |
+| **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
+
+**全局 vs per-entry TTL**：
+- `MokaMemoryBackend::builder().ttl(Duration)` 设置应用于每个条目的全局 TTL
+- `set(key, value, Some(ttl))` 覆盖该条目的全局 TTL
+- `set(key, value, None)` 使用全局 TTL（若设置）；否则条目永不过期
 
 ## 🏗️ 架构设计
 

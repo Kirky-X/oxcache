@@ -38,12 +38,48 @@
 //!     .build();
 //! ```
 //!
+//! # Sync API (0.3.0)
+//!
+//! Enable `sync_mode(true)` on the builder to get synchronous methods
+//! (`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` /
+//! `exists_sync` / `get_or_sync` / `clear_sync`) alongside the async API.
+//! Requires `multi_thread` tokio runtime for Moka-backed caches.
+//!
+//! ```rust,ignore
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await?;
+//! cache.set_sync(&"k".to_string(), &"v".to_string())?;
+//! let v = cache.get_sync(&"k".to_string())?;
+//! # Ok(()) }
+//! ```
+//!
+//! # Bloom Filter (0.3.0)
+//!
+//! Enable the `bloom-filter` feature (not in `full`) for negative-query
+//! filtering. [`BloomFilterBackend`] wraps any [`CacheBackend`] and skips
+//! the inner backend on BF miss.
+//!
+//! ```rust,ignore
+//! use oxcache::backend::MokaMemoryBackend;
+//! use oxcache::features::bloom_filter::BloomFilterBackend;
+//! let backend = BloomFilterBackend::new(MokaMemoryBackend::new());
+//! ```
+//!
+//! # Universal per-entry TTL (0.3.0)
+//!
+//! All backends (Moka / DashMap / Redis / Mock / Chain / Bloom) honor
+//! per-entry `set(key, value, Some(ttl))`. Moka uses the `moka::Expiry`
+//! trait for real per-entry TTL (overriding the global TTL set on the
+//! builder).
+//!
 //! # Features
 //!
 //! - `moka`: L1 memory cache (default in minimal/core/full)
 //! - `redis`: L2 distributed cache
 //! - `serialization`: JSON/Bincode/MessagePack/CBOR
 //! - `metrics`: OpenTelemetry metrics
+//! - `bloom-filter`: negative-query filtering (not in `full`)
 //! - `full`: All features
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.3.0")]

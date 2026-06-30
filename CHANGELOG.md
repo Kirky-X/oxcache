@@ -18,19 +18,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - 新增同步 API 路径：`SyncCacheBackend` trait 层级（`SyncCacheReader` + `SyncCacheWriter` + `SyncCacheConnector`）
-- 新增 `Cache<K,V>` 同步方法：`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `get_or_sync` 等
-- 新增 `CacheBuilder::sync_mode(bool)` 配置
+- 新增 `Cache<K,V>` 同步方法：`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `get_or_sync` / `clear_sync` / `get_bytes_sync` / `set_bytes_sync`
+- 新增 `CacheBuilder::sync_mode(bool)` 配置，启用后 `Cache<K,V>` 持有 `Arc<dyn SyncCacheBackend>`
+- 新增 `MokaMemoryBackend` / `DashMapMemoryBackend` / `BloomFilterBackend` 的 `SyncCacheBackend` 实现
+- 新增 `ChainCache` 同步 API：`from_sync_backend` 构造、`get_sync` / `set_sync` / `delete_sync`（任一链接不支持 sync 时返回 `Err(NotSupported)`）
 - 新增 `#[cached(service = "...", sync)]` 宏模式，生成同步函数
-- 新增 `bloom-filter` feature：`BloomFilter` 类型 + `BloomFilterBackend` 装饰器，过滤负查询
-- 新增 `CacheError::UnsupportedOperation(String)` 错误变体
-- 新增跨后端 TTL 行为一致性回归测试套件
-- 新增 CacheKey trait 示例 (`example_cache_key.rs`)
-- 新增数据压缩功能示例 (`example_compression.rs`)
+- 新增 `bloom-filter` feature：`BloomFilter` 类型 + `BloomFilterBackend` 装饰器，过滤负查询（async + sync 双 API）
+- 新增 `CacheError::NotSupported(String)` 错误变体（错误码 `CACHE_009`）
+- 新增跨后端 TTL 行为一致性回归测试套件 (`tests/ttl_consistency_regression.rs`)
+- 新增 sync API 端到端集成测试 (`tests/sync_api_integration.rs`)
+- 新增 BloomFilter 端到端集成测试 (`tests/bloom_filter_integration.rs`)
+- 新增 `#[cached(sync)]` 宏集成测试 (`tests/macros_sync_test.rs`)
+- 新增示例：`example_sync_api` / `example_bloom_filter` / `example_moka_ttl`
 
 ### Changed
 - `MokaMemoryBackend` 内部 `cache` 字段类型改为 `moka::future::Cache<String, MokaEntry, MokaExpiry>`，使用 `Expiry` trait 支持 per-entry TTL
 - `MockBackend` 内部数据结构扩展为 `HashMap<String, (Vec<u8>, Option<Instant>)>`，支持 TTL 跟踪
 - `ChainCache` TTL 透传行为契约化（透传 + 返回最高分链接 TTL）
+- `ChainLink` 新增 `backend_sync: Option<Arc<dyn SyncCacheBackend>>` 字段以支持 sync API（async-only 后端保持 `None`）
 - 更新文档以反映当前代码实现
 - 修正特性分层表，与 Cargo.toml 实际定义对齐
 - 移除不存在的特性引用（rate-limiting、wal-recovery 等）
