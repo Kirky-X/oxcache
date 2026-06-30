@@ -14,6 +14,7 @@ categories = ["caching", "asynchronous", "educational"]
 # Path dependency to the main oxcache project
 oxcache = { path = "..", default-features = false, features = [
     "full",
+    "bloom-filter",
 ] }
 
 # Tracing for logging (minimal features)
@@ -145,6 +146,18 @@ path = "src/01_basics/example_cache_key.rs"
 [[example]]
 name = "example_compression"
 path = "src/06_features/example_compression.rs"
+
+[[example]]
+name = "example_sync_api"
+path = "src/01_basics/example_sync_api.rs"
+
+[[example]]
+name = "example_bloom_filter"
+path = "src/06_features/example_bloom_filter.rs"
+
+[[example]]
+name = "example_moka_ttl"
+path = "src/02_advanced/example_moka_ttl.rs"
 
 [profile.release]
 opt-level = 1
