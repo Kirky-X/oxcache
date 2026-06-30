@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-30
+
+### Added
+- `Cache<K,V>::ttl(&key) -> Result<Option<Duration>>` async method for querying per-entry remaining TTL
+- `Cache<K,V>::expire(&key, ttl) -> Result<bool>` async method for updating per-entry TTL
+- `Cache<K,V>::ttl_sync(&key) -> Result<Option<Duration>>` sync variant
+- `Cache<K,V>::expire_sync(&key, ttl) -> Result<bool>` sync variant
+- 新增回归测试 `tests/cache_ttl_expire_test.rs`（11 个测试覆盖 update-with-preserving-TTL 流程）
+
+### Fixed
+- `Cache<K,V>` 未暴露 `ttl()` / `expire()` 方法，导致下游 `set()` 更新值时丢失 per-entry TTL（`set(k, v, None)` 覆盖了原有 TTL）
+
 ## [0.3.0] - 2026-06-30
 
 ### BREAKING

@@ -82,7 +82,7 @@
 //! - `bloom-filter`: negative-query filtering (not in `full`)
 //! - `full`: All features
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.0")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.1")]
 #![deny(unsafe_code)]
 
 // ============================================================================
