@@ -171,7 +171,6 @@ serial_test = "3.5"
 rand = "0.10"
 criterion = { version = "~0.8", features = ["async_tokio"] }
 ctor = "1.0"
-mockall = "0.14.0"
 trybuild = "1.0"
 
 # ============================================================================
