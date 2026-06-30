@@ -303,8 +303,7 @@ type SyncFlight = Arc<(Mutex<bool>, Condvar)>;
 
 /// Global registry of in-flight `get_or_sync` leaders, keyed by cache key.
 /// Followers find their leader's `SyncFlight` here and block on its `Condvar`.
-static GET_OR_SYNC_LOCKS: Lazy<Mutex<HashMap<String, SyncFlight>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static GET_OR_SYNC_LOCKS: Lazy<Mutex<HashMap<String, SyncFlight>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Panic-safe guard for `get_or_sync` leaders. If the leader panics before
 /// marking its flight `done`, this `Drop` impl flips the flag to `true` and
@@ -320,9 +319,11 @@ impl Drop for GetOrSyncGuard {
     fn drop(&mut self) {
         if !self.removed {
             {
-                let mut done = self.flight.0.lock().expect(
-                    "GetOrSyncGuard: flight mutex poisoned - leader panicked during fallback",
-                );
+                let mut done = self
+                    .flight
+                    .0
+                    .lock()
+                    .expect("GetOrSyncGuard: flight mutex poisoned - leader panicked during fallback");
                 *done = true;
             }
             self.flight.1.notify_all();
@@ -376,8 +377,7 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value)
-                .map_err(|e| CacheError::Serialization(e.to_string()))?;
+            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
             backend.set(&key_str, bytes, ttl)
         }
 
@@ -452,9 +452,7 @@ where
             // Leader has finished — re-check cache. If leader succeeded the
             // value is now cached; if leader failed, return an error.
             return self.get_sync(key)?.ok_or_else(|| {
-                CacheError::L1Error(
-                    "get_or_sync: concurrent fetch leader failed to cache result".to_string(),
-                )
+                CacheError::L1Error("get_or_sync: concurrent fetch leader failed to cache result".to_string())
             });
         }
 
@@ -984,10 +982,7 @@ mod sync_tests {
             .unwrap();
 
         // Within TTL window: readable
-        assert_eq!(
-            cache.get_sync(&"k".to_string()).unwrap(),
-            Some("v".to_string())
-        );
+        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some("v".to_string()));
 
         // After TTL: expired
         thread::sleep(Duration::from_millis(120));

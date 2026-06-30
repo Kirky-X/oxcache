@@ -48,7 +48,11 @@ fn test_bloom_filter_no_false_negatives() {
         bf.insert(&format!("key_{}", i));
     }
     for i in 0..1000 {
-        assert!(bf.contains(&format!("key_{}", i)), "BF must not have false negatives for key_{}", i);
+        assert!(
+            bf.contains(&format!("key_{}", i)),
+            "BF must not have false negatives for key_{}",
+            i
+        );
     }
 }
 
@@ -100,7 +104,10 @@ async fn test_bf_backend_delete_does_not_modify_bloom() {
 
     // delete 不修改 BF（BF 不支持删除）
     CacheWriter::delete(&backend, "k").await.unwrap();
-    assert!(backend.bloom().contains("k"), "BF should still contain key after delete");
+    assert!(
+        backend.bloom().contains("k"),
+        "BF should still contain key after delete"
+    );
 
     // 但 inner 已删除，装饰器 get 返回 None（BF 命中但 inner miss）
     assert_eq!(CacheReader::get(&backend, "k").await.unwrap(), None);

@@ -616,9 +616,8 @@ impl RedisBackend {
     /// - current-thread runtime：返回 `Err(NotSupported)`，因为 `block_in_place`
     ///   在 current-thread runtime 上会 panic。
     fn multi_thread_handle() -> Result<tokio::runtime::Handle> {
-        let handle = tokio::runtime::Handle::try_current().map_err(|e| {
-            CacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))
-        })?;
+        let handle = tokio::runtime::Handle::try_current()
+            .map_err(|e| CacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e)))?;
         if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
             return Err(CacheError::NotSupported(
                 "sync API requires a multi-thread runtime; block_in_place is unavailable on current_thread runtime"

@@ -34,8 +34,7 @@ where
     pub fn get_bytes_sync(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let backend = self.backend_sync.as_ref().ok_or_else(|| {
             CacheError::NotSupported(
-                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None"
-                    .to_string(),
+                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
             )
         })?;
         backend.get(key)
@@ -49,8 +48,7 @@ where
     pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
         let backend = self.backend_sync.as_ref().ok_or_else(|| {
             CacheError::NotSupported(
-                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None"
-                    .to_string(),
+                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
             )
         })?;
         let ttl_duration = ttl.map(Duration::from_secs);

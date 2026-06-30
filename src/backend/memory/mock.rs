@@ -274,10 +274,7 @@ mod mock_tests {
             .await
             .unwrap();
         // 立即可读
-        assert_eq!(
-            backend.get("k").await.unwrap(),
-            Some(b"v".to_vec())
-        );
+        assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
         // 等待 100ms 后应过期
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(backend.get("k").await.unwrap(), None);
@@ -286,15 +283,9 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_set_without_ttl_never_expires() {
         let backend = MockBackend::new("test", 50, false);
-        backend
-            .set("k", b"v".to_vec(), None)
-            .await
-            .unwrap();
+        backend.set("k", b"v".to_vec(), None).await.unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(
-            backend.get("k").await.unwrap(),
-            Some(b"v".to_vec())
-        );
+        assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
     }
 
     #[tokio::test]
@@ -306,8 +297,16 @@ mod mock_tests {
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some");
         // 58s < ttl <= 60s
-        assert!(ttl > Duration::from_secs(58), "ttl={} should be > 58s", ttl.as_secs_f64());
-        assert!(ttl <= Duration::from_secs(60), "ttl={} should be <= 60s", ttl.as_secs_f64());
+        assert!(
+            ttl > Duration::from_secs(58),
+            "ttl={} should be > 58s",
+            ttl.as_secs_f64()
+        );
+        assert!(
+            ttl <= Duration::from_secs(60),
+            "ttl={} should be <= 60s",
+            ttl.as_secs_f64()
+        );
     }
 
     #[tokio::test]
@@ -319,10 +318,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_ttl_returns_none_for_no_ttl_key() {
         let backend = MockBackend::new("test", 50, false);
-        backend
-            .set("k", b"v".to_vec(), None)
-            .await
-            .unwrap();
+        backend.set("k", b"v".to_vec(), None).await.unwrap();
         assert_eq!(backend.ttl("k").await.unwrap(), None);
     }
 
@@ -335,8 +331,16 @@ mod mock_tests {
             .unwrap();
         let ok = backend.expire("k", Duration::from_secs(120)).await.unwrap();
         assert!(ok, "expire on existing key should return true");
-        let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some after expire");
-        assert!(ttl > Duration::from_secs(118), "ttl={} should be > 118s", ttl.as_secs_f64());
+        let ttl = backend
+            .ttl("k")
+            .await
+            .unwrap()
+            .expect("ttl should be Some after expire");
+        assert!(
+            ttl > Duration::from_secs(118),
+            "ttl={} should be > 118s",
+            ttl.as_secs_f64()
+        );
     }
 
     #[tokio::test]

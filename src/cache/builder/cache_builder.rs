@@ -392,10 +392,7 @@ mod tests {
             .build()
             .await;
 
-        assert!(
-            result.is_err(),
-            "sync_mode(true) + backend_arc() should return Err"
-        );
+        assert!(result.is_err(), "sync_mode(true) + backend_arc() should return Err");
         match result {
             Err(crate::error::CacheError::NotSupported(msg)) => {
                 assert!(
