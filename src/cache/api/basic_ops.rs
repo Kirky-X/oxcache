@@ -185,6 +185,39 @@ where
         self.backend.exists(&key_str).await
     }
 
+    /// Get the remaining time-to-live for a key.
+    ///
+    /// Returns `Ok(None)` if the key has no per-entry TTL (either no TTL
+    /// set, or the backend uses global TTL only). Returns `Ok(None)` if
+    /// the key does not exist.
+    ///
+    /// This method is essential for update-with-preserving-TTL workflows:
+    /// ```rust,ignore
+    /// let original_ttl = cache.ttl(&key).await?;
+    /// cache.set_with_ttl(&key, &new_value, original_ttl).await?;
+    /// ```
+    #[cfg_attr(
+        any(feature = "tracing", feature = "full"),
+        instrument(skip(self, key), level = "debug", fields(key))
+    )]
+    pub async fn ttl(&self, key: &K) -> Result<Option<Duration>> {
+        let key_str = key.to_key_string();
+        self.backend.ttl(&key_str).await
+    }
+
+    /// Update the time-to-live for an existing key.
+    ///
+    /// Returns `Ok(true)` if the TTL was updated, `Ok(false)` if the key
+    /// does not exist. This does NOT touch the value — only the TTL.
+    #[cfg_attr(
+        any(feature = "tracing", feature = "full"),
+        instrument(skip(self, key), level = "debug", fields(key))
+    )]
+    pub async fn expire(&self, key: &K, ttl: Duration) -> Result<bool> {
+        let key_str = key.to_key_string();
+        self.backend.expire(&key_str, ttl).await
+    }
+
     pub async fn get_or<F, Fut>(&self, key: &K, fallback: F) -> Result<V>
     where
         F: FnOnce() -> Fut,
@@ -402,6 +435,26 @@ where
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         backend.exists(&key_str)
+    }
+
+    /// Synchronously get the remaining time-to-live for a key.
+    ///
+    /// Returns `Ok(None)` if the key has no per-entry TTL or does not exist.
+    /// Mirrors the async [`Self::ttl`].
+    pub fn ttl_sync(&self, key: &K) -> Result<Option<Duration>> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+        backend.ttl(&key_str)
+    }
+
+    /// Synchronously update the time-to-live for an existing key.
+    ///
+    /// Returns `Ok(true)` if the TTL was updated, `Ok(false)` if the key
+    /// does not exist. Mirrors the async [`Self::expire`].
+    pub fn expire_sync(&self, key: &K, ttl: Duration) -> Result<bool> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+        backend.expire(&key_str, ttl)
     }
 
     /// Synchronously get-or-compute: returns cached value if present, otherwise
