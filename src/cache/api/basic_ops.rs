@@ -10,7 +10,7 @@ use crate::error::{CacheError, Result};
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 #[cfg(any(feature = "tracing", feature = "full"))]
@@ -282,6 +282,266 @@ where
                 Err(e)
             }
         }
+    }
+}
+
+// ============================================================================
+// Synchronous API — mirrors the async API but dispatches through
+// `backend_sync: Option<Arc<dyn SyncCacheBackend>>`.
+//
+// Returns `Err(CacheError::NotSupported)` when the cache was not built with
+// `sync_mode` enabled (i.e., `backend_sync` is `None`).
+//
+// Single-flight for `get_or_sync` uses `std::sync::Condvar` (no async runtime
+// required), mirroring the async `get_or` which uses `tokio::sync::Notify`.
+// ============================================================================
+
+/// Single-flight state for `get_or_sync`. The `Mutex<bool>` flag is `false`
+/// while the leader is executing fallback, `true` once the leader has finished
+/// (success or failure). Followers `wait()` on the `Condvar` until `true`.
+type SyncFlight = Arc<(Mutex<bool>, Condvar)>;
+
+/// Global registry of in-flight `get_or_sync` leaders, keyed by cache key.
+/// Followers find their leader's `SyncFlight` here and block on its `Condvar`.
+static GET_OR_SYNC_LOCKS: Lazy<Mutex<HashMap<String, SyncFlight>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+/// Panic-safe guard for `get_or_sync` leaders. If the leader panics before
+/// marking its flight `done`, this `Drop` impl flips the flag to `true` and
+/// `notify_all`s followers so they don't block forever, then removes the
+/// stale entry from the registry.
+struct GetOrSyncGuard {
+    map_key: String,
+    flight: SyncFlight,
+    removed: bool,
+}
+
+impl Drop for GetOrSyncGuard {
+    fn drop(&mut self) {
+        if !self.removed {
+            {
+                let mut done = self
+                    .flight
+                    .0
+                    .lock()
+                    .expect("GetOrSyncGuard: flight mutex poisoned - leader panicked during fallback");
+                *done = true;
+            }
+            self.flight.1.notify_all();
+            GET_OR_SYNC_LOCKS
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected")
+                .remove(&self.map_key);
+        }
+    }
+}
+
+impl<K, V> Cache<K, V>
+where
+    K: CacheKey,
+    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
+{
+    /// Resolve the sync backend or return `Err(NotSupported)` when the cache
+    /// was not built with `sync_mode(true)`.
+    fn sync_backend(&self) -> Result<&Arc<dyn crate::backend::SyncCacheBackend>> {
+        self.backend_sync.as_ref().ok_or_else(|| {
+            CacheError::NotSupported(
+                "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
+            )
+        })
+    }
+
+    /// Synchronously get a value from the cache.
+    pub fn get_sync(&self, key: &K) -> Result<Option<V>> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+        // Method-call syntax (not UFCS) — `dyn SyncCacheBackend` exposes
+        // super-trait methods via its vtable; UFCS would require
+        // `Arc<dyn SyncCacheBackend>: SyncCacheReader` which needs the
+        // unstable `trait_upcasting` feature.
+        let bytes = backend.get(&key_str)?;
+        match bytes {
+            Some(data) => deserialize_value(&data).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Synchronously set a value in the cache (no TTL).
+    pub fn set_sync(&self, key: &K, value: &V) -> Result<()> {
+        self.set_with_ttl_sync(key, value, None)
+    }
+
+    /// Synchronously set a value with an optional per-entry TTL.
+    pub fn set_with_ttl_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> Result<()> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            backend.set(&key_str, bytes, ttl)
+        }
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            let _ = (key_str, value, ttl);
+            Err(CacheError::Serialization(
+                "Serialization feature is required for typed set operations".to_string(),
+            ))
+        }
+    }
+
+    /// Synchronously delete a key.
+    pub fn delete_sync(&self, key: &K) -> Result<()> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+        backend.delete(&key_str)
+    }
+
+    /// Synchronously check if a key exists.
+    pub fn exists_sync(&self, key: &K) -> Result<bool> {
+        let key_str = key.to_key_string();
+        let backend = self.sync_backend()?;
+        backend.exists(&key_str)
+    }
+
+    /// Synchronously get-or-compute: returns cached value if present, otherwise
+    /// invokes `fallback` and caches the result. Uses `Condvar`-based
+    /// single-flight to prevent thundering-herd duplicate fallback calls.
+    pub fn get_or_sync<F>(&self, key: &K, fallback: F) -> Result<V>
+    where
+        F: FnOnce() -> Result<V>,
+    {
+        // Fast path: cache hit
+        if let Some(value) = self.get_sync(key)? {
+            return Ok(value);
+        }
+
+        let key_str = key.to_key_string();
+
+        // Register as leader or become follower. Lock is released before any
+        // blocking work to avoid holding it while running fallback.
+        let (is_follower, flight) = {
+            let mut map = GET_OR_SYNC_LOCKS
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected");
+            match map.entry(key_str.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => {
+                    // Another leader is in flight — become follower
+                    (true, entry.get().clone())
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let f = Arc::new((Mutex::new(false), Condvar::new()));
+                    entry.insert(f.clone());
+                    (false, f)
+                }
+            }
+        };
+
+        if is_follower {
+            // Wait for leader to finish (flag flips to true)
+            let mut done = flight
+                .0
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS: follower flight mutex poisoned");
+            while !*done {
+                done = flight
+                    .1
+                    .wait(done)
+                    .expect("GET_OR_SYNC_LOCKS: follower Condvar wait poisoned");
+            }
+            // Leader has finished — re-check cache. If leader succeeded the
+            // value is now cached; if leader failed, return an error.
+            return self.get_sync(key)?.ok_or_else(|| {
+                CacheError::L1Error("get_or_sync: concurrent fetch leader failed to cache result".to_string())
+            });
+        }
+
+        // Leader path
+        let mut guard = GetOrSyncGuard {
+            map_key: key_str.clone(),
+            flight: flight.clone(),
+            removed: false,
+        };
+
+        // Double-check cache after acquiring leadership (another leader may
+        // have just finished and cached the value)
+        if let Some(value) = self.get_sync(key)? {
+            Self::finish_sync_flight(&key_str, &flight, &mut guard);
+            return Ok(value);
+        }
+
+        // Run fallback
+        match fallback() {
+            Ok(value) => {
+                if let Err(e) = self.set_sync(key, &value) {
+                    // Caching failed — still wake followers before propagating
+                    Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                    return Err(e);
+                }
+                Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                Ok(value)
+            }
+            Err(e) => {
+                Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                Err(e)
+            }
+        }
+    }
+
+    /// Mark the flight as done, notify all followers, and remove the entry
+    /// from the registry. Idempotent via the `guard.removed` flag.
+    fn finish_sync_flight(key_str: &str, flight: &SyncFlight, guard: &mut GetOrSyncGuard) {
+        {
+            let mut done = flight
+                .0
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS: leader flight mutex poisoned");
+            *done = true;
+        }
+        flight.1.notify_all();
+        GET_OR_SYNC_LOCKS
+            .lock()
+            .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected")
+            .remove(key_str);
+        guard.removed = true;
+    }
+
+    /// Synchronously clear all entries.
+    pub fn clear_sync(&self) -> Result<()> {
+        let backend = self.sync_backend()?;
+        backend.clear()
+    }
+
+    /// Synchronously run a health check against the backend.
+    pub fn health_check_sync(&self) -> Result<()> {
+        let backend = self.sync_backend()?;
+        backend.health_check()
+    }
+
+    /// Synchronously shut down the backend and release resources.
+    /// No-op when `backend_sync` is `None` (no sync backend to shut down).
+    pub fn shutdown_sync(&self) {
+        if let Some(backend) = &self.backend_sync {
+            backend.shutdown();
+        }
+    }
+
+    /// Synchronously get backend statistics.
+    pub fn stats_sync(&self) -> Result<std::collections::HashMap<String, String>> {
+        let backend = self.sync_backend()?;
+        backend.stats()
+    }
+
+    /// Synchronously get the number of entries.
+    pub fn len_sync(&self) -> Result<u64> {
+        let backend = self.sync_backend()?;
+        backend.len()
+    }
+
+    /// Synchronously get the capacity.
+    pub fn capacity_sync(&self) -> Result<u64> {
+        let backend = self.sync_backend()?;
+        backend.capacity()
     }
 }
 
@@ -600,5 +860,132 @@ mod tests {
             }
             _ => panic!("expected CacheError::Serialization"),
         }
+    }
+}
+
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+    use crate::backend::memory::MokaMemoryBackend;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
+    /// Helper: construct a Cache whose `backend_sync` is wired to the same
+    /// Moka instance as the async backend. Mirrors what
+    /// `CacheBuilder::sync_mode(true)` will do in task group 10.
+    fn make_sync_cache() -> Cache<String, String> {
+        let moka = Arc::new(MokaMemoryBackend::new());
+        let mut cache: Cache<String, String> = Cache::new_with_backend(moka.clone());
+        cache.set_sync_backend(moka);
+        cache
+    }
+
+    #[test]
+    fn test_cache_get_sync_set_sync_basic() {
+        let cache = make_sync_cache();
+        cache.set_sync(&"k".to_string(), &"v".to_string()).unwrap();
+        let v = cache.get_sync(&"k".to_string()).unwrap();
+        assert_eq!(v, Some("v".to_string()));
+    }
+
+    #[test]
+    fn test_cache_get_sync_without_sync_mode_returns_err() {
+        // Cache::new() leaves backend_sync = None
+        let cache: Cache<String, String> = Cache::new();
+        let result = cache.get_sync(&"k".to_string());
+        assert!(
+            matches!(result, Err(CacheError::NotSupported(_))),
+            "expected Err(NotSupported), got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_cache_get_or_sync_cache_hit() {
+        let cache = make_sync_cache();
+        cache.set_sync(&"k".to_string(), &"cached".to_string()).unwrap();
+
+        // Fallback should NOT be called — pre-populated value wins
+        let v = cache
+            .get_or_sync(&"k".to_string(), || {
+                Err(CacheError::Operation("fallback should not run".to_string()))
+            })
+            .unwrap();
+        assert_eq!(v, "cached");
+    }
+
+    #[test]
+    fn test_cache_get_or_sync_cache_miss_triggers_fallback() {
+        let cache = make_sync_cache();
+        let v = cache
+            .get_or_sync(&"k".to_string(), || Ok("computed".to_string()))
+            .unwrap();
+        assert_eq!(v, "computed");
+
+        // Verify the value was cached: a direct get_sync returns it
+        let cached = cache.get_sync(&"k".to_string()).unwrap().unwrap();
+        assert_eq!(cached, "computed");
+    }
+
+    #[test]
+    fn test_cache_get_or_sync_single_flight_prevents_duplicate_fallback() {
+        let cache = Arc::new(make_sync_cache());
+        let counter = Arc::new(AtomicU32::new(0));
+
+        // Thread A: becomes leader, sleeps inside fallback to give B time to
+        // arrive and become a follower.
+        let cache_a = cache.clone();
+        let counter_a = counter.clone();
+        let handle_a = thread::spawn(move || {
+            cache_a
+                .get_or_sync(&"k".to_string(), || {
+                    counter_a.fetch_add(1, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(120));
+                    Ok("v".to_string())
+                })
+                .unwrap()
+        });
+
+        // Give A time to register as leader before B arrives.
+        thread::sleep(Duration::from_millis(20));
+
+        let cache_b = cache.clone();
+        let counter_b = counter.clone();
+        let handle_b = thread::spawn(move || {
+            cache_b
+                .get_or_sync(&"k".to_string(), || {
+                    counter_b.fetch_add(1, Ordering::SeqCst);
+                    Ok("should_not_run".to_string())
+                })
+                .unwrap()
+        });
+
+        let v_a = handle_a.join().expect("thread A panicked");
+        let v_b = handle_b.join().expect("thread B panicked");
+
+        assert_eq!(v_a, "v");
+        assert_eq!(v_b, "v");
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            1,
+            "fallback must run exactly once under single-flight"
+        );
+    }
+
+    #[test]
+    fn test_cache_set_with_ttl_sync_expires() {
+        let cache = make_sync_cache();
+        cache
+            .set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_millis(50)))
+            .unwrap();
+
+        // Within TTL window: readable
+        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some("v".to_string()));
+
+        // After TTL: expired
+        thread::sleep(Duration::from_millis(120));
+        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), None);
     }
 }

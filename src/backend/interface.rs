@@ -238,6 +238,133 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 #[async_trait]
 impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T {}
 
+// ============================================================================
+// Synchronous Trait Hierarchy (Mirror of Async Traits)
+// ============================================================================
+//
+// Sync counterparts of `CacheReader`/`CacheWriter`/`CacheConnector`/`CacheBackend`.
+// Backends that natively support synchronous access (Moka sync, DashMap) or
+// can block on async runtimes (Redis via `block_in_place`) implement these in
+// addition to the async traits. `Cache<K,V>::get_sync` dispatches through
+// `Arc<dyn SyncCacheBackend>`.
+//
+// Design rationale (see `openspec/changes/add-sync-api-and-ttl-fix/design.md`):
+// Independent trait hierarchy — async and sync coexist; backends opt into sync
+// support explicitly. This avoids polluting the async hot path with
+// `block_in_place` overhead and keeps the async trait object-safe.
+
+/// Synchronous read-only cache operations.
+///
+/// Mirror of [`CacheReader`] without `async`/`#[async_trait]`. Backends that
+/// can serve reads without an async runtime should implement this trait in
+/// addition to (or instead of) [`CacheReader`].
+///
+/// # Example
+///
+/// ```rust,ignore
+/// fn get_value(backend: &dyn SyncCacheReader, key: &str) -> Result<Option<Vec<u8>>> {
+///     backend.get(key)
+/// }
+/// ```
+pub trait SyncCacheReader: Send + Sync + 'static {
+    /// Get a value from the cache.
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
+
+    /// Check if a key exists in the cache.
+    fn exists(&self, key: &str) -> Result<bool>;
+
+    /// Get the time-to-live for a key.
+    fn ttl(&self, key: &str) -> Result<Option<Duration>>;
+
+    /// Get the number of entries in the cache.
+    fn len(&self) -> Result<u64>;
+
+    /// Check if the cache is empty. Default impl delegates to [`Self::len`].
+    fn is_empty(&self) -> Result<bool> {
+        Ok(self.len()? == 0)
+    }
+
+    /// Get the capacity of the cache.
+    fn capacity(&self) -> Result<u64>;
+
+    /// Get backend statistics.
+    fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
+
+    /// Get multiple values in a single operation. Default impl loops [`Self::get`].
+    fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+        let mut results = Vec::with_capacity(keys.len());
+        for key in keys {
+            results.push(self.get(key)?);
+        }
+        Ok(results)
+    }
+}
+
+/// Synchronous write operations for the cache.
+///
+/// Mirror of [`CacheWriter`] without `async`/`#[async_trait]`.
+pub trait SyncCacheWriter: Send + Sync + 'static {
+    /// Set a value in the cache.
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+
+    /// Delete a value from the cache.
+    fn delete(&self, key: &str) -> Result<()>;
+
+    /// Clear all values from the cache.
+    fn clear(&self) -> Result<()>;
+
+    /// Set the time-to-live for an existing key. Returns `false` if the key
+    /// does not exist.
+    fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
+
+    /// Set multiple key-value pairs. Default impl loops [`Self::set`].
+    fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+        for (key, value, ttl) in items {
+            self.set(key, value.clone(), *ttl)?;
+        }
+        Ok(())
+    }
+
+    /// Delete multiple keys. Default impl loops [`Self::delete`].
+    fn delete_many(&self, keys: &[String]) -> Result<()> {
+        for key in keys {
+            self.delete(key)?;
+        }
+        Ok(())
+    }
+}
+
+/// Synchronous lifecycle management for cache backends.
+///
+/// Mirror of [`CacheConnector`] without `async`/`#[async_trait]`.
+pub trait SyncCacheConnector: Send + Sync + 'static {
+    /// Check if the backend is healthy.
+    fn health_check(&self) -> Result<()>;
+
+    /// Shutdown the backend and release resources.
+    fn shutdown(&self);
+
+    /// Get the backend kind for runtime identification.
+    fn backend_kind(&self) -> BackendKind;
+}
+
+/// Full synchronous cache backend interface combining all sync ISP traits.
+///
+/// Mirror of [`CacheBackend`] for synchronous access. Backends implement this
+/// to opt into `Cache<K,V>::get_sync` and related sync APIs. Automatically
+/// provided via blanket impl when a type implements
+/// `SyncCacheReader + SyncCacheWriter + SyncCacheConnector`.
+///
+/// # Design Pattern
+///
+/// Same Strategy pattern as [`CacheBackend`], but for sync call sites. The
+/// async and sync hierarchies are intentionally separate so that a backend
+/// can support one without the other (e.g., a future TCP-only backend may
+/// only support async).
+pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static {}
+
+impl<T: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static> SyncCacheBackend for T {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,5 +608,206 @@ mod tests {
         backend_dyn.set("key", b"value".to_vec(), None).await.unwrap();
         let value = backend_dyn.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
+    }
+
+    // ============================================================================
+    // SyncCacheBackend trait hierarchy 测试 (任务组 5)
+    // ============================================================================
+
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+    use std::time::Instant;
+
+    /// Test mock for sync trait hierarchy. Stores entries with optional TTL
+    /// via `Instant`, mirroring `MockBackend` semantics but without async.
+    struct MockSyncBackend {
+        data: Arc<RwLock<HashMap<String, (Vec<u8>, Option<Instant>)>>>,
+        capacity: u64,
+    }
+
+    impl MockSyncBackend {
+        fn new(capacity: u64) -> Self {
+            Self {
+                data: Arc::new(RwLock::new(HashMap::new())),
+                capacity,
+            }
+        }
+    }
+
+    impl SyncCacheReader for MockSyncBackend {
+        fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+            let data = self.data.read().unwrap();
+            if let Some((value, expires_at)) = data.get(key) {
+                if let Some(deadline) = expires_at {
+                    if *deadline <= Instant::now() {
+                        return Ok(None);
+                    }
+                }
+                return Ok(Some(value.clone()));
+            }
+            Ok(None)
+        }
+
+        fn exists(&self, key: &str) -> Result<bool> {
+            Ok(self.get(key)?.is_some())
+        }
+
+        fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+            let data = self.data.read().unwrap();
+            if let Some((_, Some(deadline))) = data.get(key) {
+                return Ok(deadline.checked_duration_since(Instant::now()));
+            }
+            Ok(None)
+        }
+
+        fn len(&self) -> Result<u64> {
+            Ok(self.data.read().unwrap().len() as u64)
+        }
+
+        fn capacity(&self) -> Result<u64> {
+            Ok(self.capacity)
+        }
+
+        fn stats(&self) -> Result<HashMap<String, String>> {
+            let mut stats = HashMap::new();
+            stats.insert("type".to_string(), "mock_sync".to_string());
+            stats.insert("len".to_string(), self.len()?.to_string());
+            Ok(stats)
+        }
+    }
+
+    impl SyncCacheWriter for MockSyncBackend {
+        fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+            let expires_at = ttl.map(|d| Instant::now() + d);
+            self.data.write().unwrap().insert(key.to_string(), (value, expires_at));
+            Ok(())
+        }
+
+        fn delete(&self, key: &str) -> Result<()> {
+            self.data.write().unwrap().remove(key);
+            Ok(())
+        }
+
+        fn clear(&self) -> Result<()> {
+            self.data.write().unwrap().clear();
+            Ok(())
+        }
+
+        fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+            let mut data = self.data.write().unwrap();
+            if let Some(entry) = data.get_mut(key) {
+                entry.1 = Some(Instant::now() + ttl);
+                return Ok(true);
+            }
+            Ok(false)
+        }
+    }
+
+    impl SyncCacheConnector for MockSyncBackend {
+        fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn shutdown(&self) {
+            self.clear().ok();
+        }
+
+        fn backend_kind(&self) -> BackendKind {
+            BackendKind::Mock
+        }
+    }
+
+    #[test]
+    fn test_sync_cache_backend_trait_object_usable() {
+        let backend = MockSyncBackend::new(50);
+        let backend_dyn: &dyn SyncCacheBackend = &backend;
+
+        // 写入 + 读取
+        backend_dyn.set("key1", b"value1".to_vec(), None).unwrap();
+        let value = backend_dyn.get("key1").unwrap();
+        assert_eq!(value, Some(b"value1".to_vec()));
+
+        // exists
+        assert!(backend_dyn.exists("key1").unwrap());
+        assert!(!backend_dyn.exists("missing").unwrap());
+
+        // delete
+        backend_dyn.delete("key1").unwrap();
+        assert!(!backend_dyn.exists("key1").unwrap());
+
+        // connector
+        backend_dyn.health_check().unwrap();
+        assert_eq!(backend_dyn.backend_kind(), BackendKind::Mock);
+    }
+
+    #[test]
+    fn test_sync_reader_default_is_empty_uses_len() {
+        let backend = MockSyncBackend::new(50);
+        let reader: &dyn SyncCacheReader = &backend;
+        // 空缓存
+        assert!(reader.is_empty().unwrap());
+        // 添加数据后
+        backend.set("k", b"v".to_vec(), None).unwrap();
+        assert!(!reader.is_empty().unwrap());
+    }
+
+    #[test]
+    fn test_sync_writer_default_set_many_loops_set() {
+        let backend = MockSyncBackend::new(50);
+        let writer: &dyn SyncCacheWriter = &backend;
+        let items = vec![
+            ("k1".to_string(), b"v1".to_vec(), None),
+            ("k2".to_string(), b"v2".to_vec(), None),
+            ("k3".to_string(), b"v3".to_vec(), None),
+        ];
+        writer.set_many(&items).unwrap();
+
+        assert_eq!(backend.get("k1").unwrap(), Some(b"v1".to_vec()));
+        assert_eq!(backend.get("k2").unwrap(), Some(b"v2".to_vec()));
+        assert_eq!(backend.get("k3").unwrap(), Some(b"v3".to_vec()));
+        assert_eq!(backend.len().unwrap(), 3);
+
+        // delete_many 默认实现
+        writer.delete_many(&["k1".to_string(), "k2".to_string()]).unwrap();
+        assert!(!backend.exists("k1").unwrap());
+        assert!(!backend.exists("k2").unwrap());
+        assert!(backend.exists("k3").unwrap());
+    }
+
+    #[test]
+    fn test_sync_reader_default_get_many_loops_get() {
+        let backend = MockSyncBackend::new(50);
+        backend.set("k1", b"v1".to_vec(), None).unwrap();
+        backend.set("k2", b"v2".to_vec(), None).unwrap();
+
+        let reader: &dyn SyncCacheReader = &backend;
+        let keys = vec!["k1".to_string(), "k2".to_string(), "k3".to_string()];
+        let results = reader.get_many(&keys).unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0], Some(b"v1".to_vec()));
+        assert_eq!(results[1], Some(b"v2".to_vec()));
+        assert_eq!(results[2], None);
+    }
+
+    #[test]
+    fn test_sync_backend_ttl_and_expire() {
+        let backend = MockSyncBackend::new(50);
+        backend.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+
+        // ttl 返回剩余时间
+        let ttl = backend.ttl("k").unwrap();
+        assert!(ttl.is_some());
+        let ttl = ttl.unwrap();
+        assert!(ttl <= Duration::from_secs(60) && ttl > Duration::from_secs(58));
+
+        // expire 返回 true（key 存在）
+        let result = backend.expire("k", Duration::from_secs(120)).unwrap();
+        assert!(result);
+        let new_ttl = backend.ttl("k").unwrap().unwrap();
+        assert!(new_ttl > Duration::from_secs(118));
+
+        // expire 返回 false（key 不存在）
+        let result = backend.expire("missing", Duration::from_secs(10)).unwrap();
+        assert!(!result);
     }
 }
