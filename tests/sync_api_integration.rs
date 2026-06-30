@@ -184,12 +184,17 @@ async fn test_sync_and_async_coexist() {
     let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();
 
     // async set + sync get
-    cache.set(&"async_key".to_string(), &"async_value".to_string()).await.unwrap();
+    cache
+        .set(&"async_key".to_string(), &"async_value".to_string())
+        .await
+        .unwrap();
     let value = cache.get_sync(&"async_key".to_string()).unwrap();
     assert_eq!(value, Some("async_value".to_string()));
 
     // sync set + async get
-    cache.set_sync(&"sync_key".to_string(), &"sync_value".to_string()).unwrap();
+    cache
+        .set_sync(&"sync_key".to_string(), &"sync_value".to_string())
+        .unwrap();
     let value = cache.get(&"sync_key".to_string()).await.unwrap();
     assert_eq!(value, Some("sync_value".to_string()));
 }

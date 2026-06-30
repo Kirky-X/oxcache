@@ -18,8 +18,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use crate::backend::{
-    BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter,
-    SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
+    BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
+    SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
 };
 use crate::error::{CacheError, Result};
 
@@ -47,11 +47,7 @@ impl<B: CacheBackend> BloomFilterBackend<B> {
 
     /// Create a decorator over `inner` with an explicit Bloom filter
     /// configuration.
-    pub fn with_capacity_and_rate(
-        inner: B,
-        capacity: usize,
-        false_positive_rate: f64,
-    ) -> Self {
+    pub fn with_capacity_and_rate(inner: B, capacity: usize, false_positive_rate: f64) -> Self {
         Self {
             inner,
             bloom: BloomFilter::new(capacity, false_positive_rate),
@@ -106,11 +102,9 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
 
     /// Build the decorator. Returns `Err` if no inner backend was set.
     pub fn build(self) -> Result<BloomFilterBackend<B>> {
-        let inner = self.inner.ok_or_else(|| {
-            CacheError::InvalidInput(
-                "inner backend is required for BloomFilterBackend".to_string(),
-            )
-        })?;
+        let inner = self
+            .inner
+            .ok_or_else(|| CacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string()))?;
         Ok(BloomFilterBackend {
             inner,
             bloom: BloomFilter::new(self.capacity, self.false_positive_rate),
@@ -150,22 +144,13 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
 
     async fn stats(&self) -> Result<HashMap<String, String>> {
         let mut stats = self.inner.stats().await?;
-        stats.insert(
-            "bloom_capacity".to_string(),
-            self.bloom.capacity().to_string(),
-        );
-        stats.insert(
-            "bloom_load_factor".to_string(),
-            self.bloom.load_factor().to_string(),
-        );
+        stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
+        stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
         stats.insert(
             "bloom_false_positive_rate".to_string(),
             self.bloom.false_positive_rate().to_string(),
         );
-        stats.insert(
-            "bloom_estimated_count".to_string(),
-            self.bloom.len().to_string(),
-        );
+        stats.insert("bloom_estimated_count".to_string(), self.bloom.len().to_string());
         Ok(stats)
     }
 }
@@ -263,22 +248,13 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
 
     fn stats(&self) -> Result<HashMap<String, String>> {
         let mut stats = SyncCacheReader::stats(&self.inner)?;
-        stats.insert(
-            "bloom_capacity".to_string(),
-            self.bloom.capacity().to_string(),
-        );
-        stats.insert(
-            "bloom_load_factor".to_string(),
-            self.bloom.load_factor().to_string(),
-        );
+        stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
+        stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
         stats.insert(
             "bloom_false_positive_rate".to_string(),
             self.bloom.false_positive_rate().to_string(),
         );
-        stats.insert(
-            "bloom_estimated_count".to_string(),
-            self.bloom.len().to_string(),
-        );
+        stats.insert("bloom_estimated_count".to_string(), self.bloom.len().to_string());
         Ok(stats)
     }
 }
@@ -431,11 +407,7 @@ mod tests {
         }
 
         async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
-            self.log
-                .lock()
-                .unwrap()
-                .expire_calls
-                .push((key.to_string(), ttl));
+            self.log.lock().unwrap().expire_calls.push((key.to_string(), ttl));
             let mut data = self.data.lock().unwrap();
             if let Some(entry) = data.get_mut(key) {
                 entry.1 = Some(ttl);
@@ -474,10 +446,7 @@ mod tests {
         let result = backend.get("never_inserted").await.unwrap();
         assert!(result.is_none());
         let log = log.lock().unwrap();
-        assert!(
-            log.get_calls.is_empty(),
-            "inner.get should not be called on BF miss"
-        );
+        assert!(log.get_calls.is_empty(), "inner.get should not be called on BF miss");
     }
 
     #[tokio::test]
@@ -731,10 +700,7 @@ mod tests {
                     .unwrap()
                     .set_calls
                     .push((key.to_string(), value.clone(), ttl));
-                self.data
-                    .lock()
-                    .unwrap()
-                    .insert(key.to_string(), (value, ttl));
+                self.data.lock().unwrap().insert(key.to_string(), (value, ttl));
                 Ok(())
             }
             fn delete(&self, key: &str) -> Result<()> {
@@ -781,10 +747,7 @@ mod tests {
             let result = SyncCacheReader::get(&backend, "never_inserted").unwrap();
             assert!(result.is_none());
             let log = log.lock().unwrap();
-            assert!(
-                log.get_calls.is_empty(),
-                "inner.get should not be called on BF miss"
-            );
+            assert!(log.get_calls.is_empty(), "inner.get should not be called on BF miss");
         }
 
         #[test]

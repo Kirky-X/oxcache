@@ -40,12 +40,7 @@ pub struct MokaEntry {
 pub struct MokaExpiry;
 
 impl Expiry<String, MokaEntry> for MokaExpiry {
-    fn expire_after_create(
-        &self,
-        _key: &String,
-        val: &MokaEntry,
-        created_at: Instant,
-    ) -> Option<Duration> {
+    fn expire_after_create(&self, _key: &String, val: &MokaEntry, created_at: Instant) -> Option<Duration> {
         val.expires_at.map(|e| e.saturating_duration_since(created_at))
     }
 
@@ -209,9 +204,7 @@ impl CacheConnector for MokaMemoryBackend {
 
 fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
     match tokio::runtime::Handle::try_current() {
-        Ok(handle)
-            if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread =>
-        {
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
             tokio::task::block_in_place(|| handle.block_on(fut))
         }
         _ => {
@@ -525,8 +518,16 @@ mod tests {
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some");
         // 58s < ttl <= 60s
-        assert!(ttl > Duration::from_secs(58), "ttl={} should be > 58s", ttl.as_secs_f64());
-        assert!(ttl <= Duration::from_secs(60), "ttl={} should be <= 60s", ttl.as_secs_f64());
+        assert!(
+            ttl > Duration::from_secs(58),
+            "ttl={} should be > 58s",
+            ttl.as_secs_f64()
+        );
+        assert!(
+            ttl <= Duration::from_secs(60),
+            "ttl={} should be <= 60s",
+            ttl.as_secs_f64()
+        );
     }
 
     #[tokio::test]
@@ -551,8 +552,16 @@ mod tests {
             .unwrap();
         let ok = backend.expire("k", Duration::from_secs(120)).await.unwrap();
         assert!(ok, "expire on existing key should return true");
-        let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some after expire");
-        assert!(ttl > Duration::from_secs(118), "ttl={} should be > 118s", ttl.as_secs_f64());
+        let ttl = backend
+            .ttl("k")
+            .await
+            .unwrap()
+            .expect("ttl should be Some after expire");
+        assert!(
+            ttl > Duration::from_secs(118),
+            "ttl={} should be > 118s",
+            ttl.as_secs_f64()
+        );
     }
 
     #[tokio::test]
@@ -592,10 +601,8 @@ mod tests {
     // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
     // ========================================================================
     mod sync_tests {
-        use crate::backend::interface::{
-            BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
-        };
         use super::MokaMemoryBackend;
+        use crate::backend::interface::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
         use std::time::Duration;
 
         #[test]
@@ -603,15 +610,10 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("key1", b"value1".to_vec(), None)
-                .unwrap();
+            writer.set("key1", b"value1".to_vec(), None).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            assert_eq!(
-                reader.get("key1").unwrap(),
-                Some(b"value1".to_vec())
-            );
+            assert_eq!(reader.get("key1").unwrap(), Some(b"value1".to_vec()));
             assert!(reader.exists("key1").unwrap());
             assert!(!reader.exists("key2").unwrap());
             assert!(reader.capacity().unwrap() > 0);
@@ -625,9 +627,7 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_millis(50))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             // 立即可读
@@ -651,15 +651,10 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            let ttl = reader
-                .ttl("k")
-                .unwrap()
-                .expect("ttl should be Some for TTL'd key");
+            let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
             assert!(
                 ttl > Duration::from_secs(58),
                 "ttl={} should be > 58s",
@@ -683,19 +678,14 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
             let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
             assert!(ok, "expire on existing key should return true");
 
             let reader: &dyn SyncCacheReader = &backend;
-            let new_ttl = reader
-                .ttl("k")
-                .unwrap()
-                .expect("ttl should be Some after expire");
+            let new_ttl = reader.ttl("k").unwrap().expect("ttl should be Some after expire");
             assert!(
                 new_ttl > Duration::from_secs(118),
                 "new_ttl={} should be > 118s",

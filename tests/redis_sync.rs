@@ -56,8 +56,7 @@ fn test_redis_sync_get_set_multi_thread_runtime() {
         let key = unique_key("sync_get_set");
 
         // sync set
-        SyncCacheWriter::set(&backend, &key, b"hello sync".to_vec(), None)
-            .expect("sync set failed");
+        SyncCacheWriter::set(&backend, &key, b"hello sync".to_vec(), None).expect("sync set failed");
 
         // sync get
         let val = SyncCacheReader::get(&backend, &key).expect("sync get failed");
@@ -138,28 +137,21 @@ fn test_redis_sync_expire() {
         let key = unique_key("sync_expire");
 
         // 先 set（无 TTL）
-        SyncCacheWriter::set(&backend, &key, b"v".to_vec(), None)
-            .expect("sync set failed");
+        SyncCacheWriter::set(&backend, &key, b"v".to_vec(), None).expect("sync set failed");
 
         // sync expire 返回 true（key 存在）
-        let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50))
-            .expect("sync expire failed");
+        let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50)).expect("sync expire failed");
         assert!(ok, "expire should return true for existing key");
 
         // sync ttl 返回剩余时间
         let ttl = SyncCacheReader::ttl(&backend, &key).expect("sync ttl failed");
         assert!(ttl.is_some(), "ttl should be Some after expire");
         let secs = ttl.unwrap().as_secs();
-        assert!(
-            secs > 40 && secs <= 50,
-            "ttl secs should be in (40, 50], got {}",
-            secs
-        );
+        assert!(secs > 40 && secs <= 50, "ttl secs should be in (40, 50], got {}", secs);
 
         // sync expire 对不存在的 key 返回 false
         let missing = unique_key("sync_expire_missing");
-        let ok = SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10))
-            .expect("sync expire call failed");
+        let ok = SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10)).expect("sync expire call failed");
         assert!(!ok, "expire should return false for missing key");
 
         // cleanup

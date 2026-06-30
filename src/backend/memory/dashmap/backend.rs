@@ -580,10 +580,8 @@ mod tests {
     // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
     // ========================================================================
     mod sync_tests {
-        use crate::backend::interface::{
-            BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
-        };
         use super::DashMapMemoryBackend;
+        use crate::backend::interface::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
         use std::time::Duration;
 
         #[test]
@@ -591,15 +589,10 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("key1", b"value1".to_vec(), None)
-                .unwrap();
+            writer.set("key1", b"value1".to_vec(), None).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            assert_eq!(
-                reader.get("key1").unwrap(),
-                Some(b"value1".to_vec())
-            );
+            assert_eq!(reader.get("key1").unwrap(), Some(b"value1".to_vec()));
             assert!(reader.exists("key1").unwrap());
             assert!(!reader.exists("key2").unwrap());
             assert!(reader.capacity().unwrap() > 0);
@@ -615,9 +608,7 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_millis(50))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             // 立即可读
@@ -634,19 +625,14 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
             let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
             assert!(ok, "expire on existing key should return true");
 
             let reader: &dyn SyncCacheReader = &backend;
-            let new_ttl = reader
-                .ttl("k")
-                .unwrap()
-                .expect("ttl should be Some after expire");
+            let new_ttl = reader.ttl("k").unwrap().expect("ttl should be Some after expire");
             assert!(
                 new_ttl > Duration::from_secs(118),
                 "new_ttl={} should be > 118s",
@@ -669,15 +655,10 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer
-                .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
-                .unwrap();
+            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            let ttl = reader
-                .ttl("k")
-                .unwrap()
-                .expect("ttl should be Some for TTL'd key");
+            let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
             assert!(
                 ttl > Duration::from_secs(58),
                 "ttl={} should be > 58s",

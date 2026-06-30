@@ -15,8 +15,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use oxcache::backend::{
-    BackendScore, CacheConnector, CacheReader, CacheWriter, DashMapMemoryBackend,
-    MokaMemoryBackend,
+    BackendScore, CacheConnector, CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend,
 };
 use tokio::sync::RwLock;
 
@@ -277,9 +276,21 @@ async fn test_all_backends_expire_returns_true_consistently() {
     assert!(mock_ok, "mock expire should return true for existing key");
 
     // 验证 expire 后 ttl 反映新的剩余时间（> 118s）
-    let moka_ttl = moka.ttl("k").await.unwrap().expect("moka ttl should be Some after expire");
-    let dashmap_ttl = dashmap.ttl("k").await.unwrap().expect("dashmap ttl should be Some after expire");
-    let mock_ttl = mock.ttl("k").await.unwrap().expect("mock ttl should be Some after expire");
+    let moka_ttl = moka
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("moka ttl should be Some after expire");
+    let dashmap_ttl = dashmap
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("dashmap ttl should be Some after expire");
+    let mock_ttl = mock
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("mock ttl should be Some after expire");
 
     let threshold = Duration::from_secs(118);
     for (name, d) in [("moka", moka_ttl), ("dashmap", dashmap_ttl), ("mock", mock_ttl)] {

@@ -330,9 +330,7 @@ impl ChainCache {
             .map(|link| link.try_as_sync_backend())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| {
-                CacheError::NotSupported(
-                    "chain sync API requires all links to support SyncCacheBackend".to_string(),
-                )
+                CacheError::NotSupported("chain sync API requires all links to support SyncCacheBackend".to_string())
             })
     }
 
@@ -376,9 +374,7 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() {
-            return Err(CacheError::Operation(
-                "All backends failed to write".to_string(),
-            ));
+            return Err(CacheError::Operation("All backends failed to write".to_string()));
         }
 
         Ok(())
@@ -1191,10 +1187,18 @@ mod tests {
         assert!(moka_expired, "moka link should expire after TTL");
 
         // DashMap 后端：lazy 过期，get 应返回 None
-        assert_eq!(dashmap_ref.get("k").await.unwrap(), None, "dashmap link should expire after TTL");
+        assert_eq!(
+            dashmap_ref.get("k").await.unwrap(),
+            None,
+            "dashmap link should expire after TTL"
+        );
 
         // 链式 get：所有链接都过期，应返回 None
-        assert_eq!(chain.get("k").await.unwrap(), None, "chain get should return None after all links expired");
+        assert_eq!(
+            chain.get("k").await.unwrap(),
+            None,
+            "chain get should return None after all links expired"
+        );
     }
 
     #[tokio::test]

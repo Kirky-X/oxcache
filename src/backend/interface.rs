@@ -679,10 +679,7 @@ mod tests {
     impl SyncCacheWriter for MockSyncBackend {
         fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
             let expires_at = ttl.map(|d| Instant::now() + d);
-            self.data
-                .write()
-                .unwrap()
-                .insert(key.to_string(), (value, expires_at));
+            self.data.write().unwrap().insert(key.to_string(), (value, expires_at));
             Ok(())
         }
 
@@ -726,9 +723,7 @@ mod tests {
         let backend_dyn: &dyn SyncCacheBackend = &backend;
 
         // 写入 + 读取
-        backend_dyn
-            .set("key1", b"value1".to_vec(), None)
-            .unwrap();
+        backend_dyn.set("key1", b"value1".to_vec(), None).unwrap();
         let value = backend_dyn.get("key1").unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -773,9 +768,7 @@ mod tests {
         assert_eq!(backend.len().unwrap(), 3);
 
         // delete_many 默认实现
-        writer
-            .delete_many(&["k1".to_string(), "k2".to_string()])
-            .unwrap();
+        writer.delete_many(&["k1".to_string(), "k2".to_string()]).unwrap();
         assert!(!backend.exists("k1").unwrap());
         assert!(!backend.exists("k2").unwrap());
         assert!(backend.exists("k3").unwrap());
@@ -799,9 +792,7 @@ mod tests {
     #[test]
     fn test_sync_backend_ttl_and_expire() {
         let backend = MockSyncBackend::new(50);
-        backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
-            .unwrap();
+        backend.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
 
         // ttl 返回剩余时间
         let ttl = backend.ttl("k").unwrap();
