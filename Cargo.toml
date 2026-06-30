@@ -1,6 +1,6 @@
 [package]
 name = "oxcache"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 # ============================================================================
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.2.0", optional = true }
+oxcache_macros = { path = "macros", version = "0.3.0", optional = true }
 
 # Async Runtime - 精简特性
 tokio = { version = "~1.52", default-features = false, features = [
@@ -136,6 +136,11 @@ optional = true
 [dependencies.arc-swap]
 version = "~1.9"
 
+# Bloom Filter (optional, for negative query filtering)
+[dependencies.bloomfilter]
+version = "3.0"
+optional = true
+
 [dependencies.regex]
 version = "~1.12"
 optional = true
@@ -166,7 +171,7 @@ serial_test = "3.5"
 rand = "0.10"
 criterion = { version = "~0.8", features = ["async_tokio"] }
 ctor = "1.0"
-mockall = "0.14.0"
+trybuild = "1.0"
 
 # ============================================================================
 # TEST DEPENDENCIES
@@ -260,6 +265,9 @@ cli = ["dep:clap", "dep:dashmap", "dep:tracing", "metrics"]
 
 # Testing support (exposes internal functions)
 testing = []
+
+# Bloom Filter decorator (negative query filtering)
+bloom-filter = ["dep:bloomfilter"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================

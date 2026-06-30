@@ -150,7 +150,7 @@ async fn test_moka_close_shutdown_empties() {
 }
 
 #[tokio::test]
-async fn test_moka_ttl_returns_none() {
+async fn test_moka_ttl_returns_remaining_after_set_with_ttl() {
     let backend = MokaMemoryBackend::new();
 
     backend
@@ -159,7 +159,14 @@ async fn test_moka_ttl_returns_none() {
         .unwrap();
 
     let ttl = backend.ttl("key1").await.unwrap();
-    assert!(ttl.is_none());
+    // BREAKING 0.3.0: per-entry TTL 现在真实生效，ttl(key) 返回剩余时间
+    assert!(ttl.is_some(), "ttl should be Some after set with TTL");
+    let ttl = ttl.unwrap();
+    assert!(
+        ttl <= Duration::from_secs(60) && ttl > Duration::from_secs(58),
+        "ttl should be within (58s, 60s], got {:?}",
+        ttl
+    );
 }
 
 #[tokio::test]
@@ -170,13 +177,14 @@ async fn test_moka_ttl_nonexistent_returns_none() {
 }
 
 #[tokio::test]
-async fn test_moka_expire_returns_false() {
+async fn test_moka_expire_returns_true_for_existing_key() {
     let backend = MokaMemoryBackend::new();
 
     backend.set("key1", b"value1".to_vec(), None).await.unwrap();
 
     let result = backend.expire("key1", Duration::from_secs(30)).await.unwrap();
-    assert!(!result);
+    // BREAKING 0.3.0: expire 对存在 key 真实更新过期时间并返回 true
+    assert!(result, "expire should return true for existing key");
 }
 
 #[tokio::test]

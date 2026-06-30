@@ -18,36 +18,51 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut ttl = quote! { None };
     let mut key_pattern = None;
     let mut key_prefix = None;
+    let mut sync_mode = false;
 
     for arg in args {
-        if let Meta::NameValue(nv) = arg {
-            if nv.path.is_ident("service") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Str(lit) = expr_lit.lit {
-                        service_name = lit.value();
+        match arg {
+            // `sync` flag — boolean path-style argument (no value).
+            Meta::Path(path) if path.is_ident("sync") => {
+                sync_mode = true;
+            }
+            Meta::NameValue(nv) => {
+                if nv.path.is_ident("service") {
+                    if let Expr::Lit(expr_lit) = nv.value {
+                        if let Lit::Str(lit) = expr_lit.lit {
+                            service_name = lit.value();
+                        }
                     }
-                }
-            } else if nv.path.is_ident("ttl") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Int(lit) = expr_lit.lit {
-                        let val = lit.base10_parse::<u64>().unwrap();
-                        ttl = quote! { Some(#val) };
+                } else if nv.path.is_ident("ttl") {
+                    if let Expr::Lit(expr_lit) = nv.value {
+                        if let Lit::Int(lit) = expr_lit.lit {
+                            let val = lit.base10_parse::<u64>().unwrap();
+                            ttl = quote! { Some(#val) };
+                        }
                     }
-                }
-            } else if nv.path.is_ident("key") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Str(lit) = expr_lit.lit {
-                        key_pattern = Some(lit.value());
+                } else if nv.path.is_ident("key") {
+                    if let Expr::Lit(expr_lit) = nv.value {
+                        if let Lit::Str(lit) = expr_lit.lit {
+                            key_pattern = Some(lit.value());
+                        }
                     }
-                }
-            } else if nv.path.is_ident("key_prefix") {
-                if let Expr::Lit(expr_lit) = nv.value {
-                    if let Lit::Str(lit) = expr_lit.lit {
-                        key_prefix = Some(lit.value());
+                } else if nv.path.is_ident("key_prefix") {
+                    if let Expr::Lit(expr_lit) = nv.value {
+                        if let Lit::Str(lit) = expr_lit.lit {
+                            key_prefix = Some(lit.value());
+                        }
                     }
                 }
             }
+            _ => {}
         }
+    }
+
+    // Validate: `sync` cannot be combined with `async fn`. The sync branch
+    // generates a plain `fn`, which is incompatible with `async` in the
+    // user's signature. Fail loud at macro expansion time.
+    if sync_mode && input.sig.asyncness.is_some() {
+        panic!("`#[cached(sync)]` cannot be used with `async fn`; either remove `async` from the function signature or remove `sync` from the `#[cached]` arguments");
     }
 
     let fn_name = &input.sig.ident;
@@ -133,35 +148,72 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let output = quote! {
-        #vis async fn #fn_name(#fn_args) #fn_output {
-            let cache_key = #key_gen_with_cloned_args;
+    let output = if sync_mode {
+        // Sync branch: generate a plain `fn` (no `async`). Uses
+        // `get_bytes_sync` / `set_bytes_sync` which require the registered
+        // cache to have been built with `sync_mode(true)`.
+        quote! {
+            #vis fn #fn_name(#fn_args) #fn_output {
+                let cache_key = #key_gen_with_cloned_args;
 
-            // Try to get cache instance, if fails, run original function
-            let cache = match ::oxcache::__internal_get_cache(#service_name) {
-                Some(c) => c,
-                None => return async { #fn_block }.await,
-            };
+                // Try to get cache instance, if fails, run original function
+                let cache = match ::oxcache::__internal_get_cache(#service_name) {
+                    Some(c) => c,
+                    None => return { #fn_block },
+                };
 
-            // Try get from cache using byte-level operations
-            if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
-                // Deserialize and return cached value using unified serializer
-                if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
-                    return ::std::result::Result::Ok(val);
+                // Try get from cache using sync byte-level operations
+                if let Ok(Some(bytes)) = cache.get_bytes_sync(&cache_key) {
+                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                        return ::std::result::Result::Ok(val);
+                    }
                 }
-            }
 
-            // Run original function
-            let result = async { #fn_block }.await;
+                // Run original function
+                let result = { #fn_block };
 
-            // Cache result if Ok
-            if let Ok(ref val) = result {
-                if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                    let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                // Cache result if Ok
+                if let Ok(ref val) = result {
+                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                        let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
+                    }
                 }
-            }
 
-            result
+                result
+            }
+        }
+    } else {
+        // Async branch (default, original behavior)
+        quote! {
+            #vis async fn #fn_name(#fn_args) #fn_output {
+                let cache_key = #key_gen_with_cloned_args;
+
+                // Try to get cache instance, if fails, run original function
+                let cache = match ::oxcache::__internal_get_cache(#service_name) {
+                    Some(c) => c,
+                    None => return async { #fn_block }.await,
+                };
+
+                // Try get from cache using byte-level operations
+                if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
+                    // Deserialize and return cached value using unified serializer
+                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                        return ::std::result::Result::Ok(val);
+                    }
+                }
+
+                // Run original function
+                let result = async { #fn_block }.await;
+
+                // Cache result if Ok
+                if let Ok(ref val) = result {
+                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                        let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                    }
+                }
+
+                result
+            }
         }
     };
 
