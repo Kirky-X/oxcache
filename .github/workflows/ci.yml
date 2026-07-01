@@ -112,16 +112,16 @@ jobs:
       fail-fast: false
       matrix:
         features:
-          - "moka,macros"
-          - "redis,macros"
-          - "moka,redis,batch-write"
-          - "moka,redis,metrics"
-          - "moka,redis,bloom-filter"
-          - "moka,redis,database"
-          - "core,full-metrics"
-          - "core,confers"
-          - "core,smart-strategy"
-          - "core,http-cache"
+          - "minimal,macros"
+          - "minimal,bloom-filter"
+          - "minimal,compression"
+          - "core,macros"
+          - "core,bloom-filter"
+          - "core,compression"
+          - "core,batch-write"
+          - "core,lua-script"
+          - "core,cli"
+          - "core,bloom-filter,macros"
     steps:
       - uses: actions/checkout@v4
 
@@ -250,32 +250,25 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
+      - uses: swatinem/rust-cache@v2
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-coverage-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Cache cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-coverage-${{ hashFiles('**/Cargo.lock') }}
+      - name: Generate coverage (fail under 95% lines)
+        run: cargo llvm-cov --features full --workspace --fail-under-lines 95 --lcov --output-path lcov.info
 
-      - name: Generate coverage
-        run: cargo tarpaulin --verbose --features full --workspace --timeout 120 --out xml
-
-      - name: Upload to codecov.io
+      - name: Upload to Codecov
+        if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
+          files: ./lcov.info
+          fail_ci_if_error: false

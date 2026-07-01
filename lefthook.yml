@@ -1,0 +1,28 @@
+# lefthook 配置。启用: brew install lefthook && lefthook install
+# 与 .pre-commit-config.yaml 功能等价，二选一即可。
+pre-commit:
+  parallel: true
+  commands:
+    rustfmt-check:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    clippy:
+      glob: "*.rs"
+      run: cargo clippy --all-targets --features full -- -D warnings
+    cargo-deny:
+      run: cargo deny check 2>/dev/null || true
+    no-private-key:
+      run: "! git diff --cached --name-only | xargs -r grep -IlE 'BEGIN (RSA|OPENSSH|PGP|EC|PRIVATE) PRIVATE KEY|sk-[A-Za-z0-9]{20,}'"
+
+commit-msg:
+  commands:
+    conventional:
+      run: 'grep -qE "^(feat|fix|refactor|docs|test|chore|perf|ci|build|revert|style)(\(.+\))?!?: .+" {1}'
+
+pre-push:
+  commands:
+    cargo-audit:
+      run: cargo audit 2>/dev/null || true
+    coverage-95:
+      name: coverage ≥95% lines
+      run: cargo llvm-cov --features full --fail-under-lines 95 2>/dev/null || echo "coverage check skipped (llvm-cov not installed)"

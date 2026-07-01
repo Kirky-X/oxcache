@@ -1,0 +1,14 @@
+# CODEOWNERS — 默认审阅者。GitHub 据此在 PR 自动请求 review。
+# 详见: https://docs.github.com/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# 默认：仓库内所有文件
+*                           @kirky-x
+
+# 按目录细分
+/src/core/                 @kirky-x
+/src/backend/              @kirky-x
+/src/cache/                @kirky-x
+/src/security/             @kirky-x
+/.github/                  @kirky-x
+/Cargo.toml                @kirky-x
+/macros/                   @kirky-x
