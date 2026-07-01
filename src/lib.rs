@@ -220,7 +220,9 @@ pub mod macros {
     pub use oxcache_macros::*;
 }
 
-pub use error::{CacheConfigError, CacheError, ConfigResult, Result};
+pub use error::{CacheError, Result};
+#[cfg(feature = "redis")]
+pub use error::{CacheConfigError, ConfigResult};
 
 // Re-export internal functions needed by #[cached] macro at crate root
 // The macro generates code calling ::oxcache::__internal_get_cache()

@@ -48,6 +48,7 @@ pub enum CacheConfigError {
 }
 
 /// Result type for configuration operations
+#[cfg(feature = "redis")]
 pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
 
 /// 缓存系统错误类型枚举

@@ -27,7 +27,7 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: [--exclude-files, tests/, --exclude-files, docs/, --exclude-files, src/utils/redaction.rs, --exclude-files, src/utils/security_log.rs, --exclude-files, src/database/connection_string.rs]
+        args: [--exclude-files, tests/, --exclude-files, docs/, --exclude-files, src/security/redaction.rs, --exclude-files, src/security/log.rs]
         exclude: '^Cargo\.lock$'
 
   # 3. Rust formatting and checks
