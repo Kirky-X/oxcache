@@ -1,0 +1,23 @@
+# EditorConfig — 跨编辑器/IDE 的基础格式约定。https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Rust 缩进 4 空格（与 rustfmt.toml 对齐）
+[*.{rs}]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false   # Markdown 行尾两空格 = 换行
+
+[*.{toml,yml,yaml}]
+indent_size = 2

@@ -1,0 +1,20 @@
+# Dependabot 依赖更新（GitHub 原生）。
+version: 2
+updates:
+  # 1) GitHub Actions 版本
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, github-actions]
+
+  # 2) Rust cargo 依赖
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, rust]

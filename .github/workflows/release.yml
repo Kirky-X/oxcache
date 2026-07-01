@@ -7,14 +7,35 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    name: Release
+  verify:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify build (full features)
+        run: cargo build --release --features full --workspace
+
+      - name: Verify tests pass
+        run: cargo test --features full --workspace --no-fail-fast
+
+      - name: Verify package
+        run: cargo package --no-verify --features full
+
+  github-release:
+    name: GitHub Release
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,41 +56,31 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          # 获取上一个 tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-
-          echo "## What's Changed" > changelog.md
-          echo "" >> changelog.md
-
-          if [ -n "$PREV_TAG" ]; then
-            echo "Changes since $PREV_TAG:" >> changelog.md
-            git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" >> changelog.md
-          else
-            echo "Full changelog:" >> changelog.md
-            git log --pretty=format:"- %s (%h)" >> changelog.md
-          fi
-
-          echo "" >> changelog.md
-          echo "" >> changelog.md
-          echo "## Assets" >> changelog.md
-          echo "" >> changelog.md
-
+          {
+            echo "## What's Changed"
+            echo ""
+            if [ -n "$PREV_TAG" ]; then
+              echo "Changes since $PREV_TAG:"
+              git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)"
+            else
+              echo "Full changelog:"
+              git log --pretty=format:"- %s (%h)"
+            fi
+            echo ""
+            echo ""
+            echo "## Assets"
+            echo ""
+            echo "- oxcache-${{ steps.version.outputs.version }}.crate (crates.io source package)"
+          } > changelog.md
           cat changelog.md
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
+      - name: Package crate
+        run: cargo package --no-verify --features full
 
-      - name: Build x86_64-unknown-linux-gnu
+      - name: Rename crate package
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu --workspace
-          mv target/x86_64-unknown-linux-gnu/release/oxcache oxcache-x86_64-linux
-
-      - name: Build aarch64-unknown-linux-gnu
-        run: |
-          cargo build --release --target aarch64-unknown-linux-gnu --workspace
-          mv target/aarch64-unknown-linux-gnu/release/oxcache oxcache-aarch64-linux
+          cp target/package/oxcache-*.crate oxcache-${{ steps.version.outputs.version }}.crate
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -78,17 +89,30 @@ jobs:
           name: Release ${{ steps.version.outputs.tag_name }}
           body_path: changelog.md
           files: |
-            oxcache-x86_64-linux
-            oxcache-aarch64-linux
+            oxcache-${{ steps.version.outputs.version }}.crate
           draft: false
           prerelease: false
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish to crates.io
-        run: |
-          echo "Publishing to crates.io..."
-          cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --workspace
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  # Conditional publish: only runs when CARGO_REGISTRY_TOKEN is configured.
+  publish-crates:
+    name: Publish to crates.io (conditional)
+    needs: github-release
+    runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    if: ${{ env.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish oxcache_macros
+        run: cargo publish --token ${CARGO_REGISTRY_TOKEN} --manifest-path macros/Cargo.toml
+
+      - name: Publish oxcache
+        run: cargo publish --token ${CARGO_REGISTRY_TOKEN} --features full
