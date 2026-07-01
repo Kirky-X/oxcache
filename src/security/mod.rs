@@ -20,37 +20,52 @@
 #![allow(unused_doc_comments)]
 
 // Submodules
+#[cfg(feature = "redis")]
 pub mod log;
+#[cfg(feature = "redis")]
 pub mod redaction;
+#[cfg(feature = "redis")]
 pub mod regex;
+#[cfg(feature = "redis")]
 pub mod validation;
 
 // Re-exports for convenience (used by external tests via lib.rs re-exports)
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use log::{log_cache_key, sanitize_message};
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
 
+#[cfg(feature = "redis")]
 use crate::error::{CacheError, Result};
 
 /// Lua 脚本最大长度 (10KB)
+#[cfg(feature = "redis")]
 const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
 
 /// Lua 脚本最大键数量
+#[cfg(feature = "redis")]
 const MAX_LUA_SCRIPT_KEYS: usize = 100;
 
 /// SCAN 模式最大长度
+#[cfg(feature = "redis")]
 const MAX_SCAN_PATTERN_LENGTH: usize = 256;
 
 /// SCAN 模式最大通配符数量
+#[cfg(feature = "redis")]
 const MAX_SCAN_WILDCARDS: usize = 10;
 
 /// SCAN count 参数安全范围
+#[cfg(feature = "redis")]
 const SCAN_COUNT_MIN: usize = 1;
+#[cfg(feature = "redis")]
 const SCAN_COUNT_MAX: usize = 1000;
 
 // ============================================================================
@@ -58,6 +73,7 @@ const SCAN_COUNT_MAX: usize = 1000;
 // ============================================================================
 
 /// Lua 无限循环检测正则模式
+#[cfg(feature = "redis")]
 static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
     (r"WHILE\s+TRUE", "WHILE TRUE 循环"),
     (r"WHILE\s+1", "WHILE 1 循环"),
@@ -66,6 +82,7 @@ static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
 ];
 
 /// 预编译的 Lua 循环检测正则
+#[cfg(feature = "redis")]
 lazy_static::lazy_static! {
     static ref LUA_LOOP_REGEXES: Vec<::regex::Regex> = {
         LUA_LOOP_PATTERNS
@@ -76,6 +93,7 @@ lazy_static::lazy_static! {
 }
 
 /// 空白字符替换正则
+#[cfg(feature = "redis")]
 lazy_static::lazy_static! {
     static ref WHITESPACE_REGEX: ::regex::Regex = ::regex::Regex::new(r"\s+").expect("Invalid whitespace regex");
 }
@@ -98,6 +116,7 @@ lazy_static::lazy_static! {
 ///
 /// * `Ok(())` - 键是安全的
 /// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
+#[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> Result<()> {
     // 基础验证：使用共享验证工具
@@ -202,6 +221,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
 ///
 /// * `Ok(())` - 脚本验证通过
 /// * `Err(CacheError::InvalidInput)` - 脚本验证失败
+#[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查脚本长度
@@ -301,6 +321,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
 /// 预处理 Lua 脚本，移除注释和字符串内容
 ///
 /// 这可以防止通过注释、字符串拼接等方式绕过检查
+#[cfg(feature = "redis")]
 fn preprocess_lua_script(script: &str) -> String {
     let mut result = String::with_capacity(script.len());
 
@@ -395,6 +416,7 @@ fn preprocess_lua_script(script: &str) -> String {
 /// 计算 Lua 长字符串的级别（= 的数量）
 /// 返回级别数，0 表示不是长字符串
 /// chars 指针应该在 [ 之后的位置
+#[cfg(feature = "redis")]
 fn count_lua_long_string_level(chars: &mut std::iter::Peekable<std::str::Chars>, start_level: usize) -> usize {
     let mut level = start_level;
     while let Some(&c) = chars.peek() {
@@ -413,6 +435,7 @@ fn count_lua_long_string_level(chars: &mut std::iter::Peekable<std::str::Chars>,
 
 /// 跳过 Lua 长字符串内容
 /// level 是长字符串的级别（= 的数量 + 1）
+#[cfg(feature = "redis")]
 fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level: usize) {
     let closing: String = format!("]{}{}]", "=".repeat(level - 1), "=".repeat(level - 1));
     let closing_chars: Vec<char> = closing.chars().collect();
@@ -470,6 +493,7 @@ fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level:
 /// # 安全地验证 SCAN 模式
 ///
 /// 防止恶意模式导致 Redis 性能问题。
+#[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_scan_pattern(pattern: &str) -> Result<()> {
     // 检查模式长度
@@ -504,12 +528,13 @@ pub fn validate_scan_pattern(pattern: &str) -> Result<()> {
 ///
 /// 返回限制在安全范围内的 count 值（1-1000）
 /// 将 SCAN count 参数限制在安全范围内
+#[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn clamp_scan_count(count: usize) -> usize {
     count.clamp(SCAN_COUNT_MIN, SCAN_COUNT_MAX)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "redis"))]
 mod tests {
     use super::*;
 
@@ -1261,7 +1286,7 @@ mod tests {
 
 // 测试辅助模块 - 为集成测试提供访问
 // 注意：这些函数仅供测试使用，生产代码应使用公共 API
-#[cfg(any(test, feature = "testing"))]
+#[cfg(all(any(test, feature = "testing"), feature = "redis"))]
 #[allow(unused_imports)]
 pub mod test_helpers {
     pub use super::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
