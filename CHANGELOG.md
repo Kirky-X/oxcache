@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-02
+
+### Fixed
+- `minimal` feature build failure: `security/mod.rs` unconditionally compiled `pub mod regex;` and `lazy_static!` blocks using `::regex::Regex`, but `regex` crate is only available with `redis` feature. All security submodules and functions are now gated behind `#[cfg(feature = "redis")]`.
+- `ConfigResult` type alias in `error.rs` referenced `CacheConfigError` (which was already `#[cfg(feature = "redis")]` gated) without itself being gated. Now properly gated behind `#[cfg(feature = "redis")]`.
+- `lib.rs` re-exported `CacheConfigError` and `ConfigResult` unconditionally. Now split: `pub use error::{CacheError, Result};` (always) + `pub use error::{CacheConfigError, ConfigResult};` (redis only).
+- 69 Redis unit tests in `src/backend/memory/redis/client.rs` panicked without a live Redis server. All 69 tests now marked `#[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]` for CI isolation.
+- README builder API examples referenced 6 non-existent methods (`.redis()`, `.redis_with_mode()`, `.tiered()`, `.with_backend()`, `.batch_writes()`, `.auto_promote()`). Replaced with real API: `.backend_arc()`, `.tti()`, `.sync_mode()` + notes on `RedisBackend::new()` and `ChainCache::builder()`.
+- README inter-language links pointed to `../README.md` instead of `README.md` (both files in same directory).
+- README security import path `use oxcache::security::{...}` → `use oxcache::{...}` (functions are re-exported at crate root).
+- `lib.rs` Features list said `moka` instead of `memory`; `serialization` description listed "JSON/Bincode/MessagePack/CBOR" but only JSON is supported. Rewritten to match `Cargo.toml` exactly (tiered + core component features).
+- `lib.rs` `compile_error!` message in `check_feature_dependence!` macro referenced `version = "0.1"` instead of `version = "0.3.2"`.
+- `error.rs:63` doc comment typo: "络连接问题" → "网络连接问题" (missing "网" character).
+- `html_root_url` updated from 0.3.1 → 0.3.2.
+
+### Removed
+- Phantom `init_config` macro documentation in `lib.rs` (lines 125-145): no implementation, no `pub use`, no `macro_export` — was misleading dead documentation.
+
+### Added
+- `docs/SECURITY.md`: comprehensive security documentation covering Redis TLS enforcement, key validation, Lua script sandbox, SCAN pattern restrictions, connection string redaction, logging security, threat model, and vulnerability reporting process.
+- `.editorconfig`, `.github/CODEOWNERS`, `.github/ISSUE_TEMPLATE/` (bug/feature/question), `.github/PULL_REQUEST_TEMPLATE.md`, `.github/dependabot.yml`, `.github/workflows/codeql.yml`, `clippy.toml`, `lefthook.yml`: industrial-grade project harness from env-init.
+
+### Changed
+- Version bumped 0.3.1 → 0.3.2 in `Cargo.toml`, `macros/Cargo.toml`, and `oxcache_macros` dependency.
+- README section headers: removed `(0.3.0)` version annotations from "Sync API", "Bloom Filter", and "TTL Behavior Reference" sections.
+
+### Known Issues
+- `docs/API_REFERENCE.md` is stale (documents 0.2.x API). Will be rewritten in 0.4.0.
+
 ## [0.3.1] - 2026-06-30
 
 ### Added
