@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! Feature flags and conditional compilation utilities for oxcache.
 //!
 //! This module provides a centralized way to check which features are enabled
