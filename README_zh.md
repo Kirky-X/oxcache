@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-[English](../README.md) | 简体中文
+[English](README.md) | 简体中文
 
 高性能、生产级的 Rust 双层缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
 
@@ -130,9 +130,10 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 Builder 模式初始化缓存
+    // 使用 Builder 模式初始化缓存（默认：Moka L1 内存后端）
     let cache: Cache<String, User> = Cache::builder()
-        .redis("redis://127.0.0.1:6379")
+        .capacity(10000)
+        .ttl(std::time::Duration::from_secs(600))
         .build()
         .await?;
 
@@ -296,14 +297,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 |--------|------|
 | `Cache::builder()` | 创建新的缓存构建器 |
 | `.ttl(Duration)` | 设置缓存条目的默认 TTL |
+| `.tti(Duration)` | 设置缓存条目的默认 TTI（time-to-idle） |
 | `.capacity(u64)` | 设置内存缓存容量 |
-| `.redis(url)` | 配置 Redis 后端 |
-| `.redis_with_mode(url, mode)` | 配置 Redis（支持 Standalone/Sentinel/Cluster 模式）|
-| `.tiered(l1_capacity, url)` | 配置分层缓存（L1 + L2）|
-| `.with_backend(backend)` | 使用自定义后端 |
-| `.batch_writes(bool)` | 启用/禁用批量写入 |
-| `.auto_promote(bool)` | 启用/禁用从 L2 到 L1 的自动提升 |
-| `.build()` | 构建 `Cache<K, V>` 实例 |
+| `.backend_arc(Arc<dyn CacheBackend>)` | 添加预构建后端（如 `RedisBackend`、`MokaMemoryBackend`） |
+| `.sync_mode(bool)` | 启用同步 API 支持（`get_sync`/`set_sync`/...） |
+| `.build()` | 构建 `Cache<K, V>` 实例（异步） |
+
+> **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
+> 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
 
 #### 类型安全 API 的优势
 
@@ -358,9 +359,9 @@ struct MyData {
 }
 
 async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 Builder 模式初始化缓存
+    // 使用 Builder 模式初始化缓存（默认：Moka L1 内存后端）
     let cache: Cache<String, MyData> = Cache::builder()
-        .redis("redis://127.0.0.1:6379")
+        .capacity(10000)
         .build()
         .await?;
 
@@ -593,7 +594,7 @@ Oxcache 实现了多项安全措施以防范常见攻击：
 对于高级用例，您可以直接使用安全验证函数：
 
 ```rust
-use oxcache::security::{validate_redis_key, validate_lua_script, validate_scan_pattern};
+use oxcache::{validate_redis_key, validate_lua_script, validate_scan_pattern};
 
 // 验证 Redis 键
 validate_redis_key("user:123").expect("无效的键");

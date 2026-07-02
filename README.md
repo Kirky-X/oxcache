@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-[English](../README.md) | [简体中文](README_zh.md)
+[English](README.md) | [简体中文](README_zh.md)
 
 Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory
 cache) + L2 (Redis distributed cache) architecture.
@@ -248,14 +248,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 |--------|-------------|
 | `Cache::builder()` | Create a new cache builder |
 | `.ttl(Duration)` | Set default TTL for cache entries |
+| `.tti(Duration)` | Set default TTI (time-to-idle) for cache entries |
 | `.capacity(u64)` | Set memory cache capacity |
-| `.redis(url)` | Configure Redis backend |
-| `.redis_with_mode(url, mode)` | Configure Redis with mode (Standalone/Sentinel/Cluster) |
-| `.tiered(l1_capacity, url)` | Configure tiered cache (L1 + L2) |
-| `.with_backend(backend)` | Use custom backend |
-| `.batch_writes(bool)` | Enable/disable batch writes |
-| `.auto_promote(bool)` | Enable/disable auto-promote from L2 to L1 |
-| `.build()` | Build `Cache<K, V>` instance |
+| `.backend_arc(Arc<dyn CacheBackend>)` | Add a pre-built backend (e.g., `RedisBackend`, `MokaMemoryBackend`) |
+| `.sync_mode(bool)` | Enable sync API support (`get_sync`/`set_sync`/...) |
+| `.build()` | Build `Cache<K, V>` instance (async) |
+
+> **Note:** For Redis backend, use `RedisBackend::new(url).await?` then pass via `.backend_arc(Arc::new(backend))`.
+> For tiered (L1+L2) cache, use `ChainCache::builder().link(...).build()`.
 
 #### Benefits of Type-Safe API
 
@@ -293,9 +293,10 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern
+    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
     let cache: Cache<String, User> = Cache::builder()
-        .redis("redis://127.0.0.1:6379")
+        .capacity(10000)
+        .ttl(std::time::Duration::from_secs(600))
         .build()
         .await?;
 
@@ -327,9 +328,9 @@ struct MyData {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern
+    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
     let cache: Cache<String, MyData> = Cache::builder()
-        .redis("redis://127.0.0.1:6379")
+        .capacity(10000)
         .build()
         .await?;
 
@@ -440,7 +441,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 }
 ```
 
-## 🌸 Bloom Filter (0.3.0)
+## 🌸 Bloom Filter
 
 The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
 
@@ -485,7 +486,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `clear` clears both; TTL passes through unchanged
 - Also implements `SyncCacheBackend` when inner backend does
 
-## ⏱️ TTL Behavior Reference (0.3.0)
+## ⏱️ TTL Behavior Reference
 
 All backends honor per-entry TTL since 0.3.0. Behavior summary:
 
@@ -595,7 +596,7 @@ All user inputs are validated before being passed to Redis:
 For advanced use cases, you can directly use the security validation functions:
 
 ```rust
-use oxcache::security::{validate_redis_key, validate_lua_script, validate_scan_pattern};
+use oxcache::{validate_redis_key, validate_lua_script, validate_scan_pattern};
 
 // Validate Redis keys
 validate_redis_key("user:123").expect("Invalid key");
