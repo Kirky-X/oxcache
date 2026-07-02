@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! Bloom Filter module for negative query filtering.
 //!
 //! Provides [`BloomFilter`] — a capacity/fpr-configurable Bloom filter backed

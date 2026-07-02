@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+
 // tests/cache_ttl_expire_test.rs
 //
 // 验证 Cache<K,V> 暴露的 ttl() / expire() 方法（async + sync）。

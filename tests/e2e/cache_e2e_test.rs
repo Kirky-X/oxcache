@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! E2E tests for oxcache Cache operations
 //!
 //! Tests cover: set, get, delete, expiration scenarios

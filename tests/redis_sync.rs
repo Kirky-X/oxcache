@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+
 // tests/redis_sync.rs
 //
 // SyncCacheBackend 集成测试 for RedisBackend (任务组 8)
