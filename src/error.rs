@@ -60,7 +60,7 @@ pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
 ///
 /// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
 /// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
-/// - **连接错误** ([`CacheError::ConnectionError`]): �络连接问题
+/// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
 /// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
 /// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
 /// - **未找到错误** ([`CacheError::NotFound`]): 请求的键不存在
