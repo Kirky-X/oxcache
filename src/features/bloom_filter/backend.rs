@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! [`BloomFilterBackend`] — a `CacheBackend` decorator that wraps an inner
 //! backend with a [`BloomFilter`] for negative query filtering.
 //!

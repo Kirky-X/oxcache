@@ -1,3 +1,7 @@
+//! Copyright (c) 2025-2026, Kirky.X
+//!
+//! MIT License
+//!
 //! Example: Explicit cache initialization
 //!
 //! This example demonstrates the Brick Architecture pattern where

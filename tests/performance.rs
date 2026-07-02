@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+
 #[path = "common/mod.rs"]
 pub mod common;
 

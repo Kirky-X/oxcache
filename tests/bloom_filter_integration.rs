@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+
 // tests/bloom_filter_integration.rs
 //
 // BloomFilter + BloomFilterBackend 端到端集成测试

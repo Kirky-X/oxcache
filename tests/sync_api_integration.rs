@@ -1,3 +1,7 @@
+// Copyright (c) 2025-2026, Kirky.X
+//
+// MIT License
+
 // tests/sync_api_integration.rs
 //
 // Sync API 端到端集成测试 (spec: sync-cache-api)
