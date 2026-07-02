@@ -8,5 +8,5 @@ verbose = false
 git-fetch-with-cli = true
 
 [env]
-REDIS_URL = "redis://localhost:6380"
+REDIS_URL = "redis://127.0.0.1:6379"
 OXCACHE_ALLOW_INSECURE_REDIS = "I_UNDERSTAND_THE_RISKS"
