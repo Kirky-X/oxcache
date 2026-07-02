@@ -899,6 +899,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     #[serial]
     async fn test_builder_insecure_allowed_with_env() {
         std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
@@ -907,6 +908,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     #[serial]
     async fn test_builder_insecure_allowed_with_dev_value() {
         // "development-only" 也应被接受
@@ -918,6 +920,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     #[serial]
     async fn test_builder_with_mode() {
         std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
@@ -931,6 +934,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_builder_default_mode_is_standalone() {
         let backend = make_backend().await;
         assert_eq!(backend.mode(), RedisModeType::Standalone);
@@ -941,12 +945,14 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_new_connects_to_redis() {
         let backend = make_backend().await;
         backend.health_check().await.expect("health check failed");
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_with_pool_connects_to_redis() {
         std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
         let backend = RedisBackend::with_pool(REDIS_URL, 4).await;
@@ -983,6 +989,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_ping_returns_pong() {
         let backend = make_backend().await;
         let result = backend.ping().await.expect("ping failed");
@@ -990,6 +997,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_health_check_ok() {
         let backend = make_backend().await;
         backend.health_check().await.expect("health check failed");
@@ -1000,6 +1008,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_nonexistent_returns_none() {
         let backend = make_backend().await;
         let key = unique_key("no_such_key");
@@ -1008,6 +1017,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_then_get() {
         let backend = make_backend().await;
         let key = unique_key("set_get");
@@ -1021,6 +1031,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_empty_value() {
         let backend = make_backend().await;
         let key = unique_key("empty_val");
@@ -1031,6 +1042,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_binary_value() {
         let backend = make_backend().await;
         let key = unique_key("binary");
@@ -1042,6 +1054,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_exists_true_after_set() {
         let backend = make_backend().await;
         let key = unique_key("exists_yes");
@@ -1051,6 +1064,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_exists_false_for_missing() {
         let backend = make_backend().await;
         let key = unique_key("exists_no");
@@ -1058,6 +1072,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_ttl_returns_none_for_key_without_expiry() {
         let backend = make_backend().await;
         let key = unique_key("no_ttl");
@@ -1068,6 +1083,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_ttl_returns_none_for_missing_key() {
         let backend = make_backend().await;
         let key = unique_key("missing_ttl");
@@ -1076,6 +1092,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_ttl_returns_some_after_set_with_ttl() {
         let backend = make_backend().await;
         let key = unique_key("with_ttl");
@@ -1096,6 +1113,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_removes_key() {
         let backend = make_backend().await;
         let key = unique_key("del");
@@ -1106,6 +1124,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_nonexistent_is_ok() {
         let backend = make_backend().await;
         let key = unique_key("del_missing");
@@ -1114,6 +1133,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_expire_sets_ttl_on_existing_key() {
         let backend = make_backend().await;
         let key = unique_key("expire_ok");
@@ -1131,6 +1151,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_expire_returns_false_for_missing_key() {
         let backend = make_backend().await;
         let key = unique_key("expire_missing");
@@ -1142,6 +1163,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_with_ttl_expires() {
         let backend = make_backend().await;
         let key = unique_key("short_ttl");
@@ -1160,6 +1182,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_and_get_many() {
         let backend = make_backend().await;
         let k1 = unique_key("m1");
@@ -1186,12 +1209,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_empty_is_ok() {
         let backend = make_backend().await;
         backend.set_many(&[]).await.expect("set_many empty should be ok");
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_many_empty_returns_empty() {
         let backend = make_backend().await;
         let result = backend.get_many(&[]).await.expect("get_many empty failed");
@@ -1199,12 +1224,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_many_empty_is_ok() {
         let backend = make_backend().await;
         backend.delete_many(&[]).await.expect("delete_many empty should be ok");
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_many_with_missing_keys() {
         let backend = make_backend().await;
         let k1 = unique_key("gm_present");
@@ -1219,6 +1246,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_with_ttl() {
         let backend = make_backend().await;
         let k1 = unique_key("mttl1");
@@ -1241,6 +1269,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_pipeline_and_get_many_pipeline() {
         let backend = make_backend().await;
         let k1 = unique_key("p1");
@@ -1270,6 +1299,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_pipeline_empty_is_ok() {
         let backend = make_backend().await;
         backend
@@ -1279,6 +1309,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_many_pipeline_empty_returns_empty() {
         let backend = make_backend().await;
         let result = backend
@@ -1289,6 +1320,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_many_pipeline_empty_is_ok() {
         let backend = make_backend().await;
         backend
@@ -1298,6 +1330,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_pipeline_with_ttl() {
         let backend = make_backend().await;
         let k1 = unique_key("pttl1");
@@ -1316,6 +1349,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_stats_returns_memory_info() {
         let backend = make_backend().await;
         let stats = backend.stats().await.expect("stats failed");
@@ -1326,6 +1360,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_len_returns_u64() {
         let backend = make_backend().await;
         let len = backend.len().await.expect("len failed");
@@ -1335,12 +1370,14 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_is_empty_returns_bool() {
         let backend = make_backend().await;
         let _ = backend.is_empty().await.expect("is_empty failed");
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_capacity_returns_zero() {
         let backend = make_backend().await;
         let cap = backend.capacity().await.expect("capacity failed");
@@ -1353,18 +1390,21 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_mode_accessor() {
         let backend = make_backend().await;
         assert_eq!(backend.mode(), RedisModeType::Standalone);
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_client_accessor() {
         let backend = make_backend().await;
         let _client: &Client = backend.client();
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_backend_kind_is_redis() {
         let backend = make_backend().await;
         assert_eq!(backend.backend_kind(), BackendKind::Redis);
@@ -1373,18 +1413,21 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_backend_score() {
         let backend = make_backend().await;
         assert_eq!(backend.score(), 50);
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_is_persistent_true() {
         let backend = make_backend().await;
         assert!(backend.is_persistent());
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_backend_name() {
         let backend = make_backend().await;
         assert_eq!(backend.backend_name(), "redis");
@@ -1395,6 +1438,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_shutdown_is_noop() {
         let backend = make_backend().await;
         // shutdown 是 no-op，不应 panic
@@ -1411,6 +1455,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.get("").await;
@@ -1422,6 +1467,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.set("", b"v".to_vec(), None).await;
@@ -1429,6 +1475,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.delete("").await;
@@ -1436,6 +1483,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_exists_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.exists("").await;
@@ -1443,6 +1491,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_ttl_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.ttl("").await;
@@ -1450,6 +1499,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_expire_empty_key_rejected() {
         let backend = make_backend().await;
         let result = backend.expire("", Duration::from_secs(10)).await;
@@ -1457,6 +1507,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_key_with_newline_rejected() {
         let backend = make_backend().await;
         let result = backend.get("key\nwith\nnewline").await;
@@ -1464,6 +1515,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_key_with_null_rejected() {
         let backend = make_backend().await;
         let result = backend.get("key\0null").await;
@@ -1471,6 +1523,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_key_with_command_injection_char_rejected() {
         let backend = make_backend().await;
         // 分号是命令注入字符
@@ -1479,6 +1532,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_key_with_pipe_rejected() {
         let backend = make_backend().await;
         let result = backend.get("key|pipe").await;
@@ -1486,6 +1540,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_key_with_path_traversal_rejected() {
         let backend = make_backend().await;
         let result = backend.get("../etc/passwd").await;
@@ -1493,6 +1548,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_with_invalid_key_rejected() {
         let backend = make_backend().await;
         let items = vec![
@@ -1504,6 +1560,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_set_many_pipeline_with_invalid_key_rejected() {
         let backend = make_backend().await;
         let items: Vec<(&str, Vec<u8>)> = vec![("bad;key", b"v".to_vec())];
@@ -1512,6 +1569,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_get_many_pipeline_with_invalid_key_rejected() {
         let backend = make_backend().await;
         let keys: Vec<&str> = vec!["bad;key"];
@@ -1520,6 +1578,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_delete_many_pipeline_with_invalid_key_rejected() {
         let backend = make_backend().await;
         let keys: Vec<&str> = vec!["bad;key"];
@@ -1532,6 +1591,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_clear_removes_all_keys() {
         // 使用数据库 1 隔离 clear 测试
         let backend = make_backend_with_url(REDIS_URL_DB1).await;
@@ -1551,6 +1611,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_simple_return() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1566,6 +1627,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_returns_int() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1579,6 +1641,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_with_keys_and_args() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1600,6 +1663,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_script_load_and_eval_sha() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1618,6 +1682,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_sha_invalid_format_rejected() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1638,6 +1703,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_forbidden_command_rejected() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1653,6 +1719,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_too_many_keys_rejected() {
         use crate::backend::interface::LuaExecutor;
         let backend = make_backend().await;
@@ -1663,6 +1730,7 @@ mod tests {
 
     #[cfg(feature = "lua-script")]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_as_lua_executor_returns_some() {
         use crate::backend::interface::CacheConnector;
         let backend = make_backend().await;
@@ -1672,6 +1740,7 @@ mod tests {
 
     #[cfg(not(feature = "lua-script"))]
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_as_lua_executor_returns_none_without_feature() {
         use crate::backend::interface::CacheConnector;
         let backend = make_backend().await;
@@ -1683,6 +1752,7 @@ mod tests {
     // =========================================================================
 
     #[tokio::test]
+    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_redis_backend_implements_all_traits() {
         use crate::backend::interface::CacheBackend;
         let backend = make_backend().await;
