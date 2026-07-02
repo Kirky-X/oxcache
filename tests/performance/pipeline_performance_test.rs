@@ -7,10 +7,12 @@
 
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
+use serial_test::serial;
 use std::time::{Duration, Instant};
 
 /// 获取 Redis 测试 URL
 fn get_redis_url() -> String {
+    // REDIS_URL 由 .cargo/config.toml 设置，OXCACHE_ALLOW_INSECURE_REDIS 同理
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
 }
 
@@ -28,7 +30,8 @@ fn generate_test_data(count: usize) -> Vec<(String, Vec<u8>, Option<Duration>)> 
 }
 
 /// 测试 Pipeline SET 性能
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 #[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
 async fn test_pipeline_set_performance() {
     let redis_url = get_redis_url();
@@ -78,7 +81,8 @@ async fn test_pipeline_set_performance() {
 }
 
 /// 测试 Pipeline GET 性能
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 #[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
 async fn test_pipeline_get_performance() {
     let redis_url = get_redis_url();
@@ -127,7 +131,8 @@ async fn test_pipeline_get_performance() {
 }
 
 /// 测试 Pipeline DELETE 性能
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 #[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
 async fn test_pipeline_delete_performance() {
     let redis_url = get_redis_url();
@@ -180,7 +185,8 @@ async fn test_pipeline_delete_performance() {
 }
 
 /// 测试大规模数据 Pipeline 性能
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 #[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
 async fn test_large_scale_pipeline_performance() {
     let redis_url = get_redis_url();
@@ -229,7 +235,8 @@ async fn test_large_scale_pipeline_performance() {
 }
 
 /// 测试混合操作性能
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 #[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
 async fn test_mixed_operations_performance() {
     let redis_url = get_redis_url();
