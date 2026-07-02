@@ -4,14 +4,13 @@
 
 [![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-[English](README.md) | [简体中文](README_zh.md)
+[English](README_EN.md) | 简体中文
 
-Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory
-cache) + L2 (Redis distributed cache) architecture.
+高性能、生产级的 Rust 双层缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
 
 </div>
 
-## ✨ Key Features
+## ✨ 核心特性
 
 <div align="center">
 
@@ -19,93 +18,143 @@ cache) + L2 (Redis distributed cache) architecture.
 <tr>
 <td width="20%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
-<b>Extreme Performance</b><br>L1 in nanoseconds
+<b>极致性能</b><br>L1 纳秒级响应
 </td>
 <td width="20%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
-<b>Zero-Code Changes</b><br>One-line cache enable
+<b>零侵入式</b><br>一行代码启用缓存
 </td>
 <td width="20%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
-<b>Auto Recovery</b><br>Redis fault degradation
+<b>自动故障恢复</b><br>Redis 故障自动降级
 </td>
 <td width="20%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/synchronize.png" width="48"><br>
-<b>Multi-Instance Sync</b><br>Based on Pub/Sub
+<b>多实例同步</b><br>基于 Pub/Sub 机制
 </td>
 <td width="20%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
-<b>Batch Optimization</b><br>Smart batch writes
+<b>批量优化</b><br>智能批量写入
 </td>
 </tr>
 </table>
 
 </div>
 
-- **🚀 Extreme Performance**: L1 nanosecond response (P99 < 100ns), L1 millisecond response (P99 < 5ms)
-- **🎯 Zero-Code Changes**: Enable caching with a single `#[cached]` macro
-- **🔄 Auto Recovery**: Automatic degradation on Redis failure, WAL replay on recovery
-- **🌐 Multi-Instance Sync**: Pub/Sub + version-based invalidation synchronization
-- **⚡ Batch Optimization**: Intelligent batch writes for significantly improved throughput
-- **🧪 Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
-- **🌸 Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
-- **⏱️ Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
-- **🛡️ Production Grade**: Complete observability, health checks, chaos testing verified
+- **🚀 极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
+- **🎯 零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
+- **🔄 自动故障恢复**: Redis 故障时自动降级，恢复后自动重放 WAL
+- **🌐 多实例同步**: 基于 Pub/Sub + 版本号的失效同步机制
+- **⚡ 批量优化**: 智能批量写入，大幅提升吞吐量
+- **🧪 同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
+- **🌸 布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
+- **⏱️ 全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
+- **🛡️ 生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
 
-## 📦 Quick Start
+## 📦 快速开始
 
-### 1. Add Dependency
+### 安装
 
-Add `oxcache` to your `Cargo.toml`:
+在 `Cargo.toml` 中添加依赖：
 
 ```toml
 [dependencies]
-oxcache = "0.3.1"
+oxcache = "0.3.2"
 ```
 
-> **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-`oxcache = { version = "0.3.1", default-features = false }` and add them manually.
+> **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
+`oxcache = { version = "0.3.2", default-features = false }` 手动添加。
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.3.1", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.2", features = ["macros"] }`
 
-#### Feature Tiers
+#### 特性分层
 
 ```toml
-# Full features (recommended)
-oxcache = { version = "0.3.1", features = ["full"] }
+# 完整特性（推荐）
+oxcache = { version = "0.3.2", features = ["full"] }
 
-# Core functionality only
-oxcache = { version = "0.3.1", features = ["core"] }
+# 核心功能（L1 + L2 缓存）
+oxcache = { version = "0.3.2", features = ["core"] }
 
-# Minimal - L1 cache only
-oxcache = { version = "0.3.1", features = ["minimal"] }
+# 最小特性（仅 L1 缓存）
+oxcache = { version = "0.3.2", features = ["minimal"] }
 
-# Custom selection
-oxcache = { version = "0.3.1", features = ["core", "macros", "metrics", "bloom-filter"] }
+# 自定义选择
+oxcache = { version = "0.3.2", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
-| Tier | Features | Description |
-|------|----------|-------------|
-| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | L1 cache only |
-| **core** | `minimal` + `redis`, `futures` | L1 + L2 cache |
-| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | Complete functionality |
+#### 可用特性
 
-**Individual Features**:
-- `memory` - L1 cache backends (Moka + DashMap)
-- `redis` - L2 distributed cache (Redis)
-- `macros` - `#[cached]` attribute macro
-- `serialization` - JSON serialization (serde + serde_json)
-- `compression` - Data compression (flate2)
-- `metrics` - OpenTelemetry metrics and observability
-- `batch-write` - Optimized batch writing (tokio-util)
-- `lua-script` - Lua script execution support
-- `cli` - Command-line interface (clap)
-- `tracing` - Structured logging support
-- `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
+| 层级 | 包含特性 | 描述 |
+|------|----------|------|
+| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
+| **core** | `minimal` + `redis`, `futures` | L1 + L2 缓存 |
+| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
 
-### 2. Configuration
+**独立特性**：
+- `memory` - L1 缓存后端（Moka + DashMap）
+- `redis` - L2 分布式缓存（Redis）
+- `macros` - `#[cached]` 属性宏
+- `serialization` - JSON 序列化（serde + serde_json）
+- `compression` - 数据压缩（flate2）
+- `metrics` - OpenTelemetry 指标与可观测性
+- `batch-write` - 优化的批量写入（tokio-util）
+- `lua-script` - Lua 脚本执行支持
+- `cli` - 命令行界面（clap）
+- `tracing` - 结构化日志支持
+- `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 
-Create a `config.toml` file:
+### 最简示例
+
+```rust
+use oxcache::macros::cached;
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct User {
+    id: u64,
+    name: String,
+}
+
+// 一行代码启用缓存
+#[cached(service = "user_cache", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // 模拟耗时的数据库查询
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    Ok(User {
+        id,
+        name: format!("User {}", id),
+    })
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用 Builder 模式初始化缓存（默认：Moka L1 内存后端）
+    let cache: Cache<String, User> = Cache::builder()
+        .capacity(10000)
+        .ttl(std::time::Duration::from_secs(600))
+        .build()
+        .await?;
+
+    // 注册缓存实例供宏使用
+    cache.register_for_macro("user_cache").await;
+
+    // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
+    let user = get_user(1).await?;
+    println!("First call: {:?}", user);
+
+    // 第二次调用：直接从缓存返回（~0.1ms）
+    let cached_user = get_user(1).await?;
+    println!("Cached call: {:?}", cached_user);
+
+    Ok(())
+}
+```
+
+### 配置文件
+
+创建 `config.toml`：
 
 ```toml
 [global]
@@ -114,14 +163,14 @@ health_check_interval = 30
 serialization = "json"
 enable_metrics = true
 
-# Two-level cache (L1 + L2)
+# 双层缓存 (L1 + L2)
 [services.user_cache]
 cache_type = "two-level"  # "l1" | "l2" | "two-level"
 ttl = 600
 
   [services.user_cache.l1]
   max_capacity = 10000
-  ttl = 300  # L1 TTL must be <= L2 TTL
+  ttl = 300  # L1 TTL 必须 <= L2 TTL
   tti = 180
   initial_capacity = 1000
 
@@ -136,7 +185,7 @@ ttl = 600
   batch_size = 100
   batch_interval_ms = 50
 
-# L1-only cache (memory only)
+# 仅 L1 缓存 (仅内存)
 [services.session_cache]
 cache_type = "l1"
 ttl = 300
@@ -146,7 +195,7 @@ ttl = 300
   ttl = 300
   tti = 120
 
-# L2-only cache (Redis only)
+# 仅 L2 缓存 (仅 Redis)
 [services.shared_cache]
 cache_type = "l2"
 ttl = 7200
@@ -156,11 +205,11 @@ ttl = 7200
   connection_string = "redis://127.0.0.1:6379"
 ```
 
-### 2.1 Type-Safe Configuration API (Recommended)
+### 类型安全配置 API（推荐）
 
-Oxcache provides a **type-safe builder API** for configuration, enabling compile-time type checking and better IDE support. This approach is recommended over TOML configuration for most use cases.
+Oxcache 提供**类型安全的构建器 API** 用于配置，支持编译时类型检查和更好的 IDE 支持。对于大多数用例，推荐使用此方式而非 TOML 配置。
 
-#### Memory-Only Cache (L1)
+#### 仅内存缓存 (L1)
 
 ```rust
 use oxcache::config::UnifiedConfigBuilder;
@@ -175,18 +224,18 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create type-safe configuration using builder API
+    // 使用构建器 API 创建类型安全配置
     let config = UnifiedConfigBuilder::memory_only()
-        .with_ttl(3600)           // Default TTL in seconds
-        .with_l1_capacity(10000)  // L1 cache capacity
+        .with_ttl(3600)           // 默认 TTL（秒）
+        .with_l1_capacity(10000)  // L1 缓存容量
         .build();
 
-    // Create cache directly from configuration
+    // 从配置直接创建缓存
     let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
         .build()
         .await?;
 
-    // Use the cache
+    // 使用缓存
     let user = User {
         id: 1,
         name: "Alice".to_string(),
@@ -200,7 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-#### Tiered Cache (L1 + L2)
+#### 分层缓存 (L1 + L2)
 
 ```rust
 use oxcache::config::UnifiedConfigBuilder;
@@ -215,20 +264,20 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create tiered cache configuration
+    // 创建分层缓存配置
     let config = UnifiedConfigBuilder::tiered()
-        .with_ttl(7200)            // Default TTL in seconds
-        .with_l1_capacity(10000)   // L1 memory cache capacity
-        .with_redis_url("redis://localhost:6379")  // L2 Redis connection
-        .with_redis_mode("standalone")  // Redis mode
+        .with_ttl(7200)            // 默认 TTL（秒）
+        .with_l1_capacity(10000)   // L1 内存缓存容量
+        .with_redis_url("redis://localhost:6379")  // L2 Redis 连接
+        .with_redis_mode("standalone")  // Redis 模式
         .build();
 
-    // Create cache directly from configuration
+    // 从配置直接创建缓存
     let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
         .build()
         .await?;
 
-    // Use the cache (writes to both L1 and L2)
+    // 使用缓存（同时写入 L1 和 L2）
     let user = User {
         id: 1,
         name: "Alice".to_string(),
@@ -242,118 +291,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-#### Configuration Builder Methods
+#### 配置构建器方法
 
-| Method | Description |
-|--------|-------------|
-| `Cache::builder()` | Create a new cache builder |
-| `.ttl(Duration)` | Set default TTL for cache entries |
-| `.tti(Duration)` | Set default TTI (time-to-idle) for cache entries |
-| `.capacity(u64)` | Set memory cache capacity |
-| `.backend_arc(Arc<dyn CacheBackend>)` | Add a pre-built backend (e.g., `RedisBackend`, `MokaMemoryBackend`) |
-| `.sync_mode(bool)` | Enable sync API support (`get_sync`/`set_sync`/...) |
-| `.build()` | Build `Cache<K, V>` instance (async) |
+| 方法 | 描述 |
+|--------|------|
+| `Cache::builder()` | 创建新的缓存构建器 |
+| `.ttl(Duration)` | 设置缓存条目的默认 TTL |
+| `.tti(Duration)` | 设置缓存条目的默认 TTI（time-to-idle） |
+| `.capacity(u64)` | 设置内存缓存容量 |
+| `.backend_arc(Arc<dyn CacheBackend>)` | 添加预构建后端（如 `RedisBackend`、`MokaMemoryBackend`） |
+| `.sync_mode(bool)` | 启用同步 API 支持（`get_sync`/`set_sync`/...） |
+| `.build()` | 构建 `Cache<K, V>` 实例（异步） |
 
-> **Note:** For Redis backend, use `RedisBackend::new(url).await?` then pass via `.backend_arc(Arc::new(backend))`.
-> For tiered (L1+L2) cache, use `ChainCache::builder().link(...).build()`.
+> **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
+> 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
 
-#### Benefits of Type-Safe API
+#### 类型安全 API 的优势
 
-- **Compile-time validation**: Configuration errors caught at compile time
-- **IDE support**: Full autocomplete and type hints
-- **No runtime parsing**: Eliminates TOML parsing overhead
-- **Better error messages**: Type errors instead of configuration parse errors
-- **Refactoring friendly**: Rename refactoring works across configuration
+- **编译时验证**：配置错误在编译时被捕获
+- **IDE 支持**：完整的自动补全和类型提示
+- **无运行时解析**：消除 TOML 解析开销
+- **更好的错误信息**：类型错误而非配置解析错误
+- **重构友好**：重命名重构可在配置中生效
 
-### 3. Usage
+## 🎨 使用场景
 
-#### Using Macros (Recommended)
-
-```rust
-use oxcache::macros::cached;
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
-}
-
-// One-line cache enable
-#[cached(service = "user_cache", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // Simulate slow database query
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    Ok(User {
-        id,
-        name: format!("User {}", id),
-    })
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
-    let cache: Cache<String, User> = Cache::builder()
-        .capacity(10000)
-        .ttl(std::time::Duration::from_secs(600))
-        .build()
-        .await?;
-
-    // Register cache for macro usage
-    cache.register_for_macro("user_cache").await;
-
-    // First call: execute function logic + cache result (~100ms)
-    let user = get_user(1).await?;
-    println!("First call: {:?}", user);
-
-    // Second call: return directly from cache (~0.1ms)
-    let cached_user = get_user(1).await?;
-    println!("Cached call: {:?}", cached_user);
-
-    Ok(())
-}
-```
-
-#### Manual Client Usage
-
-```rust
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize)]
-struct MyData {
-    field: String,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
-    let cache: Cache<String, MyData> = Cache::builder()
-        .capacity(10000)
-        .build()
-        .await?;
-
-    let my_data = MyData {
-        field: "value".to_string(),
-    };
-
-    // Standard operation: write to cache
-    cache.set(&"key".to_string(), &my_data).await?;
-
-    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
-    println!("Data: {:?}", data);
-
-    // Delete
-    cache.delete(&"key".to_string()).await?;
-
-    Ok(())
-}
-```
-
-## 🎨 Use Cases
-
-### Scenario 1: User Information Cache
+### 场景 1: 用户信息缓存
 
 ```rust
 #[cached(service = "user_cache", ttl = 600)]
@@ -362,7 +325,7 @@ async fn get_user_profile(user_id: u64) -> Result<UserProfile, Error> {
 }
 ```
 
-### Scenario 2: API Response Cache
+### 场景 2: API 响应缓存
 
 ```rust
 #[cached(
@@ -375,7 +338,7 @@ async fn fetch_api_data(endpoint: String, version: u32) -> Result<ApiResponse, E
 }
 ```
 
-### Scenario 3: L1-Only Hot Data Cache
+### 场景 3: 仅 L1 热数据缓存
 
 ```rust
 #[cached(service = "session_cache", cache_type = "l1", ttl = 60)]
@@ -384,9 +347,44 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 }
 ```
 
-## 🧪 Sync API (0.3.0)
+### 场景 4: 手动控制缓存
 
-Oxcache 0.3.0 introduces a **synchronous API path** alongside the async API. Enable it on the builder:
+```rust
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct MyData {
+    field: String,
+}
+
+async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
+    // 使用 Builder 模式初始化缓存（默认：Moka L1 内存后端）
+    let cache: Cache<String, MyData> = Cache::builder()
+        .capacity(10000)
+        .build()
+        .await?;
+
+    let my_data = MyData {
+        field: "value".to_string(),
+    };
+
+    // 标准操作
+    cache.set(&"key".to_string(), &my_data).await?;
+
+    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
+    println!("Data: {:?}", data);
+
+    // 删除
+    cache.delete(&"key".to_string()).await?;
+
+    Ok(())
+}
+```
+
+## 🧪 同步 API（0.3.0）
+
+Oxcache 0.3.0 在异步 API 之外引入了**同步 API 路径**。在 builder 上启用：
 
 ```rust
 use oxcache::Cache;
@@ -397,57 +395,57 @@ struct User { id: u64, name: String }
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // sync_mode(true) makes the Cache<K,V> also hold an Arc<dyn SyncCacheBackend>
+    // sync_mode(true) 使 Cache<K,V> 同时持有 Arc<dyn SyncCacheBackend>
     let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
 
-    // Synchronous operations (no .await)
+    // 同步操作（无 .await）
     cache.set_sync(&"user:1".to_string(), &User { id: 1, name: "Alice".into() })?;
     let cached = cache.get_sync(&"user:1".to_string())?;
     assert_eq!(cached, Some(User { id: 1, name: "Alice".into() }));
 
-    // Per-entry TTL
+    // per-entry TTL
     cache.set_with_ttl_sync(&"temp".to_string(), &User { id: 2, name: "Temp".into() }, Some(std::time::Duration::from_secs(60)))?;
 
-    // Single-flight get_or_sync: concurrent callers share one fallback execution
+    // 单飞 get_or_sync：并发调用共享一次 fallback 执行
     let value = cache.get_or_sync(&"user:42".to_string(), || {
         Ok(User { id: 42, name: "Bob".into() })
     })?;
 
-    // Sync and async APIs coexist on the same Cache<K,V>
+    // sync 与 async API 在同一 Cache<K,V> 上共存
     cache.set(&"async_key".to_string(), &User { id: 99, name: "Async".into() }).await?;
     let v = cache.get_sync(&"async_key".to_string())?;
     Ok(())
 }
 ```
 
-**When to use sync API**:
-- Blocking call sites (legacy code, FFI, sync handlers)
-- Tests that don't want to thread `async` through every assertion
-- Avoiding runtime overhead when the caller is already synchronous
+**何时使用同步 API**：
+- 阻塞调用点（遗留代码、FFI、同步处理器）
+- 不想在每个断言中穿过 `async` 的测试
+- 调用方本身是同步的，避免运行时开销
 
-**Runtime notes**:
-- `sync_mode(true)` works on `multi_thread` tokio runtime. On `current_thread` runtime, Moka's `sync_block_on` will panic (use `#[tokio::main(flavor = "multi_thread")]` or call from outside a runtime).
-- Without `sync_mode(true)`, calling any `*_sync` method returns `Err(CacheError::NotSupported)`.
+**运行时注意事项**：
+- `sync_mode(true)` 在 `multi_thread` tokio 运行时上工作。在 `current_thread` 运行时上，Moka 的 `sync_block_on` 会 panic（使用 `#[tokio::main(flavor = "multi_thread")]` 或在运行时上下文之外调用）。
+- 不启用 `sync_mode(true)` 时，调用任何 `*_sync` 方法返回 `Err(CacheError::NotSupported)`。
 
-**`#[cached(sync)]` macro**:
+**`#[cached(sync)]` 宏**：
 
 ```rust
 use oxcache::macros::cached;
 
 #[cached(service = "user_cache", ttl = 600, sync)]
 fn get_user_sync(id: u64) -> Result<User, String> {
-    // Synchronous body — no async runtime required
+    // 同步函数体 —— 无需 async 运行时
     Ok(User { id, name: format!("User {}", id) })
 }
 ```
 
-## 🌸 Bloom Filter
+## 🌸 布隆过滤器（0.3.0）
 
-The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
+`bloom-filter` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.1", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3.2", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -457,13 +455,13 @@ use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Standalone BloomFilter type
-    let bf = BloomFilter::new(10_000, 0.01);  // capacity, false-positive rate
+    // 1. 独立 BloomFilter 类型
+    let bf = BloomFilter::new(10_000, 0.01);  // 容量、误判率
     bf.insert("existing_key");
-    assert!(bf.contains("existing_key"));    // no false negatives
-    assert!(!bf.contains("missing_key"));    // may have false positives
+    assert!(bf.contains("existing_key"));    // 无假阴性
+    assert!(!bf.contains("missing_key"));    // 可能有假阳性
 
-    // 2. BloomFilterBackend decorator: wraps any CacheBackend
+    // 2. BloomFilterBackend 装饰器：包装任何 CacheBackend
     let inner = MokaMemoryBackend::new();
     let backend = BloomFilterBackend::builder()
         .capacity(10_000)
@@ -471,48 +469,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .inner(inner)
         .build()?;
 
-    // On `get`: BF says "absent" → skip inner entirely. BF says "maybe present" → query inner.
+    // `get` 时：BF 说"不存在" → 完全跳过 inner。BF 说"可能存在" → 查询 inner。
     backend.set("user:1", b"Alice".to_vec(), None).await?;
     let value = backend.get("user:1").await?;       // Some(b"Alice")
-    let miss  = backend.get("user:999").await?;     // None — BF filtered, inner untouched
+    let miss  = backend.get("user:999").await?;     // None —— BF 过滤，inner 未触及
 
     Ok(())
 }
 ```
 
-**Properties**:
-- No false negatives (inserted keys always `contains == true`)
-- `set` updates both BF and inner; `delete` only updates inner (BF doesn't support removal)
-- `clear` clears both; TTL passes through unchanged
-- Also implements `SyncCacheBackend` when inner backend does
+**特性**：
+- 无假阴性（插入的 key 总是 `contains == true`）
+- `set` 更新 BF 和 inner；`delete` 只更新 inner（BF 不支持删除）
+- `clear` 同时清空两者；TTL 原样透传
+- 当 inner 后端实现 `SyncCacheBackend` 时，装饰器也实现
 
-## ⏱️ TTL Behavior Reference
+## ⏱️ TTL 行为对照表（0.3.0）
 
-All backends honor per-entry TTL since 0.3.0. Behavior summary:
+自 0.3.0 起所有后端都遵守 per-entry TTL。行为汇总：
 
-| Backend | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | Notes |
+| 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
 |---------|-----------------|------------|------------------------|-------|
-| **MokaMemoryBackend** | Real per-entry TTL via `moka::Expiry` | Remaining TTL | Updates + returns `true` | Global TTL (`builder.ttl(...)`) is overridden by per-entry TTL |
-| **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read | Remaining TTL (None if no TTL) | Updates + returns `true` | Lazy expiry — entries removed on next access |
-| **RedisBackend** | `SET key value EX ttl` | `TTL key` (Redis native) | `EXPIRE key ttl` | Uses Redis native TTL |
-| **MockBackend** | Stores `(value, expiry Instant)`; lazy expiry | Remaining TTL | Updates + returns `true` | Test-only; aligns with DashMap semantics |
-| **ChainCache** | Passes `ttl` through to all links | Returns TTL from highest-scored link that has the key | Passes through to all links | All links receive the same TTL |
-| **BloomFilterBackend** | Passes `ttl` through to inner (also inserts key into BF) | Delegates to inner | Delegates to inner | BF itself has no TTL concept |
+| **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
+| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期 —— 条目在下次访问时移除 |
+| **RedisBackend** | `SET key value EX ttl` | `TTL key`（Redis 原生） | `EXPIRE key ttl` | 使用 Redis 原生 TTL |
+| **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用；与 DashMap 语义对齐 |
+| **ChainCache** | 将 `ttl` 透传到所有链接 | 返回拥有该 key 的最高分链接的 TTL | 透传到所有链接 | 所有链接接收相同 TTL |
+| **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
 
-**Global vs per-entry TTL**:
-- `MokaMemoryBackend::builder().ttl(Duration)` sets a global TTL applied to every entry
-- `set(key, value, Some(ttl))` overrides the global TTL for that specific entry
-- `set(key, value, None)` uses the global TTL (if set); otherwise the entry never expires
+**全局 vs per-entry TTL**：
+- `MokaMemoryBackend::builder().ttl(Duration)` 设置应用于每个条目的全局 TTL
+- `set(key, value, Some(ttl))` 覆盖该条目的全局 TTL
+- `set(key, value, None)` 使用全局 TTL（若设置）；否则条目永不过期
 
-## 🏗️ Architecture
+## 🏗️ 架构设计
 
 ```mermaid
 graph TD
-    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>Unified Cache Interface]
+    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>统一缓存接口]
 
-    B --> C[ChainCache<br/>Tiered Backend]
-    B --> D[MokaMemoryBackend<br/>L1 Only]
-    B --> E[RedisBackend<br/>L2 Only]
+    B --> C[ChainCache<br/>分层后端]
+    B --> D[MokaMemoryBackend<br/>仅 L1]
+    B --> E[RedisBackend<br/>仅 L2]
 
     C --> F[L1 Cache<br/>Moka]
     C --> G[L2 Cache<br/>Redis]
@@ -529,133 +527,133 @@ graph TD
     style G fill:#fdf2e9
 ```
 
-**L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy
-**L2**: Distributed shared cache supporting Sentinel/Cluster modes
+**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
+**L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
-## 📊 Performance Benchmarks
+## 📊 性能基准
 
-> Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
+> 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
-> **Note**: Performance varies based on hardware, network conditions, and data size.
+> **注意**: 性能因硬件、网络条件和数据大小而异。
 
 ```mermaid
 xychart-beta
-    title "Single-thread Latency Test (P99)"
-    x-axis ["L1 Cache", "L2 Cache", "Database"]
-    y-axis "Latency (ms)" 0 --> 60
-    bar [0.05, 3, 30]
-    line [0.05, 3, 30]
+    title "单线程延迟测试 (P99)"
+    x-axis ["L1 缓存", "L2 缓存", "数据库"]
+    y-axis "延迟时间" 0 --> 60
+    bar [50, 3, 30]
+    line [50, 3, 30]
 ```
 
 ```mermaid
 xychart-beta
-    title "Throughput Test (batch_size=100)"
-    x-axis ["L1 Operations", "L2 Single Write", "L2 Batch Write"]
-    y-axis "Ops/sec" 0 --> 600
+    title "吞吐量测试 (batch_size=100)"
+    x-axis ["L1 操作", "L2 单次写入", "L2 批量写入"]
+    y-axis "操作数/秒" 0 --> 600
     bar [7500, 75, 350]
 ```
 
-**Performance Summary**:
-- **L1 Cache**: 50-100ns (in-memory)
-- **L2 Cache**: 1-5ms (Redis, localhost)
-- **Database**: 10-50ms (typical SQL query)
-- **L1 Operations**: 5-10M ops/sec
-- **L2 Single Write**: 50-100K ops/sec
-- **L2 Batch Write**: 200-500K ops/sec
+**性能数据总结**:
+- **L1 缓存**: 50-100ns (内存访问)
+- **L2 缓存**: 1-5ms (Redis, 本地)
+- **数据库**: 10-50ms (典型 SQL 查询)
+- **L1 操作**: 5-10M ops/sec
+- **L2 单次写入**: 50-100K ops/sec
+- **L2 批量写入**: 200-500K ops/sec
 
-## 🛡️ Reliability
+## 🛡️ 可靠性
 
-- ✅ Single-Flight (prevent cache stampede)
-- ✅ WAL (Write-Ahead Log) persistence
-- ✅ Automatic degradation on Redis failure
-- ✅ Graceful shutdown mechanism
-- ✅ Health checks and auto-recovery
+- ✅ 单次请求去重 (Single-Flight)
+- ✅ 预写日志 (WAL) 持久化
+- ✅ Redis 故障自动降级
+- ✅ 优雅关闭机制
+- ✅ 健康检查与自动恢复
 
-## 🔐 Security
+## 🔐 安全性
 
-Oxcache implements multiple security measures to protect against common attacks:
+Oxcache 实现了多项安全措施以防范常见攻击：
 
-### Input Validation
+### 输入验证
 
-All user inputs are validated before being passed to Redis:
+所有用户输入在传递给 Redis 之前都会进行验证：
 
-- **Key Validation**: Keys cannot be empty, exceed 512KB, or contain dangerous characters (`\r`, `\n`, `\0`) that could enable Redis protocol injection attacks.
-- **Lua Script Validation**: Scripts are validated for:
-  - Maximum length of 10KB
-  - Maximum of 100 keys
-  - Blocking dangerous commands: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
-  - Comment and string content preprocessing to prevent bypass via comments
-- **SCAN Pattern Validation**: Patterns are validated to prevent ReDoS attacks:
-  - Maximum length of 256 characters
-  - Maximum of 10 wildcard (`*`) characters
-  - Count parameter clamped to safe range (1-1000)
-- **SQL/Path Traversal Detection**: Redis keys are scanned for potential SQL injection and path traversal patterns
+- **键验证**：键不能为空、不能超过 512KB、不能包含危险字符（`\r`、`\n`、`\0`），以防止 Redis 协议注入攻击。
+- **Lua 脚本验证**：脚本验证包括：
+  - 最大长度 10KB
+  - 最多 100 个键
+  - 阻止危险命令：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
+  - 注释和字符串内容预处理，防止通过注释绕过检测
+- **SCAN 模式验证**：模式验证以防止 ReDoS 攻击：
+  - 最大长度 256 个字符
+  - 最多 10 个通配符（`*`）字符
+  - count 参数限制在安全范围内（1-1000）
+- **SQL/路径遍历检测**：Redis 键会扫描潜在的 SQL 注入和路径遍历模式
 
-### Security API (Public Functions)
+### 安全 API（公共函数）
 
-For advanced use cases, you can directly use the security validation functions:
+对于高级用例，您可以直接使用安全验证函数：
 
 ```rust
 use oxcache::{validate_redis_key, validate_lua_script, validate_scan_pattern};
 
-// Validate Redis keys
-validate_redis_key("user:123").expect("Invalid key");
+// 验证 Redis 键
+validate_redis_key("user:123").expect("无效的键");
 
-// Validate Lua scripts
-validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("Invalid script");
+// 验证 Lua 脚本
+validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚本");
 
-// Validate SCAN patterns
-validate_scan_pattern("user:*").expect("Invalid pattern");
+// 验证 SCAN 模式
+validate_scan_pattern("user:*").expect("无效的模式");
 ```
 
-### Timeout Protection
+### 超时保护
 
-Long-running operations have timeout protection:
+长时间运行的操作有超时保护：
 
-- **Lua Scripts**: 30-second timeout prevents Redis blocking
-- **SCAN Operations**: 30-second timeout prevents hanging scans
+- **Lua 脚本**：30 秒超时，防止 Redis 阻塞
+- **SCAN 操作**：30 秒超时，防止扫描挂起
 
-### Secure Lock Values
+### 安全锁值
 
-Distributed locks use cryptographically secure UUID v4 values automatically generated by the library, eliminating the risk of lock value prediction attacks.
+分布式锁使用库自动生成的加密安全 UUID v4 值，消除锁值预测攻击的风险。
 
-### Connection String Redaction
+### 连接字符串脱敏
 
-Passwords in connection strings are redacted in logs by default to prevent credential leakage. Use `normalize_connection_string_with_redaction()` for secure logging.
+连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `normalize_connection_string_with_redaction()` 进行安全日志记录。
 
-### Best Practices
+### 最佳实践
 
-1. **Use the library's key validation** - Don't bypass the `validate_redis_key()` function
-2. **Avoid custom Lua scripts** - Use the built-in cache operations when possible
-3. **Set appropriate timeouts** - Don't disable the 30-second default timeout
-4. **Rotate lock values** - The library handles this automatically
-5. **Never log connection strings** - Use the redaction utility for debugging
+1. **使用库的键验证** - 不要绕过 `validate_redis_key()` 函数
+2. **避免自定义 Lua 脚本** - 尽可能使用内置缓存操作
+3. **设置适当的超时** - 不要禁用 30 秒默认超时
+4. **轮换锁值** - 库会自动处理
+5. **永远不要记录连接字符串** - 使用脱敏工具进行调试
 
-For more details, see [Security Documentation](docs/SECURITY.md).
+更多详情请参阅 [安全文档](docs/SECURITY.md)。
 
-## 📚 Documentation
+## 📚 文档
 
-- [📖 User Guide](docs/USER_GUIDE.md)
-- [📘 API Documentation](https://docs.rs/oxcache)
-- [💻 Examples](examples/)
+- [📖 用户指南](docs/USER_GUIDE.md)
+- [📘 API 文档](https://docs.rs/oxcache)
+- [💻 示例代码](examples/)
 
-## 🤝 Contributing
+## 🤝 贡献
 
-Pull Requests and Issues are welcome!
+欢迎提交 Pull Request 和 Issue！
 
-## 📝 Changelog
+## 📝 更新日志
 
-See [CHANGELOG.md](../CHANGELOG.md)
+详见 [CHANGELOG.md](CHANGELOG.md)
 
-## 📄 License
+## 📄 许可证
 
-This project is licensed under MIT License. See [LICENSE](../LICENSE) file.
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
 
 ---
 
 <div align="center">
 
-**If this project helps you, please give a ⭐ Star to show support!**
+**如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
 
 Made with ❤️ by Kirky.X
 
