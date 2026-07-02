@@ -75,14 +75,28 @@
 //!
 //! # Features
 //!
-//! - `moka`: L1 memory cache (default in minimal/core/full)
-//! - `redis`: L2 distributed cache
-//! - `serialization`: JSON/Bincode/MessagePack/CBOR
-//! - `metrics`: OpenTelemetry metrics
-//! - `bloom-filter`: negative-query filtering (not in `full`)
-//! - `full`: All features
+//! ## Tiered Feature Sets
+//!
+//! - `minimal`: L1 memory cache only (memory + tracing + metrics + serialization + chrono)
+//! - `core`: L1 + L2 Redis (minimal + redis + futures)
+//! - `full`: All features enabled (default)
+//!
+//! ## Core Component Features
+//!
+//! - `memory`: L1 memory cache (Moka + DashMap)
+//! - `redis`: L2 distributed cache (Redis + regex)
+//! - `macros`: Proc macros for `#[cached]`
+//! - `serialization`: JSON serialization (serde + serde_json)
+//! - `compression`: Flate2 compression
+//! - `tracing`: Tracing support
+//! - `metrics`: OpenTelemetry metrics & observability
+//! - `batch-write`: Buffered L2 writes (tokio-util)
+//! - `lua-script`: Lua script execution (requires redis)
+//! - `cli`: CLI tools (clap)
+//! - `testing`: Testing support (exposes internal functions)
+//! - `bloom-filter`: Negative-query filtering (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.1")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.2")]
 #![deny(unsafe_code)]
 
 // ============================================================================
@@ -111,38 +125,17 @@ macro_rules! check_feature_dependence {
             $required,
             "' or 'full' feature.\n",
             "\nSolution 1: Enable required feature:\n",
-            "    oxcache = { version = \"0.1\", features = [\"",
+            "    oxcache = { version = \"0.3.2\", features = [\"",
             $dependent,
             "\", \"",
             $required,
             "\"] }\n",
             "\nSolution 2: Enable all features:\n",
-            "    oxcache = { version = \"0.1\", features = [\"full\"] }"
+            "    oxcache = { version = \"0.3.2\", features = [\"full\"] }"
         ));
     };
 }
 
-/// Initialize cache configuration from a function.
-///
-/// This macro generates code that calls the provided function to get configuration,
-/// then initializes all caches from that configuration.
-///
-/// # Arguments
-/// * `path` (optional) - Path to a TOML config file. If provided, uses confers_load.
-/// * `config` (optional) - A function that returns `OxcacheConfig`.
-///
-/// Either `path` or `config` must be provided, but not both.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// #[oxcache::init_config]
-/// fn load_config() -> oxcache::OxcacheConfig {
-///     oxcache::oxcache_config()
-///         .with_service("default", oxcache::ServiceConfig::two_level())
-///         .build()
-/// }
-/// ```
 // ============================================================================
 // Core Modules (Always Available)
 // ============================================================================
