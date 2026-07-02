@@ -153,11 +153,13 @@ mod tests {
     #[test]
     fn test_scores_ordering() {
         // 验证分数顺序：Moka > DashMap > LMDB > SQLite > Redis > Memcached
-        assert!(Scores::MOKA > Scores::DASHMAP);
-        assert!(Scores::DASHMAP > Scores::LMDB);
-        assert!(Scores::LMDB > Scores::SQLITE);
-        assert!(Scores::SQLITE > Scores::REDIS);
-        assert!(Scores::REDIS > Scores::MEMCACHED);
+        const {
+            assert!(Scores::MOKA > Scores::DASHMAP);
+            assert!(Scores::DASHMAP > Scores::LMDB);
+            assert!(Scores::LMDB > Scores::SQLITE);
+            assert!(Scores::SQLITE > Scores::REDIS);
+            assert!(Scores::REDIS > Scores::MEMCACHED);
+        }
     }
 
     // ============================================================================
@@ -265,7 +267,7 @@ mod tests {
             Box::new(TestDefaultNameBackend), // 50
         ];
 
-        backends.sort_by(|a, b| b.score().cmp(&a.score()));
+        backends.sort_by_key(|b| std::cmp::Reverse(b.score()));
 
         assert_eq!(backends[0].score(), 100);
         assert_eq!(backends[1].score(), 70);

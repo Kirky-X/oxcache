@@ -23,6 +23,9 @@ use tokio::sync::RwLock;
 // 本地 TtlMockBackend：支持 per-entry TTL 的 mock 后端
 // ============================================================================
 
+/// 单条缓存条目：(value, expires_at)，`None` 表示永不过期。
+type TtlEntry = (Vec<u8>, Option<Instant>);
+
 /// 支持 per-entry TTL 的本地 MockBackend（行为对齐 src/backend/memory/mock.rs）。
 ///
 /// 内部存储 `(value, expires_at)`：`None` 表示永不过期，`Some(Instant)` 表示
@@ -31,7 +34,7 @@ use tokio::sync::RwLock;
 struct TtlMockBackend {
     name: &'static str,
     score: u8,
-    data: Arc<RwLock<HashMap<String, (Vec<u8>, Option<Instant>)>>>,
+    data: Arc<RwLock<HashMap<String, TtlEntry>>>,
 }
 
 impl TtlMockBackend {
@@ -91,10 +94,8 @@ impl CacheReader for TtlMockBackend {
     async fn ttl(&self, key: &str) -> oxcache::error::Result<Option<Duration>> {
         let now = Instant::now();
         let data = self.data.read().await;
-        if let Some((_v, expires_at)) = data.get(key) {
-            if let Some(exp) = expires_at {
-                return Ok(exp.checked_duration_since(now));
-            }
+        if let Some((_v, Some(exp))) = data.get(key) {
+            return Ok(exp.checked_duration_since(now));
         }
         Ok(None)
     }

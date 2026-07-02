@@ -173,29 +173,21 @@ mod tests {
 
     #[test]
     fn test_l1_hit_rate() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 7;
-        stats.l1_misses = 3;
+        let stats = CacheStats { l1_hits: 7, l1_misses: 3, ..Default::default() };
         assert_eq!(stats.l1_hit_rate(), 0.7);
         assert_eq!(stats.l1_hit_rate_percent(), "70.00%");
     }
 
     #[test]
     fn test_l2_hit_rate() {
-        let mut stats = CacheStats::default();
-        stats.l2_hits = 4;
-        stats.l2_misses = 6;
+        let stats = CacheStats { l2_hits: 4, l2_misses: 6, ..Default::default() };
         assert_eq!(stats.l2_hit_rate(), 0.4);
         assert_eq!(stats.l2_hit_rate_percent(), "40.00%");
     }
 
     #[test]
     fn test_overall_hit_rate() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 7;
-        stats.l1_misses = 3;
-        stats.l2_hits = 4;
-        stats.l2_misses = 6;
+        let stats = CacheStats { l1_hits: 7, l1_misses: 3, l2_hits: 4, l2_misses: 6, ..Default::default() };
         // total hits = 11, total = 20
         assert_eq!(stats.overall_hit_rate(), 0.55);
         assert_eq!(stats.overall_hit_rate_percent(), "55.00%");
@@ -203,30 +195,30 @@ mod tests {
 
     #[test]
     fn test_l1_hit_rate_all_hits() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 10;
-        stats.l1_misses = 0;
+        let stats = CacheStats { l1_hits: 10, l1_misses: 0, ..Default::default() };
         assert_eq!(stats.l1_hit_rate(), 1.0);
         assert_eq!(stats.l1_hit_rate_percent(), "100.00%");
     }
 
     #[test]
     fn test_export_prometheus_contains_all_counters() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 5;
-        stats.l1_misses = 2;
-        stats.l2_hits = 3;
-        stats.l2_misses = 1;
-        stats.l1_sets = 4;
-        stats.l2_sets = 2;
-        stats.l1_deletes = 1;
-        stats.l2_deletes = 1;
-        stats.total_operations = 19;
-        stats.l1_item_count = 100;
-        stats.l1_capacity_used = 4096;
-        stats.prefetch_count = 7;
-        stats.compression_count = 3;
-        stats.compression_bytes_saved = 2048;
+        let stats = CacheStats {
+            l1_hits: 5,
+            l1_misses: 2,
+            l2_hits: 3,
+            l2_misses: 1,
+            l1_sets: 4,
+            l2_sets: 2,
+            l1_deletes: 1,
+            l2_deletes: 1,
+            total_operations: 19,
+            l1_item_count: 100,
+            l1_capacity_used: 4096,
+            prefetch_count: 7,
+            compression_count: 3,
+            compression_bytes_saved: 2048,
+            ..Default::default()
+        };
 
         let prom = stats.export_prometheus();
         assert!(prom.contains("# Cache Metrics Snapshot"));
@@ -251,11 +243,7 @@ mod tests {
 
     #[test]
     fn test_export_json_serializes_all_fields() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 5;
-        stats.l1_misses = 2;
-        stats.l2_hits = 3;
-        stats.total_operations = 10;
+        let stats = CacheStats { l1_hits: 5, l1_misses: 2, l2_hits: 3, total_operations: 10, ..Default::default() };
 
         let json = stats.export_json().unwrap();
         assert!(json.contains("\"l1_hits\": 5"));
@@ -338,8 +326,7 @@ mod tests {
 
     #[test]
     fn test_cache_stats_clone() {
-        let mut stats = CacheStats::default();
-        stats.l1_hits = 42;
+        let stats = CacheStats { l1_hits: 42, ..Default::default() };
         let cloned = stats.clone();
         assert_eq!(cloned.l1_hits, 42);
     }

@@ -13,6 +13,10 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use tokio::sync::RwLock;
 
+/// 单条 Mock 缓存条目：(value, expires_at)，`None` 表示永不过期。
+#[cfg(test)]
+type MockEntry = (Vec<u8>, Option<Instant>);
+
 /// Mock 后端 - 用于测试的模拟缓存后端
 ///
 /// 内部数据结构存储 `(value, expires_at)`：`expires_at=None` 表示永不过期，
@@ -23,7 +27,7 @@ pub struct MockBackend {
     name: &'static str,
     score: u8,
     persistent: bool,
-    data: Arc<RwLock<HashMap<String, (Vec<u8>, Option<Instant>)>>>,
+    data: Arc<RwLock<HashMap<String, MockEntry>>>,
 }
 
 #[cfg(test)]
@@ -90,10 +94,8 @@ impl crate::backend::CacheReader for MockBackend {
     async fn ttl(&self, key: &str) -> crate::error::Result<Option<Duration>> {
         let now = Instant::now();
         let data = self.data.read().await;
-        if let Some((_v, expires_at)) = data.get(key) {
-            if let Some(exp) = expires_at {
-                return Ok(exp.checked_duration_since(now));
-            }
+        if let Some((_v, Some(exp))) = data.get(key) {
+            return Ok(exp.checked_duration_since(now));
         }
         Ok(None)
     }

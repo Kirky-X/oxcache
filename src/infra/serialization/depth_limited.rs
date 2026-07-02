@@ -304,7 +304,7 @@ mod tests {
         for _ in 0..(MAX_DESERIALIZE_DEPTH + 5) {
             json_str.push_str("{\"a\":");
         }
-        json_str.push_str("1");
+        json_str.push('1');
         for _ in 0..(MAX_DESERIALIZE_DEPTH + 5) {
             json_str.push('}');
         }
