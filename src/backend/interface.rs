@@ -491,7 +491,7 @@ mod tests {
     #[test]
     fn test_backend_kind_clone() {
         let kind = BackendKind::Redis;
-        let cloned = kind.clone();
+        let cloned = kind;
         assert_eq!(kind, cloned);
     }
 
@@ -618,10 +618,13 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use std::time::Instant;
 
+    /// 单条 Mock 缓存条目：(value, expires_at)，`None` 表示永不过期。
+    type MockSyncEntry = (Vec<u8>, Option<Instant>);
+
     /// Test mock for sync trait hierarchy. Stores entries with optional TTL
     /// via `Instant`, mirroring `MockBackend` semantics but without async.
     struct MockSyncBackend {
-        data: Arc<RwLock<HashMap<String, (Vec<u8>, Option<Instant>)>>>,
+        data: Arc<RwLock<HashMap<String, MockSyncEntry>>>,
         capacity: u64,
     }
 

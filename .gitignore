@@ -66,6 +66,7 @@ tarpaulin-report.html
 *.sqlite
 *.sqlite3
 requirements.db
+dump.rdb
 
 # =============================================================================
 # Python (if applicable)

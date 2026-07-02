@@ -488,10 +488,7 @@ mod tests {
     fn test_cache_error_redis_error_display() {
         #[cfg(feature = "redis")]
         {
-            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "auth failed",
-            )));
+            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::other("auth failed")));
             let s = err.to_string();
             assert!(s.contains("Redis connection failed"));
         }
@@ -664,10 +661,7 @@ mod tests {
     fn test_error_code_redis() {
         #[cfg(feature = "redis")]
         {
-            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "r",
-            )));
+            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::other("r")));
             assert_eq!(err.code(), "CACHE_012");
         }
         #[cfg(not(feature = "redis"))]
@@ -678,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_error_code_io() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "x");
+        let io_err = std::io::Error::other("x");
         assert_eq!(CacheError::IoError(io_err).code(), "CACHE_013");
     }
 

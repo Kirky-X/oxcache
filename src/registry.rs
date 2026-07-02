@@ -121,7 +121,7 @@ mod tests {
         if !is_initialized() {
             // Another test may initialize between our check and this call;
             // catch the panic to handle that race gracefully.
-            let _ = std::panic::catch_unwind(|| init_empty());
+            let _ = std::panic::catch_unwind(init_empty);
         }
     }
 
