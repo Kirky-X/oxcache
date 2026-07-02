@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `lib.rs` `compile_error!` message in `check_feature_dependence!` macro referenced `version = "0.1"` instead of `version = "0.3.2"`.
 - `error.rs:63` doc comment typo: "络连接问题" → "网络连接问题" (missing "网" character).
 - `html_root_url` updated from 0.3.1 → 0.3.2.
+- 5 pipeline performance tests failed due to `.cargo/config.toml` setting `REDIS_URL` to wrong port (`6380` instead of `6379`). Fixed config and added `#[serial]` + `#[tokio::test(flavor = "multi_thread")]` to prevent parallel contention.
+- 20 clippy `--all-targets` warnings resolved across 10 files (deprecated `criterion::black_box`, `io::Error::new`, `redundant_closure`, `type_complexity`, `field_reassign_with_default`, etc.).
 
 ### Removed
 - Phantom `init_config` macro documentation in `lib.rs` (lines 125-145): no implementation, no `pub use`, no `macro_export` — was misleading dead documentation.
@@ -32,9 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Version bumped 0.3.1 → 0.3.2 in `Cargo.toml`, `macros/Cargo.toml`, and `oxcache_macros` dependency.
 - README section headers: removed `(0.3.0)` version annotations from "Sync API", "Bloom Filter", and "TTL Behavior Reference" sections.
-
-### Known Issues
-- `docs/API_REFERENCE.md` is stale (documents 0.2.x API). Will be rewritten in 0.4.0.
+- `docs/API_REFERENCE.md`, `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md` fully rewritten from 0.2.x to 0.3.2: replaced non-existent API methods, fixed feature descriptions, added Sync API/BloomFilter/ChainCache/TTL documentation, removed WAL/rate-limiting/Pub-Sub references.
 
 ## [0.3.1] - 2026-06-30
 
