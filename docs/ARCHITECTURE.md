@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.3.2).
+This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.3.3).
 
 ## Table of Contents
 
