@@ -383,12 +383,14 @@ mod tests {
     // CacheConfigError Display tests
     // ============================================================================
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_missing_field_display() {
         let err = CacheConfigError::MissingField("host".to_string());
         assert_eq!(err.to_string(), "Missing required field: host");
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_invalid_value_display() {
         let err = CacheConfigError::InvalidValue {
@@ -398,12 +400,14 @@ mod tests {
         assert_eq!(err.to_string(), "Invalid value for field 'capacity': must be > 0");
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_unsupported_backend_display() {
         let err = CacheConfigError::UnsupportedBackend("unknown".to_string());
         assert_eq!(err.to_string(), "Unsupported backend combination: unknown");
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_connection_failed_display() {
         let err = CacheConfigError::ConnectionFailed("timeout".to_string());
@@ -849,6 +853,7 @@ mod tests {
         assert!(debug_str.contains("NotFound"));
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_debug() {
         let err = CacheConfigError::MissingField("f".to_string());
@@ -866,6 +871,7 @@ mod tests {
         let _: &dyn std::error::Error = &err;
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_is_std_error() {
         let err = CacheConfigError::MissingField("f".to_string());

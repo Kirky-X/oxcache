@@ -101,6 +101,7 @@ npm-debug.log*
 AGENTS.md
 CLAUDE.md
 openspec/
+specmark/
 docs/archive/
 docs/agents/
 docs/superpowers/

@@ -1,0 +1,17 @@
+[package]
+name = "oxcache-example-core-feature"
+version = "0.1.0"
+edition = "2021"
+description = "Example demonstrating oxcache with core feature set (L1 + L2 Redis)"
+license = "MIT"
+publish = false
+
+[dependencies]
+# Use core feature only — minimal + redis + futures, no macros/compression/cli/etc.
+oxcache = { path = "../../../", default-features = false, features = ["core"] }
+
+tokio = { version = "~1.52", default-features = false, features = ["rt", "macros", "rt-multi-thread"] }
+
+[[bin]]
+name = "core_feature_example"
+path = "src/main.rs"

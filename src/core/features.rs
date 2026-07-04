@@ -102,6 +102,7 @@ impl Default for FeatureSet {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "full")]
     #[test]
     fn test_feature_set_current() {
         let fs = FeatureSet::current();
@@ -174,6 +175,7 @@ mod tests {
         assert!(l1_available());
     }
 
+    #[cfg(feature = "redis")]
     #[test]
     fn test_l2_available() {
         // With "redis" feature, l2 should be available
@@ -186,12 +188,14 @@ mod tests {
         assert!(metrics_available());
     }
 
+    #[cfg(feature = "cli")]
     #[test]
     fn test_cli_available() {
         // With "cli" feature, should be available
         assert!(cli_available());
     }
 
+    #[cfg(feature = "batch-write")]
     #[test]
     fn test_batch_write_available() {
         // With "batch-write" feature
