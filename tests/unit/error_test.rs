@@ -4,7 +4,9 @@
 //
 // 错误类型单元测试
 
-use oxcache::error::{CacheConfigError, CacheError};
+#[cfg(feature = "redis")]
+use oxcache::error::CacheConfigError;
+use oxcache::error::CacheError;
 
 #[test]
 fn test_cache_error_serialization_display() {
@@ -435,6 +437,7 @@ fn test_all_error_messages_are_helpful() {
 // CacheConfigError tests (merged from error_display_test.rs)
 // ========================================================================
 
+#[cfg(feature = "redis")]
 #[test]
 fn test_config_error_missing_field_display() {
     let err = CacheConfigError::MissingField("capacity".to_string());
@@ -443,6 +446,7 @@ fn test_config_error_missing_field_display() {
     assert!(msg.contains("capacity"));
 }
 
+#[cfg(feature = "redis")]
 #[test]
 fn test_config_error_invalid_value_display() {
     let err = CacheConfigError::InvalidValue {
@@ -454,6 +458,7 @@ fn test_config_error_invalid_value_display() {
     assert!(msg.contains("must be greater than 0"));
 }
 
+#[cfg(feature = "redis")]
 #[test]
 fn test_config_error_unsupported_backend_display() {
     let err = CacheConfigError::UnsupportedBackend("unknown".to_string());
@@ -462,6 +467,7 @@ fn test_config_error_unsupported_backend_display() {
     assert!(msg.contains("unknown"));
 }
 
+#[cfg(feature = "redis")]
 #[test]
 fn test_config_error_connection_failed_display() {
     let err = CacheConfigError::ConnectionFailed("redis".to_string());

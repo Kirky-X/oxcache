@@ -8,8 +8,10 @@
 #[path = "common/mod.rs"]
 pub mod common;
 
+#[cfg(feature = "redis")]
 #[path = "security/security_tests.rs"]
 mod security_tests;
 
+#[cfg(feature = "redis")]
 #[path = "security/security_coverage_test.rs"]
 mod security_coverage_test;
