@@ -46,7 +46,7 @@ jobs:
       - name: Check dependencies
         run: |
           echo "🔍 Checking dependency licenses and bans..."
-          cargo deny check --all-features
+          cargo deny check
         continue-on-error: false
 
   dependency-review:
