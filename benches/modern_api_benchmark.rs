@@ -7,8 +7,8 @@
 //! 测试L1缓存的性能表现
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::hint::black_box;
 use oxcache::Cache;
+use std::hint::black_box;
 
 /// 基准测试L1缓存的基本操作性能
 fn bench_l1_operations(c: &mut Criterion) {
