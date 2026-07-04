@@ -4,6 +4,8 @@
 //
 // 敏感数据脱敏工具单元测试
 
+#![cfg(feature = "redis")]
+
 use oxcache::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
 
 // ============================================================================
