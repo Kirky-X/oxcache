@@ -59,28 +59,28 @@
 
 ```toml
 [dependencies]
-oxcache = "0.3.2"
+oxcache = "0.3.3"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.3.2", default-features = false }` 手动添加。
+`oxcache = { version = "0.3.3", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.2", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.3", features = ["macros"] }`
 
 #### 特性分层
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.3.2", features = ["full"] }
+oxcache = { version = "0.3.3", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.2", features = ["core"] }
+oxcache = { version = "0.3.3", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.2", features = ["minimal"] }
+oxcache = { version = "0.3.3", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.3.2", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.3.3", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 #### 可用特性
@@ -445,7 +445,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.2", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3.3", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -506,7 +506,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```mermaid
 graph TD
-    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>统一缓存接口]
+    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>统一缓存接口"]
 
     B --> C[ChainCache<br/>分层后端]
     B --> D[MokaMemoryBackend<br/>仅 L1]
