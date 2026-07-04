@@ -4,6 +4,8 @@
 //
 // 安全日志工具单元测试
 
+#![cfg(feature = "redis")]
+
 use oxcache::{log_cache_key, redact_cache_key, redact_connection_string, sanitize_message};
 
 // ============================================================================

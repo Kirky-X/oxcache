@@ -15,6 +15,8 @@
 // 运行需 Redis server：`redis-cli ping` 返回 PONG。Redis 不可用时测试被 #[ignore]。
 // 启用方式：`cargo test --features redis --test redis_sync -- --ignored`
 
+#![cfg(feature = "redis")]
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 

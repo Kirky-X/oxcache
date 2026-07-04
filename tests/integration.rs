@@ -11,31 +11,37 @@
 #[path = "common/mod.rs"]
 pub mod common;
 
+#[cfg(feature = "redis")]
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
 #[path = "integration/comprehensive_test.rs"]
 mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]
 mod degradation_tests;
+#[cfg(feature = "redis")]
 #[path = "integration/invalidation_test.rs"]
 mod invalidation_test;
 #[path = "integration/lifecycle_test.rs"]
 mod lifecycle_test;
+#[cfg(feature = "redis")]
 #[path = "integration/lock_warmup_test.rs"]
 mod lock_warmup_test;
 #[path = "integration/manual_control_test.rs"]
 mod manual_control_test;
+#[cfg(feature = "redis")]
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
 #[path = "integration/redis_client_comprehensive_test.rs"]
 mod redis_client_comprehensive_test;
 
+#[cfg(feature = "redis")]
 #[path = "integration/l2_backend_test.rs"]
 mod l2_backend_test;
 #[path = "integration/single_flight_test.rs"]
 mod single_flight_test;
 #[path = "integration/ttl_control_test.rs"]
 mod ttl_control_test;
+#[cfg(feature = "redis")]
 #[path = "integration/two_level_test.rs"]
 mod two_level_test;
 #[path = "integration/version_test.rs"]
