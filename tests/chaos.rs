@@ -13,8 +13,10 @@ pub mod common;
 #[path = "chaos/chaos_test.rs"]
 mod chaos_test;
 
+#[cfg(feature = "redis")]
 #[path = "chaos/random_failure_test.rs"]
 mod random_failure_test;
 
+#[cfg(feature = "redis")]
 #[path = "chaos/network_failure_test.rs"]
 mod network_failure_test;

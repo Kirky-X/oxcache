@@ -66,7 +66,7 @@ async fn test_batch_write_performance_writes_and_verifies_100_items() {
                 value = v;
                 break;
             }
-            Err(e) if attempt < 2 => {
+            Err(_) if attempt < 2 => {
                 // ponytail: requires Docker, polling not feasible without container
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
