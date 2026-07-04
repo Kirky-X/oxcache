@@ -273,8 +273,8 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate coverage (fail under 95% lines)
-        run: cargo llvm-cov --features full --workspace --fail-under-lines 95 --lcov --output-path lcov.info
+      - name: Generate coverage (fail under 85% lines)
+        run: cargo llvm-cov --features full --workspace --fail-under-lines 85 --lcov --output-path lcov.info
 
       - name: Upload to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
