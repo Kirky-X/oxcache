@@ -96,7 +96,7 @@
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.2")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.3")]
 #![deny(unsafe_code)]
 
 // ============================================================================
@@ -125,13 +125,13 @@ macro_rules! check_feature_dependence {
             $required,
             "' or 'full' feature.\n",
             "\nSolution 1: Enable required feature:\n",
-            "    oxcache = { version = \"0.3.2\", features = [\"",
+            "    oxcache = { version = \"0.3.3\", features = [\"",
             $dependent,
             "\", \"",
             $required,
             "\"] }\n",
             "\nSolution 2: Enable all features:\n",
-            "    oxcache = { version = \"0.3.2\", features = [\"full\"] }"
+            "    oxcache = { version = \"0.3.3\", features = [\"full\"] }"
         ));
     };
 }
@@ -153,6 +153,11 @@ pub mod internal;
 // ============================================================================
 
 // Cache module (modern Cache<K,V> API)
+// Note: cache module internally uses serde/serde_json (serialization), tracing (tracing),
+// and core/types (which uses serde derive). It is designed for minimal/core/full feature
+// sets which all include serialization+tracing. memory-only is not a supported configuration
+// for the high-level Cache API — users wanting only L1 memory storage should use
+// backend::MokaMemoryBackend directly via the `minimal` feature.
 pub mod cache;
 
 // Backend module (L1/L2 cache implementation)
@@ -213,9 +218,9 @@ pub mod macros {
     pub use oxcache_macros::*;
 }
 
-pub use error::{CacheError, Result};
 #[cfg(feature = "redis")]
 pub use error::{CacheConfigError, ConfigResult};
+pub use error::{CacheError, Result};
 
 // Re-export internal functions needed by #[cached] macro at crate root
 // The macro generates code calling ::oxcache::__internal_get_cache()
@@ -231,7 +236,7 @@ pub use cache::builder::CacheBuilder;
 pub use cache::Cache;
 
 // Re-exports from infra module
-#[cfg(any(feature = "metrics", feature = "full"))]
+#[cfg(feature = "metrics")]
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
 // Re-exports from security module (new brick architecture)

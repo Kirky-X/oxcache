@@ -6,7 +6,10 @@
 //!
 //! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader, cli
 
+#[cfg(feature = "metrics")]
 pub mod metrics;
+
+#[cfg(feature = "serialization")]
 pub mod serialization;
 
 use crate::error::CacheError;
