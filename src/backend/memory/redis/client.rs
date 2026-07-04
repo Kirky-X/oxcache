@@ -1739,14 +1739,11 @@ mod tests {
         assert!(executor.is_some());
     }
 
-    #[cfg(not(feature = "lua-script"))]
-    #[tokio::test]
-    #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
-    async fn test_as_lua_executor_returns_none_without_feature() {
-        use crate::backend::interface::CacheConnector;
-        let backend = make_backend().await;
-        assert!(backend.as_lua_executor().is_none());
-    }
+    // Note: there is no `test_as_lua_executor_returns_none_without_feature` test
+    // because the trait method `as_lua_executor` itself is gated behind
+    // `#[cfg(feature = "lua-script")]`. When the feature is off, the method
+    // does not exist on the trait, so a runtime `.is_none()` assertion is
+    // impossible by design — the gate IS the "none" case.
 
     // =========================================================================
     // CacheBackend blanket impl 测试
