@@ -132,19 +132,19 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry-${{ replace(matrix.features, ',', '-') }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
         uses: actions/cache@v6
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-index-${{ replace(matrix.features, ',', '-') }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
         uses: actions/cache@v6
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-${{ replace(matrix.features, ',', '-') }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests
         run: cargo test --features "${{ matrix.features }}" --workspace
