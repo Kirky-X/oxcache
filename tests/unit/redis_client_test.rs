@@ -4,6 +4,8 @@
 //
 // Redis client unit tests extracted from client.rs
 
+#![cfg(feature = "redis")]
+
 use oxcache::backend::memory::redis::{RedisBackendBuilder, RedisMode};
 
 #[test]

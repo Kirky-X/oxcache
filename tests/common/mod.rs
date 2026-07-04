@@ -8,9 +8,12 @@
 #![allow(clippy::duplicate_mod)]
 
 // 子模块
+#[cfg(feature = "redis")]
 pub mod docker_test_utils;
 pub mod mock_backend;
+#[cfg(feature = "redis")]
 pub mod redis_test_utils;
+#[cfg(feature = "redis")]
 pub mod test_containers;
 
 // ============================================================================
@@ -18,6 +21,7 @@ pub mod test_containers;
 // ============================================================================
 
 // Redis 测试工具
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use redis_test_utils::{
     create_cluster_redis_urls, create_standalone_redis_url, get_redis_url, get_redis_url_insecure, is_redis_available,
@@ -25,6 +29,7 @@ pub use redis_test_utils::{
 };
 
 // Docker 测试工具
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use docker_test_utils::{
     is_redis_available as docker_is_redis_available, setup_redis_cluster_nodes, setup_redis_container,
@@ -32,6 +37,7 @@ pub use docker_test_utils::{
 };
 
 // Testcontainers 工具
+#[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use test_containers::{
     is_redis_available as tc_is_redis_available, start_redis_container, RedisClusterManager,
