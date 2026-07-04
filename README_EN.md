@@ -60,28 +60,28 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.3.2"
+oxcache = "0.3.3"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-> `oxcache = { version = "0.3.2", default-features = false }` and add them manually.
+> `oxcache = { version = "0.3.3", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.3.2", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.3.3", features = ["macros"] }`
 
 #### Feature Tiers
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.3.2", features = ["full"] }
+oxcache = { version = "0.3.3", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.3.2", features = ["core"] }
+oxcache = { version = "0.3.3", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.3.2", features = ["minimal"] }
+oxcache = { version = "0.3.3", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.3.2", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.3.3", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 | Tier        | Features                                                                        | Description            |
@@ -450,7 +450,7 @@ The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides 
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.2", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3.3", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -513,7 +513,7 @@ All backends honor per-entry TTL since 0.3.0. Behavior summary:
 
 ```mermaid
 graph TD
-    A[Application Code<br/>#[cached] Macro] --> B[Cache&lt;K, V&gt;<br/>Unified Cache Interface]
+    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>Unified Cache Interface"]
 
     B --> C[ChainCache<br/>Tiered Backend]
     B --> D[MokaMemoryBackend<br/>L1 Only]
