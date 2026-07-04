@@ -2,7 +2,7 @@
 
 > **⚠️ API Version Notice**
 >
-> This document describes **Oxcache v0.3.2** APIs.
+> This document describes **Oxcache v0.3.3** APIs.
 
 This document provides detailed API reference for the Oxcache library.
 
@@ -51,16 +51,16 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 
 ```toml
 # Full features (recommended, default)
-oxcache = { version = "0.3.2", features = ["full"] }
+oxcache = { version = "0.3.3", features = ["full"] }
 
 # Core functionality only (L1 + L2)
-oxcache = { version = "0.3.2", features = ["core"] }
+oxcache = { version = "0.3.3", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.3.2", features = ["minimal"] }
+oxcache = { version = "0.3.3", features = ["minimal"] }
 
 # Custom selection (e.g. add bloom-filter on top of core)
-oxcache = { version = "0.3.2", features = ["core", "macros", "bloom-filter"] }
+oxcache = { version = "0.3.3", features = ["core", "macros", "bloom-filter"] }
 ```
 
 ### Feature Dependencies
@@ -98,7 +98,7 @@ The macro retrieves a `Cache` instance from the internal registry via
 **Example (async):**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.3.2", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.3.3", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
