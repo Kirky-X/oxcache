@@ -173,21 +173,35 @@ mod tests {
 
     #[test]
     fn test_l1_hit_rate() {
-        let stats = CacheStats { l1_hits: 7, l1_misses: 3, ..Default::default() };
+        let stats = CacheStats {
+            l1_hits: 7,
+            l1_misses: 3,
+            ..Default::default()
+        };
         assert_eq!(stats.l1_hit_rate(), 0.7);
         assert_eq!(stats.l1_hit_rate_percent(), "70.00%");
     }
 
     #[test]
     fn test_l2_hit_rate() {
-        let stats = CacheStats { l2_hits: 4, l2_misses: 6, ..Default::default() };
+        let stats = CacheStats {
+            l2_hits: 4,
+            l2_misses: 6,
+            ..Default::default()
+        };
         assert_eq!(stats.l2_hit_rate(), 0.4);
         assert_eq!(stats.l2_hit_rate_percent(), "40.00%");
     }
 
     #[test]
     fn test_overall_hit_rate() {
-        let stats = CacheStats { l1_hits: 7, l1_misses: 3, l2_hits: 4, l2_misses: 6, ..Default::default() };
+        let stats = CacheStats {
+            l1_hits: 7,
+            l1_misses: 3,
+            l2_hits: 4,
+            l2_misses: 6,
+            ..Default::default()
+        };
         // total hits = 11, total = 20
         assert_eq!(stats.overall_hit_rate(), 0.55);
         assert_eq!(stats.overall_hit_rate_percent(), "55.00%");
@@ -195,7 +209,11 @@ mod tests {
 
     #[test]
     fn test_l1_hit_rate_all_hits() {
-        let stats = CacheStats { l1_hits: 10, l1_misses: 0, ..Default::default() };
+        let stats = CacheStats {
+            l1_hits: 10,
+            l1_misses: 0,
+            ..Default::default()
+        };
         assert_eq!(stats.l1_hit_rate(), 1.0);
         assert_eq!(stats.l1_hit_rate_percent(), "100.00%");
     }
@@ -243,7 +261,13 @@ mod tests {
 
     #[test]
     fn test_export_json_serializes_all_fields() {
-        let stats = CacheStats { l1_hits: 5, l1_misses: 2, l2_hits: 3, total_operations: 10, ..Default::default() };
+        let stats = CacheStats {
+            l1_hits: 5,
+            l1_misses: 2,
+            l2_hits: 3,
+            total_operations: 10,
+            ..Default::default()
+        };
 
         let json = stats.export_json().unwrap();
         assert!(json.contains("\"l1_hits\": 5"));
@@ -326,7 +350,10 @@ mod tests {
 
     #[test]
     fn test_cache_stats_clone() {
-        let stats = CacheStats { l1_hits: 42, ..Default::default() };
+        let stats = CacheStats {
+            l1_hits: 42,
+            ..Default::default()
+        };
         let cloned = stats.clone();
         assert_eq!(cloned.l1_hits, 42);
     }
