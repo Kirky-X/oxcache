@@ -45,6 +45,16 @@ thiserror = "2.0"
 version = "~1.0"
 optional = true
 
+# trait-kit integration (optional, feature-gated via `kit`).
+# Uses path until trait-kit 0.2.2 is published to crates.io; the version
+# constraint is kept so the published artifact resolves the same.
+[dependencies.trait-kit]
+version = "0.2.2"
+path = "../trait-kit"
+features = ["async"]
+optional = true
+default-features = false
+
 # Tracing for logging and instrumentation
 [dependencies.tracing]
 version = "~0.1"
@@ -268,6 +278,10 @@ testing = []
 
 # Bloom Filter decorator (negative query filtering)
 bloom-filter = ["dep:bloomfilter"]
+
+# trait-kit 0.2.2 AsyncKit integration (OxcacheModule). Pulls in trait-kit
+# with the `async` feature only — default features are disabled (Rule 6).
+kit = ["dep:trait-kit"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================
