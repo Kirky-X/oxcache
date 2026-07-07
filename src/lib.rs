@@ -202,6 +202,11 @@ pub mod config;
 // Utils module: key generation utilities
 pub mod utils;
 
+// Integrations module: optional adapters for external frameworks (trait-kit, etc.)
+// Each integration is feature-gated and pulls no deps unless explicitly enabled.
+#[cfg(feature = "kit")]
+pub mod integrations;
+
 // Security module: Redis security validation
 pub(crate) mod security;
 
