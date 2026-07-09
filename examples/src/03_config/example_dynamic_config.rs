@@ -24,8 +24,10 @@ struct ConfigValue {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 动态配置示例 ===
-");
+    println!(
+        "=== 动态配置示例 ===
+"
+    );
 
     // 创建配置缓存
     let cache: Cache<String, ConfigValue> = Cache::builder().build().await?;
@@ -131,8 +133,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 清理
     println!("6. 清理测试数据");
     cache.clear().await?;
-    println!("   ✓ 测试数据已清理
-");
+    println!(
+        "   ✓ 测试数据已清理
+"
+    );
 
     println!("=== 动态配置示例完成 ===");
     Ok(())

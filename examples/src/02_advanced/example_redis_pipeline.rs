@@ -35,10 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let owned_items: Vec<(String, Vec<u8>)> = (0..10)
         .map(|i| (format!("pipeline:key:{}", i), format!("value_{}", i).into_bytes()))
         .collect();
-    let items: Vec<(&str, Vec<u8>)> = owned_items
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.clone()))
-        .collect();
+    let items: Vec<(&str, Vec<u8>)> = owned_items.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
 
     let start = Instant::now();
     backend.set_many_pipeline(&items, Some(Duration::from_secs(60))).await?;
@@ -79,10 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let owned_perf: Vec<(String, Vec<u8>)> = (0..10)
         .map(|i| (format!("pipeline:perf:{}", i), format!("value_{}", i).into_bytes()))
         .collect();
-    let perf_items: Vec<(&str, Vec<u8>)> = owned_perf
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.clone()))
-        .collect();
+    let perf_items: Vec<(&str, Vec<u8>)> = owned_perf.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
 
     let start = Instant::now();
     backend.set_many_pipeline(&perf_items, None).await?;
@@ -90,7 +84,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  逐个设置 10 个键: {:?}", individual_elapsed);
     println!("  Pipeline 设置 10 个键: {:?}", pipeline_elapsed);
-    println!("  Pipeline 快 {:.1}x", individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001));
+    println!(
+        "  Pipeline 快 {:.1}x",
+        individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001)
+    );
 
     // 4. 批量删除
     println!("\n--- 4. 批量删除（delete_many_pipeline） ---");

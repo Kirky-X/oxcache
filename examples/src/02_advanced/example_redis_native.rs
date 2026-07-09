@@ -87,9 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("   批量添加用户...");
     for user in &users {
-        cache
-            .set(&format!("user:{}", user.id), user)
-            .await?;
+        cache.set(&format!("user:{}", user.id), user).await?;
     }
     println!("   ✓ 批量添加成功");
 

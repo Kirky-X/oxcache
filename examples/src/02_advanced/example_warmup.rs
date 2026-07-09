@@ -57,7 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // 模拟从数据库查询用户
             let username = format!("user_{}", id);
             let role = if id == 1 { "admin" } else { "user" };
-            cache.set(&format!("user:{}", id), &format!("{}:{}", username, role)).await?;
+            cache
+                .set(&format!("user:{}", id), &format!("{}:{}", username, role))
+                .await?;
             Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
         });
         handles.push(handle);

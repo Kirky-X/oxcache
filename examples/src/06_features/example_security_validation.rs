@@ -20,9 +20,7 @@
 //! cd examples && cargo run --example example_security_validation
 //! ```
 
-use oxcache::{
-    clamp_scan_count, log_cache_key, validate_lua_script, validate_redis_key, validate_scan_pattern,
-};
+use oxcache::{clamp_scan_count, log_cache_key, validate_lua_script, validate_redis_key, validate_scan_pattern};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -120,11 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2.3 无限循环检测
     println!("\n--- 无限循环检测 ---");
-    let loop_scripts = [
-        "while true do end",
-        "while 1 do end",
-        "repeat until false",
-    ];
+    let loop_scripts = ["while true do end", "while 1 do end", "repeat until false"];
     for script in &loop_scripts {
         match validate_lua_script(script, 0) {
             Ok(()) => println!("  ✓ 通过: {:?}", script),
@@ -214,11 +208,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 模拟用户输入的缓存键
     let user_inputs = [
-        "user:profile:123",          // 合法
-        "data; DROP TABLE users",    // SQL 注入
-        "session:abc:def",           // 合法
-        "../etc/passwd",             // 路径遍历
-        "cache:hit",                 // 合法
+        "user:profile:123",       // 合法
+        "data; DROP TABLE users", // SQL 注入
+        "session:abc:def",        // 合法
+        "../etc/passwd",          // 路径遍历
+        "cache:hit",              // 合法
     ];
 
     println!("  验证用户输入的缓存键:");
@@ -234,7 +228,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lua_scripts = [
         ("原子计数器", "return redis.call('INCR', KEYS[1])", 1),
         ("危险清空", "return redis.call('FLUSHALL')", 0),
-        ("条件更新", "local v=redis.call('GET',KEYS[1]) if v then redis.call('SET',KEYS[1],ARGV[1]) end return v", 1),
+        (
+            "条件更新",
+            "local v=redis.call('GET',KEYS[1]) if v then redis.call('SET',KEYS[1],ARGV[1]) end return v",
+            1,
+        ),
     ];
     for (name, script, key_count) in &lua_scripts {
         match validate_lua_script(script, *key_count) {

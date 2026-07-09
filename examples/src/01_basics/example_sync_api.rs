@@ -29,7 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // === 基本 sync 操作 ===
     println!("=== 基本 sync 操作 ===");
-    let alice = User { id: 1, name: "Alice".to_string() };
+    let alice = User {
+        id: 1,
+        name: "Alice".to_string(),
+    };
     cache.set_sync(&"user:1".to_string(), &alice)?;
     println!("设置 user:1 = {:?}", alice);
 
@@ -47,7 +50,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== sync + TTL ===");
     cache.set_with_ttl_sync(
         &"temp".to_string(),
-        &User { id: 2, name: "Temp".to_string() },
+        &User {
+            id: 2,
+            name: "Temp".to_string(),
+        },
         Some(std::time::Duration::from_secs(60)),
     )?;
     println!("设置 temp（60s TTL）");
@@ -62,13 +68,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 第一次调用：cache miss，触发 fallback
     let user = cache.get_or_sync(&"user:42".to_string(), || {
         count_for_fallback.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Ok(User { id: 42, name: "Bob".to_string() })
+        Ok(User {
+            id: 42,
+            name: "Bob".to_string(),
+        })
     })?;
     println!("第一次 get_or_sync = {:?}（fallback 被调用）", user);
 
     // 第二次调用：cache hit，不触发 fallback
     let user = cache.get_or_sync(&"user:42".to_string(), || {
-        Ok(User { id: 42, name: "Should not be called".to_string() })
+        Ok(User {
+            id: 42,
+            name: "Should not be called".to_string(),
+        })
     })?;
     println!("第二次 get_or_sync = {:?}（cache hit）", user);
 
@@ -76,7 +88,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // === sync 与 async 混用 ===
     println!("\n=== sync 与 async 混用 ===");
-    cache.set(&"async_key".to_string(), &User { id: 99, name: "Async".to_string() }).await?;
+    cache
+        .set(
+            &"async_key".to_string(),
+            &User {
+                id: 99,
+                name: "Async".to_string(),
+            },
+        )
+        .await?;
     let sync_value = cache.get_sync(&"async_key".to_string())?;
     println!("async set → sync get = {:?}", sync_value);
 

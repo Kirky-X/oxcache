@@ -43,9 +43,7 @@ fn create_small_data() -> User {
 
 fn create_medium_data() -> LargeData {
     let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100);
-    let metadata: Vec<String> = (0..50)
-        .map(|i| format!("metadata_{}: value_{}", i, i))
-        .collect();
+    let metadata: Vec<String> = (0..50).map(|i| format!("metadata_{}: value_{}", i, i)).collect();
 
     LargeData {
         id: 1,
@@ -148,7 +146,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key = "large_data".to_string();
     let compressed = compress_serializer.serialize("LargeData", &large_bytes)?;
     cache.set(&key, &compressed).await?;
-    println!("  存储压缩数据: {} bytes -> {} bytes", large_bytes.len(), compressed.len());
+    println!(
+        "  存储压缩数据: {} bytes -> {} bytes",
+        large_bytes.len(),
+        compressed.len()
+    );
 
     // 读取并解压
     if let Some(stored) = cache.get(&key).await? {
