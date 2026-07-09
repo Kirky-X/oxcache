@@ -16,23 +16,19 @@
 
 <table>
 <tr>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
 <b>极致性能</b><br>L1 纳秒级响应
 </td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
 <b>零侵入式</b><br>一行代码启用缓存
 </td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
 <b>自动故障恢复</b><br>Redis 故障自动降级
 </td>
-<td width="20%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/synchronize.png" width="48"><br>
-<b>多实例同步</b><br>基于 Pub/Sub 机制
-</td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
 <b>批量优化</b><br>智能批量写入
 </td>
@@ -43,8 +39,7 @@
 
 - **🚀 极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
 - **🎯 零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
-- **🔄 自动故障恢复**: Redis 故障时自动降级，恢复后自动重放 WAL
-- **🌐 多实例同步**: 基于 Pub/Sub + 版本号的失效同步机制
+- **🔄 自动故障恢复**: Redis 故障时自动降级到 L1 缓存
 - **⚡ 批量优化**: 智能批量写入，大幅提升吞吐量
 - **🧪 同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
 - **🌸 布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
@@ -152,146 +147,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 配置文件
+### Builder API
 
-创建 `config.toml`：
-
-```toml
-[global]
-default_ttl = 3600
-health_check_interval = 30
-serialization = "json"
-enable_metrics = true
-
-# 双层缓存 (L1 + L2)
-[services.user_cache]
-cache_type = "two-level"  # "l1" | "l2" | "two-level"
-ttl = 600
-
-  [services.user_cache.l1]
-  max_capacity = 10000
-  ttl = 300  # L1 TTL 必须 <= L2 TTL
-  tti = 180
-  initial_capacity = 1000
-
-  [services.user_cache.l2]
-  mode = "standalone"  # "standalone" | "sentinel" | "cluster"
-  connection_string = "redis://127.0.0.1:6379"
-
-  [services.user_cache.two_level]
-  write_through = true
-  promote_on_hit = true
-  enable_batch_write = true
-  batch_size = 100
-  batch_interval_ms = 50
-
-# 仅 L1 缓存 (仅内存)
-[services.session_cache]
-cache_type = "l1"
-ttl = 300
-
-  [services.session_cache.l1]
-  max_capacity = 5000
-  ttl = 300
-  tti = 120
-
-# 仅 L2 缓存 (仅 Redis)
-[services.shared_cache]
-cache_type = "l2"
-ttl = 7200
-
-  [services.shared_cache.l2]
-  mode = "standalone"
-  connection_string = "redis://127.0.0.1:6379"
-```
-
-### 类型安全配置 API（推荐）
-
-Oxcache 提供**类型安全的构建器 API** 用于配置，支持编译时类型检查和更好的 IDE 支持。对于大多数用例，推荐使用此方式而非 TOML 配置。
-
-#### 仅内存缓存 (L1)
-
-```rust
-use oxcache::config::UnifiedConfigBuilder;
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用构建器 API 创建类型安全配置
-    let config = UnifiedConfigBuilder::memory_only()
-        .with_ttl(3600)           // 默认 TTL（秒）
-        .with_l1_capacity(10000)  // L1 缓存容量
-        .build();
-
-    // 从配置直接创建缓存
-    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
-        .build()
-        .await?;
-
-    // 使用缓存
-    let user = User {
-        id: 1,
-        name: "Alice".to_string(),
-    };
-
-    cache.set(&"user:1".to_string(), &user).await?;
-    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
-
-    println!("User: {:?}", cached);
-    Ok(())
-}
-```
-
-#### 分层缓存 (L1 + L2)
-
-```rust
-use oxcache::config::UnifiedConfigBuilder;
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建分层缓存配置
-    let config = UnifiedConfigBuilder::tiered()
-        .with_ttl(7200)            // 默认 TTL（秒）
-        .with_l1_capacity(10000)   // L1 内存缓存容量
-        .with_redis_url("redis://localhost:6379")  // L2 Redis 连接
-        .with_redis_mode("standalone")  // Redis 模式
-        .build();
-
-    // 从配置直接创建缓存
-    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
-        .build()
-        .await?;
-
-    // 使用缓存（同时写入 L1 和 L2）
-    let user = User {
-        id: 1,
-        name: "Alice".to_string(),
-    };
-
-    cache.set(&"user:1".to_string(), &user).await?;
-    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
-
-    println!("User: {:?}", cached);
-    Ok(())
-}
-```
-
-#### 配置构建器方法
+Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用的构建器方法：
 
 | 方法 | 描述 |
 |--------|------|
@@ -305,14 +163,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 > **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
 > 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
-
-#### 类型安全 API 的优势
-
-- **编译时验证**：配置错误在编译时被捕获
-- **IDE 支持**：完整的自动补全和类型提示
-- **无运行时解析**：消除 TOML 解析开销
-- **更好的错误信息**：类型错误而非配置解析错误
-- **重构友好**：重命名重构可在配置中生效
 
 ## 🎨 使用场景
 
@@ -564,7 +414,6 @@ xychart-beta
 ## 🛡️ 可靠性
 
 - ✅ 单次请求去重 (Single-Flight)
-- ✅ 预写日志 (WAL) 持久化
 - ✅ Redis 故障自动降级
 - ✅ 优雅关闭机制
 - ✅ 健康检查与自动恢复
@@ -619,7 +468,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ### 连接字符串脱敏
 
-连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `normalize_connection_string_with_redaction()` 进行安全日志记录。
+连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `redact_connection_string()` 进行安全日志记录。
 
 ### 最佳实践
 
