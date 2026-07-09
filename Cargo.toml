@@ -1,6 +1,6 @@
 [package]
 name = "oxcache"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 # ============================================================================
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.3.3", optional = true }
+oxcache_macros = { path = "macros", version = "0.3.4", optional = true }
 
 # Async Runtime - 精简特性
 tokio = { version = "~1.52", default-features = false, features = [
@@ -49,7 +49,7 @@ optional = true
 # Uses path until trait-kit 0.2.2 is published to crates.io; the version
 # constraint is kept so the published artifact resolves the same.
 [dependencies.trait-kit]
-version = "0.2.2"
+version = "0.2.3"
 path = "../trait-kit"
 features = ["async"]
 optional = true
@@ -282,6 +282,10 @@ bloom-filter = ["dep:bloomfilter"]
 # trait-kit 0.2.2 AsyncKit integration (OxcacheModule). Pulls in trait-kit
 # with the `async` feature only — default features are disabled (Rule 6).
 kit = ["dep:trait-kit"]
+
+[workspace]
+resolver = "2"
+members = [".", "examples"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================

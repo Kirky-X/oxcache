@@ -9,6 +9,7 @@ repository = "https://github.com/kirky-x/oxcache"
 readme = "README.md"
 keywords = ["cache", "redis", "examples", "tutorial"]
 categories = ["caching", "asynchronous", "educational"]
+publish = false
 
 [dependencies]
 # Path dependency to the main oxcache project
@@ -158,6 +159,3 @@ path = "src/06_features/example_bloom_filter.rs"
 [[example]]
 name = "example_moka_ttl"
 path = "src/02_advanced/example_moka_ttl.rs"
-
-[profile.release]
-opt-level = 1
