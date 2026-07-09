@@ -23,10 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. 创建缓存并执行操作
     println!("--- 1. 创建缓存并执行操作 ---");
-    let cache: Cache<String, String> = Cache::builder()
-        .capacity(1000)
-        .build()
-        .await?;
+    let cache: Cache<String, String> = Cache::builder().capacity(1000).build().await?;
 
     // 执行一些操作以产生指标
     for i in 0..20 {

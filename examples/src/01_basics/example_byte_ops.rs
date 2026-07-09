@@ -26,7 +26,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  写入: {} 字节", data.len());
 
     let retrieved = cache.get_bytes(&key).await?;
-    println!("  读取: {:?}", retrieved.map(|d| String::from_utf8_lossy(&d).to_string()));
+    println!(
+        "  读取: {:?}",
+        retrieved.map(|d| String::from_utf8_lossy(&d).to_string())
+    );
 
     // 2. 无 TTL 的字节操作
     println!("\n--- 2. 无 TTL 的字节操作 ---");
@@ -52,7 +55,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let retrieved3 = cache.get_bytes(&key3).await?;
     if let Some(data) = retrieved3 {
         println!("  读取: {} 字节", data.len());
-        println!("  校验: {}", if data == binary_data { "✓ 一致" } else { "✗ 不一致" });
+        println!(
+            "  校验: {}",
+            if data == binary_data {
+                "✓ 一致"
+            } else {
+                "✗ 不一致"
+            }
+        );
     }
 
     // 4. 序列化器访问

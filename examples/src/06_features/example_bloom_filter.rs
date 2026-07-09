@@ -33,7 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("contains 'missing_key'  = {}（应为 false）", bf.contains("missing_key"));
 
     bf.clear();
-    println!("clear 后 contains 'existing_key' = {}（应为 false）", bf.contains("existing_key"));
+    println!(
+        "clear 后 contains 'existing_key' = {}（应为 false）",
+        bf.contains("existing_key")
+    );
 
     // === BloomFilterBackend 装饰器 ===
     println!("\n=== BloomFilterBackend 装饰器 ===");

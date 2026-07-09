@@ -59,8 +59,10 @@ async fn get_hot_data(id: u64) -> Result<String, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== #[cached] 宏使用示例 ===
-");
+    println!(
+        "=== #[cached] 宏使用示例 ===
+"
+    );
 
     // 初始化缓存
     // 注意：register_for_macro 仅支持 Cache<String, Vec<u8>>
@@ -68,8 +70,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 注册缓存实例到全局管理器（供宏使用）
     cache.register_for_macro("user_cache").await?;
-    println!("✓ 缓存已注册供 #[cached] 宏使用
-");
+    println!(
+        "✓ 缓存已注册供 #[cached] 宏使用
+"
+    );
 
     // 1. 基础缓存功能演示
     println!("1. 基础缓存功能演示");
@@ -120,7 +124,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let second_duration = start.elapsed();
     println!("   缓存命中耗时: {:?}", second_duration);
 
-    println!("   性能提升: {:.2}x", first_duration.as_millis() as f64 / second_duration.as_millis() as f64);
+    println!(
+        "   性能提升: {:.2}x",
+        first_duration.as_millis() as f64 / second_duration.as_millis() as f64
+    );
     println!();
 
     // 5. 多参数函数缓存演示
@@ -130,7 +137,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::sleep(std::time::Duration::from_millis(80)).await;
         Ok(format!("User {} with role {}", user_id, role))
     }
-
 
     println!("5. 多参数函数缓存演示");
     println!("   调用 get_user_with_role(4, \"admin\")...");

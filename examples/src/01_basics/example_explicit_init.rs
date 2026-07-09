@@ -64,7 +64,10 @@ async fn main() {
     println!("\nStep 7: Retrieve cache from registry");
     if let Some(retrieved) = registry::get("users") {
         let val = retrieved.get("user:1").await.expect("get failed");
-        println!("  registry::get('users') -> user:1 = {:?}", val.as_deref().map(String::from_utf8_lossy));
+        println!(
+            "  registry::get('users') -> user:1 = {:?}",
+            val.as_deref().map(String::from_utf8_lossy)
+        );
     }
 
     // Step 8: Remove cache from registry

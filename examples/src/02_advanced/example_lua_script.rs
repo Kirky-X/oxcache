@@ -98,7 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  期望 v1 更新为 v2: {:?} (应为 1，表示成功)", result);
 
     // 5. 清理
-    backend.delete_many_pipeline(&["counter:1", "test:lua:length", "cas:key"]).await?;
+    backend
+        .delete_many_pipeline(&["counter:1", "test:lua:length", "cas:key"])
+        .await?;
     println!("\n✓ 示例完成，已清理测试数据");
 
     Ok(())
