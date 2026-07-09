@@ -59,28 +59,28 @@
 
 ```toml
 [dependencies]
-oxcache = "0.3.3"
+oxcache = "0.3.4"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.3.3", default-features = false }` 手动添加。
+`oxcache = { version = "0.3.4", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.3", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.4", features = ["macros"] }`
 
 #### 特性分层
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.3.3", features = ["full"] }
+oxcache = { version = "0.3.4", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.3", features = ["core"] }
+oxcache = { version = "0.3.4", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.3", features = ["minimal"] }
+oxcache = { version = "0.3.4", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.3.3", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.3.4", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 #### 可用特性
@@ -445,7 +445,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.3", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3.4", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -636,6 +636,8 @@ validate_scan_pattern("user:*").expect("无效的模式");
 - [📖 用户指南](docs/USER_GUIDE.md)
 - [📘 API 文档](https://docs.rs/oxcache)
 - [💻 示例代码](examples/)
+
+> **注意**：`oxcache-examples` 已设为 `publish = false` 并纳入 workspace 管理。
 
 ## 🤝 贡献
 
