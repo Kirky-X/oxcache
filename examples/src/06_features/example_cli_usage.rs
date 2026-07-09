@@ -37,10 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== oxcache CLI 使用示例 ===\n");
 
     // 1. 创建缓存实例
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .capacity(1000)
-        .build()
-        .await?;
+    let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(1000).build().await?;
 
     println!("缓存已创建: demo_cache");
 

@@ -38,10 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 从缓存中获取值
     println!("获取用户...");
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
-        println!(
-            "获取的用户: {} ({})",
-            cached_user.name, cached_user.email
-        );
+        println!("获取的用户: {} ({})", cached_user.name, cached_user.email);
         assert_eq!(cached_user.id, 1);
     }
 

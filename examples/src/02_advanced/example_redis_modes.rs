@@ -32,7 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 基本操作测试
     standalone.set("mode:standalone", b"hello".to_vec(), None).await?;
     let value = standalone.get("mode:standalone").await?;
-    println!("  写入/读取: {:?}", value.map(|v| String::from_utf8_lossy(&v).to_string()));
+    println!(
+        "  写入/读取: {:?}",
+        value.map(|v| String::from_utf8_lossy(&v).to_string())
+    );
     standalone.delete("mode:standalone").await?;
 
     // 2. 使用 Builder 显式指定模式
@@ -59,7 +62,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Cluster 下的基本操作
                 cluster.set("mode:cluster", b"cluster_value".to_vec(), None).await?;
                 let value = cluster.get("mode:cluster").await?;
-                println!("  写入/读取: {:?}", value.map(|v| String::from_utf8_lossy(&v).to_string()));
+                println!(
+                    "  写入/读取: {:?}",
+                    value.map(|v| String::from_utf8_lossy(&v).to_string())
+                );
                 cluster.delete("mode:cluster").await?;
             }
             Err(e) => {
@@ -86,7 +92,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Sentinel 下的基本操作
                 sentinel.set("mode:sentinel", b"sentinel_value".to_vec(), None).await?;
                 let value = sentinel.get("mode:sentinel").await?;
-                println!("  写入/读取: {:?}", value.map(|v| String::from_utf8_lossy(&v).to_string()));
+                println!(
+                    "  写入/读取: {:?}",
+                    value.map(|v| String::from_utf8_lossy(&v).to_string())
+                );
                 sentinel.delete("mode:sentinel").await?;
             }
             Err(e) => {

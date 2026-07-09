@@ -101,10 +101,7 @@ async fn main() -> Result<()> {
     use std::time::Duration;
 
     // 使用 builder 创建高级配置缓存
-    let advanced_cache: Cache<String, User> = Cache::builder()
-        .ttl(Duration::from_secs(3600))
-        .build()
-        .await?;
+    let advanced_cache: Cache<String, User> = Cache::builder().ttl(Duration::from_secs(3600)).build().await?;
 
     advanced_cache.set(&"user:6".to_string(), &user).await?;
     let cached_user: Option<User> = advanced_cache.get(&"user:6".to_string()).await?;

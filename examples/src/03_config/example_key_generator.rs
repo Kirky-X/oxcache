@@ -29,10 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. 使用命名空间
     println!("\n--- 2. 使用命名空间 ---");
-    let user_gen = KeyGenerator::new()
-        .with_namespace("users");
-    let order_gen = KeyGenerator::new()
-        .with_namespace("orders");
+    let user_gen = KeyGenerator::new().with_namespace("users");
+    let order_gen = KeyGenerator::new().with_namespace("orders");
 
     let user_key = user_gen.namespaced_key("user:123");
     let order_key = order_gen.namespaced_key("order:456");
@@ -66,10 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key = gen.generate("user:{id}:profile", &[("id", "42")]);
     println!("  模板 'user:{{id}}:profile' + id=42 -> {}", key);
 
-    let key = gen.generate("search:{type}:{query}", &[
-        ("type", "products"),
-        ("query", "laptop"),
-    ]);
+    let key = gen.generate("search:{type}:{query}", &[("type", "products"), ("query", "laptop")]);
     println!("  模板 'search:{{type}}:{{query}}' -> {}", key);
 
     // 6. 完整键生成（带命名空间和前缀）
@@ -106,9 +101,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use oxcache::Cache;
 
     let cache: Cache<String, String> = Cache::builder().build().await?;
-    let key_gen = KeyGenerator::new()
-        .with_namespace("demo")
-        .with_prefix_str("v1");
+    let key_gen = KeyGenerator::new().with_namespace("demo").with_prefix_str("v1");
 
     // 使用 KeyGenerator 生成键
     let user_key = key_gen.generate_full("user:{id}:name", &[("id", "1")]);

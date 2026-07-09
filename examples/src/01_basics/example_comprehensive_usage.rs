@@ -16,10 +16,10 @@
 //! cd examples && cargo run --example example_comprehensive_usage
 //! ```
 
+use oxcache::error::Result;
+use oxcache::Cache;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-use oxcache::Cache;
-use oxcache::error::Result;
 
 // 简单的用户结构体
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -41,26 +41,34 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("=== Oxcache 综合使用示例 ===
-");
+    println!(
+        "=== Oxcache 综合使用示例 ===
+"
+    );
 
     // 1. 创建内存缓存 (L1 only)
     println!("1. 创建内存缓存 (L1)");
     let _memory_cache: Cache<String, User> = Cache::builder().build().await?;
-    println!("   ✓ 内存缓存创建成功
-");
+    println!(
+        "   ✓ 内存缓存创建成功
+"
+    );
 
     // 2. 创建 Redis 缓存 (L2 only)
     println!("2. 创建 Redis 缓存 (L2)");
     let _redis_cache: Cache<String, User> = Cache::redis("redis://127.0.0.1:6379").await?;
-    println!("   ✓ Redis 缓存创建成功
-");
+    println!(
+        "   ✓ Redis 缓存创建成功
+"
+    );
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
     let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
-    println!("   ✓ 分层缓存创建成功
-");
+    println!(
+        "   ✓ 分层缓存创建成功
+"
+    );
 
     // 4. 基本 CRUD 操作
     println!("4. 基本 CRUD 操作演示");
@@ -161,21 +169,32 @@ async fn main() -> Result<()> {
     for i in 1..=3 {
         cache.delete(&format!("product:{}", i)).await?;
     }
-    println!("   ✓ 批量删除成功
-");
+    println!(
+        "   ✓ 批量删除成功
+"
+    );
 
     // 6. TTL 控制
     println!("6. TTL 控制演示");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
     println!("   添加 3 秒过期的数据...");
-    cache.set_with_ttl(&"temp:1".to_string(), &"短期数据".to_string(), Some(Duration::from_secs(3))).await?;
+    cache
+        .set_with_ttl(
+            &"temp:1".to_string(),
+            &"短期数据".to_string(),
+            Some(Duration::from_secs(3)),
+        )
+        .await?;
 
     println!("   立即获取: {:?}", cache.get(&"temp:1".to_string()).await?);
     println!("   等待 4 秒后获取...");
     sleep(Duration::from_secs(4)).await;
-    println!("   4 秒后获取: {:?}
-", cache.get(&"temp:1".to_string()).await?);
+    println!(
+        "   4 秒后获取: {:?}
+",
+        cache.get(&"temp:1".to_string()).await?
+    );
 
     // 7. 性能测试
     println!("7. 性能测试");

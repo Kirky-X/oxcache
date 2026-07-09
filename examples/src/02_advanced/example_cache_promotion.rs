@@ -32,9 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 设置会话 (同时进入L1和L2)
     println!("创建会话...");
-    cache
-        .set(&"session:sess_abc123".to_string(), &session)
-        .await?;
+    cache.set(&"session:sess_abc123".to_string(), &session).await?;
 
     // 从L1驱逐以模拟仅L2状态
     println!("\n从L1驱逐以模拟仅L2状态...");

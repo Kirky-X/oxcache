@@ -7,8 +7,8 @@
 //! 本示例演示 DashMapMemoryBackend 的使用，
 //! 并对比 Moka 和 DashMap 后端的差异。
 
-use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
 use oxcache::backend::interface::{CacheReader, CacheWriter};
+use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
 use std::time::Duration;
 
 #[tokio::main]
@@ -24,12 +24,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- 2. 基本操作 ---");
 
     // 写入数据
-    dashmap.set("key1", b"value1".to_vec(), Some(Duration::from_secs(60))).await?;
+    dashmap
+        .set("key1", b"value1".to_vec(), Some(Duration::from_secs(60)))
+        .await?;
     println!("  写入: key1 = value1");
 
     // 读取数据
     let value = dashmap.get("key1").await?;
-    println!("  读取: key1 = {:?}", value.map(|v| String::from_utf8_lossy(&v).to_string()));
+    println!(
+        "  读取: key1 = {:?}",
+        value.map(|v| String::from_utf8_lossy(&v).to_string())
+    );
 
     // 检查存在
     let exists = dashmap.exists("key1").await?;
@@ -53,7 +58,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let results = dashmap.get_many(&keys).await?;
     println!("  批量读取: {} 个结果", results.len());
     for (key, value) in keys.iter().zip(results.iter()) {
-        println!("    {} = {:?}", key, value.as_ref().map(|v| String::from_utf8_lossy(v).to_string()));
+        println!(
+            "    {} = {:?}",
+            key,
+            value.as_ref().map(|v| String::from_utf8_lossy(v).to_string())
+        );
     }
 
     // 4. 对比 Moka 和 DashMap

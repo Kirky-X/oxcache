@@ -15,9 +15,9 @@
 //! cd examples && cargo run --example example_batch_write
 //! ```
 
+use oxcache::Cache;
 use std::sync::Arc;
 use std::time::Duration;
-use oxcache::Cache;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct Product {
@@ -30,8 +30,10 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 批量写入优化示例 ===
-");
+    println!(
+        "=== 批量写入优化示例 ===
+"
+    );
 
     // 创建分层缓存
     let cache: Arc<Cache<String, Product>> = Arc::new(Cache::builder().build().await?);
@@ -104,9 +106,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. 批量更新价格
     println!("2. 批量更新价格 (模拟促销活动)");
     let updates = vec![
-        (1, 5499.99),  // 笔记本电脑降价
-        (2, 3499.99),  // 手机降价
-        (3, 2499.99),  // 平板降价
+        (1, 5499.99), // 笔记本电脑降价
+        (2, 3499.99), // 手机降价
+        (3, 2499.99), // 平板降价
     ];
 
     println!("   更新商品价格:");
@@ -116,10 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             cache
                 .set_with_ttl(&format!("product:{}", id), &product, Some(Duration::from_secs(3600)))
                 .await?;
-            println!(
-                "     产品 {}: {} 新价格: ¥{:.2}",
-                id, product.name, product.price
-            );
+            println!("     产品 {}: {} 新价格: ¥{:.2}", id, product.name, product.price);
         }
     }
     println!();
@@ -129,10 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   读取所有商品信息:");
     for product in &products {
         if let Some(p) = cache.get(&format!("product:{}", product.id)).await? {
-            println!(
-                "     [{}] {} - ¥{:.2} (库存: {})",
-                p.id, p.name, p.price, p.stock
-            );
+            println!("     [{}] {} - ¥{:.2} (库存: {})", p.id, p.name, p.price, p.stock);
         }
     }
     println!();
@@ -146,15 +142,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // 删除不存在的 key 不会报错
         cache.delete(&format!("product:{}", id)).await?;
     }
-    println!("   ✓ 商品下架完成
-");
+    println!(
+        "   ✓ 商品下架完成
+"
+    );
 
     // 5. 统计信息
     println!("5. 缓存统计");
     let stats = cache.stats().await?;
     println!("   - 缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
     println!("   - 容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
-    println!("   - 条目数: {}", stats.get("entry_count").unwrap_or(&"N/A".to_string()));
+    println!(
+        "   - 条目数: {}",
+        stats.get("entry_count").unwrap_or(&"N/A".to_string())
+    );
     println!();
 
     println!("=== 批量写入优化示例完成 ===");

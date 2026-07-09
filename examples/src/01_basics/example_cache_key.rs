@@ -131,11 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. 批量操作演示
     println!("--- 4. 批量操作演示 ---");
 
-    let users = vec![
-        UserId(1),
-        UserId(2),
-        UserId(3),
-    ];
+    let users = vec![UserId(1), UserId(2), UserId(3)];
 
     for user_id in &users {
         let key = user_id.to_key_string();
@@ -163,7 +159,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  UserId(100) == UserId(100): {} (应该为 true)", key_a == key_b);
     println!("  UserId(100) == UserId(200): {} (应该为 false)", key_a == key_c);
-    println!("  相同值产生相同键: {}", UserId(100).to_key_string() == UserId(100).to_key_string());
+    println!(
+        "  相同值产生相同键: {}",
+        UserId(100).to_key_string() == UserId(100).to_key_string()
+    );
     println!();
 
     // 清理

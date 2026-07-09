@@ -16,9 +16,9 @@
 //! 2. 安全日志 - 确保日志中不泄露敏感信息
 //! 3. 配置验证 - 防止路径遍历等安全漏洞
 
-use oxcache::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
 use oxcache::sanitize_message;
 use oxcache::Cache;
+use oxcache::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
 
 /// 演示安全功能的使用方法
 #[tokio::main]
@@ -100,10 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("--- 4. 缓存操作安全示例 ---\n");
 
     // 创建缓存
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .capacity(100)
-        .build()
-        .await?;
+    let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
     // 安全地存储敏感数据（应该先加密）
     // 注意：缓存不应直接存储明文敏感数据

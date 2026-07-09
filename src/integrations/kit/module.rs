@@ -136,10 +136,10 @@ impl AsyncAutoBuilder for OxcacheModule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::CacheBackend;
     use std::any::TypeId;
     use std::sync::Arc;
     use trait_kit::prelude::*;
-    use crate::backend::CacheBackend;
 
     /// R-oxcache-module-001: `OxcacheModule::NAME == "oxcache"`.
     #[test]
@@ -151,10 +151,7 @@ mod tests {
     /// (oxcache is a leaf module — no upstream deps).
     #[test]
     fn oxcache_module_meta_dependencies_empty() {
-        assert_eq!(
-            OxcacheModule::dependencies(),
-            &[] as &[(&'static str, TypeId)]
-        );
+        assert_eq!(OxcacheModule::dependencies(), &[] as &[(&'static str, TypeId)]);
     }
 
     /// R-oxcache-module-001: register `OxcacheModule` + `set_config` +
@@ -166,13 +163,9 @@ mod tests {
         kit.set_config(OxcacheConfig::default());
         kit.register::<OxcacheModule>().expect("register OxcacheModule");
         let kit = kit.build().await.expect("AsyncKit::build");
-        let cache: Arc<dyn CacheBackend + Send + Sync> =
-            kit.require::<OxcacheModule>().expect("require OxcacheModule");
+        let cache: Arc<dyn CacheBackend + Send + Sync> = kit.require::<OxcacheModule>().expect("require OxcacheModule");
         // Smoke-test the returned capability actually behaves like a cache.
-        cache
-            .set("k", b"v".to_vec(), None)
-            .await
-            .expect("set");
+        cache.set("k", b"v".to_vec(), None).await.expect("set");
         let got = cache.get("k").await.expect("get");
         assert_eq!(got, Some(b"v".to_vec()));
     }
@@ -190,15 +183,11 @@ mod tests {
         });
         kit.register::<OxcacheModule>().expect("register OxcacheModule");
         let kit = kit.build().await.expect("AsyncKit::build");
-        let cache: Arc<dyn CacheBackend + Send + Sync> =
-            kit.require::<OxcacheModule>().expect("require OxcacheModule");
+        let cache: Arc<dyn CacheBackend + Send + Sync> = kit.require::<OxcacheModule>().expect("require OxcacheModule");
         // Insert several keys; backend constructed with the provided config
         // should not panic and should still report healthy.
         for i in 0..6u8 {
-            cache
-                .set(&format!("k{i}"), vec![i], None)
-                .await
-                .expect("set");
+            cache.set(&format!("k{i}"), vec![i], None).await.expect("set");
         }
         cache.health_check().await.expect("health_check");
     }
@@ -215,8 +204,7 @@ mod tests {
         // topological pipeline). The return type is Pin<Box<dyn Future + Send>>;
         // awaiting it must yield the capability.
         let fut = <OxcacheModule as AsyncAutoBuilder>::build(&kit);
-        let cache: Arc<dyn CacheBackend + Send + Sync> =
-            fut.await.expect("build future resolves");
+        let cache: Arc<dyn CacheBackend + Send + Sync> = fut.await.expect("build future resolves");
         cache.clear().await.expect("clear");
         // Capability satisfies Send + Sync (AsyncAutoBuilder bound).
         fn assert_send_sync<T: Send + Sync>() {}

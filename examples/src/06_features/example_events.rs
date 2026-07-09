@@ -126,10 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. 实际缓存操作中的事件监控
     println!("\n--- 3. 缓存操作事件监控 ---");
 
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .capacity(100)
-        .build()
-        .await?;
+    let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
     // 设置值并记录事件
     let start = Instant::now();

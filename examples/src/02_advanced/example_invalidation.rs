@@ -16,9 +16,9 @@
 //! cd examples && cargo run --example example_invalidation
 //!
 
+use oxcache::Cache;
 use std::sync::Arc;
 use std::time::Duration;
-use oxcache::Cache;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct Order {
@@ -31,8 +31,10 @@ struct Order {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 缓存失效策略示例 ===
-");
+    println!(
+        "=== 缓存失效策略示例 ===
+"
+    );
 
     // 创建分层缓存用于演示
     let cache: Arc<Cache<String, Order>> = Arc::new(Cache::builder().build().await?);
@@ -64,12 +66,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for order in &orders {
-        cache
-            .set(&format!("order:{}", order.id), order)
-            .await?;
+        cache.set(&format!("order:{}", order.id), order).await?;
     }
-    println!("   ✓ 添加了 {} 个订单
-", orders.len());
+    println!(
+        "   ✓ 添加了 {} 个订单
+",
+        orders.len()
+    );
 
     // 2. 单个 key 失效
     println!("2. 单个 key 失效");
@@ -109,14 +112,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     println!("   原始购物车:");
-    println!("     cart:100:item1 = {:?}", user_cache.get(&"cart:100:item1".to_string()).await?);
-    println!("     cart:100:item2 = {:?}", user_cache.get(&"cart:100:item2".to_string()).await?);
-    println!("     cart:200:item1 = {:?}", user_cache.get(&"cart:200:item1".to_string()).await?);
+    println!(
+        "     cart:100:item1 = {:?}",
+        user_cache.get(&"cart:100:item1".to_string()).await?
+    );
+    println!(
+        "     cart:100:item2 = {:?}",
+        user_cache.get(&"cart:100:item2".to_string()).await?
+    );
+    println!(
+        "     cart:200:item1 = {:?}",
+        user_cache.get(&"cart:200:item1".to_string()).await?
+    );
 
     // 模拟用户 100 结账，需要清空其购物车
     // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
-    println!("
-   用户 100 结账，清空其购物车...");
+    println!(
+        "
+   用户 100 结账，清空其购物车..."
+    );
 
     // 实际应用中应该维护 key 的索引列表
     // 这里演示概念，实际需要应用层维护关联
@@ -124,8 +138,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     user_cache.delete(&"cart:100:item2".to_string()).await?;
 
     println!("   清空后:");
-    println!("     cart:100:item1 = {:?}", user_cache.get(&"cart:100:item1".to_string()).await?);
-    println!("     cart:200:item1 = {:?}", user_cache.get(&"cart:200:item1".to_string()).await?);
+    println!(
+        "     cart:100:item1 = {:?}",
+        user_cache.get(&"cart:100:item1".to_string()).await?
+    );
+    println!(
+        "     cart:200:item1 = {:?}",
+        user_cache.get(&"cart:200:item1".to_string()).await?
+    );
     println!();
 
     // 5. TTL 失效
@@ -133,15 +153,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ttl_cache: Cache<String, String> = Cache::builder().build().await?;
 
     println!("   添加 2 秒过期的数据");
-    ttl_cache.set_with_ttl(&"temp:data".to_string(), &"临时数据".to_string(), Some(Duration::from_secs(2))).await?;
+    ttl_cache
+        .set_with_ttl(
+            &"temp:data".to_string(),
+            &"临时数据".to_string(),
+            Some(Duration::from_secs(2)),
+        )
+        .await?;
 
     println!("   立即获取: {:?}", ttl_cache.get(&"temp:data".to_string()).await?);
 
     println!("   等待 3 秒...");
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    println!("   3 秒后获取: {:?}
-", ttl_cache.get(&"temp:data".to_string()).await?);
+    println!(
+        "   3 秒后获取: {:?}
+",
+        ttl_cache.get(&"temp:data".to_string()).await?
+    );
 
     // 6. 更新时失效 (Write-Invalidation)
     println!("6. 更新时失效 (Write-Invalidation)");
@@ -151,9 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   初始主题: {:?}", cache.get(&"config:theme".to_string()).await?);
 
     // 更新配置时直接覆盖旧值
-    cache
-        .set(&"config:theme".to_string(), &"light".to_string())
-        .await?;
+    cache.set(&"config:theme".to_string(), &"light".to_string()).await?;
     println!("   更新后主题: {:?}", cache.get(&"config:theme".to_string()).await?);
 
     println!();
