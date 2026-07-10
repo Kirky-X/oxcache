@@ -139,7 +139,6 @@ mod tests {
     use crate::backend::CacheBackend;
     use std::any::TypeId;
     use std::sync::Arc;
-    use trait_kit::prelude::*;
 
     /// R-oxcache-module-001: `OxcacheModule::NAME == "oxcache"`.
     #[test]
@@ -198,7 +197,7 @@ mod tests {
     /// kit and awaiting the returned future.
     #[tokio::test]
     async fn oxcache_module_build_is_async() {
-        let mut kit = AsyncKit::new();
+        let kit = AsyncKit::new();
         kit.set_config(OxcacheConfig::default());
         // Call AsyncAutoBuilder::build directly (bypassing AsyncKit::build's
         // topological pipeline). The return type is Pin<Box<dyn Future + Send>>;
