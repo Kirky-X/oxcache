@@ -95,6 +95,7 @@
 //! - `cli`: CLI tools (clap)
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
+//! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.3.4")]
 #![deny(unsafe_code)]
@@ -206,6 +207,11 @@ pub mod utils;
 // Each integration is feature-gated and pulls no deps unless explicitly enabled.
 #[cfg(feature = "kit")]
 pub mod integrations;
+
+// i18n module: ICU4X-backed locale-aware formatting for cache keys, statistics,
+// expiry display, and collation. Optional, feature-gated via `i18n`.
+#[cfg(feature = "i18n")]
+pub mod i18n;
 
 // Security module: Redis security validation
 pub(crate) mod security;
