@@ -33,12 +33,12 @@ use std::str::FromStr;
 
 use icu::collator::options::CollatorOptions;
 use icu::collator::{Collator, CollatorBorrowed};
+use icu::datetime::DateTimeFormatter;
 use icu::datetime::fieldsets::YMD;
 use icu::datetime::input::{Date, DateTime, Time};
-use icu::datetime::DateTimeFormatter;
+use icu::decimal::DecimalFormatter;
 use icu::decimal::input::Decimal;
 use icu::decimal::options::DecimalFormatterOptions;
-use icu::decimal::DecimalFormatter;
 use icu::locale::Locale;
 use icu::plurals::{PluralCategory, PluralRules, PluralRulesOptions};
 use thiserror::Error;
@@ -97,13 +97,11 @@ impl CacheI18nFormatter {
             reason: e.to_string(),
         })?;
 
-        let decimal_formatter =
-            DecimalFormatter::try_new(parsed.clone().into(), DecimalFormatterOptions::default())
-                .map_err(|e| I18nError::FormatError(e.to_string()))?;
+        let decimal_formatter = DecimalFormatter::try_new(parsed.clone().into(), DecimalFormatterOptions::default())
+            .map_err(|e| I18nError::FormatError(e.to_string()))?;
 
-        let plural_rules =
-            PluralRules::try_new(parsed.clone().into(), PluralRulesOptions::default())
-                .map_err(|e| I18nError::FormatError(e.to_string()))?;
+        let plural_rules = PluralRules::try_new(parsed.clone().into(), PluralRulesOptions::default())
+            .map_err(|e| I18nError::FormatError(e.to_string()))?;
 
         let collator = Collator::try_new(parsed.clone().into(), CollatorOptions::default())
             .map_err(|e| I18nError::FormatError(e.to_string()))?;
@@ -155,8 +153,7 @@ impl CacheI18nFormatter {
     /// Returns [`I18nError::DateError`] if any component is out of range,
     /// or [`I18nError::FormatError`] if the formatter cannot be constructed.
     pub fn format_expiry(&self, year: i32, month: u8, day: u8) -> Result<String, I18nError> {
-        let date =
-            Date::try_new_iso(year, month, day).map_err(|e| I18nError::DateError(e.to_string()))?;
+        let date = Date::try_new_iso(year, month, day).map_err(|e| I18nError::DateError(e.to_string()))?;
         let time = Time::try_new(0, 0, 0, 0).map_err(|e| I18nError::DateError(e.to_string()))?;
         let datetime = DateTime { date, time };
 
@@ -257,10 +254,7 @@ mod tests {
             key.starts_with("user:"),
             "cache key should start with namespace: got '{key}'"
         );
-        assert!(
-            key.contains('1'),
-            "cache key should contain the count: got '{key}'"
-        );
+        assert!(key.contains('1'), "cache key should contain the count: got '{key}'");
     }
 
     #[test]
@@ -287,13 +281,7 @@ mod tests {
     fn test_format_expiry() {
         let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
         let result = fmt.format_expiry(2026, 7, 11).expect("format expiry");
-        assert!(
-            result.contains("2026"),
-            "expiry should contain year: got '{result}'"
-        );
-        assert!(
-            !result.is_empty(),
-            "expiry should be non-empty: got '{result}'"
-        );
+        assert!(result.contains("2026"), "expiry should contain year: got '{result}'");
+        assert!(!result.is_empty(), "expiry should be non-empty: got '{result}'");
     }
 }
