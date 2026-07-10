@@ -53,6 +53,16 @@ features = ["async"]
 optional = true
 default-features = false
 
+# ICU4X internationalization (optional, feature-gated via `i18n`).
+# icu 2.2 provides locale-aware number/date/plural/collation formatting.
+[dependencies.icu]
+version = "2.2"
+optional = true
+
+[dependencies.writeable]
+version = "0.6"
+optional = true
+
 # Tracing for logging and instrumentation
 [dependencies.tracing]
 version = "~0.1"
@@ -281,9 +291,13 @@ bloom-filter = ["dep:bloomfilter"]
 # with the `async` feature only — default features are disabled (Rule 6).
 kit = ["dep:trait-kit"]
 
+# ICU4X-backed internationalization: locale-aware number/date/plural/collation
+# formatting for cache keys, statistics, and sorting.
+i18n = ["dep:icu", "dep:writeable"]
+
 [workspace]
 resolver = "2"
-members = [".", "examples"]
+members = [".", "examples", "examples/feature_matrix/core_feature", "examples/feature_matrix/minimal_feature"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================
