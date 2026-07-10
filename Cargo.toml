@@ -46,11 +46,9 @@ version = "~1.0"
 optional = true
 
 # trait-kit integration (optional, feature-gated via `kit`).
-# Uses path until trait-kit 0.2.2 is published to crates.io; the version
-# constraint is kept so the published artifact resolves the same.
+# trait-kit 0.2.3 is published to crates.io.
 [dependencies.trait-kit]
 version = "0.2.3"
-path = "../trait-kit"
 features = ["async"]
 optional = true
 default-features = false
