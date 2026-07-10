@@ -305,6 +305,9 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
 
+    /// Shared mock data store: key → (value, optional TTL), guarded by a Mutex.
+    type MockDataStore = Arc<Mutex<HashMap<String, (Vec<u8>, Option<Duration>)>>>;
+
     // ========================================================================
     // SpyMock — test infrastructure recording all method calls.
     // Stores (value, ttl) pairs so TTL passthrough can be verified.
@@ -322,7 +325,7 @@ mod tests {
 
     struct SpyMock {
         log: Arc<Mutex<CallLog>>,
-        data: Arc<Mutex<HashMap<String, (Vec<u8>, Option<Duration>)>>>,
+        data: MockDataStore,
     }
 
     impl SpyMock {
@@ -594,7 +597,7 @@ mod tests {
         /// tests can assert whether the Bloom filter short-circuited.
         struct MockSyncInner {
             log: Arc<Mutex<SyncCallLog>>,
-            data: Arc<Mutex<HashMap<String, (Vec<u8>, Option<Duration>)>>>,
+            data: MockDataStore,
         }
 
         impl MockSyncInner {
