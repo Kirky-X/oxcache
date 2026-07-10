@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 示例 3: 批量操作演示
     println!("3. 批量操作示例");
 
-    let users = vec![
+    let users = [
         User {
             id: 1,
             name: "Alice".to_string(),
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("   批量存储了 {} 个用户", users.len());
 
-    let keys = vec!["user:1".to_string(), "user:2".to_string(), "user:3".to_string()];
+    let keys = ["user:1".to_string(), "user:2".to_string(), "user:3".to_string()];
     let results = cache.get_many(keys.iter()).await?;
     println!("   批量读取: {} 个用户\n", results.len());
 

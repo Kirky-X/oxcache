@@ -162,7 +162,7 @@ async fn main() -> Result<()> {
     // 获取多个值
     let mut retrieved_count = 0;
     for (key, _) in &batch {
-        if let Some(_) = batch_cache.get(key).await? {
+        if batch_cache.get(key).await?.is_some() {
             retrieved_count += 1;
         }
     }
