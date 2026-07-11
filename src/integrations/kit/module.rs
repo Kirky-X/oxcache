@@ -88,7 +88,7 @@ use std::sync::Arc;
 use trait_kit::prelude::*;
 
 use crate::backend::{CacheBackend, MokaMemoryBackend};
-use crate::error::CacheError;
+use crate::error::OxCacheError;
 
 /// trait-kit `AsyncKit` module that constructs an oxcache cache backend.
 ///
@@ -113,7 +113,7 @@ impl ModuleMeta for OxcacheModule {
 
 impl AsyncAutoBuilder for OxcacheModule {
     type Capability = Arc<dyn CacheBackend + Send + Sync>;
-    type Error = CacheError;
+    type Error = OxCacheError;
 
     fn build<'a>(
         kit: &'a AsyncKit,
@@ -121,7 +121,7 @@ impl AsyncAutoBuilder for OxcacheModule {
         Box::pin(async move {
             let config: OxcacheConfig = kit
                 .config()
-                .map_err(|e| CacheError::Internal(format!("OxcacheModule: read config: {e}")))?;
+                .map_err(|e| OxCacheError::Internal(format!("OxcacheModule: read config: {e}")))?;
             let mut builder = MokaMemoryBackend::builder().capacity(config.capacity);
             if let Some(ttl) = config.ttl {
                 builder = builder.ttl(ttl);

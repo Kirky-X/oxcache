@@ -430,7 +430,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **Runtime notes**:
 
 - `sync_mode(true)` works on `multi_thread` tokio runtime. On `current_thread` runtime, Moka's `sync_block_on` will panic (use `#[tokio::main(flavor = "multi_thread")]` or call from outside a runtime).
-- Without `sync_mode(true)`, calling any `*_sync` method returns `Err(CacheError::NotSupported)`.
+- Without `sync_mode(true)`, calling any `*_sync` method returns `Err(OxCacheError::NotSupported)`.
 
 **`#[cached(sync)]`** **macro**:
 

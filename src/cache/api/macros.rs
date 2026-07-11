@@ -3,7 +3,7 @@
 //! Cache 宏注册和 Lua 脚本方法
 
 use super::Cache;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::sync::Arc;
 
@@ -19,12 +19,12 @@ impl Cache<String, Vec<u8>> {
     /// # Returns
     ///
     /// * `Ok(())` - Registration successful
-    /// * `Err(CacheError)` - Registration failed
-    pub async fn register_for_macro(&self, service_name: &str) -> Result<()> {
+    /// * `Err(OxCacheError)` - Registration failed
+    pub async fn register_for_macro(&self, service_name: &str) -> OxCacheResult<()> {
         use crate::internal::__internal_register_cache;
 
         if service_name.is_empty() {
-            return Err(CacheError::InvalidInput("service_name must not be empty".to_string()));
+            return Err(OxCacheError::InvalidInput("service_name must not be empty".to_string()));
         }
 
         let backend = self.backend.clone();
@@ -44,9 +44,9 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     #[cfg(feature = "lua-script")]
-    pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
+    pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            CacheError::Operation(
+            OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
@@ -54,9 +54,9 @@ where
     }
 
     #[cfg(feature = "lua-script")]
-    pub async fn eval_sha(&self, _sha: &str, _keys: &[&str], _args: &[&str]) -> Result<redis::Value> {
+    pub async fn eval_sha(&self, _sha: &str, _keys: &[&str], _args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            CacheError::Operation(
+            OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
@@ -64,9 +64,9 @@ where
     }
 
     #[cfg(feature = "lua-script")]
-    pub async fn script_load(&self, _script: &str) -> Result<String> {
+    pub async fn script_load(&self, _script: &str) -> OxCacheResult<String> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            CacheError::Operation(
+            OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
@@ -116,7 +116,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match &err {
-            CacheError::Operation(msg) => {
+            OxCacheError::Operation(msg) => {
                 assert!(msg.contains("Lua scripts require a Redis backend"));
             }
             _ => panic!("Expected Operation error, got {:?}", err),

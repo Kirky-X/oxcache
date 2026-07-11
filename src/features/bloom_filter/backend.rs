@@ -23,7 +23,7 @@ use crate::backend::{
     BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
     SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
 };
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 
 use super::BloomFilter;
 
@@ -103,10 +103,10 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
     }
 
     /// Build the decorator. Returns `Err` if no inner backend was set.
-    pub fn build(self) -> Result<BloomFilterBackend<B>> {
+    pub fn build(self) -> OxCacheResult<BloomFilterBackend<B>> {
         let inner = self
             .inner
-            .ok_or_else(|| CacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string()))?;
+            .ok_or_else(|| OxCacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string()))?;
         Ok(BloomFilterBackend {
             inner,
             bloom: BloomFilter::new(self.capacity, self.false_positive_rate),
@@ -116,7 +116,7 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
 
 #[async_trait]
 impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         // BF first: if the filter says the key is absent, skip the inner
         // backend entirely (no false negatives).
         if !self.bloom.contains(key) {
@@ -128,23 +128,23 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
         self.inner.get(key).await
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         self.inner.exists(key).await
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         self.inner.ttl(key).await
     }
 
-    async fn len(&self) -> Result<u64> {
+    async fn len(&self) -> OxCacheResult<u64> {
         self.inner.len().await
     }
 
-    async fn capacity(&self) -> Result<u64> {
+    async fn capacity(&self) -> OxCacheResult<u64> {
         self.inner.capacity().await
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = self.inner.stats().await?;
         stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
         stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
@@ -159,31 +159,31 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
 
 #[async_trait]
 impl<B: CacheBackend> CacheWriter for BloomFilterBackend<B> {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         // Record the key in the BF first, then delegate (with TTL) to inner.
         self.bloom.insert(key);
         self.inner.set(key, value, ttl).await
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         // Only delegate to inner; BF does not support removal.
         self.inner.delete(key).await
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         self.inner.clear().await?;
         self.bloom.clear();
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         self.inner.expire(key, ttl).await
     }
 }
 
 #[async_trait]
 impl<B: CacheBackend> CacheConnector for BloomFilterBackend<B> {
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         self.inner.health_check().await
     }
 
@@ -220,7 +220,7 @@ impl<B: CacheBackend + BackendScore> BackendScore for BloomFilterBackend<B> {
 // also implements (both hierarchies define `get`/`set`/etc.).
 
 impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<B> {
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         // BF first: if the filter says the key is absent, skip the inner
         // backend entirely (no false negatives). Mirrors the async impl.
         if !self.bloom.contains(key) {
@@ -231,24 +231,24 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
         SyncCacheReader::get(&self.inner, key)
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
         // BF cannot confirm existence (only filter), so always delegate.
         SyncCacheReader::exists(&self.inner, key)
     }
 
-    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         SyncCacheReader::ttl(&self.inner, key)
     }
 
-    fn len(&self) -> Result<u64> {
+    fn len(&self) -> OxCacheResult<u64> {
         SyncCacheReader::len(&self.inner)
     }
 
-    fn capacity(&self) -> Result<u64> {
+    fn capacity(&self) -> OxCacheResult<u64> {
         SyncCacheReader::capacity(&self.inner)
     }
 
-    fn stats(&self) -> Result<HashMap<String, String>> {
+    fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = SyncCacheReader::stats(&self.inner)?;
         stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
         stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
@@ -262,30 +262,30 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
 }
 
 impl<B: CacheBackend + SyncCacheBackend> SyncCacheWriter for BloomFilterBackend<B> {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         // Record the key in the BF first, then delegate (with TTL) to inner.
         self.bloom.insert(key);
         SyncCacheWriter::set(&self.inner, key, value, ttl)
     }
 
-    fn delete(&self, key: &str) -> Result<()> {
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
         // Only delegate to inner; BF does not support removal.
         SyncCacheWriter::delete(&self.inner, key)
     }
 
-    fn clear(&self) -> Result<()> {
+    fn clear(&self) -> OxCacheResult<()> {
         SyncCacheWriter::clear(&self.inner)?;
         self.bloom.clear();
         Ok(())
     }
 
-    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         SyncCacheWriter::expire(&self.inner, key, ttl)
     }
 }
 
 impl<B: CacheBackend + SyncCacheBackend> SyncCacheConnector for BloomFilterBackend<B> {
-    fn health_check(&self) -> Result<()> {
+    fn health_check(&self) -> OxCacheResult<()> {
         SyncCacheConnector::health_check(&self.inner)
     }
 
@@ -354,33 +354,33 @@ mod tests {
 
     #[async_trait]
     impl CacheReader for SpyMock {
-        async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
             self.log.lock().unwrap().get_calls.push(key.to_string());
             let data = self.data.lock().unwrap();
             Ok(data.get(key).map(|(v, _)| v.clone()))
         }
 
-        async fn exists(&self, key: &str) -> Result<bool> {
+        async fn exists(&self, key: &str) -> OxCacheResult<bool> {
             let data = self.data.lock().unwrap();
             Ok(data.contains_key(key))
         }
 
-        async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
             self.log.lock().unwrap().ttl_calls.push(key.to_string());
             let data = self.data.lock().unwrap();
             Ok(data.get(key).and_then(|(_, ttl)| *ttl))
         }
 
-        async fn len(&self) -> Result<u64> {
+        async fn len(&self) -> OxCacheResult<u64> {
             let data = self.data.lock().unwrap();
             Ok(data.len() as u64)
         }
 
-        async fn capacity(&self) -> Result<u64> {
+        async fn capacity(&self) -> OxCacheResult<u64> {
             Ok(1000)
         }
 
-        async fn stats(&self) -> Result<HashMap<String, String>> {
+        async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
             let mut stats = HashMap::new();
             stats.insert("type".to_string(), "spy".to_string());
             Ok(stats)
@@ -389,7 +389,7 @@ mod tests {
 
     #[async_trait]
     impl CacheWriter for SpyMock {
-        async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
             self.log
                 .lock()
                 .unwrap()
@@ -399,19 +399,19 @@ mod tests {
             Ok(())
         }
 
-        async fn delete(&self, key: &str) -> Result<()> {
+        async fn delete(&self, key: &str) -> OxCacheResult<()> {
             self.log.lock().unwrap().delete_calls.push(key.to_string());
             self.data.lock().unwrap().remove(key);
             Ok(())
         }
 
-        async fn clear(&self) -> Result<()> {
+        async fn clear(&self) -> OxCacheResult<()> {
             self.log.lock().unwrap().clear_calls += 1;
             self.data.lock().unwrap().clear();
             Ok(())
         }
 
-        async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
             self.log.lock().unwrap().expire_calls.push((key.to_string(), ttl));
             let mut data = self.data.lock().unwrap();
             if let Some(entry) = data.get_mut(key) {
@@ -425,7 +425,7 @@ mod tests {
 
     #[async_trait]
     impl CacheConnector for SpyMock {
-        async fn health_check(&self) -> Result<()> {
+        async fn health_check(&self) -> OxCacheResult<()> {
             Ok(())
         }
 
@@ -618,45 +618,45 @@ mod tests {
 
         #[async_trait]
         impl CacheReader for MockSyncInner {
-            async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+            async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
                 SyncCacheReader::get(self, key)
             }
-            async fn exists(&self, key: &str) -> Result<bool> {
+            async fn exists(&self, key: &str) -> OxCacheResult<bool> {
                 SyncCacheReader::exists(self, key)
             }
-            async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+            async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
                 SyncCacheReader::ttl(self, key)
             }
-            async fn len(&self) -> Result<u64> {
+            async fn len(&self) -> OxCacheResult<u64> {
                 SyncCacheReader::len(self)
             }
-            async fn capacity(&self) -> Result<u64> {
+            async fn capacity(&self) -> OxCacheResult<u64> {
                 SyncCacheReader::capacity(self)
             }
-            async fn stats(&self) -> Result<HashMap<String, String>> {
+            async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
                 SyncCacheReader::stats(self)
             }
         }
 
         #[async_trait]
         impl CacheWriter for MockSyncInner {
-            async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+            async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
                 SyncCacheWriter::set(self, key, value, ttl)
             }
-            async fn delete(&self, key: &str) -> Result<()> {
+            async fn delete(&self, key: &str) -> OxCacheResult<()> {
                 SyncCacheWriter::delete(self, key)
             }
-            async fn clear(&self) -> Result<()> {
+            async fn clear(&self) -> OxCacheResult<()> {
                 SyncCacheWriter::clear(self)
             }
-            async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+            async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
                 SyncCacheWriter::expire(self, key, ttl)
             }
         }
 
         #[async_trait]
         impl CacheConnector for MockSyncInner {
-            async fn health_check(&self) -> Result<()> {
+            async fn health_check(&self) -> OxCacheResult<()> {
                 SyncCacheConnector::health_check(self)
             }
             async fn shutdown(&self) {
@@ -672,26 +672,26 @@ mod tests {
         // --- Sync trait impls ---
 
         impl SyncCacheReader for MockSyncInner {
-            fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+            fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
                 self.log.lock().unwrap().get_calls.push(key.to_string());
                 let data = self.data.lock().unwrap();
                 Ok(data.get(key).map(|(v, _)| v.clone()))
             }
-            fn exists(&self, key: &str) -> Result<bool> {
+            fn exists(&self, key: &str) -> OxCacheResult<bool> {
                 let data = self.data.lock().unwrap();
                 Ok(data.contains_key(key))
             }
-            fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+            fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
                 let data = self.data.lock().unwrap();
                 Ok(data.get(key).and_then(|(_, ttl)| *ttl))
             }
-            fn len(&self) -> Result<u64> {
+            fn len(&self) -> OxCacheResult<u64> {
                 Ok(self.data.lock().unwrap().len() as u64)
             }
-            fn capacity(&self) -> Result<u64> {
+            fn capacity(&self) -> OxCacheResult<u64> {
                 Ok(1000)
             }
-            fn stats(&self) -> Result<HashMap<String, String>> {
+            fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
                 let mut stats = HashMap::new();
                 stats.insert("type".to_string(), "mock_sync_inner".to_string());
                 Ok(stats)
@@ -699,7 +699,7 @@ mod tests {
         }
 
         impl SyncCacheWriter for MockSyncInner {
-            fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+            fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
                 self.log
                     .lock()
                     .unwrap()
@@ -708,15 +708,15 @@ mod tests {
                 self.data.lock().unwrap().insert(key.to_string(), (value, ttl));
                 Ok(())
             }
-            fn delete(&self, key: &str) -> Result<()> {
+            fn delete(&self, key: &str) -> OxCacheResult<()> {
                 self.data.lock().unwrap().remove(key);
                 Ok(())
             }
-            fn clear(&self) -> Result<()> {
+            fn clear(&self) -> OxCacheResult<()> {
                 self.data.lock().unwrap().clear();
                 Ok(())
             }
-            fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+            fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
                 let mut data = self.data.lock().unwrap();
                 if let Some(entry) = data.get_mut(key) {
                     entry.1 = Some(ttl);
@@ -728,7 +728,7 @@ mod tests {
         }
 
         impl SyncCacheConnector for MockSyncInner {
-            fn health_check(&self) -> Result<()> {
+            fn health_check(&self) -> OxCacheResult<()> {
                 Ok(())
             }
             fn shutdown(&self) {

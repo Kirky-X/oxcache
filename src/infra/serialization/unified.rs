@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Unified serialization manager
 
-use crate::error::Result;
+use crate::error::OxCacheResult;
 use crate::infra::serialization::{JsonSerializer, Serializer};
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
@@ -25,31 +25,31 @@ impl UnifiedSerializer {
     }
 
     /// Serialize a value to bytes
-    pub fn serialize<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
+    pub fn serialize<T: Serialize>(&self, value: &T) -> OxCacheResult<Vec<u8>> {
         let type_name = std::any::type_name::<T>();
-        let data = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let data = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
         self.inner.serialize(type_name, &data)
     }
 
     /// Serialize with explicit type name (for internal use)
-    pub fn serialize_with_type(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    pub fn serialize_with_type(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.inner.serialize(type_name, data)
     }
 
     /// Deserialize bytes to a value
-    pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> Result<T> {
+    pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> OxCacheResult<T> {
         let type_name = std::any::type_name::<T>();
         let result_data = self.inner.deserialize(type_name, data)?;
-        serde_json::from_slice(&result_data).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))
+        serde_json::from_slice(&result_data).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))
     }
 
     /// Deserialize with explicit type name (for internal use)
-    pub fn deserialize_with_type(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    pub fn deserialize_with_type(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.inner.deserialize(type_name, data)
     }
 
     /// Get approximate size of serialized data
-    pub fn estimate_size<T: Serialize>(&self, value: &T) -> Result<usize> {
+    pub fn estimate_size<T: Serialize>(&self, value: &T) -> OxCacheResult<usize> {
         let serialized = self.serialize(value)?;
         Ok(serialized.len())
     }
@@ -73,11 +73,11 @@ impl UnifiedSerializerAdapter {
 }
 
 impl Serializer for UnifiedSerializerAdapter {
-    fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn serialize(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.inner.serialize_with_type(type_name, data)
     }
 
-    fn deserialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn deserialize(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.inner.deserialize_with_type(type_name, data)
     }
 }
@@ -91,17 +91,17 @@ pub fn default_serializer() -> UnifiedSerializer {
 pub mod convenience {
     use super::*;
 
-    pub fn to_json<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+    pub fn to_json<T: Serialize>(value: &T) -> OxCacheResult<Vec<u8>> {
         let type_name = std::any::type_name::<T>();
-        let data = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+        let data = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
         default_serializer().serialize_with_type(type_name, &data)
     }
 
-    pub fn from_json<T: DeserializeOwned>(data: &[u8]) -> Result<T> {
+    pub fn from_json<T: DeserializeOwned>(data: &[u8]) -> OxCacheResult<T> {
         default_serializer().deserialize(data)
     }
 
-    pub fn estimate_json_size<T: Serialize>(value: &T) -> Result<usize> {
+    pub fn estimate_json_size<T: Serialize>(value: &T) -> OxCacheResult<usize> {
         default_serializer().estimate_size(value)
     }
 }

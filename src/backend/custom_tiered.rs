@@ -45,7 +45,7 @@
 use crate::backend::config_validation::ConfigValidation;
 use crate::core::types::BackendType;
 use crate::core::types::CacheLayer as Layer;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 
 /// 后端支持的层级限制
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,7 +131,7 @@ impl BackendType {
     /// - 验证自定义名称长度（最大 256 字符）
     /// - 验证自定义名称字符（只允许字母、数字、下划线、连字符、点）
     #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn from_str(s: &str) -> OxCacheResult<Self> {
         match s.to_lowercase().as_str() {
             #[cfg(feature = "memory")]
             "moka" => Ok(BackendType::Moka),
@@ -159,7 +159,7 @@ impl BackendType {
                     ];
                     available.push("custom:<name>");
 
-                    Err(CacheError::InvalidInput(format!(
+                    Err(OxCacheError::InvalidInput(format!(
                         "Unknown backend type: '{}'. Available backends: {}",
                         s,
                         available.join(", ")
@@ -316,7 +316,7 @@ mod tests {
         let result = BackendType::from_str("unknown");
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("Unknown backend type")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("Unknown backend type")),
             _ => panic!("Expected InvalidInput error"),
         }
     }

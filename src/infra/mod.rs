@@ -10,10 +10,10 @@ pub mod metrics;
 #[cfg(feature = "serialization")]
 pub mod serialization;
 
-use crate::error::CacheError;
+use crate::error::OxCacheError;
 
 /// Validate cache key format
-pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
+pub fn validate_cache_key(key: &str) -> Result<(), OxCacheError> {
     crate::utils::key_generator::KeyGenerator::new().validate_key(key)
 }
 
@@ -38,7 +38,7 @@ mod tests {
         // 空键应该返回错误
         let result = validate_cache_key("");
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -46,7 +46,7 @@ mod tests {
         // 包含无效字符的键应该返回错误
         let result = validate_cache_key("key with spaces");
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
         let long_key = "a".repeat(10000);
         let result = validate_cache_key(&long_key);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]

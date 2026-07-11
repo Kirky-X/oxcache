@@ -13,7 +13,7 @@
 //! cd examples && cargo run --example example_comprehensive_usage
 //! ```
 
-use oxcache::error::Result;
+use oxcache::error::OxCacheResult;
 use oxcache::Cache;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
@@ -37,7 +37,7 @@ struct Product {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> OxCacheResult<()> {
     println!(
         "=== Oxcache 综合使用示例 ===
 "

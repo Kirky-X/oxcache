@@ -58,7 +58,7 @@ impl crate::backend::BackendScore for MockBackend {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl crate::backend::CacheReader for MockBackend {
-    async fn get(&self, key: &str) -> crate::error::Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> crate::error::OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
         let mut data = self.data.write().await;
         if let Some((_v, expires_at)) = data.get(key) {
@@ -74,7 +74,7 @@ impl crate::backend::CacheReader for MockBackend {
         Ok(None)
     }
 
-    async fn exists(&self, key: &str) -> crate::error::Result<bool> {
+    async fn exists(&self, key: &str) -> crate::error::OxCacheResult<bool> {
         let now = Instant::now();
         let mut data = self.data.write().await;
         if let Some((_v, expires_at)) = data.get(key) {
@@ -89,7 +89,7 @@ impl crate::backend::CacheReader for MockBackend {
         Ok(false)
     }
 
-    async fn ttl(&self, key: &str) -> crate::error::Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> crate::error::OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         let data = self.data.read().await;
         if let Some((_v, Some(exp))) = data.get(key) {
@@ -98,21 +98,21 @@ impl crate::backend::CacheReader for MockBackend {
         Ok(None)
     }
 
-    async fn len(&self) -> crate::error::Result<u64> {
+    async fn len(&self) -> crate::error::OxCacheResult<u64> {
         let data = self.data.read().await;
         Ok(data.len() as u64)
     }
 
-    async fn is_empty(&self) -> crate::error::Result<bool> {
+    async fn is_empty(&self) -> crate::error::OxCacheResult<bool> {
         let data = self.data.read().await;
         Ok(data.is_empty())
     }
 
-    async fn capacity(&self) -> crate::error::Result<u64> {
+    async fn capacity(&self) -> crate::error::OxCacheResult<u64> {
         Ok(0)
     }
 
-    async fn stats(&self) -> crate::error::Result<HashMap<String, String>> {
+    async fn stats(&self) -> crate::error::OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), self.name.to_string());
         Ok(stats)
@@ -122,26 +122,26 @@ impl crate::backend::CacheReader for MockBackend {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl crate::backend::CacheWriter for MockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> crate::error::Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> crate::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         let expires_at = ttl.map(|d| Instant::now() + d);
         data.insert(key.to_string(), (value, expires_at));
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> crate::error::Result<()> {
+    async fn delete(&self, key: &str) -> crate::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.remove(key);
         Ok(())
     }
 
-    async fn clear(&self) -> crate::error::Result<()> {
+    async fn clear(&self) -> crate::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.clear();
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> crate::error::Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> crate::error::OxCacheResult<bool> {
         let mut data = self.data.write().await;
         if data.contains_key(key) {
             let entry = data.get_mut(key).unwrap();
@@ -156,7 +156,7 @@ impl crate::backend::CacheWriter for MockBackend {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl crate::backend::CacheConnector for MockBackend {
-    async fn health_check(&self) -> crate::error::Result<()> {
+    async fn health_check(&self) -> crate::error::OxCacheResult<()> {
         Ok(())
     }
 

@@ -311,7 +311,7 @@ async fn test_cache_get_or_with_fallback() {
     assert_eq!(result.name, "fallback_value");
     let cached = cache
         .get_or(&"fallback_key".to_string(), || async {
-            Err(oxcache::error::CacheError::NotFound("should not be called".to_string()))
+            Err(oxcache::error::OxCacheError::NotFound("should not be called".to_string()))
         })
         .await
         .unwrap();
@@ -328,7 +328,7 @@ async fn test_cache_get_or_existing_value() {
     cache.set(&"existing_key".to_string(), &value).await.unwrap();
     let result = cache
         .get_or(&"existing_key".to_string(), || async {
-            Err(oxcache::error::CacheError::NotFound("should not be called".to_string()))
+            Err(oxcache::error::OxCacheError::NotFound("should not be called".to_string()))
         })
         .await
         .unwrap();
