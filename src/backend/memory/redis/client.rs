@@ -785,6 +785,7 @@ impl crate::backend::interface::LuaExecutor for RedisBackend {
 }
 
 #[cfg(test)]
+#[allow(unsafe_code)]
 mod tests {
     use super::*;
     use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
@@ -811,13 +812,17 @@ mod tests {
 
     /// 设置允许非 TLS 连接的环境变量并创建 RedisBackend
     async fn make_backend() -> RedisBackend {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         RedisBackend::new(REDIS_URL).await.expect("Failed to connect to Redis")
     }
 
     /// 创建连接到指定数据库的 RedisBackend
     async fn make_backend_with_url(url: &str) -> RedisBackend {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         RedisBackend::new(url).await.expect("Failed to connect to Redis")
     }
 
@@ -884,7 +889,9 @@ mod tests {
     #[serial]
     async fn test_builder_insecure_rejected_without_env() {
         // 临时移除环境变量，验证非 TLS 连接被拒绝
-        std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+        unsafe {
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+        };
         let result = RedisBackend::builder()
             .connection_string("redis://127.0.0.1:6379")
             .build()
@@ -896,14 +903,18 @@ mod tests {
             panic!("Expected InvalidInput error");
         }
         // 恢复环境变量，避免影响后续测试
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
     }
 
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     #[serial]
     async fn test_builder_insecure_allowed_with_env() {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
         assert!(backend.is_ok());
     }
@@ -913,18 +924,24 @@ mod tests {
     #[serial]
     async fn test_builder_insecure_allowed_with_dev_value() {
         // "development-only" 也应被接受
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "development-only");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "development-only");
+        };
         let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
         assert!(backend.is_ok());
         // 恢复环境变量
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
     }
 
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     #[serial]
     async fn test_builder_with_mode() {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         let backend = RedisBackend::builder()
             .connection_string(REDIS_URL)
             .mode(RedisModeType::Standalone)
@@ -955,14 +972,18 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_with_pool_connects_to_redis() {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         let backend = RedisBackend::with_pool(REDIS_URL, 4).await;
         assert!(backend.is_ok());
     }
 
     #[tokio::test]
     async fn test_new_invalid_url_returns_error() {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         let result = RedisBackend::new("redis://127.0.0.1:1/0").await;
         assert!(result.is_err());
         if let Err(CacheError::Connection(msg)) = result {
@@ -974,7 +995,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_unreachable_host_times_out() {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        };
         // 使用不可路由的地址触发超时
         let result = RedisBackend::new("redis://10.255.255.1:6379/0").await;
         assert!(result.is_err());

@@ -22,7 +22,9 @@ async fn test_redis_backend_connection_modes() {
         return;
     }
 
-    std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     if let Err(e) = test_redis_connection().await {
         println!("跳过测试: Redis连接失败 - {}", e);
         return;

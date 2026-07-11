@@ -7,11 +7,11 @@
 #[path = "../common/mod.rs"]
 mod common;
 
-use common::docker_test_utils::{setup_redis_container, RedisContainer};
+use common::docker_test_utils::{RedisContainer, setup_redis_container};
 use common::redis_test_utils::{get_redis_url, is_redis_available, wait_for_redis};
+use oxcache::Cache;
 use oxcache::backend::interface::{CacheReader, CacheWriter};
 use oxcache::backend::memory::redis::RedisBackend;
-use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -273,7 +273,9 @@ async fn test_with_testcontainers_network_failure() {
     }
 
     // 设置环境变量以允许不安全连接（testcontainers 创建的 Redis）
-    std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
 
     let backend = RedisBackend::new(&redis_url).await.unwrap();
 

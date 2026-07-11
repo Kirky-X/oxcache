@@ -10,7 +10,7 @@ use crate::error::Result;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::serialization::Serializer;
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -136,7 +136,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &dyn Serializer {
-        use crate::infra::serialization::unified::{default_serializer, UnifiedSerializerAdapter};
+        use crate::infra::serialization::unified::{UnifiedSerializerAdapter, default_serializer};
         use once_cell::sync::Lazy;
         use std::sync::Arc;
 

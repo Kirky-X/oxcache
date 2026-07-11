@@ -920,8 +920,8 @@ mod tests {
 mod sync_tests {
     use super::*;
     use crate::backend::memory::MokaMemoryBackend;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::thread;
     use std::time::Duration;
 
