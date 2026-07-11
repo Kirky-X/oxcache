@@ -1,7 +1,8 @@
 [package]
 name = "oxcache"
 version = "0.3.5"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
 license = "MIT"
