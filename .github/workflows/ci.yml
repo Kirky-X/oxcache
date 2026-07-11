@@ -192,10 +192,10 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-feature-core-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cargo check (core, no defaults)
+      - name: Run cargo check (core, no defaults)
         run: cargo check -p oxcache --no-default-features --features core
 
-      - name: Run feature_core test
+      - name: Run feature_core tests
         run: cargo test --no-default-features --features core -p oxcache --test feature_core
 
   feature-minimal:
@@ -225,10 +225,10 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cargo check (minimal, no defaults)
+      - name: Run cargo check (minimal, no defaults)
         run: cargo check -p oxcache --no-default-features --features minimal
 
-      - name: Run feature_minimal test
+      - name: Run feature_minimal tests
         run: cargo test --no-default-features --features minimal -p oxcache --test feature_minimal
 
   # ============================================================================
@@ -249,7 +249,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
+      - name: Run cargo build
         run: cargo build --features "${{ matrix.features }}" --workspace
 
   # ============================================================================
@@ -267,7 +267,7 @@ jobs:
         with:
           components: rustfmt
 
-      - name: Check formatting
+      - name: Run cargo fmt
         run: cargo fmt --all -- --check
 
   clippy:
@@ -322,7 +322,7 @@ jobs:
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
 
-      - name: Run cargo-deny
+      - name: Run cargo deny
         run: cargo deny check
 
   # ============================================================================
@@ -345,7 +345,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Generate coverage (fail under 85% lines)
+      - name: Run cargo llvm-cov (fail under 85% lines)
         run: cargo llvm-cov --features full --workspace --fail-under-lines 85 --lcov --output-path lcov.info
 
       - name: Upload to Codecov
