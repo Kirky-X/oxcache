@@ -65,8 +65,8 @@ pub fn get_metrics_string() -> String {
 
 // Re-export unified metrics
 pub use unified::{
-    CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, GLOBAL_UNIFIED_METRICS, HistogramData, HitRates,
-    MetricValue, MetricsConfig, MetricsSnapshot, TimerData, convenience as unified_convenience,
+    convenience as unified_convenience, CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, HistogramData,
+    HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, GLOBAL_UNIFIED_METRICS,
 };
 
 // 从 core::types 重新导出 CacheLayer
