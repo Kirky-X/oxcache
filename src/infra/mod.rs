@@ -10,12 +10,11 @@ pub mod metrics;
 #[cfg(feature = "serialization")]
 pub mod serialization;
 
+mod infra_impl;
+
 use crate::error::OxCacheError;
 
-/// Validate cache key format
-pub fn validate_cache_key(key: &str) -> Result<(), OxCacheError> {
-    crate::utils::key_generator::KeyGenerator::new().validate_key(key)
-}
+pub use infra_impl::validate_cache_key;
 
 #[cfg(feature = "metrics")]
 pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
