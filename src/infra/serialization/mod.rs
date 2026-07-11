@@ -15,7 +15,7 @@ use crate::error::Result;
 pub use json::JsonSerializer;
 
 // Unified serialization exports
-pub use unified::{UnifiedSerializer, UnifiedSerializerAdapter, default_serializer};
+pub use unified::{default_serializer, UnifiedSerializer, UnifiedSerializerAdapter};
 
 /// 序列化器特征
 ///

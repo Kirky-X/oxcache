@@ -160,6 +160,78 @@ jobs:
         run: cargo test --features "${{ matrix.features }}" --workspace
 
   # ============================================================================
+  # Narrow Feature Verification (--no-default-features)
+  # Migrated from examples/feature_matrix/ — verifies that core/minimal
+  # feature combinations compile without the full feature set.
+  # ============================================================================
+
+  feature-core:
+    name: Feature Check (core only, no defaults)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-feature-core-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-feature-core-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-feature-core-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cargo check (core, no defaults)
+        run: cargo check -p oxcache --no-default-features --features core
+
+      - name: Run feature_core test
+        run: cargo test --no-default-features --features core -p oxcache --test feature_core
+
+  feature-minimal:
+    name: Feature Check (minimal only, no defaults)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v6
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cargo check (minimal, no defaults)
+        run: cargo check -p oxcache --no-default-features --features minimal
+
+      - name: Run feature_minimal test
+        run: cargo test --no-default-features --features minimal -p oxcache --test feature_minimal
+
+  # ============================================================================
   # Build Verification
   # ============================================================================
 

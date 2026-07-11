@@ -8,6 +8,6 @@ pub mod backend;
 
 // Re-export main types for convenience
 pub use backend::{
-    DashMapBackendBuilder, DashMapMemoryBackend, dashmap_memory, dashmap_memory_with_capacity,
-    dashmap_memory_with_capacity_and_ttl,
+    dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder,
+    DashMapMemoryBackend,
 };
