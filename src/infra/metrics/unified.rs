@@ -8,10 +8,10 @@ use crate::core::types::CacheLayer;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::Serialize;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
-use tracing::{Level, span};
+use tracing::{span, Level};
 
 /// Unified metrics collector
 ///

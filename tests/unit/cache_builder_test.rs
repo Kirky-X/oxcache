@@ -5,8 +5,8 @@
 //! Cache builder tests
 
 use oxcache::backend::MokaMemoryBackend as MemoryBackend;
-use oxcache::cache::Cache;
 use oxcache::cache::builder::CacheBuilder;
+use oxcache::cache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;

@@ -17,8 +17,8 @@
 
 use std::time::Duration;
 
-use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::interface::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
+use oxcache::backend::MokaMemoryBackend;
 use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
 
 // ============================================================================

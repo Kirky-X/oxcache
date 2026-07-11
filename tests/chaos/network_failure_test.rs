@@ -7,11 +7,11 @@
 #[path = "../common/mod.rs"]
 mod common;
 
-use common::docker_test_utils::{RedisContainer, setup_redis_container};
+use common::docker_test_utils::{setup_redis_container, RedisContainer};
 use common::redis_test_utils::{get_redis_url, is_redis_available, wait_for_redis};
-use oxcache::Cache;
 use oxcache::backend::interface::{CacheReader, CacheWriter};
 use oxcache::backend::memory::redis::RedisBackend;
+use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;

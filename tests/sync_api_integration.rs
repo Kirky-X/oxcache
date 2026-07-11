@@ -16,9 +16,9 @@
 
 use std::time::Duration;
 
-use oxcache::Cache;
 use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
 use oxcache::cache::{ChainCache, ChainLink};
+use oxcache::Cache;
 
 // ============================================================================
 // Cache<K,V> sync API（sync_mode + Moka 后端）
