@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 随机故障混沌测试（已迁移到新版 API）
 //
 // 本测试演示缓存存在随机Redis故障情况下的稳定性和恢复能力

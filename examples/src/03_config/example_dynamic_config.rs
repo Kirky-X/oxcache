@@ -1,8 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 动态配置示例
 //!
 //! 本示例演示如何使用 Oxcache 管理动态配置。

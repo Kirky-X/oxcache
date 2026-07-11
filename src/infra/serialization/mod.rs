@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
 pub mod depth_limited;

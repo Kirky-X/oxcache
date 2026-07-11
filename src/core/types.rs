@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 类型安全的枚举定义，用于替代硬编码字符串常量
 
 use serde::{Deserialize, Serialize};

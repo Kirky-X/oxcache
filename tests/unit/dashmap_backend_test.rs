@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // DashMap 后端单元测试
 
 use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};

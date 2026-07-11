@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // Redis 测试工具 - 支持环境变量控制测试跳过
 
 #[cfg(feature = "redis")]

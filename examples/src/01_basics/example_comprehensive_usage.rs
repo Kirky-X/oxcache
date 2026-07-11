@@ -1,8 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 综合使用示例 - 展示 Oxcache 的完整功能
 //!
 //! 本示例演示了 Oxcache 的各种功能，包括：

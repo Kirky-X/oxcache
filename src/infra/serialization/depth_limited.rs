@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // Depth-limited JSON deserialization utilities
 //
 // Provides safe JSON deserialization with depth limits to prevent

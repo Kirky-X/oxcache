@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 单飞模式集成测试 - 简化版本
 
 // ponytail: 2 empty tests removed (referenced deleted TwoLevelClient/singleflight API)

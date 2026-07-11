@@ -1,8 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 缓存失效策略示例
 //!
 //! 本示例演示了 Oxcache 的各种缓存失效策略：

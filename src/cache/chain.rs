@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 链式缓存核心实现
 //
 // ChainCache 提供多后端链式访问，按分数从高到低遍历后端。

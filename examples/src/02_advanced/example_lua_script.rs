@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Lua 脚本执行示例
 //!
 //! 本示例演示 oxcache 的 Lua 脚本执行功能：

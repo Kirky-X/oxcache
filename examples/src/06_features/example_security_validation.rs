@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 安全验证示例
 //!
 //! 本示例演示 oxcache 的输入安全验证功能，防止恶意输入导致的安全问题：

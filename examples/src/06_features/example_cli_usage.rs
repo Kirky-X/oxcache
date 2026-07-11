@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! CLI 工具使用示例
 //!
 //! 本示例演示如何使用 oxcache 的命令行工具进行缓存管理。

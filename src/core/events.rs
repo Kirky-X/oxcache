@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 缓存事件系统
 //!
 //! 提供缓存事件的发布和订阅机制，支持监控缓存操作、性能跟踪和自定义处理逻辑。

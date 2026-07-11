@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Redis 原生客户端示例
 //!
 //! 本示例演示如何使用 Oxcache 连接 Redis。

@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Bloom Filter module for negative query filtering.
 //!
 //! Provides [`BloomFilter`] — a capacity/fpr-configurable Bloom filter backed

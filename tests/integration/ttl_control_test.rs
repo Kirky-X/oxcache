@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // TTL 控制集成测试 - 简化版本
 //
 // 测试 TTL 查询、刷新和 touch 操作。

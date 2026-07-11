@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! [`BloomFilterBackend`] — a `CacheBackend` decorator that wraps an inner
 //! backend with a [`BloomFilter`] for negative query filtering.
 //!

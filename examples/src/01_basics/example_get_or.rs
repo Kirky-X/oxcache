@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! get_or 单飞模式示例
 //!
 //! 本示例演示 Cache::get_or() 方法，该方法实现 single-flight 去重，

@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 性能指标模块
 //!
 //! 提供高性能的指标收集系统，支持延迟直方图、操作计数器和性能快照。

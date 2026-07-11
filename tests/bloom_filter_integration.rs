@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // tests/bloom_filter_integration.rs
 //
 // BloomFilter + BloomFilterBackend 端到端集成测试

@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 该模块定义了JSON序列化器的实现。
 
 use super::depth_limited::{would_exceed_depth_limit, MAX_DESERIALIZE_DEPTH};
