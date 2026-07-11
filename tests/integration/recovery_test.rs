@@ -29,7 +29,7 @@ async fn test_degradation_logic() {
     let ttl_key = format!("ttl_key_{}", test_id);
 
     // Redis可用时，测试正常操作
-    let cache_result: Result<Cache<String, String>, oxcache::CacheError> = Cache::redis(&redis_url).await;
+    let cache_result: Result<Cache<String, String>, oxcache::OxCacheError> = Cache::redis(&redis_url).await;
 
     match &cache_result {
         Ok(cache) => {

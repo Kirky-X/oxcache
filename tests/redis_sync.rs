@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use oxcache::backend::{RedisBackend, SyncCacheReader, SyncCacheWriter};
-use oxcache::error::CacheError;
+use oxcache::error::OxCacheError;
 
 /// Redis 测试连接地址（与本仓库其他 redis 集成测试一致）
 const REDIS_URL: &str = "redis://127.0.0.1:6379";
@@ -93,7 +93,7 @@ fn test_redis_sync_get_current_thread_fails() {
         // 在 current-thread runtime 下，sync get 必须返回 Err(NotSupported)
         let result = SyncCacheReader::get(&backend, &key);
         assert!(
-            matches!(result, Err(CacheError::NotSupported(_))),
+            matches!(result, Err(OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) on current-thread runtime, got {:?}",
             result
         );
@@ -101,7 +101,7 @@ fn test_redis_sync_get_current_thread_fails() {
         // sync set 同样应返回 Err(NotSupported)
         let result = SyncCacheWriter::set(&backend, &key, b"v".to_vec(), None);
         assert!(
-            matches!(result, Err(CacheError::NotSupported(_))),
+            matches!(result, Err(OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) for sync set on current-thread runtime, got {:?}",
             result
         );
