@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠️ BREAKING CHANGES
+
+- `CacheError` renamed to `OxCacheError`, following `ProjectNameError` naming convention
+- `CacheConfigError` renamed to `OxCacheConfigError`
+- Error code prefix changed from `CACHE_` to `OXCACHE_` (e.g., `CACHE_001` → `OXCACHE_001`)
+- `Result<T>` renamed to `OxCacheResult<T>`, `ConfigResult<T>` renamed to `OxCacheConfigResult<T>`
+
 ## [0.3.6] - 2026-07-12
 
 ### Changed
