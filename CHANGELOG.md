@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [0.3.5] - 2026-07-11
+
+### Changed
+- 移除 `with_eviction_policy` ghost method（YAGNI 清理）
+- 升级 `crossbeam-epoch` 依赖以修复 RUSTSEC-2026-0204 安全公告
+
+### Added（Phase 6 前置）
 - `feature_matrix` examples 迁移为 integration tests：`tests/feature_core.rs`、`tests/feature_minimal.rs`
 - CI 添加窄特性测试 job（`feature-core`、`feature-minimal`），使用 `--no-default-features` 验证最小特性组合可编译
 - 新增 `CONTRIBUTING.md` 贡献指南
 - 新增 `AGENTS.md` AI Agent 指南
 
-### Changed
+### Changed（Phase 6 前置）
 - edition 升级到 2024，rust-version 最低要求提升至 1.85
 - MIT license 在所有模块中统一声明
 - README.md 结构标准化：徽章更新为 rust 1.85+，章节统一为核心特性 / 快速开始 / 特性标志 / 架构 / 性能 / 可靠性 / 文档 / 贡献 / 更新日志 / 许可证
