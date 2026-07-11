@@ -2,7 +2,7 @@
 
 <img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
 [English](README_EN.md) | 简体中文
 
@@ -62,44 +62,7 @@ oxcache = "0.3.4"
 
 > **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.4", features = ["macros"] }`
 
-#### 特性分层
-
-```toml
-# 完整特性（推荐）
-oxcache = { version = "0.3.4", features = ["full"] }
-
-# 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.4", features = ["core"] }
-
-# 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.4", features = ["minimal"] }
-
-# 自定义选择
-oxcache = { version = "0.3.4", features = ["core", "macros", "metrics", "bloom-filter"] }
-```
-
-#### 可用特性
-
-| 层级 | 包含特性 | 描述 |
-|------|----------|------|
-| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
-| **core** | `minimal` + `redis`, `futures` | L1 + L2 缓存 |
-| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
-
-**独立特性**：
-- `memory` - L1 缓存后端（Moka + DashMap）
-- `redis` - L2 分布式缓存（Redis）
-- `macros` - `#[cached]` 属性宏
-- `serialization` - JSON 序列化（serde + serde_json）
-- `compression` - 数据压缩（flate2）
-- `metrics` - OpenTelemetry 指标与可观测性
-- `batch-write` - 优化的批量写入（tokio-util）
-- `lua-script` - Lua 脚本执行支持
-- `cli` - 命令行界面（clap）
-- `tracing` - 结构化日志支持
-- `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
-
-### 最简示例
+### 基础使用
 
 ```rust
 use oxcache::macros::cached;
@@ -163,6 +126,45 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 
 > **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
 > 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
+
+## 🔧 特性标志
+
+### 特性分层
+
+```toml
+# 完整特性（推荐）
+oxcache = { version = "0.3.4", features = ["full"] }
+
+# 核心功能（L1 + L2 缓存）
+oxcache = { version = "0.3.4", features = ["core"] }
+
+# 最小特性（仅 L1 缓存）
+oxcache = { version = "0.3.4", features = ["minimal"] }
+
+# 自定义选择
+oxcache = { version = "0.3.4", features = ["core", "macros", "metrics", "bloom-filter"] }
+```
+
+### 可用特性
+
+| 层级 | 包含特性 | 描述 |
+|------|----------|------|
+| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
+| **core** | `minimal` + `redis`, `futures` | L1 + L2 缓存 |
+| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
+
+**独立特性**：
+- `memory` - L1 缓存后端（Moka + DashMap）
+- `redis` - L2 分布式缓存（Redis）
+- `macros` - `#[cached]` 属性宏
+- `serialization` - JSON 序列化（serde + serde_json）
+- `compression` - 数据压缩（flate2）
+- `metrics` - OpenTelemetry 指标与可观测性
+- `batch-write` - 优化的批量写入（tokio-util）
+- `lua-script` - Lua 脚本执行支持
+- `cli` - 命令行界面（clap）
+- `tracing` - 结构化日志支持
+- `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 
 ## 🎨 使用场景
 
@@ -352,7 +354,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `set(key, value, Some(ttl))` 覆盖该条目的全局 TTL
 - `set(key, value, None)` 使用全局 TTL（若设置）；否则条目永不过期
 
-## 🏗️ 架构设计
+## 🏗️ 架构
 
 ```mermaid
 graph TD
@@ -380,7 +382,7 @@ graph TD
 **L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
 **L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
-## 📊 性能基准
+## 📊 性能
 
 > 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
@@ -418,11 +420,11 @@ xychart-beta
 - ✅ 优雅关闭机制
 - ✅ 健康检查与自动恢复
 
-## 🔐 安全性
+### 安全性
 
 Oxcache 实现了多项安全措施以防范常见攻击：
 
-### 输入验证
+#### 输入验证
 
 所有用户输入在传递给 Redis 之前都会进行验证：
 
@@ -438,7 +440,7 @@ Oxcache 实现了多项安全措施以防范常见攻击：
   - count 参数限制在安全范围内（1-1000）
 - **SQL/路径遍历检测**：Redis 键会扫描潜在的 SQL 注入和路径遍历模式
 
-### 安全 API（公共函数）
+#### 安全 API（公共函数）
 
 对于高级用例，您可以直接使用安全验证函数：
 
@@ -455,22 +457,22 @@ validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚
 validate_scan_pattern("user:*").expect("无效的模式");
 ```
 
-### 超时保护
+#### 超时保护
 
 长时间运行的操作有超时保护：
 
 - **Lua 脚本**：30 秒超时，防止 Redis 阻塞
 - **SCAN 操作**：30 秒超时，防止扫描挂起
 
-### 安全锁值
+#### 安全锁值
 
 分布式锁使用库自动生成的加密安全 UUID v4 值，消除锁值预测攻击的风险。
 
-### 连接字符串脱敏
+#### 连接字符串脱敏
 
 连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `redact_connection_string()` 进行安全日志记录。
 
-### 最佳实践
+#### 最佳实践
 
 1. **使用库的键验证** - 不要绕过 `validate_redis_key()` 函数
 2. **避免自定义 Lua 脚本** - 尽可能使用内置缓存操作
@@ -490,9 +492,9 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ## 🤝 贡献
 
-欢迎提交 Pull Request 和 Issue！
+欢迎提交 Pull Request 和 Issue！详见 [贡献指南](CONTRIBUTING.md)。
 
-## 📝 更新日志
+## 📋 更新日志
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
