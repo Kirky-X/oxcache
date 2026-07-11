@@ -3,7 +3,7 @@
 //! Cache 批量操作方法
 
 use super::Cache;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::collections::HashMap;
 
@@ -12,7 +12,7 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    pub async fn set_many<'a, I>(&self, items: I) -> Result<()>
+    pub async fn set_many<'a, I>(&self, items: I) -> OxCacheResult<()>
     where
         K: 'a,
         V: 'a,
@@ -25,7 +25,7 @@ where
                 let key_str = key.to_key_string();
                 let bytes = match serde_json::to_vec(value) {
                     Ok(b) => b,
-                    Err(e) => return Err(CacheError::Serialization(e.to_string())),
+                    Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
                 };
                 batch_items.push((key_str, bytes, None));
             }
@@ -35,13 +35,13 @@ where
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
             let _ = items;
-            Err(CacheError::Serialization(
+            Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set_many operations".to_string(),
             ))
         }
     }
 
-    pub async fn get_many<'a, I>(&self, keys: I) -> Result<HashMap<String, V>>
+    pub async fn get_many<'a, I>(&self, keys: I) -> OxCacheResult<HashMap<String, V>>
     where
         K: 'a,
         I: IntoIterator<Item = &'a K>,
@@ -66,13 +66,13 @@ where
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
             let _ = keys;
-            Err(CacheError::Serialization(
+            Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed get_many operations".to_string(),
             ))
         }
     }
 
-    pub async fn delete_many<'a, I>(&self, keys: I) -> Result<()>
+    pub async fn delete_many<'a, I>(&self, keys: I) -> OxCacheResult<()>
     where
         K: 'a,
         I: IntoIterator<Item = &'a K>,

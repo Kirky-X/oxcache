@@ -5,7 +5,7 @@
 use super::depth_limited::{would_exceed_depth_limit, MAX_DESERIALIZE_DEPTH};
 use super::utils::{check_data_size, compress_data, decompress_data};
 use super::Serializer;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use serde::{Deserialize, Serialize};
 
 /// JSON序列化器
@@ -74,9 +74,9 @@ impl Serializer for JsonSerializer {
     /// # 返回值
     ///
     /// 返回序列化后的字节数组或错误
-    fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn serialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         let wrapper = ByteArrayWrapper(data.to_vec());
-        let json_bytes = serde_json::to_vec(&wrapper).map_err(|e| CacheError::Serialization(e.to_string()))?;
+        let json_bytes = serde_json::to_vec(&wrapper).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
 
         if self.compress {
             compress_data(&json_bytes)
@@ -99,7 +99,7 @@ impl Serializer for JsonSerializer {
     /// # 安全
     ///
     /// 此方法限制反序列化数据的大小和深度，防止拒绝服务攻击
-    fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn deserialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         check_data_size(data, MAX_JSON_SIZE, "JSON")?;
 
         let json_bytes = if self.compress {
@@ -109,16 +109,16 @@ impl Serializer for JsonSerializer {
         };
 
         if would_exceed_depth_limit(&json_bytes, MAX_DESERIALIZE_DEPTH)
-            .map_err(|e| CacheError::Serialization(e.to_string()))?
+            .map_err(|e| OxCacheError::Serialization(e.to_string()))?
         {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "JSON 嵌套深度超过最大限制 {}",
                 MAX_DESERIALIZE_DEPTH
             )));
         }
 
         let wrapper: ByteArrayWrapper =
-            serde_json::from_slice(&json_bytes).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            serde_json::from_slice(&json_bytes).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
 
         Ok(wrapper.0)
     }

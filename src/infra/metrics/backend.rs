@@ -92,10 +92,10 @@ impl LatencyHistogram {
     ///
     /// # 返回值
     /// * 新的 LatencyHistogram 实例
-    pub fn new(bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::CacheError> {
+    pub fn new(bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::OxCacheError> {
         // 验证桶数量限制，防止内存过度分配
         if bucket_bounds_us.len() > MAX_HISTOGRAM_BUCKETS {
-            return Err(crate::error::CacheError::InvalidInput(format!(
+            return Err(crate::error::OxCacheError::InvalidInput(format!(
                 "Histogram bucket bounds exceed maximum of {} (got {})",
                 MAX_HISTOGRAM_BUCKETS,
                 bucket_bounds_us.len()
@@ -259,7 +259,7 @@ pub struct OperationCounter {
 
 impl OperationCounter {
     /// 创建新的操作计数器
-    pub fn new(op_type: OperationType, bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::CacheError> {
+    pub fn new(op_type: OperationType, bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::OxCacheError> {
         Ok(Self {
             op_type,
             success_count: Arc::new(AtomicU64::new(0)),
@@ -352,7 +352,7 @@ pub struct MetricsCollector {
 
 impl MetricsCollector {
     /// 创建新的指标收集器
-    pub fn new() -> Result<Self, crate::error::CacheError> {
+    pub fn new() -> Result<Self, crate::error::OxCacheError> {
         let (tx, _) = broadcast::channel(1);
 
         // 初始化操作计数器

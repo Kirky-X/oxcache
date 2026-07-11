@@ -44,7 +44,7 @@ mod tests {
         let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
 
         // First call should use fallback
-        async fn fallback1() -> crate::error::Result<TestValue> {
+        async fn fallback1() -> crate::error::OxCacheResult<TestValue> {
             Ok(TestValue {
                 id: 1,
                 name: "fallback".to_string(),
@@ -55,7 +55,7 @@ mod tests {
         assert_eq!(result.name, "fallback");
 
         // Second call should use cache
-        async fn fallback2() -> crate::error::Result<TestValue> {
+        async fn fallback2() -> crate::error::OxCacheResult<TestValue> {
             panic!("Should not be called");
         }
 

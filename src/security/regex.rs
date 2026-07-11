@@ -4,7 +4,7 @@
 //
 // Provides protection against ReDoS attacks and regex complexity limits.
 
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use regex::Regex;
 
 /// Maximum allowed pattern length
@@ -24,12 +24,12 @@ pub const MAX_WILDCARDS: usize = 10;
 /// # Returns
 ///
 /// * `Ok(Regex)` - Successfully compiled regex
-/// * `Err(CacheError)` - Compilation failed or pattern is unsafe
+/// * `Err(OxCacheError)` - Compilation failed or pattern is unsafe
 #[allow(dead_code)]
-pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
+pub fn compile_regex(pattern: &str) -> OxCacheResult<regex::Regex> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Regex pattern exceeds maximum length of {} bytes (got {})",
             MAX_PATTERN_LENGTH,
             pattern.len()
@@ -39,7 +39,7 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
     // Count wildcards (for potential ReDoS patterns)
     let wildcard_count = pattern.bytes().filter(|&b| b == b'*' || b == b'+').count();
     if wildcard_count > MAX_WILDCARDS {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Regex pattern contains too many quantifiers ({} > {})",
             wildcard_count, MAX_WILDCARDS
         )));
@@ -57,7 +57,7 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
     for dangerous in &dangerous_patterns {
         if let Ok(dangerous_regex) = Regex::new(dangerous) {
             if dangerous_regex.is_match(pattern) {
-                return Err(CacheError::InvalidInput(
+                return Err(OxCacheError::InvalidInput(
                     "Regex pattern contains potentially dangerous quantifier pattern".to_string(),
                 ));
             }
@@ -65,7 +65,7 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
     }
 
     // Compile the regex
-    Regex::new(pattern).map_err(|e| CacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
+    Regex::new(pattern).map_err(|e| OxCacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
 }
 
 /// Matches a string against a compiled regex with input length check
@@ -78,12 +78,12 @@ pub fn compile_regex(pattern: &str) -> Result<regex::Regex> {
 /// # Returns
 ///
 /// * `Ok(bool)` - Match result
-/// * `Err(CacheError)` - Input too long
+/// * `Err(OxCacheError)` - Input too long
 #[allow(dead_code)]
-pub fn match_safe(regex: &Regex, input: &str) -> Result<bool> {
+pub fn match_safe(regex: &Regex, input: &str) -> OxCacheResult<bool> {
     // Check input length for extremely long inputs
     if input.len() > 1_000_000 {
-        return Err(CacheError::InvalidInput(
+        return Err(OxCacheError::InvalidInput(
             "Input string too long for regex matching".to_string(),
         ));
     }
@@ -101,12 +101,12 @@ pub fn match_safe(regex: &Regex, input: &str) -> Result<bool> {
 /// # Returns
 ///
 /// * `Ok(String)` - Regex pattern
-/// * `Err(CacheError)` - Pattern conversion failed or unsafe
+/// * `Err(OxCacheError)` - Pattern conversion failed or unsafe
 #[allow(dead_code)]
-pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String> {
+pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<String> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Glob pattern exceeds maximum length of {} bytes (got {})",
             MAX_PATTERN_LENGTH,
             pattern.len()
@@ -119,13 +119,13 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String>
         // ** counts as 2 wildcards
         let double_star_count = pattern.matches("**").count();
         if single_star_count - (double_star_count * 2) > MAX_WILDCARDS {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Glob pattern contains too many wildcards (max {})",
                 MAX_WILDCARDS
             )));
         }
     } else if single_star_count > MAX_WILDCARDS {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Glob pattern contains too many wildcards (max {})",
             MAX_WILDCARDS
         )));
@@ -172,12 +172,12 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String>
             '?' => regex_pattern.push('.'),
             '[' => {
                 // Character class - escape to prevent regex injection
-                return Err(CacheError::InvalidInput(
+                return Err(OxCacheError::InvalidInput(
                     "Character class '[...]' not allowed in glob patterns".to_string(),
                 ));
             }
             '{' | '}' => {
-                return Err(CacheError::InvalidInput(
+                return Err(OxCacheError::InvalidInput(
                     "Brace expansion not allowed in glob patterns".to_string(),
                 ));
             }
@@ -198,9 +198,9 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> Result<String>
 /// # Returns
 ///
 /// * `Ok(Regex)` - Compiled regex
-/// * `Err(CacheError)` - Validation or compilation failed
+/// * `Err(OxCacheError)` - Validation or compilation failed
 #[allow(dead_code)]
-pub fn compile_glob_pattern(pattern: &str, double_star_allowed: bool) -> Result<Regex> {
+pub fn compile_glob_pattern(pattern: &str, double_star_allowed: bool) -> OxCacheResult<Regex> {
     let regex_pattern = glob_to_regex(pattern, double_star_allowed)?;
     compile_regex(&regex_pattern)
 }

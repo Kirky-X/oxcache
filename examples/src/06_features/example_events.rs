@@ -12,7 +12,7 @@
 
 use std::time::Instant;
 
-use oxcache::{Cache, CacheError, CacheEvent, CacheEventType, EventPublisher};
+use oxcache::{Cache, OxCacheError, CacheEvent, CacheEventType, EventPublisher};
 
 /// 自定义事件发布器示例
 ///
@@ -22,7 +22,7 @@ struct ConsoleEventPublisher;
 #[async_trait::async_trait]
 impl EventPublisher for ConsoleEventPublisher {
     /// 发布事件到控制台
-    async fn publish(&self, event: CacheEvent) -> Result<(), CacheError> {
+    async fn publish(&self, event: CacheEvent) -> Result<(), OxCacheError> {
         let key_str = event.key.as_deref().unwrap_or("N/A");
         let latency_str = event
             .latency_ms
@@ -45,31 +45,31 @@ impl EventPublisher for ConsoleEventPublisher {
     }
 
     /// 发布命中事件
-    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), CacheError> {
+    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), OxCacheError> {
         println!("[HIT] key={} latency={}ms", key.into(), latency_ms);
         Ok(())
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), CacheError> {
+    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), OxCacheError> {
         println!("[MISS] key={} latency={}ms", key.into(), latency_ms);
         Ok(())
     }
 
     /// 发布设置事件
-    fn publish_set(&self, key: impl Into<String>) -> Result<(), CacheError> {
+    fn publish_set(&self, key: impl Into<String>) -> Result<(), OxCacheError> {
         println!("[SET] key={}", key.into());
         Ok(())
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, key: impl Into<String>) -> Result<(), CacheError> {
+    fn publish_delete(&self, key: impl Into<String>) -> Result<(), OxCacheError> {
         println!("[DELETE] key={}", key.into());
         Ok(())
     }
 
     /// 发布错误事件
-    fn publish_error(&self, key: Option<String>, error: impl Into<String>) -> Result<(), CacheError> {
+    fn publish_error(&self, key: Option<String>, error: impl Into<String>) -> Result<(), OxCacheError> {
         let key_str = key.as_deref().unwrap_or("N/A");
         println!("[ERROR] key={} error={}", key_str, error.into());
         Ok(())

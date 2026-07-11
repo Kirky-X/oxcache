@@ -4,7 +4,7 @@
 
 use super::Cache;
 use crate::core::constants::MAX_JSON_DEPTH;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -61,24 +61,24 @@ impl Drop for GetOrGuard<'_> {
 }
 
 #[cfg(any(feature = "serialization", feature = "full"))]
-fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> Result<V> {
+fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> OxCacheResult<V> {
     let depth_limit: usize = MAX_JSON_DEPTH;
     let json_value: serde_json::Value =
-        serde_json::from_slice(data).map_err(|e| CacheError::Serialization(e.to_string()))?;
+        serde_json::from_slice(data).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
     if json_depth(&json_value) > depth_limit {
-        return Err(CacheError::Serialization(format!(
+        return Err(OxCacheError::Serialization(format!(
             "JSON深度 {} 超过最大限制 {}",
             json_depth(&json_value),
             depth_limit
         )));
     }
-    serde_json::from_value(json_value).map_err(|e| CacheError::Serialization(e.to_string()))
+    serde_json::from_value(json_value).map_err(|e| OxCacheError::Serialization(e.to_string()))
 }
 
 #[cfg(not(any(feature = "serialization", feature = "full")))]
-fn deserialize_value<V>(data: &[u8]) -> Result<V> {
+fn deserialize_value<V>(data: &[u8]) -> OxCacheResult<V> {
     let _ = data;
-    Err(CacheError::Serialization(
+    Err(OxCacheError::Serialization(
         "Serialization feature is required for typed get operations".to_string(),
     ))
 }
@@ -92,7 +92,7 @@ where
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key), level = "debug", fields(key))
     )]
-    pub async fn get(&self, key: &K) -> Result<Option<V>> {
+    pub async fn get(&self, key: &K) -> OxCacheResult<Option<V>> {
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
         match bytes {
@@ -106,7 +106,7 @@ where
     // ========================================================================
 
     /// Clear all entries in the cache.
-    pub async fn clear(&self) -> Result<()> {
+    pub async fn clear(&self) -> OxCacheResult<()> {
         self.backend.clear().await
     }
 
@@ -116,27 +116,27 @@ where
     }
 
     /// Health check for the cache backend.
-    pub async fn health_check(&self) -> Result<()> {
+    pub async fn health_check(&self) -> OxCacheResult<()> {
         self.backend.health_check().await
     }
 
     /// Get cache statistics.
-    pub async fn stats(&self) -> Result<std::collections::HashMap<String, String>> {
+    pub async fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
         self.backend.stats().await
     }
 
     /// Get the number of entries in the cache.
-    pub async fn len(&self) -> Result<u64> {
+    pub async fn len(&self) -> OxCacheResult<u64> {
         self.backend.len().await
     }
 
     /// Check if the cache is empty.
-    pub async fn is_empty(&self) -> Result<bool> {
+    pub async fn is_empty(&self) -> OxCacheResult<bool> {
         self.backend.is_empty().await
     }
 
     /// Get the capacity of the cache.
-    pub async fn capacity(&self) -> Result<u64> {
+    pub async fn capacity(&self) -> OxCacheResult<u64> {
         self.backend.capacity().await
     }
 
@@ -144,18 +144,18 @@ where
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key, value), level = "debug", fields(key))
     )]
-    pub async fn set(&self, key: &K, value: &V) -> Result<()> {
+    pub async fn set(&self, key: &K, value: &V) -> OxCacheResult<()> {
         self.set_with_ttl(key, value, None).await
     }
 
-    pub async fn set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> Result<()> {
+    pub async fn set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
             let bytes = match serde_json::to_vec(value) {
                 Ok(b) => b,
-                Err(e) => return Err(CacheError::Serialization(e.to_string())),
+                Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
             };
             self.backend.set(&key_str, bytes, ttl).await
         }
@@ -163,7 +163,7 @@ where
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
             let _ = (key_str, value);
-            Err(CacheError::Serialization(
+            Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set operations".to_string(),
             ))
         }
@@ -173,12 +173,12 @@ where
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key), level = "debug", fields(key))
     )]
-    pub async fn delete(&self, key: &K) -> Result<()> {
+    pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         self.backend.delete(&key_str).await
     }
 
-    pub async fn exists(&self, key: &K) -> Result<bool> {
+    pub async fn exists(&self, key: &K) -> OxCacheResult<bool> {
         let key_str = key.to_key_string();
         self.backend.exists(&key_str).await
     }
@@ -198,7 +198,7 @@ where
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key), level = "debug", fields(key))
     )]
-    pub async fn ttl(&self, key: &K) -> Result<Option<Duration>> {
+    pub async fn ttl(&self, key: &K) -> OxCacheResult<Option<Duration>> {
         let key_str = key.to_key_string();
         self.backend.ttl(&key_str).await
     }
@@ -211,15 +211,15 @@ where
         any(feature = "tracing", feature = "full"),
         instrument(skip(self, key), level = "debug", fields(key))
     )]
-    pub async fn expire(&self, key: &K, ttl: Duration) -> Result<bool> {
+    pub async fn expire(&self, key: &K, ttl: Duration) -> OxCacheResult<bool> {
         let key_str = key.to_key_string();
         self.backend.expire(&key_str, ttl).await
     }
 
-    pub async fn get_or<F, Fut>(&self, key: &K, fallback: F) -> Result<V>
+    pub async fn get_or<F, Fut>(&self, key: &K, fallback: F) -> OxCacheResult<V>
     where
         F: FnOnce() -> Fut,
-        Fut: std::future::Future<Output = Result<V>>,
+        Fut: std::future::Future<Output = OxCacheResult<V>>,
     {
         // 快速路径：缓存命中
         if let Some(value) = self.get(key).await? {
@@ -252,7 +252,7 @@ where
             notify.notified().await;
             // leader 应将结果写入缓存
             return self.get(key).await?.ok_or_else(|| {
-                CacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
+                OxCacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
             });
         }
 
@@ -286,10 +286,10 @@ where
         fallback: F,
         notify: &Arc<tokio::sync::Notify>,
         guard: &mut GetOrGuard<'_>,
-    ) -> Result<V>
+    ) -> OxCacheResult<V>
     where
         F: FnOnce() -> Fut,
-        Fut: std::future::Future<Output = Result<V>>,
+        Fut: std::future::Future<Output = OxCacheResult<V>>,
     {
         let result = fallback().await;
         match result {
@@ -320,7 +320,7 @@ where
 // Synchronous API — mirrors the async API but dispatches through
 // `backend_sync: Option<Arc<dyn SyncCacheBackend>>`.
 //
-// Returns `Err(CacheError::NotSupported)` when the cache was not built with
+// Returns `Err(OxCacheError::NotSupported)` when the cache was not built with
 // `sync_mode` enabled (i.e., `backend_sync` is `None`).
 //
 // Single-flight for `get_or_sync` uses `std::sync::Condvar` (no async runtime
@@ -373,16 +373,16 @@ where
 {
     /// Resolve the sync backend or return `Err(NotSupported)` when the cache
     /// was not built with `sync_mode(true)`.
-    fn sync_backend(&self) -> Result<&Arc<dyn crate::backend::SyncCacheBackend>> {
+    fn sync_backend(&self) -> OxCacheResult<&Arc<dyn crate::backend::SyncCacheBackend>> {
         self.backend_sync.as_ref().ok_or_else(|| {
-            CacheError::NotSupported(
+            OxCacheError::NotSupported(
                 "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
             )
         })
     }
 
     /// Synchronously get a value from the cache.
-    pub fn get_sync(&self, key: &K) -> Result<Option<V>> {
+    pub fn get_sync(&self, key: &K) -> OxCacheResult<Option<V>> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         // Method-call syntax (not UFCS) — `dyn SyncCacheBackend` exposes
@@ -397,39 +397,39 @@ where
     }
 
     /// Synchronously set a value in the cache (no TTL).
-    pub fn set_sync(&self, key: &K, value: &V) -> Result<()> {
+    pub fn set_sync(&self, key: &K, value: &V) -> OxCacheResult<()> {
         self.set_with_ttl_sync(key, value, None)
     }
 
     /// Synchronously set a value with an optional per-entry TTL.
-    pub fn set_with_ttl_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> Result<()> {
+    pub fn set_with_ttl_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value).map_err(|e| CacheError::Serialization(e.to_string()))?;
+            let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
             backend.set(&key_str, bytes, ttl)
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
             let _ = (key_str, value, ttl);
-            Err(CacheError::Serialization(
+            Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set operations".to_string(),
             ))
         }
     }
 
     /// Synchronously delete a key.
-    pub fn delete_sync(&self, key: &K) -> Result<()> {
+    pub fn delete_sync(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         backend.delete(&key_str)
     }
 
     /// Synchronously check if a key exists.
-    pub fn exists_sync(&self, key: &K) -> Result<bool> {
+    pub fn exists_sync(&self, key: &K) -> OxCacheResult<bool> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         backend.exists(&key_str)
@@ -439,7 +439,7 @@ where
     ///
     /// Returns `Ok(None)` if the key has no per-entry TTL or does not exist.
     /// Mirrors the async [`Self::ttl`].
-    pub fn ttl_sync(&self, key: &K) -> Result<Option<Duration>> {
+    pub fn ttl_sync(&self, key: &K) -> OxCacheResult<Option<Duration>> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         backend.ttl(&key_str)
@@ -449,7 +449,7 @@ where
     ///
     /// Returns `Ok(true)` if the TTL was updated, `Ok(false)` if the key
     /// does not exist. Mirrors the async [`Self::expire`].
-    pub fn expire_sync(&self, key: &K, ttl: Duration) -> Result<bool> {
+    pub fn expire_sync(&self, key: &K, ttl: Duration) -> OxCacheResult<bool> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
         backend.expire(&key_str, ttl)
@@ -458,9 +458,9 @@ where
     /// Synchronously get-or-compute: returns cached value if present, otherwise
     /// invokes `fallback` and caches the result. Uses `Condvar`-based
     /// single-flight to prevent thundering-herd duplicate fallback calls.
-    pub fn get_or_sync<F>(&self, key: &K, fallback: F) -> Result<V>
+    pub fn get_or_sync<F>(&self, key: &K, fallback: F) -> OxCacheResult<V>
     where
-        F: FnOnce() -> Result<V>,
+        F: FnOnce() -> OxCacheResult<V>,
     {
         // Fast path: cache hit
         if let Some(value) = self.get_sync(key)? {
@@ -503,7 +503,7 @@ where
             // Leader has finished — re-check cache. If leader succeeded the
             // value is now cached; if leader failed, return an error.
             return self.get_sync(key)?.ok_or_else(|| {
-                CacheError::L1Error("get_or_sync: concurrent fetch leader failed to cache result".to_string())
+                OxCacheError::L1Error("get_or_sync: concurrent fetch leader failed to cache result".to_string())
             });
         }
 
@@ -558,13 +558,13 @@ where
     }
 
     /// Synchronously clear all entries.
-    pub fn clear_sync(&self) -> Result<()> {
+    pub fn clear_sync(&self) -> OxCacheResult<()> {
         let backend = self.sync_backend()?;
         backend.clear()
     }
 
     /// Synchronously run a health check against the backend.
-    pub fn health_check_sync(&self) -> Result<()> {
+    pub fn health_check_sync(&self) -> OxCacheResult<()> {
         let backend = self.sync_backend()?;
         backend.health_check()
     }
@@ -578,19 +578,19 @@ where
     }
 
     /// Synchronously get backend statistics.
-    pub fn stats_sync(&self) -> Result<std::collections::HashMap<String, String>> {
+    pub fn stats_sync(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
         let backend = self.sync_backend()?;
         backend.stats()
     }
 
     /// Synchronously get the number of entries.
-    pub fn len_sync(&self) -> Result<u64> {
+    pub fn len_sync(&self) -> OxCacheResult<u64> {
         let backend = self.sync_backend()?;
         backend.len()
     }
 
     /// Synchronously get the capacity.
-    pub fn capacity_sync(&self) -> Result<u64> {
+    pub fn capacity_sync(&self) -> OxCacheResult<u64> {
         let backend = self.sync_backend()?;
         backend.capacity()
     }
@@ -769,7 +769,7 @@ mod tests {
         // get_or should return cached value without calling fallback
         let value = cache
             .get_or(&"k".to_string(), || async {
-                Err(CacheError::Operation("fallback should not be called".to_string()))
+                Err(OxCacheError::Operation("fallback should not be called".to_string()))
             })
             .await
             .unwrap();
@@ -780,16 +780,16 @@ mod tests {
     async fn test_cache_get_or_fallback_error_propagates() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-        let result: Result<String> = cache
+        let result: OxCacheResult<String> = cache
             .get_or(&"missing".to_string(), || async {
-                Err(CacheError::Operation("db down".to_string()))
+                Err(OxCacheError::Operation("db down".to_string()))
             })
             .await;
 
         assert!(result.is_err());
         match result {
-            Err(CacheError::Operation(msg)) => assert_eq!(msg, "db down"),
-            _ => panic!("expected CacheError::Operation"),
+            Err(OxCacheError::Operation(msg)) => assert_eq!(msg, "db down"),
+            _ => panic!("expected OxCacheError::Operation"),
         }
     }
 
@@ -906,10 +906,10 @@ mod tests {
         let result = cache.get(&"deep".to_string()).await;
         assert!(result.is_err());
         match result {
-            Err(CacheError::Serialization(msg)) => {
+            Err(OxCacheError::Serialization(msg)) => {
                 assert!(msg.contains("深度") || msg.contains("depth"));
             }
-            _ => panic!("expected CacheError::Serialization"),
+            _ => panic!("expected OxCacheError::Serialization"),
         }
     }
 }
@@ -947,7 +947,7 @@ mod sync_tests {
         let cache: Cache<String, String> = Cache::new();
         let result = cache.get_sync(&"k".to_string());
         assert!(
-            matches!(result, Err(CacheError::NotSupported(_))),
+            matches!(result, Err(OxCacheError::NotSupported(_))),
             "expected Err(NotSupported), got {:?}",
             result
         );
@@ -961,7 +961,7 @@ mod sync_tests {
         // Fallback should NOT be called — pre-populated value wins
         let v = cache
             .get_or_sync(&"k".to_string(), || {
-                Err(CacheError::Operation("fallback should not run".to_string()))
+                Err(OxCacheError::Operation("fallback should not run".to_string()))
             })
             .unwrap();
         assert_eq!(v, "cached");

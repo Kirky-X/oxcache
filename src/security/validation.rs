@@ -4,7 +4,7 @@
 //!
 //! 提供跨模块的字符串验证功能，避免代码重复
 
-use crate::error::CacheError;
+use crate::error::OxCacheError;
 
 /// 验证字符串中是否包含危险字符
 ///
@@ -17,7 +17,7 @@ use crate::error::CacheError;
 /// # Returns
 ///
 /// * `Ok(())` - 验证通过
-/// * `Err(CacheError)` - 包含危险字符
+/// * `Err(OxCacheError)` - 包含危险字符
 ///
 /// # Examples
 ///
@@ -27,10 +27,10 @@ use crate::error::CacheError;
 /// let dangerous_chars = ['\r', '\n', '\0'];
 /// validate_no_dangerous_chars("safe_string", &dangerous_chars, "Redis key")?;
 /// ```
-pub fn validate_no_dangerous_chars(input: &str, dangerous_chars: &[char], error_context: &str) -> crate::Result<()> {
+pub fn validate_no_dangerous_chars(input: &str, dangerous_chars: &[char], error_context: &str) -> crate::OxCacheResult<()> {
     for c in input.chars() {
         if dangerous_chars.contains(&c) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "{} contains dangerous character '\\u{:04x}'",
                 error_context, c as u32
             )));
@@ -49,10 +49,10 @@ pub fn validate_no_dangerous_chars(input: &str, dangerous_chars: &[char], error_
 /// # Returns
 ///
 /// * `Ok(())` - 验证通过
-/// * `Err(CacheError)` - 字符串为空
-pub fn validate_not_empty(input: &str, error_context: &str) -> crate::Result<()> {
+/// * `Err(OxCacheError)` - 字符串为空
+pub fn validate_not_empty(input: &str, error_context: &str) -> crate::OxCacheResult<()> {
     if input.is_empty() {
-        return Err(CacheError::InvalidInput(format!("{} cannot be empty", error_context)));
+        return Err(OxCacheError::InvalidInput(format!("{} cannot be empty", error_context)));
     }
     Ok(())
 }
@@ -68,10 +68,10 @@ pub fn validate_not_empty(input: &str, error_context: &str) -> crate::Result<()>
 /// # Returns
 ///
 /// * `Ok(())` - 验证通过
-/// * `Err(CacheError)` - 字符串过长
-pub fn validate_max_length(input: &str, max_length: usize, error_context: &str) -> crate::Result<()> {
+/// * `Err(OxCacheError)` - 字符串过长
+pub fn validate_max_length(input: &str, max_length: usize, error_context: &str) -> crate::OxCacheResult<()> {
     if input.len() > max_length {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "{} exceeds maximum length of {} (got {})",
             error_context,
             max_length,
@@ -110,9 +110,9 @@ pub mod lua_script {
     /// # Returns
     ///
     /// * `Ok(())` - 长度有效
-    /// * `Err(CacheError)` - 脚本过长
+    /// * `Err(OxCacheError)` - 脚本过长
     #[allow(dead_code)]
-    pub fn validate_length(script: &str) -> crate::Result<()> {
+    pub fn validate_length(script: &str) -> crate::OxCacheResult<()> {
         super::validate_max_length(script, MAX_SCRIPT_LENGTH, "Lua script")
     }
 }
