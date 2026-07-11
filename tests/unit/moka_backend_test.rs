@@ -6,8 +6,8 @@
 
 use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::backend::memory::moka::{
-    MokaMemoryBackend, MokaMemoryBackendBuilder, moka_memory, moka_memory_with_capacity,
-    moka_memory_with_capacity_and_ttl,
+    moka_memory, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl, MokaMemoryBackend,
+    MokaMemoryBackendBuilder,
 };
 use oxcache::backend::score::BackendScore;
 use std::time::Duration;

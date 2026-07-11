@@ -45,8 +45,8 @@ const MIN_COMPRESS_SIZE: usize = 100;
 /// - 大于100KB：使用高压缩率（Compression::best）
 #[cfg(feature = "flate2")]
 pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
-    use flate2::Compression;
     use flate2::write::GzEncoder;
+    use flate2::Compression;
     use std::io::Write;
 
     // 小数据不压缩，避免压缩开销
