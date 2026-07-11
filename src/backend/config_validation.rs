@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Configuration validation constants and utilities
 
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 
 /// 配置验证常量
 #[derive(Debug, Clone, Copy)]
@@ -21,14 +21,14 @@ impl ConfigValidation {
     pub const VALID_NAME_CHARS: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
 
     /// 验证自定义名称
-    pub fn validate_custom_name(name: &str) -> Result<String> {
+    pub fn validate_custom_name(name: &str) -> OxCacheResult<String> {
         if name.is_empty() {
-            return Err(CacheError::InvalidInput(
+            return Err(OxCacheError::InvalidInput(
                 "Custom backend name cannot be empty".to_string(),
             ));
         }
         if name.len() > Self::MAX_CUSTOM_NAME_LENGTH {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Custom backend name exceeds maximum length of {} characters",
                 Self::MAX_CUSTOM_NAME_LENGTH
             )));
@@ -36,7 +36,7 @@ impl ConfigValidation {
 
         for ch in name.chars() {
             if !Self::VALID_NAME_CHARS.contains(ch) {
-                return Err(CacheError::InvalidInput(format!(
+                return Err(OxCacheError::InvalidInput(format!(
                     "Custom backend name contains invalid character '{}'. Allowed characters: {}",
                     ch,
                     Self::VALID_NAME_CHARS
@@ -72,7 +72,7 @@ mod tests {
         let result = ConfigValidation::validate_custom_name("");
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
             _ => panic!("Expected InvalidInput error"),
         }
     }
@@ -83,7 +83,7 @@ mod tests {
         let result = ConfigValidation::validate_custom_name(&long_name);
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
             _ => panic!("Expected InvalidInput error"),
         }
     }

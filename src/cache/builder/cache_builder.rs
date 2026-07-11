@@ -5,7 +5,7 @@
 use crate::backend::interface::CacheBackend;
 use crate::backend::memory::moka::MokaMemoryBackend;
 use crate::cache::Cache;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -86,12 +86,12 @@ where
     }
 
     /// Build the cache instance
-    pub async fn build(self) -> Result<Cache<K, V>> {
+    pub async fn build(self) -> OxCacheResult<Cache<K, V>> {
         // sync_mode(true) + backend_arc() is unsupported: Arc<dyn CacheBackend>
         // cannot be upcast to Arc<dyn SyncCacheBackend> in stable Rust (no
         // `trait_upcasting` feature). Reject early with a clear message.
         if self.sync_mode && !self.backends.is_empty() {
-            return Err(CacheError::NotSupported(
+            return Err(OxCacheError::NotSupported(
                 "sync_mode(true) cannot be combined with backend_arc(); \
                  Arc<dyn CacheBackend> cannot be upcast to Arc<dyn SyncCacheBackend> \
                  in stable Rust (no trait_upcasting). Use the default Moka backend \
@@ -371,7 +371,7 @@ mod tests {
         // Sync API should return Err(NotSupported) since sync_mode was not enabled
         let result = cache.get_sync(&"k".to_string());
         assert!(
-            matches!(result, Err(crate::error::CacheError::NotSupported(_))),
+            matches!(result, Err(crate::error::OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) when sync_mode is false, got {:?}",
             result
         );
@@ -384,7 +384,7 @@ mod tests {
         // concrete type implements SyncCacheBackend. This is a builder-level
         // limitation, not a backend capability issue.
         let backend = MokaMemoryBackend::builder().capacity(100).build();
-        let result: crate::error::Result<Cache<String, String>> = Cache::builder()
+        let result: crate::error::OxCacheResult<Cache<String, String>> = Cache::builder()
             .backend_arc(Arc::new(backend))
             .sync_mode(true)
             .build()
@@ -392,7 +392,7 @@ mod tests {
 
         assert!(result.is_err(), "sync_mode(true) + backend_arc() should return Err");
         match result {
-            Err(crate::error::CacheError::NotSupported(msg)) => {
+            Err(crate::error::OxCacheError::NotSupported(msg)) => {
                 assert!(
                     msg.contains("sync_mode") || msg.contains("backend_arc"),
                     "error message should explain the sync_mode+backend_arc limitation, got: {}",

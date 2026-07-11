@@ -8,7 +8,7 @@
 //! - `CacheConnector` - Lifecycle management
 //! - `CacheBackend` - Combines all traits
 
-use crate::error::Result;
+use crate::error::OxCacheResult;
 use async_trait::async_trait;
 use std::time::Duration;
 
@@ -58,37 +58,37 @@ impl BackendKind {
 /// # Example
 ///
 /// ```rust,ignore
-/// fn get_value(cache: &dyn CacheReader, key: &str) -> Result<Option<Vec<u8>>> {
+/// fn get_value(cache: &dyn CacheReader, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
 ///     cache.get(key)
 /// }
 /// ```
 #[async_trait]
 pub trait CacheReader: Send + Sync + 'static {
     /// Get a value from the cache.
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
 
     /// Check if a key exists in the cache.
-    async fn exists(&self, key: &str) -> Result<bool>;
+    async fn exists(&self, key: &str) -> OxCacheResult<bool>;
 
     /// Get the time-to-live for a key.
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
 
     /// Get the number of entries in the cache.
-    async fn len(&self) -> Result<u64>;
+    async fn len(&self) -> OxCacheResult<u64>;
 
     /// Check if the cache is empty.
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&self) -> OxCacheResult<bool> {
         Ok(self.len().await?.eq(&0))
     }
 
     /// Get the capacity of the cache.
-    async fn capacity(&self) -> Result<u64>;
+    async fn capacity(&self) -> OxCacheResult<u64>;
 
     /// Get backend statistics.
-    async fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
+    async fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>>;
 
     /// Get multiple values in a single operation.
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         let mut results = Vec::with_capacity(keys.len());
         for key in keys {
             results.push(self.get(key).await?);
@@ -105,26 +105,26 @@ pub trait CacheReader: Send + Sync + 'static {
 /// # Example
 ///
 /// ```rust,ignore
-/// fn set_value(cache: &mut dyn CacheWriter, key: &str, value: Vec<u8>) -> Result<()> {
+/// fn set_value(cache: &mut dyn CacheWriter, key: &str, value: Vec<u8>) -> OxCacheResult<()> {
 ///     cache.set(key, value, None)
 /// }
 /// ```
 #[async_trait]
 pub trait CacheWriter: Send + Sync + 'static {
     /// Set a value in the cache.
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
 
     /// Delete a value from the cache.
-    async fn delete(&self, key: &str) -> Result<()>;
+    async fn delete(&self, key: &str) -> OxCacheResult<()>;
 
     /// Clear all values from the cache.
-    async fn clear(&self) -> Result<()>;
+    async fn clear(&self) -> OxCacheResult<()>;
 
     /// Set the time-to-live for an existing key.
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
 
     /// Set multiple key-value pairs in a single operation.
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> {
         for (key, value, ttl) in items {
             self.set(key, value.clone(), *ttl).await?;
         }
@@ -132,7 +132,7 @@ pub trait CacheWriter: Send + Sync + 'static {
     }
 
     /// Delete multiple keys in a single operation.
-    async fn delete_many(&self, keys: &[String]) -> Result<()> {
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
         for key in keys {
             self.delete(key).await?;
         }
@@ -161,8 +161,8 @@ pub trait CacheConnector: Send + Sync + 'static {
     /// # Returns
     ///
     /// * `Ok(())` - Backend is healthy
-    /// * `Err(CacheError)` - Health check failed (backend is unhealthy)
-    async fn health_check(&self) -> Result<()>;
+    /// * `Err(OxCacheError)` - Health check failed (backend is unhealthy)
+    async fn health_check(&self) -> OxCacheResult<()>;
 
     /// Shutdown the backend and release resources.
     ///
@@ -186,9 +186,9 @@ pub trait CacheConnector: Send + Sync + 'static {
 #[cfg(feature = "lua-script")]
 #[async_trait]
 pub trait LuaExecutor: Send + Sync {
-    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value>;
-    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value>;
-    async fn script_load(&self, script: &str) -> Result<String>;
+    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
+    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
+    async fn script_load(&self, script: &str) -> OxCacheResult<String>;
 }
 
 // ============================================================================
@@ -215,12 +215,12 @@ pub trait LuaExecutor: Send + Sync {
 ///
 /// #[async_trait]
 /// impl CacheReader for MyCustomBackend {
-///     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> { Ok(None) }
-///     async fn exists(&self, key: &str) -> Result<bool> { Ok(false) }
-///     async fn ttl(&self, key: &str) -> Result<Option<std::time::Duration>> { Ok(None) }
-///     async fn len(&self) -> Result<u64> { Ok(0) }
-///     async fn capacity(&self) -> Result<u64> { Ok(0) }
-///     async fn stats(&self) -> Result<std::collections::HashMap<String, String>> { Ok(HashMap::new()) }
+///     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> { Ok(None) }
+///     async fn exists(&self, key: &str) -> OxCacheResult<bool> { Ok(false) }
+///     async fn ttl(&self, key: &str) -> OxCacheResult<Option<std::time::Duration>> { Ok(None) }
+///     async fn len(&self) -> OxCacheResult<u64> { Ok(0) }
+///     async fn capacity(&self) -> OxCacheResult<u64> { Ok(0) }
+///     async fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> { Ok(HashMap::new()) }
 /// }
 ///
 /// #[async_trait]
@@ -260,36 +260,36 @@ impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T
 /// # Example
 ///
 /// ```rust,ignore
-/// fn get_value(backend: &dyn SyncCacheReader, key: &str) -> Result<Option<Vec<u8>>> {
+/// fn get_value(backend: &dyn SyncCacheReader, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
 ///     backend.get(key)
 /// }
 /// ```
 pub trait SyncCacheReader: Send + Sync + 'static {
     /// Get a value from the cache.
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
 
     /// Check if a key exists in the cache.
-    fn exists(&self, key: &str) -> Result<bool>;
+    fn exists(&self, key: &str) -> OxCacheResult<bool>;
 
     /// Get the time-to-live for a key.
-    fn ttl(&self, key: &str) -> Result<Option<Duration>>;
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
 
     /// Get the number of entries in the cache.
-    fn len(&self) -> Result<u64>;
+    fn len(&self) -> OxCacheResult<u64>;
 
     /// Check if the cache is empty. Default impl delegates to [`Self::len`].
-    fn is_empty(&self) -> Result<bool> {
+    fn is_empty(&self) -> OxCacheResult<bool> {
         Ok(self.len()? == 0)
     }
 
     /// Get the capacity of the cache.
-    fn capacity(&self) -> Result<u64>;
+    fn capacity(&self) -> OxCacheResult<u64>;
 
     /// Get backend statistics.
-    fn stats(&self) -> Result<std::collections::HashMap<String, String>>;
+    fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>>;
 
     /// Get multiple values in a single operation. Default impl loops [`Self::get`].
-    fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+    fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         let mut results = Vec::with_capacity(keys.len());
         for key in keys {
             results.push(self.get(key)?);
@@ -303,20 +303,20 @@ pub trait SyncCacheReader: Send + Sync + 'static {
 /// Mirror of [`CacheWriter`] without `async`/`#[async_trait]`.
 pub trait SyncCacheWriter: Send + Sync + 'static {
     /// Set a value in the cache.
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
 
     /// Delete a value from the cache.
-    fn delete(&self, key: &str) -> Result<()>;
+    fn delete(&self, key: &str) -> OxCacheResult<()>;
 
     /// Clear all values from the cache.
-    fn clear(&self) -> Result<()>;
+    fn clear(&self) -> OxCacheResult<()>;
 
     /// Set the time-to-live for an existing key. Returns `false` if the key
     /// does not exist.
-    fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
 
     /// Set multiple key-value pairs. Default impl loops [`Self::set`].
-    fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+    fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> {
         for (key, value, ttl) in items {
             self.set(key, value.clone(), *ttl)?;
         }
@@ -324,7 +324,7 @@ pub trait SyncCacheWriter: Send + Sync + 'static {
     }
 
     /// Delete multiple keys. Default impl loops [`Self::delete`].
-    fn delete_many(&self, keys: &[String]) -> Result<()> {
+    fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
         for key in keys {
             self.delete(key)?;
         }
@@ -337,7 +337,7 @@ pub trait SyncCacheWriter: Send + Sync + 'static {
 /// Mirror of [`CacheConnector`] without `async`/`#[async_trait]`.
 pub trait SyncCacheConnector: Send + Sync + 'static {
     /// Check if the backend is healthy.
-    fn health_check(&self) -> Result<()>;
+    fn health_check(&self) -> OxCacheResult<()>;
 
     /// Shutdown the backend and release resources.
     fn shutdown(&self);
@@ -636,7 +636,7 @@ mod tests {
     }
 
     impl SyncCacheReader for MockSyncBackend {
-        fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
             let data = self.data.read().unwrap();
             if let Some((value, expires_at)) = data.get(key) {
                 if let Some(deadline) = expires_at {
@@ -649,11 +649,11 @@ mod tests {
             Ok(None)
         }
 
-        fn exists(&self, key: &str) -> Result<bool> {
+        fn exists(&self, key: &str) -> OxCacheResult<bool> {
             Ok(self.get(key)?.is_some())
         }
 
-        fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+        fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
             let data = self.data.read().unwrap();
             if let Some((_, Some(deadline))) = data.get(key) {
                 return Ok(deadline.checked_duration_since(Instant::now()));
@@ -661,15 +661,15 @@ mod tests {
             Ok(None)
         }
 
-        fn len(&self) -> Result<u64> {
+        fn len(&self) -> OxCacheResult<u64> {
             Ok(self.data.read().unwrap().len() as u64)
         }
 
-        fn capacity(&self) -> Result<u64> {
+        fn capacity(&self) -> OxCacheResult<u64> {
             Ok(self.capacity)
         }
 
-        fn stats(&self) -> Result<HashMap<String, String>> {
+        fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
             let mut stats = HashMap::new();
             stats.insert("type".to_string(), "mock_sync".to_string());
             stats.insert("len".to_string(), self.len()?.to_string());
@@ -678,23 +678,23 @@ mod tests {
     }
 
     impl SyncCacheWriter for MockSyncBackend {
-        fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+        fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
             let expires_at = ttl.map(|d| Instant::now() + d);
             self.data.write().unwrap().insert(key.to_string(), (value, expires_at));
             Ok(())
         }
 
-        fn delete(&self, key: &str) -> Result<()> {
+        fn delete(&self, key: &str) -> OxCacheResult<()> {
             self.data.write().unwrap().remove(key);
             Ok(())
         }
 
-        fn clear(&self) -> Result<()> {
+        fn clear(&self) -> OxCacheResult<()> {
             self.data.write().unwrap().clear();
             Ok(())
         }
 
-        fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+        fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
             let mut data = self.data.write().unwrap();
             if let Some(entry) = data.get_mut(key) {
                 entry.1 = Some(Instant::now() + ttl);
@@ -705,7 +705,7 @@ mod tests {
     }
 
     impl SyncCacheConnector for MockSyncBackend {
-        fn health_check(&self) -> Result<()> {
+        fn health_check(&self) -> OxCacheResult<()> {
             Ok(())
         }
 

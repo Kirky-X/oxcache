@@ -150,22 +150,22 @@ pub fn sync_mode(self, enabled: bool) -> Self;       // enable sync API
 pub async fn build(self) -> Result<Cache<K, V>>;
 ```
 
-**Constraint**: `sync_mode(true)` cannot be combined with `backend_arc(Arc<dyn CacheBackend>)`. When both are set, `build()` returns `Err(CacheError::NotSupported)` (CACHE_009). This is a temporary limitation on stable Rust pending `trait_upcasting`; sync mode requires the backend to be constructed internally by the builder (e.g. via `Cache::memory()` / `Cache::redis()` paths or by omitting `backend_arc`).
+**Constraint**: `sync_mode(true)` cannot be combined with `backend_arc(Arc<dyn CacheBackend>)`. When both are set, `build()` returns `Err(OxCacheError::NotSupported)` (OXCACHE_009). This is a temporary limitation on stable Rust pending `trait_upcasting`; sync mode requires the backend to be constructed internally by the builder (e.g. via `Cache::memory()` / `Cache::redis()` paths or by omitting `backend_arc`).
 
 **Key Async Methods**:
 
-- `get(key) -> Result<Option<V>>`
-- `set(key, value) -> Result<()>` (uses builder TTL)
-- `set_with_ttl(key, value, ttl: Option<Duration>) -> Result<()>`
-- `delete(key) -> Result<()>`
-- `exists(key) -> Result<bool>`
-- `clear() -> Result<()>`
-- `get_or(key, fallback) -> Result<V>` (single-flight via `tokio::sync::Notify`)
-- `ttl(key) -> Result<Option<Duration>>` — remaining TTL (None if no per-entry TTL or key absent)
-- `expire(key, ttl) -> Result<bool>` — update TTL of an existing key without touching its value
-- `get_bytes(key) -> Result<Option<Vec<u8>>>` / `set_bytes(key, bytes, ttl)` — raw byte ops
+- `get(key) -> OxCacheResult<Option<V>>`
+- `set(key, value) -> OxCacheResult<()>` (uses builder TTL)
+- `set_with_ttl(key, value, ttl: Option<Duration>) -> OxCacheResult<()>`
+- `delete(key) -> OxCacheResult<()>`
+- `exists(key) -> OxCacheResult<bool>`
+- `clear() -> OxCacheResult<()>`
+- `get_or(key, fallback) -> OxCacheResult<V>` (single-flight via `tokio::sync::Notify`)
+- `ttl(key) -> OxCacheResult<Option<Duration>>` — remaining TTL (None if no per-entry TTL or key absent)
+- `expire(key, ttl) -> OxCacheResult<bool>` — update TTL of an existing key without touching its value
+- `get_bytes(key) -> OxCacheResult<Option<Vec<u8>>>` / `set_bytes(key, bytes, ttl)` — raw byte ops
 - `len() / is_empty() / capacity() / stats() / health_check() / shutdown()` — lifecycle & stats
-- `register_for_macro(service_name) -> Result<()>` — register into `MACRO_CACHES`
+- `register_for_macro(service_name) -> OxCacheResult<()>` — register into `MACRO_CACHES`
 
 **Sync API** (requires `sync_mode(true)` on the builder; returns `Err(NotSupported)` otherwise):
 
@@ -239,29 +239,29 @@ cache.register_for_macro("my_service").await?;
 ```rust
 #[async_trait]
 pub trait CacheReader: Send + Sync + 'static {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    async fn exists(&self, key: &str) -> Result<bool>;
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
-    async fn len(&self) -> Result<u64>;
-    async fn is_empty(&self) -> Result<bool> { /* default impl */ }
-    async fn capacity(&self) -> Result<u64>;
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
+    async fn exists(&self, key: &str) -> OxCacheResult<bool>;
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
+    async fn len(&self) -> OxCacheResult<u64>;
+    async fn is_empty(&self) -> OxCacheResult<bool> { /* default impl */ }
+    async fn capacity(&self) -> OxCacheResult<u64>;
     async fn stats(&self) -> Result<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> { /* default */ }
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* default */ }
 }
 
 #[async_trait]
 pub trait CacheWriter: Send + Sync + 'static {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
-    async fn delete(&self, key: &str) -> Result<()>;
-    async fn clear(&self) -> Result<()>;
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> { /* default */ }
-    async fn delete_many(&self, keys: &[String]) -> Result<()> { /* default */ }
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    async fn delete(&self, key: &str) -> OxCacheResult<()>;
+    async fn clear(&self) -> OxCacheResult<()>;
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> { /* default */ }
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* default */ }
 }
 
 #[async_trait]
 pub trait CacheConnector: Send + Sync + 'static {
-    async fn health_check(&self) -> Result<()>;
+    async fn health_check(&self) -> OxCacheResult<()>;
     async fn shutdown(&self);
     fn backend_kind(&self) -> BackendKind;
     #[cfg(feature = "lua-script")]
@@ -333,7 +333,7 @@ A backend opts into the sync API by implementing the sync traits in addition to 
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 ```
 
-**Important**: `MetricsCollector` is **NOT** re-exported at the crate root. It lives at `oxcache::infra::metrics::backend::MetricsCollector::new() -> Result<Self>` (note: takes no arguments in 0.3.2, returns `Result`).
+**Important**: `MetricsCollector` is **NOT** re-exported at the crate root. It lives at `oxcache::infra::metrics::backend::MetricsCollector::new() -> OxCacheResult<Self>` (note: takes no arguments in 0.3.2, returns `Result`).
 
 **Serialization**: Only **JSON** is supported in 0.3.2 (`serialization` feature pulls in `serde` + `serde_json`). Bincode/MessagePack/CBOR are not implemented. A `MAX_JSON_DEPTH` constant guards against deeply-nested JSON DoS during deserialization.
 
@@ -449,7 +449,7 @@ sequenceDiagram
 
 ```rust
 #[cached(service = "my_service", ttl = 300)]
-async fn get_user(id: u64) -> Result<User> {
+async fn get_user(id: u64) -> OxCacheResult<User> {
     // ... original function body ...
 }
 ```
@@ -457,7 +457,7 @@ async fn get_user(id: u64) -> Result<User> {
 Expands approximately to:
 
 ```rust
-async fn get_user(id: u64) -> Result<User> {
+async fn get_user(id: u64) -> OxCacheResult<User> {
     let cache_key = format!("my_service:get_user:{:?}", id);
 
     // Get cache from registry (sync lookup)
@@ -603,7 +603,7 @@ Both `get_or` (async) and `get_or_sync` (sync) implement single-flight: when mul
 **Recovery (application-driven, not automatic)**:
 Oxcache does not auto-failover between backends in 0.3.2. The application decides how to handle a Redis error:
 
-1. `Cache::health_check().await` returns `Err(CacheError::*)` — caller can switch to a fallback code path
+1. `Cache::health_check().await` returns `Err(OxCacheError::*)` — caller can switch to a fallback code path
 2. `ChainCache` continues serving L1 hits even if the L2 link errors (the miss just propagates as `None`); writes to L2 still error and surface to the caller
 3. The application can wrap the cache in its own circuit-breaker / retry policy
 
@@ -612,24 +612,24 @@ There is no automatic "L1-only mode" switch and no WAL replay on reconnect in 0.
 ### Network Partition
 
 - Each instance continues operating with its local L1 cache
-- Redis writes/reads will fail and surface as `Err(CacheError::*)`
+- Redis writes/reads will fail and surface as `Err(OxCacheError::*)`
 - On recovery: no automatic reconciliation (no versioning scheme in 0.3.2). The application may issue `cache.clear()` or rely on TTL expiry.
 
 ### Backend Trait Errors
 
-All backend errors flow through `CacheError` (see `src/error.rs`). Notable variants:
+All backend errors flow through `OxCacheError` (see `src/error.rs`). Notable variants:
 
 | Code | Variant | Meaning |
 |---|---|---|
-| CACHE_001 | `L1Error` | L1 (memory) backend error |
-| CACHE_002 | `L2Error` | L2 (Redis) backend error |
-| CACHE_009 | `NotSupported` | Operation not supported by this backend / config (e.g. sync API without `sync_mode(true)`) |
-| CACHE_010 | `InvalidInput` | Bad key / value / config input |
-| CACHE_011 | `Serialization` | JSON serialization/deserialization failure |
-| CACHE_013 | `Connection` | Redis connection failure |
-| CACHE_024 | `Config` | Cache configuration error (`CacheConfigError`) |
+| OXCACHE_001 | `L1Error` | L1 (memory) backend error |
+| OXCACHE_002 | `L2Error` | L2 (Redis) backend error |
+| OXCACHE_009 | `NotSupported` | Operation not supported by this backend / config (e.g. sync API without `sync_mode(true)`) |
+| OXCACHE_010 | `InvalidInput` | Bad key / value / config input |
+| OXCACHE_011 | `Serialization` | JSON serialization/deserialization failure |
+| OXCACHE_013 | `Connection` | Redis connection failure |
+| OXCACHE_024 | `Config` | Cache configuration error (`OxCacheConfigError`) |
 
-The full table (CACHE_001–CACHE_024) is documented in `docs/API_REFERENCE.md`.
+The full table (OXCACHE_001–OXCACHE_024) is documented in `docs/API_REFERENCE.md`.
 
 ## Performance Optimization
 

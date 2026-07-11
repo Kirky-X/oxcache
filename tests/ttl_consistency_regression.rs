@@ -63,7 +63,7 @@ impl BackendScore for TtlMockBackend {
 
 #[async_trait]
 impl CacheReader for TtlMockBackend {
-    async fn get(&self, key: &str) -> oxcache::error::Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> oxcache::error::OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
         let mut data = self.data.write().await;
         if let Some((_v, expires_at)) = data.get(key) {
@@ -78,7 +78,7 @@ impl CacheReader for TtlMockBackend {
         Ok(None)
     }
 
-    async fn exists(&self, key: &str) -> oxcache::error::Result<bool> {
+    async fn exists(&self, key: &str) -> oxcache::error::OxCacheResult<bool> {
         let now = Instant::now();
         let mut data = self.data.write().await;
         if let Some((_v, expires_at)) = data.get(key) {
@@ -93,7 +93,7 @@ impl CacheReader for TtlMockBackend {
         Ok(false)
     }
 
-    async fn ttl(&self, key: &str) -> oxcache::error::Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> oxcache::error::OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         let data = self.data.read().await;
         if let Some((_v, Some(exp))) = data.get(key) {
@@ -102,19 +102,19 @@ impl CacheReader for TtlMockBackend {
         Ok(None)
     }
 
-    async fn len(&self) -> oxcache::error::Result<u64> {
+    async fn len(&self) -> oxcache::error::OxCacheResult<u64> {
         Ok(self.data.read().await.len() as u64)
     }
 
-    async fn is_empty(&self) -> oxcache::error::Result<bool> {
+    async fn is_empty(&self) -> oxcache::error::OxCacheResult<bool> {
         Ok(self.data.read().await.is_empty())
     }
 
-    async fn capacity(&self) -> oxcache::error::Result<u64> {
+    async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
         Ok(0)
     }
 
-    async fn stats(&self) -> oxcache::error::Result<HashMap<String, String>> {
+    async fn stats(&self) -> oxcache::error::OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), self.name.to_string());
         Ok(stats)
@@ -123,23 +123,23 @@ impl CacheReader for TtlMockBackend {
 
 #[async_trait]
 impl CacheWriter for TtlMockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> oxcache::error::Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
         self.data.write().await.insert(key.to_string(), (value, expires_at));
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> oxcache::error::Result<()> {
+    async fn delete(&self, key: &str) -> oxcache::error::OxCacheResult<()> {
         self.data.write().await.remove(key);
         Ok(())
     }
 
-    async fn clear(&self) -> oxcache::error::Result<()> {
+    async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
         self.data.write().await.clear();
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> oxcache::error::Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> oxcache::error::OxCacheResult<bool> {
         let mut data = self.data.write().await;
         if data.contains_key(key) {
             data.get_mut(key).unwrap().1 = Some(Instant::now() + ttl);
@@ -152,7 +152,7 @@ impl CacheWriter for TtlMockBackend {
 
 #[async_trait]
 impl CacheConnector for TtlMockBackend {
-    async fn health_check(&self) -> oxcache::error::Result<()> {
+    async fn health_check(&self) -> oxcache::error::OxCacheResult<()> {
         Ok(())
     }
     async fn shutdown(&self) {}

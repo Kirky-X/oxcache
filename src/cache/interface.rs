@@ -3,7 +3,7 @@
 //! Unified cache interface that consolidates CacheOps, CacheExt, and CacheBackend
 //! This provides a single, comprehensive interface for all cache operations
 
-use crate::error::Result;
+use crate::error::OxCacheResult;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::serialization::Serializer;
@@ -24,46 +24,46 @@ pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
 
     /// Get raw bytes from cache
-    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>>;
+    async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
 
     /// Set raw bytes in cache with optional TTL
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
+    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
 
     /// Delete a key from cache
-    async fn delete(&self, key: &str) -> Result<()>;
+    async fn delete(&self, key: &str) -> OxCacheResult<()>;
 
     /// Check if key exists in cache
-    async fn exists(&self, key: &str) -> Result<bool>;
+    async fn exists(&self, key: &str) -> OxCacheResult<bool>;
 
     /// Clear all cache entries
-    async fn clear(&self) -> Result<()>;
+    async fn clear(&self) -> OxCacheResult<()>;
 
     /// Shutdown the cache and release resources
     async fn shutdown(&self);
 
     /// Get TTL for a key
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
 
     /// Set TTL for an existing key
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
 
     /// Health check for the cache backend
-    async fn health_check(&self) -> Result<()>;
+    async fn health_check(&self) -> OxCacheResult<()>;
 
     /// Get cache statistics
-    async fn stats(&self) -> Result<HashMap<String, String>>;
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
 
     // ============================================================================
     // Typed operations (from CacheExt)
     // ============================================================================
 
     /// Get typed value from cache
-    async fn get_typed<T: DeserializeOwned + Send>(&self, key: &str) -> Result<Option<T>> {
+    async fn get_typed<T: DeserializeOwned + Send>(&self, key: &str) -> OxCacheResult<Option<T>> {
         let bytes = self.get_bytes(key).await?;
         match bytes {
             Some(data) => {
                 let val: T = serde_json::from_slice(&data)
-                    .map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+                    .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
                 Ok(Some(val))
             }
             None => Ok(None),
@@ -71,8 +71,8 @@ pub trait UnifiedCache: Send + Sync + 'static {
     }
 
     /// Set typed value in cache
-    async fn set_typed<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: Option<Duration>) -> Result<()> {
-        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::CacheError::Serialization(e.to_string()))?;
+    async fn set_typed<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: Option<Duration>) -> OxCacheResult<()> {
+        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
         self.set_bytes(key, bytes, ttl).await
     }
 
@@ -91,23 +91,23 @@ pub trait UnifiedCache: Send + Sync + 'static {
 #[async_trait]
 impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Core operations
-    async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         self.get(key).await
     }
 
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         self.set(key, value, ttl).await
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.delete(key).await
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         self.exists(key).await
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         self.clear().await
     }
 
@@ -115,19 +115,19 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
         self.shutdown().await
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         self.ttl(key).await
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         self.expire(key, ttl).await
     }
 
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         self.health_check().await
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         self.stats().await
     }
 
@@ -281,7 +281,7 @@ mod tests {
             .set_bytes("key1", b"not valid json".to_vec(), None)
             .await
             .unwrap();
-        let result: Result<Option<TestData>> = backend.get_typed("key1").await;
+        let result: OxCacheResult<Option<TestData>> = backend.get_typed("key1").await;
         assert!(result.is_err());
     }
 

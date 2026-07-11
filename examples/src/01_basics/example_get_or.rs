@@ -21,7 +21,7 @@ struct User {
 }
 
 /// 模拟从数据库加载用户（耗时操作）
-async fn load_user_from_db(id: u64) -> oxcache::Result<User> {
+async fn load_user_from_db(id: u64) -> oxcache::OxCacheResult<User> {
     println!("  [DB] 正在从数据库加载用户 {}...", id);
     tokio::time::sleep(Duration::from_millis(100)).await;
     Ok(User {
@@ -92,7 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         handles.push(tokio::spawn(async move {
             // 先检查缓存
             if let Some(user) = cache_clone.get(&key_clone).await? {
-                return Ok::<_, oxcache::CacheError>(user);
+                return Ok::<_, oxcache::OxCacheError>(user);
             }
             // 缓存未命中，执行 fallback
             let user = load_user_from_db(3).await?;

@@ -7,7 +7,7 @@ use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheW
 // 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
 // 与同名 async trait 方法（如 `get`）产生歧义。
 use crate::backend::score::{BackendScore, Scores};
-use crate::error::Result;
+use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
 use moka::ops::compute::{CompResult, Op};
@@ -94,15 +94,15 @@ impl std::fmt::Debug for MokaMemoryBackend {
 
 #[async_trait]
 impl CacheReader for MokaMemoryBackend {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         Ok(self.cache.get(key).await.map(|e| e.value))
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         Ok(self.cache.contains_key(key))
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         Ok(self
             .cache
@@ -111,19 +111,19 @@ impl CacheReader for MokaMemoryBackend {
             .and_then(|e| e.expires_at.and_then(|exp| exp.checked_duration_since(now))))
     }
 
-    async fn len(&self) -> Result<u64> {
+    async fn len(&self) -> OxCacheResult<u64> {
         Ok(self.cache.entry_count())
     }
 
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&self) -> OxCacheResult<bool> {
         Ok(self.cache.entry_count() == 0)
     }
 
-    async fn capacity(&self) -> Result<u64> {
+    async fn capacity(&self) -> OxCacheResult<u64> {
         Ok(self.capacity)
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
@@ -134,24 +134,24 @@ impl CacheReader for MokaMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for MokaMemoryBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
         let entry = MokaEntry { value, expires_at };
         self.cache.insert(key.to_string(), entry).await;
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.cache.invalidate(key).await;
         Ok(())
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         self.cache.invalidate_all();
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let new_expires_at = Instant::now() + ttl;
         let result = self
             .cache
@@ -176,7 +176,7 @@ impl CacheWriter for MokaMemoryBackend {
 
 #[async_trait]
 impl CacheConnector for MokaMemoryBackend {
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         // Moka is always healthy as it's in-memory
         Ok(())
     }
@@ -220,29 +220,29 @@ fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
 }
 
 impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         Ok(sync_block_on(self.cache.get(key)).map(|e| e.value))
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
         Ok(self.cache.contains_key(key))
     }
 
-    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         Ok(sync_block_on(self.cache.get(key))
             .and_then(|e| e.expires_at.and_then(|exp| exp.checked_duration_since(now))))
     }
 
-    fn len(&self) -> Result<u64> {
+    fn len(&self) -> OxCacheResult<u64> {
         Ok(self.cache.entry_count())
     }
 
-    fn capacity(&self) -> Result<u64> {
+    fn capacity(&self) -> OxCacheResult<u64> {
         Ok(self.capacity)
     }
 
-    fn stats(&self) -> Result<HashMap<String, String>> {
+    fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
@@ -252,24 +252,24 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
         let entry = MokaEntry { value, expires_at };
         sync_block_on(self.cache.insert(key.to_string(), entry));
         Ok(())
     }
 
-    fn delete(&self, key: &str) -> Result<()> {
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
         sync_block_on(self.cache.invalidate(key));
         Ok(())
     }
 
-    fn clear(&self) -> Result<()> {
+    fn clear(&self) -> OxCacheResult<()> {
         self.cache.invalidate_all();
         Ok(())
     }
 
-    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let new_expires_at = Instant::now() + ttl;
         let result = sync_block_on(self.cache.entry(key.to_string()).and_compute_with(
             |maybe_entry: Option<moka::Entry<String, MokaEntry>>| async move {
@@ -291,7 +291,7 @@ impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
-    fn health_check(&self) -> Result<()> {
+    fn health_check(&self) -> OxCacheResult<()> {
         // Moka is always healthy as it's in-memory
         Ok(())
     }

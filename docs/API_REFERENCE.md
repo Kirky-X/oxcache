@@ -157,7 +157,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Async Operations
 
-#### `get(&self, key: &K) -> Result<Option<V>>`
+#### `get(&self, key: &K) -> OxCacheResult<Option<V>>`
 
 Get a value from the cache. Returns `Ok(None)` if not found.
 
@@ -165,7 +165,7 @@ Get a value from the cache. Returns `Ok(None)` if not found.
 let user: Option<User> = cache.get(&"user:1".to_string()).await?;
 ```
 
-#### `set(&self, key: &K, value: &V) -> Result<()>`
+#### `set(&self, key: &K, value: &V) -> OxCacheResult<()>`
 
 Set a value with no per-entry TTL (uses the backend's global TTL if any).
 
@@ -173,7 +173,7 @@ Set a value with no per-entry TTL (uses the backend's global TTL if any).
 cache.set(&"user:1".to_string(), &user).await?;
 ```
 
-#### `set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> Result<()>`
+#### `set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()>`
 
 Set a value with an optional per-entry TTL. `Some(d)` overrides the backend's
 global TTL for this entry; `None` falls back to the global TTL.
@@ -183,19 +183,19 @@ use std::time::Duration;
 cache.set_with_ttl(&"user:1".to_string(), &user, Some(Duration::from_secs(3600))).await?;
 ```
 
-#### `delete(&self, key: &K) -> Result<()>`
+#### `delete(&self, key: &K) -> OxCacheResult<()>`
 
 Delete a value from the cache.
 
-#### `exists(&self, key: &K) -> Result<bool>`
+#### `exists(&self, key: &K) -> OxCacheResult<bool>`
 
 Check if a key exists in the cache.
 
-#### `clear(&self) -> Result<()>`
+#### `clear(&self) -> OxCacheResult<()>`
 
 Clear all entries.
 
-#### `get_or<F, Fut>(&self, key: &K, fallback: F) -> Result<V>`
+#### `get_or<F, Fut>(&self, key: &K, fallback: F) -> OxCacheResult<V>`
 
 Get a value or compute it with `fallback` (single-flight: concurrent callers
 for the same key share one computation).
@@ -206,7 +206,7 @@ let user = cache.get_or(&"user:1".to_string(), || async {
 }).await?;
 ```
 
-#### `ttl(&self, key: &K) -> Result<Option<Duration>>`
+#### `ttl(&self, key: &K) -> OxCacheResult<Option<Duration>>`
 
 Get the remaining time-to-live for a key. Returns `Ok(None)` if the key has no
 per-entry TTL or does not exist. Useful for update-with-preserving-TTL flows:
@@ -216,7 +216,7 @@ let original_ttl = cache.ttl(&"user:1".to_string()).await?;
 cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 ```
 
-#### `expire(&self, key: &K, ttl: Duration) -> Result<bool>`
+#### `expire(&self, key: &K, ttl: Duration) -> OxCacheResult<bool>`
 
 Update the TTL of an existing key without touching its value. Returns `Ok(true)`
 if the TTL was updated, `Ok(false)` if the key does not exist.
@@ -225,13 +225,13 @@ if the TTL was updated, `Ok(false)` if the key does not exist.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `health_check().await` | `Result<()>` | Health check for the backend |
+| `health_check().await` | `OxCacheResult<()>` | Health check for the backend |
 | `stats().await` | `Result<HashMap<String,String>>` | Backend-specific statistics |
-| `len().await` | `Result<u64>` | Number of entries |
-| `is_empty().await` | `Result<bool>` | Whether the cache is empty |
-| `capacity().await` | `Result<u64>` | Configured capacity (0 for Redis) |
+| `len().await` | `OxCacheResult<u64>` | Number of entries |
+| `is_empty().await` | `OxCacheResult<bool>` | Whether the cache is empty |
+| `capacity().await` | `OxCacheResult<u64>` | Configured capacity (0 for Redis) |
 | `shutdown().await` | `()` | Shutdown and release resources |
-| `register_for_macro(service).await` | `Result<()>` | Register for `#[cached]` macro |
+| `register_for_macro(service).await` | `OxCacheResult<()>` | Register for `#[cached]` macro |
 
 ## CacheBuilder
 
@@ -285,7 +285,7 @@ let cache: Cache<String, String> = Cache::builder()
 ```
 
 **Sync API limitation:** `sync_mode(true)` combined with `backend_arc(...)`
-returns `Err(CacheError::NotSupported)` because `Arc<dyn CacheBackend>` cannot
+returns `Err(OxCacheError::NotSupported)` because `Arc<dyn CacheBackend>` cannot
 be upcast to `Arc<dyn SyncCacheBackend>` on stable Rust (no `trait_upcasting`).
 Use the default Moka backend with `sync_mode`, or wire up the sync backend
 manually via `Cache::with_dependencies` + `set_sync_backend`.
@@ -299,29 +299,29 @@ The `backend` module exposes the backend traits and implementations.
 ```rust
 #[async_trait]
 pub trait CacheReader: Send + Sync {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>>;
-    async fn exists(&self, key: &str) -> Result<bool>;
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>>;
-    async fn len(&self) -> Result<u64>;
-    async fn is_empty(&self) -> Result<bool>;
-    async fn capacity(&self) -> Result<u64>;
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
+    async fn exists(&self, key: &str) -> OxCacheResult<bool>;
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
+    async fn len(&self) -> OxCacheResult<u64>;
+    async fn is_empty(&self) -> OxCacheResult<bool>;
+    async fn capacity(&self) -> OxCacheResult<u64>;
     async fn stats(&self) -> Result<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>>;
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>>;
 }
 
 #[async_trait]
 pub trait CacheWriter: Send + Sync {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
-    async fn delete(&self, key: &str) -> Result<()>;
-    async fn clear(&self) -> Result<()>;
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool>;
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()>;
-    async fn delete_many(&self, keys: &[String]) -> Result<()>;
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    async fn delete(&self, key: &str) -> OxCacheResult<()>;
+    async fn clear(&self) -> OxCacheResult<()>;
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()>;
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()>;
 }
 
 #[async_trait]
 pub trait CacheConnector: Send + Sync {
-    async fn health_check(&self) -> Result<()>;
+    async fn health_check(&self) -> OxCacheResult<()>;
     async fn shutdown(&self);
     fn backend_kind(&self) -> BackendKind;
 }
@@ -398,7 +398,7 @@ let backend = RedisBackend::builder()
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `ping().await` | `Result<String>` | Ping the server (returns `"PONG"`) |
+| `ping().await` | `OxCacheResult<String>` | Ping the server (returns `"PONG"`) |
 | `mode()` | `RedisMode` | Configured Redis mode |
 | `client()` | `&Client` | Underlying `redis::Client` |
 | `redact_connection_string(s)` | `String` (assoc) | Redact the password in a connection string |
@@ -495,7 +495,7 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 
 `ChainCache` exposes `get_sync`/`set_sync`/`delete_sync`. These require **every**
 link to support `SyncCacheBackend` (i.e. be built via `from_sync_backend`);
-otherwise they return `Err(CacheError::NotSupported)`.
+otherwise they return `Err(OxCacheError::NotSupported)`.
 
 ## Synchronous API
 
@@ -506,9 +506,9 @@ The synchronous API mirrors the async API but blocks via
 ### `SyncCacheBackend` Trait Hierarchy
 
 ```rust
-pub trait SyncCacheReader { fn get(&self, key: &str) -> Result<Option<Vec<u8>>>; /* ... */ }
-pub trait SyncCacheWriter { fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>; /* ... */ }
-pub trait SyncCacheConnector { fn health_check(&self) -> Result<()>; /* ... */ }
+pub trait SyncCacheReader { fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>; /* ... */ }
+pub trait SyncCacheWriter { fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>; /* ... */ }
+pub trait SyncCacheConnector { fn health_check(&self) -> OxCacheResult<()>; /* ... */ }
 pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector {}
 ```
 
@@ -532,18 +532,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Method | Description |
 |--------|-------------|
-| `get_sync(&K)` | `Result<Option<V>>` |
-| `set_sync(&K, &V)` | `Result<()>` (no per-entry TTL) |
-| `set_with_ttl_sync(&K, &V, Option<Duration>)` | `Result<()>` |
-| `delete_sync(&K)` | `Result<()>` |
-| `exists_sync(&K)` | `Result<bool>` |
-| `ttl_sync(&K)` | `Result<Option<Duration>>` |
-| `expire_sync(&K, Duration)` | `Result<bool>` |
-| `get_or_sync(&K, fallback)` | `Result<V>` (single-flight, sync) |
-| `clear_sync()` | `Result<()>` |
+| `get_sync(&K)` | `OxCacheResult<Option<V>>` |
+| `set_sync(&K, &V)` | `OxCacheResult<()>` (no per-entry TTL) |
+| `set_with_ttl_sync(&K, &V, Option<Duration>)` | `OxCacheResult<()>` |
+| `delete_sync(&K)` | `OxCacheResult<()>` |
+| `exists_sync(&K)` | `OxCacheResult<bool>` |
+| `ttl_sync(&K)` | `OxCacheResult<Option<Duration>>` |
+| `expire_sync(&K, Duration)` | `OxCacheResult<bool>` |
+| `get_or_sync(&K, fallback)` | `OxCacheResult<V>` (single-flight, sync) |
+| `clear_sync()` | `OxCacheResult<()>` |
 
 When `sync_mode` is `false` (the default), all `*_sync` methods return
-`Err(CacheError::NotSupported)`.
+`Err(OxCacheError::NotSupported)`.
 
 ## Bloom Filter
 
@@ -620,7 +620,7 @@ use oxcache::{
 > re-export), not `use oxcache::security::validate_redis_key`. The `security`
 > module itself is `pub(crate)` and not directly accessible.
 
-### `validate_redis_key(key: &str) -> Result<()>`
+### `validate_redis_key(key: &str) -> OxCacheResult<()>`
 
 Validate Redis key format and content.
 
@@ -628,7 +628,7 @@ Validate Redis key format and content.
 use oxcache::validate_redis_key;
 
 validate_redis_key("user:123").expect("Valid key");
-// Empty, too long, or dangerous keys return Err(CacheError::InvalidInput)
+// Empty, too long, or dangerous keys return Err(OxCacheError::InvalidInput)
 ```
 
 **Validation rules:**
@@ -637,7 +637,7 @@ validate_redis_key("user:123").expect("Valid key");
 - Key cannot contain dangerous characters (`\r`, `\n`, `\0`, `;`, `|`)
 - Key is scanned for SQL injection and path traversal patterns (`../`, `etc/passwd`)
 
-### `validate_lua_script(script: &str, num_keys: usize) -> Result<()>`
+### `validate_lua_script(script: &str, num_keys: usize) -> OxCacheResult<()>`
 
 Validate a Lua script for security issues.
 
@@ -653,7 +653,7 @@ validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("Valid script
 - Dangerous commands are blocked: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
 - Comment preprocessing prevents bypass via comments
 
-### `validate_scan_pattern(pattern: &str) -> Result<()>`
+### `validate_scan_pattern(pattern: &str) -> OxCacheResult<()>`
 
 Validate a SCAN pattern to prevent ReDoS attacks.
 
@@ -722,19 +722,19 @@ which pulls in `opentelemetry`, `tracing-opentelemetry`, and `opentelemetry-otlp
 
 ## Error Handling
 
-### `CacheError`
+### `OxCacheError`
 
-All cache operations return `Result<T, CacheError>` (aliased as `oxcache::Result<T>`).
+All cache operations return `Result<T, OxCacheError>` (aliased as `oxcache::OxCacheResult<T>`).
 
 ```rust
-use oxcache::CacheError;
+use oxcache::OxCacheError;
 
 match result {
     Ok(value) => /* ... */,
-    Err(CacheError::NotFound(key)) => println!("Key not found: {}", key),
-    Err(CacheError::NotSupported(msg)) => println!("Not supported: {}", msg),
-    Err(CacheError::Connection(msg)) => println!("Connection error: {}", msg),
-    Err(CacheError::Serialization(msg)) => println!("Serialization error: {}", msg),
+    Err(OxCacheError::NotFound(key)) => println!("Key not found: {}", key),
+    Err(OxCacheError::NotSupported(msg)) => println!("Not supported: {}", msg),
+    Err(OxCacheError::Connection(msg)) => println!("Connection error: {}", msg),
+    Err(OxCacheError::Serialization(msg)) => println!("Serialization error: {}", msg),
     Err(e) => println!("Other error ({}): {}", e.code(), e),
 }
 ```
@@ -743,54 +743,54 @@ match result {
 
 | Variant | Code | Recoverable | Description |
 |---------|------|-------------|-------------|
-| `NotFound(String)` | `CACHE_001` | no | Key not found |
-| `Connection(String)` | `CACHE_002` | yes | Network connection failure |
-| `Serialization(String)` | `CACHE_003` | no | Serialization/deserialization failure |
-| `Operation(String)` | `CACHE_004` | no | General operation failure |
-| `Degraded(String)` | `CACHE_005` | no | Cache in degraded mode |
-| `L1Error(String)` | `CACHE_006` | no | L1 cache operation failed |
-| `L2Error(String)` | `CACHE_007` | yes | L2 cache operation failed |
-| `NotSupported(String)` | `CACHE_009` | no | Operation not supported (e.g. sync API without `sync_mode`) |
-| `WalError(String)` | `CACHE_010` | no | WAL operation failed |
-| `DatabaseError(String)` | `CACHE_011` | no | Database error |
-| `RedisError(...)` | `CACHE_012` | yes | Redis error |
-| `IoError(io::Error)` | `CACHE_013` | no | I/O error |
-| `BackendError(String)` | `CACHE_014` | yes | Backend error |
-| `Timeout(String)` | `CACHE_015` | yes | Operation timed out |
-| `ShutdownError(String)` | `CACHE_016` | no | Shutdown error |
-| `KeyTooLong(usize, usize)` | `CACHE_017` | no | Key exceeds max length |
-| `ValueTooLarge(usize, usize)` | `CACHE_018` | no | Value exceeds max size |
-| `BufferFull(String)` | `CACHE_019` | yes | Batch write buffer full |
-| `InvalidInput(String)` | `CACHE_020` | no | Invalid input |
-| `InvalidKey(String)` | `CACHE_021` | no | Invalid key |
-| `LockError(String)` | `CACHE_022` | no | Lock poisoned |
-| `ServiceNotFound(String)` | `CACHE_023` | no | Service not in registry |
-| `Internal(String)` | `CACHE_024` | no | Internal state corruption |
+| `NotFound(String)` | `OXCACHE_001` | no | Key not found |
+| `Connection(String)` | `OXCACHE_002` | yes | Network connection failure |
+| `Serialization(String)` | `OXCACHE_003` | no | Serialization/deserialization failure |
+| `Operation(String)` | `OXCACHE_004` | no | General operation failure |
+| `Degraded(String)` | `OXCACHE_005` | no | Cache in degraded mode |
+| `L1Error(String)` | `OXCACHE_006` | no | L1 cache operation failed |
+| `L2Error(String)` | `OXCACHE_007` | yes | L2 cache operation failed |
+| `NotSupported(String)` | `OXCACHE_009` | no | Operation not supported (e.g. sync API without `sync_mode`) |
+| `WalError(String)` | `OXCACHE_010` | no | WAL operation failed |
+| `DatabaseError(String)` | `OXCACHE_011` | no | Database error |
+| `RedisError(...)` | `OXCACHE_012` | yes | Redis error |
+| `IoError(io::Error)` | `OXCACHE_013` | no | I/O error |
+| `BackendError(String)` | `OXCACHE_014` | yes | Backend error |
+| `Timeout(String)` | `OXCACHE_015` | yes | Operation timed out |
+| `ShutdownError(String)` | `OXCACHE_016` | no | Shutdown error |
+| `KeyTooLong(usize, usize)` | `OXCACHE_017` | no | Key exceeds max length |
+| `ValueTooLarge(usize, usize)` | `OXCACHE_018` | no | Value exceeds max size |
+| `BufferFull(String)` | `OXCACHE_019` | yes | Batch write buffer full |
+| `InvalidInput(String)` | `OXCACHE_020` | no | Invalid input |
+| `InvalidKey(String)` | `OXCACHE_021` | no | Invalid key |
+| `LockError(String)` | `OXCACHE_022` | no | Lock poisoned |
+| `ServiceNotFound(String)` | `OXCACHE_023` | no | Service not in registry |
+| `Internal(String)` | `OXCACHE_024` | no | Internal state corruption |
 
 ### Helper Methods
 
-- `CacheError::code() -> &'static str`: stable error code (e.g. `"CACHE_009"`).
+- `OxCacheError::code() -> &'static str`: stable error code (e.g. `"OXCACHE_009"`).
 - `is_recoverable() -> bool`: `true` for `Connection`/`Timeout`/`L2Error`/`BackendError`/`BufferFull`.
 - `is_not_found() -> bool`, `is_connection_error() -> bool`, `is_degraded() -> bool`.
 
-### `CacheConfigError` (`redis` feature)
+### `OxCacheConfigError` (`redis` feature)
 
 Configuration-phase errors (returned by factory functions and builders):
 
 ```rust
-pub enum CacheConfigError {
+pub enum OxCacheConfigError {
     MissingField(String),
     InvalidValue { field: String, reason: String },
     UnsupportedBackend(String),
     ConnectionFailed(String),
 }
-pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
+pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 ```
 
 ## Type Aliases
 
 ```rust
-pub type Result<T> = std::result::Result<T, CacheError>;
+pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
 pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster
 ```
 
