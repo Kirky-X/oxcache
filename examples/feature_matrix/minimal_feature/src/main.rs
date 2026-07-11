@@ -18,15 +18,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
     // Set + get
-    cache
-        .set(&"user:1".to_string(), &"Alice".to_string())
-        .await?;
+    cache.set(&"user:1".to_string(), &"Alice".to_string()).await?;
     let val = cache.get(&"user:1".to_string()).await?;
     println!("got user:1 = {:?}", val);
 
     // Verify metrics module is accessible under minimal feature
     let stats = oxcache::CacheStats::default();
-    println!("metrics module accessible; stats.total_operations = {}", stats.total_operations);
+    println!(
+        "metrics module accessible; stats.total_operations = {}",
+        stats.total_operations
+    );
 
     println!("minimal feature example OK");
     Ok(())

@@ -283,19 +283,19 @@ mod tests {
     #[test]
     fn test_key_generator_namespaced_key_with_namespace() {
         let key_gen = KeyGenerator::new().with_namespace("myapp");
-        assert_eq!(key_key_gen.namespaced_key("user:1"), "myapp:user:1");
+        assert_eq!(key_gen.namespaced_key("user:1"), "myapp:user:1");
     }
 
     #[test]
     fn test_key_generator_namespaced_key_default_namespace() {
         let key_gen = KeyGenerator::new();
-        assert_eq!(key_key_gen.namespaced_key("user:1"), "user:1");
+        assert_eq!(key_gen.namespaced_key("user:1"), "user:1");
     }
 
     #[test]
     fn test_key_generator_namespaced_key_empty_namespace() {
         let key_gen = KeyGenerator::new().with_namespace("");
-        assert_eq!(key_key_gen.namespaced_key("user:1"), "user:1");
+        assert_eq!(key_gen.namespaced_key("user:1"), "user:1");
     }
 
     #[test]

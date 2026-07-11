@@ -4,7 +4,7 @@
 //
 // 序列化单元测试
 
-use oxcache::infra::serialization::{json::JsonSerializer, Serializer};
+use oxcache::infra::serialization::{Serializer, json::JsonSerializer};
 
 /// 测试JSON序列化器的往返操作
 ///
