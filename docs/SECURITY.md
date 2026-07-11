@@ -26,7 +26,7 @@ export OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
 
 ## 2. Key Validation
 
-**Function**: `oxcache::validate_redis_key(key: &str) -> Result<()>`
+**Function**: `oxcache::validate_redis_key(key: &str) -> OxCacheResult<()>`
 
 Validates Redis keys before they are sent to the server, preventing command injection and malformed key attacks.
 
@@ -51,7 +51,7 @@ validate_redis_key("")?;                    // Err — empty key
 
 ## 3. Lua Script Sandbox
 
-**Function**: `oxcache::validate_lua_script(script: &str, key_count: usize) -> Result<()>`
+**Function**: `oxcache::validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()>`
 
 Validates Lua scripts before `EVAL`/`EVALSHA` execution, preventing server-side resource exhaustion and dangerous command execution.
 
@@ -82,7 +82,7 @@ validate_lua_script("return 1", 101)?;
 
 ## 4. SCAN Pattern Restrictions
 
-**Function**: `oxcache::validate_scan_pattern(pattern: &str) -> Result<()>`
+**Function**: `oxcache::validate_scan_pattern(pattern: &str) -> OxCacheResult<()>`
 **Function**: `oxcache::clamp_scan_count(count: usize) -> usize`
 
 Validates SCAN patterns and clamps COUNT to prevent Redis server overload.

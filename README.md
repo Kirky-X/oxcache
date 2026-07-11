@@ -275,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **运行时注意事项**：
 - `sync_mode(true)` 在 `multi_thread` tokio 运行时上工作。在 `current_thread` 运行时上，Moka 的 `sync_block_on` 会 panic（使用 `#[tokio::main(flavor = "multi_thread")]` 或在运行时上下文之外调用）。
-- 不启用 `sync_mode(true)` 时，调用任何 `*_sync` 方法返回 `Err(CacheError::NotSupported)`。
+- 不启用 `sync_mode(true)` 时，调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`。
 
 **`#[cached(sync)]` 宏**：
 

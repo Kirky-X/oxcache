@@ -252,10 +252,10 @@ async fn test_cache_sync_returns_not_supported_without_sync_mode() {
     let cache: Cache<String, Token> = Cache::builder().build().await.unwrap();
 
     let err = cache.ttl_sync(&"k".to_string()).unwrap_err();
-    assert!(matches!(err, oxcache::error::CacheError::NotSupported(_)));
+    assert!(matches!(err, oxcache::error::OxCacheError::NotSupported(_)));
 
     let err = cache
         .expire_sync(&"k".to_string(), Duration::from_secs(30))
         .unwrap_err();
-    assert!(matches!(err, oxcache::error::CacheError::NotSupported(_)));
+    assert!(matches!(err, oxcache::error::OxCacheError::NotSupported(_)));
 }

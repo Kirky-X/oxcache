@@ -103,7 +103,7 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    pub async fn redis(connection_string: &str) -> crate::error::Result<Self> {
+    pub async fn redis(connection_string: &str) -> crate::error::OxCacheResult<Self> {
         let backend = crate::backend::memory::RedisBackend::new(connection_string).await?;
         Ok(Self {
             backend: Arc::new(backend),
@@ -121,7 +121,7 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    pub async fn memory() -> crate::error::Result<Self> {
+    pub async fn memory() -> crate::error::OxCacheResult<Self> {
         use crate::backend::memory::MokaMemoryBackend as MemoryBackend;
         let backend = MemoryBackend::new();
         Ok(Self::new_with_backend(Arc::new(backend)))

@@ -12,7 +12,7 @@
 //! struct User { id: u64, name: String }
 //!
 //! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! async fn main() -> OxCacheResult<(), Box<dyn std::error::Error>> {
 //!     let cache: Cache<String, User> = Cache::builder().build().await?;
 //!     cache.set(&"user:1".to_string(), &User { id: 1, name: "Alice".into() }).await?;
 //!     let user = cache.get(&"user:1".to_string()).await?;
@@ -45,7 +45,7 @@
 //!
 //! ```rust,ignore
 //! # #[tokio::main(flavor = "multi_thread")]
-//! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # async fn main() -> OxCacheResult<(), Box<dyn std::error::Error>> {
 //! let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await?;
 //! cache.set_sync(&"k".to_string(), &"v".to_string())?;
 //! let v = cache.get_sync(&"k".to_string())?;
@@ -228,8 +228,8 @@ pub mod macros {
 }
 
 #[cfg(feature = "redis")]
-pub use error::{CacheConfigError, ConfigResult};
-pub use error::{CacheError, Result};
+pub use error::{OxCacheConfigError, OxCacheConfigResult};
+pub use error::{OxCacheError, OxCacheResult};
 
 // Re-export internal functions needed by #[cached] macro at crate root
 // The macro generates code calling ::oxcache::__internal_get_cache()
