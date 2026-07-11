@@ -14,9 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build with default L1 memory backend (no Redis URL provided → falls back to L1 only).
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
-    cache
-        .set(&"key".to_string(), &"value".to_string())
-        .await?;
+    cache.set(&"key".to_string(), &"value".to_string()).await?;
     let val = cache.get(&"key".to_string()).await?;
     println!("got key = {:?}", val);
 

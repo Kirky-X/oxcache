@@ -48,11 +48,7 @@ fn calculate_depth(value: &serde_json::Value) -> usize {
                 let has_container_child = map
                     .values()
                     .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
-                if has_container_child {
-                    max_child_depth + 1
-                } else {
-                    1
-                }
+                if has_container_child { max_child_depth + 1 } else { 1 }
             }
         }
         serde_json::Value::Array(arr) => {
@@ -65,11 +61,7 @@ fn calculate_depth(value: &serde_json::Value) -> usize {
                 let has_container_child = arr
                     .iter()
                     .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
-                if has_container_child {
-                    max_child_depth + 1
-                } else {
-                    1
-                }
+                if has_container_child { max_child_depth + 1 } else { 1 }
             }
         }
         serde_json::Value::Null

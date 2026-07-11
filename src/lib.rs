@@ -243,19 +243,19 @@ pub use crate::internal::__internal_get_cache;
 // ============================================================================
 
 // New API exports
-pub use cache::builder::CacheBuilder;
 pub use cache::Cache;
+pub use cache::builder::CacheBuilder;
 
 // Re-exports from infra module
 #[cfg(feature = "metrics")]
-pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
+pub use infra::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
 
 // Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]
 pub use crate::security::{
     clamp_scan_count,
     log::{log_cache_key, sanitize_message},
-    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
+    redaction::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value},
     validate_lua_script, validate_redis_key, validate_scan_pattern,
 };
 
@@ -275,8 +275,8 @@ pub use core::events::{CacheEvent, CacheEventType, EventPublisher};
 
 // Backend exports
 pub use backend::{
-    dashmap_memory, default_memory_backend, moka_memory, BackendScore, DashMapMemoryBackend, MemoryBackendType,
-    MokaMemoryBackend, Scores,
+    BackendScore, DashMapMemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores, dashmap_memory,
+    default_memory_backend, moka_memory,
 };
 
 #[cfg(feature = "redis")]

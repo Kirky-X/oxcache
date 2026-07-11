@@ -11,8 +11,8 @@ use crate::impl_backend_builder;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// Entry with metadata for TTL tracking
@@ -98,11 +98,7 @@ impl DashMapMemoryBackend {
         let misses = self.misses.load(Ordering::Relaxed);
         let total = hits + misses;
 
-        if total == 0 {
-            0.0
-        } else {
-            hits as f64 / total as f64
-        }
+        if total == 0 { 0.0 } else { hits as f64 / total as f64 }
     }
 }
 

@@ -32,16 +32,16 @@ pub use redis_test_utils::{
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use docker_test_utils::{
-    is_redis_available as docker_is_redis_available, setup_redis_cluster_nodes, setup_redis_container,
-    wait_for_redis as docker_wait_for_redis, RedisContainer,
+    RedisContainer, is_redis_available as docker_is_redis_available, setup_redis_cluster_nodes, setup_redis_container,
+    wait_for_redis as docker_wait_for_redis,
 };
 
 // Testcontainers 工具
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use test_containers::{
-    is_redis_available as tc_is_redis_available, start_redis_container, RedisClusterManager,
-    RedisContainer as AsyncRedisContainer, TestEnvironment,
+    RedisClusterManager, RedisContainer as AsyncRedisContainer, TestEnvironment,
+    is_redis_available as tc_is_redis_available, start_redis_container,
 };
 
 // Mock 后端
@@ -53,8 +53,8 @@ pub use mock_backend::MockBackend;
 // ============================================================================
 
 use std::sync::Once;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 #[allow(dead_code)]
 static INIT: Once = Once::new();

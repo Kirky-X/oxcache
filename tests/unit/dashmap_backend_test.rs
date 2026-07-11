@@ -6,8 +6,8 @@
 
 use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::backend::memory::dashmap::{
-    dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder,
-    DashMapMemoryBackend,
+    DashMapBackendBuilder, DashMapMemoryBackend, dashmap_memory, dashmap_memory_with_capacity,
+    dashmap_memory_with_capacity_and_ttl,
 };
 use oxcache::backend::score::BackendScore;
 use std::time::Duration;

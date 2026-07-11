@@ -20,7 +20,7 @@ pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
 }
 
 #[cfg(feature = "metrics")]
-pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
+pub use metrics::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
 
 #[cfg(test)]
 mod tests {

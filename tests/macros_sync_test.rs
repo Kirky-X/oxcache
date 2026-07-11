@@ -16,8 +16,8 @@
 
 #![cfg(feature = "macros")]
 
-use oxcache::cached;
 use oxcache::Cache;
+use oxcache::cached;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

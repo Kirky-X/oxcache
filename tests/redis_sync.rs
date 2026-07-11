@@ -39,7 +39,9 @@ fn unique_key(suffix: &str) -> String {
 
 /// 设置允许非 TLS 连接的环境变量并创建 RedisBackend
 async fn make_backend() -> RedisBackend {
-    std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     RedisBackend::new(REDIS_URL)
         .await
         .expect("Failed to connect to Redis — start a Redis server (e.g. `redis-server`) before running this test")

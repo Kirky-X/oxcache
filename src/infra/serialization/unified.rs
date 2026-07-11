@@ -6,7 +6,7 @@
 
 use crate::error::Result;
 use crate::infra::serialization::{JsonSerializer, Serializer};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 
 /// Json-only unified serializer

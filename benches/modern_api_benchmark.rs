@@ -6,7 +6,7 @@
 //!
 //! 测试L1缓存的性能表现
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use oxcache::Cache;
 use std::hint::black_box;
 
