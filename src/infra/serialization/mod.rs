@@ -8,7 +8,7 @@ pub mod json;
 pub mod unified;
 pub mod utils;
 
-use crate::error::Result;
+use crate::error::OxCacheResult;
 
 pub use json::JsonSerializer;
 
@@ -30,7 +30,7 @@ pub trait Serializer: Send + Sync {
     /// # Returns
     ///
     /// 返回序列化后的字节数组或错误
-    fn serialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>>;
+    fn serialize(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>>;
 
     /// 从字节数组反序列化值
     ///
@@ -42,7 +42,7 @@ pub trait Serializer: Send + Sync {
     /// # Returns
     ///
     /// 返回反序列化后的字节数组或错误
-    fn deserialize(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>>;
+    fn deserialize(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>>;
 
     /// 零拷贝序列化
     ///
@@ -57,7 +57,7 @@ pub trait Serializer: Send + Sync {
     /// # Returns
     ///
     /// 返回序列化后的字节数组或错误
-    fn serialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn serialize_zero_copy(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.serialize(type_name, data)
     }
 
@@ -74,7 +74,7 @@ pub trait Serializer: Send + Sync {
     /// # Returns
     ///
     /// 返回反序列化后的字节数组或错误
-    fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+    fn deserialize_zero_copy(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.deserialize(type_name, data)
     }
 }
@@ -87,11 +87,11 @@ mod tests {
     struct TestSerializer;
 
     impl Serializer for TestSerializer {
-        fn serialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        fn serialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
             Ok(data.to_vec())
         }
 
-        fn deserialize(&self, _type_name: &str, data: &[u8]) -> Result<Vec<u8>> {
+        fn deserialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
             Ok(data.to_vec())
         }
     }

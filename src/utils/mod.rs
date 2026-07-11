@@ -7,7 +7,7 @@
 pub mod key_generator;
 pub use key_generator::KeyGenerator;
 
-use crate::error::CacheError;
+use crate::error::OxCacheError;
 
 const MAX_CACHE_KEY_LENGTH: usize = 1024;
 const VALID_KEY_CHARS: &[char] = &[
@@ -16,13 +16,13 @@ const VALID_KEY_CHARS: &[char] = &[
     'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
-pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
+pub fn validate_cache_key(key: &str) -> Result<(), OxCacheError> {
     if key.is_empty() {
-        return Err(CacheError::InvalidInput("Cache key cannot be empty".to_string()));
+        return Err(OxCacheError::InvalidInput("Cache key cannot be empty".to_string()));
     }
 
     if key.len() > MAX_CACHE_KEY_LENGTH {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Cache key exceeds maximum length of {} bytes (got {} bytes)",
             MAX_CACHE_KEY_LENGTH,
             key.len()
@@ -31,7 +31,7 @@ pub fn validate_cache_key(key: &str) -> Result<(), CacheError> {
 
     for c in key.chars() {
         if !VALID_KEY_CHARS.contains(&c) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Cache key contains invalid character '{}'. Valid characters are: alphanumeric and -_.:/@",
                 c
             )));
@@ -59,7 +59,7 @@ mod tests {
         let result = validate_cache_key("");
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
             _ => panic!("Expected InvalidInput error"),
         }
     }
@@ -71,7 +71,7 @@ mod tests {
         let result = validate_cache_key(&long_key);
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
             _ => panic!("Expected InvalidInput error"),
         }
     }

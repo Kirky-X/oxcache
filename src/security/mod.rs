@@ -42,7 +42,7 @@ pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 pub use validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
 
 #[cfg(feature = "redis")]
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 
 /// Lua 脚本最大长度 (10KB)
 #[cfg(feature = "redis")]
@@ -113,10 +113,10 @@ lazy_static::lazy_static! {
 /// # 返回值
 ///
 /// * `Ok(())` - 键是安全的
-/// * `Err(CacheError::InvalidInput)` - 键包含不安全字符
+/// * `Err(OxCacheError::InvalidInput)` - 键包含不安全字符
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
-pub fn validate_redis_key(key: &str) -> Result<()> {
+pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
     // 基础验证：使用共享验证工具
     use crate::security::validation::redis::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
     use crate::security::validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
@@ -130,7 +130,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
     // 检查 Unicode 控制字符（CR, LF, NULL 已在基础验证中检查）
     for c in key.chars() {
         if c.is_control() && !DANGEROUS_CHARS.contains(&c) && c != '\t' {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains control character: U+{:04X}",
                 c as u32
             )));
@@ -156,7 +156,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
         if key_upper.contains(&pattern.to_uppercase()) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains suspicious SQL injection pattern: {}",
                 description
             )));
@@ -177,7 +177,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
 
     for pattern in PATH_TRAVERSAL_PATTERNS {
         if key.to_lowercase().contains(&pattern.to_lowercase()) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains path traversal pattern: {}",
                 pattern
             )));
@@ -190,7 +190,7 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
 
     for c in key.chars() {
         if COMMAND_INJECTION_CHARS.contains(&c) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains potential command injection character: {:?}",
                 c
             )));
@@ -218,13 +218,13 @@ pub fn validate_redis_key(key: &str) -> Result<()> {
 /// # 返回值
 ///
 /// * `Ok(())` - 脚本验证通过
-/// * `Err(CacheError::InvalidInput)` - 脚本验证失败
+/// * `Err(OxCacheError::InvalidInput)` - 脚本验证失败
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
-pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
+pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> {
     // 检查脚本长度
     if script.len() > MAX_LUA_SCRIPT_LENGTH {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Lua script exceeds maximum length of {} bytes (got {} bytes)",
             MAX_LUA_SCRIPT_LENGTH,
             script.len()
@@ -233,7 +233,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
 
     // 检查键数量
     if key_count > MAX_LUA_SCRIPT_KEYS {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "Lua script exceeds maximum key count of {} (got {} keys)",
             MAX_LUA_SCRIPT_KEYS, key_count
         )));
@@ -290,7 +290,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查每种危险模式
     for (pattern, description) in &forbidden_patterns {
         if cleaned_upper.contains(pattern) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Lua script contains forbidden pattern: {}",
                 description
             )));
@@ -299,7 +299,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
 
     // 检查嵌套 eval
     if cleaned_upper.contains("REDIS.EVAL") || cleaned_upper.contains("REDIS.EVALSHA") {
-        return Err(CacheError::InvalidInput(
+        return Err(OxCacheError::InvalidInput(
             "Lua script contains nested redis.eval/evalsha".to_string(),
         ));
     }
@@ -307,7 +307,7 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> Result<()> {
     // 检查无限循环模式（使用预编译的正则表达式）
     for re in LUA_LOOP_REGEXES.iter() {
         if re.is_match(&cleaned_upper) {
-            return Err(CacheError::InvalidInput(
+            return Err(OxCacheError::InvalidInput(
                 "Lua script contains potential infinite loop patterns".to_string(),
             ));
         }
@@ -486,17 +486,17 @@ fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level:
 /// # 返回值
 ///
 /// * `Ok(())` - 模式验证通过
-/// * `Err(CacheError::InvalidInput)` - 模式验证失败
+/// * `Err(OxCacheError::InvalidInput)` - 模式验证失败
 ///
 /// # 安全地验证 SCAN 模式
 ///
 /// 防止恶意模式导致 Redis 性能问题。
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
-pub fn validate_scan_pattern(pattern: &str) -> Result<()> {
+pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
     // 检查模式长度
     if pattern.len() > MAX_SCAN_PATTERN_LENGTH {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "SCAN pattern exceeds maximum length of {} characters (got {} characters)",
             MAX_SCAN_PATTERN_LENGTH,
             pattern.len()
@@ -507,7 +507,7 @@ pub fn validate_scan_pattern(pattern: &str) -> Result<()> {
     let wildcard_count = pattern.chars().filter(|c| *c == '*').count();
 
     if wildcard_count > MAX_SCAN_WILDCARDS {
-        return Err(CacheError::InvalidInput(format!(
+        return Err(OxCacheError::InvalidInput(format!(
             "SCAN pattern contains too many wildcards (max {}, got {})",
             MAX_SCAN_WILDCARDS, wildcard_count
         )));
@@ -551,7 +551,7 @@ mod tests {
     fn test_validate_redis_key_empty() {
         let result = validate_redis_key("");
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -559,7 +559,7 @@ mod tests {
         let key = "x".repeat(512 * 1024 + 1);
         let result = validate_redis_key(&key);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -592,7 +592,7 @@ mod tests {
         let script = "x".repeat(MAX_LUA_SCRIPT_LENGTH + 1);
         let result = validate_lua_script(&script, 1);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -600,7 +600,7 @@ mod tests {
         let script = "return redis.call('GET', KEYS[1])";
         let result = validate_lua_script(script, MAX_LUA_SCRIPT_KEYS + 1);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -608,7 +608,7 @@ mod tests {
         let script = "return redis.call('FLUSHALL')";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -616,7 +616,7 @@ mod tests {
         let script = "return redis.call('FLUSHDB')";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -624,7 +624,7 @@ mod tests {
         let script = "return redis.call('KEYS', '*')";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -632,7 +632,7 @@ mod tests {
         let script = "return redis.call('SHUTDOWN')";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -640,7 +640,7 @@ mod tests {
         let script = "return redis.call('flushall')";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -671,7 +671,7 @@ mod tests {
         let pattern = "x".repeat(MAX_SCAN_PATTERN_LENGTH + 1);
         let result = validate_scan_pattern(&pattern);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -679,7 +679,7 @@ mod tests {
         let pattern = "*".repeat(MAX_SCAN_WILDCARDS + 1);
         let result = validate_scan_pattern(&pattern);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -806,7 +806,7 @@ mod tests {
         let script = "return redis.eval('return 1', KEYS[1])";
         let result = validate_lua_script(script, 1);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -814,7 +814,7 @@ mod tests {
         let script = "return redis.evalsha(sha, KEYS[1])";
         let result = validate_lua_script(script, 1);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     // ============================================================================
@@ -826,7 +826,7 @@ mod tests {
         let script = "while true do end";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -834,7 +834,7 @@ mod tests {
         let script = "while 1 do end";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -842,7 +842,7 @@ mod tests {
         let script = "repeat until false";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     #[test]
@@ -850,7 +850,7 @@ mod tests {
         let script = "goto label";
         let result = validate_lua_script(script, 0);
         assert!(result.is_err());
-        assert!(matches!(result, Err(CacheError::InvalidInput(_))));
+        assert!(matches!(result, Err(OxCacheError::InvalidInput(_))));
     }
 
     // ============================================================================

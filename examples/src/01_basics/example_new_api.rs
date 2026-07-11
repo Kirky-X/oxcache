@@ -5,7 +5,7 @@
 // 本示例演示新API (v0.2.0+) 的创建和使用缓存。
 // 新API提供类型安全、独立的缓存接口。
 
-use oxcache::{Cache, CacheKey, Result};
+use oxcache::{Cache, CacheKey, OxCacheResult};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -225,7 +225,7 @@ async fn main() -> Result<()> {
     // 首次获取 - 使用回退函数
     let user: User = fallback_cache
         .get_or(&"user:10".to_string(), || async {
-            Ok::<User, oxcache::CacheError>(fetch_user_from_db(10).await)
+            Ok::<User, oxcache::OxCacheError>(fetch_user_from_db(10).await)
         })
         .await?;
     println!("✓ 通过回退函数检索用户: {:?}", user.name);

@@ -4,7 +4,7 @@
 
 use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::score::{BackendScore, Scores};
-use crate::error::Result;
+use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -122,7 +122,7 @@ impl std::fmt::Debug for DashMapMemoryBackend {
 
 #[async_trait]
 impl CacheReader for DashMapMemoryBackend {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
         // Use atomic operations to reduce race conditions
@@ -150,7 +150,7 @@ impl CacheReader for DashMapMemoryBackend {
         Ok(result.flatten())
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         let now = Instant::now();
 
         if let Some(entry_ref) = self.cache.get(key) {
@@ -166,7 +166,7 @@ impl CacheReader for DashMapMemoryBackend {
         }
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
 
         if let Some(entry_ref) = self.cache.get(key) {
@@ -184,19 +184,19 @@ impl CacheReader for DashMapMemoryBackend {
         }
     }
 
-    async fn len(&self) -> Result<u64> {
+    async fn len(&self) -> OxCacheResult<u64> {
         Ok(self.cache.len() as u64)
     }
 
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&self) -> OxCacheResult<bool> {
         Ok(self.cache.is_empty())
     }
 
-    async fn capacity(&self) -> Result<u64> {
+    async fn capacity(&self) -> OxCacheResult<u64> {
         Ok(self.capacity as u64)
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
@@ -210,7 +210,7 @@ impl CacheReader for DashMapMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for DashMapMemoryBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
 
@@ -227,19 +227,19 @@ impl CacheWriter for DashMapMemoryBackend {
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.cache.remove(key);
         Ok(())
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let now = Instant::now();
         let new_expires_at = now + ttl;
 
@@ -254,7 +254,7 @@ impl CacheWriter for DashMapMemoryBackend {
 
 #[async_trait]
 impl CacheConnector for DashMapMemoryBackend {
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         // DashMap is always healthy as in-memory
         Ok(())
     }
@@ -279,7 +279,7 @@ impl CacheConnector for DashMapMemoryBackend {
 // 与同名 async trait 方法（如 `get`）产生歧义。
 
 impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
         // Use atomic operations to reduce race conditions
@@ -307,7 +307,7 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
         Ok(result.flatten())
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
         let now = Instant::now();
 
         if let Some(entry_ref) = self.cache.get(key) {
@@ -323,7 +323,7 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
         }
     }
 
-    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
 
         if let Some(entry_ref) = self.cache.get(key) {
@@ -341,15 +341,15 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
         }
     }
 
-    fn len(&self) -> Result<u64> {
+    fn len(&self) -> OxCacheResult<u64> {
         Ok(self.cache.len() as u64)
     }
 
-    fn capacity(&self) -> Result<u64> {
+    fn capacity(&self) -> OxCacheResult<u64> {
         Ok(self.capacity as u64)
     }
 
-    fn stats(&self) -> Result<HashMap<String, String>> {
+    fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
@@ -362,7 +362,7 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
 
@@ -379,19 +379,19 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
         Ok(())
     }
 
-    fn delete(&self, key: &str) -> Result<()> {
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.cache.remove(key);
         Ok(())
     }
 
-    fn clear(&self) -> Result<()> {
+    fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
     }
 
-    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let now = Instant::now();
         let new_expires_at = now + ttl;
 
@@ -405,7 +405,7 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheConnector for DashMapMemoryBackend {
-    fn health_check(&self) -> Result<()> {
+    fn health_check(&self) -> OxCacheResult<()> {
         // DashMap is always healthy as in-memory
         Ok(())
     }

@@ -6,7 +6,7 @@ use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheW
 use crate::backend::score::{BackendScore, Scores};
 use crate::core::command::RedisCommand;
 use crate::core::types::RedisModeType;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::security;
 use async_trait::async_trait;
 use redis::{Client, RedisError};
@@ -32,12 +32,12 @@ pub struct RedisBackend {
 
 impl RedisBackend {
     /// Create a new Redis backend with connection string
-    pub async fn new(connection_string: &str) -> Result<Self> {
+    pub async fn new(connection_string: &str) -> OxCacheResult<Self> {
         Self::builder().connection_string(connection_string).build().await
     }
 
     /// Create a new Redis backend with connection pool
-    pub async fn with_pool(connection_string: &str, _pool_size: usize) -> Result<Self> {
+    pub async fn with_pool(connection_string: &str, _pool_size: usize) -> OxCacheResult<Self> {
         Self::builder().connection_string(connection_string).build().await
     }
 
@@ -91,22 +91,22 @@ impl RedisBackend {
     }
 
     /// Validate a Redis key before operations
-    fn validate_key(key: &str) -> Result<()> {
+    fn validate_key(key: &str) -> OxCacheResult<()> {
         security::validate_redis_key(key)
     }
 
     /// Map Redis connection error
-    fn conn_err(e: RedisError) -> CacheError {
-        CacheError::Connection(e.to_string())
+    fn conn_err(e: RedisError) -> OxCacheError {
+        OxCacheError::Connection(e.to_string())
     }
 
     /// Map Redis operation error
-    fn op_err(e: RedisError) -> CacheError {
-        CacheError::Operation(e.to_string())
+    fn op_err(e: RedisError) -> OxCacheError {
+        OxCacheError::Operation(e.to_string())
     }
 
     /// Ping the Redis server
-    pub async fn ping(&self) -> Result<String> {
+    pub async fn ping(&self) -> OxCacheResult<String> {
         let mut conn = self.conn();
         let result: String = redis::cmd(RedisCommand::Ping.as_str())
             .query_async(&mut conn)
@@ -138,7 +138,7 @@ impl RedisBackend {
     /// ];
     /// backend.set_many_pipeline(&items, Some(Duration::from_secs(60))).await?;
     /// ```
-    pub async fn set_many_pipeline(&self, items: &[(&str, Vec<u8>)], ttl: Option<Duration>) -> Result<()> {
+    pub async fn set_many_pipeline(&self, items: &[(&str, Vec<u8>)], ttl: Option<Duration>) -> OxCacheResult<()> {
         if items.is_empty() {
             return Ok(());
         }
@@ -188,7 +188,7 @@ impl RedisBackend {
     /// let values = backend.get_many_pipeline(&keys).await?;
     /// assert_eq!(values.len(), 3);
     /// ```
-    pub async fn get_many_pipeline(&self, keys: &[&str]) -> Result<Vec<Option<Vec<u8>>>> {
+    pub async fn get_many_pipeline(&self, keys: &[&str]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         if keys.is_empty() {
             return Ok(vec![]);
         }
@@ -229,7 +229,7 @@ impl RedisBackend {
     /// let keys = vec!["key1", "key2", "key3"];
     /// backend.delete_many_pipeline(&keys).await?;
     /// ```
-    pub async fn delete_many_pipeline(&self, keys: &[&str]) -> Result<()> {
+    pub async fn delete_many_pipeline(&self, keys: &[&str]) -> OxCacheResult<()> {
         if keys.is_empty() {
             return Ok(());
         }
@@ -273,10 +273,10 @@ impl RedisBackendBuilder {
     }
 
     /// Build the Redis backend
-    pub async fn build(self) -> Result<RedisBackend> {
+    pub async fn build(self) -> OxCacheResult<RedisBackend> {
         let connection_string = self
             .connection_string
-            .ok_or_else(|| CacheError::InvalidInput("Connection string is required".to_string()))?;
+            .ok_or_else(|| OxCacheError::InvalidInput("Connection string is required".to_string()))?;
 
         // 安全检查：强制使用TLS连接
         if !connection_string.starts_with("rediss://") {
@@ -288,7 +288,7 @@ impl RedisBackendBuilder {
                 .unwrap_or(false);
 
             if !allow_insecure {
-                return Err(CacheError::InvalidInput(
+                return Err(OxCacheError::InvalidInput(
                     "Redis connection must use TLS (rediss://) in production. \
                      To allow insecure connections for development only, \
                      set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS"
@@ -306,10 +306,10 @@ impl RedisBackendBuilder {
         let connection_manager = match connection_result {
             Ok(Ok(mgr)) => mgr,
             Ok(Err(e)) => {
-                return Err(CacheError::Connection(format!("Failed to connect to Redis: {}", e)));
+                return Err(OxCacheError::Connection(format!("Failed to connect to Redis: {}", e)));
             }
             Err(_) => {
-                return Err(CacheError::Connection(
+                return Err(OxCacheError::Connection(
                     "Connection timeout - Redis server unavailable".to_string(),
                 ));
             }
@@ -325,7 +325,7 @@ impl RedisBackendBuilder {
 
 #[async_trait]
 impl CacheReader for RedisBackend {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -337,7 +337,7 @@ impl CacheReader for RedisBackend {
         Ok(result)
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -349,7 +349,7 @@ impl CacheReader for RedisBackend {
         Ok(n > 0)
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -366,7 +366,7 @@ impl CacheReader for RedisBackend {
         }
     }
 
-    async fn len(&self) -> Result<u64> {
+    async fn len(&self) -> OxCacheResult<u64> {
         let mut conn = self.conn();
         let len: i64 = redis::cmd(RedisCommand::Dbsize.as_str())
             .query_async(&mut conn)
@@ -375,15 +375,15 @@ impl CacheReader for RedisBackend {
         Ok(len as u64)
     }
 
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&self) -> OxCacheResult<bool> {
         Ok(self.len().await?.eq(&0))
     }
 
-    async fn capacity(&self) -> Result<u64> {
+    async fn capacity(&self) -> OxCacheResult<u64> {
         Ok(0)
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut conn = self.conn();
         let info: String = redis::cmd(RedisCommand::Info.as_str())
             .arg("memory")
@@ -396,7 +396,7 @@ impl CacheReader for RedisBackend {
         Ok(stats)
     }
 
-    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Vec<u8>>>> {
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         if keys.is_empty() {
             return Ok(vec![]);
         }
@@ -410,7 +410,7 @@ impl CacheReader for RedisBackend {
 
 #[async_trait]
 impl CacheWriter for RedisBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -436,7 +436,7 @@ impl CacheWriter for RedisBackend {
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -448,7 +448,7 @@ impl CacheWriter for RedisBackend {
         Ok(())
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         let mut conn = self.conn();
 
         security::validate_scan_pattern("*")?;
@@ -466,9 +466,9 @@ impl CacheWriter for RedisBackend {
                 .await
                 .map_err(|e| {
                     if is_connection_error(&e) {
-                        CacheError::Connection(e.to_string())
+                        OxCacheError::Connection(e.to_string())
                     } else {
-                        CacheError::Operation(e.to_string())
+                        OxCacheError::Operation(e.to_string())
                     }
                 })?;
 
@@ -480,9 +480,9 @@ impl CacheWriter for RedisBackend {
                     .await
                     .map_err(|e| {
                         if is_connection_error(&e) {
-                            CacheError::Connection(e.to_string())
+                            OxCacheError::Connection(e.to_string())
                         } else {
-                            CacheError::Operation(e.to_string())
+                            OxCacheError::Operation(e.to_string())
                         }
                     })?;
             }
@@ -496,7 +496,7 @@ impl CacheWriter for RedisBackend {
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         Self::validate_key(key)?;
 
         let mut conn = self.conn();
@@ -510,7 +510,7 @@ impl CacheWriter for RedisBackend {
         Ok(result > 0)
     }
 
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> Result<()> {
+    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> {
         if items.is_empty() {
             return Ok(());
         }
@@ -541,7 +541,7 @@ impl CacheWriter for RedisBackend {
         Ok(())
     }
 
-    async fn delete_many(&self, keys: &[String]) -> Result<()> {
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
         if keys.is_empty() {
             return Ok(());
         }
@@ -555,7 +555,7 @@ impl CacheWriter for RedisBackend {
 
 #[async_trait]
 impl CacheConnector for RedisBackend {
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         let mut conn = self.conn();
         redis::cmd(RedisCommand::Ping.as_str())
             .query_async::<String>(&mut conn)
@@ -614,11 +614,11 @@ impl RedisBackend {
     /// - 不在任何 Tokio runtime 中：返回 `Err(NotSupported)`。
     /// - current-thread runtime：返回 `Err(NotSupported)`，因为 `block_in_place`
     ///   在 current-thread runtime 上会 panic。
-    fn multi_thread_handle() -> Result<tokio::runtime::Handle> {
+    fn multi_thread_handle() -> OxCacheResult<tokio::runtime::Handle> {
         let handle = tokio::runtime::Handle::try_current()
-            .map_err(|e| CacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e)))?;
+            .map_err(|e| OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e)))?;
         if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
-            return Err(CacheError::NotSupported(
+            return Err(OxCacheError::NotSupported(
                 "sync API requires a multi-thread runtime; block_in_place is unavailable on current_thread runtime"
                     .to_string(),
             ));
@@ -628,61 +628,61 @@ impl RedisBackend {
 }
 
 impl crate::backend::interface::SyncCacheReader for RedisBackend {
-    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheReader::get(self, key)))
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheReader::exists(self, key)))
     }
 
-    fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheReader::ttl(self, key)))
     }
 
-    fn len(&self) -> Result<u64> {
+    fn len(&self) -> OxCacheResult<u64> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheReader::len(self)))
     }
 
-    fn capacity(&self) -> Result<u64> {
+    fn capacity(&self) -> OxCacheResult<u64> {
         // Redis 后端 capacity 固定为 0，与 async 实现一致，无需 runtime 调用。
         Ok(0)
     }
 
-    fn stats(&self) -> Result<HashMap<String, String>> {
+    fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheReader::stats(self)))
     }
 }
 
 impl crate::backend::interface::SyncCacheWriter for RedisBackend {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheWriter::set(self, key, value, ttl)))
     }
 
-    fn delete(&self, key: &str) -> Result<()> {
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheWriter::delete(self, key)))
     }
 
-    fn clear(&self) -> Result<()> {
+    fn clear(&self) -> OxCacheResult<()> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheWriter::clear(self)))
     }
 
-    fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheWriter::expire(self, key, ttl)))
     }
 }
 
 impl crate::backend::interface::SyncCacheConnector for RedisBackend {
-    fn health_check(&self) -> Result<()> {
+    fn health_check(&self) -> OxCacheResult<()> {
         let handle = Self::multi_thread_handle()?;
         tokio::task::block_in_place(|| handle.block_on(CacheConnector::health_check(self)))
     }
@@ -704,7 +704,7 @@ fn is_connection_error(e: &RedisError) -> bool {
 #[cfg(feature = "lua-script")]
 #[async_trait::async_trait]
 impl crate::backend::interface::LuaExecutor for RedisBackend {
-    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         security::validate_lua_script(script, keys.len())?;
 
         let mut conn = self.conn();
@@ -733,13 +733,13 @@ impl crate::backend::interface::LuaExecutor for RedisBackend {
     ///
     /// # Errors
     ///
-    /// Returns `CacheError::InvalidInput` if:
+    /// Returns `OxCacheError::InvalidInput` if:
     /// - SHA is not exactly 40 hexadecimal characters
     /// - Any key fails validation
-    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> Result<redis::Value> {
+    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         // SHA 格式验证：必须是40位十六进制字符
         if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Invalid SHA format: expected 40 hexadecimal characters, got {} characters",
                 sha.len()
             )));
@@ -766,7 +766,7 @@ impl crate::backend::interface::LuaExecutor for RedisBackend {
         Ok(result)
     }
 
-    async fn script_load(&self, script: &str) -> Result<String> {
+    async fn script_load(&self, script: &str) -> OxCacheResult<String> {
         security::validate_lua_script(script, 0)?;
 
         let mut conn = self.conn();
@@ -876,7 +876,7 @@ mod tests {
     async fn test_builder_missing_connection_string() {
         let result = RedisBackend::builder().build().await;
         assert!(result.is_err());
-        if let Err(CacheError::InvalidInput(msg)) = result {
+        if let Err(OxCacheError::InvalidInput(msg)) = result {
             assert!(msg.contains("Connection string is required"));
         } else {
             panic!("Expected InvalidInput error");
@@ -895,7 +895,7 @@ mod tests {
             .build()
             .await;
         assert!(result.is_err());
-        if let Err(CacheError::InvalidInput(msg)) = result {
+        if let Err(OxCacheError::InvalidInput(msg)) = result {
             assert!(msg.contains("TLS") || msg.contains("insecure"));
         } else {
             panic!("Expected InvalidInput error");
@@ -984,7 +984,7 @@ mod tests {
         };
         let result = RedisBackend::new("redis://127.0.0.1:1/0").await;
         assert!(result.is_err());
-        if let Err(CacheError::Connection(msg)) = result {
+        if let Err(OxCacheError::Connection(msg)) = result {
             assert!(msg.contains("Redis") || msg.contains("timeout") || msg.contains("connect"));
         } else {
             panic!("Expected Connection error");
@@ -999,7 +999,7 @@ mod tests {
         // 使用不可路由的地址触发超时
         let result = RedisBackend::new("redis://10.255.255.1:6379/0").await;
         assert!(result.is_err());
-        if let Err(CacheError::Connection(msg)) = result {
+        if let Err(OxCacheError::Connection(msg)) = result {
             assert!(msg.contains("timeout") || msg.contains("Redis"));
         } else {
             panic!("Expected Connection/timeout error");
@@ -1483,7 +1483,7 @@ mod tests {
         let result = backend.get("").await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(_) => {}
+            OxCacheError::InvalidInput(_) => {}
             other => panic!("Expected InvalidInput, got {:?}", other),
         }
     }
@@ -1712,7 +1712,7 @@ mod tests {
         let result = backend.eval_sha("abc123", &[], &[]).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(msg) => assert!(msg.contains("SHA")),
+            OxCacheError::InvalidInput(msg) => assert!(msg.contains("SHA")),
             other => panic!("Expected InvalidInput, got {:?}", other),
         }
 
@@ -1734,7 +1734,7 @@ mod tests {
         let result = backend.eval_lua(script, &[], &[]).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            CacheError::InvalidInput(_) => {}
+            OxCacheError::InvalidInput(_) => {}
             other => panic!("Expected InvalidInput, got {:?}", other),
         }
     }

@@ -14,11 +14,11 @@ use thiserror::Error;
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxcache::error::CacheConfigError;
+/// use oxcache::error::OxCacheConfigError;
 ///
-/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+/// fn validate_config(config: &CacheConfig) -> OxCacheConfigResult<()> {
 ///     if config.l1.capacity == 0 {
-///         return Err(CacheConfigError::InvalidValue {
+///         return Err(OxCacheConfigError::InvalidValue {
 ///             field: "capacity".to_string(),
 ///             reason: "capacity must be greater than 0".to_string(),
 ///         });
@@ -27,7 +27,7 @@ use thiserror::Error;
 /// }
 /// ```
 #[derive(Debug, Error)]
-pub enum CacheConfigError {
+pub enum OxCacheConfigError {
     /// Missing required configuration field
     #[error("Missing required field: {0}")]
     MissingField(String),
@@ -47,7 +47,7 @@ pub enum CacheConfigError {
 
 /// Result type for configuration operations
 #[cfg(feature = "redis")]
-pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
+pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 
 /// 缓存系统错误类型枚举
 ///
@@ -56,38 +56,38 @@ pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
 ///
 /// # 错误分类
 ///
-/// - **序列化错误** ([`CacheError::Serialization`]): 数据序列化/反序列化失败
-/// - **后端错误** ([`CacheError::BackendError`]): L1/L2缓存后端操作失败
-/// - **连接错误** ([`CacheError::ConnectionError`]): 网络连接问题
-/// - **超时错误** ([`CacheError::TimeoutError`]): 操作超时
-/// - **数据库错误** ([`CacheError::DatabaseError`]): 数据库相关错误
-/// - **未找到错误** ([`CacheError::NotFound`]): 请求的键不存在
-/// - **降级错误** ([`CacheError::Degraded`]): 缓存处于降级模式
-/// - **操作错误** ([`CacheError::Operation`]): 一般操作错误
+/// - **序列化错误** ([`OxCacheError::Serialization`]): 数据序列化/反序列化失败
+/// - **后端错误** ([`OxCacheError::BackendError`]): L1/L2缓存后端操作失败
+/// - **连接错误** ([`OxCacheError::ConnectionError`]): 网络连接问题
+/// - **超时错误** ([`OxCacheError::TimeoutError`]): 操作超时
+/// - **数据库错误** ([`OxCacheError::DatabaseError`]): 数据库相关错误
+/// - **未找到错误** ([`OxCacheError::NotFound`]): 请求的键不存在
+/// - **降级错误** ([`OxCacheError::Degraded`]): 缓存处于降级模式
+/// - **操作错误** ([`OxCacheError::Operation`]): 一般操作错误
 ///
 /// # 配置阶段错误
 ///
-/// 配置阶段的错误（如缺少必需字段、无效值等）使用 [`CacheConfigError`] 类型，
-/// 通过 [`ConfigResult`] 类型别名返回。
+/// 配置阶段的错误（如缺少必需字段、无效值等）使用 [`OxCacheConfigError`] 类型，
+/// 通过 [`OxCacheConfigResult`] 类型别名返回。
 ///
 /// # 示例
 ///
 /// ```rust,ignore
-/// use oxcache::error::{CacheError, CacheConfigError, ConfigResult};
+/// use oxcache::error::{OxCacheError, OxCacheConfigError, OxCacheConfigResult};
 ///
 /// // 运行时错误
-/// async fn safe_cache_operation() -> Result<String, CacheError> {
+/// async fn safe_cache_operation() -> OxCacheResult<String, OxCacheError> {
 ///     let result = cache.get("key").await?;
 ///     match result {
 ///         Some(value) => Ok(value),
-///         None => Err(CacheError::NotFound("Key not found".to_string()))
+///         None => Err(OxCacheError::NotFound("Key not found".to_string()))
 ///     }
 /// }
 ///
 /// // 配置阶段错误
-/// fn validate_config(config: &CacheConfig) -> ConfigResult<()> {
+/// fn validate_config(config: &CacheConfig) -> OxCacheConfigResult<()> {
 ///     if config.capacity == 0 {
-///         return Err(CacheConfigError::InvalidValue {
+///         return Err(OxCacheConfigError::InvalidValue {
 ///             field: "capacity".to_string(),
 ///             reason: "must be greater than 0".to_string(),
 ///         });
@@ -96,7 +96,7 @@ pub type ConfigResult<T> = std::result::Result<T, CacheConfigError>;
 /// }
 /// ```
 #[derive(Error, Debug)]
-pub enum CacheError {
+pub enum OxCacheError {
     /// 序列化错误
     ///
     /// 通常发生在：
@@ -225,21 +225,21 @@ pub enum CacheError {
 /// 缓存操作结果类型别名
 ///
 /// 简化错误处理，所有缓存操作都返回此类型
-pub type Result<T> = std::result::Result<T, CacheError>;
+pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
 
-impl From<std::io::Error> for CacheError {
+impl From<std::io::Error> for OxCacheError {
     fn from(e: std::io::Error) -> Self {
-        CacheError::IoError(e)
+        OxCacheError::IoError(e)
     }
 }
 
-impl From<serde_json::Error> for CacheError {
+impl From<serde_json::Error> for OxCacheError {
     fn from(e: serde_json::Error) -> Self {
-        CacheError::Serialization(e.to_string())
+        OxCacheError::Serialization(e.to_string())
     }
 }
 
-impl CacheError {
+impl OxCacheError {
     /// 获取错误码
     ///
     /// 返回一个唯一的错误码字符串，便于日志记录和错误追踪。
@@ -247,39 +247,39 @@ impl CacheError {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::error::CacheError;
+    /// use oxcache::error::OxCacheError;
     ///
-    /// let err = CacheError::NotFound("key".to_string());
-    /// assert_eq!(err.code(), "CACHE_001");
+    /// let err = OxCacheError::NotFound("key".to_string());
+    /// assert_eq!(err.code(), "OXCACHE_001");
     ///
-    /// let err = CacheError::Connection("failed".to_string());
-    /// assert_eq!(err.code(), "CACHE_002");
+    /// let err = OxCacheError::Connection("failed".to_string());
+    /// assert_eq!(err.code(), "OXCACHE_002");
     /// ```
     pub fn code(&self) -> &'static str {
         match self {
-            CacheError::NotFound(_) => "CACHE_001",
-            CacheError::Connection(_) => "CACHE_002",
-            CacheError::Serialization(_) => "CACHE_003",
-            CacheError::Operation(_) => "CACHE_004",
-            CacheError::Degraded(_) => "CACHE_005",
-            CacheError::L1Error(_) => "CACHE_006",
-            CacheError::L2Error(_) => "CACHE_007",
-            CacheError::NotSupported(_) => "CACHE_009",
-            CacheError::WalError(_) => "CACHE_010",
-            CacheError::DatabaseError(_) => "CACHE_011",
-            CacheError::RedisError(_) => "CACHE_012",
-            CacheError::IoError(_) => "CACHE_013",
-            CacheError::BackendError(_) => "CACHE_014",
-            CacheError::Timeout(_) => "CACHE_015",
-            CacheError::ShutdownError(_) => "CACHE_016",
-            CacheError::KeyTooLong(_, _) => "CACHE_017",
-            CacheError::ValueTooLarge(_, _) => "CACHE_018",
-            CacheError::BufferFull(_) => "CACHE_019",
-            CacheError::InvalidInput(_) => "CACHE_020",
-            CacheError::InvalidKey(_) => "CACHE_021",
-            CacheError::LockError(_) => "CACHE_022",
-            CacheError::ServiceNotFound(_) => "CACHE_023",
-            CacheError::Internal(_) => "CACHE_024",
+            OxCacheError::NotFound(_) => "OXCACHE_001",
+            OxCacheError::Connection(_) => "OXCACHE_002",
+            OxCacheError::Serialization(_) => "OXCACHE_003",
+            OxCacheError::Operation(_) => "OXCACHE_004",
+            OxCacheError::Degraded(_) => "OXCACHE_005",
+            OxCacheError::L1Error(_) => "OXCACHE_006",
+            OxCacheError::L2Error(_) => "OXCACHE_007",
+            OxCacheError::NotSupported(_) => "OXCACHE_009",
+            OxCacheError::WalError(_) => "OXCACHE_010",
+            OxCacheError::DatabaseError(_) => "OXCACHE_011",
+            OxCacheError::RedisError(_) => "OXCACHE_012",
+            OxCacheError::IoError(_) => "OXCACHE_013",
+            OxCacheError::BackendError(_) => "OXCACHE_014",
+            OxCacheError::Timeout(_) => "OXCACHE_015",
+            OxCacheError::ShutdownError(_) => "OXCACHE_016",
+            OxCacheError::KeyTooLong(_, _) => "OXCACHE_017",
+            OxCacheError::ValueTooLarge(_, _) => "OXCACHE_018",
+            OxCacheError::BufferFull(_) => "OXCACHE_019",
+            OxCacheError::InvalidInput(_) => "OXCACHE_020",
+            OxCacheError::InvalidKey(_) => "OXCACHE_021",
+            OxCacheError::LockError(_) => "OXCACHE_022",
+            OxCacheError::ServiceNotFound(_) => "OXCACHE_023",
+            OxCacheError::Internal(_) => "OXCACHE_024",
         }
     }
 
@@ -293,22 +293,22 @@ impl CacheError {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::error::CacheError;
+    /// use oxcache::error::OxCacheError;
     ///
-    /// let err = CacheError::Connection("failed".to_string());
+    /// let err = OxCacheError::Connection("failed".to_string());
     /// assert!(err.is_recoverable());
     ///
-    /// let err = CacheError::NotFound("key".to_string());
+    /// let err = OxCacheError::NotFound("key".to_string());
     /// assert!(!err.is_recoverable());
     /// ```
     pub fn is_recoverable(&self) -> bool {
         matches!(
             self,
-            CacheError::Connection(_)
-                | CacheError::Timeout(_)
-                | CacheError::L2Error(_)
-                | CacheError::BackendError(_)
-                | CacheError::BufferFull(_)
+            OxCacheError::Connection(_)
+                | OxCacheError::Timeout(_)
+                | OxCacheError::L2Error(_)
+                | OxCacheError::BackendError(_)
+                | OxCacheError::BufferFull(_)
         )
     }
 
@@ -319,16 +319,16 @@ impl CacheError {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::error::CacheError;
+    /// use oxcache::error::OxCacheError;
     ///
-    /// let err = CacheError::NotFound("key".to_string());
+    /// let err = OxCacheError::NotFound("key".to_string());
     /// assert!(err.is_not_found());
     ///
-    /// let other_err = CacheError::Connection("failed".to_string());
+    /// let other_err = OxCacheError::Connection("failed".to_string());
     /// assert!(!other_err.is_not_found());
     /// ```
     pub fn is_not_found(&self) -> bool {
-        matches!(self, CacheError::NotFound(_))
+        matches!(self, OxCacheError::NotFound(_))
     }
 
     /// Check if this error is a connection error
@@ -338,18 +338,18 @@ impl CacheError {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::error::CacheError;
+    /// use oxcache::error::OxCacheError;
     ///
-    /// let err = CacheError::Connection("failed".to_string());
+    /// let err = OxCacheError::Connection("failed".to_string());
     /// assert!(err.is_connection_error());
     ///
-    /// let other_err = CacheError::NotFound("key".to_string());
+    /// let other_err = OxCacheError::NotFound("key".to_string());
     /// assert!(!other_err.is_connection_error());
     /// ```
     pub fn is_connection_error(&self) -> bool {
         matches!(
             self,
-            CacheError::Connection(_) | CacheError::RedisError(_) | CacheError::L2Error(_)
+            OxCacheError::Connection(_) | OxCacheError::RedisError(_) | OxCacheError::L2Error(_)
         )
     }
 
@@ -360,16 +360,16 @@ impl CacheError {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use oxcache::error::CacheError;
+    /// use oxcache::error::OxCacheError;
     ///
-    /// let err = CacheError::Degraded("L2 unavailable".to_string());
+    /// let err = OxCacheError::Degraded("L2 unavailable".to_string());
     /// assert!(err.is_degraded());
     ///
-    /// let other_err = CacheError::NotFound("key".to_string());
+    /// let other_err = OxCacheError::NotFound("key".to_string());
     /// assert!(!other_err.is_degraded());
     /// ```
     pub fn is_degraded(&self) -> bool {
-        matches!(self, CacheError::Degraded(_))
+        matches!(self, OxCacheError::Degraded(_))
     }
 }
 
@@ -378,20 +378,20 @@ mod tests {
     use super::*;
 
     // ============================================================================
-    // CacheConfigError Display tests
+    // OxCacheConfigError Display tests
     // ============================================================================
 
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_missing_field_display() {
-        let err = CacheConfigError::MissingField("host".to_string());
+        let err = OxCacheConfigError::MissingField("host".to_string());
         assert_eq!(err.to_string(), "Missing required field: host");
     }
 
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_invalid_value_display() {
-        let err = CacheConfigError::InvalidValue {
+        let err = OxCacheConfigError::InvalidValue {
             field: "capacity".to_string(),
             reason: "must be > 0".to_string(),
         };
@@ -401,87 +401,87 @@ mod tests {
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_unsupported_backend_display() {
-        let err = CacheConfigError::UnsupportedBackend("unknown".to_string());
+        let err = OxCacheConfigError::UnsupportedBackend("unknown".to_string());
         assert_eq!(err.to_string(), "Unsupported backend combination: unknown");
     }
 
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_connection_failed_display() {
-        let err = CacheConfigError::ConnectionFailed("timeout".to_string());
+        let err = OxCacheConfigError::ConnectionFailed("timeout".to_string());
         assert_eq!(err.to_string(), "Connection failed during initialization: timeout");
     }
 
     // ============================================================================
-    // CacheError Display tests - all variants
+    // OxCacheError Display tests - all variants
     // ============================================================================
 
     #[test]
     fn test_cache_error_serialization_display() {
-        let err = CacheError::Serialization("bad data".to_string());
+        let err = OxCacheError::Serialization("bad data".to_string());
         let s = err.to_string();
         assert!(s.contains("Serialization error: bad data"));
     }
 
     #[test]
     fn test_cache_error_operation_display() {
-        let err = CacheError::Operation("fail".to_string());
+        let err = OxCacheError::Operation("fail".to_string());
         let s = err.to_string();
         assert!(s.contains("Operation failed: fail"));
     }
 
     #[test]
     fn test_cache_error_connection_display() {
-        let err = CacheError::Connection("refused".to_string());
+        let err = OxCacheError::Connection("refused".to_string());
         let s = err.to_string();
         assert!(s.contains("Connection error: refused"));
     }
 
     #[test]
     fn test_cache_error_not_found_display() {
-        let err = CacheError::NotFound("key1".to_string());
+        let err = OxCacheError::NotFound("key1".to_string());
         let s = err.to_string();
         assert!(s.contains("Key not found: key1"));
     }
 
     #[test]
     fn test_cache_error_degraded_display() {
-        let err = CacheError::Degraded("L2 down".to_string());
+        let err = OxCacheError::Degraded("L2 down".to_string());
         let s = err.to_string();
         assert!(s.contains("Cache degraded: L2 down"));
     }
 
     #[test]
     fn test_cache_error_l1_error_display() {
-        let err = CacheError::L1Error("oom".to_string());
+        let err = OxCacheError::L1Error("oom".to_string());
         let s = err.to_string();
         assert!(s.contains("L1 cache operation failed: oom"));
     }
 
     #[test]
     fn test_cache_error_l2_error_display() {
-        let err = CacheError::L2Error("redis down".to_string());
+        let err = OxCacheError::L2Error("redis down".to_string());
         let s = err.to_string();
         assert!(s.contains("L2 cache operation failed: redis down"));
     }
 
     #[test]
     fn test_cache_error_not_supported_display() {
-        let err = CacheError::NotSupported("scan".to_string());
+        let err = OxCacheError::NotSupported("scan".to_string());
         let s = err.to_string();
         assert!(s.contains("Operation not supported: scan"));
     }
 
     #[test]
     fn test_cache_error_wal_error_display() {
-        let err = CacheError::WalError("disk full".to_string());
+        let err = OxCacheError::WalError("disk full".to_string());
         let s = err.to_string();
         assert!(s.contains("WAL (Write-Ahead Log) operation failed: disk full"));
     }
 
     #[test]
     fn test_cache_error_database_error_display() {
-        let err = CacheError::DatabaseError("query failed".to_string());
+        let err = OxCacheError::DatabaseError("query failed".to_string());
         let s = err.to_string();
         assert!(s.contains("Database error: query failed"));
     }
@@ -490,13 +490,13 @@ mod tests {
     fn test_cache_error_redis_error_display() {
         #[cfg(feature = "redis")]
         {
-            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::other("auth failed")));
+            let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("auth failed")));
             let s = err.to_string();
             assert!(s.contains("Redis connection failed"));
         }
         #[cfg(not(feature = "redis"))]
         {
-            let err = CacheError::RedisError("auth failed".to_string());
+            let err = OxCacheError::RedisError("auth failed".to_string());
             let s = err.to_string();
             assert!(s.contains("Redis connection failed: auth failed"));
         }
@@ -505,84 +505,84 @@ mod tests {
     #[test]
     fn test_cache_error_io_error_display() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
-        let err = CacheError::IoError(io_err);
+        let err = OxCacheError::IoError(io_err);
         let s = err.to_string();
         assert!(s.contains("I/O error:"));
     }
 
     #[test]
     fn test_cache_error_backend_error_display() {
-        let err = CacheError::BackendError("transient".to_string());
+        let err = OxCacheError::BackendError("transient".to_string());
         let s = err.to_string();
         assert!(s.contains("Backend error: transient"));
     }
 
     #[test]
     fn test_cache_error_timeout_display() {
-        let err = CacheError::Timeout("5s".to_string());
+        let err = OxCacheError::Timeout("5s".to_string());
         let s = err.to_string();
         assert!(s.contains("Operation timed out: 5s"));
     }
 
     #[test]
     fn test_cache_error_shutdown_error_display() {
-        let err = CacheError::ShutdownError("leak".to_string());
+        let err = OxCacheError::ShutdownError("leak".to_string());
         let s = err.to_string();
         assert!(s.contains("Shutdown error: leak"));
     }
 
     #[test]
     fn test_cache_error_key_too_long_display() {
-        let err = CacheError::KeyTooLong(600, 512);
+        let err = OxCacheError::KeyTooLong(600, 512);
         let s = err.to_string();
         assert!(s.contains("Key too long: 600. Maximum key length is 512 bytes."));
     }
 
     #[test]
     fn test_cache_error_value_too_large_display() {
-        let err = CacheError::ValueTooLarge(2048, 1024);
+        let err = OxCacheError::ValueTooLarge(2048, 1024);
         let s = err.to_string();
         assert!(s.contains("Value too large: 2048. Maximum value size is 1024 bytes."));
     }
 
     #[test]
     fn test_cache_error_buffer_full_display() {
-        let err = CacheError::BufferFull("batch".to_string());
+        let err = OxCacheError::BufferFull("batch".to_string());
         let s = err.to_string();
         assert!(s.contains("Buffer full: batch"));
     }
 
     #[test]
     fn test_cache_error_invalid_input_display() {
-        let err = CacheError::InvalidInput("bad".to_string());
+        let err = OxCacheError::InvalidInput("bad".to_string());
         let s = err.to_string();
         assert!(s.contains("Invalid input: bad"));
     }
 
     #[test]
     fn test_cache_error_invalid_key_display() {
-        let err = CacheError::InvalidKey("bad key".to_string());
+        let err = OxCacheError::InvalidKey("bad key".to_string());
         let s = err.to_string();
         assert!(s.contains("Invalid key: bad key"));
     }
 
     #[test]
     fn test_cache_error_lock_error_display() {
-        let err = CacheError::LockError("poisoned".to_string());
+        let err = OxCacheError::LockError("poisoned".to_string());
         let s = err.to_string();
         assert!(s.contains("Lock error: poisoned"));
     }
 
     #[test]
     fn test_cache_error_service_not_found_display() {
-        let err = CacheError::ServiceNotFound("svc".to_string());
+        let err = OxCacheError::ServiceNotFound("svc".to_string());
         let s = err.to_string();
         assert!(s.contains("Service not found: svc"));
     }
 
     #[test]
     fn test_cache_error_internal_display() {
-        let err = CacheError::Internal("boom".to_string());
+        let err = OxCacheError::Internal("boom".to_string());
         let s = err.to_string();
         assert_eq!(s, "Internal error: boom");
     }
@@ -594,15 +594,15 @@ mod tests {
     #[test]
     fn test_from_io_error() {
         let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
-        let cache_err: CacheError = io_err.into();
-        assert!(matches!(cache_err, CacheError::IoError(_)));
+        let cache_err: OxCacheError = io_err.into();
+        assert!(matches!(cache_err, OxCacheError::IoError(_)));
     }
 
     #[test]
     fn test_from_serde_json_error() {
         let serde_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
-        let cache_err: CacheError = serde_err.into();
-        assert!(matches!(cache_err, CacheError::Serialization(_)));
+        let cache_err: OxCacheError = serde_err.into();
+        assert!(matches!(cache_err, OxCacheError::Serialization(_)));
     }
 
     // ============================================================================
@@ -611,126 +611,126 @@ mod tests {
 
     #[test]
     fn test_error_code_not_found() {
-        assert_eq!(CacheError::NotFound("k".to_string()).code(), "CACHE_001");
+        assert_eq!(OxCacheError::NotFound("k".to_string()).code(), "OXCACHE_001");
     }
 
     #[test]
     fn test_error_code_connection() {
-        assert_eq!(CacheError::Connection("c".to_string()).code(), "CACHE_002");
+        assert_eq!(OxCacheError::Connection("c".to_string()).code(), "OXCACHE_002");
     }
 
     #[test]
     fn test_error_code_serialization() {
-        assert_eq!(CacheError::Serialization("s".to_string()).code(), "CACHE_003");
+        assert_eq!(OxCacheError::Serialization("s".to_string()).code(), "OXCACHE_003");
     }
 
     #[test]
     fn test_error_code_operation() {
-        assert_eq!(CacheError::Operation("o".to_string()).code(), "CACHE_004");
+        assert_eq!(OxCacheError::Operation("o".to_string()).code(), "OXCACHE_004");
     }
 
     #[test]
     fn test_error_code_degraded() {
-        assert_eq!(CacheError::Degraded("d".to_string()).code(), "CACHE_005");
+        assert_eq!(OxCacheError::Degraded("d".to_string()).code(), "OXCACHE_005");
     }
 
     #[test]
     fn test_error_code_l1() {
-        assert_eq!(CacheError::L1Error("l1".to_string()).code(), "CACHE_006");
+        assert_eq!(OxCacheError::L1Error("l1".to_string()).code(), "OXCACHE_006");
     }
 
     #[test]
     fn test_error_code_l2() {
-        assert_eq!(CacheError::L2Error("l2".to_string()).code(), "CACHE_007");
+        assert_eq!(OxCacheError::L2Error("l2".to_string()).code(), "OXCACHE_007");
     }
 
     #[test]
     fn test_error_code_not_supported() {
-        assert_eq!(CacheError::NotSupported("ns".to_string()).code(), "CACHE_009");
+        assert_eq!(OxCacheError::NotSupported("ns".to_string()).code(), "OXCACHE_009");
     }
 
     #[test]
     fn test_error_code_wal() {
-        assert_eq!(CacheError::WalError("w".to_string()).code(), "CACHE_010");
+        assert_eq!(OxCacheError::WalError("w".to_string()).code(), "OXCACHE_010");
     }
 
     #[test]
     fn test_error_code_database() {
-        assert_eq!(CacheError::DatabaseError("db".to_string()).code(), "CACHE_011");
+        assert_eq!(OxCacheError::DatabaseError("db".to_string()).code(), "OXCACHE_011");
     }
 
     #[test]
     fn test_error_code_redis() {
         #[cfg(feature = "redis")]
         {
-            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::other("r")));
-            assert_eq!(err.code(), "CACHE_012");
+            let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("r")));
+            assert_eq!(err.code(), "OXCACHE_012");
         }
         #[cfg(not(feature = "redis"))]
         {
-            assert_eq!(CacheError::RedisError("r".to_string()).code(), "CACHE_012");
+            assert_eq!(OxCacheError::RedisError("r".to_string()).code(), "OXCACHE_012");
         }
     }
 
     #[test]
     fn test_error_code_io() {
         let io_err = std::io::Error::other("x");
-        assert_eq!(CacheError::IoError(io_err).code(), "CACHE_013");
+        assert_eq!(OxCacheError::IoError(io_err).code(), "OXCACHE_013");
     }
 
     #[test]
     fn test_error_code_backend() {
-        assert_eq!(CacheError::BackendError("b".to_string()).code(), "CACHE_014");
+        assert_eq!(OxCacheError::BackendError("b".to_string()).code(), "OXCACHE_014");
     }
 
     #[test]
     fn test_error_code_timeout() {
-        assert_eq!(CacheError::Timeout("t".to_string()).code(), "CACHE_015");
+        assert_eq!(OxCacheError::Timeout("t".to_string()).code(), "OXCACHE_015");
     }
 
     #[test]
     fn test_error_code_shutdown() {
-        assert_eq!(CacheError::ShutdownError("s".to_string()).code(), "CACHE_016");
+        assert_eq!(OxCacheError::ShutdownError("s".to_string()).code(), "OXCACHE_016");
     }
 
     #[test]
     fn test_error_code_key_too_long() {
-        assert_eq!(CacheError::KeyTooLong(1, 2).code(), "CACHE_017");
+        assert_eq!(OxCacheError::KeyTooLong(1, 2).code(), "OXCACHE_017");
     }
 
     #[test]
     fn test_error_code_value_too_large() {
-        assert_eq!(CacheError::ValueTooLarge(1, 2).code(), "CACHE_018");
+        assert_eq!(OxCacheError::ValueTooLarge(1, 2).code(), "OXCACHE_018");
     }
 
     #[test]
     fn test_error_code_buffer_full() {
-        assert_eq!(CacheError::BufferFull("b".to_string()).code(), "CACHE_019");
+        assert_eq!(OxCacheError::BufferFull("b".to_string()).code(), "OXCACHE_019");
     }
 
     #[test]
     fn test_error_code_invalid_input() {
-        assert_eq!(CacheError::InvalidInput("i".to_string()).code(), "CACHE_020");
+        assert_eq!(OxCacheError::InvalidInput("i".to_string()).code(), "OXCACHE_020");
     }
 
     #[test]
     fn test_error_code_invalid_key() {
-        assert_eq!(CacheError::InvalidKey("k".to_string()).code(), "CACHE_021");
+        assert_eq!(OxCacheError::InvalidKey("k".to_string()).code(), "OXCACHE_021");
     }
 
     #[test]
     fn test_error_code_lock_error() {
-        assert_eq!(CacheError::LockError("l".to_string()).code(), "CACHE_022");
+        assert_eq!(OxCacheError::LockError("l".to_string()).code(), "OXCACHE_022");
     }
 
     #[test]
     fn test_error_code_service_not_found() {
-        assert_eq!(CacheError::ServiceNotFound("s".to_string()).code(), "CACHE_023");
+        assert_eq!(OxCacheError::ServiceNotFound("s".to_string()).code(), "OXCACHE_023");
     }
 
     #[test]
     fn test_error_code_internal() {
-        assert_eq!(CacheError::Internal("i".to_string()).code(), "CACHE_024");
+        assert_eq!(OxCacheError::Internal("i".to_string()).code(), "OXCACHE_024");
     }
 
     // ============================================================================
@@ -739,42 +739,42 @@ mod tests {
 
     #[test]
     fn test_is_recoverable_connection() {
-        assert!(CacheError::Connection("c".to_string()).is_recoverable());
+        assert!(OxCacheError::Connection("c".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_recoverable_timeout() {
-        assert!(CacheError::Timeout("t".to_string()).is_recoverable());
+        assert!(OxCacheError::Timeout("t".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_recoverable_l2() {
-        assert!(CacheError::L2Error("l2".to_string()).is_recoverable());
+        assert!(OxCacheError::L2Error("l2".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_recoverable_backend() {
-        assert!(CacheError::BackendError("b".to_string()).is_recoverable());
+        assert!(OxCacheError::BackendError("b".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_recoverable_buffer_full() {
-        assert!(CacheError::BufferFull("b".to_string()).is_recoverable());
+        assert!(OxCacheError::BufferFull("b".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_not_recoverable_not_found() {
-        assert!(!CacheError::NotFound("k".to_string()).is_recoverable());
+        assert!(!OxCacheError::NotFound("k".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_not_recoverable_internal() {
-        assert!(!CacheError::Internal("i".to_string()).is_recoverable());
+        assert!(!OxCacheError::Internal("i".to_string()).is_recoverable());
     }
 
     #[test]
     fn test_is_not_recoverable_serialization() {
-        assert!(!CacheError::Serialization("s".to_string()).is_recoverable());
+        assert!(!OxCacheError::Serialization("s".to_string()).is_recoverable());
     }
 
     // ============================================================================
@@ -783,12 +783,12 @@ mod tests {
 
     #[test]
     fn test_is_not_found_true() {
-        assert!(CacheError::NotFound("key".to_string()).is_not_found());
+        assert!(OxCacheError::NotFound("key".to_string()).is_not_found());
     }
 
     #[test]
     fn test_is_not_found_false() {
-        assert!(!CacheError::Connection("c".to_string()).is_not_found());
+        assert!(!OxCacheError::Connection("c".to_string()).is_not_found());
     }
 
     // ============================================================================
@@ -797,14 +797,14 @@ mod tests {
 
     #[test]
     fn test_is_connection_error_connection() {
-        assert!(CacheError::Connection("c".to_string()).is_connection_error());
+        assert!(OxCacheError::Connection("c".to_string()).is_connection_error());
     }
 
     #[test]
     fn test_is_connection_error_redis() {
         #[cfg(feature = "redis")]
         {
-            let err = CacheError::RedisError(redis::RedisError::from(std::io::Error::new(
+            let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::new(
                 std::io::ErrorKind::ConnectionRefused,
                 "r",
             )));
@@ -812,18 +812,18 @@ mod tests {
         }
         #[cfg(not(feature = "redis"))]
         {
-            assert!(CacheError::RedisError("r".to_string()).is_connection_error());
+            assert!(OxCacheError::RedisError("r".to_string()).is_connection_error());
         }
     }
 
     #[test]
     fn test_is_connection_error_l2() {
-        assert!(CacheError::L2Error("l2".to_string()).is_connection_error());
+        assert!(OxCacheError::L2Error("l2".to_string()).is_connection_error());
     }
 
     #[test]
     fn test_is_connection_error_false() {
-        assert!(!CacheError::NotFound("k".to_string()).is_connection_error());
+        assert!(!OxCacheError::NotFound("k".to_string()).is_connection_error());
     }
 
     // ============================================================================
@@ -832,12 +832,12 @@ mod tests {
 
     #[test]
     fn test_is_degraded_true() {
-        assert!(CacheError::Degraded("d".to_string()).is_degraded());
+        assert!(OxCacheError::Degraded("d".to_string()).is_degraded());
     }
 
     #[test]
     fn test_is_degraded_false() {
-        assert!(!CacheError::NotFound("k".to_string()).is_degraded());
+        assert!(!OxCacheError::NotFound("k".to_string()).is_degraded());
     }
 
     // ============================================================================
@@ -846,7 +846,7 @@ mod tests {
 
     #[test]
     fn test_cache_error_debug() {
-        let err = CacheError::NotFound("key".to_string());
+        let err = OxCacheError::NotFound("key".to_string());
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("NotFound"));
     }
@@ -854,7 +854,7 @@ mod tests {
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_debug() {
-        let err = CacheConfigError::MissingField("f".to_string());
+        let err = OxCacheConfigError::MissingField("f".to_string());
         let debug_str = format!("{:?}", err);
         assert!(debug_str.contains("MissingField"));
     }
@@ -865,14 +865,14 @@ mod tests {
 
     #[test]
     fn test_cache_error_is_std_error() {
-        let err = CacheError::NotFound("key".to_string());
+        let err = OxCacheError::NotFound("key".to_string());
         let _: &dyn std::error::Error = &err;
     }
 
     #[cfg(feature = "redis")]
     #[test]
     fn test_cache_config_error_is_std_error() {
-        let err = CacheConfigError::MissingField("f".to_string());
+        let err = OxCacheConfigError::MissingField("f".to_string());
         let _: &dyn std::error::Error = &err;
     }
 }

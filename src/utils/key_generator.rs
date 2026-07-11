@@ -8,7 +8,7 @@
 //! - 键验证和规范化
 //! - 长键的哈希指纹生成
 
-use crate::error::CacheError;
+use crate::error::OxCacheError;
 
 /// 默认键最大长度
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;
@@ -140,19 +140,19 @@ impl KeyGenerator {
     }
 
     /// 验证键是否有效
-    pub fn validate_key(&self, key: &str) -> Result<(), CacheError> {
+    pub fn validate_key(&self, key: &str) -> Result<(), OxCacheError> {
         if key.is_empty() {
-            return Err(CacheError::InvalidInput("Cache key cannot be empty".to_string()));
+            return Err(OxCacheError::InvalidInput("Cache key cannot be empty".to_string()));
         }
         if key.len() > self.max_key_length {
-            return Err(CacheError::InvalidInput(format!(
+            return Err(OxCacheError::InvalidInput(format!(
                 "Cache key exceeds maximum length of {} characters",
                 self.max_key_length
             )));
         }
         for c in key.chars() {
             if !VALID_KEY_CHARS.contains(&c) {
-                return Err(CacheError::InvalidInput(format!(
+                return Err(OxCacheError::InvalidInput(format!(
                     "Cache key contains invalid character: '{}'",
                     c
                 )));
@@ -298,7 +298,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            crate::error::CacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            crate::error::OxCacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
             _ => panic!("Expected InvalidInput error"),
         }
     }
@@ -310,7 +310,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            crate::error::CacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            crate::error::OxCacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
             _ => panic!("Expected InvalidInput error"),
         }
     }

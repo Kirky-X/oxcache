@@ -9,7 +9,7 @@ use crate::backend::interface::{
     BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
 };
 use crate::backend::score::BackendScore;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -228,7 +228,7 @@ impl ChainCache {
 
     /// 从链中读取数据
     #[instrument(skip(self), fields(key = %key))]
-    async fn read_from_chain(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         for (index, link) in self.links.iter().enumerate() {
             match link.backend().get(key).await {
                 Ok(Some(value)) => {
@@ -256,7 +256,7 @@ impl ChainCache {
     /// ttl=None 时各 backend 用自己的默认 TTL
     /// ttl=Some 时所有 backend 用同一个 TTL
     #[instrument(skip(self, value), fields(key = %key))]
-    async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let mut errors = Vec::new();
         let count = self.links.len();
 
@@ -280,7 +280,7 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
-            return Err(CacheError::Operation("All backends failed to write".to_string()));
+            return Err(OxCacheError::Operation("All backends failed to write".to_string()));
         }
 
         Ok(())
@@ -288,7 +288,7 @@ impl ChainCache {
 
     /// 从所有后端删除数据
     #[instrument(skip(self), fields(key = %key))]
-    async fn delete_from_all_backends(&self, key: &str) -> Result<()> {
+    async fn delete_from_all_backends(&self, key: &str) -> OxCacheResult<()> {
         let mut errors = Vec::new();
 
         for link in &self.links {
@@ -298,7 +298,7 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
-            return Err(CacheError::Operation(format!(
+            return Err(OxCacheError::Operation(format!(
                 "All backends failed to delete: {:?}",
                 errors
             )));
@@ -322,18 +322,18 @@ impl ChainCache {
     ///
     /// 链中任一链接未实现 `SyncCacheBackend` 时返回 `Err(NotSupported)`。
     /// links 已按分数降序排列，故返回的 Vec 也是降序。
-    fn collect_sync_backends(&self) -> Result<Vec<Arc<dyn SyncCacheBackend>>> {
+    fn collect_sync_backends(&self) -> OxCacheResult<Vec<Arc<dyn SyncCacheBackend>>> {
         self.links
             .iter()
             .map(|link| link.try_as_sync_backend())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| {
-                CacheError::NotSupported("chain sync API requires all links to support SyncCacheBackend".to_string())
+                OxCacheError::NotSupported("chain sync API requires all links to support SyncCacheBackend".to_string())
             })
     }
 
     /// 同步读取：按分数从高到低遍历 sync backends，返回首个命中
-    pub fn get_sync(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    pub fn get_sync(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let sync_backends = self.collect_sync_backends()?;
         for backend in &sync_backends {
             match backend.get(key) {
@@ -346,11 +346,11 @@ impl ChainCache {
     }
 
     /// 同步写入：写入所有 sync backends，透传 TTL
-    pub fn set_sync(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    pub fn set_sync(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let sync_backends = self.collect_sync_backends()?;
 
         if sync_backends.is_empty() {
-            return Err(CacheError::Operation("Chain has no backends".to_string()));
+            return Err(OxCacheError::Operation("Chain has no backends".to_string()));
         }
 
         let effective_ttl = ttl.or(self.default_ttl);
@@ -372,14 +372,14 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() {
-            return Err(CacheError::Operation("All backends failed to write".to_string()));
+            return Err(OxCacheError::Operation("All backends failed to write".to_string()));
         }
 
         Ok(())
     }
 
     /// 同步删除：从所有 sync backends 删除
-    pub fn delete_sync(&self, key: &str) -> Result<()> {
+    pub fn delete_sync(&self, key: &str) -> OxCacheResult<()> {
         let sync_backends = self.collect_sync_backends()?;
 
         let mut errors = Vec::new();
@@ -391,7 +391,7 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() && !sync_backends.is_empty() {
-            return Err(CacheError::Operation(format!(
+            return Err(OxCacheError::Operation(format!(
                 "All backends failed to delete: {:?}",
                 errors
             )));
@@ -403,14 +403,14 @@ impl ChainCache {
 
 #[async_trait]
 impl CacheReader for ChainCache {
-    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         if self.links.is_empty() {
             return Ok(None);
         }
         self.read_from_chain(key).await
     }
 
-    async fn exists(&self, key: &str) -> Result<bool> {
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         for link in &self.links {
             match link.backend().exists(key).await {
                 Ok(true) => return Ok(true),
@@ -421,7 +421,7 @@ impl CacheReader for ChainCache {
         Ok(false)
     }
 
-    async fn ttl(&self, key: &str) -> Result<Option<Duration>> {
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         for link in &self.links {
             match link.backend().ttl(key).await {
                 Ok(Some(ttl)) => return Ok(Some(ttl)),
@@ -432,7 +432,7 @@ impl CacheReader for ChainCache {
         Ok(None)
     }
 
-    async fn len(&self) -> Result<u64> {
+    async fn len(&self) -> OxCacheResult<u64> {
         if let Some(link) = self.links.first() {
             link.backend().len().await
         } else {
@@ -440,7 +440,7 @@ impl CacheReader for ChainCache {
         }
     }
 
-    async fn is_empty(&self) -> Result<bool> {
+    async fn is_empty(&self) -> OxCacheResult<bool> {
         if let Some(link) = self.links.first() {
             link.backend().is_empty().await
         } else {
@@ -448,7 +448,7 @@ impl CacheReader for ChainCache {
         }
     }
 
-    async fn capacity(&self) -> Result<u64> {
+    async fn capacity(&self) -> OxCacheResult<u64> {
         if let Some(link) = self.links.first() {
             link.backend().capacity().await
         } else {
@@ -456,7 +456,7 @@ impl CacheReader for ChainCache {
         }
     }
 
-    async fn stats(&self) -> Result<HashMap<String, String>> {
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "chain".to_string());
         stats.insert("backend_count".to_string(), self.links.len().to_string());
@@ -472,21 +472,21 @@ impl CacheReader for ChainCache {
 
 #[async_trait]
 impl CacheWriter for ChainCache {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         if self.links.is_empty() {
-            return Err(CacheError::Operation("Chain has no backends".to_string()));
+            return Err(OxCacheError::Operation("Chain has no backends".to_string()));
         }
         self.write_to_all_backends(key, value, ttl).await
     }
 
-    async fn delete(&self, key: &str) -> Result<()> {
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
         if self.links.is_empty() {
             return Ok(());
         }
         self.delete_from_all_backends(key).await
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn clear(&self) -> OxCacheResult<()> {
         let mut errors = Vec::new();
 
         for link in &self.links {
@@ -496,7 +496,7 @@ impl CacheWriter for ChainCache {
         }
 
         if errors.len() == self.links.len() && !self.links.is_empty() {
-            return Err(CacheError::Operation(format!(
+            return Err(OxCacheError::Operation(format!(
                 "All backends failed to clear: {:?}",
                 errors
             )));
@@ -505,7 +505,7 @@ impl CacheWriter for ChainCache {
         Ok(())
     }
 
-    async fn expire(&self, key: &str, ttl: Duration) -> Result<bool> {
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let mut any_success = false;
 
         for link in &self.links {
@@ -521,7 +521,7 @@ impl CacheWriter for ChainCache {
 
 #[async_trait]
 impl CacheConnector for ChainCache {
-    async fn health_check(&self) -> Result<()> {
+    async fn health_check(&self) -> OxCacheResult<()> {
         if self.links.is_empty() {
             return Ok(());
         }
@@ -1317,7 +1317,7 @@ mod tests {
     async fn test_chain_sync_with_unsupported_link_falls_back_to_err() {
         // Moka (sync) + MockBackend (async-only，不实现 SyncCacheBackend)
         // 链中含非 sync backend，sync API 应返回 Err(NotSupported)
-        use crate::error::CacheError;
+        use crate::error::OxCacheError;
 
         let moka = MokaMemoryBackend::new();
         let mock = MockBackend::new("mock", 30, false);
@@ -1329,14 +1329,14 @@ mod tests {
 
         let result = chain.get_sync("k");
         assert!(
-            matches!(result, Err(CacheError::NotSupported(_))),
+            matches!(result, Err(OxCacheError::NotSupported(_))),
             "get_sync should return NotSupported when chain has non-sync link, got {:?}",
             result
         );
 
         let result = chain.set_sync("k", b"v".to_vec(), None);
         assert!(
-            matches!(result, Err(CacheError::NotSupported(_))),
+            matches!(result, Err(OxCacheError::NotSupported(_))),
             "set_sync should return NotSupported when chain has non-sync link, got {:?}",
             result
         );

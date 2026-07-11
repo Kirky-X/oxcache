@@ -507,7 +507,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 可用同步方法：`get_sync`、`set_sync`、`set_with_ttl_sync`、`delete_sync`、`exists_sync`、
 `ttl_sync`、`expire_sync`、`get_or_sync`、`clear_sync`。
-未启用 `sync_mode` 时，这些方法返回 `Err(CacheError::NotSupported)`。
+未启用 `sync_mode` 时，这些方法返回 `Err(OxCacheError::NotSupported)`。
 
 ### 布隆过滤器
 

@@ -3,7 +3,7 @@
 //! Cache 字节操作方法（用于宏兼容）
 
 use super::Cache;
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,11 +16,11 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    pub async fn get_bytes(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    pub async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         self.backend.get(key).await
     }
 
-    pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+    pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
         self.backend.set(key, value, ttl_duration).await
     }
@@ -29,9 +29,9 @@ where
     ///
     /// Returns `Err(NotSupported)` if `sync_mode(true)` was not set on the
     /// builder (i.e., `backend_sync` is `None`).
-    pub fn get_bytes_sync(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    pub fn get_bytes_sync(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let backend = self.backend_sync.as_ref().ok_or_else(|| {
-            CacheError::NotSupported(
+            OxCacheError::NotSupported(
                 "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
             )
         })?;
@@ -43,9 +43,9 @@ where
     /// `ttl` is in seconds (matching the async `set_bytes` signature for
     /// macro symmetry). Returns `Err(NotSupported)` if `sync_mode(true)` was
     /// not set on the builder.
-    pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> Result<()> {
+    pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
         let backend = self.backend_sync.as_ref().ok_or_else(|| {
-            CacheError::NotSupported(
+            OxCacheError::NotSupported(
                 "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
             )
         })?;
@@ -206,7 +206,7 @@ mod tests {
         let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
         let result = cache.get_bytes_sync("any_key");
         assert!(
-            matches!(result, Err(crate::error::CacheError::NotSupported(_))),
+            matches!(result, Err(crate::error::OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) when sync_mode is false, got {:?}",
             result
         );
@@ -217,7 +217,7 @@ mod tests {
         let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
         let result = cache.set_bytes_sync("any_key", vec![1], None);
         assert!(
-            matches!(result, Err(crate::error::CacheError::NotSupported(_))),
+            matches!(result, Err(crate::error::OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) when sync_mode is false, got {:?}",
             result
         );

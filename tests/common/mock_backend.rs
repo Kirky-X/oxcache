@@ -71,35 +71,35 @@ impl oxcache::backend::BackendScore for MockBackend {
 
 #[async_trait::async_trait]
 impl oxcache::backend::CacheReader for MockBackend {
-    async fn get(&self, key: &str) -> oxcache::error::Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> oxcache::error::OxCacheResult<Option<Vec<u8>>> {
         let data = self.data.read().await;
         Ok(data.get(key).cloned())
     }
 
-    async fn exists(&self, key: &str) -> oxcache::error::Result<bool> {
+    async fn exists(&self, key: &str) -> oxcache::error::OxCacheResult<bool> {
         let data = self.data.read().await;
         Ok(data.contains_key(key))
     }
 
-    async fn ttl(&self, _key: &str) -> oxcache::error::Result<Option<Duration>> {
+    async fn ttl(&self, _key: &str) -> oxcache::error::OxCacheResult<Option<Duration>> {
         Ok(None)
     }
 
-    async fn len(&self) -> oxcache::error::Result<u64> {
+    async fn len(&self) -> oxcache::error::OxCacheResult<u64> {
         let data = self.data.read().await;
         Ok(data.len() as u64)
     }
 
-    async fn is_empty(&self) -> oxcache::error::Result<bool> {
+    async fn is_empty(&self) -> oxcache::error::OxCacheResult<bool> {
         let data = self.data.read().await;
         Ok(data.is_empty())
     }
 
-    async fn capacity(&self) -> oxcache::error::Result<u64> {
+    async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
         Ok(1000)
     }
 
-    async fn stats(&self) -> oxcache::error::Result<HashMap<String, String>> {
+    async fn stats(&self) -> oxcache::error::OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "mock".to_string());
         stats.insert("name".to_string(), self.name.to_string());
@@ -109,32 +109,32 @@ impl oxcache::backend::CacheReader for MockBackend {
 
 #[async_trait::async_trait]
 impl oxcache::backend::CacheWriter for MockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::Result<()> {
+    async fn set(&self, key: &str, value: Vec<u8>, _ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.insert(key.to_string(), value);
         Ok(())
     }
 
-    async fn delete(&self, key: &str) -> oxcache::error::Result<()> {
+    async fn delete(&self, key: &str) -> oxcache::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.remove(key);
         Ok(())
     }
 
-    async fn clear(&self) -> oxcache::error::Result<()> {
+    async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.clear();
         Ok(())
     }
 
-    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::Result<bool> {
+    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::OxCacheResult<bool> {
         Ok(false)
     }
 }
 
 #[async_trait::async_trait]
 impl oxcache::backend::CacheConnector for MockBackend {
-    async fn health_check(&self) -> oxcache::error::Result<()> {
+    async fn health_check(&self) -> oxcache::error::OxCacheResult<()> {
         Ok(())
     }
 

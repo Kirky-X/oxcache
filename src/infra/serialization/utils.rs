@@ -4,7 +4,7 @@
 //!
 //! 提供序列化相关的共享工具函数。
 
-use crate::error::{CacheError, Result};
+use crate::error::{OxCacheError, OxCacheResult};
 
 /// 检查数据大小是否超过限制
 ///
@@ -17,10 +17,10 @@ use crate::error::{CacheError, Result};
 /// # 返回值
 ///
 /// * `Ok(())` - 数据大小在限制内
-/// * `Err(CacheError)` - 数据大小超过限制
-pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> Result<()> {
+/// * `Err(OxCacheError)` - 数据大小超过限制
+pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> OxCacheResult<()> {
     if data.len() > max_size {
-        return Err(CacheError::Serialization(format!(
+        return Err(OxCacheError::Serialization(format!(
             "{} data too large: {} bytes (max: {} bytes)",
             data_type,
             data.len(),
@@ -42,7 +42,7 @@ const MIN_COMPRESS_SIZE: usize = 100;
 /// - 1KB-100KB：使用中等压缩（Compression::new(6)）
 /// - 大于100KB：使用高压缩率（Compression::best）
 #[cfg(feature = "flate2")]
-pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
+pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::io::Write;
@@ -67,13 +67,13 @@ pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = GzEncoder::new(Vec::new(), compression);
     encoder
         .write_all(data)
-        .map_err(|e| CacheError::Serialization(e.to_string()))?;
-    encoder.finish().map_err(|e| CacheError::Serialization(e.to_string()))
+        .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+    encoder.finish().map_err(|e| OxCacheError::Serialization(e.to_string()))
 }
 
 /// 使用flate2解压缩数据
 #[cfg(feature = "flate2")]
-pub fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
+pub fn decompress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     use flate2::read::GzDecoder;
     use std::io::Read;
 
@@ -81,19 +81,19 @@ pub fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
     let mut decoded = Vec::new();
     decoder
         .read_to_end(&mut decoded)
-        .map_err(|e| CacheError::Serialization(e.to_string()))?;
+        .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
     Ok(decoded)
 }
 
 /// 当flate2特性未启用时的压缩函数（直接返回原数据）
 #[cfg(not(feature = "flate2"))]
-pub fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
+pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     Ok(data.to_vec())
 }
 
 /// 当flate2特性未启用时的解压缩函数（直接返回原数据）
 #[cfg(not(feature = "flate2"))]
-pub fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
+pub fn decompress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     Ok(data.to_vec())
 }
 
