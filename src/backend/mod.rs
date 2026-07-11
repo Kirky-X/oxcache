@@ -40,14 +40,14 @@ pub use score::{BackendScore, Scores};
 
 // Memory backend implementations
 pub use memory::{
-    DashMapMemoryBackend,
-    // Type definitions
-    MemoryBackendType,
-    MokaMemoryBackend,
     dashmap_memory,
     default_memory_backend,
     // Convenience functions
     moka_memory,
+    DashMapMemoryBackend,
+    // Type definitions
+    MemoryBackendType,
+    MokaMemoryBackend,
 };
 
 #[cfg(feature = "redis")]

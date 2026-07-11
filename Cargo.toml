@@ -1,8 +1,7 @@
 [package]
 name = "oxcache"
 version = "0.3.4"
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
 license = "MIT"
@@ -298,7 +297,7 @@ i18n = ["dep:icu", "dep:writeable"]
 
 [workspace]
 resolver = "2"
-members = [".", "examples", "examples/feature_matrix/core_feature", "examples/feature_matrix/minimal_feature"]
+members = [".", "examples"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================
