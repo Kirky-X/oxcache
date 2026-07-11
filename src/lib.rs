@@ -97,7 +97,7 @@
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
 //! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.4")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.5")]
 #![deny(unsafe_code)]
 
 // ============================================================================
@@ -126,13 +126,13 @@ macro_rules! check_feature_dependence {
             $required,
             "' or 'full' feature.\n",
             "\nSolution 1: Enable required feature:\n",
-            "    oxcache = { version = \"0.3.4\", features = [\"",
+            "    oxcache = { version = \"0.3.5\", features = [\"",
             $dependent,
             "\", \"",
             $required,
             "\"] }\n",
             "\nSolution 2: Enable all features:\n",
-            "    oxcache = { version = \"0.3.4\", features = [\"full\"] }"
+            "    oxcache = { version = \"0.3.5\", features = [\"full\"] }"
         ));
     };
 }
