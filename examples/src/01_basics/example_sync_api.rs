@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 同步 API 示例
 //
 // 本示例演示 oxcache 的同步 API（sync_mode）：

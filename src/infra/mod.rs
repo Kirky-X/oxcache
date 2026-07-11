@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Infrastructure module
 //!
 //! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader, cli

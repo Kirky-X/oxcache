@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 窄特性验证：minimal feature only（L1 memory cache + metrics + serialization）
 // 迁移自 examples/feature_matrix/minimal_feature
 // 防止 0.3.2 回归：pub mod metrics/serialization 未 cfg-gate

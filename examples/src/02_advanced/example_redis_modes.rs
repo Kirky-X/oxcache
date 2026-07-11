@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Redis 多模式连接示例
 //!
 //! 本示例演示 oxcache 支持的三种 Redis 连接模式：

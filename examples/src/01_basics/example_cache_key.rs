@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! CacheKey trait 示例
 //!
 //! 本示例演示 CacheKey trait 的使用：

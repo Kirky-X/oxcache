@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 指标导出函数
 
 use crate::infra::metrics::{CacheStats, GLOBAL_UNIFIED_METRICS};

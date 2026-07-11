@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // Redis Cluster 集成测试
 
 use crate::common::{is_redis_available, wait_for_redis_cluster};

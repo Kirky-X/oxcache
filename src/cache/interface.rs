@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Unified cache interface that consolidates CacheOps, CacheExt, and CacheBackend
 //! This provides a single, comprehensive interface for all cache operations
 

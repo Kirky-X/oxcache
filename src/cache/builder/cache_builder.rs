@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Unified cache builder for single and multi-backend configurations
 
 use crate::backend::interface::CacheBackend;

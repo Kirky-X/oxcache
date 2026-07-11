@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 核心基础模块
 //!
 //! 提供缓存系统的基础类型、常量、特性标志和事件定义。

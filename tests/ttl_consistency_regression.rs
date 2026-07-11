@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // tests/ttl_consistency_regression.rs
 //
 // 跨后端 TTL 一致性回归测试 (spec: universal-per-entry-ttl)

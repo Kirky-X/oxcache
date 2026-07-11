@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! CacheBuilder 完整用法示例
 //!
 //! 本示例演示 CacheBuilder 的所有配置选项，

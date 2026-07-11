@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Docker test utilities using testcontainers 0.23+
 //!
 //! This module provides helper functions for setting up Docker-based test environments

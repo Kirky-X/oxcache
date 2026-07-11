@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 安全模块测试 - 验证安全验证功能
 
 use oxcache::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};

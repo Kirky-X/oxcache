@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 链式缓存集成测试
 
 use oxcache::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter, MokaMemoryBackend, Scores};
