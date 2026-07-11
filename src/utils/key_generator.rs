@@ -11,8 +11,6 @@
 //! - 长键的哈希指纹生成
 
 use crate::error::CacheError;
-#[cfg(feature = "memory")]
-use moka::policy::EvictionPolicy;
 
 /// 默认键最大长度
 const DEFAULT_MAX_KEY_LENGTH: usize = 256;
@@ -102,18 +100,6 @@ impl KeyGenerator {
     /// 设置最大键长度
     pub fn with_max_key_length(mut self, length: usize) -> Self {
         self.max_key_length = length;
-        self
-    }
-
-    /// 设置淘汰策略
-    #[cfg(feature = "memory")]
-    pub fn with_eviction_policy(self, _policy: EvictionPolicy) -> Self {
-        // 暂时忽略淘汰策略，用于接口兼容性
-        self
-    }
-
-    #[cfg(not(feature = "memory"))]
-    pub fn with_eviction_policy(self, _policy: ()) -> Self {
         self
     }
 
@@ -357,11 +343,4 @@ mod tests {
         assert_eq!(key_gen.apply_prefix("key"), "cache:key");
     }
 
-    #[cfg(feature = "memory")]
-    #[test]
-    fn test_key_generator_with_eviction_policy() {
-        use moka::policy::EvictionPolicy;
-        let key_gen = KeyGenerator::new().with_eviction_policy(EvictionPolicy::lru());
-        assert_eq!(key_gen.namespace, "default");
-    }
 }
