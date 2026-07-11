@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-07-12
+
+### Changed
+- trait-kit 依赖版本约束从 "0.2.3" 放宽到 "0.2"（x.x 格式，支持 trait-kit 0.2.4+）
+- README 徽章合并为一行格式，移除不存在的 README_EN.md 链接
+
 ## [0.3.5] - 2026-07-11
 
 ### Changed
