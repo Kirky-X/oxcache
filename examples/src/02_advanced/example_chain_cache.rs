@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! ChainCache 链式缓存示例
 //!
 //! 本示例演示使用 ChainCache::builder() 创建多级缓存的方式。

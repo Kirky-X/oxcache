@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // Moka per-entry TTL 示例
 //
 // 本示例演示 oxcache 0.3.0 的 Moka per-entry TTL 功能：

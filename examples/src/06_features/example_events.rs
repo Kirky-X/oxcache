@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 缓存事件系统示例
 //
 //! 本示例演示如何使用 oxcache 的事件系统来监控缓存操作。

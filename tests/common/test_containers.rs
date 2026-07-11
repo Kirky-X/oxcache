@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Testcontainers 测试工具
 //!
 //! 使用 testcontainers 0.23+ API 提供容器管理功能

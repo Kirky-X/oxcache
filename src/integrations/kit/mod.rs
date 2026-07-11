@@ -1,3 +1,5 @@
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! trait-kit 0.2.2 `AsyncKit` integration for oxcache.
 //!
 //! Enable via the `kit` cargo feature. Provides [`OxcacheModule`] — a leaf

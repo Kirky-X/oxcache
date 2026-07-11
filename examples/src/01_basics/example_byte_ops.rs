@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 字节级操作示例
 //!
 //! 本示例演示 Cache 的字节级操作 API（get_bytes / set_bytes），

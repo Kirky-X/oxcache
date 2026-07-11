@@ -1,8 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
-
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 智能策略示例
 //!
 //! 本示例演示 Oxcache 的智能策略功能。

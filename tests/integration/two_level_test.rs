@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 双层缓存集成测试 - 使用新API
 
 use common::{cleanup_service, generate_unique_service_name, is_redis_available, setup_logging};

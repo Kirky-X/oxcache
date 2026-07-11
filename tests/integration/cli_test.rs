@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // CLI 集成测试
 //
 // 注意：CLI 模块已被移除，这些测试仅保留结构但不执行实际测试

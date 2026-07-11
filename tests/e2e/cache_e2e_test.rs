@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! E2E tests for oxcache Cache operations
 //!
 //! Tests cover: set, get, delete, expiration scenarios

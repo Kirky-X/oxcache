@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // 批量写入集成测试 - 使用新API
 
 use crate::common::{get_redis_url_insecure, is_redis_available, setup_logging};

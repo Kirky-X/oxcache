@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 // Redis客户端综合测试
 // 合并自 redis_client_test.rs 和 redis_client_comprehensive_test.rs
 // 测试覆盖：连接管理、基本操作、连接池、Lua脚本、批量操作、Pipeline、错误处理、边缘情况

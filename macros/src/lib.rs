@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! 该模块定义了oxcache的宏实现，提供缓存注解功能。
 
 use proc_macro::TokenStream;

@@ -1,7 +1,5 @@
-// Copyright (c) 2025-2026, Kirky.X
-//
-// MIT License
-//
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Redis Pipeline 批量操作示例
 //!
 //! 本示例演示使用 Redis Pipeline 进行高效的批量操作：

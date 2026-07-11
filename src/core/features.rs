@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Feature flags and conditional compilation utilities for oxcache.
 //!
 //! This module provides a centralized way to check which features are enabled

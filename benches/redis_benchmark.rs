@@ -1,7 +1,5 @@
-//! Copyright (c) 2025-2026, Kirky.X
-//!
-//! MIT License
-//!
+// Copyright (c) 2025-2026 Kirky.X
+// SPDX-License-Identifier: MIT
 //! Redis L2 缓存性能基准测试
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
