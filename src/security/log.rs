@@ -24,7 +24,7 @@ use crate::security::redact_cache_key;
 #[macro_export]
 macro_rules! secure_info {
     ($($arg:tt)*) => {{
-        use $crate::security::redaction::redact_connection_string;
+        use $crate::security::redact_connection_string;
         tracing::info!("{}", format!($($arg)*)
             .replace(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '/' || c == '@' || c == '.', |c| {
                 if c == '@' || (c.is_ascii_digit() && false) {
@@ -50,7 +50,7 @@ macro_rules! secure_info {
 #[macro_export]
 macro_rules! secure_debug {
     ($($arg:tt)*) => {{
-        use $crate::security::redaction::redact_connection_string;
+        use $crate::security::redact_connection_string;
         tracing::debug!("{}", format!($($arg)*)
             .split("://")
             .map(|part| {

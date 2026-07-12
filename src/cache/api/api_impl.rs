@@ -31,7 +31,7 @@ where
             backend,
             backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
+            serializer: Arc::new(crate::infra::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         }
@@ -93,7 +93,7 @@ where
             backend: Arc::new(backend),
             backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
+            serializer: Arc::new(crate::infra::JsonSerializer::new()),
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         })

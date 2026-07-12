@@ -58,7 +58,7 @@ where
         self.serializer.clone()
     }
 
-    pub fn unified_serializer(&self) -> crate::infra::serialization::unified::UnifiedSerializer {
+    pub fn unified_serializer(&self) -> crate::infra::UnifiedSerializer {
         self.unified_serializer.clone()
     }
 }

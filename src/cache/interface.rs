@@ -139,7 +139,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &dyn Serializer {
-        use crate::infra::serialization::{default_serializer, UnifiedSerializerAdapter};
+        use crate::infra::{default_serializer, UnifiedSerializerAdapter};
         use once_cell::sync::Lazy;
         use std::sync::Arc;
 
