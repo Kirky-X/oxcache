@@ -8,6 +8,8 @@
 
 </div>
 
+[English](./README_EN.md)
+
 ## ✨ 核心特性
 
 <div align="center">
