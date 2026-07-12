@@ -22,7 +22,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::backend::interface::CacheBackend;
+use crate::backend::CacheBackend;
 
 /// Global cache registry (singleton)
 static CACHE_REGISTRY: once_cell::sync::OnceCell<Registry> = once_cell::sync::OnceCell::new();
@@ -114,7 +114,7 @@ pub fn clear() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::memory::MokaMemoryBackend;
+    use crate::backend::MokaMemoryBackend;
 
     /// Helper: ensure the registry is initialized (idempotent).
     /// Since OnceCell::set panics on second call, we guard with is_initialized()

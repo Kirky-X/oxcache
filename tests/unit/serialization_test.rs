@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // 序列化单元测试
 
-use oxcache::infra::serialization::{json::JsonSerializer, Serializer};
+use oxcache::infra::serialization::{JsonSerializer, Serializer};
 
 /// 测试JSON序列化器的往返操作
 ///

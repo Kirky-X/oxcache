@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::backend::{CacheBackend, SyncCacheBackend};
-use crate::infra::serialization::unified::UnifiedSerializer;
+use crate::infra::serialization::UnifiedSerializer;
 use crate::traits::CacheKey;
 use std::sync::Arc;
 
@@ -106,7 +106,7 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn memory() -> crate::error::OxCacheResult<Self> {
-        use crate::backend::memory::MokaMemoryBackend as MemoryBackend;
+        use crate::backend::MokaMemoryBackend as MemoryBackend;
         let backend = MemoryBackend::new();
         Ok(Self::new_with_backend(Arc::new(backend)))
     }
