@@ -32,6 +32,12 @@ impl Metrics {
     }
 }
 
+/// 全局空指标实例
+#[cfg(not(any(feature = "metrics", feature = "memory")))]
+lazy_static::lazy_static! {
+    pub static ref GLOBAL_METRICS: Metrics = Metrics;
+}
+
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
 /// 当 metrics 功能禁用时返回空字符串
 pub fn get_metrics_string() -> String {
