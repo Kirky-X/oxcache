@@ -10,7 +10,6 @@ mod macros;
 
 use crate::backend::{CacheBackend, SyncCacheBackend};
 use crate::infra::serialization::unified::UnifiedSerializer;
-use crate::traits::CacheKey;
 use std::sync::Arc;
 
 /// 核心 Cache 类型
