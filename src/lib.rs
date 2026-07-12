@@ -138,7 +138,7 @@ macro_rules! check_feature_dependence {
 // ============================================================================
 // Core Modules (Always Available)
 // ============================================================================
-pub mod core;
+mod core;
 pub mod error;
 
 // Internal module for #[cached] macro support
@@ -196,10 +196,10 @@ pub mod registry;
 pub mod traits;
 
 // Config module: confers-based configuration
-pub mod config;
+mod config;
 
 // Utils module: key generation utilities
-pub mod utils;
+mod utils;
 
 // Integrations module: optional adapters for external frameworks (trait-kit, etc.)
 // Each integration is feature-gated and pulls no deps unless explicitly enabled.
