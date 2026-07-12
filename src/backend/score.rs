@@ -19,7 +19,7 @@
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxcache::backend::score::{BackendScore, Scores};
+/// use oxcache::backend::{BackendScore, Scores};
 ///
 /// struct MyBackend;
 ///

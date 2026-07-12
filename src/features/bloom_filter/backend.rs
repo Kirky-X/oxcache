@@ -104,9 +104,9 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
 
     /// Build the decorator. Returns `Err` if no inner backend was set.
     pub fn build(self) -> OxCacheResult<BloomFilterBackend<B>> {
-        let inner = self
-            .inner
-            .ok_or_else(|| OxCacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string()))?;
+        let inner = self.inner.ok_or_else(|| {
+            OxCacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string())
+        })?;
         Ok(BloomFilterBackend {
             inner,
             bloom: BloomFilter::new(self.capacity, self.false_positive_rate),

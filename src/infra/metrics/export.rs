@@ -25,7 +25,7 @@ pub fn export_json_format() -> Result<String, serde_json::Error> {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::infra::metrics::unified::convenience;
+    use crate::infra::metrics::convenience;
 
     #[test]
     fn test_get_enhanced_stats_returns_cache_stats() {

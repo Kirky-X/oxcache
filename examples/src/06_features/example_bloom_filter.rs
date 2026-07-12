@@ -12,9 +12,9 @@
 
 use std::time::Duration;
 
-use oxcache::backend::interface::{CacheReader, CacheWriter};
 use oxcache::backend::MokaMemoryBackend;
-use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
+use oxcache::backend::{CacheReader, CacheWriter};
+use oxcache::features::{BloomFilter, BloomFilterBackend};
 use oxcache::BackendScore;
 
 #[tokio::main(flavor = "multi_thread")]

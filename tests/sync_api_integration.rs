@@ -117,7 +117,7 @@ async fn test_chain_sync_multi_backend_roundtrip() {
     chain.set_sync("k", b"v".to_vec(), None).unwrap();
 
     // 两个后端都应有值（通过 sync API 直接查询）
-    use oxcache::backend::interface::SyncCacheReader;
+    use oxcache::backend::SyncCacheReader;
     assert_eq!(SyncCacheReader::get(&moka_ref, "k").unwrap(), Some(b"v".to_vec()));
     assert_eq!(SyncCacheReader::get(&dashmap_ref, "k").unwrap(), Some(b"v".to_vec()));
 
@@ -151,7 +151,7 @@ async fn test_chain_sync_ttl_propagates_to_all_links() {
         .unwrap();
 
     // 立即两个后端都应返回 Some
-    use oxcache::backend::interface::SyncCacheReader;
+    use oxcache::backend::SyncCacheReader;
     assert_eq!(SyncCacheReader::get(&moka_ref, "k").unwrap(), Some(b"v".to_vec()));
     assert_eq!(SyncCacheReader::get(&dashmap_ref, "k").unwrap(), Some(b"v".to_vec()));
 

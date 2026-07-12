@@ -9,8 +9,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use oxcache::backend::interface::{CacheReader, CacheWriter};
 use oxcache::backend::MokaMemoryBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::registry;
 
 #[tokio::main]

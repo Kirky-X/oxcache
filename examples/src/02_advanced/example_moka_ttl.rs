@@ -10,8 +10,8 @@
 
 use std::time::Duration;
 
-use oxcache::backend::interface::{CacheReader, CacheWriter};
 use oxcache::backend::MokaMemoryBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

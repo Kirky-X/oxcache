@@ -4,7 +4,7 @@
 //
 // 本测试演示缓存存在随机Redis故障情况下的稳定性和恢复能力
 
-use crate::common::redis_test_utils::is_redis_available;
+use crate::common::is_redis_available;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Once;

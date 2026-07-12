@@ -55,3 +55,11 @@ pub use redis::{RedisBackend, RedisBackendBuilder, RedisMode};
 pub use dashmap::dashmap_memory;
 pub use moka::default_memory_backend;
 pub use moka::moka_memory;
+
+// Re-export builder helpers for external test usage
+pub use dashmap::{dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder};
+pub use moka::{moka_memory_with_capacity, moka_memory_with_capacity_and_ttl, MokaMemoryBackendBuilder};
+
+// Re-export MockBackend for crate-internal test usage
+#[cfg(test)]
+pub use mock::MockBackend;
