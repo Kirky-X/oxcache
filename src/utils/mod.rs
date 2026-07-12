@@ -11,12 +11,8 @@ mod utils_impl;
 
 use crate::error::OxCacheError;
 
-const MAX_CACHE_KEY_LENGTH: usize = 1024;
-const VALID_KEY_CHARS: &[char] = &[
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-    'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-    'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
-];
+// Import constants for test access (tests use `use super::*;`)
+use utils_impl::{MAX_CACHE_KEY_LENGTH, VALID_KEY_CHARS};
 
 pub use utils_impl::validate_cache_key;
 
