@@ -48,65 +48,17 @@ pub use validation::{
 #[cfg(feature = "redis")]
 use crate::error::OxCacheError;
 
-/// Lua 脚本最大长度 (10KB)
-#[cfg(feature = "redis")]
-const MAX_LUA_SCRIPT_LENGTH: usize = 10 * 1024;
-
-/// Lua 脚本最大键数量
-#[cfg(feature = "redis")]
-const MAX_LUA_SCRIPT_KEYS: usize = 100;
-
-/// SCAN 模式最大长度
-#[cfg(feature = "redis")]
-const MAX_SCAN_PATTERN_LENGTH: usize = 256;
-
-/// SCAN 模式最大通配符数量
-#[cfg(feature = "redis")]
-const MAX_SCAN_WILDCARDS: usize = 10;
-
-/// SCAN count 参数安全范围
-#[cfg(feature = "redis")]
-const SCAN_COUNT_MIN: usize = 1;
-#[cfg(feature = "redis")]
-const SCAN_COUNT_MAX: usize = 1000;
-
-// ============================================================================
-// 预编译的正则表达式
-// ============================================================================
-
-/// Lua 无限循环检测正则模式
-#[cfg(feature = "redis")]
-static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
-    (r"WHILE\s+TRUE", "WHILE TRUE 循环"),
-    (r"WHILE\s+1", "WHILE 1 循环"),
-    (r"REPEAT", "REPEAT 循环"),
-    (r"GOTO", "GOTO 语句"),
-];
-
-/// 预编译的 Lua 循环检测正则
-#[cfg(feature = "redis")]
-lazy_static::lazy_static! {
-    static ref LUA_LOOP_REGEXES: Vec<::regex::Regex> = {
-        LUA_LOOP_PATTERNS
-            .iter()
-            .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
-            .collect()
-    };
-}
-
-/// 空白字符替换正则
-#[cfg(feature = "redis")]
-lazy_static::lazy_static! {
-    static ref WHITESPACE_REGEX: ::regex::Regex = ::regex::Regex::new(r"\s+").expect("Invalid whitespace regex");
-}
-
 // Re-export public functions from security_impl
 #[cfg(feature = "redis")]
 pub use security_impl::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
 
-// Import private functions for test access (tests use `use super::*;`)
+// Import private functions and constants for test access (tests use `use super::*;`)
 #[cfg(feature = "redis")]
-use security_impl::{count_lua_long_string_level, preprocess_lua_script, skip_lua_long_string};
+use security_impl::{
+    count_lua_long_string_level, preprocess_lua_script, skip_lua_long_string, MAX_LUA_SCRIPT_KEYS,
+    MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS, SCAN_COUNT_MAX,
+    SCAN_COUNT_MIN,
+};
 
 #[cfg(all(test, feature = "redis"))]
 mod tests {

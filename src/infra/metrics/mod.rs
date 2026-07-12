@@ -19,13 +19,7 @@ pub use unified::{AtomicCounters, UnifiedMetrics};
 pub struct Metrics;
 
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
-lazy_static! {
-    /// 全局空指标实例
-    pub static ref GLOBAL_METRICS: Metrics = Metrics;
-}
-
-#[cfg(not(any(feature = "metrics", feature = "memory")))]
-pub use metrics_impl::get_metrics_string;
+pub use metrics_impl::{get_metrics_string, GLOBAL_METRICS};
 
 // ============================================================================
 // Unified Metrics Exports
