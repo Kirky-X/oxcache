@@ -19,7 +19,7 @@ pub struct Cache<K, V> {
     /// sync API（get_sync/set_sync 等）通过此字段派发；为 None 时返回 Err(NotSupported)。
     pub(crate) backend_sync: Option<Arc<dyn SyncCacheBackend>>,
     #[cfg(any(feature = "serialization", feature = "full"))]
-    pub(crate) serializer: Arc<crate::infra::serialization::json::JsonSerializer>,
+    pub(crate) serializer: Arc<crate::infra::JsonSerializer>,
     pub(crate) unified_serializer: UnifiedSerializer,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
