@@ -95,7 +95,7 @@
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
 //! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.5")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.7")]
 #![deny(unsafe_code)]
 
 // ============================================================================
