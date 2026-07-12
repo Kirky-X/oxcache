@@ -111,3 +111,20 @@ docs/repowiki/
 .semgrep-results/
 lcov.info
 cobertura.xml
+
+# =============================================================================
+# AI / Agent Tools (not for version control)
+# =============================================================================
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+CODEIUM.md
+.claude/
+.trae/
+.qoder/
+.opencode/
+.cursor/
+.aider/
+.continue/
+.codeium/
+.github/copilot/
