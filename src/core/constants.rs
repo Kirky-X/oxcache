@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统中使用的常量。
 
-use crate::core::command::RedisCommand;
+use crate::core::RedisCommand;
 
 // ============================================================================
 // 缓存容量相关常量

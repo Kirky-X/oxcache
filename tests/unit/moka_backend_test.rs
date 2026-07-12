@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 // Moka 后端单元测试
 
-use oxcache::backend::interface::{CacheConnector, CacheReader, CacheWriter};
-use oxcache::backend::memory::moka::{
+use oxcache::backend::memory::{
     moka_memory, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl, MokaMemoryBackend,
     MokaMemoryBackendBuilder,
 };
-use oxcache::backend::score::BackendScore;
+use oxcache::backend::BackendScore;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::time::Duration;
 
 /// Poll until a condition is true or timeout. Replaces fixed sleep for timing-dependent tests.

@@ -71,7 +71,12 @@ pub trait UnifiedCache: Send + Sync + 'static {
     }
 
     /// Set typed value in cache
-    async fn set_typed<T: Serialize + Send + Sync>(&self, key: &str, value: &T, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set_typed<T: Serialize + Send + Sync>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let bytes = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
         self.set_bytes(key, bytes, ttl).await
     }
@@ -134,7 +139,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &dyn Serializer {
-        use crate::infra::serialization::unified::{default_serializer, UnifiedSerializerAdapter};
+        use crate::infra::serialization::{default_serializer, UnifiedSerializerAdapter};
         use once_cell::sync::Lazy;
         use std::sync::Arc;
 
@@ -152,7 +157,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::memory::MokaMemoryBackend;
+    use crate::backend::MokaMemoryBackend;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Redis backend implementation with ConnectionManager
 
-use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
-use crate::backend::score::{BackendScore, Scores};
-use crate::core::command::RedisCommand;
-use crate::core::types::RedisModeType;
+use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
+use crate::backend::{BackendScore, Scores};
+use crate::core::RedisCommand;
+use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::security;
 use async_trait::async_trait;
@@ -786,9 +786,9 @@ impl crate::backend::interface::LuaExecutor for RedisBackend {
 #[allow(unsafe_code)]
 mod tests {
     use super::*;
-    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
-    use crate::backend::score::BackendScore;
-    use crate::core::types::RedisModeType;
+    use crate::backend::BackendScore;
+    use crate::backend::{CacheConnector, CacheReader, CacheWriter};
+    use crate::core::RedisModeType;
     use serial_test::serial;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1635,7 +1635,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_simple_return() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         // 返回常量字符串
         let script = "return 'hello'";
@@ -1651,7 +1651,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_returns_int() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         let script = "return 42";
         let result = backend.eval_lua(script, &[], &[]).await.expect("eval_lua failed");
@@ -1665,7 +1665,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_with_keys_and_args() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         let key = unique_key("lua_key");
         backend.set(&key, b"100".to_vec(), None).await.unwrap();
@@ -1687,7 +1687,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_script_load_and_eval_sha() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         let script = "return 1 + 1";
         let sha = backend.script_load(script).await.expect("script_load failed");
@@ -1706,7 +1706,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_sha_invalid_format_rejected() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         // 太短
         let result = backend.eval_sha("abc123", &[], &[]).await;
@@ -1727,7 +1727,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_forbidden_command_rejected() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         // FLUSHALL 是被禁止的命令
         let script = "redis.call('FLUSHALL')";
@@ -1743,7 +1743,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_eval_lua_too_many_keys_rejected() {
-        use crate::backend::interface::LuaExecutor;
+        use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         let keys: Vec<&str> = (0..200).map(|_| "k").collect();
         let result = backend.eval_lua("return 1", &keys, &[]).await;
@@ -1754,7 +1754,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_as_lua_executor_returns_some() {
-        use crate::backend::interface::CacheConnector;
+        use crate::backend::CacheConnector;
         let backend = make_backend().await;
         let executor = backend.as_lua_executor();
         assert!(executor.is_some());
@@ -1773,7 +1773,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Redis server; run with: cargo test --features redis --lib -- --ignored"]
     async fn test_redis_backend_implements_all_traits() {
-        use crate::backend::interface::CacheBackend;
+        use crate::backend::CacheBackend;
         let backend = make_backend().await;
         // 验证可作为 CacheBackend 使用（blanket impl）
         let _: &dyn CacheBackend = &backend;

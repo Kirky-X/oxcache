@@ -5,8 +5,8 @@
 #![cfg(feature = "redis")]
 
 use crate::common;
-use crate::common::redis_test_utils::test_redis_connection;
-use oxcache::backend::memory::redis::RedisBackend;
+use crate::common::test_redis_connection;
+use oxcache::backend::memory::RedisBackend;
 
 /// 测试 Redis Standalone/Cluster 连接模式
 ///

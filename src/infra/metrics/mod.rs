@@ -37,5 +37,8 @@ pub use unified::{
     HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, GLOBAL_UNIFIED_METRICS,
 };
 
-// 从 core::types 重新导出 CacheLayer
-pub use crate::core::types::CacheLayer;
+// Re-export convenience module for test access
+pub use unified::convenience;
+
+// 从 core 重新导出 CacheLayer
+pub use crate::core::CacheLayer;

@@ -28,8 +28,8 @@ use crate::error::{OxCacheError, OxCacheResult};
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
     // 基础验证：使用共享验证工具
-    use crate::security::validation::redis::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
-    use crate::security::validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
+    use crate::security::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
+    use crate::security::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
 
     validate_not_empty(key, "Redis key")?;
     validate_max_length(key, MAX_KEY_LENGTH, "Redis key")?;
@@ -325,7 +325,10 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
 /// 返回级别数，0 表示不是长字符串
 /// chars 指针应该在 [ 之后的位置
 #[cfg(feature = "redis")]
-pub(super) fn count_lua_long_string_level(chars: &mut std::iter::Peekable<std::str::Chars>, start_level: usize) -> usize {
+pub(super) fn count_lua_long_string_level(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    start_level: usize,
+) -> usize {
     let mut level = start_level;
     while let Some(&c) = chars.peek() {
         if c == '=' {
