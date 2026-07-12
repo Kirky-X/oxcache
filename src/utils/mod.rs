@@ -7,6 +7,8 @@
 pub mod key_generator;
 pub use key_generator::KeyGenerator;
 
+mod utils_impl;
+
 use crate::error::OxCacheError;
 
 const MAX_CACHE_KEY_LENGTH: usize = 1024;
@@ -16,30 +18,7 @@ const VALID_KEY_CHARS: &[char] = &[
     'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
-pub fn validate_cache_key(key: &str) -> Result<(), OxCacheError> {
-    if key.is_empty() {
-        return Err(OxCacheError::InvalidInput("Cache key cannot be empty".to_string()));
-    }
-
-    if key.len() > MAX_CACHE_KEY_LENGTH {
-        return Err(OxCacheError::InvalidInput(format!(
-            "Cache key exceeds maximum length of {} bytes (got {} bytes)",
-            MAX_CACHE_KEY_LENGTH,
-            key.len()
-        )));
-    }
-
-    for c in key.chars() {
-        if !VALID_KEY_CHARS.contains(&c) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Cache key contains invalid character '{}'. Valid characters are: alphanumeric and -_.:/@",
-                c
-            )));
-        }
-    }
-
-    Ok(())
-}
+pub use utils_impl::validate_cache_key;
 
 #[cfg(test)]
 mod tests {

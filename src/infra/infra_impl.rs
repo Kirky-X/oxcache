@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 //! Infrastructure impl - functions extracted from mod.rs
 
-use super::*;
 use crate::error::OxCacheError;
 
 /// Validate cache key format

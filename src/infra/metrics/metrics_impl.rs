@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT
 //! Metrics impl blocks extracted from mod.rs
 
-use super::*;
-
 // 当 metrics 和 moka 功能都禁用时的空实现
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
 impl Metrics {
