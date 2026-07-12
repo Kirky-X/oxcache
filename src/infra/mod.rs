@@ -24,7 +24,7 @@ pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_sta
 pub use metrics::{convenience, MetricsSnapshot, GLOBAL_UNIFIED_METRICS};
 
 #[cfg(feature = "serialization")]
-pub use serialization::{JsonSerializer, Serializer, UnifiedSerializer};
+pub use serialization::{default_serializer, JsonSerializer, Serializer, UnifiedSerializer, UnifiedSerializerAdapter};
 
 #[cfg(test)]
 mod tests {
