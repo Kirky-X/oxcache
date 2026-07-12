@@ -3,8 +3,8 @@
 // Redis Cluster 集成测试
 
 use crate::common::{is_redis_available, wait_for_redis_cluster};
-use oxcache::backend::memory::redis::RedisBackend;
-use oxcache::backend::interface::CacheBackend;
+use oxcache::backend::memory::RedisBackend;
+use oxcache::backend::CacheBackend;
 use std::time::Duration;
 
 #[path = "../common/mod.rs"]

@@ -15,9 +15,9 @@
 
 use std::time::Duration;
 
-use oxcache::backend::interface::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
 use oxcache::backend::MokaMemoryBackend;
-use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
+use oxcache::backend::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
+use oxcache::features::{BloomFilter, BloomFilterBackend};
 
 // ============================================================================
 // BloomFilter 独立类型

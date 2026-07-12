@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
-use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
-use crate::backend::score::{BackendScore, Scores};
+use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
+use crate::backend::{BackendScore, Scores};
 use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
@@ -35,7 +35,7 @@ pub(crate) struct CacheEntry {
 /// # Example
 ///
 /// ```rust,ignore
-/// use oxcache::backend::memory::dashmap::DashMapMemoryBackend;
+/// use oxcache::backend::memory::DashMapMemoryBackend;
 /// use std::time::Duration;
 ///
 /// // Create with default settings
@@ -579,7 +579,7 @@ mod tests {
     // ========================================================================
     mod sync_tests {
         use super::DashMapMemoryBackend;
-        use crate::backend::interface::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
+        use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
         use std::time::Duration;
 
         #[test]

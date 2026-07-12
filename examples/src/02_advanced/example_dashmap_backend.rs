@@ -5,7 +5,7 @@
 //! 本示例演示 DashMapMemoryBackend 的使用，
 //! 并对比 Moka 和 DashMap 后端的差异。
 
-use oxcache::backend::interface::{CacheReader, CacheWriter};
+use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
 use std::time::Duration;
 

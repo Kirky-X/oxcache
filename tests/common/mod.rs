@@ -23,7 +23,7 @@ pub mod test_containers;
 #[allow(unused_imports)]
 pub use redis_test_utils::{
     create_cluster_redis_urls, create_standalone_redis_url, get_redis_url, get_redis_url_insecure, is_redis_available,
-    is_redis_available_url, wait_for_redis, wait_for_redis_cluster, wait_for_sentinel,
+    is_redis_available_url, test_redis_connection, wait_for_redis, wait_for_redis_cluster, wait_for_sentinel,
 };
 
 // Docker 测试工具

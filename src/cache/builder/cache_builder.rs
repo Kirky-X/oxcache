@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Unified cache builder for single and multi-backend configurations
 
-use crate::backend::interface::CacheBackend;
-use crate::backend::memory::moka::MokaMemoryBackend;
+use crate::backend::CacheBackend;
+use crate::backend::MokaMemoryBackend;
 use crate::cache::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;

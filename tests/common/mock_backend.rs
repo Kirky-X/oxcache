@@ -14,7 +14,7 @@ use tokio::sync::RwLock;
 /// # Example
 ///
 /// ```rust,ignore
-/// use common::mock_backend::MockBackend;
+/// use common::MockBackend;
 ///
 /// let backend = MockBackend::new("test", 80, false);
 /// let backend_with_data = MockBackend::with_data("test", 80, false);

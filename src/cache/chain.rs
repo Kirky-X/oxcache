@@ -5,10 +5,8 @@
 // ChainCache 提供多后端链式访问，按分数从高到低遍历后端。
 // 读取时从高分后端开始，写入时写入所有后端。
 
-use crate::backend::interface::{
-    BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
-};
-use crate::backend::score::BackendScore;
+use crate::backend::BackendScore;
+use crate::backend::{BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend};
 use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -609,7 +607,7 @@ impl ChainCacheBuilder {
 mod tests {
     use super::*;
     use crate::backend::{DashMapMemoryBackend, MokaMemoryBackend};
-    use crate::testing::mock::MockBackend;
+    use crate::testing::MockBackend;
 
     #[test]
     fn test_chain_link_creation() {
@@ -1291,7 +1289,7 @@ mod tests {
         // Moka (score=100) + DashMap (score=90)
         // 两个后端都存有 "k"，但值不同
         // get_sync 应返回最高分链接 Moka 的值
-        use crate::backend::interface::SyncCacheWriter;
+        use crate::backend::SyncCacheWriter;
 
         let moka = MokaMemoryBackend::new();
         let dashmap = DashMapMemoryBackend::new();

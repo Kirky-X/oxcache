@@ -33,6 +33,13 @@ pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncC
 // Re-export BackendKind for runtime type identification
 pub use interface::BackendKind;
 
+// Re-export LuaExecutor trait for Lua script execution
+#[cfg(feature = "lua-script")]
+pub use interface::LuaExecutor;
+
+// Re-export ConfigValidation for configuration validation utilities
+pub use config_validation::ConfigValidation;
+
 // Score system exports
 pub use score::{BackendScore, Scores};
 
@@ -56,4 +63,4 @@ pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 pub use custom_tiered::LayerRestriction;
 
 // 从 core::types 重新导出统一的枚举类型
-pub use crate::core::types::{BackendType, CacheLayer};
+pub use crate::core::{BackendType, CacheLayer};

@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Cache API - 核心缓存结构和方法
 
+mod api_impl;
 mod basic_ops;
 mod batch_ops;
 mod bytes_ops;
 mod macros;
 
 use crate::backend::{CacheBackend, SyncCacheBackend};
-use crate::infra::serialization::unified::UnifiedSerializer;
-use crate::traits::CacheKey;
+use crate::infra::serialization::UnifiedSerializer;
 use std::sync::Arc;
 
 /// 核心 Cache 类型
@@ -24,110 +24,6 @@ pub struct Cache<K, V> {
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 
-impl<K, V> std::fmt::Debug for Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Cache")
-            .field("backend", &"<CacheBackend>")
-            .field("backend_sync", &self.backend_sync.is_some())
-            .finish()
-    }
-}
-
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    pub(crate) fn new_with_backend(backend: Arc<dyn CacheBackend>) -> Self {
-        Self {
-            backend,
-            backend_sync: None,
-            #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
-            unified_serializer: UnifiedSerializer::json(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    #[cfg(feature = "memory")]
-    pub fn new() -> Self {
-        use crate::backend::MokaMemoryBackend;
-        Self::new_with_backend(Arc::new(MokaMemoryBackend::new()))
-    }
-
-    pub fn builder() -> crate::cache::builder::CacheBuilder<K, V> {
-        crate::cache::builder::CacheBuilder::default()
-    }
-
-    pub fn with_dependencies(backend: Arc<dyn CacheBackend>) -> Self {
-        Self::new_with_backend(backend)
-    }
-
-    /// 设置同步后端（供 CacheBuilder::sync_mode 在 build() 中调用）。
-    /// 当 backend 已实现 SyncCacheBackend 时，将其 Arc 升级为 trait 对象。
-    pub(crate) fn set_sync_backend(&mut self, backend: Arc<dyn SyncCacheBackend>) {
-        self.backend_sync = Some(backend);
-    }
-}
-
-#[cfg(feature = "memory")]
-impl<K, V> Default for Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(all(feature = "dashmap-backend", not(feature = "memory"), not(feature = "memory")))]
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    pub fn new() -> Self {
-        use crate::backend::DashMapMemoryBackend;
-        Self::new_with_backend(Arc::new(DashMapMemoryBackend::new()))
-    }
-}
-
-#[cfg(feature = "redis")]
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    pub async fn redis(connection_string: &str) -> crate::error::OxCacheResult<Self> {
-        let backend = crate::backend::memory::RedisBackend::new(connection_string).await?;
-        Ok(Self {
-            backend: Arc::new(backend),
-            backend_sync: None,
-            #[cfg(any(feature = "serialization", feature = "full"))]
-            serializer: Arc::new(crate::infra::serialization::json::JsonSerializer::new()),
-            unified_serializer: UnifiedSerializer::json(),
-            _phantom: std::marker::PhantomData,
-        })
-    }
-}
-
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    pub async fn memory() -> crate::error::OxCacheResult<Self> {
-        use crate::backend::memory::MokaMemoryBackend as MemoryBackend;
-        let backend = MemoryBackend::new();
-        Ok(Self::new_with_backend(Arc::new(backend)))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,7 +36,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_new_with_backend() {
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, String> = Cache::new_with_backend(backend);
         assert!(cache.health_check().await.is_ok());
@@ -183,7 +79,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_with_dependencies() {
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, i32> = Cache::with_dependencies(backend);
 
@@ -212,7 +108,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_new_with_backend_custom() {
         // Verify new_with_backend works with a builder-configured Moka backend
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::builder().capacity(50).build());
         let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
 
@@ -224,7 +120,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_builder_with_backend_arc() {
         // Verify builder() works with a pre-built backend
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, i32> = Cache::builder().backend_arc(backend).build().await.unwrap();
 

@@ -366,7 +366,7 @@ impl<T: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static> SyncCa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::mock::MockBackend;
+    use crate::testing::MockBackend;
 
     #[tokio::test]
     async fn test_mock_backend() {

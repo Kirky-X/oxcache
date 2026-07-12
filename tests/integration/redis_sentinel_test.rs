@@ -3,8 +3,8 @@
 // Redis Sentinel 集成测试
 
 use crate::common::{is_redis_available, wait_for_sentinel};
-use oxcache::backend::memory::redis::RedisBackend;
-use oxcache::backend::interface::CacheBackend;
+use oxcache::backend::memory::RedisBackend;
+use oxcache::backend::CacheBackend;
 use std::time::Duration;
 
 #[path = "../common/mod.rs"]
