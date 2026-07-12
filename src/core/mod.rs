@@ -20,3 +20,6 @@ pub use constants::{
 };
 
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
+
+pub use command::RedisCommand;
+pub use events::{CacheEvent, CacheEventType, EventPublisher};

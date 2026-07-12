@@ -4,7 +4,7 @@
 
 #![cfg(feature = "redis")]
 
-use oxcache::backend::memory::redis::{RedisBackendBuilder, RedisMode};
+use oxcache::backend::memory::{RedisBackendBuilder, RedisMode};
 
 #[test]
 fn test_redis_mode_default() {
@@ -30,7 +30,7 @@ fn test_redis_backend_builder_build_without_connection_string() {
 }
 
 mod security_tests {
-    use oxcache::backend::memory::redis::RedisBackend;
+    use oxcache::backend::memory::RedisBackend;
 
     #[test]
     fn test_redact_connection_string_with_password() {

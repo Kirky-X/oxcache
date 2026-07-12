@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 //! Moka-based memory backend implementation
 
-use crate::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
-// Sync trait 实现使用全限定路径（`crate::backend::interface::SyncCacheReader`），
+use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
+// Sync trait 实现使用全限定路径（`crate::backend::SyncCacheReader`），
 // 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
 // 与同名 async trait 方法（如 `get`）产生歧义。
-use crate::backend::score::{BackendScore, Scores};
+use crate::backend::{BackendScore, Scores};
 use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
@@ -600,7 +600,7 @@ mod tests {
     // ========================================================================
     mod sync_tests {
         use super::MokaMemoryBackend;
-        use crate::backend::interface::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
+        use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
         use std::time::Duration;
 
         #[test]

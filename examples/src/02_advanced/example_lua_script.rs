@@ -12,8 +12,8 @@
 //! cd examples && cargo run --example example_lua_script
 //! ```
 
-use oxcache::backend::interface::{CacheWriter, LuaExecutor};
 use oxcache::backend::RedisBackend;
+use oxcache::backend::{CacheWriter, LuaExecutor};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -15,6 +15,9 @@ pub use json::JsonSerializer;
 // Unified serialization exports
 pub use unified::{default_serializer, UnifiedSerializer, UnifiedSerializerAdapter};
 
+// Depth-limited serialization exports
+pub use depth_limited::{would_exceed_depth_limit, DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH};
+
 /// 序列化器特征
 ///
 /// 定义序列化和反序列化操作的接口。

@@ -12,7 +12,7 @@
 //! cd examples && cargo run --example example_redis_modes
 //! ```
 
-use oxcache::backend::interface::{CacheReader, CacheWriter};
+use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::backend::{RedisBackend, RedisMode};
 
 #[tokio::main]

@@ -27,7 +27,11 @@ use crate::error::OxCacheError;
 /// let dangerous_chars = ['\r', '\n', '\0'];
 /// validate_no_dangerous_chars("safe_string", &dangerous_chars, "Redis key")?;
 /// ```
-pub fn validate_no_dangerous_chars(input: &str, dangerous_chars: &[char], error_context: &str) -> crate::OxCacheResult<()> {
+pub fn validate_no_dangerous_chars(
+    input: &str,
+    dangerous_chars: &[char],
+    error_context: &str,
+) -> crate::OxCacheResult<()> {
     for c in input.chars() {
         if dangerous_chars.contains(&c) {
             return Err(OxCacheError::InvalidInput(format!(
@@ -89,6 +93,8 @@ pub mod redis {
     /// Redis 键中的危险字符（协议安全：CR, LF, NULL）
     pub const DANGEROUS_CHARS: [char; 3] = ['\r', '\n', '\0'];
 }
+
+pub use redis::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
 
 /// Lua 脚本验证常量
 pub mod lua_script {

@@ -60,7 +60,7 @@
 //!
 //! ```rust,ignore
 //! use oxcache::backend::MokaMemoryBackend;
-//! use oxcache::features::bloom_filter::BloomFilterBackend;
+//! use oxcache::features::BloomFilterBackend;
 //! let backend = BloomFilterBackend::new(MokaMemoryBackend::new());
 //! ```
 //!
@@ -241,8 +241,8 @@ pub use crate::internal::__internal_get_cache;
 // ============================================================================
 
 // New API exports
-pub use cache::builder::CacheBuilder;
 pub use cache::Cache;
+pub use cache::CacheBuilder;
 
 // Re-exports from infra module
 #[cfg(feature = "metrics")]
@@ -251,25 +251,23 @@ pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats
 // Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]
 pub use crate::security::{
-    clamp_scan_count,
-    log::{log_cache_key, sanitize_message},
-    redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted},
-    validate_lua_script, validate_redis_key, validate_scan_pattern,
+    clamp_scan_count, log_cache_key, redact_cache_key, redact_connection_string, redact_field, redact_value,
+    sanitize_message, validate_lua_script, validate_redis_key, validate_scan_pattern, Redacted,
 };
 
 // Public API re-exports (after features re-exports)
-pub use cache::chain::{ChainCache, ChainCacheBuilder, ChainLink};
-pub use cache::interface::UnifiedCache;
+pub use cache::UnifiedCache;
+pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use traits::CacheKey;
 
 // Type-safe enum exports
-pub use core::types::{BackendType, CacheLayer, RedisModeType, SerializationType};
+pub use core::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 // Key generator export
 pub use crate::utils::KeyGenerator;
 
 // Events module re-export
-pub use core::events::{CacheEvent, CacheEventType, EventPublisher};
+pub use core::{CacheEvent, CacheEventType, EventPublisher};
 
 // Backend exports
 pub use backend::{

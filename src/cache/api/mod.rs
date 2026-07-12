@@ -9,7 +9,7 @@ mod bytes_ops;
 mod macros;
 
 use crate::backend::{CacheBackend, SyncCacheBackend};
-use crate::infra::serialization::unified::UnifiedSerializer;
+use crate::infra::serialization::UnifiedSerializer;
 use std::sync::Arc;
 
 /// 核心 Cache 类型
@@ -36,7 +36,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_new_with_backend() {
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, String> = Cache::new_with_backend(backend);
         assert!(cache.health_check().await.is_ok());
@@ -79,7 +79,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_with_dependencies() {
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, i32> = Cache::with_dependencies(backend);
 
@@ -108,7 +108,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_new_with_backend_custom() {
         // Verify new_with_backend works with a builder-configured Moka backend
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::builder().capacity(50).build());
         let cache: Cache<String, Vec<u8>> = Cache::new_with_backend(backend);
 
@@ -120,7 +120,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_builder_with_backend_arc() {
         // Verify builder() works with a pre-built backend
-        use crate::backend::memory::MokaMemoryBackend;
+        use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
         let cache: Cache<String, i32> = Cache::builder().backend_arc(backend).build().await.unwrap();
 

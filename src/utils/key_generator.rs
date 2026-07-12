@@ -340,5 +340,4 @@ mod tests {
         let key_gen = KeyGenerator::with_prefix("cache:");
         assert_eq!(key_gen.apply_prefix("key"), "cache:key");
     }
-
 }

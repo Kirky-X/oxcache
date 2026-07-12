@@ -8,10 +8,10 @@
 #[cfg(feature = "redis")]
 mod redis_client_tests {
     use crate::common::{get_redis_url, is_redis_available};
+    use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
+    use oxcache::backend::BackendScore;
     #[cfg(feature = "lua-script")]
-    use oxcache::backend::interface::LuaExecutor;
-    use oxcache::backend::memory::redis::{RedisBackend, RedisBackendBuilder, RedisMode};
-    use oxcache::backend::score::BackendScore;
+    use oxcache::backend::LuaExecutor;
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     #[cfg(feature = "lua-script")]
     use oxcache::validate_lua_script;

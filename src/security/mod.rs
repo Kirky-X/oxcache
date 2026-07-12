@@ -41,7 +41,9 @@ pub use redaction::{redact_cache_key, redact_connection_string, redact_field, re
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
-pub use validation::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
+pub use validation::{
+    validate_max_length, validate_no_dangerous_chars, validate_not_empty, DANGEROUS_CHARS, MAX_KEY_LENGTH,
+};
 
 #[cfg(feature = "redis")]
 use crate::error::OxCacheError;

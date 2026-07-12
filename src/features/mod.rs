@@ -4,3 +4,6 @@
 
 #[cfg(feature = "bloom-filter")]
 pub mod bloom_filter;
+
+#[cfg(feature = "bloom-filter")]
+pub use bloom_filter::{BloomFilter, BloomFilterBackend, BloomFilterBackendBuilder};

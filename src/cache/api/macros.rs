@@ -77,7 +77,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::api::Cache;
+    use crate::cache::Cache;
 
     // ========================================================================
     // register_for_macro tests

@@ -42,9 +42,9 @@
 //! +-------------------------------------------------------------+
 //! ```
 
-use crate::backend::config_validation::ConfigValidation;
-use crate::core::types::BackendType;
-use crate::core::types::CacheLayer as Layer;
+use crate::backend::ConfigValidation;
+use crate::core::BackendType;
+use crate::core::CacheLayer as Layer;
 use crate::error::{OxCacheError, OxCacheResult};
 
 /// 后端支持的层级限制
