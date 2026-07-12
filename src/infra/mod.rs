@@ -19,6 +19,13 @@ pub use infra_impl::validate_cache_key;
 #[cfg(feature = "metrics")]
 pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 
+// Re-export commonly used types at the infra module level for two-level import paths
+#[cfg(feature = "metrics")]
+pub use metrics::{convenience, MetricsSnapshot, GLOBAL_UNIFIED_METRICS};
+
+#[cfg(feature = "serialization")]
+pub use serialization::{JsonSerializer, Serializer, UnifiedSerializer};
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -75,7 +75,7 @@ macro_rules! secure_debug {
 /// # 示例
 ///
 /// ```rust,ignore
-/// use crate::utils::security_log::log_cache_key;
+/// use crate::security::log_cache_key;
 ///
 /// log_cache_key("debug", "Cache access", "user_token_abc123");
 /// // 日志输出: Cache access: ****c123
@@ -105,7 +105,7 @@ pub fn log_cache_key(level: &str, message: &str, key: &str) {
 /// # 示例
 ///
 /// ```rust,ignore
-/// use crate::utils::security_log::sanitize_message;
+/// use crate::security::sanitize_message;
 ///
 /// let msg = sanitize_message("User token: user_token_abc123, password: secret123");
 /// // 返回: User token: ****c123, password: ****

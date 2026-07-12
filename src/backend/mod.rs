@@ -55,6 +55,10 @@ pub use memory::{
     MokaMemoryBackend,
 };
 
+// Re-export MockBackend for crate-internal test usage
+#[cfg(test)]
+pub use memory::MockBackend;
+
 #[cfg(feature = "redis")]
 pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
