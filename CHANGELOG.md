@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### ⚠️ BREAKING CHANGES
+## [0.3.7] - 2026-07-12
 
+### Changed
+- 导入路径扁平化重构：将三级 crate 路径扁平化为模块级导入（commit e4197af、26987ba）
+
+### ⚠️ BREAKING CHANGES
 - `CacheError` renamed to `OxCacheError`, following `ProjectNameError` naming convention
 - `CacheConfigError` renamed to `OxCacheConfigError`
 - Error code prefix changed from `CACHE_` to `OXCACHE_` (e.g., `CACHE_001` → `OXCACHE_001`)
