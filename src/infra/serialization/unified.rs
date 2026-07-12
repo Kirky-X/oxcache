@@ -3,7 +3,7 @@
 //! Unified serialization manager
 
 use crate::error::OxCacheResult;
-use crate::infra::serialization::{JsonSerializer, Serializer};
+use crate::infra::{JsonSerializer, Serializer};
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 

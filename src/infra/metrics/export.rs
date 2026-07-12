@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 指标导出函数
 
-use crate::infra::metrics::{CacheStats, GLOBAL_UNIFIED_METRICS};
+use crate::infra::{CacheStats, GLOBAL_UNIFIED_METRICS};
 
 /// 获取增强统计快照（全局）
 #[cfg(feature = "metrics")]
@@ -25,7 +25,7 @@ pub fn export_json_format() -> Result<String, serde_json::Error> {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::infra::metrics::convenience;
+    use crate::infra::convenience;
 
     #[test]
     fn test_get_enhanced_stats_returns_cache_stats() {

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 #[cfg(any(feature = "serialization", feature = "full"))]
-use crate::infra::serialization::Serializer;
+use crate::infra::Serializer;
 
 impl<K, V> Cache<K, V>
 where

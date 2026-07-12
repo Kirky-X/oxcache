@@ -917,7 +917,7 @@ mod tests {
 #[cfg(test)]
 mod sync_tests {
     use super::*;
-    use crate::backend::memory::MokaMemoryBackend;
+    use crate::backend::MokaMemoryBackend;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
     use std::thread;

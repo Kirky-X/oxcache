@@ -5,7 +5,7 @@
 use serde::Serialize;
 
 #[cfg(feature = "metrics")]
-use crate::infra::metrics::MetricsSnapshot;
+use crate::infra::MetricsSnapshot;
 
 /// 缓存统计快照
 #[derive(Debug, Clone, Default, Serialize)]

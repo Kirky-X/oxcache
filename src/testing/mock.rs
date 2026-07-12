@@ -3,4 +3,4 @@
 // Re-export MockBackend for crate-internal test usage
 
 #[cfg(test)]
-pub use crate::backend::memory::MockBackend;
+pub use crate::backend::MockBackend;

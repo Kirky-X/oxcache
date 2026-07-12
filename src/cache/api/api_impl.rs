@@ -4,7 +4,7 @@
 
 use super::*;
 use crate::backend::{CacheBackend, SyncCacheBackend};
-use crate::infra::serialization::UnifiedSerializer;
+use crate::infra::UnifiedSerializer;
 use crate::traits::CacheKey;
 use std::sync::Arc;
 
