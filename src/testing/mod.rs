@@ -4,3 +4,6 @@
 
 #[cfg(test)]
 pub mod mock;
+
+#[cfg(test)]
+pub use mock::MockBackend;

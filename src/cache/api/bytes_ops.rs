@@ -65,7 +65,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::api::Cache;
+    use crate::cache::Cache;
 
     // ========================================================================
     // get_bytes tests

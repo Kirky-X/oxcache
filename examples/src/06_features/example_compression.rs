@@ -12,7 +12,7 @@
 //! cd examples && cargo run --example example_compression
 //! ```
 
-use oxcache::infra::serialization::json::JsonSerializer;
+use oxcache::infra::serialization::JsonSerializer;
 use oxcache::infra::serialization::Serializer;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

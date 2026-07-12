@@ -3,7 +3,7 @@
 //! Cache 基础操作方法
 
 use super::Cache;
-use crate::core::constants::MAX_JSON_DEPTH;
+use crate::core::MAX_JSON_DEPTH;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;

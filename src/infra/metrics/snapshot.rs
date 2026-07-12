@@ -5,7 +5,7 @@
 use serde::Serialize;
 
 #[cfg(feature = "metrics")]
-use crate::infra::metrics::unified::MetricsSnapshot;
+use crate::infra::metrics::MetricsSnapshot;
 
 /// 缓存统计快照
 #[derive(Debug, Clone, Default, Serialize)]
@@ -136,8 +136,8 @@ impl CacheStats {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::core::types::CacheLayer;
-    use crate::infra::metrics::unified::{CacheOpResult, CacheOpType, CacheOperation, UnifiedMetrics};
+    use crate::core::CacheLayer;
+    use crate::infra::metrics::{CacheOpResult, CacheOpType, CacheOperation, UnifiedMetrics};
 
     #[test]
     fn test_cache_stats_default_all_zero() {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Unified metrics collection system that consolidates all metrics functionality
 
-use crate::core::types::CacheLayer;
+use crate::core::CacheLayer;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::Serialize;
