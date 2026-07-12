@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-07-13
+
+### Changed
+- `trait-kit` 依赖升级 `0.2` → `0.3`（kit feature 用户需同步升级 trait-kit 到 0.3）
+
 ## [0.3.7] - 2026-07-12
 
 ### Changed
