@@ -48,7 +48,7 @@ optional = true
 
 # trait-kit integration (optional, feature-gated via `kit`).
 [dependencies.trait-kit]
-version = "0.2"
+version = "0.3"
 features = ["async"]
 optional = true
 default-features = false
