@@ -12,6 +12,8 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+// tracing::instrument 仅在 tracing/full feature 下可用
+#[cfg(any(feature = "tracing", feature = "full"))]
 use tracing::instrument;
 
 /// 链式缓存中的一个后端链接
@@ -225,7 +227,7 @@ impl ChainCache {
     }
 
     /// 从链中读取数据
-    #[instrument(skip(self), fields(key = %key))]
+    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         for (index, link) in self.links.iter().enumerate() {
             match link.backend().get(key).await {
@@ -253,7 +255,7 @@ impl ChainCache {
     /// 写入数据到所有后端
     /// ttl=None 时各 backend 用自己的默认 TTL
     /// ttl=Some 时所有 backend 用同一个 TTL
-    #[instrument(skip(self, value), fields(key = %key))]
+    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self, value), fields(key = %key)))]
     async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let mut errors = Vec::new();
         let count = self.links.len();
@@ -285,7 +287,7 @@ impl ChainCache {
     }
 
     /// 从所有后端删除数据
-    #[instrument(skip(self), fields(key = %key))]
+    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn delete_from_all_backends(&self, key: &str) -> OxCacheResult<()> {
         let mut errors = Vec::new();
 

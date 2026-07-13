@@ -4,7 +4,7 @@
 
 use crate::error::OxCacheResult;
 use crate::infra::{JsonSerializer, Serializer};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 
 /// Json-only unified serializer

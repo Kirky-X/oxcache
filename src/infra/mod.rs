@@ -12,23 +12,23 @@ pub mod serialization;
 
 mod infra_impl;
 
-use crate::error::OxCacheError;
-
+#[allow(unused_imports)]
 pub use infra_impl::validate_cache_key;
 
 #[cfg(feature = "metrics")]
-pub use metrics::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
+pub use metrics::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
 
 // Re-export commonly used types at the infra module level for two-level import paths
 #[cfg(feature = "metrics")]
-pub use metrics::{convenience, MetricsSnapshot, GLOBAL_UNIFIED_METRICS};
+pub use metrics::{GLOBAL_UNIFIED_METRICS, MetricsSnapshot, convenience};
 
 #[cfg(feature = "serialization")]
-pub use serialization::{default_serializer, JsonSerializer, Serializer, UnifiedSerializer, UnifiedSerializerAdapter};
+pub use serialization::{JsonSerializer, Serializer, UnifiedSerializer, UnifiedSerializerAdapter, default_serializer};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::OxCacheError;
 
     #[test]
     fn test_validate_cache_key_valid() {

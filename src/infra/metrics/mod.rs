@@ -19,7 +19,7 @@ pub use unified::{AtomicCounters, UnifiedMetrics};
 pub struct Metrics;
 
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
-pub use metrics_impl::{get_metrics_string, GLOBAL_METRICS};
+pub use metrics_impl::{GLOBAL_METRICS, get_metrics_string};
 
 // ============================================================================
 // Unified Metrics Exports
@@ -27,8 +27,8 @@ pub use metrics_impl::{get_metrics_string, GLOBAL_METRICS};
 
 // Re-export unified metrics
 pub use unified::{
-    convenience as unified_convenience, CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, HistogramData,
-    HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData, GLOBAL_UNIFIED_METRICS,
+    CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, GLOBAL_UNIFIED_METRICS, HistogramData, HitRates,
+    MetricValue, MetricsConfig, MetricsSnapshot, TimerData, convenience as unified_convenience,
 };
 
 // Re-export convenience module for test access

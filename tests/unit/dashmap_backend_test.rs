@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 // DashMap 后端单元测试
 
-use oxcache::backend::memory::{
-    dashmap_memory, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl, DashMapBackendBuilder,
-    DashMapMemoryBackend,
-};
 use oxcache::backend::BackendScore;
+use oxcache::backend::memory::{
+    DashMapBackendBuilder, DashMapMemoryBackend, dashmap_memory, dashmap_memory_with_capacity,
+    dashmap_memory_with_capacity_and_ttl,
+};
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::time::Duration;
 

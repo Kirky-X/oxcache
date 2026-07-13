@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! 类型安全的枚举定义，用于替代硬编码字符串常量
 
+// serde derive/attrs 仅在 serialization/full feature 下可用（特性隔离）
+#[cfg(any(feature = "serialization", feature = "full"))]
 use serde::{Deserialize, Serialize};
 
 /// Redis 连接模式
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
+#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "lowercase"))]
 pub enum RedisModeType {
     /// 单机模式
     #[default]
@@ -52,8 +55,9 @@ impl std::str::FromStr for RedisModeType {
 /// - `Sqlite` - L2/L3（持久化存储）
 /// - `None` - 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
 /// - `Custom` - 任意层级（自定义后端）
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
+#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "snake_case"))]
 pub enum BackendType {
     /// Moka 高性能内存缓存（推荐 L1/L2）
     #[cfg(feature = "memory")]
@@ -65,7 +69,7 @@ pub enum BackendType {
     #[cfg(feature = "redis")]
     Redis,
     /// 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
-    #[serde(rename = "none")]
+    #[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename = "none"))]
     #[default]
     None,
     /// 自定义后端（任意层级，通过 BackendProvider 注入）
@@ -88,7 +92,8 @@ impl std::fmt::Display for BackendType {
 }
 
 /// 缓存层级
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
 pub enum CacheLayer {
     /// L1 内存缓存
     #[default]
@@ -110,8 +115,9 @@ impl std::fmt::Display for CacheLayer {
 }
 
 /// 序列化格式类型
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
+#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "lowercase"))]
 pub enum SerializationType {
     /// JSON 格式
     #[default]

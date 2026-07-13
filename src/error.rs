@@ -233,6 +233,8 @@ impl From<std::io::Error> for OxCacheError {
     }
 }
 
+// serde_json::Error 转换仅在 serialization/full feature 下可用（serde_json 依赖门控）
+#[cfg(any(feature = "serialization", feature = "full"))]
 impl From<serde_json::Error> for OxCacheError {
     fn from(e: serde_json::Error) -> Self {
         OxCacheError::Serialization(e.to_string())
@@ -598,6 +600,7 @@ mod tests {
         assert!(matches!(cache_err, OxCacheError::IoError(_)));
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[test]
     fn test_from_serde_json_error() {
         let serde_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();

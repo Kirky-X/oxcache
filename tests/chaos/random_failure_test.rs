@@ -8,8 +8,8 @@ use crate::common::is_redis_available;
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 use std::sync::Once;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 static INIT: Once = Once::new();
 

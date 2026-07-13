@@ -4,7 +4,7 @@
 
 #![cfg(feature = "redis")]
 
-use oxcache::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+use oxcache::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 
 // ============================================================================
 // redact_value 函数测试
