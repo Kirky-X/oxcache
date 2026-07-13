@@ -3,6 +3,8 @@
 //! Cache 基础操作方法
 
 use super::Cache;
+// MAX_JSON_DEPTH 仅在 deserialize_value 中使用，需随 serialization/full feature 门控
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::core::MAX_JSON_DEPTH;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
@@ -15,6 +17,8 @@ use std::time::Duration;
 use tracing::instrument;
 
 /// 计算 JSON 值的嵌套深度（用于防止栈溢出攻击）
+// 使用 serde_json::Value，仅在 serialization/full feature 下可用
+#[cfg(any(feature = "serialization", feature = "full"))]
 fn json_depth(value: &serde_json::Value) -> usize {
     match value {
         serde_json::Value::Object(map) => {
@@ -162,7 +166,7 @@ where
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
-            let _ = (key_str, value);
+            let _ = (key_str, value, ttl);
             Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set operations".to_string(),
             ))
@@ -414,7 +418,7 @@ where
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
-            let _ = (key_str, value, ttl);
+            let _ = (backend, key_str, value, ttl);
             Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set operations".to_string(),
             ))
@@ -918,8 +922,8 @@ mod tests {
 mod sync_tests {
     use super::*;
     use crate::backend::MokaMemoryBackend;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::thread;
     use std::time::Duration;
 

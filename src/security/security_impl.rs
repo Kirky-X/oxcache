@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 //! Security impl - functions extracted from mod.rs
 
-use super::*;
 #[cfg(feature = "redis")]
 use crate::error::{OxCacheError, OxCacheResult};
 
@@ -78,8 +77,8 @@ lazy_static::lazy_static! {
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
     // 基础验证：使用共享验证工具
-    use crate::security::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
     use crate::security::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
+    use crate::security::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
 
     validate_not_empty(key, "Redis key")?;
     validate_max_length(key, MAX_KEY_LENGTH, "Redis key")?;

@@ -8,7 +8,8 @@ use crate::error::OxCacheResult;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::Serializer;
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+#[cfg(any(feature = "serialization", feature = "full"))]
+use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -58,6 +59,7 @@ pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
 
     /// Get typed value from cache
+    #[cfg(any(feature = "serialization", feature = "full"))]
     async fn get_typed<T: DeserializeOwned + Send>(&self, key: &str) -> OxCacheResult<Option<T>> {
         let bytes = self.get_bytes(key).await?;
         match bytes {
@@ -71,6 +73,7 @@ pub trait UnifiedCache: Send + Sync + 'static {
     }
 
     /// Set typed value in cache
+    #[cfg(any(feature = "serialization", feature = "full"))]
     async fn set_typed<T: Serialize + Send + Sync>(
         &self,
         key: &str,
@@ -86,6 +89,8 @@ pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
 
     /// Get the serializer used by this cache
+    // Serializer trait 仅在 serialization/full feature 下可用
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &dyn Serializer;
 
     /// Get the backend type for runtime identification
@@ -139,7 +144,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     // Default serializer implementation
     #[cfg(any(feature = "serialization", feature = "full"))]
     fn serializer(&self) -> &dyn Serializer {
-        use crate::infra::{default_serializer, UnifiedSerializerAdapter};
+        use crate::infra::{UnifiedSerializerAdapter, default_serializer};
         use once_cell::sync::Lazy;
         use std::sync::Arc;
 
@@ -158,8 +163,10 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
 mod tests {
     use super::*;
     use crate::backend::MokaMemoryBackend;
+    #[cfg(any(feature = "serialization", feature = "full"))]
     use serde::{Deserialize, Serialize};
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct TestData {
         id: u64,
@@ -244,6 +251,7 @@ mod tests {
         backend.shutdown().await;
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[tokio::test]
     async fn test_unified_cache_get_typed() {
         let backend = make_backend();
@@ -256,6 +264,7 @@ mod tests {
         assert_eq!(result, Some(data));
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[tokio::test]
     async fn test_unified_cache_get_typed_missing() {
         let backend = make_backend();
@@ -263,6 +272,7 @@ mod tests {
         assert_eq!(result, None);
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[tokio::test]
     async fn test_unified_cache_set_typed_with_ttl() {
         let backend = make_backend();
@@ -278,6 +288,7 @@ mod tests {
         assert_eq!(result, Some(data));
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[tokio::test]
     async fn test_unified_cache_get_typed_deserialization_error() {
         let backend = make_backend();
@@ -290,6 +301,7 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[cfg(any(feature = "serialization", feature = "full"))]
     #[test]
     fn test_unified_cache_serializer() {
         let backend = make_backend();

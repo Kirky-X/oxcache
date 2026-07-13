@@ -3,7 +3,7 @@
 // 深度限制序列化单元测试
 
 use oxcache::infra::serialization::{
-    would_exceed_depth_limit, DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH,
+    DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, would_exceed_depth_limit,
 };
 use serde_json::json;
 

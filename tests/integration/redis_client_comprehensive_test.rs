@@ -8,10 +8,10 @@
 #[cfg(feature = "redis")]
 mod redis_client_tests {
     use crate::common::{get_redis_url, is_redis_available};
-    use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::BackendScore;
     #[cfg(feature = "lua-script")]
     use oxcache::backend::LuaExecutor;
+    use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
     #[cfg(feature = "lua-script")]
     use oxcache::validate_lua_script;
@@ -372,10 +372,12 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            assert!(backend
-                .set_many_pipeline(&Vec::<(&str, Vec<u8>)>::new(), None)
-                .await
-                .is_ok());
+            assert!(
+                backend
+                    .set_many_pipeline(&Vec::<(&str, Vec<u8>)>::new(), None)
+                    .await
+                    .is_ok()
+            );
             assert!(backend.get_many_pipeline(&Vec::<&str>::new()).await.unwrap().is_empty());
             assert!(backend.delete_many_pipeline(&Vec::<&str>::new()).await.is_ok());
         }
@@ -436,10 +438,12 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            assert!(backend
-                .set_many(&Vec::<(String, Vec<u8>, Option<Duration>)>::new())
-                .await
-                .is_ok());
+            assert!(
+                backend
+                    .set_many(&Vec::<(String, Vec<u8>, Option<Duration>)>::new())
+                    .await
+                    .is_ok()
+            );
             assert!(backend.get_many(&Vec::<String>::new()).await.unwrap().is_empty());
             assert!(backend.delete_many(&Vec::<String>::new()).await.is_ok());
         }
@@ -625,10 +629,12 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            assert!(backend
-                .set("key\nwith\nnewlines", b"value".to_vec(), None)
-                .await
-                .is_err());
+            assert!(
+                backend
+                    .set("key\nwith\nnewlines", b"value".to_vec(), None)
+                    .await
+                    .is_err()
+            );
             assert!(backend.set("", b"value".to_vec(), None).await.is_err());
             assert!(backend.set("key\0withnull", b"value".to_vec(), None).await.is_err());
         }
@@ -653,10 +659,12 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             assert!(backend.ttl("nonexistent_ttl_key").await.unwrap().is_none());
-            assert!(!backend
-                .expire("nonexistent_expire_key", Duration::from_secs(60))
-                .await
-                .unwrap());
+            assert!(
+                !backend
+                    .expire("nonexistent_expire_key", Duration::from_secs(60))
+                    .await
+                    .unwrap()
+            );
 
             backend
                 .set("expire_quick_key", b"value".to_vec(), Some(Duration::from_secs(2)))

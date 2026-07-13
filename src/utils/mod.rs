@@ -9,16 +9,16 @@ pub use key_generator::KeyGenerator;
 
 mod utils_impl;
 
-use crate::error::OxCacheError;
-
-// Import constants for test access (tests use `use super::*;`)
+#[cfg(test)]
 use utils_impl::{MAX_CACHE_KEY_LENGTH, VALID_KEY_CHARS};
 
+#[allow(unused_imports)]
 pub use utils_impl::validate_cache_key;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::OxCacheError;
 
     #[test]
     fn test_validate_cache_key_valid() {

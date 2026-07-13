@@ -5,8 +5,8 @@
 #[cfg(feature = "metrics")]
 mod tests {
     use oxcache::infra::metrics::{
-        export_json_format, export_prometheus_format, get_enhanced_stats, AtomicCounters, CacheLayer, CacheOpResult,
-        CacheOpType, CacheOperation, CacheStats, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
+        AtomicCounters, CacheLayer, CacheOpResult, CacheOpType, CacheOperation, CacheStats, GLOBAL_UNIFIED_METRICS,
+        UnifiedMetrics, export_json_format, export_prometheus_format, get_enhanced_stats,
     };
     use std::sync::atomic::Ordering;
 

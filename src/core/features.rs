@@ -15,12 +15,14 @@ macro_rules! feature_check {
     ($feature:literal, $name:ident, $doc:expr) => {
         #[cfg(feature = $feature)]
         #[doc = $doc]
+        #[allow(dead_code)]
         pub fn $name() -> bool {
             true
         }
 
         #[cfg(not(feature = $feature))]
         #[doc = $doc]
+        #[allow(dead_code)]
         pub fn $name() -> bool {
             false
         }
@@ -53,6 +55,7 @@ feature_check!("cli", cli_available, "Check if CLI is available");
 // ============================================================================
 
 /// Unified feature availability check
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct FeatureSet {
     /// L1 cache available
@@ -65,6 +68,7 @@ pub struct FeatureSet {
     pub(crate) cli_available: bool,
 }
 
+#[allow(dead_code)]
 impl FeatureSet {
     /// Create feature set from current features
     pub fn current() -> Self {

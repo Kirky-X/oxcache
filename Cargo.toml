@@ -203,8 +203,9 @@ features = ["redis"]
 
 [features]
 
-# Default: Full feature set for maximum compatibility
-default = ["full"]
+# Default: Minimal feature set (L1 memory cache only)
+# Users opt-in to higher tiers via features = ["core"] / ["full"]
+default = ["minimal"]
 
 # --------------------------------------------------------------------
 # TIERED FEATURES
@@ -243,7 +244,8 @@ full = [
 # --------------------------------------------------------------------
 
 # L1 Memory Cache (Moka + DashMap)
-memory = ["dep:moka", "dep:dashmap"]
+# serde: needed for V: Serialize + Deserialize trait bounds and derives on type enums
+memory = ["dep:moka", "dep:dashmap", "dep:serde"]
 
 # L2 Distributed Cache (Redis)
 redis = ["dep:redis", "dep:regex"]
@@ -368,6 +370,7 @@ harness = false
 [[bench]]
 name = "redis_benchmark"
 harness = false
+required-features = ["redis"]
 
 [lints.rust]
 unexpected_cfgs = "allow"

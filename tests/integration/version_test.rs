@@ -5,8 +5,10 @@
 #[cfg(feature = "redis")]
 use oxcache::backend::memory::RedisBackend;
 
+#[cfg(feature = "redis")]
 use std::sync::Arc;
 
+#[cfg(feature = "redis")]
 use crate::common;
 
 #[tokio::test]
