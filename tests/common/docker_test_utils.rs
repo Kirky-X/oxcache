@@ -8,8 +8,8 @@
 #![allow(dead_code)]
 
 use std::time::Duration;
-use testcontainers::runners::AsyncRunner;
 use testcontainers::ImageExt;
+use testcontainers::runners::AsyncRunner;
 
 /// Redis 容器类型别名
 pub type RedisContainer = testcontainers::ContainerAsync<testcontainers_modules::redis::Redis>;

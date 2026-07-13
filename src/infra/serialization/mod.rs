@@ -13,10 +13,10 @@ use crate::error::OxCacheResult;
 pub use json::JsonSerializer;
 
 // Unified serialization exports
-pub use unified::{default_serializer, UnifiedSerializer, UnifiedSerializerAdapter};
+pub use unified::{UnifiedSerializer, UnifiedSerializerAdapter, default_serializer};
 
 // Depth-limited serialization exports
-pub use depth_limited::{would_exceed_depth_limit, DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH};
+pub use depth_limited::{DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, would_exceed_depth_limit};
 
 /// 序列化器特征
 ///

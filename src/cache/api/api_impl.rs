@@ -4,6 +4,8 @@
 
 use super::*;
 use crate::backend::{CacheBackend, SyncCacheBackend};
+// UnifiedSerializer 仅在 serialization/full feature 下可用
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
 use crate::traits::CacheKey;
 use std::sync::Arc;
@@ -32,6 +34,7 @@ where
             backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
             serializer: Arc::new(crate::infra::JsonSerializer::new()),
+            #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         }
@@ -94,6 +97,7 @@ where
             backend_sync: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
             serializer: Arc::new(crate::infra::JsonSerializer::new()),
+            #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
             _phantom: std::marker::PhantomData,
         })

@@ -6,6 +6,6 @@ pub mod backend;
 
 // Re-export main types for convenience
 pub use backend::{
-    default_memory_backend, moka_memory, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl,
-    MokaMemoryBackend, MokaMemoryBackendBuilder,
+    MokaMemoryBackend, MokaMemoryBackendBuilder, default_memory_backend, moka_memory, moka_memory_with_capacity,
+    moka_memory_with_capacity_and_ttl,
 };

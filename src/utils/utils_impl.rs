@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 //! Utils impl - functions extracted from mod.rs
 
-use super::*;
 use crate::error::OxCacheError;
 
 pub(super) const MAX_CACHE_KEY_LENGTH: usize = 1024;
@@ -12,6 +11,7 @@ pub(super) const VALID_KEY_CHARS: &[char] = &[
     'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
+#[allow(dead_code)]
 pub fn validate_cache_key(key: &str) -> Result<(), OxCacheError> {
     if key.is_empty() {
         return Err(OxCacheError::InvalidInput("Cache key cannot be empty".to_string()));

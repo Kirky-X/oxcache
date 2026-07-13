@@ -45,14 +45,14 @@ pub use score::{BackendScore, Scores};
 
 // Memory backend implementations
 pub use memory::{
-    dashmap_memory,
-    default_memory_backend,
-    // Convenience functions
-    moka_memory,
     DashMapMemoryBackend,
     // Type definitions
     MemoryBackendType,
     MokaMemoryBackend,
+    dashmap_memory,
+    default_memory_backend,
+    // Convenience functions
+    moka_memory,
 };
 
 // Re-export MockBackend for crate-internal test usage

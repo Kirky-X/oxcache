@@ -54,13 +54,13 @@
 
 ```toml
 [dependencies]
-oxcache = "0.3.6"
+oxcache = "0.3.8"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.3.5", default-features = false }` 手动添加。
+`oxcache = { version = "0.3.8", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.5", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.8", features = ["macros"] }`
 
 ### 基础使用
 
@@ -133,16 +133,16 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.3.6", features = ["full"] }
+oxcache = { version = "0.3.8", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.6", features = ["core"] }
+oxcache = { version = "0.3.8", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.6", features = ["minimal"] }
+oxcache = { version = "0.3.8", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.3.6", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.3.8", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 ### 可用特性
@@ -165,6 +165,9 @@ oxcache = { version = "0.3.6", features = ["core", "macros", "metrics", "bloom-f
 - `cli` - 命令行界面（clap）
 - `tracing` - 结构化日志支持
 - `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
+- `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
+- `i18n` - Internationalization support；不在 `full` 中，需显式启用
+- `testing` - Testing utilities
 
 ## 🎨 使用场景
 
@@ -297,7 +300,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.6", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3.8", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust

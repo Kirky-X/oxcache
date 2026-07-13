@@ -5,6 +5,8 @@
 use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
+// Arc 仅在 serializer() 方法中使用，需随 serialization/full feature 门控
+#[cfg(any(feature = "serialization", feature = "full"))]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -58,6 +60,8 @@ where
         self.serializer.clone()
     }
 
+    // unified_serializer() 仅在 serialization/full feature 下可用
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub fn unified_serializer(&self) -> crate::infra::UnifiedSerializer {
         self.unified_serializer.clone()
     }

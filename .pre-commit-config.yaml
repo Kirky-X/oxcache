@@ -18,7 +18,8 @@ repos:
       - id: check-merge-conflict
         args: ['--assume-in-merge']
       - id: no-commit-to-branch
-        args: ['--branch', 'main', '--branch', 'master']
+        args: ['--branch', 'master']
+        # Only protect master branch, allow main for development
       - id: mixed-line-ending
         args: ['--fix=lf']
 

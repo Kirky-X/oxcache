@@ -76,8 +76,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::cache::Cache;
+    #[cfg(feature = "lua-script")]
+    use crate::error::OxCacheError;
 
     // ========================================================================
     // register_for_macro tests

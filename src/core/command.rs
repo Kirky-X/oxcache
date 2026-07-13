@@ -3,6 +3,7 @@
 //! Redis 命令枚举
 
 /// Redis 命令枚举
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RedisCommand {
     Ping,

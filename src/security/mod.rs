@@ -35,17 +35,18 @@ mod security_impl;
 pub use log::{log_cache_key, sanitize_message};
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
-pub use redaction::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+pub use redaction::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use validation::{
-    validate_max_length, validate_no_dangerous_chars, validate_not_empty, DANGEROUS_CHARS, MAX_KEY_LENGTH,
+    DANGEROUS_CHARS, MAX_KEY_LENGTH, validate_max_length, validate_no_dangerous_chars, validate_not_empty,
 };
 
-#[cfg(feature = "redis")]
+// OxCacheError is only referenced by the test module below (via `use super::*`).
+#[cfg(all(test, feature = "redis"))]
 use crate::error::OxCacheError;
 
 // Re-export public functions from security_impl
@@ -53,11 +54,10 @@ use crate::error::OxCacheError;
 pub use security_impl::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
 
 // Import private functions and constants for test access (tests use `use super::*;`)
-#[cfg(feature = "redis")]
+#[cfg(all(test, feature = "redis"))]
 use security_impl::{
-    count_lua_long_string_level, preprocess_lua_script, skip_lua_long_string, MAX_LUA_SCRIPT_KEYS,
-    MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS, SCAN_COUNT_MAX,
-    SCAN_COUNT_MIN,
+    MAX_LUA_SCRIPT_KEYS, MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS, SCAN_COUNT_MAX,
+    SCAN_COUNT_MIN, count_lua_long_string_level, preprocess_lua_script, skip_lua_long_string,
 };
 
 #[cfg(all(test, feature = "redis"))]

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! 该模块定义了JSON序列化器的实现。
 
-use super::depth_limited::{would_exceed_depth_limit, MAX_DESERIALIZE_DEPTH};
-use super::utils::{check_data_size, compress_data, decompress_data};
 use super::Serializer;
+use super::depth_limited::{MAX_DESERIALIZE_DEPTH, would_exceed_depth_limit};
+use super::utils::{check_data_size, compress_data, decompress_data};
 use crate::error::{OxCacheError, OxCacheResult};
 use serde::{Deserialize, Serialize};
 

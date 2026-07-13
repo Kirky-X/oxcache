@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `trait-kit` 依赖升级 `0.2` → `0.3`（kit feature 用户需同步升级 trait-kit 到 0.3）
+- `memory` feature now explicitly declares `dep:serde` (was implicit via `serialization`)
+- `cfg_attr(dead_code)` condition changed from `not(any(feature = "core", feature = "full"))` to `not(feature = "full")` to fix 34 dead_code errors in core-only mode
+- serde/serde_json usage gated behind `any(feature = "serialization", feature = "full")` across 9 files for proper feature isolation
+- Removed unused `#[cfg(feature = "redis")] use super::*;` in security_impl.rs
+- Tightened test-only imports to `#[cfg(all(test, feature = "redis"))]` in security/mod.rs
+- Ran `cargo fmt --all` to fix formatting in tests/* files
 
 ## [0.3.7] - 2026-07-12
 

@@ -12,7 +12,7 @@
 
 use std::time::Instant;
 
-use oxcache::{Cache, OxCacheError, CacheEvent, CacheEventType, EventPublisher};
+use oxcache::{Cache, CacheEvent, CacheEventType, EventPublisher, OxCacheError};
 
 /// 自定义事件发布器示例
 ///

@@ -9,6 +9,8 @@ mod bytes_ops;
 mod macros;
 
 use crate::backend::{CacheBackend, SyncCacheBackend};
+// UnifiedSerializer 仅在 serialization/full feature 下可用
+#[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
 use std::sync::Arc;
 
@@ -20,6 +22,8 @@ pub struct Cache<K, V> {
     pub(crate) backend_sync: Option<Arc<dyn SyncCacheBackend>>,
     #[cfg(any(feature = "serialization", feature = "full"))]
     pub(crate) serializer: Arc<crate::infra::JsonSerializer>,
+    // unified_serializer 字段仅在 serialization/full feature 下存在
+    #[cfg(any(feature = "serialization", feature = "full"))]
     pub(crate) unified_serializer: UnifiedSerializer,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
