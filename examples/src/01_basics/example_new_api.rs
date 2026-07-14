@@ -26,7 +26,7 @@ impl CacheKey for UserId {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> OxCacheResult<()> {
     println!("新API使用示例");
     println!("======================\n");
 

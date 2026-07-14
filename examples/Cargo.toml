@@ -30,7 +30,7 @@ chrono = { version = "~0.4", default-features = false, features = ["serde"] }
 async-trait = "~0.1"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["async_tokio"] }
+criterion = { version = "0.8", features = ["async_tokio"] }
 
 [[example]]
 name = "example_basic_operations"

@@ -160,7 +160,7 @@ version = "3.0"
 optional = true
 
 [dependencies.regex]
-version = "~1.12"
+version = "~1.13"
 optional = true
 
 # Chrono - 精简特性
