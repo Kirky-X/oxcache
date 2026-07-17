@@ -111,6 +111,7 @@ docs/repowiki/
 .semgrep-results/
 lcov.info
 cobertura.xml
+strix_runs
 
 # =============================================================================
 # AI / Agent Tools (not for version control)
