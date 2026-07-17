@@ -1,0 +1,9 @@
+# Non-production code paths excluded from secret/pattern scanning to suppress
+# fixture/example false positives (audit HIGH-7 noise reduction).
+# NOTE: source under src/ is NOT ignored here. src-level false positives
+# (doc-comment placeholder tokens) require per-line `// nosem` suppression.
+target/
+strix_runs/
+tests/
+benches/
+examples/
