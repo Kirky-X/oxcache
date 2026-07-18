@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-07-19
+
 ### Added
 - **[T003]** `#[cached]` 宏新增 `skip_errors` 参数：设为 `true` 时错误结果不触发缓存写入
 
@@ -19,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tracing-subscriber` 从 `metrics` feature 移至 `[dev-dependencies]`（仅 tests/examples 使用，src/ 无引用）
 - `metrics` feature 新增 `serialization` 依赖（metrics 代码使用 serde/serde_json 进行 JSON 导出，原隐式依赖现显式声明）
 - 内置 metrics 实现（`src/infra/metrics/*`）完全保留，不受影响
-- 同步更新 `src/lib.rs:90` 模块级 rustdoc（移除"OpenTelemetry metrics"过时描述）和 `src/lib.rs:99` `html_root_url` 版本号（0.3.8 → 0.3.9）
+- 同步更新 `src/lib.rs:90` 模块级 rustdoc（移除"OpenTelemetry metrics"过时描述）和 `src/lib.rs:99` `html_root_url` 版本号（0.3.9 → 0.3.10）
 
 ### Performance
 - 实测基线（`cargo clean && cargo build --features metrics --release`）：23.23s wall, 1m45s user
