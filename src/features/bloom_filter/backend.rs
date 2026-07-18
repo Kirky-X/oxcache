@@ -741,7 +741,7 @@ mod tests {
 
         // SyncCacheBackend via blanket impl.
 
-        // --- Tests (Red phase: all three panic via `unimplemented!()`) ---
+        // --- Tests for BloomFilterBackend sync cache behavior ---
 
         #[test]
         fn test_bf_backend_sync_get_miss_skips_inner() {

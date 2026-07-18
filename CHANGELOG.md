@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **[T003]** `#[cached]` 宏新增 `skip_errors` 参数：设为 `true` 时错误结果不触发缓存写入
+
+### Fixed
+- **[T001]** `#[cached]` 宏 `expect("Failed to parse arguments")` 替换为 `syn::Error`（带 span 的编译错误，Rule 12）
+- **[T002]** `#[cached]` 宏 `panic!("...")` 替换为 `syn::Error::new(span, "...").to_compile_error()`（Rule 12）
+
 ### Changed
 - `metrics` feature 移除 4 个未使用 OpenTelemetry 依赖：`opentelemetry`, `opentelemetry_sdk`, `tracing-opentelemetry`, `opentelemetry-otlp`（src/ 树 0 引用，纯历史遗留）
 - `tracing-subscriber` 从 `metrics` feature 移至 `[dev-dependencies]`（仅 tests/examples 使用，src/ 无引用）

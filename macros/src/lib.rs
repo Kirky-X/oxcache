@@ -9,7 +9,12 @@ use syn::{parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, ItemFn
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
-    let args = parser.parse(args).expect("Failed to parse arguments");
+    // Rule 12: surface parse failures as `compile_error!` with a span
+    // pointing at the offending argument, instead of panicking.
+    let args = match parser.parse(args) {
+        Ok(args) => args,
+        Err(e) => return e.to_compile_error().into(),
+    };
     let input = parse_macro_input!(item as ItemFn);
 
     let mut service_name = "default".to_string();
@@ -17,12 +22,20 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut key_pattern = None;
     let mut key_prefix = None;
     let mut sync_mode = false;
+    // T003: when true, the macro skips the cache-write side effect for the
+    // `Ok` path (i.e. even successful results are NOT written to the cache).
+    // Default `false` preserves the existing behavior (Ok results are cached).
+    let mut skip_errors = false;
 
     for arg in args {
         match arg {
             // `sync` flag — boolean path-style argument (no value).
             Meta::Path(path) if path.is_ident("sync") => {
                 sync_mode = true;
+            }
+            // `skip_errors` flag — boolean path-style argument (no value).
+            Meta::Path(path) if path.is_ident("skip_errors") => {
+                skip_errors = true;
             }
             Meta::NameValue(nv) => {
                 if nv.path.is_ident("service") {
@@ -58,9 +71,15 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Validate: `sync` cannot be combined with `async fn`. The sync branch
     // generates a plain `fn`, which is incompatible with `async` in the
-    // user's signature. Fail loud at macro expansion time.
+    // user's signature. Rule 12: emit a `compile_error!` with a span
+    // pointing at the attribute, instead of panicking.
     if sync_mode && input.sig.asyncness.is_some() {
-        panic!("`#[cached(sync)]` cannot be used with `async fn`; either remove `async` from the function signature or remove `sync` from the `#[cached]` arguments");
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`#[cached(sync)]` cannot be used with `async fn`; either remove `async` from the function signature or remove `sync` from the `#[cached]` arguments",
+        )
+        .to_compile_error()
+        .into();
     }
 
     let fn_name = &input.sig.ident;
@@ -170,10 +189,12 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 // Run original function
                 let result = { #fn_block };
 
-                // Cache result if Ok
-                if let Ok(ref val) = result {
-                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                        let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
+                // Cache result if Ok — skipped when `skip_errors` is set.
+                if !#skip_errors {
+                    if let Ok(ref val) = result {
+                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                            let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
+                        }
                     }
                 }
 
@@ -203,10 +224,12 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 // Run original function
                 let result = async { #fn_block }.await;
 
-                // Cache result if Ok
-                if let Ok(ref val) = result {
-                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                        let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                // Cache result if Ok — skipped when `skip_errors` is set.
+                if !#skip_errors {
+                    if let Ok(ref val) = result {
+                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                            let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                        }
                     }
                 }
 
