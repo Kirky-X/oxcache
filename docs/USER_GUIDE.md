@@ -603,8 +603,8 @@ warn!("Redis connection lost, operating in L1-only mode");
 error!("Failed to write to cache: {}", err);
 ```
 
-启用 `metrics` 特性会引入 OpenTelemetry 依赖（`opentelemetry`、`tracing-opentelemetry`、
-`opentelemetry-otlp`），可用于 OTLP 导出。
+启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `tracing` + `chrono` + `dashmap`），
+不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理，避免重复初始化 tracer provider。
 
 ### 优雅关闭
 

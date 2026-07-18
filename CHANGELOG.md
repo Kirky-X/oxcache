@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.10] - 2026-07-19
 
 ### Added
-- **[T003]** `#[cached]` 宏新增 `skip_errors` 参数：设为 `true` 时错误结果不触发缓存写入
+- **[T003]** `#[cached]` 宏新增 `skip_cache_write` 参数：设为 `true` 时跳过 Ok 结果的缓存写入（等价于完全禁用缓存写入，因 Err 结果本就不缓存）。原命名 `skip_errors` 因语义误导（暗示控制 Err 路径，实际控制 Ok 路径）在发布前重命名为 `skip_cache_write`
 
 ### Fixed
 - **[T001]** `#[cached]` 宏 `expect("Failed to parse arguments")` 替换为 `syn::Error`（带 span 的编译错误，Rule 12）
 - **[T002]** `#[cached]` 宏 `panic!("...")` 替换为 `syn::Error::new(span, "...").to_compile_error()`（Rule 12）
+- **[T001-followup]** `#[cached]` 宏 `ttl` 参数解析的 `lit.base10_parse::<u64>().unwrap()` 替换为 `syn::Error`（补全 Rule 12 修复，避免 u64 溢出时 proc-macro panic）
+- **[Rule12]** `#[cached]` 宏未知参数和类型不匹配不再 silent ignore，改为返回带 span 的 `compile_error!`（如 `service = 123`、`#[cached(unknown)]`、`#[cached(ttl = "60")]`）
 
 ### Changed
 - `metrics` feature 移除 4 个未使用 OpenTelemetry 依赖：`opentelemetry`, `opentelemetry_sdk`, `tracing-opentelemetry`, `opentelemetry-otlp`（src/ 树 0 引用，纯历史遗留）
@@ -22,10 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `metrics` feature 新增 `serialization` 依赖（metrics 代码使用 serde/serde_json 进行 JSON 导出，原隐式依赖现显式声明）
 - 内置 metrics 实现（`src/infra/metrics/*`）完全保留，不受影响
 - 同步更新 `src/lib.rs:90` 模块级 rustdoc（移除"OpenTelemetry metrics"过时描述）和 `src/lib.rs:99` `html_root_url` 版本号（0.3.9 → 0.3.10）
+- `macros` feature 显式依赖 `minimal`（修复独立启用 `macros` 时 `__internal_get_cache` 找不到的编译错误）
+- `src/lib.rs` `check_feature_dependence!` 宏内硬编码版本号 `0.3.8` → `0.3`（与 README 统一为 x.x 格式）
+- `docs/API_REFERENCE.md` 和 `docs/USER_GUIDE.md` 中 OpenTelemetry/OTLP 描述同步为内置 metrics 实现
+- `docs/USER_GUIDE.md` 默认特性描述修正：`default = ["full"]` → `default = ["minimal"]`
 
 ### Performance
 - 实测基线（`cargo clean && cargo build --features metrics --release`）：23.23s wall, 1m45s user
 - Release rlib 大小：3.5 MB（移除 otel 重依赖后，依赖图与产物体积均下降；运行时性能零回退——`src/infra/metrics/*` 热路径未改动）
+- 测试环境：Linux x86_64，Rust 1.85，release profile（opt-level=3, lto=fat, codegen-units=1）
 
 ## [0.3.8] - 2026-07-13
 
