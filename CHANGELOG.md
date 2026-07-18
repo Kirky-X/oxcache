@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[T002]** `#[cached]` 宏 `panic!("...")` 替换为 `syn::Error::new(span, "...").to_compile_error()`（Rule 12）
 - **[T001-followup]** `#[cached]` 宏 `ttl` 参数解析的 `lit.base10_parse::<u64>().unwrap()` 替换为 `syn::Error`（补全 Rule 12 修复，避免 u64 溢出时 proc-macro panic）
 - **[Rule12]** `#[cached]` 宏未知参数和类型不匹配不再 silent ignore，改为返回带 span 的 `compile_error!`（如 `service = 123`、`#[cached(unknown)]`、`#[cached(ttl = "60")]`）
+- **[Rule12-review]** `#[cached]` 宏生成代码中缓存写入/序列化/反序列化失败不再 `let _ =` 静默吞掉，改为 `tracing::warn!` 记录 service/key/error（H-1 + M-1）
+- **[Rule12-review]** `#[cached]` 宏解构参数（如 `fn foo((a, b): (i32, i32))`）不再 silent skip，改为 `compile_error!` 显性报错（L-1，避免削弱缓存 key 唯一性）
+- **[Rust2024]** `src/backend/memory/redis/client.rs` 11 处 test-only `unsafe { std::env::set_var/remove_var(...) }` 集中到 3 个 helper 函数（`set_allow_insecure_env`/`set_insecure_env`/`remove_allow_insecure_env`），统一 SAFETY 注释 + nosem 抑制
 
 ### Changed
 - `metrics` feature 移除 4 个未使用 OpenTelemetry 依赖：`opentelemetry`, `opentelemetry_sdk`, `tracing-opentelemetry`, `opentelemetry-otlp`（src/ 树 0 引用，纯历史遗留）
