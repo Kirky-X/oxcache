@@ -4,7 +4,10 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse::Parser, parse_macro_input, punctuated::Punctuated, Expr, ItemFn, Lit, Meta, Token};
+use syn::{
+    parse::Parser, parse_macro_input, punctuated::Punctuated, spanned::Spanned, Expr, ItemFn, Lit,
+    Meta, Token,
+};
 
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -25,47 +28,155 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     // T003: when true, the macro skips the cache-write side effect for the
     // `Ok` path (i.e. even successful results are NOT written to the cache).
     // Default `false` preserves the existing behavior (Ok results are cached).
-    let mut skip_errors = false;
+    // Renamed from `skip_errors` (misleading) to `skip_cache_write` (accurate).
+    let mut skip_cache_write = false;
 
     for arg in args {
+        let arg_span = arg.span();
         match arg {
             // `sync` flag — boolean path-style argument (no value).
             Meta::Path(path) if path.is_ident("sync") => {
                 sync_mode = true;
             }
-            // `skip_errors` flag — boolean path-style argument (no value).
-            Meta::Path(path) if path.is_ident("skip_errors") => {
-                skip_errors = true;
+            // `skip_cache_write` flag — boolean path-style argument (no value).
+            Meta::Path(path) if path.is_ident("skip_cache_write") => {
+                skip_cache_write = true;
             }
             Meta::NameValue(nv) => {
+                let nv_span = nv.path.span();
                 if nv.path.is_ident("service") {
-                    if let Expr::Lit(expr_lit) = nv.value {
-                        if let Lit::Str(lit) = expr_lit.lit {
-                            service_name = lit.value();
+                    match nv.value {
+                        Expr::Lit(expr_lit) => match expr_lit.lit {
+                            Lit::Str(lit) => service_name = lit.value(),
+                            other => {
+                                return syn::Error::new(
+                                    other.span(),
+                                    "`service` argument expects a string literal, e.g. `service = \"my_svc\"`",
+                                )
+                                .to_compile_error()
+                                .into();
+                            }
+                        },
+                        other => {
+                            return syn::Error::new(
+                                other.span(),
+                                "`service` argument expects a string literal, e.g. `service = \"my_svc\"`",
+                            )
+                            .to_compile_error()
+                            .into();
                         }
                     }
                 } else if nv.path.is_ident("ttl") {
-                    if let Expr::Lit(expr_lit) = nv.value {
-                        if let Lit::Int(lit) = expr_lit.lit {
-                            let val = lit.base10_parse::<u64>().unwrap();
-                            ttl = quote! { Some(#val) };
+                    match nv.value {
+                        Expr::Lit(expr_lit) => match expr_lit.lit {
+                            Lit::Int(lit) => {
+                                // Rule 12: surface parse failures (e.g. u64
+                                // overflow) as `compile_error!` instead of
+                                // panicking inside the proc-macro.
+                                let val = match lit.base10_parse::<u64>() {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        return syn::Error::new(
+                                            lit.span(),
+                                            format!("invalid ttl value: {}", e),
+                                        )
+                                        .to_compile_error()
+                                        .into();
+                                    }
+                                };
+                                ttl = quote! { Some(#val) };
+                            }
+                            other => {
+                                return syn::Error::new(
+                                    other.span(),
+                                    "`ttl` argument expects an integer literal, e.g. `ttl = 60`",
+                                )
+                                .to_compile_error()
+                                .into();
+                            }
+                        },
+                        other => {
+                            return syn::Error::new(
+                                other.span(),
+                                "`ttl` argument expects an integer literal, e.g. `ttl = 60`",
+                            )
+                            .to_compile_error()
+                            .into();
                         }
                     }
                 } else if nv.path.is_ident("key") {
-                    if let Expr::Lit(expr_lit) = nv.value {
-                        if let Lit::Str(lit) = expr_lit.lit {
-                            key_pattern = Some(lit.value());
+                    match nv.value {
+                        Expr::Lit(expr_lit) => match expr_lit.lit {
+                            Lit::Str(lit) => key_pattern = Some(lit.value()),
+                            other => {
+                                return syn::Error::new(
+                                    other.span(),
+                                    "`key` argument expects a string literal, e.g. `key = \"user_{id}\"`",
+                                )
+                                .to_compile_error()
+                                .into();
+                            }
+                        },
+                        other => {
+                            return syn::Error::new(
+                                other.span(),
+                                "`key` argument expects a string literal, e.g. `key = \"user_{id}\"`",
+                            )
+                            .to_compile_error()
+                            .into();
                         }
                     }
                 } else if nv.path.is_ident("key_prefix") {
-                    if let Expr::Lit(expr_lit) = nv.value {
-                        if let Lit::Str(lit) = expr_lit.lit {
-                            key_prefix = Some(lit.value());
+                    match nv.value {
+                        Expr::Lit(expr_lit) => match expr_lit.lit {
+                            Lit::Str(lit) => key_prefix = Some(lit.value()),
+                            other => {
+                                return syn::Error::new(
+                                    other.span(),
+                                    "`key_prefix` argument expects a string literal, e.g. `key_prefix = \"ns\"`",
+                                )
+                                .to_compile_error()
+                                .into();
+                            }
+                        },
+                        other => {
+                            return syn::Error::new(
+                                other.span(),
+                                "`key_prefix` argument expects a string literal, e.g. `key_prefix = \"ns\"`",
+                            )
+                            .to_compile_error()
+                            .into();
                         }
                     }
+                } else {
+                    // Rule 12: unknown NameValue argument — surface as
+                    // compile_error instead of silent ignore.
+                    let unknown = nv
+                        .path
+                        .get_ident()
+                        .map(|i| i.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    return syn::Error::new(
+                        nv_span,
+                        format!(
+                            "unknown `#[cached]` argument `{}`; supported: service, ttl, key, key_prefix",
+                            unknown
+                        ),
+                    )
+                    .to_compile_error()
+                    .into();
                 }
             }
-            _ => {}
+            // Rule 12: unsupported argument shape (e.g. Meta::List or unknown
+            // path) — surface as compile_error instead of silent ignore.
+            _ => {
+                return syn::Error::new(
+                    arg_span,
+                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\"",
+                )
+                .to_compile_error()
+                .into();
+            }
         }
     }
 
@@ -189,8 +300,8 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 // Run original function
                 let result = { #fn_block };
 
-                // Cache result if Ok — skipped when `skip_errors` is set.
-                if !#skip_errors {
+                // Cache result if Ok — skipped when `skip_cache_write` is set.
+                if !#skip_cache_write {
                     if let Ok(ref val) = result {
                         if let Ok(bytes) = cache.unified_serializer().serialize(val) {
                             let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
@@ -224,8 +335,8 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 // Run original function
                 let result = async { #fn_block }.await;
 
-                // Cache result if Ok — skipped when `skip_errors` is set.
-                if !#skip_errors {
+                // Cache result if Ok — skipped when `skip_cache_write` is set.
+                if !#skip_cache_write {
                     if let Ok(ref val) = result {
                         if let Ok(bytes) = cache.unified_serializer().serialize(val) {
                             let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
