@@ -138,27 +138,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.3.3"
+oxcache = "0.3"
 ```
 
 > **注意**：`default = ["full"]`，默认包含全部主功能（内存 + Redis + 宏 + 压缩 + 批量写入 + Lua + CLI + 测试）。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.3", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层选择
 
 ```toml
 # 完整特性（推荐，默认）
-oxcache = { version = "0.3.3", features = ["full"] }
+oxcache = { version = "0.3", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.3", features = ["core"] }
+oxcache = { version = "0.3", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.3", features = ["minimal"] }
+oxcache = { version = "0.3", features = ["minimal"] }
 
 # 自定义选择（注意：bloom-filter 不在 full 内，需单独启用）
-oxcache = { version = "0.3.3", features = ["core", "macros", "bloom-filter"] }
+oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
 ```
 
 #### 特性依赖说明
@@ -176,7 +176,7 @@ oxcache = { version = "0.3.3", features = ["core", "macros", "bloom-filter"] }
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.3", default-features = false, features = ["core"] }
+oxcache = { version = "0.3", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：

@@ -54,13 +54,13 @@
 
 ```toml
 [dependencies]
-oxcache = "0.3.8"
+oxcache = "0.3"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.3.8", default-features = false }` 手动添加。
+`oxcache = { version = "0.3", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3.8", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3", features = ["macros"] }`
 
 ### 基础使用
 
@@ -133,16 +133,16 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.3.8", features = ["full"] }
+oxcache = { version = "0.3", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3.8", features = ["core"] }
+oxcache = { version = "0.3", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3.8", features = ["minimal"] }
+oxcache = { version = "0.3", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.3.8", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 ### 可用特性
@@ -159,7 +159,7 @@ oxcache = { version = "0.3.8", features = ["core", "macros", "metrics", "bloom-f
 - `macros` - `#[cached]` 属性宏
 - `serialization` - JSON 序列化（serde + serde_json）
 - `compression` - 数据压缩（flate2）
-- `metrics` - OpenTelemetry 指标与可观测性
+- `metrics` - 内置性能指标（延迟直方图、操作计数、JSON 导出）；如需 OTLP 导出由应用层处理
 - `batch-write` - 优化的批量写入（tokio-util）
 - `lua-script` - Lua 脚本执行支持
 - `cli` - 命令行界面（clap）
@@ -300,7 +300,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3.8", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.3", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
