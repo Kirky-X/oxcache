@@ -232,7 +232,10 @@ memory = ["dep:moka", "dep:dashmap", "dep:serde"]
 redis = ["dep:redis", "dep:regex"]
 
 # Proc macros for #[cached]
-macros = ["dep:oxcache_macros"]
+# 显式依赖 `minimal`：宏生成代码引用 `::oxcache::__internal_get_cache`，
+# 该函数仅在 backend feature（memory/redis/minimal/core/full）启用时导出。
+# 不加 `minimal` 会导致独立启用 `macros` 时编译失败。
+macros = ["dep:oxcache_macros", "minimal"]
 
 # Serialization (JSON)
 serialization = ["dep:serde", "dep:serde_json"]

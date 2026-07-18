@@ -130,13 +130,13 @@ macro_rules! check_feature_dependence {
             $required,
             "' or 'full' feature.\n",
             "\nSolution 1: Enable required feature:\n",
-            "    oxcache = { version = \"0.3.8\", features = [\"",
+            "    oxcache = { version = \"0.3\", features = [\"",
             $dependent,
             "\", \"",
             $required,
             "\"] }\n",
             "\nSolution 2: Enable all features:\n",
-            "    oxcache = { version = \"0.3.8\", features = [\"full\"] }"
+            "    oxcache = { version = \"0.3\", features = [\"full\"] }"
         ));
     };
 }

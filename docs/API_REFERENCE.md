@@ -717,8 +717,10 @@ warn!("Redis connection lost, operating in L1-only mode");
 error!("Failed to write to cache: {}", err);
 ```
 
-OpenTelemetry integration (OTLP export) is available via the `metrics` feature,
-which pulls in `opentelemetry`, `tracing-opentelemetry`, and `opentelemetry-otlp`.
+Built-in metrics implementation is available via the `metrics` feature (no external
+OpenTelemetry dependencies — OTLP export, if needed, should be handled at the
+application layer). The `metrics` feature pulls in `serialization`, `tracing`,
+`chrono`, and `dashmap` for internal stats collection and JSON export.
 
 ## Error Handling
 
