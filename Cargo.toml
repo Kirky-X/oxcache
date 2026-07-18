@@ -117,28 +117,8 @@ optional = false
 # ============================================================================
 # OBSERVABILITY & METRICS
 # ============================================================================
-
-[dependencies.opentelemetry]
-version = "0.32"
-optional = true
-
-[dependencies.opentelemetry_sdk]
-version = "0.32"
-optional = true
-
-[dependencies.tracing-opentelemetry]
-version = "0.33"
-optional = true
-
-[dependencies.opentelemetry-otlp]
-version = "0.32"
-optional = true
-
-[dependencies.tracing-subscriber]
-version = "~0.3"
-default-features = false
-features = ["env-filter", "fmt"]
-optional = true
+# Metrics 实现完全内置（src/infra/metrics/*），不依赖外部 otel crate。
+# 如需 OTLP 导出，由应用层（如 limiteron）统一处理，避免重复初始化 tracer provider。
 
 # ============================================================================
 # UTILITIES
@@ -190,6 +170,7 @@ rand = "0.10"
 criterion = { version = "~0.8", features = ["async_tokio"] }
 ctor = "1.0"
 trybuild = "1.0"
+tracing-subscriber = { version = "~0.3", default-features = false, features = ["env-filter", "fmt"] }
 
 # ============================================================================
 # TEST DEPENDENCIES
@@ -262,13 +243,10 @@ compression = ["dep:flate2"]
 # Tracing support
 tracing = ["dep:tracing"]
 
-# Metrics & Observability (OpenTelemetry)
+# Metrics & Observability (内置实现，无需外部 otel crate)
+# metrics 代码使用 serde/serde_json 进行 JSON 导出，需 serialization feature
 metrics = [
-    "dep:opentelemetry",
-    "dep:opentelemetry_sdk",
-    "dep:tracing-subscriber",
-    "dep:tracing-opentelemetry",
-    "dep:opentelemetry-otlp",
+    "serialization",
     "dep:chrono",
     "dep:tracing",
     "dep:dashmap",

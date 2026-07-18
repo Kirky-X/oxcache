@@ -87,7 +87,7 @@
 //! - `serialization`: JSON serialization (serde + serde_json)
 //! - `compression`: Flate2 compression
 //! - `tracing`: Tracing support
-//! - `metrics`: OpenTelemetry metrics & observability
+//! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
 //! - `batch-write`: Buffered L2 writes (tokio-util)
 //! - `lua-script`: Lua script execution (requires redis)
 //! - `cli`: CLI tools (clap)
@@ -96,7 +96,7 @@
 //! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.8")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.9")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua-script, cli, batch-write,

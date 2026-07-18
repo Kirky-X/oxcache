@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `metrics` feature 移除 4 个未使用 OpenTelemetry 依赖：`opentelemetry`, `opentelemetry_sdk`, `tracing-opentelemetry`, `opentelemetry-otlp`（src/ 树 0 引用，纯历史遗留）
+- `tracing-subscriber` 从 `metrics` feature 移至 `[dev-dependencies]`（仅 tests/examples 使用，src/ 无引用）
+- `metrics` feature 新增 `serialization` 依赖（metrics 代码使用 serde/serde_json 进行 JSON 导出，原隐式依赖现显式声明）
+- 内置 metrics 实现（`src/infra/metrics/*`）完全保留，不受影响
+- 同步更新 `src/lib.rs:90` 模块级 rustdoc（移除"OpenTelemetry metrics"过时描述）和 `src/lib.rs:99` `html_root_url` 版本号（0.3.8 → 0.3.9）
+
+### Performance
+- 实测基线（`cargo clean && cargo build --features metrics --release`）：23.23s wall, 1m45s user
+- Release rlib 大小：3.5 MB（移除 otel 重依赖后，依赖图与产物体积均下降；运行时性能零回退——`src/infra/metrics/*` 热路径未改动）
+
 ## [0.3.8] - 2026-07-13
 
 ### Changed
@@ -89,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README inter-language links pointed to `../README.md` instead of `README.md` (both files in same directory).
 - README security import path `use oxcache::security::{...}` → `use oxcache::{...}` (functions are re-exported at crate root).
 - `lib.rs` Features list said `moka` instead of `memory`; `serialization` description listed "JSON/Bincode/MessagePack/CBOR" but only JSON is supported. Rewritten to match `Cargo.toml` exactly (tiered + core component features).
-- `lib.rs` `compile_error!` message in `check_feature_dependence!` macro referenced `version = "0.1"` instead of `version = "0.3.2"`.
+- `lib.rs` `compile_error!` message in `check_feature_dependence!` macro referenced `version = "0.1"` instead of `version = "0.3"`.
 - `error.rs:63` doc comment typo: "络连接问题" → "网络连接问题" (missing "网" character).
 - `html_root_url` updated from 0.3.1 → 0.3.2.
 - 5 pipeline performance tests failed due to `.cargo/config.toml` setting `REDIS_URL` to wrong port (`6380` instead of `6379`). Fixed config and added `#[serial]` + `#[tokio::test(flavor = "multi_thread")]` to prevent parallel contention.
