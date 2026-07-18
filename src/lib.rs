@@ -96,7 +96,7 @@
 //! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.9")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.3.10")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua-script, cli, batch-write,
