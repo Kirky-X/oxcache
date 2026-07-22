@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-07-22
+
 ### 测试
 
 - 新增 `tests/e2e/advanced_scenarios_test.rs`（56 个测试）：覆盖 P0/P1 高风险场景及 B/O/T/C/D/SEC/CFG/S/M 类别，从 137 种功能组合中选取未覆盖的边界与异常场景。文档化 3 项已知限制：SEC-002（Lua 绕过）、R-002（DashMap 无驱逐）、get_or 错误传播
+
+### 维护
+
+- 移除未使用依赖：arc-swap, clap, futures, rand, secrecy, tokio-util, toml
 
 ## [0.3.10] - 2026-07-19
 
