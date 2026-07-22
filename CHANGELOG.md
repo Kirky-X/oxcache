@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-07-22
+
+### Fixed
+
+- 修复 examples 中 `#[cached]` 宏使用了不存在的 `cache_type` 参数（宏仅支持 service/ttl/key_prefix/sync/skip_cache_write），导致 CI `--all-features` 构建失败
+- 添加 `tracing` 依赖到 examples/Cargo.toml（`#[cached]` 宏展开生成 `::tracing::warn!` 调用，需要消费方 crate 依赖 tracing）
+- 移除 `src/i18n/mod.rs` 中 12 个未使用导入（仅在 `--all-features` 下暴露）
+- 移除 `src/i18n/i18n_impl.rs` 中未使用的 `CollatorBorrowed` 导入
+- 同步 README.md/README_EN.md 中 `#[cached]` 示例（移除 `cache_type` 参数）
+
 ## [0.3.11] - 2026-07-22
 
 ### 测试
