@@ -46,8 +46,8 @@ async fn get_user_custom_key(id: u64) -> Result<User, String> {
     })
 }
 
-// 使用不同缓存策略的函数
-#[cached(service = "user_cache", ttl = 300, cache_type = "l1-only")]
+// 使用较短 TTL 的缓存函数（演示不同的 TTL 配置）
+#[cached(service = "user_cache", ttl = 300)]
 async fn get_hot_data(id: u64) -> Result<String, String> {
     println!("   执行原始函数逻辑 (热点数据)...");
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -94,13 +94,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   缓存结果: {:?}", cached_custom);
     println!();
 
-    // 3. L1-only 缓存策略演示
-    println!("3. L1-only 缓存策略演示");
-    println!("   调用 get_hot_data(1) - 使用 L1-only 策略...");
+    // 3. 短 TTL 缓存演示
+    println!("3. 短 TTL 缓存演示");
+    println!("   调用 get_hot_data(1) - 使用较短 TTL（300s）...");
     let hot_data = get_hot_data(1).await?;
     println!("   结果: {}", hot_data);
 
-    println!("   再次调用 get_hot_data(1) - 从 L1 缓存返回...");
+    println!("   再次调用 get_hot_data(1) - 从缓存返回...");
     let cached_hot_data = get_hot_data(1).await?;
     println!("   缓存结果: {}", cached_hot_data);
     println!();

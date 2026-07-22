@@ -25,21 +25,11 @@
 //! let plural = fmt.format_count(1)?; // "One"
 //! ```
 
-use std::cmp::Ordering;
-use std::str::FromStr;
-
-use icu::collator::options::CollatorOptions;
-use icu::collator::{Collator, CollatorBorrowed};
-use icu::datetime::DateTimeFormatter;
-use icu::datetime::fieldsets::YMD;
-use icu::datetime::input::{Date, DateTime, Time};
+use icu::collator::CollatorBorrowed;
 use icu::decimal::DecimalFormatter;
-use icu::decimal::input::Decimal;
-use icu::decimal::options::DecimalFormatterOptions;
 use icu::locale::Locale;
-use icu::plurals::{PluralCategory, PluralRules, PluralRulesOptions};
+use icu::plurals::PluralRules;
 use thiserror::Error;
-use writeable::Writeable;
 
 mod i18n_impl;
 
@@ -75,6 +65,7 @@ pub struct CacheI18nFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cmp::Ordering;
 
     #[test]
     fn test_locale_parsing_en() {

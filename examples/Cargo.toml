@@ -19,6 +19,10 @@ oxcache = { path = "..", default-features = false, features = [
 ] }
 
 # Tracing for logging (minimal features)
+# `tracing` is required directly because the `#[cached]` macro expands to
+# `::tracing::warn!(...)` calls in user code (examples crate), not just inside
+# the oxcache crate itself.
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 
 # Utilities needed by examples
