@@ -196,7 +196,7 @@ async fn fetch_api_data(endpoint: String, version: u32) -> Result<ApiResponse, E
 ### 场景 3: 仅 L1 热数据缓存
 
 ```rust
-#[cached(service = "session_cache", cache_type = "l1", ttl = 60)]
+#[cached(service = "session_cache", ttl = 60)]
 async fn get_user_session(session_id: String) -> Result<Session, Error> {
     session_store::load(session_id).await
 }
