@@ -6,8 +6,8 @@ use super::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
 
+use icu::collator::Collator;
 use icu::collator::options::CollatorOptions;
-use icu::collator::{Collator, CollatorBorrowed};
 use icu::datetime::DateTimeFormatter;
 use icu::datetime::fieldsets::YMD;
 use icu::datetime::input::{Date, DateTime, Time};

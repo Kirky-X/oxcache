@@ -4,10 +4,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse::Parser, parse_macro_input, punctuated::Punctuated, spanned::Spanned, Expr, ItemFn, Lit,
-    Meta, Token,
-};
+use syn::{parse::Parser, parse_macro_input, punctuated::Punctuated, spanned::Spanned, Expr, ItemFn, Lit, Meta, Token};
 
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -76,12 +73,9 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 let val = match lit.base10_parse::<u64>() {
                                     Ok(v) => v,
                                     Err(e) => {
-                                        return syn::Error::new(
-                                            lit.span(),
-                                            format!("invalid ttl value: {}", e),
-                                        )
-                                        .to_compile_error()
-                                        .into();
+                                        return syn::Error::new(lit.span(), format!("invalid ttl value: {}", e))
+                                            .to_compile_error()
+                                            .into();
                                     }
                                 };
                                 ttl = quote! { Some(#val) };

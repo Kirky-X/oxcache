@@ -141,11 +141,7 @@ fn cached_sync_default(id: u64) -> Result<u64, String> {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn skip_cache_write_sync_compiles_and_returns_value() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .sync_mode(true)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
     cache
         .register_for_macro("skip_cache_write_sync_skip_svc")
         .await
@@ -161,11 +157,7 @@ async fn skip_cache_write_sync_compiles_and_returns_value() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn skip_cache_write_sync_does_not_cache_ok_result() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .sync_mode(true)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
     cache
         .register_for_macro("skip_cache_write_sync_skip_svc")
         .await
@@ -194,11 +186,7 @@ async fn skip_cache_write_sync_does_not_cache_ok_result() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn default_sync_caches_ok_result() {
-    let cache: Cache<String, Vec<u8>> = Cache::builder()
-        .sync_mode(true)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
     cache
         .register_for_macro("skip_cache_write_sync_default_svc")
         .await
