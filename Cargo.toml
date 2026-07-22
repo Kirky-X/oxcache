@@ -37,8 +37,6 @@ once_cell = "1.21"
 
 # Utilities
 uuid = { version = "1.23", features = ["v4"] }
-secrecy = { version = "0.10", features = ["serde"] }
-rand = "0.10"
 
 # Error Handling
 thiserror = "2.0"
@@ -66,11 +64,6 @@ optional = true
 # Tracing for logging and instrumentation
 [dependencies.tracing]
 version = "0.1"
-optional = true
-
-# Configuration
-[dependencies.toml]
-version = "1.1"
 optional = true
 
 # ============================================================================
@@ -120,20 +113,6 @@ optional = false
 # Metrics 实现完全内置（src/infra/metrics/*），不依赖外部 otel crate。
 # 如需 OTLP 导出，由应用层（如 limiteron）统一处理，避免重复初始化 tracer provider。
 
-# ============================================================================
-# UTILITIES
-# ============================================================================
-[dependencies.tokio-util]
-version = "0.7"
-optional = true
-
-[dependencies.futures]
-version = "0.3"
-optional = true
-
-[dependencies.arc-swap]
-version = "1.9"
-
 # Bloom Filter (optional, for negative query filtering)
 [dependencies.bloomfilter]
 version = "3.0"
@@ -148,16 +127,6 @@ optional = true
 version = "0.4"
 default-features = false
 features = ["serde", "clock"]
-optional = true
-
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-
-# CLI - 精简特性
-[dependencies.clap]
-version = "4.6"
-features = ["derive", "env"]
 optional = true
 
 # ============================================================================
@@ -206,7 +175,6 @@ minimal = [
 core = [
     "minimal",
     "redis",
-    "futures",
 ]
 
 # Full: All features enabled
@@ -256,13 +224,13 @@ metrics = [
 ]
 
 # Batch Write (buffered L2 writes)
-batch-write = ["dep:tokio-util"]
+batch-write = []
 
 # Lua Script Execution
 lua-script = ["redis"]
 
 # CLI tools
-cli = ["dep:clap", "dep:dashmap", "dep:tracing", "metrics"]
+cli = ["dep:dashmap", "dep:tracing", "metrics"]
 
 # Testing support (exposes internal functions)
 testing = []
