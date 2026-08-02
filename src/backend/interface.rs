@@ -45,6 +45,11 @@ impl BackendKind {
     pub fn is_distributed(&self) -> bool {
         matches!(self, BackendKind::Redis)
     }
+
+    /// Returns true if this is a composite (multi-tier) cache
+    pub fn is_composite(&self) -> bool {
+        matches!(self, BackendKind::Chain)
+    }
 }
 
 // ============================================================================
@@ -141,6 +146,10 @@ pub trait CacheWriter: Send + Sync + 'static {
     }
 
     /// Delete multiple keys in a single operation.
+    ///
+    /// Note: 参数类型为 `&[String]` 而非 `&[&str]`，与 `set_many` 的 `&[CacheSetItem]`
+    /// （含 `Arc<str>` 键）存在风格差异。这是为了保持与早期 API 的向后兼容性，
+    /// 未来版本可能统一为 `&[&str]`。
     async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
         for key in keys {
             self.delete(key).await?;
