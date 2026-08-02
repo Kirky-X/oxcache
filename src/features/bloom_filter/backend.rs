@@ -15,6 +15,7 @@
 //! `expire`) pass through to the inner backend unchanged.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -159,9 +160,9 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
 
 #[async_trait]
 impl<B: CacheBackend> CacheWriter for BloomFilterBackend<B> {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         // Record the key in the BF first, then delegate (with TTL) to inner.
-        self.bloom.insert(key);
+        self.bloom.insert(&key);
         self.inner.set(key, value, ttl).await
     }
 
@@ -262,9 +263,9 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
 }
 
 impl<B: CacheBackend + SyncCacheBackend> SyncCacheWriter for BloomFilterBackend<B> {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         // Record the key in the BF first, then delegate (with TTL) to inner.
-        self.bloom.insert(key);
+        self.bloom.insert(&key);
         SyncCacheWriter::set(&self.inner, key, value, ttl)
     }
 
@@ -389,13 +390,13 @@ mod tests {
 
     #[async_trait]
     impl CacheWriter for SpyMock {
-        async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
             self.log
                 .lock()
                 .unwrap()
                 .set_calls
-                .push((key.to_string(), value.clone(), ttl));
-            self.data.lock().unwrap().insert(key.to_string(), (value, ttl));
+                .push((key.to_string(), (*value).clone(), ttl));
+            self.data.lock().unwrap().insert(key.to_string(), ((*value).clone(), ttl));
             Ok(())
         }
 
@@ -459,7 +460,7 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         let result = backend.get("k").await.unwrap();
         assert_eq!(result, Some(b"v".to_vec()));
         let log = log.lock().unwrap();
@@ -472,7 +473,7 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         // BF should contain the key.
         assert!(backend.bloom().contains("k"));
         // Inner should have received the set.
@@ -488,7 +489,7 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         assert!(backend.bloom().contains("k"));
         backend.delete("k").await.unwrap();
         // BF still contains the key (BF does not support deletion).
@@ -504,8 +505,8 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k1", b"v1".to_vec(), None).await.unwrap();
-        backend.set("k2", b"v2".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
         backend.clear().await.unwrap();
         // BF cleared.
         assert!(!backend.bloom().contains("k1"));
@@ -522,7 +523,7 @@ mod tests {
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
         let ttl = Duration::from_secs(60);
-        backend.set("k", b"v".to_vec(), Some(ttl)).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).await.unwrap();
         let log = log.lock().unwrap();
         assert_eq!(log.set_calls.len(), 1);
         assert_eq!(log.set_calls[0].2, Some(ttl));
@@ -534,7 +535,7 @@ mod tests {
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
         let ttl = Duration::from_secs(60);
-        backend.set("k", b"v".to_vec(), Some(ttl)).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).await.unwrap();
         let result = backend.ttl("k").await.unwrap();
         assert_eq!(result, Some(ttl));
         let log = log.lock().unwrap();
@@ -547,7 +548,7 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         let new_ttl = Duration::from_secs(120);
         let result = backend.expire("k", new_ttl).await.unwrap();
         assert!(result);
@@ -561,7 +562,7 @@ mod tests {
     async fn test_bf_backend_stats_contains_bloom_fields() {
         let spy = SpyMock::new();
         let backend = BloomFilterBackend::new(spy);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         let stats = backend.stats().await.unwrap();
         assert!(stats.contains_key("bloom_capacity"));
         assert!(stats.contains_key("bloom_load_factor"));
@@ -640,7 +641,7 @@ mod tests {
 
         #[async_trait]
         impl CacheWriter for MockSyncInner {
-            async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+            async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
                 SyncCacheWriter::set(self, key, value, ttl)
             }
             async fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -699,13 +700,13 @@ mod tests {
         }
 
         impl SyncCacheWriter for MockSyncInner {
-            fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+            fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
                 self.log
                     .lock()
                     .unwrap()
                     .set_calls
-                    .push((key.to_string(), value.clone(), ttl));
-                self.data.lock().unwrap().insert(key.to_string(), (value, ttl));
+                    .push((key.to_string(), (*value).clone(), ttl));
+                self.data.lock().unwrap().insert(key.to_string(), ((*value).clone(), ttl));
                 Ok(())
             }
             fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -761,7 +762,7 @@ mod tests {
             let log = inner.log_handle();
             let backend = BloomFilterBackend::new(inner);
             // set via sync writer to populate both BF and inner.
-            SyncCacheWriter::set(&backend, "k", b"v".to_vec(), None).unwrap();
+            SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), None).unwrap();
             let result = SyncCacheReader::get(&backend, "k").unwrap();
             assert_eq!(result, Some(b"v".to_vec()));
             let log = log.lock().unwrap();
@@ -775,7 +776,7 @@ mod tests {
             let log = inner.log_handle();
             let backend = BloomFilterBackend::new(inner);
             let ttl = Duration::from_secs(60);
-            SyncCacheWriter::set(&backend, "k", b"v".to_vec(), Some(ttl)).unwrap();
+            SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).unwrap();
             let log = log.lock().unwrap();
             assert_eq!(log.set_calls.len(), 1);
             assert_eq!(log.set_calls[0].2, Some(ttl));
