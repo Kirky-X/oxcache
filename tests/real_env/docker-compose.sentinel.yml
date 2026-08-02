@@ -1,8 +1,6 @@
 # Redis Sentinel模式测试配置
 # 用于真实环境下的高可用性测试
 
-version: '3.8'
-
 services:
   # Redis主节点
   redis-master:
@@ -16,7 +14,7 @@ services:
     command: redis-server /usr/local/etc/redis/redis.conf
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.2
+        ipv4_address: 172.26.0.2
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -37,7 +35,7 @@ services:
       - redis-master
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.3
+        ipv4_address: 172.26.0.3
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -58,7 +56,7 @@ services:
       - redis-master
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.4
+        ipv4_address: 172.26.0.4
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -81,7 +79,7 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.10
+        ipv4_address: 172.26.0.10
 
   # Sentinel节点2
   redis-sentinel2:
@@ -99,7 +97,7 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.11
+        ipv4_address: 172.26.0.11
 
   # Sentinel节点3
   redis-sentinel3:
@@ -117,14 +115,14 @@ services:
       - redis-slave2
     networks:
       redis-sentinel:
-        ipv4_address: 172.25.0.12
+        ipv4_address: 172.26.0.12
 
 networks:
   redis-sentinel:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.25.0.0/24
+        - subnet: 172.26.0.0/24
 
 volumes:
   redis-master-data:
