@@ -166,7 +166,7 @@ mod tests {
         let kit = kit.build().await.expect("AsyncKit::build");
         let cache: Arc<dyn CacheBackend + Send + Sync> = kit.require::<OxcacheModule>().expect("require OxcacheModule");
         // Smoke-test the returned capability actually behaves like a cache.
-        cache.set("k", b"v".to_vec(), None).await.expect("set");
+        cache.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.expect("set");
         let got = cache.get("k").await.expect("get");
         assert_eq!(got, Some(b"v".to_vec()));
     }
@@ -188,7 +188,7 @@ mod tests {
         // Insert several keys; backend constructed with the provided config
         // should not panic and should still report healthy.
         for i in 0..6u8 {
-            cache.set(&format!("k{i}"), vec![i], None).await.expect("set");
+            cache.set(Arc::from(format!("k{i}")), Arc::new(vec![i]), None).await.expect("set");
         }
         cache.health_check().await.expect("health_check");
     }
