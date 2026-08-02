@@ -9,8 +9,10 @@ pub use key_generator::KeyGenerator;
 
 mod utils_impl;
 
+pub use utils_impl::MAX_CACHE_KEY_LENGTH;
+
 #[cfg(test)]
-use utils_impl::{MAX_CACHE_KEY_LENGTH, VALID_KEY_CHARS};
+use utils_impl::VALID_KEY_CHARS;
 
 #[allow(unused_imports)]
 pub use utils_impl::validate_cache_key;

@@ -9,9 +9,7 @@
 //! - 长键的哈希指纹生成
 
 use crate::error::OxCacheError;
-
-/// 默认键最大长度
-const DEFAULT_MAX_KEY_LENGTH: usize = 256;
+use crate::utils::MAX_CACHE_KEY_LENGTH;
 
 /// 默认命名空间
 const DEFAULT_NAMESPACE: &str = "default";
@@ -60,7 +58,7 @@ impl KeyGenerator {
         Self {
             namespace: DEFAULT_NAMESPACE.to_string(),
             prefix: String::new(),
-            max_key_length: DEFAULT_MAX_KEY_LENGTH,
+            max_key_length: MAX_CACHE_KEY_LENGTH,
         }
     }
 
@@ -79,7 +77,7 @@ impl KeyGenerator {
         Self {
             namespace: DEFAULT_NAMESPACE.to_string(),
             prefix: prefix.to_string(),
-            max_key_length: DEFAULT_MAX_KEY_LENGTH,
+            max_key_length: MAX_CACHE_KEY_LENGTH,
         }
     }
 

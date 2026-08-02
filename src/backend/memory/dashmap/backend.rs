@@ -87,6 +87,7 @@ impl DashMapMemoryBackend {
     /// 该队列条目视为陈旧直接跳过。过期条目同样可以被淘汰。
     fn evict_if_full(&self) {
         let batch = (self.capacity / EVICT_BATCH_RATIO).max(1);
+        let now = Instant::now();
 
         let mut evicted = 0usize;
         loop {
@@ -97,9 +98,24 @@ impl DashMapMemoryBackend {
                 Some(item) => item,
                 None => break,
             };
-            // 原子检查 + 删除：仅当 seq 仍匹配（未被重新 set）时才淘汰，
-            // 避免并发 set 竞态下误删新条目
-            if self.cache.remove_if(&key, |_, entry| entry.seq == seq).is_some() {
+            // 淘汰条件：seq 匹配（未被 re-set）OR 条目已过期
+            // 即使 seq 不匹配（re-set 过），如果已过期也应淘汰以释放内存
+            let should_remove = self
+                .cache
+                .remove_if(&key, |_, entry| {
+                    if entry.seq == seq {
+                        return true;
+                    }
+                    // 即使 seq 不匹配，过期条目也应淘汰
+                    if let Some(exp) = entry.expires_at {
+                        if exp <= now {
+                            return true;
+                        }
+                    }
+                    false
+                })
+                .is_some();
+            if should_remove {
                 evicted += 1;
             }
         }
@@ -193,6 +209,10 @@ impl CacheReader for DashMapMemoryBackend {
             let entry = entry_ref.value();
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
+                    drop(entry_ref); // 释放 Ref 后再原子删除
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.map_or(false, |exp| exp <= now)
+                    });
                     return Ok(false);
                 }
             }
@@ -211,6 +231,10 @@ impl CacheReader for DashMapMemoryBackend {
                 if expires_at > now {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
+                    drop(entry_ref); // 释放 Ref 后再原子删除过期条目
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.map_or(false, |exp| exp <= now)
+                    });
                     return Ok(None);
                 }
             }
@@ -354,6 +378,10 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
             let entry = entry_ref.value();
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
+                    drop(entry_ref); // 释放 Ref 后再原子删除
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.map_or(false, |exp| exp <= now)
+                    });
                     return Ok(false);
                 }
             }
@@ -372,6 +400,10 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
                 if expires_at > now {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
+                    drop(entry_ref); // 释放 Ref 后再原子删除过期条目
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.map_or(false, |exp| exp <= now)
+                    });
                     return Ok(None);
                 }
             }
@@ -709,6 +741,72 @@ mod tests {
         assert_eq!(backend.get("short").await.unwrap(), None, "过期条目不可读");
         assert_eq!(backend.entry_count(), 3);
         assert_eq!(backend.get("a").await.unwrap(), Some(b"v".to_vec()));
+    }
+
+    // ========================================================================
+    // 过期条目清理测试 (L2 修复验证)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_exists_removes_expired_entry() {
+        // exists 检测到过期条目时应原子删除，释放内存
+        let backend = dashmap_memory_with_capacity(100);
+
+        backend
+            .set(Arc::from("expire_me"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        // exists 应返回 false 并从 cache 中移除条目
+        assert!(!backend.exists("expire_me").await.unwrap());
+        // 验证条目已从底层 DashMap 中删除
+        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+    }
+
+    #[tokio::test]
+    async fn test_ttl_removes_expired_entry() {
+        // ttl 检测到过期条目时应原子删除
+        let backend = dashmap_memory_with_capacity(100);
+
+        backend
+            .set(Arc::from("expire_me"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        // ttl 应返回 None 并从 cache 中移除条目
+        assert_eq!(backend.ttl("expire_me").await.unwrap(), None);
+        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+    }
+
+    #[tokio::test]
+    async fn test_eviction_expired_entry_with_stale_seq() {
+        // 过期条目即使 seq 不匹配（被 re-set 过）也应被淘汰
+        let backend = dashmap_memory_with_capacity(2);
+
+        // 插入短 TTL 条目
+        backend
+            .set(Arc::from("ttl_key"), Arc::new(b"v1".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
+        backend.set(Arc::from("other"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+
+        // re-set ttl_key，使旧 FIFO 条目 seq 失效，但新条目仍然有短 TTL
+        backend
+            .set(Arc::from("ttl_key"), Arc::new(b"v1b".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        // 插入新条目触发淘汰，过期的 ttl_key 应被淘汰（即使 seq 不匹配旧 FIFO 条目）
+        backend.set(Arc::from("new_key"), Arc::new(b"v3".to_vec()), None).await.unwrap();
+
+        assert_eq!(backend.get("ttl_key").await.unwrap(), None, "过期条目应被淘汰");
+        assert_eq!(backend.get("other").await.unwrap(), Some(b"v2".to_vec()));
     }
 
     #[tokio::test]
