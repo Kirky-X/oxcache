@@ -27,7 +27,7 @@ impl ConfigValidation {
                 "Custom backend name cannot be empty".to_string(),
             ));
         }
-        if name.len() > Self::MAX_CUSTOM_NAME_LENGTH {
+        if name.chars().count() > Self::MAX_CUSTOM_NAME_LENGTH {
             return Err(OxCacheError::InvalidInput(format!(
                 "Custom backend name exceeds maximum length of {} characters",
                 Self::MAX_CUSTOM_NAME_LENGTH
@@ -130,5 +130,24 @@ mod tests {
         assert!(!ConfigValidation::VALID_NAME_CHARS.contains(':'));
         assert!(!ConfigValidation::VALID_NAME_CHARS.contains('/'));
         assert!(!ConfigValidation::VALID_NAME_CHARS.contains(' '));
+    }
+
+    #[test]
+    fn test_validate_custom_name_multibyte_unicode() {
+        // L6 修复验证：长度检查应基于字符数而非字节数
+        // 多字节 UTF-8 字符（如 emoji）不在 VALID_NAME_CHARS 中，会被字符检查拒绝
+        // 但长度检查本身不应因字节数而误判
+        let name_with_dots = "a.b.c";
+        assert_eq!(name_with_dots.chars().count(), 5);
+        assert_eq!(name_with_dots.len(), 5);
+        assert!(ConfigValidation::validate_custom_name(name_with_dots).is_ok());
+
+        // 验证 256 字符的纯 ASCII 名称可以通过（边界测试）
+        let max_name = "a".repeat(256);
+        assert!(ConfigValidation::validate_custom_name(&max_name).is_ok());
+
+        // 验证 257 字符被拒绝
+        let over_name = "a".repeat(257);
+        assert!(ConfigValidation::validate_custom_name(&over_name).is_err());
     }
 }
