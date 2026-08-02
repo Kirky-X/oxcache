@@ -35,7 +35,7 @@ async fn test_connection_recovery_after_failure() {
 
     // 正常操作
     backend
-        .set("recovery_key", b"initial_value".to_vec(), None)
+        .set(Arc::from("recovery_key"), Arc::new(b"initial_value".to_vec()), None)
         .await
         .unwrap();
     let value = backend.get("recovery_key").await.unwrap();
@@ -70,7 +70,7 @@ async fn test_timeout_handling() {
 
     let result = tokio::time::timeout(
         Duration::from_secs(30),
-        backend.set("timeout_key", large_data.clone(), None),
+        backend.set(Arc::from("timeout_key"), Arc::new(large_data.clone()), None),
     )
     .await;
 
@@ -162,7 +162,7 @@ async fn test_partial_failure_handling() {
         let key = format!("partial_key_{}", i);
         let value = format!("value_{}", i);
 
-        match backend.set(&key, value.as_bytes().to_vec(), None).await {
+        match backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await {
             Ok(_) => success_count += 1,
             Err(_) => failure_count += 1,
         }
@@ -207,7 +207,7 @@ async fn test_connection_pool_exhaustion() {
     // 所有连接执行操作
     for (i, backend) in backends.iter().enumerate() {
         let key = format!("pool_key_{}", i);
-        backend.set(&key, b"test".to_vec(), None).await.ok();
+        backend.set(Arc::from(key.as_str()), Arc::new(b"test".to_vec()), None).await.ok();
     }
 
     // 清理
@@ -236,7 +236,7 @@ async fn test_network_latency_simulation() {
 
     for _ in 0..100 {
         backend
-            .set("latency_key", b"latency_value".to_vec(), None)
+            .set(Arc::from("latency_key"), Arc::new(b"latency_value".to_vec()), None)
             .await
             .unwrap();
         backend.get("latency_key").await.unwrap();
@@ -279,7 +279,7 @@ async fn test_with_testcontainers_network_failure() {
 
     // 正常操作
     backend
-        .set("container_test_key", b"test_value".to_vec(), None)
+        .set(Arc::from("container_test_key"), Arc::new(b"test_value".to_vec()), None)
         .await
         .unwrap();
     let value = backend.get("container_test_key").await.unwrap();

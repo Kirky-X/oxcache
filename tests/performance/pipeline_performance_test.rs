@@ -6,6 +6,7 @@
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
 use serial_test::serial;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// 获取 Redis 测试 URL
@@ -15,12 +16,14 @@ fn get_redis_url() -> String {
 }
 
 /// 生成测试数据
-fn generate_test_data(count: usize) -> Vec<(String, Vec<u8>, Option<Duration>)> {
+type TestItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
+
+fn generate_test_data(count: usize) -> Vec<TestItem> {
     (0..count)
         .map(|i| {
             (
-                format!("perf_test_key_{}", i),
-                format!("perf_test_value_{}", i).into_bytes(),
+                Arc::from(format!("perf_test_key_{}", i)),
+                Arc::new(format!("perf_test_value_{}", i).into_bytes()),
                 Some(Duration::from_secs(60)),
             )
         })
@@ -54,7 +57,7 @@ async fn test_pipeline_set_performance() {
     let start = Instant::now();
     for (key, value, ttl) in &test_data {
         backend
-            .set(key, value.clone(), *ttl)
+            .set(key.clone(), value.clone(), *ttl)
             .await
             .expect("Individual SET failed");
     }
@@ -92,7 +95,7 @@ async fn test_pipeline_get_performance() {
     let test_data = generate_test_data(100);
     backend.set_many(&test_data).await.expect("Failed to setup test data");
 
-    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.clone()).collect();
+    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
 
     // 测试 Pipeline GET
     let start = Instant::now();
@@ -147,7 +150,7 @@ async fn test_pipeline_delete_performance() {
         .set_many(&test_data_1)
         .await
         .expect("Failed to setup test data 1");
-    let keys: Vec<String> = test_data_1.iter().map(|(k, _, _)| k.clone()).collect();
+    let keys: Vec<String> = test_data_1.iter().map(|(k, _, _)| k.to_string()).collect();
 
     let start = Instant::now();
     backend.delete_many(&keys).await.expect("Pipeline DELETE failed");
@@ -204,7 +207,7 @@ async fn test_large_scale_pipeline_performance() {
     let set_duration = start.elapsed();
 
     // Pipeline GET
-    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.clone()).collect();
+    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
     let start = Instant::now();
     let results = backend.get_many(&keys).await.expect("Pipeline GET failed");
     let get_duration = start.elapsed();
@@ -254,13 +257,13 @@ async fn test_mixed_operations_performance() {
     backend.set_many(&test_data).await.expect("Batch init failed");
 
     // 2. 批量读取
-    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.clone()).collect();
+    let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
     let _ = backend.get_many(&keys).await.expect("Batch read failed");
 
     // 3. 批量更新（覆盖）
-    let updated_data: Vec<(String, Vec<u8>, Option<Duration>)> = test_data
+    let updated_data: Vec<TestItem> = test_data
         .iter()
-        .map(|(k, _, ttl)| (k.clone(), format!("updated_{}", k).into_bytes(), *ttl))
+        .map(|(k, _, ttl)| (k.clone(), Arc::new(format!("updated_{}", k).into_bytes()), *ttl))
         .collect();
     backend.set_many(&updated_data).await.expect("Batch update failed");
 

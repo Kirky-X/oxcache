@@ -14,6 +14,7 @@
 #![cfg(feature = "bloom-filter")]
 
 use std::time::Duration;
+use std::sync::Arc;
 
 use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
@@ -84,7 +85,7 @@ async fn test_bf_backend_set_updates_bloom_and_inner() {
     let backend = BloomFilterBackend::new(inner);
 
     // set 后 BF 和 inner 都应反映该 key
-    CacheWriter::set(&backend, "k", b"v".to_vec(), None).await.unwrap();
+    CacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
 
     // BF 应包含该 key
     assert!(backend.bloom().contains("k"));
@@ -101,7 +102,7 @@ async fn test_bf_backend_delete_does_not_modify_bloom() {
     let inner = MokaMemoryBackend::new();
     let backend = BloomFilterBackend::new(inner);
 
-    CacheWriter::set(&backend, "k", b"v".to_vec(), None).await.unwrap();
+    CacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
     assert!(backend.bloom().contains("k"));
 
     // delete 不修改 BF（BF 不支持删除）
@@ -122,7 +123,7 @@ async fn test_bf_backend_set_with_ttl_passes_through() {
     let backend = BloomFilterBackend::new(inner);
 
     // set with 50ms TTL
-    CacheWriter::set(&backend, "k", b"v".to_vec(), Some(Duration::from_millis(50)))
+    CacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
         .await
         .unwrap();
 
@@ -161,8 +162,8 @@ async fn test_bf_backend_clear_clears_both() {
     let inner_ref = inner.clone();
     let backend = BloomFilterBackend::new(inner);
 
-    CacheWriter::set(&backend, "k1", b"v1".to_vec(), None).await.unwrap();
-    CacheWriter::set(&backend, "k2", b"v2".to_vec(), None).await.unwrap();
+    CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+    CacheWriter::set(&backend, Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
 
     // clear 应清空 inner 和 BF
     CacheWriter::clear(&backend).await.unwrap();
@@ -183,7 +184,7 @@ async fn test_bf_backend_sync_get_set_basic() {
     let backend = BloomFilterBackend::new(inner);
 
     // sync set + get
-    SyncCacheWriter::set(&backend, "k", b"v".to_vec(), None).unwrap();
+    SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), None).unwrap();
     let value = SyncCacheReader::get(&backend, "k").unwrap();
     assert_eq!(value, Some(b"v".to_vec()));
 
@@ -201,7 +202,7 @@ async fn test_bf_backend_sync_set_with_ttl_passes_through() {
     let backend = BloomFilterBackend::new(inner);
 
     // sync set with 50ms TTL
-    SyncCacheWriter::set(&backend, "k", b"v".to_vec(), Some(Duration::from_millis(50))).unwrap();
+    SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50))).unwrap();
 
     // 立即查询应返回 Some
     let value = SyncCacheReader::get(&backend, "k").unwrap();
