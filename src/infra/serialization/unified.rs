@@ -2,50 +2,73 @@
 // SPDX-License-Identifier: MIT
 //! Unified serialization manager
 
-use crate::error::OxCacheResult;
-use crate::infra::{JsonSerializer, Serializer};
+use crate::error::{OxCacheError, OxCacheResult};
+use crate::infra::serialization::depth_limited::deserialize_safe;
+use crate::infra::serialization::utils::{compress_data, decompress_data_with_limit};
+use crate::core::MAX_JSON_DEPTH;
 use serde::{Serialize, de::DeserializeOwned};
-use std::sync::Arc;
 
 /// Json-only unified serializer
+///
+/// 直接使用 `serde_json` 做单次序列化/反序列化，不再经由
+/// `JsonSerializer` 的 base64 包装层，消除双重序列化开销。
 #[derive(Clone, Debug)]
 pub struct UnifiedSerializer {
-    inner: Arc<JsonSerializer>,
+    compress: bool,
 }
 
 impl UnifiedSerializer {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(JsonSerializer::new()),
-        }
+        Self { compress: false }
     }
 
     pub fn json() -> Self {
         Self::new()
     }
 
+    /// 创建启用压缩的统一序列化器
+    pub fn with_compression() -> Self {
+        Self { compress: true }
+    }
+
     /// Serialize a value to bytes
     pub fn serialize<T: Serialize>(&self, value: &T) -> OxCacheResult<Vec<u8>> {
-        let type_name = std::any::type_name::<T>();
-        let data = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
-        self.inner.serialize(type_name, &data)
+        let data = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        if self.compress {
+            compress_data(&data)
+        } else {
+            Ok(data)
+        }
     }
 
     /// Serialize with explicit type name (for internal use)
-    pub fn serialize_with_type(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
-        self.inner.serialize(type_name, data)
+    pub fn serialize_with_type(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
+        if self.compress {
+            compress_data(data)
+        } else {
+            Ok(data.to_vec())
+        }
     }
 
     /// Deserialize bytes to a value
+    ///
+    /// 单次文本解析 + 深度校验（`MAX_JSON_DEPTH`），防止栈溢出攻击。
     pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> OxCacheResult<T> {
-        let type_name = std::any::type_name::<T>();
-        let result_data = self.inner.deserialize(type_name, data)?;
-        serde_json::from_slice(&result_data).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))
+        let data = if self.compress {
+            decompress_data_with_limit(data, crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE)?
+        } else {
+            data.to_vec()
+        };
+        deserialize_safe(&data, MAX_JSON_DEPTH).map_err(|e| OxCacheError::Serialization(e.to_string()))
     }
 
     /// Deserialize with explicit type name (for internal use)
-    pub fn deserialize_with_type(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
-        self.inner.deserialize(type_name, data)
+    pub fn deserialize_with_type(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
+        if self.compress {
+            decompress_data_with_limit(data, crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE)
+        } else {
+            Ok(data.to_vec())
+        }
     }
 
     /// Get approximate size of serialized data
@@ -72,7 +95,7 @@ impl UnifiedSerializerAdapter {
     }
 }
 
-impl Serializer for UnifiedSerializerAdapter {
+impl crate::infra::Serializer for UnifiedSerializerAdapter {
     fn serialize(&self, type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         self.inner.serialize_with_type(type_name, data)
     }
@@ -92,9 +115,7 @@ pub mod convenience {
     use super::*;
 
     pub fn to_json<T: Serialize>(value: &T) -> OxCacheResult<Vec<u8>> {
-        let type_name = std::any::type_name::<T>();
-        let data = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
-        default_serializer().serialize_with_type(type_name, &data)
+        default_serializer().serialize(value)
     }
 
     pub fn from_json<T: DeserializeOwned>(data: &[u8]) -> OxCacheResult<T> {
@@ -109,6 +130,7 @@ pub mod convenience {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::infra::serialization::Serializer;
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -161,5 +183,44 @@ mod tests {
         let serialized = adapter.serialize(type_name, &json_data).unwrap();
         let deserialized = adapter.deserialize(type_name, &serialized).unwrap();
         assert_eq!(json_data, deserialized);
+    }
+
+    #[cfg(feature = "flate2")]
+    #[test]
+    fn test_compression_round_trip() {
+        let serializer = UnifiedSerializer::with_compression();
+        let data = TestData {
+            name: "x".repeat(500),
+            value: 1,
+            items: vec!["item".to_string(); 100],
+        };
+
+        let serialized = serializer.serialize(&data).unwrap();
+        let deserialized: TestData = serializer.deserialize(&serialized).unwrap();
+        assert_eq!(data, deserialized);
+    }
+
+    #[cfg(feature = "flate2")]
+    #[test]
+    fn test_compression_shrinks_repetitive_data() {
+        let serializer = UnifiedSerializer::with_compression();
+        let data = TestData {
+            name: "x".repeat(1000),
+            value: 1,
+            items: vec!["same".to_string(); 200],
+        };
+
+        let plain = UnifiedSerializer::json().serialize(&data).unwrap();
+        let compressed = serializer.serialize(&data).unwrap();
+        assert!(compressed.len() < plain.len(), "压缩后应更小");
+    }
+
+    #[test]
+    fn test_no_double_serialization_single_pass() {
+        // 序列化结果应为纯 JSON 字节（首个字节是 '{' 而不是 base64 字符串的 '"'）
+        let serializer = UnifiedSerializer::json();
+        let data = test_data();
+        let serialized = serializer.serialize(&data).unwrap();
+        assert_eq!(serialized[0], b'{', "应直接序列化为 JSON 对象而非 base64 字符串");
     }
 }

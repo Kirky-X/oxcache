@@ -138,6 +138,33 @@ impl<'de> Deserialize<'de> for DepthLimited {
     }
 }
 
+/// 单次解析的深度受限反序列化。
+///
+/// 与 `DepthLimited`/`would_exceed_depth_limit` 的两次解析不同，此函数
+/// 只做一次文本解析（到 `serde_json::Value`），随后校验嵌套深度，
+/// 再通过 `from_value` 转换到目标类型（`Value` → `T` 不是文本重解析）。
+///
+/// 解析时禁用 serde_json 内置的递归深度上限，并借助 `serde_stacker`
+/// 动态扩栈，避免深层 JSON 导致栈溢出；深度限制由调用方通过
+/// `max_depth` 显式控制。
+pub fn deserialize_safe<T: serde::de::DeserializeOwned>(
+    data: &[u8],
+    max_depth: usize,
+) -> Result<T, serde_json::Error> {
+    let mut de = serde_json::Deserializer::from_slice(data);
+    de.disable_recursion_limit();
+    let de = serde_stacker::Deserializer::new(&mut de);
+    let value: serde_json::Value = serde::Deserialize::deserialize(de)?;
+    let depth = calculate_depth(&value);
+    if depth > max_depth {
+        return Err(serde_json::Error::io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("JSON depth {} exceeds maximum allowed depth {}", depth, max_depth),
+        )));
+    }
+    serde_json::from_value(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -468,5 +495,94 @@ mod tests {
             max_depth: 5,
         };
         let _: &dyn std::error::Error = &err;
+    }
+
+    // ============================================================================
+    // deserialize_safe (serde_stacker 单次解析) 测试
+    // ============================================================================
+
+    #[test]
+    fn test_deserialize_safe_basic() {
+        let data = br#"{"a": 1, "b": [1, 2, 3]}"#;
+        let value: serde_json::Value = deserialize_safe(data, 10).unwrap();
+        assert_eq!(value, serde_json::json!({"a": 1, "b": [1, 2, 3]}));
+    }
+
+    #[test]
+    fn test_deserialize_safe_typed() {
+        #[derive(serde::Deserialize, PartialEq, Debug)]
+        struct TestData {
+            name: String,
+            count: i32,
+        }
+        let data = br#"{"name": "hello", "count": 42}"#;
+        let value: TestData = deserialize_safe(data, 10).unwrap();
+        assert_eq!(
+            value,
+            TestData {
+                name: "hello".to_string(),
+                count: 42
+            }
+        );
+    }
+
+    #[test]
+    fn test_deserialize_safe_depth_limited() {
+        // 深度 3，限制 2 → 应报错
+        let data = br#"{"a": {"b": {"c": "value"}}}"#;
+        let result: Result<serde_json::Value, _> = deserialize_safe(data, 2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_safe_deep_but_within_limit() {
+        // 深度 50，限制 64 → 应成功（serde_json 默认 128 递归上限不拦截）
+        let mut json_str = String::new();
+        for _ in 0..50 {
+            json_str.push('[');
+        }
+        json_str.push('0');
+        for _ in 0..50 {
+            json_str.push(']');
+        }
+        let result: Result<serde_json::Value, _> = deserialize_safe(json_str.as_bytes(), 64);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_deserialize_safe_exceeds_serde_json_default_limit() {
+        // 深度 200 超过 serde_json 内置 128 递归上限，
+        // 但通过 disable_recursion_limit + serde_stacker 仍可安全解析，
+        // 随后被我们自定义的 max_depth 限制拒绝。
+        let mut json_str = String::new();
+        for _ in 0..200 {
+            json_str.push('[');
+        }
+        json_str.push('0');
+        for _ in 0..200 {
+            json_str.push(']');
+        }
+        let result: Result<serde_json::Value, _> = deserialize_safe(json_str.as_bytes(), 64);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_safe_invalid_json() {
+        let result: Result<serde_json::Value, _> = deserialize_safe(b"not json", 10);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_safe_empty_container() {
+        let data = b"{}";
+        let value: serde_json::Value = deserialize_safe(data, 1).unwrap();
+        assert_eq!(value, serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_deserialize_safe_primitive() {
+        let data = b"42";
+        let value: serde_json::Value = deserialize_safe(data, 1).unwrap();
+        assert_eq!(value, serde_json::json!(42));
     }
 }
