@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- 3. 通过 SHA 执行脚本（eval_sha） ---");
 
     // 先设置一个值
-    backend.set("test:lua:length", b"hello world".to_vec(), None).await?;
+    backend.set("test:lua:length".into(), b"hello world".to_vec().into(), None).await?;
 
     let result = backend.eval_lua(hash_script, &["test:lua:length"], &[]).await?;
     println!("  eval_lua 结果: {:?}", result);
@@ -84,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     // 设置初始值
-    backend.set("cas:key", b"v1".to_vec(), None).await?;
+    backend.set("cas:key".into(), b"v1".to_vec().into(), None).await?;
     println!("  初始值: v1");
 
     // 尝试用错误的期望值更新

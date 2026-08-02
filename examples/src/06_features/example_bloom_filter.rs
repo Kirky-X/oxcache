@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("创建 BloomFilterBackend（装饰 Moka）");
 
     // set 更新 BF 和 inner
-    backend.set("user:1", b"Alice".to_vec(), None).await?;
+    backend.set("user:1".into(), b"Alice".to_vec().into(), None).await?;
     println!("\nset 'user:1' = 'Alice'");
 
     // get 命中：BF 命中 → 查询 inner → 返回值
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === TTL 透传 ===
     println!("\n=== TTL 透传 ===");
     backend
-        .set("temp", b"temp_value".to_vec(), Some(Duration::from_secs(60)))
+        .set("temp".into(), b"temp_value".to_vec().into(), Some(Duration::from_secs(60)))
         .await?;
     println!("set 'temp'（60s TTL）");
 
