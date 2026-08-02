@@ -1,8 +1,6 @@
 # Redis Cluster模式测试配置
 # 用于真实环境下的分布式测试
 
-version: '3.8'
-
 services:
   # Redis Cluster节点1
   redis-cluster-node1:
@@ -137,13 +135,21 @@ services:
       - redis-cluster-node6
     command: |
       sh -c '
-        echo "等待所有节点启动..."
-        sleep 10
+        echo "等待所有节点就绪..."
+        for node in 172.21.0.2 172.21.0.3 172.21.0.4 172.21.0.5 172.21.0.6 172.21.0.7; do
+          for i in $$(seq 1 30); do
+            if redis-cli -h $$node -p 6379 ping 2>/dev/null | grep -q PONG; then
+              echo "  $$node 就绪"
+              break
+            fi
+            sleep 1
+          done
+        done
 
         echo "创建Redis Cluster..."
-        redis-cli --cluster create \\
-          172.21.0.2:6379 172.21.0.3:6379 172.21.0.4:6379 \\
-          172.21.0.5:6379 172.21.0.6:6379 172.21.0.7:6379 \\
+        redis-cli --cluster create \
+          172.21.0.2:6379 172.21.0.3:6379 172.21.0.4:6379 \
+          172.21.0.5:6379 172.21.0.6:6379 172.21.0.7:6379 \
           --cluster-replicas 1 --cluster-yes
 
         echo "集群创建完成，检查状态..."
