@@ -8,17 +8,30 @@ use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// Entry with metadata for TTL tracking
 #[derive(Clone, Debug)]
 pub(crate) struct CacheEntry {
-    value: Vec<u8>,
+    value: Arc<Vec<u8>>,
     expires_at: Option<Instant>,
+    /// 插入序列号，用于识别 FIFO 队列中的陈旧条目（key 被重新 set 后旧条目作废）
+    seq: u64,
 }
+
+/// 一次淘汰的条目数 = capacity / 该比率（至少 1），减少触发频率
+const EVICT_BATCH_RATIO: usize = 10;
+
+/// FIFO 队列长度超过该阈值（相对实际条目数）时触发重建，防止
+/// 频繁 re-set 导致 FIFO 无限增长
+const FIFO_COMPACT_RATIO: usize = 4;
+
+/// FIFO 队列条目：key + 插入序列号
+type FifoItem = (Arc<str>, u64);
 
 /// DashMap cache backend
 ///
@@ -29,7 +42,7 @@ pub(crate) struct CacheEntry {
 /// # Features
 ///
 /// - **High Concurrency**: Lock-free design for minimal contention
-/// - **No Eviction**: Unlike Moka, DashMap doesn't auto-evict entries
+/// - **FIFO Eviction**: Over-capacity writes evict the oldest entries in batch
 /// - **Manual TTL**: TTL must be checked on access
 ///
 /// # Example
@@ -50,7 +63,11 @@ pub(crate) struct CacheEntry {
 #[derive(Clone)]
 pub struct DashMapMemoryBackend {
     /// The main cache storage
-    cache: Arc<DashMap<String, CacheEntry>>,
+    cache: Arc<DashMap<Arc<str>, CacheEntry>>,
+    /// FIFO 插入顺序队列 `(key, seq)`，淘汰时从队头 O(1) 弹出
+    fifo: Arc<Mutex<VecDeque<FifoItem>>>,
+    /// 全局单调递增的序列号（每次 set 分配一个）
+    next_seq: Arc<AtomicU64>,
     /// Statistics counters
     hits: Arc<AtomicUsize>,
     misses: Arc<AtomicUsize>,
@@ -63,20 +80,43 @@ pub struct DashMapMemoryBackend {
 impl_backend_builder!(DashMapMemoryBackend, DashMapBackendBuilder);
 
 impl DashMapMemoryBackend {
-    /// Remove oldest entries when at capacity
+    /// 从 FIFO 队头批量淘汰条目，淘汰直到容量达标或达到单次上限。
+    ///
+    /// 相比旧的 O(n) 全表扫描，这里每次只从队头弹出，摊销 O(1)。
+    /// FIFO 中的条目带 `seq`：若 key 已被重新 set（seq 不匹配）或已删除，
+    /// 该队列条目视为陈旧直接跳过。过期条目同样可以被淘汰。
     fn evict_if_full(&self) {
-        // Find the entry with the oldest (soonest) expiration time
-        if let Some(key) = self
-            .cache
-            .iter()
-            .filter_map(|r| {
-                let entry = r.value();
-                entry.expires_at.map(|exp| (r.key().clone(), exp))
-            })
-            .min_by_key(|(_, exp)| *exp)
-            .map(|(key, _)| key)
-        {
-            self.cache.remove(&key);
+        let batch = (self.capacity / EVICT_BATCH_RATIO).max(1);
+
+        let mut evicted = 0usize;
+        loop {
+            if self.cache.len() <= self.capacity || evicted >= batch {
+                break;
+            }
+            let (key, seq) = match self.fifo.lock().unwrap().pop_front() {
+                Some(item) => item,
+                None => break,
+            };
+            // 原子检查 + 删除：仅当 seq 仍匹配（未被重新 set）时才淘汰，
+            // 避免并发 set 竞态下误删新条目
+            if self.cache.remove_if(&key, |_, entry| entry.seq == seq).is_some() {
+                evicted += 1;
+            }
+        }
+
+        self.compact_fifo();
+    }
+
+    /// FIFO 中陈旧条目过多时重建队列，防止频繁 re-set 导致无限增长
+    fn compact_fifo(&self) {
+        let mut fifo = self.fifo.lock().unwrap();
+        let cache_len = self.cache.len();
+        if fifo.len() > cache_len.saturating_mul(FIFO_COMPACT_RATIO).max(1024) {
+            let mut live = Vec::with_capacity(cache_len);
+            for r in self.cache.iter() {
+                live.push((r.key().clone(), r.value().seq));
+            }
+            *fifo = live.into();
         }
     }
 
@@ -121,29 +161,29 @@ impl CacheReader for DashMapMemoryBackend {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
-        // Use atomic operations to reduce race conditions
-        let result = self.cache.get(key).map(|entry_ref| {
+        // 查找：DashMap 返回 Option<Ref>，仅检查 key 是否存在
+        let found = self.cache.get(key).map(|entry_ref| {
             let entry = entry_ref.value();
-
-            // Check expiration atomically
+            // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
-                    // Entry expired — cannot remove while holding Ref, just return None
-                    // The expired entry will be cleaned up on next access or eviction
-                    self.misses.fetch_add(1, Ordering::SeqCst);
-                    return None;
+                    return None; // expired
                 }
             }
-
-            self.hits.fetch_add(1, Ordering::SeqCst);
-            Some(entry.value.clone())
+            Some((*entry.value).clone())
         });
 
-        if result.is_none() {
-            self.misses.fetch_add(1, Ordering::SeqCst);
+        // 统一计数：flatten 后判断最终命中/未命中，仅在此处计数一次
+        match found.flatten() {
+            Some(value) => {
+                self.hits.fetch_add(1, Ordering::SeqCst);
+                Ok(Some(value))
+            }
+            None => {
+                self.misses.fetch_add(1, Ordering::SeqCst);
+                Ok(None)
+            }
         }
-
-        Ok(result.flatten())
     }
 
     async fn exists(&self, key: &str) -> OxCacheResult<bool> {
@@ -206,14 +246,16 @@ impl CacheReader for DashMapMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for DashMapMemoryBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
+        let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
 
-        let entry = CacheEntry { value, expires_at };
+        let entry = CacheEntry { value, expires_at, seq };
 
-        // Insert the entry
-        self.cache.insert(key.to_string(), entry);
+        // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
+        self.cache.insert(key.clone(), entry);
+        self.fifo.lock().unwrap().push_back((key, seq));
 
         // Evict if at capacity
         if self.cache.len() > self.capacity {
@@ -230,6 +272,7 @@ impl CacheWriter for DashMapMemoryBackend {
 
     async fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
+        self.fifo.lock().unwrap().clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
@@ -257,6 +300,7 @@ impl CacheConnector for DashMapMemoryBackend {
 
     async fn shutdown(&self) {
         self.cache.clear();
+        self.fifo.lock().unwrap().clear();
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -278,29 +322,29 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
     fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
-        // Use atomic operations to reduce race conditions
-        let result = self.cache.get(key).map(|entry_ref| {
+        // 查找：DashMap 返回 Option<Ref>，仅检查 key 是否存在
+        let found = self.cache.get(key).map(|entry_ref| {
             let entry = entry_ref.value();
-
-            // Check expiration atomically
+            // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
-                    // Entry expired — cannot remove while holding Ref, just return None
-                    // The expired entry will be cleaned up on next access or eviction
-                    self.misses.fetch_add(1, Ordering::SeqCst);
-                    return None;
+                    return None; // expired
                 }
             }
-
-            self.hits.fetch_add(1, Ordering::SeqCst);
-            Some(entry.value.clone())
+            Some((*entry.value).clone())
         });
 
-        if result.is_none() {
-            self.misses.fetch_add(1, Ordering::SeqCst);
+        // 统一计数：flatten 后判断最终命中/未命中，仅在此处计数一次
+        match found.flatten() {
+            Some(value) => {
+                self.hits.fetch_add(1, Ordering::SeqCst);
+                Ok(Some(value))
+            }
+            None => {
+                self.misses.fetch_add(1, Ordering::SeqCst);
+                Ok(None)
+            }
         }
-
-        Ok(result.flatten())
     }
 
     fn exists(&self, key: &str) -> OxCacheResult<bool> {
@@ -358,14 +402,16 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
+        let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
 
-        let entry = CacheEntry { value, expires_at };
+        let entry = CacheEntry { value, expires_at, seq };
 
-        // Insert the entry
-        self.cache.insert(key.to_string(), entry);
+        // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
+        self.cache.insert(key.clone(), entry);
+        self.fifo.lock().unwrap().push_back((key, seq));
 
         // Evict if at capacity
         if self.cache.len() > self.capacity {
@@ -382,6 +428,7 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
 
     fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
+        self.fifo.lock().unwrap().clear();
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
@@ -408,6 +455,7 @@ impl crate::backend::interface::SyncCacheConnector for DashMapMemoryBackend {
 
     fn shutdown(&self) {
         self.cache.clear();
+        self.fifo.lock().unwrap().clear();
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -462,6 +510,8 @@ impl DashMapBackendBuilder {
 
         DashMapMemoryBackend {
             cache: Arc::new(DashMap::new()),
+            fifo: Arc::new(Mutex::new(VecDeque::new())),
+            next_seq: Arc::new(AtomicU64::new(0)),
             hits: Arc::new(AtomicUsize::new(0)),
             misses: Arc::new(AtomicUsize::new(0)),
             capacity,
@@ -514,7 +564,7 @@ mod tests {
         let backend = DashMapMemoryBackend::new();
 
         // Test set and get
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -541,7 +591,7 @@ mod tests {
 
         // Set with TTL
         backend
-            .set("key1", b"value1".to_vec(), Some(Duration::from_millis(100)))
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), Some(Duration::from_millis(100)))
             .await
             .unwrap();
 
@@ -567,6 +617,129 @@ mod tests {
     }
 
     // ========================================================================
+    // Eviction tests (问题 2.1 / 7.2)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_eviction_fifo_oldest_evicted() {
+        // capacity=3，插入 4 个无 TTL 条目，最早插入的 key1 应被淘汰
+        let backend = dashmap_memory_with_capacity(3);
+
+        backend.set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("key2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("key3"), Arc::new(b"v3".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("key4"), Arc::new(b"v4".to_vec()), None).await.unwrap();
+
+        assert_eq!(backend.entry_count(), 3);
+        assert_eq!(backend.get("key1").await.unwrap(), None, "最旧的 key1 应被淘汰");
+        assert_eq!(backend.get("key4").await.unwrap(), Some(b"v4".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_eviction_no_ttl_entries_are_evictable() {
+        // 无 TTL 条目现在也必须能被淘汰（旧实现中被 filter_map 过滤掉）
+        let backend = dashmap_memory_with_capacity(2);
+
+        backend.set(Arc::from("a"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("b"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("c"), Arc::new(b"v".to_vec()), None).await.unwrap();
+
+        assert_eq!(backend.entry_count(), 2);
+        assert_eq!(backend.get("a").await.unwrap(), None);
+        assert_eq!(backend.get("b").await.unwrap(), Some(b"v".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_eviction_reset_key_stays_fresh() {
+        // 满容量后 re-set 已存在的 key 不应立即被淘汰（seq 更新）
+        let backend = dashmap_memory_with_capacity(3);
+
+        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("k3"), Arc::new(b"v3".to_vec()), None).await.unwrap();
+
+        // re-set k1：其 FIFO 旧条目作废，新条目在队尾
+        backend.set(Arc::from("k1"), Arc::new(b"v1b".to_vec()), None).await.unwrap();
+
+        assert_eq!(backend.get("k1").await.unwrap(), Some(b"v1b".to_vec()));
+        assert_eq!(backend.entry_count(), 3);
+
+        // 再插入新 key，队头的 k2 应被淘汰而非刚 re-set 的 k1
+        backend.set(Arc::from("k4"), Arc::new(b"v4".to_vec()), None).await.unwrap();
+        assert_eq!(backend.get("k2").await.unwrap(), None, "应淘汰最早的 k2");
+        assert_eq!(backend.get("k1").await.unwrap(), Some(b"v1b".to_vec()));
+        assert_eq!(backend.entry_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_eviction_batch_evicts_multiple() {
+        // capacity=10，一次性插入 25 条，应批量淘汰到容量内
+        let backend = dashmap_memory_with_capacity(10);
+
+        for i in 0..25 {
+            backend
+                .set(Arc::from(format!("key{i}")), Arc::new(format!("v{i}").into_bytes()), None)
+                .await
+                .unwrap();
+        }
+
+        assert_eq!(backend.entry_count(), 10);
+        // 最早插入的 15 条应被淘汰
+        assert_eq!(backend.get("key0").await.unwrap(), None);
+        assert_eq!(backend.get("key14").await.unwrap(), None);
+        assert_eq!(backend.get("key15").await.unwrap(), Some(b"v15".to_vec()));
+        assert_eq!(backend.get("key24").await.unwrap(), Some(b"v24".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_eviction_expired_entries_evicted() {
+        // 有 TTL 的条目过期后，容量检查应将其淘汰
+        let backend = dashmap_memory_with_capacity(3);
+
+        backend
+            .set(Arc::from("short"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
+        backend.set(Arc::from("a"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("b"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("c"), Arc::new(b"v".to_vec()), None).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        assert_eq!(backend.get("short").await.unwrap(), None, "过期条目不可读");
+        assert_eq!(backend.entry_count(), 3);
+        assert_eq!(backend.get("a").await.unwrap(), Some(b"v".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_eviction_stress_100_writers() {
+        // 100 并发 writer + capacity=1000，验证高并发下容量不超限
+        let backend = dashmap_memory_with_capacity(1000);
+
+        let mut handles = Vec::new();
+        for w in 0..100u64 {
+            let backend = backend.clone();
+            handles.push(tokio::spawn(async move {
+                for i in 0..200u64 {
+                    let key = format!("w{w}_k{i}");
+                    backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.unwrap();
+                }
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        assert!(
+            backend.entry_count() <= 1000,
+            "capacity exceeded: {}",
+            backend.entry_count()
+        );
+        // 总数 20000 条 > capacity 1000，必然发生过淘汰
+        assert_eq!(backend.entry_count(), 1000);
+    }
+
+    // ========================================================================
     // Synchronous trait hierarchy tests (任务组 7)
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
@@ -576,6 +749,7 @@ mod tests {
     mod sync_tests {
         use super::DashMapMemoryBackend;
         use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
+        use std::sync::Arc;
         use std::time::Duration;
 
         #[test]
@@ -583,7 +757,7 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("key1", b"value1".to_vec(), None).unwrap();
+            writer.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert_eq!(reader.get("key1").unwrap(), Some(b"value1".to_vec()));
@@ -602,7 +776,7 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_millis(50))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             // 立即可读
@@ -619,7 +793,7 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
             let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
@@ -649,7 +823,7 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
@@ -665,7 +839,7 @@ mod tests {
             );
 
             // 无 TTL 的 key 返回 None
-            writer.set("no_ttl", b"v".to_vec(), None).unwrap();
+            writer.set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None).unwrap();
             assert_eq!(reader.ttl("no_ttl").unwrap(), None);
             // 不存在的 key 返回 None
             assert_eq!(reader.ttl("missing").unwrap(), None);
