@@ -26,7 +26,7 @@ pub mod custom_tiered;
 
 // Re-exports for new API
 pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
-
+pub use interface::CacheSetItem;
 // Re-exports for synchronous API (任务组 5)
 pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
 

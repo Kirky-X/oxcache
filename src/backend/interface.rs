@@ -10,6 +10,7 @@
 
 use crate::error::OxCacheResult;
 use async_trait::async_trait;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Backend kind enumeration for runtime type identification
@@ -97,6 +98,9 @@ pub trait CacheReader: Send + Sync + 'static {
     }
 }
 
+/// 批量写入条目：`(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
+pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
+
 /// Write operations for the cache.
 ///
 /// This trait provides methods for modifying data in the cache.
@@ -105,14 +109,19 @@ pub trait CacheReader: Send + Sync + 'static {
 /// # Example
 ///
 /// ```rust,ignore
-/// fn set_value(cache: &mut dyn CacheWriter, key: &str, value: Vec<u8>) -> OxCacheResult<()> {
+/// fn set_value(cache: &dyn CacheWriter, key: Arc<str>, value: Arc<Vec<u8>>) -> OxCacheResult<()> {
 ///     cache.set(key, value, None)
 /// }
 /// ```
 #[async_trait]
 pub trait CacheWriter: Send + Sync + 'static {
     /// Set a value in the cache.
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    ///
+    /// `key` and `value` are shared-ownership handles (`Arc`) so multi-backend
+    /// chains can forward the same allocation without per-backend copies
+    /// (optimization 2.2 / 2.3). Convert owned `String`/`Vec<u8>` via
+    /// [`Arc::from`] / [`Arc::new`] — both are cheap.
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
 
     /// Delete a value from the cache.
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
@@ -124,9 +133,9 @@ pub trait CacheWriter: Send + Sync + 'static {
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
 
     /// Set multiple key-value pairs in a single operation.
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> {
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
         for (key, value, ttl) in items {
-            self.set(key, value.clone(), *ttl).await?;
+            self.set(key.clone(), value.clone(), *ttl).await?;
         }
         Ok(())
     }
@@ -303,7 +312,7 @@ pub trait SyncCacheReader: Send + Sync + 'static {
 /// Mirror of [`CacheWriter`] without `async`/`#[async_trait]`.
 pub trait SyncCacheWriter: Send + Sync + 'static {
     /// Set a value in the cache.
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
 
     /// Delete a value from the cache.
     fn delete(&self, key: &str) -> OxCacheResult<()>;
@@ -316,9 +325,9 @@ pub trait SyncCacheWriter: Send + Sync + 'static {
     fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
 
     /// Set multiple key-value pairs. Default impl loops [`Self::set`].
-    fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> {
+    fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
         for (key, value, ttl) in items {
-            self.set(key, value.clone(), *ttl)?;
+            self.set(key.clone(), value.clone(), *ttl)?;
         }
         Ok(())
     }
@@ -373,7 +382,7 @@ mod tests {
         let backend = MockBackend::new("mock", 50, false);
 
         // Test set and get
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -403,7 +412,7 @@ mod tests {
 
         // Test CacheWriter trait object
         let writer: &dyn CacheWriter = &backend;
-        writer.set("key", b"value".to_vec(), None).await.unwrap();
+        writer.set(Arc::from("key"), Arc::new(b"value".to_vec()), None).await.unwrap();
 
         // Test CacheConnector trait object
         let connector: &dyn CacheConnector = &backend;
@@ -511,7 +520,7 @@ mod tests {
         assert!(reader.is_empty().await.unwrap());
 
         // 添加数据后应该返回 false
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
         assert!(!reader.is_empty().await.unwrap());
     }
 
@@ -522,8 +531,8 @@ mod tests {
     #[tokio::test]
     async fn test_cache_reader_get_many_default() {
         let backend = MockBackend::new("mock", 50, false);
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
-        backend.set("key2", b"value2".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
 
         let reader: &dyn CacheReader = &backend;
         let keys = vec!["key1".to_string(), "key2".to_string(), "key3".to_string()];
@@ -552,8 +561,8 @@ mod tests {
         let backend = MockBackend::new("mock", 50, false);
         let writer: &dyn CacheWriter = &backend;
         let items = vec![
-            ("key1".to_string(), b"value1".to_vec(), None),
-            ("key2".to_string(), b"value2".to_vec(), None),
+            (Arc::from("key1"), Arc::new(b"value1".to_vec()), None),
+            (Arc::from("key2"), Arc::new(b"value2".to_vec()), None),
         ];
         writer.set_many(&items).await.unwrap();
 
@@ -564,8 +573,8 @@ mod tests {
     #[tokio::test]
     async fn test_cache_writer_delete_many_default() {
         let backend = MockBackend::new("mock", 50, false);
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
-        backend.set("key2", b"value2".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
 
         let writer: &dyn CacheWriter = &backend;
         let keys = vec!["key1".to_string(), "key2".to_string()];
@@ -603,7 +612,7 @@ mod tests {
         let backend = MockBackend::new("mock", 50, false);
         let backend_dyn: &dyn CacheBackend = &backend;
         // 测试 CacheBackend 可以作为 trait 对象使用
-        backend_dyn.set("key", b"value".to_vec(), None).await.unwrap();
+        backend_dyn.set(Arc::from("key"), Arc::new(b"value".to_vec()), None).await.unwrap();
         let value = backend_dyn.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
     }
@@ -678,9 +687,9 @@ mod tests {
     }
 
     impl SyncCacheWriter for MockSyncBackend {
-        fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
             let expires_at = ttl.map(|d| Instant::now() + d);
-            self.data.write().unwrap().insert(key.to_string(), (value, expires_at));
+            self.data.write().unwrap().insert(key.to_string(), ((*value).clone(), expires_at));
             Ok(())
         }
 
@@ -724,7 +733,7 @@ mod tests {
         let backend_dyn: &dyn SyncCacheBackend = &backend;
 
         // 写入 + 读取
-        backend_dyn.set("key1", b"value1".to_vec(), None).unwrap();
+        backend_dyn.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).unwrap();
         let value = backend_dyn.get("key1").unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -748,7 +757,7 @@ mod tests {
         // 空缓存
         assert!(reader.is_empty().unwrap());
         // 添加数据后
-        backend.set("k", b"v".to_vec(), None).unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).unwrap();
         assert!(!reader.is_empty().unwrap());
     }
 
@@ -757,9 +766,9 @@ mod tests {
         let backend = MockSyncBackend::new(50);
         let writer: &dyn SyncCacheWriter = &backend;
         let items = vec![
-            ("k1".to_string(), b"v1".to_vec(), None),
-            ("k2".to_string(), b"v2".to_vec(), None),
-            ("k3".to_string(), b"v3".to_vec(), None),
+            (Arc::from("k1"), Arc::new(b"v1".to_vec()), None),
+            (Arc::from("k2"), Arc::new(b"v2".to_vec()), None),
+            (Arc::from("k3"), Arc::new(b"v3".to_vec()), None),
         ];
         writer.set_many(&items).unwrap();
 
@@ -778,8 +787,8 @@ mod tests {
     #[test]
     fn test_sync_reader_default_get_many_loops_get() {
         let backend = MockSyncBackend::new(50);
-        backend.set("k1", b"v1".to_vec(), None).unwrap();
-        backend.set("k2", b"v2".to_vec(), None).unwrap();
+        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).unwrap();
+        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).unwrap();
 
         let reader: &dyn SyncCacheReader = &backend;
         let keys = vec!["k1".to_string(), "k2".to_string(), "k3".to_string()];
@@ -793,7 +802,7 @@ mod tests {
     #[test]
     fn test_sync_backend_ttl_and_expire() {
         let backend = MockSyncBackend::new(50);
-        backend.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
 
         // ttl 返回剩余时间
         let ttl = backend.ttl("k").unwrap();
