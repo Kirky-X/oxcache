@@ -6,6 +6,7 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
 use std::hint::black_box;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -37,7 +38,7 @@ fn bench_redis_set(c: &mut Criterion) {
             );
             let value = vec![0u8; 100];
             let _ = backend
-                .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
+                .set(Arc::from(black_box(&key).as_str()), Arc::new(black_box(value)), Some(Duration::from_secs(300)))
                 .await;
         });
     });
@@ -55,7 +56,7 @@ fn bench_redis_get(c: &mut Criterion) {
         // 预填充测试数据
         let key = "bench:redis:get:test";
         let value = vec![0u8; 100];
-        let _ = backend.set(key, value, Some(Duration::from_secs(300))).await;
+        let _ = backend.set(Arc::from(key), Arc::new(value), Some(Duration::from_secs(300))).await;
 
         backend
     });
@@ -84,7 +85,7 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
                 let key = format!("bench:redis:size:{}", size);
                 let value = vec![0u8; size];
                 let _ = backend
-                    .set(black_box(&key), black_box(value), Some(Duration::from_secs(300)))
+                .set(Arc::from(black_box(&key).as_str()), Arc::new(black_box(value)), Some(Duration::from_secs(300)))
                     .await;
             });
         });
@@ -109,7 +110,7 @@ fn bench_redis_ttl(c: &mut Criterion) {
             );
             let value = vec![0u8; 100];
             let _ = backend
-                .set(black_box(&key), black_box(value), Some(Duration::from_secs(60)))
+                .set(Arc::from(black_box(&key).as_str()), Arc::new(black_box(value)), Some(Duration::from_secs(60)))
                 .await;
         });
     });
