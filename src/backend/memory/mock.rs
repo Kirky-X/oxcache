@@ -15,6 +15,18 @@ use tokio::sync::RwLock;
 #[cfg(test)]
 type MockEntry = (Vec<u8>, Option<Instant>);
 
+/// 故障注入标志：控制 MockBackend 的失败行为（用于测试降级/错误路径）
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
+pub struct MockFaultConfig {
+    /// 为 true 时 `get` 返回错误（模拟 L1 故障）
+    pub fail_get: bool,
+    /// 为 true 时 `set` 返回错误
+    pub fail_set: bool,
+    /// 为 true 时 `health_check` 返回错误
+    pub fail_health: bool,
+}
+
 /// Mock 后端 - 用于测试的模拟缓存后端
 ///
 /// 内部数据结构存储 `(value, expires_at)`：`expires_at=None` 表示永不过期，
@@ -26,6 +38,7 @@ pub struct MockBackend {
     score: u8,
     persistent: bool,
     data: Arc<RwLock<HashMap<String, MockEntry>>>,
+    fault: MockFaultConfig,
 }
 
 #[cfg(test)]
@@ -36,7 +49,31 @@ impl MockBackend {
             score,
             persistent,
             data: Arc::new(RwLock::new(HashMap::new())),
+            fault: MockFaultConfig::default(),
         }
+    }
+
+    /// 注入故障：`get` 返回错误
+    pub fn with_fail_get(mut self) -> Self {
+        self.fault.fail_get = true;
+        self
+    }
+
+    /// 注入故障：`set` 返回错误
+    pub fn with_fail_set(mut self) -> Self {
+        self.fault.fail_set = true;
+        self
+    }
+
+    /// 注入故障：`health_check` 返回错误
+    pub fn with_fail_health(mut self) -> Self {
+        self.fault.fail_health = true;
+        self
+    }
+
+    /// 检查是否配置了 `get` 故障
+    pub fn fails_get(&self) -> bool {
+        self.fault.fail_get
     }
 }
 
@@ -59,6 +96,11 @@ impl crate::backend::BackendScore for MockBackend {
 #[async_trait::async_trait]
 impl crate::backend::CacheReader for MockBackend {
     async fn get(&self, key: &str) -> crate::error::OxCacheResult<Option<Vec<u8>>> {
+        if self.fault.fail_get {
+            return Err(crate::error::OxCacheError::Operation(
+                "MockBackend get fault injected".to_string(),
+            ));
+        }
         let now = Instant::now();
         let mut data = self.data.write().await;
         if let Some((_v, expires_at)) = data.get(key) {
@@ -122,10 +164,15 @@ impl crate::backend::CacheReader for MockBackend {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl crate::backend::CacheWriter for MockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> crate::error::OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> crate::error::OxCacheResult<()> {
+        if self.fault.fail_set {
+            return Err(crate::error::OxCacheError::Operation(
+                "MockBackend set fault injected".to_string(),
+            ));
+        }
         let mut data = self.data.write().await;
         let expires_at = ttl.map(|d| Instant::now() + d);
-        data.insert(key.to_string(), (value, expires_at));
+        data.insert(key.to_string(), ((*value).clone(), expires_at));
         Ok(())
     }
 
@@ -157,6 +204,11 @@ impl crate::backend::CacheWriter for MockBackend {
 #[async_trait::async_trait]
 impl crate::backend::CacheConnector for MockBackend {
     async fn health_check(&self) -> crate::error::OxCacheResult<()> {
+        if self.fault.fail_health {
+            return Err(crate::error::OxCacheError::Operation(
+                "MockBackend health fault injected".to_string(),
+            ));
+        }
         Ok(())
     }
 
@@ -185,7 +237,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_backend_set_get() {
         let backend = MockBackend::new("test", 50, false);
-        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+        CacheWriter::set(&backend, Arc::from("key"), Arc::new(b"value".to_vec()), None)
             .await
             .unwrap();
         let result = CacheReader::get(&backend, "key").await.unwrap();
@@ -195,7 +247,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_backend_delete() {
         let backend = MockBackend::new("test", 50, false);
-        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+        CacheWriter::set(&backend, Arc::from("key"), Arc::new(b"value".to_vec()), None)
             .await
             .unwrap();
         CacheWriter::delete(&backend, "key").await.unwrap();
@@ -205,7 +257,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_backend_clear() {
         let backend = MockBackend::new("test", 50, false);
-        CacheWriter::set(&backend, "k1", b"v1".to_vec(), None).await.unwrap();
+        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
         CacheWriter::clear(&backend).await.unwrap();
         assert!(CacheReader::is_empty(&backend).await.unwrap());
     }
@@ -214,7 +266,7 @@ mod mock_tests {
     async fn test_mock_backend_exists() {
         let backend = MockBackend::new("test", 50, false);
         assert!(!CacheReader::exists(&backend, "key").await.unwrap());
-        CacheWriter::set(&backend, "key", b"value".to_vec(), None)
+        CacheWriter::set(&backend, Arc::from("key"), Arc::new(b"value".to_vec()), None)
             .await
             .unwrap();
         assert!(CacheReader::exists(&backend, "key").await.unwrap());
@@ -224,7 +276,7 @@ mod mock_tests {
     async fn test_mock_backend_len() {
         let backend = MockBackend::new("test", 50, false);
         assert_eq!(CacheReader::len(&backend).await.unwrap(), 0);
-        CacheWriter::set(&backend, "k1", b"v1".to_vec(), None).await.unwrap();
+        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
         assert_eq!(CacheReader::len(&backend).await.unwrap(), 1);
     }
 
@@ -256,6 +308,32 @@ mod mock_tests {
         );
     }
 
+    // ========================================================================
+    // 故障注入测试 (问题 5.1 / 7.3)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_mock_backend_fault_injected_get_returns_err() {
+        let backend = MockBackend::new("failing", 50, false).with_fail_get();
+        assert!(backend.fails_get());
+        let result = CacheReader::get(&backend, "key").await;
+        assert!(result.is_err(), "fail_get 注入后 get 应返回错误");
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_fault_injected_set_returns_err() {
+        let backend = MockBackend::new("failing", 50, false).with_fail_set();
+        let result = CacheWriter::set(&backend, Arc::from("key"), Arc::new(b"v".to_vec()), None).await;
+        assert!(result.is_err(), "fail_set 注入后 set 应返回错误");
+    }
+
+    #[tokio::test]
+    async fn test_mock_backend_fault_injected_health_returns_err() {
+        let backend = MockBackend::new("failing", 50, false).with_fail_health();
+        let result = CacheConnector::health_check(&backend).await;
+        assert!(result.is_err(), "fail_health 注入后 health_check 应返回错误");
+    }
+
     #[tokio::test]
     async fn test_mock_backend_persistent() {
         let backend = MockBackend::new("test", 50, true);
@@ -270,7 +348,7 @@ mod mock_tests {
     async fn test_mock_set_with_ttl_expires_after_timeout() {
         let backend = MockBackend::new("test", 50, false);
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
             .await
             .unwrap();
         // 立即可读
@@ -283,7 +361,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_set_without_ttl_never_expires() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
     }
@@ -292,7 +370,7 @@ mod mock_tests {
     async fn test_mock_ttl_returns_remaining() {
         let backend = MockBackend::new("test", 50, false);
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some");
@@ -318,7 +396,7 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_ttl_returns_none_for_no_ttl_key() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         assert_eq!(backend.ttl("k").await.unwrap(), None);
     }
 
@@ -326,7 +404,7 @@ mod mock_tests {
     async fn test_mock_expire_extends_ttl() {
         let backend = MockBackend::new("test", 50, false);
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         let ok = backend.expire("k", Duration::from_secs(120)).await.unwrap();
@@ -354,7 +432,7 @@ mod mock_tests {
     async fn test_mock_lazy_cleanup_removes_expired_entry() {
         let backend = MockBackend::new("test", 50, false);
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
             .await
             .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;

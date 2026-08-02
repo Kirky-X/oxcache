@@ -37,14 +37,14 @@ pub struct MokaEntry {
 #[derive(Default, Clone)]
 pub struct MokaExpiry;
 
-impl Expiry<String, MokaEntry> for MokaExpiry {
-    fn expire_after_create(&self, _key: &String, val: &MokaEntry, created_at: Instant) -> Option<Duration> {
+impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
+    fn expire_after_create(&self, _key: &Arc<str>, val: &MokaEntry, created_at: Instant) -> Option<Duration> {
         val.expires_at.map(|e| e.saturating_duration_since(created_at))
     }
 
     fn expire_after_update(
         &self,
-        _key: &String,
+        _key: &Arc<str>,
         val: &MokaEntry,
         updated_at: Instant,
         _duration_until_expiry: Option<Duration>,
@@ -59,7 +59,7 @@ impl Expiry<String, MokaEntry> for MokaExpiry {
 /// LRU/TinyLFU eviction policies and built-in TTL support.
 #[derive(Clone)]
 pub struct MokaMemoryBackend {
-    cache: Arc<moka::future::Cache<String, MokaEntry>>,
+    cache: Arc<moka::future::Cache<Arc<str>, MokaEntry>>,
     capacity: u64,
 }
 
@@ -134,10 +134,10 @@ impl CacheReader for MokaMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for MokaMemoryBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
-        let entry = MokaEntry { value, expires_at };
-        self.cache.insert(key.to_string(), entry).await;
+        let entry = MokaEntry { value: (*value).clone(), expires_at };
+        self.cache.insert(key, entry).await;
         Ok(())
     }
 
@@ -153,10 +153,11 @@ impl CacheWriter for MokaMemoryBackend {
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let new_expires_at = Instant::now() + ttl;
+        let key_arc: Arc<str> = Arc::from(key);
         let result = self
             .cache
-            .entry(key.to_string())
-            .and_compute_with(|maybe_entry: Option<moka::Entry<String, MokaEntry>>| async move {
+            .entry(key_arc)
+            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
                 match maybe_entry {
                     Some(entry) => {
                         let mut old = entry.into_value();
@@ -196,25 +197,32 @@ impl CacheConnector for MokaMemoryBackend {
 //
 // Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/
 // `invalidate` 的前台 future 不依赖 tokio runtime 驱动（无 `tokio::spawn`/
-// `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 优先复用
-// 当前 multi-thread runtime（`block_in_place`），否则惰性创建 current-thread
-// runtime 供同步路径使用。
+// `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 在已有
+// multi-thread runtime 时优先复用（`block_in_place`）；否则手动轮询 future，
+// 避免在无 runtime / current-thread runtime 上下文中嵌套 `block_on` 触发
+// "Cannot block the current thread from within a runtime" panic（问题 3.2）。
 
+/// 驱动 future 至完成。不创建、不依赖任何 tokio runtime。
+///
+/// moka 的这些 future 要么立即就绪，要么依赖内部通知在极短时间内就绪，
+/// 因此 Pending 时 yield 后重轮询即可，无需真实 waker 注册。
 fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
             tokio::task::block_in_place(|| handle.block_on(fut))
         }
         _ => {
-            use std::sync::OnceLock;
-            static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-            let rt = RT.get_or_init(|| {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_time()
-                    .build()
-                    .expect("failed to build tokio runtime for sync moka ops")
-            });
-            rt.block_on(fut)
+            use std::task::{Context, Poll};
+
+            let waker = std::task::Waker::noop();
+            let mut cx = Context::from_waker(waker);
+            let mut fut = std::pin::pin!(fut);
+            loop {
+                match fut.as_mut().poll(&mut cx) {
+                    Poll::Ready(out) => return out,
+                    Poll::Pending => std::thread::yield_now(),
+                }
+            }
         }
     }
 }
@@ -252,10 +260,10 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
 }
 
 impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
-    fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
-        let entry = MokaEntry { value, expires_at };
-        sync_block_on(self.cache.insert(key.to_string(), entry));
+        let entry = MokaEntry { value: (*value).clone(), expires_at };
+        sync_block_on(self.cache.insert(key, entry));
         Ok(())
     }
 
@@ -271,8 +279,9 @@ impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
 
     fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let new_expires_at = Instant::now() + ttl;
-        let result = sync_block_on(self.cache.entry(key.to_string()).and_compute_with(
-            |maybe_entry: Option<moka::Entry<String, MokaEntry>>| async move {
+        let key_arc: Arc<str> = Arc::from(key);
+        let result = sync_block_on(self.cache.entry(key_arc).and_compute_with(
+            |maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
                 match maybe_entry {
                     Some(entry) => {
                         let mut old = entry.into_value();
@@ -422,7 +431,7 @@ mod tests {
         let backend = MokaMemoryBackend::new();
 
         // Set a value
-        backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
 
         // Use tokio::time::sleep to ensure async operations complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -462,7 +471,7 @@ mod tests {
     async fn test_moka_set_with_ttl_expires_after_timeout() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
             .await
             .unwrap();
         // 立即可读
@@ -485,7 +494,7 @@ mod tests {
     async fn test_moka_set_with_ttl_readable_within_window() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         // 60s TTL 内应可读
@@ -499,7 +508,7 @@ mod tests {
             .capacity(1000)
             .ttl(Duration::from_secs(30))
             .build();
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         // 立即可读
         assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
         // 全局 TTL 查询（per-entry 未设置时返回 None，符合 spec "无 TTL 键返回 None"）
@@ -511,7 +520,7 @@ mod tests {
     async fn test_moka_ttl_returns_remaining() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some");
@@ -537,7 +546,7 @@ mod tests {
     #[tokio::test]
     async fn test_moka_ttl_returns_none_for_no_ttl_key() {
         let backend = MokaMemoryBackend::new();
-        backend.set("k", b"v".to_vec(), None).await.unwrap();
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
         assert_eq!(backend.ttl("k").await.unwrap(), None);
     }
 
@@ -545,7 +554,7 @@ mod tests {
     async fn test_moka_expire_extends_ttl() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         let ok = backend.expire("k", Duration::from_secs(120)).await.unwrap();
@@ -566,7 +575,7 @@ mod tests {
     async fn test_moka_expire_shrinks_ttl() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
             .await
             .unwrap();
         let ok = backend.expire("k", Duration::from_millis(50)).await.unwrap();
@@ -602,13 +611,14 @@ mod tests {
         use super::MokaMemoryBackend;
         use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
         use std::time::Duration;
+        use std::sync::Arc;
 
         #[test]
         fn test_moka_sync_get_set_basic() {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("key1", b"value1".to_vec(), None).unwrap();
+            writer.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert_eq!(reader.get("key1").unwrap(), Some(b"value1".to_vec()));
@@ -625,7 +635,7 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_millis(50))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             // 立即可读
@@ -649,7 +659,7 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
@@ -665,7 +675,7 @@ mod tests {
             );
 
             // 无 TTL 的 key 返回 None
-            writer.set("no_ttl", b"v".to_vec(), None).unwrap();
+            writer.set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None).unwrap();
             assert_eq!(reader.ttl("no_ttl").unwrap(), None);
             // 不存在的 key 返回 None
             assert_eq!(reader.ttl("missing").unwrap(), None);
@@ -676,7 +686,7 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k", b"v".to_vec(), Some(Duration::from_secs(60))).unwrap();
+            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
             let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
@@ -700,8 +710,8 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set("k1", b"v1".to_vec(), None).unwrap();
-            writer.set("k2", b"v2".to_vec(), None).unwrap();
+            writer.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).unwrap();
+            writer.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert!(reader.exists("k1").unwrap());
@@ -723,6 +733,30 @@ mod tests {
             connector.health_check().unwrap();
             assert_eq!(connector.backend_kind(), BackendKind::Moka);
             connector.shutdown();
+        }
+
+        // 回归（问题 3.2）：在 current-thread runtime 的异步上下文内调用同步方法，
+        // 不得因嵌套 `block_on` 触发 "Cannot block the current thread from within
+        // a runtime" panic。修复后 sync_block_on 在该场景走手动 poll 分支。
+        #[test]
+        fn test_moka_sync_ops_inside_current_thread_runtime() {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async {
+                let backend = MokaMemoryBackend::new();
+
+                let writer: &dyn SyncCacheWriter = &backend;
+                writer.set(Arc::from("ct"), Arc::new(b"v".to_vec()), None).unwrap();
+
+                let reader: &dyn SyncCacheReader = &backend;
+                assert_eq!(reader.get("ct").unwrap(), Some(b"v".to_vec()));
+                assert!(reader.exists("ct").unwrap());
+
+                writer.delete("ct").unwrap();
+                assert!(!reader.exists("ct").unwrap());
+            });
         }
     }
 }
