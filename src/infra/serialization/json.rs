@@ -3,47 +3,20 @@
 //! 该模块定义了JSON序列化器的实现。
 
 use super::Serializer;
-use super::depth_limited::{MAX_DESERIALIZE_DEPTH, would_exceed_depth_limit};
-use super::utils::{check_data_size, compress_data, decompress_data};
-use crate::error::{OxCacheError, OxCacheResult};
-use serde::{Deserialize, Serialize};
+use super::utils::{check_data_size, compress_data, decompress_data_with_limit};
+use crate::error::OxCacheResult;
+use crate::core::MAX_JSON_SIZE;
 
 /// JSON序列化器
 ///
-/// 实现基于serde_json的序列化和反序列化
+/// 直接存储原始字节（不再做 base64 包装），可选启用 gzip 压缩。
+/// 数据即存即取：序列化时不解析 JSON 文本，反序列化时也不做深度检查
+/// （深度检查由 typed 反序列化路径统一负责），避免双重序列化开销。
 #[derive(Clone, Debug)]
 pub struct JsonSerializer {
     /// 是否启用压缩
     compress: bool,
 }
-
-/// 最大JSON反序列化大小限制（5MB）
-const MAX_JSON_SIZE: usize = 5 * 1024 * 1024;
-
-/// JSON 字节数组包装器，用于 base64 编码
-mod byte_array {
-    use base64::prelude::*;
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S>(bytes: &[u8], serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let encoded = BASE64_STANDARD.encode(bytes);
-        serializer.serialize_str(&encoded)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let encoded = String::deserialize(deserializer)?;
-        BASE64_STANDARD.decode(&encoded).map_err(serde::de::Error::custom)
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct ByteArrayWrapper(#[serde(with = "byte_array")] Vec<u8>);
 
 impl JsonSerializer {
     /// 创建新的JSON序列化器
@@ -64,7 +37,7 @@ impl Default for JsonSerializer {
 }
 
 impl Serializer for JsonSerializer {
-    /// 序列化值为JSON字节数组
+    /// 序列化值为字节数组（可选压缩，不做 base64/JSON 包装）
     ///
     /// # 参数
     ///
@@ -75,17 +48,14 @@ impl Serializer for JsonSerializer {
     ///
     /// 返回序列化后的字节数组或错误
     fn serialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
-        let wrapper = ByteArrayWrapper(data.to_vec());
-        let json_bytes = serde_json::to_vec(&wrapper).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-
         if self.compress {
-            compress_data(&json_bytes)
+            compress_data(data)
         } else {
-            Ok(json_bytes)
+            Ok(data.to_vec())
         }
     }
 
-    /// 从JSON字节数组反序列化值
+    /// 从字节数组反序列化值（可选解压，不做 JSON 解析）
     ///
     /// # 参数
     ///
@@ -98,29 +68,15 @@ impl Serializer for JsonSerializer {
     ///
     /// # 安全
     ///
-    /// 此方法限制反序列化数据的大小和深度，防止拒绝服务攻击
+    /// 此方法限制反序列化数据的大小和解压输出大小，防止拒绝服务攻击。
     fn deserialize(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         check_data_size(data, MAX_JSON_SIZE, "JSON")?;
 
-        let json_bytes = if self.compress {
-            decompress_data(data)?
+        if self.compress {
+            decompress_data_with_limit(data, super::utils::MAX_DECOMPRESS_SIZE)
         } else {
-            data.to_vec()
-        };
-
-        if would_exceed_depth_limit(&json_bytes, MAX_DESERIALIZE_DEPTH)
-            .map_err(|e| OxCacheError::Serialization(e.to_string()))?
-        {
-            return Err(OxCacheError::InvalidInput(format!(
-                "JSON 嵌套深度超过最大限制 {}",
-                MAX_DESERIALIZE_DEPTH
-            )));
+            Ok(data.to_vec())
         }
-
-        let wrapper: ByteArrayWrapper =
-            serde_json::from_slice(&json_bytes).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-
-        Ok(wrapper.0)
     }
 }
 
@@ -129,30 +85,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_base64_serialization() {
+    fn test_raw_bytes_round_trip() {
         let serializer = JsonSerializer::new();
         let data = vec![0, 1, 2, 255, 254, 253];
 
         let serialized = serializer.serialize("test", &data).unwrap();
-
-        let json_str = String::from_utf8(serialized.clone()).unwrap();
-        assert!(json_str.contains("\"")); // 应该是字符串而不是数组
+        assert_eq!(serialized, data); // 原始字节直接存储，无膨胀
 
         let deserialized = serializer.deserialize("test", &serialized).unwrap();
         assert_eq!(data, deserialized);
     }
 
     #[test]
-    fn test_base64_vs_array_size() {
+    fn test_raw_bytes_not_base64_encoded() {
+        // 不再经过 base64：序列化结果就是原始字节，不含 JSON 字符串包装
         let serializer = JsonSerializer::new();
-        let data: Vec<u8> = (0..=255).collect();
+        let data = vec![0, 1, 2, 255, 254, 253];
 
         let serialized = serializer.serialize("test", &data).unwrap();
-
-        let old_size = data.len() * 4;
-        let new_size = serialized.len();
-
-        assert!(new_size < old_size, "base64 编码应该比 JSON 数组更小");
+        assert_eq!(serialized.len(), data.len(), "不应有 base64 膨胀 (4/3)");
     }
 
     #[test]
