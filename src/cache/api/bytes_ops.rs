@@ -24,7 +24,7 @@ where
 
     pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
-        self.backend.set(key, value, ttl_duration).await
+        self.backend.set(Arc::from(key), Arc::new(value), ttl_duration).await
     }
 
     /// Synchronously get raw bytes from the cache (macro-compatible sync path).
@@ -52,7 +52,7 @@ where
             )
         })?;
         let ttl_duration = ttl.map(Duration::from_secs);
-        backend.set(key, value, ttl_duration)
+        backend.set(Arc::from(key), Arc::new(value), ttl_duration)
     }
 
     #[cfg(any(feature = "serialization", feature = "full"))]

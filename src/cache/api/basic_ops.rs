@@ -18,7 +18,9 @@ use tracing::instrument;
 
 /// 计算 JSON 值的嵌套深度（用于防止栈溢出攻击）
 // 使用 serde_json::Value，仅在 serialization/full feature 下可用
+// 保留为独立工具函数：deserialize_value 已改用 deserialize_safe 单次解析。
 #[cfg(any(feature = "serialization", feature = "full"))]
+#[allow(dead_code)]
 fn json_depth(value: &serde_json::Value) -> usize {
     match value {
         serde_json::Value::Object(map) => {
@@ -39,10 +41,29 @@ fn json_depth(value: &serde_json::Value) -> usize {
     }
 }
 
+/// 分片数量（2 的幂，通过掩码路由）
+const GET_OR_LOCK_SHARDS: usize = 64;
+const GET_OR_LOCK_MASK: usize = GET_OR_LOCK_SHARDS - 1;
+
+/// 单个 get_or 分片的存储类型：key → 该 key 的 leader 通知器
+type GetOrShard = Mutex<HashMap<String, Arc<tokio::sync::Notify>>>;
+
 /// 全局 get_or 去重锁，防止缓存击穿（thundering herd）。
 /// 当多个并发请求同时调用 `get_or` 且缓存未命中时，
 /// 只让第一个请求执行 fallback，其余请求等待结果。
-static GET_OR_LOCKS: Lazy<Mutex<HashMap<String, Arc<tokio::sync::Notify>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+///
+/// 使用 64 路分片（按 key hash 路由），避免所有 key 竞争同一把 Mutex，
+/// 消除全局锁热点（问题 3.1）。
+static GET_OR_LOCKS: Lazy<[GetOrShard; GET_OR_LOCK_SHARDS]> =
+    Lazy::new(|| std::array::from_fn(|_| Mutex::new(HashMap::new())));
+
+/// 计算 key 对应的分片索引
+fn get_or_shard_index(key: &str) -> usize {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    (hasher.finish() as usize) & GET_OR_LOCK_MASK
+}
 
 /// 用于 panic 安全地清理 GET_OR_LOCKS 中的条目。
 ///
@@ -66,17 +87,10 @@ impl Drop for GetOrGuard<'_> {
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> OxCacheResult<V> {
-    let depth_limit: usize = MAX_JSON_DEPTH;
-    let json_value: serde_json::Value =
-        serde_json::from_slice(data).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-    if json_depth(&json_value) > depth_limit {
-        return Err(OxCacheError::Serialization(format!(
-            "JSON深度 {} 超过最大限制 {}",
-            json_depth(&json_value),
-            depth_limit
-        )));
-    }
-    serde_json::from_value(json_value).map_err(|e| OxCacheError::Serialization(e.to_string()))
+    // 单次文本解析 + 深度校验：借助 serde_stacker 避免深层 JSON 栈溢出，
+    // 深度限制统一为 MAX_JSON_DEPTH。
+    crate::infra::serialization::depth_limited::deserialize_safe(data, MAX_JSON_DEPTH)
+        .map_err(|e| OxCacheError::Serialization(e.to_string()))
 }
 
 #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -161,7 +175,7 @@ where
                 Ok(b) => b,
                 Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
             };
-            self.backend.set(&key_str, bytes, ttl).await
+            self.backend.set(Arc::from(key_str), Arc::new(bytes), ttl).await
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -231,11 +245,13 @@ where
         }
 
         let key_str = key.to_key_string();
+        let shard_index = get_or_shard_index(&key_str);
 
         // 尝试注册为 leader；如果 key 已存在则成为 follower
         // 注意：锁必须在 await 之前释放，避免 await_holding_lock
         let (is_follower, notify) = {
-            let mut map = GET_OR_LOCKS
+            let shard = &GET_OR_LOCKS[shard_index];
+            let mut map = shard
                 .lock()
                 .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected");
             match map.entry(key_str.clone()) {
@@ -262,14 +278,14 @@ where
 
         // 创建 panic 安全守卫，确保 leader 即使在 panic 时也会清理锁条目
         let mut guard = GetOrGuard {
-            map: &GET_OR_LOCKS,
+            map: &GET_OR_LOCKS[shard_index],
             key: key_str.clone(),
             removed: false,
         };
 
         // leader：二次检查缓存（避免与另一个刚刚完成的 leader 竞争）
         if let Some(value) = self.get(key).await? {
-            GET_OR_LOCKS
+            GET_OR_LOCKS[shard_index]
                 .lock()
                 .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
                 .remove(&key_str);
@@ -278,7 +294,7 @@ where
             return Ok(value);
         }
 
-        self.execute_fallback(key, &key_str, fallback, &notify, &mut guard)
+        self.execute_fallback(key, &key_str, shard_index, fallback, &notify, &mut guard)
             .await
     }
 
@@ -287,6 +303,7 @@ where
         &self,
         key: &K,
         key_str: &str,
+        shard_index: usize,
         fallback: F,
         notify: &Arc<tokio::sync::Notify>,
         guard: &mut GetOrGuard<'_>,
@@ -299,7 +316,7 @@ where
         match result {
             Ok(value) => {
                 self.set(key, &value).await?;
-                GET_OR_LOCKS
+                GET_OR_LOCKS[shard_index]
                     .lock()
                     .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
                     .remove(key_str);
@@ -308,7 +325,7 @@ where
                 Ok(value)
             }
             Err(e) => {
-                GET_OR_LOCKS
+                GET_OR_LOCKS[shard_index]
                     .lock()
                     .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
                     .remove(key_str);
@@ -336,15 +353,22 @@ where
 /// (success or failure). Followers `wait()` on the `Condvar` until `true`.
 type SyncFlight = Arc<(Mutex<bool>, Condvar)>;
 
+/// 单个 get_or_sync 分片的存储类型：key → 该 key 的 leader flight
+type GetOrSyncShard = Mutex<HashMap<String, SyncFlight>>;
+
 /// Global registry of in-flight `get_or_sync` leaders, keyed by cache key.
 /// Followers find their leader's `SyncFlight` here and block on its `Condvar`.
-static GET_OR_SYNC_LOCKS: Lazy<Mutex<HashMap<String, SyncFlight>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+///
+/// 使用 64 路分片（按 key hash 路由），避免全局锁热点（问题 3.1）。
+static GET_OR_SYNC_LOCKS: Lazy<[GetOrSyncShard; GET_OR_LOCK_SHARDS]> =
+    Lazy::new(|| std::array::from_fn(|_| Mutex::new(HashMap::new())));
 
 /// Panic-safe guard for `get_or_sync` leaders. If the leader panics before
 /// marking its flight `done`, this `Drop` impl flips the flag to `true` and
 /// `notify_all`s followers so they don't block forever, then removes the
 /// stale entry from the registry.
 struct GetOrSyncGuard {
+    shard_index: usize,
     map_key: String,
     flight: SyncFlight,
     removed: bool,
@@ -362,7 +386,7 @@ impl Drop for GetOrSyncGuard {
                 *done = true;
             }
             self.flight.1.notify_all();
-            GET_OR_SYNC_LOCKS
+            GET_OR_SYNC_LOCKS[self.shard_index]
                 .lock()
                 .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected")
                 .remove(&self.map_key);
@@ -413,7 +437,7 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
             let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-            backend.set(&key_str, bytes, ttl)
+            backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -472,11 +496,13 @@ where
         }
 
         let key_str = key.to_key_string();
+        let shard_index = get_or_shard_index(&key_str);
 
         // Register as leader or become follower. Lock is released before any
         // blocking work to avoid holding it while running fallback.
         let (is_follower, flight) = {
-            let mut map = GET_OR_SYNC_LOCKS
+            let shard = &GET_OR_SYNC_LOCKS[shard_index];
+            let mut map = shard
                 .lock()
                 .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected");
             match map.entry(key_str.clone()) {
@@ -513,6 +539,7 @@ where
 
         // Leader path
         let mut guard = GetOrSyncGuard {
+            shard_index,
             map_key: key_str.clone(),
             flight: flight.clone(),
             removed: false,
@@ -521,7 +548,7 @@ where
         // Double-check cache after acquiring leadership (another leader may
         // have just finished and cached the value)
         if let Some(value) = self.get_sync(key)? {
-            Self::finish_sync_flight(&key_str, &flight, &mut guard);
+            Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
             return Ok(value);
         }
 
@@ -530,14 +557,14 @@ where
             Ok(value) => {
                 if let Err(e) = self.set_sync(key, &value) {
                     // Caching failed — still wake followers before propagating
-                    Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                    Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                     return Err(e);
                 }
-                Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                 Ok(value)
             }
             Err(e) => {
-                Self::finish_sync_flight(&key_str, &flight, &mut guard);
+                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                 Err(e)
             }
         }
@@ -545,7 +572,12 @@ where
 
     /// Mark the flight as done, notify all followers, and remove the entry
     /// from the registry. Idempotent via the `guard.removed` flag.
-    fn finish_sync_flight(key_str: &str, flight: &SyncFlight, guard: &mut GetOrSyncGuard) {
+    fn finish_sync_flight(
+        shard_index: usize,
+        key_str: &str,
+        flight: &SyncFlight,
+        guard: &mut GetOrSyncGuard,
+    ) {
         {
             let mut done = flight
                 .0
@@ -554,7 +586,7 @@ where
             *done = true;
         }
         flight.1.notify_all();
-        GET_OR_SYNC_LOCKS
+        GET_OR_SYNC_LOCKS[shard_index]
             .lock()
             .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected")
             .remove(key_str);
@@ -611,6 +643,67 @@ mod tests {
         cache.clear().await.unwrap();
         assert!(cache.get(&"key".to_string()).await.unwrap().is_none());
     }
+
+    #[test]
+    fn test_get_or_shard_index_in_range() {
+        // 任意 key 都映射到 [0, SHARDS) 内的分片
+        for key in ["", "a", "key1", "user:123", "很长很长的中文key🎯", "x".repeat(1024).as_str()] {
+            let idx = get_or_shard_index(key);
+            assert!(idx < GET_OR_LOCK_SHARDS, "key={key} shard={idx} out of range");
+        }
+    }
+
+    #[test]
+    fn test_get_or_shards_distribute() {
+        // 不同 key 应分散到多个分片（而非全部挤在同一分片）
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..256 {
+            seen.insert(get_or_shard_index(&format!("key{i}")));
+        }
+        assert!(
+            seen.len() > 1,
+            "256 keys should spread across shards, only {} distinct shards",
+            seen.len()
+        );
+    }
+
+    #[test]
+    fn test_get_or_shard_index_same_key_same_shard() {
+        // 相同 key 稳定映射到同一分片（single-flight 正确性的前提）
+        let a = get_or_shard_index("stable-key");
+        let b = get_or_shard_index("stable-key");
+        assert_eq!(a, b);
+        // 不同 key 可能不同分片
+        let c = get_or_shard_index("other-key");
+        let d = get_or_shard_index("another-key");
+        assert_ne!(c, d, "不同 key 应路由到不同分片（本例期望）");
+    }
+
+    #[tokio::test]
+    async fn test_get_or_concurrent_different_keys_no_contention_error() {
+        // 高并发不同 key 的 get_or：分片锁下不应出错、不应丢值
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        let cache = Arc::new(cache);
+
+        let mut handles = Vec::new();
+        for i in 0..64u64 {
+            let cache = cache.clone();
+            handles.push(tokio::spawn(async move {
+                let key = format!("concurrent-key-{i}");
+                let value = cache
+                    .get_or(&key, || async move { Ok(format!("value-{i}")) })
+                    .await
+                    .unwrap();
+                assert_eq!(value, format!("value-{i}"));
+                cache.get(&key).await.unwrap().unwrap();
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+    }
+
+
 
     #[tokio::test]
     async fn test_cache_len() {
@@ -886,7 +979,7 @@ mod tests {
     async fn test_deserialize_value_invalid_json() {
         // Store invalid JSON bytes directly via backend
         let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
-        cache.backend.set("bad", b"not json".to_vec(), None).await.unwrap();
+        cache.backend.set(Arc::from("bad"), Arc::new(b"not json".to_vec()), None).await.unwrap();
 
         // get() should return a serialization error
         let result = cache.get(&"bad".to_string()).await;
@@ -905,7 +998,7 @@ mod tests {
         }
 
         let cache: Cache<String, serde_json::Value> = Cache::builder().build().await.unwrap();
-        cache.backend.set("deep", json_str.into_bytes(), None).await.unwrap();
+        cache.backend.set(Arc::from("deep"), Arc::new(json_str.into_bytes()), None).await.unwrap();
 
         let result = cache.get(&"deep".to_string()).await;
         assert!(result.is_err());

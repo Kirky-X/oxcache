@@ -72,18 +72,6 @@ where
     }
 }
 
-#[cfg(all(feature = "dashmap-backend", not(feature = "memory"), not(feature = "memory")))]
-impl<K, V> Cache<K, V>
-where
-    K: CacheKey,
-    V: serde::Serialize + for<'de> serde::Deserialize<'de>,
-{
-    pub fn new() -> Self {
-        use crate::backend::DashMapMemoryBackend;
-        Self::new_with_backend(Arc::new(DashMapMemoryBackend::new()))
-    }
-}
-
 #[cfg(feature = "redis")]
 impl<K, V> Cache<K, V>
 where
