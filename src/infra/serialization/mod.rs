@@ -16,7 +16,9 @@ pub use json::JsonSerializer;
 pub use unified::{UnifiedSerializer, UnifiedSerializerAdapter, default_serializer};
 
 // Depth-limited serialization exports
-pub use depth_limited::{DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, would_exceed_depth_limit};
+pub use depth_limited::{
+    DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, deserialize_safe, would_exceed_depth_limit,
+};
 
 /// 序列化器特征
 ///
