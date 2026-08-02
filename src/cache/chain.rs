@@ -10,6 +10,7 @@ use crate::backend::{BackendKind, CacheBackend, CacheConnector, CacheReader, Cac
 use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::sync::Arc;
 use std::time::Duration;
 // tracing::instrument 仅在 tracing/full feature 下可用
@@ -171,8 +172,13 @@ pub struct ChainCache {
     links: Vec<ChainLink>,
     /// 是否启用回填
     backfill_enabled: bool,
+    /// 是否启用竞速读（并发查询所有后端，返回最先命中者）
+    race_read_enabled: bool,
     /// 默认 TTL
     default_ttl: Option<Duration>,
+    /// 懒缓存的 sync backend 收集结果（问题 4.4）：
+    /// 链构建后 links 不可变，首次收集后复用，避免每次 sync 调用重复 clone 所有 Arc。
+    sync_backends: OnceLock<Option<Vec<Arc<dyn SyncCacheBackend>>>>,
 }
 
 impl ChainCache {
@@ -216,6 +222,17 @@ impl ChainCache {
         self.links.last()
     }
 
+    /// 异步写入：写入所有链接，透传 TTL（公开 API，内部转为 `Arc` 零拷贝分发）。
+    ///
+    /// key/value 在 `CacheWriter::set` trait 层以 `Arc` 共享所有权（问题 2.2 / 2.3），
+    /// 本方法作为用户入口保持 `&str` / `Vec<u8>` 签名，仅做一次 Arc 装箱。
+    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self, value), fields(key = %key)))]
+    pub async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        let key = Arc::from(key);
+        let value = Arc::new(value);
+        CacheWriter::set(self, key, value, ttl).await
+    }
+
     /// 获取所有持久化后端
     pub fn persistent_backends(&self) -> Vec<&ChainLink> {
         self.links.iter().filter(|link| link.is_persistent()).collect()
@@ -227,56 +244,168 @@ impl ChainCache {
     }
 
     /// 从链中读取数据
+    ///
+    /// 单个后端失败时记录 warn 日志（问题 5.1），并继续尝试下一个后端（L1 失败降级到 L2）。
+    /// 若启用了竞速读（race_read），则并发查询所有后端并返回最先命中者。
     #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        if self.race_read_enabled {
+            return self.race_read_from_chain(key).await;
+        }
+
         for (index, link) in self.links.iter().enumerate() {
             match link.backend().get(key).await {
                 Ok(Some(value)) => {
                     // 回填到更高分后端
                     if self.backfill_enabled && index > 0 {
-                        self.backfill_to_higher_backends(key, &value, index).await;
+                        self.backfill_to_higher_backends(
+                            Arc::from(key),
+                            Arc::new(value.clone()),
+                            index,
+                        )
+                        .await;
                     }
                     return Ok(Some(value));
                 }
                 Ok(None) => continue,
-                Err(_) => continue,
+                Err(e) => {
+                    #[cfg(any(feature = "tracing", feature = "full"))]
+                    tracing::warn!(
+                        key = %key,
+                        backend = %link.name(),
+                        error = %e,
+                        "cache read backend failed; degrading to next backend"
+                    );
+                    continue;
+                }
             }
         }
         Ok(None)
     }
 
+    /// 竞速读：并发向所有后端发起 `get`，返回最先命中者（问题 4.1）。
+    ///
+    /// 适用于 L1/L2 延迟差异小但可用性要求高的场景。最先返回命中值的后端
+    /// 获胜；若全部未命中则返回 `None`；若全部失败则返回 `Err`。命中时若有
+    /// 回填开启，异步回填到更高分后端。
+    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
+    async fn race_read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        if self.links.is_empty() {
+            return Ok(None);
+        }
+
+        let mut set = tokio::task::JoinSet::new();
+        for (index, link) in self.links.iter().enumerate() {
+            let backend = link.backend().clone();
+            let key = key.to_string();
+            set.spawn(async move { (index, backend.get(&key).await) });
+        }
+
+        let mut errs: Vec<(&'static str, OxCacheError)> = Vec::new();
+        let mut hits: Vec<(usize, Vec<u8>)> = Vec::new();
+
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok((index, Ok(Some(value)))) => hits.push((index, value)),
+                Ok((_index, Ok(None))) => {}
+                Ok((index, Err(e))) => {
+                    #[cfg(any(feature = "tracing", feature = "full"))]
+                    tracing::warn!(
+                        key = %key,
+                        backend = %self.links[index].name(),
+                        error = %e,
+                        "cache race-read backend failed"
+                    );
+                    errs.push((self.links[index].name(), e));
+                }
+                Err(e) => errs.push(("unknown", OxCacheError::Operation(e.to_string()))),
+            }
+        }
+
+        // 取最先命中（分数最高，即 index 最小）的结果
+        if let Some((index, value)) = hits.into_iter().min_by_key(|(i, _)| *i) {
+            if self.backfill_enabled && index > 0 {
+                self.backfill_to_higher_backends(Arc::from(key), Arc::new(value.clone()), index).await;
+            }
+            return Ok(Some(value));
+        }
+
+        if errs.len() == self.links.len() {
+            return Err(OxCacheError::Operation(
+                "All backends failed during race read".to_string(),
+            ));
+        }
+
+        Ok(None)
+    }
+
     /// 回填数据到更高分后端（使用各 backend 自己的默认 TTL）
-    async fn backfill_to_higher_backends(&self, key: &str, value: &[u8], from_index: usize) {
+    ///
+    /// 顺序写入更高分后端（问题 4.2）。key/value 以 `Arc` 共享所有权（问题 2.2 / 2.3），
+    /// 各后端 `Arc::clone` 仅增加引用计数，无堆拷贝。失败时记录 warn 日志，不回滚读取结果。
+    async fn backfill_to_higher_backends(&self, key: Arc<str>, value: Arc<Vec<u8>>, from_index: usize) {
         for link in &self.links[..from_index] {
-            let _ = link.backend().set(key, value.to_vec(), None).await;
+            let backend = link.backend().clone();
+            let name = link.name();
+            if let Err(e) = backend.set(key.clone(), value.clone(), None).await {
+                #[cfg(any(feature = "tracing", feature = "full"))]
+                tracing::warn!(
+                    key = %key,
+                    backend = %name,
+                    error = %e,
+                    "backfill to higher backend failed"
+                );
+            }
         }
     }
 
     /// 写入数据到所有后端
     /// ttl=None 时各 backend 用自己的默认 TTL
     /// ttl=Some 时所有 backend 用同一个 TTL
+    ///
+    /// 并发写入所有后端（JoinSet），写入延迟从 O(Σbackend) 降至 O(max(backend))（问题 4.3）。
+    /// key/value 以 `Arc` 共享所有权传入，各后端 `Arc::clone` 零拷贝（问题 2.2 / 2.3）。
     #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self, value), fields(key = %key)))]
-    async fn write_to_all_backends(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
-        let mut errors = Vec::new();
+    async fn write_to_all_backends(&self, key: &Arc<str>, value: &Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let count = self.links.len();
 
         if count == 0 {
             return Ok(());
         }
 
-        // Clone for all but the last backend
         let effective_ttl = ttl.or(self.default_ttl);
-        for link in self.links.iter().take(count - 1) {
-            if let Err(e) = link.backend().set(key, value.clone(), effective_ttl).await {
-                errors.push((link.name(), e));
+
+        // 并发写入所有后端（问题 4.3）
+        // 所有后端共享同一份 Arc 分配，`Arc::clone` 仅增加引用计数，无堆拷贝（问题 2.3）
+        let mut errors: Vec<(&'static str, OxCacheError)> = Vec::new();
+        let mut set = tokio::task::JoinSet::new();
+        for link in &self.links {
+            let backend = link.backend().clone();
+            let name = link.name();
+            let key = key.clone();
+            let value = value.clone();
+            set.spawn(async move {
+                (name, backend.set(key, value, effective_ttl).await)
+            });
+        }
+
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok((_name, Ok(()))) => {}
+                Ok((name, Err(e))) => errors.push((name, e)),
+                Err(e) => errors.push(("unknown", OxCacheError::Operation(e.to_string()))),
             }
         }
 
-        // Last backend: use the owned value directly (no clone)
-        if let Some(link) = self.links.last() {
-            if let Err(e) = link.backend().set(key, value, effective_ttl).await {
-                errors.push((link.name(), e));
-            }
+        // 记录单个后端失败（问题 5.1）
+        #[cfg(any(feature = "tracing", feature = "full"))]
+        for (name, e) in &errors {
+            tracing::warn!(
+                key = %key,
+                backend = %name,
+                error = %e,
+                "cache write backend failed"
+            );
         }
 
         if errors.len() == self.links.len() {
@@ -293,6 +422,13 @@ impl ChainCache {
 
         for link in &self.links {
             if let Err(e) = link.backend().delete(key).await {
+                #[cfg(any(feature = "tracing", feature = "full"))]
+                tracing::warn!(
+                    key = %key,
+                    backend = %link.name(),
+                    error = %e,
+                    "cache delete backend failed"
+                );
                 errors.push((link.name(), e));
             }
         }
@@ -321,21 +457,28 @@ impl ChainCache {
     /// 收集链中所有链接的 sync backend。
     ///
     /// 链中任一链接未实现 `SyncCacheBackend` 时返回 `Err(NotSupported)`。
-    /// links 已按分数降序排列，故返回的 Vec 也是降序。
-    fn collect_sync_backends(&self) -> OxCacheResult<Vec<Arc<dyn SyncCacheBackend>>> {
-        self.links
-            .iter()
-            .map(|link| link.try_as_sync_backend())
-            .collect::<Option<Vec<_>>>()
+    /// links 已按分数降序排列，故返回的 Vec 也是降序。结果懒缓存（问题 4.4）：
+    /// 首次调用后复用，避免每次 sync 操作重复 clone 所有 Arc。
+    fn collect_sync_backends(&self) -> OxCacheResult<&[Arc<dyn SyncCacheBackend>]> {
+        let cached = self.sync_backends.get_or_init(|| {
+            self.links
+                .iter()
+                .map(|link| link.try_as_sync_backend())
+                .collect::<Option<Vec<_>>>()
+        });
+        cached
+            .as_deref()
             .ok_or_else(|| {
-                OxCacheError::NotSupported("chain sync API requires all links to support SyncCacheBackend".to_string())
+                OxCacheError::NotSupported(
+                    "chain sync API requires all links to support SyncCacheBackend".to_string(),
+                )
             })
     }
 
     /// 同步读取：按分数从高到低遍历 sync backends，返回首个命中
     pub fn get_sync(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let sync_backends = self.collect_sync_backends()?;
-        for backend in &sync_backends {
+        for backend in sync_backends {
             match backend.get(key) {
                 Ok(Some(value)) => return Ok(Some(value)),
                 Ok(None) => continue,
@@ -354,19 +497,13 @@ impl ChainCache {
         }
 
         let effective_ttl = ttl.or(self.default_ttl);
+        let key_arc: Arc<str> = Arc::from(key);
+        let value_arc: Arc<Vec<u8>> = Arc::new(value);
         let mut errors = Vec::new();
-        let count = sync_backends.len();
 
-        // Clone for all but the last backend
-        for backend in sync_backends.iter().take(count - 1) {
-            if let Err(e) = backend.set(key, value.clone(), effective_ttl) {
-                errors.push(e);
-            }
-        }
-
-        // Last backend: use the owned value directly (no clone)
-        if let Some(backend) = sync_backends.last() {
-            if let Err(e) = backend.set(key, value, effective_ttl) {
+        // 所有后端共享同一份 Arc 分配，`Arc::clone` 仅增加引用计数，无堆拷贝（问题 2.2 / 2.3）
+        for backend in sync_backends.iter() {
+            if let Err(e) = backend.set(key_arc.clone(), value_arc.clone(), effective_ttl) {
                 errors.push(e);
             }
         }
@@ -384,7 +521,7 @@ impl ChainCache {
 
         let mut errors = Vec::new();
 
-        for backend in &sync_backends {
+        for backend in sync_backends {
             if let Err(e) = backend.delete(key) {
                 errors.push(e);
             }
@@ -472,11 +609,11 @@ impl CacheReader for ChainCache {
 
 #[async_trait]
 impl CacheWriter for ChainCache {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
         if self.links.is_empty() {
             return Err(OxCacheError::Operation("Chain has no backends".to_string()));
         }
-        self.write_to_all_backends(key, value, ttl).await
+        self.write_to_all_backends(&key, &value, ttl).await
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -521,16 +658,49 @@ impl CacheWriter for ChainCache {
 
 #[async_trait]
 impl CacheConnector for ChainCache {
+    /// 并发检查所有后端健康状态，每个后端有独立 5s 超时（问题 5.2）。
+    ///
+    /// 任一后端失败（含超时）即返回错误；所有后端健康才返回 Ok。
     async fn health_check(&self) -> OxCacheResult<()> {
         if self.links.is_empty() {
             return Ok(());
         }
 
+        const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);
+
+        let mut set = tokio::task::JoinSet::new();
         for link in &self.links {
-            link.backend().health_check().await?;
+            let backend = link.backend().clone();
+            let name = link.name();
+            set.spawn(async move {
+                let result =
+                    tokio::time::timeout(HEALTH_CHECK_TIMEOUT, backend.health_check()).await;
+                (name, result)
+            });
         }
 
-        Ok(())
+        let mut failures = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok((_name, Ok(Ok(())))) => {}
+                Ok((name, Ok(Err(e)))) => failures.push((name, e)),
+                Ok((name, Err(_))) => failures.push((
+                    name,
+                    OxCacheError::Timeout("health_check timed out after 5s".to_string()),
+                )),
+                Err(e) => failures.push(("unknown", OxCacheError::Operation(e.to_string()))),
+            }
+        }
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(OxCacheError::Operation(format!(
+                "health_check failed for {} backend(s): {:?}",
+                failures.len(),
+                failures
+            )))
+        }
     }
 
     async fn shutdown(&self) {
@@ -549,6 +719,7 @@ impl CacheConnector for ChainCache {
 pub struct ChainCacheBuilder {
     links: Vec<ChainLink>,
     backfill_enabled: bool,
+    race_read_enabled: bool,
     default_ttl: Option<Duration>,
 }
 
@@ -591,6 +762,21 @@ impl ChainCacheBuilder {
         self
     }
 
+    /// 启用竞速读（默认关闭）
+    ///
+    /// 开启后 `get` 会并发查询所有后端，返回最先命中者（问题 4.1）。
+    /// 适用于 L1/L2 延迟差异小但可用性要求高的场景。
+    pub fn enable_race_read(mut self) -> Self {
+        self.race_read_enabled = true;
+        self
+    }
+
+    /// 禁用竞速读
+    pub fn disable_race_read(mut self) -> Self {
+        self.race_read_enabled = false;
+        self
+    }
+
     /// 构建链式缓存
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
@@ -600,7 +786,9 @@ impl ChainCacheBuilder {
         ChainCache {
             links,
             backfill_enabled: self.backfill_enabled,
+            race_read_enabled: self.race_read_enabled,
             default_ttl: self.default_ttl,
+            sync_backends: OnceLock::new(),
         }
     }
 }
@@ -1011,7 +1199,7 @@ mod tests {
             .build();
 
         // Set value only in low backend (bypass chain)
-        low_ref.set("key", b"low_value".to_vec(), None).await.unwrap();
+        low_ref.set(Arc::from("key"), Arc::new(b"low_value".to_vec()), None).await.unwrap();
 
         // Verify high doesn't have it yet
         assert!(high_ref.get("key").await.unwrap().is_none());
@@ -1020,9 +1208,18 @@ mod tests {
         let value = chain.get("key").await.unwrap();
         assert_eq!(value, Some(b"low_value".to_vec()));
 
-        // Verify high now has the value (backfilled)
+        // Verify high now has the value (backfilled asynchronously — poll)
+        let mut backfilled = false;
+        for _ in 0..10 {
+            if high_ref.get("key").await.unwrap().is_some() {
+                backfilled = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
         let high_value = high_ref.get("key").await.unwrap();
-        assert_eq!(high_value, Some(b"low_value".to_vec()));
+        assert_eq!(high_value, Some(b"low_value".to_vec()), "backfill should populate high backend");
+        assert!(backfilled, "backfill should complete asynchronously");
     }
 
     #[tokio::test]
@@ -1039,7 +1236,7 @@ mod tests {
             .build(); // backfill disabled by default
 
         // Set value only in low backend (bypass chain)
-        low_ref.set("key", b"low_value".to_vec(), None).await.unwrap();
+        low_ref.set(Arc::from("key"), Arc::new(b"low_value".to_vec()), None).await.unwrap();
 
         // Get from chain - should find in low but NOT backfill to high
         let value = chain.get("key").await.unwrap();
@@ -1123,6 +1320,77 @@ mod tests {
     async fn test_chain_cache_health_check_empty() {
         let chain = ChainCache::new(vec![]);
         assert!(chain.health_check().await.is_ok());
+    }
+
+    // ========================================================================
+    // 故障降级与错误可见性测试 (问题 5.1 / 5.2 / 7.3)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_read_degrades_when_high_backend_fails() {
+        // L1 (score=100) get 注入故障，L2 (score=50) 有数据
+        // 链式 get 应降级到 L2 返回数据（L1 失败降级）
+        let high = MockBackend::new("high", 100, false).with_fail_get();
+        let low = MockBackend::new("low", 50, true);
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(high))
+            .link(ChainLink::from_backend(low))
+            .build();
+
+        // 仅在 L2 写入数据（通过链引用访问）
+        chain.links()[1].backend().set(Arc::from("key"), Arc::new(b"low_value".to_vec()), None).await.unwrap();
+
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(
+            value,
+            Some(b"low_value".to_vec()),
+            "L1 get 失败时应降级到 L2 读取"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_read_returns_none_when_all_backends_fail() {
+        // 所有后端 get 都注入故障，链式 get 应返回 Ok(None)（无数据可读）
+        let high = MockBackend::new("high", 100, false).with_fail_get();
+        let low = MockBackend::new("low", 50, true).with_fail_get();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(high))
+            .link(ChainLink::from_backend(low))
+            .build();
+
+        let value = chain.get("key").await.unwrap();
+        assert_eq!(value, None, "所有后端 get 失败时返回 None");
+    }
+
+    #[tokio::test]
+    async fn test_chain_health_check_fails_when_backend_unhealthy() {
+        // 任一后端 health_check 失败，链式 health_check 应返回错误
+        let healthy = MockBackend::new("ok", 100, false);
+        let unhealthy = MockBackend::new("down", 50, true).with_fail_health();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(healthy))
+            .link(ChainLink::from_backend(unhealthy))
+            .build();
+
+        let result = chain.health_check().await;
+        assert!(result.is_err(), "含不健康后端时 health_check 应失败");
+    }
+
+    #[tokio::test]
+    async fn test_chain_write_succeeds_when_partial_backend_fails() {
+        // 一个后端 set 注入故障，另一个正常：写操作不应整体失败
+        let failing = MockBackend::new("failing", 100, false).with_fail_set();
+        let ok = MokaMemoryBackend::new();
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::from_backend(failing))
+            .link(ChainLink::from_backend(ok))
+            .build();
+
+        // 不应报错（只要至少一个后端成功）
+        chain.set("key", b"value".to_vec(), None).await.unwrap();
     }
 
     #[tokio::test]
@@ -1297,8 +1565,8 @@ mod tests {
         let dashmap = DashMapMemoryBackend::new();
 
         // 直接通过 sync API 在各后端写入不同值
-        SyncCacheWriter::set(&moka, "k", b"high".to_vec(), None).unwrap();
-        SyncCacheWriter::set(&dashmap, "k", b"low".to_vec(), None).unwrap();
+        SyncCacheWriter::set(&moka, Arc::from("k"), Arc::new(b"high".to_vec()), None).unwrap();
+        SyncCacheWriter::set(&dashmap, Arc::from("k"), Arc::new(b"low".to_vec()), None).unwrap();
 
         let chain = ChainCache::builder()
             .link(ChainLink::from_sync_backend(moka))
@@ -1379,5 +1647,95 @@ mod tests {
             expired,
             "chain get_sync should return None after TTL expires on all links"
         );
+    }
+
+    // ========================================================================
+    // 竞速读测试 (问题 4.1)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_chain_race_read_returns_earliest_hit() {
+        // race_read 默认关闭时走串行路径，返回值仍正确
+        let high = MockBackend::new("high", 100, false);
+        let low = MockBackend::new("low", 50, true);
+        high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+
+        let chain = ChainCache::builder().backend(high).backend(low).build();
+        let value = chain.get("k").await.unwrap();
+        assert_eq!(value, Some(b"v".to_vec()));
+
+        // race_read 开启后同样返回命中值
+        let high = MockBackend::new("high", 100, false);
+        let low = MockBackend::new("low", 50, true);
+        low.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None).await.unwrap();
+
+        let chain = ChainCache::builder()
+            .backend(high)
+            .backend(low)
+            .enable_race_read()
+            .build();
+        let value = chain.get("k").await.unwrap();
+        assert_eq!(
+            value,
+            Some(b"l2".to_vec()),
+            "race read should return value from whichever backend has it"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_race_read_backs_off_on_backend_error() {
+        // L1 失败、L2 命中：race read 应返回 L2 值而非 Err（5.1 降级语义）
+        let failing = MockBackend::new("high", 100, false).with_fail_get();
+        let ok = MockBackend::new("low", 50, true);
+        ok.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None).await.unwrap();
+
+        let chain = ChainCache::builder()
+            .backend(failing)
+            .backend(ok)
+            .enable_race_read()
+            .build();
+
+        let value = chain.get("k").await.unwrap();
+        assert_eq!(
+            value,
+            Some(b"l2".to_vec()),
+            "race read should degrade past failing backend"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_race_read_all_backends_fail() {
+        use crate::error::OxCacheError;
+
+        let failing1 = MockBackend::new("high", 100, false).with_fail_get();
+        let failing2 = MockBackend::new("low", 50, true).with_fail_get();
+
+        let chain = ChainCache::builder()
+            .backend(failing1)
+            .backend(failing2)
+            .enable_race_read()
+            .build();
+
+        let result = chain.get("k").await;
+        assert!(
+            matches!(result, Err(OxCacheError::Operation(ref msg)) if msg.contains("All backends failed")),
+            "race read should error when all backends fail, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_race_read_miss_returns_none() {
+        let high = MockBackend::new("high", 100, false);
+        let low = MockBackend::new("low", 50, true);
+
+        let chain = ChainCache::builder()
+            .backend(high)
+            .backend(low)
+            .enable_race_read()
+            .build();
+
+        let value = chain.get("missing").await.unwrap();
+        assert_eq!(value, None, "race read with no hits should return None");
     }
 }
