@@ -801,12 +801,12 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_double_quoted_commands() {
-        // 双引号字符串内容在预处理时被移除，
-        // redis.call("FLUSHALL") 变成 redis.call("")，绕过安全检查
-        // 这是源代码的已知行为（测试不修改非测试代码）
+        // S1 修复验证：双引号字符串内容现在保留标识符字符用于模式检测，
+        // redis.call("FLUSHALL") 预处理后变为 redis.call("FLUSHALL")，
+        // 应被 forbidden_patterns 检查拒绝
         let script = "redis.call(\"FLUSHALL\")";
         let result = validate_lua_script(script, 0);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "双引号内的危险命令应被检测并拒绝");
     }
 }
 

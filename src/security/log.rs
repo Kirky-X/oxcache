@@ -26,13 +26,6 @@ macro_rules! secure_info {
     ($($arg:tt)*) => {{
         use $crate::security::redact_connection_string;
         tracing::info!("{}", format!($($arg)*)
-            .replace(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '/' || c == '@' || c == '.', |c| {
-                if c == '@' || (c.is_ascii_digit() && false) {
-                    c
-                } else {
-                    c
-                }
-            })
             .split_inclusive("://")
             .map(|part| {
                 if part.contains("password") || part.contains("secret") || part.contains("token") {
@@ -111,29 +104,55 @@ pub fn log_cache_key(level: &str, message: &str, key: &str) {
 /// // 返回: User token: ****c123, password: ****
 /// ```
 pub fn sanitize_message(message: &str) -> String {
-    let mut result = message.to_string();
+    let mut result = String::with_capacity(message.len());
+    let mut remaining = message;
 
-    // 脱敏连接字符串
-    if result.contains("://") {
-        if let Some(start) = result.find("://") {
-            let protocol = &result[..start];
-            let after_protocol = &result[start + 3..];
+    // 脱敏所有连接字符串（支持多个 :// 出现）
+    while let Some(rel_pos) = remaining.find("://") {
+        // 提取协议名（向前找到开头或空格）
+        let protocol_start = remaining[..rel_pos]
+            .rfind(|c: char| c.is_whitespace())
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let protocol = &remaining[protocol_start..rel_pos];
+        let after_start = rel_pos + 3;
 
-            if let Some(at_pos) = after_protocol.find('@') {
-                let user_part = &after_protocol[..at_pos];
-                let host_part = &after_protocol[at_pos..];
+        // 将 :// 之前的前导文本追加到结果
+        result.push_str(&remaining[..protocol_start]);
 
-                let sanitized_user: String = user_part
-                    .chars()
-                    .take_while(|c| *c != ':')
-                    .chain(std::iter::once('*').chain(std::iter::once('*')).take(2))
-                    .collect();
+        if let Some(at_pos) = remaining[after_start..].find('@') {
+            let abs_at_pos = after_start + at_pos;
+            let user_part = &remaining[after_start..abs_at_pos];
+            // host_part 终止于下一个空白字符或字符串末尾，避免吞并后续 URL
+            let host_end = remaining[abs_at_pos..]
+                .find(|c: char| c.is_whitespace())
+                .map(|i| abs_at_pos + i)
+                .unwrap_or(remaining.len());
+            let host_part = &remaining[abs_at_pos..host_end];
 
-                result = format!("{}://{}{}", protocol, sanitized_user, host_part);
-            }
+            let sanitized_user: String = user_part
+                .chars()
+                .take_while(|c| *c != ':')
+                .chain(std::iter::once('*').chain(std::iter::once('*')).take(2))
+                .collect();
+
+            result.push_str(protocol);
+            result.push_str("://");
+            result.push_str(&sanitized_user);
+            result.push_str(host_part);
+
+            // 移动 remaining 到 host_part 之后
+            remaining = &remaining[host_end..];
+        } else {
+            // 没有 @ 符号，保留协议名和 ://，继续搜索
+            result.push_str(protocol);
+            result.push_str("://");
+            remaining = &remaining[after_start..];
         }
     }
 
+    // 追加剩余部分
+    result.push_str(remaining);
     result
 }
 
@@ -258,7 +277,8 @@ mod tests {
     fn test_sanitize_message_multiple_protocols() {
         let msg = "redis://user:pass1@host1:6379 and redis://user:pass2@host2:6380"; /* pragma: allowlist secret */
         let sanitized = sanitize_message(msg);
-        // 只处理第一个 ://
+        // 处理所有 :// 连接字符串
         assert!(!sanitized.contains("pass1"));
+        assert!(!sanitized.contains("pass2"));
     }
 }

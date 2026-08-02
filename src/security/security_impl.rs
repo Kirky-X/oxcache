@@ -309,18 +309,26 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
                 result.push('[');
             }
         } else if c == '"' {
-            // 移除字符串 ""
+            // 处理双引号字符串：保留标识符字符用于模式检测，移除其他内容
+            // 与单引号处理逻辑一致，防止 "FLUSHALL" 等危险命令绕过 forbidden_patterns 检查
             result.push('"');
-            result.push('"'); // 用空字符串替换
             while let Some(&next_c) = chars.peek() {
                 if next_c == '"' {
-                    chars.next(); // 跳过结束引号
+                    chars.next();
+                    result.push('"');
                     break;
                 } else if next_c == '\\' {
-                    chars.next(); // 跳过转义字符
                     chars.next();
+                    if let Some(escaped) = chars.next() {
+                        if escaped.is_alphanumeric() || escaped == '_' {
+                            result.push(escaped);
+                        }
+                    }
                 } else if next_c == '\n' {
                     break; // 未闭合的字符串
+                } else if next_c.is_alphanumeric() || next_c == '_' {
+                    result.push(next_c);
+                    chars.next();
                 } else {
                     chars.next();
                 }
