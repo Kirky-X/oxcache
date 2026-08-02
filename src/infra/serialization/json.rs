@@ -12,6 +12,12 @@ use crate::core::MAX_JSON_SIZE;
 /// 直接存储原始字节（不再做 base64 包装），可选启用 gzip 压缩。
 /// 数据即存即取：序列化时不解析 JSON 文本，反序列化时也不做深度检查
 /// （深度检查由 typed 反序列化路径统一负责），避免双重序列化开销。
+///
+/// # 命名说明
+///
+/// 尽管名为 `JsonSerializer`，此序列化器实际上是一个**原始字节透传器**，
+/// 不执行任何 JSON 解析或生成。名称保留用于向后兼容。
+/// 它仅提供可选的 gzip 压缩/解压功能。
 #[derive(Clone, Debug)]
 pub struct JsonSerializer {
     /// 是否启用压缩
