@@ -4,6 +4,7 @@
 
 use oxcache::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter, MokaMemoryBackend, Scores};
 use oxcache::cache::{ChainCache, ChainLink};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// 测试链式缓存基本读写
@@ -60,7 +61,7 @@ async fn test_chain_cache_backfill() {
     let low = MokaMemoryBackend::builder().capacity(100).build();
 
     // 只在低分后端设置值
-    low.set("key1", b"value1".to_vec(), None).await.unwrap();
+    low.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
 
     // 构建启用回填的链式缓存
     let chain = ChainCache::builder()
