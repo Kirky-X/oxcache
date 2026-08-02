@@ -58,7 +58,7 @@ async fn test_redis_6_compatibility() {
             let test_key = "test:redis6:compatibility";
             let test_value = b"Redis 6 compatibility test data";
 
-            if let Err(e) = backend.set(test_key, test_value.to_vec(), None).await {
+            if let Err(e) = backend.set(Arc::from(test_key), Arc::new(test_value.to_vec()), None).await {
                 println!("Skipping Redis 6.x compatibility test: set failed - {}", e);
                 return;
             }
@@ -94,7 +94,7 @@ async fn test_redis_7_compatibility() {
             let test_value = b"Redis 7 compatibility test data with enhanced features";
 
             if let Err(e) = backend
-                .set(test_key, test_value.to_vec(), Some(std::time::Duration::from_secs(60)))
+                .set(Arc::from(test_key), Arc::new(test_value.to_vec()), Some(std::time::Duration::from_secs(60)))
                 .await
             {
                 println!("Skipping Redis 7.x compatibility test: set failed - {}", e);

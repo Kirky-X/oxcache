@@ -13,6 +13,7 @@ mod redis_client_tests {
     use oxcache::backend::LuaExecutor;
     use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
+    use std::sync::Arc;
     #[cfg(feature = "lua-script")]
     use oxcache::validate_lua_script;
     use serial_test::serial;
@@ -142,7 +143,7 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("test_key", b"test_value".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("test_key"), Arc::new(b"test_value".to_vec()), None).await.unwrap();
             let value = backend.get("test_key").await.unwrap();
             assert_eq!(value, Some(b"test_value".to_vec()));
             backend.delete("test_key").await.ok();
@@ -155,7 +156,7 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("key_to_delete", b"value".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("key_to_delete"), Arc::new(b"value".to_vec()), None).await.unwrap();
             backend.delete("key_to_delete").await.unwrap();
             assert!(backend.get("key_to_delete").await.unwrap().is_none());
         }
@@ -168,7 +169,7 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             backend
-                .set("key_with_ttl", b"value".to_vec(), Some(Duration::from_secs(1)))
+                .set(Arc::from("key_with_ttl"), Arc::new(b"value".to_vec()), Some(Duration::from_secs(1)))
                 .await
                 .unwrap();
             assert!(backend.get("key_with_ttl").await.unwrap().is_some());
@@ -194,8 +195,8 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("key", b"value1".to_vec(), None).await.unwrap();
-            backend.set("key", b"value2".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("key"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+            backend.set(Arc::from("key"), Arc::new(b"value2".to_vec()), None).await.unwrap();
             assert_eq!(backend.get("key").await.unwrap(), Some(b"value2".to_vec()));
             backend.delete("key").await.ok();
         }
@@ -208,7 +209,7 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             assert!(!backend.exists("test_exists_key").await.unwrap());
-            backend.set("test_exists_key", b"value".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("test_exists_key"), Arc::new(b"value".to_vec()), None).await.unwrap();
             assert!(backend.exists("test_exists_key").await.unwrap());
             backend.delete("test_exists_key").await.ok();
         }
@@ -220,7 +221,7 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("expire_test_key", b"value".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("expire_test_key"), Arc::new(b"value".to_vec()), None).await.unwrap();
             let result = backend.expire("expire_test_key", Duration::from_secs(1)).await.unwrap();
             assert!(result);
             assert!(backend.ttl("expire_test_key").await.unwrap().is_some());
@@ -237,12 +238,12 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
 
-            backend.set("empty_key", b"".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("empty_key"), Arc::new(b"".to_vec()), None).await.unwrap();
             assert_eq!(backend.get("empty_key").await.unwrap(), Some(b"".to_vec()));
             backend.delete("empty_key").await.ok();
 
             let large_value = vec![0u8; 1024 * 1024];
-            backend.set("large_key", large_value.clone(), None).await.unwrap();
+            backend.set(Arc::from("large_key"), Arc::new(large_value.clone()), None).await.unwrap();
             assert_eq!(backend.get("large_key").await.unwrap(), Some(large_value));
             backend.delete("large_key").await.ok();
         }
@@ -261,7 +262,7 @@ mod redis_client_tests {
                 "test.key.with.dots",
             ];
             for key in &special_keys {
-                backend.set(key, b"value".to_vec(), None).await.unwrap();
+                backend.set(Arc::from(*key), Arc::new(b"value".to_vec()), None).await.unwrap();
                 assert_eq!(backend.get(key).await.unwrap(), Some(b"value".to_vec()));
                 backend.delete(key).await.ok();
             }
@@ -330,11 +331,11 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             backend
-                .set("get_pipeline_key1", b"value1".to_vec(), None)
+                .set(Arc::from("get_pipeline_key1"), Arc::new(b"value1".to_vec()), None)
                 .await
                 .unwrap();
             backend
-                .set("get_pipeline_key2", b"value2".to_vec(), None)
+                .set(Arc::from("get_pipeline_key2"), Arc::new(b"value2".to_vec()), None)
                 .await
                 .unwrap();
             let keys = vec!["get_pipeline_key1", "get_pipeline_key2", "nonexistent"];
@@ -357,7 +358,7 @@ mod redis_client_tests {
             let backend = create_backend().await;
             let keys = vec!["del_pipeline_key1", "del_pipeline_key2", "del_pipeline_key3"];
             for key in &keys {
-                backend.set(key, b"value".to_vec(), None).await.unwrap();
+                backend.set(Arc::from(*key), Arc::new(b"value".to_vec()), None).await.unwrap();
             }
             backend.delete_many_pipeline(&keys).await.unwrap();
             for key in &keys {
@@ -400,19 +401,19 @@ mod redis_client_tests {
 
             let items = vec![
                 (
-                    "set_many_key1".to_string(),
-                    b"value1".to_vec(),
+                    Arc::from("set_many_key1"),
+                    Arc::new(b"value1".to_vec()),
                     Some(Duration::from_secs(60)),
                 ),
                 (
-                    "set_many_key2".to_string(),
-                    b"value2".to_vec(),
+                    Arc::from("set_many_key2"),
+                    Arc::new(b"value2".to_vec()),
                     Some(Duration::from_secs(60)),
                 ),
             ];
             backend.set_many(&items).await.unwrap();
             for (key, value, _) in &items {
-                assert_eq!(backend.get(key).await.unwrap(), Some(value.clone()));
+                assert_eq!(backend.get(key.as_ref()).await.unwrap(), Some(value.as_ref().clone()));
             }
 
             let keys = vec![
@@ -440,7 +441,7 @@ mod redis_client_tests {
             let backend = create_backend().await;
             assert!(
                 backend
-                    .set_many(&Vec::<(String, Vec<u8>, Option<Duration>)>::new())
+                    .set_many(&Vec::<(Arc<str>, Arc<Vec<u8>>, Option<Duration>)>::new())
                     .await
                     .is_ok()
             );
@@ -519,7 +520,7 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("counter", b"0".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("counter"), Arc::new(b"0".to_vec()), None).await.unwrap();
             let script = r#"local current = redis.call('GET', KEYS[1]); current = tonumber(current); redis.call('SET', KEYS[1], current + 1); return current + 1"#;
             backend.eval_lua(script, &["counter"], &[]).await.unwrap();
             assert_eq!(backend.get("counter").await.unwrap(), Some(b"1".to_vec()));
@@ -567,8 +568,8 @@ mod redis_client_tests {
                 return;
             }
             let backend = create_backend().await;
-            backend.set("arg_test_1", b"0".to_vec(), None).await.unwrap();
-            backend.set("arg_test_2", b"0".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("arg_test_1"), Arc::new(b"0".to_vec()), None).await.unwrap();
+            backend.set(Arc::from("arg_test_2"), Arc::new(b"0".to_vec()), None).await.unwrap();
             let script = r#"local sum = 0; for i, key in ipairs(KEYS) do local val = redis.call('GET', key); val = tonumber(val) or 0; local add = tonumber(ARGV[i]) or 0; sum = sum + val + add end; return sum"#;
             let result = backend
                 .eval_lua(script, &["arg_test_1", "arg_test_2"], &["5", "10"])
@@ -631,12 +632,12 @@ mod redis_client_tests {
             let backend = create_backend().await;
             assert!(
                 backend
-                    .set("key\nwith\nnewlines", b"value".to_vec(), None)
+                    .set(Arc::from("key\nwith\nnewlines"), Arc::new(b"value".to_vec()), None)
                     .await
                     .is_err()
             );
-            assert!(backend.set("", b"value".to_vec(), None).await.is_err());
-            assert!(backend.set("key\0withnull", b"value".to_vec(), None).await.is_err());
+            assert!(backend.set(Arc::from(""), Arc::new(b"value".to_vec()), None).await.is_err());
+            assert!(backend.set(Arc::from("key\0withnull"), Arc::new(b"value".to_vec()), None).await.is_err());
         }
 
         #[tokio::test]
@@ -667,7 +668,7 @@ mod redis_client_tests {
             );
 
             backend
-                .set("expire_quick_key", b"value".to_vec(), Some(Duration::from_secs(2)))
+                .set(Arc::from("expire_quick_key"), Arc::new(b"value".to_vec()), Some(Duration::from_secs(2)))
                 .await
                 .unwrap();
             assert!(backend.ttl("expire_quick_key").await.unwrap().is_some());
@@ -685,14 +686,14 @@ mod redis_client_tests {
             let backend = create_backend().await;
 
             let binary_value: Vec<u8> = (0u8..=255).collect();
-            backend.set("binary_key", binary_value.clone(), None).await.unwrap();
+            backend.set(Arc::from("binary_key"), Arc::new(binary_value.clone()), None).await.unwrap();
             assert_eq!(backend.get("binary_key").await.unwrap(), Some(binary_value));
             backend.delete("binary_key").await.ok();
 
             let unicode_values = ["Hello 世界", "こんにちは世界", "🎉🎊🎈"];
             for value in &unicode_values {
                 let value_bytes = value.as_bytes().to_vec();
-                backend.set("unicode_key", value_bytes.clone(), None).await.unwrap();
+                backend.set(Arc::from("unicode_key"), Arc::new(value_bytes.clone()), None).await.unwrap();
                 assert_eq!(backend.get("unicode_key").await.unwrap(), Some(value_bytes));
             }
             backend.delete("unicode_key").await.ok();
@@ -706,7 +707,7 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             let long_key = format!("long_key:{}", "a".repeat(1000));
-            backend.set(&long_key, b"value".to_vec(), None).await.unwrap();
+            backend.set(Arc::from(long_key.as_str()), Arc::new(b"value".to_vec()), None).await.unwrap();
             assert_eq!(backend.get(&long_key).await.unwrap(), Some(b"value".to_vec()));
             backend.delete(&long_key).await.ok();
         }
@@ -732,7 +733,7 @@ mod redis_client_tests {
                 handles.push(tokio::spawn(async move {
                     let key = format!("concurrent_key_{}", i);
                     let value = format!("value_{}", i).into_bytes();
-                    backend_clone.set(&key, value.clone(), None).await.unwrap();
+                    backend_clone.set(Arc::from(key.as_str()), Arc::new(value.clone()), None).await.unwrap();
                     assert_eq!(backend_clone.get(&key).await.unwrap(), Some(value));
                 }));
             }
@@ -750,12 +751,12 @@ mod redis_client_tests {
             }
             let backend = create_backend().await;
             let backend_clone = backend.clone();
-            backend.set("clone_test", b"original".to_vec(), None).await.unwrap();
+            backend.set(Arc::from("clone_test"), Arc::new(b"original".to_vec()), None).await.unwrap();
             assert_eq!(
                 backend_clone.get("clone_test").await.unwrap(),
                 Some(b"original".to_vec())
             );
-            backend_clone.set("clone_test", b"cloned".to_vec(), None).await.unwrap();
+            backend_clone.set(Arc::from("clone_test"), Arc::new(b"cloned".to_vec()), None).await.unwrap();
             assert_eq!(backend.get("clone_test").await.unwrap(), Some(b"cloned".to_vec()));
             backend.delete("clone_test").await.ok();
         }

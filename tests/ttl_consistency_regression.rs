@@ -123,9 +123,9 @@ impl CacheReader for TtlMockBackend {
 
 #[async_trait]
 impl CacheWriter for TtlMockBackend {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
-        self.data.write().await.insert(key.to_string(), (value, expires_at));
+        self.data.write().await.insert(key.to_string(), ((*value).clone(), expires_at));
         Ok(())
     }
 
@@ -181,14 +181,14 @@ async fn test_all_backends_set_with_ttl_expires_consistently() {
     // Moka / DashMap / Mock 三个后端分别 set 50ms TTL，等 100ms，都返回 None
     let (moka, dashmap, mock) = build_three_backends();
 
-    moka.set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
         .await
         .unwrap();
     dashmap
-        .set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
         .await
         .unwrap();
-    mock.set("k", b"v".to_vec(), Some(Duration::from_millis(50)))
+    mock.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
         .await
         .unwrap();
 
@@ -226,14 +226,14 @@ async fn test_all_backends_ttl_returns_remaining_consistently() {
     // 且 58s < d <= 60s
     let (moka, dashmap, mock) = build_three_backends();
 
-    moka.set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
     dashmap
-        .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
-    mock.set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+    mock.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
 
@@ -259,14 +259,14 @@ async fn test_all_backends_expire_returns_true_consistently() {
     // Moka / DashMap / Mock 三个后端分别 set 60s，然后 expire 120s，都返回 Ok(true)
     let (moka, dashmap, mock) = build_three_backends();
 
-    moka.set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
     dashmap
-        .set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
-    mock.set("k", b"v".to_vec(), Some(Duration::from_secs(60)))
+    mock.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
 

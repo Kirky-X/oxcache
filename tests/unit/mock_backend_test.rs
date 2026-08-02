@@ -7,6 +7,7 @@ mod mock_backend;
 
 use mock_backend::MockBackend;
 use oxcache::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[test]
@@ -38,7 +39,7 @@ fn test_mock_backend_score_edge_cases() {
 async fn test_mock_backend_set_and_get() {
     let backend = MockBackend::new("set_get", 80, false);
 
-    backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
     let result = backend.get("key1").await.unwrap();
     assert_eq!(result, Some(b"value1".to_vec()));
 }
@@ -55,7 +56,7 @@ async fn test_mock_backend_get_nonexistent() {
 async fn test_mock_backend_delete() {
     let backend = MockBackend::new("delete", 80, false);
 
-    backend.set("key1", b"value1".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
     assert!(backend.exists("key1").await.unwrap());
 
     backend.delete("key1").await.unwrap();
@@ -67,7 +68,7 @@ async fn test_mock_backend_exists() {
     let backend = MockBackend::new("exists", 80, false);
 
     assert!(!backend.exists("key1").await.unwrap());
-    backend.set("key1", b"value".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"value".to_vec()), None).await.unwrap();
     assert!(backend.exists("key1").await.unwrap());
 }
 
@@ -75,8 +76,8 @@ async fn test_mock_backend_exists() {
 async fn test_mock_backend_clear() {
     let backend = MockBackend::new("clear", 80, false);
 
-    backend.set("key1", b"v1".to_vec(), None).await.unwrap();
-    backend.set("key2", b"v2".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+    backend.set(Arc::from("key2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
     assert_eq!(backend.len().await.unwrap(), 2);
 
     backend.clear().await.unwrap();
@@ -91,11 +92,11 @@ async fn test_mock_backend_len_and_is_empty() {
     assert!(backend.is_empty().await.unwrap());
     assert_eq!(backend.len().await.unwrap(), 0);
 
-    backend.set("key1", b"v1".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
     assert!(!backend.is_empty().await.unwrap());
     assert_eq!(backend.len().await.unwrap(), 1);
 
-    backend.set("key2", b"v2".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
     assert_eq!(backend.len().await.unwrap(), 2);
 }
 
@@ -103,7 +104,7 @@ async fn test_mock_backend_len_and_is_empty() {
 async fn test_mock_backend_ttl_returns_none() {
     let backend = MockBackend::new("ttl", 80, false);
     backend
-        .set("key1", b"v1".to_vec(), Some(Duration::from_secs(60)))
+        .set(Arc::from("key1"), Arc::new(b"v1".to_vec()), Some(Duration::from_secs(60)))
         .await
         .unwrap();
 
@@ -114,7 +115,7 @@ async fn test_mock_backend_ttl_returns_none() {
 #[tokio::test]
 async fn test_mock_backend_expire_returns_false() {
     let backend = MockBackend::new("expire", 80, false);
-    backend.set("key1", b"v1".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
 
     let result = backend.expire("key1", Duration::from_secs(60)).await.unwrap();
     assert!(!result);
@@ -161,9 +162,9 @@ fn test_mock_backend_kind() {
 async fn test_mock_backend_multiple_operations() {
     let backend = MockBackend::new("multi", 80, false);
 
-    backend.set("k1", b"v1".to_vec(), None).await.unwrap();
-    backend.set("k2", b"v2".to_vec(), None).await.unwrap();
-    backend.set("k3", b"v3".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+    backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+    backend.set(Arc::from("k3"), Arc::new(b"v3".to_vec()), None).await.unwrap();
 
     assert_eq!(backend.len().await.unwrap(), 3);
 
@@ -179,10 +180,10 @@ async fn test_mock_backend_multiple_operations() {
 async fn test_mock_backend_overwrite_key() {
     let backend = MockBackend::new("overwrite", 80, false);
 
-    backend.set("key", b"value1".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key"), Arc::new(b"value1".to_vec()), None).await.unwrap();
     assert_eq!(backend.get("key").await.unwrap(), Some(b"value1".to_vec()));
 
-    backend.set("key", b"value2".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("key"), Arc::new(b"value2".to_vec()), None).await.unwrap();
     assert_eq!(backend.get("key").await.unwrap(), Some(b"value2".to_vec()));
     assert_eq!(backend.len().await.unwrap(), 1);
 }
@@ -191,11 +192,11 @@ async fn test_mock_backend_overwrite_key() {
 async fn test_mock_backend_empty_value() {
     let backend = MockBackend::new("empty", 80, false);
 
-    backend.set("empty_key", vec![], None).await.unwrap();
+    backend.set(Arc::from("empty_key"), Arc::new(vec![]), None).await.unwrap();
     let result = backend.get("empty_key").await.unwrap();
     assert_eq!(result, Some(vec![]));
 
-    backend.set("none_key", b"val".to_vec(), None).await.unwrap();
+    backend.set(Arc::from("none_key"), Arc::new(b"val".to_vec()), None).await.unwrap();
     backend.delete("none_key").await.unwrap();
     let deleted = backend.get("none_key").await.unwrap();
     assert!(deleted.is_none());
@@ -214,7 +215,7 @@ fn test_mock_backend_backend_score_trait() {
 async fn test_mock_backend_cache_backend_trait() {
     let backend = MockBackend::new("cache_trait", 80, false);
 
-    CacheWriter::set(&backend, "tkey", b"tval".to_vec(), None)
+    CacheWriter::set(&backend, Arc::from("tkey"), Arc::new(b"tval".to_vec()), None)
         .await
         .unwrap();
     let val = CacheReader::get(&backend, "tkey").await.unwrap();

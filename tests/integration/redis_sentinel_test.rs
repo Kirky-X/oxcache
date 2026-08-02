@@ -5,6 +5,7 @@
 use crate::common::{is_redis_available, wait_for_sentinel};
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::CacheBackend;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[path = "../common/mod.rs"]
@@ -121,7 +122,7 @@ async fn test_sentinel_ttl() {
 
     // 设置带 TTL 的键
     backend
-        .set("sentinel_ttl_key", b"ttl_value".to_vec(), Some(Duration::from_secs(2)))
+        .set(Arc::from("sentinel_ttl_key"), Arc::new(b"ttl_value".to_vec()), Some(Duration::from_secs(2)))
         .await
         .unwrap();
 
@@ -168,7 +169,7 @@ async fn test_sentinel_expire() {
 
     // 设置不带 TTL 的键
     backend
-        .set("sentinel_expire_key", b"expire_value".to_vec(), None)
+        .set(Arc::from("sentinel_expire_key"), Arc::new(b"expire_value".to_vec()), None)
         .await
         .unwrap();
 
@@ -242,7 +243,7 @@ async fn test_sentinel_stats() {
     };
 
     backend
-        .set("sentinel_stats_key", b"stats_value".to_vec(), None)
+        .set(Arc::from("sentinel_stats_key"), Arc::new(b"stats_value".to_vec()), None)
         .await
         .unwrap();
 
@@ -330,7 +331,7 @@ async fn test_sentinel_large_value() {
     let large_value = vec![0u8; 1024 * 1024];
 
     backend
-        .set("sentinel_large_key", large_value.clone(), None)
+        .set(Arc::from("sentinel_large_key"), Arc::new(large_value.clone()), None)
         .await
         .unwrap();
     let retrieved = backend.get("sentinel_large_key").await.unwrap();

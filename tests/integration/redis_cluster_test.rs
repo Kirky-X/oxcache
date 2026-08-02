@@ -5,6 +5,7 @@
 use crate::common::{is_redis_available, wait_for_redis_cluster};
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::CacheBackend;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[path = "../common/mod.rs"]
@@ -150,7 +151,7 @@ async fn test_redis_cluster_ttl() {
 
     // 设置带 TTL 的键
     backend
-        .set("cluster_ttl_key", b"ttl_value".to_vec(), Some(Duration::from_secs(2)))
+        .set(Arc::from("cluster_ttl_key"), Arc::new(b"ttl_value".to_vec()), Some(Duration::from_secs(2)))
         .await
         .unwrap();
 
@@ -215,7 +216,7 @@ async fn test_redis_cluster_stats() {
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     backend
-        .set("stats_test_key", b"stats_value".to_vec(), None)
+        .set(Arc::from("stats_test_key"), Arc::new(b"stats_value".to_vec()), None)
         .await
         .unwrap();
 
