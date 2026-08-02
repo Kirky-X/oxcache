@@ -247,11 +247,15 @@ impl ChainCache {
     ///
     /// 单个后端失败时记录 warn 日志（问题 5.1），并继续尝试下一个后端（L1 失败降级到 L2）。
     /// 若启用了竞速读（race_read），则并发查询所有后端并返回最先命中者。
+    /// 所有后端都失败时返回 `Err`（与竞速读语义一致）。
     #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         if self.race_read_enabled {
             return self.race_read_from_chain(key).await;
         }
+
+        let mut all_failed = true;
+        let mut last_err: Option<OxCacheError> = None;
 
         for (index, link) in self.links.iter().enumerate() {
             match link.backend().get(key).await {
@@ -267,7 +271,10 @@ impl ChainCache {
                     }
                     return Ok(Some(value));
                 }
-                Ok(None) => continue,
+                Ok(None) => {
+                    all_failed = false; // 至少有一个后端明确返回 miss
+                    continue;
+                }
                 Err(e) => {
                     #[cfg(any(feature = "tracing", feature = "full"))]
                     tracing::warn!(
@@ -276,9 +283,20 @@ impl ChainCache {
                         error = %e,
                         "cache read backend failed; degrading to next backend"
                     );
+                    last_err = Some(e);
                     continue;
                 }
             }
+        }
+
+        // 所有后端都返回 Err 时传播错误，与竞速读语义一致
+        if all_failed && self.links.is_empty() {
+            return Ok(None);
+        }
+        if all_failed {
+            return Err(last_err.unwrap_or_else(|| {
+                OxCacheError::Operation("All backends failed during sequential read".to_string())
+            }));
         }
         Ok(None)
     }
@@ -1350,7 +1368,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_chain_read_returns_none_when_all_backends_fail() {
-        // 所有后端 get 都注入故障，链式 get 应返回 Ok(None)（无数据可读）
+        // L7 修复验证：所有后端 get 都失败时，链式 get 应返回 Err（与竞速读语义一致）
         let high = MockBackend::new("high", 100, false).with_fail_get();
         let low = MockBackend::new("low", 50, true).with_fail_get();
 
@@ -1359,8 +1377,8 @@ mod tests {
             .link(ChainLink::from_backend(low))
             .build();
 
-        let value = chain.get("key").await.unwrap();
-        assert_eq!(value, None, "所有后端 get 失败时返回 None");
+        let result = chain.get("key").await;
+        assert!(result.is_err(), "所有后端 get 失败时应返回 Err");
     }
 
     #[tokio::test]

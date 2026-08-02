@@ -449,6 +449,12 @@ impl CacheWriter for RedisBackend {
         Ok(())
     }
 
+    /// 清除缓存中的所有键。
+    ///
+    /// **注意**：此操作使用 `SCAN MATCH *` 遍历并删除 Redis 数据库中的**所有键**，
+    /// 而非仅限于当前缓存实例写入的键。如果多个服务共享同一个 Redis 数据库，
+    /// 此操作会影响其他服务的数据。建议为每个服务分配独立的 Redis 数据库或
+    /// 使用键前缀命名空间隔离。
     async fn clear(&self) -> OxCacheResult<()> {
         let mut conn = self.conn();
 

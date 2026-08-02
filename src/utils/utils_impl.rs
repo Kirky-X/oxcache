@@ -4,7 +4,7 @@
 
 use crate::error::OxCacheError;
 
-pub(super) const MAX_CACHE_KEY_LENGTH: usize = 1024;
+pub const MAX_CACHE_KEY_LENGTH: usize = 256;
 pub(super) const VALID_KEY_CHARS: &[char] = &[
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
     'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
