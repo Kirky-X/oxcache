@@ -125,6 +125,16 @@ async fn fetch_user(user_id: &str) -> Result<User, String> {
 
 The main type-safe cache type. `K: CacheKey`, `V: Serialize + Deserialize`.
 
+For bytes-level operations without type parameters, use the `BytesCache` alias:
+
+```rust
+use oxcache::BytesCache;
+
+let cache: BytesCache = Cache::builder().build().await?; // Cache<String, Vec<u8>>
+cache.set_bytes("k", b"raw".to_vec(), None).await?;
+let v: Option<Vec<u8>> = cache.get_bytes("k").await?;
+```
+
 **Construction:**
 
 ```rust
@@ -247,7 +257,8 @@ if the TTL was updated, `Ok(false)` if the key does not exist.
 | `tti` | `(tti: Duration) -> Self` | Default TTI (time-to-idle) for memory backends |
 | `capacity` | `(capacity: u64) -> Self` | Capacity for memory-based backends (default 10000) |
 | `sync_mode` | `(enabled: bool) -> Self` | Enable the synchronous API (see [Synchronous API](#synchronous-api)) |
-| `build` | `async (self) -> Result<Cache<K, V>>` | Build the cache instance |
+| `build` | `async (self) -> Result<Cache<K, V>>` | Build the cache instance (async wrapper, contains no awaits) |
+| `build_sync` | `(self) -> Result<Cache<K, V>>` | Build the cache instance synchronously (no runtime required) |
 
 > **Note:** There is no `.redis(...)`, `.tiered(...)`, `.with_backend(...)`,
 > `.batch_writes(...)`, or `.auto_promote(...)` method on `CacheBuilder`. Use
@@ -335,7 +346,7 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector {}
 | Type | Feature | Description |
 |------|---------|-------------|
 | `MokaMemoryBackend` | `memory` | In-memory cache using Moka (LRU/TinyLFU eviction). Supports per-entry TTL via `moka::Expiry`. |
-| `DashMapMemoryBackend` | `memory` | Pure in-memory concurrent cache using DashMap (lazy TTL expiration). |
+| `DashMapMemoryBackend` | `memory` | Pure in-memory concurrent cache using DashMap (lazy TTL expiration, FIFO O(1) eviction over capacity). |
 | `RedisBackend` | `redis` | Distributed cache using Redis (Standalone/Sentinel/Cluster). |
 | `ChainCache` | — | Multi-level cache chain (see [ChainCache](#chaincache)). |
 | `BloomFilterBackend` | `bloom-filter` | Decorator that skips the inner backend on Bloom-filter miss. |
@@ -438,8 +449,11 @@ All Lua scripts are validated via `validate_lua_script` before execution.
 ## ChainCache
 
 `ChainCache` manages multiple backends ordered by score (descending). Reads
-scan from the highest-score backend; writes fan out to all backends. Backfill
-optionally populates higher-score backends on a lower-score hit.
+scan from the highest-score backend (falling through to the next link on `None`
+or error); writes fan out **concurrently** to all backends, tolerating
+single-link failures (only errors if *all* backends fail). Backfill optionally
+populates higher-score backends **asynchronously** on a lower-score hit.
+Health checks run concurrently with a per-backend 5s timeout.
 
 ```rust
 use oxcache::cache::{ChainCache, ChainLink};
@@ -469,6 +483,7 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 | `backend(B)` | Add a backend (auto-wraps via `ChainLink::from_backend`) |
 | `default_time_to_live(Duration)` | Default TTL used when `set` is called with `ttl=None` |
 | `enable_backfill()` / `disable_backfill()` | Toggle backfill (off by default) |
+| `enable_race_read()` / `disable_race_read()` | Toggle concurrent first-hit reads (off by default) |
 | `build()` | Build the `ChainCache` (sync; sorts links by score descending) |
 
 ### `ChainLink`

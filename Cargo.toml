@@ -6,7 +6,7 @@ rust-version = "1.85"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors = ["Kirky.X"]
 license = "MIT"
-repository = "https://github.com/kirky-x/oxcache"
+repository = "https://github.com/Kirky-X/oxcache"
 readme = "README.md"
 keywords = ["cache", "redis", "memory", "async", "performance"]
 categories = ["caching", "asynchronous", "database"]
@@ -32,7 +32,6 @@ tokio = { version = "1.52", default-features = false, features = [
     "bytes",
 ] }
 async-trait = "0.1"
-lazy_static = "1.5"
 once_cell = "1.21"
 
 # Utilities
@@ -97,15 +96,17 @@ optional = true
 
 [dependencies.serde_json]
 version = "1.0"
+features = ["unbounded_depth"]
 optional = true
 
 [dependencies.flate2]
 version = "1.1"
 optional = true
 
-[dependencies.base64]
-version = "0.22"
-optional = false
+# Depth-limited deserialization: single-pass parse with configurable depth limit
+[dependencies.serde_stacker]
+version = "0.1"
+optional = true
 
 # ============================================================================
 # OBSERVABILITY & METRICS
@@ -206,10 +207,13 @@ redis = ["dep:redis", "dep:regex"]
 macros = ["dep:oxcache_macros", "minimal"]
 
 # Serialization (JSON)
-serialization = ["dep:serde", "dep:serde_json"]
+serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
 
 # Compression (flate2)
-compression = ["dep:flate2"]
+# `flate2` 特性供 `#[cfg(feature = "flate2")]` 代码分支使用；
+# `compression` 作为用户可见的聚合开关。
+flate2 = ["dep:flate2"]
+compression = ["dep:flate2", "flate2"]
 
 # Tracing support
 tracing = ["dep:tracing"]
@@ -320,6 +324,16 @@ harness = false
 name = "redis_benchmark"
 harness = false
 required-features = ["redis"]
+
+[[bench]]
+name = "serialization_benchmark"
+harness = false
+required-features = ["serialization"]
+
+[[bench]]
+name = "dashmap_benchmark"
+harness = false
+required-features = ["memory"]
 
 [lints.rust]
 unexpected_cfgs = "allow"
