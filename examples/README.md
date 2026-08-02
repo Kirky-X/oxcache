@@ -1,6 +1,6 @@
 # Oxcache Examples
 
-A comprehensive collection of examples demonstrating how to use [Oxcache](https://github.com/kirky-x/oxcache), a high-performance two-level caching library for Rust.
+A comprehensive collection of examples demonstrating how to use [Oxcache](https://github.com/Kirky-X/oxcache), a high-performance two-level caching library for Rust.
 
 ## What is Oxcache?
 

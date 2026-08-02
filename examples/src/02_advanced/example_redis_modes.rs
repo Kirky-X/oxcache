@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ 连接成功，模式: {}", standalone.mode());
 
     // 基本操作测试
-    standalone.set("mode:standalone", b"hello".to_vec(), None).await?;
+    standalone.set("mode:standalone".into(), b"hello".to_vec().into(), None).await?;
     let value = standalone.get("mode:standalone").await?;
     println!(
         "  写入/读取: {:?}",
@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  ✓ Cluster 连接成功，模式: {}", cluster.mode());
 
                 // Cluster 下的基本操作
-                cluster.set("mode:cluster", b"cluster_value".to_vec(), None).await?;
+                cluster.set("mode:cluster".into(), b"cluster_value".to_vec().into(), None).await?;
                 let value = cluster.get("mode:cluster").await?;
                 println!(
                     "  写入/读取: {:?}",
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  ✓ Sentinel 连接成功，模式: {}", sentinel.mode());
 
                 // Sentinel 下的基本操作
-                sentinel.set("mode:sentinel", b"sentinel_value".to_vec(), None).await?;
+                sentinel.set("mode:sentinel".into(), b"sentinel_value".to_vec().into(), None).await?;
                 let value = sentinel.get("mode:sentinel").await?;
                 println!(
                     "  写入/读取: {:?}",
