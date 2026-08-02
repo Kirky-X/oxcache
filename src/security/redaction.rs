@@ -22,11 +22,14 @@ use std::fmt;
 /// assert_eq!(masked, "****123");
 /// ```
 pub fn redact_value(value: &str, visible_chars: usize) -> String {
-    if value.len() <= visible_chars {
+    let char_count = value.chars().count();
+    if char_count <= visible_chars {
         // 如果值太短，完全隐藏
-        "*".repeat(value.len())
+        "*".repeat(char_count)
     } else {
-        format!("{}{}", "*".repeat(4), &value[value.len() - visible_chars..])
+        let skip = char_count - visible_chars;
+        let visible: String = value.chars().skip(skip).collect();
+        format!("{}{}", "*".repeat(4), visible)
     }
 }
 
@@ -105,8 +108,9 @@ pub fn redact_cache_key(key: &str) -> String {
 
     // 如果键看起来不敏感，返回原值
     // 但仍然限制长度，防止日志过大
-    if key.len() > 100 {
-        format!("{}...", &key[..97])
+    if key.chars().count() > 100 {
+        let truncated: String = key.chars().take(97).collect();
+        format!("{}...", truncated)
     } else {
         key.to_string()
     }
@@ -483,5 +487,46 @@ mod tests {
     fn test_redact_cache_key_normal() {
         let result = redact_cache_key("user_profile_123");
         assert_eq!(result, "user_profile_123");
+    }
+
+    // ============================================================================
+    // UTF-8 安全切片测试 (S2/S3 修复验证)
+    // ============================================================================
+
+    #[test]
+    fn test_redact_value_multibyte_utf8_no_panic() {
+        // S2 修复验证：多字节 UTF-8 字符不应导致 panic
+        let value = "你好世界密码";  // 6 个中文字符，每个 3 字节
+        let redacted = redact_value(value, 2);
+        assert_eq!(redacted, "****密码");
+
+        // 可见字符数等于总字符数时应全部遮蔽
+        let redacted_all = redact_value(value, 6);
+        assert_eq!(redacted_all, "******");
+
+        // 可见字符数大于总字符数时也应全部遮蔽
+        let redacted_over = redact_value(value, 10);
+        assert_eq!(redacted_over, "******");
+    }
+
+    #[test]
+    fn test_redact_value_emoji_no_panic() {
+        // emoji 是 4 字节 UTF-8 字符
+        let value = "secret🔑🔒"; // 8 字符: s,e,c,r,e,t,🔑,🔒
+        let redacted = redact_value(value, 2);
+        // 保留最后 2 个字符（🔑🔒）
+        assert_eq!(redacted, "****🔑🔒");
+    }
+
+    #[test]
+    fn test_redact_cache_key_multibyte_utf8_no_panic() {
+        // S3 修复验证：长多字节字符串截断不应 panic
+        // 构造一个超过 100 字符的非敏感键（每个中文 3 字节）
+        let key = "用户数据".repeat(30); // 120 字符，360 字节
+        let result = redact_cache_key(&key);
+        assert!(result.ends_with("..."));
+        // 截断后应为 97 字符 + "..."
+        let truncated_len = result.chars().count();
+        assert_eq!(truncated_len, 100); // 97 + 3 ("..." 的 3 个字符)
     }
 }
