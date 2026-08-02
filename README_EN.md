@@ -2,9 +2,10 @@
 
 <img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache) [![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE) [![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
-[中文](./README.md)
+
+[中文](./README.md) | English
 
 Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory
 cache) + L2 (Redis distributed cache) architecture.
@@ -253,7 +254,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `.capacity(u64)`                      | Set memory cache capacity                                           |
 | `.backend_arc(Arc<dyn CacheBackend>)` | Add a pre-built backend (e.g., `RedisBackend`, `MokaMemoryBackend`) |
 | `.sync_mode(bool)`                    | Enable sync API support (`get_sync`/`set_sync`/...)                 |
-| `.build()`                            | Build `Cache<K, V>` instance (async)                                |
+| `.build()`                            | Build `Cache<K, V>` instance (async, no internal awaits)           |
+| `.build_sync()`                       | Build `Cache<K, V>` instance synchronously (no runtime required)  |
 
 > **Note:** For Redis backend, use `RedisBackend::new(url).await?` then pass via `.backend_arc(Arc::new(backend))`.
 > For tiered (L1+L2) cache, use `ChainCache::builder().link(...).build()`.
@@ -497,7 +499,7 @@ All backends honor per-entry TTL since 0.3.0. Behavior summary:
 | Backend                  | `set(ttl=Some)`                                          | `ttl(key)`                                            | `expire(key, new_ttl)`      | Notes                                                          |
 | ------------------------ | -------------------------------------------------------- | ----------------------------------------------------- | --------------------------- | -------------------------------------------------------------- |
 | **MokaMemoryBackend**    | Real per-entry TTL via `moka::Expiry`                    | Remaining TTL                                         | Updates + returns `true`    | Global TTL (`builder.ttl(...)`) is overridden by per-entry TTL |
-| **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read    | Remaining TTL (None if no TTL)                        | Updates + returns `true`    | Lazy expiry — entries removed on next access                   |
+| **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read    | Remaining TTL (None if no TTL)                        | Updates + returns `true`    | Lazy expiry — entries removed on next access; FIFO O(1) eviction of oldest entries when over capacity |
 | **RedisBackend**         | `SET key value EX ttl`                                   | `TTL key` (Redis native)                              | `EXPIRE key ttl`            | Uses Redis native TTL                                          |
 | **MockBackend**          | Stores `(value, expiry Instant)`; lazy expiry            | Remaining TTL                                         | Updates + returns `true`    | Test-only; aligns with DashMap semantics                       |
 | **ChainCache**           | Passes `ttl` through to all links                        | Returns TTL from highest-scored link that has the key | Passes through to all links | All links receive the same TTL                                 |
