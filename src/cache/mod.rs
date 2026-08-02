@@ -14,6 +14,12 @@ pub use builder::CacheBuilder;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use interface::UnifiedCache;
 
+/// 无泛型的 bytes 级缓存别名（问题 6.2）
+///
+/// 底层后端操作的都是 `String` key + `Vec<u8>` value，此别名提供直接的
+/// bytes 级使用方式（配合 `get_bytes`/`set_bytes`），无需指定具体值类型。
+pub type BytesCache = Cache<String, Vec<u8>>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,5 +122,17 @@ mod tests {
         let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
         let stats = cache.stats().await.unwrap();
         assert!(!stats.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_bytes_cache_alias() {
+        // BytesCache 别名：无泛型 bytes 级缓存（问题 6.2）
+        let cache: BytesCache = Cache::builder().build().await.unwrap();
+        cache.set_bytes("bk", b"raw bytes".to_vec(), None).await.unwrap();
+        assert_eq!(
+            cache.get_bytes("bk").await.unwrap(),
+            Some(b"raw bytes".to_vec())
+        );
+        assert_eq!(cache.get_bytes("missing").await.unwrap(), None);
     }
 }

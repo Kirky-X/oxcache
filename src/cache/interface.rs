@@ -11,6 +11,7 @@ use async_trait::async_trait;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use serde::{Serialize, de::DeserializeOwned};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Core cache operations trait - unified interface for all cache backends
@@ -106,7 +107,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     }
 
     async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
-        self.set(key, value, ttl).await
+        self.set(Arc::from(key), Arc::new(value), ttl).await
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {

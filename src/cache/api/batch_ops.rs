@@ -6,6 +6,7 @@ use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 impl<K, V> Cache<K, V>
 where
@@ -27,7 +28,7 @@ where
                     Ok(b) => b,
                     Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
                 };
-                batch_items.push((key_str, bytes, None));
+                batch_items.push((Arc::from(key_str), Arc::new(bytes), None));
             }
             self.backend.set_many(&batch_items).await
         }
