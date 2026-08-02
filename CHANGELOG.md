@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **[P0 R-002]** `DashMapMemoryBackend` now has a FIFO O(1) eviction policy. Previously the backend grew unbounded past capacity; now over-capacity writes evict the oldest entries in batch (`capacity / 10`, at least 1) with a `seq`-checked atomic `remove_if` to prevent concurrent re-set races, and the FIFO queue self-compacts when stale entries accumulate (4x growth threshold). Entries without TTL are now evictable.
+- **[P1 3.1]** `get_or` / `get_or_sync` single-flight registries are now sharded into 64 hash buckets (`DefaultHasher`) to eliminate cross-key `Mutex` contention under concurrency.
+- **[P1 4.3/5.1, P2 4.2/5.2]** `ChainCache` now writes to all links concurrently (`JoinSet`), tolerates single-link write failures (only errors when *all* backends fail), degrades reads through to the next link on backend errors, performs backfill asynchronously (fire-and-forget `tokio::spawn`), and health-checks links concurrently with a per-backend 5s timeout.
+- **[P3 8.x]** Removed dead code in `src/cache/api/api_impl.rs` (`#[cfg(all(feature = "dashmap-backend", ...))]` referenced a non-existent feature and never compiled).
+- **[P3 8.1/8.2]** Removed the `base64` and `lazy_static` dependencies; replaced `lazy_static!` with `once_cell::sync::Lazy`.
+- **Serialization hardening**: `deserialize_safe` disables the `serde_json` recursion limit (`unbounded_depth` feature) and delegates recursion to the heap via `serde_stacker`, closing the deeply-nested JSON stack-overflow DoS. Compression output now runs through a gzip magic-header check and a 64 MiB decompression size cap.
+- **Feature-gating bug**: the `compression` feature referenced `dep:flate2` but no `flate2` feature existed, so all `#[cfg(feature = "flate2")]` code (including compression) never compiled. Added `flate2 = ["dep:flate2"]` and folded it into `compression`.
+- **[P2 3.2]** `MokaMemoryBackend` sync bridging no longer holds a global `OnceLock<Runtime>`: calling sync methods from inside a `current_thread` tokio runtime previously panicked ("Cannot block the current thread from within a runtime"). The non-multi-thread path now drives the future via `Waker::noop()` + manual polling (the moka futures have no runtime dependency). Regression test added.
+- **[P3 4.1]** `ChainCache` gains an opt-in `race_read` mode: `enable_race_read()` on the builder makes `get` query all backends concurrently and return the first hit (with backfill-on-hit preserved and all-backends-failed error semantics). Off by default; serial degraded reads remain the default.
+
+### Changed
+
+- DashMap FIFO eviction replaces the documented "no eviction" behavior; `p0_r002_dashmap_no_eviction_grows_unbounded` updated to assert eviction bounds `len()` at capacity.
+- `ChainCache::backfill_to_higher_backends` now takes owned `Arc<str>`/`Arc<Vec<u8>>` args and awaits each backend write (sequential, same as before), sharing the value across higher-score backends via `Arc::clone` (no heap copy).
+- **[P2 2.2/2.3]** `CacheWriter::set`/`SyncCacheWriter::set` and `set_many` now take `Arc<str>` keys and `Arc<Vec<u8>>` values. Memory backends (Moka/DashMap) store `Arc` directly; `ChainCache` shares one `Arc` allocation across all links (`Arc::clone` per backend, zero heap copy); the public `ChainCache::set(&str, Vec<u8>, ttl)` and `Cache::set(&K, &V)` APIs keep their signatures and box to `Arc` once.
+- **[P3 4.4]** `ChainCache` caches the collected `Arc<dyn SyncCacheBackend>` list in a `OnceLock` (the links are immutable after build), so `get_sync`/`set_sync`/`delete_sync` no longer re-collect and re-clone every `Arc` on each call.
+- **[P3 6.2]** Added a non-generic `BytesCache` type alias (`Cache<String, Vec<u8>>`) for bytes-level operations, re-exported at the crate root.
+
+### Added
+
+- 6 new DashMap eviction tests, 4 new sharded single-flight tests, 5 new ChainCache degradation tests, 3 new MockBackend fault-injection tests, updated DashMap e2e tests.
+- New benches: `serialization_benchmark` (JSON plain/compressed serialize+deserialize) and `dashmap_benchmark` (set/get at full capacity with FIFO eviction).
+- `ChainCacheBuilder::enable_race_read()` / `disable_race_read()` (concurrent first-hit reads).
+- `BytesCache` type alias, re-exported at `oxcache::BytesCache`.
+- Regression test: sync ops inside a `current_thread` tokio runtime (P2 3.2).
+- `CacheBuilder::build_sync()`: synchronous build path (fully synchronous, no runtime required). `build()` is now `async` but contains no `.await`; both delegate to the same non-async builder logic.
+
+### Fixed
+
+- Compression tests (`test_compression_round_trip`, `test_compression_shrinks_repetitive_data`) are now gated behind the `flate2` feature; without it `compress_data` is a no-op and the shrink assertion could never hold.
+
+
 ## [0.3.12] - 2026-07-22
 
 ### Fixed

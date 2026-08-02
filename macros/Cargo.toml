@@ -4,7 +4,7 @@ version = "0.3.12"
 edition = "2021"
 description = "Procedural macros for oxcache"
 license = "MIT"
-repository = "https://github.com/kirky-x/oxcache"
+repository = "https://github.com/Kirky-X/oxcache"
 
 [lib]
 proc-macro = true

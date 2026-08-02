@@ -2,9 +2,9 @@
 
 <img src="docs/image/oxcache.png" alt="Oxcache Logo" width="250">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml)[![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache)[![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache)[![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache)[![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)[![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache)[![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE)[![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
+[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache) [![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE) [![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
 
-[English](./README_EN.md)
+中文 | [English](./README_EN.md)
 
 高性能、生产级的 Rust 双层缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
 
@@ -122,7 +122,8 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 | `.capacity(u64)` | 设置内存缓存容量 |
 | `.backend_arc(Arc<dyn CacheBackend>)` | 添加预构建后端（如 `RedisBackend`、`MokaMemoryBackend`） |
 | `.sync_mode(bool)` | 启用同步 API 支持（`get_sync`/`set_sync`/...） |
-| `.build()` | 构建 `Cache<K, V>` 实例（异步） |
+| `.build()` | 构建 `Cache<K, V>` 实例（异步，内部无 await） |
+| `.build_sync()` | 同步构建 `Cache<K, V>` 实例（无需运行时） |
 
 > **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
 > 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
@@ -346,7 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
 |---------|-----------------|------------|------------------------|-------|
 | **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
-| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期 —— 条目在下次访问时移除 |
+| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期 —— 条目在下次访问时移除；超过容量时 FIFO O(1) 淘汰最旧条目 |
 | **RedisBackend** | `SET key value EX ttl` | `TTL key`（Redis 原生） | `EXPIRE key ttl` | 使用 Redis 原生 TTL |
 | **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用；与 DashMap 语义对齐 |
 | **ChainCache** | 将 `ttl` 透传到所有链接 | 返回拥有该 key 的最高分链接的 TTL | 透传到所有链接 | 所有链接接收相同 TTL |

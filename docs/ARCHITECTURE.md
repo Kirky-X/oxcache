@@ -228,7 +228,7 @@ cache.register_for_macro("my_service").await?;
 | Type | Path | Feature | Description |
 |---|---|---|---|
 | `MokaMemoryBackend` | `oxcache::backend::MokaMemoryBackend` | `memory` | L1 cache, Moka (LRU/TinyLFU) |
-| `DashMapMemoryBackend` | `oxcache::backend::DashMapMemoryBackend` | `memory` | Pure in-memory concurrent cache |
+| `DashMapMemoryBackend` | `oxcache::backend::DashMapMemoryBackend` | `memory` | Pure in-memory concurrent cache, FIFO O(1) eviction |
 | `RedisBackend` | `oxcache::backend::RedisBackend` | `redis` | L2 distributed cache |
 | `RedisBackendBuilder` | `oxcache::backend::RedisBackendBuilder` | `redis` | Builder for Redis (mode, pool, TLS) |
 | `ChainCache` | `oxcache::cache::chain::ChainCache` | — | Score-ordered multi-backend chain |
@@ -291,19 +291,29 @@ A backend opts into the sync API by implementing the sync traits in addition to 
 ```
 1. Iterate ChainLinks from highest score (L1) to lowest (L2)
 2. On hit → return value
-3. On miss → continue to next link
+3. On miss (None or Err) → log a warning and continue to the next link
+   (L1 read failure degrades gracefully instead of failing the request)
 4. After a hit on a non-highest link, if backfill is enabled,
    asynchronously populate the higher-scored (closer to L1) links
+   (fire-and-forget `tokio::spawn`, failures are warned, not propagated)
 ```
+
+With `enable_race_read()` (opt-in), the read path instead queries **all**
+backends concurrently (`JoinSet`) and returns the first hit; backfill still
+applies on a non-highest hit, and the read errors only if every backend fails.
 
 **ChainCache Write Path**:
 
 ```
-1. Write to all links whose score is <= the writer threshold
-   (typically all non-persistent + the persistent writer)
+1. Write concurrently (tokio::spawn / JoinSet) to all links whose score
+   is <= the writer threshold (typically all non-persistent + the persistent writer)
 2. Persistent backends receive the write for durability
-3. No WAL, no Pub/Sub publish (those layers are not in 0.3.2)
+3. A single link failure is logged and tolerated; the write only fails if
+   ALL backends fail
+4. No WAL, no Pub/Sub publish (those layers are not in 0.3.2)
 ```
+
+**ChainCache Health Check**: each link is pinged concurrently with a per-backend 5s timeout; `health_check()` fails only if every link fails.
 
 ### 4. Features Module (`features/`)
 
@@ -335,7 +345,13 @@ pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats
 
 **Important**: `MetricsCollector` is **NOT** re-exported at the crate root. It lives at `oxcache::infra::metrics::backend::MetricsCollector::new() -> OxCacheResult<Self>` (note: takes no arguments in 0.3.2, returns `Result`).
 
-**Serialization**: Only **JSON** is supported in 0.3.2 (`serialization` feature pulls in `serde` + `serde_json`). Bincode/MessagePack/CBOR are not implemented. A `MAX_JSON_DEPTH` constant guards against deeply-nested JSON DoS during deserialization.
+**Serialization**: Only **JSON** is supported (`serialization` feature pulls in `serde` + `serde_json`). Bincode/MessagePack/CBOR are not implemented. Serialization is implemented in `infra/serialization/` (`json.rs`, `unified.rs`, `utils.rs`, `depth_limited.rs`):
+
+- **`JsonSerializer`** — the async/sync backend-facing serializer (values are `Vec<u8>`); `with_compression()` enables flate2 gzip output.
+- **`UnifiedSerializer`** — value-level codec (`serialize<T>` / `deserialize<T>` / `estimate_size`) used by `Cache<K, V>` and the `#[cached]` macro.
+- **`depth_limited.rs`** — `deserialize_safe` guards against deeply-nested JSON DoS: `serde_json` recursion limit is disabled (`unbounded_depth` feature) and the stream is wrapped in `serde_stacker` for heap-based recursion. A `MAX_JSON_DEPTH` constant plus a 64 MiB deserialization size cap and gzip magic-header detection harden the path.
+
+There is no base64 round-trip on the wire — values are passed through as raw bytes (with optional gzip).
 
 ### 6. Security Module (`security/`)
 
@@ -591,6 +607,8 @@ Oxcache 0.3.2 **does not** ship a built-in cross-instance invalidation layer (no
 
 Both `get_or` (async) and `get_or_sync` (sync) implement single-flight: when multiple concurrent calls miss the same key, only the first caller ("leader") executes the fallback; followers block on `tokio::sync::Notify` (async) or `std::sync::Condvar` (sync) until the leader writes the result. Panic-safe guards ensure followers are released even if the leader panics.
 
+The in-flight registries are **sharded** (64 hash buckets via `DefaultHasher`) to reduce cross-key lock contention under concurrency: `get_or_shard_index(key)` routes each key to one shard, and each shard owns a `Mutex<HashMap<String, Arc<Notify>>>` (async) / `Mutex<HashMap<String, SyncFlight>>` (sync).
+
 ## Failure Handling
 
 ### Redis Failure
@@ -604,7 +622,7 @@ Both `get_or` (async) and `get_or_sync` (sync) implement single-flight: when mul
 Oxcache does not auto-failover between backends in 0.3.2. The application decides how to handle a Redis error:
 
 1. `Cache::health_check().await` returns `Err(OxCacheError::*)` — caller can switch to a fallback code path
-2. `ChainCache` continues serving L1 hits even if the L2 link errors (the miss just propagates as `None`); writes to L2 still error and surface to the caller
+2. `ChainCache` continues serving L1 hits even if the L2 link errors (the miss just propagates as `None`); L1 read errors are logged and the read falls through to the next link; writes to L2 that fail are logged, and the write only surfaces as an error to the caller if every backend fails
 3. The application can wrap the cache in its own circuit-breaker / retry policy
 
 There is no automatic "L1-only mode" switch and no WAL replay on reconnect in 0.3.2.
@@ -728,7 +746,7 @@ The `security` module (private; consumed via crate-root re-exports) provides:
 2. **TTL Strategy**: Set appropriate TTL based on data volatility; use `cache.ttl(&key)` to read existing TTL before update-with-preserve workflows
 3. **Access Control**: Use Redis AUTH + TLS (`rediss://` URL)
 4. **Monitoring**: Track `CacheStats` (hit rates, op counters, latency histograms) via `get_enhanced_stats` / `export_prometheus_format`
-5. **Sync API**: Only enable `sync_mode(true)` when running on a `multi_thread` tokio runtime (required by Moka's sync interface)
+5. **Sync API**: Enable `sync_mode(true)` for non-async call sites. On a `multi_thread` tokio runtime, Moka's sync bridge reuses the current runtime via `block_in_place`; otherwise it drives the (runtime-independent) moka futures with a `noop` waker + manual polling — safe inside or outside any runtime, with no global runtime thread (P2 3.2).
 
 ## Scalability
 
