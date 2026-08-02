@@ -85,8 +85,20 @@ where
         self
     }
 
-    /// Build the cache instance
+    /// Build the cache instance (async variant).
+    ///
+    /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
+    /// Internally no `.await` is used, so it completes without yielding.
     pub async fn build(self) -> OxCacheResult<Cache<K, V>> {
+        self.build_sync()
+    }
+
+    /// Build the cache instance (sync variant).
+    ///
+    /// Constructs a [`Cache`] without awaiting. The default Moka path and the
+    /// user-provided backend path are both fully synchronous, so this is
+    /// equivalent to [`Self::build`] without an `async` boundary.
+    pub fn build_sync(self) -> OxCacheResult<Cache<K, V>> {
         // sync_mode(true) + backend_arc() is unsupported: Arc<dyn CacheBackend>
         // cannot be upcast to Arc<dyn SyncCacheBackend> in stable Rust (no
         // `trait_upcasting` feature). Reject early with a clear message.
@@ -402,5 +414,37 @@ mod tests {
             Err(e) => panic!("expected NotSupported, got {:?}", e),
             Ok(_) => panic!("expected error, got Ok"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_builder_build_sync_default_moka_path() {
+        let cache: Cache<String, i32> = Cache::builder()
+            .capacity(100)
+            .build_sync()
+            .expect("build_sync should succeed for default Moka path");
+        // async set/get roundtrip works on the cache produced by build_sync
+        cache.set(&"k".to_string(), &7).await.unwrap();
+        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), 7);
+    }
+
+    #[tokio::test]
+    async fn test_builder_build_sync_equivalent_to_build() {
+        let via_build: Cache<String, i32> = Cache::builder().capacity(100).build().await.unwrap();
+        let via_sync: Cache<String, i32> = Cache::builder().capacity(100).build_sync().unwrap();
+
+        via_build.set(&"a".to_string(), &1).await.unwrap();
+        via_sync.set(&"a".to_string(), &1).await.unwrap();
+        assert_eq!(via_build.get(&"a".to_string()).await.unwrap(), via_sync.get(&"a".to_string()).await.unwrap());
+    }
+
+    #[test]
+    fn test_builder_build_sync_rejects_sync_mode_plus_backend_arc() {
+        let backend = MokaMemoryBackend::builder().capacity(100).build();
+        let result: crate::error::OxCacheResult<Cache<String, String>> = Cache::builder()
+            .backend_arc(Arc::new(backend))
+            .sync_mode(true)
+            .build_sync();
+
+        assert!(result.is_err(), "build_sync with sync_mode+backend_arc should return Err");
     }
 }
