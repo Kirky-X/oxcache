@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..10 {
         let key = format!("individual:key:{}", i);
         let value = format!("value_{}", i).into_bytes();
-        backend.set(&key, value, None).await?;
+        backend.set(key.as_str().into(), value.into(), None).await?;
     }
     let individual_elapsed = start.elapsed();
 

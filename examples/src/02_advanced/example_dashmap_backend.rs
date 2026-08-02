@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 写入数据
     dashmap
-        .set("key1", b"value1".to_vec(), Some(Duration::from_secs(60)))
+        .set("key1".into(), b"value1".to_vec().into(), Some(Duration::from_secs(60)))
         .await?;
     println!("  写入: key1 = value1");
 
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (key, value) in &keys_values {
-        dashmap.set(key, value.clone(), Some(Duration::from_secs(300))).await?;
+        dashmap.set((*key).into(), value.clone().into(), Some(Duration::from_secs(300))).await?;
     }
     println!("  批量写入: {} 个键值对", keys_values.len());
 
@@ -73,8 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..10 {
         let key = format!("key:{}", i);
         let value = format!("value:{}", i).into_bytes();
-        moka.set(&key, value.clone(), None).await?;
-        dashmap2.set(&key, value, None).await?;
+        moka.set(key.as_str().into(), value.clone().into(), None).await?;
+        dashmap2.set(key.as_str().into(), value.into(), None).await?;
     }
 
     let moka_count = moka.len().await?;

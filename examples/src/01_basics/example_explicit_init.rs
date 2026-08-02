@@ -41,7 +41,7 @@ async fn main() {
     // Step 5: Use the default cache
     println!("\nStep 5: Use the default cache");
     default_cache
-        .set("key1", b"value1".to_vec(), Some(Duration::from_secs(60)))
+        .set("key1".into(), b"value1".to_vec().into(), Some(Duration::from_secs(60)))
         .await
         .expect("set failed");
 
@@ -51,7 +51,7 @@ async fn main() {
     // Step 6: Use the users cache
     println!("\nStep 6: Use the users cache");
     user_cache
-        .set("user:1", b"Alice".to_vec(), None)
+        .set("user:1".into(), b"Alice".to_vec().into(), None)
         .await
         .expect("set failed");
 
