@@ -128,6 +128,12 @@ where
         self.backend.clear().await
     }
 
+    /// List keys matching a glob pattern.
+    /// Delegates to the backend's `CacheReader::keys()` implementation.
+    pub async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        self.backend.keys(pattern).await
+    }
+
     /// Shutdown the cache and release resources.
     pub async fn shutdown(&self) {
         self.backend.shutdown().await
@@ -1017,6 +1023,51 @@ mod tests {
             _ => panic!("expected OxCacheError::Serialization"),
         }
     }
+
+    // ========================================================================
+    // Async keys(), ttl(), expire() coverage
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cache_keys_returns_matching() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"user:1".to_string(), &"a".to_string()).await.unwrap();
+        cache.set(&"user:2".to_string(), &"b".to_string()).await.unwrap();
+        cache.set(&"session:1".to_string(), &"c".to_string()).await.unwrap();
+
+        let all = cache.keys("*").await.unwrap();
+        assert_eq!(all.len(), 3);
+
+        let users = cache.keys("user:*").await.unwrap();
+        assert_eq!(users.len(), 2);
+
+        let none = cache.keys("nope:*").await.unwrap();
+        assert!(none.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_cache_ttl_returns_remaining() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60))).await.unwrap();
+        let ttl = cache.ttl(&"k".to_string()).await.unwrap().expect("ttl should be Some");
+        assert!(ttl > Duration::from_secs(58));
+        assert!(ttl <= Duration::from_secs(60));
+        // Missing key
+        assert_eq!(cache.ttl(&"missing".to_string()).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn test_cache_expire_extends_ttl() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60))).await.unwrap();
+        let ok = cache.expire(&"k".to_string(), Duration::from_secs(120)).await.unwrap();
+        assert!(ok);
+        let ttl = cache.ttl(&"k".to_string()).await.unwrap().expect("ttl should be Some");
+        assert!(ttl > Duration::from_secs(118));
+        // expire missing key
+        let ok = cache.expire(&"missing".to_string(), Duration::from_secs(60)).await.unwrap();
+        assert!(!ok);
+    }
 }
 
 #[cfg(test)]
@@ -1143,5 +1194,54 @@ mod sync_tests {
         // After TTL: expired
         thread::sleep(Duration::from_millis(120));
         assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_cache_delete_sync() {
+        let cache = make_sync_cache();
+        cache.set_sync(&"k".to_string(), &"v".to_string()).unwrap();
+        cache.delete_sync(&"k".to_string()).unwrap();
+        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_cache_exists_sync() {
+        let cache = make_sync_cache();
+        assert!(!cache.exists_sync(&"k".to_string()).unwrap());
+        cache.set_sync(&"k".to_string(), &"v".to_string()).unwrap();
+        assert!(cache.exists_sync(&"k".to_string()).unwrap());
+    }
+
+    #[test]
+    fn test_cache_ttl_sync() {
+        let cache = make_sync_cache();
+        cache.set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60))).unwrap();
+        let ttl = cache.ttl_sync(&"k".to_string()).unwrap().expect("ttl should be Some");
+        assert!(ttl > Duration::from_secs(58));
+        assert!(ttl <= Duration::from_secs(60));
+        // Missing key
+        assert_eq!(cache.ttl_sync(&"missing".to_string()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_cache_expire_sync() {
+        let cache = make_sync_cache();
+        cache.set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60))).unwrap();
+        let ok = cache.expire_sync(&"k".to_string(), Duration::from_secs(120)).unwrap();
+        assert!(ok);
+        let ttl = cache.ttl_sync(&"k".to_string()).unwrap().expect("ttl should be Some");
+        assert!(ttl > Duration::from_secs(118));
+        // expire missing key
+        let ok = cache.expire_sync(&"missing".to_string(), Duration::from_secs(60)).unwrap();
+        assert!(!ok);
+    }
+
+    #[test]
+    fn test_cache_sync_methods_without_sync_mode_returns_err() {
+        let cache: Cache<String, String> = Cache::new();
+        assert!(cache.delete_sync(&"k".to_string()).is_err());
+        assert!(cache.exists_sync(&"k".to_string()).is_err());
+        assert!(cache.ttl_sync(&"k".to_string()).is_err());
+        assert!(cache.expire_sync(&"k".to_string(), Duration::from_secs(1)).is_err());
     }
 }

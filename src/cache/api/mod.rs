@@ -3,6 +3,7 @@
 //! Cache API - 核心缓存结构和方法
 
 mod api_impl;
+mod atomic_ops;
 mod basic_ops;
 mod batch_ops;
 mod bytes_ops;
