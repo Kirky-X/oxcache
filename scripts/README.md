@@ -11,9 +11,7 @@ scripts/
 │   └── common.sh              # 公共函数库
 ├── tests/
 │   ├── run_all_tests.sh       # 综合测试运行器
-│   ├── memory_test.sh         # 内存泄漏测试 (Miri/Valgrind)
-│   ├── real_redis_test.sh     # Redis 真实环境测试
-│   └── test_redis_failover.sh # Redis 故障转移测试
+│   └── memory_test.sh         # 内存泄漏测试 (Miri/Valgrind)
 ├── redis.sh                   # Redis 服务管理 + 性能测试
 ├── validate.sh                # 验证脚本 (特性/文档/安全)
 ├── run-all.sh                 # 统一入口
