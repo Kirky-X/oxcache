@@ -47,3 +47,6 @@ mod version_test;
 
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
+#[cfg(feature = "redis")]
+#[path = "integration/redis_version_compatibility_test.rs"]
+mod redis_version_compatibility_test;
