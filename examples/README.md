@@ -1,195 +1,121 @@
 # Oxcache Examples
 
-A comprehensive collection of examples demonstrating how to use [Oxcache](https://github.com/Kirky-X/oxcache), a high-performance two-level caching library for Rust.
-
-## What is Oxcache?
-
-Oxcache provides a seamless L1 (Moka in-memory cache) + L2 (Redis distributed cache) architecture:
-- **Extreme Performance**: L1 nanosecond response, L2 millisecond response
-- **Zero-Code Changes**: Enable caching with a single `#[cached]` macro
-- **Automatic Failover**: Graceful degradation on Redis failure
-- **Multi-Instance Consistency**: Pub/Sub + version-based invalidation sync
+[Oxcache](https://github.com/Kirky-X/oxcache) 示例集合，演示高性能两级缓存库的各种用法。
 
 ## Quick Start
 
 ```bash
-# Run a specific example
-cargo run --example example_basic_operations
+# 运行单个示例
+cd examples && cargo run --example example_basic_operations
 
-# List all available examples
+# 列出所有可用示例
 cargo run --example --list
 
-# Run all examples
+# 运行所有示例测试
 cargo test --examples
 ```
 
-## Learning Path
+## 学习路径
 
-Follow these modules to learn Oxcache from basics to advanced usage:
+按以下顺序逐步学习 oxcache：
 
-### Beginner (Start Here)
+### 入门（从这里开始）
 
-| Module | Description | Examples |
-|--------|-------------|----------|
-| [01_basics](./examples/01_basics/) | Core functionality | macro usage, manual cache, serialization, CRUD |
-| [02_advanced](./examples/02_advanced/) | Advanced features | batch write, cache promotion, invalidation, warmup |
+| 示例 | 功能 | 关键 API |
+|------|------|----------|
+| `example_basic_operations` | 基本 CRUD 操作 | `get`/`set`/`delete`/`exists` |
+| `example_new_api` | 现代 API 入门 | `Cache::builder()`/`Cache::memory()` |
+| `example_cache_builder` | CacheBuilder 配置 | `capacity`/`ttl`/`tti`/`sync_mode` |
+| `example_serialization` | JSON 序列化 | `serde::Serialize`/`Deserialize` |
+| `example_cache_key` | 自定义缓存键 | `CacheKey` trait |
 
-### Intermediate
+### 核心功能
 
-| Module | Description | Examples |
-|--------|-------------|----------|
-| [03_performance](./examples/03_performance/) | Performance testing | benchmarks, stress tests |
-| [04_redis_modes](./examples/04_redis_modes/) | Redis configurations | standalone, sentinel, cluster, TLS |
+| 示例 | 功能 | 关键 API |
+|------|------|----------|
+| `example_get_or` | 缓存未命中时计算 | `get_or` (single-flight) |
+| `example_sync_api` | 同步 API | `get_sync`/`set_sync`/`clear_sync`/`len_sync` |
+| `example_byte_ops` | 字节级操作 | `get_bytes`/`set_bytes`/`len`/`capacity`/`shutdown` |
+| `example_cached_macro` | `#[cached]` 宏 | `#[cached(service/ttl/key_prefix)]` |
+| `example_explicit_init` | 显式初始化 | `Cache::new()`/全局缓存 |
 
-### Advanced
+### 进阶
 
-| Module | Description | Examples |
-|--------|-------------|----------|
-| [05_database](./examples/05_database/) | Database integration | SQLite, PostgreSQL, MySQL, partitioning |
-| [06_features](./examples/06_features/) | Additional features | bloom filter, rate limiting, metrics |
+| 示例 | 功能 | 关键 API |
+|------|------|----------|
+| `example_batch_write` | 批量操作 | `set_many`/`get_many`/`delete_many` |
+| `example_chain_cache` | 链式缓存 | `ChainCache`/`ChainLink` |
+| `example_invalidation` | 缓存失效策略 | TTL/TTI/手动失效 |
+| `example_warmup` | 缓存预热 | 批量预加载 |
+| `example_smart_strategy` | 缓存策略模式 | Cache-Aside/Lazy Loading/TTL 分层 |
+| `example_cache_promotion` | 缓存提升 | L2→L1 提升/热点分析 |
+| `example_error_handling` | 错误处理 | `OxCacheError`/重试/可恢复性 |
+| `example_custom_backend` | 自定义后端 | `CacheReader`/`CacheWriter`/`CacheConnector` |
 
-### Expert
+### Redis 相关（需要 Redis 服务）
 
-| Module | Description | Examples |
-|--------|-------------|----------|
-| [07_testing](./examples/07_testing/) | Testing patterns | unit tests, integration tests, mock tests |
-| [08_uat](./examples/08_uat/) | Acceptance tests | functional, performance, security UAT |
+| 示例 | 功能 | 关键 API |
+|------|------|----------|
+| `example_redis_native` | Redis 原生操作 | `RedisBackend` |
+| `example_redis_modes` | Redis 部署模式 | Standalone/Cluster/Sentinel |
+| `example_redis_pipeline` | Pipeline 批量 | `set_many_pipeline`/`get_many_pipeline` |
+| `example_lua_script` | Lua 脚本执行 | `eval_lua`/`script_load`/`eval_sha` |
+| `example_moka_ttl` | Moka per-entry TTL | `Expiry` trait |
+| `example_dashmap_backend` | DashMap 后端 | `DashMapMemoryBackend` |
 
-## Prerequisites
+### 配置与特性
 
-- Rust 1.75+
-- Redis 6.0+ (for L2 cache examples)
-- Docker (optional, for database examples)
+| 示例 | 功能 | 关键 API |
+|------|------|----------|
+| `example_dynamic_config` | 动态配置 | 运行时配置变更 |
+| `example_key_generator` | Key 生成器 | `KeyGenerator` |
+| `example_events` | 事件系统 | `CacheEvent`/`CacheEventType` |
+| `example_metrics` | 指标导出 | `export_json_format`/`export_prometheus_format` |
+| `example_compression` | 数据压缩 | `JsonSerializer::with_compression()` |
+| `example_security` | 安全脱敏 | `redact_value`/`redact_connection_string` |
+| `example_security_validation` | 安全验证 | `validate_redis_key`/`validate_lua_script` |
+| `example_bloom_filter` | 布隆过滤器 | `BloomFilter`/`BloomFilterBackend` |
+| `example_i18n` | 国际化 | `CacheI18nFormatter` |
+| `example_cli_usage` | CLI 使用 | 命令行工具 |
+| `example_database_integration` | 数据库集成 | Cache-Aside 模式 |
+| `example_comprehensive_usage` | 综合使用 | 全部功能概览 |
 
-## Project Structure
+## 特性依赖
 
-```mermaid
-graph TD
-    A[oxcache-examples/] --> B[Cargo.toml]
-    A --> C[README.md]
-    A --> D[examples/]
-    A --> E[src/]
+示例 crate 启用了以下 oxcache 特性：
 
-    D --> D1[01_basics/]
-    D --> D2[02_advanced/]
-    D --> D3[03_performance/]
-    D --> D4[04_redis_modes/]
-    D --> D5[05_database/]
-    D --> D6[06_features/]
-    D --> D7[07_testing/]
-    D --> D8[08_uat/]
-
-    D1 --> D1_1[Core functionality]
-    D2 --> D2_1[Advanced features]
-    D3 --> D3_1[Performance testing]
-    D4 --> D4_1[Redis configurations]
-    D5 --> D5_1[Database integration]
-    D6 --> D6_1[Additional features]
-    D7 --> D7_1[Testing patterns]
-    D8 --> D8_1[Acceptance tests]
-
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#fce4ec
-    style D1 fill:#f1f8e9
-    style D2 fill:#fdf2e9
-    style D3 fill:#ffeb3b
-    style D4 fill:#ffcdd2
-    style D5 fill:#e8f5e8
-    style D6 fill:#f3e5f5
-    style D7 fill:#e1f5fe
-    style D8 fill:#f3e5f5
+```toml
+oxcache = { path = "..", features = ["full", "bloom-filter", "i18n"] }
 ```
 
-## Examples by Category
+- `full` — 包含所有核心功能（Redis、序列化、压缩、指标、Lua 脚本等）
+- `bloom-filter` — 布隆过滤器支持
+- `i18n` — ICU4X 国际化格式化
 
-### 01_basics - Core Functionality
+## 先决条件
 
-- `example_basic_operations` - Basic CRUD operations (Get, Set, Delete)
-- `example_comprehensive_usage` - Comprehensive demo of macros, manual control, and serialization
-- `example_cached_macro` - #[cached] macro usage demonstration
-- `example_serialization` - JSON vs Bincode serialization comparison
+- Rust 1.85+
+- Redis 6.0+（Redis 相关示例需要运行中的 Redis 服务）
+- 无 Redis 的示例可独立运行（内存后端）
 
-### 02_advanced - Advanced Features
+## 目录结构
 
-- `example_batch_write` - Batch write optimization for improved throughput
-- `example_cache_promotion` - Automatic L2 → L1 cache promotion on hits
-- `example_invalidation` - Active cache invalidation mechanisms
-- `example_warmup` - Cache warmup strategies for fast startup
+```
+examples/src/
+├── 01_basics/       # 入门示例（11 个）
+├── 02_advanced/     # 进阶示例（14 个）
+├── 03_config/       # 配置示例（2 个）
+├── 05_database/     # 数据库集成（1 个）
+└── 06_features/     # 特性展示（8 个）
+```
 
-### 03_performance - Performance Testing
+## 贡献
 
-- `example_latency_benchmark` - Latency benchmarks for cache operations
-- `example_throughput_benchmark` - Throughput benchmarks
-- `example_stress_test` - Stress testing under high load
+1. Fork 仓库
+2. 创建特性分支
+3. 运行 `cargo fmt` 和 `cargo clippy`
+4. 提交 Pull Request
 
-### 04_redis_modes - Redis Configurations
+## 许可证
 
-- `example_standalone` - Basic Redis standalone mode
-- `example_sentinel` - Redis Sentinel for high availability
-- `example_cluster` - Redis Cluster for horizontal scaling
-- `example_tls` - TLS encrypted Redis connections
-
-### 05_database - Database Integration
-
-- `example_database_integration` - Database integration with cache-aside pattern
-- `example_sqlite_cache` - SQLite with caching integration
-- `example_postgresql_cache` - PostgreSQL with caching integration
-- `example_mysql_cache` - MySQL with caching integration
-- `example_database_partitioning` - Database partitioning strategies
-
-### 06_features - Additional Features
-
-- `example_bloom_filter` - Bloom filter for cache optimization and penetration protection
-- `example_rate_limiting` - Rate limiting with token bucket algorithm
-- `example_metrics` - OpenTelemetry metrics collection
-- `example_health_check` - Health check and monitoring
-
-### 07_testing - Testing Patterns
-
-- `example_unit_tests` - Unit testing patterns for cache code
-- `example_integration_tests` - Integration testing with real Redis
-- `example_mock_tests` - Mock-based testing without external services
-
-### 08_uat - Acceptance Tests
-
-- `example_functional_uat` - Functional user acceptance tests
-- `example_performance_uat` - Performance acceptance criteria
-- `example_security_uat` - Security acceptance testing
-- `example_uat_stress_test` - Stress testing for UAT
-
-## Common Utilities
-
-The `src/` module provides shared utilities for examples:
-
-- `src/config.rs` - Configuration builders and helpers
-- `src/metrics.rs` - Performance metrics collectors
-- `src/redis.rs` - Redis connection utilities
-
-## Dependencies
-
-This project uses:
-- [Oxcache](https://crates.io/crates/oxcache) - The caching library
-- [Tokio](https://crates.io/crates/tokio) - Async runtime
-- [Serde](https://crates.io/crates/serde) - Serialization
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Run `cargo fmt` and `cargo clippy`
-4. Submit a pull request
-
-## License
-
-MIT License - see [LICENSE](../LICENSE) for details.
-
----
-
-<div align="center">
-
-**If this project helps you learn Oxcache, please give a ⭐ Star!**
-
-</div>
+MIT License - 详见 [LICENSE](../LICENSE)。

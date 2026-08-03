@@ -53,7 +53,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === TTL 过期验证 ===
     println!("\n=== TTL 过期验证 ===");
     backend
-        .set("temp".into(), b"temp_value".to_vec().into(), Some(Duration::from_millis(50)))
+        .set(
+            "temp".into(),
+            b"temp_value".to_vec().into(),
+            Some(Duration::from_millis(50)),
+        )
         .await?;
     println!("set 'temp'（50ms TTL）");
 
@@ -73,7 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("创建 MokaMemoryBackend（全局 TTL=300s）");
 
     // 无 per-entry TTL：使用全局 TTL
-    backend_with_global_ttl.set("a".into(), b"a_val".to_vec().into(), None).await?;
+    backend_with_global_ttl
+        .set("a".into(), b"a_val".to_vec().into(), None)
+        .await?;
     println!("set 'a'（无 per-entry TTL → 使用全局 300s）");
 
     // 有 per-entry TTL：覆盖全局 TTL
