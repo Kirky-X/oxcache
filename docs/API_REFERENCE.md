@@ -2,7 +2,7 @@
 
 > **⚠️ API Version Notice**
 >
-> This document describes **Oxcache v0.3.3** APIs.
+> This document describes **Oxcache v0.3.12** APIs.
 
 This document provides detailed API reference for the Oxcache library.
 
@@ -29,8 +29,8 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 ### Tiered Feature Sets
 
 - **`minimal`**: L1 cache only (memory + tracing + metrics + serialization + chrono)
-- **`core`**: L1 + L2 cache (minimal + redis + futures)
-- **`full`**: All features enabled (default)
+- **`core`**: L1 + L2 cache (minimal + redis)
+- **`full`**: All features enabled (opt-in via features = ["full"])
 
 ### Component Features
 
@@ -40,8 +40,8 @@ Oxcache uses feature gates to control functionality. Here are the key features a
 - **`serialization`**: JSON serialization only (serde + serde_json)
 - **`compression`**: Data compression (flate2)
 - **`tracing`**: Structured logging support
-- **`metrics`**: OpenTelemetry metrics and observability
-- **`batch-write`**: Buffered L2 writes (tokio-util)
+- **`metrics`**: Built-in metrics and observability
+- **`batch-write`**: Buffered L2 writes
 - **`lua-script`**: Lua script execution support (requires `redis`)
 - **`cli`**: Command-line interface (clap)
 - **`testing`**: Testing support utilities
@@ -71,8 +71,8 @@ Some features require or imply other features:
 |---------|-------------------|-------------|
 | `lua-script` | `redis` | Lua script execution |
 | `cli` | `metrics`, `dashmap`, `tracing` | Command-line interface |
-| `core` | `minimal`, `redis`, `futures` | Core L1 + L2 cache |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | All features (note: `bloom-filter` is NOT in `full`) |
+| `core` | `minimal`, `redis` | Core L1 + L2 cache |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | All features (note: `bloom-filter`, `kit`, `i18n` are NOT in `full`) |
 
 ## Cache Macro
 
@@ -309,36 +309,41 @@ The `backend` module exposes the backend traits and implementations.
 
 ```rust
 #[async_trait]
-pub trait CacheReader: Send + Sync {
+pub trait CacheReader: Send + Sync + 'static {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
     async fn exists(&self, key: &str) -> OxCacheResult<bool>;
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
     async fn len(&self) -> OxCacheResult<u64>;
-    async fn is_empty(&self) -> OxCacheResult<bool>;
+    async fn is_empty(&self) -> OxCacheResult<bool>;  // default impl
     async fn capacity(&self) -> OxCacheResult<u64>;
-    async fn stats(&self) -> Result<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>>;
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>>;  // default impl
 }
 
+/// Batch write entry type: `(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
+pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
+
 #[async_trait]
-pub trait CacheWriter: Send + Sync {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+pub trait CacheWriter: Send + Sync + 'static {
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
     async fn clear(&self) -> OxCacheResult<()>;
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()>;
-    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()>;
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()>;  // default impl
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()>;  // default impl
 }
 
 #[async_trait]
-pub trait CacheConnector: Send + Sync {
+pub trait CacheConnector: Send + Sync + 'static {
     async fn health_check(&self) -> OxCacheResult<()>;
     async fn shutdown(&self);
     fn backend_kind(&self) -> BackendKind;
+    #[cfg(feature = "lua-script")]
+    fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
 }
 
 // Blanket impl: any type implementing all three is a CacheBackend.
-pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector {}
+pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 ```
 
 ### Backend Types
@@ -521,9 +526,9 @@ The synchronous API mirrors the async API but blocks via
 ### `SyncCacheBackend` Trait Hierarchy
 
 ```rust
-pub trait SyncCacheReader { fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>; /* ... */ }
-pub trait SyncCacheWriter { fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>; /* ... */ }
-pub trait SyncCacheConnector { fn health_check(&self) -> OxCacheResult<()>; /* ... */ }
+pub trait SyncCacheReader: Send + Sync + 'static { fn get(&self, key: &str) -> OxCacheResult<Option<Arc<Vec<u8>>>>; /* ... */ }
+pub trait SyncCacheWriter: Send + Sync + 'static { fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>; /* ... */ }
+pub trait SyncCacheConnector: Send + Sync + 'static { fn health_check(&self) -> OxCacheResult<()>; /* ... */ }
 pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector {}
 ```
 
@@ -787,7 +792,7 @@ match result {
 ### Helper Methods
 
 - `OxCacheError::code() -> &'static str`: stable error code (e.g. `"OXCACHE_009"`).
-- `is_recoverable() -> bool`: `true` for `Connection`/`Timeout`/`L2Error`/`BackendError`/`BufferFull`.
+- `is_recoverable() -> bool`: `true` for `Connection`/`Timeout`/`RedisError`/`L2Error`/`BackendError`/`BufferFull`.
 - `is_not_found() -> bool`, `is_connection_error() -> bool`, `is_degraded() -> bool`.
 
 ### `OxCacheConfigError` (`redis` feature)

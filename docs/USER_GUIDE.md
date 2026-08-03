@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.3.3** 编写。
+> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.3.12** 编写。
 
 ## 📋 目录
 
@@ -81,7 +81,7 @@ L1 内存 + L2 分布式
 - **🔗 链式多层缓存**：`ChainCache` 按后端分数排序读写，支持回填（backfill）
 - **⚡ 同步 API**：`sync_mode(true)` 启用 `get_sync`/`set_sync` 等同步方法
 - **🛡️ 安全内置**：键/Lua/SCAN 校验、TLS 强制、敏感信息脱敏
-- **📊 可观测性**：OpenTelemetry 指标、tracing 结构化日志
+- **📊 可观测性**：内置指标、tracing 结构化日志
 
 > 💡 **提示**: 本指南假设你具备基本的 Rust 知识。如果你是 Rust
 > 新手，建议先阅读 [Rust 官方教程](https://doc.rust-lang.org/book/)。
@@ -100,7 +100,7 @@ L1 内存 + L2 分布式
 
 **必选**
 
-- ✅ Rust 1.75+ (stable)
+- ✅ Rust 1.85+ (stable)
 - ✅ Cargo (随 Rust 一起安装)
 - ✅ Git
 
@@ -123,11 +123,11 @@ L1 内存 + L2 分布式
 ```bash
 # 检查 Rust 版本
 rustc --version
-# 预期: rustc 1.75.0 (或更高)
+# 预期: rustc 1.85.0 (或更高)
 
 # 检查 Cargo 版本
 cargo --version
-# 预期: cargo 1.75.0 (或更高)
+# 预期: cargo 1.85.0 (或更高)
 ```
 
 </details>
@@ -141,7 +141,7 @@ cargo --version
 oxcache = "0.3"
 ```
 
-> **注意**：`default = ["full"]`，默认包含全部主功能（内存 + Redis + 宏 + 压缩 + 批量写入 + Lua + CLI + 测试）。
+> **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
 > **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3", features = ["macros"] }`（`full` 已包含）。
 
@@ -169,8 +169,8 @@ oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
 |------|----------|------|
 | `lua-script` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
-| `core` | `minimal`, `redis`, `futures` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`） |
+| `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`、`kit`、`i18n`） |
 
 如果需要最小依赖或自定义特性：
 
@@ -604,7 +604,7 @@ error!("Failed to write to cache: {}", err);
 ```
 
 启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `tracing` + `chrono` + `dashmap`），
-不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理，避免重复初始化 tracer provider。
+不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理。
 
 ### 优雅关闭
 

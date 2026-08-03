@@ -18,23 +18,19 @@ cache) + L2 (Redis distributed cache) architecture.
 
 <table>
 <tr>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
 <b>Extreme Performance</b><br>L1 in nanoseconds
 </td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
 <b>Zero-Code Changes</b><br>One-line cache enable
 </td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
 <b>Auto Recovery</b><br>Redis fault degradation
 </td>
-<td width="20%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/synchronize.png" width="48"><br>
-<b>Multi-Instance Sync</b><br>Based on Pub/Sub
-</td>
-<td width="20%" align="center">
+<td width="25%" align="center">
 <img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
 <b>Batch Optimization</b><br>Smart batch writes
 </td>
@@ -43,10 +39,9 @@ cache) + L2 (Redis distributed cache) architecture.
 
 </div>
 
-- **🚀 Extreme Performance**: L1 nanosecond response (P99 < 100ns), L1 millisecond response (P99 < 5ms)
+- **🚀 Extreme Performance**: L1 nanosecond response (P99 < 100ns), L2 millisecond response (P99 < 5ms)
 - **🎯 Zero-Code Changes**: Enable caching with a single `#[cached]` macro
-- **🔄 Auto Recovery**: Automatic degradation on Redis failure, WAL replay on recovery
-- **🌐 Multi-Instance Sync**: Pub/Sub + version-based invalidation synchronization
+- **🔄 Auto Recovery**: Automatic degradation on Redis failure
 - **⚡ Batch Optimization**: Intelligent batch writes for significantly improved throughput
 - **🧪 Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
 - **🌸 Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
@@ -88,7 +83,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 | Tier        | Features                                                                        | Description            |
 | ----------- | ------------------------------------------------------------------------------- | ---------------------- |
 | **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono`         | L1 cache only          |
-| **core**    | `minimal` + `redis`, `futures`                                                  | L1 + L2 cache          |
+| **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
 | **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | Complete functionality |
 
 **Individual Features**:
@@ -98,74 +93,20 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `macros` - `#[cached]` attribute macro
 - `serialization` - JSON serialization (serde + serde\_json)
 - `compression` - Data compression (flate2)
-- `metrics` - OpenTelemetry metrics and observability
-- `batch-write` - Optimized batch writing (tokio-util)
+- `metrics` - Built-in performance metrics (latency histograms, operation counts, JSON export); OTLP export handled at application level
+- `batch-write` - Optimized batch writing
 - `lua-script` - Lua script execution support
 - `cli` - Command-line interface (clap)
 - `tracing` - Structured logging support
 - `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
+- `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
+- `i18n` - Internationalization support; not in `full`, must be enabled explicitly
+- `testing` - Testing utilities
 
-### 2. Configuration
-
-Create a `config.toml` file:
-
-```toml
-[global]
-default_ttl = 3600
-health_check_interval = 30
-serialization = "json"
-enable_metrics = true
-
-# Two-level cache (L1 + L2)
-[services.user_cache]
-cache_type = "two-level"  # "l1" | "l2" | "two-level"
-ttl = 600
-
-  [services.user_cache.l1]
-  max_capacity = 10000
-  ttl = 300  # L1 TTL must be <= L2 TTL
-  tti = 180
-  initial_capacity = 1000
-
-  [services.user_cache.l2]
-  mode = "standalone"  # "standalone" | "sentinel" | "cluster"
-  connection_string = "redis://127.0.0.1:6379"
-
-  [services.user_cache.two_level]
-  write_through = true
-  promote_on_hit = true
-  enable_batch_write = true
-  batch_size = 100
-  batch_interval_ms = 50
-
-# L1-only cache (memory only)
-[services.session_cache]
-cache_type = "l1"
-ttl = 300
-
-  [services.session_cache.l1]
-  max_capacity = 5000
-  ttl = 300
-  tti = 120
-
-# L2-only cache (Redis only)
-[services.shared_cache]
-cache_type = "l2"
-ttl = 7200
-
-  [services.shared_cache.l2]
-  mode = "standalone"
-  connection_string = "redis://127.0.0.1:6379"
-```
-
-### 2.1 Type-Safe Configuration API (Recommended)
-
-Oxcache provides a **type-safe builder API** for configuration, enabling compile-time type checking and better IDE support. This approach is recommended over TOML configuration for most use cases.
-
-#### Memory-Only Cache (L1)
+### 2. Basic Usage
 
 ```rust
-use oxcache::config::UnifiedConfigBuilder;
+use oxcache::macros::cached;
 use oxcache::{Cache, CacheBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -175,76 +116,44 @@ struct User {
     name: String,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create type-safe configuration using builder API
-    let config = UnifiedConfigBuilder::memory_only()
-        .with_ttl(3600)           // Default TTL in seconds
-        .with_l1_capacity(10000)  // L1 cache capacity
-        .build();
-
-    // Create cache directly from configuration
-    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
-        .build()
-        .await?;
-
-    // Use the cache
-    let user = User {
-        id: 1,
-        name: "Alice".to_string(),
-    };
-
-    cache.set(&"user:1".to_string(), &user).await?;
-    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
-
-    println!("User: {:?}", cached);
-    Ok(())
-}
-```
-
-#### Tiered Cache (L1 + L2)
-
-```rust
-use oxcache::config::UnifiedConfigBuilder;
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
+// One-line cache enable
+#[cached(service = "user_cache", ttl = 600)]
+async fn get_user(id: u64) -> Result<User, String> {
+    // Simulate slow database query
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    Ok(User {
+        id,
+        name: format!("User {}", id),
+    })
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create tiered cache configuration
-    let config = UnifiedConfigBuilder::tiered()
-        .with_ttl(7200)            // Default TTL in seconds
-        .with_l1_capacity(10000)   // L1 memory cache capacity
-        .with_redis_url("redis://localhost:6379")  // L2 Redis connection
-        .with_redis_mode("standalone")  // Redis mode
-        .build();
-
-    // Create cache directly from configuration
-    let cache: Cache<String, User> = CacheBuilder::from_unified_config(&config)
+    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
+    let cache: Cache<String, User> = Cache::builder()
+        .capacity(10000)
+        .ttl(std::time::Duration::from_secs(600))
         .build()
         .await?;
 
-    // Use the cache (writes to both L1 and L2)
-    let user = User {
-        id: 1,
-        name: "Alice".to_string(),
-    };
+    // Register cache instance for macro usage
+    cache.register_for_macro("user_cache").await;
 
-    cache.set(&"user:1".to_string(), &user).await?;
-    let cached: Option<User> = cache.get(&"user:1".to_string()).await?;
+    // First call: execute function logic + cache result (~100ms)
+    let user = get_user(1).await?;
+    println!("First call: {:?}", user);
 
-    println!("User: {:?}", cached);
+    // Second call: return directly from cache (~0.1ms)
+    let cached_user = get_user(1).await?;
+    println!("Cached call: {:?}", cached_user);
+
     Ok(())
 }
 ```
 
-#### Configuration Builder Methods
+### Builder API
+
+Oxcache provides a type-safe builder API for configuring caches. Available builder methods:
 
 | Method                                | Description                                                         |
 | ------------------------------------- | ------------------------------------------------------------------- |
@@ -259,14 +168,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 > **Note:** For Redis backend, use `RedisBackend::new(url).await?` then pass via `.backend_arc(Arc::new(backend))`.
 > For tiered (L1+L2) cache, use `ChainCache::builder().link(...).build()`.
-
-#### Benefits of Type-Safe API
-
-- **Compile-time validation**: Configuration errors caught at compile time
-- **IDE support**: Full autocomplete and type hints
-- **No runtime parsing**: Eliminates TOML parsing overhead
-- **Better error messages**: Type errors instead of configuration parse errors
-- **Refactoring friendly**: Rename refactoring works across configuration
 
 ### 3. Usage
 
@@ -329,8 +230,7 @@ struct MyData {
     field: String,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn manual_caching() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize cache using Builder pattern (default: Moka L1 memory backend)
     let cache: Cache<String, MyData> = Cache::builder()
         .capacity(10000)
@@ -384,6 +284,41 @@ async fn fetch_api_data(endpoint: String, version: u32) -> Result<ApiResponse, E
 #[cached(service = "session_cache", ttl = 60)]
 async fn get_user_session(session_id: String) -> Result<Session, Error> {
     session_store::load(session_id).await
+}
+```
+
+### Scenario 4: Manual Cache Control
+
+```rust
+use oxcache::{Cache, CacheBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct MyData {
+    field: String,
+}
+
+async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
+    let cache: Cache<String, MyData> = Cache::builder()
+        .capacity(10000)
+        .build()
+        .await?;
+
+    let my_data = MyData {
+        field: "value".to_string(),
+    };
+
+    // Standard operations
+    cache.set(&"key".to_string(), &my_data).await?;
+
+    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
+    println!("Data: {:?}", data);
+
+    // Delete
+    cache.delete(&"key".to_string()).await?;
+
+    Ok(())
 }
 ```
 
@@ -550,8 +485,8 @@ xychart-beta
     title "Single-thread Latency Test (P99)"
     x-axis ["L1 Cache", "L2 Cache", "Database"]
     y-axis "Latency (ms)" 0 --> 60
-    bar [0.05, 3, 30]
-    line [0.05, 3, 30]
+    bar [50, 3, 30]
+    line [50, 3, 30]
 ```
 
 ```mermaid
@@ -574,7 +509,6 @@ xychart-beta
 ## 🛡️ Reliability
 
 - ✅ Single-Flight (prevent cache stampede)
-- ✅ WAL (Write-Ahead Log) persistence
 - ✅ Automatic degradation on Redis failure
 - ✅ Graceful shutdown mechanism
 - ✅ Health checks and auto-recovery
@@ -629,7 +563,7 @@ Distributed locks use cryptographically secure UUID v4 values automatically gene
 
 ### Connection String Redaction
 
-Passwords in connection strings are redacted in logs by default to prevent credential leakage. Use `normalize_connection_string_with_redaction()` for secure logging.
+Passwords in connection strings are redacted in logs by default to prevent credential leakage. Use `redact_connection_string()` for secure logging.
 
 ### Best Practices
 
@@ -647,9 +581,11 @@ For more details, see [Security Documentation](docs/SECURITY.md).
 - [📘 API Documentation](https://docs.rs/oxcache)
 - [💻 Examples](examples/)
 
+> **Note**: `oxcache-examples` is set as `publish = false` and managed within the workspace.
+
 ## 🤝 Contributing
 
-Pull Requests and Issues are welcome!
+Pull Requests and Issues are welcome! See [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## 📝 Changelog
 
