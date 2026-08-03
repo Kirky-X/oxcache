@@ -130,8 +130,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. 批量删除过期商品
-    println!("4. 批量删除 (模拟下架商品)");
+    // 4. 使用 set_many / get_many / delete_many 批量操作
+    println!("4. 使用 set_many / get_many / delete_many");
+
+    // 批量写入
+    let new_products: Vec<(String, Product)> = (10..15)
+        .map(|i| {
+            (
+                format!("product:{}", i),
+                Product {
+                    id: i,
+                    name: format!("商品{}", i),
+                    price: (i as f64) * 10.0,
+                    category: "批量".to_string(),
+                    stock: 50,
+                },
+            )
+        })
+        .collect();
+    let items: Vec<(&String, &Product)> = new_products.iter().map(|(k, v)| (k, v)).collect();
+    cache.set_many(items).await?;
+    println!("   ✓ set_many 写入 {} 条", new_products.len());
+
+    // 批量读取
+    let keys: Vec<String> = (10..15).map(|i| format!("product:{}", i)).collect();
+    let key_refs: Vec<&String> = keys.iter().collect();
+    let fetched = cache.get_many(key_refs).await?;
+    println!("   ✓ get_many 读取 {} 条", fetched.len());
+    for (key, product) in &fetched {
+        println!("     {} -> {} (¥{:.2})", key, product.name, product.price);
+    }
+
+    // 批量删除
+    let del_keys: Vec<String> = (10..13).map(|i| format!("product:{}", i)).collect();
+    let del_refs: Vec<&String> = del_keys.iter().collect();
+    cache.delete_many(del_refs).await?;
+    println!("   ✓ delete_many 删除 {} 条", del_keys.len());
+
+    // 验证删除后剩余
+    let remaining = cache.get_many(keys.iter().collect::<Vec<_>>()).await?;
+    println!("   删除后剩余 {} 条", remaining.len());
+    println!();
+
+    // 5. 批量删除过期商品
+    println!("5. 批量删除 (模拟下架商品)");
     let out_of_stock_ids = vec![6, 7, 8]; // 假设这些商品已下架
 
     println!("   下架商品 ID: {:?}", out_of_stock_ids);
@@ -144,8 +186,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 "
     );
 
-    // 5. 统计信息
-    println!("5. 缓存统计");
+    // 6. 统计信息
+    println!("6. 缓存统计");
     let stats = cache.stats().await?;
     println!("   - 缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
     println!("   - 容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));

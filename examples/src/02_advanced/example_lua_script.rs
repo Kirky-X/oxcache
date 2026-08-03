@@ -61,7 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- 3. 通过 SHA 执行脚本（eval_sha） ---");
 
     // 先设置一个值
-    backend.set("test:lua:length".into(), b"hello world".to_vec().into(), None).await?;
+    backend
+        .set("test:lua:length".into(), b"hello world".to_vec().into(), None)
+        .await?;
 
     let result = backend.eval_lua(hash_script, &["test:lua:length"], &[]).await?;
     println!("  eval_lua 结果: {:?}", result);

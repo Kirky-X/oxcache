@@ -63,14 +63,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 4. 序列化器访问
-    println!("\n--- 4. 序列化器访问 ---");
+    // 4. 缓存元信息操作
+    println!("\n--- 4. 缓存元信息操作 ---");
+
+    let count = cache.len().await?;
+    println!("  条目数: {}", count);
+
+    let empty = cache.is_empty().await?;
+    println!("  是否为空: {}", empty);
+
+    let cap = cache.capacity().await?;
+    println!("  容量: {}", cap);
+
+    // 5. 序列化器访问
+    println!("\n--- 5. 序列化器访问 ---");
 
     let _serializer = cache.serializer();
     println!("  ✓ 已获取序列化器实例（dyn Serializer 不实现 Debug，无法打印）");
 
-    // 5. 大数据操作
-    println!("\n--- 5. 大数据操作 ---");
+    // 6. 大数据操作
+    println!("\n--- 6. 大数据操作 ---");
 
     let key4 = "large_data".to_string();
     let large_data = vec![0xABu8; 1024]; // 1KB
@@ -83,6 +95,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 清理
     cache.clear().await?;
+
+    // 验证清理后状态
+    let count_after = cache.len().await?;
+    let empty_after = cache.is_empty().await?;
+    println!("\n  清理后: 条目数={}, 为空={}", count_after, empty_after);
+
+    // 关闭缓存，释放资源
+    cache.shutdown().await;
+    println!("  ✓ 缓存已关闭");
 
     println!("\n✓ 示例完成");
     Ok(())

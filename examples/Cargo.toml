@@ -16,6 +16,7 @@ publish = false
 oxcache = { path = "..", default-features = false, features = [
     "full",
     "bloom-filter",
+    "i18n",
 ] }
 
 # Tracing for logging (minimal features)
@@ -162,3 +163,15 @@ path = "src/06_features/example_bloom_filter.rs"
 [[example]]
 name = "example_moka_ttl"
 path = "src/02_advanced/example_moka_ttl.rs"
+
+[[example]]
+name = "example_error_handling"
+path = "src/02_advanced/example_error_handling.rs"
+
+[[example]]
+name = "example_custom_backend"
+path = "src/02_advanced/example_custom_backend.rs"
+
+[[example]]
+name = "example_i18n"
+path = "src/06_features/example_i18n.rs"

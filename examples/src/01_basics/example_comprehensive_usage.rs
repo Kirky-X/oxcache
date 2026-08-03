@@ -51,21 +51,19 @@ async fn main() -> OxCacheResult<()> {
 "
     );
 
-    // 2. 创建 Redis 缓存 (L2 only)
-    println!("2. 创建 Redis 缓存 (L2)");
-    let _redis_cache: Cache<String, User> = Cache::redis("redis://127.0.0.1:6379").await?;
-    println!(
-        "   ✓ Redis 缓存创建成功
-"
-    );
+    // 2. 创建 Redis 缓存 (L2 only) — 带降级处理
+    println!("2. 创建 Redis 缓存 (L2 only)");
+    match Cache::<String, User>::redis("redis://127.0.0.1:6379").await {
+        Ok(_redis_cache) => println!("   ✓ Redis 缓存创建成功"),
+        Err(e) => println!("   ⚠ Redis 不可用，已降级: {}", e),
+    }
+    println!();
 
     // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
     let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
-    println!(
-        "   ✓ 分层缓存创建成功
-"
-    );
+    println!("   ✓ 分层缓存创建成功");
+    println!();
 
     // 4. 基本 CRUD 操作
     println!("4. 基本 CRUD 操作演示");
