@@ -83,9 +83,7 @@ impl BloomFilter {
     /// Returns `0.0` when the filter is empty.
     pub fn load_factor(&self) -> f64 {
         let state = self.state.read().unwrap();
-        if state.capacity == 0 {
-            return 0.0;
-        }
+        // `new()` asserts `capacity > 0`, so division by zero is impossible.
         state.inserted_count as f64 / state.capacity as f64
     }
 

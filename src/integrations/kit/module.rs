@@ -138,9 +138,6 @@ impl AsyncAutoBuilder for OxcacheModule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::CacheBackend;
-    use std::any::TypeId;
-    use std::sync::Arc;
 
     /// R-oxcache-module-001: `OxcacheModule::NAME == "oxcache"`.
     #[test]

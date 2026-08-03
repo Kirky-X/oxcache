@@ -12,7 +12,6 @@ pub mod serialization;
 
 mod infra_impl;
 
-#[allow(unused_imports)]
 pub use infra_impl::validate_cache_key;
 
 #[cfg(feature = "metrics")]

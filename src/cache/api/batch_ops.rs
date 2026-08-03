@@ -56,8 +56,11 @@ where
             let mut result = HashMap::new();
             for (key, value) in key_strings.into_iter().zip(values) {
                 if let Some(bytes) = value {
-                    if let Ok(decoded) = serde_json::from_slice::<V>(&bytes) {
-                        result.insert(key, decoded);
+                    match serde_json::from_slice::<V>(&bytes) {
+                        Ok(decoded) => { result.insert(key, decoded); }
+                        Err(e) => return Err(OxCacheError::Serialization(
+                            format!("failed to deserialize value for key '{}': {}", key, e)
+                        )),
                     }
                 }
             }

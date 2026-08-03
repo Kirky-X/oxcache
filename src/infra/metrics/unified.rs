@@ -82,6 +82,14 @@ pub struct AtomicCounters {
     pub l1_items: AtomicU64,
     /// L1 cache capacity used (bytes)
     pub l1_capacity_used: AtomicU64,
+    /// L2 degradation events (circuit breaker opened)
+    pub l2_degraded: AtomicU64,
+    /// L2 retry attempts total
+    pub l2_retry_total: AtomicU64,
+    /// Backfill success count (per backend)
+    pub backfill_success: AtomicU64,
+    /// Backfill failure count (per backend)
+    pub backfill_failed: AtomicU64,
 }
 
 /// Metric value types
@@ -145,6 +153,10 @@ impl Default for AtomicCounters {
             compression_bytes_saved: AtomicU64::new(0),
             l1_items: AtomicU64::new(0),
             l1_capacity_used: AtomicU64::new(0),
+            l2_degraded: AtomicU64::new(0),
+            l2_retry_total: AtomicU64::new(0),
+            backfill_success: AtomicU64::new(0),
+            backfill_failed: AtomicU64::new(0),
         }
     }
 }
@@ -361,6 +373,10 @@ impl UnifiedMetrics {
             compression_bytes_saved: self.inner.counters.compression_bytes_saved.load(Ordering::Relaxed),
             l1_items: self.inner.counters.l1_items.load(Ordering::Relaxed),
             l1_capacity_used: self.inner.counters.l1_capacity_used.load(Ordering::Relaxed),
+            l2_degraded: self.inner.counters.l2_degraded.load(Ordering::Relaxed),
+            l2_retry_total: self.inner.counters.l2_retry_total.load(Ordering::Relaxed),
+            backfill_success: self.inner.counters.backfill_success.load(Ordering::Relaxed),
+            backfill_failed: self.inner.counters.backfill_failed.load(Ordering::Relaxed),
         }
     }
 
@@ -406,6 +422,10 @@ impl UnifiedMetrics {
         self.inner.counters.compression_bytes_saved.store(0, Ordering::Relaxed);
         self.inner.counters.l1_items.store(0, Ordering::Relaxed);
         self.inner.counters.l1_capacity_used.store(0, Ordering::Relaxed);
+        self.inner.counters.l2_degraded.store(0, Ordering::Relaxed);
+        self.inner.counters.l2_retry_total.store(0, Ordering::Relaxed);
+        self.inner.counters.backfill_success.store(0, Ordering::Relaxed);
+        self.inner.counters.backfill_failed.store(0, Ordering::Relaxed);
 
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
@@ -451,6 +471,26 @@ impl UnifiedMetrics {
                 0.0
             },
         }
+    }
+
+    /// Record an L2 retry event.
+    pub fn record_l2_retry(&self) {
+        self.inner.counters.l2_retry_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record an L2 degradation event (circuit breaker opened).
+    pub fn record_l2_degraded(&self) {
+        self.inner.counters.l2_degraded.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a backfill success event.
+    pub fn record_backfill_success(&self) {
+        self.inner.counters.backfill_success.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a backfill failure event.
+    pub fn record_backfill_failed(&self) {
+        self.inner.counters.backfill_failed.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -522,6 +562,14 @@ pub struct CounterSnapshot {
     pub l1_items: u64,
     /// L1 cache capacity used in bytes (not yet wired to cache operations)
     pub l1_capacity_used: u64,
+    /// L2 degradation events (circuit breaker opened)
+    pub l2_degraded: u64,
+    /// L2 retry attempts total
+    pub l2_retry_total: u64,
+    /// Backfill success count
+    pub backfill_success: u64,
+    /// Backfill failure count
+    pub backfill_failed: u64,
 }
 
 /// Comprehensive metrics snapshot
@@ -566,6 +614,10 @@ impl MetricsSnapshot {
             "cache_l1_capacity_used_bytes {}\n",
             self.counters.l1_capacity_used
         ));
+        output.push_str(&format!("cache_l2_degraded_total {}\n", self.counters.l2_degraded));
+        output.push_str(&format!("cache_l2_retry_total {}\n", self.counters.l2_retry_total));
+        output.push_str(&format!("cache_backfill_success_total {}\n", self.counters.backfill_success));
+        output.push_str(&format!("cache_backfill_failed_total {}\n", self.counters.backfill_failed));
 
         // Export dynamic metrics
         for (key, value) in &self.dynamic_metrics {

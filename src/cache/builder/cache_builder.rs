@@ -28,6 +28,18 @@ pub struct CacheBuilder<K, V> {
     _phantom: PhantomData<(K, V)>,
 }
 
+impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CacheBuilder")
+            .field("backends_count", &self.backends.len())
+            .field("ttl", &self.ttl)
+            .field("tti", &self.tti)
+            .field("capacity", &self.capacity)
+            .field("sync_mode", &self.sync_mode)
+            .finish()
+    }
+}
+
 impl<K, V> Default for CacheBuilder<K, V> {
     fn default() -> Self {
         Self {

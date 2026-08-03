@@ -85,12 +85,12 @@ cargo test --examples
 示例 crate 启用了以下 oxcache 特性：
 
 ```toml
-oxcache = { path = "..", features = ["full", "bloom-filter", "i18n"] }
+oxcache = { path = "..", features = ["full", "bloom-filter"] }
 ```
 
 - `full` — 包含所有核心功能（Redis、序列化、压缩、指标、Lua 脚本等）
 - `bloom-filter` — 布隆过滤器支持
-- `i18n` — ICU4X 国际化格式化
+- `i18n` — ICU4X 国际化（始终启用，包含在 `minimal` 中，无需显式指定）
 
 ## 先决条件
 

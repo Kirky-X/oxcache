@@ -53,6 +53,7 @@ impl CacheI18nFormatter {
 
         Ok(Self {
             locale: parsed,
+            locale_tag: locale.to_string(),
             decimal_formatter,
             plural_rules,
             collator,

@@ -39,8 +39,7 @@ pub(crate) fn set_allow_insecure_env() {
 
 /// Set `OXCACHE_ALLOW_INSECURE_REDIS=<value>` (parameterized).
 ///
-/// SAFETY: Same as `set_allow_insecure_env`.
-/// nosem: rust.lang.security.unsafe-usage.unsafe-usage
+/// Note: Callers are serialized via `#[serial]` to avoid env var races.
 pub(crate) fn set_insecure_env(value: &str) {
     unsafe {
         std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", value);
@@ -49,8 +48,7 @@ pub(crate) fn set_insecure_env(value: &str) {
 
 /// Remove `OXCACHE_ALLOW_INSECURE_REDIS` env var.
 ///
-/// SAFETY: Same as `set_allow_insecure_env`.
-/// nosem: rust.lang.security.unsafe-usage.unsafe-usage
+/// Note: Callers are serialized via `#[serial]` to avoid env var races.
 pub(crate) fn remove_allow_insecure_env() {
     unsafe {
         std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");

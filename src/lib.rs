@@ -93,7 +93,7 @@
 //! - `cli`: CLI tools (clap)
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
-//! - `i18n`: ICU4X-backed locale-aware formatting (not in `full`)
+//! - `i18n`: ICU4X-backed locale-aware formatting (always enabled, included in `minimal`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.3.12")]
@@ -228,8 +228,7 @@ mod utils;
 pub mod integrations;
 
 // i18n module: ICU4X-backed locale-aware formatting for cache keys, statistics,
-// expiry display, and collation. Optional, feature-gated via `i18n`.
-#[cfg(feature = "i18n")]
+// expiry display, collation, and localized error messages. Always enabled.
 pub mod i18n;
 
 // Security module: Redis security validation
