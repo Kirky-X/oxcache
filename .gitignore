@@ -110,6 +110,7 @@ docs/repowiki/
 .gitnexus
 .semgrep-results/
 lcov.info
+lcov_full.info
 cobertura.xml
 strix_runs
 
