@@ -14,6 +14,14 @@ pub mod interface;
 // Configuration validation utilities
 pub mod config_validation;
 
+// Dragonfly backend (Redis-compatible, feature-gated)
+#[cfg(feature = "dragonfly")]
+pub mod dragonfly;
+
+// Aerospike backend (independent protocol, feature-gated)
+#[cfg(feature = "aerospike")]
+pub mod aerospike;
+
 // Custom tiered backend configuration (always available)
 #[cfg(any(
     feature = "memory",
@@ -41,6 +49,14 @@ pub use interface::LuaExecutor;
 
 // Re-export ConfigValidation for configuration validation utilities
 pub use config_validation::ConfigValidation;
+
+// Dragonfly backend re-exports
+#[cfg(feature = "dragonfly")]
+pub use dragonfly::{DragonflyBackend, DragonflyRestrictions};
+
+// Aerospike backend re-exports
+#[cfg(feature = "aerospike")]
+pub use aerospike::{AerospikeBackend, AerospikeConfig};
 
 // Score system exports
 pub use score::{BackendScore, Scores};
