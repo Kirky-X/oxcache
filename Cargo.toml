@@ -168,7 +168,6 @@ minimal = [
     "metrics",
     "serialization",
     "dep:chrono",
-    "i18n",
 ]
 
 # Core: L1 + L2 (Redis)
@@ -245,10 +244,6 @@ bloom-filter = ["dep:bloomfilter"]
 # with the `async` feature only — default features are disabled (Rule 6).
 kit = ["dep:trait-kit"]
 
-# ICU4X-backed internationalization: always enabled (mandatory).
-# Included in `minimal` so all feature tiers have i18n support.
-# Note: icu and writeable are non-optional deps, so this feature is a marker only.
-i18n = []
 
 [workspace]
 resolver = "2"

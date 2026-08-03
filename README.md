@@ -54,18 +54,18 @@
 
 ```toml
 [dependencies]
-oxcache = "0.3"
+oxcache = "0.4"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.3", default-features = false }` 手动添加。
+`oxcache = { version = "0.4", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.4", features = ["macros"] }`
 
 ### 基础使用
 
 ```rust
-use oxcache::macros::cached;
+use oxcache::cached;
 use oxcache::{Cache, CacheBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -134,16 +134,16 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.3", features = ["full"] }
+oxcache = { version = "0.4", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3", features = ["core"] }
+oxcache = { version = "0.4", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3", features = ["minimal"] }
+oxcache = { version = "0.4", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 ### 可用特性
@@ -163,11 +163,10 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `metrics` - 内置性能指标（延迟直方图、操作计数、JSON 导出）；如需 OTLP 导出由应用层处理
 - `batch-write` - 优化的批量写入
 - `lua-script` - Lua 脚本执行支持
-- `cli` - 命令行界面（clap）
+- `cli` - 命令行界面工具
 - `tracing` - 结构化日志支持
 - `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 - `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
-- `i18n` - ICU4X 国际化支持（始终启用，包含在 `minimal` 中）
 - `testing` - Testing utilities
 
 ## 🎨 使用场景
@@ -286,7 +285,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **`#[cached(sync)]` 宏**：
 
 ```rust
-use oxcache::macros::cached;
+use oxcache::cached;
 
 #[cached(service = "user_cache", ttl = 600, sync)]
 fn get_user_sync(id: u64) -> Result<User, String> {
@@ -301,7 +300,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -496,11 +495,11 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ## 🤝 贡献
 
-欢迎提交 Pull Request 和 Issue！详见 [贡献指南](CONTRIBUTING.md)。
+欢迎提交 Pull Request 和 Issue！详见 [贡献指南](docs/CONTRIBUTING.md)。
 
 ## 📋 更新日志
 
-详见 [CHANGELOG.md](CHANGELOG.md)
+详见 [CHANGELOG.md](docs/CHANGELOG.md)
 
 ## 📄 许可证
 

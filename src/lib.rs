@@ -76,7 +76,7 @@
 //! ## Tiered Feature Sets
 //!
 //! - `minimal`: L1 memory cache only (memory + tracing + metrics + serialization + chrono)
-//! - `core`: L1 + L2 Redis (minimal + redis + futures)
+//! - `core`: L1 + L2 Redis (minimal + redis)
 //! - `full`: All features enabled (opt-in via features = ["full"])
 //!
 //! ## Core Component Features
@@ -88,15 +88,14 @@
 //! - `compression`: Flate2 compression
 //! - `tracing`: Tracing support
 //! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
-//! - `batch-write`: Buffered L2 writes (tokio-util)
+//! - `batch-write`: Buffered L2 writes
 //! - `lua-script`: Lua script execution (requires redis)
-//! - `cli`: CLI tools (clap)
+//! - `cli`: CLI tools
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
-//! - `i18n`: ICU4X-backed locale-aware formatting (always enabled, included in `minimal`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.3.12")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.4.0")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua-script, cli, batch-write,

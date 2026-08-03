@@ -56,33 +56,33 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.3"
+oxcache = "0.4"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-> `oxcache = { version = "0.3", default-features = false }` and add them manually.
+> `oxcache = { version = "0.4", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.3", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.4", features = ["macros"] }`
 
 #### Feature Tiers
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.3", features = ["full"] }
+oxcache = { version = "0.4", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.3", features = ["core"] }
+oxcache = { version = "0.4", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.3", features = ["minimal"] }
+oxcache = { version = "0.4", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-filter"] }
 ```
 
 | Tier        | Features                                                                        | Description            |
 | ----------- | ------------------------------------------------------------------------------- | ---------------------- |
-| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono`         | L1 cache only          |
+| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
 | **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
 | **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | Complete functionality |
 
@@ -96,17 +96,16 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `metrics` - Built-in performance metrics (latency histograms, operation counts, JSON export); OTLP export handled at application level
 - `batch-write` - Optimized batch writing
 - `lua-script` - Lua script execution support
-- `cli` - Command-line interface (clap)
+- `cli` - Command-line interface tools
 - `tracing` - Structured logging support
 - `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
 - `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
-- `i18n` - ICU4X-backed internationalization (always enabled, included in `minimal`)
 - `testing` - Testing utilities
 
 ### 2. Basic Usage
 
 ```rust
-use oxcache::macros::cached;
+use oxcache::cached;
 use oxcache::{Cache, CacheBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -174,7 +173,7 @@ Oxcache provides a type-safe builder API for configuring caches. Available build
 #### Using Macros (Recommended)
 
 ```rust
-use oxcache::macros::cached;
+use oxcache::cached;
 use oxcache::{Cache, CacheBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -372,7 +371,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **`#[cached(sync)]`** **macro**:
 
 ```rust
-use oxcache::macros::cached;
+use oxcache::cached;
 
 #[cached(service = "user_cache", ttl = 600, sync)]
 fn get_user_sync(id: u64) -> Result<User, String> {
@@ -387,7 +386,7 @@ The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides 
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["memory", "bloom-filter"] }
 ```
 
 ```rust
@@ -585,11 +584,11 @@ For more details, see [Security Documentation](docs/SECURITY.md).
 
 ## 🤝 Contributing
 
-Pull Requests and Issues are welcome! See [Contributing Guide](CONTRIBUTING.md) for details.
+Pull Requests and Issues are welcome! See [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
 ## 📝 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md)
+See [CHANGELOG.md](docs/CHANGELOG.md)
 
 ## 📄 License
 

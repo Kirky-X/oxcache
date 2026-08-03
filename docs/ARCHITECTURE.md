@@ -1,60 +1,60 @@
-# Architecture Documentation
+# 架构文档
 
-This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.4.0).
+本文档描述 Oxcache 库（v0.4.0）的架构、设计决策和技术细节。
 
-## Table of Contents
+## 目录
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Components](#components)
-- [Data Flow](#data-flow)
-- [Consistency Model](#consistency-model)
-- [Failure Handling](#failure-handling)
-- [Performance Optimization](#performance-optimization)
-- [Security](#security)
-- [Scalability](#scalability)
-- [Feature Flags](#feature-flags)
+- [概述](#概述)
+- [架构](#架构)
+- [组件](#组件)
+- [数据流](#数据流)
+- [一致性模型](#一致性模型)
+- [故障处理](#故障处理)
+- [性能优化](#性能优化)
+- [安全](#安全)
+- [可扩展性](#可扩展性)
+- [特性标志](#特性标志)
 
-## Overview
+## 概述
 
-Oxcache is a multi-level caching system designed for high-performance, production-ready applications. It combines:
+Oxcache 是一个多级缓存系统，专为高性能、生产就绪的应用设计。它整合了：
 
-- **L1 Cache**: In-memory cache using Moka (LRU/TinyLFU eviction) or DashMap
-- **L2 Cache**: Distributed cache using Redis (Standalone/Sentinel/Cluster)
-- **ChainCache**: Score-ordered multi-backend chain with backfill (replaces the legacy "tiered backend" concept)
-- **Sync API**: Synchronous mirror of the async API (`get_sync` / `set_sync` / …) for non-async call sites
-- **Bloom Filter**: Optional decorator that short-circuits negative queries before they hit the inner backend
-- **Per-entry TTL**: Universal `ttl` / `expire` operations honored by every backend (Moka / DashMap / Redis / Mock / Chain / Bloom)
+- **L1 缓存**：使用 Moka（LRU/TinyLFU 淘汰）或 DashMap 的内存缓存
+- **L2 缓存**：使用 Redis（Standalone/Sentinel/Cluster）的分布式缓存
+- **ChainCache**：按分数排序的多后端缓存链，支持回填（替代了旧版"分层后端"概念）
+- **同步 API**：异步 API 的同步镜像（`get_sync` / `set_sync` / …），用于非异步调用场景
+- **布隆过滤器**：可选装饰器，在负查询到达内部后端前短路返回
+- **单条目 TTL**：所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）统一支持 `ttl` / `expire` 操作
 
-> **Note (v0.3.2)**: The Pub/Sub-based cross-instance invalidation layer and the Write-Ahead-Log (WAL) recovery layer referenced by pre-0.3.0 documentation are **not** part of the 0.3.2 codebase. Multi-instance consistency is the responsibility of the application (e.g. via Redis keyspace notifications or external invalidation), and durability is delegated to the Redis backend itself.
+> **说明（v0.3.2）**：0.3.0 之前文档中引用的 Pub/Sub 跨实例失效层和 WAL（Write-Ahead-Log）恢复层**不存在**于 0.3.2 代码库中。多实例一致性由应用负责（如通过 Redis keyspace 通知或外部失效），持久性委托给 Redis 后端本身。
 
-### Design Goals
+### 设计目标
 
-1. **Performance**: L1 latency 50-100ns, L2 latency 1-5ms (P99, varies by environment)
-2. **Reliability**: Backend trait hierarchy lets callers degrade gracefully when L2 is unreachable
-3. **Usability**: Zero-boilerplate integration via `#[cached]` macro
-4. **Observability**: Metrics (`CacheStats`, Prometheus/JSON export), tracing spans, health checks
-5. **Security**: Input validation for Redis keys / Lua scripts / SCAN patterns, sensitive-data redaction
+1. **性能**：L1 延迟 50-100ns，L2 延迟 1-5ms（P99，随环境变化）
+2. **可靠性**：后端 trait 层级让调用方在 L2 不可达时优雅降级
+3. **易用性**：通过 `#[cached]` 宏实现零模板代码集成
+4. **可观测性**：指标（`CacheStats`、Prometheus/JSON 导出）、追踪 span、健康检查
+5. **安全性**：Redis 键 / Lua 脚本 / SCAN 模式的输入校验，敏感数据脱敏
 
-## Architecture
+## 架构
 
 ```mermaid
 graph TD
-    A[Application<br/>Functions with #[cached]] --> B[Internal Registry<br/>MACRO_CACHES]
+    A["应用<br/>带 #[cached] 的函数"] --> B["内部注册表<br/>MACRO_CACHES"]
 
     B --> C[Cache&lt;K,V&gt;]
-    B --> D[Backend Layer]
+    B --> D["后端层"]
 
     C --> E[CacheBuilder]
     D --> F[MokaMemoryBackend<br/>L1]
     D --> G[RedisBackend<br/>L2]
-    D --> H[ChainCache<br/>multi-tier]
-    D --> O[BloomFilterBackend<br/>decorator]
+    D --> H["ChainCache<br/>多级"]
+    D --> O["BloomFilterBackend<br/>装饰器"]
 
     H --> F
     H --> G
 
-    C --> P[Sync API<br/>get_sync / set_sync]
+    C --> P["同步 API<br/>get_sync / set_sync"]
     P --> Q[SyncCacheBackend<br/>trait]
 
     style A fill:#e1f5fe
@@ -70,129 +70,129 @@ graph TD
     style Q fill:#fff3e0
 ```
 
-## Components
+## 组件
 
-### 1. Internal Cache Registry (`internal.rs`)
+### 1. 内部缓存注册表（`internal.rs`）
 
-**Responsibility**: Central registry for cache instances used by the `#[cached]` macro.
+**职责**：缓存实例的中央注册表，供 `#[cached]` 宏使用。
 
-**Data Structure**:
+**数据结构**：
 
 ```rust
 type MacroCacheMap = Mutex<HashMap<String, Arc<Cache<String, Vec<u8>>>>>;
 static MACRO_CACHES: once_cell::sync::OnceCell<MacroCacheMap> = ...;
 ```
 
-The registry stores **concrete `Cache<String, Vec<u8>>` Arc handles** (not `dyn CacheOps`), keyed by service name. A `Mutex<HashMap<…>>` is used instead of `DashMap`.
+注册表存储**具体的 `Cache<String, Vec<u8>>` Arc 句柄**（非 `dyn CacheOps`），以服务名为键。使用 `Mutex<HashMap<…>>` 而非 `DashMap`。
 
-**Public Internal Functions** (only two; there is no `__internal_remove_cache` or `__internal_clear_all` in 0.3.2):
+**公共内部函数**（仅两个；0.3.2 中不存在 `__internal_remove_cache` 或 `__internal_clear_all`）：
 
-- `__internal_register_cache(name, cache: Arc<Cache<String, Vec<u8>>>)` — register/overwrite a cache for a service (async, no-op if the mutex is poisoned)
-- `__internal_get_cache(name) -> Option<Arc<Cache<String, Vec<u8>>>>` — retrieve a cache by service name (sync)
+- `__internal_register_cache(name, cache: Arc<Cache<String, Vec<u8>>>)` — 注册/覆盖某服务的缓存（异步，互斥锁中毒时为 no-op）
+- `__internal_get_cache(name) -> Option<Arc<Cache<String, Vec<u8>>>>` — 按服务名获取缓存（同步）
 
-Both are re-exported from `oxcache::internal` and `oxcache::__internal_get_cache` is re-exported at the crate root for macro-generated code.
+两者均从 `oxcache::internal` 重导出，`oxcache::__internal_get_cache` 在 crate 根重导出供宏生成代码使用。
 
-**Thread Safety**: `Mutex<HashMap<…>>` guarded by `once_cell::sync::OnceCell` for lazy initialization. The mutex is held only for the duration of the map mutation/lookup (no await while held).
+**线程安全**：`Mutex<HashMap<…>>` 由 `once_cell::sync::OnceCell` 守护，用于延迟初始化。互斥锁仅在 map 变更/查找期间持有（持锁期间无 await）。
 
-**Usage Pattern**:
+**使用模式**：
 
 ```rust
 use oxcache::Cache;
 
-// Build and register a cache for the #[cached] macro
+// 构建并注册缓存供 #[cached] 宏使用
 let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 oxcache::internal::__internal_register_cache("my_service", Arc::new(cache)).await;
 
-// Or use the convenience method on Cache:
+// 或使用 Cache 上的便捷方法：
 cache.register_for_macro("my_service").await?;
 
-// Macro-generated code retrieves the cache from the registry:
+// 宏生成的代码从注册表获取缓存：
 #[cached(service = "my_service", ttl = 300)]
 async fn get_user(id: u64) -> User { /* ... */ }
 ```
 
-### 2. Cache Interface (`cache/`)
+### 2. 缓存接口（`cache/`）
 
-**Responsibility**: Unified type-safe cache interface.
+**职责**：统一的类型安全缓存接口。
 
-**Module Structure**:
-- `cache/mod.rs` - Module root and re-exports
-- `cache/builder/` - `CacheBuilder` implementation
-- `cache/api/` - Cache operation implementations (`basic_ops`, `batch_ops`, `bytes_ops`, `macros`)
-- `cache/chain.rs` - `ChainCache`, `ChainLink`, `ChainCacheBuilder`
+**模块结构**：
+- `cache/mod.rs` - 模块根和重导出
+- `cache/builder/` - `CacheBuilder` 实现
+- `cache/api/` - 缓存操作实现（`basic_ops`、`batch_ops`、`bytes_ops`、`macros`）
+- `cache/chain.rs` - `ChainCache`、`ChainLink`、`ChainCacheBuilder`
 - `cache/interface.rs` - `UnifiedCache` trait
 
-**Key Types**:
-- `Cache<K, V>`: Main cache type with generic key (`K: CacheKey`) and value (`V: Serialize + DeserializeOwned`) types
-- `CacheBuilder<K, V>`: Builder for creating configured cache instances
-- `ChainCache` / `ChainLink` / `ChainCacheBuilder`: Multi-level cache chain (score-ordered)
+**关键类型**：
+- `Cache<K, V>`：主缓存类型，泛型键（`K: CacheKey`）和值（`V: Serialize + DeserializeOwned`）
+- `CacheBuilder<K, V>`：用于创建已配置缓存实例的构建器
+- `ChainCache` / `ChainLink` / `ChainCacheBuilder`：多级缓存链（按分数排序）
 
-**Construction Methods on `Cache<K, V>`**:
+**`Cache<K, V>` 上的构造方法**：
 
-| Method | Feature | Description |
-|---|---|---|
-| `Cache::memory().await` | `memory` | Convenience: default Moka backend |
-| `Cache::redis(url).await` | `redis` | Convenience: Redis backend (TLS enforced) |
-| `Cache::builder()` | — | Start a `CacheBuilder<K, V>` |
-| `Cache::with_dependencies(backend: Arc<dyn CacheBackend>)` | — | Wrap any backend in a `Cache` |
-| `Cache::new()` | `memory` | Sync constructor (default Moka backend) |
+| 方法 | 特性 | 说明 |
+|------|------|------|
+| `Cache::memory().await` | `memory` | 便捷方法：默认 Moka 后端 |
+| `Cache::redis(url).await` | `redis` | 便捷方法：Redis 后端（强制 TLS） |
+| `Cache::builder()` | — | 启动 `CacheBuilder<K, V>` |
+| `Cache::with_dependencies(backend: Arc<dyn CacheBackend>)` | — | 将任意 backend 包装为 `Cache` |
+| `Cache::new()` | `memory` | 同步构造方法（默认 Moka 后端） |
 
-> **Important**: `CacheBuilder` does **not** expose `.redis(url)`, `.tiered(…)`, `.with_backend(…)`, `.batch_writes(…)`, or `.auto_promote(…)` methods in 0.3.2. To compose multiple backends use `ChainCache` and inject it via `.backend_arc(Arc::new(chain))`.
+> **重要**：0.3.2 中 `CacheBuilder` **不**暴露 `.redis(url)`、`.tiered(…)`、`.with_backend(…)`、`.batch_writes(…)` 或 `.auto_promote(…)` 方法。要组合多个后端请使用 `ChainCache` 并通过 `.backend_arc(Arc::new(chain))` 注入。
 
-**CacheBuilder API** (`Cache::builder()`):
+**CacheBuilder API**（`Cache::builder()`）：
 
 ```rust
 pub fn backend_arc(self, backend: Arc<dyn CacheBackend>) -> Self;
-pub fn ttl(self, ttl: Duration) -> Self;             // default TTL
-pub fn tti(self, tti: Duration) -> Self;             // default TTI (Moka)
-pub fn capacity(self, capacity: u64) -> Self;        // L1 capacity hint
-pub fn sync_mode(self, enabled: bool) -> Self;       // enable sync API
+pub fn ttl(self, ttl: Duration) -> Self;             // 默认 TTL
+pub fn tti(self, tti: Duration) -> Self;             // 默认 TTI（Moka）
+pub fn capacity(self, capacity: u64) -> Self;        // L1 容量提示
+pub fn sync_mode(self, enabled: bool) -> Self;       // 启用同步 API
 pub async fn build(self) -> Result<Cache<K, V>>;
 ```
 
-**Constraint**: `sync_mode(true)` cannot be combined with `backend_arc(Arc<dyn CacheBackend>)`. When both are set, `build()` returns `Err(OxCacheError::NotSupported)` (OXCACHE_009). This is a temporary limitation on stable Rust pending `trait_upcasting`; sync mode requires the backend to be constructed internally by the builder (e.g. via `Cache::memory()` / `Cache::redis()` paths or by omitting `backend_arc`).
+**约束**：`sync_mode(true)` 不能与 `backend_arc(Arc<dyn CacheBackend>)` 组合。两者同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`（OXCACHE_009）。这是 stable Rust 上 `trait_upcasting` 的临时限制；同步模式要求后端由构建器内部构造（如通过 `Cache::memory()` / `Cache::redis()` 路径或省略 `backend_arc`）。
 
-**Key Async Methods**:
+**关键异步方法**：
 
 - `get(key) -> OxCacheResult<Option<V>>`
-- `set(key, value) -> OxCacheResult<()>` (uses builder TTL)
+- `set(key, value) -> OxCacheResult<()>`（使用构建器 TTL）
 - `set_with_ttl(key, value, ttl: Option<Duration>) -> OxCacheResult<()>`
 - `delete(key) -> OxCacheResult<()>`
 - `exists(key) -> OxCacheResult<bool>`
 - `clear() -> OxCacheResult<()>`
-- `get_or(key, fallback) -> OxCacheResult<V>` (single-flight via `tokio::sync::Notify`)
-- `ttl(key) -> OxCacheResult<Option<Duration>>` — remaining TTL (None if no per-entry TTL or key absent)
-- `expire(key, ttl) -> OxCacheResult<bool>` — update TTL of an existing key without touching its value
-- `get_bytes(key) -> OxCacheResult<Option<Vec<u8>>>` / `set_bytes(key, bytes, ttl)` — raw byte ops
-- `len() / is_empty() / capacity() / stats() / health_check() / shutdown()` — lifecycle & stats
-- `register_for_macro(service_name) -> OxCacheResult<()>` — register into `MACRO_CACHES`
+- `get_or(key, fallback) -> OxCacheResult<V>`（单飞，通过 `tokio::sync::Notify`）
+- `ttl(key) -> OxCacheResult<Option<Duration>>` — 剩余 TTL（无单条目 TTL 或键不存在时为 None）
+- `expire(key, ttl) -> OxCacheResult<bool>` — 更新已有键的 TTL 而不修改其值
+- `get_bytes(key) -> OxCacheResult<Option<Vec<u8>>>` / `set_bytes(key, bytes, ttl)` — 原始字节操作
+- `len() / is_empty() / capacity() / stats() / health_check() / shutdown()` — 生命周期与统计
+- `register_for_macro(service_name) -> OxCacheResult<()>` — 注册到 `MACRO_CACHES`
 
-**Sync API** (requires `sync_mode(true)` on the builder; returns `Err(NotSupported)` otherwise):
+**同步 API**（需构建器上 `sync_mode(true)`；否则返回 `Err(NotSupported)`）：
 
-- `get_sync(key)`, `set_sync(key, value)`, `set_with_ttl_sync(key, value, ttl)`,
-- `delete_sync(key)`, `exists_sync(key)`, `clear_sync()`,
-- `ttl_sync(key)`, `expire_sync(key, ttl)`,
-- `get_or_sync(key, fallback)` (single-flight via `std::sync::Condvar`)
+- `get_sync(key)`、`set_sync(key, value)`、`set_with_ttl_sync(key, value, ttl)`、
+- `delete_sync(key)`、`exists_sync(key)`、`clear_sync()`、
+- `ttl_sync(key)`、`expire_sync(key, ttl)`、
+- `get_or_sync(key, fallback)`（单飞，通过 `std::sync::Condvar`）
 
-**Thread Safety**: All operations are thread-safe via `Arc<dyn CacheBackend>` (and `Option<Arc<dyn SyncCacheBackend>>` for the sync path).
+**线程安全**：所有操作通过 `Arc<dyn CacheBackend>`（同步路径为 `Option<Arc<dyn SyncCacheBackend>>`）保证线程安全。
 
-**Usage Pattern**:
+**使用模式**：
 
 ```rust
 use oxcache::Cache;
 use std::time::Duration;
 
-// 1) Simple memory cache (default)
+// 1) 简单内存缓存（默认）
 let cache: Cache<String, User> = Cache::builder()
     .ttl(Duration::from_secs(3600))
     .capacity(10000)
     .build()
     .await?;
 
-// 2) Redis cache (TLS enforced unless OXCACHE_ALLOW_INSECURE_REDIS is set)
+// 2) Redis 缓存（强制 TLS，除非设置了 OXCACHE_ALLOW_INSECURE_REDIS）
 let cache: Cache<String, User> = Cache::redis("rediss://localhost:6379").await?;
 
-// 3) Inject any custom backend
+// 3) 注入任意自定义后端
 let backend: Arc<dyn oxcache::backend::CacheBackend> = /* ... */;
 let cache: Cache<String, User> = Cache::builder()
     .backend_arc(backend)
@@ -200,7 +200,7 @@ let cache: Cache<String, User> = Cache::builder()
     .build()
     .await?;
 
-// 4) Sync API (requires multi_thread tokio runtime for Moka)
+// 4) 同步 API（Moka 需要 multi_thread tokio 运行时）
 let cache: Cache<String, String> = Cache::builder()
     .sync_mode(true)
     .build()
@@ -208,33 +208,33 @@ let cache: Cache<String, String> = Cache::builder()
 cache.set_sync(&"k".to_string(), &"v".to_string())?;
 let v = cache.get_sync(&"k".to_string())?;
 
-// Register for #[cached] macro usage
+// 注册供 #[cached] 宏使用
 cache.register_for_macro("my_service").await?;
 ```
 
-### 3. Backend Layer (`backend/`)
+### 3. 后端层（`backend/`）
 
-**Responsibility**: Pluggable cache backend implementations following an ISP-compliant trait hierarchy.
+**职责**：可插拔的缓存后端实现，遵循 ISP 合规 trait 层级。
 
-**Module Structure**:
-- `backend/mod.rs` - Module root and re-exports
-- `backend/interface.rs` - `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` and their sync mirrors; `AtomicCacheWriter` / `SyncAtomicCacheWriter` for atomic operations
-- `backend/memory/` - Memory backend implementations (Moka, DashMap) and the Redis client
-- `backend/score.rs` - `BackendScore` / `Scores` constants used by `ChainCache`
-- `backend/config_validation.rs` - Redis URL / Sentinel config validation
+**模块结构**：
+- `backend/mod.rs` - 模块根和重导出
+- `backend/interface.rs` - `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作
+- `backend/memory/` - 内存后端实现（Moka、DashMap）及 Redis 客户端
+- `backend/score.rs` - `BackendScore` / `Scores` 常量供 `ChainCache` 使用
+- `backend/config_validation.rs` - Redis URL / Sentinel 配置校验
 
-**Backend Types** (re-exported at `oxcache::backend::*` and some at crate root):
+**后端类型**（重导出在 `oxcache::backend::*`，部分在 crate 根）：
 
-| Type | Path | Feature | Description |
-|---|---|---|---|
-| `MokaMemoryBackend` | `oxcache::backend::MokaMemoryBackend` | `memory` | L1 cache, Moka (LRU/TinyLFU) |
-| `DashMapMemoryBackend` | `oxcache::backend::DashMapMemoryBackend` | `memory` | Pure in-memory concurrent cache, FIFO O(1) eviction |
-| `RedisBackend` | `oxcache::backend::RedisBackend` | `redis` | L2 distributed cache |
-| `RedisBackendBuilder` | `oxcache::backend::RedisBackendBuilder` | `redis` | Builder for Redis (mode, pool, TLS) |
-| `ChainCache` | `oxcache::cache::chain::ChainCache` | — | Score-ordered multi-backend chain |
-| `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom-filter` | Negative-query filter decorator |
+| 类型 | 路径 | 特性 | 说明 |
+|------|------|------|------|
+| `MokaMemoryBackend` | `oxcache::backend::MokaMemoryBackend` | `memory` | L1 缓存，Moka（LRU/TinyLFU） |
+| `DashMapMemoryBackend` | `oxcache::backend::DashMapMemoryBackend` | `memory` | 纯内存并发缓存，FIFO O(1) 淘汰 |
+| `RedisBackend` | `oxcache::backend::RedisBackend` | `redis` | L2 分布式缓存 |
+| `RedisBackendBuilder` | `oxcache::backend::RedisBackendBuilder` | `redis` | Redis 构建器（模式、连接池、TLS） |
+| `ChainCache` | `oxcache::cache::chain::ChainCache` | — | 按分数排序的多后端缓存链 |
+| `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom-filter` | 负查询过滤装饰器 |
 
-**Async Trait Hierarchy** (`backend/interface.rs`):
+**异步 Trait 层级**（`backend/interface.rs`）：
 
 ```rust
 #[async_trait]
@@ -243,14 +243,14 @@ pub trait CacheReader: Send + Sync + 'static {
     async fn exists(&self, key: &str) -> OxCacheResult<bool>;
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
     async fn len(&self) -> OxCacheResult<u64>;
-    async fn is_empty(&self) -> OxCacheResult<bool> { /* default impl */ }
+    async fn is_empty(&self) -> OxCacheResult<bool> { /* 默认实现 */ }
     async fn capacity(&self) -> OxCacheResult<u64>;
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* default */ }
-    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> { /* default: empty Vec */ }
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* 默认 */ }
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> { /* 默认：空 Vec */ }
 }
 
-/// Batch write entry type: `(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
+/// 批量写入条目类型：`(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
 pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
 
 #[async_trait]
@@ -259,8 +259,8 @@ pub trait CacheWriter: Send + Sync + 'static {
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
     async fn clear(&self) -> OxCacheResult<()>;
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
-    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> { /* default */ }
-    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* default */ }
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> { /* 默认 */ }
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* 默认 */ }
 }
 
 #[async_trait]
@@ -275,21 +275,21 @@ pub trait CacheConnector: Send + Sync + 'static {
 
 #[async_trait]
 pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
-// Blanket impl: any T satisfying the three supertraits is a CacheBackend.
+// blanket 实现：满足三个超级 trait 的任意 T 自动成为 CacheBackend。
 ```
 
-**Sync Trait Hierarchy** (mirrors the async one, without `async`/`#[async_trait]`):
+**同步 Trait 层级**（镜像异步版本，无 `async`/`#[async_trait]`）：
 
 ```rust
-pub trait SyncCacheReader: Send + Sync + 'static { /* sync fns */ }
-pub trait SyncCacheWriter: Send + Sync + 'static { /* sync fns */ }
-pub trait SyncCacheConnector: Send + Sync + 'static { /* sync fns */ }
+pub trait SyncCacheReader: Send + Sync + 'static { /* 同步 fn */ }
+pub trait SyncCacheWriter: Send + Sync + 'static { /* 同步 fn */ }
+pub trait SyncCacheConnector: Send + Sync + 'static { /* 同步 fn */ }
 pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static {}
 ```
 
-A backend opts into the sync API by implementing the sync traits in addition to the async ones. `Cache<K, V>::get_sync` then dispatches through `Arc<dyn SyncCacheBackend>`. **The async and sync hierarchies are intentionally separate** so a backend can support one without the other, and so the async trait object stays object-safe (no `block_in_place` on the async hot path).
+后端通过额外实现同步 trait 来选择加入同步 API。`Cache<K, V>::get_sync` 通过 `Arc<dyn SyncCacheBackend>` 分发。**异步和同步层级有意分离**，使后端可以只支持其一，且保持异步 trait 对象的对象安全（异步热路径上无 `block_in_place`）。
 
-**AtomicCacheWriter** (independent trait, not a supertrait of `CacheWriter`):
+**AtomicCacheWriter**（独立 trait，非 `CacheWriter` 的超级 trait）：
 
 ```rust
 #[async_trait]
@@ -299,91 +299,91 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
     async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
 }
 
-pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* sync mirror */ }
+pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 ```
 
-Backends advertise atomic capability via `CacheConnector::as_atomic_writer()`. `Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` delegate through this runtime discovery method; returns `Err(NotSupported)` when the backend lacks atomic support.
+后端通过 `CacheConnector::as_atomic_writer()` 暴露原子能力。`Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` 通过此运行时发现方法委托；后端缺少原子支持时返回 `Err(NotSupported)`。
 
-**`BackendKind` enum** (`Moka | DashMap | Redis | Chain | Mock | Unknown`) is returned by `backend_kind()` for runtime identification without `as_any()`.
+**`BackendKind` 枚举**（`Moka | DashMap | Redis | Chain | Mock | Unknown`）由 `backend_kind()` 返回，用于运行时标识而无需 `as_any()`。
 
-**ChainCache Read Path** (replaces the legacy "TieredBackend"):
-
-```
-1. Iterate ChainLinks from highest score (L1) to lowest (L2)
-2. On hit → return value
-3. On miss (None or Err) → log a warning and continue to the next link
-   (L1 read failure degrades gracefully instead of failing the request)
-4. After a hit on a non-highest link, if backfill is enabled,
-   asynchronously populate the higher-scored (closer to L1) links
-   (fire-and-forget `tokio::spawn`, failures are warned, not propagated)
-```
-
-With `enable_race_read()` (opt-in), the read path instead queries **all**
-backends concurrently (`JoinSet`) and returns the first hit; backfill still
-applies on a non-highest hit, and the read errors only if every backend fails.
-
-**ChainCache Write Path**:
+**ChainCache 读取路径**（替代旧版 "TieredBackend"）：
 
 ```
-1. Write concurrently (tokio::spawn / JoinSet) to all links whose score
-   is <= the writer threshold (typically all non-persistent + the persistent writer)
-2. Persistent backends receive the write for durability
-3. A single link failure is logged and tolerated; the write only fails if
-   ALL backends fail
-4. No WAL, no Pub/Sub publish (those layers are not in 0.3.2)
+1. 从最高分（L1）到最低分（L2）遍历 ChainLink
+2. 命中 → 返回值
+3. 未命中（None 或 Err）→ 记录警告并继续下一个链接
+   （L1 读取失败优雅降级而非使请求失败）
+4. 在非最高分链接命中后，如启用回填，
+   异步填充更高分（更靠近 L1）的链接
+   （fire-and-forget `tokio::spawn`，失败仅警告不传播）
 ```
 
-**ChainCache Health Check**: each link is pinged concurrently with a per-backend 5s timeout; `health_check()` fails only if every link fails.
+启用 `enable_race_read()`（选择加入）后，读取路径改为**并发**查询**所有**
+后端（`JoinSet`）并返回首个命中；非最高分命中时仍执行回填，
+仅当所有后端都失败时读取才报错。
 
-### 4. Features Module (`features/`)
+**ChainCache 写入路径**：
 
-**Responsibility**: Optional capabilities and runtime feature information.
+```
+1. 并发（tokio::spawn / JoinSet）写入所有分数
+   <= 写入者阈值的链接（通常所有非持久化 + 持久化写入者）
+2. 持久化后端接收写入以保证持久性
+3. 单链接失败仅记录日志并容忍；仅当所有后端都失败时
+   写入才报错
+4. 无 WAL，无 Pub/Sub 发布（这些层不在 0.3.2 中）
+```
 
-**Key Items**:
-- `features::bloom_filter::BloomFilter` — probabilistic data structure (`new(capacity, fpr)`, `add`, `contains`, `clear`, `len`, `is_empty`)
-- `features::bloom_filter::BloomFilterBackend` — decorator wrapping any `CacheBackend`; on `get`, returns `Ok(None)` immediately if the key is not in the Bloom filter
+**ChainCache 健康检查**：每个链接并发 ping，每个后端 5 秒超时；仅当所有链接都失败时 `health_check()` 才失败。
+
+### 4. 特性模块（`features/`）
+
+**职责**：可选能力和运行时特性信息。
+
+**关键项**：
+- `features::bloom_filter::BloomFilter` — 概率数据结构（`new(capacity, fpr)`、`add`、`contains`、`clear`、`len`、`is_empty`）
+- `features::bloom_filter::BloomFilterBackend` — 装饰器，包装任意 `CacheBackend`；`get` 时如键不在布隆过滤器中则直接返回 `Ok(None)`
 - `get_l1_feature_info() / get_l2_feature_info() / get_all_feature_info()`
 - `is_l1_enabled() / is_l2_enabled()`
 
-### 5. Infrastructure Module (`infra/`)
+### 5. 基础设施模块（`infra/`）
 
-**Responsibility**: Metrics, serialization, and key validation utilities.
+**职责**：指标、序列化和键校验工具。
 
-**Sub-modules**:
-- `infra/metrics/backend.rs` — `MetricsCollector`, `LatencyHistogram`, `OperationCounter`, `FullMetrics`
+**子模块**：
+- `infra/metrics/backend.rs` — `MetricsCollector`、`LatencyHistogram`、`OperationCounter`、`FullMetrics`
 - `infra/metrics/snapshot.rs` — `CacheStats`
-- `infra/metrics/export.rs` — `export_json_format`, `export_prometheus_format`, `get_enhanced_stats`
-- `infra/metrics/unified.rs` — `UnifiedMetrics`, atomic counters, histogram data
-- `infra/serialization/` — JSON serializer (`JsonSerializer`) and `UnifiedSerializer` (JSON only in 0.3.2)
-- `infra::validate_cache_key(key)` — key validation convenience
+- `infra/metrics/export.rs` — `export_json_format`、`export_prometheus_format`、`get_enhanced_stats`
+- `infra/metrics/unified.rs` — `UnifiedMetrics`、原子计数器、直方图数据
+- `infra/serialization/` — JSON 序列化器（`JsonSerializer`）和 `UnifiedSerializer`（0.3.2 中仅 JSON）
+- `infra::validate_cache_key(key)` — 键校验便捷方法
 
-**Crate-Root Re-exports** (when `metrics` or `full` feature is on):
+**Crate 根重导出**（启用 `metrics` 或 `full` 特性时）：
 
 ```rust
 pub use infra::{export_json_format, export_prometheus_format, get_enhanced_stats, CacheStats};
 ```
 
-**Important**: `MetricsCollector` is **NOT** re-exported at the crate root. It lives at `oxcache::infra::metrics::backend::MetricsCollector::new() -> OxCacheResult<Self>` (note: takes no arguments in 0.3.2, returns `Result`).
+**重要**：`MetricsCollector` **不**在 crate 根重导出。它位于 `oxcache::infra::metrics::backend::MetricsCollector::new() -> OxCacheResult<Self>`（注意：0.3.2 中无参数，返回 `Result`）。
 
-**Serialization**: Only **JSON** is supported (`serialization` feature pulls in `serde` + `serde_json`). Bincode/MessagePack/CBOR are not implemented. Serialization is implemented in `infra/serialization/` (`json.rs`, `unified.rs`, `utils.rs`, `depth_limited.rs`):
+**序列化**：仅支持 **JSON**（`serialization` 特性引入 `serde` + `serde_json`）。Bincode/MessagePack/CBOR 未实现。序列化在 `infra/serialization/` 中实现（`json.rs`、`unified.rs`、`utils.rs`、`depth_limited.rs`）：
 
-- **`JsonSerializer`** — the async/sync backend-facing serializer (values are `Vec<u8>`); `with_compression()` enables flate2 gzip output.
-- **`UnifiedSerializer`** — value-level codec (`serialize<T>` / `deserialize<T>` / `estimate_size`) used by `Cache<K, V>` and the `#[cached]` macro.
-- **`depth_limited.rs`** — `deserialize_safe` guards against deeply-nested JSON DoS: `serde_json` recursion limit is disabled (`unbounded_depth` feature) and the stream is wrapped in `serde_stacker` for heap-based recursion. A `MAX_JSON_DEPTH` constant plus a 64 MiB deserialization size cap and gzip magic-header detection harden the path.
+- **`JsonSerializer`** — 异步/同步后端侧序列化器（值为 `Vec<u8>`）；`with_compression()` 启用 flate2 gzip 输出。
+- **`UnifiedSerializer`** — 值级编解码（`serialize<T>` / `deserialize<T>` / `estimate_size`），供 `Cache<K, V>` 和 `#[cached]` 宏使用。
+- **`depth_limited.rs`** — `deserialize_safe` 防止深层嵌套 JSON DoS：禁用 `serde_json` 递归限制（`unbounded_depth` 特性），流通过 `serde_stacker` 包装为基于堆栈的递归。`MAX_JSON_DEPTH` 常量加 64 MiB 反序列化大小上限和 gzip 魔数头检测加固了该路径。
 
-There is no base64 round-trip on the wire — values are passed through as raw bytes (with optional gzip).
+线上无 base64 往返——值以原始字节传递（可选 gzip）。
 
-### 6. Security Module (`security/`)
+### 6. 安全模块（`security/`）
 
-**Responsibility**: Input validation and sensitive-data redaction. The module itself is `pub(crate)` — callers must use the **crate-root re-exports**.
+**职责**：输入校验和敏感数据脱敏。模块本身为 `pub(crate)` — 调用方必须使用 **crate 根重导出**。
 
-**Sub-modules**:
-- `security/validation.rs` - Redis key, Lua script, SCAN pattern validation
-- `security/redaction.rs` - Sensitive data redaction (`Redacted` wrapper)
-- `security/log.rs` - Secure logging utilities
-- `security/regex.rs` - Pattern matching
+**子模块**：
+- `security/validation.rs` - Redis 键、Lua 脚本、SCAN 模式校验
+- `security/redaction.rs` - 敏感数据脱敏（`Redacted` 包装器）
+- `security/log.rs` - 安全日志工具
+- `security/regex.rs` - 模式匹配
 
-**Crate-Root Re-exports** (when `redis` or `full` feature is on):
+**Crate 根重导出**（启用 `redis` 或 `full` 特性时）：
 
 ```rust
 pub use crate::security::{
@@ -394,24 +394,24 @@ pub use crate::security::{
 };
 ```
 
-> **Import-path note**: `oxcache::security::*` is **not** a valid path (the module is `pub(crate)`). Use `oxcache::validate_redis_key(...)` etc. directly. The function is named `validate_redis_key` (not `validate_key`).
+> **导入路径说明**：`oxcache::security::*` 是**无效**路径（模块为 `pub(crate)`）。直接使用 `oxcache::validate_redis_key(...)` 等。函数名为 `validate_redis_key`（非 `validate_key`）。
 
-### 7. Key Generator (`utils/`)
+### 7. 键生成器（`utils/`）
 
-**Responsibility**: Cache key generation and management.
+**职责**：缓存键生成和管理。
 
-**Key Type**:
-- `KeyGenerator`: Utility for generating cache keys with namespaces and prefixes (re-exported at `oxcache::KeyGenerator`)
+**关键类型**：
+- `KeyGenerator`：用于生成带命名空间和前缀的缓存键的工具（重导出在 `oxcache::KeyGenerator`）
 
-**Key Methods**:
-- `new()`: Create default key generator
-- `with_namespace(ns)`: Set namespace for key isolation
-- `with_prefix_str(prefix)`: Set prefix for key organization
-- `generate(template, params)`: Generate key from template
-- `generate_full(template, params)`: Generate key with namespace and prefix
-- `validate_key(key)`: Validate key format
+**关键方法**：
+- `new()`：创建默认键生成器
+- `with_namespace(ns)`：设置命名空间用于键隔离
+- `with_prefix_str(prefix)`：设置前缀用于键组织
+- `generate(template, params)`：从模板生成键
+- `generate_full(template, params)`：使用命名空间和前缀生成键
+- `validate_key(key)`：校验键格式
 
-**Usage Pattern**:
+**使用模式**：
 
 ```rust
 use oxcache::KeyGenerator;
@@ -421,19 +421,19 @@ let gen = KeyGenerator::new()
     .with_prefix_str("cache");
 
 let key = gen.generate_full("user:{id}", &[("id", "123")]);
-// Result: "myapp:cache:user:123"
+// 结果："myapp:cache:user:123"
 ```
 
-### 8. Events Module (`core/events.rs`)
+### 8. 事件模块（`core/events.rs`）
 
-**Responsibility**: Cache event system for monitoring and hooks.
+**职责**：缓存事件系统，用于监控和钩子。
 
-**Key Types** (re-exported at crate root):
-- `CacheEventType`: Event type enum (`Hit`, `Miss`, `Set`, `Delete`, `Expire`, `Clear`, `Get`, `BatchStart`, `BatchEnd`, `Error`, `Connect`, `Disconnect`, `Custom(String)`)
-- `CacheEvent`: Event data structure (builder-style construction)
-- `EventPublisher`: Trait for publishing events (a `NoopPublisher` is provided for testing)
+**关键类型**（重导出在 crate 根）：
+- `CacheEventType`：事件类型枚举（`Hit`、`Miss`、`Set`、`Delete`、`Expire`、`Clear`、`Get`、`BatchStart`、`BatchEnd`、`Error`、`Connect`、`Disconnect`、`Custom(String)`）
+- `CacheEvent`：事件数据结构（builder 模式构造）
+- `EventPublisher`：事件发布 trait（提供 `NoopPublisher` 供测试使用）
 
-**`CacheEvent` API** (builder pattern):
+**`CacheEvent` API**（builder 模式）：
 
 ```rust
 let event = CacheEvent::new(CacheEventType::Hit)
@@ -442,77 +442,77 @@ let event = CacheEvent::new(CacheEventType::Hit)
     .with_metadata("source", "l1");
 ```
 
-Fields: `event_type`, `key: Option<String>`, `timestamp: u64` (ms), `latency_ms: Option<u64>`, `error: Option<String>`, `metadata: Vec<(String, String)>`.
+字段：`event_type`、`key: Option<String>`、`timestamp: u64`（毫秒）、`latency_ms: Option<u64>`、`error: Option<String>`、`metadata: Vec<(String, String)>`。
 
-### 9. Config Module (`config/`)
+### 9. 配置模块（`config/`）
 
-The `oxcache::config` module exists as a public module but is currently a stub (only a copyright header). The `UnifiedConfigBuilder`, `ServiceConfig`, `L1Config`, `L2Config`, and `PartitionConfig` types referenced in pre-0.3.2 documentation **do not exist** in 0.3.2. Configuration is done programmatically via `CacheBuilder` and `RedisBackendBuilder`.
+`oxcache::config` 模块作为公共模块存在但当前为空桩（仅有版权头）。0.3.2 之前文档中引用的 `UnifiedConfigBuilder`、`ServiceConfig`、`L1Config`、`L2Config` 和 `PartitionConfig` 类型在 0.3.2 中**不存在**。配置通过 `CacheBuilder` 和 `RedisBackendBuilder` 以编程方式完成。
 
-## Data Flow
+## 数据流
 
-### #[cached] Macro Workflow
+### #[cached] 宏工作流
 
-The `#[cached]` macro provides zero-boilerplate caching by automatically handling cache lookup, storage, and serialization. In 0.3.2 the only valid macro parameters are: `service`, `ttl`, `key`, `key_prefix`, `sync` (there is no `key_generator` or `cache_type` parameter).
+`#[cached]` 宏通过自动处理缓存查找、存储和序列化实现零模板代码缓存。0.3.2 中唯一有效的宏参数为：`service`、`ttl`、`key`、`key_prefix`、`sync`（不存在 `key_generator` 或 `cache_type` 参数）。
 
 ```mermaid
 sequenceDiagram
-    participant App as Application
-    participant Macro as #[cached] Macro
+    participant App as "应用"
+    participant Macro as "#[cached] 宏"
     participant Registry as MACRO_CACHES
     participant Cache as Cache&lt;String, Vec&lt;u8&gt;&gt;
     participant Backend as CacheBackend
 
-    App->>Macro: Call cached function
-    Macro->>Macro: Generate cache key (service + key / key_prefix)
+    App->>Macro: 调用缓存函数
+    Macro->>Macro: 生成缓存键（service + key / key_prefix）
     Macro->>Registry: __internal_get_cache("service")
     Registry-->>Macro: Option&lt;Arc&lt;Cache&gt;&gt;
     Macro->>Cache: get_bytes(key)
     Cache->>Backend: get(key)
     Backend-->>Cache: Option&lt;Vec&lt;u8&gt;&gt;
     Cache-->>Macro: Option&lt;bytes&gt;
-    Macro->>Macro: Deserialize bytes (JSON)
-    Macro-->>App: Return cached value
+    Macro->>Macro: 反序列化字节（JSON）
+    Macro-->>App: 返回缓存值
 
-    Note over App,Backend: Cache Miss Path
-    Macro->>Macro: Execute original function
-    Macro->>Macro: Serialize result (JSON)
+    Note over App,Backend: 缓存未命中路径
+    Macro->>Macro: 执行原始函数
+    Macro->>Macro: 序列化结果（JSON）
     Macro->>Cache: set_bytes(key, bytes, Some(ttl))
     Cache->>Backend: set(key, bytes, ttl)
-    Macro-->>App: Return result
+    Macro-->>App: 返回结果
 ```
 
-**Macro Generated Code Structure**:
+**宏生成代码结构**：
 
 ```rust
 #[cached(service = "my_service", ttl = 300)]
 async fn get_user(id: u64) -> OxCacheResult<User> {
-    // ... original function body ...
+    // ... 原始函数体 ...
 }
 ```
 
-Expands approximately to:
+展开后大致为：
 
 ```rust
 async fn get_user(id: u64) -> OxCacheResult<User> {
     let cache_key = format!("my_service:get_user:{:?}", id);
 
-    // Get cache from registry (sync lookup)
+    // 从注册表获取缓存（同步查找）
     let client = match oxcache::__internal_get_cache("my_service") {
         Some(c) => c,
-        None => return { /* original code */ }.await,
+        None => return { /* 原始代码 */ }.await,
     };
 
-    // Try cache hit (JSON-deserialized into User)
+    // 尝试缓存命中（JSON 反序列化为 User）
     if let Ok(Some(bytes)) = client.get_bytes(&cache_key).await {
         if let Ok(val) = serde_json::from_slice::<User>(&bytes) {
             return Ok(val);
         }
     }
 
-    // Execute original function
-    let result = { /* original code */ }.await;
+    // 执行原始函数
+    let result = { /* 原始代码 */ }.await;
 
-    // Cache result if successful
+    // 成功时缓存结果
     if let Ok(ref val) = result {
         if let Ok(bytes) = serde_json::to_vec(val) {
             let _ = client.set_bytes(&cache_key, bytes, Some(Duration::from_secs(300))).await;
@@ -523,25 +523,25 @@ async fn get_user(id: u64) -> OxCacheResult<User> {
 }
 ```
 
-### Read Operation (with #[cached] macro)
+### 读操作（配合 #[cached] 宏）
 
 ```mermaid
 flowchart TD
-    A[Application<br/>#[cached] function] --> B[Generate cache key]
-    B --> C[Get cache from<br/>MACRO_CACHES]
-    C --> D{Cache found?}
-    D -->|no| E[Execute function<br/>uncached]
-    D -->|yes| F[get_bytes from cache]
-    F --> G{Cache hit?}
-    G -->|yes| H[Deserialize value<br/>JSON]
-    G -->|no| E
-    H --> I[Return cached value]
-    E --> J[Execute original code]
-    J --> K{Result Ok?}
-    K -->|yes| L[Serialize result<br/>JSON]
-    L --> M[set_bytes to cache<br/>with TTL]
-    K -->|no| N[Return error]
-    M --> O[Return result]
+    A["应用<br/>#[cached] 函数"] --> B["生成缓存键"]
+    B --> C["从 MACRO_CACHES<br/>获取缓存"]
+    C --> D{"找到缓存？"}
+    D -->|否| E["不经缓存<br/>执行函数"]
+    D -->|是| F["从缓存 get_bytes"]
+    F --> G{"缓存命中？"}
+    G -->|是| H["反序列化值<br/>JSON"]
+    G -->|否| E
+    H --> I["返回缓存值"]
+    E --> J["执行原始代码"]
+    J --> K{"结果 Ok？"}
+    K -->|是| L["序列化结果<br/>JSON"]
+    L --> M["set_bytes 到缓存<br/>带 TTL"]
+    K -->|否| N["返回错误"]
+    M --> O["返回结果"]
 
     style A fill:#e1f5fe
     style B fill:#fff3e0
@@ -560,17 +560,17 @@ flowchart TD
     style O fill:#e8f5e8
 ```
 
-### ChainCache Read Path
+### ChainCache 读取路径
 
 ```mermaid
 flowchart TD
     A[Cache.get_bytes] --> B[ChainCache.get]
-    B --> C{Check highest-score link<br/>e.g. L1 Moka}
-    C -->|hit| D[Return value]
-    C -->|miss| E{Next link<br/>e.g. L2 Redis}
-    E -->|hit| F[Backfill higher-scored links<br/>if enabled]
+    B --> C{"检查最高分链接<br/>如 L1 Moka"}
+    C -->|命中| D["返回值"]
+    C -->|未命中| E{"下一个链接<br/>如 L2 Redis"}
+    E -->|命中| F["回填更高分链接<br/>如已启用"]
     F --> D
-    E -->|miss| G[Return None]
+    E -->|未命中| G["返回 None"]
 
     style A fill:#e1f5fe
     style B fill:#fff3e0
@@ -581,17 +581,17 @@ flowchart TD
     style G fill:#fce4ec
 ```
 
-### Write Operation (with #[cached] macro)
+### 写操作（配合 #[cached] 宏）
 
 ```mermaid
 flowchart TD
-    A[Application<br/>#[cached] function] --> B[Execute function]
-    B --> C[Result Ok?]
-    C -->|no| D[Return error]
-    C -->|yes| E[Serialize result<br/>JSON]
-    E --> F[Get cache from<br/>MACRO_CACHES]
-    F --> G[set_bytes to cache<br/>with TTL]
-    G --> L[Return result]
+    A["应用<br/>#[cached] 函数"] --> B["执行函数"]
+    B --> C{"结果 Ok？"}
+    C -->|否| D["返回错误"]
+    C -->|是| E["序列化结果<br/>JSON"]
+    E --> F["从 MACRO_CACHES<br/>获取缓存"]
+    F --> G["set_bytes 到缓存<br/>带 TTL"]
+    G --> L["返回结果"]
 
     style A fill:#e1f5fe
     style B fill:#fce4ec
@@ -603,201 +603,201 @@ flowchart TD
     style L fill:#e8f5e8
 ```
 
-> **Note**: The pre-0.3.0 "set_l1_bytes / set_l2_bytes / batch-write to L2" branch has been removed. `#[cached]` calls `set_bytes` on the registered `Cache<String, Vec<u8>>`, which dispatches to whatever backend was wired in (memory, Redis, ChainCache, or BloomFilterBackend). If the backend is a `ChainCache`, the chain handles the L1+L2 write internally per its score/backfill policy.
+> **说明**：0.3.0 之前的 "set_l1_bytes / set_l2_bytes / 批量写入 L2" 分支已移除。`#[cached]` 在注册的 `Cache<String, Vec<u8>>` 上调用 `set_bytes`，由其分发到所接入的后端（内存、Redis、ChainCache 或 BloomFilterBackend）。如果后端是 `ChainCache`，链按分数/回填策略内部处理 L1+L2 写入。
 
-## Consistency Model
+## 一致性模型
 
-### Single-Instance Consistency
+### 单实例一致性
 
-Within a single `Cache<K, V>` instance, the configured backend defines consistency:
+在单个 `Cache<K, V>` 实例内，配置的后端决定一致性：
 
-- **Moka / DashMap only**: Strong consistency within the process. No cross-instance coordination.
-- **Redis only**: Strong consistency via Redis single-threaded command execution.
-- **ChainCache (Moka + Redis)**: Read-after-write consistency within the process. The L1 cache is updated synchronously; the L2 (Redis) write completes before `set` returns. If backfill is enabled, a hit on L2 asynchronously populates L1.
+- **仅 Moka / DashMap**：进程内强一致性。无跨实例协调。
+- **仅 Redis**：通过 Redis 单线程命令执行实现强一致性。
+- **ChainCache（Moka + Redis）**：进程内读后写一致性。L1 缓存同步更新；L2（Redis）写入在 `set` 返回前完成。如启用回填，L2 命中会异步填充 L1。
 
-### Cross-Instance Consistency
+### 跨实例一致性
 
-Oxcache 0.3.2 **does not** ship a built-in cross-instance invalidation layer (no Pub/Sub, no versioning scheme). Multi-instance consistency is the application's responsibility. Common patterns:
+Oxcache 0.3.2 **不**内置跨实例失效层（无 Pub/Sub，无版本方案）。多实例一致性由应用负责。常见模式：
 
-- Use Redis as the single source of truth (skip L1, or accept short-lived staleness on L1)
-- Use short L1 TTLs to bound staleness
-- Apply external invalidation (e.g. Redis keyspace notifications, application-level Pub/Sub) and call `cache.delete(key)` on each instance
+- 使用 Redis 作为唯一真实来源（跳过 L1，或接受 L1 的短暂过期数据）
+- 使用短 L1 TTL 限制数据过期程度
+- 应用外部失效（如 Redis keyspace 通知、应用层 Pub/Sub）并在每个实例上调用 `cache.delete(key)`
 
-### Single-Flight (Cache Breakdown Protection)
+### 单飞（缓存击穿保护）
 
-Both `get_or` (async) and `get_or_sync` (sync) implement single-flight: when multiple concurrent calls miss the same key, only the first caller ("leader") executes the fallback; followers block on `tokio::sync::Notify` (async) or `std::sync::Condvar` (sync) until the leader writes the result. Panic-safe guards ensure followers are released even if the leader panics.
+`get_or`（异步）和 `get_or_sync`（同步）都实现单飞：当多个并发调用未命中同一键时，仅第一个调用者（"领导者"）执行 fallback；跟随者在 `tokio::sync::Notify`（异步）或 `std::sync::Condvar`（同步）上阻塞，直到领导者写入结果。panic 安全守卫确保即使领导者 panic 跟随者也能被释放。
 
-The in-flight registries are **sharded** (64 hash buckets via `DefaultHasher`) to reduce cross-key lock contention under concurrency: `get_or_shard_index(key)` routes each key to one shard, and each shard owns a `Mutex<HashMap<String, Arc<Notify>>>` (async) / `Mutex<HashMap<String, SyncFlight>>` (sync).
+飞行中注册表**分片**（64 个哈希桶通过 `DefaultHasher`）以减少并发下跨键锁竞争：`get_or_shard_index(key)` 将每个键路由到一个分片，每个分片拥有 `Mutex<HashMap<String, Arc<Notify>>>`（异步）/ `Mutex<HashMap<String, SyncFlight>>`（同步）。
 
-## Failure Handling
+## 故障处理
 
-### Redis Failure
+### Redis 故障
 
-**Detection** (via `CacheConnector::health_check()`):
-- Connection timeout / refused
-- `PING` failure
-- Connection closed by remote
+**检测**（通过 `CacheConnector::health_check()`）：
+- 连接超时 / 拒绝
+- `PING` 失败
+- 连接被远端关闭
 
-**Recovery (application-driven, not automatic)**:
-Oxcache does not auto-failover between backends in 0.3.2. The application decides how to handle a Redis error:
+**恢复（应用驱动，非自动）**：
+Oxcache 0.3.2 不在后端间自动故障转移。应用决定如何处理 Redis 错误：
 
-1. `Cache::health_check().await` returns `Err(OxCacheError::*)` — caller can switch to a fallback code path
-2. `ChainCache` continues serving L1 hits even if the L2 link errors (the miss just propagates as `None`); L1 read errors are logged and the read falls through to the next link; writes to L2 that fail are logged, and the write only surfaces as an error to the caller if every backend fails
-3. The application can wrap the cache in its own circuit-breaker / retry policy
+1. `Cache::health_check().await` 返回 `Err(OxCacheError::*)` — 调用方可切换到回退代码路径
+2. `ChainCache` 即使 L2 链接报错仍继续提供 L1 命中（未命中仅传播为 `None`）；L1 读取错误被记录并穿透到下一链接；L2 写入失败被记录，仅当所有后端都失败时写入才向调用方报错
+3. 应用可以在缓存外包裹自己的熔断器/重试策略
 
-There is no automatic "L1-only mode" switch and no WAL replay on reconnect in 0.3.2.
+0.3.2 中无自动"仅 L1 模式"切换，无重连时 WAL 重放。
 
-### Network Partition
+### 网络分区
 
-- Each instance continues operating with its local L1 cache
-- Redis writes/reads will fail and surface as `Err(OxCacheError::*)`
-- On recovery: no automatic reconciliation (no versioning scheme in 0.3.2). The application may issue `cache.clear()` or rely on TTL expiry.
+- 每个实例继续使用本地 L1 缓存运行
+- Redis 写入/读取将失败并表现为 `Err(OxCacheError::*)`
+- 恢复后：无自动协调（0.3.2 无版本方案）。应用可发出 `cache.clear()` 或依赖 TTL 过期。
 
-### Backend Trait Errors
+### 后端 Trait 错误
 
-All backend errors flow through `OxCacheError` (see `src/error.rs`). Notable variants:
+所有后端错误通过 `OxCacheError` 传递（参见 `src/error.rs`）。关键变体：
 
-| Code | Variant | Meaning |
-|---|---|---|
-| OXCACHE_001 | `NotFound` | Key not found |
-| OXCACHE_002 | `Connection` | Network connection failure |
-| OXCACHE_003 | `Serialization` | JSON serialization/deserialization failure |
-| OXCACHE_004 | `Operation` | General operation failure |
-| OXCACHE_005 | `Degraded` | Cache in degraded mode |
-| OXCACHE_006 | `L1Error` | L1 (memory) backend error |
-| OXCACHE_007 | `L2Error` | L2 (Redis) backend error |
-| OXCACHE_009 | `NotSupported` | Operation not supported by this backend / config (e.g. sync API without `sync_mode(true)`) |
-| OXCACHE_010 | `WalError` | WAL operation failed |
-| OXCACHE_011 | `DatabaseError` | Database error |
-| OXCACHE_012 | `RedisError` | Redis error |
-| OXCACHE_013 | `IoError` | I/O error |
-| OXCACHE_014 | `BackendError` | Backend error |
-| OXCACHE_015 | `Timeout` | Operation timed out |
-| OXCACHE_016 | `ShutdownError` | Shutdown error |
-| OXCACHE_017 | `KeyTooLong` | Key exceeds max length |
-| OXCACHE_018 | `ValueTooLarge` | Value exceeds max size |
-| OXCACHE_019 | `BufferFull` | Batch write buffer full |
-| OXCACHE_020 | `InvalidInput` | Bad key / value / config input |
-| OXCACHE_021 | `InvalidKey` | Invalid key format |
-| OXCACHE_022 | `LockError` | Lock poisoned |
-| OXCACHE_023 | `ServiceNotFound` | Service not in registry |
-| OXCACHE_024 | `Internal` | Internal state corruption |
+| 错误码 | 变体 | 含义 |
+|--------|------|------|
+| OXCACHE_001 | `NotFound` | 键未找到 |
+| OXCACHE_002 | `Connection` | 网络连接失败 |
+| OXCACHE_003 | `Serialization` | JSON 序列化/反序列化失败 |
+| OXCACHE_004 | `Operation` | 一般操作失败 |
+| OXCACHE_005 | `Degraded` | 缓存处于降级模式 |
+| OXCACHE_006 | `L1Error` | L1（内存）后端错误 |
+| OXCACHE_007 | `L2Error` | L2（Redis）后端错误 |
+| OXCACHE_009 | `NotSupported` | 此后端/配置不支持的操作（如未启用 `sync_mode(true)` 的同步 API） |
+| OXCACHE_010 | `WalError` | WAL 操作失败 |
+| OXCACHE_011 | `DatabaseError` | 数据库错误 |
+| OXCACHE_012 | `RedisError` | Redis 错误 |
+| OXCACHE_013 | `IoError` | I/O 错误 |
+| OXCACHE_014 | `BackendError` | 后端错误 |
+| OXCACHE_015 | `Timeout` | 操作超时 |
+| OXCACHE_016 | `ShutdownError` | 关闭错误 |
+| OXCACHE_017 | `KeyTooLong` | 键超过最大长度 |
+| OXCACHE_018 | `ValueTooLarge` | 值超过最大大小 |
+| OXCACHE_019 | `BufferFull` | 批量写入缓冲区已满 |
+| OXCACHE_020 | `InvalidInput` | 错误的键/值/配置输入 |
+| OXCACHE_021 | `InvalidKey` | 无效键格式 |
+| OXCACHE_022 | `LockError` | 锁中毒 |
+| OXCACHE_023 | `ServiceNotFound` | 服务未在注册表中 |
+| OXCACHE_024 | `Internal` | 内部状态损坏 |
 
-The full table (OXCACHE_001–OXCACHE_024) is documented in `docs/API_REFERENCE.md`.
+完整表格（OXCACHE_001–OXCACHE_024）记录在 `docs/API_REFERENCE.md` 中。
 
-## Performance Optimization
+## 性能优化
 
-### Optimization Techniques
+### 优化技术
 
-1. **Per-entry TTL on Moka**: Uses the `moka::Expiry` trait for true per-entry TTL (overriding the builder's global TTL), avoiding the cost of separate expiry tracking.
-2. **Connection Pooling**: `RedisBackend::with_pool(url, pool_size)` reuses Redis connections.
-3. **Pipeline / Batch Operations**: `RedisBackend` supports `set_many` / `delete_many` / `get_many` via Redis pipelining (default trait impls loop, but `RedisBackend` overrides them). The `batch-write` feature adds buffered L2 writes.
-4. **Lock-Free L1**: Moka's concurrent cache design (TinyLFU admission, LRU eviction).
-5. **JSON Serialization**: Human-readable, widely supported. A `MAX_JSON_DEPTH` constant protects against deeply-nested JSON DoS.
-6. **Optional Compression**: `compression` feature enables flate2 compression for large values.
-7. **Single-Flight**: `get_or` / `get_or_sync` deduplicate concurrent fallback execution per key, preventing cache-breakdown thundering herds.
-8. **Bloom Filter Short-Circuit**: `BloomFilterBackend` returns `Ok(None)` without hitting the inner backend when the key is not in the filter — useful for high-negative-query-ratio workloads.
+1. **Moka 单条目 TTL**：使用 `moka::Expiry` trait 实现真正的单条目 TTL（覆盖构建器的全局 TTL），避免独立过期跟踪的开销。
+2. **连接池**：`RedisBackend::with_pool(url, pool_size)` 复用 Redis 连接。
+3. **Pipeline / 批量操作**：`RedisBackend` 支持通过 Redis pipeline 的 `set_many` / `delete_many` / `get_many`（默认 trait 实现循环，但 `RedisBackend` 覆盖它们）。`batch-write` 特性添加缓冲 L2 写入。
+4. **无锁 L1**：Moka 的并发缓存设计（TinyLFU 准入、LRU 淘汰）。
+5. **JSON 序列化**：人类可读、广泛支持。`MAX_JSON_DEPTH` 常量防止深层嵌套 JSON DoS。
+6. **可选压缩**：`compression` 特性启用 flate2 压缩用于大值。
+7. **单飞**：`get_or` / `get_or_sync` 对每键的并发 fallback 执行去重，防止缓存击穿惊群效应。
+8. **布隆过滤器短路**：`BloomFilterBackend` 在键不在过滤器中时直接返回 `Ok(None)` 而不触及内部后端——适用于高负查询比工作负载。
 
-### Performance Tuning
+### 性能调优
 
 ```rust
 use std::time::Duration;
 use oxcache::Cache;
 
 let cache: Cache<String, User> = Cache::builder()
-    .capacity(10_000)              // L1 max entries
-    .ttl(Duration::from_secs(600)) // default TTL
-    .tti(Duration::from_secs(300)) // idle TTL (Moka)
+    .capacity(10_000)              // L1 最大条目数
+    .ttl(Duration::from_secs(600)) // 默认 TTL
+    .tti(Duration::from_secs(300)) // 空闲 TTL（Moka）
     .build()
     .await?;
 
-// Redis pool sizing:
+// Redis 连接池大小：
 let redis = oxcache::backend::RedisBackend::with_pool(
     "rediss://localhost:6379", 16,
 ).await?;
 ```
 
-### Benchmark Results
+### 基准测试结果
 
-> Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
+> 测试环境：M1 Pro，16GB RAM，macOS，Redis 7.0
 >
-> **Note**: Performance varies based on hardware, network conditions, and data size. Treat these as order-of-magnitude estimates.
+> **注意**：性能因硬件、网络条件和数据大小而异。将这些视为数量级估计。
 
-| Operation | Throughput | Latency (P99) |
-|-----------|------------|---------------|
-| L1 Read | 5-10M ops/sec | 50-100ns |
-| L1 Write | 2-5M ops/sec | 50-200ns |
-| L2 Read | 50-100K ops/sec | 1-5ms |
-| L2 Write (batch) | 200-500K ops/sec | 1-10ms |
+| 操作 | 吞吐量 | 延迟（P99） |
+|------|--------|-------------|
+| L1 读取 | 5-10M ops/sec | 50-100ns |
+| L1 写入 | 2-5M ops/sec | 50-200ns |
+| L2 读取 | 50-100K ops/sec | 1-5ms |
+| L2 写入（批量） | 200-500K ops/sec | 1-10ms |
 
-## Security
+## 安全
 
-### Threat Model
+### 威胁模型
 
-1. **Cache Penetration**: Attacker requests non-existent keys → DB load
-2. **Cache Breakdown**: Hot key expires, many requests hit DB simultaneously
-3. **DoS Attack**: High request rate overwhelms system
-4. **SQL Injection**: Malicious patterns in Redis keys
-5. **Lua Script Injection**: Dangerous commands in Lua scripts
-6. **ReDoS**: Malicious SCAN patterns causing CPU exhaustion
-7. **Deeply-Nested JSON DoS**: Adversarial JSON causing stack overflow during deserialization
+1. **缓存穿透**：攻击者请求不存在的键 → 加载数据库
+2. **缓存击穿**：热点键过期，大量请求同时打到数据库
+3. **DoS 攻击**：高请求率压垮系统
+4. **SQL 注入**：Redis 键中的恶意模式
+5. **Lua 脚本注入**：Lua 脚本中的危险命令
+6. **ReDoS**：恶意 SCAN 模式导致 CPU 耗尽
+7. **深层嵌套 JSON DoS**：恶意 JSON 在反序列化时导致栈溢出
 
-### Defenses
+### 防御措施
 
-1. **Single-Flight**: Prevent cache breakdown with request deduplication (`get_or` / `get_or_sync`)
-2. **Input Validation**: `validate_redis_key`, `validate_lua_script`, `validate_scan_pattern`, `clamp_scan_count` (re-exported at crate root)
-3. **Comment Preprocessing**: Strip Lua comments before validation to prevent bypass
-4. **Sensitive Data Redaction**: `Redacted` wrapper, `redact_connection_string`, `redact_cache_key`, `redact_field`, `redact_value`
-5. **JSON Depth Limit**: `MAX_JSON_DEPTH` rejects deeply-nested JSON during `get`
-6. **TLS Enforcement**: `RedisBackend` requires `rediss://` URLs unless `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS` is set
-7. **Bloom Filter**: Negative-query filtering before backend lookup (optional, `bloom-filter` feature)
+1. **单飞**：通过请求去重防止缓存击穿（`get_or` / `get_or_sync`）
+2. **输入校验**：`validate_redis_key`、`validate_lua_script`、`validate_scan_pattern`、`clamp_scan_count`（在 crate 根重导出）
+3. **注释预处理**：校验前剥离 Lua 注释以防止绕过
+4. **敏感数据脱敏**：`Redacted` 包装器、`redact_connection_string`、`redact_cache_key`、`redact_field`、`redact_value`
+5. **JSON 深度限制**：`MAX_JSON_DEPTH` 在 `get` 时拒绝深层嵌套 JSON
+6. **TLS 强制**：`RedisBackend` 要求 `rediss://` URL，除非设置了 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`
+7. **布隆过滤器**：后端查找前的负查询过滤（可选，`bloom-filter` 特性）
 
-> **Note**: There is **no built-in rate limiting** in 0.3.2. Pre-0.3.2 documentation referenced a `GlobalRateLimiter` / `RateLimitConfig`; those types are **not** present in 0.3.2. Rate limiting is the responsibility of the application or an upstream proxy.
+> **注意**：0.3.2 中**无内置限流**。0.3.2 之前文档引用的 `GlobalRateLimiter` / `RateLimitConfig` 类型在 0.3.2 中**不存在**。限流由应用或上游代理负责。
 
-### Input Validation
+### 输入校验
 
-The `security` module (private; consumed via crate-root re-exports) provides:
+`security` 模块（私有；通过 crate 根重导出消费）提供：
 
-#### Redis Key Validation (`validate_redis_key`)
-- Empty key rejection
-- 512KB size limit
-- Dangerous character detection (`\r`, `\n`, `\0`)
-- SQL injection pattern detection
-- Path traversal pattern detection
+#### Redis 键校验（`validate_redis_key`）
+- 拒绝空键
+- 512KB 大小限制
+- 危险字符检测（`\r`、`\n`、`\0`）
+- SQL 注入模式检测
+- 路径遍历模式检测
 
-#### Lua Script Validation (`validate_lua_script`)
-- 10KB script length limit
-- 100 key limit
-- Dangerous command blocking: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
-- Comment preprocessing to prevent bypass
+#### Lua 脚本校验（`validate_lua_script`）
+- 10KB 脚本长度限制
+- 100 个键限制
+- 危险命令阻止：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
+- 注释预处理防止绕过
 
-#### SCAN Pattern Validation (`validate_scan_pattern`)
-- 256 character length limit
-- 10 wildcard limit
-- `clamp_scan_count(count)` clamps the count parameter to 1-1000
+#### SCAN 模式校验（`validate_scan_pattern`）
+- 256 字符长度限制
+- 10 个通配符限制
+- `clamp_scan_count(count)` 将 count 参数钳制到 1-1000
 
-### Best Practices
+### 最佳实践
 
-1. **Key Design**: Use stable, predictable keys (use `KeyGenerator` for namespacing)
-2. **TTL Strategy**: Set appropriate TTL based on data volatility; use `cache.ttl(&key)` to read existing TTL before update-with-preserve workflows
-3. **Access Control**: Use Redis AUTH + TLS (`rediss://` URL)
-4. **Monitoring**: Track `CacheStats` (hit rates, op counters, latency histograms) via `get_enhanced_stats` / `export_prometheus_format`
-5. **Sync API**: Enable `sync_mode(true)` for non-async call sites. On a `multi_thread` tokio runtime, Moka's sync bridge reuses the current runtime via `block_in_place`; otherwise it drives the (runtime-independent) moka futures with a `noop` waker + manual polling — safe inside or outside any runtime, with no global runtime thread (P2 3.2).
+1. **键设计**：使用稳定、可预测的键（使用 `KeyGenerator` 进行命名空间管理）
+2. **TTL 策略**：根据数据易变性设置适当的 TTL；使用 `cache.ttl(&key)` 在保留 TTL 的更新工作流中读取已有 TTL
+3. **访问控制**：使用 Redis AUTH + TLS（`rediss://` URL）
+4. **监控**：通过 `get_enhanced_stats` / `export_prometheus_format` 跟踪 `CacheStats`（命中率、操作计数器、延迟直方图）
+5. **同步 API**：为非异步调用场景启用 `sync_mode(true)`。在 `multi_thread` tokio 运行时上，Moka 的同步桥通过 `block_in_place` 复用当前运行时；否则它用 `noop` waker + 手动轮询驱动（运行时无关的）moka future——在任何运行时内外都安全，无全局运行时线程（P2 3.2）。
 
-## Scalability
+## 可扩展性
 
-### Horizontal Scaling
+### 水平扩展
 
 ```mermaid
 graph TD
-    subgraph "Application Instances"
-        I1[Instance 1<br/>L1 Moka + L2 Redis]
-        I2[Instance 2<br/>L1 Moka + L2 Redis]
-        I3[Instance 3<br/>L1 Moka + L2 Redis]
+    subgraph "应用实例"
+        I1["实例 1<br/>L1 Moka + L2 Redis"]
+        I2["实例 2<br/>L1 Moka + L2 Redis"]
+        I3["实例 3<br/>L1 Moka + L2 Redis"]
     end
 
-    subgraph "Redis Cluster"
-        R[Redis Cluster<br/>shared L2]
+    subgraph "Redis 集群"
+        R["Redis 集群<br/>共享 L2"]
     end
 
     I1 --> R
@@ -810,61 +810,60 @@ graph TD
     style R fill:#f3e5f5
 ```
 
-Each instance keeps its own L1 (Moka) and shares the L2 (Redis). Cross-instance L1 invalidation is **not** automatic in 0.3.2 — see [Consistency Model](#consistency-model).
+每个实例维护自己的 L1（Moka）并共享 L2（Redis）。跨实例 L1 失效在 0.3.2 中**不**自动 — 参见[一致性模型](#一致性模型)。
 
-### Vertical Scaling
+### 垂直扩展
 
-- Increase L1 capacity via `CacheBuilder::capacity(u64)` (more memory)
-- Use a faster / dedicated Redis instance
-- Enable Redis persistence (AOF + RDB) on the Redis side
-- Increase the Redis connection pool via `RedisBackend::with_pool(url, pool_size)`
+- 通过 `CacheBuilder::capacity(u64)` 增加 L1 容量（更多内存）
+- 使用更快/专用的 Redis 实例
+- 在 Redis 端启用 Redis 持久化（AOF + RDB）
+- 通过 `RedisBackend::with_pool(url, pool_size)` 增加 Redis 连接池
 
-### Partitioning
+### 分区
 
-Oxcache 0.3.2 does not ship a built-in partitioning config (the `PartitionConfig` / `TimeUnit` types referenced in pre-0.3.2 docs do not exist). Applications can implement their own partitioning by routing keys to different `Cache<K, V>` instances (each backed by a different Redis db / cluster).
+Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConfig` / `TimeUnit` 类型不存在）。应用可以通过将键路由到不同的 `Cache<K, V>` 实例（每个由不同的 Redis db / 集群支持）来实现自己的分区。
 
-## Feature Flags
+## 特性标志
 
-### Tiered Feature Sets
+### 分层特性集
 
-- **`minimal`**: L1 memory cache only (`memory` + `tracing` + `metrics` + `serialization` + `chrono` + `i18n`)
-- **`core`**: L1 + L2 Redis (`minimal` + `redis`)
-- **`full`**: All features enabled **except** `bloom-filter`, `kit`, and `testing`
+- **`minimal`**：仅 L1 内存缓存（`memory` + `tracing` + `metrics` + `serialization` + `chrono`）
+- **`core`**：L1 + L2 Redis（`minimal` + `redis`）
+- **`full`**：启用所有特性，**除了** `bloom-filter` 和 `kit`
 
-### Component Features
+### 组件特性
 
-| Feature | Description | In `full`? |
-|---|---|:---:|
-| `memory` | L1 memory cache (Moka + DashMap) | ✅ |
-| `redis` | L2 distributed cache (Redis + regex) | ✅ |
-| `macros` | Proc macros for `#[cached]` | ✅ |
-| `serialization` | JSON serialization (serde + serde_json) | ✅ |
-| `compression` | Flate2 compression | ✅ |
-| `tracing` | Tracing support | ✅ |
-| `metrics` | Built-in metrics & observability | ✅ |
-| `batch-write` | Buffered L2 writes | ✅ |
-| `lua-script` | Lua script execution (requires `redis`) | ✅ |
-| `cli` | CLI tools (clap) | ✅ |
-| `bloom-filter` | Negative-query filtering (bloomfilter crate) | ❌ (opt-in) |
-| `kit` | trait-kit AsyncKit integration (OxcacheModule) | ❌ (opt-in) |
-| `i18n` | ICU4X-backed locale-aware formatting & localized messages | ✅ |
-| `testing` | Exposes internal functions for tests | ❌ (opt-in) |
+| 特性 | 说明 | 在 `full` 中？ |
+|------|------|:---:|
+| `memory` | L1 内存缓存（Moka + DashMap） | ✅ |
+| `redis` | L2 分布式缓存（Redis + regex） | ✅ |
+| `macros` | `#[cached]` 过程宏 | ✅ |
+| `serialization` | JSON 序列化（serde + serde_json） | ✅ |
+| `compression` | Flate2 压缩 | ✅ |
+| `tracing` | 追踪支持 | ✅ |
+| `metrics` | 内置指标与可观测性 | ✅ |
+| `batch-write` | 缓冲 L2 写入 | ✅ |
+| `lua-script` | Lua 脚本执行（需要 `redis`） | ✅ |
+| `cli` | 命令行工具 | ✅ |
+| `bloom-filter` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
+| `kit` | trait-kit AsyncKit 集成（OxcacheModule） | ❌（选择加入） |
+| `testing` | 暴露内部函数供测试使用 | ✅ |
 
-> **Important**: `bloom-filter` and `kit` are **not** included in `full`. Enable them explicitly with `features = ["bloom-filter"]` etc. The `i18n` feature is always enabled (included in `minimal`).
+> **重要**：`bloom-filter` 和 `kit` **不包含**在 `full` 中。需通过 `features = ["bloom-filter"]` 等显式启用。
 
-## Future Enhancements
+## 未来增强
 
-1. **Cross-Instance Invalidation**: Optional Pub/Sub-based L1 invalidation layer (pre-0.3.0 design will be revisited)
-2. **Adaptive TTL**: Heuristics for TTL optimization based on access patterns
-3. **Geo-Distribution**: Multi-region replication primitives
-4. **Cache Warming**: Intelligent warmup strategies
-5. **Advanced Compression**: Zstd compression option alongside flate2
-6. **`trait_upcasting` Migration**: Once stable, lift the `sync_mode + backend_arc` exclusivity so users can inject a custom backend and still use the sync API
+1. **跨实例失效**：可选的 Pub/Sub L1 失效层（将重新审视 0.3.0 之前的设计）
+2. **自适应 TTL**：基于访问模式的 TTL 优化启发式
+3. **地理分布**：多区域复制原语
+4. **缓存预热**：智能预热策略
+5. **高级压缩**：Zstd 压缩选项与 flate2 并行
+6. **`trait_upcasting` 迁移**：稳定后解除 `sync_mode + backend_arc` 互斥限制，使用户能注入自定义后端并同时使用同步 API
 
-## References
+## 参考资料
 
-- [Moka Documentation](https://github.com/moka-rs/moka)
-- [Redis Documentation](https://redis.io/documentation)
-- [TinyLFU Paper](https://arxiv.org/abs/1512.00757)
-- [Bloom Filter](https://en.wikipedia.org/wiki/Bloom_filter)
-- [ISP-compliant trait design](https://en.wikipedia.org/wiki/Interface_segregation_principle)
+- [Moka 文档](https://github.com/moka-rs/moka)
+- [Redis 文档](https://redis.io/documentation)
+- [TinyLFU 论文](https://arxiv.org/abs/1512.00757)
+- [布隆过滤器](https://en.wikipedia.org/wiki/Bloom_filter)
+- [ISP 合规 trait 设计](https://en.wikipedia.org/wiki/Interface_segregation_principle)

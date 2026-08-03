@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.3.12** 编写。
+> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.4.0** 编写。
 
 ## 📋 目录
 
@@ -138,27 +138,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.3"
+oxcache = "0.4"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.3", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.4", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层选择
 
 ```toml
 # 完整特性（推荐，默认）
-oxcache = { version = "0.3", features = ["full"] }
+oxcache = { version = "0.4", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.3", features = ["core"] }
+oxcache = { version = "0.4", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.3", features = ["minimal"] }
+oxcache = { version = "0.4", features = ["minimal"] }
 
 # 自定义选择（注意：bloom-filter 不在 full 内，需单独启用）
-oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 ```
 
 #### 特性依赖说明
@@ -168,7 +168,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
 | `lua-script` | `redis` | Lua 脚本执行 |
-| `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
+| `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面工具 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
 | `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`、`kit`） |
 
@@ -176,7 +176,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
 
 ```toml
 [dependencies]
-oxcache = { version = "0.3", default-features = false, features = ["core"] }
+oxcache = { version = "0.4", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：
