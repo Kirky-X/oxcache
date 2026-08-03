@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.3.3).
+This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.3.12).
 
 ## Table of Contents
 
@@ -245,17 +245,20 @@ pub trait CacheReader: Send + Sync + 'static {
     async fn len(&self) -> OxCacheResult<u64>;
     async fn is_empty(&self) -> OxCacheResult<bool> { /* default impl */ }
     async fn capacity(&self) -> OxCacheResult<u64>;
-    async fn stats(&self) -> Result<HashMap<String, String>>;
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
     async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* default */ }
 }
 
+/// Batch write entry type: `(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
+pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
+
 #[async_trait]
 pub trait CacheWriter: Send + Sync + 'static {
-    async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
     async fn clear(&self) -> OxCacheResult<()>;
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
-    async fn set_many(&self, items: &[(String, Vec<u8>, Option<Duration>)]) -> OxCacheResult<()> { /* default */ }
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> { /* default */ }
     async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* default */ }
 }
 
@@ -639,13 +642,29 @@ All backend errors flow through `OxCacheError` (see `src/error.rs`). Notable var
 
 | Code | Variant | Meaning |
 |---|---|---|
-| OXCACHE_001 | `L1Error` | L1 (memory) backend error |
-| OXCACHE_002 | `L2Error` | L2 (Redis) backend error |
+| OXCACHE_001 | `NotFound` | Key not found |
+| OXCACHE_002 | `Connection` | Network connection failure |
+| OXCACHE_003 | `Serialization` | JSON serialization/deserialization failure |
+| OXCACHE_004 | `Operation` | General operation failure |
+| OXCACHE_005 | `Degraded` | Cache in degraded mode |
+| OXCACHE_006 | `L1Error` | L1 (memory) backend error |
+| OXCACHE_007 | `L2Error` | L2 (Redis) backend error |
 | OXCACHE_009 | `NotSupported` | Operation not supported by this backend / config (e.g. sync API without `sync_mode(true)`) |
-| OXCACHE_010 | `InvalidInput` | Bad key / value / config input |
-| OXCACHE_011 | `Serialization` | JSON serialization/deserialization failure |
-| OXCACHE_013 | `Connection` | Redis connection failure |
-| OXCACHE_024 | `Config` | Cache configuration error (`OxCacheConfigError`) |
+| OXCACHE_010 | `WalError` | WAL operation failed |
+| OXCACHE_011 | `DatabaseError` | Database error |
+| OXCACHE_012 | `RedisError` | Redis error |
+| OXCACHE_013 | `IoError` | I/O error |
+| OXCACHE_014 | `BackendError` | Backend error |
+| OXCACHE_015 | `Timeout` | Operation timed out |
+| OXCACHE_016 | `ShutdownError` | Shutdown error |
+| OXCACHE_017 | `KeyTooLong` | Key exceeds max length |
+| OXCACHE_018 | `ValueTooLarge` | Value exceeds max size |
+| OXCACHE_019 | `BufferFull` | Batch write buffer full |
+| OXCACHE_020 | `InvalidInput` | Bad key / value / config input |
+| OXCACHE_021 | `InvalidKey` | Invalid key format |
+| OXCACHE_022 | `LockError` | Lock poisoned |
+| OXCACHE_023 | `ServiceNotFound` | Service not in registry |
+| OXCACHE_024 | `Internal` | Internal state corruption |
 
 The full table (OXCACHE_001–OXCACHE_024) is documented in `docs/API_REFERENCE.md`.
 
@@ -655,7 +674,7 @@ The full table (OXCACHE_001–OXCACHE_024) is documented in `docs/API_REFERENCE.
 
 1. **Per-entry TTL on Moka**: Uses the `moka::Expiry` trait for true per-entry TTL (overriding the builder's global TTL), avoiding the cost of separate expiry tracking.
 2. **Connection Pooling**: `RedisBackend::with_pool(url, pool_size)` reuses Redis connections.
-3. **Pipeline / Batch Operations**: `RedisBackend` supports `set_many` / `delete_many` / `get_many` via Redis pipelining (default trait impls loop, but `RedisBackend` overrides them). The `batch-write` feature adds buffered L2 writes via `tokio-util`.
+3. **Pipeline / Batch Operations**: `RedisBackend` supports `set_many` / `delete_many` / `get_many` via Redis pipelining (default trait impls loop, but `RedisBackend` overrides them). The `batch-write` feature adds buffered L2 writes.
 4. **Lock-Free L1**: Moka's concurrent cache design (TinyLFU admission, LRU eviction).
 5. **JSON Serialization**: Human-readable, widely supported. A `MAX_JSON_DEPTH` constant protects against deeply-nested JSON DoS.
 6. **Optional Compression**: `compression` feature enables flate2 compression for large values.
@@ -792,8 +811,8 @@ Oxcache 0.3.2 does not ship a built-in partitioning config (the `PartitionConfig
 ### Tiered Feature Sets
 
 - **`minimal`**: L1 memory cache only (`memory` + `tracing` + `metrics` + `serialization` + `chrono`)
-- **`core`**: L1 + L2 Redis (`minimal` + `redis` + `futures`)
-- **`full`** (default): All features enabled **except** `bloom-filter` and `testing`
+- **`core`**: L1 + L2 Redis (`minimal` + `redis`)
+- **`full`**: All features enabled **except** `bloom-filter`, `kit`, `i18n`, and `testing`
 
 ### Component Features
 
@@ -805,14 +824,16 @@ Oxcache 0.3.2 does not ship a built-in partitioning config (the `PartitionConfig
 | `serialization` | JSON serialization (serde + serde_json) | ✅ |
 | `compression` | Flate2 compression | ✅ |
 | `tracing` | Tracing support | ✅ |
-| `metrics` | OpenTelemetry metrics & observability | ✅ |
-| `batch-write` | Buffered L2 writes (tokio-util) | ✅ |
+| `metrics` | Built-in metrics & observability | ✅ |
+| `batch-write` | Buffered L2 writes | ✅ |
 | `lua-script` | Lua script execution (requires `redis`) | ✅ |
 | `cli` | CLI tools (clap) | ✅ |
 | `bloom-filter` | Negative-query filtering (bloomfilter crate) | ❌ (opt-in) |
+| `kit` | trait-kit AsyncKit integration (OxcacheModule) | ❌ (opt-in) |
+| `i18n` | ICU4X-backed locale-aware formatting | ❌ (opt-in) |
 | `testing` | Exposes internal functions for tests | ❌ (opt-in) |
 
-> **Important**: `bloom-filter` is **not** included in `full`. Enable it explicitly with `features = ["bloom-filter"]`.
+> **Important**: `bloom-filter`, `kit`, and `i18n` are **not** included in `full`. Enable them explicitly with `features = ["bloom-filter"]` etc.
 
 ## Future Enhancements
 

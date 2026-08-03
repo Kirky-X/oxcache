@@ -103,7 +103,7 @@ use oxcache::{validate_scan_pattern, clamp_scan_count};
 validate_scan_pattern("user:*")?;              // OK
 validate_scan_pattern("*:*:*:*:*:*:*:*:*:*:*")?; // Err — too many wildcards
 
-let count = clamp_scan_count(1_000_000);       // Returns 10_000
+let count = clamp_scan_count(1_000_000);       // Returns 1000
 ```
 
 ## 5. Connection String Redaction
