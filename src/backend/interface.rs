@@ -27,6 +27,12 @@ pub enum BackendKind {
     DashMap,
     /// Redis distributed cache
     Redis,
+    /// Valkey distributed cache (Redis-compatible, BSD-3 licensed)
+    Valkey,
+    /// Dragonfly distributed cache (Redis-compatible, BSL 1.1 licensed)
+    Dragonfly,
+    /// Aerospike distributed cache (independent sub-crate)
+    Aerospike,
     /// Chain cache (multi-tier)
     Chain,
     /// Mock backend for testing
@@ -43,7 +49,10 @@ impl BackendKind {
 
     /// Returns true if this is a distributed cache (L2)
     pub fn is_distributed(&self) -> bool {
-        matches!(self, BackendKind::Redis)
+        matches!(
+            self,
+            BackendKind::Redis | BackendKind::Valkey | BackendKind::Dragonfly | BackendKind::Aerospike
+        )
     }
 
     /// Returns true if this is a composite (multi-tier) cache
@@ -978,6 +987,73 @@ mod tests {
         assert!(!BackendKind::Redis.is_composite());
         assert!(!BackendKind::Mock.is_composite());
         assert!(!BackendKind::Unknown.is_composite());
+        // New variants
+        assert!(!BackendKind::Valkey.is_composite());
+        assert!(!BackendKind::Dragonfly.is_composite());
+        assert!(!BackendKind::Aerospike.is_composite());
+    }
+
+    // ============================================================================
+    // BackendKind 新后端变体测试 (T001: Valkey/Dragonfly/Aerospike)
+    // ============================================================================
+
+    #[test]
+    fn test_backend_kind_is_distributed_valkey() {
+        assert!(BackendKind::Valkey.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_dragonfly() {
+        assert!(BackendKind::Dragonfly.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_distributed_aerospike() {
+        assert!(BackendKind::Aerospike.is_distributed());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_valkey_false() {
+        assert!(!BackendKind::Valkey.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_dragonfly_false() {
+        assert!(!BackendKind::Dragonfly.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_memory_aerospike_false() {
+        assert!(!BackendKind::Aerospike.is_memory());
+    }
+
+    #[test]
+    fn test_backend_kind_is_composite_valkey_false() {
+        assert!(!BackendKind::Valkey.is_composite());
+    }
+
+    #[test]
+    fn test_backend_kind_is_composite_dragonfly_false() {
+        assert!(!BackendKind::Dragonfly.is_composite());
+    }
+
+    #[test]
+    fn test_backend_kind_is_composite_aerospike_false() {
+        assert!(!BackendKind::Aerospike.is_composite());
+    }
+
+    #[test]
+    fn test_backend_kind_new_variants_debug_clone_eq() {
+        // Debug
+        assert!(format!("{:?}", BackendKind::Valkey).contains("Valkey"));
+        assert!(format!("{:?}", BackendKind::Dragonfly).contains("Dragonfly"));
+        assert!(format!("{:?}", BackendKind::Aerospike).contains("Aerospike"));
+        // Clone + Eq
+        assert_eq!(BackendKind::Valkey, BackendKind::Valkey);
+        assert_eq!(BackendKind::Dragonfly, BackendKind::Dragonfly);
+        assert_eq!(BackendKind::Aerospike, BackendKind::Aerospike);
+        assert_ne!(BackendKind::Valkey, BackendKind::Redis);
+        assert_ne!(BackendKind::Dragonfly, BackendKind::Valkey);
     }
 
     // ============================================================================
