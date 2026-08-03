@@ -40,13 +40,12 @@ pub(super) static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
 
 /// 预编译的 Lua 循环检测正则
 #[cfg(feature = "redis")]
-pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>> =
-    ::once_cell::sync::Lazy::new(|| {
-        LUA_LOOP_PATTERNS
-            .iter()
-            .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
-            .collect()
-    });
+pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>> = ::once_cell::sync::Lazy::new(|| {
+    LUA_LOOP_PATTERNS
+        .iter()
+        .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
+        .collect()
+});
 
 /// 空白字符替换正则
 #[cfg(feature = "redis")]

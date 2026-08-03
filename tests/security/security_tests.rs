@@ -90,7 +90,11 @@ async fn test_redis_command_security() {
     let test_value = b"test_value";
 
     let set_result = backend
-        .set(Arc::from(test_key), Arc::new(test_value.to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from(test_key),
+            Arc::new(test_value.to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await;
     assert!(set_result.is_ok(), "SET operation should succeed");
 
@@ -154,7 +158,11 @@ async fn test_data_encryption() {
     let test_data = vec![0u8; 256];
 
     let set_result = backend
-        .set(Arc::from(test_key), Arc::new(test_data.clone()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from(test_key),
+            Arc::new(test_data.clone()),
+            Some(Duration::from_secs(60)),
+        )
         .await;
     assert!(set_result.is_ok(), "Binary data SET should succeed");
 

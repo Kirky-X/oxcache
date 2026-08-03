@@ -496,7 +496,7 @@ mod tests {
     #[test]
     fn test_redact_value_multibyte_utf8_no_panic() {
         // S2 修复验证：多字节 UTF-8 字符不应导致 panic
-        let value = "你好世界密码";  // 6 个中文字符，每个 3 字节
+        let value = "你好世界密码"; // 6 个中文字符，每个 3 字节
         let redacted = redact_value(value, 2);
         assert_eq!(redacted, "****密码");
 

@@ -162,7 +162,10 @@ async fn test_partial_failure_handling() {
         let key = format!("partial_key_{}", i);
         let value = format!("value_{}", i);
 
-        match backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await {
+        match backend
+            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .await
+        {
             Ok(_) => success_count += 1,
             Err(_) => failure_count += 1,
         }
@@ -207,7 +210,10 @@ async fn test_connection_pool_exhaustion() {
     // 所有连接执行操作
     for (i, backend) in backends.iter().enumerate() {
         let key = format!("pool_key_{}", i);
-        backend.set(Arc::from(key.as_str()), Arc::new(b"test".to_vec()), None).await.ok();
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"test".to_vec()), None)
+            .await
+            .ok();
     }
 
     // 清理

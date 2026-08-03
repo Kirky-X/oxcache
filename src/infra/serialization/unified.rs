@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Unified serialization manager
 
+use crate::core::MAX_JSON_DEPTH;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::infra::serialization::depth_limited::deserialize_safe;
 use crate::infra::serialization::utils::{compress_data, decompress_data_with_limit};
-use crate::core::MAX_JSON_DEPTH;
 use serde::{Serialize, de::DeserializeOwned};
 
 /// Json-only unified serializer
@@ -34,11 +34,7 @@ impl UnifiedSerializer {
     /// Serialize a value to bytes
     pub fn serialize<T: Serialize>(&self, value: &T) -> OxCacheResult<Vec<u8>> {
         let data = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-        if self.compress {
-            compress_data(&data)
-        } else {
-            Ok(data)
-        }
+        if self.compress { compress_data(&data) } else { Ok(data) }
     }
 
     /// Serialize with explicit type name (for internal use)

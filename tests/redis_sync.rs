@@ -15,8 +15,8 @@
 
 #![cfg(feature = "redis")]
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use oxcache::backend::{RedisBackend, SyncCacheReader, SyncCacheWriter};
@@ -63,7 +63,13 @@ fn test_redis_sync_get_set_multi_thread_runtime() {
         let key = unique_key("sync_get_set");
 
         // sync set
-        SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"hello sync".to_vec()), None).expect("sync set failed");
+        SyncCacheWriter::set(
+            &backend,
+            Arc::from(key.as_str()),
+            Arc::new(b"hello sync".to_vec()),
+            None,
+        )
+        .expect("sync set failed");
 
         // sync get
         let val = SyncCacheReader::get(&backend, &key).expect("sync get failed");
@@ -119,8 +125,13 @@ fn test_redis_sync_set_with_ttl_expires() {
         let key = unique_key("sync_ttl_expires");
 
         // sync set with 1s TTL
-        SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_secs(1)))
-            .expect("sync set with ttl failed");
+        SyncCacheWriter::set(
+            &backend,
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(1)),
+        )
+        .expect("sync set with ttl failed");
         assert!(SyncCacheReader::exists(&backend, &key).expect("sync exists failed"));
 
         // 等待过期
@@ -144,7 +155,8 @@ fn test_redis_sync_expire() {
         let key = unique_key("sync_expire");
 
         // 先 set（无 TTL）
-        SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).expect("sync set failed");
+        SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .expect("sync set failed");
 
         // sync expire 返回 true（key 存在）
         let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50)).expect("sync expire failed");
