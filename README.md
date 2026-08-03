@@ -151,7 +151,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 | 层级 | 包含特性 | 描述 |
 |------|----------|------|
 | **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
-| **core** | `minimal` + `redis`, `futures` | L1 + L2 缓存 |
+| **core** | `minimal` + `redis` | L1 + L2 缓存 |
 | **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
 
 **独立特性**：
@@ -161,7 +161,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `serialization` - JSON 序列化（serde + serde_json）
 - `compression` - 数据压缩（flate2）
 - `metrics` - 内置性能指标（延迟直方图、操作计数、JSON 导出）；如需 OTLP 导出由应用层处理
-- `batch-write` - 优化的批量写入（tokio-util）
+- `batch-write` - 优化的批量写入
 - `lua-script` - Lua 脚本执行支持
 - `cli` - 命令行界面（clap）
 - `tracing` - 结构化日志支持
