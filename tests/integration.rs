@@ -50,3 +50,9 @@ mod chain_cache_integration_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis_version_compatibility_test.rs"]
 mod redis_version_compatibility_test;
+#[cfg(feature = "redis")]
+#[path = "integration/redis_cluster_test.rs"]
+mod redis_cluster_test;
+#[cfg(feature = "redis")]
+#[path = "integration/redis_sentinel_test.rs"]
+mod redis_sentinel_test;

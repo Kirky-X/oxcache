@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 // Redis Cluster 集成测试
 
-use crate::common::{is_redis_available, wait_for_redis_cluster};
+use crate::common::wait_for_redis_cluster;
 use oxcache::backend::memory::RedisBackend;
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,6 +44,7 @@ async fn test_redis_cluster_connection() {
     }
 
     // 测试连接到第一个节点
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await;
     assert!(backend.is_ok(), "应该能连接到 Cluster 节点");
 
@@ -67,13 +68,14 @@ async fn test_redis_cluster_basic_operations() {
         return;
     }
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     // 测试基本操作
     backend
         .set(
-            "cluster_key_1",
-            b"cluster_value_1".to_vec(),
+            Arc::from("cluster_key_1"),
+            Arc::new(b"cluster_value_1".to_vec()),
             Some(Duration::from_secs(60)),
         )
         .await
@@ -104,13 +106,14 @@ async fn test_redis_cluster_data_distribution() {
         return;
     }
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     // 写入多个键，测试数据分布
     for i in 0..50 {
         let key = format!("distributed_key_{}", i);
         let value = format!("value_{}", i);
-        backend.set(&key, value.as_bytes().to_vec(), None).await.unwrap();
+        backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await.unwrap();
     }
 
     // 验证所有键都能正确读取
@@ -147,6 +150,7 @@ async fn test_redis_cluster_ttl() {
         return;
     }
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     // 设置带 TTL 的键
@@ -189,6 +193,7 @@ async fn test_redis_cluster_health_check() {
         return;
     }
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     backend.health_check().await.unwrap();
@@ -213,6 +218,7 @@ async fn test_redis_cluster_stats() {
         return;
     }
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     backend

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 // Redis Sentinel 集成测试
 
-use crate::common::{is_redis_available, wait_for_sentinel};
+use crate::common::wait_for_sentinel;
 use oxcache::backend::memory::RedisBackend;
-use oxcache::backend::CacheBackend;
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,9 +13,9 @@ mod common;
 
 fn get_sentinel_urls() -> Vec<String> {
     vec![
-        "redis://127.0.0.1:26379".to_string(),
-        "redis://127.0.0.1:26380".to_string(),
-        "redis://127.0.0.1:26381".to_string(),
+        "redis://127.0.0.1:26382".to_string(),
+        "redis://127.0.0.1:26383".to_string(),
+        "redis://127.0.0.1:26384".to_string(),
     ]
 }
 
@@ -42,6 +42,7 @@ async fn test_sentinel_connection() {
     }
 
     // 测试连接到 Sentinel 节点
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let urls = get_sentinel_urls();
     for url in &urls {
         let backend = RedisBackend::new(url).await;
@@ -70,6 +71,7 @@ async fn test_sentinel_master_operations() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -81,8 +83,8 @@ async fn test_sentinel_master_operations() {
     // 测试基本操作
     backend
         .set(
-            "sentinel_key_1",
-            b"sentinel_value_1".to_vec(),
+            Arc::from("sentinel_key_1"),
+            Arc::new(b"sentinel_value_1".to_vec()),
             Some(Duration::from_secs(60)),
         )
         .await
@@ -112,6 +114,7 @@ async fn test_sentinel_ttl() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -159,6 +162,7 @@ async fn test_sentinel_expire() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -205,6 +209,7 @@ async fn test_sentinel_health_check() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -234,6 +239,7 @@ async fn test_sentinel_stats() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -271,6 +277,7 @@ async fn test_sentinel_many_keys() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -283,7 +290,7 @@ async fn test_sentinel_many_keys() {
     for i in 0..50 {
         let key = format!("sentinel_many_{}", i);
         let value = format!("value_{}", i);
-        backend.set(&key, value.as_bytes().to_vec(), None).await.unwrap();
+        backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await.unwrap();
     }
 
     // 验证所有键
@@ -319,6 +326,7 @@ async fn test_sentinel_large_value() {
 
     let master_url = get_master_url();
 
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
