@@ -7,8 +7,8 @@
 
 [中文](./README.md) | English
 
-Oxcache is a high-performance, production-grade two-level caching library for Rust, providing L1 (Moka in-memory
-cache) + L2 (Redis distributed cache) architecture.
+Oxcache is a high-performance, production-grade multi-backend caching library for Rust, supporting L1 (Moka/DashMap in-memory
+cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) architecture.
 
 </div>
 
@@ -45,7 +45,7 @@ cache) + L2 (Redis distributed cache) architecture.
 - **⚡ Batch Optimization**: Intelligent batch writes for significantly improved throughput
 - **🧪 Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
 - **🌸 Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
-- **⏱️ Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
+- **⏱️ Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
 - **🛡️ Production Grade**: Complete observability, health checks, chaos testing verified
 
 ## 📦 Quick Start
@@ -84,12 +84,14 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 | ----------- | ------------------------------------------------------------------------------- | ---------------------- |
 | **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
 | **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
-| **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | Complete functionality |
+| **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | Complete functionality |
 
 **Individual Features**:
 
 - `memory` - L1 cache backends (Moka + DashMap)
-- `redis` - L2 distributed cache (Redis)
+- `redis` - L2 distributed cache (Redis / Valkey)
+- `dragonfly` - Dragonfly cache backend (Redis protocol compatible)
+- `aerospike` - Aerospike cache backend (independent protocol)
 - `macros` - `#[cached]` attribute macro
 - `serialization` - JSON serialization (serde + serde\_json)
 - `compression` - Data compression (flate2)

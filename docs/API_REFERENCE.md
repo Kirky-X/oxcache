@@ -14,6 +14,8 @@
 - [CacheBuilder](#cachebuilder)
 - [后端层](#后端层)
 - [RedisBackend](#redisbackend)
+- [DragonflyBackend](#dragonflybackend)
+- [AerospikeBackend](#aerospikebackend)
 - [ChainCache](#chaincache)
 - [同步 API](#同步-api)
 - [布隆过滤器](#布隆过滤器)
@@ -348,6 +350,8 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 | `MokaMemoryBackend` | `memory` | 使用 Moka 的内存缓存（LRU/TinyLFU 淘汰）。通过 `moka::Expiry` 支持单条目 TTL。 |
 | `DashMapMemoryBackend` | `memory` | 使用 DashMap 的纯内存并发缓存（懒 TTL 过期，FIFO O(1) 超容量淘汰）。 |
 | `RedisBackend` | `redis` | 使用 Redis 的分布式缓存（Standalone/Sentinel/Cluster）。 |
+| `DragonflyBackend` | `dragonfly` | Dragonfly 缓存（Redis 协议兼容，包装 RedisBackend）。 |
+| `AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储（独立协议，feature-gated）。 |
 | `ChainCache` | — | 多级缓存链（参见 [ChainCache](#chaincache)）。 |
 | `BloomFilterBackend` | `bloom-filter` | 装饰器，布隆过滤器判定 key 不存在时跳过内部后端。 |
 
@@ -365,7 +369,7 @@ let moka = MokaMemoryBackend::builder().capacity(10000).build();
 ### 后端分数
 
 每个后端报告一个 `score()`（越高 = 越快），供 `ChainCache` 排序读写：
-Moka=100，DashMap=90，Redis=50。Redis 的 `is_persistent()` 为 `true`。
+Moka=100，DashMap=90，Redis=50，Valkey=50，Dragonfly=50，Aerospike=30。Redis/Valkey/Dragonfly/Aerospike 的 `is_persistent()` 为 `true`。
 
 ## RedisBackend
 
@@ -443,6 +447,51 @@ let val = backend.eval_sha(&sha, &[], &[]).await?;
 ```
 
 所有 Lua 脚本在执行前通过 `validate_lua_script` 校验。
+
+## DragonflyBackend
+
+`DragonflyBackend` 包装 `RedisBackend`，提供对 Dragonfly 服务器的缓存支持。
+Dragonfly 兼容 Redis 协议，因此复用 Redis 的全部读写路径。
+
+```rust
+use oxcache::backend::DragonflyBackend;
+use std::sync::Arc;
+
+// 构造 Dragonfly 后端（需要 dragonfly feature）
+let backend = DragonflyBackend::new("redis://localhost:6379", 8).await?;
+
+// 作为 ChainCache L2 使用
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
+let chain = ChainCacheBuilder::default()
+    .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "moka"))
+    .link(ChainLink::new(backend, 50, true, "dragonfly"))
+    .build();
+```
+
+**限制：**
+- `as_atomic_writer()` 返回 `None`（Dragonfly 原子操作兼容性待验证）
+- `backend_kind()` 返回 `BackendKind::Dragonfly`
+
+## AerospikeBackend
+
+`AerospikeBackend` 通过 `aerospike` feature 启用，
+提供 Aerospike 持久化 KV 存储后端。
+
+```rust
+use oxcache::backend::{AerospikeBackend, AerospikeConfig};
+
+let config = AerospikeConfig {
+    seed_nodes: vec!["127.0.0.1:3000".to_string()],
+    namespace: "test".to_string(),
+    set_name: "cache".to_string(),
+    default_ttl: 3600,
+    ip_map: None, // Docker/NAT 环境设置 IP 转换表
+};
+let backend = AerospikeBackend::new(config).await?;
+```
+
+**不支持的操作：** `len()`、`capacity()`、`keys()`、`clear()` 返回 `Err(NotSupported)`。
 
 ## ChainCache
 

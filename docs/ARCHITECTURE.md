@@ -20,11 +20,11 @@
 Oxcache 是一个多级缓存系统，专为高性能、生产就绪的应用设计。它整合了：
 
 - **L1 缓存**：使用 Moka（LRU/TinyLFU 淘汰）或 DashMap 的内存缓存
-- **L2 缓存**：使用 Redis（Standalone/Sentinel/Cluster）的分布式缓存
-- **ChainCache**：按分数排序的多后端缓存链，支持回填（替代了旧版"分层后端"概念）
+- **L2 缓存**：使用 Redis（Standalone/Sentinel/Cluster）、Valkey、Dragonfly 或 Aerospike 的分布式缓存
+- **ChainCache**：按分数排序的多后端缓存链，支持回填（替代了旧版“分层后端”概念）
 - **同步 API**：异步 API 的同步镜像（`get_sync` / `set_sync` / …），用于非异步调用场景
 - **布隆过滤器**：可选装饰器，在负查询到达内部后端前短路返回
-- **单条目 TTL**：所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）统一支持 `ttl` / `expire` 操作
+- **单条目 TTL**：所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom）统一支持 `ttl` / `expire` 操作
 
 > **说明（v0.3.2）**：0.3.0 之前文档中引用的 Pub/Sub 跨实例失效层和 WAL（Write-Ahead-Log）恢复层**不存在**于 0.3.2 代码库中。多实例一致性由应用负责（如通过 Redis keyspace 通知或外部失效），持久性委托给 Redis 后端本身。
 
@@ -219,9 +219,11 @@ cache.register_for_macro("my_service").await?;
 **模块结构**：
 - `backend/mod.rs` - 模块根和重导出
 - `backend/interface.rs` - `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作
-- `backend/memory/` - 内存后端实现（Moka、DashMap）及 Redis 客户端
+- `backend/memory/` - 内存后端实现（Moka、DashMap）及 Redis/Valkey 客户端
+- `backend/dragonfly/` - Dragonfly 后端（基于 Redis 协议包装）
+- `backend/aerospike/` - Aerospike 后端（独立协议，feature-gated）
 - `backend/score.rs` - `BackendScore` / `Scores` 常量供 `ChainCache` 使用
-- `backend/config_validation.rs` - Redis URL / Sentinel 配置校验
+- `backend/config_validation.rs` - Redis/Valkey URL / Sentinel 配置校验
 
 **后端类型**（重导出在 `oxcache::backend::*`，部分在 crate 根）：
 
@@ -229,8 +231,10 @@ cache.register_for_macro("my_service").await?;
 |------|------|------|------|
 | `MokaMemoryBackend` | `oxcache::backend::MokaMemoryBackend` | `memory` | L1 缓存，Moka（LRU/TinyLFU） |
 | `DashMapMemoryBackend` | `oxcache::backend::DashMapMemoryBackend` | `memory` | 纯内存并发缓存，FIFO O(1) 淘汰 |
-| `RedisBackend` | `oxcache::backend::RedisBackend` | `redis` | L2 分布式缓存 |
-| `RedisBackendBuilder` | `oxcache::backend::RedisBackendBuilder` | `redis` | Redis 构建器（模式、连接池、TLS） |
+| `RedisBackend` | `oxcache::backend::RedisBackend` | `redis` | L2 分布式缓存（Redis/Valkey） |
+| `RedisBackendBuilder` | `oxcache::backend::RedisBackendBuilder` | `redis` | Redis/Valkey 构建器（模式、连接池、TLS） |
+| `DragonflyBackend` | `oxcache::backend::DragonflyBackend` | `dragonfly` | Dragonfly 缓存（Redis 协议兼容） |
+| `AerospikeBackend` | `oxcache::backend::AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储 |
 | `ChainCache` | `oxcache::cache::chain::ChainCache` | — | 按分数排序的多后端缓存链 |
 | `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom-filter` | 负查询过滤装饰器 |
 
