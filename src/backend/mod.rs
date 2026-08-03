@@ -27,6 +27,8 @@ pub mod custom_tiered;
 // Re-exports for new API
 pub use interface::CacheSetItem;
 pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
+// Re-export atomic operation traits
+pub use interface::{AtomicCacheWriter, SyncAtomicCacheWriter};
 // Re-exports for synchronous API (任务组 5)
 pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
 

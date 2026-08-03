@@ -6,7 +6,7 @@
 // 读取时从高分后端开始，写入时写入所有后端。
 
 use crate::backend::BackendScore;
-use crate::backend::{BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend};
+use crate::backend::{AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend};
 use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -382,6 +382,7 @@ impl ChainCache {
     ) {
         for link in &self.links[..from_index] {
             let backend = link.backend().clone();
+            #[cfg(any(feature = "tracing", feature = "full"))]
             let name = link.name();
             if let Err(e) = backend.set(key.clone(), value.clone(), ttl).await {
                 #[cfg(any(feature = "tracing", feature = "full"))]
@@ -391,6 +392,8 @@ impl ChainCache {
                     error = %e,
                     "backfill to higher backend failed"
                 );
+                #[cfg(not(any(feature = "tracing", feature = "full")))]
+                let _ = e;
             }
         }
     }
@@ -640,6 +643,21 @@ impl CacheReader for ChainCache {
 
         Ok(stats)
     }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+        for link in &self.links {
+            if let Ok(keys) = link.backend().keys(pattern).await {
+                for k in keys {
+                    if seen.insert(k.clone()) {
+                        result.push(k);
+                    }
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
 #[async_trait]
@@ -747,3 +765,53 @@ impl CacheConnector for ChainCache {
         BackendKind::Chain
     }
 }
+
+// ============================================================================
+// AtomicCacheWriter for ChainCache (T028)
+// ============================================================================
+
+#[async_trait]
+impl AtomicCacheWriter for ChainCache {
+    /// 委托最高分后端的 `AtomicCacheWriter`。无原子后端时返回 `Err(NotSupported)`。
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        let writer = self.links.first()
+            .and_then(|link| link.backend().as_atomic_writer())
+            .ok_or_else(|| OxCacheError::NotSupported(
+                "incr: no link in chain implements AtomicCacheWriter".to_string(),
+            ))?;
+        writer.incr(key, delta, ttl).await
+    }
+
+    async fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let writer = self.links.first()
+            .and_then(|link| link.backend().as_atomic_writer())
+            .ok_or_else(|| OxCacheError::NotSupported(
+                "compare_and_swap: no link in chain implements AtomicCacheWriter".to_string(),
+            ))?;
+        writer.compare_and_swap(key, expected, new, ttl).await
+    }
+
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let writer = self.links.first()
+            .and_then(|link| link.backend().as_atomic_writer())
+            .ok_or_else(|| OxCacheError::NotSupported(
+                "set_if_absent: no link in chain implements AtomicCacheWriter".to_string(),
+            ))?;
+        writer.set_if_absent(key, value, ttl).await
+    }
+}
+
+// ============================================================================
+// keys() override for ChainCache (T029)
+// ============================================================================

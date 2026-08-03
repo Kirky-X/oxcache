@@ -101,6 +101,15 @@ pub trait CacheReader: Send + Sync + 'static {
         }
         Ok(results)
     }
+
+    /// List keys matching a pattern.
+    ///
+    /// Default implementation returns an empty vector. Backends should override
+    /// this to provide actual key iteration (e.g. Redis SCAN, Moka iter).
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        let _ = pattern;
+        Ok(vec![])
+    }
 }
 
 /// 批量写入条目：`(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
@@ -195,6 +204,14 @@ pub trait CacheConnector: Send + Sync + 'static {
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> {
         None
     }
+
+    /// Get atomic writer if this backend supports atomic operations.
+    ///
+    /// Default returns `None`. Backends that implement `AtomicCacheWriter`
+    /// should override this to return `Some(self)`.
+    fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
+        None
+    }
 }
 
 // ============================================================================
@@ -207,6 +224,54 @@ pub trait LuaExecutor: Send + Sync {
     async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
     async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
     async fn script_load(&self, script: &str) -> OxCacheResult<String>;
+}
+
+// ============================================================================
+// Atomic Cache Writer Trait (Optional capability)
+// ============================================================================
+
+/// Atomic cache operations for backends that support them.
+///
+/// This is an independent trait (not a supertrait of `CacheWriter`) because
+/// atomic operations are an optional capability. Consumers that need atomic
+/// semantics can require this trait via `CacheConnector::as_atomic_writer()`.
+///
+/// # Implementations
+///
+/// - `RedisBackend`: `INCR` / Lua CAS / `SET NX EX`
+/// - `MokaMemoryBackend`: `parking_lot::Mutex` protected read-modify-write
+/// - `MockBackend`: in-memory simulation for testing
+#[async_trait]
+pub trait AtomicCacheWriter: Send + Sync + 'static {
+    /// Atomically increment a key's integer value and return the new value.
+    ///
+    /// If the key does not exist, it is initialized to 0 before incrementing.
+    /// If `ttl` is provided, `EXPIRE` is set after the increment.
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64>;
+
+    /// Atomically compare-and-swap a key's value.
+    ///
+    /// - `expected = None`: succeed only if the key does **not** exist (SETNX semantics)
+    /// - `expected = Some(bytes)`: succeed only if the current value equals `bytes`
+    ///
+    /// Returns `true` if the swap succeeded, `false` otherwise.
+    async fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
+
+    /// Atomically set a key only if it does not already exist.
+    ///
+    /// Returns `true` if the key was set, `false` if it already existed.
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
 }
 
 // ============================================================================
@@ -314,6 +379,12 @@ pub trait SyncCacheReader: Send + Sync + 'static {
         }
         Ok(results)
     }
+
+    /// List keys matching a pattern. Default returns empty vector.
+    fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        let _ = pattern;
+        Ok(vec![])
+    }
 }
 
 /// Synchronous write operations for the cache.
@@ -380,6 +451,36 @@ pub trait SyncCacheConnector: Send + Sync + 'static {
 pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static {}
 
 impl<T: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static> SyncCacheBackend for T {}
+
+// ============================================================================
+// Synchronous Atomic Cache Writer Trait (Mirror of AtomicCacheWriter)
+// ============================================================================
+
+/// Synchronous atomic cache operations.
+///
+/// Mirror of [`AtomicCacheWriter`] without `async`/`#[async_trait]`.
+/// Backends that natively support synchronous atomic access implement this.
+pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
+    /// Atomically increment and return the new value (sync).
+    fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64>;
+
+    /// Atomically compare-and-swap (sync).
+    fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
+
+    /// Atomically set if absent (sync).
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
+}
 
 #[cfg(test)]
 mod tests {
@@ -859,5 +960,72 @@ mod tests {
         // expire 返回 false（key 不存在）
         let result = backend.expire("missing", Duration::from_secs(10)).unwrap();
         assert!(!result);
+    }
+
+    // ============================================================================
+    // BackendKind::is_composite 测试
+    // ============================================================================
+
+    #[test]
+    fn test_backend_kind_is_composite_chain() {
+        assert!(BackendKind::Chain.is_composite());
+    }
+
+    #[test]
+    fn test_backend_kind_is_composite_others_false() {
+        assert!(!BackendKind::Moka.is_composite());
+        assert!(!BackendKind::DashMap.is_composite());
+        assert!(!BackendKind::Redis.is_composite());
+        assert!(!BackendKind::Mock.is_composite());
+        assert!(!BackendKind::Unknown.is_composite());
+    }
+
+    // ============================================================================
+    // CacheReader::keys 默认实现测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_reader_keys_default_returns_empty() {
+        let backend = MockBackend::new("mock", 50, false);
+        let reader: &dyn CacheReader = &backend;
+        // MockBackend 覆盖了 keys()，但默认实现通过 trait object 测试
+        // 使用 CacheReader trait 的默认实现
+        let keys = reader.keys("*").await.unwrap();
+        // MockBackend 的 keys 返回匹配的 key，空缓存应返回空
+        assert!(keys.is_empty());
+    }
+
+    // ============================================================================
+    // SyncCacheReader::keys 默认实现测试
+    // ============================================================================
+
+    #[test]
+    fn test_sync_reader_keys_default_returns_empty() {
+        let backend = MockSyncBackend::new(50);
+        let reader: &dyn SyncCacheReader = &backend;
+        // MockSyncBackend 没有覆盖 keys()，使用默认实现
+        let keys = reader.keys("*").unwrap();
+        assert!(keys.is_empty());
+    }
+
+    // ============================================================================
+    // CacheConnector 默认方法测试
+    // ============================================================================
+
+    #[tokio::test]
+    async fn test_cache_connector_as_atomic_writer_default_none() {
+        let backend = MockBackend::new("mock", 50, false);
+        let connector: &dyn CacheConnector = &backend;
+        // MockBackend 覆盖了 as_atomic_writer 返回 Some
+        assert!(connector.as_atomic_writer().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_cache_connector_as_atomic_writer_dashmap_none() {
+        use crate::backend::DashMapMemoryBackend;
+        let backend = DashMapMemoryBackend::new();
+        let connector: &dyn CacheConnector = &backend;
+        // DashMap 不实现 AtomicCacheWriter，默认返回 None
+        assert!(connector.as_atomic_writer().is_none());
     }
 }

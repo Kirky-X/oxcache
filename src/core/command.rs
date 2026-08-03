@@ -34,6 +34,9 @@ pub enum RedisCommand {
     Eval,
     EvalSha,
     Script,
+    Incr,
+    IncrBy,
+    SetNx,
 }
 
 impl RedisCommand {
@@ -67,6 +70,9 @@ impl RedisCommand {
             Self::Eval => "EVAL",
             Self::EvalSha => "EVALSHA",
             Self::Script => "SCRIPT",
+            Self::Incr => "INCR",
+            Self::IncrBy => "INCRBY",
+            Self::SetNx => "SETNX",
         }
     }
 }
@@ -107,6 +113,9 @@ mod tests {
             RedisCommand::Eval,
             RedisCommand::EvalSha,
             RedisCommand::Script,
+            RedisCommand::Incr,
+            RedisCommand::IncrBy,
+            RedisCommand::SetNx,
         ];
         for cmd in &variants {
             assert!(!cmd.as_str().is_empty(), "Command {:?} has empty as_str()", cmd);
