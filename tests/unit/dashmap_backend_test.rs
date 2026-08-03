@@ -60,7 +60,10 @@ async fn test_dashmap_builder_with_ttl_default_ttl() {
 async fn test_dashmap_set_and_get_basic_roundtrip() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     let value = backend.get("key1").await.unwrap();
     assert_eq!(value, Some(b"value1".to_vec()));
 }
@@ -76,7 +79,10 @@ async fn test_dashmap_get_nonexistent_returns_none() {
 async fn test_dashmap_delete_removes_key() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(backend.exists("key1").await.unwrap());
 
     backend.delete("key1").await.unwrap();
@@ -88,7 +94,10 @@ async fn test_dashmap_exists_checks_key_presence() {
     let backend = DashMapMemoryBackend::new();
 
     assert!(!backend.exists("key1").await.unwrap());
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(backend.exists("key1").await.unwrap());
 }
 
@@ -96,8 +105,14 @@ async fn test_dashmap_exists_checks_key_presence() {
 async fn test_dashmap_clear_empties_all() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
 
     backend.clear().await.unwrap();
 
@@ -110,7 +125,10 @@ async fn test_dashmap_clear_empties_all() {
 async fn test_dashmap_close_shutdown_empties() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     backend.shutdown().await;
 
     assert!(backend.is_empty().await.unwrap());
@@ -121,7 +139,11 @@ async fn test_dashmap_ttl_returns_remaining() {
     let backend = DashMapMemoryBackend::new();
 
     backend
-        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("key1"),
+            Arc::new(b"value1".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
@@ -141,7 +163,10 @@ async fn test_dashmap_ttl_nonexistent_returns_none() {
 async fn test_dashmap_expire_sets_ttl() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     let ttl_before = backend.ttl("key1").await.unwrap();
     assert!(ttl_before.is_none());
 
@@ -169,7 +194,10 @@ async fn test_dashmap_health_check_returns_ok() {
 async fn test_dashmap_stats_returns_metrics() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     backend.get("key1").await.unwrap();
     backend.get("nonexistent").await.unwrap();
 
@@ -188,10 +216,16 @@ async fn test_dashmap_len_tracks_count() {
 
     assert_eq!(backend.len().await.unwrap(), 0);
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert_eq!(backend.len().await.unwrap(), 1);
 
-    backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
     assert_eq!(backend.len().await.unwrap(), 2);
 
     backend.delete("key1").await.unwrap();
@@ -215,7 +249,10 @@ fn test_dashmap_hit_rate_empty() {
 async fn test_dashmap_hit_rate_with_hits() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     backend.get("key1").await.unwrap();
     backend.get("key1").await.unwrap();
     backend.get("nonexistent").await.unwrap();
@@ -274,8 +311,14 @@ fn test_convenience_dashmap_memory_with_capacity_and_ttl_custom() {
 async fn test_dashmap_overwrite_replaces_value() {
     let backend = DashMapMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from("key1"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
 
     let value = backend.get("key1").await.unwrap();
     assert_eq!(value, Some(b"value2".to_vec()));
@@ -286,7 +329,10 @@ async fn test_dashmap_large_value_handles_1mb() {
     let backend = DashMapMemoryBackend::new();
     let large_value = vec![0u8; 1024 * 1024];
 
-    backend.set(Arc::from("large_key"), Arc::new(large_value.clone()), None).await.unwrap();
+    backend
+        .set(Arc::from("large_key"), Arc::new(large_value.clone()), None)
+        .await
+        .unwrap();
     let value = backend.get("large_key").await.unwrap();
     assert_eq!(value, Some(large_value));
 }
@@ -298,7 +344,10 @@ async fn test_dashmap_many_keys_handles_100() {
     for i in 0..100 {
         let key = format!("key_{}", i);
         let value = format!("value_{}", i);
-        backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .await
+            .unwrap();
     }
 
     assert_eq!(backend.len().await.unwrap(), 100);
@@ -316,7 +365,11 @@ async fn test_dashmap_ttl_expiration_evicts_after_ttl() {
     let backend = DashMapMemoryBackend::new();
 
     backend
-        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), Some(Duration::from_millis(50)))
+        .set(
+            Arc::from("key1"),
+            Arc::new(b"value1".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
         .await
         .unwrap();
 
@@ -336,7 +389,10 @@ async fn test_dashmap_default_ttl_evicts_after_default() {
         .default_ttl(Duration::from_millis(100))
         .build();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
 
     assert!(backend.get("key1").await.unwrap().is_some());
 

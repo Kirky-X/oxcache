@@ -135,7 +135,12 @@ impl oxcache::backend::CacheReader for FailingBackend {
 #[cfg(feature = "memory")]
 #[async_trait::async_trait]
 impl oxcache::backend::CacheWriter for FailingBackend {
-    async fn set(&self, _key: std::sync::Arc<str>, _value: std::sync::Arc<Vec<u8>>, _ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
+    async fn set(
+        &self,
+        _key: std::sync::Arc<str>,
+        _value: std::sync::Arc<Vec<u8>>,
+        _ttl: Option<Duration>,
+    ) -> oxcache::error::OxCacheResult<()> {
         Err(oxcache::OxCacheError::Connection(
             "failing backend: set unavailable".to_string(),
         ))
@@ -272,7 +277,9 @@ async fn p1_d001_l2_unavailable_l1_continues_serving() {
     let l2 = FailingBackend::new(50); // always fails
 
     // Pre-populate L1.
-    l1.set(Arc::from("hot_key"), Arc::new(b"hot_value".to_vec()), None).await.expect("l1 set");
+    l1.set(Arc::from("hot_key"), Arc::new(b"hot_value".to_vec()), None)
+        .await
+        .expect("l1 set");
 
     let chain = ChainCache::builder()
         .link(ChainLink::from_backend(l1))
@@ -358,7 +365,10 @@ async fn b001_moka_capacity_zero_defaults_to_10000() {
     assert_eq!(backend.capacity(), 10_000);
 
     // Basic operations still work.
-    backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.expect("set must succeed");
+    backend
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+        .await
+        .expect("set must succeed");
     let val = backend.get("k").await.expect("get must succeed");
     assert_eq!(val, Some(b"v".to_vec()));
 }
@@ -372,7 +382,11 @@ async fn b002_dashmap_lazy_ttl_expired_entry_not_removed() {
 
     let backend = DashMapMemoryBackend::new();
     backend
-        .set(Arc::from("temp"), Arc::new(b"data".to_vec()), Some(Duration::from_millis(50)))
+        .set(
+            Arc::from("temp"),
+            Arc::new(b"data".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
         .await
         .expect("set with TTL");
 
@@ -402,7 +416,9 @@ async fn b006_moka_mock_chain_backfill_populates_l1() {
     let l2 = MockBackend::with_data("mock_l2", 50, false); // score 50
 
     // Pre-populate L2 only.
-    l2.set(Arc::from("bf_key"), Arc::new(b"from_l2".to_vec()), None).await.expect("l2 set");
+    l2.set(Arc::from("bf_key"), Arc::new(b"from_l2".to_vec()), None)
+        .await
+        .expect("l2 set");
 
     let chain = ChainCache::builder()
         .link(ChainLink::from_backend(l1.clone()))
@@ -456,7 +472,10 @@ async fn b009_bloom_filter_moka_skips_negative_query() {
     let bf_backend = BloomFilterBackend::new(inner);
 
     // Set a key — inserts into BF + inner.
-    bf_backend.set(Arc::from("exists"), Arc::new(b"yes".to_vec()), None).await.expect("set");
+    bf_backend
+        .set(Arc::from("exists"), Arc::new(b"yes".to_vec()), None)
+        .await
+        .expect("set");
 
     // Get existing key — BF says "maybe", inner returns value.
     assert_eq!(bf_backend.get("exists").await.unwrap(), Some(b"yes".to_vec()));
@@ -478,7 +497,10 @@ async fn b010_bloom_filter_delete_does_not_remove_from_filter() {
     let inner = MokaMemoryBackend::new();
     let bf_backend = BloomFilterBackend::new(inner);
 
-    bf_backend.set(Arc::from("del_key"), Arc::new(b"val".to_vec()), None).await.expect("set");
+    bf_backend
+        .set(Arc::from("del_key"), Arc::new(b"val".to_vec()), None)
+        .await
+        .expect("set");
 
     // Delete — removes from inner, BF untouched.
     bf_backend.delete("del_key").await.expect("delete");
@@ -759,7 +781,11 @@ async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
 
     let backend = DashMapMemoryBackend::new();
     backend
-        .set(Arc::from("lazy"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+        .set(
+            Arc::from("lazy"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
         .await
         .expect("set");
 
@@ -999,7 +1025,9 @@ async fn c008_concurrent_backfill_idempotent() {
     let l1 = Arc::new(MokaMemoryBackend::new());
     let l2 = MockBackend::with_data("l2", 50, false);
 
-    l2.set(Arc::from("bf_concurrent"), Arc::new(b"shared".to_vec()), None).await.expect("l2 set");
+    l2.set(Arc::from("bf_concurrent"), Arc::new(b"shared".to_vec()), None)
+        .await
+        .expect("l2 set");
 
     let chain = Arc::new(
         ChainCache::builder()

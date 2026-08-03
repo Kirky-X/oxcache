@@ -4,8 +4,8 @@
 
 use super::Serializer;
 use super::utils::{check_data_size, compress_data, decompress_data_with_limit};
-use crate::error::OxCacheResult;
 use crate::core::MAX_JSON_SIZE;
+use crate::error::OxCacheResult;
 
 /// JSON序列化器
 ///
