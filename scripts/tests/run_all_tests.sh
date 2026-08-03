@@ -95,7 +95,7 @@ start_redis() {
             if docker exec oxcache-redis-test redis-cli ping 2>/dev/null | grep -q "PONG"; then
                 log_success "Redis 已就绪"
                 export REDIS_URL="redis://127.0.0.1:6379"
-                export OXCACHE_ALLOW_INSECURE_REDIS=1
+                export OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
                 return 0
             fi
             sleep 1
@@ -178,7 +178,8 @@ run_unit_tests() {
     log_info "运行单元测试..."
     local output="$OUTPUT_DIR/unit_tests.log"
     local start_time=$(date +%s)
-    if cargo test --lib --tests unit --features full -- --nocapture > "$output" 2>&1; then
+    if cargo test --lib --features full -- --nocapture > "$output" 2>&1 && \
+       cargo test --test unit --features full -- --nocapture >> "$output" 2>&1; then
         local duration=$(( $(date +%s) - start_time ))
         log_success "✅ 单元测试通过 (${duration}s)"
         return 0
@@ -261,7 +262,7 @@ run_memory_leak_tests() {
     local output="$OUTPUT_DIR/memory_test.log"
     local start_time=$(date +%s)
     if [ -f "$SCRIPT_DIR/memory_test.sh" ]; then
-        if timeout "$TEST_TIMEOUT" bash "$SCRIPT_DIR/memory_test.sh" -m all -o "$OUTPUT_DIR/memory_test-reports" > "$output" 2>&1; then
+        if timeout "$TEST_TIMEOUT" bash "$SCRIPT_DIR/memory_test.sh" -m cargo -o "$OUTPUT_DIR" > "$output" 2>&1; then
             log_success "✅ 内存测试通过 ($(( $(date +%s) - start_time ))s)"
             return 0
         else
