@@ -18,6 +18,9 @@ pub enum RedisModeType {
     Sentinel,
     /// 集群模式
     Cluster,
+    /// Valkey 单机模式（Redis 协议兼容，显式标识用于监控区分）
+    #[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename = "valkey_standalone"))]
+    ValkeyStandalone,
 }
 
 impl std::fmt::Display for RedisModeType {
@@ -26,6 +29,7 @@ impl std::fmt::Display for RedisModeType {
             Self::Standalone => write!(f, "standalone"),
             Self::Sentinel => write!(f, "sentinel"),
             Self::Cluster => write!(f, "cluster"),
+            Self::ValkeyStandalone => write!(f, "valkey_standalone"),
         }
     }
 }
@@ -44,8 +48,11 @@ impl std::str::FromStr for RedisModeType {
         if s.eq_ignore_ascii_case("cluster") {
             return Ok(Self::Cluster);
         }
+        if s.eq_ignore_ascii_case("valkey_standalone") {
+            return Ok(Self::ValkeyStandalone);
+        }
         Err(format!(
-            "Invalid RedisModeType: '{}'. Expected: standalone, sentinel, or cluster",
+            "Invalid RedisModeType: '{}'. Expected: standalone, sentinel, cluster, or valkey_standalone",
             s
         ))
     }
@@ -156,6 +163,7 @@ mod tests {
         assert_eq!(format!("{}", RedisModeType::Standalone), "standalone");
         assert_eq!(format!("{}", RedisModeType::Sentinel), "sentinel");
         assert_eq!(format!("{}", RedisModeType::Cluster), "cluster");
+        assert_eq!(format!("{}", RedisModeType::ValkeyStandalone), "valkey_standalone");
     }
 
     #[test]
@@ -167,6 +175,42 @@ mod tests {
         assert_eq!("SENTINEL".parse::<RedisModeType>().unwrap(), RedisModeType::Sentinel);
         assert_eq!("Cluster".parse::<RedisModeType>().unwrap(), RedisModeType::Cluster);
         assert!("invalid".parse::<RedisModeType>().is_err());
+    }
+
+    #[test]
+    fn test_redis_mode_type_valkey_standalone() {
+        // ValkeyStandalone variant exists and is distinct from Standalone
+        assert_ne!(RedisModeType::ValkeyStandalone, RedisModeType::Standalone);
+        // Debug
+        assert!(format!("{:?}", RedisModeType::ValkeyStandalone).contains("ValkeyStandalone"));
+        // Clone + Eq
+        let mode = RedisModeType::ValkeyStandalone;
+        assert_eq!(mode, RedisModeType::ValkeyStandalone);
+    }
+
+    #[test]
+    fn test_redis_mode_type_valkey_from_str() {
+        assert_eq!(
+            "valkey_standalone".parse::<RedisModeType>().unwrap(),
+            RedisModeType::ValkeyStandalone
+        );
+        assert_eq!(
+            "VALKEY_STANDALONE".parse::<RedisModeType>().unwrap(),
+            RedisModeType::ValkeyStandalone
+        );
+    }
+
+    #[test]
+    fn test_redis_mode_type_valkey_serialize() {
+        let mode = RedisModeType::ValkeyStandalone;
+        let json = serde_json::to_string(&mode).unwrap();
+        assert_eq!(json, "\"valkey_standalone\"");
+    }
+
+    #[test]
+    fn test_redis_mode_type_valkey_deserialize() {
+        let mode: RedisModeType = serde_json::from_str("\"valkey_standalone\"").unwrap();
+        assert_eq!(mode, RedisModeType::ValkeyStandalone);
     }
 
     #[test]
