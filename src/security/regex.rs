@@ -4,6 +4,9 @@
 //
 // Provides protection against ReDoS attacks and regex complexity limits.
 
+// Public API surface — re-exported via security::mod.rs for external consumers.
+#![allow(dead_code)]
+
 use crate::error::{OxCacheError, OxCacheResult};
 use regex::Regex;
 
