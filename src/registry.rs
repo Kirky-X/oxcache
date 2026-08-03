@@ -215,4 +215,52 @@ mod tests {
         ensure_initialized();
         assert!(is_initialized(), "is_initialized should return true after init");
     }
+
+    #[test]
+    fn test_registry_debug_format() {
+        ensure_initialized();
+        // Access the registry via CACHE_REGISTRY to test Debug impl
+        let registry = CACHE_REGISTRY.get().unwrap();
+        let debug_str = format!("{:?}", registry);
+        assert!(debug_str.contains("Registry"));
+        assert!(debug_str.contains("cache_count"));
+    }
+
+    #[test]
+    fn test_init_with_default_cache() {
+        // init() with a default cache backend inserts it under "default" key
+        // Since registry may already be initialized, we test the register+get flow
+        // which exercises the same code path as init's insert
+        ensure_initialized();
+        let backend: Arc<dyn CacheBackend> = Arc::new(MokaMemoryBackend::new());
+        register("default", backend);
+        let retrieved = get("default");
+        assert!(retrieved.is_some(), "default cache should be retrievable after register");
+    }
+
+    #[test]
+    fn test_register_multiple_backends_and_clear() {
+        ensure_initialized();
+
+        let b1: Arc<dyn CacheBackend> = Arc::new(MokaMemoryBackend::new());
+        let b2: Arc<dyn CacheBackend> = Arc::new(MokaMemoryBackend::new());
+        let b3: Arc<dyn CacheBackend> = Arc::new(MokaMemoryBackend::new());
+
+        register("multi_1", b1);
+        register("multi_2", b2);
+        register("multi_3", b3);
+
+        assert!(get("multi_1").is_some());
+        assert!(get("multi_2").is_some());
+        assert!(get("multi_3").is_some());
+
+        // Use remove() instead of clear() to avoid race with other tests
+        assert!(remove("multi_1").is_some());
+        assert!(remove("multi_2").is_some());
+        assert!(remove("multi_3").is_some());
+
+        assert!(get("multi_1").is_none());
+        assert!(get("multi_2").is_none());
+        assert!(get("multi_3").is_none());
+    }
 }

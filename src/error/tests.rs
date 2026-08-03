@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! error 模块单元测试
 
-use super::{OxCacheConfigError, OxCacheError};
+use super::OxCacheError;
+#[cfg(feature = "redis")]
+use super::OxCacheConfigError;
 
 // ============================================================================
 // OxCacheConfigError Display tests

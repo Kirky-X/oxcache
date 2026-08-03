@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Moka-based memory backend implementation
 
+use crate::backend::interface::AtomicCacheWriter;
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 // Sync trait 实现使用全限定路径（`crate::backend::SyncCacheReader`），
 // 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
@@ -130,6 +131,10 @@ impl CacheReader for MokaMemoryBackend {
         stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
         Ok(stats)
     }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        Ok(self.keys_matching(pattern).await)
+    }
 }
 
 #[async_trait]
@@ -191,6 +196,10 @@ impl CacheConnector for MokaMemoryBackend {
 
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Moka
+    }
+
+    fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
+        Some(self)
     }
 }
 
@@ -342,6 +351,31 @@ impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
     }
 }
 
+impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
+    fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        sync_block_on(AtomicCacheWriter::incr(self, key, delta, ttl))
+    }
+
+    fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        sync_block_on(AtomicCacheWriter::compare_and_swap(self, key, expected, new, ttl))
+    }
+
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        sync_block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))
+    }
+}
+
 // CacheBackend is automatically implemented via blanket implementation
 
 impl BackendScore for MokaMemoryBackend {
@@ -355,6 +389,186 @@ impl BackendScore for MokaMemoryBackend {
 
     fn backend_name(&self) -> &'static str {
         "moka"
+    }
+}
+
+// ============================================================================
+// AtomicCacheWriter Implementation
+// ============================================================================
+
+/// Simple glob pattern matching: supports `*` (any chars) and `?` (single char).
+fn glob_matches(pattern: &str, text: &str) -> bool {
+    let mut p = pattern.chars().peekable();
+    let mut t = text.chars().peekable();
+
+    while let Some(pc) = p.peek() {
+        match pc {
+            '*' => {
+                p.next();
+                // Trailing '*' matches everything
+                if p.peek().is_none() {
+                    return true;
+                }
+                // Try matching rest of pattern at every position
+                let remaining_pattern: String = p.collect();
+                let remaining_text: String = t.collect();
+                for i in 0..=remaining_text.len() {
+                    if glob_matches(&remaining_pattern, &remaining_text[i..]) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            '?' => {
+                if t.next().is_none() {
+                    return false;
+                }
+                p.next();
+            }
+            _ => {
+                match t.next() {
+                    Some(tc) if tc == *pc => { p.next(); }
+                    _ => return false,
+                }
+            }
+        }
+    }
+    t.peek().is_none()
+}
+
+#[async_trait]
+impl AtomicCacheWriter for MokaMemoryBackend {
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        let key_arc: Arc<str> = Arc::from(key);
+        let expires_at = ttl.map(|d| Instant::now() + d);
+
+        let result = self
+            .cache
+            .entry(key_arc.clone())
+            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                let current_val = match maybe_entry {
+                    Some(entry) => {
+                        let old = entry.into_value();
+                        // Parse existing value as i64
+                        String::from_utf8(old.value)
+                            .ok()
+                            .and_then(|s| s.parse::<i64>().ok())
+                            .unwrap_or(0)
+                    }
+                    None => 0,
+                };
+                let new_val = current_val + delta;
+                Op::Put(MokaEntry {
+                    value: new_val.to_string().into_bytes(),
+                    expires_at,
+                })
+            })
+            .await;
+
+        match result {
+            CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) => {
+                let val_str = String::from_utf8(entry.value().value.clone()).unwrap_or_default();
+                Ok(val_str.parse::<i64>().unwrap_or(0))
+            }
+            _ => Err(crate::error::OxCacheError::Operation(
+                "incr: unexpected compute result".to_string(),
+            )),
+        }
+    }
+
+    async fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let key_arc: Arc<str> = Arc::from(key);
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        let expected_owned = expected.map(|b| b.to_vec());
+        let new_clone = new.clone();
+
+        let result = self
+            .cache
+            .entry(key_arc)
+            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                match &expected_owned {
+                    None => {
+                        // SETNX: set only if key doesn't exist
+                        if maybe_entry.is_none() {
+                            Op::Put(MokaEntry {
+                                value: new_clone,
+                                expires_at,
+                            })
+                        } else {
+                            Op::Nop
+                        }
+                    }
+                    Some(exp_bytes) => {
+                        // CAS: set only if current value matches
+                        match &maybe_entry {
+                            Some(entry) if entry.value().value == *exp_bytes => {
+                                Op::Put(MokaEntry {
+                                    value: new_clone,
+                                    expires_at,
+                                })
+                            }
+                            _ => Op::Nop,
+                        }
+                    }
+                }
+            })
+            .await;
+
+        match result {
+            CompResult::Inserted(_) | CompResult::ReplacedWith(_) => Ok(true),
+            _ => Ok(false),
+        }
+    }
+
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let key_arc: Arc<str> = Arc::from(key);
+        let expires_at = ttl.map(|d| Instant::now() + d);
+
+        let result = self
+            .cache
+            .entry(key_arc)
+            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                if maybe_entry.is_none() {
+                    Op::Put(MokaEntry {
+                        value,
+                        expires_at,
+                    })
+                } else {
+                    Op::Nop
+                }
+            })
+            .await;
+
+        match result {
+            CompResult::Inserted(_) => Ok(true),
+            _ => Ok(false),
+        }
+    }
+}
+
+// Override keys() for CacheReader
+impl MokaMemoryBackend {
+    /// List keys matching a glob pattern.
+    pub async fn keys_matching(&self, pattern: &str) -> Vec<String> {
+        let mut keys = Vec::new();
+        for (key_arc, _entry) in self.cache.iter() {
+            let key_str: &str = key_arc.as_ref();
+            if glob_matches(pattern, key_str) {
+                keys.push(key_str.to_string());
+            }
+        }
+        keys
     }
 }
 
@@ -782,7 +996,7 @@ mod tests {
 
         // 回归（问题 3.2）：在 current-thread runtime 的异步上下文内调用同步方法，
         // 不得因嵌套 `block_on` 触发 "Cannot block the current thread from within
-        // a runtime" panic。修复后 sync_block_on 在该场景走手动 poll 分支。
+        // a runtime" panic。修复后 sync_blockon 在该场景走手动 poll 分支。
         #[test]
         fn test_moka_sync_ops_inside_current_thread_runtime() {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -803,5 +1017,160 @@ mod tests {
                 assert!(!reader.exists("ct").unwrap());
             });
         }
+    }
+
+    // ========================================================================
+    // glob_matches unit tests
+    // ========================================================================
+
+    #[test]
+    fn test_glob_matches_exact() {
+        assert!(glob_matches("hello", "hello"));
+        assert!(!glob_matches("hello", "world"));
+        assert!(!glob_matches("hello", "hell"));
+        assert!(!glob_matches("hell", "hello"));
+    }
+
+    #[test]
+    fn test_glob_matches_star() {
+        assert!(glob_matches("*", ""));
+        assert!(glob_matches("*", "anything"));
+        assert!(glob_matches("hello*", "hello"));
+        assert!(glob_matches("hello*", "helloworld"));
+        assert!(glob_matches("*world", "helloworld"));
+        assert!(glob_matches("he*ld", "helloworld"));
+        assert!(!glob_matches("he*ld", "hello"));
+    }
+
+    #[test]
+    fn test_glob_matches_question_mark() {
+        assert!(glob_matches("h?llo", "hello"));
+        assert!(glob_matches("?????", "hello"));
+        assert!(!glob_matches("????", "hello"));
+        assert!(!glob_matches("??????", "hello"));
+        assert!(!glob_matches("?", ""));
+    }
+
+    #[test]
+    fn test_glob_matches_combined() {
+        assert!(glob_matches("h*o", "hello"));
+        assert!(glob_matches("h*o", "ho"));
+        assert!(glob_matches("h?l*w", "hellow"));
+        assert!(glob_matches("a*b*c", "abc"));
+        assert!(glob_matches("a*b*c", "aXbYc"));
+        assert!(!glob_matches("a*b*c", "aXbY"));
+    }
+
+    #[test]
+    fn test_glob_matches_empty() {
+        assert!(glob_matches("", ""));
+        assert!(!glob_matches("", "a"));
+        assert!(glob_matches("*", ""));
+    }
+
+    // ========================================================================
+    // keys_matching / keys() with patterns
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_moka_keys_matching_glob() {
+        let backend = MokaMemoryBackend::new();
+        backend.set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None).await.unwrap();
+
+        let all = backend.keys_matching("*").await;
+        assert_eq!(all.len(), 3);
+
+        let users = backend.keys_matching("user:*").await;
+        assert_eq!(users.len(), 2);
+
+        let sessions = backend.keys_matching("session:*").await;
+        assert_eq!(sessions.len(), 1);
+
+        let none = backend.keys_matching("nope:*").await;
+        assert!(none.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_moka_keys_via_cache_reader() {
+        let backend = MokaMemoryBackend::new();
+        backend.set(Arc::from("a"), Arc::new(b"1".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("b"), Arc::new(b"2".to_vec()), None).await.unwrap();
+
+        let keys = CacheReader::keys(&backend, "*").await.unwrap();
+        assert_eq!(keys.len(), 2);
+    }
+
+    // ========================================================================
+    // Debug impl & entry_count
+    // ========================================================================
+
+    #[test]
+    fn test_moka_backend_debug() {
+        let backend = MokaMemoryBackend::new();
+        let debug_str = format!("{:?}", backend);
+        assert!(debug_str.contains("MokaMemoryBackend"));
+        assert!(debug_str.contains("capacity"));
+    }
+
+    #[test]
+    fn test_moka_backend_entry_count() {
+        let backend = MokaMemoryBackend::new();
+        assert_eq!(backend.entry_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_moka_backend_entry_count_after_insert() {
+        let backend = MokaMemoryBackend::new();
+        backend.set(Arc::from("k1"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("k2"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        // moka async insertion may need a moment to register
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // entry_count is eventually consistent; just verify it doesn't panic
+        let _ = backend.entry_count();
+    }
+
+    // ========================================================================
+    // SyncAtomicCacheWriter tests
+    // ========================================================================
+
+    #[test]
+    fn test_moka_sync_atomic_incr() {
+        let backend = MokaMemoryBackend::new();
+        let val = crate::backend::SyncAtomicCacheWriter::incr(&backend, "c", 5, None).unwrap();
+        assert_eq!(val, 5);
+        let val = crate::backend::SyncAtomicCacheWriter::incr(&backend, "c", 3, None).unwrap();
+        assert_eq!(val, 8);
+    }
+
+    #[test]
+    fn test_moka_sync_atomic_cas() {
+        let backend = MokaMemoryBackend::new();
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend, "k", None, b"v1".to_vec(), None,
+        ).unwrap();
+        assert!(ok);
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend, "k", Some(b"v1"), b"v2".to_vec(), None,
+        ).unwrap();
+        assert!(ok);
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend, "k", Some(b"v1"), b"v3".to_vec(), None,
+        ).unwrap();
+        assert!(!ok);
+    }
+
+    #[test]
+    fn test_moka_sync_atomic_set_if_absent() {
+        let backend = MokaMemoryBackend::new();
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
+            &backend, "k", b"v".to_vec(), None,
+        ).unwrap();
+        assert!(ok);
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
+            &backend, "k", b"v2".to_vec(), None,
+        ).unwrap();
+        assert!(!ok);
     }
 }

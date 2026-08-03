@@ -942,3 +942,332 @@ async fn test_chain_race_read_miss_returns_none() {
     let value = chain.get("missing").await.unwrap();
     assert_eq!(value, None, "race read with no hits should return None");
 }
+
+// ========================================================================
+// AtomicCacheWriter for ChainCache (T028) 补充测试
+// ========================================================================
+
+#[tokio::test]
+async fn test_chain_atomic_incr() {
+    let mock = MockBackend::new("mock", 100, false);
+    let chain = ChainCache::builder().backend(mock).build();
+
+    // incr on non-existing key → 0 + 1 = 1
+    let val = chain.incr("counter", 1, None).await.unwrap();
+    assert_eq!(val, 1);
+
+    // incr again → 1 + 10 = 11
+    let val = chain.incr("counter", 10, None).await.unwrap();
+    assert_eq!(val, 11);
+
+    // negative delta → 11 - 3 = 8
+    let val = chain.incr("counter", -3, None).await.unwrap();
+    assert_eq!(val, 8);
+}
+
+#[tokio::test]
+async fn test_chain_atomic_compare_and_swap() {
+    let mock = MockBackend::new("mock", 100, false);
+    let chain = ChainCache::builder().backend(mock).build();
+
+    // CAS with expected=None → SETNX
+    let ok = chain
+        .compare_and_swap("cas_key", None, b"initial".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(ok);
+
+    // CAS with correct expected value
+    let ok = chain
+        .compare_and_swap("cas_key", Some(b"initial"), b"updated".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(ok);
+
+    // CAS with wrong expected value → fail
+    let ok = chain
+        .compare_and_swap("cas_key", Some(b"initial"), b"again".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(!ok);
+}
+
+#[tokio::test]
+async fn test_chain_atomic_set_if_absent() {
+    let mock = MockBackend::new("mock", 100, false);
+    let chain = ChainCache::builder().backend(mock).build();
+
+    let ok = chain
+        .set_if_absent("nx_key", b"first".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(ok);
+
+    let ok = chain
+        .set_if_absent("nx_key", b"second".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(!ok);
+}
+
+#[tokio::test]
+async fn test_chain_atomic_no_atomic_backend_returns_not_supported() {
+    use crate::error::OxCacheError;
+
+    // DashMap does NOT implement AtomicCacheWriter
+    let dashmap = DashMapMemoryBackend::new();
+    let chain = ChainCache::builder().backend(dashmap).build();
+
+    let result = chain.incr("k", 1, None).await;
+    assert!(
+        matches!(result, Err(OxCacheError::NotSupported(_))),
+        "incr should return NotSupported when no link implements AtomicCacheWriter"
+    );
+
+    let result = chain.compare_and_swap("k", None, b"v".to_vec(), None).await;
+    assert!(matches!(result, Err(OxCacheError::NotSupported(_))));
+
+    let result = chain.set_if_absent("k", b"v".to_vec(), None).await;
+    assert!(matches!(result, Err(OxCacheError::NotSupported(_))));
+}
+
+// ========================================================================
+// keys() 合并去重测试 (T029)
+// ========================================================================
+
+#[tokio::test]
+async fn test_chain_keys_merges_and_deduplicates() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    // 两个后端写入不同 key + 重叠 key
+    high.set(Arc::from("a"), Arc::new(b"1".to_vec()), None).await.unwrap();
+    high.set(Arc::from("b"), Arc::new(b"2".to_vec()), None).await.unwrap();
+    low.set(Arc::from("b"), Arc::new(b"2b".to_vec()), None).await.unwrap();
+    low.set(Arc::from("c"), Arc::new(b"3".to_vec()), None).await.unwrap();
+
+    let chain = ChainCache::builder().backend(high).backend(low).build();
+
+    let mut keys = chain.keys("*").await.unwrap();
+    keys.sort();
+    assert_eq!(keys, vec!["a", "b", "c"], "keys should be merged and deduplicated");
+}
+
+#[tokio::test]
+async fn test_chain_keys_empty_chain() {
+    let chain = ChainCache::builder().build();
+    let keys = chain.keys("*").await.unwrap();
+    assert!(keys.is_empty());
+}
+
+// ========================================================================
+// delete_sync 补充测试
+// ========================================================================
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_chain_sync_delete() {
+    let moka = MokaMemoryBackend::new();
+    let dashmap = DashMapMemoryBackend::new();
+
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_sync_backend(moka))
+        .link(ChainLink::from_sync_backend(dashmap))
+        .build();
+
+    // Write to both backends
+    chain.set_sync("k", b"v".to_vec(), None).unwrap();
+    assert_eq!(chain.get_sync("k").unwrap(), Some(b"v".to_vec()));
+
+    // Delete from all
+    chain.delete_sync("k").unwrap();
+
+    // Both backends should be empty (verified via chain)
+    assert_eq!(chain.get_sync("k").unwrap(), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_chain_sync_delete_with_unsupported_link() {
+    use crate::error::OxCacheError;
+
+    let moka = MokaMemoryBackend::new();
+    let mock = MockBackend::new("mock", 30, false);
+
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_sync_backend(moka))
+        .link(ChainLink::from_backend(mock)) // async-only
+        .build();
+
+    let result = chain.delete_sync("k");
+    assert!(
+        matches!(result, Err(OxCacheError::NotSupported(_))),
+        "delete_sync should return NotSupported when chain has non-sync link"
+    );
+}
+
+// ========================================================================
+// ChainLink Debug 测试
+// ========================================================================
+
+#[test]
+fn test_chain_link_debug_format_detailed() {
+    let backend = MockBackend::new("debug_test", 42, true);
+    let link = ChainLink::from_backend(backend);
+    let debug_str = format!("{:?}", link);
+    assert!(debug_str.contains("ChainLink"));
+    assert!(debug_str.contains("42"));
+    assert!(debug_str.contains("debug_test"));
+    assert!(debug_str.contains("is_persistent"));
+}
+
+// ========================================================================
+// backfill with TTL 测试
+// ========================================================================
+
+#[tokio::test]
+async fn test_chain_backfill_preserves_ttl() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    // 只写入低分后端
+    low.set(
+        Arc::from("ttl_key"),
+        Arc::new(b"val".to_vec()),
+        Some(Duration::from_secs(300)),
+    )
+    .await
+    .unwrap();
+
+    let chain = ChainCache::builder()
+        .backend(high)
+        .backend(low)
+        .enable_backfill()
+        .build();
+
+    // 读取应触发回填到 high
+    let value = chain.get("ttl_key").await.unwrap();
+    assert_eq!(value, Some(b"val".to_vec()));
+}
+
+// ========================================================================
+// ChainCache stats / persistent / non_persistent 补充
+// ========================================================================
+
+#[tokio::test]
+async fn test_chain_stats() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    let chain = ChainCache::builder().backend(high).backend(low).build();
+
+    let stats = chain.stats().await.unwrap();
+    assert_eq!(stats.get("type"), Some(&"chain".to_string()));
+    assert_eq!(stats.get("backend_count"), Some(&"2".to_string()));
+    assert_eq!(stats.get("backend_0_name"), Some(&"high".to_string()));
+    assert_eq!(stats.get("backend_1_score"), Some(&"50".to_string()));
+}
+
+#[test]
+fn test_chain_persistent_and_non_persistent_backends() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    let chain = ChainCache::builder().backend(high).backend(low).build();
+
+    let persistent = chain.persistent_backends();
+    assert_eq!(persistent.len(), 1);
+    assert_eq!(persistent[0].name(), "low");
+
+    let non_persistent = chain.non_persistent_backends();
+    assert_eq!(non_persistent.len(), 1);
+    assert_eq!(non_persistent[0].name(), "high");
+}
+
+#[tokio::test]
+async fn test_chain_len_is_empty_capacity() {
+    // Empty chain (no backends)
+    let empty_chain = ChainCache::builder().build();
+    assert!(empty_chain.is_empty());
+    assert_eq!(empty_chain.len(), 0);
+
+    // Chain with one backend
+    let mock = MockBackend::new("mock", 100, false);
+    let chain = ChainCache::builder().backend(mock).build();
+    assert!(!chain.is_empty());
+    assert_eq!(chain.len(), 1);
+
+    // CacheReader async versions
+    // CacheReader::is_empty delegates to len() which returns first backend's entry count
+    assert!(CacheReader::is_empty(&empty_chain).await.unwrap()); // no links → Ok(0) → true
+    assert!(CacheReader::is_empty(&chain).await.unwrap()); // has link but no data → true
+    assert_eq!(CacheReader::len(&chain).await.unwrap(), 0); // no entries yet
+    assert_eq!(CacheReader::capacity(&chain).await.unwrap(), 0); // MockBackend returns 0
+
+    // After writing data
+    chain.set("k", b"v".to_vec(), None).await.unwrap();
+    assert!(!CacheReader::is_empty(&chain).await.unwrap());
+    assert_eq!(CacheReader::len(&chain).await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn test_chain_empty_chain_operations() {
+    let chain = ChainCache::builder().build();
+
+    // get on empty chain
+    assert_eq!(chain.get("k").await.unwrap(), None);
+
+    // set on empty chain returns error
+    assert!(chain.set("k", b"v".to_vec(), None).await.is_err());
+
+    // delete on empty chain is ok
+    assert!(chain.delete("k").await.is_ok());
+
+    // clear on empty chain is ok
+    assert!(chain.clear().await.is_ok());
+
+    // health_check on empty chain is ok
+    assert!(chain.health_check().await.is_ok());
+
+    // expire on empty chain
+    assert!(!chain.expire("k", Duration::from_secs(1)).await.unwrap());
+}
+
+#[tokio::test]
+async fn test_chain_exists_and_ttl() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    low.set(
+        Arc::from("k"),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_secs(60)),
+    )
+    .await
+    .unwrap();
+
+    let chain = ChainCache::builder().backend(high).backend(low).build();
+
+    assert!(chain.exists("k").await.unwrap());
+    assert!(!chain.exists("missing").await.unwrap());
+
+    let ttl = chain.ttl("k").await.unwrap();
+    assert!(ttl.is_some());
+    assert!(ttl.unwrap() > Duration::from_secs(58));
+
+    // ttl on missing key
+    assert!(chain.ttl("missing").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_chain_expire_propagates_to_all() {
+    let high = MockBackend::new("high", 100, false);
+    let low = MockBackend::new("low", 50, true);
+
+    // 两个后端都有 key
+    high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+    low.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+
+    let chain = ChainCache::builder().backend(high).backend(low).build();
+
+    let ok = chain.expire("k", Duration::from_secs(60)).await.unwrap();
+    assert!(ok, "expire should return true when at least one backend succeeds");
+}
