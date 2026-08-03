@@ -129,10 +129,7 @@ mod tests {
         // BytesCache 别名：无泛型 bytes 级缓存（问题 6.2）
         let cache: BytesCache = Cache::builder().build().await.unwrap();
         cache.set_bytes("bk", b"raw bytes".to_vec(), None).await.unwrap();
-        assert_eq!(
-            cache.get_bytes("bk").await.unwrap(),
-            Some(b"raw bytes".to_vec())
-        );
+        assert_eq!(cache.get_bytes("bk").await.unwrap(), Some(b"raw bytes".to_vec()));
         assert_eq!(cache.get_bytes("missing").await.unwrap(), None);
     }
 }
