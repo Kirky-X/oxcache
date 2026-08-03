@@ -22,6 +22,13 @@ impl RedisBackend {
     /// backend.clear_namespace("user:session:").await?;
     /// ```
     pub async fn clear_namespace(&self, prefix: &str) -> OxCacheResult<()> {
+        // Validate that prefix doesn't contain wildcards
+        if prefix.contains('*') || prefix.contains('?') {
+            return Err(OxCacheError::InvalidInput(
+                "Namespace prefix must not contain wildcard characters (* or ?)".to_string(),
+            ));
+        }
+
         let pattern = format!("{}*", prefix);
         security::validate_scan_pattern(&pattern)?;
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统的错误类型和处理机制。
 
-use thiserror::Error;
+use std::fmt;
 
 #[cfg(feature = "redis")]
 /// Configuration error type for cache initialization
@@ -26,23 +26,60 @@ use thiserror::Error;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum OxCacheConfigError {
     /// Missing required configuration field
-    #[error("Missing required field: {0}")]
     MissingField(String),
 
     /// Invalid value for a configuration field
-    #[error("Invalid value for field '{field}': {reason}")]
     InvalidValue { field: String, reason: String },
 
     /// Unsupported backend combination
-    #[error("Unsupported backend combination: {0}")]
     UnsupportedBackend(String),
 
     /// Connection failed during initialization
-    #[error("Connection failed during initialization: {0}")]
     ConnectionFailed(String),
+}
+
+#[cfg(feature = "redis")]
+impl fmt::Display for OxCacheConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let locale = crate::i18n::get_default_locale();
+        f.write_str(&self.localized_message(&locale))
+    }
+}
+
+#[cfg(feature = "redis")]
+impl std::error::Error for OxCacheConfigError {}
+
+#[cfg(feature = "redis")]
+impl OxCacheConfigError {
+    /// Return the i18n message ID for this config error variant.
+    pub fn message_id(&self) -> &'static str {
+        match self {
+            OxCacheConfigError::MissingField(_) => crate::i18n::messages::MSG_CFG_MISSING_FIELD,
+            OxCacheConfigError::InvalidValue { .. } => crate::i18n::messages::MSG_CFG_INVALID_VALUE,
+            OxCacheConfigError::UnsupportedBackend(_) => crate::i18n::messages::MSG_CFG_UNSUPPORTED_BACKEND,
+            OxCacheConfigError::ConnectionFailed(_) => crate::i18n::messages::MSG_CFG_CONNECTION_FAILED,
+        }
+    }
+
+    /// Render a locale-aware config error message.
+    pub fn localized_message(&self, locale: &str) -> String {
+        let params: Vec<(&str, String)> = match self {
+            OxCacheConfigError::MissingField(f) => vec![("field", f.clone())],
+            OxCacheConfigError::InvalidValue { field, reason } => vec![
+                ("field", field.clone()),
+                ("reason", reason.clone()),
+            ],
+            OxCacheConfigError::UnsupportedBackend(d) => vec![("detail", d.clone())],
+            OxCacheConfigError::ConnectionFailed(d) => vec![("detail", d.clone())],
+        };
+        let template = crate::i18n::messages::lookup(locale, self.message_id())
+            .unwrap_or(self.message_id());
+        let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        crate::i18n::messages::format_template(template, &borrowed)
+    }
 }
 
 /// Result type for configuration operations
@@ -95,7 +132,7 @@ pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum OxCacheError {
     /// 序列化错误
     ///
@@ -103,31 +140,26 @@ pub enum OxCacheError {
     /// - 尝试序列化不支持的数据类型
     /// - 序列化器配置不兼容
     /// - 数据在传输过程中被损坏
-    #[error("Serialization error: {0}. Please check the data format and ensure the serializer is compatible.")]
     Serialization(String),
 
     /// 操作错误
     ///
     /// 一般的缓存操作失败
-    #[error("Operation failed: {0}. Please retry or check your request.")]
     Operation(String),
 
     /// 连接错误
     ///
     /// 网络连接失败或断开
-    #[error("Connection error: {0}. Please check network connectivity and server availability.")]
     Connection(String),
 
     /// 未找到错误
     ///
     /// 请求的键在缓存中不存在
-    #[error("Key not found: {0}. The requested key does not exist in the cache.")]
     NotFound(String),
 
     /// 降级错误
     ///
     /// 缓存处于降级模式，某些功能不可用
-    #[error("Cache degraded: {0}. The cache is operating in degraded mode with limited functionality.")]
     Degraded(String),
 
     /// L1缓存操作失败
@@ -136,90 +168,87 @@ pub enum OxCacheError {
     /// - 内存不足导致缓存被逐出
     /// - 缓存容量达到上限
     /// - 缓存项过期
-    #[error("L1 cache operation failed: {0}. This may indicate memory pressure or configuration issues.")]
     L1Error(String),
 
     /// L2缓存操作失败
-    #[error("L2 cache operation failed: {0}. Please check Redis connection and server status.")]
     L2Error(String),
 
     /// 操作不支持
-    #[error("Operation not supported: {0}. This feature may not be available for the current cache type.")]
     NotSupported(String),
 
     /// WAL（预写日志）操作失败
-    #[error("WAL (Write-Ahead Log) operation failed: {0}. Check disk space and file permissions.")]
     WalError(String),
 
     /// 数据库错误
-    #[error("Database error: {0}. Please check database connectivity and query syntax.")]
     DatabaseError(String),
 
     /// Redis错误
     #[cfg(feature = "redis")]
-    #[error("Redis connection failed: {0}")]
-    RedisError(#[from] redis::RedisError),
+    RedisError(redis::RedisError),
 
     /// Redis错误（占位符，当 redis feature 禁用时）
     #[cfg(not(feature = "redis"))]
-    #[error("Redis connection failed: {0}. Please enable redis feature and ensure Redis server is running.")]
     RedisError(String),
 
     /// IO错误
-    #[error("I/O error: {0}. Check file permissions and disk space.")]
     IoError(std::io::Error),
 
     /// 后端错误
-    #[error("Backend error: {0}. This may be a transient issue, please retry.")]
     BackendError(String),
 
     /// 超时错误
-    #[error("Operation timed out: {0}. Consider increasing the timeout value or check system performance.")]
     Timeout(String),
 
     /// 关闭错误
-    #[error("Shutdown error: {0}. Some resources may not have been properly released.")]
     ShutdownError(String),
 
     /// 键过长错误
-    #[error("Key too long: {0}. Maximum key length is {1} bytes.")]
     KeyTooLong(usize, usize),
 
     /// 值过大错误
-    #[error("Value too large: {0}. Maximum value size is {1} bytes.")]
     ValueTooLarge(usize, usize),
 
     /// 缓冲区已满错误
-    #[error(
-        "Buffer full: {0}. The batch write buffer has reached capacity. Please retry later or increase buffer size."
-    )]
     BufferFull(String),
 
     /// 无效输入错误
-    #[error("Invalid input: {0}. The provided input does not meet the required format or constraints.")]
     InvalidInput(String),
 
     /// 无效键错误
-    #[error("Invalid key: {0}. The provided key does not meet the required format or contains forbidden characters.")]
     InvalidKey(String),
 
     /// 锁错误
     ///
     /// 互斥锁获取失败，通常发生在锁被毒害（之前的持有者 panicked）
-    #[error("Lock error: {0}. The lock may have been poisoned by a previous panic.")]
     LockError(String),
 
     /// 服务配置未找到错误
     ///
     /// 请求的服务配置在 UnifiedConfig 中不存在
-    #[error("Service not found: {0}. The requested service configuration does not exist in the UnifiedConfig.")]
     ServiceNotFound(String),
 
     /// 内部错误
     ///
     /// 内部组件错误，通常表示不可恢复的内部状态异常
-    #[error("Internal error: {0}")]
     Internal(String),
+}
+
+impl fmt::Display for OxCacheError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let locale = crate::i18n::get_default_locale();
+        f.write_str(&self.localized_message(&locale))
+    }
+}
+
+impl std::error::Error for OxCacheError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            #[cfg(feature = "redis")]
+            OxCacheError::RedisError(e) => Some(e),
+            OxCacheError::IoError(e) => Some(e),
+            _ => None,
+        }
+    }
 }
 
 /// 缓存操作结果类型别名
@@ -230,6 +259,13 @@ pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
 impl From<std::io::Error> for OxCacheError {
     fn from(e: std::io::Error) -> Self {
         OxCacheError::IoError(e)
+    }
+}
+
+#[cfg(feature = "redis")]
+impl From<redis::RedisError> for OxCacheError {
+    fn from(e: redis::RedisError) -> Self {
+        OxCacheError::RedisError(e)
     }
 }
 
@@ -373,6 +409,98 @@ impl OxCacheError {
     /// ```
     pub fn is_degraded(&self) -> bool {
         matches!(self, OxCacheError::Degraded(_))
+    }
+
+    /// Return the i18n message ID for this error variant.
+    ///
+    /// Message IDs are stable string keys used to look up localized templates
+    /// in the message catalog. They follow the pattern `"error.<variant>"`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use oxcache::error::OxCacheError;
+    ///
+    /// let err = OxCacheError::NotFound("key".to_string());
+    /// assert_eq!(err.message_id(), "error.not_found");
+    /// ```
+    pub fn message_id(&self) -> &'static str {
+        match self {
+            OxCacheError::Serialization(_) => crate::i18n::messages::MSG_ERR_SERIALIZATION,
+            OxCacheError::Operation(_) => crate::i18n::messages::MSG_ERR_OPERATION,
+            OxCacheError::Connection(_) => crate::i18n::messages::MSG_ERR_CONNECTION,
+            OxCacheError::NotFound(_) => crate::i18n::messages::MSG_ERR_NOT_FOUND,
+            OxCacheError::Degraded(_) => crate::i18n::messages::MSG_ERR_DEGRADED,
+            OxCacheError::L1Error(_) => crate::i18n::messages::MSG_ERR_L1,
+            OxCacheError::L2Error(_) => crate::i18n::messages::MSG_ERR_L2,
+            OxCacheError::NotSupported(_) => crate::i18n::messages::MSG_ERR_NOT_SUPPORTED,
+            OxCacheError::WalError(_) => crate::i18n::messages::MSG_ERR_WAL,
+            OxCacheError::DatabaseError(_) => crate::i18n::messages::MSG_ERR_DATABASE,
+            OxCacheError::RedisError(_) => crate::i18n::messages::MSG_ERR_REDIS,
+            OxCacheError::IoError(_) => crate::i18n::messages::MSG_ERR_IO,
+            OxCacheError::BackendError(_) => crate::i18n::messages::MSG_ERR_BACKEND,
+            OxCacheError::Timeout(_) => crate::i18n::messages::MSG_ERR_TIMEOUT,
+            OxCacheError::ShutdownError(_) => crate::i18n::messages::MSG_ERR_SHUTDOWN,
+            OxCacheError::KeyTooLong(_, _) => crate::i18n::messages::MSG_ERR_KEY_TOO_LONG,
+            OxCacheError::ValueTooLarge(_, _) => crate::i18n::messages::MSG_ERR_VALUE_TOO_LARGE,
+            OxCacheError::BufferFull(_) => crate::i18n::messages::MSG_ERR_BUFFER_FULL,
+            OxCacheError::InvalidInput(_) => crate::i18n::messages::MSG_ERR_INVALID_INPUT,
+            OxCacheError::InvalidKey(_) => crate::i18n::messages::MSG_ERR_INVALID_KEY,
+            OxCacheError::LockError(_) => crate::i18n::messages::MSG_ERR_LOCK,
+            OxCacheError::ServiceNotFound(_) => crate::i18n::messages::MSG_ERR_SERVICE_NOT_FOUND,
+            OxCacheError::Internal(_) => crate::i18n::messages::MSG_ERR_INTERNAL,
+        }
+    }
+
+    /// Render a locale-aware error message using the ICU4X message catalog.
+    ///
+    /// `Display` uses the global default locale (set via
+    /// [`set_default_locale`](crate::i18n::set_default_locale)); this method
+    /// lets you render in an explicit `locale` without changing the global.
+    ///
+    /// Falls back to English for unsupported locales, and to the raw message ID
+    /// if the catalog has no entry for this error.
+    pub fn localized_message(&self, locale: &str) -> String {
+        let params = self.message_params();
+        let template = crate::i18n::messages::lookup(locale, self.message_id())
+            .unwrap_or(self.message_id());
+        let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        crate::i18n::messages::format_template(template, &borrowed)
+    }
+
+    /// Extract `(key, value)` parameters for message template substitution.
+    fn message_params(&self) -> Vec<(&str, String)> {
+        match self {
+            OxCacheError::KeyTooLong(actual, max) => vec![
+                ("actual", actual.to_string()),
+                ("max", max.to_string()),
+            ],
+            OxCacheError::ValueTooLarge(actual, max) => vec![
+                ("actual", actual.to_string()),
+                ("max", max.to_string()),
+            ],
+            OxCacheError::Serialization(d)
+            | OxCacheError::Operation(d)
+            | OxCacheError::Connection(d)
+            | OxCacheError::NotFound(d)
+            | OxCacheError::Degraded(d)
+            | OxCacheError::L1Error(d)
+            | OxCacheError::L2Error(d)
+            | OxCacheError::NotSupported(d)
+            | OxCacheError::WalError(d)
+            | OxCacheError::DatabaseError(d)
+            | OxCacheError::BackendError(d)
+            | OxCacheError::Timeout(d)
+            | OxCacheError::ShutdownError(d)
+            | OxCacheError::BufferFull(d)
+            | OxCacheError::InvalidInput(d)
+            | OxCacheError::InvalidKey(d)
+            | OxCacheError::LockError(d)
+            | OxCacheError::ServiceNotFound(d)
+            | OxCacheError::Internal(d) => vec![("detail", d.clone())],
+            OxCacheError::RedisError(e) => vec![("detail", e.to_string())],
+            OxCacheError::IoError(e) => vec![("detail", e.to_string())],
+        }
     }
 }
 

@@ -3,9 +3,12 @@
 //! Redis backend builder with extended configuration.
 
 use super::client::RedisBackend;
+use super::circuit_breaker::CircuitBreaker;
 use super::error::map_redis_error;
+use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Type alias for Redis mode, maintaining API compatibility.
@@ -29,10 +32,10 @@ pub struct RedisBackendBuilder {
     mode: RedisMode,
     pool_size: usize,
     connection_timeout: Duration,
-    #[allow(dead_code)]
     retry_count: u32,
-    #[allow(dead_code)]
     retry_delay: Duration,
+    circuit_breaker_threshold: u32,
+    circuit_breaker_reset_timeout: Duration,
     database: Option<u16>,
     pub(crate) dangerous_clear_enabled: bool,
 }
@@ -46,6 +49,8 @@ impl Default for RedisBackendBuilder {
             connection_timeout: Duration::from_secs(2),
             retry_count: 3,
             retry_delay: Duration::from_millis(100),
+            circuit_breaker_threshold: 5,
+            circuit_breaker_reset_timeout: Duration::from_secs(30),
             database: None,
             dangerous_clear_enabled: false,
         }
@@ -95,6 +100,36 @@ impl RedisBackendBuilder {
         self
     }
 
+    /// Set the circuit breaker failure threshold (default: 5).
+    ///
+    /// After this many consecutive recoverable failures, the circuit breaker
+    /// transitions to Open and subsequent operations return `Degraded` immediately.
+    pub fn circuit_breaker_threshold(mut self, threshold: u32) -> Self {
+        self.circuit_breaker_threshold = threshold;
+        self
+    }
+
+    /// Set the circuit breaker reset timeout (default: 30s).
+    ///
+    /// Time to wait in Open state before transitioning to HalfOpen.
+    pub fn circuit_breaker_reset_timeout(mut self, timeout: Duration) -> Self {
+        self.circuit_breaker_reset_timeout = timeout;
+        self
+    }
+
+    /// Apply all distributed parameters from a `DistributedConfig`.
+    ///
+    /// This is a convenience method that sets retry_count, retry_delay,
+    /// circuit_breaker_threshold, and circuit_breaker_reset_timeout at once.
+    /// Individual setters called after this will override specific values.
+    pub fn distributed_config(mut self, config: DistributedConfig) -> Self {
+        self.retry_count = config.retry_count;
+        self.retry_delay = config.retry_base_delay;
+        self.circuit_breaker_threshold = config.circuit_breaker_threshold;
+        self.circuit_breaker_reset_timeout = config.circuit_breaker_reset_timeout;
+        self
+    }
+
     /// Enable or disable dangerous full-database `clear()` (default: false).
     ///
     /// When `false` (default), `CacheWriter::clear()` returns `Err(NotSupported)`.
@@ -106,6 +141,13 @@ impl RedisBackendBuilder {
 
     /// Build the Redis backend.
     pub async fn build(self) -> OxCacheResult<RedisBackend> {
+        // Validate pool_size
+        if self.pool_size == 0 {
+            return Err(OxCacheError::InvalidInput(
+                "Connection pool size must be at least 1".to_string(),
+            ));
+        }
+
         let mut connection_string = self
             .connection_string
             .ok_or_else(|| OxCacheError::InvalidInput("Connection string is required".to_string()))?;
@@ -161,6 +203,12 @@ impl RedisBackendBuilder {
             self.mode,
             connection_manager,
             self.dangerous_clear_enabled,
+            self.retry_count,
+            self.retry_delay,
+            Arc::new(CircuitBreaker::new(
+                self.circuit_breaker_threshold,
+                self.circuit_breaker_reset_timeout,
+            )),
         ))
     }
 }

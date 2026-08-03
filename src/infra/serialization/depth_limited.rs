@@ -11,8 +11,13 @@ use std::fmt;
 /// Maximum allowed nesting depth for JSON deserialization
 pub const MAX_DESERIALIZE_DEPTH: usize = 32;
 
-/// Error returned when JSON nesting depth is exceeded
+/// Error returned when JSON nesting depth is exceeded.
+///
+/// Re-exported as part of the public serialization API for callers that need
+/// to pattern-match on depth-limit violations. Internal code paths use
+/// `serde_json::Error` instead, so this struct appears unused within the crate.
 #[derive(Debug, PartialEq)]
+#[allow(dead_code)]
 pub struct DepthLimitExceededError {
     pub depth: usize,
     pub max_depth: usize,

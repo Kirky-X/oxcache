@@ -167,7 +167,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `tracing` - 结构化日志支持
 - `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 - `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
-- `i18n` - Internationalization support；不在 `full` 中，需显式启用
+- `i18n` - ICU4X 国际化支持（始终启用，包含在 `minimal` 中）
 - `testing` - Testing utilities
 
 ## 🎨 使用场景

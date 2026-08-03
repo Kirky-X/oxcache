@@ -31,16 +31,13 @@ mod security_impl;
 
 // Re-exports for convenience (used by external tests via lib.rs re-exports)
 #[cfg(feature = "redis")]
-#[allow(unused_imports)]
 pub use log::{log_cache_key, sanitize_message};
 #[cfg(feature = "redis")]
-#[allow(unused_imports)]
 pub use redaction::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 #[cfg(feature = "redis")]
-#[allow(unused_imports)]
+#[allow(unused_imports)] // Public API re-exports for external consumers
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 #[cfg(feature = "redis")]
-#[allow(unused_imports)]
 pub use validation::{
     DANGEROUS_CHARS, MAX_KEY_LENGTH, validate_max_length, validate_no_dangerous_chars, validate_not_empty,
 };
@@ -326,7 +323,7 @@ mod tests {
     }
 
     // ============================================================================
-    // 嵌套 eval/evalsha 检测测试 (lines 284-285)
+    // 嵌套 eval/evalsha 检测测试
     // ============================================================================
 
     #[test]
@@ -346,7 +343,7 @@ mod tests {
     }
 
     // ============================================================================
-    // 无限循环检测测试 (lines 292-293)
+    // 无限循环检测测试
     // ============================================================================
 
     #[test]
@@ -382,12 +379,12 @@ mod tests {
     }
 
     // ============================================================================
-    // preprocess_lua_script 边界测试 (lines 331, 337-349, 363-366)
+    // preprocess_lua_script 边界测试
     // ============================================================================
 
     #[test]
     fn test_lua_script_with_bracket_not_long_string() {
-        // 单个 [ 不是长字符串，应该被保留 (line 331)
+        // 单个 [ 不是长字符串，应该被保留
         let script = "local x = table[1]";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -395,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_double_quoted_string() {
-        // 双引号字符串处理 (lines 337-341)
+        // 双引号字符串处理
         let script = "local x = \"hello world\"";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -403,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_escaped_chars_in_string() {
-        // 转义字符处理 (lines 343-346)
+        // 转义字符处理
         let script = "local x = \"hello\\nworld\"";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -411,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_string_regular_chars() {
-        // 字符串中的普通字符 (line 349)
+        // 字符串中的普通字符
         let script = "local x = \"regular text here\"";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -419,7 +416,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_single_quoted_escape() {
-        // 单引号字符串中的转义字符 (lines 363-366)
+        // 单引号字符串中的转义字符
         let script = "local x = 'hello\\nworld'";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -443,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_long_string_level() {
-        // 长字符串级别计算 (lines 402-403)
+        // 长字符串级别计算
         let script = "local x = [==[hello]==]";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -467,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_unclosed_long_string() {
-        // 未闭合的长字符串（部分闭合括号）(lines 433, 437-438)
+        // 未闭合的长字符串（部分闭合括号）
         let script = "local x = [[hello] world]]";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());
@@ -475,7 +472,7 @@ mod tests {
 
     #[test]
     fn test_lua_script_with_partial_closing_bracket() {
-        // 部分闭合括号 (lines 433, 437-438)
+        // 部分闭合括号
         let script = "local x = [==[hello]=] world]==]";
         let result = validate_lua_script(script, 0);
         assert!(result.is_ok());

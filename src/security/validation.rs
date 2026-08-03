@@ -34,9 +34,16 @@ pub fn validate_no_dangerous_chars(
 ) -> crate::OxCacheResult<()> {
     for c in input.chars() {
         if dangerous_chars.contains(&c) {
+            let char_name = match c {
+                '\n' => "'\\n' (newline)".to_string(),
+                '\r' => "'\\r' (carriage return)".to_string(),
+                '\0' => "NUL".to_string(),
+                _ if c.is_control() => format!("U+{:04X} (control character)", c as u32),
+                _ => format!("U+{:04X}", c as u32),
+            };
             return Err(OxCacheError::InvalidInput(format!(
-                "{} contains dangerous character '\\u{:04x}'",
-                error_context, c as u32
+                "{} contains dangerous character {}",
+                error_context, char_name
             )));
         }
     }
@@ -121,7 +128,6 @@ pub mod lua_script {
     ///
     /// * `Ok(())` - 长度有效
     /// * `Err(OxCacheError)` - 脚本过长
-    #[allow(dead_code)]
     pub fn validate_length(script: &str) -> crate::OxCacheResult<()> {
         super::validate_max_length(script, MAX_SCRIPT_LENGTH, "Lua script")
     }

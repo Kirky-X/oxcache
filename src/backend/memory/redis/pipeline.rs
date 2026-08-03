@@ -4,7 +4,7 @@
 
 use super::client::RedisBackend;
 use super::error::map_redis_error;
-use crate::error::OxCacheResult;
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::security;
 use std::time::Duration;
 
@@ -24,6 +24,16 @@ impl RedisBackend {
 
         for (key, _) in items {
             security::validate_redis_key(key)?;
+        }
+
+        // Validate TTL before building pipeline: Redis SETEX rejects TTL=0
+        if let Some(ttl) = ttl {
+            let secs = ttl.as_secs();
+            if secs == 0 {
+                return Err(OxCacheError::InvalidInput(
+                    "TTL must be at least 1 second for Redis SETEX; sub-second TTL is truncated to 0".to_string(),
+                ));
+            }
         }
 
         let mut conn = self.conn();

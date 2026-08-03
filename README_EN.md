@@ -100,7 +100,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "metrics", "bloom-fil
 - `tracing` - Structured logging support
 - `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
 - `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
-- `i18n` - Internationalization support; not in `full`, must be enabled explicitly
+- `i18n` - ICU4X-backed internationalization (always enabled, included in `minimal`)
 - `testing` - Testing utilities
 
 ### 2. Basic Usage

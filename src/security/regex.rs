@@ -8,11 +8,9 @@ use crate::error::{OxCacheError, OxCacheResult};
 use regex::Regex;
 
 /// Maximum allowed pattern length
-#[allow(dead_code)]
 pub const MAX_PATTERN_LENGTH: usize = 256;
 
 /// Maximum number of wildcards allowed in a pattern
-#[allow(dead_code)]
 pub const MAX_WILDCARDS: usize = 10;
 
 /// Compiles a regex pattern with safety checks
@@ -25,7 +23,6 @@ pub const MAX_WILDCARDS: usize = 10;
 ///
 /// * `Ok(Regex)` - Successfully compiled regex
 /// * `Err(OxCacheError)` - Compilation failed or pattern is unsafe
-#[allow(dead_code)]
 pub fn compile_regex(pattern: &str) -> OxCacheResult<regex::Regex> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
@@ -79,7 +76,6 @@ pub fn compile_regex(pattern: &str) -> OxCacheResult<regex::Regex> {
 ///
 /// * `Ok(bool)` - Match result
 /// * `Err(OxCacheError)` - Input too long
-#[allow(dead_code)]
 pub fn match_safe(regex: &Regex, input: &str) -> OxCacheResult<bool> {
     // Check input length for extremely long inputs
     if input.len() > 1_000_000 {
@@ -102,7 +98,6 @@ pub fn match_safe(regex: &Regex, input: &str) -> OxCacheResult<bool> {
 ///
 /// * `Ok(String)` - Regex pattern
 /// * `Err(OxCacheError)` - Pattern conversion failed or unsafe
-#[allow(dead_code)]
 pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<String> {
     // Check pattern length
     if pattern.len() > MAX_PATTERN_LENGTH {
@@ -211,7 +206,6 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<
 ///
 /// * `Ok(Regex)` - Compiled regex
 /// * `Err(OxCacheError)` - Validation or compilation failed
-#[allow(dead_code)]
 pub fn compile_glob_pattern(pattern: &str, double_star_allowed: bool) -> OxCacheResult<Regex> {
     let regex_pattern = glob_to_regex(pattern, double_star_allowed)?;
     compile_regex(&regex_pattern)

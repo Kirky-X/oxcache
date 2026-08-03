@@ -3,6 +3,10 @@
 //! Redis 命令枚举
 
 /// Redis 命令枚举
+///
+/// 定义所有支持的 Redis 命令变体，供后续命令路由和序列化使用。
+/// 当前尚未完全集成到命令处理器中，保留 `#[allow(dead_code)]` 直到集成完成。
+// TODO: 集成到命令处理器后移除 #[allow(dead_code)]
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RedisCommand {
@@ -40,6 +44,8 @@ pub enum RedisCommand {
 }
 
 impl RedisCommand {
+    /// 返回命令的 Redis 协议字符串表示
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Ping => "PING",

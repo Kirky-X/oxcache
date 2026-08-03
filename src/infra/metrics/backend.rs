@@ -8,7 +8,6 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::broadcast;
 
 /// 最大延迟直方图桶数量
 const MAX_HISTOGRAM_BUCKETS: usize = 100;
@@ -346,15 +345,11 @@ pub struct MetricsCollector {
     active_tasks: Arc<AtomicUsize>,
     /// 队列深度
     queue_depth: Arc<AtomicUsize>,
-    /// 指标更新广播
-    _update_tx: broadcast::Sender<()>,
 }
 
 impl MetricsCollector {
     /// 创建新的指标收集器
     pub fn new() -> Result<Self, crate::error::OxCacheError> {
-        let (tx, _) = broadcast::channel(1);
-
         // 初始化操作计数器
         let op_types = vec![
             OperationType::Get,
@@ -380,7 +375,6 @@ impl MetricsCollector {
             connections: Arc::new(AtomicUsize::new(0)),
             active_tasks: Arc::new(AtomicUsize::new(0)),
             queue_depth: Arc::new(AtomicUsize::new(0)),
-            _update_tx: tx,
         })
     }
 
@@ -466,7 +460,6 @@ impl MetricsCollector {
         let l2_misses = self.l2_misses.load(Ordering::Relaxed);
 
         let l1_total = l1_hits + l1_misses;
-        let _l2_total = l2_hits + l2_misses;
 
         // 全局命中率（从 L1 获得的比例）
         let global_hit_rate = if l1_total > 0 {

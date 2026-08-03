@@ -72,7 +72,7 @@ Some features require or imply other features:
 | `lua-script` | `redis` | Lua script execution |
 | `cli` | `metrics`, `dashmap`, `tracing` | Command-line interface |
 | `core` | `minimal`, `redis` | Core L1 + L2 cache |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | All features (note: `bloom-filter`, `kit`, `i18n` are NOT in `full`) |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | All features (note: `bloom-filter`, `kit` are NOT in `full`; `i18n` is always enabled) |
 
 ## Cache Macro
 

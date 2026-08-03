@@ -14,7 +14,7 @@ use super::OxCacheConfigError;
 #[test]
 fn test_cache_config_error_missing_field_display() {
     let err = OxCacheConfigError::MissingField("host".to_string());
-    assert_eq!(err.to_string(), "Missing required field: host");
+    assert_eq!(err.to_string(), "Missing required field: host.");
 }
 
 #[cfg(feature = "redis")]
@@ -24,21 +24,21 @@ fn test_cache_config_error_invalid_value_display() {
         field: "capacity".to_string(),
         reason: "must be > 0".to_string(),
     };
-    assert_eq!(err.to_string(), "Invalid value for field 'capacity': must be > 0");
+    assert_eq!(err.to_string(), "Invalid value for field 'capacity': must be > 0.");
 }
 
 #[cfg(feature = "redis")]
 #[test]
 fn test_cache_config_error_unsupported_backend_display() {
     let err = OxCacheConfigError::UnsupportedBackend("unknown".to_string());
-    assert_eq!(err.to_string(), "Unsupported backend combination: unknown");
+    assert_eq!(err.to_string(), "Unsupported backend combination: unknown.");
 }
 
 #[cfg(feature = "redis")]
 #[test]
 fn test_cache_config_error_connection_failed_display() {
     let err = OxCacheConfigError::ConnectionFailed("timeout".to_string());
-    assert_eq!(err.to_string(), "Connection failed during initialization: timeout");
+    assert_eq!(err.to_string(), "Connection failed during initialization: timeout.");
 }
 
 // ============================================================================
@@ -213,7 +213,7 @@ fn test_cache_error_service_not_found_display() {
 fn test_cache_error_internal_display() {
     let err = OxCacheError::Internal("boom".to_string());
     let s = err.to_string();
-    assert_eq!(s, "Internal error: boom");
+    assert_eq!(s, "Internal error: boom.");
 }
 
 // ============================================================================
@@ -514,4 +514,281 @@ fn test_cache_error_is_std_error() {
 fn test_cache_config_error_is_std_error() {
     let err = OxCacheConfigError::MissingField("f".to_string());
     let _: &dyn std::error::Error = &err;
+}
+
+// ============================================================================
+// message_id() tests
+// ============================================================================
+
+#[test]
+fn test_error_message_id_not_found() {
+    assert_eq!(
+        OxCacheError::NotFound("k".to_string()).message_id(),
+        "error.not_found"
+    );
+}
+
+#[test]
+fn test_error_message_id_connection() {
+    assert_eq!(
+        OxCacheError::Connection("c".to_string()).message_id(),
+        "error.connection"
+    );
+}
+
+#[test]
+fn test_error_message_id_serialization() {
+    assert_eq!(
+        OxCacheError::Serialization("s".to_string()).message_id(),
+        "error.serialization"
+    );
+}
+
+#[test]
+fn test_error_message_id_key_too_long() {
+    assert_eq!(
+        OxCacheError::KeyTooLong(1, 2).message_id(),
+        "error.key_too_long"
+    );
+}
+
+#[test]
+fn test_error_message_id_internal() {
+    assert_eq!(
+        OxCacheError::Internal("i".to_string()).message_id(),
+        "error.internal"
+    );
+}
+
+// ============================================================================
+// localized_message() tests — English
+// ============================================================================
+
+#[test]
+fn test_localized_message_en_not_found() {
+    let err = OxCacheError::NotFound("user:42".to_string());
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("Key not found: user:42"),
+        "en localized message should contain 'Key not found: user:42': got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_en_connection() {
+    let err = OxCacheError::Connection("refused".to_string());
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("Connection error: refused"),
+        "en localized message: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_en_key_too_long() {
+    let err = OxCacheError::KeyTooLong(600, 512);
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("600") && msg.contains("512"),
+        "en localized message should contain sizes: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_en_value_too_large() {
+    let err = OxCacheError::ValueTooLarge(2048, 1024);
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("2048") && msg.contains("1024"),
+        "en localized message should contain sizes: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_en_timeout() {
+    let err = OxCacheError::Timeout("5s".to_string());
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("Operation timed out: 5s"),
+        "en localized message: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_en_internal() {
+    let err = OxCacheError::Internal("boom".to_string());
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("Internal error: boom"),
+        "en localized message: got '{msg}'"
+    );
+}
+
+// ============================================================================
+// localized_message() tests — Simplified Chinese
+// ============================================================================
+
+#[test]
+fn test_localized_message_zh_not_found() {
+    let err = OxCacheError::NotFound("user:42".to_string());
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("键未找到：user:42"),
+        "zh localized message should contain '键未找到：user:42': got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_zh_connection() {
+    let err = OxCacheError::Connection("连接被拒绝".to_string());
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("连接错误：连接被拒绝"),
+        "zh localized message: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_zh_key_too_long() {
+    let err = OxCacheError::KeyTooLong(600, 512);
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("键过长") && msg.contains("600") && msg.contains("512"),
+        "zh localized message should contain '键过长' with values: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_zh_timeout() {
+    let err = OxCacheError::Timeout("5秒".to_string());
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("操作超时：5秒"),
+        "zh localized message: got '{msg}'"
+    );
+}
+
+#[test]
+fn test_localized_message_zh_internal() {
+    let err = OxCacheError::Internal("内部异常".to_string());
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("内部错误：内部异常"),
+        "zh localized message: got '{msg}'"
+    );
+}
+
+// ============================================================================
+// localized_message() — fallback behavior
+// ============================================================================
+
+#[test]
+fn test_localized_message_unknown_locale_falls_back_to_en() {
+    let err = OxCacheError::NotFound("key".to_string());
+    let msg = err.localized_message("fr-FR");
+    assert!(
+        msg.contains("Key not found: key"),
+        "unknown locale should fall back to English: got '{msg}'"
+    );
+}
+
+// ============================================================================
+// OxCacheConfigError localized_message tests (redis feature only)
+// ============================================================================
+
+#[cfg(feature = "redis")]
+#[test]
+fn test_config_error_message_id() {
+    let err = OxCacheConfigError::MissingField("host".to_string());
+    assert_eq!(err.message_id(), "config.missing_field");
+}
+
+#[cfg(feature = "redis")]
+#[test]
+fn test_config_error_localized_message_en() {
+    let err = OxCacheConfigError::MissingField("host".to_string());
+    let msg = err.localized_message("en");
+    assert!(
+        msg.contains("Missing required field: host"),
+        "en config error message: got '{msg}'"
+    );
+}
+
+#[cfg(feature = "redis")]
+#[test]
+fn test_config_error_localized_message_zh() {
+    let err = OxCacheConfigError::MissingField("host".to_string());
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("缺少必需字段：host"),
+        "zh config error message: got '{msg}'"
+    );
+}
+
+#[cfg(feature = "redis")]
+#[test]
+fn test_config_error_invalid_value_localized_zh() {
+    let err = OxCacheConfigError::InvalidValue {
+        field: "capacity".to_string(),
+        reason: "must be > 0".to_string(),
+    };
+    let msg = err.localized_message("zh-CN");
+    assert!(
+        msg.contains("capacity") && msg.contains("must be > 0"),
+        "zh config invalid value message: got '{msg}'"
+    );
+}
+
+// ============================================================================
+// Display with global default locale
+// ============================================================================
+
+#[test]
+fn test_display_uses_default_locale_en() {
+    // Default locale is "en"
+    crate::i18n::set_default_locale("en");
+    let err = OxCacheError::NotFound("key1".to_string());
+    let s = err.to_string();
+    assert!(
+        s.contains("Key not found: key1"),
+        "en Display should contain 'Key not found: key1': got '{s}'"
+    );
+}
+
+#[test]
+fn test_display_uses_default_locale_zh() {
+    crate::i18n::set_default_locale("zh-CN");
+    let err = OxCacheError::NotFound("key1".to_string());
+    let s = err.to_string();
+    assert!(
+        s.contains("键未找到：key1"),
+        "zh Display should contain '键未找到：key1': got '{s}'"
+    );
+    // Restore default
+    crate::i18n::set_default_locale("en");
+}
+
+#[test]
+fn test_display_config_error_uses_default_locale_zh() {
+    #[cfg(feature = "redis")]
+    {
+        crate::i18n::set_default_locale("zh-CN");
+        let err = OxCacheConfigError::MissingField("host".to_string());
+        let s = err.to_string();
+        assert!(
+            s.contains("缺少必需字段：host"),
+            "zh ConfigError Display should contain '缺少必需字段：host': got '{s}'"
+        );
+        // Restore default
+        crate::i18n::set_default_locale("en");
+    }
+}
+
+#[test]
+fn test_set_and_get_default_locale() {
+    assert_eq!(crate::i18n::get_default_locale(), "en");
+    crate::i18n::set_default_locale("zh-CN");
+    assert_eq!(crate::i18n::get_default_locale(), "zh-CN");
+    crate::i18n::set_default_locale("en");
+    assert_eq!(crate::i18n::get_default_locale(), "en");
 }

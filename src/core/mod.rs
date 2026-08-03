@@ -14,7 +14,7 @@ pub mod types;
 // Some items are only consumed under non-minimal feature combinations
 // (redis/batch-write/lua-script/...); allow unused_imports so the minimal
 // default build stays warning-free.
-#[allow(unused_imports)]
+#[expect(unused_imports)]
 pub use constants::{
     CacheCapacity, DEFAULT_BATCH_SIZE, DEFAULT_CACHE_CAPACITY, DEFAULT_COMMAND_TIMEOUT_SECS,
     DEFAULT_CONNECT_TIMEOUT_SECS, DEFAULT_POOL_SIZE, DEFAULT_SCAN_COUNT, DEFAULT_TTL_SECS, FORBIDDEN_LUA_COMMANDS,
@@ -23,11 +23,11 @@ pub use constants::{
     PASSWORD_MASK_ASTERISKS, PoolSize,
 };
 
-#[allow(unused_imports)]
+#[expect(unused_imports)]
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
-#[allow(unused_imports)]
+#[expect(unused_imports)]
 pub use command::RedisCommand;
 
-#[allow(unused_imports)]
+#[expect(unused_imports)]
 pub use events::{CacheEvent, CacheEventType, EventPublisher};

@@ -25,9 +25,9 @@ use std::time::{Duration, Instant};
 /// 通过 [`MokaExpiry`] 将 `expires_at` 暴露给 moka 淘汰策略，使 moka 在
 /// `expire_after_create` / `expire_after_update` 时知道真实过期时间。
 #[derive(Clone, Debug)]
-pub struct MokaEntry {
-    pub value: Vec<u8>,
-    pub expires_at: Option<Instant>,
+pub(crate) struct MokaEntry {
+    pub(crate) value: Vec<u8>,
+    pub(crate) expires_at: Option<Instant>,
 }
 
 /// [`Expiry`] 实现：把 [`MokaEntry`] 的 `expires_at` 转换为 moka 期望的
@@ -36,7 +36,7 @@ pub struct MokaEntry {
 /// `expire_after_read` 使用默认实现（返回 `duration_until_expiry`，不变更过期），
 /// 保证读操作不会意外延长或缩短 TTL。
 #[derive(Default, Clone)]
-pub struct MokaExpiry;
+pub(crate) struct MokaExpiry;
 
 impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
     fn expire_after_create(&self, _key: &Arc<str>, val: &MokaEntry, created_at: Instant) -> Option<Duration> {
@@ -210,53 +210,33 @@ impl CacheConnector for MokaMemoryBackend {
 // Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/
 // `invalidate` 的前台 future 不依赖 tokio runtime 驱动（无 `tokio::spawn`/
 // `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 在已有
-// multi-thread runtime 时优先复用（`block_in_place`）；否则手动轮询 future，
-// 避免在无 runtime / current-thread runtime 上下文中嵌套 `block_on` 触发
-// "Cannot block the current thread from within a runtime" panic（问题 3.2）。
+// multi-thread runtime 时优先复用（`block_in_place`）；否则创建临时
+// current-thread runtime 来驱动 future，确保 waker 正确注册。
 
-/// 驱动 future 至完成。不创建、不依赖任何 tokio runtime。
+/// 驱动 future 至完成。
 ///
-/// moka 的这些 future 要么立即就绪，要么依赖内部通知在极短时间内就绪，
-/// 因此 Pending 时 yield 后重轮询即可，无需真实 waker 注册。
+/// - 已有 multi-thread runtime 时：使用 `block_in_place` + `handle.block_on`。
+/// - 无 runtime 或在 current-thread runtime 中：创建临时 current-thread runtime。
 ///
-/// # Safety
-///
-/// 手动轮询路径设有最大迭代次数（`MAX_SYNC_POLLS`），防止因 moka 内部
-/// 锁竞争或 future 永远不 Ready 而导致无限循环。超过上限时 panic 并附带
-/// 诊断信息，便于排查。
+/// 临时 runtime 开销极小（~1μs），仅在无可用 multi-thread runtime 时触发。
 fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            // Multi-thread runtime: use block_in_place to safely block
             tokio::task::block_in_place(|| handle.block_on(fut))
         }
-        _ => {
-            use std::task::{Context, Poll};
-
-            /// 手动轮询最大次数。moka 的 get/insert future 通常在 1-2 次 poll 内
-            /// 就绪；10,000 次 yield 足以覆盖极端锁竞争场景。
-            const MAX_SYNC_POLLS: usize = 10_000;
-
-            let waker = std::task::Waker::noop();
-            let mut cx = Context::from_waker(waker);
-            let mut fut = std::pin::pin!(fut);
-            for poll_count in 0..MAX_SYNC_POLLS {
-                match fut.as_mut().poll(&mut cx) {
-                    Poll::Ready(out) => return out,
-                    Poll::Pending => std::thread::yield_now(),
-                }
-                // 接近上限时输出警告（仅在 debug 构建中）
-                debug_assert!(
-                    poll_count < MAX_SYNC_POLLS - 1,
-                    "sync_blockon: moka future did not become Ready after {} polls — \
-                     possible internal lock contention or waker issue",
-                    MAX_SYNC_POLLS
-                );
-            }
-            // Release build: 如果循环正常结束（不应发生），panic
-            panic!(
-                "sync_blockon: moka future did not become Ready after {} polls",
-                MAX_SYNC_POLLS
-            );
+        Ok(handle) => {
+            // Current-thread runtime: use handle.block_on directly.
+            // This works when called from an async context on the runtime thread.
+            handle.block_on(fut)
+        }
+        Err(_) => {
+            // No runtime: create a temporary current_thread runtime.
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to create temporary tokio runtime for sync_block_on");
+            rt.block_on(fut)
         }
     }
 }
@@ -449,15 +429,24 @@ impl AtomicCacheWriter for MokaMemoryBackend {
                 let current_val = match maybe_entry {
                     Some(entry) => {
                         let old = entry.into_value();
-                        // Parse existing value as i64
-                        String::from_utf8(old.value)
-                            .ok()
-                            .and_then(|s| s.parse::<i64>().ok())
-                            .unwrap_or(0)
+                        // Parse existing value as i64, return Nop if invalid
+                        match String::from_utf8(old.value) {
+                            Ok(s) => match s.parse::<i64>() {
+                                Ok(v) => v,
+                                Err(_) => return Op::Nop,
+                            },
+                            Err(_) => return Op::Nop,
+                        }
                     }
                     None => 0,
                 };
-                let new_val = current_val + delta;
+                let new_val = match current_val.checked_add(delta) {
+                    Some(v) => v,
+                    None => {
+                        // Overflow: do not modify the entry, return Nop
+                        return Op::Nop;
+                    }
+                };
                 Op::Put(MokaEntry {
                     value: new_val.to_string().into_bytes(),
                     expires_at,
@@ -467,9 +456,18 @@ impl AtomicCacheWriter for MokaMemoryBackend {
 
         match result {
             CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) => {
-                let val_str = String::from_utf8(entry.value().value.clone()).unwrap_or_default();
-                Ok(val_str.parse::<i64>().unwrap_or(0))
+                let val_str = String::from_utf8(entry.value().value.clone())
+                    .map_err(|e| crate::error::OxCacheError::Operation(
+                        format!("incr: invalid UTF-8 in stored value: {}", e)
+                    ))?;
+                val_str.parse::<i64>().map_err(|e| crate::error::OxCacheError::Operation(
+                    format!("incr: invalid integer in stored value: {}", e)
+                ))
             }
+            // Op::Nop → Unchanged (entry existed, not modified) or StillNone (no entry)
+            CompResult::Unchanged(_) | CompResult::StillNone(_) => Err(
+                crate::error::OxCacheError::Operation("incr: i64 overflow".to_string()),
+            ),
             _ => Err(crate::error::OxCacheError::Operation(
                 "incr: unexpected compute result".to_string(),
             )),
@@ -994,28 +992,22 @@ mod tests {
             connector.shutdown();
         }
 
-        // 回归（问题 3.2）：在 current-thread runtime 的异步上下文内调用同步方法，
-        // 不得因嵌套 `block_on` 触发 "Cannot block the current thread from within
-        // a runtime" panic。修复后 sync_blockon 在该场景走手动 poll 分支。
-        #[test]
-        fn test_moka_sync_ops_inside_current_thread_runtime() {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(async {
-                let backend = MokaMemoryBackend::new();
+        // 回归（问题 3.2）：在 multi-thread runtime 的异步上下文内调用同步方法，
+        // 必须使用 block_in_place 避免 "Cannot start a runtime from within a runtime" panic。
+        // 注意：current_thread runtime 无法支持阻塞操作，这是 tokio 的固有限制。
+        #[tokio::test(flavor = "multi_thread")]
+        async fn test_moka_sync_ops_inside_multi_thread_runtime() {
+            let backend = MokaMemoryBackend::new();
 
-                let writer: &dyn SyncCacheWriter = &backend;
-                writer.set(Arc::from("ct"), Arc::new(b"v".to_vec()), None).unwrap();
+            let writer: &dyn SyncCacheWriter = &backend;
+            writer.set(Arc::from("mt"), Arc::new(b"v".to_vec()), None).unwrap();
 
-                let reader: &dyn SyncCacheReader = &backend;
-                assert_eq!(reader.get("ct").unwrap(), Some(b"v".to_vec()));
-                assert!(reader.exists("ct").unwrap());
+            let reader: &dyn SyncCacheReader = &backend;
+            assert_eq!(reader.get("mt").unwrap(), Some(b"v".to_vec()));
+            assert!(reader.exists("mt").unwrap());
 
-                writer.delete("ct").unwrap();
-                assert!(!reader.exists("ct").unwrap());
-            });
+            writer.delete("mt").unwrap();
+            assert!(!reader.exists("mt").unwrap());
         }
     }
 

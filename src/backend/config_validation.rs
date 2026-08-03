@@ -10,10 +10,13 @@ pub struct ConfigValidation;
 
 impl ConfigValidation {
     /// 最大缓存容量（10亿条目）
+    #[allow(dead_code)] // Public API constant — reserved for external validation consumers
     pub const MAX_CAPACITY: u64 = 1_000_000_000;
     /// 最大 TTL（30天，以秒计）
+    #[allow(dead_code)] // Public API constant — mirrors core::constants::MAX_TTL_SECS for config validation
     pub const MAX_TTL_SECS: u64 = 30 * 24 * 60 * 60;
     /// 最大 TTI（30天，以秒计）
+    #[allow(dead_code)] // Public API constant — mirrors core::constants value for config validation
     pub const MAX_TTI_SECS: u64 = 30 * 24 * 60 * 60;
     /// 自定义名称最大长度（256字符）
     pub const MAX_CUSTOM_NAME_LENGTH: usize = 256;

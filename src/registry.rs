@@ -124,6 +124,12 @@ mod tests {
             // Another test may initialize between our check and this call;
             // catch the panic to handle that race gracefully.
             let _ = std::panic::catch_unwind(init_empty);
+            // After catch_unwind, verify initialization actually succeeded.
+            // If another thread panicked during init, we must surface it.
+            assert!(
+                is_initialized(),
+                "ensure_initialized: init_empty failed or panicked; registry is not initialized"
+            );
         }
     }
 
@@ -236,6 +242,8 @@ mod tests {
         register("default", backend);
         let retrieved = get("default");
         assert!(retrieved.is_some(), "default cache should be retrievable after register");
+        // Cleanup to avoid leaking state to other tests
+        remove("default");
     }
 
     #[test]

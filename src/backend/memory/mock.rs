@@ -165,20 +165,24 @@ impl crate::backend::CacheReader for MockBackend {
     async fn keys(&self, pattern: &str) -> crate::error::OxCacheResult<Vec<String>> {
         let now = Instant::now();
         let mut data = self.data.write().await;
-        // Lazy 过期清理 + pattern 匹配
+
+        // Lazy 过期清理
         let expired_keys: Vec<String> = data
             .iter()
             .filter(|(_, (_, exp))| exp.is_some_and(|e| e <= now))
             .map(|(k, _)| k.clone())
             .collect();
-        for k in expired_keys {
-            data.remove(&k);
+        for k in &expired_keys {
+            data.remove(k);
         }
+
+        // Pattern 匹配（在清理后执行）
         let matched: Vec<String> = data
             .keys()
             .filter(|k| simple_glob(pattern, k))
             .cloned()
             .collect();
+
         Ok(matched)
     }
 }
@@ -248,6 +252,7 @@ impl crate::backend::CacheConnector for MockBackend {
 // CacheBackend is automatically implemented via blanket implementation
 
 /// Simple glob matching: `*` = any chars, `?` = single char.
+/// Uses char-based iteration to safely handle multi-byte UTF-8 strings.
 fn simple_glob(pattern: &str, text: &str) -> bool {
     let mut p = pattern.chars().peekable();
     let mut t = text.chars().peekable();
@@ -257,9 +262,11 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
                 p.next();
                 if p.peek().is_none() { return true; }
                 let rem_p: String = p.collect();
-                let rem_t: String = t.collect();
-                for i in 0..=rem_t.len() {
-                    if simple_glob(&rem_p, &rem_t[i..]) { return true; }
+                // Collect remaining text chars into a Vec to allow safe indexing
+                let rem_t_chars: Vec<char> = t.collect();
+                for start in 0..=rem_t_chars.len() {
+                    let rem_t: String = rem_t_chars[start..].iter().collect();
+                    if simple_glob(&rem_p, &rem_t) { return true; }
                 }
                 return false;
             }
@@ -275,12 +282,29 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
 impl crate::backend::AtomicCacheWriter for MockBackend {
     async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> crate::error::OxCacheResult<i64> {
         let mut data = self.data.write().await;
-        let current = data
-            .get(key)
-            .and_then(|(v, _)| String::from_utf8(v.clone()).ok())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-        let new_val = current + delta;
+        let current = match data.get(key) {
+            Some((v, _)) => {
+                let s = String::from_utf8(v.clone()).map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid UTF-8 in stored value for key '{}': {}",
+                        key, e
+                    ))
+                })?;
+                s.parse::<i64>().map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid integer in stored value for key '{}': {}",
+                        key, e
+                    ))
+                })?
+            }
+            None => 0,
+        };
+        let new_val = current.checked_add(delta).ok_or_else(|| {
+            crate::error::OxCacheError::Operation(format!(
+                "incr: i64 overflow for key '{}': {} + {}",
+                key, current, delta
+            ))
+        })?;
         let expires_at = ttl.map(|d| Instant::now() + d);
         data.insert(key.to_string(), (new_val.to_string().into_bytes(), expires_at));
         Ok(new_val)

@@ -8,6 +8,7 @@
 use crate::backend::BackendScore;
 use crate::backend::{AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -384,16 +385,22 @@ impl ChainCache {
             let backend = link.backend().clone();
             #[cfg(any(feature = "tracing", feature = "full"))]
             let name = link.name();
-            if let Err(e) = backend.set(key.clone(), value.clone(), ttl).await {
-                #[cfg(any(feature = "tracing", feature = "full"))]
-                tracing::warn!(
-                    key = %key,
-                    backend = %name,
-                    error = %e,
-                    "backfill to higher backend failed"
-                );
-                #[cfg(not(any(feature = "tracing", feature = "full")))]
-                let _ = e;
+            match backend.set(key.clone(), value.clone(), ttl).await {
+                Ok(()) => {
+                    GLOBAL_UNIFIED_METRICS.record_backfill_success();
+                }
+                Err(e) => {
+                    GLOBAL_UNIFIED_METRICS.record_backfill_failed();
+                    #[cfg(any(feature = "tracing", feature = "full"))]
+                    tracing::warn!(
+                        key = %key,
+                        backend = %name,
+                        error = %e,
+                        "backfill to higher backend failed"
+                    );
+                    #[cfg(not(any(feature = "tracing", feature = "full")))]
+                    let _ = e;
+                }
             }
         }
     }
@@ -457,21 +464,42 @@ impl ChainCache {
         Ok(())
     }
 
-    /// 从所有后端删除数据
+    /// 从所有后端并发删除数据
+    ///
+    /// 使用 JoinSet 并发执行，延迟从 O(Σbackend) 降至 O(max(backend))，
+    /// 与 `write_to_all_backends()` 语义对称。部分后端失败时记录 warn 日志，
+    /// 仅当所有后端都失败才返回 Err。
     #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn delete_from_all_backends(&self, key: &str) -> OxCacheResult<()> {
-        let mut errors = Vec::new();
+        let count = self.links.len();
 
+        if count == 0 {
+            return Ok(());
+        }
+
+        let mut set = tokio::task::JoinSet::new();
         for link in &self.links {
-            if let Err(e) = link.backend().delete(key).await {
-                #[cfg(any(feature = "tracing", feature = "full"))]
-                tracing::warn!(
-                    key = %key,
-                    backend = %link.name(),
-                    error = %e,
-                    "cache delete backend failed"
-                );
-                errors.push((link.name(), e));
+            let backend = link.backend().clone();
+            let name = link.name();
+            let key = key.to_string();
+            set.spawn(async move { (name, backend.delete(&key).await) });
+        }
+
+        let mut errors: Vec<(&'static str, OxCacheError)> = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok((_name, Ok(()))) => {}
+                Ok((name, Err(e))) => {
+                    #[cfg(any(feature = "tracing", feature = "full"))]
+                    tracing::warn!(
+                        key = %key,
+                        backend = %name,
+                        error = %e,
+                        "cache delete backend failed"
+                    );
+                    errors.push((name, e));
+                }
+                Err(e) => errors.push(("unknown", OxCacheError::Operation(e.to_string()))),
             }
         }
 

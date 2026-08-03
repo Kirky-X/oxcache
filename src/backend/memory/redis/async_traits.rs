@@ -10,61 +10,96 @@ use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+use std::time::Duration;
+
+/// Redis 最大 TTL 上界（秒）。Redis SETEX/EXPIRE 仅接受 i32::MAX 秒（~68 年）。
+const REDIS_MAX_TTL_SECS: u64 = i32::MAX as u64;
+
+/// 校验 TTL 值是否在 Redis 可接受范围内。
+fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
+    let secs = ttl.as_secs();
+    if secs == 0 {
+        return Err(OxCacheError::InvalidInput(
+            "TTL must be at least 1 second for Redis SETEX/EXPIRE".to_string(),
+        ));
+    }
+    if secs > REDIS_MAX_TTL_SECS {
+        return Err(OxCacheError::InvalidInput(format!(
+            "TTL {}s exceeds Redis maximum of {}s (~68 years)",
+            secs, REDIS_MAX_TTL_SECS
+        )));
+    }
+    Ok(secs)
+}
 use crate::security;
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::time::Duration;
 
 #[async_trait]
 impl CacheReader for RedisBackend {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        let result: Option<Vec<u8>> = redis::cmd(RedisCommand::Get.as_str())
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-        Ok(result)
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                redis::cmd(RedisCommand::Get.as_str())
+                    .arg(key)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)
+            }
+        })
+        .await
     }
 
     async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        let n: i64 = redis::cmd(RedisCommand::Exists.as_str())
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-        Ok(n > 0)
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let n: i64 = redis::cmd(RedisCommand::Exists.as_str())
+                    .arg(key)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(n > 0)
+            }
+        })
+        .await
     }
 
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        let n: i64 = redis::cmd(RedisCommand::Ttl.as_str())
-            .arg(key)
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-
-        if n <= 0 {
-            Ok(None)
-        } else {
-            Ok(Some(Duration::from_secs(n as u64)))
-        }
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let n: i64 = redis::cmd(RedisCommand::Ttl.as_str())
+                    .arg(key)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                if n <= 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(Duration::from_secs(n as u64)))
+                }
+            }
+        })
+        .await
     }
 
     async fn len(&self) -> OxCacheResult<u64> {
-        let mut conn = self.conn();
-        let len: i64 = redis::cmd(RedisCommand::Dbsize.as_str())
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-        Ok(len as u64)
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let len: i64 = redis::cmd(RedisCommand::Dbsize.as_str())
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(len as u64)
+            }
+        })
+        .await
     }
 
     async fn is_empty(&self) -> OxCacheResult<bool> {
@@ -76,54 +111,78 @@ impl CacheReader for RedisBackend {
     }
 
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
-        let mut conn = self.conn();
-        let info: String = redis::cmd(RedisCommand::Info.as_str())
-            .arg("memory")
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let mut stats = HashMap::new();
 
-        let mut stats = HashMap::new();
-        stats.insert("memory_info".to_string(), info);
-        Ok(stats)
+                // INFO memory
+                let memory_info: String = redis::cmd(RedisCommand::Info.as_str())
+                    .arg("memory")
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                stats.insert("memory_info".to_string(), memory_info);
+
+                // INFO clients — parse connected_clients and maxclients
+                let clients_info: String = redis::cmd(RedisCommand::Info.as_str())
+                    .arg("clients")
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                for line in clients_info.lines() {
+                    let line = line.trim();
+                    if let Some((key, value)) = line.split_once(':') {
+                        let key = key.trim();
+                        let value = value.trim();
+                        if key == "connected_clients" || key == "maxclients" {
+                            stats.insert(key.to_string(), value.to_string());
+                        }
+                    }
+                }
+
+                Ok(stats)
+            }
+        })
+        .await
     }
 
     async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         if keys.is_empty() {
             return Ok(vec![]);
         }
-
         let keys_slice: Vec<&str> = keys.iter().map(|s| s.as_str()).collect();
         self.get_many_pipeline(&keys_slice).await
     }
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
         security::validate_scan_pattern(pattern)?;
-
-        let mut conn = self.conn();
-        let mut all_keys = Vec::new();
-        let mut cursor = 0i64;
-
-        loop {
-            let (new_cursor, batch): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
-                .arg(cursor)
-                .arg("MATCH")
-                .arg(pattern)
-                .arg("COUNT")
-                .arg(100)
-                .query_async(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?;
-
-            all_keys.extend(batch);
-
-            cursor = new_cursor;
-            if cursor == 0 {
-                break;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let mut all_keys = Vec::new();
+                let mut cursor = 0i64;
+                loop {
+                    let (new_cursor, batch): (i64, Vec<String>) =
+                        redis::cmd(RedisCommand::Scan.as_str())
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg(pattern)
+                            .arg("COUNT")
+                            .arg(100)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
+                    all_keys.extend(batch);
+                    cursor = new_cursor;
+                    if cursor == 0 {
+                        break;
+                    }
+                }
+                Ok(all_keys)
             }
-        }
-
-        Ok(all_keys)
+        })
+        .await
     }
 }
 
@@ -135,42 +194,51 @@ impl CacheWriter for RedisBackend {
         value: std::sync::Arc<Vec<u8>>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<()> {
-        let key = key.as_ref();
-        security::validate_redis_key(key)?;
+        let key_ref = key.as_ref();
+        security::validate_redis_key(key_ref)?;
 
-        let mut conn = self.conn();
-
-        if let Some(ttl) = ttl {
-            let ttl_secs = ttl.as_secs();
-            redis::cmd(RedisCommand::SetEx.as_str())
-                .arg(key)
-                .arg(ttl_secs)
-                .arg(value.as_ref())
-                .query_async::<()>(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?;
-        } else {
-            redis::cmd(RedisCommand::Set.as_str())
-                .arg(key)
-                .arg(value.as_ref())
-                .query_async::<()>(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?;
-        }
-
-        Ok(())
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            let key = key.clone();
+            let value = value.clone();
+            async move {
+                if let Some(ttl) = ttl {
+                    let ttl_secs = validate_redis_ttl(ttl)?;
+                    redis::cmd(RedisCommand::SetEx.as_str())
+                        .arg(key.as_ref())
+                        .arg(ttl_secs)
+                        .arg(value.as_ref())
+                        .query_async::<()>(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
+                } else {
+                    redis::cmd(RedisCommand::Set.as_str())
+                        .arg(key.as_ref())
+                        .arg(value.as_ref())
+                        .query_async::<()>(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
+                }
+                Ok(())
+            }
+        })
+        .await
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        redis::cmd(RedisCommand::Del.as_str())
-            .arg(key)
-            .query_async::<()>(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-        Ok(())
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                redis::cmd(RedisCommand::Del.as_str())
+                    .arg(key)
+                    .query_async::<()>(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(())
+            }
+        })
+        .await
     }
 
     /// Clear all keys from the Redis database.
@@ -231,48 +299,53 @@ impl CacheWriter for RedisBackend {
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        let result: i64 = redis::cmd(RedisCommand::Expire.as_str())
-            .arg(key)
-            .arg(ttl.as_secs())
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-
-        Ok(result > 0)
+        let ttl_secs = validate_redis_ttl(ttl)?;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let result: i64 = redis::cmd(RedisCommand::Expire.as_str())
+                    .arg(key)
+                    .arg(ttl_secs)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(result > 0)
+            }
+        })
+        .await
     }
 
     async fn set_many(&self, items: &[crate::backend::CacheSetItem]) -> OxCacheResult<()> {
         if items.is_empty() {
             return Ok(());
         }
-
         for (key, _, _) in items {
             security::validate_redis_key(key)?;
         }
-
-        let mut conn = self.conn();
-        let mut pipe = redis::pipe();
-
-        for (key, value, ttl) in items {
-            if let Some(ttl) = ttl {
-                pipe.cmd(RedisCommand::SetEx.as_str())
-                    .arg(key.as_ref())
-                    .arg(ttl.as_secs())
-                    .arg(value.as_ref().as_slice());
-            } else {
-                pipe.cmd(RedisCommand::Set.as_str())
-                    .arg(key.as_ref())
-                    .arg(value.as_ref().as_slice());
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            let items = items.to_vec();
+            async move {
+                let mut pipe = redis::pipe();
+                for (key, value, ttl) in &items {
+                    if let Some(ttl) = ttl {
+                        pipe.cmd(RedisCommand::SetEx.as_str())
+                            .arg(key.as_ref())
+                            .arg(ttl.as_secs())
+                            .arg(value.as_ref().as_slice());
+                    } else {
+                        pipe.cmd(RedisCommand::Set.as_str())
+                            .arg(key.as_ref())
+                            .arg(value.as_ref().as_slice());
+                    }
+                }
+                pipe.query_async::<()>(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(())
             }
-        }
-
-        pipe.query_async::<()>(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-
-        Ok(())
+        })
+        .await
     }
 
     async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
@@ -336,34 +409,36 @@ impl BackendScore for RedisBackend {
 impl AtomicCacheWriter for RedisBackend {
     async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-
-        let result: i64 = if delta == 1 {
-            redis::cmd(RedisCommand::Incr.as_str())
-                .arg(key)
-                .query_async(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?
-        } else {
-            redis::cmd(RedisCommand::IncrBy.as_str())
-                .arg(key)
-                .arg(delta)
-                .query_async(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?
-        };
-
-        if let Some(ttl) = ttl {
-            redis::cmd(RedisCommand::Expire.as_str())
-                .arg(key)
-                .arg(ttl.as_secs())
-                .query_async::<()>(&mut conn)
-                .await
-                .map_err(error::map_redis_error)?;
-        }
-
-        Ok(result)
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let result: i64 = if delta == 1 {
+                    redis::cmd(RedisCommand::Incr.as_str())
+                        .arg(key)
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?
+                } else {
+                    redis::cmd(RedisCommand::IncrBy.as_str())
+                        .arg(key)
+                        .arg(delta)
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?
+                };
+                if let Some(ttl) = ttl {
+                    let ttl_secs = validate_redis_ttl(ttl)?;
+                    redis::cmd(RedisCommand::Expire.as_str())
+                        .arg(key)
+                        .arg(ttl_secs)
+                        .query_async::<()>(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
+                }
+                Ok(result)
+            }
+        })
+        .await
     }
 
     async fn compare_and_swap(
@@ -374,16 +449,9 @@ impl AtomicCacheWriter for RedisBackend {
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-
-        // Lua script for atomic CAS:
-        // - If expected is None: SETNX semantics (set only if key doesn't exist)
-        // - If expected is Some(bytes): set only if current value equals bytes
-        let has_ttl = ttl.is_some();
-
         let lua_script = match expected {
             None => {
-                // SETNX: set if not exists
-                if has_ttl {
+                if ttl.is_some() {
                     "if redis.call('EXISTS', KEYS[1]) == 0 then \
                      redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]) \
                      return 1 else return 0 end"
@@ -396,8 +464,7 @@ impl AtomicCacheWriter for RedisBackend {
                 }
             }
             Some(_) => {
-                // CAS: compare and swap
-                if has_ttl {
+                if ttl.is_some() {
                     "if redis.call('GET', KEYS[1]) == ARGV[1] then \
                      redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) \
                      return 1 else return 0 end"
@@ -411,32 +478,36 @@ impl AtomicCacheWriter for RedisBackend {
             }
         };
 
-        let mut conn = self.conn();
-        let mut cmd = redis::cmd(RedisCommand::Eval.as_str());
-        cmd.arg(lua_script.as_str()).arg(1).arg(key);
-
-        match expected {
-            None => {
-                cmd.arg(new.as_slice());
-                if let Some(ttl) = ttl {
-                    cmd.arg(ttl.as_secs());
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            let lua_script = lua_script.clone();
+            let new = new.clone();
+            async move {
+                let mut cmd = redis::cmd(RedisCommand::Eval.as_str());
+                cmd.arg(lua_script.as_str()).arg(1).arg(key);
+                match expected {
+                    None => {
+                        cmd.arg(new.as_slice());
+                        if let Some(ttl) = ttl {
+                            cmd.arg(ttl.as_secs());
+                        }
+                    }
+                    Some(exp_bytes) => {
+                        cmd.arg(exp_bytes);
+                        cmd.arg(new.as_slice());
+                        if let Some(ttl) = ttl {
+                            cmd.arg(ttl.as_secs());
+                        }
+                    }
                 }
+                let result: i64 = cmd
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(result == 1)
             }
-            Some(exp_bytes) => {
-                cmd.arg(exp_bytes);
-                cmd.arg(new.as_slice());
-                if let Some(ttl) = ttl {
-                    cmd.arg(ttl.as_secs());
-                }
-            }
-        }
-
-        let result: i64 = cmd
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-
-        Ok(result == 1)
+        })
+        .await
     }
 
     async fn set_if_absent(
@@ -446,21 +517,22 @@ impl AtomicCacheWriter for RedisBackend {
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-
-        let mut conn = self.conn();
-        let mut cmd = redis::cmd(RedisCommand::Set.as_str());
-        cmd.arg(key).arg(value.as_slice()).arg("NX");
-
-        if let Some(ttl) = ttl {
-            cmd.arg("EX").arg(ttl.as_secs());
-        }
-
-        let result: Option<redis::Value> = cmd
-            .query_async(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-
-        // SET NX returns nil if the key already existed
-        Ok(result.is_some())
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            let value = value.clone();
+            async move {
+                let mut cmd = redis::cmd(RedisCommand::Set.as_str());
+                cmd.arg(key).arg(value.as_slice()).arg("NX");
+                if let Some(ttl) = ttl {
+                    cmd.arg("EX").arg(ttl.as_secs());
+                }
+                let result: Option<redis::Value> = cmd
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(result.is_some())
+            }
+        })
+        .await
     }
 }

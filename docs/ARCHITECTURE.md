@@ -827,9 +827,9 @@ Oxcache 0.3.2 does not ship a built-in partitioning config (the `PartitionConfig
 
 ### Tiered Feature Sets
 
-- **`minimal`**: L1 memory cache only (`memory` + `tracing` + `metrics` + `serialization` + `chrono`)
+- **`minimal`**: L1 memory cache only (`memory` + `tracing` + `metrics` + `serialization` + `chrono` + `i18n`)
 - **`core`**: L1 + L2 Redis (`minimal` + `redis`)
-- **`full`**: All features enabled **except** `bloom-filter`, `kit`, `i18n`, and `testing`
+- **`full`**: All features enabled **except** `bloom-filter`, `kit`, and `testing`
 
 ### Component Features
 
@@ -847,10 +847,10 @@ Oxcache 0.3.2 does not ship a built-in partitioning config (the `PartitionConfig
 | `cli` | CLI tools (clap) | ✅ |
 | `bloom-filter` | Negative-query filtering (bloomfilter crate) | ❌ (opt-in) |
 | `kit` | trait-kit AsyncKit integration (OxcacheModule) | ❌ (opt-in) |
-| `i18n` | ICU4X-backed locale-aware formatting | ❌ (opt-in) |
+| `i18n` | ICU4X-backed locale-aware formatting & localized messages | ✅ |
 | `testing` | Exposes internal functions for tests | ❌ (opt-in) |
 
-> **Important**: `bloom-filter`, `kit`, and `i18n` are **not** included in `full`. Enable them explicitly with `features = ["bloom-filter"]` etc.
+> **Important**: `bloom-filter` and `kit` are **not** included in `full`. Enable them explicitly with `features = ["bloom-filter"]` etc. The `i18n` feature is always enabled (included in `minimal`).
 
 ## Future Enhancements
 
