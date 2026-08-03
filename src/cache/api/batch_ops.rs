@@ -6,6 +6,7 @@ use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::collections::HashMap;
+#[cfg(any(feature = "serialization", feature = "full"))]
 use std::sync::Arc;
 
 impl<K, V> Cache<K, V>
