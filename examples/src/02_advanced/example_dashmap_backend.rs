@@ -48,7 +48,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for (key, value) in &keys_values {
-        dashmap.set((*key).into(), value.clone().into(), Some(Duration::from_secs(300))).await?;
+        dashmap
+            .set((*key).into(), value.clone().into(), Some(Duration::from_secs(300)))
+            .await?;
     }
     println!("  批量写入: {} 个键值对", keys_values.len());
 

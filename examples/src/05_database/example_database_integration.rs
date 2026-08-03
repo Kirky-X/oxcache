@@ -35,11 +35,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ 内存缓存创建成功");
     println!();
 
-    // 2. 连接字符串解析示例
-    println!("2. 连接字符串解析示例");
-
-    // 注意：连接字符串解析功能暂时不可用
-    println!("   连接字符串解析功能暂时不可用");
+    // 2. 连接字符串示例
+    println!("2. 连接字符串示例");
+    println!("   oxcache 支持通过连接字符串创建 Redis 缓存:");
+    println!("   Cache::redis(\"redis://127.0.0.1:6379\")  — 单机模式");
+    println!("   Cache::redis(\"redis://host1:6379,host2:6379\")  — 集群模式");
+    println!("   详细示例请参考 example_redis_modes");
     println!();
 
     // 3. 模拟数据库加载器
@@ -239,9 +240,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     // 9. 统计信息
-    // 注意：缓存统计功能暂时不可用
     println!("9. 缓存统计信息");
-    println!("   缓存统计功能暂时不可用");
+    match cache.stats().await {
+        Ok(stats) => {
+            println!("   缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
+            println!("   条目数: {}", stats.get("entry_count").unwrap_or(&"N/A".to_string()));
+            println!("   容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
+        }
+        Err(e) => println!("   获取统计信息失败: {}", e),
+    }
     println!();
 
     // 10. 模拟分区策略

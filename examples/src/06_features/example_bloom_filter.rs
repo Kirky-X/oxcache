@@ -63,7 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === TTL 透传 ===
     println!("\n=== TTL 透传 ===");
     backend
-        .set("temp".into(), b"temp_value".to_vec().into(), Some(Duration::from_secs(60)))
+        .set(
+            "temp".into(),
+            b"temp_value".to_vec().into(),
+            Some(Duration::from_secs(60)),
+        )
         .await?;
     println!("set 'temp'（60s TTL）");
 

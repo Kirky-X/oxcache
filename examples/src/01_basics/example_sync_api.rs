@@ -98,6 +98,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sync_value = cache.get_sync(&"async_key".to_string())?;
     println!("async set → sync get = {:?}", sync_value);
 
+    // === 缓存元信息 sync ===
+    println!("\n=== 缓存元信息 sync ===");
+    let len = cache.len_sync()?;
+    println!("条目数 (len_sync): {}", len);
+
+    // === clear_sync ===
+    println!("\n=== clear_sync ===");
+    cache.clear_sync()?;
+    println!("✓ 缓存已清空");
+    let len_after = cache.len_sync()?;
+    println!("清空后条目数: {}", len_after);
+    assert_eq!(len_after, 0);
+
     println!("\n同步 API 示例完成！");
     Ok(())
 }
