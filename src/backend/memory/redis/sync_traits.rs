@@ -110,7 +110,11 @@ impl SyncCacheConnector for RedisBackend {
     }
 
     fn backend_kind(&self) -> BackendKind {
-        BackendKind::Redis
+        if self.mode() == crate::core::RedisModeType::ValkeyStandalone {
+            BackendKind::Valkey
+        } else {
+            BackendKind::Redis
+        }
     }
 }
 

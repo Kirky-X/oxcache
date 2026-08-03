@@ -146,3 +146,70 @@ async fn test_sync_stats() {
     let stats = SyncCacheReader::stats(&backend).expect("sync stats failed");
     assert!(stats.contains_key("memory_info"));
 }
+
+// ============================================================================
+// SyncAtomicCacheWriter integration tests
+// ============================================================================
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires Redis server"]
+async fn test_sync_atomic_incr() {
+    use crate::backend::SyncAtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("sync_incr");
+    let val = SyncAtomicCacheWriter::incr(&backend, &key, 5, None)
+        .expect("sync incr failed");
+    assert_eq!(val, 5);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires Redis server"]
+async fn test_sync_atomic_set_if_absent() {
+    use crate::backend::SyncAtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("sync_setnx");
+    let ok = SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v1".to_vec(), None)
+        .expect("sync set_if_absent failed");
+    assert!(ok);
+    let ok2 = SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v2".to_vec(), None)
+        .expect("sync set_if_absent failed");
+    assert!(!ok2);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires Redis server"]
+async fn test_sync_atomic_compare_and_swap() {
+    use crate::backend::SyncAtomicCacheWriter;
+    use crate::backend::interface::SyncCacheReader;
+    use crate::backend::interface::SyncCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("sync_cas");
+    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"old".to_vec()), None)
+        .expect("sync set failed");
+    let ok = SyncAtomicCacheWriter::compare_and_swap(
+        &backend, &key, Some(b"old"), b"new".to_vec(), None,
+    )
+    .expect("sync cas failed");
+    assert!(ok);
+    let val = SyncCacheReader::get(&backend, &key).unwrap().unwrap();
+    assert_eq!(val, b"new");
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires Redis server"]
+async fn test_sync_keys() {
+    use crate::backend::interface::SyncCacheReader;
+    use crate::backend::interface::SyncCacheWriter;
+    let backend = make_backend().await;
+    let prefix = unique_key("sync_keys");
+    let k1 = format!("{}_1", prefix);
+    SyncCacheWriter::set(&backend, Arc::from(k1.as_str()), Arc::new(b"v".to_vec()), None)
+        .expect("sync set failed");
+    let pattern = format!("{}*", prefix);
+    let keys = SyncCacheReader::keys(&backend, &pattern).expect("sync keys failed");
+    assert!(!keys.is_empty());
+    cleanup(&backend, &k1).await;
+}
