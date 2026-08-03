@@ -86,6 +86,12 @@ features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentine
 optional = true
 
 # ============================================================================
+# Aerospike (independent protocol, feature-gated)
+[dependencies.aerospike]
+version = "2.1"
+optional = true
+
+# ============================================================================
 # Serialization & Compression - 精简特性
 [dependencies.serde]
 version = "1.0"
@@ -185,6 +191,8 @@ full = [
     "lua-script",
     "cli",
     "testing",
+    "dragonfly",
+    "aerospike",
 ]
 
 # --------------------------------------------------------------------
@@ -197,6 +205,12 @@ memory = ["dep:moka", "dep:dashmap", "dep:serde"]
 
 # L2 Distributed Cache (Redis)
 redis = ["dep:redis", "dep:regex"]
+
+# Dragonfly (Redis-compatible, wraps redis feature)
+dragonfly = ["redis"]
+
+# Aerospike (independent protocol, optional)
+aerospike = ["dep:aerospike"]
 
 # Proc macros for #[cached]
 # 显式依赖 `minimal`：宏生成代码引用 `::oxcache::__internal_get_cache`，
@@ -329,6 +343,11 @@ required-features = ["serialization"]
 name = "dashmap_benchmark"
 harness = false
 required-features = ["memory"]
+
+[[bench]]
+name = "dragonfly_benchmark"
+harness = false
+required-features = ["dragonfly"]
 
 [lints.rust]
 unexpected_cfgs = "allow"
