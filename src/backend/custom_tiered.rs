@@ -132,40 +132,41 @@ impl BackendType {
     /// - 验证自定义名称字符（只允许字母、数字、下划线、连字符、点）
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> OxCacheResult<Self> {
-        match s.to_lowercase().as_str() {
-            #[cfg(feature = "memory")]
-            "moka" => Ok(BackendType::Moka),
+        // 避免 to_lowercase() 堆分配：已知后端名用 eq_ignore_ascii_case O(1) 比较
+        #[cfg(feature = "memory")]
+        if s.eq_ignore_ascii_case("moka") {
+            return Ok(BackendType::Moka);
+        }
+        #[cfg(feature = "memory")]
+        if s.eq_ignore_ascii_case("dashmap") {
+            return Ok(BackendType::Dashmap);
+        }
+        #[cfg(feature = "redis")]
+        if s.eq_ignore_ascii_case("redis") {
+            return Ok(BackendType::Redis);
+        }
 
-            #[cfg(feature = "memory")]
-            "dashmap" => Ok(BackendType::Dashmap),
+        if let Some(custom_name) = s.strip_prefix("custom:") {
+            // 验证自定义名称
+            let validated_name = ConfigValidation::validate_custom_name(custom_name)?;
+            Ok(BackendType::Custom(validated_name))
+        } else {
+            // 构建可用后端列表
+            let mut available = vec![
+                #[cfg(feature = "memory")]
+                "moka",
+                #[cfg(feature = "memory")]
+                "dashmap",
+                #[cfg(feature = "redis")]
+                "redis",
+            ];
+            available.push("custom:<name>");
 
-            #[cfg(feature = "redis")]
-            "redis" => Ok(BackendType::Redis),
-
-            _ => {
-                if let Some(custom_name) = s.strip_prefix("custom:") {
-                    // 验证自定义名称
-                    let validated_name = ConfigValidation::validate_custom_name(custom_name)?;
-                    Ok(BackendType::Custom(validated_name))
-                } else {
-                    // 构建可用后端列表
-                    let mut available = vec![
-                        #[cfg(feature = "memory")]
-                        "moka",
-                        #[cfg(feature = "memory")]
-                        "dashmap",
-                        #[cfg(feature = "redis")]
-                        "redis",
-                    ];
-                    available.push("custom:<name>");
-
-                    Err(OxCacheError::InvalidInput(format!(
-                        "Unknown backend type: '{}'. Available backends: {}",
-                        s,
-                        available.join(", ")
-                    )))
-                }
-            }
+            Err(OxCacheError::InvalidInput(format!(
+                "Unknown backend type: '{}'. Available backends: {}",
+                s,
+                available.join(", ")
+            )))
         }
     }
 }
