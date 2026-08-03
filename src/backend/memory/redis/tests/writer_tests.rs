@@ -318,3 +318,200 @@ async fn test_redis_backend_implements_all_traits() {
     let _: &dyn CacheWriter = &backend;
     let _: &dyn CacheConnector = &backend;
 }
+
+// ============================================================================
+// AtomicCacheWriter integration tests
+// ============================================================================
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_incr_from_zero() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("incr0");
+    let val = backend.incr(&key, 1, None).await.expect("incr failed");
+    assert_eq!(val, 1);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_incr_accumulates() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("incrac");
+    backend.incr(&key, 10, None).await.unwrap();
+    let val = backend.incr(&key, 5, None).await.unwrap();
+    assert_eq!(val, 15);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_incr_negative_delta() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("incrneg");
+    backend.incr(&key, 10, None).await.unwrap();
+    let val = backend.incr(&key, -3, None).await.unwrap();
+    assert_eq!(val, 7);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_set_if_absent_success() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("setnx");
+    let ok = backend.set_if_absent(&key, b"v1".to_vec(), None).await.unwrap();
+    assert!(ok);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_set_if_absent_already_exists() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("setnxe");
+    backend.set_if_absent(&key, b"v1".to_vec(), None).await.unwrap();
+    let ok = backend.set_if_absent(&key, b"v2".to_vec(), None).await.unwrap();
+    assert!(!ok);
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_compare_and_swap_success() {
+    use crate::backend::AtomicCacheWriter;
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let key = unique_key("cas");
+    backend.set(Arc::from(key.as_str()), Arc::new(b"old".to_vec()), None).await.unwrap();
+    let ok = backend.compare_and_swap(&key, Some(b"old"), b"new".to_vec(), None).await.unwrap();
+    assert!(ok);
+    let val = backend.get(&key).await.unwrap().unwrap();
+    assert_eq!(val, b"new");
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_compare_and_swap_wrong_expected() {
+    use crate::backend::AtomicCacheWriter;
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let key = unique_key("casw");
+    backend.set(Arc::from(key.as_str()), Arc::new(b"actual".to_vec()), None).await.unwrap();
+    let ok = backend.compare_and_swap(&key, Some(b"wrong"), b"new".to_vec(), None).await.unwrap();
+    assert!(!ok);
+    // Value should be unchanged
+    let val = backend.get(&key).await.unwrap().unwrap();
+    assert_eq!(val, b"actual");
+    cleanup(&backend, &key).await;
+}
+
+// ============================================================================
+// keys() SCAN integration tests
+// ============================================================================
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_keys_scan_returns_matching_keys() {
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let prefix = unique_key("scan");
+    let k1 = format!("{}_1", prefix);
+    let k2 = format!("{}_2", prefix);
+    backend.set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None).await.unwrap();
+    backend.set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None).await.unwrap();
+    let pattern = format!("{}*", prefix);
+    let keys = backend.keys(&pattern).await.unwrap();
+    assert!(keys.len() >= 2);
+    assert!(keys.iter().any(|k| k == &k1));
+    assert!(keys.iter().any(|k| k == &k2));
+    cleanup(&backend, &k1).await;
+    cleanup(&backend, &k2).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_keys_scan_no_match_returns_empty() {
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let keys = backend.keys("nonexistent_prefix_xyz_*").await.unwrap();
+    assert!(keys.is_empty());
+}
+
+// ============================================================================
+// clear() with dangerous_clear_enabled
+// ============================================================================
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_clear_disabled_by_default_returns_error() {
+    let backend = make_backend().await;
+    let result = backend.clear().await;
+    assert!(result.is_err());
+    if let Err(OxCacheError::NotSupported(msg)) = result {
+        assert!(msg.contains("disabled") || msg.contains("clear"));
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_clear_namespace_prefix() {
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let prefix = unique_key("ns");
+    let k1 = format!("{}_a", prefix);
+    let k2 = format!("{}_b", prefix);
+    let other = unique_key("other");
+    backend.set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None).await.unwrap();
+    backend.set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None).await.unwrap();
+    backend.set(Arc::from(other.as_str()), Arc::new(b"v3".to_vec()), None).await.unwrap();
+    backend.clear_namespace(&prefix).await.unwrap();
+    assert!(!backend.exists(&k1).await.unwrap());
+    assert!(!backend.exists(&k2).await.unwrap());
+    assert!(backend.exists(&other).await.unwrap());
+    cleanup(&backend, &other).await;
+}
+
+// ============================================================================
+// stats() with INFO clients
+// ============================================================================
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_stats_includes_clients_info() {
+    use crate::backend::CacheReader;
+    let backend = make_backend().await;
+    let stats = backend.stats().await.unwrap();
+    // Should contain connected_clients from INFO clients
+    assert!(stats.contains_key("connected_clients"));
+}
+
+// ============================================================================
+// TTL validation
+// ============================================================================
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_set_ttl_zero_rejected() {
+    let backend = make_backend().await;
+    let result = backend
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(0)))
+        .await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_set_ttl_subsecond_rejected() {
+    let backend = make_backend().await;
+    let result = backend
+        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(500)))
+        .await;
+    assert!(result.is_err());
+}

@@ -3,6 +3,7 @@
 //! Split test modules for Redis backend.
 
 pub(crate) mod builder_tests;
+pub(crate) mod error_tests;
 pub(crate) mod lua_tests;
 pub(crate) mod pipeline_tests;
 pub(crate) mod reader_tests;
