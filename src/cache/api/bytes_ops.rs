@@ -3,7 +3,7 @@
 //! Cache 字节操作方法（用于宏兼容）
 
 use super::Cache;
-use crate::error::{OxCacheError, OxCacheResult};
+use crate::error::OxCacheResult;
 use crate::traits::CacheKey;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,11 +30,7 @@ where
     /// Returns `Err(NotSupported)` if `sync_mode(true)` was not set on the
     /// builder (i.e., `backend_sync` is `None`).
     pub fn get_bytes_sync(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
-        let backend = self.backend_sync.as_ref().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
-            )
-        })?;
+        let backend = self.backend_sync.as_ref().ok_or_else(Self::sync_mode_error)?;
         backend.get(key)
     }
 
@@ -44,11 +40,7 @@ where
     /// macro symmetry). Returns `Err(NotSupported)` if `sync_mode(true)` was
     /// not set on the builder.
     pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
-        let backend = self.backend_sync.as_ref().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "sync byte API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
-            )
-        })?;
+        let backend = self.backend_sync.as_ref().ok_or_else(Self::sync_mode_error)?;
         let ttl_duration = ttl.map(Duration::from_secs);
         backend.set(Arc::from(key), Arc::new(value), ttl_duration)
     }
@@ -132,6 +124,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     async fn test_unified_serializer_accessible() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let serializer = cache.unified_serializer();

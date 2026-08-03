@@ -17,7 +17,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cache")
-            .field("backend", &"<CacheBackend>")
+            .field("backend", &format_args!("{}", std::any::type_name::<K>()))
             .field("backend_sync", &self.backend_sync.is_some())
             .finish()
     }
@@ -58,6 +58,14 @@ where
     /// 当 backend 已实现 SyncCacheBackend 时，将其 Arc 升级为 trait 对象。
     pub(crate) fn set_sync_backend(&mut self, backend: Arc<dyn SyncCacheBackend>) {
         self.backend_sync = Some(backend);
+    }
+
+    /// Construct the `NotSupported` error for sync API calls when
+    /// `backend_sync` is `None` (i.e. `sync_mode(true)` was not set).
+    pub(crate) fn sync_mode_error() -> crate::error::OxCacheError {
+        crate::error::OxCacheError::NotSupported(
+            "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
+        )
     }
 }
 

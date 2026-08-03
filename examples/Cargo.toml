@@ -16,7 +16,6 @@ publish = false
 oxcache = { path = "..", default-features = false, features = [
     "full",
     "bloom-filter",
-    "i18n",
 ] }
 
 # Tracing for logging (minimal features)

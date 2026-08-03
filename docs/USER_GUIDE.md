@@ -170,7 +170,7 @@ oxcache = { version = "0.3", features = ["core", "macros", "bloom-filter"] }
 | `lua-script` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`、`kit`、`i18n`） |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`、`kit`） |
 
 如果需要最小依赖或自定义特性：
 

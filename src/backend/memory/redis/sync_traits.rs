@@ -12,9 +12,20 @@ use std::time::Duration;
 impl RedisBackend {
     /// Get the current Tokio runtime handle, requiring multi-thread flavor.
     ///
+    /// # Invariants
+    ///
     /// - Not in any Tokio runtime: returns `Err(NotSupported)`.
     /// - Current-thread runtime: returns `Err(NotSupported)` (block_in_place would panic).
     /// - Multi-thread runtime: returns the handle.
+    ///
+    /// # Deadlock Warning
+    ///
+    /// All sync trait methods (`SyncCacheReader`, `SyncCacheWriter`, etc.) use
+    /// `block_in_place` + `handle.block_on()` to bridge async→sync. This will
+    /// **deadlock** if called from a task already running on this backend's own
+    /// multi-thread runtime when all worker threads are occupied. Callers MUST
+    /// ensure they are NOT inside an async task on the same runtime when invoking
+    /// sync methods. If in doubt, use the async API instead.
     pub(crate) fn multi_thread_handle() -> OxCacheResult<tokio::runtime::Handle> {
         let handle = tokio::runtime::Handle::try_current().map_err(|e| {
             OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))

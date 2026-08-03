@@ -38,7 +38,6 @@ once_cell = "1.21"
 uuid = { version = "1.23", features = ["v4"] }
 
 # Error Handling
-thiserror = "2.0"
 [dependencies.anyhow]
 version = "1.0"
 optional = true
@@ -50,15 +49,14 @@ features = ["async"]
 optional = true
 default-features = false
 
-# ICU4X internationalization (optional, feature-gated via `i18n`).
-# icu 2.2 provides locale-aware number/date/plural/collation formatting.
+# ICU4X internationalization (always enabled, mandatory dependency).
+# icu 2.2 provides locale-aware number/date/plural/collation formatting
+# and localized error message display.
 [dependencies.icu]
 version = "2.2"
-optional = true
 
 [dependencies.writeable]
 version = "0.6"
-optional = true
 
 # Tracing for logging and instrumentation
 [dependencies.tracing]
@@ -170,6 +168,7 @@ minimal = [
     "metrics",
     "serialization",
     "dep:chrono",
+    "i18n",
 ]
 
 # Core: L1 + L2 (Redis)
@@ -246,9 +245,10 @@ bloom-filter = ["dep:bloomfilter"]
 # with the `async` feature only — default features are disabled (Rule 6).
 kit = ["dep:trait-kit"]
 
-# ICU4X-backed internationalization: locale-aware number/date/plural/collation
-# formatting for cache keys, statistics, and sorting.
-i18n = ["dep:icu", "dep:writeable"]
+# ICU4X-backed internationalization: always enabled (mandatory).
+# Included in `minimal` so all feature tiers have i18n support.
+# Note: icu and writeable are non-optional deps, so this feature is a marker only.
+i18n = []
 
 [workspace]
 resolver = "2"

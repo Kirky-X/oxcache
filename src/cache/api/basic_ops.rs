@@ -16,31 +16,6 @@ use std::time::Duration;
 #[cfg(any(feature = "tracing", feature = "full"))]
 use tracing::instrument;
 
-/// 计算 JSON 值的嵌套深度（用于防止栈溢出攻击）
-// 使用 serde_json::Value，仅在 serialization/full feature 下可用
-// 保留为独立工具函数：deserialize_value 已改用 deserialize_safe 单次解析。
-#[cfg(any(feature = "serialization", feature = "full"))]
-#[allow(dead_code)]
-fn json_depth(value: &serde_json::Value) -> usize {
-    match value {
-        serde_json::Value::Object(map) => {
-            if map.is_empty() {
-                1
-            } else {
-                map.values().map(json_depth).max().unwrap_or(0) + 1
-            }
-        }
-        serde_json::Value::Array(arr) => {
-            if arr.is_empty() {
-                1
-            } else {
-                arr.iter().map(json_depth).max().unwrap_or(0) + 1
-            }
-        }
-        _ => 1,
-    }
-}
-
 /// 分片数量（2 的幂，通过掩码路由）
 const GET_OR_LOCK_SHARDS: usize = 64;
 const GET_OR_LOCK_MASK: usize = GET_OR_LOCK_SHARDS - 1;
@@ -931,45 +906,8 @@ mod tests {
     }
 
     // ========================================================================
-    // json_depth / deserialize_value internal functions
+    // deserialize_value internal functions
     // ========================================================================
-
-    #[test]
-    fn test_json_depth_scalar() {
-        let v = serde_json::json!(42);
-        assert_eq!(json_depth(&v), 1);
-    }
-
-    #[test]
-    fn test_json_depth_empty_object() {
-        let v = serde_json::json!({});
-        assert_eq!(json_depth(&v), 1);
-    }
-
-    #[test]
-    fn test_json_depth_empty_array() {
-        let v = serde_json::json!([]);
-        assert_eq!(json_depth(&v), 1);
-    }
-
-    #[test]
-    fn test_json_depth_nested_object() {
-        let v = serde_json::json!({"a": {"b": {"c": 1}}});
-        assert_eq!(json_depth(&v), 4);
-    }
-
-    #[test]
-    fn test_json_depth_nested_array() {
-        let v = serde_json::json!([[[1]]]);
-        assert_eq!(json_depth(&v), 4);
-    }
-
-    #[test]
-    fn test_json_depth_mixed() {
-        let v = serde_json::json!({"a": [1, {"b": 2}]});
-        // object -> array -> object -> scalar = 4
-        assert_eq!(json_depth(&v), 4);
-    }
 
     #[tokio::test]
     async fn test_deserialize_value_valid() {

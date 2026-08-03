@@ -29,20 +29,6 @@ pub(crate) fn is_connection_error(e: &RedisError) -> bool {
     e.is_timeout() || e.is_io_error() || e.is_connection_dropped()
 }
 
-/// Map a Redis error in a connection context (alias for `map_redis_error`).
-///
-/// Kept for semantic clarity at call sites that are clearly connection-related.
-#[allow(dead_code)]
-pub(crate) fn conn_err(e: RedisError) -> OxCacheError {
-    map_redis_error(e)
-}
-
-/// Map a Redis error in an operation context (alias for `map_redis_error`).
-#[allow(dead_code)]
-pub(crate) fn op_err(e: RedisError) -> OxCacheError {
-    map_redis_error(e)
-}
-
 /// Convenience result type for Redis operations.
 #[allow(dead_code)]
 pub(crate) type RedisResult<T> = OxCacheResult<T>;
