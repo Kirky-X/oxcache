@@ -113,28 +113,11 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<
         )));
     }
 
-    // Count wildcards
-    let single_star_count = pattern.bytes().filter(|&b| b == b'*').count();
-    if double_star_allowed {
-        // ** counts as 2 wildcards
-        let double_star_count = pattern.matches("**").count();
-        if single_star_count - (double_star_count * 2) > MAX_WILDCARDS {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Glob pattern contains too many wildcards (max {})",
-                MAX_WILDCARDS
-            )));
-        }
-    } else if single_star_count > MAX_WILDCARDS {
-        return Err(OxCacheError::InvalidInput(format!(
-            "Glob pattern contains too many wildcards (max {})",
-            MAX_WILDCARDS
-        )));
-    }
-
     // Convert glob to regex
     let mut regex_pattern = String::with_capacity(pattern.len() * 2);
     let mut chars = pattern.chars().peekable();
     let mut in_escape = false;
+    let mut wildcard_count: usize = 0;
 
     while let Some(c) = chars.next() {
         if in_escape {
@@ -145,18 +128,24 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<
 
         match c {
             '\\' if !in_escape => {
-                if chars.peek() == Some(&'*') {
-                    // \* means literal *
-                    chars.next();
-                    regex_pattern.push('*');
-                } else {
-                    in_escape = true;
-                }
+                // Always set in_escape; the next character will be handled
+                // by the `in_escape` branch above which calls regex::escape.
+                // This correctly handles \* → literal \*, \? → literal \?, etc.
+                in_escape = true;
             }
             '*' => {
                 if double_star_allowed && chars.clone().next() == Some('*') {
                     // ** matches any character including /
                     chars.next();
+                    // Count as 1 wildcard to stay consistent with compile_regex,
+                    // which counts the single '*' in the generated '.*' pattern.
+                    wildcard_count += 1;
+                    if wildcard_count > MAX_WILDCARDS {
+                        return Err(OxCacheError::InvalidInput(format!(
+                            "Glob pattern contains too many wildcards (max {})",
+                            MAX_WILDCARDS
+                        )));
+                    }
                     if chars.peek() == Some(&'/') {
                         // **/ matches zero or more directories
                         chars.next();
@@ -166,10 +155,26 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<
                     }
                 } else {
                     // * matches any character except /
+                    wildcard_count += 1;
+                    if wildcard_count > MAX_WILDCARDS {
+                        return Err(OxCacheError::InvalidInput(format!(
+                            "Glob pattern contains too many wildcards (max {})",
+                            MAX_WILDCARDS
+                        )));
+                    }
                     regex_pattern.push_str("[^/]*");
                 }
             }
-            '?' => regex_pattern.push('.'),
+            '?' => {
+                wildcard_count += 1;
+                if wildcard_count > MAX_WILDCARDS {
+                    return Err(OxCacheError::InvalidInput(format!(
+                        "Glob pattern contains too many wildcards (max {})",
+                        MAX_WILDCARDS
+                    )));
+                }
+                regex_pattern.push('.');
+            }
             '[' => {
                 // Character class - escape to prevent regex injection
                 return Err(OxCacheError::InvalidInput(
@@ -183,6 +188,13 @@ pub fn glob_to_regex(pattern: &str, double_star_allowed: bool) -> OxCacheResult<
             }
             c => regex_pattern.push_str(&regex::escape(&c.to_string())),
         }
+    }
+
+    // Trailing unclosed backslash is an error
+    if in_escape {
+        return Err(OxCacheError::InvalidInput(
+            "Glob pattern ends with trailing backslash".to_string(),
+        ));
     }
 
     Ok(format!("^{}$", regex_pattern))
@@ -362,20 +374,22 @@ mod tests {
 
     #[test]
     fn test_glob_to_regex_escaped_star() {
-        // \\* 表示字面量 * (lines 149-153)
-        // 注意：源代码将原始 * 推入正则表达式模式，产生 ^*$
-        // 这是一个无效的正则表达式（量词没有内容），所以我们只验证转换结果
+        // \* 表示字面量 * — 通过 regex::escape 产生 \*
         let result = glob_to_regex("\\*", false);
         assert!(result.is_ok());
         let regex_pattern = result.unwrap();
-        assert_eq!(regex_pattern, "^*$");
+        assert_eq!(regex_pattern, "^\\*$");
+        // 验证编译后的正则匹配字面量 *
+        let regex = Regex::new(&regex_pattern).unwrap();
+        assert!(regex.is_match("*"));
+        assert!(!regex.is_match("a"));
     }
 
     #[test]
     fn test_glob_to_regex_backslash_at_end() {
-        // 反斜杠在末尾（没有后续字符）
+        // 反斜杠在末尾（没有后续字符）应返回错误
         let result = glob_to_regex("test\\", false);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     // ============================================================================

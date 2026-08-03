@@ -44,33 +44,33 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     #[cfg(feature = "lua-script")]
-    pub async fn eval_lua(&self, _script: &str, _keys: &[&str], _args: &[&str]) -> OxCacheResult<redis::Value> {
+    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
-        executor.eval_lua(_script, _keys, _args).await
+        executor.eval_lua(script, keys, args).await
     }
 
     #[cfg(feature = "lua-script")]
-    pub async fn eval_sha(&self, _sha: &str, _keys: &[&str], _args: &[&str]) -> OxCacheResult<redis::Value> {
+    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
-        executor.eval_sha(_sha, _keys, _args).await
+        executor.eval_sha(sha, keys, args).await
     }
 
     #[cfg(feature = "lua-script")]
-    pub async fn script_load(&self, _script: &str) -> OxCacheResult<String> {
+    pub async fn script_load(&self, script: &str) -> OxCacheResult<String> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
             )
         })?;
-        executor.script_load(_script).await
+        executor.script_load(script).await
     }
 }
 

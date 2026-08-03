@@ -84,11 +84,21 @@ impl CacheI18nFormatter {
     /// Build a locale-aware cache key by combining a namespace with a
     /// locale-formatted count (e.g. `"user:1,234"`).
     ///
+    /// Uses integer formatting to avoid precision loss that would occur
+    /// from converting `u64` to `f64` (which loses precision above 2^53).
+    ///
     /// # Errors
     /// Returns [`I18nError::InvalidNumber`] if the count cannot be formatted.
     pub fn format_cache_key(&self, namespace: &str, count: u64) -> Result<String, I18nError> {
-        let formatted_count = self.format_number(count as f64)?;
-        Ok(format!("{namespace}:{formatted_count}"))
+        // Format u64 directly as a decimal string to avoid u64→f64 precision loss
+        let repr = format!("{count}");
+        let decimal = Decimal::from_str(&repr).map_err(|e| I18nError::InvalidNumber {
+            input: repr,
+            reason: e.to_string(),
+        })?;
+        let formatted = self.decimal_formatter.format(&decimal);
+        let formatted_str = formatted.write_to_string().into_owned();
+        Ok(format!("{namespace}:{formatted_str}"))
     }
 
     /// Format an ISO calendar date (year / month / day) as a cache
