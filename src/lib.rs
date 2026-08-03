@@ -271,6 +271,7 @@ pub use crate::internal::__internal_get_cache;
 
 // New API exports
 // cache 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
+pub use cache::BytesCache;
 #[cfg(any(
     feature = "memory",
     feature = "redis",
@@ -287,7 +288,6 @@ pub use cache::Cache;
     feature = "full"
 ))]
 pub use cache::CacheBuilder;
-pub use cache::BytesCache;
 
 // Re-exports from infra module
 #[cfg(feature = "metrics")]

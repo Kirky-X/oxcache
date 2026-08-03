@@ -93,7 +93,7 @@ Validates SCAN patterns and clamps COUNT to prevent Redis server overload.
 |------|-------|-------------|
 | Max pattern length | 256 chars | `MAX_SCAN_PATTERN_LENGTH` — prevents regex DoS |
 | Max wildcards | 10 | `MAX_SCAN_WILDCARDS` — prevents broad scans |
-| Clamped COUNT | 10,000 | `clamp_scan_count` caps COUNT to prevent full-keyspace scans |
+| Clamped COUNT | 1,000 | `clamp_scan_count` caps COUNT to prevent full-keyspace scans |
 
 ### Example
 
@@ -175,4 +175,4 @@ Only the latest minor release receives security updates. When a new minor versio
 | Max Lua script keys | 100 | Hardcoded (`MAX_LUA_SCRIPT_KEYS`) |
 | Max SCAN pattern length | 256 chars | Hardcoded (`MAX_SCAN_PATTERN_LENGTH`) |
 | Max SCAN wildcards | 10 | Hardcoded (`MAX_SCAN_WILDCARDS`) |
-| Clamped SCAN COUNT | 10,000 | `clamp_scan_count()` |
+| Clamped SCAN COUNT | 1,000 | `clamp_scan_count()` |

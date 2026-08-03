@@ -25,8 +25,8 @@ pub mod config_validation;
 pub mod custom_tiered;
 
 // Re-exports for new API
-pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 pub use interface::CacheSetItem;
+pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 // Re-exports for synchronous API (任务组 5)
 pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
 
@@ -63,7 +63,13 @@ pub use memory::MockBackend;
 pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
 // Re-exports for custom tiered configuration
-#[cfg(any(feature = "memory", feature = "redis", feature = "full", feature = "core"))]
+#[cfg(any(
+    feature = "memory",
+    feature = "redis",
+    feature = "minimal",
+    feature = "full",
+    feature = "core"
+))]
 pub use custom_tiered::LayerRestriction;
 
 // 从 core::types 重新导出统一的枚举类型
