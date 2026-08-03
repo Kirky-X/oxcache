@@ -122,7 +122,8 @@ pub struct MetricsConfig {
     pub histogram_buckets: Vec<f64>,
     /// Maximum number of dynamic metrics
     pub max_dynamic_metrics: usize,
-    /// Metrics retention period
+    /// Metrics retention period (reserved for future time-based eviction)
+    #[allow(dead_code)]
     pub retention_period: Option<Duration>,
 }
 
@@ -249,7 +250,10 @@ impl UnifiedMetrics {
     /// Record a custom metric
     pub fn record_custom(&self, key: &str, value: MetricValue) {
         if self.inner.dynamic_metrics.len() >= self.inner.config.max_dynamic_metrics {
-            // Remove oldest metric if at capacity
+            // Remove an arbitrary metric if at capacity.
+            // NOTE: DashMap does not guarantee iteration order, so this is
+            // NOT true LRU/oldest-first eviction. A sequence-counter-based
+            // approach would be needed for deterministic ordering.
             if let Some(first_key) = self.inner.dynamic_metrics.iter().next().map(|r| r.key().clone()) {
                 self.inner.dynamic_metrics.remove(&first_key);
             }
@@ -355,6 +359,8 @@ impl UnifiedMetrics {
             prefetch_total: self.inner.counters.prefetch_total.load(Ordering::Relaxed),
             compression_total: self.inner.counters.compression_total.load(Ordering::Relaxed),
             compression_bytes_saved: self.inner.counters.compression_bytes_saved.load(Ordering::Relaxed),
+            l1_items: self.inner.counters.l1_items.load(Ordering::Relaxed),
+            l1_capacity_used: self.inner.counters.l1_capacity_used.load(Ordering::Relaxed),
         }
     }
 
@@ -398,6 +404,8 @@ impl UnifiedMetrics {
         self.inner.counters.prefetch_total.store(0, Ordering::Relaxed);
         self.inner.counters.compression_total.store(0, Ordering::Relaxed);
         self.inner.counters.compression_bytes_saved.store(0, Ordering::Relaxed);
+        self.inner.counters.l1_items.store(0, Ordering::Relaxed);
+        self.inner.counters.l1_capacity_used.store(0, Ordering::Relaxed);
 
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
@@ -420,11 +428,11 @@ impl UnifiedMetrics {
     pub fn hit_rates(&self) -> HitRates {
         let counters = self.get_counters();
 
-        let l1_total = counters.l1_hits + counters.l1_misses;
-        let l2_total = counters.l2_hits + counters.l2_misses;
-        let total_hits = counters.l1_hits + counters.l2_hits;
-        let total_misses = counters.l1_misses + counters.l2_misses;
-        let overall_total = total_hits + total_misses;
+        let l1_total = counters.l1_hits.saturating_add(counters.l1_misses);
+        let l2_total = counters.l2_hits.saturating_add(counters.l2_misses);
+        let total_hits = counters.l1_hits.saturating_add(counters.l2_hits);
+        let total_misses = counters.l1_misses.saturating_add(counters.l2_misses);
+        let overall_total = total_hits.saturating_add(total_misses);
 
         HitRates {
             l1_hit_rate: if l1_total > 0 {
@@ -440,7 +448,7 @@ impl UnifiedMetrics {
             overall_hit_rate: if overall_total > 0 {
                 total_hits as f64 / overall_total as f64
             } else {
-                1.0
+                0.0
             },
         }
     }
@@ -510,6 +518,10 @@ pub struct CounterSnapshot {
     pub prefetch_total: u64,
     pub compression_total: u64,
     pub compression_bytes_saved: u64,
+    /// L1 cache item count (not yet wired to cache operations)
+    pub l1_items: u64,
+    /// L1 cache capacity used in bytes (not yet wired to cache operations)
+    pub l1_capacity_used: u64,
 }
 
 /// Comprehensive metrics snapshot
@@ -549,6 +561,11 @@ impl MetricsSnapshot {
         output.push_str(&format!("cache_l2_deletes_total {}\n", self.counters.l2_deletes));
         output.push_str(&format!("cache_operations_total {}\n", self.counters.total_operations));
         output.push_str(&format!("cache_errors_total {}\n", self.counters.errors));
+        output.push_str(&format!("cache_l1_items {}\n", self.counters.l1_items));
+        output.push_str(&format!(
+            "cache_l1_capacity_used_bytes {}\n",
+            self.counters.l1_capacity_used
+        ));
 
         // Export dynamic metrics
         for (key, value) in &self.dynamic_metrics {
@@ -1072,12 +1089,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hit_rates_overall_default_is_one() {
-        // When no operations recorded, overall_hit_rate returns 1.0 (line 445)
+    fn test_hit_rates_overall_default_is_zero() {
+        // When no operations recorded, overall_hit_rate returns 0.0 (consistent with l1/l2)
         let metrics = UnifiedMetrics::new();
         let rates = metrics.hit_rates();
         assert_eq!(rates.l1_hit_rate, 0.0);
         assert_eq!(rates.l2_hit_rate, 0.0);
-        assert_eq!(rates.overall_hit_rate, 1.0);
+        assert_eq!(rates.overall_hit_rate, 0.0);
     }
 }
