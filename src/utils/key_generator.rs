@@ -122,10 +122,29 @@ impl KeyGenerator {
     }
 
     /// 生成带有命名空间和前缀的完整缓存键
+    ///
+    /// 注意：此方法不执行键验证。若需要验证，请使用 [`try_generate_full`](Self::try_generate_full)。
     pub fn generate_full(&self, template: &str, params: &[(&str, &str)]) -> String {
         let key = self.generate(template, params);
         let prefixed = self.apply_prefix(&key);
         self.namespaced_key(&prefixed)
+    }
+
+    /// 生成带有命名空间和前缀的完整缓存键，并验证键的有效性
+    ///
+    /// 与 [`generate_full`](Self::generate_full) 不同，此方法在生成后调用
+    /// [`validate_key`](Self::validate_key) 检查键是否为空、是否超长、
+    /// 以及是否包含非法字符。
+    ///
+    /// # Errors
+    ///
+    /// 返回 [`OxCacheError::InvalidInput`] 当生成的键未通过验证时。
+    pub fn try_generate_full(&self, template: &str, params: &[(&str, &str)]) -> Result<String, OxCacheError> {
+        let key = self.generate(template, params);
+        let prefixed = self.apply_prefix(&key);
+        let full_key = self.namespaced_key(&prefixed);
+        self.validate_key(&full_key)?;
+        Ok(full_key)
     }
 
     /// 应用前缀到键
@@ -337,5 +356,39 @@ mod tests {
     fn test_key_generator_apply_prefix_nonempty() {
         let key_gen = KeyGenerator::with_prefix("cache:");
         assert_eq!(key_gen.apply_prefix("key"), "cache:key");
+    }
+
+    // ============================================================================
+    // try_generate_full 测试
+    // ============================================================================
+
+    #[test]
+    fn test_try_generate_full_valid_key() {
+        let key_gen = KeyGenerator::new().with_namespace("app");
+        let result = key_gen.try_generate_full("user:{id}", &[("id", "123")]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "app:user:123");
+    }
+
+    #[test]
+    fn test_try_generate_full_rejects_invalid_chars() {
+        let key_gen = KeyGenerator::new();
+        // Space is not in VALID_KEY_CHARS
+        let result = key_gen.try_generate_full("user:{name}", &[("name", "hello world")]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_try_generate_full_rejects_empty_key() {
+        let key_gen = KeyGenerator::new();
+        let result = key_gen.try_generate_full("{empty}", &[("empty", "")]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_try_generate_full_rejects_too_long() {
+        let key_gen = KeyGenerator::new().with_max_key_length(10);
+        let result = key_gen.try_generate_full("user:{id}", &[("id", "this_is_way_too_long")]);
+        assert!(result.is_err());
     }
 }
