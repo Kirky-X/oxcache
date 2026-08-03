@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! Global cache registry for #[cached] macro support
+//! Global cache registry for `#[cached]` macro support
 //!
 //! IMPORTANT: This registry must be explicitly initialized at application startup.
 //! Do NOT use lazy initialization (OnceLock::get_or_init).

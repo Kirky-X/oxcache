@@ -178,7 +178,7 @@ impl RedisBackend {
     ///
     /// # Returns
     ///
-    /// Returns a Vec of Option<Vec<u8>> where each element corresponds to the key at the same index.
+    /// Returns a `Vec` of `Option<Vec<u8>>` where each element corresponds to the key at the same index.
     /// None indicates the key does not exist.
     ///
     /// # Example
