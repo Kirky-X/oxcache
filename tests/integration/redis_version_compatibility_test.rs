@@ -5,6 +5,8 @@
 #![cfg(feature = "redis")]
 
 use oxcache::backend::memory::RedisBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
+use std::sync::Arc;
 
 /// 测试指定Redis版本的Standalone模式兼容性
 async fn test_redis_version_standalone(version: &str, connection_string: &str) -> Result<(), String> {
@@ -21,8 +23,8 @@ async fn test_redis_version_standalone(version: &str, connection_string: &str) -
     // SET
     backend
         .set(
-            &test_key,
-            test_value.as_bytes().to_vec(),
+            Arc::from(test_key.as_str()),
+            Arc::new(test_value.as_bytes().to_vec()),
             Some(std::time::Duration::from_secs(60)),
         )
         .await
@@ -30,7 +32,7 @@ async fn test_redis_version_standalone(version: &str, connection_string: &str) -
 
     // GET
     let retrieved = backend
-        .get(&test_key)
+        .get(test_key.as_str())
         .await
         .map_err(|e| format!("Redis {} get failed: {}", version, e))?;
 
@@ -40,7 +42,7 @@ async fn test_redis_version_standalone(version: &str, connection_string: &str) -
 
     // DELETE
     backend
-        .delete(&test_key)
+        .delete(test_key.as_str())
         .await
         .map_err(|e| format!("Redis {} delete failed: {}", version, e))?;
 
@@ -171,7 +173,11 @@ async fn test_comprehensive_redis_version_compatibility() {
                 println!("  ✅ Standalone mode passed");
             }
             Err(e) => {
-                if e.contains("Connection timed out") || e.contains("connection refused") {
+                if e.contains("Connection timed out")
+                    || e.contains("Connection timeout")
+                    || e.contains("connection refused")
+                    || e.contains("server unavailable")
+                {
                     skipped_tests.push(format!("{} Standalone: {}", version, e));
                     println!("  ⚠️  Standalone mode skipped: {}", e);
                 } else {
