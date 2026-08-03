@@ -55,7 +55,7 @@
 //! # Bloom Filter (0.3.0)
 //!
 //! Enable the `bloom-filter` feature (not in `full`) for negative-query
-//! filtering. [`BloomFilterBackend`] wraps any [`CacheBackend`] and skips
+//! filtering. `BloomFilterBackend` wraps any `CacheBackend` and skips
 //! the inner backend on BF miss.
 //!
 //! ```rust,ignore

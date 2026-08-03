@@ -58,8 +58,8 @@ pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 ///
 /// - **序列化错误** ([`OxCacheError::Serialization`]): 数据序列化/反序列化失败
 /// - **后端错误** ([`OxCacheError::BackendError`]): L1/L2缓存后端操作失败
-/// - **连接错误** ([`OxCacheError::ConnectionError`]): 网络连接问题
-/// - **超时错误** ([`OxCacheError::TimeoutError`]): 操作超时
+/// - **连接错误** ([`OxCacheError::Connection`]): 网络连接问题
+/// - **超时错误** ([`OxCacheError::Timeout`]): 操作超时
 /// - **数据库错误** ([`OxCacheError::DatabaseError`]): 数据库相关错误
 /// - **未找到错误** ([`OxCacheError::NotFound`]): 请求的键不存在
 /// - **降级错误** ([`OxCacheError::Degraded`]): 缓存处于降级模式
