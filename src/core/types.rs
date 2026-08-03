@@ -34,15 +34,20 @@ impl std::str::FromStr for RedisModeType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "standalone" => Ok(Self::Standalone),
-            "sentinel" => Ok(Self::Sentinel),
-            "cluster" => Ok(Self::Cluster),
-            _ => Err(format!(
-                "Invalid RedisModeType: '{}'. Expected: standalone, sentinel, or cluster",
-                s
-            )),
+        // 避免 to_lowercase() 堆分配：直接用 eq_ignore_ascii_case
+        if s.eq_ignore_ascii_case("standalone") {
+            return Ok(Self::Standalone);
         }
+        if s.eq_ignore_ascii_case("sentinel") {
+            return Ok(Self::Sentinel);
+        }
+        if s.eq_ignore_ascii_case("cluster") {
+            return Ok(Self::Cluster);
+        }
+        Err(format!(
+            "Invalid RedisModeType: '{}'. Expected: standalone, sentinel, or cluster",
+            s
+        ))
     }
 }
 

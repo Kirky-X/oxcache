@@ -103,15 +103,17 @@ impl crate::backend::CacheReader for MockBackend {
         }
         let now = Instant::now();
         let mut data = self.data.write().await;
-        if let Some((_v, expires_at)) = data.get(key) {
+        // 单次查找：克隆 value 与 expires_at 后立即释放不可变借用
+        let entry = data.get(key).map(|(v, exp)| (v.clone(), *exp));
+        if let Some((value, expires_at)) = entry {
             if let Some(exp) = expires_at {
-                if *exp <= now {
+                if exp <= now {
                     // lazy 过期清理
                     data.remove(key);
                     return Ok(None);
                 }
             }
-            return Ok(Some(data.get(key).unwrap().0.clone()));
+            return Ok(Some(value));
         }
         Ok(None)
     }
@@ -190,8 +192,8 @@ impl crate::backend::CacheWriter for MockBackend {
 
     async fn expire(&self, key: &str, ttl: Duration) -> crate::error::OxCacheResult<bool> {
         let mut data = self.data.write().await;
-        if data.contains_key(key) {
-            let entry = data.get_mut(key).unwrap();
+        // 单次查找：避免 contains_key + get_mut 的双重哈希探测
+        if let Some(entry) = data.get_mut(key) {
             entry.1 = Some(Instant::now() + ttl);
             Ok(true)
         } else {
@@ -257,7 +259,9 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_backend_clear() {
         let backend = MockBackend::new("test", 50, false);
-        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .unwrap();
         CacheWriter::clear(&backend).await.unwrap();
         assert!(CacheReader::is_empty(&backend).await.unwrap());
     }
@@ -276,7 +280,9 @@ mod mock_tests {
     async fn test_mock_backend_len() {
         let backend = MockBackend::new("test", 50, false);
         assert_eq!(CacheReader::len(&backend).await.unwrap(), 0);
-        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
+        CacheWriter::set(&backend, Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .unwrap();
         assert_eq!(CacheReader::len(&backend).await.unwrap(), 1);
     }
 
@@ -361,7 +367,10 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_set_without_ttl_never_expires() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
     }
@@ -396,7 +405,10 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_ttl_returns_none_for_no_ttl_key() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         assert_eq!(backend.ttl("k").await.unwrap(), None);
     }
 

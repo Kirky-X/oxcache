@@ -20,6 +20,13 @@ impl ConfigValidation {
     /// 允许的自定义名称字符（字母、数字、下划线、连字符、点）
     pub const VALID_NAME_CHARS: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
 
+    /// O(1) 字符有效性检查：所有合法字符皆为 ASCII，直接用字节范围判断，
+    /// 避免 `VALID_NAME_CHARS.contains(ch)` 的 O(n) 线性扫描。
+    #[inline]
+    fn is_valid_name_char(c: char) -> bool {
+        c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')
+    }
+
     /// 验证自定义名称
     pub fn validate_custom_name(name: &str) -> OxCacheResult<String> {
         if name.is_empty() {
@@ -35,7 +42,7 @@ impl ConfigValidation {
         }
 
         for ch in name.chars() {
-            if !Self::VALID_NAME_CHARS.contains(ch) {
+            if !Self::is_valid_name_char(ch) {
                 return Err(OxCacheError::InvalidInput(format!(
                     "Custom backend name contains invalid character '{}'. Allowed characters: {}",
                     ch,
