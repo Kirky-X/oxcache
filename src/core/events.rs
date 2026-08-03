@@ -115,10 +115,12 @@ impl CacheEvent {
 }
 
 /// 获取当前时间戳（毫秒）
+///
+/// 若系统时钟早于 UNIX_EPOCH（嵌入式平台、时钟回拨），返回 0 而非 panic。
 fn current_timestamp_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
+        .unwrap_or(std::time::Duration::ZERO)
         .as_millis() as u64
 }
 
