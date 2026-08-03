@@ -23,11 +23,8 @@ pub use constants::{
     PASSWORD_MASK_ASTERISKS, PoolSize,
 };
 
-#[expect(unused_imports)]
 pub use types::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
-#[expect(unused_imports)]
 pub use command::RedisCommand;
 
-#[expect(unused_imports)]
 pub use events::{CacheEvent, CacheEventType, EventPublisher};
