@@ -133,16 +133,6 @@ impl RedisBackend {
         self.connection_manager.clone()
     }
 
-    /// Get the configured retry count.
-    pub(crate) fn retry_count(&self) -> u32 {
-        self.retry_count
-    }
-
-    /// Get the configured retry base delay.
-    pub(crate) fn retry_delay(&self) -> Duration {
-        self.retry_delay
-    }
-
     /// Get a reference to the circuit breaker.
     pub(crate) fn circuit_breaker(&self) -> &CircuitBreaker {
         &self.circuit_breaker

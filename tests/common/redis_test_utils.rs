@@ -236,19 +236,30 @@ pub async fn wait_for_sentinel() -> bool {
         let mut all_ready = true;
 
         for url in &sentinel_urls {
-            if !wait_for_redis(url).await {
+            if !is_redis_available_url(url).await {
                 all_ready = false;
                 break;
             }
         }
 
         if all_ready {
-            let client = redis::Client::open(sentinel_urls[0]).unwrap();
+            let client = match redis::Client::open(sentinel_urls[0]) {
+                Ok(c) => c,
+                Err(_) => {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
             if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
-                let result: Result<Vec<String>, _> = redis::cmd("SENTINEL").arg("masters").query_async(&mut conn).await;
+                // SENTINEL masters returns Vec<Vec<String>> (array of flat key-value arrays)
+                let result: Result<Vec<Vec<String>>, _> =
+                    redis::cmd("SENTINEL").arg("masters").query_async(&mut conn).await;
 
                 if let Ok(masters) = result {
-                    if masters.iter().any(|m| m.contains("mymaster")) {
+                    // Each master is a flat [key, value, key, value, ...] list
+                    if masters.iter().any(|m| {
+                        m.windows(2).any(|w| w[0] == "name" && w[1] == "mymaster")
+                    }) {
                         println!("Redis Sentinel is ready.");
                         return true;
                     }

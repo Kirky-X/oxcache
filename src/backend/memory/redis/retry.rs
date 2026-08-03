@@ -5,7 +5,7 @@
 //! Provides `retry_with_backoff`, a generic async wrapper that retries
 //! recoverable operations with exponential delay between attempts.
 
-use crate::error::{OxCacheError, OxCacheResult};
+use crate::error::OxCacheResult;
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use std::future::Future;
 use std::time::Duration;
@@ -51,6 +51,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::OxCacheError;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
 
