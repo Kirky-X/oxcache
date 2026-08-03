@@ -45,10 +45,10 @@ macro_rules! secure_debug {
     ($($arg:tt)*) => {{
         use $crate::security::redact_connection_string;
         tracing::debug!("{}", format!($($arg)*)
-            .split("://")
+            .split_inclusive("://")
             .map(|part| {
                 if part.contains("password") || part.contains("secret") || part.contains("token") {
-                    redact_connection_string(&format!("://{}", part))
+                    redact_connection_string(part)
                 } else {
                     part.to_string()
                 }

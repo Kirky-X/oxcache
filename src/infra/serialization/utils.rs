@@ -80,7 +80,9 @@ pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     encoder
         .write_all(data)
         .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-    let compressed = encoder.finish().map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+    let compressed = encoder
+        .finish()
+        .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
 
     // 压缩比检查：压缩后不小于原数据则返回原数据（未压缩）
     if compressed.len() >= data.len() {

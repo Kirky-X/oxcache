@@ -101,7 +101,11 @@ pub mod lua_script {
     /// Lua 脚本的最大长度
     pub const MAX_SCRIPT_LENGTH: usize = 10 * 1024;
 
-    /// Lua 脚本中的危险模式（用于简单检查）
+    /// Lua 脚本中的危险模式（参考清单）。
+    ///
+    /// 注意：此常量仅供文档/参考用途，**不直接参与运行时验证**。
+    /// 实际的 Lua 脚本危险命令检测由 `security_impl::validate_lua_script`
+    /// 通过 `forbidden_patterns` 列表执行（包含预处理和大小写不敏感匹配）。
     #[allow(dead_code)]
     pub const DANGEROUS_PATTERNS: &[&str] = &[
         "FLUSHALL", "FLUSHDB", "KEYS", "SHUTDOWN", "DEBUG", "CONFIG", "SAVE", "BGSAVE", "MONITOR",

@@ -434,7 +434,10 @@ mod tests {
 
         via_build.set(&"a".to_string(), &1).await.unwrap();
         via_sync.set(&"a".to_string(), &1).await.unwrap();
-        assert_eq!(via_build.get(&"a".to_string()).await.unwrap(), via_sync.get(&"a".to_string()).await.unwrap());
+        assert_eq!(
+            via_build.get(&"a".to_string()).await.unwrap(),
+            via_sync.get(&"a".to_string()).await.unwrap()
+        );
     }
 
     #[test]
@@ -445,6 +448,9 @@ mod tests {
             .sync_mode(true)
             .build_sync();
 
-        assert!(result.is_err(), "build_sync with sync_mode+backend_arc should return Err");
+        assert!(
+            result.is_err(),
+            "build_sync with sync_mode+backend_arc should return Err"
+        );
     }
 }

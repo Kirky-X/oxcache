@@ -572,12 +572,7 @@ where
 
     /// Mark the flight as done, notify all followers, and remove the entry
     /// from the registry. Idempotent via the `guard.removed` flag.
-    fn finish_sync_flight(
-        shard_index: usize,
-        key_str: &str,
-        flight: &SyncFlight,
-        guard: &mut GetOrSyncGuard,
-    ) {
+    fn finish_sync_flight(shard_index: usize, key_str: &str, flight: &SyncFlight, guard: &mut GetOrSyncGuard) {
         {
             let mut done = flight
                 .0
@@ -647,7 +642,14 @@ mod tests {
     #[test]
     fn test_get_or_shard_index_in_range() {
         // 任意 key 都映射到 [0, SHARDS) 内的分片
-        for key in ["", "a", "key1", "user:123", "很长很长的中文key🎯", "x".repeat(1024).as_str()] {
+        for key in [
+            "",
+            "a",
+            "key1",
+            "user:123",
+            "很长很长的中文key🎯",
+            "x".repeat(1024).as_str(),
+        ] {
             let idx = get_or_shard_index(key);
             assert!(idx < GET_OR_LOCK_SHARDS, "key={key} shard={idx} out of range");
         }
@@ -702,8 +704,6 @@ mod tests {
             h.await.unwrap();
         }
     }
-
-
 
     #[tokio::test]
     async fn test_cache_len() {
@@ -979,7 +979,11 @@ mod tests {
     async fn test_deserialize_value_invalid_json() {
         // Store invalid JSON bytes directly via backend
         let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
-        cache.backend.set(Arc::from("bad"), Arc::new(b"not json".to_vec()), None).await.unwrap();
+        cache
+            .backend
+            .set(Arc::from("bad"), Arc::new(b"not json".to_vec()), None)
+            .await
+            .unwrap();
 
         // get() should return a serialization error
         let result = cache.get(&"bad".to_string()).await;
@@ -998,7 +1002,11 @@ mod tests {
         }
 
         let cache: Cache<String, serde_json::Value> = Cache::builder().build().await.unwrap();
-        cache.backend.set(Arc::from("deep"), Arc::new(json_str.into_bytes()), None).await.unwrap();
+        cache
+            .backend
+            .set(Arc::from("deep"), Arc::new(json_str.into_bytes()), None)
+            .await
+            .unwrap();
 
         let result = cache.get(&"deep".to_string()).await;
         assert!(result.is_err());

@@ -123,9 +123,17 @@ impl CacheReader for TtlMockBackend {
 
 #[async_trait]
 impl CacheWriter for TtlMockBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> oxcache::error::OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
-        self.data.write().await.insert(key.to_string(), ((*value).clone(), expires_at));
+        self.data
+            .write()
+            .await
+            .insert(key.to_string(), ((*value).clone(), expires_at));
         Ok(())
     }
 

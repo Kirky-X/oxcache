@@ -1072,7 +1072,10 @@ mod tests {
     async fn test_set_empty_value() {
         let backend = make_backend().await;
         let key = unique_key("empty_val");
-        backend.set(Arc::from(key.as_str()), Arc::new(vec![]), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(vec![]), None)
+            .await
+            .expect("set failed");
         let value = backend.get(&key).await.expect("get failed");
         assert_eq!(value, Some(vec![]));
         cleanup(&backend, &key).await;
@@ -1084,7 +1087,10 @@ mod tests {
         let backend = make_backend().await;
         let key = unique_key("binary");
         let data: Vec<u8> = (0..=255).collect();
-        backend.set(Arc::from(key.as_str()), Arc::new(data.clone()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(data.clone()), None)
+            .await
+            .expect("set failed");
         let value = backend.get(&key).await.expect("get failed");
         assert_eq!(value, Some(data));
         cleanup(&backend, &key).await;
@@ -1095,7 +1101,10 @@ mod tests {
     async fn test_exists_true_after_set() {
         let backend = make_backend().await;
         let key = unique_key("exists_yes");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
         assert!(backend.exists(&key).await.expect("exists failed"));
         cleanup(&backend, &key).await;
     }
@@ -1113,7 +1122,10 @@ mod tests {
     async fn test_ttl_returns_none_for_key_without_expiry() {
         let backend = make_backend().await;
         let key = unique_key("no_ttl");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
         let ttl = backend.ttl(&key).await.expect("ttl failed");
         assert_eq!(ttl, None);
         cleanup(&backend, &key).await;
@@ -1134,7 +1146,11 @@ mod tests {
         let backend = make_backend().await;
         let key = unique_key("with_ttl");
         backend
-            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_secs(100)))
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(100)),
+            )
             .await
             .expect("set failed");
         let ttl = backend.ttl(&key).await.expect("ttl failed");
@@ -1154,7 +1170,10 @@ mod tests {
     async fn test_delete_removes_key() {
         let backend = make_backend().await;
         let key = unique_key("del");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
         assert!(backend.exists(&key).await.unwrap());
         backend.delete(&key).await.expect("delete failed");
         assert!(!backend.exists(&key).await.unwrap());
@@ -1174,7 +1193,10 @@ mod tests {
     async fn test_expire_sets_ttl_on_existing_key() {
         let backend = make_backend().await;
         let key = unique_key("expire_ok");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
         let ok = backend
             .expire(&key, Duration::from_secs(50))
             .await
@@ -1205,7 +1227,11 @@ mod tests {
         let backend = make_backend().await;
         let key = unique_key("short_ttl");
         backend
-            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_secs(1)))
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(1)),
+            )
             .await
             .expect("set failed");
         assert!(backend.exists(&key).await.unwrap());
@@ -1273,7 +1299,10 @@ mod tests {
         let backend = make_backend().await;
         let k1 = unique_key("gm_present");
         let k2 = unique_key("gm_absent");
-        backend.set(Arc::from(k1.as_str()), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from(k1.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         let keys = vec![k1.clone(), k2.clone()];
         let values = backend.get_many(&keys).await.expect("get_many failed");
         assert_eq!(values.len(), 2);
@@ -1289,8 +1318,16 @@ mod tests {
         let k1 = unique_key("mttl1");
         let k2 = unique_key("mttl2");
         let items = vec![
-            (Arc::from(k1.clone()), Arc::new(b"v1".to_vec()), Some(Duration::from_secs(100))),
-            (Arc::from(k2.clone()), Arc::new(b"v2".to_vec()), Some(Duration::from_secs(100))),
+            (
+                Arc::from(k1.clone()),
+                Arc::new(b"v1".to_vec()),
+                Some(Duration::from_secs(100)),
+            ),
+            (
+                Arc::from(k2.clone()),
+                Arc::new(b"v2".to_vec()),
+                Some(Duration::from_secs(100)),
+            ),
         ];
         backend.set_many(&items).await.expect("set_many failed");
         let ttl1 = backend.ttl(&k1).await.unwrap();
@@ -1633,7 +1670,10 @@ mod tests {
         // 使用数据库 1 隔离 clear 测试
         let backend = make_backend_with_url(REDIS_URL_DB1).await;
         let key = unique_key("clear_target");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
         assert!(backend.exists(&key).await.unwrap());
 
         backend.clear().await.expect("clear failed");
@@ -1683,7 +1723,10 @@ mod tests {
         use crate::backend::LuaExecutor;
         let backend = make_backend().await;
         let key = unique_key("lua_key");
-        backend.set(Arc::from(key.as_str()), Arc::new(b"100".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"100".to_vec()), None)
+            .await
+            .unwrap();
 
         // 读取 key 的值并加 arg
         let script = "local v = redis.call('GET', KEYS[1]); return tonumber(v) + tonumber(ARGV[1])";

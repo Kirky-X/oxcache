@@ -109,7 +109,12 @@ impl oxcache::backend::CacheReader for MockBackend {
 
 #[async_trait::async_trait]
 impl oxcache::backend::CacheWriter for MockBackend {
-    async fn set(&self, key: std::sync::Arc<str>, value: std::sync::Arc<Vec<u8>>, _ttl: Option<Duration>) -> oxcache::error::OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: std::sync::Arc<str>,
+        value: std::sync::Arc<Vec<u8>>,
+        _ttl: Option<Duration>,
+    ) -> oxcache::error::OxCacheResult<()> {
         let mut data = self.data.write().await;
         data.insert(key.to_string(), (*value).clone());
         Ok(())

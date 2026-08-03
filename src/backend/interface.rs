@@ -391,7 +391,10 @@ mod tests {
         let backend = MockBackend::new("mock", 50, false);
 
         // Test set and get
-        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .await
+            .unwrap();
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -421,7 +424,10 @@ mod tests {
 
         // Test CacheWriter trait object
         let writer: &dyn CacheWriter = &backend;
-        writer.set(Arc::from("key"), Arc::new(b"value".to_vec()), None).await.unwrap();
+        writer
+            .set(Arc::from("key"), Arc::new(b"value".to_vec()), None)
+            .await
+            .unwrap();
 
         // Test CacheConnector trait object
         let connector: &dyn CacheConnector = &backend;
@@ -529,7 +535,10 @@ mod tests {
         assert!(reader.is_empty().await.unwrap());
 
         // 添加数据后应该返回 false
-        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .await
+            .unwrap();
         assert!(!reader.is_empty().await.unwrap());
     }
 
@@ -540,8 +549,14 @@ mod tests {
     #[tokio::test]
     async fn test_cache_reader_get_many_default() {
         let backend = MockBackend::new("mock", 50, false);
-        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+            .await
+            .unwrap();
 
         let reader: &dyn CacheReader = &backend;
         let keys = vec!["key1".to_string(), "key2".to_string(), "key3".to_string()];
@@ -582,8 +597,14 @@ mod tests {
     #[tokio::test]
     async fn test_cache_writer_delete_many_default() {
         let backend = MockBackend::new("mock", 50, false);
-        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+            .await
+            .unwrap();
 
         let writer: &dyn CacheWriter = &backend;
         let keys = vec!["key1".to_string(), "key2".to_string()];
@@ -621,7 +642,10 @@ mod tests {
         let backend = MockBackend::new("mock", 50, false);
         let backend_dyn: &dyn CacheBackend = &backend;
         // 测试 CacheBackend 可以作为 trait 对象使用
-        backend_dyn.set(Arc::from("key"), Arc::new(b"value".to_vec()), None).await.unwrap();
+        backend_dyn
+            .set(Arc::from("key"), Arc::new(b"value".to_vec()), None)
+            .await
+            .unwrap();
         let value = backend_dyn.get("key").await.unwrap();
         assert_eq!(value, Some(b"value".to_vec()));
     }
@@ -698,7 +722,10 @@ mod tests {
     impl SyncCacheWriter for MockSyncBackend {
         fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
             let expires_at = ttl.map(|d| Instant::now() + d);
-            self.data.write().unwrap().insert(key.to_string(), ((*value).clone(), expires_at));
+            self.data
+                .write()
+                .unwrap()
+                .insert(key.to_string(), ((*value).clone(), expires_at));
             Ok(())
         }
 
@@ -742,7 +769,9 @@ mod tests {
         let backend_dyn: &dyn SyncCacheBackend = &backend;
 
         // 写入 + 读取
-        backend_dyn.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).unwrap();
+        backend_dyn
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .unwrap();
         let value = backend_dyn.get("key1").unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -811,7 +840,9 @@ mod tests {
     #[test]
     fn test_sync_backend_ttl_and_expire() {
         let backend = MockSyncBackend::new(50);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .unwrap();
 
         // ttl 返回剩余时间
         let ttl = backend.ttl("k").unwrap();

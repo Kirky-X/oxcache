@@ -210,9 +210,8 @@ impl CacheReader for DashMapMemoryBackend {
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
                     drop(entry_ref); // 释放 Ref 后再原子删除
-                    self.cache.remove_if(key, |_, entry| {
-                        entry.expires_at.map_or(false, |exp| exp <= now)
-                    });
+                    self.cache
+                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
                     return Ok(false);
                 }
             }
@@ -232,9 +231,8 @@ impl CacheReader for DashMapMemoryBackend {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
                     drop(entry_ref); // 释放 Ref 后再原子删除过期条目
-                    self.cache.remove_if(key, |_, entry| {
-                        entry.expires_at.map_or(false, |exp| exp <= now)
-                    });
+                    self.cache
+                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
                     return Ok(None);
                 }
             }
@@ -379,9 +377,8 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
             if let Some(expires_at) = entry.expires_at {
                 if expires_at <= now {
                     drop(entry_ref); // 释放 Ref 后再原子删除
-                    self.cache.remove_if(key, |_, entry| {
-                        entry.expires_at.map_or(false, |exp| exp <= now)
-                    });
+                    self.cache
+                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
                     return Ok(false);
                 }
             }
@@ -401,9 +398,8 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
                     drop(entry_ref); // 释放 Ref 后再原子删除过期条目
-                    self.cache.remove_if(key, |_, entry| {
-                        entry.expires_at.map_or(false, |exp| exp <= now)
-                    });
+                    self.cache
+                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
                     return Ok(None);
                 }
             }
@@ -596,7 +592,10 @@ mod tests {
         let backend = DashMapMemoryBackend::new();
 
         // Test set and get
-        backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+            .await
+            .unwrap();
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
@@ -623,7 +622,11 @@ mod tests {
 
         // Set with TTL
         backend
-            .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), Some(Duration::from_millis(100)))
+            .set(
+                Arc::from("key1"),
+                Arc::new(b"value1".to_vec()),
+                Some(Duration::from_millis(100)),
+            )
             .await
             .unwrap();
 
@@ -657,10 +660,22 @@ mod tests {
         // capacity=3，插入 4 个无 TTL 条目，最早插入的 key1 应被淘汰
         let backend = dashmap_memory_with_capacity(3);
 
-        backend.set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("key2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("key3"), Arc::new(b"v3".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("key4"), Arc::new(b"v4".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("key1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("key2"), Arc::new(b"v2".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("key3"), Arc::new(b"v3".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("key4"), Arc::new(b"v4".to_vec()), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.entry_count(), 3);
         assert_eq!(backend.get("key1").await.unwrap(), None, "最旧的 key1 应被淘汰");
@@ -672,9 +687,18 @@ mod tests {
         // 无 TTL 条目现在也必须能被淘汰（旧实现中被 filter_map 过滤掉）
         let backend = dashmap_memory_with_capacity(2);
 
-        backend.set(Arc::from("a"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("b"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("c"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("a"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("b"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("c"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.entry_count(), 2);
         assert_eq!(backend.get("a").await.unwrap(), None);
@@ -686,18 +710,33 @@ mod tests {
         // 满容量后 re-set 已存在的 key 不应立即被淘汰（seq 更新）
         let backend = dashmap_memory_with_capacity(3);
 
-        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("k3"), Arc::new(b"v3".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("k3"), Arc::new(b"v3".to_vec()), None)
+            .await
+            .unwrap();
 
         // re-set k1：其 FIFO 旧条目作废，新条目在队尾
-        backend.set(Arc::from("k1"), Arc::new(b"v1b".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k1"), Arc::new(b"v1b".to_vec()), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.get("k1").await.unwrap(), Some(b"v1b".to_vec()));
         assert_eq!(backend.entry_count(), 3);
 
         // 再插入新 key，队头的 k2 应被淘汰而非刚 re-set 的 k1
-        backend.set(Arc::from("k4"), Arc::new(b"v4".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k4"), Arc::new(b"v4".to_vec()), None)
+            .await
+            .unwrap();
         assert_eq!(backend.get("k2").await.unwrap(), None, "应淘汰最早的 k2");
         assert_eq!(backend.get("k1").await.unwrap(), Some(b"v1b".to_vec()));
         assert_eq!(backend.entry_count(), 3);
@@ -710,7 +749,11 @@ mod tests {
 
         for i in 0..25 {
             backend
-                .set(Arc::from(format!("key{i}")), Arc::new(format!("v{i}").into_bytes()), None)
+                .set(
+                    Arc::from(format!("key{i}")),
+                    Arc::new(format!("v{i}").into_bytes()),
+                    None,
+                )
                 .await
                 .unwrap();
         }
@@ -729,12 +772,25 @@ mod tests {
         let backend = dashmap_memory_with_capacity(3);
 
         backend
-            .set(Arc::from("short"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .set(
+                Arc::from("short"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
             .await
             .unwrap();
-        backend.set(Arc::from("a"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("b"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("c"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("a"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("b"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("c"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(60)).await;
 
@@ -753,7 +809,11 @@ mod tests {
         let backend = dashmap_memory_with_capacity(100);
 
         backend
-            .set(Arc::from("expire_me"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .set(
+                Arc::from("expire_me"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
             .await
             .unwrap();
 
@@ -771,7 +831,11 @@ mod tests {
         let backend = dashmap_memory_with_capacity(100);
 
         backend
-            .set(Arc::from("expire_me"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .set(
+                Arc::from("expire_me"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
             .await
             .unwrap();
 
@@ -789,21 +853,35 @@ mod tests {
 
         // 插入短 TTL 条目
         backend
-            .set(Arc::from("ttl_key"), Arc::new(b"v1".to_vec()), Some(Duration::from_millis(30)))
+            .set(
+                Arc::from("ttl_key"),
+                Arc::new(b"v1".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
             .await
             .unwrap();
-        backend.set(Arc::from("other"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("other"), Arc::new(b"v2".to_vec()), None)
+            .await
+            .unwrap();
 
         // re-set ttl_key，使旧 FIFO 条目 seq 失效，但新条目仍然有短 TTL
         backend
-            .set(Arc::from("ttl_key"), Arc::new(b"v1b".to_vec()), Some(Duration::from_millis(30)))
+            .set(
+                Arc::from("ttl_key"),
+                Arc::new(b"v1b".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
             .await
             .unwrap();
 
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         // 插入新条目触发淘汰，过期的 ttl_key 应被淘汰（即使 seq 不匹配旧 FIFO 条目）
-        backend.set(Arc::from("new_key"), Arc::new(b"v3".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("new_key"), Arc::new(b"v3".to_vec()), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.get("ttl_key").await.unwrap(), None, "过期条目应被淘汰");
         assert_eq!(backend.get("other").await.unwrap(), Some(b"v2".to_vec()));
@@ -820,7 +898,10 @@ mod tests {
             handles.push(tokio::spawn(async move {
                 for i in 0..200u64 {
                     let key = format!("w{w}_k{i}");
-                    backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await.unwrap();
+                    backend
+                        .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+                        .await
+                        .unwrap();
                 }
             }));
         }
@@ -855,7 +936,9 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).unwrap();
+            writer
+                .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+                .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert_eq!(reader.get("key1").unwrap(), Some(b"value1".to_vec()));
@@ -874,7 +957,9 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50))).unwrap();
+            writer
+                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+                .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             // 立即可读
@@ -891,7 +976,9 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
+            writer
+                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
             let ok = writer.expire("k", Duration::from_secs(120)).unwrap();
@@ -921,7 +1008,9 @@ mod tests {
             let backend = DashMapMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60))).unwrap();
+            writer
+                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");

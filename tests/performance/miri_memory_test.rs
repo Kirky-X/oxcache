@@ -21,7 +21,11 @@ fn test_basic_memory_safety() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         cache
-            .set(Arc::from(key), Arc::new(value.clone()), Some(std::time::Duration::from_secs(60)))
+            .set(
+                Arc::from(key),
+                Arc::new(value.clone()),
+                Some(std::time::Duration::from_secs(60)),
+            )
             .await
             .unwrap();
         let retrieved = cache.get(key).await.unwrap();
@@ -43,7 +47,11 @@ fn test_memory_release_on_delete() {
             let key = format!("key_{}", i);
             let value = vec![i as u8; 1024]; // 1KB数据
             cache
-                .set(Arc::from(key.as_str()), Arc::new(value), Some(std::time::Duration::from_secs(60)))
+                .set(
+                    Arc::from(key.as_str()),
+                    Arc::new(value),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
         }
@@ -95,7 +103,11 @@ fn test_no_circular_reference_leak() {
         // 存储循环引用
         let data = format!("circular_data_{}", Rc::strong_count(&node1)).into_bytes();
         cache
-            .set(Arc::from("circular"), Arc::new(data.clone()), Some(std::time::Duration::from_secs(10)))
+            .set(
+                Arc::from("circular"),
+                Arc::new(data.clone()),
+                Some(std::time::Duration::from_secs(10)),
+            )
             .await
             .unwrap();
 
@@ -125,7 +137,11 @@ fn test_buffer_overflow_prevention() {
             let value = vec![42u8; size];
 
             cache
-                .set(Arc::from(key.as_str()), Arc::new(value.clone()), Some(std::time::Duration::from_secs(60)))
+                .set(
+                    Arc::from(key.as_str()),
+                    Arc::new(value.clone()),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
             let retrieved = cache.get(&key).await.unwrap();
@@ -157,7 +173,11 @@ fn test_concurrent_memory_safety() {
                     let value = vec![thread_id as u8; 100];
 
                     cache_clone
-                        .set(Arc::from(key.as_str()), Arc::new(value.clone()), Some(std::time::Duration::from_secs(60)))
+                        .set(
+                            Arc::from(key.as_str()),
+                            Arc::new(value.clone()),
+                            Some(std::time::Duration::from_secs(60)),
+                        )
                         .await
                         .unwrap();
                     let retrieved = cache_clone.get(&key).await.unwrap();
@@ -196,7 +216,11 @@ fn test_memory_alignment() {
 
         for (key, value) in test_cases {
             cache
-                .set(Arc::from(key), Arc::new(value.clone()), Some(std::time::Duration::from_secs(60)))
+                .set(
+                    Arc::from(key),
+                    Arc::new(value.clone()),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
             let retrieved = cache.get(key).await.unwrap();
@@ -229,7 +253,11 @@ fn test_uninitialized_memory_prevention() {
             }
 
             cache
-                .set(Arc::from(key.as_str()), Arc::new(value.clone()), Some(std::time::Duration::from_secs(60)))
+                .set(
+                    Arc::from(key.as_str()),
+                    Arc::new(value.clone()),
+                    Some(std::time::Duration::from_secs(60)),
+                )
                 .await
                 .unwrap();
 

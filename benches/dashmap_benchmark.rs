@@ -5,8 +5,8 @@
 //! 测试 FIFO O(1) 淘汰策略在满载场景下的 set 性能与淘汰正确性。
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::DashMapMemoryBackend;
+use oxcache::backend::{CacheReader, CacheWriter};
 use std::hint::black_box;
 use std::sync::Arc;
 
@@ -21,22 +21,23 @@ fn bench_dashmap_fifo_eviction(c: &mut Criterion) {
         rt.block_on(async {
             for i in 0..capacity {
                 let key = format!("key_{i}");
-                let _ = backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await;
+                let _ = backend
+                    .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+                    .await;
             }
         });
 
-        c.bench_function(
-            &format!("dashmap_set_at_full_capacity_{}", capacity),
-            |b| {
-                b.to_async(&rt).iter(|| async {
-                    let key = format!(
-                        "bench_key_{}",
-                        std::time::SystemTime::now().elapsed().unwrap().as_nanos()
-                    );
-                    let _ = backend.set(Arc::from(black_box(&key).as_str()), Arc::new(b"v".to_vec()), None).await;
-                });
-            },
-        );
+        c.bench_function(&format!("dashmap_set_at_full_capacity_{}", capacity), |b| {
+            b.to_async(&rt).iter(|| async {
+                let key = format!(
+                    "bench_key_{}",
+                    std::time::SystemTime::now().elapsed().unwrap().as_nanos()
+                );
+                let _ = backend
+                    .set(Arc::from(black_box(&key).as_str()), Arc::new(b"v".to_vec()), None)
+                    .await;
+            });
+        });
     }
 }
 
@@ -49,7 +50,9 @@ fn bench_dashmap_get_at_full_capacity(c: &mut Criterion) {
     rt.block_on(async {
         for i in 0..capacity {
             let key = format!("key_{i}");
-            let _ = backend.set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).await;
+            let _ = backend
+                .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+                .await;
         }
     });
 
@@ -68,9 +71,5 @@ fn bench_dashmap_get_at_full_capacity(c: &mut Criterion) {
     });
 }
 
-criterion_group!(
-    benches,
-    bench_dashmap_fifo_eviction,
-    bench_dashmap_get_at_full_capacity
-);
+criterion_group!(benches, bench_dashmap_fifo_eviction, bench_dashmap_get_at_full_capacity);
 criterion_main!(benches);

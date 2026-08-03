@@ -69,7 +69,10 @@ async fn test_moka_builder_with_time_to_idle_default() {
 async fn test_moka_set_and_get_basic_roundtrip() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap().is_some()
@@ -92,7 +95,10 @@ async fn test_moka_get_nonexistent_returns_none() {
 async fn test_moka_delete_removes_key() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.exists("key1").await.unwrap()
@@ -109,7 +115,10 @@ async fn test_moka_exists_checks_key_presence() {
     let backend = MokaMemoryBackend::new();
 
     assert!(!backend.exists("key1").await.unwrap());
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.exists("key1").await.unwrap()
@@ -122,8 +131,14 @@ async fn test_moka_exists_checks_key_presence() {
 async fn test_moka_clear_empties_all() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.exists("key2").await.unwrap()
@@ -142,7 +157,10 @@ async fn test_moka_clear_empties_all() {
 async fn test_moka_close_shutdown_empties() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     backend.shutdown().await;
 
     assert!(backend.is_empty().await.unwrap());
@@ -153,7 +171,11 @@ async fn test_moka_ttl_returns_remaining_after_set_with_ttl() {
     let backend = MokaMemoryBackend::new();
 
     backend
-        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("key1"),
+            Arc::new(b"value1".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
@@ -179,7 +201,10 @@ async fn test_moka_ttl_nonexistent_returns_none() {
 async fn test_moka_expire_returns_true_for_existing_key() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
 
     let result = backend.expire("key1", Duration::from_secs(30)).await.unwrap();
     // BREAKING 0.3.0: expire 对存在 key 真实更新过期时间并返回 true
@@ -203,7 +228,10 @@ async fn test_moka_health_check_returns_ok() {
 async fn test_moka_stats_returns_metrics() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap().is_some()
@@ -225,7 +253,10 @@ async fn test_moka_len_tracks_count() {
 
     assert_eq!(backend.len().await.unwrap(), 0);
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap().is_some()
@@ -233,7 +264,10 @@ async fn test_moka_len_tracks_count() {
         .await
     );
 
-    backend.set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key2"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key2").await.unwrap().is_some()
@@ -303,8 +337,14 @@ fn test_convenience_moka_memory_with_capacity_and_ttl_custom() {
 async fn test_moka_overwrite_replaces_value() {
     let backend = MokaMemoryBackend::new();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from("key1"), Arc::new(b"value2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value2".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap() == Some(b"value2".to_vec())
@@ -321,7 +361,10 @@ async fn test_moka_large_value_handles_1mb() {
     let backend = MokaMemoryBackend::new();
     let large_value = vec![0u8; 1024 * 1024];
 
-    backend.set(Arc::from("large_key"), Arc::new(large_value.clone()), None).await.unwrap();
+    backend
+        .set(Arc::from("large_key"), Arc::new(large_value.clone()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("large_key").await.unwrap().is_some()
@@ -339,7 +382,10 @@ async fn test_moka_many_keys_handles_100() {
     for i in 0..100 {
         let key = format!("key_{}", i);
         let value = format!("value_{}", i);
-        backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .await
+            .unwrap();
     }
 
     assert!(
@@ -364,7 +410,10 @@ async fn test_moka_ttl_expiration_evicts_after_ttl() {
         .ttl(Duration::from_millis(100))
         .build();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap().is_some()
@@ -387,7 +436,10 @@ async fn test_moka_time_to_idle_evicts_after_idle() {
         .time_to_idle(Duration::from_millis(100))
         .build();
 
-    backend.set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
+        .await
+        .unwrap();
     assert!(
         poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
             backend.get("key1").await.unwrap().is_some()
@@ -411,7 +463,10 @@ async fn test_moka_concurrent_access_handles_parallel() {
         let handle = tokio::spawn(async move {
             for j in 0..100 {
                 let key = format!("concurrent_key_{}_{}", i, j);
-                backend.set(Arc::from(key.as_str()), Arc::new(b"value".to_vec()), None).await.unwrap();
+                backend
+                    .set(Arc::from(key.as_str()), Arc::new(b"value".to_vec()), None)
+                    .await
+                    .unwrap();
                 backend.get(&key).await.unwrap();
             }
         });

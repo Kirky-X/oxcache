@@ -87,7 +87,11 @@ pub async fn test_redis_connection() -> Result<(), String> {
 
     let test_key = "oxcache:test:connection";
     if let Err(e) = backend
-        .set(std::sync::Arc::from(test_key), std::sync::Arc::new(b"test".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            std::sync::Arc::from(test_key),
+            std::sync::Arc::new(b"test".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
     {
         return Err(format!("SET operation failed: {}", e));
