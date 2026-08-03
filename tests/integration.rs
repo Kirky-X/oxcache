@@ -56,3 +56,12 @@ mod redis_cluster_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis_sentinel_test.rs"]
 mod redis_sentinel_test;
+#[cfg(feature = "redis")]
+#[path = "integration/valkey_test.rs"]
+mod valkey_test;
+#[cfg(feature = "dragonfly")]
+#[path = "integration/dragonfly_test.rs"]
+mod dragonfly_test;
+#[cfg(feature = "aerospike")]
+#[path = "integration/aerospike_test.rs"]
+mod aerospike_test;
