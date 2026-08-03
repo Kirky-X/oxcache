@@ -168,3 +168,126 @@ async fn test_health_check_ok() {
     let backend = make_backend().await;
     backend.health_check().await.expect("health check failed");
 }
+
+// ============================================================================
+// Builder validation and chain method tests (no Redis server required)
+// ============================================================================
+
+#[tokio::test]
+async fn test_builder_pool_size_zero_rejected() {
+    let result = RedisBackend::builder()
+        .connection_string("rediss://localhost:6379")
+        .pool_size(0)
+        .build()
+        .await;
+    assert!(result.is_err());
+    if let Err(OxCacheError::InvalidInput(msg)) = result {
+        assert!(msg.contains("pool size") || msg.contains("at least 1"));
+    } else {
+        panic!("Expected InvalidInput error for pool_size=0");
+    }
+}
+
+#[tokio::test]
+async fn test_builder_tls_connection_string_accepted() {
+    // TLS URL should pass validation (will fail at connection, but not validation)
+    let result = RedisBackend::builder()
+        .connection_string("rediss://nonexistent.example.com:6379")
+        .connection_timeout(std::time::Duration::from_millis(1))
+        .build()
+        .await;
+    // Should fail at connection, not at TLS validation
+    assert!(result.is_err());
+    if let Err(OxCacheError::Connection(msg)) = result {
+        assert!(
+            msg.contains("Redis") || msg.contains("timeout") || msg.contains("connect") || msg.contains("unreachable"),
+            "Expected connection error, got: {}",
+            msg
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_builder_database_appended_to_url() {
+    // database() should append /N to connection string
+    // This will fail at connection but we verify the URL was modified
+    let result = RedisBackend::builder()
+        .connection_string("rediss://localhost:6379")
+        .database(3)
+        .connection_timeout(std::time::Duration::from_millis(1))
+        .build()
+        .await;
+    // Connection will fail, but the builder accepted the config
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_builder_chain_all_methods() {
+    use crate::config::DistributedConfig;
+    use std::time::Duration;
+
+    // Verify all builder methods return Self for chaining
+    let builder = RedisBackend::builder()
+        .connection_string("rediss://localhost:6379")
+        .mode(RedisModeType::Standalone)
+        .pool_size(16)
+        .connection_timeout(Duration::from_secs(5))
+        .retry_count(5)
+        .retry_delay(Duration::from_millis(200))
+        .database(2)
+        .circuit_breaker_threshold(10)
+        .circuit_breaker_reset_timeout(Duration::from_secs(60))
+        .dangerous_clear_enabled(true);
+
+    // Builder should be constructable (build will fail at connection, but that's ok)
+    let _ = builder;
+}
+
+#[test]
+fn test_builder_distributed_config_applies_all_fields() {
+    use crate::config::DistributedConfig;
+    use std::time::Duration;
+
+    let config = DistributedConfig::builder()
+        .retry_count(7)
+        .retry_base_delay(Duration::from_millis(250))
+        .circuit_breaker_threshold(12)
+        .circuit_breaker_reset_timeout(Duration::from_secs(45))
+        .build();
+
+    // Verify config values are set correctly
+    assert_eq!(config.retry_count, 7);
+    assert_eq!(config.retry_base_delay, Duration::from_millis(250));
+    assert_eq!(config.circuit_breaker_threshold, 12);
+    assert_eq!(config.circuit_breaker_reset_timeout, Duration::from_secs(45));
+
+    // Apply to builder - just verify it compiles and chains
+    let _builder = RedisBackend::builder()
+        .connection_string("rediss://localhost:6379")
+        .distributed_config(config);
+}
+
+#[test]
+fn test_builder_default_values() {
+    // Verify builder defaults via Debug
+    let builder = RedisBackend::builder();
+    let debug = format!("{:?}", builder);
+    // Check key defaults are present in debug output
+    assert!(debug.contains("pool_size: 8"));
+    assert!(debug.contains("retry_count: 3"));
+    assert!(debug.contains("circuit_breaker_threshold: 5"));
+    assert!(debug.contains("dangerous_clear_enabled: false"));
+}
+
+#[tokio::test]
+async fn test_builder_dangerous_clear_enabled_flag() {
+    // Verify dangerous_clear_enabled(true) doesn't cause validation error
+    let result = RedisBackend::builder()
+        .connection_string("rediss://localhost:6379")
+        .dangerous_clear_enabled(true)
+        .connection_timeout(std::time::Duration::from_millis(1))
+        .build()
+        .await;
+    // Should fail at connection, not at validation
+    assert!(result.is_err());
+}

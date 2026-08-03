@@ -4,6 +4,7 @@
 
 use super::client::RedisBackend;
 use super::error::is_connection_error;
+use super::builder::RedisMode;
 use crate::backend::memory::redis::error;
 use crate::backend::interface::AtomicCacheWriter;
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
@@ -374,7 +375,11 @@ impl CacheConnector for RedisBackend {
     }
 
     fn backend_kind(&self) -> BackendKind {
-        BackendKind::Redis
+        if self.mode() == RedisMode::ValkeyStandalone {
+            BackendKind::Valkey
+        } else {
+            BackendKind::Redis
+        }
     }
 
     #[cfg(feature = "lua-script")]

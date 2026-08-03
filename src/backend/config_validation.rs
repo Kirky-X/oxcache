@@ -23,6 +23,25 @@ impl ConfigValidation {
     /// 允许的自定义名称字符（字母、数字、下划线、连字符、点）
     pub const VALID_NAME_CHARS: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
 
+    /// 检测连接的对端是否为 Valkey 服务器。
+    ///
+    /// 通过 `INFO server` 命令检查返回值中是否包含 "valkey" 标识。
+    ///
+    /// # Returns
+    /// - `Ok(true)` — 对端为 Valkey 服务器
+    /// - `Ok(false)` — 对端为 Redis 服务器
+    /// - `Err(OxCacheError::Connection)` — 连接失败或命令执行失败
+    #[cfg(feature = "redis")]
+    pub fn detect_valkey(conn: &mut redis::Connection) -> OxCacheResult<bool> {
+        let info: String = redis::cmd("INFO")
+            .arg("server")
+            .query(conn)
+            .map_err(|e| OxCacheError::Connection(format!("Failed to query INFO server: {}", e)))?;
+        // Valkey INFO server 输出中包含 "valkey" 标识
+        // 例如: "redis_version:7.2.4\nvalkey_version:7.2.4\n..."
+        Ok(info.to_ascii_lowercase().contains("valkey"))
+    }
+
     /// O(1) 字符有效性检查：所有合法字符皆为 ASCII，直接用字节范围判断，
     /// 避免 `VALID_NAME_CHARS.contains(ch)` 的 O(n) 线性扫描。
     #[inline]

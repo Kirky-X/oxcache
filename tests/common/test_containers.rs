@@ -8,7 +8,8 @@
 
 use std::time::Duration;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt};
+use testcontainers::{ContainerAsync, GenericImage, ImageExt};
+use testcontainers::core::WaitFor;
 
 /// Redis 容器包装器
 pub struct RedisContainer {
@@ -156,4 +157,122 @@ pub async fn is_redis_available(url: &str) -> bool {
         tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await,
         Ok(Ok(_))
     )
+}
+
+/// Valkey 容器包装器（使用 GenericImage）
+pub struct ValkeyContainer {
+    container: ContainerAsync<GenericImage>,
+    port: u16,
+}
+
+impl ValkeyContainer {
+    /// 启动一个 Valkey 容器
+    pub async fn start() -> Result<Self, String> {
+        use testcontainers::core::IntoContainerPort;
+
+        let container = GenericImage::new("valkey/valkey", "7.2")
+            .with_exposed_port(6379.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+            .start()
+            .await
+            .map_err(|e| format!("启动 Valkey 容器失败: {}", e))?;
+
+        let port = container
+            .get_host_port_ipv4(6379)
+            .await
+            .map_err(|e| format!("获取端口失败: {}", e))?;
+
+        Ok(Self { container, port })
+    }
+
+    /// 获取 Valkey 连接 URL（redis:// 协议，Valkey 兼容）
+    pub fn url(&self) -> String {
+        format!("redis://127.0.0.1:{}", self.port)
+    }
+
+    /// 获取端口
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// 等待 Valkey 就绪
+    pub async fn wait_ready(&self) -> Result<(), String> {
+        let url = self.url();
+        let client = redis::Client::open(url.as_str()).map_err(|e| format!("创建客户端失败: {}", e))?;
+
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(30);
+
+        while start.elapsed() < timeout {
+            match client.get_multiplexed_async_connection().await {
+                Ok(_) => return Ok(()),
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+
+        Err("等待 Valkey 就绪超时".to_string())
+    }
+}
+
+/// 便捷函数：启动 Valkey 容器并返回 URL
+pub async fn start_valkey_container() -> Result<(ValkeyContainer, String), String> {
+    let container = ValkeyContainer::start().await?;
+    container.wait_ready().await?;
+    let url = container.url();
+    Ok((container, url))
+}
+
+/// Dragonfly 容器包装器（使用 GenericImage）
+pub struct DragonflyContainer {
+    container: ContainerAsync<GenericImage>,
+    port: u16,
+}
+
+impl DragonflyContainer {
+    /// 启动一个 Dragonfly 容器
+    pub async fn start() -> Result<Self, String> {
+        use testcontainers::core::IntoContainerPort;
+
+        let container = GenericImage::new("dragonflydb/dragonfly", "v1.27.1")
+            .with_exposed_port(6379.tcp())
+            .with_wait_for(WaitFor::message_on_stderr("listening on port 6379"))
+            .start()
+            .await
+            .map_err(|e| format!("启动 Dragonfly 容器失败: {}", e))?;
+
+        let port = container
+            .get_host_port_ipv4(6379)
+            .await
+            .map_err(|e| format!("获取端口失败: {}", e))?;
+
+        Ok(Self { container, port })
+    }
+
+    /// 获取 Dragonfly 连接 URL
+    pub fn url(&self) -> String {
+        format!("redis://127.0.0.1:{}", self.port)
+    }
+
+    /// 获取端口
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// 等待 Dragonfly 就绪
+    pub async fn wait_ready(&self) -> Result<(), String> {
+        let url = self.url();
+        let client = redis::Client::open(url.as_str()).map_err(|e| format!("创建客户端失败: {}", e))?;
+
+        let start = std::time::Instant::now();
+        let timeout = Duration::from_secs(30);
+
+        while start.elapsed() < timeout {
+            match client.get_multiplexed_async_connection().await {
+                Ok(_) => return Ok(()),
+                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+
+        Err("等待 Dragonfly 就绪超时".to_string())
+    }
 }
