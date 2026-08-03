@@ -161,6 +161,26 @@ impl crate::backend::CacheReader for MockBackend {
         stats.insert("type".to_string(), self.name.to_string());
         Ok(stats)
     }
+
+    async fn keys(&self, pattern: &str) -> crate::error::OxCacheResult<Vec<String>> {
+        let now = Instant::now();
+        let mut data = self.data.write().await;
+        // Lazy 过期清理 + pattern 匹配
+        let expired_keys: Vec<String> = data
+            .iter()
+            .filter(|(_, (_, exp))| exp.is_some_and(|e| e <= now))
+            .map(|(k, _)| k.clone())
+            .collect();
+        for k in expired_keys {
+            data.remove(&k);
+        }
+        let matched: Vec<String> = data
+            .keys()
+            .filter(|k| simple_glob(pattern, k))
+            .cloned()
+            .collect();
+        Ok(matched)
+    }
 }
 
 #[cfg(test)]
@@ -219,14 +239,167 @@ impl crate::backend::CacheConnector for MockBackend {
     fn backend_kind(&self) -> crate::backend::interface::BackendKind {
         crate::backend::interface::BackendKind::Mock
     }
+
+    fn as_atomic_writer(&self) -> Option<&dyn crate::backend::AtomicCacheWriter> {
+        Some(self)
+    }
 }
 
 // CacheBackend is automatically implemented via blanket implementation
 
+/// Simple glob matching: `*` = any chars, `?` = single char.
+fn simple_glob(pattern: &str, text: &str) -> bool {
+    let mut p = pattern.chars().peekable();
+    let mut t = text.chars().peekable();
+    while let Some(pc) = p.peek() {
+        match pc {
+            '*' => {
+                p.next();
+                if p.peek().is_none() { return true; }
+                let rem_p: String = p.collect();
+                let rem_t: String = t.collect();
+                for i in 0..=rem_t.len() {
+                    if simple_glob(&rem_p, &rem_t[i..]) { return true; }
+                }
+                return false;
+            }
+            '?' => { if t.next().is_none() { return false; } p.next(); }
+            _ => { match t.next() { Some(tc) if tc == *pc => { p.next(); } _ => return false } }
+        }
+    }
+    t.peek().is_none()
+}
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl crate::backend::AtomicCacheWriter for MockBackend {
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> crate::error::OxCacheResult<i64> {
+        let mut data = self.data.write().await;
+        let current = data
+            .get(key)
+            .and_then(|(v, _)| String::from_utf8(v.clone()).ok())
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        let new_val = current + delta;
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        data.insert(key.to_string(), (new_val.to_string().into_bytes(), expires_at));
+        Ok(new_val)
+    }
+
+    async fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> crate::error::OxCacheResult<bool> {
+        let mut data = self.data.write().await;
+        match expected {
+            None => {
+                // SETNX: set only if absent
+                if data.contains_key(key) {
+                    Ok(false)
+                } else {
+                    let expires_at = ttl.map(|d| Instant::now() + d);
+                    data.insert(key.to_string(), (new, expires_at));
+                    Ok(true)
+                }
+            }
+            Some(exp_bytes) => {
+                match data.get(key) {
+                    Some((current_val, _)) if current_val == exp_bytes => {
+                        let expires_at = ttl.map(|d| Instant::now() + d);
+                        data.insert(key.to_string(), (new, expires_at));
+                        Ok(true)
+                    }
+                    _ => Ok(false),
+                }
+            }
+        }
+    }
+
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> crate::error::OxCacheResult<bool> {
+        let mut data = self.data.write().await;
+        if data.contains_key(key) {
+            return Ok(false);
+        }
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        data.insert(key.to_string(), (value, expires_at));
+        Ok(true)
+    }
+}
+
+#[cfg(test)]
+impl crate::backend::SyncAtomicCacheWriter for MockBackend {
+    fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> crate::error::OxCacheResult<i64> {
+        let mut data = self.data.blocking_write();
+        let current = data
+            .get(key)
+            .and_then(|(v, _)| String::from_utf8(v.clone()).ok())
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        let new_val = current + delta;
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        data.insert(key.to_string(), (new_val.to_string().into_bytes(), expires_at));
+        Ok(new_val)
+    }
+
+    fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> crate::error::OxCacheResult<bool> {
+        let mut data = self.data.blocking_write();
+        match expected {
+            None => {
+                if data.contains_key(key) {
+                    Ok(false)
+                } else {
+                    let expires_at = ttl.map(|d| Instant::now() + d);
+                    data.insert(key.to_string(), (new, expires_at));
+                    Ok(true)
+                }
+            }
+            Some(exp_bytes) => {
+                match data.get(key) {
+                    Some((current_val, _)) if current_val == exp_bytes => {
+                        let expires_at = ttl.map(|d| Instant::now() + d);
+                        data.insert(key.to_string(), (new, expires_at));
+                        Ok(true)
+                    }
+                    _ => Ok(false),
+                }
+            }
+        }
+    }
+
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> crate::error::OxCacheResult<bool> {
+        let mut data = self.data.blocking_write();
+        if data.contains_key(key) {
+            return Ok(false);
+        }
+        let expires_at = ttl.map(|d| Instant::now() + d);
+        data.insert(key.to_string(), (value, expires_at));
+        Ok(true)
+    }
+}
+
 #[cfg(test)]
 mod mock_tests {
     use super::*;
-    use crate::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter};
+    use crate::backend::{AtomicCacheWriter, BackendScore, CacheConnector, CacheReader, CacheWriter};
 
     #[tokio::test]
     async fn test_mock_backend_new() {
@@ -453,5 +626,225 @@ mod mock_tests {
         // 内部 HashMap 中 "k" 应已删除
         let data = backend.data.read().await;
         assert!(!data.contains_key("k"), "expired entry should be lazily removed");
+    }
+
+    // ========================================================================
+    // simple_glob unit tests
+    // ========================================================================
+
+    #[test]
+    fn test_simple_glob_exact_match() {
+        assert!(simple_glob("hello", "hello"));
+        assert!(!simple_glob("hello", "world"));
+        assert!(!simple_glob("hello", "hell"));
+        assert!(!simple_glob("hell", "hello"));
+    }
+
+    #[test]
+    fn test_simple_glob_star_matches_any() {
+        assert!(simple_glob("*", ""));
+        assert!(simple_glob("*", "anything"));
+        assert!(simple_glob("hello*", "hello"));
+        assert!(simple_glob("hello*", "helloworld"));
+        assert!(simple_glob("*world", "helloworld"));
+        assert!(simple_glob("he*ld", "helloworld"));
+        assert!(!simple_glob("he*ld", "hello"));
+    }
+
+    #[test]
+    fn test_simple_glob_question_mark() {
+        assert!(simple_glob("h?llo", "hello"));
+        assert!(simple_glob("?????", "hello"));
+        assert!(!simple_glob("????", "hello"));
+        assert!(!simple_glob("??????", "hello"));
+        assert!(simple_glob("h?llo", "hallo"));
+        assert!(!simple_glob("?", ""));
+    }
+
+    #[test]
+    fn test_simple_glob_combined_patterns() {
+        assert!(simple_glob("h*o", "hello"));
+        assert!(simple_glob("h*o", "ho"));
+        assert!(simple_glob("h?l*w", "hellow"));
+        assert!(simple_glob("*?*", "a"));
+        assert!(!simple_glob("*?*", ""));
+        assert!(simple_glob("a*b*c", "abc"));
+        assert!(simple_glob("a*b*c", "aXbYc"));
+        assert!(!simple_glob("a*b*c", "aXbY"));
+    }
+
+    #[test]
+    fn test_simple_glob_empty() {
+        assert!(simple_glob("", ""));
+        assert!(!simple_glob("", "a"));
+        assert!(simple_glob("*", ""));
+    }
+
+    // ========================================================================
+    // keys() with glob patterns
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_mock_keys_returns_matching_keys() {
+        let backend = MockBackend::new("test", 50, false);
+        backend.set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None).await.unwrap();
+
+        let all_keys = backend.keys("*").await.unwrap();
+        assert_eq!(all_keys.len(), 3);
+
+        let user_keys = backend.keys("user:*").await.unwrap();
+        assert_eq!(user_keys.len(), 2);
+
+        let session_keys = backend.keys("session:*").await.unwrap();
+        assert_eq!(session_keys.len(), 1);
+
+        let no_match = backend.keys("nope:*").await.unwrap();
+        assert!(no_match.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_mock_keys_lazy_expires_during_scan() {
+        let backend = MockBackend::new("test", 50, false);
+        backend.set(Arc::from("alive"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend.set(Arc::from("dying"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30))).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        let keys = backend.keys("*").await.unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0], "alive");
+    }
+
+    // ========================================================================
+    // capacity() and as_atomic_writer()
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_mock_capacity_returns_zero() {
+        let backend = MockBackend::new("test", 50, false);
+        assert_eq!(backend.capacity().await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_mock_as_atomic_writer_returns_some() {
+        let backend = MockBackend::new("test", 50, false);
+        let writer = CacheConnector::as_atomic_writer(&backend);
+        assert!(writer.is_some(), "MockBackend should implement AtomicCacheWriter");
+    }
+
+    // ========================================================================
+    // AtomicCacheWriter direct tests (async)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_mock_atomic_incr_from_zero() {
+        let backend = MockBackend::new("test", 50, false);
+        let val = AtomicCacheWriter::incr(&backend, "counter", 1, None).await.unwrap();
+        assert_eq!(val, 1);
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_incr_accumulates() {
+        let backend = MockBackend::new("test", 50, false);
+        AtomicCacheWriter::incr(&backend, "c", 10, None).await.unwrap();
+        let val = AtomicCacheWriter::incr(&backend, "c", 5, None).await.unwrap();
+        assert_eq!(val, 15);
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_incr_negative_delta() {
+        let backend = MockBackend::new("test", 50, false);
+        AtomicCacheWriter::incr(&backend, "c", 10, None).await.unwrap();
+        let val = AtomicCacheWriter::incr(&backend, "c", -3, None).await.unwrap();
+        assert_eq!(val, 7);
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_cas_setnx() {
+        let backend = MockBackend::new("test", 50, false);
+        // CAS with None = SETNX
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).await.unwrap();
+        assert!(ok);
+        // Second SETNX should fail
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v2".to_vec(), None).await.unwrap();
+        assert!(!ok);
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_cas_with_expected() {
+        let backend = MockBackend::new("test", 50, false);
+        AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).await.unwrap();
+        // CAS with correct expected → success
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None).await.unwrap();
+        assert!(ok);
+        // CAS with wrong expected → fail
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None).await.unwrap();
+        assert!(!ok);
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_cas_missing_key_with_expected() {
+        let backend = MockBackend::new("test", 50, false);
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "missing", Some(b"v1"), b"v2".to_vec(), None).await.unwrap();
+        assert!(!ok, "CAS on missing key with expected should fail");
+    }
+
+    #[tokio::test]
+    async fn test_mock_atomic_set_if_absent() {
+        let backend = MockBackend::new("test", 50, false);
+        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None).await.unwrap();
+        assert!(ok);
+        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None).await.unwrap();
+        assert!(!ok);
+    }
+
+    // ========================================================================
+    // SyncAtomicCacheWriter direct tests
+    // ========================================================================
+
+    #[test]
+    fn test_mock_sync_atomic_incr() {
+        let backend = MockBackend::new("test", 50, false);
+        let val = crate::backend::SyncAtomicCacheWriter::incr(&backend, "c", 5, None).unwrap();
+        assert_eq!(val, 5);
+        let val = crate::backend::SyncAtomicCacheWriter::incr(&backend, "c", 3, None).unwrap();
+        assert_eq!(val, 8);
+    }
+
+    #[test]
+    fn test_mock_sync_atomic_cas() {
+        let backend = MockBackend::new("test", 50, false);
+        // SETNX
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).unwrap();
+        assert!(ok);
+        // CAS correct expected
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None).unwrap();
+        assert!(ok);
+        // CAS wrong expected
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None).unwrap();
+        assert!(!ok);
+    }
+
+    #[test]
+    fn test_mock_sync_atomic_set_if_absent() {
+        let backend = MockBackend::new("test", 50, false);
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None).unwrap();
+        assert!(ok);
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None).unwrap();
+        assert!(!ok);
+    }
+
+    // ========================================================================
+    // exists() with expired entry
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_mock_exists_lazy_expires() {
+        let backend = MockBackend::new("test", 50, false);
+        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30))).await.unwrap();
+        assert!(backend.exists("k").await.unwrap());
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert!(!backend.exists("k").await.unwrap(), "expired entry should report not exists");
     }
 }
