@@ -224,9 +224,9 @@ pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
 #[allow(dead_code)]
 pub async fn wait_for_sentinel() -> bool {
     let sentinel_urls = vec![
-        "redis://127.0.0.1:26379",
-        "redis://127.0.0.1:26380",
-        "redis://127.0.0.1:26381",
+        "redis://127.0.0.1:26382",
+        "redis://127.0.0.1:26383",
+        "redis://127.0.0.1:26384",
     ];
 
     let start = std::time::Instant::now();
