@@ -40,8 +40,11 @@ impl From<MetricsSnapshot> for CacheStats {
             l1_deletes: snapshot.counters.l1_deletes,
             l2_deletes: snapshot.counters.l2_deletes,
             total_operations: snapshot.counters.total_operations,
-            l1_item_count: 0,
-            l1_capacity_used: 0,
+            // TODO: l1_item_count and l1_capacity_used are populated from
+            // CounterSnapshot when available. The underlying AtomicCounters
+            // are not yet incremented by cache operations.
+            l1_item_count: snapshot.counters.l1_items,
+            l1_capacity_used: snapshot.counters.l1_capacity_used,
             prefetch_count: snapshot.counters.prefetch_total,
             compression_count: snapshot.counters.compression_total,
             compression_bytes_saved: snapshot.counters.compression_bytes_saved,
@@ -56,7 +59,7 @@ impl From<MetricsSnapshot> for CacheStats {
 #[cfg(feature = "metrics")]
 impl CacheStats {
     pub fn l1_hit_rate(&self) -> f64 {
-        let total = self.l1_hits + self.l1_misses;
+        let total = self.l1_hits.saturating_add(self.l1_misses);
         if total == 0 {
             0.0
         } else {
@@ -65,7 +68,7 @@ impl CacheStats {
     }
 
     pub fn l2_hit_rate(&self) -> f64 {
-        let total = self.l2_hits + self.l2_misses;
+        let total = self.l2_hits.saturating_add(self.l2_misses);
         if total == 0 {
             0.0
         } else {
@@ -74,11 +77,15 @@ impl CacheStats {
     }
 
     pub fn overall_hit_rate(&self) -> f64 {
-        let total = self.l1_hits + self.l1_misses + self.l2_hits + self.l2_misses;
+        let total = self
+            .l1_hits
+            .saturating_add(self.l1_misses)
+            .saturating_add(self.l2_hits)
+            .saturating_add(self.l2_misses);
         if total == 0 {
             0.0
         } else {
-            (self.l1_hits + self.l2_hits) as f64 / total as f64
+            (self.l1_hits.saturating_add(self.l2_hits)) as f64 / total as f64
         }
     }
 
