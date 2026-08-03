@@ -34,32 +34,53 @@ impl std::error::Error for DepthLimitExceededError {}
 /// - Empty container: 1
 /// - Container with primitives only: 1
 /// - Container with nested containers: 1 + max child depth
+///
+/// Safety limit for `calculate_depth` recursion.
+/// Matches serde_json's default recursion limit.
+const CALCULATE_DEPTH_SAFETY_LIMIT: usize = 256;
+
+/// Calculates the nesting depth of a JSON value
+/// - Empty container: 1
+/// - Container with primitives only: 1
+/// - Container with nested containers: 1 + max child depth
+///
+/// Uses iterative child scanning to avoid per-call `Vec` allocations,
+/// and caps recursion at [`CALCULATE_DEPTH_SAFETY_LIMIT`] as a
+/// defence-in-depth measure (the value has already been parsed by
+/// serde_json, whose own recursion limit normally bounds depth).
 fn calculate_depth(value: &serde_json::Value) -> usize {
+    calculate_depth_inner(value, 0)
+}
+
+fn calculate_depth_inner(value: &serde_json::Value, current: usize) -> usize {
+    if current >= CALCULATE_DEPTH_SAFETY_LIMIT {
+        return current;
+    }
     match value {
         serde_json::Value::Object(map) => {
             if map.is_empty() {
                 1
             } else {
-                let child_depths: Vec<usize> = map.values().map(calculate_depth).collect();
-                let max_child_depth = child_depths.iter().max().unwrap_or(&1);
-                // Check if any child is a container (not just a primitive)
-                let has_container_child = map
+                let max_child = map
                     .values()
-                    .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
-                if has_container_child { max_child_depth + 1 } else { 1 }
+                    .filter(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)))
+                    .map(|v| calculate_depth_inner(v, current + 1))
+                    .max()
+                    .unwrap_or(0);
+                if max_child > 0 { max_child + 1 } else { 1 }
             }
         }
         serde_json::Value::Array(arr) => {
             if arr.is_empty() {
                 1
             } else {
-                let child_depths: Vec<usize> = arr.iter().map(calculate_depth).collect();
-                let max_child_depth = child_depths.iter().max().unwrap_or(&1);
-                // Check if any child is a container (not just a primitive)
-                let has_container_child = arr
+                let max_child = arr
                     .iter()
-                    .any(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)));
-                if has_container_child { max_child_depth + 1 } else { 1 }
+                    .filter(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)))
+                    .map(|v| calculate_depth_inner(v, current + 1))
+                    .max()
+                    .unwrap_or(0);
+                if max_child > 0 { max_child + 1 } else { 1 }
             }
         }
         serde_json::Value::Null
@@ -147,10 +168,7 @@ impl<'de> Deserialize<'de> for DepthLimited {
 /// 解析时禁用 serde_json 内置的递归深度上限，并借助 `serde_stacker`
 /// 动态扩栈，避免深层 JSON 导致栈溢出；深度限制由调用方通过
 /// `max_depth` 显式控制。
-pub fn deserialize_safe<T: serde::de::DeserializeOwned>(
-    data: &[u8],
-    max_depth: usize,
-) -> Result<T, serde_json::Error> {
+pub fn deserialize_safe<T: serde::de::DeserializeOwned>(data: &[u8], max_depth: usize) -> Result<T, serde_json::Error> {
     let mut de = serde_json::Deserializer::from_slice(data);
     de.disable_recursion_limit();
     let de = serde_stacker::Deserializer::new(&mut de);

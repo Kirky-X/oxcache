@@ -130,10 +130,19 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
     }
 
     async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        // BF has no false negatives: a miss means the key definitely does not
+        // exist, so we can skip the inner backend entirely.
+        if !self.bloom.contains(key) {
+            return Ok(false);
+        }
         self.inner.exists(key).await
     }
 
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        // BF miss → key cannot exist → TTL is definitively None.
+        if !self.bloom.contains(key) {
+            return Ok(None);
+        }
         self.inner.ttl(key).await
     }
 
@@ -161,9 +170,11 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
 #[async_trait]
 impl<B: CacheBackend> CacheWriter for BloomFilterBackend<B> {
     async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
-        // Record the key in the BF first, then delegate (with TTL) to inner.
+        // Delegate to inner first; only update BF on success to avoid
+        // permanent false positives if the inner set fails.
+        self.inner.set(key.clone(), value, ttl).await?;
         self.bloom.insert(&key);
-        self.inner.set(key, value, ttl).await
+        Ok(())
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -233,11 +244,19 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
     }
 
     fn exists(&self, key: &str) -> OxCacheResult<bool> {
-        // BF cannot confirm existence (only filter), so always delegate.
+        // BF has no false negatives: a miss means the key definitely does not
+        // exist, so we can skip the inner backend entirely.
+        if !self.bloom.contains(key) {
+            return Ok(false);
+        }
         SyncCacheReader::exists(&self.inner, key)
     }
 
     fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        // BF miss → key cannot exist → TTL is definitively None.
+        if !self.bloom.contains(key) {
+            return Ok(None);
+        }
         SyncCacheReader::ttl(&self.inner, key)
     }
 
@@ -264,9 +283,11 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
 
 impl<B: CacheBackend + SyncCacheBackend> SyncCacheWriter for BloomFilterBackend<B> {
     fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
-        // Record the key in the BF first, then delegate (with TTL) to inner.
+        // Delegate to inner first; only update BF on success to avoid
+        // permanent false positives if the inner set fails.
+        SyncCacheWriter::set(&self.inner, key.clone(), value, ttl)?;
         self.bloom.insert(&key);
-        SyncCacheWriter::set(&self.inner, key, value, ttl)
+        Ok(())
     }
 
     fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -396,7 +417,10 @@ mod tests {
                 .unwrap()
                 .set_calls
                 .push((key.to_string(), (*value).clone(), ttl));
-            self.data.lock().unwrap().insert(key.to_string(), ((*value).clone(), ttl));
+            self.data
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), ((*value).clone(), ttl));
             Ok(())
         }
 
@@ -460,7 +484,10 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         let result = backend.get("k").await.unwrap();
         assert_eq!(result, Some(b"v".to_vec()));
         let log = log.lock().unwrap();
@@ -473,7 +500,10 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         // BF should contain the key.
         assert!(backend.bloom().contains("k"));
         // Inner should have received the set.
@@ -489,7 +519,10 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         assert!(backend.bloom().contains("k"));
         backend.delete("k").await.unwrap();
         // BF still contains the key (BF does not support deletion).
@@ -505,8 +538,14 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None)
+            .await
+            .unwrap();
         backend.clear().await.unwrap();
         // BF cleared.
         assert!(!backend.bloom().contains("k1"));
@@ -523,7 +562,10 @@ mod tests {
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
         let ttl = Duration::from_secs(60);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl))
+            .await
+            .unwrap();
         let log = log.lock().unwrap();
         assert_eq!(log.set_calls.len(), 1);
         assert_eq!(log.set_calls[0].2, Some(ttl));
@@ -535,7 +577,10 @@ mod tests {
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
         let ttl = Duration::from_secs(60);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl))
+            .await
+            .unwrap();
         let result = backend.ttl("k").await.unwrap();
         assert_eq!(result, Some(ttl));
         let log = log.lock().unwrap();
@@ -548,7 +593,10 @@ mod tests {
         let spy = SpyMock::new();
         let log = spy.log_handle();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         let new_ttl = Duration::from_secs(120);
         let result = backend.expire("k", new_ttl).await.unwrap();
         assert!(result);
@@ -562,7 +610,10 @@ mod tests {
     async fn test_bf_backend_stats_contains_bloom_fields() {
         let spy = SpyMock::new();
         let backend = BloomFilterBackend::new(spy);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         let stats = backend.stats().await.unwrap();
         assert!(stats.contains_key("bloom_capacity"));
         assert!(stats.contains_key("bloom_load_factor"));
@@ -706,7 +757,10 @@ mod tests {
                     .unwrap()
                     .set_calls
                     .push((key.to_string(), (*value).clone(), ttl));
-                self.data.lock().unwrap().insert(key.to_string(), ((*value).clone(), ttl));
+                self.data
+                    .lock()
+                    .unwrap()
+                    .insert(key.to_string(), ((*value).clone(), ttl));
                 Ok(())
             }
             fn delete(&self, key: &str) -> OxCacheResult<()> {
