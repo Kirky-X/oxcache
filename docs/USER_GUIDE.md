@@ -632,6 +632,76 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 关闭机制会调用后端的 `shutdown()`，清理连接等资源。
 
+### Valkey 后端
+
+[Valkey](https://valkey.io/) 是 Redis 的开源分支，完全兼容 Redis 协议。
+通过 `detect_valkey()` 可自动检测连接目标是 Redis 还是 Valkey：
+
+```rust
+use oxcache::backend::{RedisBackend, RedisMode};
+
+// Valkey 使用与 Redis 相同的 API，通过 RedisMode::ValkeyStandalone 标识
+let backend = RedisBackend::builder()
+    .connection_string("redis://127.0.0.1:6379")
+    .mode(RedisMode::ValkeyStandalone)
+    .build()
+    .await?;
+```
+
+### Dragonfly 后端
+
+[Dragonfly](https://www.dragonflydb.io/) 是高性能 Redis/Memcached 替代品。
+启用 `dragonfly` feature 后使用：
+
+```toml
+# Cargo.toml
+[dependencies]
+oxcache = { version = "0.4", features = ["dragonfly"] }
+```
+
+```rust
+use oxcache::backend::DragonflyBackend;
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
+
+// 构造 Dragonfly 后端
+let dragonfly = DragonflyBackend::new("redis://127.0.0.1:6379", 8).await?;
+
+// 推荐与 Moka 组合为 ChainCache
+let chain = ChainCacheBuilder::default()
+    .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "moka"))
+    .link(ChainLink::new(dragonfly, 50, true, "dragonfly"))
+    .build();
+```
+
+### Aerospike 后端
+
+[Aerospike](https://aerospike.com/) 是高性能分布式 KV 存储。
+通过 `aerospike` feature 启用：
+
+```toml
+# Cargo.toml
+[dependencies]
+oxcache = { version = "0.4", features = ["aerospike"] }
+```
+
+```rust
+use oxcache::backend::{AerospikeBackend, AerospikeConfig};
+use std::collections::HashMap;
+
+let config = AerospikeConfig {
+    seed_nodes: vec!["127.0.0.1:3000".to_string()],
+    namespace: "cache".to_string(),
+    set_name: "my_app".to_string(),
+    default_ttl: 3600,
+    ip_map: None, // Docker 环境需设置 IP 转换表
+};
+let backend = AerospikeBackend::new(config).await?;
+```
+
+> **Docker 环境注意**：Aerospike 容器内部 IP 与主机不同，需通过 `ip_map` 配置
+> IP 地址转换表，或使用 `access-address` 配置服务器广播地址。
+
 ---
 
 ## 最佳实践

@@ -6,7 +6,7 @@
 
 中文 | [English](./README_EN.md)
 
-高性能、生产级的 Rust 双层缓存库，提供 L1（Moka 内存缓存）+ L2（Redis 分布式缓存）双层架构。
+高性能、生产级的 Rust 多后端缓存库，支持 L1（Moka/DashMap 内存缓存）+ L2（Redis / Valkey / Dragonfly / Aerospike）多层架构。
 
 </div>
 
@@ -43,7 +43,7 @@
 - **⚡ 批量优化**: 智能批量写入，大幅提升吞吐量
 - **🧪 同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
 - **🌸 布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
-- **⏱️ 全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
+- **⏱️ 全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
 - **🛡️ 生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
 
 ## 📦 快速开始
@@ -152,11 +152,13 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 |------|----------|------|
 | **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
 | **core** | `minimal` + `redis` | L1 + L2 缓存 |
-| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 完整功能 |
+| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 完整功能 |
 
 **独立特性**：
 - `memory` - L1 缓存后端（Moka + DashMap）
-- `redis` - L2 分布式缓存（Redis）
+- `redis` - L2 分布式缓存（Redis / Valkey）
+- `dragonfly` - Dragonfly 缓存后端（Redis 协议兼容）
+- `aerospike` - Aerospike 缓存后端（独立协议）
 - `macros` - `#[cached]` 属性宏
 - `serialization` - JSON 序列化（serde + serde_json）
 - `compression` - 数据压缩（flate2）
