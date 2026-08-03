@@ -320,10 +320,9 @@ async fn p1_n004_partition_l1_hit_l2_fail_no_backfill_stale() {
     assert_eq!(val, Some(b"l1_data".to_vec()));
 }
 
-/// P1 SEC-002: Lua script validation has a known limitation — double-quoted
-/// string contents are stripped during preprocessing, so
-/// `redis.call("FLUSHALL")` bypasses detection. This test DOCUMENTS the
-/// known bypass (source code must not be modified per task constraints).
+/// P1 SEC-002: Lua script validation correctly blocks both single-quoted
+/// and double-quoted FLUSHALL commands. The preprocessor preserves string
+/// contents for both quote styles, so neither can bypass detection.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn p1_sec002_lua_double_quote_bypass_known_limitation() {
@@ -338,16 +337,14 @@ async fn p1_sec002_lua_double_quote_bypass_known_limitation() {
         other => panic!("single-quoted FLUSHALL must be blocked, got {other:?}"),
     }
 
-    // Double-quoted FLUSHALL bypasses detection (known limitation).
-    // The preprocessor strips double-quoted string contents, turning
-    // redis.call("FLUSHALL") into redis.call("") which passes validation.
-    let bypassed = validate_lua_script("redis.call(\"FLUSHALL\")", 0);
-    // This SHOULD be Err but is Ok due to the known bypass.
-    // Documenting the current (buggy) behavior — fix requires src/ change.
-    assert!(
-        bypassed.is_ok(),
-        "SEC-002 known bypass: double-quoted FLUSHALL currently passes validation"
-    );
+    // Double-quoted FLUSHALL is also blocked (bypass has been fixed).
+    let blocked_double = validate_lua_script("redis.call(\"FLUSHALL\")", 0);
+    match blocked_double {
+        Err(oxcache::OxCacheError::InvalidInput(msg)) => {
+            assert!(msg.contains("FLUSHALL"), "should mention FLUSHALL: {msg}");
+        }
+        other => panic!("double-quoted FLUSHALL must be blocked, got {other:?}"),
+    }
 }
 
 // ============================================================================
@@ -772,8 +769,9 @@ async fn t004_chain_default_ttl_applied_on_set_none() {
     );
 }
 
-/// T-006: DashMap lazy expiration — get checks expiry, exists checks expiry,
-/// but len does NOT (stale entries counted).
+/// T-006: DashMap lazy expiration — get checks expiry without removing the
+/// entry, but exists actively removes expired entries via remove_if.
+/// After exists, len no longer counts the stale entry.
 #[cfg(feature = "memory")]
 #[tokio::test]
 async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
@@ -791,12 +789,14 @@ async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // get returns None (checks expiry).
+    // get returns None (checks expiry) but does NOT remove the entry.
     assert!(backend.get("lazy").await.unwrap().is_none());
-    // exists returns false (checks expiry).
-    assert!(!backend.exists("lazy").await.unwrap());
-    // len still counts the stale entry (no active cleanup).
+    // len is still 1 because get does not clean up expired entries.
     assert_eq!(backend.len().await.unwrap(), 1);
+    // exists returns false AND removes the expired entry via remove_if.
+    assert!(!backend.exists("lazy").await.unwrap());
+    // len is now 0 because exists cleaned up the stale entry.
+    assert_eq!(backend.len().await.unwrap(), 0);
 }
 
 // ============================================================================
