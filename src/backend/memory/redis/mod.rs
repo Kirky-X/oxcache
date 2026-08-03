@@ -4,5 +4,20 @@
 
 pub mod client;
 
+// Internal modules
+pub(crate) mod async_traits;
+pub(crate) mod builder;
+pub(crate) mod error;
+#[cfg(feature = "lua-script")]
+pub(crate) mod lua_executor;
+pub(crate) mod namespace;
+pub(crate) mod pipeline;
+pub(crate) mod sync_traits;
+
+#[cfg(test)]
+#[allow(unsafe_code)]
+mod tests;
+
 // Re-export main types for convenience
-pub use client::{RedisBackend, RedisBackendBuilder, RedisMode};
+pub use builder::{RedisBackendBuilder, RedisMode};
+pub use client::RedisBackend;
