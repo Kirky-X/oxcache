@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.3.12).
+This document describes the architecture, design decisions, and technical details of the Oxcache library (v0.4.0).
 
 ## Table of Contents
 
@@ -218,7 +218,7 @@ cache.register_for_macro("my_service").await?;
 
 **Module Structure**:
 - `backend/mod.rs` - Module root and re-exports
-- `backend/interface.rs` - `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` and their sync mirrors
+- `backend/interface.rs` - `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` and their sync mirrors; `AtomicCacheWriter` / `SyncAtomicCacheWriter` for atomic operations
 - `backend/memory/` - Memory backend implementations (Moka, DashMap) and the Redis client
 - `backend/score.rs` - `BackendScore` / `Scores` constants used by `ChainCache`
 - `backend/config_validation.rs` - Redis URL / Sentinel config validation
@@ -247,6 +247,7 @@ pub trait CacheReader: Send + Sync + 'static {
     async fn capacity(&self) -> OxCacheResult<u64>;
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
     async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* default */ }
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> { /* default: empty Vec */ }
 }
 
 /// Batch write entry type: `(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
@@ -269,6 +270,7 @@ pub trait CacheConnector: Send + Sync + 'static {
     fn backend_kind(&self) -> BackendKind;
     #[cfg(feature = "lua-script")]
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
+    fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> { None }
 }
 
 #[async_trait]
@@ -286,6 +288,21 @@ pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnect
 ```
 
 A backend opts into the sync API by implementing the sync traits in addition to the async ones. `Cache<K, V>::get_sync` then dispatches through `Arc<dyn SyncCacheBackend>`. **The async and sync hierarchies are intentionally separate** so a backend can support one without the other, and so the async trait object stays object-safe (no `block_in_place` on the async hot path).
+
+**AtomicCacheWriter** (independent trait, not a supertrait of `CacheWriter`):
+
+```rust
+#[async_trait]
+pub trait AtomicCacheWriter: Send + Sync + 'static {
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64>;
+    async fn compare_and_swap(&self, key: &str, expected: Option<&[u8]>, new: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
+    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
+}
+
+pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* sync mirror */ }
+```
+
+Backends advertise atomic capability via `CacheConnector::as_atomic_writer()`. `Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` delegate through this runtime discovery method; returns `Err(NotSupported)` when the backend lacks atomic support.
 
 **`BackendKind` enum** (`Moka | DashMap | Redis | Chain | Mock | Unknown`) is returned by `backend_kind()` for runtime identification without `as_any()`.
 
