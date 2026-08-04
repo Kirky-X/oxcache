@@ -150,7 +150,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 
 | 层级 | 包含特性 | 描述 |
 |------|----------|------|
-| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
+| **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
 | **core** | `minimal` + `redis` | L1 + L2 缓存 |
 | **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 完整功能 |
 
@@ -166,7 +166,8 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 - `batch-write` - 优化的批量写入
 - `lua-script` - Lua 脚本执行支持
 - `cli` - 命令行界面工具
-- `tracing` - 结构化日志支持
+- `tracing` - ~~已废弃~~（tracing 已移除，保留空 feature 向后兼容）
+- `i18n` - 错误消息国际化 + 系统语言自动检测
 - `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 - `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
 - `testing` - Testing utilities
