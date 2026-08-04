@@ -17,19 +17,19 @@
 <table>
 <tr>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
+🚀<br>
 <b>极致性能</b><br>L1 纳秒级响应
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
+🎯<br>
 <b>零侵入式</b><br>一行代码启用缓存
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
+🔄<br>
 <b>自动故障恢复</b><br>Redis 故障自动降级
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
+⚡<br>
 <b>批量优化</b><br>智能批量写入
 </td>
 </tr>
