@@ -261,7 +261,7 @@ kit = ["dep:trait-kit"]
 
 [workspace]
 resolver = "2"
-members = [".", "examples"]
+members = [".", "macros", "examples"]
 
 # COMPILER OPTIMIZATIONS
 # ============================================================================
