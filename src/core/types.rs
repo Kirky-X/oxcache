@@ -106,6 +106,7 @@ impl std::fmt::Display for BackendType {
 /// 缓存层级
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
+#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "PascalCase"))]
 pub enum CacheLayer {
     /// L1 内存缓存
     #[default]
@@ -146,6 +147,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_redis_mode_type_serialize() {
         let mode = RedisModeType::Sentinel;
         let json = serde_json::to_string(&mode).unwrap();
@@ -153,6 +155,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_redis_mode_type_deserialize() {
         let mode: RedisModeType = serde_json::from_str("\"cluster\"").unwrap();
         assert_eq!(mode, RedisModeType::Cluster);
@@ -201,6 +204,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_redis_mode_type_valkey_serialize() {
         let mode = RedisModeType::ValkeyStandalone;
         let json = serde_json::to_string(&mode).unwrap();
@@ -208,13 +212,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_redis_mode_type_valkey_deserialize() {
         let mode: RedisModeType = serde_json::from_str("\"valkey_standalone\"").unwrap();
         assert_eq!(mode, RedisModeType::ValkeyStandalone);
     }
 
     #[test]
-    #[cfg(feature = "memory")]
+    #[cfg(all(feature = "memory", any(feature = "serialization", feature = "full")))]
     fn test_backend_type_serialize() {
         let backend = BackendType::Moka;
         let json = serde_json::to_string(&backend).unwrap();
@@ -222,13 +227,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "redis")]
+    #[cfg(all(feature = "redis", any(feature = "serialization", feature = "full")))]
     fn test_backend_type_deserialize() {
         let backend: BackendType = serde_json::from_str("\"redis\"").unwrap();
         assert_eq!(backend, BackendType::Redis);
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_cache_layer_serialize() {
         let layer = CacheLayer::L1;
         let json = serde_json::to_string(&layer).unwrap();
@@ -236,6 +242,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_cache_layer_deserialize() {
         let layer: CacheLayer = serde_json::from_str("\"L2\"").unwrap();
         assert_eq!(layer, CacheLayer::L2);
@@ -301,6 +308,7 @@ mod tests {
     // ============================================================================
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_backend_type_none_serialize() {
         let backend = BackendType::None;
         let json = serde_json::to_string(&backend).unwrap();
@@ -308,12 +316,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_backend_type_none_deserialize() {
         let backend: BackendType = serde_json::from_str("\"none\"").unwrap();
         assert_eq!(backend, BackendType::None);
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_backend_type_custom_serialize() {
         let backend = BackendType::Custom("test".to_string());
         let json = serde_json::to_string(&backend).unwrap();
@@ -321,6 +331,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "serialization", feature = "full"))]
     fn test_backend_type_custom_deserialize() {
         let backend: BackendType = serde_json::from_str("{\"custom\":\"test\"}").unwrap();
         assert_eq!(backend, BackendType::Custom("test".to_string()));
