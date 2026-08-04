@@ -16,8 +16,8 @@
 
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

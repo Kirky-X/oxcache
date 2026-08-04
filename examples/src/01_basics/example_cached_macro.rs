@@ -13,8 +13,8 @@
 //! cd examples && cargo run --example example_cached_macro
 //! ```
 
-use oxcache::macros::cached;
 use oxcache::Cache;
+use oxcache::macros::cached;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
