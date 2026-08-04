@@ -7,6 +7,8 @@
 use super::{ChainCache, ChainLink};
 use crate::backend::BackendScore;
 use crate::backend::CacheBackend;
+use crate::core::EventPublisher;
+use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -17,6 +19,7 @@ pub struct ChainCacheBuilder {
     backfill_enabled: bool,
     race_read_enabled: bool,
     default_ttl: Option<Duration>,
+    event_publisher: Option<Arc<dyn EventPublisher>>,
 }
 
 impl ChainCacheBuilder {
@@ -73,6 +76,15 @@ impl ChainCacheBuilder {
         self
     }
 
+    /// 设置事件发布器
+    ///
+    /// 配置后，链式缓存的后端操作失败会通过 `EventPublisher` 抛出事件，
+    /// 而非日志输出。用户可自行决定处理方式（日志、metrics、告警或忽略）。
+    pub fn event_publisher(mut self, publisher: Arc<dyn EventPublisher>) -> Self {
+        self.event_publisher = Some(publisher);
+        self
+    }
+
     /// 构建链式缓存
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
@@ -85,6 +97,7 @@ impl ChainCacheBuilder {
             race_read_enabled: self.race_read_enabled,
             default_ttl: self.default_ttl,
             sync_backends: OnceLock::new(),
+            event_publisher: self.event_publisher,
         }
     }
 }

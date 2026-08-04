@@ -75,7 +75,7 @@
 //!
 //! ## Tiered Feature Sets
 //!
-//! - `minimal`: L1 memory cache only (memory + tracing + metrics + serialization + chrono)
+//! - `minimal`: L1 memory cache only (memory + metrics + serialization + chrono)
 //! - `core`: L1 + L2 Redis (minimal + redis)
 //! - `full`: All features enabled (opt-in via features = ["full"])
 //!
@@ -86,7 +86,7 @@
 //! - `macros`: Proc macros for `#[cached]`
 //! - `serialization`: JSON serialization (serde + serde_json)
 //! - `compression`: Flate2 compression
-//! - `tracing`: Tracing support
+//! - `tracing`: Deprecated (tracing removed, kept for backward compatibility)
 //! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
 //! - `batch-write`: Buffered L2 writes
 //! - `lua-script`: Lua script execution (requires redis)
