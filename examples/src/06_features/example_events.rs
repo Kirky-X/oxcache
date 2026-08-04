@@ -45,33 +45,33 @@ impl EventPublisher for ConsoleEventPublisher {
     }
 
     /// 发布命中事件
-    fn publish_hit(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), OxCacheError> {
-        println!("[HIT] key={} latency={}ms", key.into(), latency_ms);
+    fn publish_hit(&self, key: String, latency_ms: u64) -> Result<(), OxCacheError> {
+        println!("[HIT] key={} latency={}ms", key, latency_ms);
         Ok(())
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, key: impl Into<String>, latency_ms: u64) -> Result<(), OxCacheError> {
-        println!("[MISS] key={} latency={}ms", key.into(), latency_ms);
+    fn publish_miss(&self, key: String, latency_ms: u64) -> Result<(), OxCacheError> {
+        println!("[MISS] key={} latency={}ms", key, latency_ms);
         Ok(())
     }
 
     /// 发布设置事件
-    fn publish_set(&self, key: impl Into<String>) -> Result<(), OxCacheError> {
-        println!("[SET] key={}", key.into());
+    fn publish_set(&self, key: String) -> Result<(), OxCacheError> {
+        println!("[SET] key={}", key);
         Ok(())
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, key: impl Into<String>) -> Result<(), OxCacheError> {
-        println!("[DELETE] key={}", key.into());
+    fn publish_delete(&self, key: String) -> Result<(), OxCacheError> {
+        println!("[DELETE] key={}", key);
         Ok(())
     }
 
     /// 发布错误事件
-    fn publish_error(&self, key: Option<String>, error: impl Into<String>) -> Result<(), OxCacheError> {
+    fn publish_error(&self, key: Option<String>, error: String) -> Result<(), OxCacheError> {
         let key_str = key.as_deref().unwrap_or("N/A");
-        println!("[ERROR] key={} error={}", key_str, error.into());
+        println!("[ERROR] key={} error={}", key_str, error);
         Ok(())
     }
 }
@@ -115,11 +115,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. 使用便捷方法发布事件
     println!("\n--- 2. 使用便捷方法 ---");
 
-    publisher.publish_hit("cache:key:1", 3)?;
-    publisher.publish_miss("cache:key:2", 15)?;
-    publisher.publish_set("cache:key:3")?;
-    publisher.publish_delete("cache:key:4")?;
-    publisher.publish_error(Some("cache:key:5".to_string()), "Key not found")?;
+    publisher.publish_hit("cache:key:1".to_string(), 3)?;
+    publisher.publish_miss("cache:key:2".to_string(), 15)?;
+    publisher.publish_set("cache:key:3".to_string())?;
+    publisher.publish_delete("cache:key:4".to_string())?;
+    publisher.publish_error(Some("cache:key:5".to_string()), "Key not found".to_string())?;
 
     // 3. 实际缓存操作中的事件监控
     println!("\n--- 3. 缓存操作事件监控 ---");
@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_value = b"test_value".to_vec();
     cache.set(&test_key, &test_value).await?;
     let elapsed = start.elapsed();
-    publisher.publish_set(&test_key)?;
+    publisher.publish_set(test_key.clone())?;
     println!("设置操作耗时: {:?}", elapsed);
 
     // 获取值并记录事件
@@ -141,9 +141,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
 
     if result.is_some() {
-        publisher.publish_hit(&test_key, elapsed.as_millis() as u64)?;
+        publisher.publish_hit(test_key.clone(), elapsed.as_millis() as u64)?;
     } else {
-        publisher.publish_miss(&test_key, elapsed.as_millis() as u64)?;
+        publisher.publish_miss(test_key.clone(), elapsed.as_millis() as u64)?;
     }
 
     // 获取不存在的值
@@ -153,9 +153,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
 
     if result.is_some() {
-        publisher.publish_hit(&nonexistent_key, elapsed.as_millis() as u64)?;
+        publisher.publish_hit(nonexistent_key.clone(), elapsed.as_millis() as u64)?;
     } else {
-        publisher.publish_miss(&nonexistent_key, elapsed.as_millis() as u64)?;
+        publisher.publish_miss(nonexistent_key, elapsed.as_millis() as u64)?;
     }
 
     // 4. 批量操作事件
@@ -168,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let key = format!("batch_key_{}", i);
         let value = format!("value_{}", i).into_bytes();
         cache.set(&key, &value).await?;
-        publisher.publish_set(&key)?;
+        publisher.publish_set(key.clone())?;
     }
 
     let batch_end = CacheEvent::new(CacheEventType::BatchEnd)
