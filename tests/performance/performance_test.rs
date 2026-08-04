@@ -43,12 +43,10 @@ async fn test_backfill_latency() {
     // 写入数据
     cache.set(&key, &val).await.unwrap();
 
-    // 清除L1以模拟L1未命中
-    // 新API使用 clear() 清除所有数据
-    cache.clear().await.unwrap();
+    // 删除特定 key 以模拟缓存未命中（不使用 clear()，因为默认禁用）
+    cache.delete(&key).await.unwrap();
 
-    // 重新写入数据到L2（通过清除后重新写入）
-    // 注意：新API没有 set_l2_only 方法，我们直接写入
+    // 重新写入数据
     cache.set(&key, &val).await.unwrap();
 
     // 现在测量获取延迟
