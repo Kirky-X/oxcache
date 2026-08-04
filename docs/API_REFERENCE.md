@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.4.0** 的 API。
+> 本文档描述 **Oxcache v0.4.1** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 

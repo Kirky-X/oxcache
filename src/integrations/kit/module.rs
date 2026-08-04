@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! `OxcacheModule` — trait-kit 0.3 `AsyncKit` integration for oxcache.
+//! `OxcacheModule` — trait-kit 0.4 `AsyncKit` integration for oxcache.
 //!
 //! Phase 2 (T018 Red / T019 Green) of the `trait-kit-async-integration`
 //! change. Wires oxcache's cache backend into the `AsyncKit` dependency
@@ -135,6 +135,38 @@ impl AsyncAutoBuilder for OxcacheModule {
     }
 }
 
+/// Async health check for `OxcacheModule`.
+///
+/// Reports the health status of the underlying cache backend.
+/// Returns `Healthy` if `CacheBackend::health_check()` succeeds,
+/// or `Unhealthy` with error details if it fails.
+impl trait_kit::core::health::AsyncHealthCheck for OxcacheModule {
+    fn check(cap: &Self::Capability) -> trait_kit::core::health::HealthStatus {
+        // Use futures::executor::block_on to avoid runtime context issues.
+        // This is safe because health_check is a quick operation.
+        match futures::executor::block_on(cap.health_check()) {
+            Ok(()) => trait_kit::core::health::HealthStatus::Healthy,
+            Err(e) => trait_kit::core::health::HealthStatus::unhealthy(format!(
+                "cache backend health check failed: {e}"
+            )),
+        }
+    }
+}
+
+/// Async lifecycle hooks for `OxcacheModule`.
+///
+/// Provides graceful shutdown by calling `CacheBackend::shutdown()`
+/// when the `AsyncKit` is shut down.
+impl trait_kit::core::lifecycle::AsyncLifecycle for OxcacheModule {
+    fn on_shutdown<'a>(
+        cap: &'a Self::Capability,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            cap.shutdown().await;
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,5 +245,58 @@ mod tests {
         // Capability satisfies Send + Sync (AsyncAutoBuilder bound).
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Arc<dyn CacheBackend + Send + Sync>>();
+    }
+
+    /// R-oxcache-module-002: `AsyncHealthCheck::check` returns `Healthy`
+    /// for a functioning cache backend.
+    #[tokio::test]
+    async fn oxcache_module_health_check_returns_healthy() {
+        let mut kit = AsyncKit::new();
+        kit.set_config(OxcacheConfig::default());
+        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register_health_check::<OxcacheModule>();
+        let kit = kit.build().await.expect("AsyncKit::build");
+        let status = kit.health_check::<OxcacheModule>().expect("health_check");
+        assert!(
+            status.is_healthy(),
+            "expected Healthy status, got {status:?}"
+        );
+    }
+
+    /// R-oxcache-module-002: `AsyncHealthCheck::check` called directly
+    /// on the capability returns `Healthy`.
+    #[tokio::test]
+    async fn oxcache_module_health_check_direct_call() {
+        let kit = AsyncKit::new();
+        kit.set_config(OxcacheConfig::default());
+        let fut = <OxcacheModule as AsyncAutoBuilder>::build(&kit);
+        let cache = fut.await.expect("build");
+        let status = <OxcacheModule as trait_kit::core::health::AsyncHealthCheck>::check(&cache);
+        assert!(status.is_healthy(), "expected Healthy, got {status:?}");
+    }
+
+    /// R-oxcache-module-003: `AsyncLifecycle::on_shutdown` calls
+    /// `CacheBackend::shutdown()` gracefully without panicking.
+    #[tokio::test]
+    async fn oxcache_module_lifecycle_on_shutdown() {
+        let kit = AsyncKit::new();
+        kit.set_config(OxcacheConfig::default());
+        let fut = <OxcacheModule as AsyncAutoBuilder>::build(&kit);
+        let cache = fut.await.expect("build");
+        // Call on_shutdown directly — should complete without panic.
+        <OxcacheModule as trait_kit::core::lifecycle::AsyncLifecycle>::on_shutdown(&cache).await;
+    }
+
+    /// R-oxcache-module-003: Full lifecycle integration — register,
+    /// build, shutdown via AsyncKit.
+    #[tokio::test]
+    async fn oxcache_module_lifecycle_full_kit_integration() {
+        let mut kit = AsyncKit::new();
+        kit.set_config(OxcacheConfig::default());
+        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register_lifecycle::<OxcacheModule>();
+        let kit = kit.build().await.expect("AsyncKit::build");
+        // Shutdown should complete without panic.
+        kit.shutdown();
     }
 }
