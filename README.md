@@ -10,43 +10,18 @@
 
 </div>
 
-## ✨ 核心特性
+## 核心特性
 
-<div align="center">
+- **极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
+- **零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
+- **自动故障恢复**: Redis 故障时自动降级到 L1 缓存
+- **批量优化**: 智能批量写入，大幅提升吞吐量
+- **同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
+- **布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
+- **全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
+- **生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
 
-<table>
-<tr>
-<td width="25%" align="center">
-🚀<br>
-<b>极致性能</b><br>L1 纳秒级响应
-</td>
-<td width="25%" align="center">
-🎯<br>
-<b>零侵入式</b><br>一行代码启用缓存
-</td>
-<td width="25%" align="center">
-🔄<br>
-<b>自动故障恢复</b><br>Redis 故障自动降级
-</td>
-<td width="25%" align="center">
-⚡<br>
-<b>批量优化</b><br>智能批量写入
-</td>
-</tr>
-</table>
-
-</div>
-
-- **🚀 极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
-- **🎯 零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
-- **🔄 自动故障恢复**: Redis 故障时自动降级到 L1 缓存
-- **⚡ 批量优化**: 智能批量写入，大幅提升吞吐量
-- **🧪 同步 API**: 在异步 API 之外提供同步路径 `get_sync` / `set_sync` / `get_or_sync`，在 `multi_thread` tokio 上无需运行时
-- **🌸 布隆过滤器**: 可选的 `BloomFilterBackend` 装饰器以 O(1) 成本过滤负查询，跳过 inner 后端
-- **⏱️ 全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
-- **🛡️ 生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
-
-## 📦 快速开始
+## 快速开始
 
 ### 安装
 
@@ -128,7 +103,7 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 > **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
 > 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
 
-## 🔧 特性标志
+## 特性标志
 
 ### 特性分层
 
@@ -172,7 +147,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 - `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
 - `testing` - Testing utilities
 
-## 🎨 使用场景
+## 使用场景
 
 ### 场景 1: 用户信息缓存
 
@@ -240,7 +215,7 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## 🧪 同步 API（0.3.0）
+## 同步 API（0.3.0）
 
 Oxcache 0.3.0 在异步 API 之外引入了**同步 API 路径**。在 builder 上启用：
 
@@ -308,7 +283,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 }
 ```
 
-## 🌸 布隆过滤器（0.3.0）
+## 布隆过滤器（0.3.0）
 
 `bloom-filter` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
 
@@ -353,7 +328,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `clear` 同时清空两者；TTL 原样透传
 - 当 inner 后端实现 `SyncCacheBackend` 时，装饰器也实现
 
-## ⏱️ TTL 行为对照表（0.3.0）
+## TTL 行为对照表（0.3.0）
 
 自 0.3.0 起所有后端都遵守 per-entry TTL。行为汇总：
 
@@ -374,7 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `set(key, value, Some(ttl))` 覆盖该条目的全局 TTL
 - `set(key, value, None)` 使用全局 TTL（若设置）；否则条目永不过期
 
-## 🏗️ 架构
+## 架构
 
 ```mermaid
 graph TD
@@ -402,7 +377,7 @@ graph TD
 **L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
 **L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
 
-## 📊 性能
+## 性能
 
 > 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
@@ -433,12 +408,12 @@ xychart-beta
 - **L2 单次写入**: 50-100K ops/sec
 - **L2 批量写入**: 200-500K ops/sec
 
-## 🛡️ 可靠性
+## 可靠性
 
-- ✅ 单次请求去重 (Single-Flight)
-- ✅ Redis 故障自动降级
-- ✅ 优雅关闭机制
-- ✅ 健康检查与自动恢复
+- [x] 单次请求去重 (Single-Flight)
+- [x] Redis 故障自动降级
+- [x] 优雅关闭机制
+- [x] 健康检查与自动恢复
 
 ### 安全性
 
@@ -505,23 +480,23 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 更多详情请参阅 [安全文档](docs/SECURITY.md)。
 
-## 📚 文档
+## 文档
 
-- [📖 用户指南](docs/USER_GUIDE.md)
-- [📘 API 文档](https://docs.rs/oxcache)
-- [💻 示例代码](examples/)
+- [用户指南](docs/USER_GUIDE.md)
+- [API 文档](https://docs.rs/oxcache)
+- [示例代码](examples/)
 
 > **注意**：`oxcache-examples` 已设为 `publish = false` 并纳入 workspace 管理。
 
-## 🤝 贡献
+## 贡献
 
 欢迎提交 Pull Request 和 Issue！详见 [贡献指南](docs/CONTRIBUTING.md)。
 
-## 📋 更新日志
+## 更新日志
 
 详见 [CHANGELOG.md](docs/CHANGELOG.md)
 
-## 📄 许可证
+## 许可证
 
 本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
 
@@ -529,8 +504,8 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**
+**如果这个项目对你有帮助，请给个 Star 支持一下！**
 
-Made with ❤️ by Kirky.X
+Made with love by Kirky.X
 
 </div>
