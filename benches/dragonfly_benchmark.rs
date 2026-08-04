@@ -32,29 +32,26 @@ use tokio::runtime::Runtime;
 
 // ============================= 辅助函数 =============================
 
-/// 获取 Redis URL
-fn get_redis_url() -> String {
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
-    std::env::var("OXCACHE_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
+/// Shared runtime for all benchmarks — avoids per-function runtime creation.
+fn shared_runtime() -> Runtime {
+    Runtime::new().expect("failed to create tokio runtime")
 }
 
-/// 获取 Dragonfly URL
-fn get_dragonfly_url() -> String {
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
-    std::env::var("OXCACHE_DRAGONFLY_URL")
-        .unwrap_or_else(|_| "redis://127.0.0.1:6380".to_string())
+/// Set insecure env var once and return the Redis/Dragonfly URLs.
+/// SAFETY: Rust 2024 edition — set_var is unsafe; benchmarks run single-threaded
+fn setup_env_and_urls() -> (String, String) {
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); }
+    let redis_url = std::env::var("OXCACHE_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let dragonfly_url = std::env::var("OXCACHE_DRAGONFLY_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6380".to_string());
+    (redis_url, dragonfly_url)
 }
 
 // ============================= SET 对比 =============================
 
 fn bench_set_comparison(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let redis_url = get_redis_url();
-    let dragonfly_url = get_dragonfly_url();
+    let rt = shared_runtime();
+    let (redis_url, dragonfly_url) = setup_env_and_urls();
 
     let redis = rt.block_on(async {
         RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis")
@@ -68,35 +65,33 @@ fn bench_set_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("set_comparison");
     group.throughput(Throughput::Bytes(100));
 
+    // Pre-allocate key to avoid per-iteration format! allocation
+    let key = "bench:set:fixed";
+    let value = vec![0u8; 100];
+
     group.bench_function("redis_set", |b| {
         b.to_async(&rt).iter(|| async {
-            let key = format!(
-                "bench:set:{}",
-                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
-            );
-            let _ = redis
+            redis
                 .set(
-                    Arc::from(black_box(&key).as_str()),
-                    Arc::new(black_box(vec![0u8; 100])),
+                    Arc::from(black_box(key)),
+                    Arc::new(black_box(value.clone())),
                     Some(Duration::from_secs(300)),
                 )
-                .await;
+                .await
+                .expect("redis set failed");
         });
     });
 
     group.bench_function("dragonfly_set", |b| {
         b.to_async(&rt).iter(|| async {
-            let key = format!(
-                "bench:set:{}",
-                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
-            );
-            let _ = dragonfly
+            dragonfly
                 .set(
-                    Arc::from(black_box(&key).as_str()),
-                    Arc::new(black_box(vec![0u8; 100])),
+                    Arc::from(black_box(key)),
+                    Arc::new(black_box(value.clone())),
                     Some(Duration::from_secs(300)),
                 )
-                .await;
+                .await
+                .expect("dragonfly set failed");
         });
     });
 
@@ -106,46 +101,48 @@ fn bench_set_comparison(c: &mut Criterion) {
 // ============================= GET 对比 =============================
 
 fn bench_get_comparison(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let redis_url = get_redis_url();
-    let dragonfly_url = get_dragonfly_url();
+    let rt = shared_runtime();
+    let (redis_url, dragonfly_url) = setup_env_and_urls();
 
     let redis = rt.block_on(async {
         let backend = RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis");
-        let _ = backend
+        backend
             .set(
                 Arc::from("bench:get:test"),
                 Arc::new(vec![0u8; 100]),
                 Some(Duration::from_secs(300)),
             )
-            .await;
+            .await
+            .expect("redis seed set failed");
         backend
     });
     let dragonfly = rt.block_on(async {
         let backend = DragonflyBackend::new(&dragonfly_url, 8)
             .await
             .expect("Failed to connect to Dragonfly");
-        let _ = backend
+        backend
             .set(
                 Arc::from("bench:get:test"),
                 Arc::new(vec![0u8; 100]),
                 Some(Duration::from_secs(300)),
             )
-            .await;
+            .await
+            .expect("dragonfly seed set failed");
         backend
     });
 
     let mut group = c.benchmark_group("get_comparison");
+    group.throughput(Throughput::Elements(1));
 
     group.bench_function("redis_get", |b| {
         b.to_async(&rt).iter(|| async {
-            let _ = redis.get(black_box("bench:get:test")).await;
+            redis.get(black_box("bench:get:test")).await.expect("redis get failed");
         });
     });
 
     group.bench_function("dragonfly_get", |b| {
         b.to_async(&rt).iter(|| async {
-            let _ = dragonfly.get(black_box("bench:get:test")).await;
+            dragonfly.get(black_box("bench:get:test")).await.expect("dragonfly get failed");
         });
     });
 
@@ -155,9 +152,8 @@ fn bench_get_comparison(c: &mut Criterion) {
 // ============================= MGET 对比 =============================
 
 fn bench_mget_comparison(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let redis_url = get_redis_url();
-    let dragonfly_url = get_dragonfly_url();
+    let rt = shared_runtime();
+    let (redis_url, dragonfly_url) = setup_env_and_urls();
 
     let key_count = 10;
     let keys: Vec<String> = (0..key_count).map(|i| format!("bench:mget:{i}")).collect();
@@ -165,13 +161,14 @@ fn bench_mget_comparison(c: &mut Criterion) {
     let redis = rt.block_on(async {
         let backend = RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis");
         for (i, key) in keys.iter().enumerate() {
-            let _ = backend
+            backend
                 .set(
                     Arc::from(key.as_str()),
                     Arc::new(vec![i as u8; 100]),
                     Some(Duration::from_secs(300)),
                 )
-                .await;
+                .await
+                .expect("redis mget seed failed");
         }
         backend
     });
@@ -180,13 +177,14 @@ fn bench_mget_comparison(c: &mut Criterion) {
             .await
             .expect("Failed to connect to Dragonfly");
         for (i, key) in keys.iter().enumerate() {
-            let _ = backend
+            backend
                 .set(
                     Arc::from(key.as_str()),
                     Arc::new(vec![i as u8; 100]),
                     Some(Duration::from_secs(300)),
                 )
-                .await;
+                .await
+                .expect("dragonfly mget seed failed");
         }
         backend
     });
@@ -196,13 +194,13 @@ fn bench_mget_comparison(c: &mut Criterion) {
 
     group.bench_function("redis_mget_10", |b| {
         b.to_async(&rt).iter(|| async {
-            let _ = redis.get_many(black_box(&keys)).await;
+            redis.get_many(black_box(&keys)).await.expect("redis mget failed");
         });
     });
 
     group.bench_function("dragonfly_mget_10", |b| {
         b.to_async(&rt).iter(|| async {
-            let _ = dragonfly.get_many(black_box(&keys)).await;
+            dragonfly.get_many(black_box(&keys)).await.expect("dragonfly mget failed");
         });
     });
 
@@ -212,9 +210,8 @@ fn bench_mget_comparison(c: &mut Criterion) {
 // ============================= 不同数据大小 SET 对比 =============================
 
 fn bench_set_size_comparison(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let redis_url = get_redis_url();
-    let dragonfly_url = get_dragonfly_url();
+    let rt = shared_runtime();
+    let (redis_url, dragonfly_url) = setup_env_and_urls();
 
     let redis = rt.block_on(async {
         RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis")
@@ -230,16 +227,20 @@ fn bench_set_size_comparison(c: &mut Criterion) {
     for size in [100, 1000, 10000] {
         group.throughput(Throughput::Bytes(size as u64));
 
+        // Pre-allocate key outside the benchmark closure
+        let key = format!("bench:size:{size}");
+
         group.bench_with_input(BenchmarkId::new("redis_set", size), &size, |b, &size| {
+            let value = vec![0u8; size];
             b.to_async(&rt).iter(|| async {
-                let key = format!("bench:size:{size}");
-                let _ = redis
+                redis
                     .set(
                         Arc::from(black_box(&key).as_str()),
-                        Arc::new(black_box(vec![0u8; size])),
+                        Arc::new(black_box(value.clone())),
                         Some(Duration::from_secs(300)),
                     )
-                    .await;
+                    .await
+                    .expect("redis set failed");
             });
         });
 
@@ -247,15 +248,16 @@ fn bench_set_size_comparison(c: &mut Criterion) {
             BenchmarkId::new("dragonfly_set", size),
             &size,
             |b, &size| {
+                let value = vec![0u8; size];
                 b.to_async(&rt).iter(|| async {
-                    let key = format!("bench:size:{size}");
-                    let _ = dragonfly
+                    dragonfly
                         .set(
                             Arc::from(black_box(&key).as_str()),
-                            Arc::new(black_box(vec![0u8; size])),
+                            Arc::new(black_box(value.clone())),
                             Some(Duration::from_secs(300)),
                         )
-                        .await;
+                        .await
+                        .expect("dragonfly set failed");
                 });
             },
         );
