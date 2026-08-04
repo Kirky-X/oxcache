@@ -30,7 +30,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 ### 分层特性集
 
-- **`minimal`**：仅 L1 缓存（memory + tracing + metrics + serialization + chrono）
+- **`minimal`**：仅 L1 缓存（memory + metrics + serialization + chrono）
 - **`core`**：L1 + L2 缓存（minimal + redis）
 - **`full`**：启用所有特性（通过 features = ["full"] 选择加入）
 
@@ -41,7 +41,8 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 - **`macros`**：`#[cached]` 属性宏所需
 - **`serialization`**：仅 JSON 序列化（serde + serde_json）
 - **`compression`**：数据压缩（flate2）
-- **`tracing`**：结构化日志支持
+- **`tracing`**：~~已废弃~~（tracing 已移除，保留空 feature 向后兼容）
+- **`i18n`**：错误消息国际化 + 系统语言自动检测
 - **`metrics`**：内置指标与可观测性
 - **`batch-write`**：缓冲 L2 写入
 - **`lua-script`**：Lua 脚本执行支持（需要 `redis`）
@@ -72,7 +73,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 | 特性 | 所需特性 | 说明 |
 |------|----------|------|
 | `lua-script` | `redis` | Lua 脚本执行 |
-| `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
+| `cli` | `metrics`, `dashmap` | 命令行界面 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
 | `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（注意：`bloom-filter`、`kit` 不在 `full` 中） |
 
@@ -760,21 +761,29 @@ let json_text = export_json_format();
 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供底层
 计数器（L1/L2 命中/未命中、操作计数器）。
 
-### 追踪（`tracing` 特性）
+### 事件发射（`EventPublisher`）
 
-Oxcache 使用 `tracing` crate 进行结构化、插桩式日志。
-启用 `tracing` 特性后，span 会附加到 `get`/`set`/`delete`/`ttl`/`expire` 操作。
+Oxcache 通过 `EventPublisher` trait 提供结构化事件发射机制。
+后端操作失败时，`ChainCache` 通过配置的 `EventPublisher` 抛出事件，
+用户可自行决定处理方式（日志、metrics、告警或忽略）。
 
 ```rust
-use tracing::{info, warn, error};
+use oxcache::core::EventPublisher;
+use std::sync::Arc;
 
-info!("缓存已初始化");
-warn!("Redis 连接丢失，降级为仅 L1 模式运行");
-error!("缓存写入失败: {}", err);
+// 实现自定义事件发布器
+struct MyPublisher;
+impl EventPublisher for MyPublisher { /* ... */ }
+
+// 配置到 ChainCache
+let chain = ChainCache::builder()
+    .link(ChainLink::from_backend(l1))
+    .event_publisher(Arc::new(MyPublisher))
+    .build();
 ```
 
 内置 metrics 实现通过 `metrics` 特性可用（无外部 OpenTelemetry 依赖——
-OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serialization`、`tracing`、
+OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serialization`、
 `chrono` 和 `dashmap` 用于内部统计收集和 JSON 导出。
 
 ## 错误处理

@@ -831,7 +831,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 
 ### 分层特性集
 
-- **`minimal`**：仅 L1 内存缓存（`memory` + `tracing` + `metrics` + `serialization` + `chrono`）
+- **`minimal`**：仅 L1 内存缓存（`memory` + `metrics` + `serialization` + `chrono`）
 - **`core`**：L1 + L2 Redis（`minimal` + `redis`）
 - **`full`**：启用所有特性，**除了** `bloom-filter` 和 `kit`（包含 `dragonfly` 和 `aerospike`）
 
@@ -844,7 +844,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 | `macros` | `#[cached]` 过程宏 | ✅ |
 | `serialization` | JSON 序列化（serde + serde_json） | ✅ |
 | `compression` | Flate2 压缩 | ✅ |
-| `tracing` | 追踪支持 | ✅ |
+| `tracing` | ~~已废弃~~（保留空 feature 向后兼容） | ✅ |
 | `metrics` | 内置指标与可观测性 | ✅ |
 | `batch-write` | 缓冲 L2 写入 | ✅ |
 | `lua-script` | Lua 脚本执行（需要 `redis`） | ✅ |

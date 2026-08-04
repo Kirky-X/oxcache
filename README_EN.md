@@ -82,7 +82,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 
 | Tier        | Features                                                                        | Description            |
 | ----------- | ------------------------------------------------------------------------------- | ---------------------- |
-| **minimal** | `memory`, `tokio/time`, `tracing`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
+| **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
 | **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
 | **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | Complete functionality |
 
@@ -99,7 +99,8 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 - `batch-write` - Optimized batch writing
 - `lua-script` - Lua script execution support
 - `cli` - Command-line interface tools
-- `tracing` - Structured logging support
+- `tracing` - ~~Deprecated~~ (tracing removed, empty feature kept for backward compatibility)
+- `i18n` - Error message internationalization + auto system language detection
 - `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
 - `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
 - `testing` - Testing utilities
