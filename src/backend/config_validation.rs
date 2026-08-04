@@ -37,9 +37,8 @@ impl ConfigValidation {
             .arg("server")
             .query(conn)
             .map_err(|e| OxCacheError::Connection(format!("Failed to query INFO server: {}", e)))?;
-        // Valkey INFO server 输出中包含 "valkey" 标识
-        // 例如: "redis_version:7.2.4\nvalkey_version:7.2.4\n..."
-        Ok(info.to_ascii_lowercase().contains("valkey"))
+        // Valkey INFO server 输出本身为小写，直接 contains 即可，无需 to_ascii_lowercase 分配
+        Ok(info.contains("valkey"))
     }
 
     /// O(1) 字符有效性检查：所有合法字符皆为 ASCII，直接用字节范围判断，
@@ -49,21 +48,21 @@ impl ConfigValidation {
         c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')
     }
 
-    /// 验证自定义名称
+    /// 验证自定义名称（单遍扫描：同时检查长度和字符合法性）
     pub fn validate_custom_name(name: &str) -> OxCacheResult<String> {
         if name.is_empty() {
             return Err(OxCacheError::InvalidInput(
                 "Custom backend name cannot be empty".to_string(),
             ));
         }
-        if name.chars().count() > Self::MAX_CUSTOM_NAME_LENGTH {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Custom backend name exceeds maximum length of {} characters",
-                Self::MAX_CUSTOM_NAME_LENGTH
-            )));
-        }
 
-        for ch in name.chars() {
+        for (i, ch) in name.char_indices() {
+            if i >= Self::MAX_CUSTOM_NAME_LENGTH {
+                return Err(OxCacheError::InvalidInput(format!(
+                    "Custom backend name exceeds maximum length of {} characters",
+                    Self::MAX_CUSTOM_NAME_LENGTH
+                )));
+            }
             if !Self::is_valid_name_char(ch) {
                 return Err(OxCacheError::InvalidInput(format!(
                     "Custom backend name contains invalid character '{}'. Allowed characters: {}",
@@ -163,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_validate_custom_name_multibyte_unicode() {
-        // L6 修复验证：长度检查应基于字符数而非字节数
+        // Verify length check is based on character count rather than byte count
         // 多字节 UTF-8 字符（如 emoji）不在 VALID_NAME_CHARS 中，会被字符检查拒绝
         // 但长度检查本身不应因字节数而误判
         let name_with_dots = "a.b.c";
