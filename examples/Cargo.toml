@@ -1,6 +1,6 @@
 [package]
 name = "oxcache-examples"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Oxcache Examples - A collection of examples demonstrating how to use the oxcache two-level caching library"
 authors = ["Kirky.X"]
