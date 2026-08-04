@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### ⚠️ 破坏性变更
+
+- **移除 `tracing` 日志框架**：`src/` 和 `macros/` 完全移除 `tracing` 依赖。`ChainCache` 中 5 处 `tracing::warn!` 替换为 `EventPublisher` 事件发射（通过 `ChainCacheBuilder::event_publisher()` 配置）；`#[instrument]` 属性、tracing span、`secure_info!`/`secure_debug!` 宏全部移除。`macros` crate 生成代码中 6 处 `::tracing::warn!` 改为静默降级（反序列化失败回退、序列化/写入失败忽略），用户 crate 不再需要依赖 `tracing`。`tracing` feature 保留为空（向后兼容）。`EventPublisher` trait 改为 dyn-compatible：方法签名从 `impl Into<String>` 改为具体 `String` 类型，支持 `Arc<dyn EventPublisher>`。
+
 ### 修复
 
 - **[P0 R-002]** `DashMapMemoryBackend` 现在具有 FIFO O(1) 淘汰策略。此前后端在超过容量后无限增长；现在超容量写入批量淘汰最旧条目（`capacity / 10`，至少 1 条），使用 `seq` 检查的原子 `remove_if` 防止并发重设竞争，且 FIFO 队列在过期条目累积时自压缩（4 倍增长阈值）。无 TTL 的条目现在可被淘汰。
@@ -18,6 +22,7 @@
 - **特性门控 bug**：`compression` 特性引用了 `dep:flate2` 但不存在 `flate2` 特性，因此所有 `#[cfg(feature = "flate2")]` 代码（包括压缩）从未编译。添加 `flate2 = ["dep:flate2"]` 并将其折叠到 `compression` 中。
 - **[P2 3.2]** `MokaMemoryBackend` 同步桥接不再持有全局 `OnceLock<Runtime>`：从 `current_thread` tokio 运行时内调用同步方法此前会 panic（"Cannot block the current thread from within a runtime"）。非多线程路径现在通过 `Waker::noop()` + 手动轮询驱动 future（moka future 无运行时依赖）。添加了回归测试。
 - **[P3 4.1]** `ChainCache` 新增选择加入的 `race_read` 模式：构建器上的 `enable_race_read()` 使 `get` 并发查询所有后端并返回首个命中（保留命中时回填和所有后端失败错误语义）。默认关闭；串行降级读取仍为默认。
+- 压缩测试（`test_compression_round_trip`、`test_compression_shrinks_repetitive_data`）现在门控在 `flate2` 特性后；没有它 `compress_data` 为 no-op，缩小断言永远不成立。
 
 ### 变更
 
@@ -36,9 +41,10 @@
 - 回归测试：`current_thread` tokio 运行时内的同步操作（P2 3.2）。
 - `CacheBuilder::build_sync()`：同步构建路径（完全同步，无需运行时）。`build()` 现在为 `async` 但不包含 `.await`；两者委托到相同的非异步构建逻辑。
 
-### 修复
+### 维护
 
-- 压缩测试（`test_compression_round_trip`、`test_compression_shrinks_repetitive_data`）现在门控在 `flate2` 特性后；没有它 `compress_data` 为 no-op，缩小断言永远不成立。
+- 清理 `confers` 死引用：移除 `lib.rs`、`kit/module.rs` 中过时注释和 `validate.sh` 中不存在的 `core,confers` feature 组合。
+- 修正 `trait-kit` 版本号注释（`0.2.2` → `0.3`），同步更新 `kit/mod.rs` 中 capability 类型描述（`UnifiedCache` → `CacheBackend`）。
 
 
 ## [0.3.12] - 2026-07-22
