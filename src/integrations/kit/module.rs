@@ -146,9 +146,9 @@ impl trait_kit::core::health::AsyncHealthCheck for OxcacheModule {
         // This is safe because health_check is a quick operation.
         match futures::executor::block_on(cap.health_check()) {
             Ok(()) => trait_kit::core::health::HealthStatus::Healthy,
-            Err(e) => trait_kit::core::health::HealthStatus::unhealthy(format!(
-                "cache backend health check failed: {e}"
-            )),
+            Err(e) => {
+                trait_kit::core::health::HealthStatus::unhealthy(format!("cache backend health check failed: {e}"))
+            }
         }
     }
 }
@@ -158,9 +158,7 @@ impl trait_kit::core::health::AsyncHealthCheck for OxcacheModule {
 /// Provides graceful shutdown by calling `CacheBackend::shutdown()`
 /// when the `AsyncKit` is shut down.
 impl trait_kit::core::lifecycle::AsyncLifecycle for OxcacheModule {
-    fn on_shutdown<'a>(
-        cap: &'a Self::Capability,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+    fn on_shutdown<'a>(cap: &'a Self::Capability) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         Box::pin(async move {
             cap.shutdown().await;
         })
@@ -257,10 +255,7 @@ mod tests {
         kit.register_health_check::<OxcacheModule>();
         let kit = kit.build().await.expect("AsyncKit::build");
         let status = kit.health_check::<OxcacheModule>().expect("health_check");
-        assert!(
-            status.is_healthy(),
-            "expected Healthy status, got {status:?}"
-        );
+        assert!(status.is_healthy(), "expected Healthy status, got {status:?}");
     }
 
     /// R-oxcache-module-002: `AsyncHealthCheck::check` called directly

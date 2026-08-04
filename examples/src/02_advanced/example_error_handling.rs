@@ -14,8 +14,8 @@
 //! cd examples && cargo run --example example_error_handling
 //! ```
 
-use oxcache::error::{OxCacheError, OxCacheResult};
 use oxcache::Cache;
+use oxcache::error::{OxCacheError, OxCacheResult};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct Config {

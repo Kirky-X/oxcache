@@ -12,10 +12,10 @@
 
 use std::time::Duration;
 
+use oxcache::BackendScore;
 use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::features::{BloomFilter, BloomFilterBackend};
-use oxcache::BackendScore;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -14,9 +14,9 @@
 //! 2. 安全日志 - 确保日志中不泄露敏感信息
 //! 3. 配置验证 - 防止路径遍历等安全漏洞
 
-use oxcache::sanitize_message;
 use oxcache::Cache;
-use oxcache::{redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted};
+use oxcache::sanitize_message;
+use oxcache::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 
 /// 演示安全功能的使用方法
 #[tokio::main]

@@ -9,11 +9,11 @@
 //! cd examples && cargo run --example example_chain_cache
 //! ```
 
+use oxcache::Cache;
+use oxcache::UnifiedCache;
 use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::RedisBackend;
 use oxcache::cache::{ChainCache, ChainLink};
-use oxcache::Cache;
-use oxcache::UnifiedCache;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

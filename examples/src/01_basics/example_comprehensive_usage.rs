@@ -13,10 +13,10 @@
 //! cd examples && cargo run --example example_comprehensive_usage
 //! ```
 
-use oxcache::error::OxCacheResult;
 use oxcache::Cache;
+use oxcache::error::OxCacheResult;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 // 简单的用户结构体
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

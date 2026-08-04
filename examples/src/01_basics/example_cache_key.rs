@@ -12,8 +12,8 @@
 //! cd examples && cargo run --example example_cache_key
 //! ```
 
-use oxcache::traits::CacheKey;
 use oxcache::Cache;
+use oxcache::traits::CacheKey;
 use serde::{Deserialize, Serialize};
 
 // 自定义类型：用户 ID

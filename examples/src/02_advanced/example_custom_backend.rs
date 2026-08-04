@@ -14,9 +14,9 @@
 //! ```
 
 use async_trait::async_trait;
+use oxcache::Cache;
 use oxcache::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use oxcache::error::{OxCacheError, OxCacheResult};
-use oxcache::Cache;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

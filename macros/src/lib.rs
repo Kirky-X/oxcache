@@ -4,7 +4,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse::Parser, parse_macro_input, punctuated::Punctuated, spanned::Spanned, Expr, ItemFn, Lit, Meta, Token};
+use syn::{Expr, ItemFn, Lit, Meta, Token, parse::Parser, parse_macro_input, punctuated::Punctuated, spanned::Spanned};
 
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
