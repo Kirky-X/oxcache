@@ -1,6 +1,6 @@
 # 架构文档
 
-本文档描述 Oxcache 库（v0.4.0）的架构、设计决策和技术细节。
+本文档描述 Oxcache 库（v0.4.1）的架构、设计决策和技术细节。
 
 ## 目录
 
@@ -852,7 +852,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 | `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） | ✅ |
 | `aerospike` | Aerospike 缓存后端（独立协议） | ✅ |
 | `bloom-filter` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
-| `kit` | trait-kit AsyncKit 集成（OxcacheModule） | ❌（选择加入） |
+| `kit` | trait-kit 0.4 AsyncKit 集成（OxcacheModule + AsyncHealthCheck + AsyncLifecycle） | ❌（选择加入） |
 | `testing` | 暴露内部函数供测试使用 | ✅ |
 
 > **重要**：`bloom-filter` 和 `kit` **不包含**在 `full` 中。需通过 `features = ["bloom-filter"]` 等显式启用。

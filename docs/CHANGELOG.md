@@ -5,6 +5,23 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [0.4.1] - 2026-08-04
+
+### 新增
+
+- **trait-kit 0.4 集成增强**：`OxcacheModule` 现在实现 `AsyncHealthCheck` 和 `AsyncLifecycle` traits，提供健康检查和生命周期管理能力。
+  - `AsyncHealthCheck`：通过 `kit.health_check::<OxcacheModule>()` 报告缓存后端健康状态。
+  - `AsyncLifecycle`：通过 `kit.shutdown()` 优雅关闭缓存后端。
+- `kit` feature 新增 `lifecycle` 和 `health` 特性支持，引入 `futures` 依赖用于同步健康检查执行。
+
+### 变更
+
+- `trait-kit` 依赖升级 `0.3` → `0.4`（kit feature 用户需同步升级 trait-kit 到 0.4）。
+
+### 测试
+
+- 新增 4 个 trait-kit 集成测试：健康检查（kit 集成 + 直接调用）、生命周期（on_shutdown + 完整 kit 集成）。
+
 ## [0.4.0] - 2026-08-04
 
 ### ⚠️ 破坏性变更

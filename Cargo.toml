@@ -1,6 +1,6 @@
 [package]
 name = "oxcache"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 rust-version = "1.85"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
@@ -44,10 +44,17 @@ optional = true
 
 # trait-kit integration (optional, feature-gated via `kit`).
 [dependencies.trait-kit]
-version = "0.3"
-features = ["async"]
+version = "0.4"
+features = ["async", "lifecycle", "health"]
 optional = true
 default-features = false
+
+# futures executor for sync health check in async context (kit feature only)
+[dependencies.futures]
+version = "0.3"
+optional = true
+default-features = false
+features = ["executor"]
 
 # ICU4X internationalization (always enabled, mandatory dependency).
 # icu 2.2 provides locale-aware number/date/plural/collation formatting
@@ -247,9 +254,10 @@ testing = []
 # Bloom Filter decorator (negative query filtering)
 bloom-filter = ["dep:bloomfilter"]
 
-# trait-kit 0.3 AsyncKit integration (OxcacheModule). Pulls in trait-kit
-# with the `async` feature only — default features are disabled (Rule 6).
-kit = ["dep:trait-kit"]
+# trait-kit 0.4 AsyncKit integration (OxcacheModule). Pulls in trait-kit
+# with `async`, `lifecycle`, `health` features and futures for sync health
+# check execution — default features are disabled (Rule 6).
+kit = ["dep:trait-kit", "dep:futures"]
 
 
 [workspace]
