@@ -136,7 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         *freq.entry(key).or_default() += 1;
     }
     let mut freq_vec: Vec<_> = freq.into_iter().collect();
-    freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
+    freq_vec.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     println!("  访问频率排名:");
     for (key, count) in &freq_vec {
