@@ -420,11 +420,11 @@ pub use crate::security::{
 ```rust
 use oxcache::KeyGenerator;
 
-let gen = KeyGenerator::new()
+let generator = KeyGenerator::new()
     .with_namespace("myapp")
     .with_prefix_str("cache");
 
-let key = gen.generate_full("user:{id}", &[("id", "123")]);
+let key = generator.generate_full("user:{id}", &[("id", "123")]);
 // 结果："myapp:cache:user:123"
 ```
 
