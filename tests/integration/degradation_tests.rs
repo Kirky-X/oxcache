@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 #[cfg(feature = "redis")]
-mod degradation_tests {
+mod degradation_tests_inner {
     use crate::common::{
         create_cluster_redis_urls, is_redis_available_url,
         wait_for_redis_cluster, wait_for_sentinel,

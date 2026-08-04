@@ -2,130 +2,123 @@
 // SPDX-License-Identifier: MIT
 //! Aerospike 集成测试
 //!
-//! 使用 Docker 启动 Aerospike 容器（固定端口 3000），
-//! 通过 `ClientPolicy.ip_map` 做 IP 地址转换来解决 Docker NAT 问题。
+//! 使用 Docker 启动 Aerospike 容器（端口 3001→3000），
+//! 服务器配置了 `access-address 127.0.0.1`，客户端直连 `127.0.0.1:3001`。
+//! 所有测试共享同一个容器（通过 `OnceCell`），避免端口冲突。
 
-use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
 use oxcache::backend::interface::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use oxcache::backend::{AerospikeBackend, AerospikeConfig};
+use tokio::sync::OnceCell;
 
-/// Aerospike Docker 容器管理器
-struct AerospikeContainer {
-    container_name: String,
-    port: u16,
-    container_ip: String,
+/// Aerospike 容器名
+const CONTAINER_NAME: &str = "oxcache-as-integration";
+/// 宿主机映射端口
+const HOST_PORT: u16 = 3001;
+
+/// 全局共享的 Aerospike 配置（所有测试复用同一个容器）
+static SHARED_CONFIG: OnceCell<AerospikeConfig> = OnceCell::const_new();
+
+/// 获取共享的 Aerospike 配置（首次调用时启动容器）
+async fn shared_config() -> &'static AerospikeConfig {
+    SHARED_CONFIG.get_or_init(start_container).await
 }
 
-impl AerospikeContainer {
-    /// 启动 Aerospike 容器（固定端口 3000）
-    async fn start() -> Result<Self, String> {
-        let container_name = format!("oxcache-as-test-{}", std::process::id());
+/// 启动 Aerospike 容器并返回配置
+async fn start_container() -> AerospikeConfig {
+    // 先清理可能存在的同名容器
+    let _ = Command::new("docker")
+        .args(["rm", "-f", CONTAINER_NAME])
+        .output();
 
-        // 先清理可能存在的同名容器
-        let _ = Command::new("docker")
-            .args(["rm", "-f", &container_name])
-            .output();
+    // 启动容器，端口映射 HOST_PORT:3000
+    let output = Command::new("docker")
+        .args([
+            "run",
+            "-d",
+            "--name",
+            CONTAINER_NAME,
+            "-p",
+            &format!("{HOST_PORT}:3000"),
+            "aerospike/aerospike-server:8.0",
+        ])
+        .output()
+        .expect("启动 Docker 失败");
+    assert!(
+        output.status.success(),
+        "docker run 失败: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
-        // 启动容器，固定端口映射 3000:3000
-        let output = Command::new("docker")
-            .args([
-                "run",
-                "-d",
-                "--name",
-                &container_name,
-                "-p",
-                "3000:3000",
-                "aerospike/aerospike-server:8.0",
-            ])
+    // 等待 Aerospike 初始就绪
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(60);
+    let mut ready = false;
+    while start.elapsed() < timeout {
+        let logs = Command::new("docker")
+            .args(["logs", CONTAINER_NAME])
             .output()
-            .map_err(|e| format!("启动 Docker 失败: {}", e))?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "docker run 失败: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
+            .expect("获取日志失败");
+        let stderr = String::from_utf8_lossy(&logs.stderr);
+        if stderr.contains("migrations: complete") || stderr.contains("service ready") {
+            ready = true;
+            break;
         }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    assert!(ready, "Aerospike 容器启动超时");
 
-        // 等待 Aerospike 就绪（最多 30 秒）
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(30);
-        let mut ready = false;
-        while start.elapsed() < timeout {
-            let logs = Command::new("docker")
-                .args(["logs", &container_name])
-                .output()
-                .map_err(|e| format!("获取日志失败: {}", e))?;
-            let stderr = String::from_utf8_lossy(&logs.stderr);
-            if stderr.contains("migrations: complete") || stderr.contains("service ready") {
-                ready = true;
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-        if !ready {
-            // 清理
-            let _ = Command::new("docker")
-                .args(["rm", "-f", &container_name])
-                .output();
-            return Err("Aerospike 容器启动超时".to_string());
-        }
+    // 注入 access-address/access-port 配置（用 sed 修改默认配置）
+    let _ = Command::new("docker")
+        .args([
+            "exec", CONTAINER_NAME, "sh", "-c",
+            &format!(
+                "sed -i 's|# access-address <IPADDR>|access-address 127.0.0.1\\n\\t\\taccess-port {HOST_PORT}|' /etc/aerospike/aerospike.conf"
+            ),
+        ])
+        .output();
 
-        // 获取容器内部 IP
-        let output = Command::new("docker")
-            .args([
-                "inspect",
-                &container_name,
-                "--format",
-                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
-            ])
+    // 停止并重新启动容器（不用 restart，避免 entrypoint 重新处理模板）
+    let _ = Command::new("docker")
+        .args(["stop", CONTAINER_NAME])
+        .output();
+    let _ = Command::new("docker")
+        .args(["start", CONTAINER_NAME])
+        .output();
+
+    // 等待再次就绪
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let start = std::time::Instant::now();
+    let mut ready = false;
+    while start.elapsed() < timeout {
+        let logs = Command::new("docker")
+            .args(["logs", "--since", "10s", CONTAINER_NAME])
             .output()
-            .map_err(|e| format!("获取容器 IP 失败: {}", e))?;
-
-        let container_ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if container_ip.is_empty() {
-            let _ = Command::new("docker")
-                .args(["rm", "-f", &container_name])
-                .output();
-            return Err("无法获取容器 IP".to_string());
+            .expect("获取日志失败");
+        let stderr = String::from_utf8_lossy(&logs.stderr);
+        if stderr.contains("migrations: complete") || stderr.contains("service ready") {
+            ready = true;
+            break;
         }
-
-        Ok(Self {
-            container_name,
-            port: 3000,
-            container_ip,
-        })
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
+    assert!(ready, "Aerospike 重启超时");
 
-    /// 构建带 ip_map 的 AerospikeConfig
-    fn config(&self) -> AerospikeConfig {
-        let mut ip_map = HashMap::new();
-        ip_map.insert(self.container_ip.clone(), "127.0.0.1".to_string());
-
-        AerospikeConfig {
-            seed_nodes: vec![format!("127.0.0.1:{}", self.port)],
-            namespace: "test".to_string(),
-            set_name: "oxcache_test".to_string(),
-            default_ttl: 0,
-            ip_map: Some(ip_map),
-        }
-    }
-}
-
-impl Drop for AerospikeContainer {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(["rm", "-f", &self.container_name])
-            .output();
+    AerospikeConfig {
+        seed_nodes: vec![format!("127.0.0.1:{HOST_PORT}")],
+        namespace: "test".to_string(),
+        set_name: "oxcache_test".to_string(),
+        default_ttl: 0,
+        ip_map: None,
     }
 }
 
 /// 创建 Aerospike 后端（带重试）
-async fn make_backend(config: AerospikeConfig) -> AerospikeBackend {
+async fn make_backend() -> AerospikeBackend {
+    let config = shared_config().await.clone();
     let mut last_err = None;
     for _ in 0..5 {
         match AerospikeBackend::new(config.clone()).await {
@@ -148,20 +141,13 @@ async fn make_backend(config: AerospikeConfig) -> AerospikeBackend {
 
 #[tokio::test]
 async fn test_aerospike_backend_kind() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
-
+    let backend = make_backend().await;
     assert_eq!(backend.backend_kind(), BackendKind::Aerospike);
 }
 
 #[tokio::test]
 async fn test_aerospike_set_get_delete() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
+    let backend = make_backend().await;
 
     // set
     backend
@@ -193,10 +179,7 @@ async fn test_aerospike_set_get_delete() {
 
 #[tokio::test]
 async fn test_aerospike_set_with_ttl() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
+    let backend = make_backend().await;
 
     // set with TTL
     backend
@@ -221,10 +204,7 @@ async fn test_aerospike_set_with_ttl() {
 
 #[tokio::test]
 async fn test_aerospike_expire() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
+    let backend = make_backend().await;
 
     // set without TTL (Never expires)
     backend
@@ -257,10 +237,7 @@ async fn test_aerospike_expire() {
 
 #[tokio::test]
 async fn test_aerospike_set_many_delete_many() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
+    let backend = make_backend().await;
 
     // set_many
     let items = vec![
@@ -294,10 +271,7 @@ async fn test_aerospike_set_many_delete_many() {
 
 #[tokio::test]
 async fn test_aerospike_health_check_and_stats() {
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let backend = make_backend(container.config()).await;
+    let backend = make_backend().await;
 
     // health_check
     backend.health_check().await.expect("health_check failed");
@@ -327,10 +301,7 @@ async fn test_aerospike_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let container = AerospikeContainer::start()
-        .await
-        .expect("Failed to start Aerospike");
-    let aerospike = make_backend(container.config()).await;
+    let aerospike = make_backend().await;
     let moka = MokaMemoryBackend::new();
 
     // Moka(L1, score=100) + Aerospike(L2, score=30)
