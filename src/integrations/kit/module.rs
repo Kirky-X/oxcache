@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! `OxcacheModule` — trait-kit 0.2.2 `AsyncKit` integration for oxcache.
+//! `OxcacheModule` — trait-kit 0.3 `AsyncKit` integration for oxcache.
 //!
 //! Phase 2 (T018 Red / T019 Green) of the `trait-kit-async-integration`
 //! change. Wires oxcache's cache backend into the `AsyncKit` dependency
