@@ -11,6 +11,24 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use testcontainers::core::WaitFor;
 
+/// Generic poll-until-ready helper for Redis-protocol containers.
+async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
+    let client =
+        redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
+
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(30);
+
+    while start.elapsed() < timeout {
+        match client.get_multiplexed_async_connection().await {
+            Ok(_) => return Ok(()),
+            Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
+        }
+    }
+
+    Err(format!("等待 {} 就绪超时", label))
+}
+
 /// Redis 容器包装器
 pub struct RedisContainer {
     container: ContainerAsync<testcontainers_modules::redis::Redis>,
@@ -46,20 +64,7 @@ impl RedisContainer {
 
     /// 等待 Redis 就绪
     pub async fn wait_ready(&self) -> Result<(), String> {
-        let url = self.url();
-        let client = redis::Client::open(url.as_str()).map_err(|e| format!("创建客户端失败: {}", e))?;
-
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(30);
-
-        while start.elapsed() < timeout {
-            match client.get_multiplexed_async_connection().await {
-                Ok(_) => return Ok(()),
-                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-            }
-        }
-
-        Err("等待 Redis 就绪超时".to_string())
+        wait_for_redis_ready(&self.url(), "Redis").await
     }
 }
 
@@ -197,20 +202,7 @@ impl ValkeyContainer {
 
     /// 等待 Valkey 就绪
     pub async fn wait_ready(&self) -> Result<(), String> {
-        let url = self.url();
-        let client = redis::Client::open(url.as_str()).map_err(|e| format!("创建客户端失败: {}", e))?;
-
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(30);
-
-        while start.elapsed() < timeout {
-            match client.get_multiplexed_async_connection().await {
-                Ok(_) => return Ok(()),
-                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-            }
-        }
-
-        Err("等待 Valkey 就绪超时".to_string())
+        wait_for_redis_ready(&self.url(), "Valkey").await
     }
 }
 
@@ -260,19 +252,6 @@ impl DragonflyContainer {
 
     /// 等待 Dragonfly 就绪
     pub async fn wait_ready(&self) -> Result<(), String> {
-        let url = self.url();
-        let client = redis::Client::open(url.as_str()).map_err(|e| format!("创建客户端失败: {}", e))?;
-
-        let start = std::time::Instant::now();
-        let timeout = Duration::from_secs(30);
-
-        while start.elapsed() < timeout {
-            match client.get_multiplexed_async_connection().await {
-                Ok(_) => return Ok(()),
-                Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
-            }
-        }
-
-        Err("等待 Dragonfly 就绪超时".to_string())
+        wait_for_redis_ready(&self.url(), "Dragonfly").await
     }
 }

@@ -29,22 +29,27 @@ mod manual_control_test;
 #[cfg(feature = "redis")]
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
+#[cfg(feature = "redis")]
 #[path = "integration/redis_client_comprehensive_test.rs"]
 mod redis_client_comprehensive_test;
 
 #[cfg(feature = "redis")]
 #[path = "integration/l2_backend_test.rs"]
 mod l2_backend_test;
+#[cfg(feature = "redis")]
 #[path = "integration/single_flight_test.rs"]
 mod single_flight_test;
+#[cfg(feature = "redis")]
 #[path = "integration/ttl_control_test.rs"]
 mod ttl_control_test;
 #[cfg(feature = "redis")]
 #[path = "integration/two_level_test.rs"]
 mod two_level_test;
+#[cfg(feature = "redis")]
 #[path = "integration/version_test.rs"]
 mod version_test;
 
+#[cfg(feature = "redis")]
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
 #[cfg(feature = "redis")]
