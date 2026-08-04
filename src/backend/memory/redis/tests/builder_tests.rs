@@ -131,7 +131,9 @@ async fn test_with_pool_connects_to_redis() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_new_invalid_url_returns_error() {
+    remove_allow_insecure_env();
     set_allow_insecure_env();
     let result = RedisBackend::new("redis://127.0.0.1:1/0").await;
     assert!(result.is_err());
@@ -143,7 +145,9 @@ async fn test_new_invalid_url_returns_error() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_new_unreachable_host_times_out() {
+    remove_allow_insecure_env();
     set_allow_insecure_env();
     let result = RedisBackend::new("redis://10.255.255.1:6379/0").await;
     assert!(result.is_err());
@@ -193,7 +197,7 @@ async fn test_builder_tls_connection_string_accepted() {
     // TLS URL should pass validation (will fail at connection, but not validation)
     let result = RedisBackend::builder()
         .connection_string("rediss://nonexistent.example.com:6379")
-        .connection_timeout(std::time::Duration::from_millis(1))
+        .connection_timeout(std::time::Duration::from_millis(50))
         .build()
         .await;
     // Should fail at connection, not at TLS validation
@@ -214,7 +218,7 @@ async fn test_builder_database_appended_to_url() {
     let result = RedisBackend::builder()
         .connection_string("rediss://localhost:6379")
         .database(3)
-        .connection_timeout(std::time::Duration::from_millis(1))
+        .connection_timeout(std::time::Duration::from_millis(50))
         .build()
         .await;
     // Connection will fail, but the builder accepted the config
@@ -223,7 +227,6 @@ async fn test_builder_database_appended_to_url() {
 
 #[test]
 fn test_builder_chain_all_methods() {
-    use crate::config::DistributedConfig;
     use std::time::Duration;
 
     // Verify all builder methods return Self for chaining
@@ -285,7 +288,7 @@ async fn test_builder_dangerous_clear_enabled_flag() {
     let result = RedisBackend::builder()
         .connection_string("rediss://localhost:6379")
         .dangerous_clear_enabled(true)
-        .connection_timeout(std::time::Duration::from_millis(1))
+        .connection_timeout(std::time::Duration::from_millis(50))
         .build()
         .await;
     // Should fail at connection, not at validation
