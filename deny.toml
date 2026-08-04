@@ -23,12 +23,17 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "Zlib",
-    "CDLA-Permissive-2.0",
     "CC0-1.0",
-    "MPL-2.0",
     "BSL-1.0",  # Boost Software License 1.0 - OSI批准, xxhash-rust使用
 ]
 confidence-threshold = 0.8
+
+# 传递依赖许可证例外
+[[licenses.exceptions]]
+# rhexdump 是 aerospike-core 的传递依赖，GPL-3.0-or-later 为 copyleft 许可证
+# 不能加入全局 allow，仅对此 crate 例外
+allow = ["GPL-3.0-or-later"]
+crate = "rhexdump"
 
 [bans]
 multiple-versions = "warn"
