@@ -1,12 +1,12 @@
 [package]
 name = "oxcache"
-version = "0.4.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 rust-version = "1.85"
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
-authors = ["Kirky.X"]
-license = "MIT"
-repository = "https://github.com/Kirky-X/oxcache"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 readme = "README.md"
 keywords = ["cache", "redis", "memory", "async", "performance"]
 categories = ["caching", "asynchronous", "database"]
@@ -16,14 +16,38 @@ name = "oxcache"
 path = "src/lib.rs"
 
 # ============================================================================
-# MAIN DEPENDENCIES
+# WORKSPACE
+# ============================================================================
+[workspace]
+resolver = "2"
+members = [".", "macros", "examples"]
+
+[workspace.package]
+version = "0.4.1"
+edition = "2024"
+authors = ["Kirky.X"]
+license = "MIT"
+repository = "https://github.com/Kirky-X/oxcache"
+
+[workspace.dependencies]
+tokio = { version = "1.53", default-features = false }
+async-trait = "0.1"
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+chrono = { version = "0.4", default-features = false }
+criterion = { version = "0.8", features = ["async_tokio"] }
+
+# ============================================================================
+# DEPENDENCIES
 # ============================================================================
 [dependencies]
 # Internal macros
 oxcache_macros = { path = "macros", version = "0.4", optional = true }
 
-# Async Runtime - 精简特性
-tokio = { version = "1.52", default-features = false, features = [
+# Async Runtime
+tokio = { version = "1.53", default-features = false, features = [
     "rt",
     "rt-multi-thread",
     "sync",
@@ -35,14 +59,14 @@ async-trait = "0.1"
 once_cell = "1.21"
 
 # Utilities
-uuid = { version = "1.23", features = ["v4"] }
+uuid = { version = "1.24", features = ["v4"] }
 
 # Error Handling
 [dependencies.anyhow]
 version = "1.0"
 optional = true
 
-# trait-kit integration (optional, feature-gated via `kit`).
+# trait-kit integration (optional, feature-gated via `kit`)
 [dependencies.trait-kit]
 version = "0.4"
 features = ["async", "lifecycle", "health"]
@@ -56,45 +80,37 @@ optional = true
 default-features = false
 features = ["executor"]
 
-# ICU4X internationalization (always enabled, mandatory dependency).
-# icu 2.2 provides locale-aware number/date/plural/collation formatting
-# and localized error message display.
+# ICU4X internationalization (always enabled)
 [dependencies.icu]
 version = "2.2"
 
 [dependencies.writeable]
 version = "0.6"
 
-# ============================================================================
-# L1 CACHE DEPENDENCIES (Memory Cache)
-# ============================================================================
+# L1 Cache (Memory)
 [dependencies.moka]
 version = "0.12"
 default-features = false
 features = ["future"]
 optional = true
 
-# In-memory concurrent map for internal state
 [dependencies.dashmap]
 version = "6.2"
 optional = true
 
-# ============================================================================
-# L2 Cache Dependencies (Redis) - 精简特性
+# L2 Cache (Redis)
 [dependencies.redis]
 version = "1.5"
 default-features = false
 features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentinel"]
 optional = true
 
-# ============================================================================
 # Aerospike (independent protocol, feature-gated)
 [dependencies.aerospike]
 version = "2.1"
 optional = true
 
-# ============================================================================
-# Serialization & Compression - 精简特性
+# Serialization & Compression
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
@@ -109,18 +125,11 @@ optional = true
 version = "1.1"
 optional = true
 
-# Depth-limited deserialization: single-pass parse with configurable depth limit
 [dependencies.serde_stacker]
 version = "0.1"
 optional = true
 
-# ============================================================================
-# OBSERVABILITY & METRICS
-# ============================================================================
-# Metrics 实现完全内置（src/infra/metrics/*），不依赖外部 otel crate。
-# 如需 OTLP 导出，由应用层（如 limiteron）统一处理，避免重复初始化 tracer provider。
-
-# Bloom Filter (optional, for negative query filtering)
+# Observability & Metrics
 [dependencies.bloomfilter]
 version = "3.0"
 optional = true
@@ -129,7 +138,6 @@ optional = true
 version = "1.13"
 optional = true
 
-# Chrono - 精简特性
 [dependencies.chrono]
 version = "0.4"
 default-features = false
@@ -148,9 +156,6 @@ ctor = "1.0"
 trybuild = "1.0"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 
-# ============================================================================
-# TEST DEPENDENCIES
-# ============================================================================
 [dev-dependencies.testcontainers]
 version = "0.27"
 
@@ -158,17 +163,14 @@ version = "0.27"
 version = "0.15"
 features = ["redis"]
 
+# ============================================================================
+# FEATURES
+# ============================================================================
 [features]
-
-# Default: Minimal feature set (L1 memory cache only)
-# Users opt-in to higher tiers via features = ["core"] / ["full"]
+# Default: Minimal (L1 memory cache only)
 default = ["minimal"]
 
-# --------------------------------------------------------------------
-# TIERED FEATURES
-# --------------------------------------------------------------------
-
-# Minimal: L1 memory cache only
+# Tiered presets
 minimal = [
     "memory",
     "tokio/time",
@@ -176,14 +178,7 @@ minimal = [
     "serialization",
     "dep:chrono",
 ]
-
-# Core: L1 + L2 (Redis)
-core = [
-    "minimal",
-    "redis",
-]
-
-# Full: All features enabled
+core = ["minimal", "redis"]
 full = [
     "core",
     "macros",
@@ -196,88 +191,27 @@ full = [
     "aerospike",
 ]
 
-# --------------------------------------------------------------------
-# CORE COMPONENT FEATURES
-# --------------------------------------------------------------------
-
-# L1 Memory Cache (Moka + DashMap)
-# serde: needed for V: Serialize + Deserialize trait bounds and derives on type enums
+# Component features
 memory = ["dep:moka", "dep:dashmap", "dep:serde"]
-
-# L2 Distributed Cache (Redis)
 redis = ["dep:redis", "dep:regex"]
-
-# Dragonfly (Redis-compatible, wraps redis feature)
 dragonfly = ["redis"]
-
-# Aerospike (independent protocol, optional)
 aerospike = ["dep:aerospike"]
-
-# Proc macros for #[cached]
-# 显式依赖 `minimal`：宏生成代码引用 `::oxcache::__internal_get_cache`，
-# 该函数仅在 backend feature（memory/redis/minimal/core/full）启用时导出。
-# 不加 `minimal` 会导致独立启用 `macros` 时编译失败。
 macros = ["dep:oxcache_macros", "minimal"]
-
-# Serialization (JSON)
 serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
-
-# Compression (flate2)
-# `flate2` 特性供 `#[cfg(feature = "flate2")]` 代码分支使用；
-# `compression` 作为用户可见的聚合开关。
 flate2 = ["dep:flate2"]
 compression = ["dep:flate2", "flate2"]
-
-# Tracing support (deprecated: tracing removed, feature kept for backward compatibility)
 tracing = []
-
-# Metrics & Observability (内置实现，无需外部 otel crate)
-# metrics 代码使用 serde/serde_json 进行 JSON 导出，需 serialization feature
-metrics = [
-    "serialization",
-    "dep:chrono",
-    "dep:dashmap",
-]
-
-# Batch Write (buffered L2 writes)
+metrics = ["serialization", "dep:chrono", "dep:dashmap"]
 batch-write = []
-
-# Lua Script Execution
 lua-script = ["redis"]
-
-# CLI tools
 cli = ["dep:dashmap", "metrics"]
-
-# Testing support (exposes internal functions)
 testing = []
-
-# Bloom Filter decorator (negative query filtering)
 bloom-filter = ["dep:bloomfilter"]
-
-# trait-kit 0.4 AsyncKit integration (OxcacheModule). Pulls in trait-kit
-# with `async`, `lifecycle`, `health` features and futures for sync health
-# check execution — default features are disabled (Rule 6).
 kit = ["dep:trait-kit", "dep:futures"]
 
-
-[workspace]
-resolver = "2"
-members = [".", "macros", "examples"]
-
-[workspace.dependencies]
-tokio = { version = "1.52", default-features = false }
-async-trait = "0.1"
-tracing = { version = "0.1", default-features = false }
-tracing-subscriber = { version = "0.3", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0" }
-chrono = { version = "0.4", default-features = false }
-criterion = { version = "0.8", features = ["async_tokio"] }
-
-# COMPILER OPTIMIZATIONS
 # ============================================================================
-
-# Release profile: Maximum performance
+# PROFILES
+# ============================================================================
 [profile.release]
 opt-level = 3
 lto = "fat"
@@ -286,38 +220,31 @@ panic = "abort"
 strip = true
 overflow-checks = false
 
-# Optimize all dependencies equally
 [profile.release.package."*"]
 opt-level = 3
 
-# Release with debug info: For profiling and debugging release builds
 [profile.release-with-debug]
 inherits = "release"
 debug = true
 strip = false
 
-# Dev profile: Fast compilation for development iteration
 [profile.dev]
 opt-level = 0
 debug = true
 incremental = true
 
-# Dev optimized: Faster dev builds with some optimizations
 [profile.dev-optimized]
 inherits = "dev"
 opt-level = 2
 debug = true
 
-# Test profile
 [profile.test]
 opt-level = 0
 debug = true
 
-# Benchmark profile: Use release optimizations
 [profile.bench]
 inherits = "release"
 
-# Optimize heavy dependencies even in dev builds
 [profile.dev.package.moka]
 opt-level = 2
 
