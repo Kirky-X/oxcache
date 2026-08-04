@@ -47,40 +47,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. 链式设置
     println!("\n--- 4. 链式设置（命名空间 + 前缀） ---");
-    let gen = KeyGenerator::new()
+    let generator = KeyGenerator::new()
         .with_namespace("myapp")
         .with_prefix_str("v2")
         .with_max_key_length(512);
 
-    let key = gen.namespaced_key("user:profile:123");
+    let key = generator.namespaced_key("user:profile:123");
     println!("  完整键: {}", key);
 
     // 5. 模板生成
     println!("\n--- 5. 模板生成 ---");
-    let gen = KeyGenerator::new().with_namespace("api");
+    let generator = KeyGenerator::new().with_namespace("api");
 
-    let key = gen.generate("user:{id}:profile", &[("id", "42")]);
+    let key = generator.generate("user:{id}:profile", &[("id", "42")]);
     println!("  模板 'user:{{id}}:profile' + id=42 -> {}", key);
 
-    let key = gen.generate("search:{type}:{query}", &[("type", "products"), ("query", "laptop")]);
+    let key = generator.generate("search:{type}:{query}", &[("type", "products"), ("query", "laptop")]);
     println!("  模板 'search:{{type}}:{{query}}' -> {}", key);
 
     // 6. 完整键生成（带命名空间和前缀）
     println!("\n--- 6. 完整键生成（generate_full） ---");
-    let gen = KeyGenerator::new()
+    let generator = KeyGenerator::new()
         .with_namespace("production")
         .with_prefix_str("cache");
 
-    let key = gen.generate_full("user:{id}", &[("id", "123")]);
+    let key = generator.generate_full("user:{id}", &[("id", "123")]);
     println!("  generate_full('user:{{id}}', id=123) -> {}", key);
 
     // 7. 键验证
     println!("\n--- 7. 键验证 ---");
-    let gen = KeyGenerator::new();
+    let generator = KeyGenerator::new();
 
     let valid_keys = ["user:123", "cache:item:abc", "session:token"];
     for key in &valid_keys {
-        match gen.validate_key(key) {
+        match generator.validate_key(key) {
             Ok(()) => println!("  ✓ '{}' 有效", key),
             Err(e) => println!("  ✗ '{}' 无效: {}", key, e),
         }
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let invalid_keys = ["", "key\0with\0null", "key\nwith\nnewline"];
     for key in &invalid_keys {
-        match gen.validate_key(key) {
+        match generator.validate_key(key) {
             Ok(()) => println!("  ✓ '{}' 有效", key),
             Err(e) => println!("  ✗ '{}' 无效: {}", key, e),
         }
