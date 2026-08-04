@@ -370,6 +370,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `sync_mode(true)` works on `multi_thread` tokio runtime. On `current_thread` runtime, Moka's `sync_block_on` will panic (use `#[tokio::main(flavor = "multi_thread")]` or call from outside a runtime).
 - Without `sync_mode(true)`, calling any `*_sync` method returns `Err(OxCacheError::NotSupported)`.
 
+**`#[cached]` macro parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `service` | string | Cache service name (required) |
+| `ttl` | integer | Default TTL in seconds |
+| `key` | string | Custom key pattern (supports `{param}` interpolation) |
+| `key_prefix` | string | Key prefix namespace |
+| `sync` | flag | Generate synchronous function (no async runtime needed) |
+| `skip_cache_write` | flag | Skip cache write for `Ok` results |
+
 **`#[cached(sync)]`** **macro**:
 
 ```rust
@@ -437,6 +448,9 @@ All backends honor per-entry TTL since 0.3.0. Behavior summary:
 | **MokaMemoryBackend**    | Real per-entry TTL via `moka::Expiry`                    | Remaining TTL                                         | Updates + returns `true`    | Global TTL (`builder.ttl(...)`) is overridden by per-entry TTL |
 | **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read    | Remaining TTL (None if no TTL)                        | Updates + returns `true`    | Lazy expiry — entries removed on next access; FIFO O(1) eviction of oldest entries when over capacity |
 | **RedisBackend**         | `SET key value EX ttl`                                   | `TTL key` (Redis native)                              | `EXPIRE key ttl`            | Uses Redis native TTL                                          |
+| **Valkey** (via RedisBackend) | Same as Redis                                       | Same as Redis                                         | Same as Redis               | Redis protocol compatible, uses `ValkeyStandalone` mode        |
+| **DragonflyBackend**     | Delegates to inner RedisBackend                          | Delegates to inner RedisBackend                       | Delegates to inner RedisBackend | Redis protocol compatible, TTL behavior identical to Redis     |
+| **AerospikeBackend**     | `write_policy_with_ttl` → `Expiration::Seconds`          | `record.time_to_live()`                               | `touch` + new `Expiration`  | Uses Aerospike native TTL (second-level precision)             |
 | **MockBackend**          | Stores `(value, expiry Instant)`; lazy expiry            | Remaining TTL                                         | Updates + returns `true`    | Test-only; aligns with DashMap semantics                       |
 | **ChainCache**           | Passes `ttl` through to all links                        | Returns TTL from highest-scored link that has the key | Passes through to all links | All links receive the same TTL                                 |
 | **BloomFilterBackend**   | Passes `ttl` through to inner (also inserts key into BF) | Delegates to inner                                    | Delegates to inner          | BF itself has no TTL concept                                   |
@@ -527,6 +541,9 @@ All user inputs are validated before being passed to Redis:
   - Maximum length of 10KB
   - Maximum of 100 keys
   - Blocking dangerous commands: `FLUSHALL`, `FLUSHDB`, `KEYS`, `SHUTDOWN`, `DEBUG`, `CONFIG`, `SAVE`, `BGSAVE`, `MONITOR`
+  - Blocking nested `eval`/`evalsha` calls
+  - Blocking infinite loop constructs: `while true`, `while 1`, `repeat`, `goto`
+  - Blocking OS command execution: `os.execute`, `os.exec`, `io.popen`, `loadstring`, `load`
   - Comment and string content preprocessing to prevent bypass via comments
 - **SCAN Pattern Validation**: Patterns are validated to prevent ReDoS attacks:
   - Maximum length of 256 characters

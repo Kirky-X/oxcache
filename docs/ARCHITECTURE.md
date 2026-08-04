@@ -308,7 +308,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 
 后端通过 `CacheConnector::as_atomic_writer()` 暴露原子能力。`Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` 通过此运行时发现方法委托；后端缺少原子支持时返回 `Err(NotSupported)`。
 
-**`BackendKind` 枚举**（`Moka | DashMap | Redis | Chain | Mock | Unknown`）由 `backend_kind()` 返回，用于运行时标识而无需 `as_any()`。
+**`BackendKind` 枚举**（`Moka | DashMap | Redis | Valkey | Dragonfly | Aerospike | Chain | Mock | Unknown`）由 `backend_kind()` 返回，用于运行时标识而无需 `as_any()`）。
 
 **ChainCache 读取路径**（替代旧版 "TieredBackend"）：
 
@@ -456,7 +456,7 @@ let event = CacheEvent::new(CacheEventType::Hit)
 
 ### #[cached] 宏工作流
 
-`#[cached]` 宏通过自动处理缓存查找、存储和序列化实现零模板代码缓存。0.3.2 中唯一有效的宏参数为：`service`、`ttl`、`key`、`key_prefix`、`sync`（不存在 `key_generator` 或 `cache_type` 参数）。
+`#[cached]` 宏通过自动处理缓存查找、存储和序列化实现零模板代码缓存。有效的宏参数为：`service`、`ttl`、`key`、`key_prefix`、`sync`、`skip_cache_write`（不存在 `key_generator` 或 `cache_type` 参数）。
 
 ```mermaid
 sequenceDiagram
@@ -833,7 +833,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 
 - **`minimal`**：仅 L1 内存缓存（`memory` + `tracing` + `metrics` + `serialization` + `chrono`）
 - **`core`**：L1 + L2 Redis（`minimal` + `redis`）
-- **`full`**：启用所有特性，**除了** `bloom-filter` 和 `kit`
+- **`full`**：启用所有特性，**除了** `bloom-filter` 和 `kit`（包含 `dragonfly` 和 `aerospike`）
 
 ### 组件特性
 
@@ -849,6 +849,8 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 | `batch-write` | 缓冲 L2 写入 | ✅ |
 | `lua-script` | Lua 脚本执行（需要 `redis`） | ✅ |
 | `cli` | 命令行工具 | ✅ |
+| `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） | ✅ |
+| `aerospike` | Aerospike 缓存后端（独立协议） | ✅ |
 | `bloom-filter` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
 | `kit` | trait-kit AsyncKit 集成（OxcacheModule） | ❌（选择加入） |
 | `testing` | 暴露内部函数供测试使用 | ✅ |

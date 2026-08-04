@@ -284,6 +284,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `sync_mode(true)` 在 `multi_thread` tokio 运行时上工作。在 `current_thread` 运行时上，Moka 的 `sync_block_on` 会 panic（使用 `#[tokio::main(flavor = "multi_thread")]` 或在运行时上下文之外调用）。
 - 不启用 `sync_mode(true)` 时，调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`。
 
+**`#[cached]` 宏参数**：
+
+| 参数 | 类型 | 描述 |
+|------|------|------|
+| `service` | 字符串 | 缓存服务名称（必填） |
+| `ttl` | 整数 | 默认 TTL（秒） |
+| `key` | 字符串 | 自定义键模式（支持 `{param}` 插值） |
+| `key_prefix` | 字符串 | 键前缀命名空间 |
+| `sync` | 标志 | 生成同步函数（无需 async 运行时） |
+| `skip_cache_write` | 标志 | 跳过 `Ok` 结果的缓存写入 |
+
 **`#[cached(sync)]` 宏**：
 
 ```rust
@@ -350,6 +361,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
 | **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期 —— 条目在下次访问时移除；超过容量时 FIFO O(1) 淘汰最旧条目 |
 | **RedisBackend** | `SET key value EX ttl` | `TTL key`（Redis 原生） | `EXPIRE key ttl` | 使用 Redis 原生 TTL |
+| **Valkey**（通过 RedisBackend） | 同 Redis | 同 Redis | 同 Redis | Redis 协议兼容，使用 `ValkeyStandalone` 模式 |
+| **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 完全一致 |
+| **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | 使用 Aerospike 原生 TTL（秒级精度） |
 | **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用；与 DashMap 语义对齐 |
 | **ChainCache** | 将 `ttl` 透传到所有链接 | 返回拥有该 key 的最高分链接的 TTL | 透传到所有链接 | 所有链接接收相同 TTL |
 | **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
@@ -438,6 +452,9 @@ Oxcache 实现了多项安全措施以防范常见攻击：
   - 最大长度 10KB
   - 最多 100 个键
   - 阻止危险命令：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
+  - 阻止嵌套 `eval`/`evalsha` 调用
+  - 阻止无限循环结构：`while true`、`while 1`、`repeat`、`goto`
+  - 阻止 OS 命令执行：`os.execute`、`os.exec`、`io.popen`、`loadstring`、`load`
   - 注释和字符串内容预处理，防止通过注释绕过检测
 - **SCAN 模式验证**：模式验证以防止 ReDoS 攻击：
   - 最大长度 256 个字符
