@@ -263,6 +263,16 @@ kit = ["dep:trait-kit"]
 resolver = "2"
 members = [".", "macros", "examples"]
 
+[workspace.dependencies]
+tokio = { version = "1.52", default-features = false }
+async-trait = "0.1"
+tracing = { version = "0.1", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+chrono = { version = "0.4", default-features = false }
+criterion = { version = "0.8", features = ["async_tokio"] }
+
 # COMPILER OPTIMIZATIONS
 # ============================================================================
 
