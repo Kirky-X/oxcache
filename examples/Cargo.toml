@@ -1,6 +1,6 @@
 [package]
 name = "oxcache-examples"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 description = "Oxcache Examples - A collection of examples demonstrating how to use the oxcache two-level caching library"
 authors = ["Kirky.X"]
@@ -22,18 +22,18 @@ oxcache = { path = "..", default-features = false, features = [
 # `tracing` is required directly because the `#[cached]` macro expands to
 # `::tracing::warn!(...)` calls in user code (examples crate), not just inside
 # the oxcache crate itself.
-tracing = { version = "0.1", default-features = false, features = ["std"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 
 # Utilities needed by examples
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.52", default-features = false, features = ["rt", "macros", "rt-multi-thread"] }
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
-async-trait = "0.1"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread"] }
+chrono = { workspace = true, features = ["serde"] }
+async-trait.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.8", features = ["async_tokio"] }
+criterion.workspace = true
 
 [[example]]
 name = "example_basic_operations"
