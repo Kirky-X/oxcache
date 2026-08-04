@@ -247,7 +247,7 @@ testing = []
 # Bloom Filter decorator (negative query filtering)
 bloom-filter = ["dep:bloomfilter"]
 
-# trait-kit 0.2.2 AsyncKit integration (OxcacheModule). Pulls in trait-kit
+# trait-kit 0.3 AsyncKit integration (OxcacheModule). Pulls in trait-kit
 # with the `async` feature only — default features are disabled (Rule 6).
 kit = ["dep:trait-kit"]
 
