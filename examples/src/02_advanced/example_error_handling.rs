@@ -103,10 +103,7 @@ fn demonstrate_recoverability() {
         ("KeyTooLong", OxCacheError::KeyTooLong(1024, 512)),
     ];
 
-    println!(
-        "  {:<16} {:<10} {:<12} 错误码",
-        "错误类型", "可恢复?", "连接错误?"
-    );
+    println!("  {:<16} {:<10} {:<12} 错误码", "错误类型", "可恢复?", "连接错误?");
     println!("  {}", "-".repeat(50));
     for (name, err) in &errors {
         println!(
