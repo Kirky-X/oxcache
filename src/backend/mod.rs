@@ -1,6 +1,10 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-// 该模块定义了缓存系统的后端提供者。
+//! Backend provider module for oxcache.
+//!
+//! Re-exports ISP-compliant trait hierarchy (`CacheReader`/`CacheWriter`/
+//! `CacheConnector`/`CacheBackend`) and concrete backend implementations
+//! (memory, Redis, Dragonfly, Aerospike, chain).
 
 // Backend score system
 pub mod score;
@@ -85,8 +89,8 @@ pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
     feature = "memory",
     feature = "redis",
     feature = "minimal",
-    feature = "full",
-    feature = "core"
+    feature = "core",
+    feature = "full"
 ))]
 pub use custom_tiered::LayerRestriction;
 
