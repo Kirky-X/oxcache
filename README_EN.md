@@ -12,43 +12,18 @@ cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) architecture.
 
 </div>
 
-## ✨ Key Features
+## Key Features
 
-<div align="center">
+- **Extreme Performance**: L1 nanosecond response (P99 < 100ns), L2 millisecond response (P99 < 5ms)
+- **Zero-Code Changes**: Enable caching with a single `#[cached]` macro
+- **Auto Recovery**: Automatic degradation on Redis failure
+- **Batch Optimization**: Intelligent batch writes for significantly improved throughput
+- **Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
+- **Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
+- **Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
+- **Production Grade**: Complete observability, health checks, chaos testing verified
 
-<table>
-<tr>
-<td width="25%" align="center">
-🚀<br>
-<b>Extreme Performance</b><br>L1 in nanoseconds
-</td>
-<td width="25%" align="center">
-🎯<br>
-<b>Zero-Code Changes</b><br>One-line cache enable
-</td>
-<td width="25%" align="center">
-🔄<br>
-<b>Auto Recovery</b><br>Redis fault degradation
-</td>
-<td width="25%" align="center">
-⚡<br>
-<b>Batch Optimization</b><br>Smart batch writes
-</td>
-</tr>
-</table>
-
-</div>
-
-- **🚀 Extreme Performance**: L1 nanosecond response (P99 < 100ns), L2 millisecond response (P99 < 5ms)
-- **🎯 Zero-Code Changes**: Enable caching with a single `#[cached]` macro
-- **🔄 Auto Recovery**: Automatic degradation on Redis failure
-- **⚡ Batch Optimization**: Intelligent batch writes for significantly improved throughput
-- **🧪 Sync API**: Synchronous `get_sync` / `set_sync` / `get_or_sync` API path alongside async, with no runtime required on `multi_thread` tokio
-- **🌸 Bloom Filter**: Optional `BloomFilterBackend` decorator filters negative queries at O(1) cost, skipping inner backend entirely
-- **⏱️ Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
-- **🛡️ Production Grade**: Complete observability, health checks, chaos testing verified
-
-## 📦 Quick Start
+## Quick Start
 
 ### 1. Add Dependency
 
@@ -256,7 +231,7 @@ async fn manual_caching() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## 🎨 Use Cases
+## Use Cases
 
 ### Scenario 1: User Information Cache
 
@@ -324,7 +299,7 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## 🧪 Sync API (0.3.0)
+## Sync API (0.3.0)
 
 Oxcache 0.3.0 introduces a **synchronous API path** alongside the async API. Enable it on the builder:
 
@@ -394,7 +369,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 }
 ```
 
-## 🌸 Bloom Filter
+## Bloom Filter
 
 The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
 
@@ -440,7 +415,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `clear` clears both; TTL passes through unchanged
 - Also implements `SyncCacheBackend` when inner backend does
 
-## ⏱️ TTL Behavior Reference
+## TTL Behavior Reference
 
 All backends honor per-entry TTL since 0.3.0. Behavior summary:
 
@@ -462,7 +437,7 @@ All backends honor per-entry TTL since 0.3.0. Behavior summary:
 - `set(key, value, Some(ttl))` overrides the global TTL for that specific entry
 - `set(key, value, None)` uses the global TTL (if set); otherwise the entry never expires
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 graph TD
@@ -490,7 +465,7 @@ graph TD
 **L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy
 **L2**: Distributed shared cache supporting Sentinel/Cluster modes
 
-## 📊 Performance Benchmarks
+## Performance Benchmarks
 
 > Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
@@ -522,14 +497,14 @@ xychart-beta
 - **L2 Single Write**: 50-100K ops/sec
 - **L2 Batch Write**: 200-500K ops/sec
 
-## 🛡️ Reliability
+## Reliability
 
-- ✅ Single-Flight (prevent cache stampede)
-- ✅ Automatic degradation on Redis failure
-- ✅ Graceful shutdown mechanism
-- ✅ Health checks and auto-recovery
+- [x] Single-Flight (prevent cache stampede)
+- [x] Automatic degradation on Redis failure
+- [x] Graceful shutdown mechanism
+- [x] Health checks and auto-recovery
 
-## 🔐 Security
+## Security
 
 Oxcache implements multiple security measures to protect against common attacks:
 
@@ -594,23 +569,23 @@ Passwords in connection strings are redacted in logs by default to prevent crede
 
 For more details, see [Security Documentation](docs/SECURITY.md).
 
-## 📚 Documentation
+## Documentation
 
-- [📖 User Guide](docs/USER_GUIDE.md)
-- [📘 API Documentation](https://docs.rs/oxcache)
-- [💻 Examples](examples/)
+- [User Guide](docs/USER_GUIDE.md)
+- [API Documentation](https://docs.rs/oxcache)
+- [Examples](examples/)
 
 > **Note**: `oxcache-examples` is set as `publish = false` and managed within the workspace.
 
-## 🤝 Contributing
+## Contributing
 
 Pull Requests and Issues are welcome! See [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
-## 📝 Changelog
+## Changelog
 
 See [CHANGELOG.md](docs/CHANGELOG.md)
 
-## 📄 License
+## License
 
 This project is licensed under MIT License. See [LICENSE](LICENSE) file.
 
@@ -618,8 +593,8 @@ This project is licensed under MIT License. See [LICENSE](LICENSE) file.
 
 <div align="center">
 
-**If this project helps you, please give a ⭐ Star to show support!**
+**If this project helps you, please give a Star to show support!**
 
-Made with ❤️ by Kirky.X
+Made with love by Kirky.X
 
 </div>
