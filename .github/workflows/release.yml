@@ -104,8 +104,9 @@ jobs:
 
       - name: Publish oxcache_macros
         if: env.HAS_TOKEN == 'true' && steps.check_macros.outputs.skip != 'true'
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} -p oxcache_macros
+        working-directory: macros
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish oxcache
         if: env.HAS_TOKEN == 'true' && steps.check_main.outputs.skip != 'true'
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} -p oxcache --features full
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --features full
