@@ -19,19 +19,19 @@ cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) architecture.
 <table>
 <tr>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="48"><br>
+🚀<br>
 <b>Extreme Performance</b><br>L1 in nanoseconds
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/magic-wand.png" width="48"><br>
+🎯<br>
 <b>Zero-Code Changes</b><br>One-line cache enable
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/cloud.png" width="48"><br>
+🔄<br>
 <b>Auto Recovery</b><br>Redis fault degradation
 </td>
 <td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/lightning.png" width="48"><br>
+⚡<br>
 <b>Batch Optimization</b><br>Smart batch writes
 </td>
 </tr>
