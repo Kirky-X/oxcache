@@ -7,14 +7,13 @@
 #![allow(dead_code)]
 
 use std::time::Duration;
+use testcontainers::core::WaitFor;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
-use testcontainers::core::WaitFor;
 
 /// Generic poll-until-ready helper for Redis-protocol containers.
 async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
-    let client =
-        redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
+    let client = redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
 
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);

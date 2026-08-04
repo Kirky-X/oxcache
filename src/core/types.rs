@@ -19,7 +19,10 @@ pub enum RedisModeType {
     /// 集群模式
     Cluster,
     /// Valkey 单机模式（Redis 协议兼容，显式标识用于监控区分）
-    #[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename = "valkey_standalone"))]
+    #[cfg_attr(
+        any(feature = "serialization", feature = "full"),
+        serde(rename = "valkey_standalone")
+    )]
     ValkeyStandalone,
 }
 

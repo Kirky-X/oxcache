@@ -38,8 +38,7 @@ pub mod messages;
 // Global default locale
 // ============================================================================
 
-static DEFAULT_LOCALE: Lazy<RwLock<String>> =
-    Lazy::new(|| RwLock::new(detect_system_locale()));
+static DEFAULT_LOCALE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(detect_system_locale()));
 
 /// Detect the system locale from environment variables.
 ///
@@ -165,19 +164,12 @@ impl I18nError {
     /// Render a locale-aware error message.
     pub fn localized_message(&self, locale: &str) -> String {
         let params: Vec<(&str, String)> = match self {
-            I18nError::InvalidLocale { input, reason } => vec![
-                ("input", input.clone()),
-                ("reason", reason.clone()),
-            ],
-            I18nError::InvalidNumber { input, reason } => vec![
-                ("input", input.clone()),
-                ("reason", reason.clone()),
-            ],
+            I18nError::InvalidLocale { input, reason } => vec![("input", input.clone()), ("reason", reason.clone())],
+            I18nError::InvalidNumber { input, reason } => vec![("input", input.clone()), ("reason", reason.clone())],
             I18nError::DateError(d) => vec![("detail", d.clone())],
             I18nError::FormatError(d) => vec![("detail", d.clone())],
         };
-        let template = messages::lookup(locale, self.message_id())
-            .unwrap_or(self.message_id());
+        let template = messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         messages::format_template(template, &borrowed)
     }
@@ -222,13 +214,8 @@ impl CacheI18nFormatter {
     /// let msg = fmt.format_message("error.not_found", &[("detail", "user:42")])?;
     /// assert_eq!(msg, "键未找到：user:42。请求的键在缓存中不存在。");
     /// ```
-    pub fn format_message(
-        &self,
-        message_id: &str,
-        params: &[(&str, &str)],
-    ) -> Result<String, I18nError> {
-        let template = messages::lookup(&self.locale_tag, message_id)
-            .unwrap_or(message_id);
+    pub fn format_message(&self, message_id: &str, params: &[(&str, &str)]) -> Result<String, I18nError> {
+        let template = messages::lookup(&self.locale_tag, message_id).unwrap_or(message_id);
         Ok(messages::format_template(template, params))
     }
 }
@@ -391,9 +378,7 @@ mod tests {
     #[test]
     fn test_format_message_unknown_id_returns_id() {
         let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        let msg = fmt
-            .format_message("unknown.message.id", &[])
-            .expect("format message");
+        let msg = fmt.format_message("unknown.message.id", &[]).expect("format message");
         assert_eq!(msg, "unknown.message.id", "unknown ID should return raw ID");
     }
 
@@ -421,10 +406,7 @@ mod tests {
 
     #[test]
     fn test_template_substitution() {
-        let result = messages::format_template(
-            "Hello {name}, age {age}",
-            &[("name", "Alice"), ("age", "30")],
-        );
+        let result = messages::format_template("Hello {name}, age {age}", &[("name", "Alice"), ("age", "30")]);
         assert_eq!(result, "Hello Alice, age 30");
     }
 
@@ -483,10 +465,7 @@ mod tests {
         set_default_locale("zh-CN");
         let err = I18nError::DateError("月份超出范围".to_string());
         let s = err.to_string();
-        assert!(
-            s.contains("日期错误：月份超出范围"),
-            "zh I18nError Display: got '{s}'"
-        );
+        assert!(s.contains("日期错误：月份超出范围"), "zh I18nError Display: got '{s}'");
         set_default_locale("en");
     }
 
@@ -525,10 +504,7 @@ mod tests {
 
     #[test]
     fn test_parse_locale_tag_with_modifier() {
-        assert_eq!(
-            super::parse_locale_tag("en_US.UTF-8@collation"),
-            "en-US"
-        );
+        assert_eq!(super::parse_locale_tag("en_US.UTF-8@collation"), "en-US");
     }
 
     #[test]
@@ -644,10 +620,7 @@ mod tests {
         }
 
         let locale = detect_system_locale();
-        assert_eq!(
-            locale, "en",
-            "unsupported locale (ja) should fall back to en"
-        );
+        assert_eq!(locale, "en", "unsupported locale (ja) should fall back to en");
 
         unsafe {
             std::env::remove_var("LANG");
@@ -678,10 +651,7 @@ mod tests {
         }
 
         let locale = detect_system_locale();
-        assert_eq!(
-            locale, "zh-CN",
-            "LC_ALL should take priority: got '{locale}'"
-        );
+        assert_eq!(locale, "zh-CN", "LC_ALL should take priority: got '{locale}'");
 
         // Restore
         unsafe {

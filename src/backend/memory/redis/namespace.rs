@@ -36,22 +36,21 @@ impl RedisBackend {
         let mut cursor = 0i64;
 
         loop {
-            let (new_cursor, keys): (i64, Vec<String>) =
-                redis::cmd(RedisCommand::Scan.as_str())
-                    .arg(cursor)
-                    .arg("MATCH")
-                    .arg(&pattern)
-                    .arg("COUNT")
-                    .arg(100)
-                    .query_async(&mut conn)
-                    .await
-                    .map_err(|e| {
-                        if is_connection_error(&e) {
-                            OxCacheError::Connection(e.to_string())
-                        } else {
-                            OxCacheError::Operation(e.to_string())
-                        }
-                    })?;
+            let (new_cursor, keys): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(&pattern)
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| {
+                    if is_connection_error(&e) {
+                        OxCacheError::Connection(e.to_string())
+                    } else {
+                        OxCacheError::Operation(e.to_string())
+                    }
+                })?;
 
             if !keys.is_empty() {
                 // Pipeline batch DEL
@@ -59,9 +58,7 @@ impl RedisBackend {
                 for key in &keys {
                     pipe.cmd(RedisCommand::Del.as_str()).arg(key);
                 }
-                pipe.query_async::<()>(&mut conn)
-                    .await
-                    .map_err(map_redis_error)?;
+                pipe.query_async::<()>(&mut conn).await.map_err(map_redis_error)?;
             }
 
             cursor = new_cursor;

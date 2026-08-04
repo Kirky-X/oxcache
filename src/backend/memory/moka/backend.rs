@@ -346,12 +346,7 @@ impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
         sync_block_on(AtomicCacheWriter::compare_and_swap(self, key, expected, new, ttl))
     }
 
-    fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool> {
+    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
         sync_block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))
     }
 }
@@ -405,12 +400,12 @@ fn glob_matches(pattern: &str, text: &str) -> bool {
                 }
                 p.next();
             }
-            _ => {
-                match t.next() {
-                    Some(tc) if tc == *pc => { p.next(); }
-                    _ => return false,
+            _ => match t.next() {
+                Some(tc) if tc == *pc => {
+                    p.next();
                 }
-            }
+                _ => return false,
+            },
         }
     }
     t.peek().is_none()
@@ -456,18 +451,17 @@ impl AtomicCacheWriter for MokaMemoryBackend {
 
         match result {
             CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) => {
-                let val_str = String::from_utf8(entry.value().value.clone())
-                    .map_err(|e| crate::error::OxCacheError::Operation(
-                        format!("incr: invalid UTF-8 in stored value: {}", e)
-                    ))?;
-                val_str.parse::<i64>().map_err(|e| crate::error::OxCacheError::Operation(
-                    format!("incr: invalid integer in stored value: {}", e)
-                ))
+                let val_str = String::from_utf8(entry.value().value.clone()).map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!("incr: invalid UTF-8 in stored value: {}", e))
+                })?;
+                val_str.parse::<i64>().map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!("incr: invalid integer in stored value: {}", e))
+                })
             }
             // Op::Nop → Unchanged (entry existed, not modified) or StillNone (no entry)
-            CompResult::Unchanged(_) | CompResult::StillNone(_) => Err(
-                crate::error::OxCacheError::Operation("incr: i64 overflow".to_string()),
-            ),
+            CompResult::Unchanged(_) | CompResult::StillNone(_) => {
+                Err(crate::error::OxCacheError::Operation("incr: i64 overflow".to_string()))
+            }
             _ => Err(crate::error::OxCacheError::Operation(
                 "incr: unexpected compute result".to_string(),
             )),
@@ -505,12 +499,10 @@ impl AtomicCacheWriter for MokaMemoryBackend {
                     Some(exp_bytes) => {
                         // CAS: set only if current value matches
                         match &maybe_entry {
-                            Some(entry) if entry.value().value == *exp_bytes => {
-                                Op::Put(MokaEntry {
-                                    value: new_clone,
-                                    expires_at,
-                                })
-                            }
+                            Some(entry) if entry.value().value == *exp_bytes => Op::Put(MokaEntry {
+                                value: new_clone,
+                                expires_at,
+                            }),
                             _ => Op::Nop,
                         }
                     }
@@ -524,12 +516,7 @@ impl AtomicCacheWriter for MokaMemoryBackend {
         }
     }
 
-    async fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool> {
+    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
         let key_arc: Arc<str> = Arc::from(key);
         let expires_at = ttl.map(|d| Instant::now() + d);
 
@@ -538,10 +525,7 @@ impl AtomicCacheWriter for MokaMemoryBackend {
             .entry(key_arc)
             .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
                 if maybe_entry.is_none() {
-                    Op::Put(MokaEntry {
-                        value,
-                        expires_at,
-                    })
+                    Op::Put(MokaEntry { value, expires_at })
                 } else {
                     Op::Nop
                 }
@@ -1067,9 +1051,18 @@ mod tests {
     #[tokio::test]
     async fn test_moka_keys_matching_glob() {
         let backend = MokaMemoryBackend::new();
-        backend.set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None)
+            .await
+            .unwrap();
 
         let all = backend.keys_matching("*").await;
         assert_eq!(all.len(), 3);
@@ -1087,8 +1080,14 @@ mod tests {
     #[tokio::test]
     async fn test_moka_keys_via_cache_reader() {
         let backend = MokaMemoryBackend::new();
-        backend.set(Arc::from("a"), Arc::new(b"1".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("b"), Arc::new(b"2".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("a"), Arc::new(b"1".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("b"), Arc::new(b"2".to_vec()), None)
+            .await
+            .unwrap();
 
         let keys = CacheReader::keys(&backend, "*").await.unwrap();
         assert_eq!(keys.len(), 2);
@@ -1115,8 +1114,14 @@ mod tests {
     #[tokio::test]
     async fn test_moka_backend_entry_count_after_insert() {
         let backend = MokaMemoryBackend::new();
-        backend.set(Arc::from("k1"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("k2"), Arc::new(b"v".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("k1"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("k2"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
         // moka async insertion may need a moment to register
         tokio::time::sleep(Duration::from_millis(100)).await;
         // entry_count is eventually consistent; just verify it doesn't panic
@@ -1139,30 +1144,25 @@ mod tests {
     #[test]
     fn test_moka_sync_atomic_cas() {
         let backend = MokaMemoryBackend::new();
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
-            &backend, "k", None, b"v1".to_vec(), None,
-        ).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).unwrap();
         assert!(ok);
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
-            &backend, "k", Some(b"v1"), b"v2".to_vec(), None,
-        ).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None)
+                .unwrap();
         assert!(ok);
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
-            &backend, "k", Some(b"v1"), b"v3".to_vec(), None,
-        ).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None)
+                .unwrap();
         assert!(!ok);
     }
 
     #[test]
     fn test_moka_sync_atomic_set_if_absent() {
         let backend = MokaMemoryBackend::new();
-        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
-            &backend, "k", b"v".to_vec(), None,
-        ).unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None).unwrap();
         assert!(ok);
-        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
-            &backend, "k", b"v2".to_vec(), None,
-        ).unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None).unwrap();
         assert!(!ok);
     }
 }

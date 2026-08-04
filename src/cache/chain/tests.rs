@@ -997,16 +997,10 @@ async fn test_chain_atomic_set_if_absent() {
     let mock = MockBackend::new("mock", 100, false);
     let chain = ChainCache::builder().backend(mock).build();
 
-    let ok = chain
-        .set_if_absent("nx_key", b"first".to_vec(), None)
-        .await
-        .unwrap();
+    let ok = chain.set_if_absent("nx_key", b"first".to_vec(), None).await.unwrap();
     assert!(ok);
 
-    let ok = chain
-        .set_if_absent("nx_key", b"second".to_vec(), None)
-        .await
-        .unwrap();
+    let ok = chain.set_if_absent("nx_key", b"second".to_vec(), None).await.unwrap();
     assert!(!ok);
 }
 
@@ -1236,13 +1230,9 @@ async fn test_chain_exists_and_ttl() {
     let high = MockBackend::new("high", 100, false);
     let low = MockBackend::new("low", 50, true);
 
-    low.set(
-        Arc::from("k"),
-        Arc::new(b"v".to_vec()),
-        Some(Duration::from_secs(60)),
-    )
-    .await
-    .unwrap();
+    low.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder().backend(high).backend(low).build();
 

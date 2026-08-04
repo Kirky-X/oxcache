@@ -57,10 +57,15 @@ where
             for (key, value) in key_strings.into_iter().zip(values) {
                 if let Some(bytes) = value {
                     match serde_json::from_slice::<V>(&bytes) {
-                        Ok(decoded) => { result.insert(key, decoded); }
-                        Err(e) => return Err(OxCacheError::Serialization(
-                            format!("failed to deserialize value for key '{}': {}", key, e)
-                        )),
+                        Ok(decoded) => {
+                            result.insert(key, decoded);
+                        }
+                        Err(e) => {
+                            return Err(OxCacheError::Serialization(format!(
+                                "failed to deserialize value for key '{}': {}",
+                                key, e
+                            )));
+                        }
                     }
                 }
             }

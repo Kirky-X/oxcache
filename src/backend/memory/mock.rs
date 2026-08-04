@@ -177,11 +177,7 @@ impl crate::backend::CacheReader for MockBackend {
         }
 
         // Pattern 匹配（在清理后执行）
-        let matched: Vec<String> = data
-            .keys()
-            .filter(|k| simple_glob(pattern, k))
-            .cloned()
-            .collect();
+        let matched: Vec<String> = data.keys().filter(|k| simple_glob(pattern, k)).cloned().collect();
 
         Ok(matched)
     }
@@ -260,18 +256,32 @@ fn simple_glob(pattern: &str, text: &str) -> bool {
         match pc {
             '*' => {
                 p.next();
-                if p.peek().is_none() { return true; }
+                if p.peek().is_none() {
+                    return true;
+                }
                 let rem_p: String = p.collect();
                 // Collect remaining text chars into a Vec to allow safe indexing
                 let rem_t_chars: Vec<char> = t.collect();
                 for start in 0..=rem_t_chars.len() {
                     let rem_t: String = rem_t_chars[start..].iter().collect();
-                    if simple_glob(&rem_p, &rem_t) { return true; }
+                    if simple_glob(&rem_p, &rem_t) {
+                        return true;
+                    }
                 }
                 return false;
             }
-            '?' => { if t.next().is_none() { return false; } p.next(); }
-            _ => { match t.next() { Some(tc) if tc == *pc => { p.next(); } _ => return false } }
+            '?' => {
+                if t.next().is_none() {
+                    return false;
+                }
+                p.next();
+            }
+            _ => match t.next() {
+                Some(tc) if tc == *pc => {
+                    p.next();
+                }
+                _ => return false,
+            },
         }
     }
     t.peek().is_none()
@@ -329,16 +339,14 @@ impl crate::backend::AtomicCacheWriter for MockBackend {
                     Ok(true)
                 }
             }
-            Some(exp_bytes) => {
-                match data.get(key) {
-                    Some((current_val, _)) if current_val == exp_bytes => {
-                        let expires_at = ttl.map(|d| Instant::now() + d);
-                        data.insert(key.to_string(), (new, expires_at));
-                        Ok(true)
-                    }
-                    _ => Ok(false),
+            Some(exp_bytes) => match data.get(key) {
+                Some((current_val, _)) if current_val == exp_bytes => {
+                    let expires_at = ttl.map(|d| Instant::now() + d);
+                    data.insert(key.to_string(), (new, expires_at));
+                    Ok(true)
                 }
-            }
+                _ => Ok(false),
+            },
         }
     }
 
@@ -391,25 +399,18 @@ impl crate::backend::SyncAtomicCacheWriter for MockBackend {
                     Ok(true)
                 }
             }
-            Some(exp_bytes) => {
-                match data.get(key) {
-                    Some((current_val, _)) if current_val == exp_bytes => {
-                        let expires_at = ttl.map(|d| Instant::now() + d);
-                        data.insert(key.to_string(), (new, expires_at));
-                        Ok(true)
-                    }
-                    _ => Ok(false),
+            Some(exp_bytes) => match data.get(key) {
+                Some((current_val, _)) if current_val == exp_bytes => {
+                    let expires_at = ttl.map(|d| Instant::now() + d);
+                    data.insert(key.to_string(), (new, expires_at));
+                    Ok(true)
                 }
-            }
+                _ => Ok(false),
+            },
         }
     }
 
-    fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> crate::error::OxCacheResult<bool> {
+    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> crate::error::OxCacheResult<bool> {
         let mut data = self.data.blocking_write();
         if data.contains_key(key) {
             return Ok(false);
@@ -711,9 +712,18 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_keys_returns_matching_keys() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from("user:1"), Arc::new(b"a".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("user:2"), Arc::new(b"b".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("session:1"), Arc::new(b"c".to_vec()), None)
+            .await
+            .unwrap();
 
         let all_keys = backend.keys("*").await.unwrap();
         assert_eq!(all_keys.len(), 3);
@@ -731,8 +741,18 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_keys_lazy_expires_during_scan() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set(Arc::from("alive"), Arc::new(b"v".to_vec()), None).await.unwrap();
-        backend.set(Arc::from("dying"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30))).await.unwrap();
+        backend
+            .set(Arc::from("alive"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(
+                Arc::from("dying"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
+            .await
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         let keys = backend.keys("*").await.unwrap();
@@ -788,38 +808,54 @@ mod mock_tests {
     async fn test_mock_atomic_cas_setnx() {
         let backend = MockBackend::new("test", 50, false);
         // CAS with None = SETNX
-        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None)
+            .await
+            .unwrap();
         assert!(ok);
         // Second SETNX should fail
-        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v2".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v2".to_vec(), None)
+            .await
+            .unwrap();
         assert!(!ok);
     }
 
     #[tokio::test]
     async fn test_mock_atomic_cas_with_expected() {
         let backend = MockBackend::new("test", 50, false);
-        AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).await.unwrap();
+        AtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None)
+            .await
+            .unwrap();
         // CAS with correct expected → success
-        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None)
+            .await
+            .unwrap();
         assert!(ok);
         // CAS with wrong expected → fail
-        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None)
+            .await
+            .unwrap();
         assert!(!ok);
     }
 
     #[tokio::test]
     async fn test_mock_atomic_cas_missing_key_with_expected() {
         let backend = MockBackend::new("test", 50, false);
-        let ok = AtomicCacheWriter::compare_and_swap(&backend, "missing", Some(b"v1"), b"v2".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::compare_and_swap(&backend, "missing", Some(b"v1"), b"v2".to_vec(), None)
+            .await
+            .unwrap();
         assert!(!ok, "CAS on missing key with expected should fail");
     }
 
     #[tokio::test]
     async fn test_mock_atomic_set_if_absent() {
         let backend = MockBackend::new("test", 50, false);
-        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None)
+            .await
+            .unwrap();
         assert!(ok);
-        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None).await.unwrap();
+        let ok = AtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None)
+            .await
+            .unwrap();
         assert!(!ok);
     }
 
@@ -840,13 +876,18 @@ mod mock_tests {
     fn test_mock_sync_atomic_cas() {
         let backend = MockBackend::new("test", 50, false);
         // SETNX
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).unwrap();
         assert!(ok);
         // CAS correct expected
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None)
+                .unwrap();
         assert!(ok);
         // CAS wrong expected
-        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None).unwrap();
+        let ok =
+            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None)
+                .unwrap();
         assert!(!ok);
     }
 
@@ -866,9 +907,15 @@ mod mock_tests {
     #[tokio::test]
     async fn test_mock_exists_lazy_expires() {
         let backend = MockBackend::new("test", 50, false);
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30))).await.unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(30)))
+            .await
+            .unwrap();
         assert!(backend.exists("k").await.unwrap());
         tokio::time::sleep(Duration::from_millis(60)).await;
-        assert!(!backend.exists("k").await.unwrap(), "expired entry should report not exists");
+        assert!(
+            !backend.exists("k").await.unwrap(),
+            "expired entry should report not exists"
+        );
     }
 }

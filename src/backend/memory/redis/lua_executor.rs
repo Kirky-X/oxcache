@@ -18,12 +18,7 @@ fn is_noscript_error(e: &redis::RedisError) -> bool {
 #[cfg(feature = "lua-script")]
 #[async_trait]
 impl LuaExecutor for RedisBackend {
-    async fn eval_lua(
-        &self,
-        script: &str,
-        keys: &[&str],
-        args: &[&str],
-    ) -> OxCacheResult<redis::Value> {
+    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         security::validate_lua_script(script, keys.len())?;
 
         let mut conn = self.conn();
@@ -38,10 +33,7 @@ impl LuaExecutor for RedisBackend {
             cmd.arg(arg);
         }
 
-        let result = cmd
-            .query_async(&mut conn)
-            .await
-            .map_err(map_redis_error)?;
+        let result = cmd.query_async(&mut conn).await.map_err(map_redis_error)?;
         Ok(result)
     }
 
@@ -49,12 +41,7 @@ impl LuaExecutor for RedisBackend {
     ///
     /// If the script is not cached in Redis (NOSCRIPT error), automatically
     /// falls back to `eval_lua` to re-cache and execute it.
-    async fn eval_sha(
-        &self,
-        sha: &str,
-        keys: &[&str],
-        args: &[&str],
-    ) -> OxCacheResult<redis::Value> {
+    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         // SHA format validation: must be exactly 40 hexadecimal characters
         if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(OxCacheError::InvalidInput(format!(

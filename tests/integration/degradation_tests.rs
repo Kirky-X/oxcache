@@ -10,15 +10,12 @@
 #[cfg(test)]
 #[cfg(feature = "redis")]
 mod degradation_tests_inner {
-    use crate::common::{
-        create_cluster_redis_urls, is_redis_available_url,
-        wait_for_redis_cluster, wait_for_sentinel,
-    };
-    use oxcache::backend::memory::redis::{RedisBackend, RedisMode};
+    use crate::common::{create_cluster_redis_urls, is_redis_available_url, wait_for_redis_cluster, wait_for_sentinel};
     use oxcache::backend::AtomicCacheWriter;
     use oxcache::backend::CacheConnector;
     use oxcache::backend::CacheReader;
     use oxcache::backend::CacheWriter;
+    use oxcache::backend::memory::redis::{RedisBackend, RedisMode};
     use oxcache::cache::{ChainCache, ChainLink};
     use oxcache::infra::metrics::UnifiedMetrics;
     use serial_test::serial;
@@ -143,11 +140,7 @@ mod degradation_tests_inner {
                     Arc::new(b"v2".to_vec()),
                     Some(Duration::from_secs(60)),
                 ),
-                (
-                    Arc::from("oxcache:test:batch:3"),
-                    Arc::new(b"v3".to_vec()),
-                    None,
-                ),
+                (Arc::from("oxcache:test:batch:3"), Arc::new(b"v3".to_vec()), None),
             ];
 
             backend.set_many(&items).await.expect("set_many should succeed");
@@ -159,10 +152,7 @@ mod degradation_tests_inner {
             assert_eq!(values[1], Some(b"v2".to_vec()));
             assert_eq!(values[2], Some(b"v3".to_vec()));
 
-            backend
-                .delete_many(&keys)
-                .await
-                .expect("delete_many should succeed");
+            backend.delete_many(&keys).await.expect("delete_many should succeed");
 
             // 验证删除成功
             let after = backend.get_many(&keys).await.expect("get_many after delete");
@@ -189,10 +179,7 @@ mod degradation_tests_inner {
                 .expect("INCR should succeed");
             assert_eq!(val, 1);
 
-            let val = backend
-                .incr(key, 5, None)
-                .await
-                .expect("INCRBY should succeed");
+            let val = backend.incr(key, 5, None).await.expect("INCRBY should succeed");
             assert_eq!(val, 6);
 
             // SET_IF_ABSENT
@@ -313,20 +300,14 @@ mod degradation_tests_inner {
             let stats = backend.stats().await.expect("stats() should succeed");
 
             // 基础字段
-            assert!(
-                stats.contains_key("memory_info"),
-                "stats should contain memory_info"
-            );
+            assert!(stats.contains_key("memory_info"), "stats should contain memory_info");
 
             // 增强字段（T012 新增）
             assert!(
                 stats.contains_key("connected_clients"),
                 "stats should contain connected_clients"
             );
-            assert!(
-                stats.contains_key("maxclients"),
-                "stats should contain maxclients"
-            );
+            assert!(stats.contains_key("maxclients"), "stats should contain maxclients");
 
             // 值应为有效数字字符串
             let connected = stats.get("connected_clients").unwrap();
@@ -383,10 +364,7 @@ mod degradation_tests_inner {
 
             // retry 计数可能为 0（正常操作无重试）
             let after_retry = metrics.get_counters().l2_retry_total;
-            assert!(
-                after_retry >= before_retry,
-                "l2_retry_total should not decrease"
-            );
+            assert!(after_retry >= before_retry, "l2_retry_total should not decrease");
         }
 
         /// 验证 UnifiedMetrics 新增计数器字段存在
@@ -454,17 +432,11 @@ mod degradation_tests_inner {
 
             // 验证 L2 已删除
             let l2_val_after = l2_check.get(key).await.unwrap();
-            assert!(
-                l2_val_after.is_none(),
-                "L2 should be empty after ChainCache DELETE"
-            );
+            assert!(l2_val_after.is_none(), "L2 should be empty after ChainCache DELETE");
 
             // 验证 L1 也已删除
             let l1_val_after = l1_check.get(key).await.unwrap();
-            assert!(
-                l1_val_after.is_none(),
-                "L1 should be empty after ChainCache DELETE"
-            );
+            assert!(l1_val_after.is_none(), "L1 should be empty after ChainCache DELETE");
         }
 
         /// 验证 ChainCache 回填成功后递增 backfill_success 指标
@@ -488,13 +460,9 @@ mod degradation_tests_inner {
             let key = "oxcache:test:chain:backfill";
 
             // 直接写入 L2（跳过 L1）
-            l2.set(
-                Arc::from(key),
-                Arc::new(b"backfill_source".to_vec()),
-                None,
-            )
-            .await
-            .unwrap();
+            l2.set(Arc::from(key), Arc::new(b"backfill_source".to_vec()), None)
+                .await
+                .unwrap();
 
             // 保留 clone 用于后续断言
             let l1_check = l1.clone();
@@ -516,10 +484,7 @@ mod degradation_tests_inner {
 
             // 验证 L1 已被回填
             let l1_val = l1_check.get(key).await.unwrap();
-            assert!(
-                l1_val.is_some(),
-                "L1 should have been backfilled from L2"
-            );
+            assert!(l1_val.is_some(), "L1 should have been backfilled from L2");
 
             // 回填指标应递增
             let after_success = metrics.get_counters().backfill_success;
@@ -556,8 +521,7 @@ mod degradation_tests_inner {
             }
 
             let urls = create_cluster_redis_urls();
-            if !wait_for_redis_cluster(&urls.iter().map(|s| s.as_str()).collect::<Vec<_>>()).await
-            {
+            if !wait_for_redis_cluster(&urls.iter().map(|s| s.as_str()).collect::<Vec<_>>()).await {
                 println!("[SKIP] Redis Cluster not ready");
                 return;
             }
@@ -667,8 +631,8 @@ mod degradation_tests_inner {
 
             // Docker NAT: Sentinel returns container-internal IP (172.26.0.2:6379)
             // which is unreachable from the host. Use the host-mapped port instead.
-            let host_master_url = std::env::var("REDIS_SENTINEL_MASTER_URL")
-                .unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string());
+            let host_master_url =
+                std::env::var("REDIS_SENTINEL_MASTER_URL").unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string());
             println!("[SENTINEL] Connecting via host-mapped URL: {}", host_master_url);
 
             // Step 2: Connect to the discovered master with retry/circuit-breaker
@@ -688,11 +652,7 @@ mod degradation_tests_inner {
                         .await
                         .expect("Sentinel SET should succeed");
 
-                    let val = b
-                        .get(key)
-                        .await
-                        .unwrap()
-                        .expect("Sentinel GET should find key");
+                    let val = b.get(key).await.unwrap().expect("Sentinel GET should find key");
                     assert_eq!(val, b"sentinel_value");
 
                     let _ = b.delete(key).await;

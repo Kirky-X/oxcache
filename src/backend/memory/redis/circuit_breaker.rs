@@ -6,7 +6,7 @@
 //! cascading failures when Redis is unreachable. Uses only atomic operations
 //! — no mutexes, no external dependencies.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 /// Circuit breaker states.

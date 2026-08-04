@@ -68,15 +68,13 @@ impl OxCacheConfigError {
     pub fn localized_message(&self, locale: &str) -> String {
         let params: Vec<(&str, String)> = match self {
             OxCacheConfigError::MissingField(f) => vec![("field", f.clone())],
-            OxCacheConfigError::InvalidValue { field, reason } => vec![
-                ("field", field.clone()),
-                ("reason", reason.clone()),
-            ],
+            OxCacheConfigError::InvalidValue { field, reason } => {
+                vec![("field", field.clone()), ("reason", reason.clone())]
+            }
             OxCacheConfigError::UnsupportedBackend(d) => vec![("detail", d.clone())],
             OxCacheConfigError::ConnectionFailed(d) => vec![("detail", d.clone())],
         };
-        let template = crate::i18n::messages::lookup(locale, self.message_id())
-            .unwrap_or(self.message_id());
+        let template = crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         crate::i18n::messages::format_template(template, &borrowed)
     }
@@ -462,8 +460,7 @@ impl OxCacheError {
     /// if the catalog has no entry for this error.
     pub fn localized_message(&self, locale: &str) -> String {
         let params = self.message_params();
-        let template = crate::i18n::messages::lookup(locale, self.message_id())
-            .unwrap_or(self.message_id());
+        let template = crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         crate::i18n::messages::format_template(template, &borrowed)
     }
@@ -471,14 +468,8 @@ impl OxCacheError {
     /// Extract `(key, value)` parameters for message template substitution.
     fn message_params(&self) -> Vec<(&str, String)> {
         match self {
-            OxCacheError::KeyTooLong(actual, max) => vec![
-                ("actual", actual.to_string()),
-                ("max", max.to_string()),
-            ],
-            OxCacheError::ValueTooLarge(actual, max) => vec![
-                ("actual", actual.to_string()),
-                ("max", max.to_string()),
-            ],
+            OxCacheError::KeyTooLong(actual, max) => vec![("actual", actual.to_string()), ("max", max.to_string())],
+            OxCacheError::ValueTooLarge(actual, max) => vec![("actual", actual.to_string()), ("max", max.to_string())],
             OxCacheError::Serialization(d)
             | OxCacheError::Operation(d)
             | OxCacheError::Connection(d)

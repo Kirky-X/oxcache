@@ -149,13 +149,10 @@ impl RedisBackend {
         Fut: Future<Output = OxCacheResult<T>> + Send,
     {
         if self.circuit_breaker().is_open() {
-            return Err(OxCacheError::Degraded(
-                "Redis circuit breaker is open".to_string(),
-            ));
+            return Err(OxCacheError::Degraded("Redis circuit breaker is open".to_string()));
         }
 
-        let result =
-            retry_with_backoff(operation, self.retry_count, self.retry_delay).await;
+        let result = retry_with_backoff(operation, self.retry_count, self.retry_delay).await;
 
         match &result {
             Ok(_) => self.circuit_breaker.record_success(),

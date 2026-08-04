@@ -132,9 +132,7 @@ mod tests {
 
     #[test]
     fn test_builder_partial_override() {
-        let config = DistributedConfig::builder()
-            .retry_count(0)
-            .build();
+        let config = DistributedConfig::builder().retry_count(0).build();
 
         assert_eq!(config.retry_count, 0);
         // Other fields retain defaults

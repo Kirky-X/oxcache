@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 //! Redis backend builder with extended configuration.
 
-use super::client::RedisBackend;
 use super::circuit_breaker::CircuitBreaker;
+use super::client::RedisBackend;
 use super::error::map_redis_error;
 use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
@@ -163,9 +163,7 @@ impl RedisBackendBuilder {
         // Security check: enforce TLS connection
         if !connection_string.starts_with("rediss://") {
             let allow_insecure = std::env::var("OXCACHE_ALLOW_INSECURE_REDIS")
-                .map(|v| {
-                    v == "I_UNDERSTAND_THE_RISKS" || v == "development-only"
-                })
+                .map(|v| v == "I_UNDERSTAND_THE_RISKS" || v == "development-only")
                 .unwrap_or(false);
 
             if !allow_insecure {
@@ -180,16 +178,12 @@ impl RedisBackendBuilder {
 
         let client = redis::Client::open(connection_string).map_err(map_redis_error)?;
 
-        let connection_result =
-            tokio::time::timeout(self.connection_timeout, client.get_connection_manager()).await;
+        let connection_result = tokio::time::timeout(self.connection_timeout, client.get_connection_manager()).await;
 
         let connection_manager = match connection_result {
             Ok(Ok(mgr)) => mgr,
             Ok(Err(e)) => {
-                return Err(OxCacheError::Connection(format!(
-                    "Failed to connect to Redis: {}",
-                    e
-                )));
+                return Err(OxCacheError::Connection(format!("Failed to connect to Redis: {}", e)));
             }
             Err(_) => {
                 return Err(OxCacheError::Connection(

@@ -241,7 +241,10 @@ mod tests {
         let backend: Arc<dyn CacheBackend> = Arc::new(MokaMemoryBackend::new());
         register("default", backend);
         let retrieved = get("default");
-        assert!(retrieved.is_some(), "default cache should be retrievable after register");
+        assert!(
+            retrieved.is_some(),
+            "default cache should be retrievable after register"
+        );
         // Cleanup to avoid leaking state to other tests
         remove("default");
     }

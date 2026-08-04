@@ -257,9 +257,10 @@ pub async fn wait_for_sentinel() -> bool {
 
                 if let Ok(masters) = result {
                     // Each master is a flat [key, value, key, value, ...] list
-                    if masters.iter().any(|m| {
-                        m.windows(2).any(|w| w[0] == "name" && w[1] == "mymaster")
-                    }) {
+                    if masters
+                        .iter()
+                        .any(|m| m.windows(2).any(|w| w[0] == "name" && w[1] == "mymaster"))
+                    {
                         println!("Redis Sentinel is ready.");
                         return true;
                     }
