@@ -74,7 +74,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 | `lua-script` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（注意：`bloom-filter`、`kit` 不在 `full` 中） |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（注意：`bloom-filter`、`kit` 不在 `full` 中） |
 
 ## 缓存宏
 
@@ -91,6 +91,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 | `key` | `&str` | 否 | 自动生成 | 自定义缓存键格式 |
 | `key_prefix` | `&str` | 否 | `""` | 自动生成缓存键的前缀 |
 | `sync` | （标志） | 否 | async | 使用同步代码路径（`get_bytes_sync`/`set_bytes_sync`）；不能与 `async fn` 组合使用 |
+| `skip_cache_write` | （标志） | 否 | `false` | 设为 `true` 时跳过 Ok 结果的缓存写入（仅缓存 Err 路径不缓存，此标志使 Ok 路径也不缓存） |
 
 该宏通过 `oxcache::__internal_get_cache(service)` 从内部注册表获取 `Cache` 实例。
 如果 `service` 下未注册缓存，则原始函数不经缓存直接执行。
@@ -404,7 +405,7 @@ let backend = RedisBackend::builder()
 | 方法 | 说明 |
 |------|------|
 | `connection_string(&str)` | 设置 Redis 连接字符串 |
-| `mode(RedisMode)` | 设置 Redis 模式（`Standalone`/`Sentinel`/`Cluster`） |
+| `mode(RedisMode)` | 设置 Redis 模式（`Standalone`/`Sentinel`/`Cluster`/`ValkeyStandalone`） |
 | `build().await` | 构建 `RedisBackend`（2 秒连接超时） |
 
 ### 实例方法
@@ -847,7 +848,7 @@ pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 
 ```rust
 pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
-pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster
+pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster | ValkeyStandalone
 ```
 
 ## 示例
