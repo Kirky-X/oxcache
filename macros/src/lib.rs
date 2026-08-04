@@ -294,20 +294,10 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 };
 
                 // Try get from cache using sync byte-level operations.
-                // Rule 12: surface deserialize failures via tracing::warn!
-                // (cache corruption / type mismatch should be diagnosable).
-                // get_bytes_sync Err is treated as cache miss (silent fallback).
+                // Deserialize failure is treated as cache miss (silent fallback).
                 if let Ok(Some(bytes)) = cache.get_bytes_sync(&cache_key) {
-                    match cache.unified_serializer().deserialize::<#return_type>(&bytes) {
-                        Ok(val) => return ::std::result::Result::Ok(val),
-                        Err(e) => {
-                            ::tracing::warn!(
-                                service = #service_name,
-                                key = %cache_key,
-                                error = %e,
-                                "oxcache: cache deserialize failed, falling back to original function"
-                            );
-                        }
+                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                        return ::std::result::Result::Ok(val);
                     }
                 }
 
@@ -315,28 +305,11 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 let result = { #fn_block };
 
                 // Cache result if Ok — skipped when `skip_cache_write` is set.
-                // Rule 12: surface serialize/cache-write failures via tracing::warn!
+                // Serialize/write failures are silently ignored (result still returned).
                 if !#skip_cache_write {
                     if let Ok(ref val) = result {
-                        match cache.unified_serializer().serialize(val) {
-                            Ok(bytes) => {
-                                if let Err(e) = cache.set_bytes_sync(&cache_key, bytes, #ttl) {
-                                    ::tracing::warn!(
-                                        service = #service_name,
-                                        key = %cache_key,
-                                        error = %e,
-                                        "oxcache: cache write failed, result not cached"
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                ::tracing::warn!(
-                                    service = #service_name,
-                                    key = %cache_key,
-                                    error = %e,
-                                    "oxcache: cache serialize failed, result not cached"
-                                );
-                            }
+                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                            let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
                         }
                     }
                 }
@@ -357,20 +330,10 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 };
 
                 // Try get from cache using byte-level operations.
-                // Rule 12: surface deserialize failures via tracing::warn!
-                // (cache corruption / type mismatch should be diagnosable).
-                // get_bytes Err is treated as cache miss (silent fallback).
+                // Deserialize failure is treated as cache miss (silent fallback).
                 if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
-                    match cache.unified_serializer().deserialize::<#return_type>(&bytes) {
-                        Ok(val) => return ::std::result::Result::Ok(val),
-                        Err(e) => {
-                            ::tracing::warn!(
-                                service = #service_name,
-                                key = %cache_key,
-                                error = %e,
-                                "oxcache: cache deserialize failed, falling back to original function"
-                            );
-                        }
+                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                        return ::std::result::Result::Ok(val);
                     }
                 }
 
@@ -378,28 +341,11 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 let result = async { #fn_block }.await;
 
                 // Cache result if Ok — skipped when `skip_cache_write` is set.
-                // Rule 12: surface serialize/cache-write failures via tracing::warn!
+                // Serialize/write failures are silently ignored (result still returned).
                 if !#skip_cache_write {
                     if let Ok(ref val) = result {
-                        match cache.unified_serializer().serialize(val) {
-                            Ok(bytes) => {
-                                if let Err(e) = cache.set_bytes(&cache_key, bytes, #ttl).await {
-                                    ::tracing::warn!(
-                                        service = #service_name,
-                                        key = %cache_key,
-                                        error = %e,
-                                        "oxcache: cache write failed, result not cached"
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                ::tracing::warn!(
-                                    service = #service_name,
-                                    key = %cache_key,
-                                    error = %e,
-                                    "oxcache: cache serialize failed, result not cached"
-                                );
-                            }
+                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                            let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
                         }
                     }
                 }

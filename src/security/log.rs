@@ -2,87 +2,34 @@
 // SPDX-License-Identifier: MIT
 // 安全日志工具模块
 //
-// 提供安全的日志记录功能，自动脱敏敏感信息
+// 提供安全的数据脱敏功能（日志输出已移除，由事件系统替代）
 
 #![cfg_attr(doctest, allow(unused_imports))]
 
 use crate::security::redact_cache_key;
 
-/// 安全日志宏 - 自动脱敏连接字符串
+/// 安全记录缓存键（已脱敏）
 ///
-/// # 示例
-///
-/// ```rust,ignore
-/// # // 注意：此示例需要完整的导入路径
-/// # use oxcache::utils::security_log;
-/// #
-/// # // 记录连接字符串时会自动脱敏
-/// # security_log::info("Redis URL: {}", "redis://user:password@localhost:6379");
-/// # // 输出: Redis URL: redis://user:****@localhost:6379
-/// ```
-/// 安全记录信息级别日志
-#[macro_export]
-macro_rules! secure_info {
-    ($($arg:tt)*) => {{
-        use $crate::security::redact_connection_string;
-        tracing::info!("{}", format!($($arg)*)
-            .split_inclusive("://")
-            .map(|part| {
-                if part.contains("password") || part.contains("secret") || part.contains("token") {
-                    redact_connection_string(part)
-                } else {
-                    part.to_string()
-                }
-            })
-            .collect::<String>()
-        );
-    }}
-}
-
-/// 安全记录调试级别日志
-#[macro_export]
-macro_rules! secure_debug {
-    ($($arg:tt)*) => {{
-        use $crate::security::redact_connection_string;
-        tracing::debug!("{}", format!($($arg)*)
-            .split_inclusive("://")
-            .map(|part| {
-                if part.contains("password") || part.contains("secret") || part.contains("token") {
-                    redact_connection_string(part)
-                } else {
-                    part.to_string()
-                }
-            })
-            .collect::<String>()
-        );
-    }}
-}
-
-/// 安全记录缓存键到日志
+/// 返回脱敏后的缓存键字符串，调用方自行决定输出方式。
 ///
 /// # 参数
-/// * `level` - 日志级别
 /// * `message` - 日志消息
 /// * `key` - 缓存键
+///
+/// # 返回值
+/// 脱敏后的消息字符串
 ///
 /// # 示例
 ///
 /// ```rust,ignore
 /// use crate::security::log_cache_key;
 ///
-/// log_cache_key("debug", "Cache access", "user_token_abc123");
-/// // 日志输出: Cache access: ****c123
+/// let msg = log_cache_key("debug", "Cache access", "user_token_abc123");
+/// // 返回: "Cache access: ****c123"
 /// ```
-pub fn log_cache_key(level: &str, message: &str, key: &str) {
+pub fn log_cache_key(_level: &str, message: &str, key: &str) -> String {
     let redacted = redact_cache_key(key);
-
-    match level {
-        "info" => tracing::info!("{}: {}", message, redacted),
-        "debug" => tracing::debug!("{}: {}", message, redacted),
-        "warn" => tracing::warn!("{}: {}", message, redacted),
-        "error" => tracing::error!("{}: {}", message, redacted),
-        _ => tracing::info!("{}: {}", message, redacted),
-    }
+    format!("{}: {}", message, redacted)
 }
 
 /// 安全格式化消息

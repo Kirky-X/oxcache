@@ -9,7 +9,6 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
-use tracing::{Level, span};
 
 /// Unified metrics collector
 ///
@@ -191,13 +190,6 @@ impl UnifiedMetrics {
 
     /// Record a cache operation
     pub fn record_operation(&self, operation: CacheOperation) {
-        let span = span!(Level::INFO, "cache_operation",
-            layer = ?operation.layer,
-            op_type = ?operation.op_type,
-            result = ?operation.result
-        );
-        let _enter = span.enter();
-
         // Update atomic counters
         match (&operation.layer, &operation.op_type, &operation.result) {
             (CacheLayer::L1, CacheOpType::Get, CacheOpResult::Hit) => {

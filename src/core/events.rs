@@ -127,39 +127,35 @@ fn current_timestamp_ms() -> u64 {
 /// 事件发布器 Trait
 ///
 /// 用于发布缓存事件。
+/// 所有方法使用具体 `String` 类型（而非 `impl Into<String>`）以确保 dyn-compatible，
+/// 允许 `Arc<dyn EventPublisher>` 使用。
 #[async_trait]
 pub trait EventPublisher: Send + Sync {
     /// 发布事件
     async fn publish(&self, event: CacheEvent) -> Result<(), OxCacheError>;
 
     /// 发布命中事件
-    fn publish_hit(&self, _key: impl Into<String>, _latency_ms: u64) -> Result<(), OxCacheError> {
-        // 默认实现需要是同步的，因为 trait 中不能有异步默认实现
-        // 子类可以覆盖这个方法提供异步版本
+    fn publish_hit(&self, _key: String, _latency_ms: u64) -> Result<(), OxCacheError> {
         Ok(())
     }
 
     /// 发布未命中事件
-    fn publish_miss(&self, _key: impl Into<String>, _latency_ms: u64) -> Result<(), OxCacheError> {
-        // 默认实现需要是同步的
+    fn publish_miss(&self, _key: String, _latency_ms: u64) -> Result<(), OxCacheError> {
         Ok(())
     }
 
     /// 发布设置事件
-    fn publish_set(&self, _key: impl Into<String>) -> Result<(), OxCacheError> {
-        // 默认实现需要是同步的
+    fn publish_set(&self, _key: String) -> Result<(), OxCacheError> {
         Ok(())
     }
 
     /// 发布删除事件
-    fn publish_delete(&self, _key: impl Into<String>) -> Result<(), OxCacheError> {
-        // 默认实现需要是同步的
+    fn publish_delete(&self, _key: String) -> Result<(), OxCacheError> {
         Ok(())
     }
 
     /// 发布错误事件
-    fn publish_error(&self, _key: Option<String>, _error: impl Into<String>) -> Result<(), OxCacheError> {
-        // 默认实现需要是同步的
+    fn publish_error(&self, _key: Option<String>, _error: String) -> Result<(), OxCacheError> {
         Ok(())
     }
 }
@@ -281,7 +277,7 @@ mod tests {
     async fn test_event_publisher_publish_hit_default() {
         // 测试 publish_hit 默认实现 (lines 136-139)
         let publisher = NoopPublisher;
-        let result = publisher.publish_hit("key1", 10);
+        let result = publisher.publish_hit("key1".to_string(), 10);
         assert!(result.is_ok());
     }
 
@@ -289,7 +285,7 @@ mod tests {
     async fn test_event_publisher_publish_miss_default() {
         // 测试 publish_miss 默认实现 (lines 143-145)
         let publisher = NoopPublisher;
-        let result = publisher.publish_miss("key1", 10);
+        let result = publisher.publish_miss("key1".to_string(), 10);
         assert!(result.is_ok());
     }
 
@@ -297,7 +293,7 @@ mod tests {
     async fn test_event_publisher_publish_set_default() {
         // 测试 publish_set 默认实现 (lines 149-151)
         let publisher = NoopPublisher;
-        let result = publisher.publish_set("key1");
+        let result = publisher.publish_set("key1".to_string());
         assert!(result.is_ok());
     }
 
@@ -305,7 +301,7 @@ mod tests {
     async fn test_event_publisher_publish_delete_default() {
         // 测试 publish_delete 默认实现 (lines 155-157)
         let publisher = NoopPublisher;
-        let result = publisher.publish_delete("key1");
+        let result = publisher.publish_delete("key1".to_string());
         assert!(result.is_ok());
     }
 
@@ -313,14 +309,14 @@ mod tests {
     async fn test_event_publisher_publish_error_default() {
         // 测试 publish_error 默认实现 (lines 161-163)
         let publisher = NoopPublisher;
-        let result = publisher.publish_error(Some("key1".to_string()), "timeout");
+        let result = publisher.publish_error(Some("key1".to_string()), "timeout".to_string());
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_event_publisher_publish_error_default_none_key() {
         let publisher = NoopPublisher;
-        let result = publisher.publish_error(None, "connection failed");
+        let result = publisher.publish_error(None, "connection failed".to_string());
         assert!(result.is_ok());
     }
 

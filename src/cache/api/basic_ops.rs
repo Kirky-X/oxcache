@@ -13,9 +13,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
-#[cfg(any(feature = "tracing", feature = "full"))]
-use tracing::instrument;
-
 /// 分片数量（2 的幂，通过掩码路由）
 const GET_OR_LOCK_SHARDS: usize = 64;
 const GET_OR_LOCK_MASK: usize = GET_OR_LOCK_SHARDS - 1;
@@ -81,10 +78,6 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    #[cfg_attr(
-        any(feature = "tracing", feature = "full"),
-        instrument(skip(self, key), level = "debug", fields(key))
-    )]
     pub async fn get(&self, key: &K) -> OxCacheResult<Option<V>> {
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
@@ -139,10 +132,6 @@ where
         self.backend.capacity().await
     }
 
-    #[cfg_attr(
-        any(feature = "tracing", feature = "full"),
-        instrument(skip(self, key, value), level = "debug", fields(key))
-    )]
     pub async fn set(&self, key: &K, value: &V) -> OxCacheResult<()> {
         self.set_with_ttl(key, value, None).await
     }
@@ -168,10 +157,6 @@ where
         }
     }
 
-    #[cfg_attr(
-        any(feature = "tracing", feature = "full"),
-        instrument(skip(self, key), level = "debug", fields(key))
-    )]
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         self.backend.delete(&key_str).await
@@ -193,10 +178,6 @@ where
     /// let original_ttl = cache.ttl(&key).await?;
     /// cache.set_with_ttl(&key, &new_value, original_ttl).await?;
     /// ```
-    #[cfg_attr(
-        any(feature = "tracing", feature = "full"),
-        instrument(skip(self, key), level = "debug", fields(key))
-    )]
     pub async fn ttl(&self, key: &K) -> OxCacheResult<Option<Duration>> {
         let key_str = key.to_key_string();
         self.backend.ttl(&key_str).await
@@ -206,10 +187,6 @@ where
     ///
     /// Returns `Ok(true)` if the TTL was updated, `Ok(false)` if the key
     /// does not exist. This does NOT touch the value — only the TTL.
-    #[cfg_attr(
-        any(feature = "tracing", feature = "full"),
-        instrument(skip(self, key), level = "debug", fields(key))
-    )]
     pub async fn expire(&self, key: &K, ttl: Duration) -> OxCacheResult<bool> {
         let key_str = key.to_key_string();
         self.backend.expire(&key_str, ttl).await
