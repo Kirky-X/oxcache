@@ -51,7 +51,6 @@ TIER2_COMBINATIONS=(
     "moka,redis,bloom-filter"
     "moka,redis,database"
     "core,full-metrics"
-    "core,confers"
     "core,smart-strategy"
     "core,http-cache"
 )

@@ -54,9 +54,9 @@ use std::time::Duration;
 ///
 /// Stored in `AsyncKit` via `kit.set_config(OxcacheConfig::default())` and
 /// read back with `kit.config::<OxcacheConfig>()`. This is a minimal standalone
-/// struct — it is intentionally NOT wired into oxcache's `confers`-based config
-/// system because the trait-kit integration must remain a leaf, feature-gated
-/// concern (Rule 6: no extra default deps).
+/// struct — it is intentionally NOT wired into oxcache's config system because
+/// the trait-kit integration must remain a leaf, feature-gated concern
+/// (Rule 6: no extra default deps).
 #[derive(Debug, Clone)]
 pub struct OxcacheConfig {
     /// Max entries held by the L1 memory backend (Moka). Mirrors

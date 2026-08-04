@@ -215,7 +215,7 @@ pub mod registry;
 // Traits module: CacheKey
 pub mod traits;
 
-// Config module: confers-based configuration
+// Config module
 mod config;
 
 // Utils module: key generation utilities
