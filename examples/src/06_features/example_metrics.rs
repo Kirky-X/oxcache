@@ -13,7 +13,7 @@
 //! cd examples && cargo run --example example_metrics
 //! ```
 
-use oxcache::{export_json_format, export_prometheus_format, get_enhanced_stats, Cache};
+use oxcache::{Cache, export_json_format, export_prometheus_format, get_enhanced_stats};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
