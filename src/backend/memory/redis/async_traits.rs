@@ -3,7 +3,6 @@
 //! Async trait implementations for RedisBackend.
 
 use super::client::RedisBackend;
-use super::error::is_connection_error;
 use super::builder::RedisMode;
 use crate::backend::memory::redis::error;
 use crate::backend::interface::AtomicCacheWriter;
@@ -111,6 +110,12 @@ impl CacheReader for RedisBackend {
         Ok(0)
     }
 
+    /// Collect backend statistics from Redis INFO command.
+    ///
+    /// Returns a map containing:
+    /// - `"memory_info"`: raw output of `INFO memory`
+    /// - `"connected_clients"`: current client count (parsed from `INFO clients`)
+    /// - `"maxclients"`: maximum client limit (parsed from `INFO clients`)
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         self.execute_with_retry(|| {
             let mut conn = self.conn();
@@ -258,44 +263,41 @@ impl CacheWriter for RedisBackend {
 
         security::validate_scan_pattern("*")?;
 
-        let mut conn = self.conn();
-        let mut cursor = 0i64;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let mut cursor = 0i64;
+                loop {
+                    let (new_cursor, keys): (i64, Vec<String>) =
+                        redis::cmd(RedisCommand::Scan.as_str())
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg("*")
+                            .arg("COUNT")
+                            .arg(100)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
 
-        loop {
-            let (new_cursor, keys): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
-                .arg(cursor)
-                .arg("MATCH")
-                .arg("*")
-                .arg("COUNT")
-                .arg(100)
-                .query_async(&mut conn)
-                .await
-                .map_err(|e| {
-                    if is_connection_error(&e) {
-                        OxCacheError::Connection(e.to_string())
-                    } else {
-                        OxCacheError::Operation(e.to_string())
+                    if !keys.is_empty() {
+                        let mut pipe = redis::pipe();
+                        for key in &keys {
+                            pipe.cmd(RedisCommand::Del.as_str()).arg(key);
+                        }
+                        pipe.query_async::<()>(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
                     }
-                })?;
 
-            if !keys.is_empty() {
-                // Pipeline batch DEL instead of per-key DEL
-                let mut pipe = redis::pipe();
-                for key in &keys {
-                    pipe.cmd(RedisCommand::Del.as_str()).arg(key);
+                    cursor = new_cursor;
+                    if cursor == 0 {
+                        break;
+                    }
                 }
-                pipe.query_async::<()>(&mut conn)
-                    .await
-                    .map_err(error::map_redis_error)?;
+                Ok(())
             }
-
-            cursor = new_cursor;
-            if cursor == 0 {
-                break;
-            }
-        }
-
-        Ok(())
+        })
+        .await
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
@@ -330,9 +332,10 @@ impl CacheWriter for RedisBackend {
                 let mut pipe = redis::pipe();
                 for (key, value, ttl) in &items {
                     if let Some(ttl) = ttl {
+                        let ttl_secs = validate_redis_ttl(*ttl)?;
                         pipe.cmd(RedisCommand::SetEx.as_str())
                             .arg(key.as_ref())
-                            .arg(ttl.as_secs())
+                            .arg(ttl_secs)
                             .arg(value.as_ref().as_slice());
                     } else {
                         pipe.cmd(RedisCommand::Set.as_str())
@@ -362,12 +365,17 @@ impl CacheWriter for RedisBackend {
 #[async_trait]
 impl CacheConnector for RedisBackend {
     async fn health_check(&self) -> OxCacheResult<()> {
-        let mut conn = self.conn();
-        redis::cmd(RedisCommand::Ping.as_str())
-            .query_async::<String>(&mut conn)
-            .await
-            .map_err(error::map_redis_error)?;
-        Ok(())
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                redis::cmd(RedisCommand::Ping.as_str())
+                    .query_async::<String>(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
+                Ok(())
+            }
+        })
+        .await
     }
 
     async fn shutdown(&self) {
@@ -417,30 +425,39 @@ impl AtomicCacheWriter for RedisBackend {
         self.execute_with_retry(|| {
             let mut conn = self.conn();
             async move {
-                let result: i64 = if delta == 1 {
-                    redis::cmd(RedisCommand::Incr.as_str())
+                if let Some(ttl) = ttl {
+                    // Atomic INCR + EXPIRE via Lua script to avoid non-atomic two-step
+                    let ttl_secs = validate_redis_ttl(ttl)?;
+                    let delta_owned = delta.to_string();
+                    let script = "local r = redis.call('INCRBY', KEYS[1], ARGV[1]); \
+                         redis.call('EXPIRE', KEYS[1], ARGV[2]); \
+                         return r";
+                    let result: i64 = redis::cmd(RedisCommand::Eval.as_str())
+                        .arg(script)
+                        .arg(1)
+                        .arg(key)
+                        .arg(delta_owned.as_str())
+                        .arg(ttl_secs)
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
+                    Ok(result)
+                } else if delta == 1 {
+                    let result: i64 = redis::cmd(RedisCommand::Incr.as_str())
                         .arg(key)
                         .query_async(&mut conn)
                         .await
-                        .map_err(error::map_redis_error)?
+                        .map_err(error::map_redis_error)?;
+                    Ok(result)
                 } else {
-                    redis::cmd(RedisCommand::IncrBy.as_str())
+                    let result: i64 = redis::cmd(RedisCommand::IncrBy.as_str())
                         .arg(key)
                         .arg(delta)
                         .query_async(&mut conn)
                         .await
-                        .map_err(error::map_redis_error)?
-                };
-                if let Some(ttl) = ttl {
-                    let ttl_secs = validate_redis_ttl(ttl)?;
-                    redis::cmd(RedisCommand::Expire.as_str())
-                        .arg(key)
-                        .arg(ttl_secs)
-                        .query_async::<()>(&mut conn)
-                        .await
                         .map_err(error::map_redis_error)?;
+                    Ok(result)
                 }
-                Ok(result)
             }
         })
         .await
@@ -454,54 +471,58 @@ impl AtomicCacheWriter for RedisBackend {
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-        let lua_script = match expected {
+
+        // Static Lua scripts — avoid per-call heap allocation
+        static NO_EXPECT_WITH_TTL: &str =
+            "if redis.call('EXISTS', KEYS[1]) == 0 then \
+             redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]) \
+             return 1 else return 0 end";
+        static NO_EXPECT_WITHOUT_TTL: &str =
+            "if redis.call('EXISTS', KEYS[1]) == 0 then \
+             redis.call('SET', KEYS[1], ARGV[1]) \
+             return 1 else return 0 end";
+        static WITH_EXPECT_WITH_TTL: &str =
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+             redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) \
+             return 1 else return 0 end";
+        static WITH_EXPECT_WITHOUT_TTL: &str =
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+             redis.call('SET', KEYS[1], ARGV[2]) \
+             return 1 else return 0 end";
+
+        let lua_script: &str = match expected {
             None => {
-                if ttl.is_some() {
-                    "if redis.call('EXISTS', KEYS[1]) == 0 then \
-                     redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]) \
-                     return 1 else return 0 end"
-                        .to_string()
-                } else {
-                    "if redis.call('EXISTS', KEYS[1]) == 0 then \
-                     redis.call('SET', KEYS[1], ARGV[1]) \
-                     return 1 else return 0 end"
-                        .to_string()
-                }
+                if ttl.is_some() { NO_EXPECT_WITH_TTL } else { NO_EXPECT_WITHOUT_TTL }
             }
             Some(_) => {
-                if ttl.is_some() {
-                    "if redis.call('GET', KEYS[1]) == ARGV[1] then \
-                     redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) \
-                     return 1 else return 0 end"
-                        .to_string()
-                } else {
-                    "if redis.call('GET', KEYS[1]) == ARGV[1] then \
-                     redis.call('SET', KEYS[1], ARGV[2]) \
-                     return 1 else return 0 end"
-                        .to_string()
-                }
+                if ttl.is_some() { WITH_EXPECT_WITH_TTL } else { WITH_EXPECT_WITHOUT_TTL }
             }
+        };
+
+        // Validate TTL before entering retry closure
+        let ttl_secs = match ttl {
+            Some(t) => Some(validate_redis_ttl(t)?),
+            None => None,
         };
 
         self.execute_with_retry(|| {
             let mut conn = self.conn();
-            let lua_script = lua_script.clone();
             let new = new.clone();
             async move {
                 let mut cmd = redis::cmd(RedisCommand::Eval.as_str());
-                cmd.arg(lua_script.as_str()).arg(1).arg(key);
+                cmd.arg(lua_script).arg(1).arg(key);
                 match expected {
                     None => {
                         cmd.arg(new.as_slice());
-                        if let Some(ttl) = ttl {
-                            cmd.arg(ttl.as_secs());
+                        if let Some(secs) = ttl_secs {
+                            cmd.arg(secs);
                         }
                     }
                     Some(exp_bytes) => {
                         cmd.arg(exp_bytes);
                         cmd.arg(new.as_slice());
-                        if let Some(ttl) = ttl {
-                            cmd.arg(ttl.as_secs());
+                        if let Some(secs) = ttl_secs {
+                            cmd.arg(secs);
                         }
                     }
                 }
@@ -529,7 +550,8 @@ impl AtomicCacheWriter for RedisBackend {
                 let mut cmd = redis::cmd(RedisCommand::Set.as_str());
                 cmd.arg(key).arg(value.as_slice()).arg("NX");
                 if let Some(ttl) = ttl {
-                    cmd.arg("EX").arg(ttl.as_secs());
+                    let ttl_secs = validate_redis_ttl(ttl)?;
+                    cmd.arg("EX").arg(ttl_secs);
                 }
                 let result: Option<redis::Value> = cmd
                     .query_async(&mut conn)

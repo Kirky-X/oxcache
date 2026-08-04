@@ -219,7 +219,9 @@ async fn test_mode_accessor() {
 #[ignore = "requires Redis server"]
 async fn test_client_accessor() {
     let backend = make_backend().await;
-    let _client: &redis::Client = backend.client();
+    let client: &redis::Client = backend.client();
+    // Verify the client reference is valid by checking its connection string
+    let _ = format!("{:?}", client);
 }
 
 #[tokio::test]
@@ -287,6 +289,7 @@ async fn test_clear_removes_all_keys() {
 }
 
 #[tokio::test]
+#[ignore = "requires Redis server"]
 async fn test_clear_disabled_by_default() {
     set_allow_insecure_env();
     // Build without dangerous_clear_enabled (default false)
@@ -453,9 +456,12 @@ async fn test_keys_scan_no_match_returns_empty() {
 async fn test_clear_disabled_by_default_returns_error() {
     let backend = make_backend().await;
     let result = backend.clear().await;
-    assert!(result.is_err());
-    if let Err(OxCacheError::NotSupported(msg)) = result {
-        assert!(msg.contains("disabled") || msg.contains("clear"));
+    match result {
+        Err(OxCacheError::NotSupported(msg)) => {
+            assert!(msg.contains("disabled") || msg.contains("clear"));
+        }
+        Ok(()) => panic!("Expected clear() to fail with NotSupported"),
+        Err(other) => panic!("Expected NotSupported, got {:?}", other),
     }
 }
 
@@ -500,8 +506,9 @@ async fn test_stats_includes_clients_info() {
 #[ignore = "requires Redis server"]
 async fn test_set_ttl_zero_rejected() {
     let backend = make_backend().await;
+    let key = unique_key("ttl_zero");
     let result = backend
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(0)))
+        .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_secs(0)))
         .await;
     assert!(result.is_err());
 }
@@ -510,8 +517,9 @@ async fn test_set_ttl_zero_rejected() {
 #[ignore = "requires Redis server"]
 async fn test_set_ttl_subsecond_rejected() {
     let backend = make_backend().await;
+    let key = unique_key("ttl_subsecond");
     let result = backend
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(500)))
+        .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_millis(500)))
         .await;
     assert!(result.is_err());
 }
