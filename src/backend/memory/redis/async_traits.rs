@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! Async trait implementations for RedisBackend.
 
-use super::client::RedisBackend;
 use super::builder::RedisMode;
-use crate::backend::memory::redis::error;
+use super::client::RedisBackend;
 use crate::backend::interface::AtomicCacheWriter;
+use crate::backend::memory::redis::error;
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
 use crate::core::RedisCommand;
@@ -169,16 +169,15 @@ impl CacheReader for RedisBackend {
                 let mut all_keys = Vec::new();
                 let mut cursor = 0i64;
                 loop {
-                    let (new_cursor, batch): (i64, Vec<String>) =
-                        redis::cmd(RedisCommand::Scan.as_str())
-                            .arg(cursor)
-                            .arg("MATCH")
-                            .arg(pattern)
-                            .arg("COUNT")
-                            .arg(100)
-                            .query_async(&mut conn)
-                            .await
-                            .map_err(error::map_redis_error)?;
+                    let (new_cursor, batch): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
+                        .arg(cursor)
+                        .arg("MATCH")
+                        .arg(pattern)
+                        .arg("COUNT")
+                        .arg(100)
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
                     all_keys.extend(batch);
                     cursor = new_cursor;
                     if cursor == 0 {
@@ -268,16 +267,15 @@ impl CacheWriter for RedisBackend {
             async move {
                 let mut cursor = 0i64;
                 loop {
-                    let (new_cursor, keys): (i64, Vec<String>) =
-                        redis::cmd(RedisCommand::Scan.as_str())
-                            .arg(cursor)
-                            .arg("MATCH")
-                            .arg("*")
-                            .arg("COUNT")
-                            .arg(100)
-                            .query_async(&mut conn)
-                            .await
-                            .map_err(error::map_redis_error)?;
+                    let (new_cursor, keys): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
+                        .arg(cursor)
+                        .arg("MATCH")
+                        .arg("*")
+                        .arg("COUNT")
+                        .arg(100)
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(error::map_redis_error)?;
 
                     if !keys.is_empty() {
                         let mut pipe = redis::pipe();
@@ -473,29 +471,33 @@ impl AtomicCacheWriter for RedisBackend {
         security::validate_redis_key(key)?;
 
         // Static Lua scripts — avoid per-call heap allocation
-        static NO_EXPECT_WITH_TTL: &str =
-            "if redis.call('EXISTS', KEYS[1]) == 0 then \
+        static NO_EXPECT_WITH_TTL: &str = "if redis.call('EXISTS', KEYS[1]) == 0 then \
              redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]) \
              return 1 else return 0 end";
-        static NO_EXPECT_WITHOUT_TTL: &str =
-            "if redis.call('EXISTS', KEYS[1]) == 0 then \
+        static NO_EXPECT_WITHOUT_TTL: &str = "if redis.call('EXISTS', KEYS[1]) == 0 then \
              redis.call('SET', KEYS[1], ARGV[1]) \
              return 1 else return 0 end";
-        static WITH_EXPECT_WITH_TTL: &str =
-            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+        static WITH_EXPECT_WITH_TTL: &str = "if redis.call('GET', KEYS[1]) == ARGV[1] then \
              redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) \
              return 1 else return 0 end";
-        static WITH_EXPECT_WITHOUT_TTL: &str =
-            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+        static WITH_EXPECT_WITHOUT_TTL: &str = "if redis.call('GET', KEYS[1]) == ARGV[1] then \
              redis.call('SET', KEYS[1], ARGV[2]) \
              return 1 else return 0 end";
 
         let lua_script: &str = match expected {
             None => {
-                if ttl.is_some() { NO_EXPECT_WITH_TTL } else { NO_EXPECT_WITHOUT_TTL }
+                if ttl.is_some() {
+                    NO_EXPECT_WITH_TTL
+                } else {
+                    NO_EXPECT_WITHOUT_TTL
+                }
             }
             Some(_) => {
-                if ttl.is_some() { WITH_EXPECT_WITH_TTL } else { WITH_EXPECT_WITHOUT_TTL }
+                if ttl.is_some() {
+                    WITH_EXPECT_WITH_TTL
+                } else {
+                    WITH_EXPECT_WITHOUT_TTL
+                }
             }
         };
 
@@ -526,22 +528,14 @@ impl AtomicCacheWriter for RedisBackend {
                         }
                     }
                 }
-                let result: i64 = cmd
-                    .query_async(&mut conn)
-                    .await
-                    .map_err(error::map_redis_error)?;
+                let result: i64 = cmd.query_async(&mut conn).await.map_err(error::map_redis_error)?;
                 Ok(result == 1)
             }
         })
         .await
     }
 
-    async fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool> {
+    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
         self.execute_with_retry(|| {
             let mut conn = self.conn();
@@ -553,10 +547,7 @@ impl AtomicCacheWriter for RedisBackend {
                     let ttl_secs = validate_redis_ttl(ttl)?;
                     cmd.arg("EX").arg(ttl_secs);
                 }
-                let result: Option<redis::Value> = cmd
-                    .query_async(&mut conn)
-                    .await
-                    .map_err(error::map_redis_error)?;
+                let result: Option<redis::Value> = cmd.query_async(&mut conn).await.map_err(error::map_redis_error)?;
                 Ok(result.is_some())
             }
         })

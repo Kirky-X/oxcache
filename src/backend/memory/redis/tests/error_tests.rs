@@ -68,10 +68,7 @@ fn test_map_unexpected_return_type() {
 
 #[test]
 fn test_map_server_exec_abort() {
-    let e = make_general_error(
-        ErrorKind::Server(ServerErrorKind::ExecAbort),
-        "script aborted",
-    );
+    let e = make_general_error(ErrorKind::Server(ServerErrorKind::ExecAbort), "script aborted");
     let mapped = map_redis_error(e);
     assert!(matches!(mapped, OxCacheError::Operation(_)));
 }
@@ -133,10 +130,7 @@ fn test_is_not_connection_error_for_type_mismatch() {
 
 #[test]
 fn test_is_not_connection_error_for_abort() {
-    let e = make_general_error(
-        ErrorKind::Server(ServerErrorKind::ExecAbort),
-        "aborted",
-    );
+    let e = make_general_error(ErrorKind::Server(ServerErrorKind::ExecAbort), "aborted");
     assert!(!is_connection_error(&e));
 }
 

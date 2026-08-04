@@ -44,7 +44,9 @@ pub(crate) fn set_allow_insecure_env() {
 /// Note: Tests that mutate this env var use `#[serial]` where needed.
 pub(crate) fn set_insecure_env(value: &str) {
     // SAFETY: Rust 2024 edition — set_var is unsafe; idempotent sets need no serialisation
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", value); }
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", value);
+    }
 }
 
 /// Remove `OXCACHE_ALLOW_INSECURE_REDIS` env var.
@@ -52,7 +54,9 @@ pub(crate) fn set_insecure_env(value: &str) {
 /// Note: All callers use `#[serial]` to avoid concurrent remove/set races.
 pub(crate) fn remove_allow_insecure_env() {
     // SAFETY: Rust 2024 edition — remove_var is unsafe; callers serialize via #[serial]
-    unsafe { std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS"); }
+    unsafe {
+        std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+    }
 }
 
 /// Create a RedisBackend for testing (allows insecure connection)

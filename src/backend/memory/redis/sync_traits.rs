@@ -27,9 +27,8 @@ impl RedisBackend {
     /// ensure they are NOT inside an async task on the same runtime when invoking
     /// sync methods. If in doubt, use the async API instead.
     pub(crate) fn multi_thread_handle() -> OxCacheResult<tokio::runtime::Handle> {
-        let handle = tokio::runtime::Handle::try_current().map_err(|e| {
-            OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))
-        })?;
+        let handle = tokio::runtime::Handle::try_current()
+            .map_err(|e| OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e)))?;
         if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
             return Err(OxCacheError::NotSupported(
                 "sync API requires a multi-thread runtime; \
@@ -137,15 +136,8 @@ impl SyncAtomicCacheWriter for RedisBackend {
         })
     }
 
-    fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool> {
+    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
         let handle = Self::multi_thread_handle()?;
-        tokio::task::block_in_place(|| {
-            handle.block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))
-        })
+        tokio::task::block_in_place(|| handle.block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl)))
     }
 }

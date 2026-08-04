@@ -608,8 +608,14 @@ impl MetricsSnapshot {
         ));
         output.push_str(&format!("cache_l2_degraded_total {}\n", self.counters.l2_degraded));
         output.push_str(&format!("cache_l2_retry_total {}\n", self.counters.l2_retry_total));
-        output.push_str(&format!("cache_backfill_success_total {}\n", self.counters.backfill_success));
-        output.push_str(&format!("cache_backfill_failed_total {}\n", self.counters.backfill_failed));
+        output.push_str(&format!(
+            "cache_backfill_success_total {}\n",
+            self.counters.backfill_success
+        ));
+        output.push_str(&format!(
+            "cache_backfill_failed_total {}\n",
+            self.counters.backfill_failed
+        ));
 
         // Export dynamic metrics
         for (key, value) in &self.dynamic_metrics {

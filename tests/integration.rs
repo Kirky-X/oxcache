@@ -49,12 +49,15 @@ mod two_level_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
 
+#[cfg(feature = "aerospike")]
+#[path = "integration/aerospike_test.rs"]
+mod aerospike_test;
 #[cfg(feature = "redis")]
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
-#[cfg(feature = "redis")]
-#[path = "integration/redis_version_compatibility_test.rs"]
-mod redis_version_compatibility_test;
+#[cfg(feature = "dragonfly")]
+#[path = "integration/dragonfly_test.rs"]
+mod dragonfly_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis_cluster_test.rs"]
 mod redis_cluster_test;
@@ -62,11 +65,8 @@ mod redis_cluster_test;
 #[path = "integration/redis_sentinel_test.rs"]
 mod redis_sentinel_test;
 #[cfg(feature = "redis")]
+#[path = "integration/redis_version_compatibility_test.rs"]
+mod redis_version_compatibility_test;
+#[cfg(feature = "redis")]
 #[path = "integration/valkey_test.rs"]
 mod valkey_test;
-#[cfg(feature = "dragonfly")]
-#[path = "integration/dragonfly_test.rs"]
-mod dragonfly_test;
-#[cfg(feature = "aerospike")]
-#[path = "integration/aerospike_test.rs"]
-mod aerospike_test;

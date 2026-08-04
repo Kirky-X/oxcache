@@ -3,8 +3,8 @@
 //! CacheWriter tests for RedisBackend.
 
 use super::*;
-use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::BackendScore;
+use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::error::OxCacheError;
 use std::sync::Arc;
 use std::time::Duration;
@@ -182,8 +182,16 @@ async fn test_set_many_with_ttl() {
     let k1 = unique_key("mttl1");
     let k2 = unique_key("mttl2");
     let items = vec![
-        (Arc::from(k1.clone()), Arc::new(b"v1".to_vec()), Some(Duration::from_secs(100))),
-        (Arc::from(k2.clone()), Arc::new(b"v2".to_vec()), Some(Duration::from_secs(100))),
+        (
+            Arc::from(k1.clone()),
+            Arc::new(b"v1".to_vec()),
+            Some(Duration::from_secs(100)),
+        ),
+        (
+            Arc::from(k2.clone()),
+            Arc::new(b"v2".to_vec()),
+            Some(Duration::from_secs(100)),
+        ),
     ];
     backend.set_many(&items).await.expect("set_many failed");
     let ttl1 = backend.ttl(&k1).await.unwrap();
@@ -259,7 +267,10 @@ async fn test_backend_name() {
 async fn test_shutdown_is_noop() {
     let backend = make_backend().await;
     backend.shutdown().await;
-    backend.health_check().await.expect("health check after shutdown failed");
+    backend
+        .health_check()
+        .await
+        .expect("health check after shutdown failed");
 }
 
 // clear test (uses separate DB)
@@ -391,8 +402,14 @@ async fn test_atomic_compare_and_swap_success() {
     use crate::backend::CacheReader;
     let backend = make_backend().await;
     let key = unique_key("cas");
-    backend.set(Arc::from(key.as_str()), Arc::new(b"old".to_vec()), None).await.unwrap();
-    let ok = backend.compare_and_swap(&key, Some(b"old"), b"new".to_vec(), None).await.unwrap();
+    backend
+        .set(Arc::from(key.as_str()), Arc::new(b"old".to_vec()), None)
+        .await
+        .unwrap();
+    let ok = backend
+        .compare_and_swap(&key, Some(b"old"), b"new".to_vec(), None)
+        .await
+        .unwrap();
     assert!(ok);
     let val = backend.get(&key).await.unwrap().unwrap();
     assert_eq!(val, b"new");
@@ -406,8 +423,14 @@ async fn test_atomic_compare_and_swap_wrong_expected() {
     use crate::backend::CacheReader;
     let backend = make_backend().await;
     let key = unique_key("casw");
-    backend.set(Arc::from(key.as_str()), Arc::new(b"actual".to_vec()), None).await.unwrap();
-    let ok = backend.compare_and_swap(&key, Some(b"wrong"), b"new".to_vec(), None).await.unwrap();
+    backend
+        .set(Arc::from(key.as_str()), Arc::new(b"actual".to_vec()), None)
+        .await
+        .unwrap();
+    let ok = backend
+        .compare_and_swap(&key, Some(b"wrong"), b"new".to_vec(), None)
+        .await
+        .unwrap();
     assert!(!ok);
     // Value should be unchanged
     let val = backend.get(&key).await.unwrap().unwrap();
@@ -427,8 +450,14 @@ async fn test_keys_scan_returns_matching_keys() {
     let prefix = unique_key("scan");
     let k1 = format!("{}_1", prefix);
     let k2 = format!("{}_2", prefix);
-    backend.set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None)
+        .await
+        .unwrap();
     let pattern = format!("{}*", prefix);
     let keys = backend.keys(&pattern).await.unwrap();
     assert!(keys.len() >= 2);
@@ -474,9 +503,18 @@ async fn test_clear_namespace_prefix() {
     let k1 = format!("{}_a", prefix);
     let k2 = format!("{}_b", prefix);
     let other = unique_key("other");
-    backend.set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None).await.unwrap();
-    backend.set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None).await.unwrap();
-    backend.set(Arc::from(other.as_str()), Arc::new(b"v3".to_vec()), None).await.unwrap();
+    backend
+        .set(Arc::from(k1.as_str()), Arc::new(b"v1".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from(k2.as_str()), Arc::new(b"v2".to_vec()), None)
+        .await
+        .unwrap();
+    backend
+        .set(Arc::from(other.as_str()), Arc::new(b"v3".to_vec()), None)
+        .await
+        .unwrap();
     backend.clear_namespace(&prefix).await.unwrap();
     assert!(!backend.exists(&k1).await.unwrap());
     assert!(!backend.exists(&k2).await.unwrap());
@@ -508,7 +546,11 @@ async fn test_set_ttl_zero_rejected() {
     let backend = make_backend().await;
     let key = unique_key("ttl_zero");
     let result = backend
-        .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_secs(0)))
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(0)),
+        )
         .await;
     assert!(result.is_err());
 }
@@ -519,7 +561,11 @@ async fn test_set_ttl_subsecond_rejected() {
     let backend = make_backend().await;
     let key = unique_key("ttl_subsecond");
     let result = backend
-        .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), Some(Duration::from_millis(500)))
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(500)),
+        )
         .await;
     assert!(result.is_err());
 }
