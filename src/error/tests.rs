@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! error 模块单元测试
 
-use super::OxCacheError;
 #[cfg(feature = "redis")]
 use super::OxCacheConfigError;
+use super::OxCacheError;
 
 // ============================================================================
 // OxCacheConfigError Display tests
@@ -522,10 +522,7 @@ fn test_cache_config_error_is_std_error() {
 
 #[test]
 fn test_error_message_id_not_found() {
-    assert_eq!(
-        OxCacheError::NotFound("k".to_string()).message_id(),
-        "error.not_found"
-    );
+    assert_eq!(OxCacheError::NotFound("k".to_string()).message_id(), "error.not_found");
 }
 
 #[test]
@@ -546,18 +543,12 @@ fn test_error_message_id_serialization() {
 
 #[test]
 fn test_error_message_id_key_too_long() {
-    assert_eq!(
-        OxCacheError::KeyTooLong(1, 2).message_id(),
-        "error.key_too_long"
-    );
+    assert_eq!(OxCacheError::KeyTooLong(1, 2).message_id(), "error.key_too_long");
 }
 
 #[test]
 fn test_error_message_id_internal() {
-    assert_eq!(
-        OxCacheError::Internal("i".to_string()).message_id(),
-        "error.internal"
-    );
+    assert_eq!(OxCacheError::Internal("i".to_string()).message_id(), "error.internal");
 }
 
 // ============================================================================
@@ -662,20 +653,14 @@ fn test_localized_message_zh_key_too_long() {
 fn test_localized_message_zh_timeout() {
     let err = OxCacheError::Timeout("5秒".to_string());
     let msg = err.localized_message("zh-CN");
-    assert!(
-        msg.contains("操作超时：5秒"),
-        "zh localized message: got '{msg}'"
-    );
+    assert!(msg.contains("操作超时：5秒"), "zh localized message: got '{msg}'");
 }
 
 #[test]
 fn test_localized_message_zh_internal() {
     let err = OxCacheError::Internal("内部异常".to_string());
     let msg = err.localized_message("zh-CN");
-    assert!(
-        msg.contains("内部错误：内部异常"),
-        "zh localized message: got '{msg}'"
-    );
+    assert!(msg.contains("内部错误：内部异常"), "zh localized message: got '{msg}'");
 }
 
 // ============================================================================

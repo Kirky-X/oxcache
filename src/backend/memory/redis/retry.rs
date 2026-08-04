@@ -52,17 +52,26 @@ where
 mod tests {
     use super::*;
     use crate::error::OxCacheError;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     #[tokio::test]
     async fn test_success_on_first_attempt() {
         let call_count = Arc::new(AtomicU32::new(0));
         let cc = call_count.clone();
 
-        let result: OxCacheResult<i32> =
-            retry_with_backoff(|| { let cc = cc.clone(); async move { cc.fetch_add(1, Ordering::Relaxed); Ok(42) } }, 3, Duration::from_millis(10))
-                .await;
+        let result: OxCacheResult<i32> = retry_with_backoff(
+            || {
+                let cc = cc.clone();
+                async move {
+                    cc.fetch_add(1, Ordering::Relaxed);
+                    Ok(42)
+                }
+            },
+            3,
+            Duration::from_millis(10),
+        )
+        .await;
 
         assert_eq!(result.unwrap(), 42);
         assert_eq!(call_count.load(Ordering::Relaxed), 1);

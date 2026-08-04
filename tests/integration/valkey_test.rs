@@ -13,8 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oxcache::backend::{
-    BackendKind, CacheConnector, CacheReader, CacheWriter, ConfigValidation,
-    RedisBackend, RedisMode,
+    BackendKind, CacheConnector, CacheReader, CacheWriter, ConfigValidation, RedisBackend, RedisMode,
 };
 
 #[path = "../common/mod.rs"]
@@ -154,7 +153,10 @@ async fn test_valkey_cache_reader_operations() {
     assert!(ttl.is_some());
 
     // expire nonexistent key
-    let result = backend.expire("valkey:nonexistent", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("valkey:nonexistent", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -241,8 +243,8 @@ async fn test_detect_valkey_returns_true_for_valkey() {
 
 #[tokio::test]
 async fn test_valkey_chain_cache_basic() {
-    use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
     use oxcache::backend::MokaMemoryBackend;
+    use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
     let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");

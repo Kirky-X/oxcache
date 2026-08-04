@@ -11,10 +11,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use oxcache::backend::{
-    BackendKind, CacheConnector, CacheReader, CacheWriter,
-    DragonflyBackend,
-};
+use oxcache::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter, DragonflyBackend};
 
 #[path = "../common/mod.rs"]
 mod common;
@@ -163,8 +160,8 @@ async fn test_dragonfly_cache_connector_operations() {
 
 #[tokio::test]
 async fn test_dragonfly_chain_cache_basic() {
-    use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
     use oxcache::backend::MokaMemoryBackend;
+    use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
     let container = DragonflyContainer::start().await.expect("Failed to start Dragonfly");
     container.wait_ready().await.expect("Dragonfly not ready");

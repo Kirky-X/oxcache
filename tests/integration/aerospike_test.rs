@@ -30,9 +30,7 @@ async fn shared_config() -> &'static AerospikeConfig {
 /// 启动 Aerospike 容器并返回配置
 async fn start_container() -> AerospikeConfig {
     // 先清理可能存在的同名容器
-    let _ = Command::new("docker")
-        .args(["rm", "-f", CONTAINER_NAME])
-        .output();
+    let _ = Command::new("docker").args(["rm", "-f", CONTAINER_NAME]).output();
 
     // 启动容器，端口映射 HOST_PORT:3000
     let output = Command::new("docker")
@@ -82,12 +80,8 @@ async fn start_container() -> AerospikeConfig {
         .output();
 
     // 停止并重新启动容器（不用 restart，避免 entrypoint 重新处理模板）
-    let _ = Command::new("docker")
-        .args(["stop", CONTAINER_NAME])
-        .output();
-    let _ = Command::new("docker")
-        .args(["start", CONTAINER_NAME])
-        .output();
+    let _ = Command::new("docker").args(["stop", CONTAINER_NAME]).output();
+    let _ = Command::new("docker").args(["start", CONTAINER_NAME]).output();
 
     // 等待再次就绪
     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -129,10 +123,7 @@ async fn make_backend() -> AerospikeBackend {
             }
         }
     }
-    panic!(
-        "Failed to connect to Aerospike after retries: {}",
-        last_err.unwrap()
-    )
+    panic!("Failed to connect to Aerospike after retries: {}", last_err.unwrap())
 }
 
 // ============================================================================
@@ -151,11 +142,7 @@ async fn test_aerospike_set_get_delete() {
 
     // set
     backend
-        .set(
-            Arc::from("as:key1"),
-            Arc::new(b"value1".to_vec()),
-            None,
-        )
+        .set(Arc::from("as:key1"), Arc::new(b"value1".to_vec()), None)
         .await
         .expect("set failed");
 
@@ -208,19 +195,12 @@ async fn test_aerospike_expire() {
 
     // set without TTL (Never expires)
     backend
-        .set(
-            Arc::from("as:exp_key"),
-            Arc::new(b"exp_value".to_vec()),
-            None,
-        )
+        .set(Arc::from("as:exp_key"), Arc::new(b"exp_value".to_vec()), None)
         .await
         .unwrap();
 
     // expire (set TTL)
-    let result = backend
-        .expire("as:exp_key", Duration::from_secs(60))
-        .await
-        .unwrap();
+    let result = backend.expire("as:exp_key", Duration::from_secs(60)).await.unwrap();
     assert!(result);
 
     // ttl should now be set
@@ -228,10 +208,7 @@ async fn test_aerospike_expire() {
     assert!(ttl.is_some());
 
     // expire nonexistent key
-    let result = backend
-        .expire("as:nonexistent", Duration::from_secs(60))
-        .await
-        .unwrap();
+    let result = backend.expire("as:nonexistent", Duration::from_secs(60)).await.unwrap();
     assert!(!result);
 }
 
@@ -258,10 +235,7 @@ async fn test_aerospike_set_many_delete_many() {
         "as:batch2".to_string(),
         "as:batch3".to_string(),
     ];
-    backend
-        .delete_many(&keys)
-        .await
-        .expect("delete_many failed");
+    backend.delete_many(&keys).await.expect("delete_many failed");
 
     // verify all deleted
     assert!(backend.get("as:batch1").await.unwrap().is_none());
@@ -321,8 +295,5 @@ async fn test_aerospike_chain_cache_basic() {
     assert_eq!(val, Some(b"chain_value".to_vec()));
 
     // Health check
-    chain
-        .health_check()
-        .await
-        .expect("chain health_check failed");
+    chain.health_check().await.expect("chain health_check failed");
 }

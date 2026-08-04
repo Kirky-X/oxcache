@@ -21,9 +21,7 @@
 //! 2. Future interception at `CacheConnector::execute_raw_command()` (if implemented)
 //! 3. User-customizable extension via `with_disabled_commands()`
 
-use crate::backend::interface::{
-    AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter,
-};
+use crate::backend::interface::{AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::memory::redis::RedisBackend;
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::OxCacheResult;
@@ -276,13 +274,17 @@ mod tests {
     /// Set the insecure Redis env var for Dragonfly tests.
     fn set_insecure_env() {
         // SAFETY: Rust 2024 edition — set_var is unsafe; tests are serialized via #[serial]
-        unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); }
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        }
     }
 
     /// Remove the insecure Redis env var after Dragonfly tests.
     fn cleanup_insecure_env() {
         // SAFETY: Rust 2024 edition — remove_var is unsafe; tests are serialized via #[serial]
-        unsafe { std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS"); }
+        unsafe {
+            std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
+        }
     }
 
     async fn make_dragonfly() -> DragonflyBackend {
@@ -330,11 +332,10 @@ mod tests {
         let key = unique_key("df_sg");
 
         // set
-        backend.set(
-            Arc::from(key.as_str()),
-            Arc::new(b"dragonfly_value".to_vec()),
-            None,
-        ).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"dragonfly_value".to_vec()), None)
+            .await
+            .expect("set failed");
 
         // get
         let val = backend.get(&key).await.expect("get failed");
@@ -357,11 +358,14 @@ mod tests {
         let backend = make_dragonfly().await;
         let key = unique_key("df_ttl");
 
-        backend.set(
-            Arc::from(key.as_str()),
-            Arc::new(b"ttl_val".to_vec()),
-            Some(Duration::from_secs(100)),
-        ).await.expect("set with ttl failed");
+        backend
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(b"ttl_val".to_vec()),
+                Some(Duration::from_secs(100)),
+            )
+            .await
+            .expect("set with ttl failed");
 
         let ttl = backend.ttl(&key).await.expect("ttl failed");
         assert!(ttl.is_some());
@@ -380,13 +384,15 @@ mod tests {
         let backend = make_dragonfly().await;
         let key = unique_key("df_exp");
 
-        backend.set(
-            Arc::from(key.as_str()),
-            Arc::new(b"v".to_vec()),
-            None,
-        ).await.expect("set failed");
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .expect("set failed");
 
-        let ok = backend.expire(&key, Duration::from_secs(50)).await.expect("expire failed");
+        let ok = backend
+            .expire(&key, Duration::from_secs(50))
+            .await
+            .expect("expire failed");
         assert!(ok);
 
         backend.delete(&key).await.ok();

@@ -13,11 +13,7 @@ impl RedisBackend {
     ///
     /// Significantly faster than individual SET commands when setting many keys,
     /// as it reduces network round trips from N to 1.
-    pub async fn set_many_pipeline(
-        &self,
-        items: &[(&str, Vec<u8>)],
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<()> {
+    pub async fn set_many_pipeline(&self, items: &[(&str, Vec<u8>)], ttl: Option<Duration>) -> OxCacheResult<()> {
         if items.is_empty() {
             return Ok(());
         }
@@ -41,18 +37,13 @@ impl RedisBackend {
 
         for (key, value) in items {
             if let Some(ttl) = ttl {
-                pipe.cmd("SETEX")
-                    .arg(key)
-                    .arg(ttl.as_secs())
-                    .arg(value.as_slice());
+                pipe.cmd("SETEX").arg(key).arg(ttl.as_secs()).arg(value.as_slice());
             } else {
                 pipe.cmd("SET").arg(key).arg(value.as_slice());
             }
         }
 
-        pipe.query_async::<()>(&mut conn)
-            .await
-            .map_err(map_redis_error)?;
+        pipe.query_async::<()>(&mut conn).await.map_err(map_redis_error)?;
 
         Ok(())
     }
@@ -60,10 +51,7 @@ impl RedisBackend {
     /// Batch get multiple keys using Redis Pipeline.
     ///
     /// Significantly faster than individual GET commands when fetching many keys.
-    pub async fn get_many_pipeline(
-        &self,
-        keys: &[&str],
-    ) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+    pub async fn get_many_pipeline(&self, keys: &[&str]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
         if keys.is_empty() {
             return Ok(vec![]);
         }
@@ -79,10 +67,7 @@ impl RedisBackend {
             pipe.cmd("GET").arg(key);
         }
 
-        let results: Vec<Option<Vec<u8>>> = pipe
-            .query_async(&mut conn)
-            .await
-            .map_err(map_redis_error)?;
+        let results: Vec<Option<Vec<u8>>> = pipe.query_async(&mut conn).await.map_err(map_redis_error)?;
 
         Ok(results)
     }
@@ -106,9 +91,7 @@ impl RedisBackend {
             pipe.cmd("DEL").arg(key);
         }
 
-        pipe.query_async::<()>(&mut conn)
-            .await
-            .map_err(map_redis_error)?;
+        pipe.query_async::<()>(&mut conn).await.map_err(map_redis_error)?;
 
         Ok(())
     }

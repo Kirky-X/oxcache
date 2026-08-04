@@ -4,7 +4,7 @@
 //!
 //! Provides a compile-time message catalog mapping `(locale, message_id)` pairs
 //! to format templates. Templates use `{name}` placeholders substituted at
-//! runtime by [`format_template`].
+//! runtime by `format_template`.
 //!
 //! # Supported locales
 //!
@@ -117,28 +117,48 @@ pub(crate) fn lookup(locale: &str, message_id: &str) -> Option<&'static str> {
 fn catalog_en(id: &str) -> Option<&'static str> {
     match id {
         // OxCacheError
-        MSG_ERR_SERIALIZATION => Some("Serialization error: {detail}. Please check the data format and ensure the serializer is compatible."),
+        MSG_ERR_SERIALIZATION => {
+            Some("Serialization error: {detail}. Please check the data format and ensure the serializer is compatible.")
+        }
         MSG_ERR_OPERATION => Some("Operation failed: {detail}. Please retry or check your request."),
-        MSG_ERR_CONNECTION => Some("Connection error: {detail}. Please check network connectivity and server availability."),
+        MSG_ERR_CONNECTION => {
+            Some("Connection error: {detail}. Please check network connectivity and server availability.")
+        }
         MSG_ERR_NOT_FOUND => Some("Key not found: {detail}. The requested key does not exist in the cache."),
-        MSG_ERR_DEGRADED => Some("Cache degraded: {detail}. The cache is operating in degraded mode with limited functionality."),
-        MSG_ERR_L1 => Some("L1 cache operation failed: {detail}. This may indicate memory pressure or configuration issues."),
+        MSG_ERR_DEGRADED => {
+            Some("Cache degraded: {detail}. The cache is operating in degraded mode with limited functionality.")
+        }
+        MSG_ERR_L1 => {
+            Some("L1 cache operation failed: {detail}. This may indicate memory pressure or configuration issues.")
+        }
         MSG_ERR_L2 => Some("L2 cache operation failed: {detail}. Please check Redis connection and server status."),
-        MSG_ERR_NOT_SUPPORTED => Some("Operation not supported: {detail}. This feature may not be available for the current cache type."),
+        MSG_ERR_NOT_SUPPORTED => {
+            Some("Operation not supported: {detail}. This feature may not be available for the current cache type.")
+        }
         MSG_ERR_WAL => Some("WAL (Write-Ahead Log) operation failed: {detail}. Check disk space and file permissions."),
         MSG_ERR_DATABASE => Some("Database error: {detail}. Please check database connectivity and query syntax."),
         MSG_ERR_REDIS => Some("Redis connection failed: {detail}."),
         MSG_ERR_IO => Some("I/O error: {detail}. Check file permissions and disk space."),
         MSG_ERR_BACKEND => Some("Backend error: {detail}. This may be a transient issue, please retry."),
-        MSG_ERR_TIMEOUT => Some("Operation timed out: {detail}. Consider increasing the timeout value or check system performance."),
+        MSG_ERR_TIMEOUT => {
+            Some("Operation timed out: {detail}. Consider increasing the timeout value or check system performance.")
+        }
         MSG_ERR_SHUTDOWN => Some("Shutdown error: {detail}. Some resources may not have been properly released."),
         MSG_ERR_KEY_TOO_LONG => Some("Key too long: {actual}. Maximum key length is {max} bytes."),
         MSG_ERR_VALUE_TOO_LARGE => Some("Value too large: {actual}. Maximum value size is {max} bytes."),
-        MSG_ERR_BUFFER_FULL => Some("Buffer full: {detail}. The batch write buffer has reached capacity. Please retry later or increase buffer size."),
-        MSG_ERR_INVALID_INPUT => Some("Invalid input: {detail}. The provided input does not meet the required format or constraints."),
-        MSG_ERR_INVALID_KEY => Some("Invalid key: {detail}. The provided key does not meet the required format or contains forbidden characters."),
+        MSG_ERR_BUFFER_FULL => Some(
+            "Buffer full: {detail}. The batch write buffer has reached capacity. Please retry later or increase buffer size.",
+        ),
+        MSG_ERR_INVALID_INPUT => {
+            Some("Invalid input: {detail}. The provided input does not meet the required format or constraints.")
+        }
+        MSG_ERR_INVALID_KEY => Some(
+            "Invalid key: {detail}. The provided key does not meet the required format or contains forbidden characters.",
+        ),
         MSG_ERR_LOCK => Some("Lock error: {detail}. The lock may have been poisoned by a previous panic."),
-        MSG_ERR_SERVICE_NOT_FOUND => Some("Service not found: {detail}. The requested service configuration does not exist in the UnifiedConfig."),
+        MSG_ERR_SERVICE_NOT_FOUND => Some(
+            "Service not found: {detail}. The requested service configuration does not exist in the UnifiedConfig.",
+        ),
         MSG_ERR_INTERNAL => Some("Internal error: {detail}."),
 
         // OxCacheConfigError

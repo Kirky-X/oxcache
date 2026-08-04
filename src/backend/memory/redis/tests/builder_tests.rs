@@ -74,10 +74,7 @@ async fn test_builder_insecure_rejected_without_env() {
 #[serial]
 async fn test_builder_insecure_allowed_with_env() {
     set_allow_insecure_env();
-    let backend = RedisBackend::builder()
-        .connection_string(REDIS_URL)
-        .build()
-        .await;
+    let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
     assert!(backend.is_ok());
 }
 
@@ -86,10 +83,7 @@ async fn test_builder_insecure_allowed_with_env() {
 #[serial]
 async fn test_builder_insecure_allowed_with_dev_value() {
     set_insecure_env("development-only");
-    let backend = RedisBackend::builder()
-        .connection_string(REDIS_URL)
-        .build()
-        .await;
+    let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
     assert!(backend.is_ok());
     set_allow_insecure_env();
 }

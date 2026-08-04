@@ -6,7 +6,10 @@
 // 读取时从高分后端开始，写入时写入所有后端。
 
 use crate::backend::BackendScore;
-use crate::backend::{AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend};
+use crate::backend::{
+    AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
+};
+use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use async_trait::async_trait;
@@ -14,7 +17,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
-use crate::core::EventPublisher;
 
 // Submodules
 mod builder;
@@ -232,10 +234,7 @@ impl ChainCache {
     /// （日志、metrics、告警或忽略）。未配置 publisher 时为零开销 no-op。
     fn emit_backend_error(&self, key: &str, backend: &str, error: &OxCacheError) {
         if let Some(publisher) = &self.event_publisher {
-            let _ = publisher.publish_error(
-                Some(key.to_string()),
-                format!("backend {}: {}", backend, error),
-            );
+            let _ = publisher.publish_error(Some(key.to_string()), format!("backend {}: {}", backend, error));
         }
     }
 
@@ -435,7 +434,7 @@ impl ChainCache {
 
         // 抛出后端写入失败事件
         for (name, e) in &errors {
-            self.emit_backend_error(&key, name, e);
+            self.emit_backend_error(key, name, e);
         }
 
         if errors.len() == self.links.len() {
@@ -776,11 +775,13 @@ impl CacheConnector for ChainCache {
 impl AtomicCacheWriter for ChainCache {
     /// 委托最高分后端的 `AtomicCacheWriter`。无原子后端时返回 `Err(NotSupported)`。
     async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
-        let writer = self.links.first()
+        let writer = self
+            .links
+            .first()
             .and_then(|link| link.backend().as_atomic_writer())
-            .ok_or_else(|| OxCacheError::NotSupported(
-                "incr: no link in chain implements AtomicCacheWriter".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                OxCacheError::NotSupported("incr: no link in chain implements AtomicCacheWriter".to_string())
+            })?;
         writer.incr(key, delta, ttl).await
     }
 
@@ -791,25 +792,26 @@ impl AtomicCacheWriter for ChainCache {
         new: Vec<u8>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
-        let writer = self.links.first()
+        let writer = self
+            .links
+            .first()
             .and_then(|link| link.backend().as_atomic_writer())
-            .ok_or_else(|| OxCacheError::NotSupported(
-                "compare_and_swap: no link in chain implements AtomicCacheWriter".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                OxCacheError::NotSupported(
+                    "compare_and_swap: no link in chain implements AtomicCacheWriter".to_string(),
+                )
+            })?;
         writer.compare_and_swap(key, expected, new, ttl).await
     }
 
-    async fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool> {
-        let writer = self.links.first()
+    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
+        let writer = self
+            .links
+            .first()
             .and_then(|link| link.backend().as_atomic_writer())
-            .ok_or_else(|| OxCacheError::NotSupported(
-                "set_if_absent: no link in chain implements AtomicCacheWriter".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                OxCacheError::NotSupported("set_if_absent: no link in chain implements AtomicCacheWriter".to_string())
+            })?;
         writer.set_if_absent(key, value, ttl).await
     }
 }

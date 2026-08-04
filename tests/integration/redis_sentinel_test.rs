@@ -42,7 +42,9 @@ async fn test_sentinel_connection() {
     }
 
     // 测试连接到 Sentinel 节点
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let urls = get_sentinel_urls();
     for url in &urls {
         let backend = RedisBackend::new(url).await;
@@ -71,7 +73,9 @@ async fn test_sentinel_master_operations() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -114,7 +118,9 @@ async fn test_sentinel_ttl() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -125,7 +131,11 @@ async fn test_sentinel_ttl() {
 
     // 设置带 TTL 的键
     backend
-        .set(Arc::from("sentinel_ttl_key"), Arc::new(b"ttl_value".to_vec()), Some(Duration::from_secs(2)))
+        .set(
+            Arc::from("sentinel_ttl_key"),
+            Arc::new(b"ttl_value".to_vec()),
+            Some(Duration::from_secs(2)),
+        )
         .await
         .unwrap();
 
@@ -162,7 +172,9 @@ async fn test_sentinel_expire() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -173,7 +185,11 @@ async fn test_sentinel_expire() {
 
     // 设置不带 TTL 的键
     backend
-        .set(Arc::from("sentinel_expire_key"), Arc::new(b"expire_value".to_vec()), None)
+        .set(
+            Arc::from("sentinel_expire_key"),
+            Arc::new(b"expire_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -209,7 +225,9 @@ async fn test_sentinel_health_check() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -239,7 +257,9 @@ async fn test_sentinel_stats() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -277,7 +297,9 @@ async fn test_sentinel_many_keys() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -290,7 +312,10 @@ async fn test_sentinel_many_keys() {
     for i in 0..50 {
         let key = format!("sentinel_many_{}", i);
         let value = format!("value_{}", i);
-        backend.set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None).await.unwrap();
+        backend
+            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .await
+            .unwrap();
     }
 
     // 验证所有键
@@ -326,7 +351,9 @@ async fn test_sentinel_large_value() {
 
     let master_url = get_master_url();
 
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS"); };
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {

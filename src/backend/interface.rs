@@ -275,12 +275,7 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
     /// Atomically set a key only if it does not already exist.
     ///
     /// Returns `true` if the key was set, `false` if it already existed.
-    async fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool>;
+    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
 }
 
 // ============================================================================
@@ -483,12 +478,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
     ) -> OxCacheResult<bool>;
 
     /// Atomically set if absent (sync).
-    fn set_if_absent(
-        &self,
-        key: &str,
-        value: Vec<u8>,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<bool>;
+    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
 }
 
 #[cfg(test)]
