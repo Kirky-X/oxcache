@@ -68,10 +68,44 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         if: env.HAS_TOKEN == 'true'
 
+      - name: Get version from tag
+        id: version
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if oxcache_macros already published
+        id: check_macros
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "User-Agent: oxcache-ci" \
+            "https://crates.io/api/v1/crates/oxcache_macros/${{ steps.version.outputs.version }}")
+          if [ "$STATUS" = "200" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "oxcache_macros ${{ steps.version.outputs.version }} already on crates.io, skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if oxcache already published
+        id: check_main
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "User-Agent: oxcache-ci" \
+            "https://crates.io/api/v1/crates/oxcache/${{ steps.version.outputs.version }}")
+          if [ "$STATUS" = "200" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "oxcache ${{ steps.version.outputs.version }} already on crates.io, skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Publish oxcache_macros
-        if: env.HAS_TOKEN == 'true'
+        if: env.HAS_TOKEN == 'true' && steps.check_macros.outputs.skip != 'true'
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --manifest-path macros/Cargo.toml
 
       - name: Publish oxcache
-        if: env.HAS_TOKEN == 'true'
+        if: env.HAS_TOKEN == 'true' && steps.check_main.outputs.skip != 'true'
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --features full
