@@ -14,9 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
-// tracing::instrument 仅在 tracing/full feature 下可用
-#[cfg(any(feature = "tracing", feature = "full"))]
-use tracing::instrument;
+use crate::core::EventPublisher;
 
 // Submodules
 mod builder;
@@ -188,6 +186,8 @@ pub struct ChainCache {
     /// 懒缓存的 sync backend 收集结果（问题 4.4）：
     /// 链构建后 links 不可变，首次收集后复用，避免每次 sync 调用重复 clone 所有 Arc。
     sync_backends: OnceLock<Option<Vec<Arc<dyn SyncCacheBackend>>>>,
+    /// 事件发布器（可选），用于抛出后端错误事件而非日志输出
+    event_publisher: Option<Arc<dyn EventPublisher>>,
 }
 
 impl ChainCache {
@@ -226,6 +226,19 @@ impl ChainCache {
         self.links.first()
     }
 
+    /// 抛出后端错误事件（不中断流程）
+    ///
+    /// 通过 `EventPublisher` 发射后端操作失败事件，调用方自行决定处理方式
+    /// （日志、metrics、告警或忽略）。未配置 publisher 时为零开销 no-op。
+    fn emit_backend_error(&self, key: &str, backend: &str, error: &OxCacheError) {
+        if let Some(publisher) = &self.event_publisher {
+            let _ = publisher.publish_error(
+                Some(key.to_string()),
+                format!("backend {}: {}", backend, error),
+            );
+        }
+    }
+
     /// 获取最低分后端
     pub fn lowest_score_backend(&self) -> Option<&ChainLink> {
         self.links.last()
@@ -235,7 +248,6 @@ impl ChainCache {
     ///
     /// key/value 在 `CacheWriter::set` trait 层以 `Arc` 共享所有权（问题 2.2 / 2.3），
     /// 本方法作为用户入口保持 `&str` / `Vec<u8>` 签名，仅做一次 Arc 装箱。
-    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self, value), fields(key = %key)))]
     pub async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
         let key = Arc::from(key);
         let value = Arc::new(value);
@@ -257,7 +269,6 @@ impl ChainCache {
     /// 单个后端失败时记录 warn 日志（问题 5.1），并继续尝试下一个后端（L1 失败降级到 L2）。
     /// 若启用了竞速读（race_read），则并发查询所有后端并返回最先命中者。
     /// 所有后端都失败时返回 `Err`（与竞速读语义一致）。
-    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         if self.race_read_enabled {
             return self.race_read_from_chain(key).await;
@@ -286,13 +297,7 @@ impl ChainCache {
                     continue;
                 }
                 Err(e) => {
-                    #[cfg(any(feature = "tracing", feature = "full"))]
-                    tracing::warn!(
-                        key = %key,
-                        backend = %link.name(),
-                        error = %e,
-                        "cache read backend failed; degrading to next backend"
-                    );
+                    self.emit_backend_error(key, link.name(), &e);
                     last_err = Some(e);
                     continue;
                 }
@@ -315,7 +320,6 @@ impl ChainCache {
     /// 适用于 L1/L2 延迟差异小但可用性要求高的场景。最先返回命中值的后端
     /// 获胜；若全部未命中则返回 `None`；若全部失败则返回 `Err`。命中时若有
     /// 回填开启，异步回填到更高分后端。
-    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn race_read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         if self.links.is_empty() {
             return Ok(None);
@@ -336,13 +340,7 @@ impl ChainCache {
                 Ok((index, Ok(Some(value)))) => hits.push((index, value)),
                 Ok((_index, Ok(None))) => {}
                 Ok((index, Err(e))) => {
-                    #[cfg(any(feature = "tracing", feature = "full"))]
-                    tracing::warn!(
-                        key = %key,
-                        backend = %self.links[index].name(),
-                        error = %e,
-                        "cache race-read backend failed"
-                    );
+                    self.emit_backend_error(key, self.links[index].name(), &e);
                     errs.push((self.links[index].name(), e));
                 }
                 Err(e) => errs.push(("unknown", OxCacheError::Operation(e.to_string()))),
@@ -383,23 +381,13 @@ impl ChainCache {
     ) {
         for link in &self.links[..from_index] {
             let backend = link.backend().clone();
-            #[cfg(any(feature = "tracing", feature = "full"))]
-            let name = link.name();
             match backend.set(key.clone(), value.clone(), ttl).await {
                 Ok(()) => {
                     GLOBAL_UNIFIED_METRICS.record_backfill_success();
                 }
                 Err(e) => {
                     GLOBAL_UNIFIED_METRICS.record_backfill_failed();
-                    #[cfg(any(feature = "tracing", feature = "full"))]
-                    tracing::warn!(
-                        key = %key,
-                        backend = %name,
-                        error = %e,
-                        "backfill to higher backend failed"
-                    );
-                    #[cfg(not(any(feature = "tracing", feature = "full")))]
-                    let _ = e;
+                    self.emit_backend_error(&key, link.name(), &e);
                 }
             }
         }
@@ -411,7 +399,6 @@ impl ChainCache {
     ///
     /// 并发写入所有后端（JoinSet），写入延迟从 O(Σbackend) 降至 O(max(backend))（问题 4.3）。
     /// key/value 以 `Arc` 共享所有权传入，各后端 `Arc::clone` 零拷贝（问题 2.2 / 2.3）。
-    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self, value), fields(key = %key)))]
     async fn write_to_all_backends(
         &self,
         key: &Arc<str>,
@@ -446,15 +433,9 @@ impl ChainCache {
             }
         }
 
-        // 记录单个后端失败（问题 5.1）
-        #[cfg(any(feature = "tracing", feature = "full"))]
+        // 抛出后端写入失败事件
         for (name, e) in &errors {
-            tracing::warn!(
-                key = %key,
-                backend = %name,
-                error = %e,
-                "cache write backend failed"
-            );
+            self.emit_backend_error(&key, name, e);
         }
 
         if errors.len() == self.links.len() {
@@ -469,7 +450,6 @@ impl ChainCache {
     /// 使用 JoinSet 并发执行，延迟从 O(Σbackend) 降至 O(max(backend))，
     /// 与 `write_to_all_backends()` 语义对称。部分后端失败时记录 warn 日志，
     /// 仅当所有后端都失败才返回 Err。
-    #[cfg_attr(any(feature = "tracing", feature = "full"), instrument(skip(self), fields(key = %key)))]
     async fn delete_from_all_backends(&self, key: &str) -> OxCacheResult<()> {
         let count = self.links.len();
 
@@ -490,13 +470,7 @@ impl ChainCache {
             match joined {
                 Ok((_name, Ok(()))) => {}
                 Ok((name, Err(e))) => {
-                    #[cfg(any(feature = "tracing", feature = "full"))]
-                    tracing::warn!(
-                        key = %key,
-                        backend = %name,
-                        error = %e,
-                        "cache delete backend failed"
-                    );
+                    self.emit_backend_error(key, name, &e);
                     errors.push((name, e));
                 }
                 Err(e) => errors.push(("unknown", OxCacheError::Operation(e.to_string()))),

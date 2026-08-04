@@ -58,11 +58,6 @@ version = "2.2"
 [dependencies.writeable]
 version = "0.6"
 
-# Tracing for logging and instrumentation
-[dependencies.tracing]
-version = "0.1"
-optional = true
-
 # ============================================================================
 # L1 CACHE DEPENDENCIES (Memory Cache)
 # ============================================================================
@@ -170,7 +165,6 @@ default = ["minimal"]
 minimal = [
     "memory",
     "tokio/time",
-    "tracing",
     "metrics",
     "serialization",
     "dep:chrono",
@@ -227,15 +221,14 @@ serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
 flate2 = ["dep:flate2"]
 compression = ["dep:flate2", "flate2"]
 
-# Tracing support
-tracing = ["dep:tracing"]
+# Tracing support (deprecated: tracing removed, feature kept for backward compatibility)
+tracing = []
 
 # Metrics & Observability (内置实现，无需外部 otel crate)
 # metrics 代码使用 serde/serde_json 进行 JSON 导出，需 serialization feature
 metrics = [
     "serialization",
     "dep:chrono",
-    "dep:tracing",
     "dep:dashmap",
 ]
 
@@ -246,7 +239,7 @@ batch-write = []
 lua-script = ["redis"]
 
 # CLI tools
-cli = ["dep:dashmap", "dep:tracing", "metrics"]
+cli = ["dep:dashmap", "metrics"]
 
 # Testing support (exposes internal functions)
 testing = []
