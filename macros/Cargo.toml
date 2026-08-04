@@ -1,10 +1,10 @@
 [package]
 name = "oxcache_macros"
-version = "0.4.1"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Procedural macros for oxcache"
-license = "MIT"
-repository = "https://github.com/Kirky-X/oxcache"
+license.workspace = true
+repository.workspace = true
 
 [lib]
 proc-macro = true
