@@ -18,6 +18,13 @@
 
 - `trait-kit` 依赖升级 `0.3` → `0.4`（kit feature 用户需同步升级 trait-kit 到 0.4）。
 
+### 维护
+
+- **Workspace 继承**：启用 Cargo workspace inheritance，`version`/`edition`/`authors`/`license`/`repository` 统一在 `[workspace.package]` 定义，子 crate 使用 `.workspace = true` 继承。
+- **Edition 统一**：所有 crate（root/macros/examples）统一使用 Rust 2024 edition。
+- **Cargo.toml 重构**：`[workspace]` 相关定义移至 `[lib]` 之后，结构更清晰。
+- **依赖更新**：tokio `1.52` → `1.53`，uuid `1.23` → `1.24`。
+
 ### 测试
 
 - 新增 4 个 trait-kit 集成测试：健康检查（kit 集成 + 直接调用）、生命周期（on_shutdown + 完整 kit 集成）。
