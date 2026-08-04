@@ -10,9 +10,32 @@
 ### ⚠️ 破坏性变更
 
 - **移除 `tracing` 日志框架**：`src/` 和 `macros/` 完全移除 `tracing` 依赖。`ChainCache` 中 5 处 `tracing::warn!` 替换为 `EventPublisher` 事件发射（通过 `ChainCacheBuilder::event_publisher()` 配置）；`#[instrument]` 属性、tracing span、`secure_info!`/`secure_debug!` 宏全部移除。`macros` crate 生成代码中 6 处 `::tracing::warn!` 改为静默降级（反序列化失败回退、序列化/写入失败忽略），用户 crate 不再需要依赖 `tracing`。`tracing` feature 保留为空（向后兼容）。`EventPublisher` trait 改为 dyn-compatible：方法签名从 `impl Into<String>` 改为具体 `String` 类型，支持 `Arc<dyn EventPublisher>`。
+- **i18n 重构**：移除 `thiserror` 依赖，错误类型改为手动实现 `Display` + 系统语言自动检测。下游依赖 `thiserror` 的代码需适配。
+
+### 新增
+
+- **Valkey 后端**：新增 `ValkeyBackend`，支持 Redis 兼容的 Valkey 分布式缓存（BSD-3 许可）。
+- **Dragonfly 后端**：新增 `DragonflyBackend`，支持 Dragonfly 分布式缓存（BSL 1.1 许可）。
+- **Aerospike 迁移**：Aerospike 后端从独立子 crate 迁移为 feature-gated 模块（`aerospike` feature），统一纳入主 crate。
+- **AtomicCacheWriter**：新增 `AtomicCacheWriter` trait 和 `Cache` atomic API，支持原子写入操作。
+- **i18n**：错误消息本地化，`Display` 实现支持系统语言自动检测。
+- `BackendKind` 枚举扩展：新增 `Valkey`、`Dragonfly`、`Aerospike` 变体。
+- `try_generate_full` 键生成验证方法。
+- 6 个新 DashMap 淘汰测试、4 个新分片单飞测试、5 个新 ChainCache 降级测试、3 个新 MockBackend 故障注入测试，更新了 DashMap e2e 测试。
+- 新基准测试：`serialization_benchmark`（JSON 纯/压缩 序列化+反序列化）和 `dashmap_benchmark`（满容量 set/get 及 FIFO 淘汰）。
+- `ChainCacheBuilder::enable_race_read()` / `disable_race_read()`（并发首次命中读取）。
+- `BytesCache` 类型别名，重导出在 `oxcache::BytesCache`。
+- 回归测试：`current_thread` tokio 运行时内的同步操作（P2 3.2）。
+- `CacheBuilder::build_sync()`：同步构建路径（完全同步，无需运行时）。`build()` 现在为 `async` 但不包含 `.await`；两者委托到相同的非异步构建逻辑。
 
 ### 修复
 
+- **安全漏洞修复 (S1-S5)**：修复 5 个安全漏洞，涵盖输入校验、资源限制和边界条件。
+- **核心逻辑修复 (L1/L2/L5/L6/L7/S6)**：修复多个核心逻辑错误，包括边界条件、类型转换和状态管理。
+- **Lua 脚本修复**：修复 ARGV 索引偏移、`delta_arg` 悬垂引用和 `clear()` 重试逻辑。
+- **Bloom filter / 序列化修复**：修正逻辑错误与安全限制。
+- **Metrics 修复**：修正指标计算溢出与默认值错误。
+- **配置验证优化**：配置验证逻辑增强，类型序列化 feature gate 修复。
 - **[P0 R-002]** `DashMapMemoryBackend` 现在具有 FIFO O(1) 淘汰策略。此前后端在超过容量后无限增长；现在超容量写入批量淘汰最旧条目（`capacity / 10`，至少 1 条），使用 `seq` 检查的原子 `remove_if` 防止并发重设竞争，且 FIFO 队列在过期条目累积时自压缩（4 倍增长阈值）。无 TTL 的条目现在可被淘汰。
 - **[P1 3.1]** `get_or` / `get_or_sync` 单飞注册表现在分片为 64 个哈希桶（`DefaultHasher`），消除并发下的跨键 `Mutex` 竞争。
 - **[P1 4.3/5.1, P2 4.2/5.2]** `ChainCache` 现在并发写入所有链接（`JoinSet`），容忍单链接写入失败（仅在*所有*后端都失败时报错），在后端错误时读取降级穿透到下一链接，异步执行回填（fire-and-forget `tokio::spawn`），并发健康检查每个后端 5 秒超时。
@@ -31,20 +54,29 @@
 - **[P2 2.2/2.3]** `CacheWriter::set`/`SyncCacheWriter::set` 和 `set_many` 现在接收 `Arc<str>` 键和 `Arc<Vec<u8>>` 值。内存后端（Moka/DashMap）直接存储 `Arc`；`ChainCache` 在所有链接间共享一个 `Arc` 分配（每个后端 `Arc::clone`，零堆拷贝）；公共 `ChainCache::set(&str, Vec<u8>, ttl)` 和 `Cache::set(&K, &V)` API 保持签名不变，一次性装箱为 `Arc`。
 - **[P3 4.4]** `ChainCache` 将收集的 `Arc<dyn SyncCacheBackend>` 列表缓存在 `OnceLock` 中（链接在构建后不可变），因此 `get_sync`/`set_sync`/`delete_sync` 不再每次调用时重新收集和重新克隆每个 `Arc`。
 - **[P3 6.2]** 新增非泛型 `BytesCache` 类型别名（`Cache<String, Vec<u8>>`）用于字节级操作，在 crate 根重导出。
+- **Redis client 拆分**：单文件 `client.rs` 拆分为子模块结构，提升可维护性。
+- **chain.rs 模块化**：`chain.rs` 拆分为 `chain/` 目录模块（`mod.rs` + `builder.rs`）。
 
-### 新增
+### 性能
 
-- 6 个新 DashMap 淘汰测试、4 个新分片单飞测试、5 个新 ChainCache 降级测试、3 个新 MockBackend 故障注入测试，更新了 DashMap e2e 测试。
-- 新基准测试：`serialization_benchmark`（JSON 纯/压缩 序列化+反序列化）和 `dashmap_benchmark`（满容量 set/get 及 FIFO 淘汰）。
-- `ChainCacheBuilder::enable_race_read()` / `disable_race_read()`（并发首次命中读取）。
-- `BytesCache` 类型别名，重导出在 `oxcache::BytesCache`。
-- 回归测试：`current_thread` tokio 运行时内的同步操作（P2 3.2）。
-- `CacheBuilder::build_sync()`：同步构建路径（完全同步，无需运行时）。`build()` 现在为 `async` 但不包含 `.await`；两者委托到相同的非异步构建逻辑。
+- 消除不必要的堆分配与哈希探测，减少热路径上的内存分配开销。
 
 ### 维护
 
+- **依赖更新**：redis 1.2→1.5, serial_test 3.5→4.0, syn 2.0→3.0。
+- **Workspace 重组**：macros 加入 workspace members，examples 继承 workspace 依赖，版本号同步至 0.4.0。
 - 清理 `confers` 死引用：移除 `lib.rs`、`kit/module.rs` 中过时注释和 `validate.sh` 中不存在的 `core,confers` feature 组合。
 - 修正 `trait-kit` 版本号注释（`0.2.2` → `0.3`），同步更新 `kit/mod.rs` 中 capability 类型描述（`UnifiedCache` → `CacheBackend`）。
+- 删除未使用的脚本文件，rustfmt 全量格式化应用。
+
+### 测试
+
+- backend/cache/registry 模块覆盖率提升。
+- Docker 集群/哨兵测试基础设施重构。
+- 内存测试脚本重写为 `cargo test` 驱动。
+- 修复 Redis 兼容性测试未执行问题。
+- 修复 2 个已知失败的测试断言。
+- 修复 6 个 rustdoc 警告。
 
 
 ## [0.3.12] - 2026-07-22
