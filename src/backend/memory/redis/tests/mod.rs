@@ -32,7 +32,8 @@ pub(crate) fn unique_key(suffix: &str) -> String {
 
 /// Set `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`.
 ///
-/// SAFETY: All callers are serialized via `#[serial]`; no concurrent `set_var`.
+/// Note: Tests that remove this env var use `#[serial]` to avoid races.
+/// Setting the same value from multiple threads is safe (idempotent).
 /// nosem: rust.lang.security.unsafe-usage.unsafe-usage
 pub(crate) fn set_allow_insecure_env() {
     set_insecure_env("I_UNDERSTAND_THE_RISKS");
@@ -40,20 +41,18 @@ pub(crate) fn set_allow_insecure_env() {
 
 /// Set `OXCACHE_ALLOW_INSECURE_REDIS=<value>` (parameterized).
 ///
-/// Note: Callers are serialized via `#[serial]` to avoid env var races.
+/// Note: Tests that mutate this env var use `#[serial]` where needed.
 pub(crate) fn set_insecure_env(value: &str) {
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", value);
-    }
+    // SAFETY: Rust 2024 edition — set_var is unsafe; idempotent sets need no serialisation
+    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", value); }
 }
 
 /// Remove `OXCACHE_ALLOW_INSECURE_REDIS` env var.
 ///
-/// Note: Callers are serialized via `#[serial]` to avoid env var races.
+/// Note: All callers use `#[serial]` to avoid concurrent remove/set races.
 pub(crate) fn remove_allow_insecure_env() {
-    unsafe {
-        std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS");
-    }
+    // SAFETY: Rust 2024 edition — remove_var is unsafe; callers serialize via #[serial]
+    unsafe { std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS"); }
 }
 
 /// Create a RedisBackend for testing (allows insecure connection)
@@ -61,7 +60,7 @@ pub(crate) async fn make_backend() -> RedisBackend {
     set_allow_insecure_env();
     RedisBackend::new(REDIS_URL)
         .await
-        .expect("Failed to connect to Redis")
+        .unwrap_or_else(|e| panic!("Redis connection failed ({}): {}", REDIS_URL, e))
 }
 
 /// Create a RedisBackend connected to a specific URL
@@ -70,10 +69,12 @@ pub(crate) async fn make_backend_with_url(url: &str) -> RedisBackend {
     set_allow_insecure_env();
     RedisBackend::new(url)
         .await
-        .expect("Failed to connect to Redis")
+        .unwrap_or_else(|e| panic!("Redis connection failed ({}): {}", url, e))
 }
 
 /// Clean up a test key
 pub(crate) async fn cleanup(backend: &RedisBackend, key: &str) {
+    // Intentionally discard errors — test teardown should not fail the test
+    #[allow(let_underscore_drop)]
     let _ = backend.delete(key).await;
 }
