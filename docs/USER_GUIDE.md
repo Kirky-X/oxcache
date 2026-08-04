@@ -81,7 +81,7 @@ L1 内存 + L2 分布式
 - **🔗 链式多层缓存**：`ChainCache` 按后端分数排序读写，支持回填（backfill）
 - **⚡ 同步 API**：`sync_mode(true)` 启用 `get_sync`/`set_sync` 等同步方法
 - **🛡️ 安全内置**：键/Lua/SCAN 校验、TLS 强制、敏感信息脱敏
-- **📊 可观测性**：内置指标、tracing 结构化日志
+- **📊 可观测性**：内置指标、EventPublisher 事件发射
 
 > 💡 **提示**: 本指南假设你具备基本的 Rust 知识。如果你是 Rust
 > 新手，建议先阅读 [Rust 官方教程](https://doc.rust-lang.org/book/)。
@@ -168,7 +168,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
 | `lua-script` | `redis` | Lua 脚本执行 |
-| `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面工具 |
+| `cli` | `metrics`, `dashmap` | 命令行界面工具 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
 | `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（**不含** `bloom-filter`、`kit`） |
 
@@ -590,20 +590,26 @@ let json = export_json_format();
 
 更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。
 
-### 分布式追踪
+### 事件发射（EventPublisher）
 
-oxcache 使用 `tracing` crate 做结构化日志与插桩。启用 `tracing` 特性后，
-`get`/`set`/`delete`/`ttl`/`expire` 等操作会自动附加 tracing span：
+oxcache 通过 `EventPublisher` trait 提供结构化事件发射机制。
+`ChainCache` 后端操作失败时通过配置的 `EventPublisher` 抛出事件，
+用户可自行决定处理方式（日志、metrics、告警或忽略）：
 
 ```rust
-use tracing::{info, warn, error};
+use oxcache::core::EventPublisher;
+use std::sync::Arc;
 
-info!("Cache initialized");
-warn!("Redis connection lost, operating in L1-only mode");
-error!("Failed to write to cache: {}", err);
+struct MyPublisher;
+impl EventPublisher for MyPublisher { /* ... */ }
+
+let chain = ChainCache::builder()
+    .link(ChainLink::from_backend(l1))
+    .event_publisher(Arc::new(MyPublisher))
+    .build();
 ```
 
-启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `tracing` + `chrono` + `dashmap`），
+启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `chrono` + `dashmap`），
 不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理。
 
 ### 优雅关闭
