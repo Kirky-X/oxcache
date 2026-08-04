@@ -170,7 +170,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 | `lua-script` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap`, `tracing` | 命令行界面工具 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing` | 全部功能（**不含** `bloom-filter`、`kit`） |
+| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（**不含** `bloom-filter`、`kit`） |
 
 如果需要最小依赖或自定义特性：
 
@@ -362,7 +362,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 ```
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
-可选参数还有 `key_prefix`（键前缀）和 `sync`（使用同步代码路径，要求 `sync_mode(true)` 且函数非 `async`）。
+可选参数还有 `key_prefix`（键前缀）、`sync`（使用同步代码路径，要求 `sync_mode(true)` 且函数非 `async`）和 `skip_cache_write`（跳过 Ok 结果的缓存写入）。
 
 ### 手动控制缓存
 
@@ -564,7 +564,7 @@ use oxcache::backend::{RedisBackend, RedisMode};
 
 let backend = RedisBackend::builder()
     .connection_string("rediss://127.0.0.1:6379")
-    .mode(RedisMode::Standalone)  // 或 Sentinel / Cluster
+    .mode(RedisMode::Standalone)  // 或 Sentinel / Cluster / ValkeyStandalone
     .build()
     .await?;
 ```
