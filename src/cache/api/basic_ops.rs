@@ -503,10 +503,30 @@ where
             removed: false,
         };
 
+        self.run_sync_fallback(key, &key_str, shard_index, &flight, fallback, &mut guard)
+    }
+
+    /// Execute the fallback as the single-flight leader and notify followers.
+    ///
+    /// Re-checks the cache after acquiring leadership (another leader may have
+    /// just finished), runs the fallback, caches the result, and always wakes
+    /// followers via `finish_sync_flight` before propagating success or error.
+    fn run_sync_fallback<F>(
+        &self,
+        key: &K,
+        key_str: &str,
+        shard_index: usize,
+        flight: &SyncFlight,
+        fallback: F,
+        guard: &mut GetOrSyncGuard,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> OxCacheResult<V>,
+    {
         // Double-check cache after acquiring leadership (another leader may
         // have just finished and cached the value)
         if let Some(value) = self.get_sync(key)? {
-            Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+            Self::finish_sync_flight(shard_index, key_str, flight, guard);
             return Ok(value);
         }
 
@@ -515,14 +535,14 @@ where
             Ok(value) => {
                 if let Err(e) = self.set_sync(key, &value) {
                     // Caching failed — still wake followers before propagating
-                    Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                    Self::finish_sync_flight(shard_index, key_str, flight, guard);
                     return Err(e);
                 }
-                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                Self::finish_sync_flight(shard_index, key_str, flight, guard);
                 Ok(value)
             }
             Err(e) => {
-                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                Self::finish_sync_flight(shard_index, key_str, flight, guard);
                 Err(e)
             }
         }
