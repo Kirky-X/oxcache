@@ -69,10 +69,14 @@ const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
 /// 路径遍历检测模式表
 #[cfg(feature = "redis")]
 const PATH_TRAVERSAL_PATTERNS: &[&str] = &[
-    "../", "..\\",
-    "%2e%2e", "%252e%252e",
-    "..%2f", "..%5c",
-    "%2e%2e%2f", "%2e%2e%5c",
+    "../",
+    "..\\",
+    "%2e%2e",
+    "%252e%252e",
+    "..%2f",
+    "..%5c",
+    "%2e%2e%2f",
+    "%2e%2e%5c",
 ];
 
 /// 命令注入检测字符集

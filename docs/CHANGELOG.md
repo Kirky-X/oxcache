@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [0.4.2] - 2026-08-05
+
+### 维护
+
+- **死代码清理**：移除 `utils::validate_cache_key` 重复实现，统一使用 `infra::validate_cache_key`（委托 `KeyGenerator::validate_key`）。
+- **`glob_match` 迭代化**：从递归回溯重写为双指针迭代算法，消除多 `*` 模式下的指数级最坏情况，保证 O(m·n) 时间复杂度。
+- **复杂度降低**：
+  - `glob_to_regex`：提取 `increment_wildcard` 辅助函数，消除 3 处重复的通配符计数检查。
+  - `validate_redis_key`：提取 `check_control_characters`、`check_sql_injection`、`check_path_traversal`、`check_command_injection` 子函数，模式表提升为模块级常量。
+  - `preprocess_lua_script`：提取 `skip_lua_comment`、`try_skip_long_string` 子函数，合并引号处理分支。
+- **代码去重**：`glob_match` 从 `mock/backend.rs` 和 `moka/backend.rs` 提取到 `backend::interface` 模块统一实现。
+- **`run_sync_fallback` 提取**：从 `basic_ops.rs` 同步回退逻辑中提取为独立方法，降低主函数复杂度。
+
+### 测试
+
+- 新增 `preprocess_lua_script` 边界测试（空脚本、纯注释、纯长字符串、混合内容）。
+- 新增 `scan_quoted_string` 边界测试（空字符串、转义字符、Unicode、嵌套引号）。
+
 ## [0.4.1] - 2026-08-04
 
 ### 新增

@@ -23,7 +23,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.2"
 edition = "2024"
 authors = ["Kirky.X"]
 license = "MIT"
