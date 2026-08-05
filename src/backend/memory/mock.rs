@@ -177,7 +177,11 @@ impl crate::backend::CacheReader for MockBackend {
         }
 
         // Pattern 匹配（在清理后执行）
-        let matched: Vec<String> = data.keys().filter(|k| simple_glob(pattern, k)).cloned().collect();
+        let matched: Vec<String> = data
+            .keys()
+            .filter(|k| crate::backend::interface::glob_match(pattern, k))
+            .cloned()
+            .collect();
 
         Ok(matched)
     }
@@ -246,46 +250,6 @@ impl crate::backend::CacheConnector for MockBackend {
 }
 
 // CacheBackend is automatically implemented via blanket implementation
-
-/// Simple glob matching: `*` = any chars, `?` = single char.
-/// Uses char-based iteration to safely handle multi-byte UTF-8 strings.
-fn simple_glob(pattern: &str, text: &str) -> bool {
-    let mut p = pattern.chars().peekable();
-    let mut t = text.chars().peekable();
-    while let Some(pc) = p.peek() {
-        match pc {
-            '*' => {
-                p.next();
-                if p.peek().is_none() {
-                    return true;
-                }
-                let rem_p: String = p.collect();
-                // Collect remaining text chars into a Vec to allow safe indexing
-                let rem_t_chars: Vec<char> = t.collect();
-                for start in 0..=rem_t_chars.len() {
-                    let rem_t: String = rem_t_chars[start..].iter().collect();
-                    if simple_glob(&rem_p, &rem_t) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            '?' => {
-                if t.next().is_none() {
-                    return false;
-                }
-                p.next();
-            }
-            _ => match t.next() {
-                Some(tc) if tc == *pc => {
-                    p.next();
-                }
-                _ => return false,
-            },
-        }
-    }
-    t.peek().is_none()
-}
 
 #[cfg(test)]
 #[async_trait::async_trait]
@@ -651,58 +615,6 @@ mod mock_tests {
         // 内部 HashMap 中 "k" 应已删除
         let data = backend.data.read().await;
         assert!(!data.contains_key("k"), "expired entry should be lazily removed");
-    }
-
-    // ========================================================================
-    // simple_glob unit tests
-    // ========================================================================
-
-    #[test]
-    fn test_simple_glob_exact_match() {
-        assert!(simple_glob("hello", "hello"));
-        assert!(!simple_glob("hello", "world"));
-        assert!(!simple_glob("hello", "hell"));
-        assert!(!simple_glob("hell", "hello"));
-    }
-
-    #[test]
-    fn test_simple_glob_star_matches_any() {
-        assert!(simple_glob("*", ""));
-        assert!(simple_glob("*", "anything"));
-        assert!(simple_glob("hello*", "hello"));
-        assert!(simple_glob("hello*", "helloworld"));
-        assert!(simple_glob("*world", "helloworld"));
-        assert!(simple_glob("he*ld", "helloworld"));
-        assert!(!simple_glob("he*ld", "hello"));
-    }
-
-    #[test]
-    fn test_simple_glob_question_mark() {
-        assert!(simple_glob("h?llo", "hello"));
-        assert!(simple_glob("?????", "hello"));
-        assert!(!simple_glob("????", "hello"));
-        assert!(!simple_glob("??????", "hello"));
-        assert!(simple_glob("h?llo", "hallo"));
-        assert!(!simple_glob("?", ""));
-    }
-
-    #[test]
-    fn test_simple_glob_combined_patterns() {
-        assert!(simple_glob("h*o", "hello"));
-        assert!(simple_glob("h*o", "ho"));
-        assert!(simple_glob("h?l*w", "hellow"));
-        assert!(simple_glob("*?*", "a"));
-        assert!(!simple_glob("*?*", ""));
-        assert!(simple_glob("a*b*c", "abc"));
-        assert!(simple_glob("a*b*c", "aXbYc"));
-        assert!(!simple_glob("a*b*c", "aXbY"));
-    }
-
-    #[test]
-    fn test_simple_glob_empty() {
-        assert!(simple_glob("", ""));
-        assert!(!simple_glob("", "a"));
-        assert!(simple_glob("*", ""));
     }
 
     // ========================================================================
