@@ -66,45 +66,50 @@ impl BackendKind {
 ///
 /// Used by backends implementing `CacheReader::keys` / `SyncCacheReader::keys`
 /// for in-memory key listing. Cache keys may contain `/` (see
-/// `crate::utils::validate_cache_key`), so `*` deliberately matches across
+/// `crate::infra::validate_cache_key`), so `*` deliberately matches across
 /// path separators — unlike `security::glob_to_regex` whose `*` is `[^/]*`.
 ///
-/// Uses char-based iteration to safely handle multi-byte UTF-8 strings.
+/// Uses an iterative two-pointer algorithm: on mismatch, backtrack to the
+/// last `*` and advance the text position. Time O(m·n), space O(m+n).
 pub fn glob_match(pattern: &str, text: &str) -> bool {
-    let mut p = pattern.chars().peekable();
-    let mut t = text.chars().peekable();
-    while let Some(pc) = p.peek() {
-        match pc {
-            '*' => {
-                p.next();
-                if p.peek().is_none() {
-                    return true;
-                }
-                let rem_p: String = p.collect();
-                let rem_t_chars: Vec<char> = t.collect();
-                for start in 0..=rem_t_chars.len() {
-                    let rem_t: String = rem_t_chars[start..].iter().collect();
-                    if glob_match(&rem_p, &rem_t) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            '?' => {
-                if t.next().is_none() {
-                    return false;
-                }
-                p.next();
-            }
-            _ => match t.next() {
-                Some(tc) if tc == *pc => {
-                    p.next();
-                }
-                _ => return false,
-            },
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    let (m, n) = (p.len(), t.len());
+
+    let mut pi = 0;
+    let mut ti = 0;
+    let mut star_pi: Option<usize> = None;
+    let mut star_ti: usize = 0;
+
+    while ti < n {
+        if pi < m && p[pi] == '?' {
+            // '?' matches any single character
+            pi += 1;
+            ti += 1;
+        } else if pi < m && p[pi] == '*' {
+            // Record last '*' position; try matching zero chars first
+            star_pi = Some(pi);
+            star_ti = ti;
+            pi += 1;
+        } else if pi < m && p[pi] == t[ti] {
+            pi += 1;
+            ti += 1;
+        } else if let Some(sp) = star_pi {
+            // Mismatch: backtrack to last '*', advance text by one
+            pi = sp + 1;
+            star_ti += 1;
+            ti = star_ti;
+        } else {
+            return false;
         }
     }
-    t.peek().is_none()
+
+    // Consume trailing '*'s in pattern
+    while pi < m && p[pi] == '*' {
+        pi += 1;
+    }
+
+    pi == m
 }
 
 // ============================================================================
