@@ -371,46 +371,6 @@ impl BackendScore for MokaMemoryBackend {
 // AtomicCacheWriter Implementation
 // ============================================================================
 
-/// Simple glob pattern matching: supports `*` (any chars) and `?` (single char).
-fn glob_matches(pattern: &str, text: &str) -> bool {
-    let mut p = pattern.chars().peekable();
-    let mut t = text.chars().peekable();
-
-    while let Some(pc) = p.peek() {
-        match pc {
-            '*' => {
-                p.next();
-                // Trailing '*' matches everything
-                if p.peek().is_none() {
-                    return true;
-                }
-                // Try matching rest of pattern at every position
-                let remaining_pattern: String = p.collect();
-                let remaining_text: String = t.collect();
-                for i in 0..=remaining_text.len() {
-                    if glob_matches(&remaining_pattern, &remaining_text[i..]) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            '?' => {
-                if t.next().is_none() {
-                    return false;
-                }
-                p.next();
-            }
-            _ => match t.next() {
-                Some(tc) if tc == *pc => {
-                    p.next();
-                }
-                _ => return false,
-            },
-        }
-    }
-    t.peek().is_none()
-}
-
 #[async_trait]
 impl AtomicCacheWriter for MokaMemoryBackend {
     async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
@@ -546,7 +506,7 @@ impl MokaMemoryBackend {
         let mut keys = Vec::new();
         for (key_arc, _entry) in self.cache.iter() {
             let key_str: &str = key_arc.as_ref();
-            if glob_matches(pattern, key_str) {
+            if crate::backend::interface::glob_match(pattern, key_str) {
                 keys.push(key_str.to_string());
             }
         }
@@ -993,55 +953,6 @@ mod tests {
             writer.delete("mt").unwrap();
             assert!(!reader.exists("mt").unwrap());
         }
-    }
-
-    // ========================================================================
-    // glob_matches unit tests
-    // ========================================================================
-
-    #[test]
-    fn test_glob_matches_exact() {
-        assert!(glob_matches("hello", "hello"));
-        assert!(!glob_matches("hello", "world"));
-        assert!(!glob_matches("hello", "hell"));
-        assert!(!glob_matches("hell", "hello"));
-    }
-
-    #[test]
-    fn test_glob_matches_star() {
-        assert!(glob_matches("*", ""));
-        assert!(glob_matches("*", "anything"));
-        assert!(glob_matches("hello*", "hello"));
-        assert!(glob_matches("hello*", "helloworld"));
-        assert!(glob_matches("*world", "helloworld"));
-        assert!(glob_matches("he*ld", "helloworld"));
-        assert!(!glob_matches("he*ld", "hello"));
-    }
-
-    #[test]
-    fn test_glob_matches_question_mark() {
-        assert!(glob_matches("h?llo", "hello"));
-        assert!(glob_matches("?????", "hello"));
-        assert!(!glob_matches("????", "hello"));
-        assert!(!glob_matches("??????", "hello"));
-        assert!(!glob_matches("?", ""));
-    }
-
-    #[test]
-    fn test_glob_matches_combined() {
-        assert!(glob_matches("h*o", "hello"));
-        assert!(glob_matches("h*o", "ho"));
-        assert!(glob_matches("h?l*w", "hellow"));
-        assert!(glob_matches("a*b*c", "abc"));
-        assert!(glob_matches("a*b*c", "aXbYc"));
-        assert!(!glob_matches("a*b*c", "aXbY"));
-    }
-
-    #[test]
-    fn test_glob_matches_empty() {
-        assert!(glob_matches("", ""));
-        assert!(!glob_matches("", "a"));
-        assert!(glob_matches("*", ""));
     }
 
     // ========================================================================

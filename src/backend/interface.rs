@@ -61,6 +61,52 @@ impl BackendKind {
     }
 }
 
+/// Simple glob pattern matching: `*` matches any characters (including `/`),
+/// `?` matches a single character.
+///
+/// Used by backends implementing `CacheReader::keys` / `SyncCacheReader::keys`
+/// for in-memory key listing. Cache keys may contain `/` (see
+/// `crate::utils::validate_cache_key`), so `*` deliberately matches across
+/// path separators — unlike `security::glob_to_regex` whose `*` is `[^/]*`.
+///
+/// Uses char-based iteration to safely handle multi-byte UTF-8 strings.
+pub fn glob_match(pattern: &str, text: &str) -> bool {
+    let mut p = pattern.chars().peekable();
+    let mut t = text.chars().peekable();
+    while let Some(pc) = p.peek() {
+        match pc {
+            '*' => {
+                p.next();
+                if p.peek().is_none() {
+                    return true;
+                }
+                let rem_p: String = p.collect();
+                let rem_t_chars: Vec<char> = t.collect();
+                for start in 0..=rem_t_chars.len() {
+                    let rem_t: String = rem_t_chars[start..].iter().collect();
+                    if glob_match(&rem_p, &rem_t) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            '?' => {
+                if t.next().is_none() {
+                    return false;
+                }
+                p.next();
+            }
+            _ => match t.next() {
+                Some(tc) if tc == *pc => {
+                    p.next();
+                }
+                _ => return false,
+            },
+        }
+    }
+    t.peek().is_none()
+}
+
 // ============================================================================
 // ISP-Compliant Trait Hierarchy
 // ============================================================================
@@ -1093,5 +1139,66 @@ mod tests {
         let connector: &dyn CacheConnector = &backend;
         // DashMap 不实现 AtomicCacheWriter，默认返回 None
         assert!(connector.as_atomic_writer().is_none());
+    }
+
+    // ============================================================================
+    // glob_match unit tests
+    // ============================================================================
+
+    #[test]
+    fn test_glob_match_exact_match() {
+        assert!(glob_match("hello", "hello"));
+        assert!(!glob_match("hello", "world"));
+        assert!(!glob_match("hello", "hell"));
+        assert!(!glob_match("hell", "hello"));
+    }
+
+    #[test]
+    fn test_glob_match_star_matches_any() {
+        assert!(glob_match("*", ""));
+        assert!(glob_match("*", "anything"));
+        assert!(glob_match("hello*", "hello"));
+        assert!(glob_match("hello*", "helloworld"));
+        assert!(glob_match("*world", "helloworld"));
+        assert!(glob_match("he*ld", "helloworld"));
+        assert!(!glob_match("he*ld", "hello"));
+    }
+
+    #[test]
+    fn test_glob_match_question_mark() {
+        assert!(glob_match("h?llo", "hello"));
+        assert!(glob_match("?????", "hello"));
+        assert!(!glob_match("????", "hello"));
+        assert!(!glob_match("??????", "hello"));
+        assert!(glob_match("h?llo", "hallo"));
+        assert!(!glob_match("?", ""));
+    }
+
+    #[test]
+    fn test_glob_match_combined_patterns() {
+        assert!(glob_match("h*o", "hello"));
+        assert!(glob_match("h*o", "ho"));
+        assert!(glob_match("h?l*w", "hellow"));
+        assert!(glob_match("*?*", "a"));
+        assert!(!glob_match("*?*", ""));
+        assert!(glob_match("a*b*c", "abc"));
+        assert!(glob_match("a*b*c", "aXbYc"));
+        assert!(!glob_match("a*b*c", "aXbY"));
+    }
+
+    #[test]
+    fn test_glob_match_empty() {
+        assert!(glob_match("", ""));
+        assert!(!glob_match("", "a"));
+        assert!(glob_match("*", ""));
+    }
+
+    #[test]
+    fn test_glob_match_star_matches_slash() {
+        assert!(glob_match("cache/*", "cache/item"));
+        assert!(glob_match("*/*", "a/b"));
+        assert!(glob_match("a*b*c", "a/b/c"));
+        assert!(!glob_match("cache/*", "cache"));
+        assert!(glob_match("prefix*", "prefix/with/slash"));
     }
 }
