@@ -108,6 +108,7 @@ docs/repowiki/
 .iflow/
 .worktrees
 .gitnexus
+.codenexus
 .semgrep-results/
 lcov.info
 lcov_full.info
