@@ -311,56 +311,11 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
             // 处理双引号字符串：保留标识符字符用于模式检测，移除其他内容
             // 与单引号处理逻辑一致，防止 "FLUSHALL" 等危险命令绕过 forbidden_patterns 检查
             result.push('"');
-            while let Some(&next_c) = chars.peek() {
-                if next_c == '"' {
-                    chars.next();
-                    result.push('"');
-                    break;
-                } else if next_c == '\\' {
-                    chars.next();
-                    if let Some(escaped) = chars.next() {
-                        if escaped.is_alphanumeric() || escaped == '_' {
-                            result.push(escaped);
-                        }
-                    }
-                } else if next_c == '\n' {
-                    break; // 未闭合的字符串
-                } else if next_c.is_alphanumeric() || next_c == '_' {
-                    result.push(next_c);
-                    chars.next();
-                } else {
-                    chars.next();
-                }
-            }
+            scan_quoted_string(&mut chars, &mut result, '"');
         } else if c == '\'' {
             // 处理单引号字符串：保留标识符字符用于模式检测，移除其他内容
             result.push('\'');
-            let mut in_string = true;
-            while in_string {
-                if let Some(&next_c) = chars.peek() {
-                    if next_c == '\'' {
-                        chars.next();
-                        result.push('\'');
-                        in_string = false;
-                    } else if next_c == '\\' {
-                        chars.next();
-                        if let Some(escaped) = chars.next() {
-                            if escaped.is_alphanumeric() || escaped == '_' {
-                                result.push(escaped);
-                            }
-                        }
-                    } else if next_c == '\n' {
-                        break;
-                    } else if next_c.is_alphanumeric() || next_c == '_' {
-                        result.push(next_c);
-                        chars.next();
-                    } else {
-                        chars.next();
-                    }
-                } else {
-                    break;
-                }
-            }
+            scan_quoted_string(&mut chars, &mut result, '\'');
         } else if c.is_whitespace() {
             // 规范化空白字符为空格
             if !result.is_empty() && !result.ends_with(' ') {
@@ -373,6 +328,39 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
 
     // 移除多余空格（使用预编译的正则表达式）
     WHITESPACE_REGEX.replace_all(&result, " ").to_string()
+}
+
+/// 扫描一个 Lua 字符串字面量（单引号或双引号）的内容。
+///
+/// 保留标识符字符（字母/数字/下划线）与转义后的标识符字符用于后续的
+/// 危险命令模式检测，移除非标识符内容。遇到闭合引号、未转义的换行或
+/// 输入结束即停止。调用前 `quote` 已写入 `result`，函数负责扫描并写入
+/// 闭合引号与保留内容，但不处理输入流的首字符（由主循环已完成）。
+///
+/// 位置：`chars` 指向字符串内容起点（引号后的第一个字符）。
+#[cfg(feature = "redis")]
+fn scan_quoted_string(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String, quote: char) {
+    while let Some(&next_c) = chars.peek() {
+        if next_c == quote {
+            chars.next();
+            result.push(quote);
+            break;
+        } else if next_c == '\\' {
+            chars.next();
+            if let Some(escaped) = chars.next() {
+                if escaped.is_alphanumeric() || escaped == '_' {
+                    result.push(escaped);
+                }
+            }
+        } else if next_c == '\n' {
+            break; // 未闭合的字符串
+        } else if next_c.is_alphanumeric() || next_c == '_' {
+            result.push(next_c);
+            chars.next();
+        } else {
+            chars.next();
+        }
+    }
 }
 
 /// 计算 Lua 长字符串的级别（= 的数量）
