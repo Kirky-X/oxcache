@@ -181,6 +181,90 @@ mod tests {
     }
 
     // ============================================================================
+    // preprocess_lua_script 扫描等价性测试（重构回归保障）
+    // ============================================================================
+
+    #[test]
+    fn test_preprocess_removes_single_line_comment() {
+        let script = "redis.call('GET', KEYS[1]) -- FLUSHALL\nreturn 1";
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            !cleaned.to_uppercase().contains("FLUSHALL"),
+            "single-line comment content must be removed: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_removes_block_comment() {
+        let script = "redis.call('GET', KEYS[1])\n--[[\nFLUSHALL\n]]\nreturn 1";
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            !cleaned.to_uppercase().contains("FLUSHALL"),
+            "block comment content must be removed: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_keeps_double_quoted_flushall() {
+        let script = r#"redis.call("FLUSHALL")"#;
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            cleaned.to_uppercase().contains("FLUSHALL"),
+            "FLUSHALL inside double-quoted string must be preserved for detection: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_keeps_single_quoted_flushall() {
+        let script = "redis.call('FLUSHALL')";
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            cleaned.to_uppercase().contains("FLUSHALL"),
+            "FLUSHALL inside single-quoted string must be preserved for detection: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_keeps_escaped_identifier_in_string() {
+        let script = r#"redis.call("FLUSH\ALL")"#;
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            cleaned.contains("FLUSHALL"),
+            "escaped identifier chars must be preserved: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_unclosed_string_does_not_hang() {
+        let script = "redis.call('GET, KEYS[1])\n";
+        let cleaned = preprocess_lua_script(script);
+        // 未闭合字符串在换行处终止，不 panic、不超时
+        assert!(cleaned.len() < script.len());
+    }
+
+    #[test]
+    fn test_preprocess_keeps_long_string_literal_content() {
+        // 裸 [[..]] 字符串内容保留（与 test_preprocess_lua_script_with_long_strings
+        // 语义一致：仅 --[[ ]] 注释形式的长字符串被清除）
+        let script = "local s = [[FLUSHALL]]";
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            cleaned.contains("FLUSHALL"),
+            "裸 [[..]] 字符串内容应保留（用于模式检测）: {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn test_preprocess_keeps_string_literal_flushall_single_quote() {
+        let script = "local s = 'FLUSHALL'";
+        let cleaned = preprocess_lua_script(script);
+        assert!(
+            cleaned.to_uppercase().contains("FLUSHALL"),
+            "FLUSHALL as a single-quoted literal must be preserved: {cleaned:?}"
+        );
+    }
+
+    // ============================================================================
     // SCAN 模式验证测试
     // ============================================================================
 
