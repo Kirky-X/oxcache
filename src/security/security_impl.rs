@@ -52,6 +52,33 @@ pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>>
 pub(super) static WHITESPACE_REGEX: ::once_cell::sync::Lazy<::regex::Regex> =
     ::once_cell::sync::Lazy::new(|| ::regex::Regex::new(r"\s+").expect("Invalid whitespace regex"));
 
+/// SQL 注入检测模式表（模式, 描述）
+#[cfg(feature = "redis")]
+const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
+    ("' OR '", "单引号后跟 OR 模式"),
+    ("'--", "SQL 注释模式"),
+    ("'; DROP", "SQL DROP 语句"),
+    ("'; DELETE", "SQL DELETE 语句"),
+    ("'; INSERT", "SQL INSERT 语句"),
+    ("UNION SELECT", "SQL UNION 查询"),
+    ("xp_cmdshell", "SQL Server 命令执行"),
+    ("' OR '1'='1", "经典 SQL 注入永真条件"),
+    ("admin'--", "SQL 认证绕过"),
+];
+
+/// 路径遍历检测模式表
+#[cfg(feature = "redis")]
+const PATH_TRAVERSAL_PATTERNS: &[&str] = &[
+    "../", "..\\",
+    "%2e%2e", "%252e%252e",
+    "..%2f", "..%5c",
+    "%2e%2e%2f", "%2e%2e%5c",
+];
+
+/// 命令注入检测字符集
+#[cfg(feature = "redis")]
+const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
+
 /// 验证 Redis 缓存键是否安全
 ///
 /// 防止 Redis 命令注入和协议污染攻击。
@@ -73,7 +100,6 @@ pub(super) static WHITESPACE_REGEX: ::once_cell::sync::Lazy<::regex::Regex> =
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "security")))]
 pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
-    // 基础验证：使用共享验证工具
     use crate::security::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
     use crate::security::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
 
@@ -81,34 +107,31 @@ pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
     validate_max_length(key, MAX_KEY_LENGTH, "Redis key")?;
     validate_no_dangerous_chars(key, &DANGEROUS_CHARS, "Redis key")?;
 
-    // ========== 安全增强 ==========
+    check_control_characters(key, &DANGEROUS_CHARS)?;
+    check_sql_injection(key)?;
+    check_path_traversal(key)?;
+    check_command_injection(key)?;
 
-    // 检查 Unicode 控制字符（CR, LF, NULL 已在基础验证中检查）
+    Ok(())
+}
+
+/// 检查 Unicode 控制字符（CR, LF, NULL 已在基础验证中检查）
+#[cfg(feature = "redis")]
+fn check_control_characters(key: &str, dangerous_chars: &[char]) -> OxCacheResult<()> {
     for c in key.chars() {
-        if c.is_control() && !DANGEROUS_CHARS.contains(&c) && c != '\t' {
+        if c.is_control() && !dangerous_chars.contains(&c) && c != '\t' {
             return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains control character: U+{:04X}",
                 c as u32
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查 SQL 注入模式
-    // 注意：这些模式用于检测潜在的 SQL 注入攻击，
-    // 但在 Redis 键验证上下文中可能产生误报
-    // 因此我们只保留明确的 SQL 注入签名模式
-    const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
-        ("' OR '", "单引号后跟 OR 模式"),
-        ("'--", "SQL 注释模式"),
-        ("'; DROP", "SQL DROP 语句"),
-        ("'; DELETE", "SQL DELETE 语句"),
-        ("'; INSERT", "SQL INSERT 语句"),
-        ("UNION SELECT", "SQL UNION 查询"),
-        ("xp_cmdshell", "SQL Server 命令执行"),
-        ("' OR '1'='1", "经典 SQL 注入永真条件"),
-        ("admin'--", "SQL 认证绕过"),
-    ];
-
+/// 检查 SQL 注入模式
+#[cfg(feature = "redis")]
+fn check_sql_injection(key: &str) -> OxCacheResult<()> {
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
         if key_upper.contains(&pattern.to_uppercase()) {
@@ -118,32 +141,27 @@ pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查路径遍历模式
-    const PATH_TRAVERSAL_PATTERNS: &[&str] = &[
-        "../",
-        "..\\",
-        "%2e%2e",
-        "%252e%252e",
-        "..%2f",
-        "..%5c",
-        "%2e%2e%2f",
-        "%2e%2e%5c",
-    ];
-
+/// 检查路径遍历模式
+#[cfg(feature = "redis")]
+fn check_path_traversal(key: &str) -> OxCacheResult<()> {
+    let key_lower = key.to_lowercase();
     for pattern in PATH_TRAVERSAL_PATTERNS {
-        if key.to_lowercase().contains(&pattern.to_lowercase()) {
+        if key_lower.contains(&pattern.to_lowercase()) {
             return Err(OxCacheError::InvalidInput(format!(
                 "Redis key contains path traversal pattern: {}",
                 pattern
             )));
         }
     }
+    Ok(())
+}
 
-    // 检查命令注入模式
-    // 直接检测危险字符，不使用可能绕过的不安全条件
-    const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
-
+/// 检查命令注入字符
+#[cfg(feature = "redis")]
+fn check_command_injection(key: &str) -> OxCacheResult<()> {
     for c in key.chars() {
         if COMMAND_INJECTION_CHARS.contains(&c) {
             return Err(OxCacheError::InvalidInput(format!(
@@ -152,7 +170,6 @@ pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
             )));
         }
     }
-
     Ok(())
 }
 
@@ -278,46 +295,20 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
 #[cfg(feature = "redis")]
 pub(super) fn preprocess_lua_script(script: &str) -> String {
     let mut result = String::with_capacity(script.len());
-
     let mut chars = script.chars().peekable();
+
     while let Some(c) = chars.next() {
         if c == '-' && chars.peek() == Some(&'-') {
-            // 消费第二个 '-'，现在 chars 应该指向 '['
             chars.next();
-            // 检查是否是 --[[ (多行注释开始)
-            let level = count_lua_long_string_level(&mut chars, 1);
-            if level > 0 {
-                // 这是 --[=[=[ 多行注释
-                skip_lua_long_string(&mut chars, level);
-            } else {
-                // 移除单行注释
-                while let Some(&next_c) = chars.peek() {
-                    if next_c == '\n' {
-                        break;
-                    }
-                    chars.next();
-                }
-            }
+            skip_lua_comment(&mut chars);
         } else if c == '[' {
-            // 检查是否是 Lua 长字符串 [[...]], [=[...]=], [==[...]==], 等
-            let level = count_lua_long_string_level(&mut chars, 0);
-            if level > 0 {
-                // 移除 Lua 长字符串
-                skip_lua_long_string(&mut chars, level);
-            } else {
+            if !try_skip_long_string(&mut chars) {
                 result.push('[');
             }
-        } else if c == '"' {
-            // 处理双引号字符串：保留标识符字符用于模式检测，移除其他内容
-            // 与单引号处理逻辑一致，防止 "FLUSHALL" 等危险命令绕过 forbidden_patterns 检查
-            result.push('"');
-            scan_quoted_string(&mut chars, &mut result, '"');
-        } else if c == '\'' {
-            // 处理单引号字符串：保留标识符字符用于模式检测，移除其他内容
-            result.push('\'');
-            scan_quoted_string(&mut chars, &mut result, '\'');
+        } else if c == '"' || c == '\'' {
+            result.push(c);
+            scan_quoted_string(&mut chars, &mut result, c);
         } else if c.is_whitespace() {
-            // 规范化空白字符为空格
             if !result.is_empty() && !result.ends_with(' ') {
                 result.push(' ');
             }
@@ -326,8 +317,38 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
         }
     }
 
-    // 移除多余空格（使用预编译的正则表达式）
     WHITESPACE_REGEX.replace_all(&result, " ").to_string()
+}
+
+/// 跳过 Lua 注释内容（`--` 已消费）。
+/// 支持单行注释（至换行）和块注释（`--[...]=]`）。
+#[cfg(feature = "redis")]
+fn skip_lua_comment(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    let level = count_lua_long_string_level(chars, 1);
+    if level > 0 {
+        skip_lua_long_string(chars, level);
+    } else {
+        // 单行注释：消费至换行符（保留换行）
+        while let Some(&next_c) = chars.peek() {
+            if next_c == '\n' {
+                break;
+            }
+            chars.next();
+        }
+    }
+}
+
+/// 尝试跳过 Lua 长字符串（`[` 已消费）。
+/// 返回 `true` 表示检测到长字符串并已跳过，`false` 表示不是长字符串。
+#[cfg(feature = "redis")]
+fn try_skip_long_string(chars: &mut std::iter::Peekable<std::str::Chars>) -> bool {
+    let level = count_lua_long_string_level(chars, 0);
+    if level > 0 {
+        skip_lua_long_string(chars, level);
+        true
+    } else {
+        false
+    }
 }
 
 /// 扫描一个 Lua 字符串字面量（单引号或双引号）的内容。
