@@ -116,7 +116,10 @@ async fn test_dist_lock_watchdog_renew() {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Lock should still be held thanks to watchdog
-    assert!(ok_or_skip!(lock.is_held().await), "watchdog should have renewed the lock");
+    assert!(
+        ok_or_skip!(lock.is_held().await),
+        "watchdog should have renewed the lock"
+    );
 
     // Clean up
     ok_or_skip!(lock.release().await);
