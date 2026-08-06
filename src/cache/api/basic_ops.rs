@@ -7,6 +7,7 @@ use super::Cache;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::core::MAX_JSON_DEPTH;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::core::NULL_SENTINEL;
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -82,6 +83,7 @@ where
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
         match bytes {
+            Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
             Some(data) => deserialize_value(&data).map(Some),
             None => Ok(None),
         }
@@ -138,6 +140,7 @@ where
 
     pub async fn set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
+        let ttl = ttl.map(|t| self.apply_jitter(t));
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
@@ -293,6 +296,146 @@ where
             }
         }
     }
+
+    /// Apply TTL jitter based on the configured jitter factor.
+    ///
+    /// When `ttl_jitter_factor` is 0.0, returns the original TTL unchanged.
+    /// Otherwise, returns `base_ttl * (1.0 + uniform(-factor, factor))` using
+    /// a fast pseudo-random calculation based on the system clock.
+    fn apply_jitter(&self, ttl: Duration) -> Duration {
+        if self.ttl_jitter_factor <= 0.0 {
+            return ttl;
+        }
+        let millis = ttl.as_millis() as f64;
+        // Fast PRNG: combine system clock with a hash multiplier
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let seed = (now.subsec_nanos() as u64)
+            .wrapping_mul(now.as_secs().wrapping_add(1))
+            .wrapping_mul(6364136223846793005);
+        // Map to [-factor, +factor]
+        let uniform = (seed % 20001) as f64 / 10000.0 - 1.0;
+        let jittered = millis * (1.0 + self.ttl_jitter_factor * uniform);
+        Duration::from_millis(jittered.max(1.0) as u64)
+    }
+
+    /// Get-or-compute with optional result and null caching for penetration guard.
+    ///
+    /// When the fallback returns `Ok(None)` and `null_cache_ttl` is configured,
+    /// a null sentinel is written to the cache to prevent repeated lookups
+    /// (cache penetration). The sentinel expires after the configured TTL.
+    ///
+    /// Existing `get_or` remains unchanged for backward compatibility.
+    pub async fn get_or_option<F, Fut>(&self, key: &K, fallback: F) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = OxCacheResult<Option<V>>>,
+    {
+        // Fast path: cache hit (returns None for null sentinel too)
+        if let Some(value) = self.get(key).await? {
+            return Ok(Some(value));
+        }
+
+        // Check if this is a null sentinel hit (key exists but value is sentinel)
+        let key_str = key.to_key_string();
+        if self.null_cache_ttl.is_some() && self.backend.exists(&key_str).await? {
+            // Null sentinel is still valid — don't call fallback
+            return Ok(None);
+        }
+
+        let shard_index = get_or_shard_index(&key_str);
+
+        // Single-flight: register as leader or become follower
+        let (is_follower, notify) = {
+            let shard = &GET_OR_LOCKS[shard_index];
+            let mut map = shard
+                .lock()
+                .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected");
+            match map.entry(key_str.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => (true, entry.get().clone()),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let n = Arc::new(tokio::sync::Notify::new());
+                    entry.insert(n.clone());
+                    (false, n)
+                }
+            }
+        };
+
+        if is_follower {
+            notify.notified().await;
+            // Re-check cache after leader completes
+            if let Some(value) = self.get(key).await? {
+                return Ok(Some(value));
+            }
+            // Leader cached a null sentinel or fallback failed
+            if self.null_cache_ttl.is_some() && self.backend.exists(&key_str).await? {
+                return Ok(None);
+            }
+            return Err(OxCacheError::L1Error(
+                "get_or_option: concurrent fetch leader failed to cache result".to_string(),
+            ));
+        }
+
+        // Leader path with double-check
+        let mut guard = GetOrGuard {
+            map: &GET_OR_LOCKS[shard_index],
+            key: key_str.clone(),
+            removed: false,
+        };
+
+        if let Some(value) = self.get(key).await? {
+            GET_OR_LOCKS[shard_index]
+                .lock()
+                .expect("GET_OR_LOCKS poisoned")
+                .remove(&key_str);
+            guard.removed = true;
+            notify.notify_waiters();
+            return Ok(Some(value));
+        }
+
+        let result = fallback().await;
+        match result {
+            Ok(Some(value)) => {
+                self.set(key, &value).await?;
+                GET_OR_LOCKS[shard_index]
+                    .lock()
+                    .expect("GET_OR_LOCKS poisoned")
+                    .remove(&key_str);
+                guard.removed = true;
+                notify.notify_waiters();
+                Ok(Some(value))
+            }
+            Ok(None) => {
+                // Cache null sentinel if null_cache_ttl is configured
+                if let Some(null_ttl) = self.null_cache_ttl {
+                    self.backend
+                        .set(
+                            Arc::from(key_str.as_str()),
+                            Arc::new(NULL_SENTINEL.to_vec()),
+                            Some(null_ttl),
+                        )
+                        .await?;
+                }
+                GET_OR_LOCKS[shard_index]
+                    .lock()
+                    .expect("GET_OR_LOCKS poisoned")
+                    .remove(&key_str);
+                guard.removed = true;
+                notify.notify_waiters();
+                Ok(None)
+            }
+            Err(e) => {
+                GET_OR_LOCKS[shard_index]
+                    .lock()
+                    .expect("GET_OR_LOCKS poisoned")
+                    .remove(&key_str);
+                guard.removed = true;
+                notify.notify_waiters();
+                Err(e)
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -377,6 +520,7 @@ where
         // unstable `trait_upcasting` feature.
         let bytes = backend.get(&key_str)?;
         match bytes {
+            Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
             Some(data) => deserialize_value(&data).map(Some),
             None => Ok(None),
         }
@@ -390,6 +534,7 @@ where
     /// Synchronously set a value with an optional per-entry TTL.
     pub fn set_with_ttl_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
+        let ttl = ttl.map(|t| self.apply_jitter(t));
         let backend = self.sync_backend()?;
 
         #[cfg(any(feature = "serialization", feature = "full"))]
@@ -564,6 +709,108 @@ where
             .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected")
             .remove(key_str);
         guard.removed = true;
+    }
+
+    /// Synchronously get-or-compute with optional result and null caching.
+    ///
+    /// Sync variant of [`Self::get_or_option`]. Uses `Condvar`-based single-flight.
+    pub fn get_or_option_sync<F>(&self, key: &K, fallback: F) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> OxCacheResult<Option<V>>,
+    {
+        // Fast path: cache hit
+        if let Some(value) = self.get_sync(key)? {
+            return Ok(Some(value));
+        }
+
+        let key_str = key.to_key_string();
+
+        // Check null sentinel
+        if self.null_cache_ttl.is_some() {
+            let backend = self.sync_backend()?;
+            if backend.exists(&key_str)? {
+                return Ok(None);
+            }
+        }
+
+        let shard_index = get_or_shard_index(&key_str);
+
+        let (is_follower, flight) = {
+            let shard = &GET_OR_SYNC_LOCKS[shard_index];
+            let mut map = shard
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS poisoned - concurrent operation panic detected");
+            match map.entry(key_str.clone()) {
+                std::collections::hash_map::Entry::Occupied(entry) => (true, entry.get().clone()),
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    let f = Arc::new((Mutex::new(false), Condvar::new()));
+                    entry.insert(f.clone());
+                    (false, f)
+                }
+            }
+        };
+
+        if is_follower {
+            let mut done = flight
+                .0
+                .lock()
+                .expect("GET_OR_SYNC_LOCKS: follower flight mutex poisoned");
+            while !*done {
+                done = flight
+                    .1
+                    .wait(done)
+                    .expect("GET_OR_SYNC_LOCKS: follower Condvar wait poisoned");
+            }
+            if let Some(value) = self.get_sync(key)? {
+                return Ok(Some(value));
+            }
+            if self.null_cache_ttl.is_some() {
+                let backend = self.sync_backend()?;
+                if backend.exists(&key_str)? {
+                    return Ok(None);
+                }
+            }
+            return Err(OxCacheError::L1Error(
+                "get_or_option_sync: concurrent fetch leader failed to cache result".to_string(),
+            ));
+        }
+
+        let mut guard = GetOrSyncGuard {
+            shard_index,
+            map_key: key_str.clone(),
+            flight: flight.clone(),
+            removed: false,
+        };
+
+        // Double-check
+        if let Some(value) = self.get_sync(key)? {
+            Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+            return Ok(Some(value));
+        }
+
+        match fallback() {
+            Ok(Some(value)) => {
+                let _ = self.set_sync(key, &value);
+                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                Ok(Some(value))
+            }
+            Ok(None) => {
+                if let Some(null_ttl) = self.null_cache_ttl {
+                    let backend = self.sync_backend()?;
+                    let _ = backend.set(
+                        Arc::from(key_str.as_str()),
+                        Arc::new(NULL_SENTINEL.to_vec()),
+                        Some(null_ttl),
+                    );
+                }
+                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                Ok(None)
+            }
+            Err(e) => {
+                Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                Err(e)
+            }
+        }
     }
 
     /// Synchronously clear all entries.

@@ -25,6 +25,10 @@ pub struct CacheBuilder<K, V> {
     /// `Err(NotSupported)` because `Arc<dyn CacheBackend>` cannot be upcast
     /// to `Arc<dyn SyncCacheBackend>` in stable Rust (no `trait_upcasting`).
     sync_mode: bool,
+    /// Null cache TTL for penetration guard.
+    null_cache_ttl: Option<Duration>,
+    /// TTL jitter factor for stampede prevention.
+    ttl_jitter_factor: f64,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -36,6 +40,8 @@ impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
             .field("tti", &self.tti)
             .field("capacity", &self.capacity)
             .field("sync_mode", &self.sync_mode)
+            .field("null_cache_ttl", &self.null_cache_ttl)
+            .field("ttl_jitter_factor", &self.ttl_jitter_factor)
             .finish()
     }
 }
@@ -48,6 +54,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
             tti: None,
             capacity: None,
             sync_mode: false,
+            null_cache_ttl: None,
+            ttl_jitter_factor: 0.0,
             _phantom: PhantomData,
         }
     }
@@ -97,6 +105,28 @@ where
         self
     }
 
+    /// Set the null cache TTL for cache penetration guard.
+    ///
+    /// When configured, `get_or_option` will cache a null sentinel value
+    /// when the fallback returns `None`, preventing repeated lookups for
+    /// non-existent keys (cache penetration).
+    pub fn null_cache_ttl(mut self, ttl: Duration) -> Self {
+        self.null_cache_ttl = Some(ttl);
+        self
+    }
+
+    /// Set the TTL jitter factor for cache stampede prevention.
+    ///
+    /// When > 0.0, the actual TTL for each entry is randomized within
+    /// `base_ttl * (1.0 ± factor)`. For example, with `factor = 0.1`
+    /// and `base_ttl = 60s`, the actual TTL will be between 54s and 66s.
+    ///
+    /// Range: `0.0..=1.0`. Values outside this range are clamped.
+    pub fn ttl_jitter(mut self, factor: f64) -> Self {
+        self.ttl_jitter_factor = factor.clamp(0.0, 1.0);
+        self
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -143,12 +173,17 @@ where
             if self.sync_mode {
                 cache.set_sync_backend(moka);
             }
+            cache.set_null_cache_ttl(self.null_cache_ttl);
+            cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
             return Ok(cache);
         }
 
         // User-provided backend (sync_mode is guaranteed false here)
         let backend = self.backends[0].clone();
-        Ok(Cache::new_with_backend(backend))
+        let mut cache = Cache::new_with_backend(backend);
+        cache.set_null_cache_ttl(self.null_cache_ttl);
+        cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+        Ok(cache)
     }
 }
 
