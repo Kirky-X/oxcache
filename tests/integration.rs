@@ -9,6 +9,7 @@
 #[path = "common/mod.rs"]
 pub mod common;
 
+// --- Core integration tests ---
 #[cfg(feature = "redis")]
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
@@ -19,54 +20,57 @@ mod degradation_tests;
 #[cfg(feature = "redis")]
 #[path = "integration/invalidation_test.rs"]
 mod invalidation_test;
-#[path = "integration/lifecycle_test.rs"]
-mod lifecycle_test;
-#[cfg(feature = "redis")]
-#[path = "integration/lock_warmup_test.rs"]
-mod lock_warmup_test;
-#[path = "integration/manual_control_test.rs"]
-mod manual_control_test;
 #[cfg(feature = "redis")]
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
-#[cfg(feature = "redis")]
-#[path = "integration/redis_client_comprehensive_test.rs"]
-mod redis_client_comprehensive_test;
-
-#[cfg(feature = "redis")]
-#[path = "integration/l2_backend_test.rs"]
-mod l2_backend_test;
-#[cfg(feature = "redis")]
-#[path = "integration/single_flight_test.rs"]
-mod single_flight_test;
-#[cfg(feature = "redis")]
-#[path = "integration/ttl_control_test.rs"]
-mod ttl_control_test;
+#[path = "integration/sync_api_test.rs"]
+mod sync_api_test;
 #[cfg(feature = "redis")]
 #[path = "integration/two_level_test.rs"]
 mod two_level_test;
 #[cfg(feature = "redis")]
+#[path = "integration/chain_cache_integration_test.rs"]
+mod chain_cache_integration_test;
+#[cfg(feature = "redis")]
 #[path = "integration/version_test.rs"]
 mod version_test;
 
-#[cfg(feature = "aerospike")]
-#[path = "integration/aerospike_test.rs"]
-mod aerospike_test;
+// --- Redis & lock tests ---
 #[cfg(feature = "redis")]
-#[path = "integration/chain_cache_integration_test.rs"]
-mod chain_cache_integration_test;
-#[cfg(feature = "dragonfly")]
-#[path = "integration/dragonfly_test.rs"]
-mod dragonfly_test;
+#[path = "integration/redis/redis_client_comprehensive_test.rs"]
+mod redis_client_comprehensive_test;
 #[cfg(feature = "redis")]
-#[path = "integration/redis_cluster_test.rs"]
+#[path = "integration/redis/redis_cluster_test.rs"]
 mod redis_cluster_test;
 #[cfg(feature = "redis")]
-#[path = "integration/redis_sentinel_test.rs"]
+#[path = "integration/redis/redis_sentinel_test.rs"]
 mod redis_sentinel_test;
 #[cfg(feature = "redis")]
-#[path = "integration/redis_version_compatibility_test.rs"]
+#[path = "integration/redis/redis_version_compatibility_test.rs"]
 mod redis_version_compatibility_test;
 #[cfg(feature = "redis")]
-#[path = "integration/valkey_test.rs"]
+#[path = "integration/redis/dist_lock_test.rs"]
+mod dist_lock_test;
+#[cfg(feature = "redis")]
+#[path = "integration/redis/lock_warmup_test.rs"]
+mod lock_warmup_test;
+
+// --- TTL tests ---
+#[path = "integration/ttl/ttl_expire_test.rs"]
+mod ttl_expire_test;
+#[path = "integration/ttl/ttl_consistency_test.rs"]
+mod ttl_consistency_test;
+
+// --- Alternative backend tests ---
+#[cfg(feature = "aerospike")]
+#[path = "integration/backend/aerospike_test.rs"]
+mod aerospike_test;
+#[cfg(feature = "dragonfly")]
+#[path = "integration/backend/dragonfly_test.rs"]
+mod dragonfly_test;
+#[cfg(feature = "redis")]
+#[path = "integration/backend/valkey_test.rs"]
 mod valkey_test;
+#[cfg(feature = "redis")]
+#[path = "integration/backend/l2_backend_test.rs"]
+mod l2_backend_test;
