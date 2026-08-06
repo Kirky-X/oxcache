@@ -1,5 +1,5 @@
 error: expected identifier
-  --> tests/macros_invalid_arg_compile_fail/invalid_arg.rs:10:40
+  --> tests/macros/compile_fail/invalid_arg.rs:10:40
    |
 10 | #[cached(service = "invalid_arg_test", 123)]
    |                                        ^^^

@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use oxcache::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter, DragonflyBackend};
 
-#[path = "../common/mod.rs"]
+#[path = "../../common/mod.rs"]
 mod common;
 use common::test_containers::DragonflyContainer;
 

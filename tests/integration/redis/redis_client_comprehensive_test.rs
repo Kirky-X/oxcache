@@ -9,11 +9,11 @@
 mod redis_client_tests {
     use crate::common::{get_redis_url, is_redis_available};
     use oxcache::backend::BackendScore;
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     use oxcache::backend::LuaExecutor;
     use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
     use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     use oxcache::validate_lua_script;
     use serial_test::serial;
     use std::sync::Arc;
@@ -543,7 +543,7 @@ mod redis_client_tests {
     // Lua脚本测试
     // ============================================================================
 
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     mod lua_scripts {
         use super::*;
 

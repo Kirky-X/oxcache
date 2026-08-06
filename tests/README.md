@@ -6,208 +6,145 @@ This document describes the organization of the test suite for the Oxcache proje
 
 ```
 tests/
-├── README.md                          # This file
-├── lib.rs                            # Test library configuration
-├── integration.rs                    # Integration tests entry point
-├── e2e.rs                            # End-to-end tests entry point
-├── unit.rs                           # Unit tests entry point
-├── test_utils.rs                     # Common test utilities
-├── database_test_utils.rs            # Database testing utilities
-├── redis_test_utils.rs               # Redis testing utilities
+├── common/                              # 共享测试工具
+│   ├── mod.rs                           # 模块导出
+│   ├── docker_test_utils.rs             # Docker 测试工具
+│   ├── mock_backend.rs                  # Mock 后端
+│   ├── redis_test_utils.rs              # Redis 测试工具
+│   └── test_containers.rs               # Testcontainers 封装
 │
-├── integration/                      # Integration tests
-│   ├── batch_write_test.rs           # Batch write operations
-│   ├── chaos_test.rs                 # Chaos engineering tests
-│   ├── cli_test.rs                   # CLI tests
-│   ├── comprehensive_test.rs         # Comprehensive feature tests
-│   ├── degradation_tests.rs          # Degradation handling tests
-│   ├── http_cache_test.rs            # HTTP caching tests
-│   ├── invalidation_test.rs          # Cache invalidation tests
-│   ├── lifecycle_test.rs             # Lifecycle management tests
-│   ├── lock_warmup_test.rs           # Lock warmup tests
-│   ├── manual_control_test.rs        # Manual cache control tests
-│   ├── metrics_test.rs               # Metrics collection tests
-│   ├── partitioning_tests.rs         # Database partitioning tests
-│   ├── performance_test.rs           # Performance benchmarks
-│   ├── recovery_test.rs              # Recovery/WAL tests
-│   ├── redis_native_test.rs          # Native Redis operations
-│   ├── redis_test.rs                 # Redis backend tests
-│   ├── sea_orm_sqlite_tests.rs       # Sea-ORM integration tests
-│   ├── security_test.rs              # Security feature tests
-│   ├── single_flight_test.rs         # Single-flight pattern tests
-│   ├── sqlite_partition_tests.rs     # SQLite partitioning tests
-│   ├── ttl_control_test.rs           # TTL control tests
-│   ├── two_level_test.rs             # Two-level cache tests
-│   ├── version_test.rs               # Version compatibility tests
-│   └── wal_test.rs                   # Write-ahead log tests
+├── e2e.rs                               # E2E 测试入口
+├── e2e/
+│   ├── advanced_scenarios_test.rs       # 高级场景（降级、并发、TTL 覆盖）
+│   ├── cache_e2e_test.rs                # 基础 Cache 操作 E2E
+│   ├── macro_test.rs                    # #[cached] 宏 E2E
+│   └── real_world_scenario_test.rs      # 真实业务场景 E2E
 │
-├── e2e/                              # End-to-end tests
-│   └── macro_test.rs                 # Macro-based caching tests
+├── integration.rs                       # 集成测试入口
+├── integration/
+│   ├── batch_write_test.rs              # 批量写入
+│   ├── chain_cache_integration_test.rs  # 链式缓存
+│   ├── comprehensive_test.rs            # 综合集成测试
+│   ├── degradation_tests.rs             # 降级策略与健康检查
+│   ├── invalidation_test.rs             # 缓存失效
+│   ├── recovery_test.rs                 # 故障恢复
+│   ├── sync_api_test.rs                 # Sync API (Moka/DashMap/Redis)
+│   ├── two_level_test.rs                # 双层缓存
+│   ├── version_test.rs                  # 版本管理
+│   ├── redis/                           # Redis & 锁测试
+│   │   ├── redis_client_comprehensive_test.rs  # Redis 客户端综合
+│   │   ├── redis_cluster_test.rs        # Redis Cluster
+│   │   ├── redis_sentinel_test.rs       # Redis Sentinel
+│   │   ├── redis_version_compatibility_test.rs # Redis 版本兼容
+│   │   ├── dist_lock_test.rs            # 分布式锁
+│   │   └── lock_warmup_test.rs          # 锁与预热
+│   ├── ttl/                             # TTL 测试
+│   │   ├── ttl_expire_test.rs           # TTL 过期
+│   │   └── ttl_consistency_test.rs      # TTL 一致性回归
+│   └── backend/                         # 替代后端测试
+│       ├── aerospike_test.rs            # Aerospike
+│       ├── dragonfly_test.rs            # Dragonfly
+│       ├── l2_backend_test.rs           # L2 后端 (Redis)
+│       └── valkey_test.rs               # Valkey
 │
-├── unit/                             # Unit tests
-│   └── serialization_test.rs         # Serialization tests
+├── unit.rs                              # 单元测试入口
+├── unit/
+│   ├── backend_interface_test.rs        # 后端接口
+│   ├── cache_builder_test.rs            # CacheBuilder
+│   ├── cache_test.rs                    # Cache 核心
+│   ├── dashmap_backend_test.rs          # DashMap 后端
+│   ├── depth_limited_test.rs            # 深度限制
+│   ├── error_test.rs                    # 错误类型
+│   ├── layer_test.rs                    # 缓存层
+│   ├── metrics_test.rs                  # 指标收集
+│   ├── mock_backend_test.rs             # Mock 后端
+│   ├── moka_backend_test.rs             # Moka 后端
+│   ├── penetration_guard_test.rs        # 穿透防护
+│   ├── redis_client_test.rs             # Redis 客户端
+│   ├── serialization_test.rs            # 序列化
+│   ├── traits_test.rs                   # Trait 实现
+│   ├── utils_redaction_test.rs          # 日志脱敏
+│   └── utils_security_log_test.rs       # 安全日志
 │
-├── common/                           # Shared test utilities
-│   ├── mod.rs                        # Common module exports
-│   ├── database_test_utils.rs        # Database utilities
-│   └── redis_test_utils.rs           # Redis utilities
+├── macros.rs                            # 宏测试入口
+├── macros/
+│   ├── skip_cache_write_test.rs         # skip_cache_write 宏测试
+│   ├── sync_test.rs                     # sync 模式宏测试
+│   └── compile_fail/                    # trybuild 编译失败测试
+│       ├── invalid_arg.rs / .stderr
+│       └── sync_with_async_fn.rs / .stderr
 │
-├── config/                           # Configuration tests
-│   ├── config_test.rs                # Configuration API tests
-│   └── config_coverage_test.rs       # Configuration coverage tests
+├── feature_test.rs                      # Feature 门控测试
+├── bloom_filter_integration.rs          # Bloom filter 集成测试 (feature = "bloom")
 │
-├── feature/                          # Feature flag tests
-│   ├── feature_gated_init_test.rs    # Feature-gated initialization
-│   ├── features_coverage_test.rs     # Feature coverage tests
-│   └── telemetry_test.rs             # Telemetry tests
+├── chaos.rs                             # 混沌测试入口
+├── chaos/
+│   ├── chaos_test.rs                    # 混沌工程测试
+│   ├── network_failure_test.rs          # 网络故障模拟
+│   └── random_failure_test.rs           # 随机故障模拟
 │
-├── backend/                          # Backend-specific tests
-│   ├── l2_backend_test.rs            # L2 backend (Redis) tests
-│   ├── mock_l2_backend_test.rs       # Mock backend tests
-│   └── redis_version_compatibility_test.rs  # Redis version compatibility
+├── security.rs                          # 安全测试入口
+├── security/
+│   ├── security_coverage_test.rs        # 安全覆盖测试
+│   └── security_tests.rs               # 安全验证测试
 │
-├── cache/                            # Cache layer tests
-│   └── layer_test.rs                 # Layer (L1/L2) cache tests
+├── performance.rs                       # 性能测试入口
+├── performance/
+│   ├── memory_leak_test.rs              # 内存泄漏检测
+│   ├── memory_tests.rs                  # 内存使用测试
+│   ├── miri_memory_test.rs              # Miri 内存安全
+│   ├── performance_test.rs              # 性能基准
+│   └── pipeline_performance_test.rs     # Pipeline 性能
 │
-├── database/                         # Database integration tests
-│   ├── cross_database_integration_tests.rs  # Cross-database tests
-│   ├── database_partitioning_tests.rs       # Partitioning tests
-│   ├── debug_mysql_test.rs           # MySQL debugging tests
-│   └── sqlite_connection_test.rs     # SQLite connection tests
-│
-├── security/                         # Security tests
-│   ├── security_coverage_test.rs     # Security coverage tests
-│   └── security_tests.rs             # Security validation tests
-│
-└── performance/                      # Performance & memory tests
-    ├── memory_leak_test.rs           # Memory leak detection tests
-    ├── memory_tests.rs               # Memory usage tests
-    └── miri_memory_test.rs           # Miri memory safety tests
+└── real_env/                            # 真实环境配置
+    ├── docker-compose.yml               # Redis 主从
+    ├── docker-compose.cluster.yml       # Redis Cluster
+    ├── docker-compose.sentinel.yml      # Redis Sentinel
+    └── configs/                         # Redis 配置文件
 ```
-
-## Test Categories
-
-### Integration Tests (`integration/`)
-Tests that verify the interaction between different components of the cache system. These tests typically:
-- Require external services (Redis, databases)
-- Test multi-component workflows
-- Verify system-level behavior
-
-Run with: `cargo test --test integration`
-
-### End-to-End Tests (`e2e/`)
-Tests that verify complete user workflows from start to finish. These tests:
-- Test the full request/response cycle
-- Verify macro-based caching functionality
-- Simulate real-world usage patterns
-
-Run with: `cargo test --test e2e`
-
-### Unit Tests (`unit/`)
-Tests that verify individual component functionality in isolation. These tests:
-- Test single functions or methods
-- Mock external dependencies
-- Verify internal logic correctness
-
-Run with: `cargo test --test unit`
-
-### Configuration Tests (`config/`)
-Tests for the configuration system:
-- Configuration parsing and validation
-- Cache type configuration
-- Backend configuration
-
-### Feature Tests (`feature/`)
-Tests for feature flags and conditional compilation:
-- Feature detection
-- Feature-gated initialization
-- Telemetry functionality
-
-### Backend Tests (`backend/`)
-Tests for cache backend implementations:
-- Redis backend operations
-- Mock backend behavior
-- Version compatibility
-
-### Cache Layer Tests (`cache/`)
-Tests for cache layer functionality:
-- L1 (memory) cache operations
-- L2 (Redis) cache operations
-- Layer promotion/demotion
-
-### Database Tests (`database/`)
-Tests for database integration:
-- Partition management
-- Cross-database compatibility
-- Connection handling
-
-### Security Tests (`security/`)
-Tests for security features:
-- Input validation
-- Lua script validation
-- Scan pattern validation
-
-### Performance Tests (`performance/`)
-Tests for performance and memory safety:
-- Memory leak detection
-- Memory usage patterns
-- Miri memory safety verification
 
 ## Running Tests
 
 ### All Tests
 ```bash
-cargo test --all-features --workspace
+cargo test --features full
 ```
 
-### Specific Test Category
+### By Test Binary
 ```bash
-cargo test --test integration      # Integration tests
-cargo test --test e2e              # E2E tests
-cargo test --test unit             # Unit tests
+cargo test --features full --lib                    # 库单元测试 (1000+)
+cargo test --features full --test unit              # 单元测试 (325)
+cargo test --features full --test integration       # 集成测试 (133)
+cargo test --features full --test e2e               # 端到端测试 (74)
+cargo test --features full --test macros            # 宏测试 (10)
+cargo test --features full --test feature_test      # Feature 门控测试 (2)
+cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filter (9)
+```
+
+### Minimal Feature
+```bash
+cargo test --features minimal
 ```
 
 ### Skip Network Tests
 ```bash
-cargo test --all-features -- --skip redis
+cargo test --features full -- --skip redis
 ```
 
-### With Database Tests
-```bash
-OXCACHE_TEST_DATABASE=1 cargo test
-```
+## Feature Flags
 
-### With Redis Tests
-```bash
-cargo test --features redis
-```
-
-## Test Utilities
-
-### `test_utils.rs`
-Common utilities for all tests:
-- Logging setup
-- Cache initialization
-- Redis availability checks
-- Service cleanup
-
-### `database_test_utils.rs`
-Database-specific utilities:
-- Test configuration management
-- Partition helper functions
-- Connection testing
-
-### `redis_test_utils.rs`
-Redis-specific utilities:
-- Connection testing
-- Cluster setup helpers
-- Sentinel configuration
-
-## Best Practices
-
-1. **Naming**: Test files should end with `_test.rs`
-2. **Organization**: Group related tests by feature or component
-3. **Utilities**: Share common code through `test_utils.rs` or `common/`
-4. **Isolation**: Tests should be independent and not depend on execution order
-5. **Cleanup**: Tests should clean up resources after completion
-6. **Skipping**: Use appropriate skip conditions for tests requiring external services
+| Feature | Description |
+|---------|-------------|
+| `minimal` | 仅 L1 内存缓存 (默认) |
+| `full` | 全部功能 |
+| `bloom` | Bloom filter 后端 |
+| `memory` | 内存后端 (Moka/DashMap) |
+| `redis` | Redis 后端 |
+| `macros` | `#[cached]` 过程宏 |
+| `serialization` | 序列化支持 |
+| `compression` | 压缩支持 (flate2) |
+| `lua` | Lua 脚本支持 |
+| `batch` | 批量写入 |
+| `lock` | 分布式锁 |
+| `dragonfly` | Dragonfly 后端 |
+| `aerospike` | Aerospike 后端 |
