@@ -129,7 +129,9 @@ pub struct MetricsConfig {
     pub histogram_buckets: Vec<f64>,
     /// Maximum number of dynamic metrics
     pub max_dynamic_metrics: usize,
-    /// Metrics retention period (reserved for future time-based eviction)
+    /// Metrics retention period for time-based eviction of stale snapshots.
+    /// Currently configured but not actively consumed by the eviction logic;
+    /// reserved for future implementation of snapshot lifecycle management.
     #[allow(dead_code)]
     pub retention_period: Option<Duration>,
 }

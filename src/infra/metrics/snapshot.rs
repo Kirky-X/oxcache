@@ -40,9 +40,10 @@ impl From<MetricsSnapshot> for CacheStats {
             l1_deletes: snapshot.counters.l1_deletes,
             l2_deletes: snapshot.counters.l2_deletes,
             total_operations: snapshot.counters.total_operations,
-            // TODO: l1_item_count and l1_capacity_used are populated from
-            // CounterSnapshot when available. The underlying AtomicCounters
-            // are not yet incremented by cache operations.
+            // l1_item_count and l1_capacity_used are read from CounterSnapshot atomics.
+            // These counters track L1 backend entry count and capacity usage respectively;
+            // their accuracy depends on whether the underlying backend increments them
+            // during cache operations (e.g. Moka updates entry_count on insert/evict).
             l1_item_count: snapshot.counters.l1_items,
             l1_capacity_used: snapshot.counters.l1_capacity_used,
             prefetch_count: snapshot.counters.prefetch_total,

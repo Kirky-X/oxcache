@@ -76,9 +76,13 @@ impl RedisBackend {
 
     /// Create a new Redis backend with connection pool.
     ///
-    /// Note: `pool_size` is currently not used as the underlying `redis` crate's
-    /// `ConnectionManager` manages its own connection pool internally.
-    /// This parameter is reserved for future use.
+    /// # Parameters
+    ///
+    /// - `connection_string`: Redis connection URL.
+    /// - `_pool_size`: Currently unused. The underlying `redis` crate’s
+    ///   `ConnectionManager` manages its own connection pool internally.
+    ///   This parameter is retained for API compatibility and will be
+    ///   wired through when a custom pool backend is introduced.
     pub async fn with_pool(connection_string: &str, _pool_size: usize) -> OxCacheResult<Self> {
         Self::builder().connection_string(connection_string).build().await
     }

@@ -1,6 +1,12 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统中使用的常量。
+//!
+//! # `#[allow(dead_code)]` 说明
+//!
+//! 本模块常量通过 `core::mod.rs` 以 `pub use` 重新导出，属于公共 API 的一部分，
+//! 供外部使用者进行配置校验、默认值参考等场景。由于 crate 内部不直接消费这些常量，
+//! 编译器会报告 dead_code 警告，因此统一添加 `#[allow(dead_code)]` 抑制。
 
 use crate::core::RedisCommand;
 use std::time::Duration;

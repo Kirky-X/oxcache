@@ -4,9 +4,11 @@
 
 /// Redis 命令枚举
 ///
-/// 定义所有支持的 Redis 命令变体，供后续命令路由和序列化使用。
-/// 当前尚未完全集成到命令处理器中，保留 `#[allow(dead_code)]` 直到集成完成。
-// TODO: 集成到命令处理器后移除 #[allow(dead_code)]
+/// 定义所有支持的 Redis 命令变体，供命令路由和序列化使用。
+/// 当 `redis` feature 未启用时，该枚举及其方法无内部调用方，
+/// 因此需要 `#[allow(dead_code)]`；启用 `redis` feature 后
+/// `async_traits`、`lua_executor`、`dist_lock` 等模块会消费此类型。
+// NOTE: 移除 #[allow(dead_code)] 的条件：所有 feature 组合下均有内部调用方
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RedisCommand {
