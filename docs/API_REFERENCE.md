@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.4.2** 的 API。
+> 本文档描述 **Oxcache v0.4.3** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -23,6 +23,7 @@
 - [安全特性](#安全特性)
 - [可观测性](#可观测性)
 - [错误处理](#错误处理)
+- [trait-kit 集成](#trait-kit-集成kit-feature)
 
 ## 特性要求
 
@@ -857,6 +858,41 @@ pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 ```rust
 pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
 pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster | ValkeyStandalone
+```
+
+## trait-kit 集成（kit feature）
+
+启用 `kit` feature 后，oxcache 提供 trait-kit `AsyncKit` 集成模块 `oxcache::integrations::kit`：
+
+| 类型 / 函数 | 说明 |
+|------------|------|
+| `OxcacheModule` | 实现 `AsyncAutoBuilder`，构建 `Arc<dyn CacheBackend + Send + Sync>` 能力 |
+| `OxcacheConfig` | 模块配置（`capacity: u64`, `ttl: Option<Duration>`, `tti: Option<Duration>`） |
+| `OxcacheBuildObserver` | 实现 `BuildObserver`，可通过 `AsyncKit::with_observer` 注册构建观察者 |
+| `register_cache_shutdown` | 将 `CacheBackend` 关闭映射到 `AsyncShutdownCoordinator` 三阶段 |
+| `CacheBackendDecorator` | 装饰器类型别名 `Arc<dyn Fn(Arc<dyn CacheBackend>) -> Arc<dyn CacheBackend>>` |
+| `register_cache_decorator` | 辅助函数，调用 `kit.decorate::<OxcacheModule>(decorator)` |
+
+```rust
+use oxcache::integrations::kit::*;
+use trait_kit::prelude::*;
+use std::sync::Arc;
+
+let mut kit = AsyncKit::new();
+kit.set_config(OxcacheConfig::default());
+kit.with_observer(Arc::new(OxcacheBuildObserver));
+kit.register::<OxcacheModule>().unwrap();
+
+// 注册装饰器
+register_cache_decorator(&kit, |backend| backend);
+
+let built = kit.build().await.unwrap();
+let backend = built.require::<OxcacheModule>().unwrap();
+
+// 注册三阶段关闭
+let coord = AsyncShutdownCoordinator::new();
+register_cache_shutdown(&coord, backend.clone()).unwrap();
+coord.shutdown().await.unwrap();
 ```
 
 ## 示例

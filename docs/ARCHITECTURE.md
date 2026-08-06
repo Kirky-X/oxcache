@@ -851,7 +851,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 | `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） | ✅ |
 | `aerospike` | Aerospike 缓存后端（独立协议） | ✅ |
 | `bloom` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
-| `kit` | trait-kit 0.4 AsyncKit 集成（OxcacheModule + AsyncHealthCheck + AsyncLifecycle） | ❌（选择加入） |
+| `kit` | trait-kit 0.4 AsyncKit 集成（OxcacheModule + AsyncHealthCheck + AsyncLifecycle + BuildObserver + ShutdownCoordinator + Decorator） | ❗（选择加入） |
 | `testing` | 暴露内部函数供测试使用 | ✅ |
 
 > **重要**：`bloom` 和 `kit` **不包含**在 `full` 中。需通过 `features = ["bloom"]` 等显式启用。
