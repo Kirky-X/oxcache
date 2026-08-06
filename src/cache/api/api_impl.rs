@@ -9,6 +9,7 @@ use crate::backend::{CacheBackend, SyncCacheBackend};
 use crate::infra::UnifiedSerializer;
 use crate::traits::CacheKey;
 use std::sync::Arc;
+use std::time::Duration;
 
 impl<K, V> std::fmt::Debug for Cache<K, V>
 where
@@ -36,6 +37,8 @@ where
             serializer: Arc::new(crate::infra::JsonSerializer::new()),
             #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
+            null_cache_ttl: None,
+            ttl_jitter_factor: 0.0,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -52,6 +55,16 @@ where
 
     pub fn with_dependencies(backend: Arc<dyn CacheBackend>) -> Self {
         Self::new_with_backend(backend)
+    }
+
+    /// Set the null cache TTL for penetration guard.
+    pub(crate) fn set_null_cache_ttl(&mut self, ttl: Option<Duration>) {
+        self.null_cache_ttl = ttl;
+    }
+
+    /// Set the TTL jitter factor for stampede prevention.
+    pub(crate) fn set_ttl_jitter_factor(&mut self, factor: f64) {
+        self.ttl_jitter_factor = factor;
     }
 
     /// 设置同步后端（供 CacheBuilder::sync_mode 在 build() 中调用）。
@@ -95,6 +108,8 @@ where
             serializer: Arc::new(crate::infra::JsonSerializer::new()),
             #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
+            null_cache_ttl: None,
+            ttl_jitter_factor: 0.0,
             _phantom: std::marker::PhantomData,
         })
     }

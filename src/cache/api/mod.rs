@@ -14,6 +14,7 @@ use crate::backend::{CacheBackend, SyncCacheBackend};
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// 核心 Cache 类型
 pub struct Cache<K, V> {
@@ -26,6 +27,12 @@ pub struct Cache<K, V> {
     // unified_serializer 字段仅在 serialization/full feature 下存在
     #[cfg(any(feature = "serialization", feature = "full"))]
     pub(crate) unified_serializer: UnifiedSerializer,
+    /// Null cache TTL — when set, `get_or_option` caches a sentinel for
+    /// `None` results to prevent cache penetration.
+    pub(crate) null_cache_ttl: Option<Duration>,
+    /// TTL jitter factor (0.0..=1.0). When > 0, actual TTL is randomized
+    /// within `base_ttl * (1.0 ± factor)` to prevent cache stampede.
+    pub(crate) ttl_jitter_factor: f64,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 
