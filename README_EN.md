@@ -52,14 +52,14 @@ oxcache = { version = "0.4", features = ["core"] }
 oxcache = { version = "0.4", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
 | Tier        | Features                                                                        | Description            |
 | ----------- | ------------------------------------------------------------------------------- | ---------------------- |
 | **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
 | **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
-| **full**    | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | Complete functionality |
+| **full**    | `core` + `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | Complete functionality |
 
 **Individual Features**:
 
@@ -71,12 +71,11 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 - `serialization` - JSON serialization (serde + serde\_json)
 - `compression` - Data compression (flate2)
 - `metrics` - Built-in performance metrics (latency histograms, operation counts, JSON export); OTLP export handled at application level
-- `batch-write` - Optimized batch writing
-- `lua-script` - Lua script execution support
+- `batch` - Optimized batch writing
+- `lua` - Lua script execution support
 - `cli` - Command-line interface tools
-- `tracing` - ~~Deprecated~~ (tracing removed, empty feature kept for backward compatibility)
 - `i18n` - Error message internationalization + auto system language detection
-- `bloom-filter` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
+- `bloom` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
 - `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
 - `testing` - Testing utilities
 
@@ -371,11 +370,11 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ## Bloom Filter
 
-The `bloom-filter` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
+The `bloom` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
 
 ```toml
 [dependencies]
-oxcache = { version = "0.4", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["memory", "bloom"] }
 ```
 
 ```rust

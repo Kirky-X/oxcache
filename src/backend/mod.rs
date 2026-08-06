@@ -48,7 +48,7 @@ pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncC
 pub use interface::BackendKind;
 
 // Re-export LuaExecutor trait for Lua script execution
-#[cfg(feature = "lua-script")]
+#[cfg(feature = "lua")]
 pub use interface::LuaExecutor;
 
 // Re-export ConfigValidation for configuration validation utilities

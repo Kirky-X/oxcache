@@ -388,7 +388,7 @@ impl CacheConnector for RedisBackend {
         }
     }
 
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     fn as_lua_executor(&self) -> Option<&dyn crate::backend::interface::LuaExecutor> {
         Some(self)
     }

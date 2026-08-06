@@ -9,7 +9,7 @@ pub(crate) mod async_traits;
 pub(crate) mod builder;
 pub(crate) mod circuit_breaker;
 pub(crate) mod error;
-#[cfg(feature = "lua-script")]
+#[cfg(feature = "lua")]
 pub(crate) mod lua_executor;
 pub(crate) mod namespace;
 pub(crate) mod pipeline;

@@ -41,14 +41,13 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 - **`macros`**：`#[cached]` 属性宏所需
 - **`serialization`**：仅 JSON 序列化（serde + serde_json）
 - **`compression`**：数据压缩（flate2）
-- **`tracing`**：~~已废弃~~（tracing 已移除，保留空 feature 向后兼容）
 - **`i18n`**：错误消息国际化 + 系统语言自动检测
 - **`metrics`**：内置指标与可观测性
-- **`batch-write`**：缓冲 L2 写入
-- **`lua-script`**：Lua 脚本执行支持（需要 `redis`）
+- **`batch`**：缓冲 L2 写入
+- **`lua`**：Lua 脚本执行支持（需要 `redis`）
 - **`cli`**：命令行界面工具
 - **`testing`**：测试支持工具
-- **`bloom-filter`**：负查询过滤（**不包含**在 `full` 中）
+- **`bloom`**：负查询过滤（**不包含**在 `full` 中）
 
 ### 示例配置
 
@@ -62,8 +61,8 @@ oxcache = { version = "0.4", features = ["core"] }
 # 最小特性 - 仅 L1 缓存
 oxcache = { version = "0.4", features = ["minimal"] }
 
-# 自定义选择（例如在 core 基础上添加 bloom-filter）
-oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
+# 自定义选择（例如在 core 基础上添加 bloom）
+oxcache = { version = "0.4", features = ["core", "macros", "bloom"] }
 ```
 
 ### 特性依赖
@@ -72,10 +71,10 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 
 | 特性 | 所需特性 | 说明 |
 |------|----------|------|
-| `lua-script` | `redis` | Lua 脚本执行 |
+| `lua` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap` | 命令行界面 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（注意：`bloom-filter`、`kit` 不在 `full` 中） |
+| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | 全部功能（注意：`bloom`、`kit` 不在 `full` 中） |
 
 ## 缓存宏
 
@@ -337,7 +336,7 @@ pub trait CacheConnector: Send + Sync + 'static {
     async fn health_check(&self) -> OxCacheResult<()>;
     async fn shutdown(&self);
     fn backend_kind(&self) -> BackendKind;
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
 }
 
@@ -355,7 +354,7 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 | `DragonflyBackend` | `dragonfly` | Dragonfly 缓存（Redis 协议兼容，包装 RedisBackend）。 |
 | `AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储（独立协议，feature-gated）。 |
 | `ChainCache` | — | 多级缓存链（参见 [ChainCache](#chaincache)）。 |
-| `BloomFilterBackend` | `bloom-filter` | 装饰器，布隆过滤器判定 key 不存在时跳过内部后端。 |
+| `BloomFilterBackend` | `bloom` | 装饰器，布隆过滤器判定 key 不存在时跳过内部后端。 |
 
 ### 内存后端辅助
 
@@ -433,9 +432,9 @@ let values: Vec<Option<Vec<u8>>> = backend.get_many_pipeline(&["k1", "k2"]).awai
 backend.delete_many_pipeline(&["k1", "k2"]).await?;
 ```
 
-### Lua 脚本（`lua-script` 特性）
+### Lua 脚本（`lua` 特性）
 
-启用 `lua-script` 特性后，`RedisBackend` 实现 `LuaExecutor`：
+启用 `lua` 特性后，`RedisBackend` 实现 `LuaExecutor`：
 
 ```rust
 use oxcache::backend::interface::LuaExecutor;
@@ -609,7 +608,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 布隆过滤器
 
-`bloom-filter` 特性（**不包含**在 `full` 中）提供负查询过滤。
+`bloom` 特性（**不包含**在 `full` 中）提供负查询过滤。
 `BloomFilterBackend` 包装任意 `CacheBackend`，当布隆过滤器判定键不存在时跳过内部后端。
 
 ### `BloomFilter`

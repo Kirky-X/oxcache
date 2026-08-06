@@ -15,7 +15,7 @@ fn is_noscript_error(e: &redis::RedisError) -> bool {
     e.to_string().contains("NOSCRIPT")
 }
 
-#[cfg(feature = "lua-script")]
+#[cfg(feature = "lua")]
 #[async_trait]
 impl LuaExecutor for RedisBackend {
     async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {

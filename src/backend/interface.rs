@@ -260,7 +260,7 @@ pub trait CacheConnector: Send + Sync + 'static {
     fn backend_kind(&self) -> BackendKind;
 
     /// Get Lua script executor if this backend supports it.
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> {
         None
     }
@@ -278,7 +278,7 @@ pub trait CacheConnector: Send + Sync + 'static {
 // Lua Executor Trait (Optional, Redis-only)
 // ============================================================================
 
-#[cfg(feature = "lua-script")]
+#[cfg(feature = "lua")]
 #[async_trait]
 pub trait LuaExecutor: Send + Sync {
     async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;

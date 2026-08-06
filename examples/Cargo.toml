@@ -15,7 +15,7 @@ publish = false
 # Path dependency to the main oxcache project
 oxcache = { path = "..", default-features = false, features = [
     "full",
-    "bloom-filter",
+    "bloom",
 ] }
 
 # Tracing for logging (minimal features)

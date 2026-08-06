@@ -118,7 +118,7 @@ oxcache = { version = "0.4", features = ["core"] }
 oxcache = { version = "0.4", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
 ### 可用特性
@@ -127,7 +127,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 |------|----------|------|
 | **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono` | 仅 L1 缓存 |
 | **core** | `minimal` + `redis` | L1 + L2 缓存 |
-| **full** | `core` + `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 完整功能 |
+| **full** | `core` + `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | 完整功能 |
 
 **独立特性**：
 - `memory` - L1 缓存后端（Moka + DashMap）
@@ -138,12 +138,11 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom-fil
 - `serialization` - JSON 序列化（serde + serde_json）
 - `compression` - 数据压缩（flate2）
 - `metrics` - 内置性能指标（延迟直方图、操作计数、JSON 导出）；如需 OTLP 导出由应用层处理
-- `batch-write` - 优化的批量写入
-- `lua-script` - Lua 脚本执行支持
+- `batch` - 优化的批量写入
+- `lua` - Lua 脚本执行支持
 - `cli` - 命令行界面工具
-- `tracing` - ~~已废弃~~（tracing 已移除，保留空 feature 向后兼容）
 - `i18n` - 错误消息国际化 + 系统语言自动检测
-- `bloom-filter` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
+- `bloom` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
 - `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
 - `testing` - Testing utilities
 
@@ -285,11 +284,11 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ## 布隆过滤器（0.3.0）
 
-`bloom-filter` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
+`bloom` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
 
 ```toml
 [dependencies]
-oxcache = { version = "0.4", features = ["memory", "bloom-filter"] }
+oxcache = { version = "0.4", features = ["memory", "bloom"] }
 ```
 
 ```rust

@@ -43,7 +43,7 @@ where
     K: CacheKey,
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
@@ -53,7 +53,7 @@ where
         executor.eval_lua(script, keys, args).await
     }
 
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
@@ -63,7 +63,7 @@ where
         executor.eval_sha(sha, keys, args).await
     }
 
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     pub async fn script_load(&self, script: &str) -> OxCacheResult<String> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
@@ -77,7 +77,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::cache::Cache;
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     use crate::error::OxCacheError;
 
     // ========================================================================
@@ -110,7 +110,7 @@ mod tests {
     // ========================================================================
 
     #[tokio::test]
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     async fn test_eval_lua_returns_error_on_non_redis_backend() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let result = cache.eval_lua("return 1", &[], &[]).await;
@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     async fn test_eval_sha_returns_error_on_non_redis_backend() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let result = cache.eval_sha("abc123", &[], &[]).await;
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     async fn test_script_load_returns_error_on_non_redis_backend() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let result = cache.script_load("return 1").await;

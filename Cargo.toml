@@ -183,13 +183,13 @@ full = [
     "core",
     "macros",
     "compression",
-    "batch-write",
-    "lua-script",
+    "batch",
+    "lua",
     "cli",
     "testing",
     "dragonfly",
     "aerospike",
-    "dist-lock",
+    "lock",
 ]
 
 # Component features
@@ -199,17 +199,15 @@ dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
 macros = ["dep:oxcache_macros", "minimal"]
 serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
-flate2 = ["dep:flate2"]
-compression = ["dep:flate2", "flate2"]
-tracing = []
 metrics = ["serialization", "dep:chrono", "dep:dashmap"]
-batch-write = []
-lua-script = ["redis"]
+batch = []
+lua = ["redis"]
 cli = ["dep:dashmap", "metrics"]
 testing = []
-bloom-filter = ["dep:bloomfilter"]
+bloom = ["dep:bloomfilter"]
 kit = ["dep:trait-kit", "dep:futures"]
-dist-lock = ["redis"]
+lock = ["redis"]
+compression = ["dep:flate2"]
 
 # ============================================================================
 # PROFILES

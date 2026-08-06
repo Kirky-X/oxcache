@@ -85,11 +85,11 @@ cargo test --examples
 示例 crate 启用了以下 oxcache 特性：
 
 ```toml
-oxcache = { path = "..", features = ["full", "bloom-filter"] }
+oxcache = { path = "..", features = ["full", "bloom"] }
 ```
 
 - `full` — 包含所有核心功能（Redis、序列化、压缩、指标、Lua 脚本等）
-- `bloom-filter` — 布隆过滤器支持
+- `bloom` — 布隆过滤器支持
 
 ## 先决条件
 

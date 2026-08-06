@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(json_data, deserialized);
     }
 
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     #[test]
     fn test_compression_round_trip() {
         let serializer = UnifiedSerializer::with_compression();
@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(data, deserialized);
     }
 
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     #[test]
     fn test_compression_shrinks_repetitive_data() {
         let serializer = UnifiedSerializer::with_compression();

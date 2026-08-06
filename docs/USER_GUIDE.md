@@ -157,8 +157,8 @@ oxcache = { version = "0.4", features = ["core"] }
 # 最小特性（仅 L1 缓存）
 oxcache = { version = "0.4", features = ["minimal"] }
 
-# 自定义选择（注意：bloom-filter 不在 full 内，需单独启用）
-oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
+# 自定义选择（注意：bloom 不在 full 内，需单独启用）
+oxcache = { version = "0.4", features = ["core", "macros", "bloom"] }
 ```
 
 #### 特性依赖说明
@@ -167,10 +167,10 @@ oxcache = { version = "0.4", features = ["core", "macros", "bloom-filter"] }
 
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
-| `lua-script` | `redis` | Lua 脚本执行 |
+| `lua` | `redis` | Lua 脚本执行 |
 | `cli` | `metrics`, `dashmap` | 命令行界面工具 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch-write`, `lua-script`, `cli`, `testing`, `dragonfly`, `aerospike` | 全部功能（**不含** `bloom-filter`、`kit`） |
+| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | 全部功能（**不含** `bloom`、`kit`） |
 
 如果需要最小依赖或自定义特性：
 
@@ -511,7 +511,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 布隆过滤器
 
-启用 `bloom-filter` 特性（不在 `full` 内）可进行负查询过滤。`BloomFilterBackend`
+启用 `bloom` 特性（不在 `full` 内）可进行负查询过滤。`BloomFilterBackend`
 装饰任意 `CacheBackend`，当布隆过滤器判定 key 不存在时直接跳过内部后端：
 
 ```rust
