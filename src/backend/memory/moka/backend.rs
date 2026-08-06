@@ -329,6 +329,10 @@ impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Moka
     }
+
+    fn as_sync_atomic_writer(&self) -> Option<&dyn crate::backend::interface::SyncAtomicCacheWriter> {
+        Some(self)
+    }
 }
 
 impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
