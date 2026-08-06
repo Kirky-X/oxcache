@@ -31,8 +31,6 @@ struct ApiResponse {
     cached_at: i64,
 }
 
-
-
 #[tokio::test]
 async fn test_web_application_cache_scenario() {
     println!("=== Web 应用缓存场景测试 ===");
@@ -107,15 +105,14 @@ async fn test_session_storage_scenario() {
 
     // 更新会话数据
     let mut updated_session = cached_session;
-    updated_session.data.insert("last_page".to_string(), "/dashboard".to_string());
+    updated_session
+        .data
+        .insert("last_page".to_string(), "/dashboard".to_string());
     cache.set(&key, &updated_session).await.unwrap();
 
     // 验证更新
     let cached: Option<Session> = cache.get(&key).await.unwrap();
-    assert_eq!(
-        cached.unwrap().data.get("last_page"),
-        Some(&"/dashboard".to_string())
-    );
+    assert_eq!(cached.unwrap().data.get("last_page"), Some(&"/dashboard".to_string()));
 
     // 注销会话
     cache.delete(&key).await.unwrap();
@@ -182,11 +179,7 @@ async fn test_distributed_lock_scenario() {
     let lock_ttl = Duration::from_secs(10);
 
     // 尝试获取锁
-    let acquired = cache
-        .get(&lock_key)
-        .await
-        .unwrap()
-        .is_none();
+    let acquired = cache.get(&lock_key).await.unwrap().is_none();
 
     if acquired {
         // 设置锁
@@ -224,10 +217,7 @@ async fn test_rate_limiting_scenario() {
 
     // 模拟请求计数
     for i in 1..=max_requests + 5 {
-        let count: u64 = cache
-            .get_or(&rate_limit_key, || async { Ok(0u64) })
-            .await
-            .unwrap();
+        let count: u64 = cache.get_or(&rate_limit_key, || async { Ok(0u64) }).await.unwrap();
 
         if count < max_requests {
             cache

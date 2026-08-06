@@ -32,9 +32,7 @@ pub fn register_cache_shutdown(
 ) -> Result<(), OxCacheError> {
     // Phase 1: StopRequests — no-op for cache backends.
     coord
-        .register_hook(ShutdownPhase::StopRequests, || {
-            Box::pin(async {})
-        })
+        .register_hook(ShutdownPhase::StopRequests, || Box::pin(async {}))
         .map_err(|e| OxCacheError::Internal(format!("shutdown register StopRequests: {e}")))?;
 
     // Phase 2: DrainQueue — health-check probe.
@@ -55,9 +53,7 @@ pub fn register_cache_shutdown(
                 close_backend.shutdown().await;
             })
         })
-        .map_err(|e| {
-            OxCacheError::Internal(format!("shutdown register CloseConnections: {e}"))
-        })?;
+        .map_err(|e| OxCacheError::Internal(format!("shutdown register CloseConnections: {e}")))?;
 
     Ok(())
 }
@@ -89,7 +85,7 @@ mod tests {
         }
     }
 
-    use crate::backend::{CacheReader, CacheWriter, CacheConnector, CacheSetItem};
+    use crate::backend::{CacheConnector, CacheReader, CacheSetItem, CacheWriter};
 
     #[async_trait::async_trait]
     impl CacheReader for MockShutdownBackend {

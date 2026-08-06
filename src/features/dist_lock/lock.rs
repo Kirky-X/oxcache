@@ -5,8 +5,8 @@
 use crate::backend::RedisBackend;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -81,7 +81,6 @@ impl DistributedLock {
 
         // Reset released flag for new acquisition
         self.released.store(false, Ordering::SeqCst);
-
 
         let ttl_ms = self.ttl.as_millis() as u64;
         let mut conn = self.backend.conn();
@@ -208,7 +207,6 @@ impl DistributedLock {
         let owner_id = self.owner_id.clone();
         let ttl = self.ttl;
         let released = self.released.clone();
-
 
         let renew_interval = ttl / 3;
 

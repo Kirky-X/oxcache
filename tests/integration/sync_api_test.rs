@@ -318,7 +318,8 @@ mod redis_sync_tests {
             assert!(secs > 40 && secs <= 50, "ttl secs should be in (40, 50], got {}", secs);
 
             let missing = unique_key("sync_expire_missing");
-            let ok = SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10)).expect("sync expire call failed");
+            let ok =
+                SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10)).expect("sync expire call failed");
             assert!(!ok, "expire should return false for missing key");
 
             SyncCacheWriter::delete(&backend, &key).expect("sync delete failed");

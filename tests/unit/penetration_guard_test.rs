@@ -3,8 +3,8 @@
 //! Penetration guard tests — null sentinel cache via public API.
 
 use oxcache::cache::Cache;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 // ============================================================================
@@ -77,9 +77,7 @@ async fn test_get_or_option_returns_some_on_real_value() {
 
     // Fallback returns Some — should cache normally
     let result = cache
-        .get_or_option(&"real-key".to_string(), || async {
-            Ok(Some("real-value".to_string()))
-        })
+        .get_or_option(&"real-key".to_string(), || async { Ok(Some("real-value".to_string())) })
         .await
         .unwrap();
     assert_eq!(result, Some("real-value".to_string()));
@@ -142,7 +140,11 @@ async fn test_null_sentinel_expires_after_ttl() {
         })
         .await
         .unwrap();
-    assert_eq!(count1.load(Ordering::SeqCst), 0, "sentinel should block fallback immediately");
+    assert_eq!(
+        count1.load(Ordering::SeqCst),
+        0,
+        "sentinel should block fallback immediately"
+    );
 
     // Wait for TTL to expire
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -270,11 +272,7 @@ async fn test_get_or_option_concurrent_single_flight() {
 #[tokio::test]
 async fn test_ttl_jitter_applied() {
     // With a large jitter factor, the actual TTL should vary across calls
-    let cache: Cache<String, String> = Cache::builder()
-        .ttl_jitter(0.5)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, String> = Cache::builder().ttl_jitter(0.5).build().await.unwrap();
 
     let base_ttl = Duration::from_secs(100);
     let mut ttls = Vec::new();
@@ -321,7 +319,11 @@ async fn test_ttl_jitter_zero_no_change() {
         .await
         .unwrap();
 
-    let remaining = cache.ttl(&"stable-key".to_string()).await.unwrap().expect("key should exist");
+    let remaining = cache
+        .ttl(&"stable-key".to_string())
+        .await
+        .unwrap()
+        .expect("key should exist");
     // TTL should be very close to base_ttl (within 1s for processing time)
     assert!(
         remaining > Duration::from_secs(58) && remaining <= Duration::from_secs(60),
@@ -370,11 +372,7 @@ async fn test_null_sentinel_no_jitter() {
 #[tokio::test]
 async fn test_builder_ttl_jitter_clamped() {
     // Values > 1.0 should be clamped to 1.0
-    let cache: Cache<String, String> = Cache::builder()
-        .ttl_jitter(2.0)
-        .build()
-        .await
-        .unwrap();
+    let cache: Cache<String, String> = Cache::builder().ttl_jitter(2.0).build().await.unwrap();
 
     let base_ttl = Duration::from_secs(100);
     cache
@@ -382,7 +380,11 @@ async fn test_builder_ttl_jitter_clamped() {
         .await
         .unwrap();
 
-    let remaining = cache.ttl(&"clamped".to_string()).await.unwrap().expect("key should exist");
+    let remaining = cache
+        .ttl(&"clamped".to_string())
+        .await
+        .unwrap()
+        .expect("key should exist");
     // With factor clamped to 1.0, range is [0s, 200s]
     assert!(
         remaining <= Duration::from_secs(201),

@@ -82,7 +82,9 @@ where
     ) -> OxCacheResult<bool> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
         writer.compare_and_swap(&key_str, expected, new_bytes, ttl)
@@ -93,7 +95,9 @@ where
     pub fn set_if_absent_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<bool> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
         let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;

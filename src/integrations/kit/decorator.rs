@@ -34,10 +34,7 @@ pub type CacheBackendDecorator =
 /// inside trait-kit (should never happen with `OxcacheModule`).
 pub fn register_cache_decorator(
     kit: &AsyncKit,
-    decorator: impl Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync>
-        + Send
-        + Sync
-        + 'static,
+    decorator: impl Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync> + Send + Sync + 'static,
 ) {
     kit.decorate::<OxcacheModule>(decorator);
 }
@@ -48,7 +45,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use crate::backend::{CacheConnector, CacheReader, CacheWriter, BackendKind};
+    use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 
     /// Mock backend that returns a fixed value for `get`.
     struct DecoratorTestBackend;
@@ -251,14 +248,17 @@ mod tests {
         struct TestModule;
         impl trait_kit::core::ModuleMeta for TestModule {
             const NAME: &'static str = "test-dec";
-            fn dependencies() -> &'static [(&'static str, TypeId)] { &[] }
+            fn dependencies() -> &'static [(&'static str, TypeId)] {
+                &[]
+            }
         }
         impl AsyncAutoBuilder for TestModule {
             type Capability = Arc<TestCap>;
             type Error = crate::error::OxCacheError;
             fn build<'a>(
                 _kit: &'a AsyncKit,
-            ) -> Pin<Box<dyn Future<Output = Result<Arc<TestCap>, crate::error::OxCacheError>> + Send + 'a>> {
+            ) -> Pin<Box<dyn Future<Output = Result<Arc<TestCap>, crate::error::OxCacheError>> + Send + 'a>>
+            {
                 Box::pin(async { Ok(Arc::new(TestCap { val: "base".into() })) })
             }
         }

@@ -13,6 +13,9 @@ pub mod common;
 #[cfg(feature = "redis")]
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
+#[cfg(feature = "redis")]
+#[path = "integration/chain_cache_integration_test.rs"]
+mod chain_cache_integration_test;
 #[path = "integration/comprehensive_test.rs"]
 mod comprehensive_test;
 #[path = "integration/degradation_tests.rs"]
@@ -29,13 +32,16 @@ mod sync_api_test;
 #[path = "integration/two_level_test.rs"]
 mod two_level_test;
 #[cfg(feature = "redis")]
-#[path = "integration/chain_cache_integration_test.rs"]
-mod chain_cache_integration_test;
-#[cfg(feature = "redis")]
 #[path = "integration/version_test.rs"]
 mod version_test;
 
 // --- Redis & lock tests ---
+#[cfg(feature = "redis")]
+#[path = "integration/redis/dist_lock_test.rs"]
+mod dist_lock_test;
+#[cfg(feature = "redis")]
+#[path = "integration/redis/lock_warmup_test.rs"]
+mod lock_warmup_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis/redis_client_comprehensive_test.rs"]
 mod redis_client_comprehensive_test;
@@ -48,18 +54,12 @@ mod redis_sentinel_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis/redis_version_compatibility_test.rs"]
 mod redis_version_compatibility_test;
-#[cfg(feature = "redis")]
-#[path = "integration/redis/dist_lock_test.rs"]
-mod dist_lock_test;
-#[cfg(feature = "redis")]
-#[path = "integration/redis/lock_warmup_test.rs"]
-mod lock_warmup_test;
 
 // --- TTL tests ---
-#[path = "integration/ttl/ttl_expire_test.rs"]
-mod ttl_expire_test;
 #[path = "integration/ttl/ttl_consistency_test.rs"]
 mod ttl_consistency_test;
+#[path = "integration/ttl/ttl_expire_test.rs"]
+mod ttl_expire_test;
 
 // --- Alternative backend tests ---
 #[cfg(feature = "aerospike")]
@@ -69,8 +69,8 @@ mod aerospike_test;
 #[path = "integration/backend/dragonfly_test.rs"]
 mod dragonfly_test;
 #[cfg(feature = "redis")]
-#[path = "integration/backend/valkey_test.rs"]
-mod valkey_test;
-#[cfg(feature = "redis")]
 #[path = "integration/backend/l2_backend_test.rs"]
 mod l2_backend_test;
+#[cfg(feature = "redis")]
+#[path = "integration/backend/valkey_test.rs"]
+mod valkey_test;

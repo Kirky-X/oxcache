@@ -284,7 +284,7 @@ pub(crate) mod security;
 // Cargo.toml. Cache<K, V> requires V: Serialize + Deserialize, so these are
 // part of the public API surface. Re-exporting keeps them as internal deps.
 #[cfg(any(feature = "memory", feature = "serialization", feature = "full"))]
-pub use serde::{Serialize, Deserialize};
+pub use serde::{Deserialize, Serialize};
 
 // Re-export macros when the feature is enabled
 #[cfg(feature = "macros")]
@@ -349,7 +349,7 @@ pub use crate::security::{
 
 // Distributed lock re-exports
 #[cfg(feature = "lock")]
-pub use features::dist_lock::{DistributedLock, DistLockBuilder};
+pub use features::dist_lock::{DistLockBuilder, DistributedLock};
 
 // Public API re-exports (after features re-exports)
 // cache 模块 re-export 须与 cache 模块门控一致

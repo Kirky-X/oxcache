@@ -10,13 +10,12 @@
 // trait-kit 提供依赖注入和能力管理，oxcache 通过 OxcacheModule
 // 注册为 kit 模块，获得 observer/shutdown/decorator 等生命周期管理。
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::integrations::kit::{
-    register_cache_decorator, register_cache_shutdown, OxcacheBuildObserver, OxcacheConfig,
-    OxcacheModule,
+    OxcacheBuildObserver, OxcacheConfig, OxcacheModule, register_cache_decorator, register_cache_shutdown,
 };
 use trait_kit::prelude::*;
 
@@ -35,10 +34,7 @@ impl CacheReader for CountingDecorator {
     async fn exists(&self, key: &str) -> oxcache::error::OxCacheResult<bool> {
         self.inner.exists(key).await
     }
-    async fn ttl(
-        &self,
-        key: &str,
-    ) -> oxcache::error::OxCacheResult<Option<std::time::Duration>> {
+    async fn ttl(&self, key: &str) -> oxcache::error::OxCacheResult<Option<std::time::Duration>> {
         self.inner.ttl(key).await
     }
     async fn len(&self) -> oxcache::error::OxCacheResult<u64> {
@@ -47,9 +43,7 @@ impl CacheReader for CountingDecorator {
     async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
         self.inner.capacity().await
     }
-    async fn stats(
-        &self,
-    ) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
+    async fn stats(&self) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
         self.inner.stats().await
     }
 }
@@ -71,11 +65,7 @@ impl CacheWriter for CountingDecorator {
     async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
         self.inner.clear().await
     }
-    async fn expire(
-        &self,
-        key: &str,
-        ttl: std::time::Duration,
-    ) -> oxcache::error::OxCacheResult<bool> {
+    async fn expire(&self, key: &str, ttl: std::time::Duration) -> oxcache::error::OxCacheResult<bool> {
         self.inner.expire(key, ttl).await
     }
 }
@@ -154,7 +144,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let miss = backend.get("user:999").await?;
     println!("get 'user:999' = {:?} (应为 None)", miss);
 
-    println!("操作计数: {} (应为 3: set + get + get)", ops_count.load(Ordering::SeqCst));
+    println!(
+        "操作计数: {} (应为 3: set + get + get)",
+        ops_count.load(Ordering::SeqCst)
+    );
     println!();
 
     // === 3. 三阶段关闭 ===
