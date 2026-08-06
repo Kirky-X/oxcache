@@ -502,7 +502,7 @@ where
 {
     /// Resolve the sync backend or return `Err(NotSupported)` when the cache
     /// was not built with `sync_mode(true)`.
-    fn sync_backend(&self) -> OxCacheResult<&Arc<dyn crate::backend::SyncCacheBackend>> {
+    pub(super) fn sync_backend(&self) -> OxCacheResult<&Arc<dyn crate::backend::SyncCacheBackend>> {
         self.backend_sync.as_ref().ok_or_else(|| {
             OxCacheError::NotSupported(
                 "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
