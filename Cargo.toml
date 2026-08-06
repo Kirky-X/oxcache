@@ -289,3 +289,6 @@ required-features = ["dragonfly"]
 
 [lints.rust]
 unexpected_cfgs = "allow"
+
+[patch.crates-io]
+trait-kit = { path = "../trait-kit" }

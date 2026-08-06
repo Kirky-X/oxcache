@@ -232,4 +232,81 @@ mod tests {
             result
         );
     }
+
+    // ========================================================================
+    // Synchronous atomic operation tests
+    // ========================================================================
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_incr_sync_via_moka() {
+        let cache: Cache<String, i64> = Cache::builder().sync_mode(true).build().await.unwrap();
+
+        // incr on non-existing key → 0 + 1 = 1
+        let val = cache.incr_sync(&"counter".to_string(), 1, None).unwrap();
+        assert_eq!(val, 1);
+
+        // incr again → 1 + 5 = 6
+        let val = cache.incr_sync(&"counter".to_string(), 5, None).unwrap();
+        assert_eq!(val, 6);
+
+        // negative delta → 6 - 2 = 4
+        let val = cache.incr_sync(&"counter".to_string(), -2, None).unwrap();
+        assert_eq!(val, 4);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_compare_and_swap_sync_via_moka() {
+        let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
+
+        // CAS with expected=None → SETNX semantics (key doesn't exist → succeed)
+        let ok = cache
+            .compare_and_swap_sync(&"cas_key".to_string(), None, b"initial".to_vec(), None)
+            .unwrap();
+        assert!(ok);
+
+        // CAS with correct expected value
+        let ok = cache
+            .compare_and_swap_sync(&"cas_key".to_string(), Some(b"initial"), b"updated".to_vec(), None)
+            .unwrap();
+        assert!(ok);
+
+        // CAS with wrong expected value → should fail
+        let ok = cache
+            .compare_and_swap_sync(&"cas_key".to_string(), Some(b"initial"), b"again".to_vec(), None)
+            .unwrap();
+        assert!(!ok);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    async fn test_set_if_absent_sync_via_moka() {
+        let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();
+
+        // First set_if_absent should succeed
+        let ok = cache
+            .set_if_absent_sync(&"nx_key".to_string(), &"first".to_string(), None)
+            .unwrap();
+        assert!(ok);
+
+        // Second set_if_absent should fail (key already exists)
+        let ok = cache
+            .set_if_absent_sync(&"nx_key".to_string(), &"second".to_string(), None)
+            .unwrap();
+        assert!(!ok);
+
+        // Value should still be "first"
+        let val = cache.get_sync(&"nx_key".to_string()).unwrap();
+        assert_eq!(val, Some("first".to_string()));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_incr_sync_without_sync_mode_returns_not_supported() {
+        let cache: Cache<String, i64> = Cache::builder().build().await.unwrap();
+        let result = cache.incr_sync(&"counter".to_string(), 1, None);
+        assert!(
+            matches!(result, Err(OxCacheError::NotSupported(_))),
+            "incr_sync without sync_mode should return NotSupported, got {:?}",
+            result
+        );
+    }
 }

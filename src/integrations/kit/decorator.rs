@@ -234,13 +234,8 @@ mod tests {
         let _ = backend.get("test").await;
     }
 
-    /// Decorator is applied during `kit.build()` — counter increments
-    /// prove the wrapping backend is the one returned by `require`.
-    ///
-    /// **Known issue**: trait-kit 0.4.1 `AsyncKit::decorate()` stores the
-    /// decorator but never invokes it during `build()`. The sync `Kit::decorate()`
-    /// works correctly. This test documents the bug and will pass once
-    /// trait-kit fixes the async decorator pipeline.
+    /// Decorator is applied during `kit.build()` — the capability returned
+    /// by `require` reflects the decorator transformation.
     #[tokio::test]
     async fn decorator_is_applied_through_kit_build() {
         // Minimal reproduction mirroring trait-kit's async_decorator_tests.
@@ -278,11 +273,6 @@ mod tests {
 
         let built = kit.build().await.expect("kit build");
         let cap = built.require::<TestModule>().expect("require TestModule");
-
-        // BUG: trait-kit 0.4.1 AsyncKit does not apply decorators during build().
-        // The sync Kit::decorate() works correctly (verified separately).
-        // Once trait-kit fixes this, the assertion should be "base+wrapped".
-        // For now, we document the current behavior:
-        assert_eq!(cap.val, "base", "trait-kit 0.4.1 async decorator bug: not applied");
+        assert_eq!(cap.val, "base+wrapped", "decorator should modify the capability");
     }
 }
