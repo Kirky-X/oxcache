@@ -31,14 +31,14 @@ pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> OxCache
 }
 
 /// 最小压缩阈值 - 小于此时长的数据不压缩
-#[cfg(feature = "flate2")]
+#[cfg(feature = "compression")]
 const MIN_COMPRESS_SIZE: usize = 100;
 
 /// 解压最大输出大小限制（防止恶意 gzip 数据解压炸弹导致 OOM）
 pub const MAX_DECOMPRESS_SIZE: usize = 64 * 1024 * 1024;
 
 /// gzip 魔数（0x1f 0x8b），用于区分已压缩与未压缩数据
-#[cfg(feature = "flate2")]
+#[cfg(feature = "compression")]
 fn is_gzip(data: &[u8]) -> bool {
     data.len() >= 2 && data[0] == 0x1f && data[1] == 0x8b
 }
@@ -53,7 +53,7 @@ fn is_gzip(data: &[u8]) -> bool {
 ///
 /// 压缩后会检查压缩比：若压缩结果不小于原始数据（如已压缩/随机数据），
 /// 则返回原始数据（未压缩），避免存储膨胀。
-#[cfg(feature = "flate2")]
+#[cfg(feature = "compression")]
 pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     use flate2::Compression;
     use flate2::write::GzEncoder;
@@ -95,7 +95,7 @@ pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
 ///
 /// 非 gzip 数据（未压缩）直接返回原数据；gzip 数据解压时通过
 /// `Take` 限制读取字节数，超过 `max_size` 返回错误。
-#[cfg(feature = "flate2")]
+#[cfg(feature = "compression")]
 pub fn decompress_data_with_limit(data: &[u8], max_size: usize) -> OxCacheResult<Vec<u8>> {
     if !is_gzip(data) {
         return Ok(data.to_vec());
@@ -119,25 +119,25 @@ pub fn decompress_data_with_limit(data: &[u8], max_size: usize) -> OxCacheResult
 }
 
 /// 使用flate2解压缩数据（默认限制输出大小）
-#[cfg(feature = "flate2")]
+#[cfg(feature = "compression")]
 pub fn decompress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     decompress_data_with_limit(data, MAX_DECOMPRESS_SIZE)
 }
 
 /// 当flate2特性未启用时的压缩函数（直接返回原数据）
-#[cfg(not(feature = "flate2"))]
+#[cfg(not(feature = "compression"))]
 pub fn compress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     Ok(data.to_vec())
 }
 
 /// 当flate2特性未启用时的解压缩函数（直接返回原数据）
-#[cfg(not(feature = "flate2"))]
+#[cfg(not(feature = "compression"))]
 pub fn decompress_data(data: &[u8]) -> OxCacheResult<Vec<u8>> {
     Ok(data.to_vec())
 }
 
 /// 当flate2特性未启用时的受限解压缩函数（直接返回原数据）
-#[cfg(not(feature = "flate2"))]
+#[cfg(not(feature = "compression"))]
 pub fn decompress_data_with_limit(data: &[u8], _max_size: usize) -> OxCacheResult<Vec<u8>> {
     Ok(data.to_vec())
 }
@@ -159,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "flate2"))]
+    #[cfg(not(feature = "compression"))]
     fn test_compress_data_no_feature() {
         let data = b"hello world";
         let compressed = compress_data(data).unwrap();
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "flate2"))]
+    #[cfg(not(feature = "compression"))]
     fn test_decompress_data_no_feature() {
         let data = b"hello world";
         let decompressed = decompress_data(data).unwrap();
@@ -175,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_compress_data_with_feature() {
         // 使用大于100字节的数据测试压缩
         let data = vec![0u8; 200]; // 200字节
@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_decompress_data_with_feature() {
         let data = vec![0u8; 200]; // 200字节
         let compressed = compress_data(&data).unwrap();
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_small_data_not_compressed() {
         // 小于100字节的数据不应该被压缩
         let data = b"small data";
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_compress_ratio_check_incompressible_data() {
         // 随机/已压缩数据压缩后不应大于原数据
         let data: Vec<u8> = (0..200u32).map(|i| (i * 31 % 256) as u8).collect();
@@ -219,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_compress_ratio_check_compressed_input() {
         // 对已压缩的 gzip 数据再次压缩不应膨胀
         let data = vec![0u8; 500];
@@ -231,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_decompress_data_with_limit_exceeds() {
         // 构造高压缩比数据，验证解压大小限制生效
         let data = vec![0u8; 1024 * 1024]; // 1MB 零字节
@@ -243,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_decompress_data_with_limit_within() {
         let data = vec![0u8; 5000];
         let compressed = compress_data(&data).unwrap();
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "flate2")]
+    #[cfg(feature = "compression")]
     fn test_decompress_data_with_limit_uncompressed_passthrough() {
         // 非 gzip 数据直接透传
         let data = b"not compressed data at all";

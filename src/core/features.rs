@@ -34,7 +34,7 @@ feature_check!("memory", l1_available, "Check if L1 cache is available");
 feature_check!("redis", l2_available, "Check if L2 cache is available");
 feature_check!("metrics", metrics_available, "Check if metrics are available");
 feature_check!(
-    "batch-write",
+    "batch",
     batch_write_available,
     "Check if batch write is available"
 );
@@ -50,7 +50,7 @@ feature_check!(
 );
 feature_check!("cli", cli_available, "Check if CLI is available");
 feature_check!(
-    "dist-lock",
+    "lock",
     dist_lock_available,
     "Check if distributed lock is available"
 );
@@ -202,10 +202,10 @@ mod tests {
         assert!(cli_available());
     }
 
-    #[cfg(feature = "batch-write")]
+    #[cfg(feature = "batch")]
     #[test]
     fn test_batch_write_available() {
-        // With "batch-write" feature
+        // With "batch" feature
         assert!(batch_write_available());
     }
 

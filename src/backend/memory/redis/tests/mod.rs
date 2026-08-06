@@ -4,6 +4,7 @@
 
 pub(crate) mod builder_tests;
 pub(crate) mod error_tests;
+#[cfg(feature = "lua")]
 pub(crate) mod lua_tests;
 pub(crate) mod pipeline_tests;
 pub(crate) mod reader_tests;

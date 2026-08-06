@@ -236,7 +236,7 @@ cache.register_for_macro("my_service").await?;
 | `DragonflyBackend` | `oxcache::backend::DragonflyBackend` | `dragonfly` | Dragonfly 缓存（Redis 协议兼容） |
 | `AerospikeBackend` | `oxcache::backend::AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储 |
 | `ChainCache` | `oxcache::cache::chain::ChainCache` | — | 按分数排序的多后端缓存链 |
-| `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom-filter` | 负查询过滤装饰器 |
+| `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom` | 负查询过滤装饰器 |
 
 **异步 Trait 层级**（`backend/interface.rs`）：
 
@@ -272,7 +272,7 @@ pub trait CacheConnector: Send + Sync + 'static {
     async fn health_check(&self) -> OxCacheResult<()>;
     async fn shutdown(&self);
     fn backend_kind(&self) -> BackendKind;
-    #[cfg(feature = "lua-script")]
+    #[cfg(feature = "lua")]
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> { None }
 }
@@ -695,7 +695,7 @@ Oxcache 0.3.2 不在后端间自动故障转移。应用决定如何处理 Redis
 
 1. **Moka 单条目 TTL**：使用 `moka::Expiry` trait 实现真正的单条目 TTL（覆盖构建器的全局 TTL），避免独立过期跟踪的开销。
 2. **连接池**：`RedisBackend::with_pool(url, pool_size)` 复用 Redis 连接。
-3. **Pipeline / 批量操作**：`RedisBackend` 支持通过 Redis pipeline 的 `set_many` / `delete_many` / `get_many`（默认 trait 实现循环，但 `RedisBackend` 覆盖它们）。`batch-write` 特性添加缓冲 L2 写入。
+3. **Pipeline / 批量操作**：`RedisBackend` 支持通过 Redis pipeline 的 `set_many` / `delete_many` / `get_many`（默认 trait 实现循环，但 `RedisBackend` 覆盖它们）。`batch` 特性添加缓冲 L2 写入。
 4. **无锁 L1**：Moka 的并发缓存设计（TinyLFU 准入、LRU 淘汰）。
 5. **JSON 序列化**：人类可读、广泛支持。`MAX_JSON_DEPTH` 常量防止深层嵌套 JSON DoS。
 6. **可选压缩**：`compression` 特性启用 flate2 压缩用于大值。
@@ -754,7 +754,7 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 4. **敏感数据脱敏**：`Redacted` 包装器、`redact_connection_string`、`redact_cache_key`、`redact_field`、`redact_value`
 5. **JSON 深度限制**：`MAX_JSON_DEPTH` 在 `get` 时拒绝深层嵌套 JSON
 6. **TLS 强制**：`RedisBackend` 要求 `rediss://` URL，除非设置了 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`
-7. **布隆过滤器**：后端查找前的负查询过滤（可选，`bloom-filter` 特性）
+7. **布隆过滤器**：后端查找前的负查询过滤（可选，`bloom` 特性）
 
 > **注意**：0.3.2 中**无内置限流**。0.3.2 之前文档引用的 `GlobalRateLimiter` / `RateLimitConfig` 类型在 0.3.2 中**不存在**。限流由应用或上游代理负责。
 
@@ -833,7 +833,7 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 
 - **`minimal`**：仅 L1 内存缓存（`memory` + `metrics` + `serialization` + `chrono`）
 - **`core`**：L1 + L2 Redis（`minimal` + `redis`）
-- **`full`**：启用所有特性，**除了** `bloom-filter` 和 `kit`（包含 `dragonfly` 和 `aerospike`）
+- **`full`**：启用所有特性，**除了** `bloom` 和 `kit`（包含 `dragonfly` 和 `aerospike`）
 
 ### 组件特性
 
@@ -844,18 +844,17 @@ Oxcache 0.3.2 不内置分区配置（0.3.2 之前文档引用的 `PartitionConf
 | `macros` | `#[cached]` 过程宏 | ✅ |
 | `serialization` | JSON 序列化（serde + serde_json） | ✅ |
 | `compression` | Flate2 压缩 | ✅ |
-| `tracing` | ~~已废弃~~（保留空 feature 向后兼容） | ✅ |
 | `metrics` | 内置指标与可观测性 | ✅ |
-| `batch-write` | 缓冲 L2 写入 | ✅ |
-| `lua-script` | Lua 脚本执行（需要 `redis`） | ✅ |
+| `batch` | 缓冲 L2 写入 | ✅ |
+| `lua` | Lua 脚本执行（需要 `redis`） | ✅ |
 | `cli` | 命令行工具 | ✅ |
 | `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） | ✅ |
 | `aerospike` | Aerospike 缓存后端（独立协议） | ✅ |
-| `bloom-filter` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
+| `bloom` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
 | `kit` | trait-kit 0.4 AsyncKit 集成（OxcacheModule + AsyncHealthCheck + AsyncLifecycle） | ❌（选择加入） |
 | `testing` | 暴露内部函数供测试使用 | ✅ |
 
-> **重要**：`bloom-filter` 和 `kit` **不包含**在 `full` 中。需通过 `features = ["bloom-filter"]` 等显式启用。
+> **重要**：`bloom` 和 `kit` **不包含**在 `full` 中。需通过 `features = ["bloom"]` 等显式启用。
 
 ## 未来增强
 
