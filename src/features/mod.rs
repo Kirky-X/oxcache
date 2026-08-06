@@ -12,4 +12,4 @@ pub mod dist_lock;
 pub use bloom_filter::{BloomFilter, BloomFilterBackend, BloomFilterBackendBuilder};
 
 #[cfg(feature = "lock")]
-pub use dist_lock::{DistributedLock, DistLockBuilder};
+pub use dist_lock::{DistLockBuilder, DistributedLock};

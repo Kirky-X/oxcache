@@ -4,8 +4,8 @@
 
 use super::lock::DistributedLock;
 use crate::backend::RedisBackend;
-use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use uuid::Uuid;

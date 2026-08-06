@@ -81,9 +81,7 @@ mod tests {
         let key = "user:1".to_string();
 
         // Set with TTL of 1 second
-        cache
-            .set_with_ttl(&key, &user, Some(Duration::from_secs(1)))
-            .await?;
+        cache.set_with_ttl(&key, &user, Some(Duration::from_secs(1))).await?;
 
         // Verify it exists immediately
         let exists = cache.exists(&key).await?;
@@ -146,9 +144,27 @@ mod tests {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let users = vec![
-            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
-            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
-            ("user:3".to_string(), User { id: 3, name: "Charlie".to_string() }),
+            (
+                "user:1".to_string(),
+                User {
+                    id: 1,
+                    name: "Alice".to_string(),
+                },
+            ),
+            (
+                "user:2".to_string(),
+                User {
+                    id: 2,
+                    name: "Bob".to_string(),
+                },
+            ),
+            (
+                "user:3".to_string(),
+                User {
+                    id: 3,
+                    name: "Charlie".to_string(),
+                },
+            ),
         ];
 
         // Set many
@@ -159,8 +175,7 @@ mod tests {
             .into_iter()
             .map(String::from)
             .collect();
-        let results: std::collections::HashMap<String, User> =
-            cache.get_many(keys.iter()).await?;
+        let results: std::collections::HashMap<String, User> = cache.get_many(keys.iter()).await?;
 
         assert_eq!(results.len(), 3);
         assert_eq!(results.get("user:1").unwrap().name, "Alice");
@@ -177,8 +192,20 @@ mod tests {
 
         // Add some values
         let users = vec![
-            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
-            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
+            (
+                "user:1".to_string(),
+                User {
+                    id: 1,
+                    name: "Alice".to_string(),
+                },
+            ),
+            (
+                "user:2".to_string(),
+                User {
+                    id: 2,
+                    name: "Bob".to_string(),
+                },
+            ),
         ];
         cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
@@ -199,8 +226,20 @@ mod tests {
 
         // Add some values
         let users = vec![
-            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
-            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
+            (
+                "user:1".to_string(),
+                User {
+                    id: 1,
+                    name: "Alice".to_string(),
+                },
+            ),
+            (
+                "user:2".to_string(),
+                User {
+                    id: 2,
+                    name: "Bob".to_string(),
+                },
+            ),
         ];
         cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 

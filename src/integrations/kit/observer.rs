@@ -33,9 +33,7 @@ mod tests {
         let obs = OxcacheBuildObserver;
         obs.on_module_start("test-module");
         obs.on_module_built("test-module", Duration::from_millis(5));
-        let err = TraitKitError::MissingCapability {
-            key: "test".into(),
-        };
+        let err = TraitKitError::MissingCapability { key: "test".into() };
         obs.on_build_error("test-module", &err);
     }
 
