@@ -47,3 +47,6 @@ mod mock_backend_test;
 
 #[path = "unit/moka_backend_test.rs"]
 mod moka_backend_test;
+
+#[path = "unit/penetration_guard_test.rs"]
+mod penetration_guard_test;

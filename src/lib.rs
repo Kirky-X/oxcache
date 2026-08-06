@@ -94,6 +94,50 @@
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom-filter`: Negative-query filtering (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
+//! - `dist-lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
+//!
+//! # Distributed Lock (`dist-lock` feature)
+//!
+//! Cross-instance mutual exclusion backed by Redis. Supports TTL, automatic
+//! watchdog renewal, and reentrant acquire/release.
+//!
+//! ```rust,ignore
+//! use oxcache::features::dist_lock::DistLockBuilder;
+//! use std::time::Duration;
+//!
+//! let mut lock = DistLockBuilder::new(backend, "task:webhook-delivery".into())
+//!     .ttl(Duration::from_secs(30))
+//!     .watchdog_enabled(true)
+//!     .build();
+//! if lock.acquire().await? {
+//!     // critical section
+//!     lock.release().await?;
+//! }
+//! ```
+//!
+//! # Cache Penetration Guard
+//!
+//! Two-layer protection against cache stampede and penetration:
+//!
+//! - **Single-flight** (`get_or` / `get_or_sync`): 64-shard dedup ensures only
+//!   one fallback executes per key under concurrent cache misses.
+//! - **Null sentinel** (`get_or_option`): caches a sentinel for `None` results
+//!   when `null_cache_ttl` is configured, preventing repeated DB lookups for
+//!   non-existent keys.
+//! - **TTL jitter** (`ttl_jitter`): randomizes actual TTL within
+//!   `base_ttl * (1.0 ± factor)` to prevent mass expiration stampede.
+//!
+//! ```rust,ignore
+//! let cache: Cache<String, User> = Cache::builder()
+//!     .null_cache_ttl(Duration::from_secs(30))
+//!     .ttl_jitter(0.1)
+//!     .build().await?;
+//!
+//! // Returns None and caches sentinel if DB also returns None
+//! let user = cache.get_or_option(&"user:999".to_string(), || async {
+//!     db.find_user(999).await  // returns OxCacheResult<Option<User>>
+//! }).await?;
+//! ```
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.4.0")]
 #![deny(unsafe_code)]
@@ -297,6 +341,10 @@ pub use crate::security::{
     Redacted, clamp_scan_count, log_cache_key, redact_cache_key, redact_connection_string, redact_field, redact_value,
     sanitize_message, validate_lua_script, validate_redis_key, validate_scan_pattern,
 };
+
+// Distributed lock re-exports
+#[cfg(feature = "dist-lock")]
+pub use features::dist_lock::{DistributedLock, DistLockBuilder};
 
 // Public API re-exports (after features re-exports)
 // cache 模块 re-export 须与 cache 模块门控一致
