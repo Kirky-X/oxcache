@@ -143,7 +143,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom"] }
 - `cli` - 命令行界面工具
 - `i18n` - 错误消息国际化 + 系统语言自动检测
 - `bloom` - 负查询过滤（BloomFilter + BloomFilterBackend）；不在 `full` 中，需显式启用
-- `kit` - trait-kit AsyncKit integration (OxcacheModule)；不在 `full` 中，需显式启用
+- `kit` - trait-kit AsyncKit 集成（OxcacheModule + 健康检查 + 生命周期 + 构建观察者 + 三阶段关闭 + 装饰器）；不在 `full` 中，需显式启用
 - `testing` - Testing utilities
 
 ## 使用场景
