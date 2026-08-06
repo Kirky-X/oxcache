@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! Cache 原子操作方法 — 通过 `as_atomic_writer()` 运行时发现后端原子能力。
+//! Cache 原子操作方法 — 通过 `as_atomic_writer()` / `as_sync_atomic_writer()` 运行时发现后端原子能力。
 
 use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
@@ -51,6 +51,53 @@ where
         let key_str = key.to_key_string();
         let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
         writer.set_if_absent(&key_str, bytes, ttl).await
+    }
+
+    // ========================================================================
+    // Synchronous atomic operations (mirror of async API)
+    // ========================================================================
+
+    /// 同步原子递增。委托 `SyncAtomicCacheWriter::incr`。
+    ///
+    /// 要求 `CacheBuilder::sync_mode(true)` 且后端实现 `SyncAtomicCacheWriter`。
+    /// 若后端未实现返回 `Err(NotSupported)`。
+    pub fn incr_sync(&self, key: &K, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        let backend = self.sync_backend()?;
+        let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
+            OxCacheError::NotSupported("incr_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+        })?;
+        let key_str = key.to_key_string();
+        writer.incr(&key_str, delta, ttl)
+    }
+
+    /// 同步原子 CAS（compare-and-swap）。
+    ///
+    /// `expected=None` 表示 SETNX 语义。`expected=Some(bytes)` 表示当 key 当前值等于 `bytes` 时替换。
+    pub fn compare_and_swap_sync(
+        &self,
+        key: &K,
+        expected: Option<&[u8]>,
+        new_bytes: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let backend = self.sync_backend()?;
+        let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
+            OxCacheError::NotSupported("compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+        })?;
+        let key_str = key.to_key_string();
+        writer.compare_and_swap(&key_str, expected, new_bytes, ttl)
+    }
+
+    /// 同步原子 SETNX（set if absent）。仅在 key 不存在时写入。
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn set_if_absent_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<bool> {
+        let backend = self.sync_backend()?;
+        let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
+            OxCacheError::NotSupported("set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+        })?;
+        let key_str = key.to_key_string();
+        let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        writer.set_if_absent(&key_str, bytes, ttl)
     }
 }
 

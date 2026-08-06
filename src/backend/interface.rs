@@ -488,6 +488,15 @@ pub trait SyncCacheConnector: Send + Sync + 'static {
 
     /// Get the backend kind for runtime identification.
     fn backend_kind(&self) -> BackendKind;
+
+    /// Get synchronous atomic writer if this backend supports it.
+    ///
+    /// Mirror of [`CacheConnector::as_atomic_writer()`] for sync access.
+    /// Default returns `None`. Backends that implement `SyncAtomicCacheWriter`
+    /// should override this to return `Some(self)`.
+    fn as_sync_atomic_writer(&self) -> Option<&dyn SyncAtomicCacheWriter> {
+        None
+    }
 }
 
 /// Full synchronous cache backend interface combining all sync ISP traits.
