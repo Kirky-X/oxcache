@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Features module
 
-#[cfg(feature = "bloom-filter")]
+#[cfg(feature = "bloom")]
 pub mod bloom_filter;
 
-#[cfg(feature = "dist-lock")]
+#[cfg(feature = "lock")]
 pub mod dist_lock;
 
-#[cfg(feature = "bloom-filter")]
+#[cfg(feature = "bloom")]
 pub use bloom_filter::{BloomFilter, BloomFilterBackend, BloomFilterBackendBuilder};
 
-#[cfg(feature = "dist-lock")]
+#[cfg(feature = "lock")]
 pub use dist_lock::{DistributedLock, DistLockBuilder};

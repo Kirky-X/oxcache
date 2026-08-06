@@ -54,7 +54,7 @@
 //!
 //! # Bloom Filter (0.3.0)
 //!
-//! Enable the `bloom-filter` feature (not in `full`) for negative-query
+//! Enable the `bloom` feature (not in `full`) for negative-query
 //! filtering. `BloomFilterBackend` wraps any `CacheBackend` and skips
 //! the inner backend on BF miss.
 //!
@@ -86,17 +86,16 @@
 //! - `macros`: Proc macros for `#[cached]`
 //! - `serialization`: JSON serialization (serde + serde_json)
 //! - `compression`: Flate2 compression
-//! - `tracing`: Deprecated (tracing removed, kept for backward compatibility)
 //! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
-//! - `batch-write`: Buffered L2 writes
-//! - `lua-script`: Lua script execution (requires redis)
+//! - `batch`: Buffered L2 writes
+//! - `lua`: Lua script execution (requires redis)
 //! - `cli`: CLI tools
 //! - `testing`: Testing support (exposes internal functions)
-//! - `bloom-filter`: Negative-query filtering (not in `full`)
+//! - `bloom`: Negative-query filtering (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
-//! - `dist-lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
+//! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
 //!
-//! # Distributed Lock (`dist-lock` feature)
+//! # Distributed Lock (`lock` feature)
 //!
 //! Cross-instance mutual exclusion backed by Redis. Supports TTL, automatic
 //! watchdog renewal, and reentrant acquire/release.
@@ -142,7 +141,7 @@
 #![doc(html_root_url = "https://docs.rs/oxcache/0.4.0")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
-// data only consumed by specific sub-features (lua-script, cli, batch-write,
+// data only consumed by specific sub-features (lua, cli, batch,
 // etc.). Only `full` enables all sub-features, so we allow dead_code in any
 // non-full feature combination rather than gating each constant individually.
 #![cfg_attr(not(feature = "full"), allow(dead_code))]
@@ -158,10 +157,10 @@
 /// # Example
 ///
 /// ```rust,ignore
-/// check_feature_dependence!("moka", "bloom-filter");
+/// check_feature_dependence!("moka", "bloom");
 /// ```
 ///
-/// 如果启用了 `bloom-filter` 但没有启用 `moka` 或 `full`，编译时会报错。
+/// 如果启用了 `bloom` 但没有启用 `moka` 或 `full`，编译时会报错。
 #[macro_export]
 macro_rules! check_feature_dependence {
     ($required:expr, $dependent:expr) => {
@@ -242,7 +241,7 @@ pub mod features;
     feature = "minimal",
     feature = "core",
     feature = "full",
-    feature = "batch-write",
+    feature = "batch",
     feature = "cli"
 ))]
 pub mod infra;
@@ -349,7 +348,7 @@ pub use crate::security::{
 };
 
 // Distributed lock re-exports
-#[cfg(feature = "dist-lock")]
+#[cfg(feature = "lock")]
 pub use features::dist_lock::{DistributedLock, DistLockBuilder};
 
 // Public API re-exports (after features re-exports)

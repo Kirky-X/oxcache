@@ -12,7 +12,7 @@ pub mod types;
 
 // Re-export commonly used items for convenience.
 // Some items are only consumed under non-minimal feature combinations
-// (redis/batch-write/lua-script/...); allow unused_imports so the minimal
+// (redis/batch/lua/...); allow unused_imports so the minimal
 // default build stays warning-free.
 #[expect(unused_imports)]
 pub use constants::{

@@ -7,7 +7,7 @@
 //!
 //! # Feature Gate
 //!
-//! This module requires the `dist-lock` feature (included in `full`).
+//! This module requires the `lock` feature (included in `full`).
 
 mod builder;
 mod lock;
