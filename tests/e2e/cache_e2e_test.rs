@@ -1,4 +1,3 @@
-// Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
 //! E2E tests for oxcache Cache operations
 //!
@@ -18,7 +17,7 @@ mod tests {
 
     /// Test basic set and get operations
     #[tokio::test]
-    async fn test_cache_set_and_get() -> anyhow::Result<()> {
+    async fn test_cache_set_and_get() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let user = User {
@@ -26,11 +25,13 @@ mod tests {
             name: "Alice".to_string(),
         };
 
+        let key = "user:1".to_string();
+
         // Set a value
-        cache.set("user:1", &user).await?;
+        cache.set(&key, &user).await?;
 
         // Get the value
-        let retrieved: Option<User> = cache.get("user:1").await?;
+        let retrieved: Option<User> = cache.get(&key).await?;
 
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name, "Alice");
@@ -40,7 +41,7 @@ mod tests {
 
     /// Test delete operation
     #[tokio::test]
-    async fn test_cache_delete() -> anyhow::Result<()> {
+    async fn test_cache_delete() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let user = User {
@@ -48,18 +49,20 @@ mod tests {
             name: "Alice".to_string(),
         };
 
+        let key = "user:1".to_string();
+
         // Set a value
-        cache.set("user:1", &user).await?;
+        cache.set(&key, &user).await?;
 
         // Verify it exists
-        let exists = cache.exists("user:1").await?;
+        let exists = cache.exists(&key).await?;
         assert!(exists);
 
         // Delete the value
-        cache.delete("user:1").await?;
+        cache.delete(&key).await?;
 
         // Verify it's gone
-        let retrieved: Option<User> = cache.get("user:1").await?;
+        let retrieved: Option<User> = cache.get(&key).await?;
         assert!(retrieved.is_none());
 
         Ok(())
@@ -67,7 +70,7 @@ mod tests {
 
     /// Test expiration (TTL)
     #[tokio::test]
-    async fn test_cache_expiration() -> anyhow::Result<()> {
+    async fn test_cache_expiration() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let user = User {
@@ -75,20 +78,22 @@ mod tests {
             name: "Alice".to_string(),
         };
 
+        let key = "user:1".to_string();
+
         // Set with TTL of 1 second
         cache
-            .set_with_ttl("user:1", &user, Some(Duration::from_secs(1)))
+            .set_with_ttl(&key, &user, Some(Duration::from_secs(1)))
             .await?;
 
         // Verify it exists immediately
-        let exists = cache.exists("user:1").await?;
+        let exists = cache.exists(&key).await?;
         assert!(exists);
 
         // Wait for TTL to expire
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         // Verify it's gone
-        let retrieved: Option<User> = cache.get("user:1").await?;
+        let retrieved: Option<User> = cache.get(&key).await?;
         assert!(retrieved.is_none());
 
         Ok(())
@@ -96,12 +101,14 @@ mod tests {
 
     /// Test get_or fallback
     #[tokio::test]
-    async fn test_cache_get_or_fallback() -> anyhow::Result<()> {
+    async fn test_cache_get_or_fallback() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
+
+        let key = "user:999".to_string();
 
         // Get non-existent key with fallback
         let user: User = cache
-            .get_or("user:999", || async {
+            .get_or(&key, || async {
                 Ok(User {
                     id: 999,
                     name: "Fallback".to_string(),
@@ -116,11 +123,11 @@ mod tests {
             id: 999,
             name: "Updated".to_string(),
         };
-        cache.set("user:999", &user).await?;
+        cache.set(&key, &user).await?;
 
         // Get again - should return cached value
         let cached: User = cache
-            .get_or("user:999", || async {
+            .get_or(&key, || async {
                 Ok(User {
                     id: 999,
                     name: "Fallback".to_string(),
@@ -135,22 +142,25 @@ mod tests {
 
     /// Test set_many and get_many
     #[tokio::test]
-    async fn test_cache批量_operations() -> anyhow::Result<()> {
+    async fn test_cache批量_operations() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let users = vec![
-            ("user:1", User { id: 1, name: "Alice".to_string() }),
-            ("user:2", User { id: 2, name: "Bob".to_string() }),
-            ("user:3", User { id: 3, name: "Charlie".to_string() }),
+            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
+            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
+            ("user:3".to_string(), User { id: 3, name: "Charlie".to_string() }),
         ];
 
         // Set many
-        cache.set_many(users).await?;
+        cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
         // Get many
-        let keys = vec!["user:1", "user:2", "user:3"];
+        let keys: Vec<String> = vec!["user:1", "user:2", "user:3"]
+            .into_iter()
+            .map(String::from)
+            .collect();
         let results: std::collections::HashMap<String, User> =
-            cache.get_many(keys).await?;
+            cache.get_many(keys.iter()).await?;
 
         assert_eq!(results.len(), 3);
         assert_eq!(results.get("user:1").unwrap().name, "Alice");
@@ -162,16 +172,15 @@ mod tests {
 
     /// Test clear all
     #[tokio::test]
-    async fn test_cache_clear() -> anyhow::Result<()> {
+    async fn test_cache_clear() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         // Add some values
-        cache
-            .set_many(vec![
-                ("user:1", User { id: 1, name: "Alice".to_string() }),
-                ("user:2", User { id: 2, name: "Bob".to_string() }),
-            ])
-            .await?;
+        let users = vec![
+            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
+            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
+        ];
+        cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
         // Clear all
         cache.clear().await?;
@@ -185,16 +194,15 @@ mod tests {
 
     /// Test stats
     #[tokio::test]
-    async fn test_cache_stats() -> anyhow::Result<()> {
+    async fn test_cache_stats() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         // Add some values
-        cache
-            .set_many(vec![
-                ("user:1", User { id: 1, name: "Alice".to_string() }),
-                ("user:2", User { id: 2, name: "Bob".to_string() }),
-            ])
-            .await?;
+        let users = vec![
+            ("user:1".to_string(), User { id: 1, name: "Alice".to_string() }),
+            ("user:2".to_string(), User { id: 2, name: "Bob".to_string() }),
+        ];
+        cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
         // Get stats
         let stats = cache.stats().await?;

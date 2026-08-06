@@ -459,7 +459,7 @@ async fn b007_moka_dashmap_dual_l1_chain_writes_to_both() {
 
 /// B-009: BloomFilter + Moka — negative query (never-set key) is filtered
 /// by the Bloom filter without touching the inner backend.
-#[cfg(all(feature = "bloom-filter", feature = "memory"))]
+#[cfg(all(feature = "bloom", feature = "memory"))]
 #[tokio::test]
 async fn b009_bloom_filter_moka_skips_negative_query() {
     use oxcache::MokaMemoryBackend;
@@ -485,7 +485,7 @@ async fn b009_bloom_filter_moka_skips_negative_query() {
 /// B-010: BloomFilter delete does NOT remove from the filter (standard BF
 /// limitation). After delete, BF still says "maybe present", so the inner
 /// backend is consulted and returns None.
-#[cfg(all(feature = "bloom-filter", feature = "memory"))]
+#[cfg(all(feature = "bloom", feature = "memory"))]
 #[tokio::test]
 async fn b010_bloom_filter_delete_does_not_remove_from_filter() {
     use oxcache::MokaMemoryBackend;

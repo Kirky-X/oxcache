@@ -11,7 +11,7 @@
 // SyncCacheReader/SyncCacheWriter（sync），方法名相同（get/set/clear 等）。
 // 直接 `.await` 调用无法消歧，必须使用 UFCS（`CacheReader::get(&backend, ...).await`）。
 
-#![cfg(feature = "bloom-filter")]
+#![cfg(feature = "bloom")]
 
 use std::sync::Arc;
 use std::time::Duration;

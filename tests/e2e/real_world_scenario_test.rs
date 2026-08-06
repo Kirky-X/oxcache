@@ -48,11 +48,12 @@ async fn test_web_application_cache_scenario() {
     };
 
     // 缓存用户数据
-    cache.set("user:1", &user).await.unwrap();
+    let key = "user:1".to_string();
+    cache.set(&key, &user).await.unwrap();
 
     // 模拟多次读取
     for _ in 0..10 {
-        let cached: Option<User> = cache.get("user:1").await.unwrap();
+        let cached: Option<User> = cache.get(&key).await.unwrap();
         assert_eq!(cached, Some(user.clone()));
     }
 
@@ -61,14 +62,14 @@ async fn test_web_application_cache_scenario() {
         name: "Alice Updated".to_string(),
         ..user.clone()
     };
-    cache.set("user:1", &updated_user).await.unwrap();
+    cache.set(&key, &updated_user).await.unwrap();
 
-    let cached: Option<User> = cache.get("user:1").await.unwrap();
+    let cached: Option<User> = cache.get(&key).await.unwrap();
     assert_eq!(cached.unwrap().name, "Alice Updated");
 
     // 删除用户
-    cache.delete("user:1").await.unwrap();
-    assert!(!cache.exists("user:1").await.unwrap());
+    cache.delete(&key).await.unwrap();
+    assert!(!cache.exists(&key).await.unwrap());
 
     println!("✓ Web 应用缓存场景测试通过");
 }
@@ -91,13 +92,14 @@ async fn test_session_storage_scenario() {
     };
 
     // 存储会话，设置 TTL
+    let key = "session:sess_123456".to_string();
     cache
-        .set_with_ttl("session:sess_123456", &session, Some(Duration::from_secs(3600)))
+        .set_with_ttl(&key, &session, Some(Duration::from_secs(3600)))
         .await
         .unwrap();
 
     // 验证会话
-    let cached: Option<Session> = cache.get("session:sess_123456").await.unwrap();
+    let cached: Option<Session> = cache.get(&key).await.unwrap();
     assert!(cached.is_some());
     let cached_session = cached.unwrap();
     assert_eq!(cached_session.session_id, "sess_123456");
@@ -106,18 +108,18 @@ async fn test_session_storage_scenario() {
     // 更新会话数据
     let mut updated_session = cached_session;
     updated_session.data.insert("last_page".to_string(), "/dashboard".to_string());
-    cache.set("session:sess_123456", &updated_session).await.unwrap();
+    cache.set(&key, &updated_session).await.unwrap();
 
     // 验证更新
-    let cached: Option<Session> = cache.get("session:sess_123456").await.unwrap();
+    let cached: Option<Session> = cache.get(&key).await.unwrap();
     assert_eq!(
         cached.unwrap().data.get("last_page"),
         Some(&"/dashboard".to_string())
     );
 
     // 注销会话
-    cache.delete("session:sess_123456").await.unwrap();
-    assert!(!cache.exists("session:sess_123456").await.unwrap());
+    cache.delete(&key).await.unwrap();
+    assert!(!cache.exists(&key).await.unwrap());
 
     println!("✓ 会话存储场景测试通过");
 }
@@ -136,20 +138,21 @@ async fn test_api_response_cache_scenario() {
     };
 
     // 缓存 API 响应
-    let cache_key = "api:/users:list";
+    let cache_key = "api:/users:list".to_string();
     cache
-        .set_with_ttl(cache_key, &response, Some(Duration::from_secs(300)))
+        .set_with_ttl(&cache_key, &response, Some(Duration::from_secs(300)))
         .await
         .unwrap();
 
     // 模拟缓存命中
-    let cached: Option<ApiResponse> = cache.get(cache_key).await.unwrap();
+    let cached: Option<ApiResponse> = cache.get(&cache_key).await.unwrap();
     assert!(cached.is_some());
     assert_eq!(cached.unwrap().status, 200);
 
     // 使用 get_or 模式
+    let products_key = "api:/products:list".to_string();
     let result: ApiResponse = cache
-        .get_or("api:/products:list", || async {
+        .get_or(&products_key, || async {
             Ok(ApiResponse {
                 status: 200,
                 data: r#"{"products": []}"#.to_string(),
@@ -162,7 +165,7 @@ async fn test_api_response_cache_scenario() {
     assert_eq!(result.status, 200);
 
     // 验证已缓存
-    let cached: Option<ApiResponse> = cache.get("api:/products:list").await.unwrap();
+    let cached: Option<ApiResponse> = cache.get(&products_key).await.unwrap();
     assert!(cached.is_some());
 
     println!("✓ API 响应缓存场景测试通过");
@@ -174,13 +177,13 @@ async fn test_distributed_lock_scenario() {
 
     let cache: Cache<String, String> = Cache::memory().await.unwrap();
 
-    let lock_key = "lock:resource:123";
+    let lock_key = "lock:resource:123".to_string();
     let lock_value = uuid::Uuid::new_v4().to_string();
     let lock_ttl = Duration::from_secs(10);
 
     // 尝试获取锁
     let acquired = cache
-        .get(lock_key)
+        .get(&lock_key)
         .await
         .unwrap()
         .is_none();
@@ -188,7 +191,7 @@ async fn test_distributed_lock_scenario() {
     if acquired {
         // 设置锁
         cache
-            .set_with_ttl(lock_key, &lock_value, Some(lock_ttl))
+            .set_with_ttl(&lock_key, &lock_value, Some(lock_ttl))
             .await
             .unwrap();
 
@@ -196,15 +199,15 @@ async fn test_distributed_lock_scenario() {
         println!("执行临界区操作...");
 
         // 释放锁（验证锁值）
-        let current_lock: Option<String> = cache.get(lock_key).await.unwrap();
+        let current_lock: Option<String> = cache.get(&lock_key).await.unwrap();
         if current_lock == Some(lock_value.clone()) {
-            cache.delete(lock_key).await.unwrap();
+            cache.delete(&lock_key).await.unwrap();
             println!("锁已释放");
         }
     }
 
     // 验证锁已释放
-    assert!(!cache.exists(lock_key).await.unwrap());
+    assert!(!cache.exists(&lock_key).await.unwrap());
 
     println!("✓ 分布式锁场景测试通过");
 }
@@ -215,20 +218,20 @@ async fn test_rate_limiting_scenario() {
 
     let cache: Cache<String, u64> = Cache::memory().await.unwrap();
 
-    let rate_limit_key = "rate_limit:user:123:api";
+    let rate_limit_key = "rate_limit:user:123:api".to_string();
     let max_requests = 10u64;
     let window_secs = 60u64;
 
     // 模拟请求计数
     for i in 1..=max_requests + 5 {
         let count: u64 = cache
-            .get_or(rate_limit_key, || async { Ok(0u64) })
+            .get_or(&rate_limit_key, || async { Ok(0u64) })
             .await
             .unwrap();
 
         if count < max_requests {
             cache
-                .set_with_ttl(rate_limit_key, &(count + 1), Some(Duration::from_secs(window_secs)))
+                .set_with_ttl(&rate_limit_key, &(count + 1), Some(Duration::from_secs(window_secs)))
                 .await
                 .unwrap();
             println!("请求 {} 允许，当前计数: {}", i, count + 1);
@@ -238,7 +241,7 @@ async fn test_rate_limiting_scenario() {
     }
 
     // 验证最终计数
-    let final_count: Option<u64> = cache.get(rate_limit_key).await.unwrap();
+    let final_count: Option<u64> = cache.get(&rate_limit_key).await.unwrap();
     assert_eq!(final_count, Some(max_requests));
 
     println!("✓ 限流场景测试通过");
@@ -266,12 +269,12 @@ async fn test_bulk_operations_scenario() {
         .collect();
 
     // 批量写入
-    cache.set_many(users.clone()).await.unwrap();
+    cache.set_many(users.iter().map(|(k, v)| (k, v))).await.unwrap();
     println!("批量写入 {} 个用户", users.len());
 
     // 批量读取
     let keys: Vec<String> = (1..=100).map(|i| format!("user:{}", i)).collect();
-    let results: std::collections::HashMap<String, User> = cache.get_many(keys).await.unwrap();
+    let results: std::collections::HashMap<String, User> = cache.get_many(keys.iter()).await.unwrap();
     println!("批量读取 {} 个用户", results.len());
 
     assert_eq!(results.len(), 100);
@@ -357,7 +360,7 @@ async fn test_cache_warming_scenario() {
     ];
 
     // 预热缓存
-    cache.set_many(hot_users.clone()).await.unwrap();
+    cache.set_many(hot_users.iter().map(|(k, v)| (k, v))).await.unwrap();
     println!("缓存预热完成，预热 {} 个热点用户", hot_users.len());
 
     // 验证预热数据
@@ -376,9 +379,10 @@ async fn test_cache_invalidation_scenario() {
     let cache: Cache<String, ApiResponse> = Cache::memory().await.unwrap();
 
     // 设置多个相关缓存
+    let key1 = "api:/users:1".to_string();
     cache
         .set(
-            "api:/users:1",
+            &key1,
             &ApiResponse {
                 status: 200,
                 data: r#"{"id": 1, "name": "Alice"}"#.to_string(),
@@ -388,9 +392,10 @@ async fn test_cache_invalidation_scenario() {
         .await
         .unwrap();
 
+    let key2 = "api:/users:list".to_string();
     cache
         .set(
-            "api:/users:list",
+            &key2,
             &ApiResponse {
                 status: 200,
                 data: r#"{"users": [{"id": 1, "name": "Alice"}]}"#.to_string(),
@@ -401,7 +406,7 @@ async fn test_cache_invalidation_scenario() {
         .unwrap();
 
     // 模拟用户更新，需要失效相关缓存
-    let keys_to_invalidate = vec!["api:/users:1".to_string(), "api:/users:list".to_string()];
+    let keys_to_invalidate = vec![key1, key2];
 
     for key in &keys_to_invalidate {
         cache.delete(key).await.unwrap();
