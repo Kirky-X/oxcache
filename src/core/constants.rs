@@ -3,6 +3,7 @@
 //! 该模块定义了缓存系统中使用的常量。
 
 use crate::core::RedisCommand;
+use std::time::Duration;
 
 // ============================================================================
 // 缓存容量相关常量
@@ -188,6 +189,23 @@ pub const DEFAULT_TTL_SECS: u64 = 3600; // 1小时
 /// 最大 TTL（秒）
 #[allow(dead_code)]
 pub const MAX_TTL_SECS: u64 = 30 * 24 * 60 * 60; // 30天
+
+// ============================================================================
+// 缓存穿透防护常量
+// ============================================================================
+
+/// Null sentinel 值：当 fallback 返回 None 时写入缓存，阻止穿透
+/// 使用固定 magic bytes 避免与合法 JSON `null` 冲突
+#[allow(dead_code)]
+pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
+
+/// Null sentinel 默认 TTL（秒）
+#[allow(dead_code)]
+pub const DEFAULT_NULL_CACHE_TTL_SECS: u64 = 30;
+
+/// Null sentinel 默认 TTL
+#[allow(dead_code)]
+pub const DEFAULT_NULL_CACHE_TTL: Duration = Duration::from_secs(DEFAULT_NULL_CACHE_TTL_SECS);
 
 // ============================================================================
 // 密码脱敏相关常量

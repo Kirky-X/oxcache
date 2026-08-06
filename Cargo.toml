@@ -189,6 +189,7 @@ full = [
     "testing",
     "dragonfly",
     "aerospike",
+    "dist-lock",
 ]
 
 # Component features
@@ -208,6 +209,7 @@ cli = ["dep:dashmap", "metrics"]
 testing = []
 bloom-filter = ["dep:bloomfilter"]
 kit = ["dep:trait-kit", "dep:futures"]
+dist-lock = ["redis"]
 
 # ============================================================================
 # PROFILES

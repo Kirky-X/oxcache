@@ -49,6 +49,11 @@ feature_check!(
     "Check if compression is available"
 );
 feature_check!("cli", cli_available, "Check if CLI is available");
+feature_check!(
+    "dist-lock",
+    dist_lock_available,
+    "Check if distributed lock is available"
+);
 
 // ============================================================================
 // FeatureSet Structure
