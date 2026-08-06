@@ -76,7 +76,7 @@ oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom"] }
 - `cli` - Command-line interface tools
 - `i18n` - Error message internationalization + auto system language detection
 - `bloom` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
-- `kit` - trait-kit AsyncKit integration (OxcacheModule); not in `full`, must be enabled explicitly
+- `kit` - trait-kit AsyncKit integration (OxcacheModule + health check + lifecycle + build observer + shutdown coordinator + decorator); not in `full`, must be enabled explicitly
 - `testing` - Testing utilities
 
 ### 2. Basic Usage

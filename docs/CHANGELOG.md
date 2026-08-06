@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [0.4.3] - 2026-08-06
+
+### 新增
+
+- **kit 特性扩展**：`kit` feature 新增 observer/shutdown/decorator 三个 trait-kit 特性集成。
+  - `OxcacheBuildObserver`：实现 `BuildObserver` trait，可通过 `AsyncKit::with_observer` 注册构建观察者。
+  - `register_cache_shutdown`：将 `CacheBackend` 关闭映射到 `AsyncShutdownCoordinator` 三阶段（StopRequests/DrainQueue/CloseConnections）。
+  - `CacheBackendDecorator` / `register_cache_decorator`：类型别名和辅助函数，支持通过 `AsyncKit::decorate` 注册后端装饰器。
+
+### 维护
+
+- 文档目录 `docs/image` 重命名为 `docs/assets`，同步更新 README 中英文引用。
+- 文档版本号统一更新至 v0.4.3。
+
 ## [0.4.2] - 2026-08-06
 
 ### 新增
