@@ -97,7 +97,7 @@ async fn no_sync_keeps_async_behavior() {
 #[test]
 fn sync_flag_with_async_fn_compile_error() {
     let t = trybuild::TestCases::new();
-    t.compile_fail("tests/macros_sync_compile_fail/*.rs");
+    t.compile_fail("tests/macros/compile_fail/sync_with_async_fn.rs");
 }
 
 /// Verifies that an invalid argument to `#[cached]` (e.g. a bare integer
@@ -107,5 +107,5 @@ fn sync_flag_with_async_fn_compile_error() {
 #[test]
 fn invalid_arg_compile_error() {
     let t = trybuild::TestCases::new();
-    t.compile_fail("tests/macros_invalid_arg_compile_fail/*.rs");
+    t.compile_fail("tests/macros/compile_fail/invalid_arg.rs");
 }

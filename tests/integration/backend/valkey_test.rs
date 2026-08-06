@@ -16,7 +16,7 @@ use oxcache::backend::{
     BackendKind, CacheConnector, CacheReader, CacheWriter, ConfigValidation, RedisBackend, RedisMode,
 };
 
-#[path = "../common/mod.rs"]
+#[path = "../../common/mod.rs"]
 mod common;
 use common::test_containers::ValkeyContainer;
 

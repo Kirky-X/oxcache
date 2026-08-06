@@ -8,7 +8,7 @@ use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
 use std::time::Duration;
 
-#[path = "../common/mod.rs"]
+#[path = "../../common/mod.rs"]
 mod common;
 
 fn get_sentinel_urls() -> Vec<String> {

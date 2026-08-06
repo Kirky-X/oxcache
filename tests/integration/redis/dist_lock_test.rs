@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: MIT
 //! Distributed lock integration tests (require Redis testcontainer).
 
-#[path = "../common/mod.rs"]
+#[path = "../../common/mod.rs"]
 mod common;
 use common::test_containers::RedisContainer;
 
+use oxcache::backend::CacheConnector;
 use oxcache::backend::RedisBackend;
 use oxcache::features::dist_lock::DistLockBuilder;
 use std::sync::Arc;
