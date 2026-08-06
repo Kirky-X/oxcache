@@ -143,7 +143,7 @@ mod tests {
     async fn test_cache批量_operations() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
-        let users = vec![
+        let users = [
             (
                 "user:1".to_string(),
                 User {
@@ -191,7 +191,7 @@ mod tests {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         // Add some values
-        let users = vec![
+        let users = [
             (
                 "user:1".to_string(),
                 User {
@@ -225,7 +225,7 @@ mod tests {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         // Add some values
-        let users = vec![
+        let users = [
             (
                 "user:1".to_string(),
                 User {
