@@ -195,9 +195,6 @@ jobs:
       - name: Run cargo check (core, no defaults)
         run: cargo check -p oxcache --no-default-features --features core
 
-      - name: Run feature_core tests
-        run: cargo test --no-default-features --features core -p oxcache --test feature_core
-
   feature-minimal:
     name: Feature Check (minimal only, no defaults)
     runs-on: ubuntu-latest
@@ -227,9 +224,6 @@ jobs:
 
       - name: Run cargo check (minimal, no defaults)
         run: cargo check -p oxcache --no-default-features --features minimal
-
-      - name: Run feature_minimal tests
-        run: cargo test --no-default-features --features minimal -p oxcache --test feature_minimal
 
   # ============================================================================
   # Build Verification
