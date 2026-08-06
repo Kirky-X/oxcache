@@ -105,12 +105,12 @@ jobs:
       - name: Publish oxcache_macros
         if: env.HAS_TOKEN == 'true' && steps.check_macros.outputs.skip != 'true'
         working-directory: macros
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+        run: |
+          cargo login "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+          cargo publish
 
       - name: Publish oxcache
         if: env.HAS_TOKEN == 'true' && steps.check_main.outputs.skip != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --features full
+        run: |
+          cargo login "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+          cargo publish --features full
