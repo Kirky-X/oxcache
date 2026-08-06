@@ -20,4 +20,11 @@
 //! for the acceptance criteria driving this module.
 
 pub mod module;
+pub mod observer;
+pub mod shutdown;
+pub mod decorator;
+
 pub use module::{OxcacheConfig, OxcacheModule};
+pub use observer::OxcacheBuildObserver;
+pub use shutdown::register_cache_shutdown;
+pub use decorator::{CacheBackendDecorator, register_cache_decorator};
