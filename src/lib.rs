@@ -6,7 +6,7 @@
 //!
 //! ```rust,ignore
 //! use oxcache::Cache;
-//! use serde::{Deserialize, Serialize};
+//! use oxcache::{Serialize, Deserialize};
 //!
 //! #[derive(Serialize, Deserialize, Debug)]
 //! struct User { id: u64, name: String }
@@ -280,6 +280,12 @@ pub(crate) mod security;
 // ============================================================================
 // Public API Re-exports
 // ============================================================================
+
+// Re-export serde traits so consumers don't need to add serde to their own
+// Cargo.toml. Cache<K, V> requires V: Serialize + Deserialize, so these are
+// part of the public API surface. Re-exporting keeps them as internal deps.
+#[cfg(any(feature = "memory", feature = "serialization", feature = "full"))]
+pub use serde::{Serialize, Deserialize};
 
 // Re-export macros when the feature is enabled
 #[cfg(feature = "macros")]
