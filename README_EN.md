@@ -588,7 +588,7 @@ See [CHANGELOG.md](docs/CHANGELOG.md)
 
 This project is licensed under MIT License. See [LICENSE](LICENSE) file.
 
-***
+---
 
 <div align="center">
 
