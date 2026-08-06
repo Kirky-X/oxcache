@@ -70,6 +70,7 @@ jobs:
 
       - name: Get version from tag
         id: version
+        if: env.HAS_TOKEN == 'true'
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG_NAME#v}"
@@ -78,6 +79,7 @@ jobs:
 
       - name: Check if oxcache_macros already published
         id: check_macros
+        if: env.HAS_TOKEN == 'true'
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "User-Agent: oxcache-ci" \
@@ -91,6 +93,7 @@ jobs:
 
       - name: Check if oxcache already published
         id: check_main
+        if: env.HAS_TOKEN == 'true'
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "User-Agent: oxcache-ci" \
@@ -106,11 +109,11 @@ jobs:
         if: env.HAS_TOKEN == 'true' && steps.check_macros.outputs.skip != 'true'
         working-directory: macros
         run: |
-          cargo login "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+          printf '%s' "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
           cargo publish
 
       - name: Publish oxcache
         if: env.HAS_TOKEN == 'true' && steps.check_main.outputs.skip != 'true'
         run: |
-          cargo login "${{ secrets.CARGO_REGISTRY_TOKEN }}"
+          printf '%s' "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
           cargo publish --features full
