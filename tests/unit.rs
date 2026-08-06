@@ -50,3 +50,6 @@ mod moka_backend_test;
 
 #[path = "unit/penetration_guard_test.rs"]
 mod penetration_guard_test;
+
+#[path = "unit/backend_interface_test.rs"]
+mod backend_interface_test;
