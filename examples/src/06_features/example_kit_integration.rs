@@ -5,23 +5,93 @@
 // 本示例演示 oxcache 的 trait-kit `kit` feature 集成：
 // - OxcacheBuildObserver：构建观察者，监听模块构建事件
 // - register_cache_shutdown：三阶段优雅关闭
-// - register_cache_decorator：后端装饰器（类型注册，见下方限制说明）
+// - register_cache_decorator：后端装饰器（访问计数代理）
 //
 // trait-kit 提供依赖注入和能力管理，oxcache 通过 OxcacheModule
 // 注册为 kit 模块，获得 observer/shutdown/decorator 等生命周期管理。
-//
-// **已知限制**：trait-kit 0.4.1 的 `AsyncKit::decorate()` 存在 bug ——
-// decorator 闭包被存储但在 `build()` 期间从未被调用。同步 `Kit::decorate()`
-// 工作正常。`register_cache_decorator` 的 API 已就绪，待 trait-kit 修复后
-// 即可生效。
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::integrations::kit::{
     register_cache_decorator, register_cache_shutdown, OxcacheBuildObserver, OxcacheConfig,
     OxcacheModule,
 };
 use trait_kit::prelude::*;
+
+/// 计数装饰器：包装 CacheBackend，记录操作次数。
+struct CountingDecorator {
+    inner: Arc<dyn oxcache::backend::CacheBackend + Send + Sync>,
+    ops: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl CacheReader for CountingDecorator {
+    async fn get(&self, key: &str) -> oxcache::error::OxCacheResult<Option<Vec<u8>>> {
+        self.ops.fetch_add(1, Ordering::SeqCst);
+        self.inner.get(key).await
+    }
+    async fn exists(&self, key: &str) -> oxcache::error::OxCacheResult<bool> {
+        self.inner.exists(key).await
+    }
+    async fn ttl(
+        &self,
+        key: &str,
+    ) -> oxcache::error::OxCacheResult<Option<std::time::Duration>> {
+        self.inner.ttl(key).await
+    }
+    async fn len(&self) -> oxcache::error::OxCacheResult<u64> {
+        self.inner.len().await
+    }
+    async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
+        self.inner.capacity().await
+    }
+    async fn stats(
+        &self,
+    ) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
+        self.inner.stats().await
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheWriter for CountingDecorator {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<std::time::Duration>,
+    ) -> oxcache::error::OxCacheResult<()> {
+        self.ops.fetch_add(1, Ordering::SeqCst);
+        self.inner.set(key, value, ttl).await
+    }
+    async fn delete(&self, key: &str) -> oxcache::error::OxCacheResult<()> {
+        self.inner.delete(key).await
+    }
+    async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
+        self.inner.clear().await
+    }
+    async fn expire(
+        &self,
+        key: &str,
+        ttl: std::time::Duration,
+    ) -> oxcache::error::OxCacheResult<bool> {
+        self.inner.expire(key, ttl).await
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheConnector for CountingDecorator {
+    async fn health_check(&self) -> oxcache::error::OxCacheResult<()> {
+        self.inner.health_check().await
+    }
+    async fn shutdown(&self) {
+        self.inner.shutdown().await;
+    }
+    fn backend_kind(&self) -> oxcache::backend::BackendKind {
+        self.inner.backend_kind()
+    }
+}
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,14 +113,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     kit.register::<OxcacheModule>()?;
     println!("已注册 OxcacheModule");
 
-    // 注册装饰器（API 演示）
-    // 注意：trait-kit 0.4.1 的 AsyncKit decorator 存在 bug，闭包不会在 build() 时执行。
-    register_cache_decorator(&kit, |backend| {
-        // 此闭包在 trait-kit 0.4.1 中不会被调用（AsyncKit bug）。
-        // 同步 Kit::decorate() 工作正常。
-        backend
+    // 注册装饰器：计数代理
+    let ops_count = Arc::new(AtomicUsize::new(0));
+    let ops_clone = Arc::clone(&ops_count);
+    register_cache_decorator(&kit, move |backend| {
+        Arc::new(CountingDecorator {
+            inner: backend,
+            ops: Arc::clone(&ops_clone),
+        })
     });
-    println!("已注册装饰器（trait-kit 0.4.1: AsyncKit decorator 暂不生效）");
+    println!("已注册 CountingDecorator 装饰器");
 
     // 构建 kit
     let built = kit.build().await?;
@@ -81,6 +153,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 不存在的 key
     let miss = backend.get("user:999").await?;
     println!("get 'user:999' = {:?} (应为 None)", miss);
+
+    println!("操作计数: {} (应为 3: set + get + get)", ops_count.load(Ordering::SeqCst));
     println!();
 
     // === 3. 三阶段关闭 ===
@@ -97,8 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("关闭结果: {:?}\n", result);
 
     println!("=== 完成 ===");
-    println!("trait-kit 集成演示结束。observer/shutdown 特性已展示。");
-    println!("decorator API 已就绪，待 trait-kit 修复 AsyncKit bug 后生效。");
+    println!("trait-kit 集成演示结束。observer/decorator/shutdown 三个特性均已展示。");
 
     Ok(())
 }
