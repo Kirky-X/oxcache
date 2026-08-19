@@ -96,9 +96,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 清空
+    // 清空（安全方式：仅删除本示例写入的测试键，避免全库 clear）
     println!("   清空测试数据...");
-    cache.clear().await?;
+    for key in ["user:1", "user:2", "user:3"] {
+        cache.delete(&key.to_string()).await?;
+    }
     println!("   ✓ 清空完成\n");
 
     // 4. 统计信息
