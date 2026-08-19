@@ -38,13 +38,15 @@ fn get_or_shard_index(key: &str) -> usize {
     (hasher.finish() as usize) & GET_OR_LOCK_MASK
 }
 
-/// 用于 panic 安全地清理 GET_OR_LOCKS 中的条目。
+/// 用于 panic 安全地清理 GET_OR_LOCKS 中的条目，并唤醒等待的 follower。
 ///
-/// 如果 leader 在插入条目后 panic，此守卫会在 Drop 时移除该条目，
-/// 防止锁永远留在 HashMap 中导致后续所有 get_or 调用死锁。
+/// 如果 leader 在插入条目后 panic（或通过 `?` 提前返回），此守卫会在 Drop 时
+/// 移除该条目并调用 notify_waiters()，防止 follower 永远等待（死锁）或锁条目
+/// 永久残留导致后续所有 get_or 调用死锁。
 struct GetOrGuard<'a> {
     map: &'a Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
     key: String,
+    notify: Arc<tokio::sync::Notify>,
     removed: bool,
 }
 
@@ -54,6 +56,9 @@ impl Drop for GetOrGuard<'_> {
             if let Ok(mut map) = self.map.lock() {
                 map.remove(&self.key);
             }
+            // 唤醒已注册的 follower：即使 leader 未写入结果，
+            // follower 也会醒来并返回清晰的错误，而非永久挂起。
+            self.notify.notify_waiters();
         }
     }
 }
@@ -241,6 +246,7 @@ where
         let mut guard = GetOrGuard {
             map: &GET_OR_LOCKS[shard_index],
             key: key_str.clone(),
+            notify: notify.clone(),
             removed: false,
         };
 
@@ -381,6 +387,7 @@ where
         let mut guard = GetOrGuard {
             map: &GET_OR_LOCKS[shard_index],
             key: key_str.clone(),
+            notify: notify.clone(),
             removed: false,
         };
 
@@ -1258,6 +1265,55 @@ mod tests {
             .await
             .unwrap();
         assert!(!ok);
+    }
+
+    #[tokio::test]
+    async fn test_get_or_follower_not_hung_when_leader_set_fails() {
+        // Regression: leader's `set` failure after a successful fallback must
+        // still notify waiting followers, otherwise they hang forever.
+        use crate::testing::MockBackend;
+
+        let backend: Arc<dyn crate::backend::CacheBackend> =
+            Arc::new(MockBackend::new("mock", 50, false).with_fail_set());
+        let cache: Arc<Cache<String, f64>> = Arc::new(Cache::new_with_backend(backend));
+
+        let (leader_registered_tx, leader_registered_rx) = tokio::sync::oneshot::channel();
+        let (leader_go_tx, leader_go_rx) = tokio::sync::oneshot::channel();
+
+        // Leader: fallback blocks until the follower has registered, so the
+        // follower is guaranteed to be waiting when the leader's set fails.
+        let cache_leader = cache.clone();
+        let leader = tokio::spawn(async move {
+            cache_leader
+                .get_or(&"k".to_string(), || async {
+                    let _ = leader_registered_tx.send(());
+                    let _ = leader_go_rx.await;
+                    Ok(1.0f64)
+                })
+                .await
+        });
+
+        let _ = leader_registered_rx.await;
+        let cache_follower = cache.clone();
+        let follower = tokio::spawn(async move {
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                cache_follower.get_or(&"k".to_string(), || async { Ok(2.0f64) }),
+            )
+            .await
+        });
+
+        // Let the follower register as a follower, then release the leader.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = leader_go_tx.send(());
+
+        let _ = leader.await;
+        let follower_result = follower.await.unwrap();
+        assert!(
+            follower_result.is_ok(),
+            "follower must resolve (timeout indicates hang): {:?}",
+            follower_result
+        );
     }
 }
 
