@@ -36,7 +36,7 @@ mod two_level_test;
 mod version_test;
 
 // --- Redis & lock tests ---
-#[cfg(feature = "redis")]
+#[cfg(feature = "lock")]
 #[path = "integration/redis/dist_lock_test.rs"]
 mod dist_lock_test;
 #[cfg(feature = "redis")]
