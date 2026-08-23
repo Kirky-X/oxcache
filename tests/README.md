@@ -9,7 +9,7 @@ tests/
 ├── common/                              # 共享测试工具
 │   ├── mod.rs                           # 模块导出
 │   ├── docker_test_utils.rs             # Docker 测试工具
-│   ├── mock_backend.rs                  # Mock 后端
+│   ├── mock_backend.rs                  # Mock 后端（unit 专用测试替身，e2e/集成/chaos 禁用）
 │   ├── redis_test_utils.rs              # Redis 测试工具
 │   └── test_containers.rs               # Testcontainers 封装
 │
@@ -80,6 +80,7 @@ tests/
 ├── chaos.rs                             # 混沌测试入口
 ├── chaos/
 │   ├── chaos_test.rs                    # 混沌工程测试
+│   ├── backend_failure_test.rs          # 后端故障注入（FailingBackend，自 e2e 下沉）
 │   ├── network_failure_test.rs          # 网络故障模拟
 │   └── random_failure_test.rs           # 随机故障模拟
 │

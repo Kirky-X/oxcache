@@ -42,7 +42,8 @@ pub use test_containers::{
     is_redis_available as tc_is_redis_available, start_redis_container,
 };
 
-// Mock 后端
+// Mock 后端（unit 专用测试替身，见 mock_backend.rs 头注释；
+// 仅 tests/unit/ 引用，e2e/集成/chaos 不得使用）
 #[allow(unused_imports)]
 pub use mock_backend::MockBackend;
 
