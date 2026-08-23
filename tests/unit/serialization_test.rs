@@ -54,3 +54,61 @@ fn test_json_serializer_with_compression() {
     // For better compression results, use serialization formats that preserve data structure
     // (like bincode) or compress before JSON encoding.
 }
+
+/// 大对象 round-trip：验证 5MB 随机字节经 JSON base64 编码往返无截断
+#[test]
+fn test_json_serializer_large_payload_round_trip() {
+    let serializer = JsonSerializer::new();
+
+    // 伪随机但确定性的数据，避免依赖 rand
+    let mut original_data = Vec::with_capacity(5 * 1024 * 1024);
+    let seed: u64 = 0x9E3779B97F4A7C15;
+    let mut x = seed;
+    for _ in 0..(5 * 1024 * 1024) {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        original_data.push((x & 0xFF) as u8);
+    }
+
+    let serialized = serializer.serialize("large", &original_data).unwrap();
+    let deserialized = serializer.deserialize("large", &serialized).unwrap();
+
+    assert_eq!(deserialized, original_data, "大对象 round-trip 数据必须逐字节一致");
+}
+
+/// 特殊 type_name / 非法输入边界：不 panic，损坏数据返回 Err
+#[test]
+fn test_json_serializer_special_keys_and_corrupt_data() {
+    let serializer = JsonSerializer::new();
+    let payload = b"edge case payload";
+
+    // 空 type_name、超长 type_name、含控制字符的 type_name 均须正常往返
+    let long_key = "k".repeat(4096);
+    let special_keys: [&str; 3] = ["", long_key.as_str(), "key\r\nwith\x00control"];
+    for name in special_keys {
+        let serialized = serializer.serialize(name, payload).unwrap();
+        let deserialized = serializer.deserialize(name, &serialized).unwrap();
+        assert_eq!(deserialized, payload, "type_name={name:?} round-trip 失败");
+    }
+
+    // 空 payload round-trip
+    let serialized = serializer.serialize("empty", b"").unwrap();
+    let deserialized = serializer.deserialize("empty", &serialized).unwrap();
+    assert!(deserialized.is_empty());
+
+    // 错误路径：超过 MAX_JSON_SIZE（=5MB，见 src/core/constants.rs）的数据必须显性返回
+    // Err（规则 12：错误不得被吞掉）；且该 serializer 非压缩模式为字节直通，任意
+    // 字节内容（含非 JSON）均按原样往返
+    let oversized = vec![0u8; 5 * 1024 * 1024 + 1];
+    assert!(serializer.deserialize("oversized", &oversized).is_err());
+    let passthrough = b"not-json-at-all!!";
+    assert_eq!(
+        serializer
+            .deserialize("passthrough", passthrough)
+            .unwrap()
+            .as_slice(),
+        passthrough.as_slice(),
+        "非压缩模式须为字节直通"
+    );
+}
