@@ -1,6 +1,11 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
 // 公共 MockBackend 实现 - 用于测试
+//
+// 约束（specmark change production-mock-purge T027）：
+// 本模块为 [unit 专用测试替身]，仅允许 tests/unit/ 消费者引用。
+// 集成（tests/integration/）、e2e（tests/e2e/）、chaos（tests/chaos/）禁止引用，
+// 应改用真实内存后端 DashMapMemoryBackend / MokaMemoryBackend。
 
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -7,7 +7,8 @@
 //! TTL (T) → Concurrency (C) → Degradation (D) → Security (SEC) → Config (CFG).
 //!
 //! Constraints:
-//! - No external Redis dependency (uses MockBackend / MokaMemoryBackend / FailingBackend)
+//! - No external Redis dependency (uses real memory backends MokaMemoryBackend / DashMapMemoryBackend;
+//!   fault-injection FailingBackend 已下沉 tests/chaos/ 见 production-mock-purge T027)
 //! - Redis-specific tests are `#[ignore]`
 //! - Concurrent tests use `#[tokio::test(flavor = "multi_thread")]`
 //! - Error assertions use `match` + `panic!`, never `is_err()`
@@ -32,7 +33,7 @@ use std::time::Duration;
 use oxcache::Cache;
 
 // Backend trait imports — needed for `set`/`get`/`len`/`exists` etc. on
-// MokaMemoryBackend / DashMapMemoryBackend / ChainCache / MockBackend.
+// MokaMemoryBackend / DashMapMemoryBackend / ChainCache.
 #[cfg(any(feature = "memory", feature = "redis"))]
 use oxcache::backend::{CacheReader, CacheWriter};
 
@@ -58,146 +59,8 @@ impl User {
 }
 
 // ============================================================================
-// FailingBackend — error-injecting mock for degradation / failure scenarios
-// (D-007, D-001, N-004, S-004).  All read/write operations return
-// `Err(Connection(...))`; health_check returns Err; shutdown is no-op.
-// ============================================================================
-
-#[cfg(feature = "memory")]
-struct FailingBackend {
-    score_val: u8,
-    name_str: &'static str,
-}
-
-#[cfg(feature = "memory")]
-impl FailingBackend {
-    fn new(score: u8) -> Self {
-        Self {
-            score_val: score,
-            name_str: "failing",
-        }
-    }
-}
-
-#[cfg(feature = "memory")]
-impl oxcache::backend::BackendScore for FailingBackend {
-    fn score(&self) -> u8 {
-        self.score_val
-    }
-    fn is_persistent(&self) -> bool {
-        false
-    }
-    fn backend_name(&self) -> &'static str {
-        self.name_str
-    }
-}
-
-#[cfg(feature = "memory")]
-#[async_trait::async_trait]
-impl oxcache::backend::CacheReader for FailingBackend {
-    async fn get(&self, _key: &str) -> oxcache::error::OxCacheResult<Option<Vec<u8>>> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: get unavailable".to_string(),
-        ))
-    }
-    async fn exists(&self, _key: &str) -> oxcache::error::OxCacheResult<bool> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: exists unavailable".to_string(),
-        ))
-    }
-    async fn ttl(&self, _key: &str) -> oxcache::error::OxCacheResult<Option<Duration>> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: ttl unavailable".to_string(),
-        ))
-    }
-    async fn len(&self) -> oxcache::error::OxCacheResult<u64> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: len unavailable".to_string(),
-        ))
-    }
-    async fn is_empty(&self) -> oxcache::error::OxCacheResult<bool> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: is_empty unavailable".to_string(),
-        ))
-    }
-    async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: capacity unavailable".to_string(),
-        ))
-    }
-    async fn stats(&self) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: stats unavailable".to_string(),
-        ))
-    }
-}
-
-#[cfg(feature = "memory")]
-#[async_trait::async_trait]
-impl oxcache::backend::CacheWriter for FailingBackend {
-    async fn set(
-        &self,
-        _key: std::sync::Arc<str>,
-        _value: std::sync::Arc<Vec<u8>>,
-        _ttl: Option<Duration>,
-    ) -> oxcache::error::OxCacheResult<()> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: set unavailable".to_string(),
-        ))
-    }
-    async fn delete(&self, _key: &str) -> oxcache::error::OxCacheResult<()> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: delete unavailable".to_string(),
-        ))
-    }
-    async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: clear unavailable".to_string(),
-        ))
-    }
-    async fn expire(&self, _key: &str, _ttl: Duration) -> oxcache::error::OxCacheResult<bool> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: expire unavailable".to_string(),
-        ))
-    }
-}
-
-#[cfg(feature = "memory")]
-#[async_trait::async_trait]
-impl oxcache::backend::CacheConnector for FailingBackend {
-    async fn health_check(&self) -> oxcache::error::OxCacheResult<()> {
-        Err(oxcache::OxCacheError::Connection(
-            "failing backend: health_check failed".to_string(),
-        ))
-    }
-    async fn shutdown(&self) {}
-    fn backend_kind(&self) -> oxcache::backend::BackendKind {
-        oxcache::backend::BackendKind::Mock
-    }
-}
-
-// ============================================================================
 // P0/P1 HIGH-RISK SCENARIOS
 // ============================================================================
-
-/// P0 D-007: All backends fail simultaneously → ChainCache must return
-/// `Operation("All backends failed to write")`.
-#[cfg(feature = "memory")]
-#[tokio::test]
-async fn p0_d007_all_backends_fail_returns_operation_error() {
-    let chain = oxcache::ChainCache::builder()
-        .backend(FailingBackend::new(80))
-        .backend(FailingBackend::new(50))
-        .build();
-
-    let result = chain.set("key", b"value".to_vec(), None).await;
-    match result {
-        Err(oxcache::OxCacheError::Operation(msg)) => {
-            assert!(msg.contains("All backends failed"), "unexpected message: {msg}");
-        }
-        other => panic!("expected OxCacheError::Operation, got {other:?}"),
-    }
-}
 
 /// P0 R-002: DashMap now has a FIFO O(1) eviction policy — writing beyond
 /// capacity evicts the oldest entries and `len()` is bounded at capacity.
@@ -263,61 +126,6 @@ async fn p0_c004_get_or_leader_panic_cleans_lock() {
         Ok(Err(e)) => panic!("get_or after panic should succeed, got error: {e:?}"),
         Err(_) => panic!("get_or after panic timed out — lock was not cleaned up (C-004 regression)"),
     }
-}
-
-/// P1 D-001: L2 (lower-score backend) unavailable, L1 (higher-score) still
-/// serves reads. ChainCache must NOT fail the read when a lower-priority
-/// backend errors.
-#[cfg(feature = "memory")]
-#[tokio::test]
-async fn p1_d001_l2_unavailable_l1_continues_serving() {
-    use oxcache::{ChainCache, ChainLink, MokaMemoryBackend};
-
-    let l1 = MokaMemoryBackend::new(); // score 100
-    let l2 = FailingBackend::new(50); // always fails
-
-    // Pre-populate L1.
-    l1.set(Arc::from("hot_key"), Arc::new(b"hot_value".to_vec()), None)
-        .await
-        .expect("l1 set");
-
-    let chain = ChainCache::builder()
-        .link(ChainLink::from_backend(l1))
-        .link(ChainLink::from_backend(l2))
-        .build();
-
-    // get traverses high → low; L1 hit means L2 is never touched.
-    let val = chain.get("hot_key").await.expect("chain get must succeed from L1");
-    assert_eq!(val, Some(b"hot_value".to_vec()));
-}
-
-/// P1 N-004: Network partition (L1 available, L2 unavailable) — read from L1
-/// succeeds even though L2 is unreachable. With backfill DISABLED, no write
-/// is attempted on the failing L2 during read.
-#[cfg(feature = "memory")]
-#[tokio::test]
-async fn p1_n004_partition_l1_hit_l2_fail_no_backfill_stale() {
-    use oxcache::{ChainCache, ChainLink, MokaMemoryBackend};
-
-    let l1 = MokaMemoryBackend::new();
-    let l2 = FailingBackend::new(40);
-
-    l1.set(Arc::from("partition_key"), Arc::new(b"l1_data".to_vec()), None)
-        .await
-        .expect("l1 set");
-
-    let chain = ChainCache::builder()
-        .link(ChainLink::from_backend(l1))
-        .link(ChainLink::from_backend(l2))
-        .disable_backfill()
-        .build();
-
-    // Read hits L1; L2 failure is silently skipped (err → continue).
-    let val = chain
-        .get("partition_key")
-        .await
-        .expect("read should succeed from L1 despite L2 failure");
-    assert_eq!(val, Some(b"l1_data".to_vec()));
 }
 
 /// P1 SEC-002: Lua script validation correctly blocks both single-quoted
@@ -401,16 +209,15 @@ async fn b002_dashmap_lazy_ttl_expired_entry_not_removed() {
     assert_eq!(len, 1, "DashMap lazy expiry: stale entry still counted in len");
 }
 
-/// B-006: Moka + Mock chain with backfill — read from L2 (lower score)
+/// B-006: Moka + DashMap chain with backfill — read from L2 (lower score)
 /// backfills to L1 (higher score).
 #[cfg(feature = "memory")]
 #[tokio::test]
-async fn b006_moka_mock_chain_backfill_populates_l1() {
-    use crate::common::MockBackend;
-    use oxcache::{ChainCache, ChainLink, MokaMemoryBackend};
+async fn b006_moka_dashmap_chain_backfill_populates_l1() {
+    use oxcache::{ChainCache, ChainLink, DashMapMemoryBackend, MokaMemoryBackend};
 
     let l1 = MokaMemoryBackend::new(); // score 100
-    let l2 = MockBackend::with_data("mock_l2", 50, false); // score 50
+    let l2 = DashMapMemoryBackend::new(); // score 90
 
     // Pre-populate L2 only.
     l2.set(Arc::from("bf_key"), Arc::new(b"from_l2".to_vec()), None)
@@ -1019,11 +826,10 @@ async fn c006_concurrent_get_set_no_panic() {
 #[cfg(feature = "memory")]
 #[tokio::test(flavor = "multi_thread")]
 async fn c008_concurrent_backfill_idempotent() {
-    use crate::common::MockBackend;
-    use oxcache::{ChainCache, ChainLink, MokaMemoryBackend};
+    use oxcache::{ChainCache, ChainLink, DashMapMemoryBackend, MokaMemoryBackend};
 
     let l1 = Arc::new(MokaMemoryBackend::new());
-    let l2 = MockBackend::with_data("l2", 50, false);
+    let l2 = DashMapMemoryBackend::new();
 
     l2.set(Arc::from("bf_concurrent"), Arc::new(b"shared".to_vec()), None)
         .await
@@ -1084,27 +890,6 @@ async fn d003_serialization_failure_corrupt_data() {
         Err(oxcache::OxCacheError::Serialization(_)) => {}
         other => panic!("expected Serialization error for corrupt data, got {other:?}"),
     }
-}
-
-/// D-007 (partial): One backend fails, chain still succeeds (partial failure
-/// is tolerated; only ALL-backends-fail returns error).
-#[cfg(feature = "memory")]
-#[tokio::test]
-async fn d007_partial_backend_failure_chain_succeeds() {
-    use crate::common::MockBackend;
-    use oxcache::{ChainCache, ChainLink};
-
-    let good = MockBackend::with_data("good", 80, false);
-    let bad = FailingBackend::new(50);
-
-    let chain = ChainCache::builder()
-        .link(ChainLink::from_backend(good))
-        .link(ChainLink::from_backend(bad))
-        .build();
-
-    // set: one backend fails, one succeeds → overall Ok.
-    let result = chain.set("partial", b"v".to_vec(), None).await;
-    assert!(result.is_ok(), "partial failure should not fail the chain: {result:?}");
 }
 
 /// D-010: Operations after shutdown are safe (no panic, may return empty).
@@ -1460,16 +1245,17 @@ async fn s002_sync_api_without_sync_mode_returns_not_supported() {
     }
 }
 
-/// S-004: ChainCache sync API with a non-sync link returns NotSupported.
+/// S-004: ChainCache sync API with a link created via `from_backend` returns
+/// NotSupported. `ChainLink::from_backend` 不主动声明 SyncCacheBackend 支持
+/// （backend_sync 为 None），即使底层后端本身实现了 SyncCacheBackend
+/// （如真实 DashMapMemoryBackend）也不例外；必须使用 `from_sync_backend` 显式 opt-in。
 #[cfg(feature = "memory")]
 #[tokio::test(flavor = "multi_thread")]
 async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
-    use crate::common::MockBackend;
-    use oxcache::{ChainCache, ChainLink};
+    use oxcache::{ChainCache, ChainLink, DashMapMemoryBackend};
 
-    // MockBackend does NOT implement SyncCacheBackend.
-    let mock = MockBackend::with_data("mock", 80, false);
-    let chain = ChainCache::builder().link(ChainLink::from_backend(mock)).build();
+    let backend = DashMapMemoryBackend::new();
+    let chain = ChainCache::builder().link(ChainLink::from_backend(backend)).build();
 
     let result = chain.get_sync("any");
     match result {
