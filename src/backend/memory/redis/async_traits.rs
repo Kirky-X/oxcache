@@ -121,6 +121,7 @@ impl CacheReader for RedisBackend {
             let mut conn = self.conn();
             async move {
                 let mut stats = HashMap::new();
+                stats.insert("type".to_string(), "redis".to_string());
 
                 // INFO memory
                 let memory_info: String = redis::cmd(RedisCommand::Info.as_str())
