@@ -11,6 +11,10 @@ pub mod common;
 #[path = "chaos/chaos_test.rs"]
 mod chaos_test;
 
+#[cfg(feature = "memory")]
+#[path = "chaos/backend_failure_test.rs"]
+mod backend_failure_test;
+
 #[cfg(feature = "redis")]
 #[path = "chaos/random_failure_test.rs"]
 mod random_failure_test;
