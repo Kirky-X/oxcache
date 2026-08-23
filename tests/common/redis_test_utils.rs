@@ -147,7 +147,12 @@ pub async fn is_redis_available_url(url: &str) -> bool {
 
     match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
         Ok(Ok(_)) => true,
-        Ok(Err(e)) => !e.is_connection_refusal(),
+        Ok(Err(e)) => {
+            // 任何连接错误（拒绝/超时/TLS）都视为不可达，避免 skip 守卫
+            // 误判为可用后继续跑真实 Redis 测试而失败。
+            eprintln!("[TEST-SKIP] Redis connection error (treated as unavailable): {e}");
+            false
+        }
         _ => false,
     }
 }
