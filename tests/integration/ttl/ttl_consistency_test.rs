@@ -15,7 +15,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use oxcache::backend::{dashmap_memory, CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend};
+use oxcache::backend::{CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend, dashmap_memory};
 
 // ============================================================================
 // 跨后端 TTL 一致性回归测试

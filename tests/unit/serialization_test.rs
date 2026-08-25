@@ -104,10 +104,7 @@ fn test_json_serializer_special_keys_and_corrupt_data() {
     assert!(serializer.deserialize("oversized", &oversized).is_err());
     let passthrough = b"not-json-at-all!!";
     assert_eq!(
-        serializer
-            .deserialize("passthrough", passthrough)
-            .unwrap()
-            .as_slice(),
+        serializer.deserialize("passthrough", passthrough).unwrap().as_slice(),
         passthrough.as_slice(),
         "非压缩模式须为字节直通"
     );
