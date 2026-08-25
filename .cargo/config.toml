@@ -1,3 +1,0 @@
-# 本地开发：自研依赖经 patch 重定向到兄弟目录源码（CI/发布走 crates.io version 解析）。
-[patch.crates-io]
-trait-kit = { path = "../trait-kit" }
