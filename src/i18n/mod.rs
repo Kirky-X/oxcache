@@ -222,6 +222,10 @@ impl CacheI18nFormatter {
 
 #[cfg(test)]
 mod tests {
+    // locale 探测测试操作进程级 env（LANG/LC_ALL/LC_MESSAGES），
+    // 并行执行互相污染 → 以下 5 个测试共用互斥锁。
+    static LOCALE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     use super::*;
     use std::cmp::Ordering;
 
@@ -515,6 +519,7 @@ mod tests {
     #[test]
     #[allow(unsafe_code)]
     fn test_detect_system_locale_with_lang_zh() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
         // Save original
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
@@ -549,6 +554,7 @@ mod tests {
     #[test]
     #[allow(unsafe_code)]
     fn test_detect_system_locale_with_lang_en() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
@@ -579,6 +585,7 @@ mod tests {
     #[test]
     #[allow(unsafe_code)]
     fn test_detect_system_locale_c_fallback_to_en() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
@@ -609,6 +616,7 @@ mod tests {
     #[test]
     #[allow(unsafe_code)]
     fn test_detect_system_locale_unsupported_fallback_to_en() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
@@ -639,6 +647,7 @@ mod tests {
     #[test]
     #[allow(unsafe_code)]
     fn test_detect_system_locale_lc_all_priority() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
