@@ -26,8 +26,10 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 数据库集成使用示例 ===
-");
+    println!(
+        "=== 数据库集成使用示例 ===
+"
+    );
 
     // 1. 创建缓存实例
     println!("1. 创建缓存实例");
