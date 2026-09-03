@@ -31,28 +31,28 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.4"
+oxcache = "0.5.0-rc.2"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-> `oxcache = { version = "0.4", default-features = false }` and add them manually.
+> `oxcache = { version = "0.5.0-rc.2", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.4", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`
 
 #### Feature Tiers
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.4", features = ["full"] }
+oxcache = { version = "0.5.0-rc.2", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.4", features = ["core"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.4", features = ["minimal"] }
+oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.4", features = ["core", "macros", "metrics", "bloom"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
 | Tier        | Features                                                                        | Description            |
@@ -374,7 +374,7 @@ The `bloom` feature (must be enabled explicitly; not in `full`) provides negativ
 
 ```toml
 [dependencies]
-oxcache = { version = "0.4", features = ["memory", "bloom"] }
+oxcache = { version = "0.5.0-rc.2", features = ["memory", "bloom"] }
 ```
 
 ```rust
