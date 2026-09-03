@@ -4,7 +4,7 @@
 
 ## 开发环境
 
-- **Rust 1.85+**（edition 2024）
+- **Rust 1.88+**（edition 2024）
 - **cargo**、**rustfmt**、**clippy**（随 rustup 安装）
 - **pre-commit**：安装 hooks
 

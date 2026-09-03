@@ -190,7 +190,7 @@
 ### 性能
 - 实测基线（`cargo clean && cargo build --features metrics --release`）：23.23s wall, 1m45s user
 - Release rlib 大小：3.5 MB（移除 otel 重依赖后，依赖图与产物体积均下降；运行时性能零回退——`src/infra/metrics/*` 热路径未改动）
-- 测试环境：Linux x86_64，Rust 1.85，release profile（opt-level=3, lto=fat, codegen-units=1）
+- 测试环境：Linux x86_64，Rust 1.88，release profile（opt-level=3, lto=fat, codegen-units=1）
 
 ## [0.3.8] - 2026-07-13
 
@@ -233,9 +233,9 @@
 - 新增 `AGENTS.md` AI Agent 指南
 
 ### 变更（Phase 6 前置）
-- edition 升级到 2024，rust-version 最低要求提升至 1.85
+- edition 升级到 2024，rust-version 最低要求提升至 1.88
 - MIT license 在所有模块中统一声明
-- README.md 结构标准化：徽章更新为 rust 1.85+，章节统一为核心特性 / 快速开始 / 特性标志 / 架构 / 性能 / 可靠性 / 文档 / 贡献 / 更新日志 / 许可证
+- README.md 结构标准化：徽章更新为 rust 1.88+，章节统一为核心特性 / 快速开始 / 特性标志 / 架构 / 性能 / 可靠性 / 文档 / 贡献 / 更新日志 / 许可证
 
 ## [0.3.3] - 2026-07-05
 
