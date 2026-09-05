@@ -2,349 +2,205 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  # ============================================================================
-  # Feature Combination Tests
-  # ============================================================================
-
-  test-minimal:
-    name: Test (minimal features)
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-minimal-${{ hashFiles('**/Cargo.lock') }}
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-minimal-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-minimal-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run tests
-        run: cargo test --features minimal --workspace
-
-  test-core:
-    name: Test (core features)
+  clippy:
+    name: Clippy (${{ matrix.features }})
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-core-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-core-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-core-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run tests
-        run: cargo test --features core --workspace
-
-  test-full:
-    name: Test (full features)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-full-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-full-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-full-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run tests
-        run: cargo test --features full --workspace
-
-  test-critical-combinations:
-    name: Test (critical combinations)
-    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - features: "minimal,macros"
-            cache-suffix: "minimal-macros"
-          - features: "minimal,bloom"
-            cache-suffix: "minimal-bloom"
-          - features: "minimal,compression"
-            cache-suffix: "minimal-compression"
-          - features: "core,macros"
-            cache-suffix: "core-macros"
-          - features: "core,bloom"
-            cache-suffix: "core-bloom"
-          - features: "core,compression"
-            cache-suffix: "core-compression"
-          - features: "core,batch"
-            cache-suffix: "core-batch"
-          - features: "core,lua"
-            cache-suffix: "core-lua"
-          - features: "core,cli"
-            cache-suffix: "core-cli"
-          - features: "core,bloom,macros"
-            cache-suffix: "core-bloom-macros"
+        features: ["minimal", "core", "full"]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ matrix.cache-suffix }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ matrix.cache-suffix }}-${{ hashFiles('**/Cargo.lock') }}
+          key: clippy-${{ matrix.features }}
+      - name: Run clippy
+        run: cargo clippy --all-targets --features "${{ matrix.features }}" --workspace -- -D warnings
 
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-${{ matrix.cache-suffix }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run tests
-        run: cargo test --features "${{ matrix.features }}" --workspace
-
-  # ============================================================================
-  # Narrow Feature Verification (--no-default-features)
-  # Migrated from examples/feature_matrix/ — verifies that core/minimal
-  # feature combinations compile without the full feature set.
-  # ============================================================================
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Check all features
+        run: cargo check --workspace --all-features
+      - name: Check no default features
+        run: cargo check --workspace --no-default-features
 
   feature-core:
     name: Feature Check (core only, no defaults)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-feature-core-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-feature-core-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-feature-core-${{ hashFiles('**/Cargo.lock') }}
-
+          key: feature-core
       - name: Run cargo check (core, no defaults)
         run: cargo check -p oxcache --no-default-features --features core
 
   feature-minimal:
     name: Feature Check (minimal only, no defaults)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-feature-minimal-${{ hashFiles('**/Cargo.lock') }}
-
+          key: feature-minimal
       - name: Run cargo check (minimal, no defaults)
         run: cargo check -p oxcache --no-default-features --features minimal
 
-  # ============================================================================
-  # Build Verification
-  # ============================================================================
+  test:
+    name: Test (${{ matrix.features }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ["minimal", "core", "full"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-${{ matrix.features }}
+      - name: Run tests
+        run: cargo test --features "${{ matrix.features }}" --workspace
 
-  build-check:
-    name: Build Check
+  test-critical-combinations:
+    name: Test (critical combinations)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - features: "minimal,macros"
+          - features: "minimal,bloom"
+          - features: "minimal,compression"
+          - features: "core,macros"
+          - features: "core,bloom"
+          - features: "core,compression"
+          - features: "core,batch"
+          - features: "core,lua"
+          - features: "core,cli"
+          - features: "core,bloom,macros"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-${{ matrix.features }}
+      - name: Run tests
+        run: cargo test --features "${{ matrix.features }}" --workspace
+
+  build:
+    name: Build (${{ matrix.os }}, ${{ matrix.features }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         features: ["minimal", "core", "full"]
-    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-${{ matrix.features }}-${{ runner.os }}
       - name: Run cargo build
         run: cargo build --features "${{ matrix.features }}" --workspace
 
-  # ============================================================================
-  # Code Quality Checks
-  # ============================================================================
-
-  format:
-    name: Format Check
+  doc:
+    name: Documentation
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Run cargo fmt
-        run: cargo fmt --all -- --check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        features: ["minimal", "core", "full"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Cache cargo registry
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v6
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v6
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-clippy-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --features "${{ matrix.features }}" --workspace -- -D warnings
-
-  # ============================================================================
-  # Security Audit
-  # ============================================================================
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Build documentation
+        run: cargo doc --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   security:
-    name: Security Audit
+    name: Security
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-deny
-        run: cargo install --locked cargo-deny
-
-      - name: Run cargo deny
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: Install tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny
+      - name: cargo deny
         run: cargo deny check
-
-  # ============================================================================
-  # Code Coverage
-  # ============================================================================
+      - name: cargo audit
+        run: cargo audit
 
   coverage:
-    name: Code Coverage
+    name: Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
-
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Run cargo llvm-cov (fail under 85% lines)
-        run: cargo llvm-cov --features full --workspace --fail-under-lines 85 --lcov --output-path lcov.info
-
-      - name: Upload to Codecov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Generate coverage (gate ≥80% lines)
+        run: cargo llvm-cov --features full --workspace --fail-under-lines 80 --lcov --output-path lcov.info
+      - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ./lcov.info
           fail_ci_if_error: false
