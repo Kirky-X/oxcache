@@ -71,7 +71,10 @@ impl RedisBackend {
 
     /// Create a new Redis backend with connection string.
     pub async fn new(connection_string: &str) -> OxCacheResult<Self> {
-        Self::builder().connection_string(connection_string).build().await
+        Self::builder()
+            .connection_string(connection_string)
+            .build()
+            .await
     }
 
     /// Create a new Redis backend with connection pool.
@@ -84,7 +87,10 @@ impl RedisBackend {
     ///   This parameter is retained for API compatibility and will be
     ///   wired through when a custom pool backend is introduced.
     pub async fn with_pool(connection_string: &str, _pool_size: usize) -> OxCacheResult<Self> {
-        Self::builder().connection_string(connection_string).build().await
+        Self::builder()
+            .connection_string(connection_string)
+            .build()
+            .await
     }
 
     /// Create a new Redis backend builder.
@@ -153,7 +159,9 @@ impl RedisBackend {
         Fut: Future<Output = OxCacheResult<T>> + Send,
     {
         if self.circuit_breaker().is_open() {
-            return Err(OxCacheError::Degraded("Redis circuit breaker is open".to_string()));
+            return Err(OxCacheError::Degraded(
+                "Redis circuit breaker is open".to_string(),
+            ));
         }
 
         let result = retry_with_backoff(operation, self.retry_count, self.retry_delay).await;

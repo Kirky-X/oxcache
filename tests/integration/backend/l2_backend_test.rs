@@ -31,7 +31,11 @@ async fn test_redis_backend_connection_modes() {
     // 测试独立的 Redis 连接
     let redis_url = "redis://127.0.0.1:6379";
     let backend = RedisBackend::new(redis_url).await;
-    assert!(backend.is_ok(), "Backend creation failed: {:?}", backend.err());
+    assert!(
+        backend.is_ok(),
+        "Backend creation failed: {:?}",
+        backend.err()
+    );
 
     println!("✅ Redis backend connection test passed");
 }

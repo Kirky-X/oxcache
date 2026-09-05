@@ -158,7 +158,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-    println!("   立即获取: {:?}", ttl_cache.get(&"temp:data".to_string()).await?);
+    println!(
+        "   立即获取: {:?}",
+        ttl_cache.get(&"temp:data".to_string()).await?
+    );
 
     println!("   等待 3 秒...");
     tokio::time::sleep(Duration::from_secs(3)).await;
@@ -173,12 +176,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("6. 更新时失效 (Write-Invalidation)");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
-    cache.set(&"config:theme".to_string(), &"dark".to_string()).await?;
-    println!("   初始主题: {:?}", cache.get(&"config:theme".to_string()).await?);
+    cache
+        .set(&"config:theme".to_string(), &"dark".to_string())
+        .await?;
+    println!(
+        "   初始主题: {:?}",
+        cache.get(&"config:theme".to_string()).await?
+    );
 
     // 更新配置时直接覆盖旧值
-    cache.set(&"config:theme".to_string(), &"light".to_string()).await?;
-    println!("   更新后主题: {:?}", cache.get(&"config:theme".to_string()).await?);
+    cache
+        .set(&"config:theme".to_string(), &"light".to_string())
+        .await?;
+    println!(
+        "   更新后主题: {:?}",
+        cache.get(&"config:theme".to_string()).await?
+    );
 
     println!();
     println!("=== 失效策略示例完成 ===");

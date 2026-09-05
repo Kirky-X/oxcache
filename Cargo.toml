@@ -2,7 +2,7 @@
 name = "oxcache"
 version.workspace = true
 edition.workspace = true
-rust-version = "1.88"
+rust-version.workspace = true
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors.workspace = true
 license.workspace = true
@@ -10,6 +10,9 @@ repository.workspace = true
 readme = "README.md"
 keywords = ["cache", "redis", "memory", "async", "performance"]
 categories = ["caching", "asynchronous", "database"]
+
+[lints]
+workspace = true
 
 [lib]
 name = "oxcache"
@@ -25,6 +28,7 @@ members = [".", "macros", "examples"]
 [workspace.package]
 version = "0.5.0-rc.2"
 edition = "2024"
+rust-version = "1.97.1"
 authors = ["Kirky.X"]
 license = "MIT"
 repository = "https://github.com/Kirky-X/oxcache"
@@ -38,6 +42,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 chrono = { version = "0.4", default-features = false }
 criterion = { version = "0.8", features = ["async_tokio"] }
+
+[workspace.lints.rust]
+unexpected_cfgs = "allow"
+
+[workspace.lints.clippy]
 
 # ============================================================================
 # DEPENDENCIES
@@ -217,49 +226,10 @@ compression = ["dep:flate2"]
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
 strip = true
-overflow-checks = false
-
-[profile.release.package."*"]
-opt-level = 3
-
-[profile.release-with-debug]
-inherits = "release"
-debug = true
-strip = false
-
-[profile.dev]
-opt-level = 0
-debug = true
-incremental = true
-
-[profile.dev-optimized]
-inherits = "dev"
-opt-level = 2
-debug = true
-
-[profile.test]
-opt-level = 0
-debug = true
 
 [profile.bench]
 inherits = "release"
-
-[profile.dev.package.moka]
-opt-level = 2
-
-[profile.dev.package.redis]
-opt-level = 2
-
-[profile.dev.package.serde]
-opt-level = 2
-
-[profile.dev.package.serde_json]
-opt-level = 2
-
-[profile.dev.package.tokio]
-opt-level = 2
 
 # ============================================================================
 # BENCHMARKS
@@ -287,6 +257,3 @@ required-features = ["memory"]
 name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
-
-[lints.rust]
-unexpected_cfgs = "allow"

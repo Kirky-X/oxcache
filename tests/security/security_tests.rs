@@ -132,7 +132,10 @@ async fn test_connection_string_security() {
 async fn test_error_handling_security() {
     let invalid_url = "redis://invalid:port";
     let result = RedisBackend::new(invalid_url).await;
-    assert!(result.is_err(), "Invalid connection should return error, not panic");
+    assert!(
+        result.is_err(),
+        "Invalid connection should return error, not panic"
+    );
 }
 
 // ponytail: deleted liar test that always passed on a literal string

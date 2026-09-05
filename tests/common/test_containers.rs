@@ -13,7 +13,8 @@ use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 
 /// Generic poll-until-ready helper for Redis-protocol containers.
 async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
-    let client = redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
+    let client =
+        redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
 
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
@@ -48,7 +49,10 @@ impl RedisContainer {
             .await
             .map_err(|e| format!("获取端口失败: {}", e))?;
 
-        Ok(Self { container: redis, port })
+        Ok(Self {
+            container: redis,
+            port,
+        })
     }
 
     /// 获取 Redis 连接 URL
@@ -100,7 +104,10 @@ impl RedisClusterManager {
 
     /// 获取所有节点的 URL
     pub fn urls(&self) -> Vec<String> {
-        self.ports.iter().map(|p| format!("redis://127.0.0.1:{}", p)).collect()
+        self.ports
+            .iter()
+            .map(|p| format!("redis://127.0.0.1:{}", p))
+            .collect()
     }
 
     /// 获取端口列表
@@ -158,7 +165,11 @@ pub async fn is_redis_available(url: &str) -> bool {
     };
 
     matches!(
-        tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await,
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            client.get_multiplexed_async_connection()
+        )
+        .await,
         Ok(Ok(_))
     )
 }

@@ -95,7 +95,10 @@ mod tests {
         async fn exists(&self, _key: &str) -> crate::error::OxCacheResult<bool> {
             Ok(false)
         }
-        async fn ttl(&self, _key: &str) -> crate::error::OxCacheResult<Option<std::time::Duration>> {
+        async fn ttl(
+            &self,
+            _key: &str,
+        ) -> crate::error::OxCacheResult<Option<std::time::Duration>> {
             Ok(None)
         }
         async fn len(&self) -> crate::error::OxCacheResult<u64> {
@@ -107,7 +110,10 @@ mod tests {
         async fn stats(&self) -> crate::error::OxCacheResult<HashMap<String, String>> {
             Ok(HashMap::new())
         }
-        async fn get_many(&self, _keys: &[String]) -> crate::error::OxCacheResult<Vec<Option<Vec<u8>>>> {
+        async fn get_many(
+            &self,
+            _keys: &[String],
+        ) -> crate::error::OxCacheResult<Vec<Option<Vec<u8>>>> {
             Ok(vec![])
         }
     }
@@ -128,7 +134,11 @@ mod tests {
         async fn clear(&self) -> crate::error::OxCacheResult<()> {
             Ok(())
         }
-        async fn expire(&self, _key: &str, _ttl: std::time::Duration) -> crate::error::OxCacheResult<bool> {
+        async fn expire(
+            &self,
+            _key: &str,
+            _ttl: std::time::Duration,
+        ) -> crate::error::OxCacheResult<bool> {
             Ok(false)
         }
         async fn set_many(&self, _items: &[CacheSetItem]) -> crate::error::OxCacheResult<()> {
@@ -165,7 +175,10 @@ mod tests {
 
         let result = coord.shutdown().await;
         assert!(result.is_ok(), "all phases complete without timeout");
-        assert!(shutdown_flag.load(Ordering::SeqCst), "shutdown() was called");
+        assert!(
+            shutdown_flag.load(Ordering::SeqCst),
+            "shutdown() was called"
+        );
         assert_eq!(
             hc_count.load(Ordering::SeqCst),
             1,

@@ -18,7 +18,9 @@
 //! cd examples && cargo run --example example_security_validation
 //! ```
 
-use oxcache::{clamp_scan_count, log_cache_key, validate_lua_script, validate_redis_key, validate_scan_pattern};
+use oxcache::{
+    clamp_scan_count, log_cache_key, validate_lua_script, validate_redis_key, validate_scan_pattern,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -105,7 +107,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("return redis.call('FLUSHDB')", "FLUSHDB 清空当前数据库"),
         ("return redis.call('KEYS', '*')", "KEYS 阻塞 Redis"),
         ("return redis.call('SHUTDOWN')", "SHUTDOWN 关闭服务器"),
-        ("return redis.call('CONFIG', 'GET', '*')", "CONFIG 获取敏感配置"),
+        (
+            "return redis.call('CONFIG', 'GET', '*')",
+            "CONFIG 获取敏感配置",
+        ),
     ];
     for (script, desc) in &dangerous_scripts {
         match validate_lua_script(script, 0) {

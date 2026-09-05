@@ -30,7 +30,9 @@ async fn shared_config() -> Option<&'static AerospikeConfig> {
 /// 启动 Aerospike 容器并返回配置；Docker 不可用时返回 None
 async fn start_container() -> Option<AerospikeConfig> {
     // 先清理可能存在的同名容器
-    let _ = Command::new("docker").args(["rm", "-f", CONTAINER_NAME]).output();
+    let _ = Command::new("docker")
+        .args(["rm", "-f", CONTAINER_NAME])
+        .output();
 
     // 启动容器，端口映射 HOST_PORT:3000
     let output = Command::new("docker")
@@ -46,7 +48,10 @@ async fn start_container() -> Option<AerospikeConfig> {
         .output()
         .ok()?;
     if !output.status.success() {
-        eprintln!("skip: docker run failed: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "skip: docker run failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         return None;
     }
 
@@ -55,7 +60,10 @@ async fn start_container() -> Option<AerospikeConfig> {
     let timeout = Duration::from_secs(60);
     let mut ready = false;
     while start.elapsed() < timeout {
-        let logs = Command::new("docker").args(["logs", CONTAINER_NAME]).output().ok()?;
+        let logs = Command::new("docker")
+            .args(["logs", CONTAINER_NAME])
+            .output()
+            .ok()?;
         let stderr = String::from_utf8_lossy(&logs.stderr);
         if stderr.contains("migrations: complete") || stderr.contains("service ready") {
             ready = true;
@@ -79,8 +87,12 @@ async fn start_container() -> Option<AerospikeConfig> {
         .output();
 
     // 停止并重新启动容器（不用 restart，避免 entrypoint 重新处理模板）
-    let _ = Command::new("docker").args(["stop", CONTAINER_NAME]).output();
-    let _ = Command::new("docker").args(["start", CONTAINER_NAME]).output();
+    let _ = Command::new("docker")
+        .args(["stop", CONTAINER_NAME])
+        .output();
+    let _ = Command::new("docker")
+        .args(["start", CONTAINER_NAME])
+        .output();
 
     // 等待再次就绪
     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -135,13 +147,17 @@ async fn make_backend() -> Option<AerospikeBackend> {
 
 #[tokio::test]
 async fn test_aerospike_backend_kind() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
     assert_eq!(backend.backend_kind(), BackendKind::Aerospike);
 }
 
 #[tokio::test]
 async fn test_aerospike_set_get_delete() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
 
     // set
     backend
@@ -169,7 +185,9 @@ async fn test_aerospike_set_get_delete() {
 
 #[tokio::test]
 async fn test_aerospike_set_with_ttl() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
 
     // set with TTL
     backend
@@ -194,16 +212,25 @@ async fn test_aerospike_set_with_ttl() {
 
 #[tokio::test]
 async fn test_aerospike_expire() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
 
     // set without TTL (Never expires)
     backend
-        .set(Arc::from("as:exp_key"), Arc::new(b"exp_value".to_vec()), None)
+        .set(
+            Arc::from("as:exp_key"),
+            Arc::new(b"exp_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
 
     // expire (set TTL)
-    let result = backend.expire("as:exp_key", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("as:exp_key", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(result);
 
     // ttl should now be set
@@ -211,13 +238,18 @@ async fn test_aerospike_expire() {
     assert!(ttl.is_some());
 
     // expire nonexistent key
-    let result = backend.expire("as:nonexistent", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("as:nonexistent", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
 #[tokio::test]
 async fn test_aerospike_set_many_delete_many() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
 
     // set_many
     let items = vec![
@@ -238,7 +270,10 @@ async fn test_aerospike_set_many_delete_many() {
         "as:batch2".to_string(),
         "as:batch3".to_string(),
     ];
-    backend.delete_many(&keys).await.expect("delete_many failed");
+    backend
+        .delete_many(&keys)
+        .await
+        .expect("delete_many failed");
 
     // verify all deleted
     assert!(backend.get("as:batch1").await.unwrap().is_none());
@@ -248,7 +283,9 @@ async fn test_aerospike_set_many_delete_many() {
 
 #[tokio::test]
 async fn test_aerospike_health_check_and_stats() {
-    let Some(backend) = make_backend().await else { return };
+    let Some(backend) = make_backend().await else {
+        return;
+    };
 
     // health_check
     backend.health_check().await.expect("health_check failed");
@@ -278,7 +315,9 @@ async fn test_aerospike_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let Some(aerospike) = make_backend().await else { return };
+    let Some(aerospike) = make_backend().await else {
+        return;
+    };
     let moka = MokaMemoryBackend::new();
 
     // Moka(L1, score=100) + Aerospike(L2, score=30)
@@ -298,5 +337,8 @@ async fn test_aerospike_chain_cache_basic() {
     assert_eq!(val, Some(b"chain_value".to_vec()));
 
     // Health check
-    chain.health_check().await.expect("chain health_check failed");
+    chain
+        .health_check()
+        .await
+        .expect("chain health_check failed");
 }

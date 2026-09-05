@@ -1,76 +1,134 @@
 # =============================================================================
-# Rust Build Artifacts
+# oxcache — .gitignore
+# 结构:统一公共段(7 仓库同源,见 base/CONFIG_BASELINE.md)+ 仓库特有段
+# 注意:Cargo.lock 与 rust-toolchain.toml 纳入版本控制,不再忽略
 # =============================================================================
-/target/
-**/*.rs.bk
-Cargo.lock
 
 # =============================================================================
-# IDE & Editors
+# 统一公共段
 # =============================================================================
+
+# --- Build artifacts (Rust) ---
+/target
+/debug
+/release
+**/*.rs.bk
+
+# Cargo 本地覆盖(.cargo/config.toml 等机器特定配置)
+.cargo/
+
+# --- Code coverage ---
+coverage/
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+lcov.info
+*.lcov
+htmlcov/
+tarpaulin-report.html
+
+# --- IDE & Editors ---
 .idea/
 .vscode/
+.vscodeignore
+.idea_modules/
+*.code-workspace
+*.sublime-*
+.nvimrc
 *.swp
 *.swo
 *~
-*.bak
+.un~
+Session.vim
+.netrwhist
 
-# =============================================================================
-# OS Generated Files
-# =============================================================================
+# --- OS generated ---
 .DS_Store
 Thumbs.db
+Desktop.ini
+ehthumbs.db
 
-# =============================================================================
-# Temporary Files & Caches
-# =============================================================================
-temp/
-tmp/
-*.tmp
-*.temp
+# --- Logs ---
 *.log
 logs/
-.cache/
+*.pid
+*.seed
 
-# =============================================================================
-# AI Tool Caches (Temporary only)
-# =============================================================================
-.trae/
-.sisyphus/
-.claude/
-.qoder/
-CLAUDE.md
+# --- Temporary files ---
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+tmp/
+temp/
 
-# =============================================================================
-# Environment & Secrets
-# =============================================================================
+# --- Environment & secrets (never commit) ---
 .env
 .env.local
 .env.*.local
-*.key
+.env.production
+.env.development
 *.pem
-secrets/
+*.key
+*.crt
+*.secret
+*.credentials
+.pre-commit-check.log
+
+# --- Local config / AI assistant files (kept local only) ---
+.local-registry/
+.claude/
+.qoder/
+.opencode/
+.cursor/
+.aider/
+.continue/
+.codeium/
+.sisyphus/
+.github/copilot/
+CLAUDE.md
+IFLOW.md
+GEMINI.md
+CODEIUM.md
+AGENTS.md
+openspec/
+specmark/
+**/specmark/
+.codenexus/
+**/.codenexus/
+strix_runs
+
+# --- Isolated dev workspaces ---
+.worktrees/
+.gitnexus
+
+# --- Reviews / security scan artifacts (never tracked) ---
+reviews/
+.mimosa/
+
+# --- WorkBuddy AI local notes ---
+.workbuddy-ai/
 
 # =============================================================================
-# Testing & Coverage
+# 仓库特有段(oxcache)
 # =============================================================================
-coverage/
-*.profraw
-.tarpaulin/
-tarpaulin-report.html
 
-# =============================================================================
-# Database Files (Local only)
-# =============================================================================
+# --- Redis / 本地数据库文件(dump.rdb 为 redis 本地持久化产物) ---
+dump.rdb
+requirements.db
 *.db
 *.sqlite
 *.sqlite3
-requirements.db
-dump.rdb
 
-# =============================================================================
-# Python (if applicable)
-# =============================================================================
+# --- Coverage / 扫描产物(本仓附加格式) ---
+.tarpaulin/
+lcov_full.info
+cobertura.xml
+.semgrep-results/
+
+# --- Python 工具脚本产物(如有) ---
 __pycache__/
 *.py[cod]
 .venv/
@@ -78,63 +136,18 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
-# =============================================================================
-# Node.js (if applicable)
-# =============================================================================
+# --- Node 工具产物(如有) ---
 node_modules/
 npm-debug.log*
 
-# =============================================================================
-# Keep These Files (Do NOT ignore)
-# =============================================================================
-# .iflow/ - iFlow configuration
-# .opencode/ - OpenCode configuration
-# openspec/ - OpenSpec specifications
-# CHANGELOG.md - Change history
-# Makefile - Build commands
-# rustfmt.toml - Code formatting
-# .cargo/config.toml - Cargo configuration
-
-# =============================================================================
-# Project Specific Ignores
-# =============================================================================
-CLAUDE.md
-openspec/
-specmark/
+# --- 本仓内部文档草稿(定稿前不入库) ---
 docs/archive/
 docs/agents/
 docs/superpowers/
 docs/repowiki/
+
+# --- 本地开发笔记 ---
+di.md
+
+# --- iFlow 本地配置(oxcache 原有条目) ---
 .iflow/
-.worktrees
-.gitnexus
-.codenexus
-.semgrep-results/
-lcov.info
-lcov_full.info
-cobertura.xml
-strix_runs
-
-# =============================================================================
-# AI / Agent Tools (not for version control)
-# =============================================================================
-AGENTS.md
-CLAUDE.md
-GEMINI.md
-CODEIUM.md
-.claude/
-.trae/
-.qoder/
-.opencode/
-.cursor/
-.aider/
-.continue/
-.codeium/
-.github/copilot/
-
-# Reviews (security/quality scan artifacts)
-reviews/
-.cargo/
-
-# WorkBuddy AI local notes
-.workbuddy-ai/

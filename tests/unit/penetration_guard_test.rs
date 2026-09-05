@@ -77,7 +77,9 @@ async fn test_get_or_option_returns_some_on_real_value() {
 
     // Fallback returns Some — should cache normally
     let result = cache
-        .get_or_option(&"real-key".to_string(), || async { Ok(Some("real-value".to_string())) })
+        .get_or_option(&"real-key".to_string(), || async {
+            Ok(Some("real-value".to_string()))
+        })
         .await
         .unwrap();
     assert_eq!(result, Some("real-value".to_string()));
@@ -177,7 +179,9 @@ async fn test_get_or_option_error_propagates() {
     // Fallback returns error — should NOT cache anything
     let result: oxcache::error::OxCacheResult<Option<String>> = cache
         .get_or_option(&"error-key".to_string(), || async {
-            Err(oxcache::error::OxCacheError::Operation("db down".to_string()))
+            Err(oxcache::error::OxCacheError::Operation(
+                "db down".to_string(),
+            ))
         })
         .await;
     assert!(result.is_err());

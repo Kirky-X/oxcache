@@ -18,8 +18,11 @@ use crate::integrations::kit::OxcacheModule;
 ///
 /// Matches the signature required by
 /// `AsyncKit::decorate::<OxcacheModule>(decorator)`.
-pub type CacheBackendDecorator =
-    Arc<dyn Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync> + Send + Sync>;
+pub type CacheBackendDecorator = Arc<
+    dyn Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync>
+        + Send
+        + Sync,
+>;
 
 /// Register a decorator for the `OxcacheModule` capability.
 ///
@@ -34,7 +37,10 @@ pub type CacheBackendDecorator =
 /// inside trait-kit (should never happen with `OxcacheModule`).
 pub fn register_cache_decorator(
     kit: &AsyncKit,
-    decorator: impl Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync> + Send + Sync + 'static,
+    decorator: impl Fn(Arc<dyn CacheBackend + Send + Sync>) -> Arc<dyn CacheBackend + Send + Sync>
+    + Send
+    + Sync
+    + 'static,
 ) {
     kit.decorate::<OxcacheModule>(decorator);
 }
@@ -58,7 +64,10 @@ mod tests {
         async fn exists(&self, _key: &str) -> crate::error::OxCacheResult<bool> {
             Ok(true)
         }
-        async fn ttl(&self, _key: &str) -> crate::error::OxCacheResult<Option<std::time::Duration>> {
+        async fn ttl(
+            &self,
+            _key: &str,
+        ) -> crate::error::OxCacheResult<Option<std::time::Duration>> {
             Ok(None)
         }
         async fn len(&self) -> crate::error::OxCacheResult<u64> {
@@ -88,7 +97,11 @@ mod tests {
         async fn clear(&self) -> crate::error::OxCacheResult<()> {
             Ok(())
         }
-        async fn expire(&self, _key: &str, _ttl: std::time::Duration) -> crate::error::OxCacheResult<bool> {
+        async fn expire(
+            &self,
+            _key: &str,
+            _ttl: std::time::Duration,
+        ) -> crate::error::OxCacheResult<bool> {
             Ok(false)
         }
     }
@@ -153,7 +166,11 @@ mod tests {
             self.count.fetch_add(1, Ordering::SeqCst);
             self.inner.clear().await
         }
-        async fn expire(&self, key: &str, ttl: std::time::Duration) -> crate::error::OxCacheResult<bool> {
+        async fn expire(
+            &self,
+            key: &str,
+            ttl: std::time::Duration,
+        ) -> crate::error::OxCacheResult<bool> {
             self.inner.expire(key, ttl).await
         }
     }
@@ -209,7 +226,8 @@ mod tests {
     async fn register_cache_decorator_does_not_panic() {
         let mut kit = AsyncKit::new();
         kit.set_config(crate::integrations::kit::OxcacheConfig::default());
-        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register::<OxcacheModule>()
+            .expect("register OxcacheModule");
 
         let count = Arc::new(AtomicUsize::new(0));
         let count_clone = Arc::clone(&count);
@@ -257,8 +275,13 @@ mod tests {
             type Error = crate::error::OxCacheError;
             fn build<'a>(
                 _kit: &'a AsyncKit,
-            ) -> Pin<Box<dyn Future<Output = Result<Arc<TestCap>, crate::error::OxCacheError>> + Send + 'a>>
-            {
+            ) -> Pin<
+                Box<
+                    dyn Future<Output = Result<Arc<TestCap>, crate::error::OxCacheError>>
+                        + Send
+                        + 'a,
+                >,
+            > {
                 Box::pin(async { Ok(Arc::new(TestCap { val: "base".into() })) })
             }
         }
@@ -273,6 +296,9 @@ mod tests {
 
         let built = kit.build().await.expect("kit build");
         let cap = built.require::<TestModule>().expect("require TestModule");
-        assert_eq!(cap.val, "base+wrapped", "decorator should modify the capability");
+        assert_eq!(
+            cap.val, "base+wrapped",
+            "decorator should modify the capability"
+        );
     }
 }

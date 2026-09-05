@@ -81,7 +81,9 @@ mod tests {
         let key = "user:1".to_string();
 
         // Set with TTL of 1 second
-        cache.set_with_ttl(&key, &user, Some(Duration::from_secs(1))).await?;
+        cache
+            .set_with_ttl(&key, &user, Some(Duration::from_secs(1)))
+            .await?;
 
         // Verify it exists immediately
         let exists = cache.exists(&key).await?;

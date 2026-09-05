@@ -63,7 +63,10 @@ pub fn validate_no_dangerous_chars(
 /// * `Err(OxCacheError)` - 字符串为空
 pub fn validate_not_empty(input: &str, error_context: &str) -> crate::OxCacheResult<()> {
     if input.is_empty() {
-        return Err(OxCacheError::InvalidInput(format!("{} cannot be empty", error_context)));
+        return Err(OxCacheError::InvalidInput(format!(
+            "{} cannot be empty",
+            error_context
+        )));
     }
     Ok(())
 }
@@ -80,7 +83,11 @@ pub fn validate_not_empty(input: &str, error_context: &str) -> crate::OxCacheRes
 ///
 /// * `Ok(())` - 验证通过
 /// * `Err(OxCacheError)` - 字符串过长
-pub fn validate_max_length(input: &str, max_length: usize, error_context: &str) -> crate::OxCacheResult<()> {
+pub fn validate_max_length(
+    input: &str,
+    max_length: usize,
+    error_context: &str,
+) -> crate::OxCacheResult<()> {
     if input.len() > max_length {
         return Err(OxCacheError::InvalidInput(format!(
             "{} exceeds maximum length of {} (got {})",
@@ -160,7 +167,11 @@ mod tests {
 
     #[test]
     fn test_redis_validate_key_dangerous_chars() {
-        let result = validate_no_dangerous_chars("key\nwith\nnewlines", &redis::DANGEROUS_CHARS, "Redis key");
+        let result = validate_no_dangerous_chars(
+            "key\nwith\nnewlines",
+            &redis::DANGEROUS_CHARS,
+            "Redis key",
+        );
         assert!(result.is_err());
     }
 

@@ -74,7 +74,10 @@ async fn test_builder_insecure_rejected_without_env() {
 #[serial]
 async fn test_builder_insecure_allowed_with_env() {
     set_allow_insecure_env();
-    let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
+    let backend = RedisBackend::builder()
+        .connection_string(REDIS_URL)
+        .build()
+        .await;
     assert!(backend.is_ok());
 }
 
@@ -83,7 +86,10 @@ async fn test_builder_insecure_allowed_with_env() {
 #[serial]
 async fn test_builder_insecure_allowed_with_dev_value() {
     set_insecure_env("development-only");
-    let backend = RedisBackend::builder().connection_string(REDIS_URL).build().await;
+    let backend = RedisBackend::builder()
+        .connection_string(REDIS_URL)
+        .build()
+        .await;
     assert!(backend.is_ok());
     set_allow_insecure_env();
 }
@@ -198,7 +204,10 @@ async fn test_builder_tls_connection_string_accepted() {
     assert!(result.is_err());
     if let Err(OxCacheError::Connection(msg)) = result {
         assert!(
-            msg.contains("Redis") || msg.contains("timeout") || msg.contains("connect") || msg.contains("unreachable"),
+            msg.contains("Redis")
+                || msg.contains("timeout")
+                || msg.contains("connect")
+                || msg.contains("unreachable"),
             "Expected connection error, got: {}",
             msg
         );
@@ -256,7 +265,10 @@ fn test_builder_distributed_config_applies_all_fields() {
     assert_eq!(config.retry_count, 7);
     assert_eq!(config.retry_base_delay, Duration::from_millis(250));
     assert_eq!(config.circuit_breaker_threshold, 12);
-    assert_eq!(config.circuit_breaker_reset_timeout, Duration::from_secs(45));
+    assert_eq!(
+        config.circuit_breaker_reset_timeout,
+        Duration::from_secs(45)
+    );
 
     // Apply to builder - just verify it compiles and chains
     let _builder = RedisBackend::builder()

@@ -42,11 +42,13 @@ impl CacheI18nFormatter {
             reason: e.to_string(),
         })?;
 
-        let decimal_formatter = DecimalFormatter::try_new(parsed.clone().into(), DecimalFormatterOptions::default())
-            .map_err(|e| I18nError::FormatError(e.to_string()))?;
+        let decimal_formatter =
+            DecimalFormatter::try_new(parsed.clone().into(), DecimalFormatterOptions::default())
+                .map_err(|e| I18nError::FormatError(e.to_string()))?;
 
-        let plural_rules = PluralRules::try_new(parsed.clone().into(), PluralRulesOptions::default())
-            .map_err(|e| I18nError::FormatError(e.to_string()))?;
+        let plural_rules =
+            PluralRules::try_new(parsed.clone().into(), PluralRulesOptions::default())
+                .map_err(|e| I18nError::FormatError(e.to_string()))?;
 
         let collator = Collator::try_new(parsed.clone().into(), CollatorOptions::default())
             .map_err(|e| I18nError::FormatError(e.to_string()))?;
@@ -109,7 +111,8 @@ impl CacheI18nFormatter {
     /// Returns [`I18nError::DateError`] if any component is out of range,
     /// or [`I18nError::FormatError`] if the formatter cannot be constructed.
     pub fn format_expiry(&self, year: i32, month: u8, day: u8) -> Result<String, I18nError> {
-        let date = Date::try_new_iso(year, month, day).map_err(|e| I18nError::DateError(e.to_string()))?;
+        let date =
+            Date::try_new_iso(year, month, day).map_err(|e| I18nError::DateError(e.to_string()))?;
         let time = Time::try_new(0, 0, 0, 0).map_err(|e| I18nError::DateError(e.to_string()))?;
         let datetime = DateTime { date, time };
 

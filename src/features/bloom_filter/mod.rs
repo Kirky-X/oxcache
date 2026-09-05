@@ -75,7 +75,11 @@ mod tests {
         }
         // Every inserted key must return true (BF has no false negatives).
         for i in 0..1000 {
-            assert!(bf.contains(&format!("key:{}", i)), "false negative for key:{}", i);
+            assert!(
+                bf.contains(&format!("key:{}", i)),
+                "false negative for key:{}",
+                i
+            );
         }
         // A non-inserted key should return false (true negative).
         assert!(!bf.contains("non-inserted-key"));

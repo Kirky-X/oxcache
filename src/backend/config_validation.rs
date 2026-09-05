@@ -21,7 +21,8 @@ impl ConfigValidation {
     /// 自定义名称最大长度（256字符）
     pub const MAX_CUSTOM_NAME_LENGTH: usize = 256;
     /// 允许的自定义名称字符（字母、数字、下划线、连字符、点）
-    pub const VALID_NAME_CHARS: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
+    pub const VALID_NAME_CHARS: &'static str =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-";
 
     /// 检测连接的对端是否为 Valkey 服务器。
     ///
@@ -90,8 +91,14 @@ mod tests {
             ConfigValidation::validate_custom_name("backend-1").unwrap(),
             "backend-1"
         );
-        assert_eq!(ConfigValidation::validate_custom_name("app.v2").unwrap(), "app.v2");
-        assert_eq!(ConfigValidation::validate_custom_name("ABC123").unwrap(), "ABC123");
+        assert_eq!(
+            ConfigValidation::validate_custom_name("app.v2").unwrap(),
+            "app.v2"
+        );
+        assert_eq!(
+            ConfigValidation::validate_custom_name("ABC123").unwrap(),
+            "ABC123"
+        );
         assert_eq!(ConfigValidation::validate_custom_name("a").unwrap(), "a");
     }
 

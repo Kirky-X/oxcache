@@ -19,7 +19,8 @@ use oxcache::backend::{CacheWriter, LuaExecutor};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Lua 脚本执行示例 ===\n");
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     println!("连接 Redis: {}", redis_url);
 
     let backend = RedisBackend::new(&redis_url).await?;
@@ -40,7 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     for i in 1..=3 {
-        let result = backend.eval_lua(counter_script, &["counter:1"], &[]).await?;
+        let result = backend
+            .eval_lua(counter_script, &["counter:1"], &[])
+            .await?;
         println!("  第 {} 次调用，计数器值: {:?}", i, result);
     }
 
@@ -62,10 +65,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 先设置一个值
     backend
-        .set("test:lua:length".into(), b"hello world".to_vec().into(), None)
+        .set(
+            "test:lua:length".into(),
+            b"hello world".to_vec().into(),
+            None,
+        )
         .await?;
 
-    let result = backend.eval_lua(hash_script, &["test:lua:length"], &[]).await?;
+    let result = backend
+        .eval_lua(hash_script, &["test:lua:length"], &[])
+        .await?;
     println!("  eval_lua 结果: {:?}", result);
 
     let result = backend.eval_sha(&sha, &["test:lua:length"], &[]).await?;
@@ -86,15 +95,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     // 设置初始值
-    backend.set("cas:key".into(), b"v1".to_vec().into(), None).await?;
+    backend
+        .set("cas:key".into(), b"v1".to_vec().into(), None)
+        .await?;
     println!("  初始值: v1");
 
     // 尝试用错误的期望值更新
-    let result = backend.eval_lua(cas_script, &["cas:key"], &["v2", "v3"]).await?;
+    let result = backend
+        .eval_lua(cas_script, &["cas:key"], &["v2", "v3"])
+        .await?;
     println!("  期望 v2 更新为 v3: {:?} (应为 0，表示失败)", result);
 
     // 用正确的期望值更新
-    let result = backend.eval_lua(cas_script, &["cas:key"], &["v1", "v2"]).await?;
+    let result = backend
+        .eval_lua(cas_script, &["cas:key"], &["v1", "v2"])
+        .await?;
     println!("  期望 v1 更新为 v2: {:?} (应为 1，表示成功)", result);
 
     // 5. 清理

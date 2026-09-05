@@ -29,7 +29,12 @@ pub trait UnifiedCache: Send + Sync + 'static {
     async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
 
     /// Set raw bytes in cache with optional TTL
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    async fn set_bytes(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()>;
 
     /// Delete a key from cache
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
@@ -81,7 +86,8 @@ pub trait UnifiedCache: Send + Sync + 'static {
         value: &T,
         ttl: Option<Duration>,
     ) -> OxCacheResult<()> {
-        let bytes = serde_json::to_vec(value).map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
         self.set_bytes(key, bytes, ttl).await
     }
 
@@ -106,7 +112,12 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
         self.get(key).await
     }
 
-    async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set_bytes(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         self.set(Arc::from(key), Arc::new(value), ttl).await
     }
 
@@ -181,7 +192,10 @@ mod tests {
     #[tokio::test]
     async fn test_unified_cache_get_bytes_set_bytes() {
         let backend = make_backend();
-        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), None)
+            .await
+            .unwrap();
         let result = backend.get_bytes("key1").await.unwrap();
         assert_eq!(result, Some(b"value1".to_vec()));
     }
@@ -207,7 +221,10 @@ mod tests {
     #[tokio::test]
     async fn test_unified_cache_delete() {
         let backend = make_backend();
-        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), None)
+            .await
+            .unwrap();
         assert!(backend.exists("key1").await.unwrap());
         backend.delete("key1").await.unwrap();
         assert!(!backend.exists("key1").await.unwrap());
@@ -217,15 +234,24 @@ mod tests {
     async fn test_unified_cache_exists() {
         let backend = make_backend();
         assert!(!backend.exists("missing").await.unwrap());
-        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), None)
+            .await
+            .unwrap();
         assert!(backend.exists("key1").await.unwrap());
     }
 
     #[tokio::test]
     async fn test_unified_cache_clear() {
         let backend = make_backend();
-        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
-        backend.set_bytes("key2", b"value2".to_vec(), None).await.unwrap();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), None)
+            .await
+            .unwrap();
+        backend
+            .set_bytes("key2", b"value2".to_vec(), None)
+            .await
+            .unwrap();
         backend.clear().await.unwrap();
         assert!(!backend.exists("key1").await.unwrap());
         assert!(!backend.exists("key2").await.unwrap());
@@ -240,7 +266,10 @@ mod tests {
     #[tokio::test]
     async fn test_unified_cache_stats() {
         let backend = make_backend();
-        backend.set_bytes("key1", b"value1".to_vec(), None).await.unwrap();
+        backend
+            .set_bytes("key1", b"value1".to_vec(), None)
+            .await
+            .unwrap();
         let stats = backend.stats().await.unwrap();
         assert!(!stats.is_empty());
     }

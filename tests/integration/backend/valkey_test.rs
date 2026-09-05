@@ -13,7 +13,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use oxcache::backend::{
-    BackendKind, CacheConnector, CacheReader, CacheWriter, ConfigValidation, RedisBackend, RedisMode,
+    BackendKind, CacheConnector, CacheReader, CacheWriter, ConfigValidation, RedisBackend,
+    RedisMode,
 };
 
 #[path = "../../common/mod.rs"]
@@ -40,7 +41,9 @@ async fn make_valkey_backend(url: &str) -> RedisBackend {
 /// 创建 Valkey 后端（普通 Redis 模式，透明复用）
 async fn make_valkey_backend_transparent(url: &str) -> RedisBackend {
     set_allow_insecure();
-    RedisBackend::new(url).await.expect("Failed to connect to Valkey")
+    RedisBackend::new(url)
+        .await
+        .expect("Failed to connect to Valkey")
 }
 
 // ============================================================================
@@ -49,7 +52,9 @@ async fn make_valkey_backend_transparent(url: &str) -> RedisBackend {
 
 #[tokio::test]
 async fn test_valkey_backend_kind_is_valkey() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend(&container.url()).await;
 
@@ -59,7 +64,9 @@ async fn test_valkey_backend_kind_is_valkey() {
 
 #[tokio::test]
 async fn test_valkey_backend_kind_transparent_is_redis() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend_transparent(&container.url()).await;
 
@@ -69,7 +76,9 @@ async fn test_valkey_backend_kind_transparent_is_redis() {
 
 #[tokio::test]
 async fn test_valkey_cache_writer_operations() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend(&container.url()).await;
 
@@ -101,12 +110,17 @@ async fn test_valkey_cache_writer_operations() {
 
     // delete_many
     let keys = vec!["valkey:batch1".to_string(), "valkey:batch2".to_string()];
-    backend.delete_many(&keys).await.expect("delete_many failed");
+    backend
+        .delete_many(&keys)
+        .await
+        .expect("delete_many failed");
 }
 
 #[tokio::test]
 async fn test_valkey_cache_reader_operations() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend(&container.url()).await;
 
@@ -147,7 +161,10 @@ async fn test_valkey_cache_reader_operations() {
     assert!(ttl.is_none());
 
     // expire
-    let result = backend.expire("valkey:read1", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("valkey:read1", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(result);
     let ttl = backend.ttl("valkey:read1").await.unwrap();
     assert!(ttl.is_some());
@@ -162,7 +179,9 @@ async fn test_valkey_cache_reader_operations() {
 
 #[tokio::test]
 async fn test_valkey_cache_connector_operations() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend(&container.url()).await;
 
@@ -178,11 +197,15 @@ async fn test_valkey_cache_connector_operations() {
 
 #[tokio::test]
 async fn test_valkey_atomic_writer_operations() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let backend = make_valkey_backend(&container.url()).await;
 
-    let atomic = backend.as_atomic_writer().expect("Valkey should support atomic ops");
+    let atomic = backend
+        .as_atomic_writer()
+        .expect("Valkey should support atomic ops");
 
     // incr
     let val = atomic.incr("valkey:counter", 1, None).await.unwrap();
@@ -227,7 +250,9 @@ async fn test_valkey_atomic_writer_operations() {
 
 #[tokio::test]
 async fn test_detect_valkey_returns_true_for_valkey() {
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
 
     let client = redis::Client::open(container.url().as_str()).expect("Failed to create client");
@@ -246,7 +271,9 @@ async fn test_valkey_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let container = ValkeyContainer::start().await.expect("Failed to start Valkey");
+    let container = ValkeyContainer::start()
+        .await
+        .expect("Failed to start Valkey");
     container.wait_ready().await.expect("Valkey not ready");
     let valkey = make_valkey_backend(&container.url()).await;
 
@@ -269,5 +296,8 @@ async fn test_valkey_chain_cache_basic() {
     assert_eq!(val, Some(b"chain_value".to_vec()));
 
     // Health check
-    chain.health_check().await.expect("chain health_check failed");
+    chain
+        .health_check()
+        .await
+        .expect("chain health_check failed");
 }

@@ -33,12 +33,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. 设置 TTL（Time To Live）
     println!("\n--- 3. 设置 TTL ---");
-    let _cache3: Cache<String, Product> = CacheBuilder::default().ttl(Duration::from_secs(3600)).build().await?;
+    let _cache3: Cache<String, Product> = CacheBuilder::default()
+        .ttl(Duration::from_secs(3600))
+        .build()
+        .await?;
     println!("  ✓ 创建 TTL 为 1 小时的缓存");
 
     // 4. 设置 TTI（Time To Idle）
     println!("\n--- 4. 设置 TTI ---");
-    let _cache4: Cache<String, Product> = CacheBuilder::default().tti(Duration::from_secs(300)).build().await?;
+    let _cache4: Cache<String, Product> = CacheBuilder::default()
+        .tti(Duration::from_secs(300))
+        .build()
+        .await?;
     println!("  ✓ 创建 TTI 为 5 分钟的缓存");
 
     // 5. 组合配置
@@ -55,7 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- 6. 使用自定义后端 ---");
     let backend = MokaMemoryBackend::builder().capacity(2000).build();
     let _cache6: Cache<String, Product> = CacheBuilder::default()
-        .backend_arc(std::sync::Arc::new(backend) as std::sync::Arc<dyn oxcache::backend::CacheBackend>)
+        .backend_arc(
+            std::sync::Arc::new(backend) as std::sync::Arc<dyn oxcache::backend::CacheBackend>
+        )
         .ttl(Duration::from_secs(120))
         .build()
         .await?;

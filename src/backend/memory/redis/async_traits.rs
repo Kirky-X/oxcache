@@ -170,15 +170,16 @@ impl CacheReader for RedisBackend {
                 let mut all_keys = Vec::new();
                 let mut cursor = 0i64;
                 loop {
-                    let (new_cursor, batch): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
-                        .arg(cursor)
-                        .arg("MATCH")
-                        .arg(pattern)
-                        .arg("COUNT")
-                        .arg(100)
-                        .query_async(&mut conn)
-                        .await
-                        .map_err(error::map_redis_error)?;
+                    let (new_cursor, batch): (i64, Vec<String>) =
+                        redis::cmd(RedisCommand::Scan.as_str())
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg(pattern)
+                            .arg("COUNT")
+                            .arg(100)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
                     all_keys.extend(batch);
                     cursor = new_cursor;
                     if cursor == 0 {
@@ -268,15 +269,16 @@ impl CacheWriter for RedisBackend {
             async move {
                 let mut cursor = 0i64;
                 loop {
-                    let (new_cursor, keys): (i64, Vec<String>) = redis::cmd(RedisCommand::Scan.as_str())
-                        .arg(cursor)
-                        .arg("MATCH")
-                        .arg("*")
-                        .arg("COUNT")
-                        .arg(100)
-                        .query_async(&mut conn)
-                        .await
-                        .map_err(error::map_redis_error)?;
+                    let (new_cursor, keys): (i64, Vec<String>) =
+                        redis::cmd(RedisCommand::Scan.as_str())
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg("*")
+                            .arg("COUNT")
+                            .arg(100)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
 
                     if !keys.is_empty() {
                         let mut pipe = redis::pipe();
@@ -529,14 +531,22 @@ impl AtomicCacheWriter for RedisBackend {
                         }
                     }
                 }
-                let result: i64 = cmd.query_async(&mut conn).await.map_err(error::map_redis_error)?;
+                let result: i64 = cmd
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
                 Ok(result == 1)
             }
         })
         .await
     }
 
-    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
         self.execute_with_retry(|| {
             let mut conn = self.conn();
@@ -548,7 +558,10 @@ impl AtomicCacheWriter for RedisBackend {
                     let ttl_secs = validate_redis_ttl(ttl)?;
                     cmd.arg("EX").arg(ttl_secs);
                 }
-                let result: Option<redis::Value> = cmd.query_async(&mut conn).await.map_err(error::map_redis_error)?;
+                let result: Option<redis::Value> = cmd
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(error::map_redis_error)?;
                 Ok(result.is_some())
             }
         })

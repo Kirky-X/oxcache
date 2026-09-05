@@ -85,7 +85,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let p = product.clone();
         let handle = tokio::spawn(async move {
             cache
-                .set_with_ttl(&format!("product:{}", p.id), &p, Some(Duration::from_secs(3600)))
+                .set_with_ttl(
+                    &format!("product:{}", p.id),
+                    &p,
+                    Some(Duration::from_secs(3600)),
+                )
                 .await
         });
         handles.push(handle);
@@ -113,9 +117,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(mut product) = cache.get(&format!("product:{}", id)).await? {
             product.price = *new_price;
             cache
-                .set_with_ttl(&format!("product:{}", id), &product, Some(Duration::from_secs(3600)))
+                .set_with_ttl(
+                    &format!("product:{}", id),
+                    &product,
+                    Some(Duration::from_secs(3600)),
+                )
                 .await?;
-            println!("     产品 {}: {} 新价格: ¥{:.2}", id, product.name, product.price);
+            println!(
+                "     产品 {}: {} 新价格: ¥{:.2}",
+                id, product.name, product.price
+            );
         }
     }
     println!();
@@ -125,7 +136,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   读取所有商品信息:");
     for product in &products {
         if let Some(p) = cache.get(&format!("product:{}", product.id)).await? {
-            println!("     [{}] {} - ¥{:.2} (库存: {})", p.id, p.name, p.price, p.stock);
+            println!(
+                "     [{}] {} - ¥{:.2} (库存: {})",
+                p.id, p.name, p.price, p.stock
+            );
         }
     }
     println!();
@@ -189,8 +203,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6. 统计信息
     println!("6. 缓存统计");
     let stats = cache.stats().await?;
-    println!("   - 缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
-    println!("   - 容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
+    println!(
+        "   - 缓存类型: {}",
+        stats.get("type").unwrap_or(&"N/A".to_string())
+    );
+    println!(
+        "   - 容量: {}",
+        stats.get("capacity").unwrap_or(&"N/A".to_string())
+    );
     println!(
         "   - 条目数: {}",
         stats.get("entry_count").unwrap_or(&"N/A".to_string())

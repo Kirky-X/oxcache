@@ -9,7 +9,10 @@ use oxcache::backend::{CacheReader, CacheWriter};
 use std::sync::Arc;
 
 /// 测试指定Redis版本的Standalone模式兼容性
-async fn test_redis_version_standalone(version: &str, connection_string: &str) -> Result<(), String> {
+async fn test_redis_version_standalone(
+    version: &str,
+    connection_string: &str,
+) -> Result<(), String> {
     println!("Testing Redis {} Standalone compatibility...", version);
 
     let backend: RedisBackend = RedisBackend::new(connection_string)
@@ -53,7 +56,8 @@ async fn test_redis_version_standalone(version: &str, connection_string: &str) -
 /// 测试Redis 6.x版本兼容性
 #[tokio::test]
 async fn test_redis_6_compatibility() {
-    let connection_string = std::env::var("REDIS_6_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let connection_string =
+        std::env::var("REDIS_6_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     match RedisBackend::new(&connection_string).await {
         Ok(backend) => {
@@ -91,7 +95,8 @@ async fn test_redis_6_compatibility() {
 /// 测试Redis 7.x版本兼容性
 #[tokio::test]
 async fn test_redis_7_compatibility() {
-    let connection_string = std::env::var("REDIS_7_URL").unwrap_or_else(|_| "redis://127.0.0.1:6380".to_string());
+    let connection_string =
+        std::env::var("REDIS_7_URL").unwrap_or_else(|_| "redis://127.0.0.1:6380".to_string());
 
     match RedisBackend::new(&connection_string).await {
         Ok(backend) => {
@@ -130,7 +135,10 @@ async fn test_redis_7_compatibility() {
                     }
                 }
                 Err(e) => {
-                    println!("Skipping Redis 7.x compatibility test: TTL test failed - {}", e);
+                    println!(
+                        "Skipping Redis 7.x compatibility test: TTL test failed - {}",
+                        e
+                    );
                     let _ = backend.delete(test_key).await;
                     return;
                 }
@@ -201,7 +209,10 @@ async fn test_comprehensive_redis_version_compatibility() {
     println!("  ⚠️  Skipped: {}", skipped_tests.len());
 
     if !failed_tests.is_empty() {
-        panic!("Redis version compatibility tests failed: {:?}", failed_tests);
+        panic!(
+            "Redis version compatibility tests failed: {:?}",
+            failed_tests
+        );
     }
 
     println!("\n🎉 All Redis version compatibility tests completed!");

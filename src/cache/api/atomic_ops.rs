@@ -18,7 +18,9 @@ where
     /// 返回 `Err(NotSupported)`。
     pub async fn incr(&self, key: &K, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("incr: backend does not implement AtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "incr: backend does not implement AtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
         writer.incr(&key_str, delta, ttl).await
@@ -36,20 +38,32 @@ where
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("compare_and_swap: backend does not implement AtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "compare_and_swap: backend does not implement AtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
-        writer.compare_and_swap(&key_str, expected, new_bytes, ttl).await
+        writer
+            .compare_and_swap(&key_str, expected, new_bytes, ttl)
+            .await
     }
 
     /// 原子 SETNX（set if absent）。仅在 key 不存在时写入，返回 `true` 表示成功写入。
     #[cfg(any(feature = "serialization", feature = "full"))]
-    pub async fn set_if_absent(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    pub async fn set_if_absent(
+        &self,
+        key: &K,
+        value: &V,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("set_if_absent: backend does not implement AtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "set_if_absent: backend does not implement AtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
-        let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        let bytes =
+            serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
         writer.set_if_absent(&key_str, bytes, ttl).await
     }
 
@@ -64,7 +78,9 @@ where
     pub fn incr_sync(&self, key: &K, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported("incr_sync: sync backend does not implement SyncAtomicCacheWriter".to_string())
+            OxCacheError::NotSupported(
+                "incr_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
+            )
         })?;
         let key_str = key.to_key_string();
         writer.incr(&key_str, delta, ttl)
@@ -83,7 +99,8 @@ where
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
             OxCacheError::NotSupported(
-                "compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
+                "compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter"
+                    .to_string(),
             )
         })?;
         let key_str = key.to_key_string();
@@ -92,15 +109,22 @@ where
 
     /// 同步原子 SETNX（set if absent）。仅在 key 不存在时写入。
     #[cfg(any(feature = "serialization", feature = "full"))]
-    pub fn set_if_absent_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    pub fn set_if_absent_sync(
+        &self,
+        key: &K,
+        value: &V,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
             OxCacheError::NotSupported(
-                "set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
+                "set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter"
+                    .to_string(),
             )
         })?;
         let key_str = key.to_key_string();
-        let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        let bytes =
+            serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
         writer.set_if_absent(&key_str, bytes, ttl)
     }
 }
@@ -168,14 +192,24 @@ mod tests {
 
         // CAS with correct expected value
         let ok = cache
-            .compare_and_swap(&"cas_key".to_string(), Some(b"initial"), b"updated".to_vec(), None)
+            .compare_and_swap(
+                &"cas_key".to_string(),
+                Some(b"initial"),
+                b"updated".to_vec(),
+                None,
+            )
             .await
             .unwrap();
         assert!(ok);
 
         // CAS with wrong expected value → should fail
         let ok = cache
-            .compare_and_swap(&"cas_key".to_string(), Some(b"initial"), b"again".to_vec(), None)
+            .compare_and_swap(
+                &"cas_key".to_string(),
+                Some(b"initial"),
+                b"again".to_vec(),
+                None,
+            )
             .await
             .unwrap();
         assert!(!ok);
@@ -229,7 +263,9 @@ mod tests {
         let backend = Arc::new(DashMapMemoryBackend::new());
         let cache: Cache<String, String> = Cache::new_with_backend(backend);
 
-        let result = cache.set_if_absent(&"k".to_string(), &"v".to_string(), None).await;
+        let result = cache
+            .set_if_absent(&"k".to_string(), &"v".to_string(), None)
+            .await;
         assert!(
             matches!(result, Err(OxCacheError::NotSupported(_))),
             "set_if_absent should return NotSupported for DashMap backend, got {:?}",
@@ -270,13 +306,23 @@ mod tests {
 
         // CAS with correct expected value
         let ok = cache
-            .compare_and_swap_sync(&"cas_key".to_string(), Some(b"initial"), b"updated".to_vec(), None)
+            .compare_and_swap_sync(
+                &"cas_key".to_string(),
+                Some(b"initial"),
+                b"updated".to_vec(),
+                None,
+            )
             .unwrap();
         assert!(ok);
 
         // CAS with wrong expected value → should fail
         let ok = cache
-            .compare_and_swap_sync(&"cas_key".to_string(), Some(b"initial"), b"again".to_vec(), None)
+            .compare_and_swap_sync(
+                &"cas_key".to_string(),
+                Some(b"initial"),
+                b"again".to_vec(),
+                None,
+            )
             .unwrap();
         assert!(!ok);
     }

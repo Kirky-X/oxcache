@@ -35,7 +35,11 @@ async fn test_connection_recovery_after_failure() {
 
     // 正常操作
     backend
-        .set(Arc::from("recovery_key"), Arc::new(b"initial_value".to_vec()), None)
+        .set(
+            Arc::from("recovery_key"),
+            Arc::new(b"initial_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
     let value = backend.get("recovery_key").await.unwrap();
@@ -132,7 +136,9 @@ async fn test_graceful_degradation() {
 
     // 使用 get_or 提供降级数据
     let result: TestData = cache
-        .get_or(&"degraded_key".to_string(), || async { Ok(fallback_data.clone()) })
+        .get_or(&"degraded_key".to_string(), || async {
+            Ok(fallback_data.clone())
+        })
         .await
         .unwrap();
 
@@ -163,7 +169,11 @@ async fn test_partial_failure_handling() {
         let value = format!("value_{}", i);
 
         match backend
-            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(value.as_bytes().to_vec()),
+                None,
+            )
             .await
         {
             Ok(_) => success_count += 1,
@@ -242,7 +252,11 @@ async fn test_network_latency_simulation() {
 
     for _ in 0..100 {
         backend
-            .set(Arc::from("latency_key"), Arc::new(b"latency_value".to_vec()), None)
+            .set(
+                Arc::from("latency_key"),
+                Arc::new(b"latency_value".to_vec()),
+                None,
+            )
             .await
             .unwrap();
         backend.get("latency_key").await.unwrap();
@@ -285,7 +299,11 @@ async fn test_with_testcontainers_network_failure() {
 
     // 正常操作
     backend
-        .set(Arc::from("container_test_key"), Arc::new(b"test_value".to_vec()), None)
+        .set(
+            Arc::from("container_test_key"),
+            Arc::new(b"test_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
     let value = backend.get("container_test_key").await.unwrap();

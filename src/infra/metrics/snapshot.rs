@@ -52,7 +52,8 @@ impl From<MetricsSnapshot> for CacheStats {
             #[cfg(feature = "chrono")]
             timestamp: snapshot.timestamp,
             #[cfg(not(feature = "chrono"))]
-            timestamp: chrono::DateTime::from_timestamp(snapshot.timestamp as i64, 0).unwrap_or_else(chrono::Utc::now),
+            timestamp: chrono::DateTime::from_timestamp(snapshot.timestamp as i64, 0)
+                .unwrap_or_else(chrono::Utc::now),
         }
     }
 }
@@ -114,20 +115,32 @@ impl CacheStats {
         output.push_str(&format!("cache_l2_sets_total {}\n", self.l2_sets));
         output.push_str(&format!("cache_l1_deletes_total {}\n", self.l1_deletes));
         output.push_str(&format!("cache_l2_deletes_total {}\n", self.l2_deletes));
-        output.push_str(&format!("cache_operations_total {}\n", self.total_operations));
+        output.push_str(&format!(
+            "cache_operations_total {}\n",
+            self.total_operations
+        ));
 
         // Export hit rates
         output.push_str(&format!("cache_l1_hit_rate {}\n", self.l1_hit_rate()));
         output.push_str(&format!("cache_l2_hit_rate {}\n", self.l2_hit_rate()));
-        output.push_str(&format!("cache_overall_hit_rate {}\n", self.overall_hit_rate()));
+        output.push_str(&format!(
+            "cache_overall_hit_rate {}\n",
+            self.overall_hit_rate()
+        ));
 
         // Export gauges
         output.push_str(&format!("cache_l1_item_count {}\n", self.l1_item_count));
-        output.push_str(&format!("cache_l1_capacity_used_bytes {}\n", self.l1_capacity_used));
+        output.push_str(&format!(
+            "cache_l1_capacity_used_bytes {}\n",
+            self.l1_capacity_used
+        ));
 
         // Export extended metrics
         output.push_str(&format!("cache_prefetch_total {}\n", self.prefetch_count));
-        output.push_str(&format!("cache_compression_total {}\n", self.compression_count));
+        output.push_str(&format!(
+            "cache_compression_total {}\n",
+            self.compression_count
+        ));
         output.push_str(&format!(
             "cache_compression_bytes_saved {}\n",
             self.compression_bytes_saved

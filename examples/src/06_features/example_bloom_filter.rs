@@ -27,8 +27,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     bf.insert("existing_key");
     println!("插入 'existing_key'");
 
-    println!("contains 'existing_key' = {}（应为 true）", bf.contains("existing_key"));
-    println!("contains 'missing_key'  = {}（应为 false）", bf.contains("missing_key"));
+    println!(
+        "contains 'existing_key' = {}（应为 true）",
+        bf.contains("existing_key")
+    );
+    println!(
+        "contains 'missing_key'  = {}（应为 false）",
+        bf.contains("missing_key")
+    );
 
     bf.clear();
     println!(
@@ -39,7 +45,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === BloomFilterBackend 装饰器 ===
     println!("\n=== BloomFilterBackend 装饰器 ===");
     let inner = MokaMemoryBackend::new();
-    println!("inner backend: {}（score={}）", inner.backend_name(), inner.score());
+    println!(
+        "inner backend: {}（score={}）",
+        inner.backend_name(),
+        inner.score()
+    );
 
     let backend = BloomFilterBackend::builder()
         .capacity(10_000)
@@ -49,7 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("创建 BloomFilterBackend（装饰 Moka）");
 
     // set 更新 BF 和 inner
-    backend.set("user:1".into(), b"Alice".to_vec().into(), None).await?;
+    backend
+        .set("user:1".into(), b"Alice".to_vec().into(), None)
+        .await?;
     println!("\nset 'user:1' = 'Alice'");
 
     // get 命中：BF 命中 → 查询 inner → 返回值

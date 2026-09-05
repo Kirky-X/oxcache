@@ -34,7 +34,11 @@ fn bench_dashmap_fifo_eviction(c: &mut Criterion) {
                     std::time::SystemTime::now().elapsed().unwrap().as_nanos()
                 );
                 let _ = backend
-                    .set(Arc::from(black_box(&key).as_str()), Arc::new(b"v".to_vec()), None)
+                    .set(
+                        Arc::from(black_box(&key).as_str()),
+                        Arc::new(b"v".to_vec()),
+                        None,
+                    )
                     .await;
             });
         });
@@ -71,5 +75,9 @@ fn bench_dashmap_get_at_full_capacity(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_dashmap_fifo_eviction, bench_dashmap_get_at_full_capacity);
+criterion_group!(
+    benches,
+    bench_dashmap_fifo_eviction,
+    bench_dashmap_get_at_full_capacity
+);
 criterion_main!(benches);

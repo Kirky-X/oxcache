@@ -30,7 +30,9 @@ mod memory_sync_tests {
         let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();
 
         // set_sync + get_sync roundtrip
-        cache.set_sync(&"k1".to_string(), &"v1".to_string()).unwrap();
+        cache
+            .set_sync(&"k1".to_string(), &"v1".to_string())
+            .unwrap();
         let value = cache.get_sync(&"k1".to_string()).unwrap();
         assert_eq!(value, Some("v1".to_string()));
 
@@ -49,7 +51,11 @@ mod memory_sync_tests {
         let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();
 
         cache
-            .set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_millis(50)))
+            .set_with_ttl_sync(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_millis(50)),
+            )
             .unwrap();
 
         let value = cache.get_sync(&"k".to_string()).unwrap();
@@ -84,7 +90,9 @@ mod memory_sync_tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
 
         let value = cache
-            .get_or_sync(&"user:1".to_string(), || Ok("Should not be called".to_string()))
+            .get_or_sync(&"user:1".to_string(), || {
+                Ok("Should not be called".to_string())
+            })
             .unwrap();
         assert_eq!(value, "Alice");
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
@@ -110,8 +118,14 @@ mod memory_sync_tests {
         chain.set_sync("k", b"v".to_vec(), None).unwrap();
 
         use oxcache::backend::SyncCacheReader;
-        assert_eq!(SyncCacheReader::get(&moka_ref, "k").unwrap(), Some(b"v".to_vec()));
-        assert_eq!(SyncCacheReader::get(&dashmap_ref, "k").unwrap(), Some(b"v".to_vec()));
+        assert_eq!(
+            SyncCacheReader::get(&moka_ref, "k").unwrap(),
+            Some(b"v".to_vec())
+        );
+        assert_eq!(
+            SyncCacheReader::get(&dashmap_ref, "k").unwrap(),
+            Some(b"v".to_vec())
+        );
 
         let value = chain.get_sync("k").unwrap();
         assert_eq!(value, Some(b"v".to_vec()));
@@ -140,8 +154,14 @@ mod memory_sync_tests {
             .unwrap();
 
         use oxcache::backend::SyncCacheReader;
-        assert_eq!(SyncCacheReader::get(&moka_ref, "k").unwrap(), Some(b"v".to_vec()));
-        assert_eq!(SyncCacheReader::get(&dashmap_ref, "k").unwrap(), Some(b"v".to_vec()));
+        assert_eq!(
+            SyncCacheReader::get(&moka_ref, "k").unwrap(),
+            Some(b"v".to_vec())
+        );
+        assert_eq!(
+            SyncCacheReader::get(&dashmap_ref, "k").unwrap(),
+            Some(b"v".to_vec())
+        );
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -241,7 +261,9 @@ mod redis_sync_tests {
             assert!(SyncCacheReader::exists(&backend, &key).expect("sync exists failed"));
 
             SyncCacheWriter::delete(&backend, &key).expect("sync delete failed");
-            assert!(!SyncCacheReader::exists(&backend, &key).expect("sync exists after delete failed"));
+            assert!(
+                !SyncCacheReader::exists(&backend, &key).expect("sync exists after delete failed")
+            );
         });
     }
 
@@ -263,7 +285,12 @@ mod redis_sync_tests {
                 result
             );
 
-            let result = SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None);
+            let result = SyncCacheWriter::set(
+                &backend,
+                Arc::from(key.as_str()),
+                Arc::new(b"v".to_vec()),
+                None,
+            );
             assert!(
                 matches!(result, Err(OxCacheError::NotSupported(_))),
                 "expected Err(NotSupported) for sync set on current-thread runtime, got {:?}",
@@ -306,20 +333,30 @@ mod redis_sync_tests {
             let backend = make_backend().await;
             let key = unique_key("sync_expire");
 
-            SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None)
-                .expect("sync set failed");
+            SyncCacheWriter::set(
+                &backend,
+                Arc::from(key.as_str()),
+                Arc::new(b"v".to_vec()),
+                None,
+            )
+            .expect("sync set failed");
 
-            let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50)).expect("sync expire failed");
+            let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50))
+                .expect("sync expire failed");
             assert!(ok, "expire should return true for existing key");
 
             let ttl = SyncCacheReader::ttl(&backend, &key).expect("sync ttl failed");
             assert!(ttl.is_some(), "ttl should be Some after expire");
             let secs = ttl.unwrap().as_secs();
-            assert!(secs > 40 && secs <= 50, "ttl secs should be in (40, 50], got {}", secs);
+            assert!(
+                secs > 40 && secs <= 50,
+                "ttl secs should be in (40, 50], got {}",
+                secs
+            );
 
             let missing = unique_key("sync_expire_missing");
-            let ok =
-                SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10)).expect("sync expire call failed");
+            let ok = SyncCacheWriter::expire(&backend, &missing, Duration::from_secs(10))
+                .expect("sync expire call failed");
             assert!(!ok, "expire should return false for missing key");
 
             SyncCacheWriter::delete(&backend, &key).expect("sync delete failed");

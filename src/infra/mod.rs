@@ -22,7 +22,9 @@ pub use metrics::{CacheStats, export_json_format, export_prometheus_format, get_
 pub use metrics::{GLOBAL_UNIFIED_METRICS, MetricsSnapshot, convenience};
 
 #[cfg(feature = "serialization")]
-pub use serialization::{JsonSerializer, Serializer, UnifiedSerializer, UnifiedSerializerAdapter, default_serializer};
+pub use serialization::{
+    JsonSerializer, Serializer, UnifiedSerializer, UnifiedSerializerAdapter, default_serializer,
+};
 
 #[cfg(test)]
 mod tests {

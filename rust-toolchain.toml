@@ -1,0 +1,3 @@
+# 统一工具链基线(7 仓库一致,见 base/CONFIG_BASELINE.md)
+[toolchain]
+channel = "1.97.1"

@@ -59,8 +59,12 @@ impl OxCacheConfigError {
         match self {
             OxCacheConfigError::MissingField(_) => crate::i18n::messages::MSG_CFG_MISSING_FIELD,
             OxCacheConfigError::InvalidValue { .. } => crate::i18n::messages::MSG_CFG_INVALID_VALUE,
-            OxCacheConfigError::UnsupportedBackend(_) => crate::i18n::messages::MSG_CFG_UNSUPPORTED_BACKEND,
-            OxCacheConfigError::ConnectionFailed(_) => crate::i18n::messages::MSG_CFG_CONNECTION_FAILED,
+            OxCacheConfigError::UnsupportedBackend(_) => {
+                crate::i18n::messages::MSG_CFG_UNSUPPORTED_BACKEND
+            }
+            OxCacheConfigError::ConnectionFailed(_) => {
+                crate::i18n::messages::MSG_CFG_CONNECTION_FAILED
+            }
         }
     }
 
@@ -74,7 +78,8 @@ impl OxCacheConfigError {
             OxCacheConfigError::UnsupportedBackend(d) => vec![("detail", d.clone())],
             OxCacheConfigError::ConnectionFailed(d) => vec![("detail", d.clone())],
         };
-        let template = crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
+        let template =
+            crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         crate::i18n::messages::format_template(template, &borrowed)
     }
@@ -460,7 +465,8 @@ impl OxCacheError {
     /// if the catalog has no entry for this error.
     pub fn localized_message(&self, locale: &str) -> String {
         let params = self.message_params();
-        let template = crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
+        let template =
+            crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
         crate::i18n::messages::format_template(template, &borrowed)
     }
@@ -468,8 +474,12 @@ impl OxCacheError {
     /// Extract `(key, value)` parameters for message template substitution.
     fn message_params(&self) -> Vec<(&str, String)> {
         match self {
-            OxCacheError::KeyTooLong(actual, max) => vec![("actual", actual.to_string()), ("max", max.to_string())],
-            OxCacheError::ValueTooLarge(actual, max) => vec![("actual", actual.to_string()), ("max", max.to_string())],
+            OxCacheError::KeyTooLong(actual, max) => {
+                vec![("actual", actual.to_string()), ("max", max.to_string())]
+            }
+            OxCacheError::ValueTooLarge(actual, max) => {
+                vec![("actual", actual.to_string()), ("max", max.to_string())]
+            }
             OxCacheError::Serialization(d)
             | OxCacheError::Operation(d)
             | OxCacheError::Connection(d)

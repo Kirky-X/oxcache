@@ -11,8 +11,9 @@ jobs:
     name: Cleanup Release
     if: github.event.ref_type == 'tag'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get tag name
         id: get_tag

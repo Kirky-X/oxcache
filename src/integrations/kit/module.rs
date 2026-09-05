@@ -146,9 +146,9 @@ impl trait_kit::core::health::AsyncHealthCheck for OxcacheModule {
         // This is safe because health_check is a quick operation.
         match futures::executor::block_on(cap.health_check()) {
             Ok(()) => trait_kit::core::health::HealthStatus::Healthy,
-            Err(e) => {
-                trait_kit::core::health::HealthStatus::unhealthy(format!("cache backend health check failed: {e}"))
-            }
+            Err(e) => trait_kit::core::health::HealthStatus::unhealthy(format!(
+                "cache backend health check failed: {e}"
+            )),
         }
     }
 }
@@ -179,7 +179,10 @@ mod tests {
     /// (oxcache is a leaf module — no upstream deps).
     #[test]
     fn oxcache_module_meta_dependencies_empty() {
-        assert_eq!(OxcacheModule::dependencies(), &[] as &[(&'static str, TypeId)]);
+        assert_eq!(
+            OxcacheModule::dependencies(),
+            &[] as &[(&'static str, TypeId)]
+        );
     }
 
     /// R-oxcache-module-001: register `OxcacheModule` + `set_config` +
@@ -189,9 +192,12 @@ mod tests {
     async fn oxcache_module_build_returns_cache_capability() {
         let mut kit = AsyncKit::new();
         kit.set_config(OxcacheConfig::default());
-        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register::<OxcacheModule>()
+            .expect("register OxcacheModule");
         let kit = kit.build().await.expect("AsyncKit::build");
-        let cache: Arc<dyn CacheBackend + Send + Sync> = kit.require::<OxcacheModule>().expect("require OxcacheModule");
+        let cache: Arc<dyn CacheBackend + Send + Sync> = kit
+            .require::<OxcacheModule>()
+            .expect("require OxcacheModule");
         // Smoke-test the returned capability actually behaves like a cache.
         cache
             .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
@@ -212,9 +218,12 @@ mod tests {
             ttl: None,
             tti: None,
         });
-        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register::<OxcacheModule>()
+            .expect("register OxcacheModule");
         let kit = kit.build().await.expect("AsyncKit::build");
-        let cache: Arc<dyn CacheBackend + Send + Sync> = kit.require::<OxcacheModule>().expect("require OxcacheModule");
+        let cache: Arc<dyn CacheBackend + Send + Sync> = kit
+            .require::<OxcacheModule>()
+            .expect("require OxcacheModule");
         // Insert several keys; backend constructed with the provided config
         // should not panic and should still report healthy.
         for i in 0..6u8 {
@@ -251,11 +260,15 @@ mod tests {
     async fn oxcache_module_health_check_returns_healthy() {
         let mut kit = AsyncKit::new();
         kit.set_config(OxcacheConfig::default());
-        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register::<OxcacheModule>()
+            .expect("register OxcacheModule");
         kit.register_health_check::<OxcacheModule>();
         let kit = kit.build().await.expect("AsyncKit::build");
         let status = kit.health_check::<OxcacheModule>().expect("health_check");
-        assert!(status.is_healthy(), "expected Healthy status, got {status:?}");
+        assert!(
+            status.is_healthy(),
+            "expected Healthy status, got {status:?}"
+        );
     }
 
     /// R-oxcache-module-002: `AsyncHealthCheck::check` called directly
@@ -288,7 +301,8 @@ mod tests {
     async fn oxcache_module_lifecycle_full_kit_integration() {
         let mut kit = AsyncKit::new();
         kit.set_config(OxcacheConfig::default());
-        kit.register::<OxcacheModule>().expect("register OxcacheModule");
+        kit.register::<OxcacheModule>()
+            .expect("register OxcacheModule");
         kit.register_lifecycle::<OxcacheModule>();
         let kit = kit.build().await.expect("AsyncKit::build");
         // Shutdown should complete without panic.

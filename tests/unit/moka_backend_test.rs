@@ -74,9 +74,11 @@ async fn test_moka_set_and_get_basic_roundtrip() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_some() }
+        )
         .await
     );
 
@@ -100,9 +102,11 @@ async fn test_moka_delete_removes_key() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.exists("key1").await.unwrap()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.exists("key1").await.unwrap() }
+        )
         .await
     );
 
@@ -120,9 +124,11 @@ async fn test_moka_exists_checks_key_presence() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.exists("key1").await.unwrap()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.exists("key1").await.unwrap() }
+        )
         .await
     );
 }
@@ -140,9 +146,11 @@ async fn test_moka_clear_empties_all() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.exists("key2").await.unwrap()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.exists("key2").await.unwrap() }
+        )
         .await
     );
 
@@ -206,7 +214,10 @@ async fn test_moka_expire_returns_true_for_existing_key() {
         .await
         .unwrap();
 
-    let result = backend.expire("key1", Duration::from_secs(30)).await.unwrap();
+    let result = backend
+        .expire("key1", Duration::from_secs(30))
+        .await
+        .unwrap();
     // BREAKING 0.3.0: expire 对存在 key 真实更新过期时间并返回 true
     assert!(result, "expire should return true for existing key");
 }
@@ -214,7 +225,10 @@ async fn test_moka_expire_returns_true_for_existing_key() {
 #[tokio::test]
 async fn test_moka_expire_nonexistent_returns_false() {
     let backend = MokaMemoryBackend::new();
-    let result = backend.expire("nonexistent", Duration::from_secs(30)).await.unwrap();
+    let result = backend
+        .expire("nonexistent", Duration::from_secs(30))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -233,9 +247,11 @@ async fn test_moka_stats_returns_metrics() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_some() }
+        )
         .await
     );
     backend.get("key1").await.unwrap();
@@ -258,9 +274,11 @@ async fn test_moka_len_tracks_count() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_some() }
+        )
         .await
     );
 
@@ -269,9 +287,11 @@ async fn test_moka_len_tracks_count() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key2").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key2").await.unwrap().is_some() }
+        )
         .await
     );
 
@@ -346,9 +366,11 @@ async fn test_moka_overwrite_replaces_value() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap() == Some(b"value2".to_vec())
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap() == Some(b"value2".to_vec()) }
+        )
         .await
     );
 
@@ -366,9 +388,11 @@ async fn test_moka_large_value_handles_1mb() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("large_key").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("large_key").await.unwrap().is_some() }
+        )
         .await
     );
     let value = backend.get("large_key").await.unwrap();
@@ -383,15 +407,21 @@ async fn test_moka_many_keys_handles_100() {
         let key = format!("key_{}", i);
         let value = format!("value_{}", i);
         backend
-            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(value.as_bytes().to_vec()),
+                None,
+            )
             .await
             .unwrap();
     }
 
     assert!(
-        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
-            backend.get("key_99").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(500),
+            Duration::from_millis(10),
+            || async { backend.get("key_99").await.unwrap().is_some() }
+        )
         .await
     );
 
@@ -415,16 +445,20 @@ async fn test_moka_ttl_expiration_evicts_after_ttl() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_some() }
+        )
         .await
     );
 
     assert!(
-        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_none()
-        })
+        poll_until(
+            Duration::from_millis(500),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_none() }
+        )
         .await
     );
 }
@@ -441,9 +475,11 @@ async fn test_moka_time_to_idle_evicts_after_idle() {
         .await
         .unwrap();
     assert!(
-        poll_until(Duration::from_millis(200), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_some()
-        })
+        poll_until(
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_some() }
+        )
         .await
     );
 

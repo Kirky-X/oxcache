@@ -55,17 +55,18 @@ pub fn compile_regex(pattern: &str) -> OxCacheResult<regex::Regex> {
     ];
 
     for dangerous in &dangerous_patterns {
-        if let Ok(dangerous_regex) = Regex::new(dangerous) {
-            if dangerous_regex.is_match(pattern) {
-                return Err(OxCacheError::InvalidInput(
-                    "Regex pattern contains potentially dangerous quantifier pattern".to_string(),
-                ));
-            }
+        if let Ok(dangerous_regex) = Regex::new(dangerous)
+            && dangerous_regex.is_match(pattern)
+        {
+            return Err(OxCacheError::InvalidInput(
+                "Regex pattern contains potentially dangerous quantifier pattern".to_string(),
+            ));
         }
     }
 
     // Compile the regex
-    Regex::new(pattern).map_err(|e| OxCacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
+    Regex::new(pattern)
+        .map_err(|e| OxCacheError::InvalidInput(format!("Invalid regex pattern: {}", e)))
 }
 
 /// Matches a string against a compiled regex with input length check

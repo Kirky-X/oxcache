@@ -15,14 +15,20 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use oxcache::backend::{CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend, dashmap_memory};
+use oxcache::backend::{
+    CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend, dashmap_memory,
+};
 
 // ============================================================================
 // 跨后端 TTL 一致性回归测试
 // ============================================================================
 
 /// 构建三个真实后端：Moka（默认）+ 两个独立 DashMap 实例，返回 triple。
-fn build_three_backends() -> (MokaMemoryBackend, DashMapMemoryBackend, DashMapMemoryBackend) {
+fn build_three_backends() -> (
+    MokaMemoryBackend,
+    DashMapMemoryBackend,
+    DashMapMemoryBackend,
+) {
     (
         MokaMemoryBackend::new(),
         dashmap_memory(),
@@ -35,15 +41,27 @@ async fn test_all_backends_set_with_ttl_expires_consistently() {
     // Moka / 两个 DashMap 分别 set 50ms TTL，等 100ms，都返回 None
     let (moka, dashmap, dashmap2) = build_three_backends();
 
-    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
-        .await
-        .unwrap();
+    moka.set(
+        Arc::from("k"),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_millis(50)),
+    )
+    .await
+    .unwrap();
     dashmap
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
         .await
         .unwrap();
     dashmap2
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
         .await
         .unwrap();
 
@@ -56,8 +74,16 @@ async fn test_all_backends_set_with_ttl_expires_consistently() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // 两个 DashMap 都是 lazy 过期，立即查询应返回 None
-    assert_eq!(dashmap.get("k").await.unwrap(), None, "dashmap should expire");
-    assert_eq!(dashmap2.get("k").await.unwrap(), None, "dashmap should expire");
+    assert_eq!(
+        dashmap.get("k").await.unwrap(),
+        None,
+        "dashmap should expire"
+    );
+    assert_eq!(
+        dashmap2.get("k").await.unwrap(),
+        None,
+        "dashmap should expire"
+    );
 
     // Moka 异步清理可能略有延迟，循环等待最多 500ms
     let mut moka_expired = false;
@@ -81,26 +107,54 @@ async fn test_all_backends_ttl_returns_remaining_consistently() {
     // 且 58s < d <= 60s
     let (moka, dashmap, dashmap2) = build_three_backends();
 
-    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
-        .await
-        .unwrap();
+    moka.set(
+        Arc::from("k"),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_secs(60)),
+    )
+    .await
+    .unwrap();
     dashmap
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
     dashmap2
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
-    let moka_ttl = moka.ttl("k").await.unwrap().expect("moka ttl should be Some");
-    let dashmap_ttl = dashmap.ttl("k").await.unwrap().expect("dashmap ttl should be Some");
-    let dashmap2_ttl = dashmap2.ttl("k").await.unwrap().expect("dashmap ttl should be Some");
+    let moka_ttl = moka
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("moka ttl should be Some");
+    let dashmap_ttl = dashmap
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("dashmap ttl should be Some");
+    let dashmap2_ttl = dashmap2
+        .ttl("k")
+        .await
+        .unwrap()
+        .expect("dashmap ttl should be Some");
 
     let lower = Duration::from_secs(58);
     let upper = Duration::from_secs(60);
 
-    for (name, d) in [("moka", moka_ttl), ("dashmap", dashmap_ttl), ("dashmap2", dashmap2_ttl)] {
+    for (name, d) in [
+        ("moka", moka_ttl),
+        ("dashmap", dashmap_ttl),
+        ("dashmap2", dashmap2_ttl),
+    ] {
         assert!(
             d > lower && d <= upper,
             "{} ttl={} should be in (58s, 60s]",
@@ -115,25 +169,46 @@ async fn test_all_backends_expire_returns_true_consistently() {
     // 三个真实后端分别 set 60s，然后 expire 120s，都返回 Ok(true)
     let (moka, dashmap, dashmap2) = build_three_backends();
 
-    moka.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
-        .await
-        .unwrap();
+    moka.set(
+        Arc::from("k"),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_secs(60)),
+    )
+    .await
+    .unwrap();
     dashmap
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
     dashmap2
-        .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+        .set(
+            Arc::from("k"),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
 
     let moka_ok = moka.expire("k", Duration::from_secs(120)).await.unwrap();
     let dashmap_ok = dashmap.expire("k", Duration::from_secs(120)).await.unwrap();
-    let dashmap2_ok = dashmap2.expire("k", Duration::from_secs(120)).await.unwrap();
+    let dashmap2_ok = dashmap2
+        .expire("k", Duration::from_secs(120))
+        .await
+        .unwrap();
 
     assert!(moka_ok, "moka expire should return true for existing key");
-    assert!(dashmap_ok, "dashmap expire should return true for existing key");
-    assert!(dashmap2_ok, "dashmap expire should return true for existing key");
+    assert!(
+        dashmap_ok,
+        "dashmap expire should return true for existing key"
+    );
+    assert!(
+        dashmap2_ok,
+        "dashmap expire should return true for existing key"
+    );
 
     // 验证 expire 后 ttl 反映新的剩余时间（> 118s）
     let moka_ttl = moka
@@ -153,7 +228,11 @@ async fn test_all_backends_expire_returns_true_consistently() {
         .expect("dashmap ttl should be Some after expire");
 
     let threshold = Duration::from_secs(118);
-    for (name, d) in [("moka", moka_ttl), ("dashmap", dashmap_ttl), ("dashmap2", dashmap2_ttl)] {
+    for (name, d) in [
+        ("moka", moka_ttl),
+        ("dashmap", dashmap_ttl),
+        ("dashmap2", dashmap2_ttl),
+    ] {
         assert!(
             d > threshold,
             "{} ttl={} should be > 118s after expire(120s)",

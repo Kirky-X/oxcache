@@ -33,8 +33,13 @@ impl UnifiedSerializer {
 
     /// Serialize a value to bytes
     pub fn serialize<T: Serialize>(&self, value: &T) -> OxCacheResult<Vec<u8>> {
-        let data = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
-        if self.compress { compress_data(&data) } else { Ok(data) }
+        let data =
+            serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        if self.compress {
+            compress_data(&data)
+        } else {
+            Ok(data)
+        }
     }
 
     /// Serialize with explicit type name (for internal use)
@@ -51,17 +56,24 @@ impl UnifiedSerializer {
     /// 单次文本解析 + 深度校验（`MAX_JSON_DEPTH`），防止栈溢出攻击。
     pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> OxCacheResult<T> {
         let data = if self.compress {
-            decompress_data_with_limit(data, crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE)?
+            decompress_data_with_limit(
+                data,
+                crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE,
+            )?
         } else {
             data.to_vec()
         };
-        deserialize_safe(&data, MAX_JSON_DEPTH).map_err(|e| OxCacheError::Serialization(e.to_string()))
+        deserialize_safe(&data, MAX_JSON_DEPTH)
+            .map_err(|e| OxCacheError::Serialization(e.to_string()))
     }
 
     /// Deserialize with explicit type name (for internal use)
     pub fn deserialize_with_type(&self, _type_name: &str, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         if self.compress {
-            decompress_data_with_limit(data, crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE)
+            decompress_data_with_limit(
+                data,
+                crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE,
+            )
         } else {
             Ok(data.to_vec())
         }
@@ -217,6 +229,9 @@ mod tests {
         let serializer = UnifiedSerializer::json();
         let data = test_data();
         let serialized = serializer.serialize(&data).unwrap();
-        assert_eq!(serialized[0], b'{', "应直接序列化为 JSON 对象而非 base64 字符串");
+        assert_eq!(
+            serialized[0], b'{',
+            "应直接序列化为 JSON 对象而非 base64 字符串"
+        );
     }
 }

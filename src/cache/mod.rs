@@ -57,7 +57,10 @@ mod tests {
             })
         }
 
-        let result = cache.get_or(&"test:2".to_string(), fallback1).await.unwrap();
+        let result = cache
+            .get_or(&"test:2".to_string(), fallback1)
+            .await
+            .unwrap();
         assert_eq!(result.name, "fallback");
 
         // Second call should use cache
@@ -65,7 +68,10 @@ mod tests {
             panic!("Should not be called");
         }
 
-        let result = cache.get_or(&"test:2".to_string(), fallback2).await.unwrap();
+        let result = cache
+            .get_or(&"test:2".to_string(), fallback2)
+            .await
+            .unwrap();
         assert_eq!(result.name, "fallback");
     }
 
@@ -90,7 +96,10 @@ mod tests {
             ),
         ];
 
-        cache.set_many(items.iter().map(|(k, v)| (k, v))).await.unwrap();
+        cache
+            .set_many(items.iter().map(|(k, v)| (k, v)))
+            .await
+            .unwrap();
 
         let keys: Vec<&String> = items.iter().map(|(k, _)| k).collect();
         let results = cache.get_many(keys).await.unwrap();
@@ -128,8 +137,14 @@ mod tests {
     async fn test_bytes_cache_alias() {
         // BytesCache 别名：无泛型 bytes 级缓存（问题 6.2）
         let cache: BytesCache = Cache::builder().build().await.unwrap();
-        cache.set_bytes("bk", b"raw bytes".to_vec(), None).await.unwrap();
-        assert_eq!(cache.get_bytes("bk").await.unwrap(), Some(b"raw bytes".to_vec()));
+        cache
+            .set_bytes("bk", b"raw bytes".to_vec(), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get_bytes("bk").await.unwrap(),
+            Some(b"raw bytes".to_vec())
+        );
         assert_eq!(cache.get_bytes("missing").await.unwrap(), None);
     }
 }

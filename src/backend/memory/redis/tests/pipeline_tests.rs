@@ -12,7 +12,10 @@ async fn test_set_many_pipeline_and_get_many_pipeline() {
     let backend = make_backend().await;
     let k1 = unique_key("p1");
     let k2 = unique_key("p2");
-    let items: Vec<(&str, Vec<u8>)> = vec![(k1.as_str(), b"pv1".to_vec()), (k2.as_str(), b"pv2".to_vec())];
+    let items: Vec<(&str, Vec<u8>)> = vec![
+        (k1.as_str(), b"pv1".to_vec()),
+        (k2.as_str(), b"pv2".to_vec()),
+    ];
     backend
         .set_many_pipeline(&items, None)
         .await

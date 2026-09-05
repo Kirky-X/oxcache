@@ -10,7 +10,10 @@
 #[cfg(test)]
 #[cfg(feature = "redis")]
 mod degradation_tests_inner {
-    use crate::common::{create_cluster_redis_urls, is_redis_available_url, wait_for_redis_cluster, wait_for_sentinel};
+    use crate::common::{
+        create_cluster_redis_urls, is_redis_available_url, wait_for_redis_cluster,
+        wait_for_sentinel,
+    };
     use oxcache::backend::AtomicCacheWriter;
     use oxcache::backend::CacheConnector;
     use oxcache::backend::CacheReader;
@@ -140,22 +143,38 @@ mod degradation_tests_inner {
                     Arc::new(b"v2".to_vec()),
                     Some(Duration::from_secs(60)),
                 ),
-                (Arc::from("oxcache:test:batch:3"), Arc::new(b"v3".to_vec()), None),
+                (
+                    Arc::from("oxcache:test:batch:3"),
+                    Arc::new(b"v3".to_vec()),
+                    None,
+                ),
             ];
 
-            backend.set_many(&items).await.expect("set_many should succeed");
+            backend
+                .set_many(&items)
+                .await
+                .expect("set_many should succeed");
 
             let keys: Vec<String> = items.iter().map(|(k, _, _)| k.to_string()).collect();
-            let values = backend.get_many(&keys).await.expect("get_many should succeed");
+            let values = backend
+                .get_many(&keys)
+                .await
+                .expect("get_many should succeed");
             assert_eq!(values.len(), 3);
             assert_eq!(values[0], Some(b"v1".to_vec()));
             assert_eq!(values[1], Some(b"v2".to_vec()));
             assert_eq!(values[2], Some(b"v3".to_vec()));
 
-            backend.delete_many(&keys).await.expect("delete_many should succeed");
+            backend
+                .delete_many(&keys)
+                .await
+                .expect("delete_many should succeed");
 
             // 验证删除成功
-            let after = backend.get_many(&keys).await.expect("get_many after delete");
+            let after = backend
+                .get_many(&keys)
+                .await
+                .expect("get_many after delete");
             for v in &after {
                 assert!(v.is_none());
             }
@@ -179,7 +198,10 @@ mod degradation_tests_inner {
                 .expect("INCR should succeed");
             assert_eq!(val, 1);
 
-            let val = backend.incr(key, 5, None).await.expect("INCRBY should succeed");
+            let val = backend
+                .incr(key, 5, None)
+                .await
+                .expect("INCRBY should succeed");
             assert_eq!(val, 6);
 
             // SET_IF_ABSENT
@@ -229,7 +251,10 @@ mod degradation_tests_inner {
                 .await;
 
             // Builder 在连接阶段就会失败（ConnectionManager 创建时尝试连接）
-            assert!(result.is_err(), "Should fail to connect to unreachable host");
+            assert!(
+                result.is_err(),
+                "Should fail to connect to unreachable host"
+            );
         }
 
         /// 验证有效连接下 health_check 通过
@@ -300,14 +325,20 @@ mod degradation_tests_inner {
             let stats = backend.stats().await.expect("stats() should succeed");
 
             // 基础字段
-            assert!(stats.contains_key("memory_info"), "stats should contain memory_info");
+            assert!(
+                stats.contains_key("memory_info"),
+                "stats should contain memory_info"
+            );
 
             // 增强字段（T012 新增）
             assert!(
                 stats.contains_key("connected_clients"),
                 "stats should contain connected_clients"
             );
-            assert!(stats.contains_key("maxclients"), "stats should contain maxclients");
+            assert!(
+                stats.contains_key("maxclients"),
+                "stats should contain maxclients"
+            );
 
             // 值应为有效数字字符串
             let connected = stats.get("connected_clients").unwrap();
@@ -364,7 +395,10 @@ mod degradation_tests_inner {
 
             // retry 计数可能为 0（正常操作无重试）
             let after_retry = metrics.get_counters().l2_retry_total;
-            assert!(after_retry >= before_retry, "l2_retry_total should not decrease");
+            assert!(
+                after_retry >= before_retry,
+                "l2_retry_total should not decrease"
+            );
         }
 
         /// 验证 UnifiedMetrics 新增计数器字段存在
@@ -428,15 +462,24 @@ mod degradation_tests_inner {
             assert!(l2_val.is_some(), "L2 should have the value after SET");
 
             // 删除（走并行删除路径）
-            chain.delete(key).await.expect("ChainCache DELETE should succeed");
+            chain
+                .delete(key)
+                .await
+                .expect("ChainCache DELETE should succeed");
 
             // 验证 L2 已删除
             let l2_val_after = l2_check.get(key).await.unwrap();
-            assert!(l2_val_after.is_none(), "L2 should be empty after ChainCache DELETE");
+            assert!(
+                l2_val_after.is_none(),
+                "L2 should be empty after ChainCache DELETE"
+            );
 
             // 验证 L1 也已删除
             let l1_val_after = l1_check.get(key).await.unwrap();
-            assert!(l1_val_after.is_none(), "L1 should be empty after ChainCache DELETE");
+            assert!(
+                l1_val_after.is_none(),
+                "L1 should be empty after ChainCache DELETE"
+            );
         }
 
         /// 验证 ChainCache 回填成功后递增 backfill_success 指标
@@ -547,7 +590,11 @@ mod degradation_tests_inner {
                         .await
                         .expect("Cluster SET should succeed");
 
-                    let val = b.get(key).await.unwrap().expect("Cluster GET should find key");
+                    let val = b
+                        .get(key)
+                        .await
+                        .unwrap()
+                        .expect("Cluster GET should find key");
                     assert_eq!(val, b"cluster_value");
 
                     let _ = b.delete(key).await;
@@ -627,13 +674,19 @@ mod degradation_tests_inner {
                 }
             };
 
-            println!("[SENTINEL] Master discovered at {} (internal IP)", master_url);
+            println!(
+                "[SENTINEL] Master discovered at {} (internal IP)",
+                master_url
+            );
 
             // Docker NAT: Sentinel returns container-internal IP (172.26.0.2:6379)
             // which is unreachable from the host. Use the host-mapped port instead.
-            let host_master_url =
-                std::env::var("REDIS_SENTINEL_MASTER_URL").unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string());
-            println!("[SENTINEL] Connecting via host-mapped URL: {}", host_master_url);
+            let host_master_url = std::env::var("REDIS_SENTINEL_MASTER_URL")
+                .unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string());
+            println!(
+                "[SENTINEL] Connecting via host-mapped URL: {}",
+                host_master_url
+            );
 
             // Step 2: Connect to the discovered master with retry/circuit-breaker
             let backend = RedisBackend::builder()
@@ -652,7 +705,11 @@ mod degradation_tests_inner {
                         .await
                         .expect("Sentinel SET should succeed");
 
-                    let val = b.get(key).await.unwrap().expect("Sentinel GET should find key");
+                    let val = b
+                        .get(key)
+                        .await
+                        .unwrap()
+                        .expect("Sentinel GET should find key");
                     assert_eq!(val, b"sentinel_value");
 
                     let _ = b.delete(key).await;

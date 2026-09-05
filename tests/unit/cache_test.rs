@@ -60,7 +60,11 @@ async fn test_cache_with_dependencies() {
 
 #[tokio::test]
 async fn test_cache_builder_constructor() {
-    let cache: Cache<String, TestValue> = Cache::builder().ttl(Duration::from_secs(300)).build().await.unwrap();
+    let cache: Cache<String, TestValue> = Cache::builder()
+        .ttl(Duration::from_secs(300))
+        .build()
+        .await
+        .unwrap();
     let value = TestValue {
         id: 42,
         name: "builder_test".to_string(),
@@ -74,7 +78,10 @@ async fn test_cache_builder_constructor() {
 async fn test_cache_get_bytes() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
     let data = b"hello world".to_vec();
-    cache.set_bytes("raw_key", data.clone(), None).await.unwrap();
+    cache
+        .set_bytes("raw_key", data.clone(), None)
+        .await
+        .unwrap();
     let result = cache.get_bytes("raw_key").await.unwrap();
     assert_eq!(result, Some(data));
 }
@@ -90,7 +97,10 @@ async fn test_cache_get_bytes_not_found() {
 async fn test_cache_set_bytes_with_ttl() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
     let data = b"ttl_data".to_vec();
-    cache.set_bytes("ttl_key", data.clone(), Some(60)).await.unwrap();
+    cache
+        .set_bytes("ttl_key", data.clone(), Some(60))
+        .await
+        .unwrap();
     let result = cache.get_bytes("ttl_key").await.unwrap();
     assert_eq!(result, Some(data));
 }
@@ -135,7 +145,10 @@ async fn test_cache_delete_many_empty() {
 async fn test_cache_delete_many_nonexistent_keys() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
     cache
-        .delete_many(vec![&"nonexistent1".to_string(), &"nonexistent2".to_string()])
+        .delete_many(vec![
+            &"nonexistent1".to_string(),
+            &"nonexistent2".to_string(),
+        ])
         .await
         .unwrap();
 }
@@ -183,8 +196,14 @@ async fn test_cache_stats() {
 #[tokio::test]
 async fn test_set_multiple_get_returns_all() {
     let cache: Cache<String, TestValue> = Cache::builder().build().await.unwrap();
-    cache.set(&"key1".to_string(), &TestValue::default()).await.unwrap();
-    cache.set(&"key2".to_string(), &TestValue::default()).await.unwrap();
+    cache
+        .set(&"key1".to_string(), &TestValue::default())
+        .await
+        .unwrap();
+    cache
+        .set(&"key2".to_string(), &TestValue::default())
+        .await
+        .unwrap();
     assert!(cache.get(&"key1".to_string()).await.unwrap().is_some());
     assert!(cache.get(&"key2".to_string()).await.unwrap().is_some());
 }
@@ -223,7 +242,11 @@ async fn test_cache_set_with_ttl() {
         name: "ttl_test".to_string(),
     };
     cache
-        .set_with_ttl(&"ttl_key".to_string(), &value, Some(Duration::from_secs(60)))
+        .set_with_ttl(
+            &"ttl_key".to_string(),
+            &value,
+            Some(Duration::from_secs(60)),
+        )
         .await
         .unwrap();
     let result: Option<TestValue> = cache.get(&"ttl_key".to_string()).await.unwrap();
@@ -274,24 +297,42 @@ async fn test_cache_clear_removes_all() {
             .unwrap();
     }
     assert!(
-        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
-            let mut all_exist = true;
-            for i in 1..=5u64 {
-                if !cache.exists(&format!("clear_key_{}", i).to_string()).await.unwrap() {
-                    all_exist = false;
-                    break;
+        poll_until(
+            Duration::from_millis(500),
+            Duration::from_millis(10),
+            || async {
+                let mut all_exist = true;
+                for i in 1..=5u64 {
+                    if !cache
+                        .exists(&format!("clear_key_{}", i).to_string())
+                        .await
+                        .unwrap()
+                    {
+                        all_exist = false;
+                        break;
+                    }
                 }
+                all_exist
             }
-            all_exist
-        })
+        )
         .await
     );
     for i in 1..=5 {
-        assert!(cache.exists(&format!("clear_key_{}", i).to_string()).await.unwrap());
+        assert!(
+            cache
+                .exists(&format!("clear_key_{}", i).to_string())
+                .await
+                .unwrap()
+        );
     }
     cache.clear().await.unwrap();
     for i in 1..=5 {
-        assert!(!cache.exists(&format!("clear_key_{}", i).to_string()).await.unwrap());
+        assert!(
+            !cache
+                .exists(&format!("clear_key_{}", i).to_string())
+                .await
+                .unwrap()
+        );
     }
 }
 
@@ -327,7 +368,10 @@ async fn test_cache_get_or_existing_value() {
         id: 42,
         name: "existing".to_string(),
     };
-    cache.set(&"existing_key".to_string(), &value).await.unwrap();
+    cache
+        .set(&"existing_key".to_string(), &value)
+        .await
+        .unwrap();
     let result = cache
         .get_or(&"existing_key".to_string(), || async {
             Err(oxcache::error::OxCacheError::NotFound(
@@ -368,7 +412,10 @@ async fn test_cache_empty_key_handling() {
 async fn test_cache_large_value() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
     let large_data: Vec<u8> = (0..10000).map(|i| i as u8).collect();
-    cache.set(&"large_key".to_string(), &large_data).await.unwrap();
+    cache
+        .set(&"large_key".to_string(), &large_data)
+        .await
+        .unwrap();
     let result: Option<Vec<u8>> = cache.get(&"large_key".to_string()).await.unwrap();
     assert_eq!(result, Some(large_data));
 }

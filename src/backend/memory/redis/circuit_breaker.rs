@@ -61,7 +61,12 @@ impl CircuitBreaker {
             // Attempt transition Open → HalfOpen
             if self
                 .state
-                .compare_exchange(STATE_OPEN, STATE_HALF_OPEN, Ordering::AcqRel, Ordering::Acquire)
+                .compare_exchange(
+                    STATE_OPEN,
+                    STATE_HALF_OPEN,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
                 .is_ok()
             {
                 return false; // Now HalfOpen, allow request through
@@ -92,7 +97,8 @@ impl CircuitBreaker {
     ///
     /// Returns `true` if the circuit breaker just transitioned to Open.
     pub(crate) fn record_failure(&self) -> bool {
-        self.last_failure_millis.store(now_millis(), Ordering::Relaxed);
+        self.last_failure_millis
+            .store(now_millis(), Ordering::Relaxed);
 
         let current_state = self.state.load(Ordering::Acquire);
 

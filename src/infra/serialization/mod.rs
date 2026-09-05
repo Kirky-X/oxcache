@@ -17,7 +17,8 @@ pub use unified::{UnifiedSerializer, UnifiedSerializerAdapter, default_serialize
 
 // Depth-limited serialization exports
 pub use depth_limited::{
-    DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, deserialize_safe, would_exceed_depth_limit,
+    DepthLimitExceededError, DepthLimited, MAX_DESERIALIZE_DEPTH, deserialize_safe,
+    would_exceed_depth_limit,
 };
 
 /// 序列化器特征
@@ -212,8 +213,12 @@ mod tests {
         let serializer = TestSerializer;
         let original_data = b"zero copy roundtrip test";
 
-        let serialized = serializer.serialize_zero_copy("TestType", original_data).unwrap();
-        let deserialized = serializer.deserialize_zero_copy("TestType", &serialized).unwrap();
+        let serialized = serializer
+            .serialize_zero_copy("TestType", original_data)
+            .unwrap();
+        let deserialized = serializer
+            .deserialize_zero_copy("TestType", &serialized)
+            .unwrap();
 
         assert_eq!(deserialized, original_data.to_vec());
     }

@@ -2,9 +2,13 @@
 name = "oxcache_macros"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Procedural macros for oxcache"
 license.workspace = true
 repository.workspace = true
+
+[lints]
+workspace = true
 
 [lib]
 proc-macro = true

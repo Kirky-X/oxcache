@@ -32,8 +32,16 @@ macro_rules! feature_check {
 // Generate individual feature availability functions
 feature_check!("memory", l1_available, "Check if L1 cache is available");
 feature_check!("redis", l2_available, "Check if L2 cache is available");
-feature_check!("metrics", metrics_available, "Check if metrics are available");
-feature_check!("batch", batch_write_available, "Check if batch write is available");
+feature_check!(
+    "metrics",
+    metrics_available,
+    "Check if metrics are available"
+);
+feature_check!(
+    "batch",
+    batch_write_available,
+    "Check if batch write is available"
+);
 feature_check!(
     "serialization",
     serialization_available,
@@ -45,7 +53,11 @@ feature_check!(
     "Check if compression is available"
 );
 feature_check!("cli", cli_available, "Check if CLI is available");
-feature_check!("lock", dist_lock_available, "Check if distributed lock is available");
+feature_check!(
+    "lock",
+    dist_lock_available,
+    "Check if distributed lock is available"
+);
 
 // ============================================================================
 // FeatureSet Structure

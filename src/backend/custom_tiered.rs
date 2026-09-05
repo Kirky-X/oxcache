@@ -206,7 +206,10 @@ mod tests {
     #[test]
     fn test_layer_restriction_description() {
         assert_eq!(LayerRestriction::L1Only.description(), "仅支持 L1 层级");
-        assert_eq!(LayerRestriction::L2AndL3Only.description(), "仅支持 L2/L3 层级");
+        assert_eq!(
+            LayerRestriction::L2AndL3Only.description(),
+            "仅支持 L2/L3 层级"
+        );
         assert_eq!(LayerRestriction::Any.description(), "支持任意层级");
     }
 
@@ -217,14 +220,23 @@ mod tests {
     #[test]
     #[cfg(feature = "memory")]
     fn test_backend_type_layer_restriction() {
-        assert_eq!(BackendType::Moka.layer_restriction(), LayerRestriction::L1Only);
-        assert_eq!(BackendType::Dashmap.layer_restriction(), LayerRestriction::L1Only);
+        assert_eq!(
+            BackendType::Moka.layer_restriction(),
+            LayerRestriction::L1Only
+        );
+        assert_eq!(
+            BackendType::Dashmap.layer_restriction(),
+            LayerRestriction::L1Only
+        );
     }
 
     #[test]
     #[cfg(feature = "redis")]
     fn test_backend_type_layer_restriction_redis() {
-        assert_eq!(BackendType::Redis.layer_restriction(), LayerRestriction::L2AndL3Only);
+        assert_eq!(
+            BackendType::Redis.layer_restriction(),
+            LayerRestriction::L2AndL3Only
+        );
     }
 
     #[test]
@@ -260,7 +272,10 @@ mod tests {
 
     #[test]
     fn test_backend_type_recommended_layer_custom() {
-        assert_eq!(BackendType::Custom("test".to_string()).recommended_layer(), Layer::L1);
+        assert_eq!(
+            BackendType::Custom("test".to_string()).recommended_layer(),
+            Layer::L1
+        );
     }
 
     #[test]

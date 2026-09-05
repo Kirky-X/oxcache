@@ -109,7 +109,10 @@ mod tests {
         assert_eq!(config.retry_count, 3);
         assert_eq!(config.retry_base_delay, Duration::from_millis(100));
         assert_eq!(config.circuit_breaker_threshold, 5);
-        assert_eq!(config.circuit_breaker_reset_timeout, Duration::from_secs(30));
+        assert_eq!(
+            config.circuit_breaker_reset_timeout,
+            Duration::from_secs(30)
+        );
         assert_eq!(config.health_check_interval, Duration::from_secs(60));
     }
 
@@ -126,7 +129,10 @@ mod tests {
         assert_eq!(config.retry_count, 5);
         assert_eq!(config.retry_base_delay, Duration::from_millis(200));
         assert_eq!(config.circuit_breaker_threshold, 10);
-        assert_eq!(config.circuit_breaker_reset_timeout, Duration::from_secs(60));
+        assert_eq!(
+            config.circuit_breaker_reset_timeout,
+            Duration::from_secs(60)
+        );
         assert_eq!(config.health_check_interval, Duration::from_secs(120));
     }
 

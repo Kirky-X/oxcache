@@ -47,7 +47,10 @@ async fn test_pipeline_set_performance() {
 
     // 测试 Pipeline SET
     let start = Instant::now();
-    backend.set_many(&test_data).await.expect("Pipeline SET failed");
+    backend
+        .set_many(&test_data)
+        .await
+        .expect("Pipeline SET failed");
     let pipeline_duration = start.elapsed();
 
     // 清理
@@ -93,7 +96,10 @@ async fn test_pipeline_get_performance() {
 
     // 准备测试数据
     let test_data = generate_test_data(100);
-    backend.set_many(&test_data).await.expect("Failed to setup test data");
+    backend
+        .set_many(&test_data)
+        .await
+        .expect("Failed to setup test data");
 
     let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
 
@@ -153,7 +159,10 @@ async fn test_pipeline_delete_performance() {
     let keys: Vec<String> = test_data_1.iter().map(|(k, _, _)| k.to_string()).collect();
 
     let start = Instant::now();
-    backend.delete_many(&keys).await.expect("Pipeline DELETE failed");
+    backend
+        .delete_many(&keys)
+        .await
+        .expect("Pipeline DELETE failed");
     let pipeline_duration = start.elapsed();
 
     // 测试逐个 DELETE（对比）
@@ -203,7 +212,10 @@ async fn test_large_scale_pipeline_performance() {
 
     // Pipeline SET
     let start = Instant::now();
-    backend.set_many(&test_data).await.expect("Pipeline SET failed");
+    backend
+        .set_many(&test_data)
+        .await
+        .expect("Pipeline SET failed");
     let set_duration = start.elapsed();
 
     // Pipeline GET
@@ -218,18 +230,27 @@ async fn test_large_scale_pipeline_performance() {
 
     // Pipeline DELETE
     let start = Instant::now();
-    backend.delete_many(&keys).await.expect("Pipeline DELETE failed");
+    backend
+        .delete_many(&keys)
+        .await
+        .expect("Pipeline DELETE failed");
     let delete_duration = start.elapsed();
 
     // 验证所有键都已删除
-    let results = backend.get_many(&keys).await.expect("Failed to verify deletion");
+    let results = backend
+        .get_many(&keys)
+        .await
+        .expect("Failed to verify deletion");
     assert!(results.iter().all(|r| r.is_none()));
 
     println!("Large Scale Pipeline Performance (1000 keys):");
     println!("  SET: {:?}", set_duration);
     println!("  GET: {:?}", get_duration);
     println!("  DELETE: {:?}", delete_duration);
-    println!("  Total: {:?}", set_duration + get_duration + delete_duration);
+    println!(
+        "  Total: {:?}",
+        set_duration + get_duration + delete_duration
+    );
 
     // 清理测试数据
     backend.clear().await.ok();
@@ -254,7 +275,10 @@ async fn test_mixed_operations_performance() {
     let total_start = Instant::now();
 
     // 1. 批量初始化
-    backend.set_many(&test_data).await.expect("Batch init failed");
+    backend
+        .set_many(&test_data)
+        .await
+        .expect("Batch init failed");
 
     // 2. 批量读取
     let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
@@ -263,13 +287,25 @@ async fn test_mixed_operations_performance() {
     // 3. 批量更新（覆盖）
     let updated_data: Vec<TestItem> = test_data
         .iter()
-        .map(|(k, _, ttl)| (k.clone(), Arc::new(format!("updated_{}", k).into_bytes()), *ttl))
+        .map(|(k, _, ttl)| {
+            (
+                k.clone(),
+                Arc::new(format!("updated_{}", k).into_bytes()),
+                *ttl,
+            )
+        })
         .collect();
-    backend.set_many(&updated_data).await.expect("Batch update failed");
+    backend
+        .set_many(&updated_data)
+        .await
+        .expect("Batch update failed");
 
     // 4. 批量删除一半
     let delete_keys: Vec<String> = keys.iter().take(250).cloned().collect();
-    backend.delete_many(&delete_keys).await.expect("Batch delete failed");
+    backend
+        .delete_many(&delete_keys)
+        .await
+        .expect("Batch delete failed");
 
     let total_duration = total_start.elapsed();
 

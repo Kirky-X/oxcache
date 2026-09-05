@@ -24,7 +24,10 @@ fn test_cache_config_error_invalid_value_display() {
         field: "capacity".to_string(),
         reason: "must be > 0".to_string(),
     };
-    assert_eq!(err.to_string(), "Invalid value for field 'capacity': must be > 0.");
+    assert_eq!(
+        err.to_string(),
+        "Invalid value for field 'capacity': must be > 0."
+    );
 }
 
 #[cfg(feature = "redis")]
@@ -38,7 +41,10 @@ fn test_cache_config_error_unsupported_backend_display() {
 #[test]
 fn test_cache_config_error_connection_failed_display() {
     let err = OxCacheConfigError::ConnectionFailed("timeout".to_string());
-    assert_eq!(err.to_string(), "Connection failed during initialization: timeout.");
+    assert_eq!(
+        err.to_string(),
+        "Connection failed during initialization: timeout."
+    );
 }
 
 // ============================================================================
@@ -119,7 +125,9 @@ fn test_cache_error_database_error_display() {
 fn test_cache_error_redis_error_display() {
     #[cfg(feature = "redis")]
     {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("auth failed")));
+        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
+            "auth failed",
+        )));
         let s = err.to_string();
         assert!(s.contains("Redis connection failed"));
     }
@@ -241,52 +249,82 @@ fn test_from_serde_json_error() {
 
 #[test]
 fn test_error_code_not_found() {
-    assert_eq!(OxCacheError::NotFound("k".to_string()).code(), "OXCACHE_001");
+    assert_eq!(
+        OxCacheError::NotFound("k".to_string()).code(),
+        "OXCACHE_001"
+    );
 }
 
 #[test]
 fn test_error_code_connection() {
-    assert_eq!(OxCacheError::Connection("c".to_string()).code(), "OXCACHE_002");
+    assert_eq!(
+        OxCacheError::Connection("c".to_string()).code(),
+        "OXCACHE_002"
+    );
 }
 
 #[test]
 fn test_error_code_serialization() {
-    assert_eq!(OxCacheError::Serialization("s".to_string()).code(), "OXCACHE_003");
+    assert_eq!(
+        OxCacheError::Serialization("s".to_string()).code(),
+        "OXCACHE_003"
+    );
 }
 
 #[test]
 fn test_error_code_operation() {
-    assert_eq!(OxCacheError::Operation("o".to_string()).code(), "OXCACHE_004");
+    assert_eq!(
+        OxCacheError::Operation("o".to_string()).code(),
+        "OXCACHE_004"
+    );
 }
 
 #[test]
 fn test_error_code_degraded() {
-    assert_eq!(OxCacheError::Degraded("d".to_string()).code(), "OXCACHE_005");
+    assert_eq!(
+        OxCacheError::Degraded("d".to_string()).code(),
+        "OXCACHE_005"
+    );
 }
 
 #[test]
 fn test_error_code_l1() {
-    assert_eq!(OxCacheError::L1Error("l1".to_string()).code(), "OXCACHE_006");
+    assert_eq!(
+        OxCacheError::L1Error("l1".to_string()).code(),
+        "OXCACHE_006"
+    );
 }
 
 #[test]
 fn test_error_code_l2() {
-    assert_eq!(OxCacheError::L2Error("l2".to_string()).code(), "OXCACHE_007");
+    assert_eq!(
+        OxCacheError::L2Error("l2".to_string()).code(),
+        "OXCACHE_007"
+    );
 }
 
 #[test]
 fn test_error_code_not_supported() {
-    assert_eq!(OxCacheError::NotSupported("ns".to_string()).code(), "OXCACHE_009");
+    assert_eq!(
+        OxCacheError::NotSupported("ns".to_string()).code(),
+        "OXCACHE_009"
+    );
 }
 
 #[test]
 fn test_error_code_wal() {
-    assert_eq!(OxCacheError::WalError("w".to_string()).code(), "OXCACHE_010");
+    assert_eq!(
+        OxCacheError::WalError("w".to_string()).code(),
+        "OXCACHE_010"
+    );
 }
 
 #[test]
 fn test_error_code_database() {
-    assert_eq!(OxCacheError::DatabaseError("db".to_string()).code(), "OXCACHE_011");
+    assert_eq!(
+        OxCacheError::DatabaseError("db".to_string()).code(),
+        "OXCACHE_011"
+    );
 }
 
 #[test]
@@ -298,7 +336,10 @@ fn test_error_code_redis() {
     }
     #[cfg(not(feature = "redis"))]
     {
-        assert_eq!(OxCacheError::RedisError("r".to_string()).code(), "OXCACHE_012");
+        assert_eq!(
+            OxCacheError::RedisError("r".to_string()).code(),
+            "OXCACHE_012"
+        );
     }
 }
 
@@ -310,7 +351,10 @@ fn test_error_code_io() {
 
 #[test]
 fn test_error_code_backend() {
-    assert_eq!(OxCacheError::BackendError("b".to_string()).code(), "OXCACHE_014");
+    assert_eq!(
+        OxCacheError::BackendError("b".to_string()).code(),
+        "OXCACHE_014"
+    );
 }
 
 #[test]
@@ -320,7 +364,10 @@ fn test_error_code_timeout() {
 
 #[test]
 fn test_error_code_shutdown() {
-    assert_eq!(OxCacheError::ShutdownError("s".to_string()).code(), "OXCACHE_016");
+    assert_eq!(
+        OxCacheError::ShutdownError("s".to_string()).code(),
+        "OXCACHE_016"
+    );
 }
 
 #[test]
@@ -335,32 +382,50 @@ fn test_error_code_value_too_large() {
 
 #[test]
 fn test_error_code_buffer_full() {
-    assert_eq!(OxCacheError::BufferFull("b".to_string()).code(), "OXCACHE_019");
+    assert_eq!(
+        OxCacheError::BufferFull("b".to_string()).code(),
+        "OXCACHE_019"
+    );
 }
 
 #[test]
 fn test_error_code_invalid_input() {
-    assert_eq!(OxCacheError::InvalidInput("i".to_string()).code(), "OXCACHE_020");
+    assert_eq!(
+        OxCacheError::InvalidInput("i".to_string()).code(),
+        "OXCACHE_020"
+    );
 }
 
 #[test]
 fn test_error_code_invalid_key() {
-    assert_eq!(OxCacheError::InvalidKey("k".to_string()).code(), "OXCACHE_021");
+    assert_eq!(
+        OxCacheError::InvalidKey("k".to_string()).code(),
+        "OXCACHE_021"
+    );
 }
 
 #[test]
 fn test_error_code_lock_error() {
-    assert_eq!(OxCacheError::LockError("l".to_string()).code(), "OXCACHE_022");
+    assert_eq!(
+        OxCacheError::LockError("l".to_string()).code(),
+        "OXCACHE_022"
+    );
 }
 
 #[test]
 fn test_error_code_service_not_found() {
-    assert_eq!(OxCacheError::ServiceNotFound("s".to_string()).code(), "OXCACHE_023");
+    assert_eq!(
+        OxCacheError::ServiceNotFound("s".to_string()).code(),
+        "OXCACHE_023"
+    );
 }
 
 #[test]
 fn test_error_code_internal() {
-    assert_eq!(OxCacheError::Internal("i".to_string()).code(), "OXCACHE_024");
+    assert_eq!(
+        OxCacheError::Internal("i".to_string()).code(),
+        "OXCACHE_024"
+    );
 }
 
 // ============================================================================
@@ -382,7 +447,9 @@ fn test_is_recoverable_redis() {
     // RedisError is a connection error and should be recoverable
     #[cfg(feature = "redis")]
     {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("connection reset")));
+        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
+            "connection reset",
+        )));
         assert!(err.is_recoverable());
     }
 }
@@ -522,7 +589,10 @@ fn test_cache_config_error_is_std_error() {
 
 #[test]
 fn test_error_message_id_not_found() {
-    assert_eq!(OxCacheError::NotFound("k".to_string()).message_id(), "error.not_found");
+    assert_eq!(
+        OxCacheError::NotFound("k".to_string()).message_id(),
+        "error.not_found"
+    );
 }
 
 #[test]
@@ -543,12 +613,18 @@ fn test_error_message_id_serialization() {
 
 #[test]
 fn test_error_message_id_key_too_long() {
-    assert_eq!(OxCacheError::KeyTooLong(1, 2).message_id(), "error.key_too_long");
+    assert_eq!(
+        OxCacheError::KeyTooLong(1, 2).message_id(),
+        "error.key_too_long"
+    );
 }
 
 #[test]
 fn test_error_message_id_internal() {
-    assert_eq!(OxCacheError::Internal("i".to_string()).message_id(), "error.internal");
+    assert_eq!(
+        OxCacheError::Internal("i".to_string()).message_id(),
+        "error.internal"
+    );
 }
 
 // ============================================================================
@@ -653,14 +729,20 @@ fn test_localized_message_zh_key_too_long() {
 fn test_localized_message_zh_timeout() {
     let err = OxCacheError::Timeout("5秒".to_string());
     let msg = err.localized_message("zh-CN");
-    assert!(msg.contains("操作超时：5秒"), "zh localized message: got '{msg}'");
+    assert!(
+        msg.contains("操作超时：5秒"),
+        "zh localized message: got '{msg}'"
+    );
 }
 
 #[test]
 fn test_localized_message_zh_internal() {
     let err = OxCacheError::Internal("内部异常".to_string());
     let msg = err.localized_message("zh-CN");
-    assert!(msg.contains("内部错误：内部异常"), "zh localized message: got '{msg}'");
+    assert!(
+        msg.contains("内部错误：内部异常"),
+        "zh localized message: got '{msg}'"
+    );
 }
 
 // ============================================================================

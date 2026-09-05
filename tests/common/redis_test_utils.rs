@@ -62,7 +62,8 @@ pub async fn is_redis_available() -> bool {
 /// 创建 Redis 后端用于测试
 #[cfg(feature = "redis")]
 #[allow(dead_code)]
-pub async fn create_l2_backend_with_real_redis() -> Result<Arc<dyn oxcache::backend::CacheBackend>, String> {
+pub async fn create_l2_backend_with_real_redis()
+-> Result<Arc<dyn oxcache::backend::CacheBackend>, String> {
     let redis_url = get_redis_url();
     match RedisBackend::new(&redis_url).await {
         Ok(backend) => Ok(Arc::new(backend)),
@@ -80,7 +81,10 @@ pub async fn test_redis_connection() -> Result<(), String> {
     let backend = match create_l2_backend_with_real_redis().await {
         Ok(b) => b,
         Err(e) => {
-            println!("[TEST-SKIP] Cannot connect to Redis at {}: {}", redis_url, e);
+            println!(
+                "[TEST-SKIP] Cannot connect to Redis at {}: {}",
+                redis_url, e
+            );
             return Err(format!("Failed to create Redis connection: {}", e));
         }
     };
@@ -145,7 +149,12 @@ pub async fn is_redis_available_url(url: &str) -> bool {
         Err(_) => return false,
     };
 
-    match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
+    match tokio::time::timeout(
+        Duration::from_secs(2),
+        client.get_multiplexed_async_connection(),
+    )
+    .await
+    {
         Ok(Ok(_)) => true,
         Ok(Err(e)) => {
             // 任何连接错误（拒绝/超时/TLS）都视为不可达，避免 skip 守卫
@@ -195,7 +204,11 @@ pub async fn wait_for_redis_cluster(urls: &[&str]) -> bool {
             let nodes: Vec<String> = urls.iter().map(|s| s.to_string()).collect();
             match redis::cluster::ClusterClient::new(nodes) {
                 Ok(client) => match client.get_async_connection().await {
-                    Ok(mut conn) => match redis::cmd("CLUSTER").arg("INFO").query_async::<String>(&mut conn).await {
+                    Ok(mut conn) => match redis::cmd("CLUSTER")
+                        .arg("INFO")
+                        .query_async::<String>(&mut conn)
+                        .await
+                    {
                         Ok(info) => {
                             if info.contains("cluster_state:ok") {
                                 println!("Redis Cluster is ready.");
@@ -257,8 +270,10 @@ pub async fn wait_for_sentinel() -> bool {
             };
             if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
                 // SENTINEL masters returns Vec<Vec<String>> (array of flat key-value arrays)
-                let result: Result<Vec<Vec<String>>, _> =
-                    redis::cmd("SENTINEL").arg("masters").query_async(&mut conn).await;
+                let result: Result<Vec<Vec<String>>, _> = redis::cmd("SENTINEL")
+                    .arg("masters")
+                    .query_async(&mut conn)
+                    .await;
 
                 if let Ok(masters) = result {
                     // Each master is a flat [key, value, key, value, ...] list

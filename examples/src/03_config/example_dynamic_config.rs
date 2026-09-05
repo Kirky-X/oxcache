@@ -70,7 +70,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for key in &query_keys {
         if let Some(config) = cache.get(&key.to_string()).await? {
-            println!("   ✓ {} = {} (类型: {})", config.key, config.value, config.config_type);
+            println!(
+                "   ✓ {} = {} (类型: {})",
+                config.key, config.value, config.config_type
+            );
         } else {
             println!("   ✗ {} 未找到", key);
         }
@@ -100,7 +103,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   导出所有配置:");
     // 注意: Cache 结构体不支持直接迭代，需要手动跟踪已添加的键
     for config in &configs {
-        println!("     {} = {} ({})", config.key, config.value, config.config_type);
+        println!(
+            "     {} = {} ({})",
+            config.key, config.value, config.config_type
+        );
     }
     println!();
 

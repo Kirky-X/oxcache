@@ -23,7 +23,11 @@ async fn test_set_then_get() {
     let backend = make_backend().await;
     let key = unique_key("set_get");
     backend
-        .set(Arc::from(key.as_str()), Arc::new(b"hello world".to_vec()), None)
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"hello world".to_vec()),
+            None,
+        )
         .await
         .expect("set failed");
     let value = backend.get(&key).await.expect("get failed");

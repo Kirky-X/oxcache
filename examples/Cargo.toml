@@ -2,6 +2,7 @@
 name = "oxcache-examples"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 description = "Oxcache Examples - A collection of examples demonstrating how to use the oxcache two-level caching library"
 authors.workspace = true
 license.workspace = true
@@ -10,6 +11,9 @@ readme = "README.md"
 keywords = ["cache", "redis", "examples", "tutorial"]
 categories = ["caching", "asynchronous", "educational"]
 publish = false
+
+[lints]
+workspace = true
 
 [dependencies]
 # Path dependency to the main oxcache project

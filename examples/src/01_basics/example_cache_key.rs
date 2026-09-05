@@ -70,7 +70,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let usize_key: usize = 1000;
     let isize_key: isize = -500;
 
-    println!("  String: '{}' -> '{}'", string_key, string_key.to_key_string());
+    println!(
+        "  String: '{}' -> '{}'",
+        string_key,
+        string_key.to_key_string()
+    );
     println!("  &str: '{}' -> '{}'", str_key, str_key.to_key_string());
     println!("  u64: {} -> '{}'", u64_key, u64_key.to_key_string());
     println!("  i64: {} -> '{}'", i64_key, i64_key.to_key_string());
@@ -155,8 +159,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key_b = UserId(100).to_key_string();
     let key_c = UserId(200).to_key_string();
 
-    println!("  UserId(100) == UserId(100): {} (应该为 true)", key_a == key_b);
-    println!("  UserId(100) == UserId(200): {} (应该为 false)", key_a == key_c);
+    println!(
+        "  UserId(100) == UserId(100): {} (应该为 true)",
+        key_a == key_b
+    );
+    println!(
+        "  UserId(100) == UserId(200): {} (应该为 false)",
+        key_a == key_c
+    );
     println!(
         "  相同值产生相同键: {}",
         UserId(100).to_key_string() == UserId(100).to_key_string()

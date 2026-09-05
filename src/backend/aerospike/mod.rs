@@ -22,12 +22,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use aerospike::{
-    Bin, Bins, Client, ClientPolicy, Error as AsError, Expiration, Key, ReadPolicy, RecordExistsAction, ResultCode,
-    Value, WritePolicy,
+    Bin, Bins, Client, ClientPolicy, Error as AsError, Expiration, Key, ReadPolicy,
+    RecordExistsAction, ResultCode, Value, WritePolicy,
 };
 use async_trait::async_trait;
 
-use crate::backend::interface::{AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter};
+use crate::backend::interface::{
+    AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter,
+};
 use crate::backend::score::BackendScore;
 use crate::error::{OxCacheError, OxCacheResult};
 
@@ -117,7 +119,9 @@ impl AerospikeBackend {
     /// Build a WritePolicy with the given TTL.
     fn write_policy_with_ttl(&self, ttl: Option<Duration>) -> WritePolicy {
         let mut wp = self.write_policy.clone();
-        let ttl_secs = ttl.map(|d| d.as_secs() as u32).unwrap_or(self.config.default_ttl);
+        let ttl_secs = ttl
+            .map(|d| d.as_secs() as u32)
+            .unwrap_or(self.config.default_ttl);
         wp.expiration = if ttl_secs == 0 {
             Expiration::Never
         } else {
@@ -146,14 +150,21 @@ impl CacheReader for AerospikeBackend {
         match self.client.get(&self.read_policy, &as_key, Bins::All).await {
             Ok(record) => Ok(Self::extract_value(&record)),
             Err(e) if is_key_not_found(&e) => Ok(None),
-            Err(e) => Err(OxCacheError::BackendError(format!("Aerospike get failed: {}", e))),
+            Err(e) => Err(OxCacheError::BackendError(format!(
+                "Aerospike get failed: {}",
+                e
+            ))),
         }
     }
 
     async fn exists(&self, key: &str) -> OxCacheResult<bool> {
         let as_key = self.make_key(key)?;
         // Read header only (no bins) to check existence
-        match self.client.get(&self.read_policy, &as_key, Bins::None).await {
+        match self
+            .client
+            .get(&self.read_policy, &as_key, Bins::None)
+            .await
+        {
             Ok(_) => Ok(true),
             Err(e) if is_key_not_found(&e) => Ok(false),
             Err(e) => Err(OxCacheError::BackendError(format!(
@@ -165,10 +176,17 @@ impl CacheReader for AerospikeBackend {
 
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let as_key = self.make_key(key)?;
-        match self.client.get(&self.read_policy, &as_key, Bins::None).await {
+        match self
+            .client
+            .get(&self.read_policy, &as_key, Bins::None)
+            .await
+        {
             Ok(record) => Ok(record.time_to_live()),
             Err(e) if is_key_not_found(&e) => Ok(None),
-            Err(e) => Err(OxCacheError::BackendError(format!("Aerospike ttl check failed: {}", e))),
+            Err(e) => Err(OxCacheError::BackendError(format!(
+                "Aerospike ttl check failed: {}",
+                e
+            ))),
         }
     }
 
@@ -189,8 +207,14 @@ impl CacheReader for AerospikeBackend {
         stats.insert("backend_kind".to_string(), "aerospike".to_string());
         stats.insert("namespace".to_string(), self.config.namespace.clone());
         stats.insert("set_name".to_string(), self.config.set_name.clone());
-        stats.insert("connected".to_string(), self.client.is_connected().to_string());
-        stats.insert("nodes".to_string(), self.client.node_names().len().to_string());
+        stats.insert(
+            "connected".to_string(),
+            self.client.is_connected().to_string(),
+        );
+        stats.insert(
+            "nodes".to_string(),
+            self.client.node_names().len().to_string(),
+        );
         Ok(stats)
     }
 
@@ -203,10 +227,18 @@ impl CacheReader for AerospikeBackend {
 
 #[async_trait]
 impl CacheWriter for AerospikeBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let as_key = self.make_key(&key)?;
         let wp = self.write_policy_with_ttl(ttl);
-        let bins = [Bin::new(VALUE_BIN.to_string(), Value::Blob((*value).clone()))];
+        let bins = [Bin::new(
+            VALUE_BIN.to_string(),
+            Value::Blob((*value).clone()),
+        )];
 
         self.client
             .put(&wp, &as_key, &bins)
@@ -248,7 +280,10 @@ impl CacheWriter for AerospikeBackend {
         }
     }
 
-    async fn set_many(&self, items: &[(Arc<str>, Arc<Vec<u8>>, Option<Duration>)]) -> OxCacheResult<()> {
+    async fn set_many(
+        &self,
+        items: &[(Arc<str>, Arc<Vec<u8>>, Option<Duration>)],
+    ) -> OxCacheResult<()> {
         for (key, value, ttl) in items {
             self.set(key.clone(), value.clone(), *ttl).await?;
         }
@@ -265,7 +300,10 @@ impl CacheWriter for AerospikeBackend {
         if failures.is_empty() {
             Ok(())
         } else {
-            let details: Vec<String> = failures.iter().map(|(k, e)| format!("{}: {}", k, e)).collect();
+            let details: Vec<String> = failures
+                .iter()
+                .map(|(k, e)| format!("{}: {}", k, e))
+                .collect();
             Err(OxCacheError::Operation(format!(
                 "Aerospike delete_many: {}/{} keys failed: {}",
                 failures.len(),
@@ -443,7 +481,11 @@ mod tests {
 
         // set
         backend
-            .set(Arc::from(key.as_str()), Arc::new(b"aerospike_value".to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(b"aerospike_value".to_vec()),
+                None,
+            )
             .await
             .expect("set failed");
 
@@ -516,7 +558,10 @@ mod tests {
         let backend = make_backend().await;
         let key = unique_key("as_exp_ne");
 
-        let ok = backend.expire(&key, Duration::from_secs(50)).await.expect("expire ne");
+        let ok = backend
+            .expire(&key, Duration::from_secs(50))
+            .await
+            .expect("expire ne");
         assert!(!ok);
     }
 
@@ -553,7 +598,10 @@ mod tests {
         assert_eq!(values[0], Some(b"v1".to_vec()));
         assert_eq!(values[1], Some(b"v2".to_vec()));
 
-        backend.delete_many(&keys).await.expect("delete_many failed");
+        backend
+            .delete_many(&keys)
+            .await
+            .expect("delete_many failed");
 
         // Verify deleted
         let values = backend.get_many(&keys).await.expect("get_many after del");

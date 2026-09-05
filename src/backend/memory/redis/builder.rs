@@ -148,9 +148,9 @@ impl RedisBackendBuilder {
             ));
         }
 
-        let mut connection_string = self
-            .connection_string
-            .ok_or_else(|| OxCacheError::InvalidInput("Connection string is required".to_string()))?;
+        let mut connection_string = self.connection_string.ok_or_else(|| {
+            OxCacheError::InvalidInput("Connection string is required".to_string())
+        })?;
 
         // Append database index if specified
         if let Some(db) = self.database {
@@ -178,12 +178,16 @@ impl RedisBackendBuilder {
 
         let client = redis::Client::open(connection_string).map_err(map_redis_error)?;
 
-        let connection_result = tokio::time::timeout(self.connection_timeout, client.get_connection_manager()).await;
+        let connection_result =
+            tokio::time::timeout(self.connection_timeout, client.get_connection_manager()).await;
 
         let connection_manager = match connection_result {
             Ok(Ok(mgr)) => mgr,
             Ok(Err(e)) => {
-                return Err(OxCacheError::Connection(format!("Failed to connect to Redis: {}", e)));
+                return Err(OxCacheError::Connection(format!(
+                    "Failed to connect to Redis: {}",
+                    e
+                )));
             }
             Err(_) => {
                 return Err(OxCacheError::Connection(

@@ -145,7 +145,10 @@ async fn test_mock_backend_expire_returns_false() {
         .await
         .unwrap();
 
-    let result = backend.expire("key1", Duration::from_secs(60)).await.unwrap();
+    let result = backend
+        .expire("key1", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -264,9 +267,14 @@ fn test_mock_backend_backend_score_trait() {
 async fn test_mock_backend_cache_backend_trait() {
     let backend = MockBackend::new("cache_trait", 80, false);
 
-    CacheWriter::set(&backend, Arc::from("tkey"), Arc::new(b"tval".to_vec()), None)
-        .await
-        .unwrap();
+    CacheWriter::set(
+        &backend,
+        Arc::from("tkey"),
+        Arc::new(b"tval".to_vec()),
+        None,
+    )
+    .await
+    .unwrap();
     let val = CacheReader::get(&backend, "tkey").await.unwrap();
     assert_eq!(val, Some(b"tval".to_vec()));
 }

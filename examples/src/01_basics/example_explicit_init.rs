@@ -20,7 +20,10 @@ async fn main() {
     // Step 1: Check registry is not initialized
     println!("Step 1: Check registry status");
     println!("  is_initialized() = {}", registry::is_initialized());
-    assert!(!registry::is_initialized(), "Registry should not be initialized yet");
+    assert!(
+        !registry::is_initialized(),
+        "Registry should not be initialized yet"
+    );
 
     // Step 2: Create cache instances
     println!("\nStep 2: Create cache instances");
@@ -41,12 +44,19 @@ async fn main() {
     // Step 5: Use the default cache
     println!("\nStep 5: Use the default cache");
     default_cache
-        .set("key1".into(), b"value1".to_vec().into(), Some(Duration::from_secs(60)))
+        .set(
+            "key1".into(),
+            b"value1".to_vec().into(),
+            Some(Duration::from_secs(60)),
+        )
         .await
         .expect("set failed");
 
     let value = default_cache.get("key1").await.expect("get failed");
-    println!("  key1 = {:?}", value.as_deref().map(String::from_utf8_lossy));
+    println!(
+        "  key1 = {:?}",
+        value.as_deref().map(String::from_utf8_lossy)
+    );
 
     // Step 6: Use the users cache
     println!("\nStep 6: Use the users cache");
@@ -56,7 +66,10 @@ async fn main() {
         .expect("set failed");
 
     let user = user_cache.get("user:1").await.expect("get failed");
-    println!("  user:1 = {:?}", user.as_deref().map(String::from_utf8_lossy));
+    println!(
+        "  user:1 = {:?}",
+        user.as_deref().map(String::from_utf8_lossy)
+    );
 
     // Step 7: Retrieve cache from registry
     println!("\nStep 7: Retrieve cache from registry");

@@ -74,9 +74,9 @@ impl CacheReader for HashMapBackend {
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let data = self.data.lock().expect("lock poisoned");
         match data.get(key) {
-            Some(entry) if !entry.is_expired() => {
-                Ok(entry.expires_at.map(|t| t.saturating_duration_since(Instant::now())))
-            }
+            Some(entry) if !entry.is_expired() => Ok(entry
+                .expires_at
+                .map(|t| t.saturating_duration_since(Instant::now()))),
             _ => Ok(None),
         }
     }
@@ -104,7 +104,12 @@ impl CacheReader for HashMapBackend {
 
 #[async_trait]
 impl CacheWriter for HashMapBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
         let mut data = self.data.lock().expect("lock poisoned");
 
@@ -188,7 +193,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. 通过 CacheBuilder 注入自定义后端
     println!("\n--- 2. 通过 CacheBuilder 注入 ---");
-    let cache: Cache<String, Item> = Cache::builder().backend_arc(backend.clone()).build().await?;
+    let cache: Cache<String, Item> = Cache::builder()
+        .backend_arc(backend.clone())
+        .build()
+        .await?;
     println!("  ✓ Cache 使用自定义后端构建成功");
 
     // 3. 基本 CRUD 操作
@@ -227,7 +235,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let remaining = cache.ttl(&"temp".to_string()).await?;
     println!("  ✓ set_with_ttl 60s, 剩余 TTL: {:?}", remaining);
 
-    let expired = cache.expire(&"temp".to_string(), Duration::from_secs(120)).await?;
+    let expired = cache
+        .expire(&"temp".to_string(), Duration::from_secs(120))
+        .await?;
     println!("  ✓ expire 更新为 120s: {}", expired);
 
     // 5. 批量操作
@@ -268,10 +278,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 8. 容量限制演示
     println!("\n--- 8. 容量限制演示 ---");
     let small_backend = Arc::new(HashMapBackend::new(3));
-    let small_cache: Cache<String, String> = Cache::builder().backend_arc(small_backend).build().await?;
+    let small_cache: Cache<String, String> =
+        Cache::builder().backend_arc(small_backend).build().await?;
 
     for i in 0..3 {
-        small_cache.set(&format!("k{}", i), &format!("v{}", i)).await?;
+        small_cache
+            .set(&format!("k{}", i), &format!("v{}", i))
+            .await?;
     }
     println!("  ✓ 写入 3 条（容量=3）");
 

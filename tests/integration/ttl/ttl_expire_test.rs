@@ -94,7 +94,10 @@ async fn test_cache_expire_sets_ttl_on_existing_key() {
     assert_eq!(cache.ttl(&"k".to_string()).await.unwrap(), None);
 
     // expire 设置 TTL
-    let ok = cache.expire(&"k".to_string(), Duration::from_secs(30)).await.unwrap();
+    let ok = cache
+        .expire(&"k".to_string(), Duration::from_secs(30))
+        .await
+        .unwrap();
     assert!(ok, "expire should return true for existing key");
 
     // 验证 TTL 已设置
@@ -230,7 +233,9 @@ async fn test_cache_expire_sync_sets_ttl_on_existing_key() {
 
     assert_eq!(cache.ttl_sync(&"k".to_string()).unwrap(), None);
 
-    let ok = cache.expire_sync(&"k".to_string(), Duration::from_secs(30)).unwrap();
+    let ok = cache
+        .expire_sync(&"k".to_string(), Duration::from_secs(30))
+        .unwrap();
     assert!(ok);
 
     let ttl = cache.ttl_sync(&"k".to_string()).unwrap();

@@ -227,7 +227,10 @@ fn test_redact_field_sensitive() {
 #[test]
 fn test_redact_field_non_sensitive() {
     assert_eq!(redact_field("username", "john_doe"), "john_doe");
-    assert_eq!(redact_field("email", "user@example.com"), "user@example.com");
+    assert_eq!(
+        redact_field("email", "user@example.com"),
+        "user@example.com"
+    );
     assert_eq!(redact_field("name", "Alice"), "Alice");
 }
 

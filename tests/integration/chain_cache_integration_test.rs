@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT
 // 链式缓存集成测试
 
-use oxcache::backend::{BackendScore, CacheConnector, CacheReader, CacheWriter, MokaMemoryBackend, Scores};
+use oxcache::backend::{
+    BackendScore, CacheConnector, CacheReader, CacheWriter, MokaMemoryBackend, Scores,
+};
 use oxcache::cache::{ChainCache, ChainLink};
 use std::sync::Arc;
 use std::time::Duration;
@@ -82,7 +84,9 @@ async fn test_chain_cache_backfill() {
 async fn test_single_backend_chain() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka))
+        .build();
 
     assert_eq!(chain.links().len(), 1);
 
@@ -100,7 +104,9 @@ async fn test_chain_cache_ttl() {
         .ttl(Duration::from_secs(3600))
         .build();
 
-    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka))
+        .build();
 
     // 设置值，backend 使用自己的默认 TTL（3600秒）
     chain.set("key", b"value".to_vec(), None).await.unwrap();
@@ -115,7 +121,9 @@ async fn test_chain_cache_ttl() {
 async fn test_chain_cache_health_check() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka))
+        .build();
 
     // Moka 后端应该总是健康的
     chain.health_check().await.unwrap();
@@ -126,7 +134,9 @@ async fn test_chain_cache_health_check() {
 async fn test_chain_cache_stats() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka))
+        .build();
 
     let stats = chain.stats().await.unwrap();
     assert_eq!(stats.get("type"), Some(&"chain".to_string()));
@@ -138,11 +148,16 @@ async fn test_chain_cache_stats() {
 async fn test_chain_cache_clear() {
     let moka = MokaMemoryBackend::new();
 
-    let chain = ChainCache::builder().link(ChainLink::from_backend(moka)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(moka))
+        .build();
 
     // 设置多个值
     for i in 0..10 {
-        chain.set(&format!("key{}", i), b"value".to_vec(), None).await.unwrap();
+        chain
+            .set(&format!("key{}", i), b"value".to_vec(), None)
+            .await
+            .unwrap();
     }
 
     // 清理

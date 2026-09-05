@@ -20,7 +20,8 @@ fn get_sentinel_urls() -> Vec<String> {
 }
 
 fn get_master_url() -> String {
-    std::env::var("REDIS_SENTINEL_MASTER_URL").unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string())
+    std::env::var("REDIS_SENTINEL_MASTER_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string())
 }
 
 fn is_sentinel_available() -> bool {
@@ -269,7 +270,11 @@ async fn test_sentinel_stats() {
     };
 
     backend
-        .set(Arc::from("sentinel_stats_key"), Arc::new(b"stats_value".to_vec()), None)
+        .set(
+            Arc::from("sentinel_stats_key"),
+            Arc::new(b"stats_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -313,7 +318,11 @@ async fn test_sentinel_many_keys() {
         let key = format!("sentinel_many_{}", i);
         let value = format!("value_{}", i);
         backend
-            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(value.as_bytes().to_vec()),
+                None,
+            )
             .await
             .unwrap();
     }
@@ -366,7 +375,11 @@ async fn test_sentinel_large_value() {
     let large_value = vec![0u8; 1024 * 1024];
 
     backend
-        .set(Arc::from("sentinel_large_key"), Arc::new(large_value.clone()), None)
+        .set(
+            Arc::from("sentinel_large_key"),
+            Arc::new(large_value.clone()),
+            None,
+        )
         .await
         .unwrap();
     let retrieved = backend.get("sentinel_large_key").await.unwrap();
