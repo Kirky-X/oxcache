@@ -13,7 +13,9 @@ use std::time::Duration;
 #[ignore = "requires Redis server"]
 async fn test_set_empty_key_rejected() {
     let backend = make_backend().await;
-    let result = backend.set(Arc::from(""), Arc::new(b"v".to_vec()), None).await;
+    let result = backend
+        .set(Arc::from(""), Arc::new(b"v".to_vec()), None)
+        .await;
     assert!(result.is_err());
 }
 
@@ -52,7 +54,10 @@ async fn test_delete_removes_key() {
 async fn test_delete_nonexistent_is_ok() {
     let backend = make_backend().await;
     let key = unique_key("del_missing");
-    backend.delete(&key).await.expect("delete missing key should be ok");
+    backend
+        .delete(&key)
+        .await
+        .expect("delete missing key should be ok");
 }
 
 #[tokio::test]
@@ -129,7 +134,10 @@ async fn test_set_many_and_get_many() {
     assert_eq!(values[1], Some(b"v2".to_vec()));
     assert_eq!(values[2], Some(b"v3".to_vec()));
 
-    backend.delete_many(&keys).await.expect("delete_many failed");
+    backend
+        .delete_many(&keys)
+        .await
+        .expect("delete_many failed");
     for k in &keys {
         assert!(!backend.exists(k).await.unwrap());
     }
@@ -139,7 +147,10 @@ async fn test_set_many_and_get_many() {
 #[ignore = "requires Redis server"]
 async fn test_set_many_empty_is_ok() {
     let backend = make_backend().await;
-    backend.set_many(&[]).await.expect("set_many empty should be ok");
+    backend
+        .set_many(&[])
+        .await
+        .expect("set_many empty should be ok");
 }
 
 #[tokio::test]
@@ -154,7 +165,10 @@ async fn test_get_many_empty_returns_empty() {
 #[ignore = "requires Redis server"]
 async fn test_delete_many_empty_is_ok() {
     let backend = make_backend().await;
-    backend.delete_many(&[]).await.expect("delete_many empty should be ok");
+    backend
+        .delete_many(&[])
+        .await
+        .expect("delete_many empty should be ok");
 }
 
 #[tokio::test]
@@ -207,8 +221,16 @@ async fn test_set_many_with_ttl() {
 async fn test_set_many_with_invalid_key_rejected() {
     let backend = make_backend().await;
     let items = vec![
-        (Arc::from("valid_key".to_string()), Arc::new(b"v".to_vec()), None),
-        (Arc::from("bad;key".to_string()), Arc::new(b"v".to_vec()), None),
+        (
+            Arc::from("valid_key".to_string()),
+            Arc::new(b"v".to_vec()),
+            None,
+        ),
+        (
+            Arc::from("bad;key".to_string()),
+            Arc::new(b"v".to_vec()),
+            None,
+        ),
     ];
     let result = backend.set_many(&items).await;
     assert!(result.is_err());
@@ -378,7 +400,10 @@ async fn test_atomic_set_if_absent_success() {
     use crate::backend::AtomicCacheWriter;
     let backend = make_backend().await;
     let key = unique_key("setnx");
-    let ok = backend.set_if_absent(&key, b"v1".to_vec(), None).await.unwrap();
+    let ok = backend
+        .set_if_absent(&key, b"v1".to_vec(), None)
+        .await
+        .unwrap();
     assert!(ok);
     cleanup(&backend, &key).await;
 }
@@ -389,8 +414,14 @@ async fn test_atomic_set_if_absent_already_exists() {
     use crate::backend::AtomicCacheWriter;
     let backend = make_backend().await;
     let key = unique_key("setnxe");
-    backend.set_if_absent(&key, b"v1".to_vec(), None).await.unwrap();
-    let ok = backend.set_if_absent(&key, b"v2".to_vec(), None).await.unwrap();
+    backend
+        .set_if_absent(&key, b"v1".to_vec(), None)
+        .await
+        .unwrap();
+    let ok = backend
+        .set_if_absent(&key, b"v2".to_vec(), None)
+        .await
+        .unwrap();
     assert!(!ok);
     cleanup(&backend, &key).await;
 }

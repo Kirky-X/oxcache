@@ -120,9 +120,18 @@ mod tests {
     async fn test_get_many_basic() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-        cache.set(&"key1".to_string(), &"value1".to_string()).await.unwrap();
-        cache.set(&"key2".to_string(), &"value2".to_string()).await.unwrap();
-        cache.set(&"key3".to_string(), &"value3".to_string()).await.unwrap();
+        cache
+            .set(&"key1".to_string(), &"value1".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"key2".to_string(), &"value2".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"key3".to_string(), &"value3".to_string())
+            .await
+            .unwrap();
 
         let k1 = "key1".to_string();
         let k2 = "key2".to_string();
@@ -141,9 +150,18 @@ mod tests {
     async fn test_delete_many_basic() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-        cache.set(&"key1".to_string(), &"value1".to_string()).await.unwrap();
-        cache.set(&"key2".to_string(), &"value2".to_string()).await.unwrap();
-        cache.set(&"key3".to_string(), &"value3".to_string()).await.unwrap();
+        cache
+            .set(&"key1".to_string(), &"value1".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"key2".to_string(), &"value2".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"key3".to_string(), &"value3".to_string())
+            .await
+            .unwrap();
 
         let k1 = "key1".to_string();
         let k2 = "key2".to_string();

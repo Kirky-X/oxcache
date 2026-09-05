@@ -170,7 +170,10 @@ async fn test_dashmap_expire_sets_ttl() {
     let ttl_before = backend.ttl("key1").await.unwrap();
     assert!(ttl_before.is_none());
 
-    let result = backend.expire("key1", Duration::from_secs(30)).await.unwrap();
+    let result = backend
+        .expire("key1", Duration::from_secs(30))
+        .await
+        .unwrap();
     assert!(result);
 
     let ttl_after = backend.ttl("key1").await.unwrap();
@@ -180,7 +183,10 @@ async fn test_dashmap_expire_sets_ttl() {
 #[tokio::test]
 async fn test_dashmap_expire_nonexistent_returns_false() {
     let backend = DashMapMemoryBackend::new();
-    let result = backend.expire("nonexistent", Duration::from_secs(30)).await.unwrap();
+    let result = backend
+        .expire("nonexistent", Duration::from_secs(30))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -345,7 +351,11 @@ async fn test_dashmap_many_keys_handles_100() {
         let key = format!("key_{}", i);
         let value = format!("value_{}", i);
         backend
-            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(value.as_bytes().to_vec()),
+                None,
+            )
             .await
             .unwrap();
     }
@@ -376,9 +386,11 @@ async fn test_dashmap_ttl_expiration_evicts_after_ttl() {
     assert!(backend.get("key1").await.unwrap().is_some());
 
     assert!(
-        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_none()
-        })
+        poll_until(
+            Duration::from_millis(500),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_none() }
+        )
         .await
     );
 }
@@ -397,9 +409,11 @@ async fn test_dashmap_default_ttl_evicts_after_default() {
     assert!(backend.get("key1").await.unwrap().is_some());
 
     assert!(
-        poll_until(Duration::from_millis(500), Duration::from_millis(10), || async {
-            backend.get("key1").await.unwrap().is_none()
-        })
+        poll_until(
+            Duration::from_millis(500),
+            Duration::from_millis(10),
+            || async { backend.get("key1").await.unwrap().is_none() }
+        )
         .await
     );
 }

@@ -44,14 +44,20 @@ pub enum BackendKind {
 impl BackendKind {
     /// Returns true if this is an in-memory cache (L1)
     pub fn is_memory(&self) -> bool {
-        matches!(self, BackendKind::Moka | BackendKind::DashMap | BackendKind::Mock)
+        matches!(
+            self,
+            BackendKind::Moka | BackendKind::DashMap | BackendKind::Mock
+        )
     }
 
     /// Returns true if this is a distributed cache (L2)
     pub fn is_distributed(&self) -> bool {
         matches!(
             self,
-            BackendKind::Redis | BackendKind::Valkey | BackendKind::Dragonfly | BackendKind::Aerospike
+            BackendKind::Redis
+                | BackendKind::Valkey
+                | BackendKind::Dragonfly
+                | BackendKind::Aerospike
         )
     }
 
@@ -195,7 +201,12 @@ pub trait CacheWriter: Send + Sync + 'static {
     /// chains can forward the same allocation without per-backend copies
     /// (optimization 2.2 / 2.3). Convert owned `String`/`Vec<u8>` via
     /// [`Arc::from`] / [`Arc::new`] — both are cheap.
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()>;
 
     /// Delete a value from the cache.
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
@@ -281,8 +292,18 @@ pub trait CacheConnector: Send + Sync + 'static {
 #[cfg(feature = "lua")]
 #[async_trait]
 pub trait LuaExecutor: Send + Sync {
-    async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
-    async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value>;
+    async fn eval_lua(
+        &self,
+        script: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> OxCacheResult<redis::Value>;
+    async fn eval_sha(
+        &self,
+        sha: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> OxCacheResult<redis::Value>;
     async fn script_load(&self, script: &str) -> OxCacheResult<String>;
 }
 
@@ -326,7 +347,12 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
     /// Atomically set a key only if it does not already exist.
     ///
     /// Returns `true` if the key was set, `false` if it already existed.
-    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
 }
 
 // ============================================================================
@@ -512,7 +538,10 @@ pub trait SyncCacheConnector: Send + Sync + 'static {
 /// async and sync hierarchies are intentionally separate so that a backend
 /// can support one without the other (e.g., a future TCP-only backend may
 /// only support async).
-pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static {}
+pub trait SyncCacheBackend:
+    SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static
+{
+}
 
 impl<T: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static> SyncCacheBackend for T {}
 
@@ -538,7 +567,12 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
     ) -> OxCacheResult<bool>;
 
     /// Atomically set if absent (sync).
-    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool>;
 }
 
 #[cfg(test)]
@@ -841,10 +875,10 @@ mod tests {
         fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
             let data = self.data.read().unwrap();
             if let Some((value, expires_at)) = data.get(key) {
-                if let Some(deadline) = expires_at {
-                    if *deadline <= Instant::now() {
-                        return Ok(None);
-                    }
+                if let Some(deadline) = expires_at
+                    && *deadline <= Instant::now()
+                {
+                    return Ok(None);
                 }
                 return Ok(Some(value.clone()));
             }
@@ -880,7 +914,12 @@ mod tests {
     }
 
     impl SyncCacheWriter for MockSyncBackend {
-        fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        fn set(
+            &self,
+            key: Arc<str>,
+            value: Arc<Vec<u8>>,
+            ttl: Option<Duration>,
+        ) -> OxCacheResult<()> {
             let expires_at = ttl.map(|d| Instant::now() + d);
             self.data
                 .write()
@@ -955,7 +994,9 @@ mod tests {
         // 空缓存
         assert!(reader.is_empty().unwrap());
         // 添加数据后
-        backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).unwrap();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .unwrap();
         assert!(!reader.is_empty().unwrap());
     }
 
@@ -976,7 +1017,9 @@ mod tests {
         assert_eq!(backend.len().unwrap(), 3);
 
         // delete_many 默认实现
-        writer.delete_many(&["k1".to_string(), "k2".to_string()]).unwrap();
+        writer
+            .delete_many(&["k1".to_string(), "k2".to_string()])
+            .unwrap();
         assert!(!backend.exists("k1").unwrap());
         assert!(!backend.exists("k2").unwrap());
         assert!(backend.exists("k3").unwrap());
@@ -985,8 +1028,12 @@ mod tests {
     #[test]
     fn test_sync_reader_default_get_many_loops_get() {
         let backend = MockSyncBackend::new(50);
-        backend.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).unwrap();
-        backend.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).unwrap();
+        backend
+            .set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+            .unwrap();
+        backend
+            .set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None)
+            .unwrap();
 
         let reader: &dyn SyncCacheReader = &backend;
         let keys = vec!["k1".to_string(), "k2".to_string(), "k3".to_string()];
@@ -1001,7 +1048,11 @@ mod tests {
     fn test_sync_backend_ttl_and_expire() {
         let backend = MockSyncBackend::new(50);
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
             .unwrap();
 
         // ttl 返回剩余时间

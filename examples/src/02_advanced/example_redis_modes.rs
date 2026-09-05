@@ -21,7 +21,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 1. Standalone 模式（最常用）
     println!("--- 1. Standalone 模式 ---");
-    let standalone_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let standalone_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     println!("  连接: {}", standalone_url);
 
     let standalone = RedisBackend::new(&standalone_url).await?;
@@ -61,7 +62,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Cluster 下的基本操作
                 cluster
-                    .set("mode:cluster".into(), b"cluster_value".to_vec().into(), None)
+                    .set(
+                        "mode:cluster".into(),
+                        b"cluster_value".to_vec().into(),
+                        None,
+                    )
                     .await?;
                 let value = cluster.get("mode:cluster").await?;
                 println!(
@@ -76,7 +81,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         println!("  ⚠ REDIS_CLUSTER_AVAILABLE 未设置，跳过 Cluster 测试");
-        println!("    启动 Cluster: cd tests/real_env && docker compose -f docker-compose.cluster.yml up -d");
+        println!(
+            "    启动 Cluster: cd tests/real_env && docker compose -f docker-compose.cluster.yml up -d"
+        );
     }
 
     // 4. Sentinel 模式（需要 Redis Sentinel 运行）
@@ -93,7 +100,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Sentinel 下的基本操作
                 sentinel
-                    .set("mode:sentinel".into(), b"sentinel_value".to_vec().into(), None)
+                    .set(
+                        "mode:sentinel".into(),
+                        b"sentinel_value".to_vec().into(),
+                        None,
+                    )
                     .await?;
                 let value = sentinel.get("mode:sentinel").await?;
                 println!(
@@ -108,12 +119,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         println!("  ⚠ REDIS_SENTINEL_AVAILABLE 未设置，跳过 Sentinel 测试");
-        println!("    启动 Sentinel: cd tests/real_env && docker compose -f docker-compose.sentinel.yml up -d");
+        println!(
+            "    启动 Sentinel: cd tests/real_env && docker compose -f docker-compose.sentinel.yml up -d"
+        );
     }
 
     // 5. RedisModeType 枚举展示
     println!("\n--- 5. RedisModeType 枚举 ---");
-    let modes = [RedisMode::Standalone, RedisMode::Sentinel, RedisMode::Cluster];
+    let modes = [
+        RedisMode::Standalone,
+        RedisMode::Sentinel,
+        RedisMode::Cluster,
+    ];
     for mode in &modes {
         println!("  模式: {} (Display: {})", mode, mode);
     }

@@ -37,9 +37,18 @@ mod security_tests {
         let conn_str = "redis://:secret_password@localhost:6379/0";
         let redacted = RedisBackend::redact_connection_string(conn_str);
 
-        assert!(!redacted.contains("secret_password"), "Password should be redacted");
-        assert!(redacted.contains("[REDACTED]"), "Should contain REDACTED marker");
-        assert!(redacted.contains("localhost:6379"), "Host should be visible");
+        assert!(
+            !redacted.contains("secret_password"),
+            "Password should be redacted"
+        );
+        assert!(
+            redacted.contains("[REDACTED]"),
+            "Should contain REDACTED marker"
+        );
+        assert!(
+            redacted.contains("localhost:6379"),
+            "Host should be visible"
+        );
     }
 
     #[test]
@@ -47,9 +56,18 @@ mod security_tests {
         let conn_str = "redis://user:mypassword@redis.example.com:6379/1";
         let redacted = RedisBackend::redact_connection_string(conn_str);
 
-        assert!(!redacted.contains("mypassword"), "Password should be redacted");
-        assert!(redacted.contains("[REDACTED]"), "Should contain REDACTED marker");
-        assert!(redacted.contains("redis.example.com:6379"), "Host should be visible");
+        assert!(
+            !redacted.contains("mypassword"),
+            "Password should be redacted"
+        );
+        assert!(
+            redacted.contains("[REDACTED]"),
+            "Should contain REDACTED marker"
+        );
+        assert!(
+            redacted.contains("redis.example.com:6379"),
+            "Host should be visible"
+        );
     }
 
     #[test]

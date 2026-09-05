@@ -1,11 +1,8 @@
-# Pre-commit hooks for Oxcache Rust Project
-# Install: pip install pre-commit && pre-commit install
-# Docs: https://pre-commit.com/
-
+# pre-commit 配置 — 7 仓库统一基线(见 base/CONFIG_BASELINE.md)
+# 安装: pip install pre-commit && pre-commit install --install-hooks
 repos:
-  # 1. Basic file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
@@ -18,47 +15,43 @@ repos:
       - id: check-merge-conflict
         args: ['--assume-in-merge']
       - id: no-commit-to-branch
-        args: ['--branch', 'master']
-        # Only protect master branch, allow main for development
-      - id: mixed-line-ending
-        args: ['--fix=lf']
+        args: ['--branch', 'main', '--branch', 'master']
 
-  # 2. Detect secrets
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: [--exclude-files, tests/, --exclude-files, docs/, --exclude-files, src/security/redaction.rs, --exclude-files, src/security/log.rs]
+        args: [--exclude-files, tests/, --exclude-files, examples/]
         exclude: '^Cargo\.lock$'
 
-  # 3. Rust formatting and checks
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.28.0
+    hooks:
+      - id: typos
+
   - repo: local
     hooks:
       - id: cargo-fmt
         name: Format Rust code
-        description: Check Rust formatting with rustfmt
-        entry: rustfmt --check
+        description: Run rustfmt on Rust files
+        entry: cargo fmt --all -- --check
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [pre-push]
 
       - id: cargo-check
         name: cargo check
-        entry: cargo check --lib
+        entry: cargo check --all-features
         language: system
         types: [rust]
         pass_filenames: false
-        stages: [pre-push]
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --lib
+        entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
-        args: ['--', '-D', 'warnings']
-        stages: [pre-push]
 
 ci:
   autoupdate_commit_msg: "chore: update pre-commit hooks"

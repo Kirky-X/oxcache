@@ -145,7 +145,9 @@ async fn main() -> OxCacheResult<()> {
     ];
 
     for product in &products {
-        cache.set(&format!("product:{}", product.id), product).await?;
+        cache
+            .set(&format!("product:{}", product.id), product)
+            .await?;
     }
     println!("   ✓ 批量添加成功 ({} 个商品)", products.len());
 
@@ -203,7 +205,10 @@ async fn main() -> OxCacheResult<()> {
         let cache = cache.clone();
         let handle = tokio::spawn(async move {
             for j in 0..100 {
-                cache.set(&format!("key:{}:{}", i, j), &(i * 100 + j)).await.unwrap();
+                cache
+                    .set(&format!("key:{}:{}", i, j), &(i * 100 + j))
+                    .await
+                    .unwrap();
             }
         });
         handles.push(handle);

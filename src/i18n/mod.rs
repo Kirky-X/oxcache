@@ -164,8 +164,12 @@ impl I18nError {
     /// Render a locale-aware error message.
     pub fn localized_message(&self, locale: &str) -> String {
         let params: Vec<(&str, String)> = match self {
-            I18nError::InvalidLocale { input, reason } => vec![("input", input.clone()), ("reason", reason.clone())],
-            I18nError::InvalidNumber { input, reason } => vec![("input", input.clone()), ("reason", reason.clone())],
+            I18nError::InvalidLocale { input, reason } => {
+                vec![("input", input.clone()), ("reason", reason.clone())]
+            }
+            I18nError::InvalidNumber { input, reason } => {
+                vec![("input", input.clone()), ("reason", reason.clone())]
+            }
             I18nError::DateError(d) => vec![("detail", d.clone())],
             I18nError::FormatError(d) => vec![("detail", d.clone())],
         };
@@ -214,7 +218,11 @@ impl CacheI18nFormatter {
     /// let msg = fmt.format_message("error.not_found", &[("detail", "user:42")])?;
     /// assert_eq!(msg, "键未找到：user:42。请求的键在缓存中不存在。");
     /// ```
-    pub fn format_message(&self, message_id: &str, params: &[(&str, &str)]) -> Result<String, I18nError> {
+    pub fn format_message(
+        &self,
+        message_id: &str,
+        params: &[(&str, &str)],
+    ) -> Result<String, I18nError> {
         let template = messages::lookup(&self.locale_tag, message_id).unwrap_or(message_id);
         Ok(messages::format_template(template, params))
     }
@@ -296,7 +304,10 @@ mod tests {
             key.starts_with("user:"),
             "cache key should start with namespace: got '{key}'"
         );
-        assert!(key.contains('1'), "cache key should contain the count: got '{key}'");
+        assert!(
+            key.contains('1'),
+            "cache key should contain the count: got '{key}'"
+        );
     }
 
     #[test]
@@ -323,8 +334,14 @@ mod tests {
     fn test_format_expiry() {
         let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
         let result = fmt.format_expiry(2026, 7, 11).expect("format expiry");
-        assert!(result.contains("2026"), "expiry should contain year: got '{result}'");
-        assert!(!result.is_empty(), "expiry should be non-empty: got '{result}'");
+        assert!(
+            result.contains("2026"),
+            "expiry should contain year: got '{result}'"
+        );
+        assert!(
+            !result.is_empty(),
+            "expiry should be non-empty: got '{result}'"
+        );
     }
 
     // ========================================================================
@@ -359,7 +376,10 @@ mod tests {
     fn test_format_message_en_key_too_long() {
         let fmt = CacheI18nFormatter::new("en").expect("en locale");
         let msg = fmt
-            .format_message(messages::MSG_ERR_KEY_TOO_LONG, &[("actual", "600"), ("max", "512")])
+            .format_message(
+                messages::MSG_ERR_KEY_TOO_LONG,
+                &[("actual", "600"), ("max", "512")],
+            )
             .expect("format message");
         assert!(
             msg.contains("600") && msg.contains("512"),
@@ -371,7 +391,10 @@ mod tests {
     fn test_format_message_zh_key_too_long() {
         let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
         let msg = fmt
-            .format_message(messages::MSG_ERR_KEY_TOO_LONG, &[("actual", "600"), ("max", "512")])
+            .format_message(
+                messages::MSG_ERR_KEY_TOO_LONG,
+                &[("actual", "600"), ("max", "512")],
+            )
             .expect("format message");
         assert!(
             msg.contains("键过长") && msg.contains("600") && msg.contains("512"),
@@ -382,7 +405,9 @@ mod tests {
     #[test]
     fn test_format_message_unknown_id_returns_id() {
         let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        let msg = fmt.format_message("unknown.message.id", &[]).expect("format message");
+        let msg = fmt
+            .format_message("unknown.message.id", &[])
+            .expect("format message");
         assert_eq!(msg, "unknown.message.id", "unknown ID should return raw ID");
     }
 
@@ -410,7 +435,10 @@ mod tests {
 
     #[test]
     fn test_template_substitution() {
-        let result = messages::format_template("Hello {name}, age {age}", &[("name", "Alice"), ("age", "30")]);
+        let result = messages::format_template(
+            "Hello {name}, age {age}",
+            &[("name", "Alice"), ("age", "30")],
+        );
         assert_eq!(result, "Hello Alice, age 30");
     }
 
@@ -469,7 +497,10 @@ mod tests {
         set_default_locale("zh-CN");
         let err = I18nError::DateError("月份超出范围".to_string());
         let s = err.to_string();
-        assert!(s.contains("日期错误：月份超出范围"), "zh I18nError Display: got '{s}'");
+        assert!(
+            s.contains("日期错误：月份超出范围"),
+            "zh I18nError Display: got '{s}'"
+        );
         set_default_locale("en");
     }
 
@@ -628,7 +659,10 @@ mod tests {
         }
 
         let locale = detect_system_locale();
-        assert_eq!(locale, "en", "unsupported locale (ja) should fall back to en");
+        assert_eq!(
+            locale, "en",
+            "unsupported locale (ja) should fall back to en"
+        );
 
         unsafe {
             std::env::remove_var("LANG");
@@ -660,7 +694,10 @@ mod tests {
         }
 
         let locale = detect_system_locale();
-        assert_eq!(locale, "zh-CN", "LC_ALL should take priority: got '{locale}'");
+        assert_eq!(
+            locale, "zh-CN",
+            "LC_ALL should take priority: got '{locale}'"
+        );
 
         // Restore
         unsafe {

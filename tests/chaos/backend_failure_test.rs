@@ -79,7 +79,9 @@ impl oxcache::backend::CacheReader for FailingBackend {
             "failing backend: capacity unavailable".to_string(),
         ))
     }
-    async fn stats(&self) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
+    async fn stats(
+        &self,
+    ) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
         Err(oxcache::OxCacheError::Connection(
             "failing backend: stats unavailable".to_string(),
         ))
@@ -140,7 +142,10 @@ async fn p0_d007_all_backends_fail_returns_operation_error() {
     let result = chain.set("key", b"value".to_vec(), None).await;
     match result {
         Err(oxcache::OxCacheError::Operation(msg)) => {
-            assert!(msg.contains("All backends failed"), "unexpected message: {msg}");
+            assert!(
+                msg.contains("All backends failed"),
+                "unexpected message: {msg}"
+            );
         }
         other => panic!("expected OxCacheError::Operation, got {other:?}"),
     }
@@ -167,7 +172,10 @@ async fn p1_d001_l2_unavailable_l1_continues_serving() {
         .build();
 
     // get traverses high → low; L1 hit means L2 is never touched.
-    let val = chain.get("hot_key").await.expect("chain get must succeed from L1");
+    let val = chain
+        .get("hot_key")
+        .await
+        .expect("chain get must succeed from L1");
     assert_eq!(val, Some(b"hot_value".to_vec()));
 }
 
@@ -181,9 +189,13 @@ async fn p1_n004_partition_l1_hit_l2_fail_no_backfill_stale() {
     let l1 = MokaMemoryBackend::new();
     let l2 = FailingBackend::new(40);
 
-    l1.set(Arc::from("partition_key"), Arc::new(b"l1_data".to_vec()), None)
-        .await
-        .expect("l1 set");
+    l1.set(
+        Arc::from("partition_key"),
+        Arc::new(b"l1_data".to_vec()),
+        None,
+    )
+    .await
+    .expect("l1 set");
 
     let chain = ChainCache::builder()
         .link(ChainLink::from_backend(l1))
@@ -215,5 +227,8 @@ async fn d007_partial_backend_failure_chain_succeeds() {
 
     // set: one backend fails, one succeeds → overall Ok.
     let result = chain.set("partial", b"v".to_vec(), None).await;
-    assert!(result.is_ok(), "partial failure should not fail the chain: {result:?}");
+    assert!(
+        result.is_ok(),
+        "partial failure should not fail the chain: {result:?}"
+    );
 }

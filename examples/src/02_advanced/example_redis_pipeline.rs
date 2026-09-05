@@ -21,7 +21,8 @@ use std::time::{Duration, Instant};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Redis Pipeline 批量操作示例 ===\n");
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     println!("连接 Redis: {}", redis_url);
 
     let backend = RedisBackend::new(&redis_url).await?;
@@ -31,12 +32,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("--- 1. 批量设置（set_many_pipeline） ---");
     // 先收集 String，再借用为 &str
     let owned_items: Vec<(String, Vec<u8>)> = (0..10)
-        .map(|i| (format!("pipeline:key:{}", i), format!("value_{}", i).into_bytes()))
+        .map(|i| {
+            (
+                format!("pipeline:key:{}", i),
+                format!("value_{}", i).into_bytes(),
+            )
+        })
         .collect();
-    let items: Vec<(&str, Vec<u8>)> = owned_items.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let items: Vec<(&str, Vec<u8>)> = owned_items
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
 
     let start = Instant::now();
-    backend.set_many_pipeline(&items, Some(Duration::from_secs(60))).await?;
+    backend
+        .set_many_pipeline(&items, Some(Duration::from_secs(60)))
+        .await?;
     let elapsed = start.elapsed();
     println!("  批量设置 {} 个键，耗时: {:?}", items.len(), elapsed);
 
@@ -72,9 +83,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Pipeline 设置
     let owned_perf: Vec<(String, Vec<u8>)> = (0..10)
-        .map(|i| (format!("pipeline:perf:{}", i), format!("value_{}", i).into_bytes()))
+        .map(|i| {
+            (
+                format!("pipeline:perf:{}", i),
+                format!("value_{}", i).into_bytes(),
+            )
+        })
         .collect();
-    let perf_items: Vec<(&str, Vec<u8>)> = owned_perf.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    let perf_items: Vec<(&str, Vec<u8>)> = owned_perf
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
 
     let start = Instant::now();
     backend.set_many_pipeline(&perf_items, None).await?;

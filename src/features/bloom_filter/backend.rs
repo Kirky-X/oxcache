@@ -21,8 +21,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use crate::backend::{
-    BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
-    SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
+    BackendKind, BackendScore, CacheBackend, CacheConnector, CacheReader, CacheWriter,
+    SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
 };
 use crate::error::{OxCacheError, OxCacheResult};
 
@@ -106,7 +106,9 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
     /// Build the decorator. Returns `Err` if no inner backend was set.
     pub fn build(self) -> OxCacheResult<BloomFilterBackend<B>> {
         let inner = self.inner.ok_or_else(|| {
-            OxCacheError::InvalidInput("inner backend is required for BloomFilterBackend".to_string())
+            OxCacheError::InvalidInput(
+                "inner backend is required for BloomFilterBackend".to_string(),
+            )
         })?;
         Ok(BloomFilterBackend {
             inner,
@@ -156,20 +158,34 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
 
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = self.inner.stats().await?;
-        stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
-        stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
+        stats.insert(
+            "bloom_capacity".to_string(),
+            self.bloom.capacity().to_string(),
+        );
+        stats.insert(
+            "bloom_load_factor".to_string(),
+            self.bloom.load_factor().to_string(),
+        );
         stats.insert(
             "bloom_false_positive_rate".to_string(),
             self.bloom.false_positive_rate().to_string(),
         );
-        stats.insert("bloom_estimated_count".to_string(), self.bloom.len().to_string());
+        stats.insert(
+            "bloom_estimated_count".to_string(),
+            self.bloom.len().to_string(),
+        );
         Ok(stats)
     }
 }
 
 #[async_trait]
 impl<B: CacheBackend> CacheWriter for BloomFilterBackend<B> {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         // Delegate to inner first; only update BF on success to avoid
         // permanent false positives if the inner set fails.
         self.inner.set(key.clone(), value, ttl).await?;
@@ -270,13 +286,22 @@ impl<B: CacheBackend + SyncCacheBackend> SyncCacheReader for BloomFilterBackend<
 
     fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = SyncCacheReader::stats(&self.inner)?;
-        stats.insert("bloom_capacity".to_string(), self.bloom.capacity().to_string());
-        stats.insert("bloom_load_factor".to_string(), self.bloom.load_factor().to_string());
+        stats.insert(
+            "bloom_capacity".to_string(),
+            self.bloom.capacity().to_string(),
+        );
+        stats.insert(
+            "bloom_load_factor".to_string(),
+            self.bloom.load_factor().to_string(),
+        );
         stats.insert(
             "bloom_false_positive_rate".to_string(),
             self.bloom.false_positive_rate().to_string(),
         );
-        stats.insert("bloom_estimated_count".to_string(), self.bloom.len().to_string());
+        stats.insert(
+            "bloom_estimated_count".to_string(),
+            self.bloom.len().to_string(),
+        );
         Ok(stats)
     }
 }
@@ -411,7 +436,12 @@ mod tests {
 
     #[async_trait]
     impl CacheWriter for SpyMock {
-        async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        async fn set(
+            &self,
+            key: Arc<str>,
+            value: Arc<Vec<u8>>,
+            ttl: Option<Duration>,
+        ) -> OxCacheResult<()> {
             self.log
                 .lock()
                 .unwrap()
@@ -437,7 +467,11 @@ mod tests {
         }
 
         async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
-            self.log.lock().unwrap().expire_calls.push((key.to_string(), ttl));
+            self.log
+                .lock()
+                .unwrap()
+                .expire_calls
+                .push((key.to_string(), ttl));
             let mut data = self.data.lock().unwrap();
             if let Some(entry) = data.get_mut(key) {
                 entry.1 = Some(ttl);
@@ -476,7 +510,10 @@ mod tests {
         let result = backend.get("never_inserted").await.unwrap();
         assert!(result.is_none());
         let log = log.lock().unwrap();
-        assert!(log.get_calls.is_empty(), "inner.get should not be called on BF miss");
+        assert!(
+            log.get_calls.is_empty(),
+            "inner.get should not be called on BF miss"
+        );
     }
 
     #[tokio::test]
@@ -692,7 +729,12 @@ mod tests {
 
         #[async_trait]
         impl CacheWriter for MockSyncInner {
-            async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+            async fn set(
+                &self,
+                key: Arc<str>,
+                value: Arc<Vec<u8>>,
+                ttl: Option<Duration>,
+            ) -> OxCacheResult<()> {
                 SyncCacheWriter::set(self, key, value, ttl)
             }
             async fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -751,7 +793,12 @@ mod tests {
         }
 
         impl SyncCacheWriter for MockSyncInner {
-            fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+            fn set(
+                &self,
+                key: Arc<str>,
+                value: Arc<Vec<u8>>,
+                ttl: Option<Duration>,
+            ) -> OxCacheResult<()> {
                 self.log
                     .lock()
                     .unwrap()
@@ -807,7 +854,10 @@ mod tests {
             let result = SyncCacheReader::get(&backend, "never_inserted").unwrap();
             assert!(result.is_none());
             let log = log.lock().unwrap();
-            assert!(log.get_calls.is_empty(), "inner.get should not be called on BF miss");
+            assert!(
+                log.get_calls.is_empty(),
+                "inner.get should not be called on BF miss"
+            );
         }
 
         #[test]
@@ -830,7 +880,8 @@ mod tests {
             let log = inner.log_handle();
             let backend = BloomFilterBackend::new(inner);
             let ttl = Duration::from_secs(60);
-            SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl)).unwrap();
+            SyncCacheWriter::set(&backend, Arc::from("k"), Arc::new(b"v".to_vec()), Some(ttl))
+                .unwrap();
             let log = log.lock().unwrap();
             assert_eq!(log.set_calls.len(), 1);
             assert_eq!(log.set_calls[0].2, Some(ttl));

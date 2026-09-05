@@ -107,10 +107,10 @@ impl DashMapMemoryBackend {
                         return true;
                     }
                     // 即使 seq 不匹配，过期条目也应淘汰
-                    if let Some(exp) = entry.expires_at {
-                        if exp <= now {
-                            return true;
-                        }
+                    if let Some(exp) = entry.expires_at
+                        && exp <= now
+                    {
+                        return true;
                     }
                     false
                 })
@@ -152,7 +152,11 @@ impl DashMapMemoryBackend {
         let misses = self.misses.load(Ordering::Relaxed);
         let total = hits + misses;
 
-        if total == 0 { 0.0 } else { hits as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            hits as f64 / total as f64
+        }
     }
 }
 
@@ -181,10 +185,10 @@ impl CacheReader for DashMapMemoryBackend {
         let found = self.cache.get(key).map(|entry_ref| {
             let entry = entry_ref.value();
             // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at <= now {
-                    return None; // expired
-                }
+            if let Some(expires_at) = entry.expires_at
+                && expires_at <= now
+            {
+                return None; // expired
             }
             Some((*entry.value).clone())
         });
@@ -207,13 +211,14 @@ impl CacheReader for DashMapMemoryBackend {
 
         if let Some(entry_ref) = self.cache.get(key) {
             let entry = entry_ref.value();
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at <= now {
-                    drop(entry_ref); // 释放 Ref 后再原子删除
-                    self.cache
-                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
-                    return Ok(false);
-                }
+            if let Some(expires_at) = entry.expires_at
+                && expires_at <= now
+            {
+                drop(entry_ref); // 释放 Ref 后再原子删除
+                self.cache.remove_if(key, |_, entry| {
+                    entry.expires_at.is_some_and(|exp| exp <= now)
+                });
+                return Ok(false);
             }
             Ok(true)
         } else {
@@ -231,8 +236,9 @@ impl CacheReader for DashMapMemoryBackend {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
                     drop(entry_ref); // 释放 Ref 后再原子删除过期条目
-                    self.cache
-                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.is_some_and(|exp| exp <= now)
+                    });
                     return Ok(None);
                 }
             }
@@ -259,8 +265,14 @@ impl CacheReader for DashMapMemoryBackend {
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert("entry_count".to_string(), self.cache.len().to_string());
-        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
-        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
+        stats.insert(
+            "hits".to_string(),
+            self.hits.load(Ordering::Relaxed).to_string(),
+        );
+        stats.insert(
+            "misses".to_string(),
+            self.misses.load(Ordering::Relaxed).to_string(),
+        );
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
     }
@@ -268,12 +280,21 @@ impl CacheReader for DashMapMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for DashMapMemoryBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
 
-        let entry = CacheEntry { value, expires_at, seq };
+        let entry = CacheEntry {
+            value,
+            expires_at,
+            seq,
+        };
 
         // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
         self.cache.insert(key.clone(), entry);
@@ -348,10 +369,10 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
         let found = self.cache.get(key).map(|entry_ref| {
             let entry = entry_ref.value();
             // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at <= now {
-                    return None; // expired
-                }
+            if let Some(expires_at) = entry.expires_at
+                && expires_at <= now
+            {
+                return None; // expired
             }
             Some((*entry.value).clone())
         });
@@ -374,13 +395,14 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
 
         if let Some(entry_ref) = self.cache.get(key) {
             let entry = entry_ref.value();
-            if let Some(expires_at) = entry.expires_at {
-                if expires_at <= now {
-                    drop(entry_ref); // 释放 Ref 后再原子删除
-                    self.cache
-                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
-                    return Ok(false);
-                }
+            if let Some(expires_at) = entry.expires_at
+                && expires_at <= now
+            {
+                drop(entry_ref); // 释放 Ref 后再原子删除
+                self.cache.remove_if(key, |_, entry| {
+                    entry.expires_at.is_some_and(|exp| exp <= now)
+                });
+                return Ok(false);
             }
             Ok(true)
         } else {
@@ -398,8 +420,9 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
                     return Ok(Some(expires_at.duration_since(now)));
                 } else {
                     drop(entry_ref); // 释放 Ref 后再原子删除过期条目
-                    self.cache
-                        .remove_if(key, |_, entry| entry.expires_at.is_some_and(|exp| exp <= now));
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.is_some_and(|exp| exp <= now)
+                    });
                     return Ok(None);
                 }
             }
@@ -422,8 +445,14 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
         stats.insert("type".to_string(), "dashmap".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert("entry_count".to_string(), self.cache.len().to_string());
-        stats.insert("hits".to_string(), self.hits.load(Ordering::Relaxed).to_string());
-        stats.insert("misses".to_string(), self.misses.load(Ordering::Relaxed).to_string());
+        stats.insert(
+            "hits".to_string(),
+            self.hits.load(Ordering::Relaxed).to_string(),
+        );
+        stats.insert(
+            "misses".to_string(),
+            self.misses.load(Ordering::Relaxed).to_string(),
+        );
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
     }
@@ -435,7 +464,11 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
 
-        let entry = CacheEntry { value, expires_at, seq };
+        let entry = CacheEntry {
+            value,
+            expires_at,
+            seq,
+        };
 
         // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
         self.cache.insert(key.clone(), entry);
@@ -559,7 +592,10 @@ pub fn dashmap_memory_with_capacity(capacity: usize) -> DashMapMemoryBackend {
 }
 
 /// Convenience function to create a DashMap memory backend with capacity and TTL
-pub fn dashmap_memory_with_capacity_and_ttl(capacity: usize, ttl: Duration) -> DashMapMemoryBackend {
+pub fn dashmap_memory_with_capacity_and_ttl(
+    capacity: usize,
+    ttl: Duration,
+) -> DashMapMemoryBackend {
     DashMapMemoryBackend::builder()
         .capacity(capacity)
         .default_ttl(ttl)
@@ -678,7 +714,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(backend.entry_count(), 3);
-        assert_eq!(backend.get("key1").await.unwrap(), None, "最旧的 key1 应被淘汰");
+        assert_eq!(
+            backend.get("key1").await.unwrap(),
+            None,
+            "最旧的 key1 应被淘汰"
+        );
         assert_eq!(backend.get("key4").await.unwrap(), Some(b"v4".to_vec()));
     }
 
@@ -883,7 +923,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(backend.get("ttl_key").await.unwrap(), None, "过期条目应被淘汰");
+        assert_eq!(
+            backend.get("ttl_key").await.unwrap(),
+            None,
+            "过期条目应被淘汰"
+        );
         assert_eq!(backend.get("other").await.unwrap(), Some(b"v2".to_vec()));
     }
 
@@ -958,7 +1002,11 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_millis(50)),
+                )
                 .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
@@ -977,7 +1025,11 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_secs(60)),
+                )
                 .unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
@@ -985,7 +1037,10 @@ mod tests {
             assert!(ok, "expire on existing key should return true");
 
             let reader: &dyn SyncCacheReader = &backend;
-            let new_ttl = reader.ttl("k").unwrap().expect("ttl should be Some after expire");
+            let new_ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some after expire");
             assert!(
                 new_ttl > Duration::from_secs(118),
                 "new_ttl={} should be > 118s",
@@ -1009,11 +1064,18 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_secs(60)),
+                )
                 .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
+            let ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some for TTL'd key");
             assert!(
                 ttl > Duration::from_secs(58),
                 "ttl={} should be > 58s",
@@ -1026,7 +1088,9 @@ mod tests {
             );
 
             // 无 TTL 的 key 返回 None
-            writer.set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None).unwrap();
+            writer
+                .set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None)
+                .unwrap();
             assert_eq!(reader.ttl("no_ttl").unwrap(), None);
             // 不存在的 key 返回 None
             assert_eq!(reader.ttl("missing").unwrap(), None);

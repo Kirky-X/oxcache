@@ -175,13 +175,18 @@ mod tests {
     fn test_cache_event_type_display() {
         assert_eq!(CacheEventType::Hit.to_string(), "hit");
         assert_eq!(CacheEventType::Miss.to_string(), "miss");
-        assert_eq!(CacheEventType::Custom("test".to_string()).to_string(), "custom:test");
+        assert_eq!(
+            CacheEventType::Custom("test".to_string()).to_string(),
+            "custom:test"
+        );
     }
 
     #[test]
     fn test_cache_event_with_value() {
         // CacheEvent doesn't have with_value method, test with available methods
-        let event = CacheEvent::new(CacheEventType::Set).with_key("user:1").with_latency(5);
+        let event = CacheEvent::new(CacheEventType::Set)
+            .with_key("user:1")
+            .with_latency(5);
         assert_eq!(event.key, Some("user:1".to_string()));
         assert_eq!(event.latency_ms, Some(5));
     }
@@ -195,7 +200,10 @@ mod tests {
 
         assert_eq!(event.latency_ms, Some(5));
         assert_eq!(event.metadata.len(), 1);
-        assert_eq!(event.metadata[0], ("test_node".to_string(), "test_service".to_string()));
+        assert_eq!(
+            event.metadata[0],
+            ("test_node".to_string(), "test_service".to_string())
+        );
     }
 
     #[test]
@@ -238,7 +246,9 @@ mod tests {
 
     #[test]
     fn test_cache_event_clone() {
-        let event = CacheEvent::new(CacheEventType::Hit).with_key("key").with_latency(10);
+        let event = CacheEvent::new(CacheEventType::Hit)
+            .with_key("key")
+            .with_latency(10);
 
         let cloned = event.clone();
         assert_eq!(event.event_type, cloned.event_type);
@@ -354,8 +364,14 @@ mod tests {
 
         assert_eq!(event.metadata.len(), 3);
         assert_eq!(event.metadata[0], ("node".to_string(), "node1".to_string()));
-        assert_eq!(event.metadata[1], ("service".to_string(), "service1".to_string()));
-        assert_eq!(event.metadata[2], ("region".to_string(), "us-east".to_string()));
+        assert_eq!(
+            event.metadata[1],
+            ("service".to_string(), "service1".to_string())
+        );
+        assert_eq!(
+            event.metadata[2],
+            ("region".to_string(), "us-east".to_string())
+        );
     }
 
     #[test]

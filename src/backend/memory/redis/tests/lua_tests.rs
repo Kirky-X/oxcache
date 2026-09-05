@@ -12,7 +12,10 @@ use std::sync::Arc;
 async fn test_eval_lua_simple_return() {
     let backend = make_backend().await;
     let script = "return 'hello'";
-    let result = backend.eval_lua(script, &[], &[]).await.expect("eval_lua failed");
+    let result = backend
+        .eval_lua(script, &[], &[])
+        .await
+        .expect("eval_lua failed");
     match result {
         redis::Value::BulkString(s) => assert_eq!(s, b"hello"),
         redis::Value::SimpleString(s) => assert_eq!(s, "hello"),
@@ -25,7 +28,10 @@ async fn test_eval_lua_simple_return() {
 async fn test_eval_lua_returns_int() {
     let backend = make_backend().await;
     let script = "return 42";
-    let result = backend.eval_lua(script, &[], &[]).await.expect("eval_lua failed");
+    let result = backend
+        .eval_lua(script, &[], &[])
+        .await
+        .expect("eval_lua failed");
     match result {
         redis::Value::Int(n) => assert_eq!(n, 42),
         other => panic!("Expected Int(42), got {:?}", other),
@@ -59,11 +65,17 @@ async fn test_eval_lua_with_keys_and_args() {
 async fn test_script_load_and_eval_sha() {
     let backend = make_backend().await;
     let script = "return 1 + 1";
-    let sha = backend.script_load(script).await.expect("script_load failed");
+    let sha = backend
+        .script_load(script)
+        .await
+        .expect("script_load failed");
     assert_eq!(sha.len(), 40);
     assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
 
-    let result = backend.eval_sha(&sha, &[], &[]).await.expect("eval_sha failed");
+    let result = backend
+        .eval_sha(&sha, &[], &[])
+        .await
+        .expect("eval_sha failed");
     match result {
         redis::Value::Int(n) => assert_eq!(n, 2),
         other => panic!("Expected Int(2), got {:?}", other),

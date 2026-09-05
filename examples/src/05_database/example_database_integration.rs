@@ -245,9 +245,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("9. 缓存统计信息");
     match cache.stats().await {
         Ok(stats) => {
-            println!("   缓存类型: {}", stats.get("type").unwrap_or(&"N/A".to_string()));
-            println!("   条目数: {}", stats.get("entry_count").unwrap_or(&"N/A".to_string()));
-            println!("   容量: {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
+            println!(
+                "   缓存类型: {}",
+                stats.get("type").unwrap_or(&"N/A".to_string())
+            );
+            println!(
+                "   条目数: {}",
+                stats.get("entry_count").unwrap_or(&"N/A".to_string())
+            );
+            println!(
+                "   容量: {}",
+                stats.get("capacity").unwrap_or(&"N/A".to_string())
+            );
         }
         Err(e) => println!("   获取统计信息失败: {}", e),
     }

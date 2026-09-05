@@ -75,14 +75,21 @@ async fn p0_r002_dashmap_fifo_eviction_bounds_len_at_capacity() {
     for i in 0..50u32 {
         let key = format!("key_{i}");
         backend
-            .set(Arc::from(key.as_str()), Arc::new(format!("val_{i}").into_bytes()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(format!("val_{i}").into_bytes()),
+                None,
+            )
             .await
             .expect("set must succeed");
     }
 
     let len = backend.len().await.expect("len must succeed");
     // FIFO eviction keeps len at capacity.
-    assert_eq!(len, 10, "DashMap FIFO eviction should bound len at capacity, got {len}");
+    assert_eq!(
+        len, 10,
+        "DashMap FIFO eviction should bound len at capacity, got {len}"
+    );
 }
 
 /// P0 C-004: get_or leader panic must not leak the single-flight lock.
@@ -107,7 +114,10 @@ async fn p0_c004_get_or_leader_panic_cleans_lock() {
     });
 
     let join_result = handle.await;
-    assert!(join_result.is_err(), "spawned get_or task should have panicked");
+    assert!(
+        join_result.is_err(),
+        "spawned get_or task should have panicked"
+    );
 
     // Give the runtime a tick to finish unwinding / dropping the guard.
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -124,7 +134,9 @@ async fn p0_c004_get_or_leader_panic_cleans_lock() {
     match result {
         Ok(Ok(user)) => assert_eq!(user, User::new(42, "recovered")),
         Ok(Err(e)) => panic!("get_or after panic should succeed, got error: {e:?}"),
-        Err(_) => panic!("get_or after panic timed out — lock was not cleaned up (C-004 regression)"),
+        Err(_) => {
+            panic!("get_or after panic timed out — lock was not cleaned up (C-004 regression)")
+        }
     }
 }
 
@@ -206,7 +218,10 @@ async fn b002_dashmap_lazy_ttl_expired_entry_not_removed() {
     assert!(val.is_none(), "expired entry should return None");
 
     let len = backend.len().await.expect("len must succeed");
-    assert_eq!(len, 1, "DashMap lazy expiry: stale entry still counted in len");
+    assert_eq!(
+        len, 1,
+        "DashMap lazy expiry: stale entry still counted in len"
+    );
 }
 
 /// B-006: Moka + DashMap chain with backfill — read from L2 (lower score)
@@ -236,7 +251,11 @@ async fn b006_moka_dashmap_chain_backfill_populates_l1() {
 
     // L1 should now have the backfilled value.
     let l1_val = l1.get("bf_key").await.expect("l1 get");
-    assert_eq!(l1_val, Some(b"from_l2".to_vec()), "backfill should populate L1");
+    assert_eq!(
+        l1_val,
+        Some(b"from_l2".to_vec()),
+        "backfill should populate L1"
+    );
 }
 
 /// B-007: Moka + DashMap dual-L1 chain — both are memory backends with
@@ -260,8 +279,14 @@ async fn b007_moka_dashmap_dual_l1_chain_writes_to_both() {
         .expect("chain set");
 
     // Both backends should have the value.
-    assert_eq!(moka.get("dual_key").await.unwrap(), Some(b"dual_val".to_vec()));
-    assert_eq!(dashmap.get("dual_key").await.unwrap(), Some(b"dual_val".to_vec()));
+    assert_eq!(
+        moka.get("dual_key").await.unwrap(),
+        Some(b"dual_val".to_vec())
+    );
+    assert_eq!(
+        dashmap.get("dual_key").await.unwrap(),
+        Some(b"dual_val".to_vec())
+    );
 }
 
 /// B-009: BloomFilter + Moka — negative query (never-set key) is filtered
@@ -282,7 +307,10 @@ async fn b009_bloom_filter_moka_skips_negative_query() {
         .expect("set");
 
     // Get existing key — BF says "maybe", inner returns value.
-    assert_eq!(bf_backend.get("exists").await.unwrap(), Some(b"yes".to_vec()));
+    assert_eq!(
+        bf_backend.get("exists").await.unwrap(),
+        Some(b"yes".to_vec())
+    );
 
     // Get non-existent key — BF says "definitely absent", inner skipped.
     let val = bf_backend.get("never_set").await.expect("get");
@@ -311,7 +339,10 @@ async fn b010_bloom_filter_delete_does_not_remove_from_filter() {
 
     // BF still thinks the key "maybe exists" → delegates to inner → None.
     let val = bf_backend.get("del_key").await.expect("get");
-    assert_eq!(val, None, "inner returns None after delete (BF still says maybe)");
+    assert_eq!(
+        val, None,
+        "inner returns None after delete (BF still says maybe)"
+    );
 }
 
 /// B-011: Empty ChainCache — get returns None, set returns Operation error,
@@ -385,7 +416,10 @@ async fn o006_get_or_fallback_error_propagates() {
 
     match result {
         Err(oxcache::OxCacheError::Connection(msg)) => {
-            assert!(msg.contains("fallback deliberately failed"), "unexpected msg: {msg}");
+            assert!(
+                msg.contains("fallback deliberately failed"),
+                "unexpected msg: {msg}"
+            );
         }
         other => panic!("expected Connection error from fallback, got {other:?}"),
     }
@@ -407,13 +441,21 @@ async fn o011_exists_on_expired_key_returns_false() {
         .expect("set");
 
     // Before expiry.
-    assert!(cache.exists(&"short_lived".to_string()).await.expect("exists"));
+    assert!(
+        cache
+            .exists(&"short_lived".to_string())
+            .await
+            .expect("exists")
+    );
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // After expiry.
     assert!(
-        !cache.exists(&"short_lived".to_string()).await.expect("exists"),
+        !cache
+            .exists(&"short_lived".to_string())
+            .await
+            .expect("exists"),
         "expired key should not exist"
     );
 }
@@ -457,7 +499,10 @@ async fn o015_health_check_memory_backend_ok() {
 #[tokio::test]
 async fn o016_shutdown_clears_cache_operations_safe() {
     let cache: Cache<String, User> = Cache::memory().await.expect("cache");
-    cache.set(&"k".to_string(), &User::new(1, "v")).await.expect("set");
+    cache
+        .set(&"k".to_string(), &User::new(1, "v"))
+        .await
+        .expect("set");
 
     cache.shutdown().await;
 
@@ -481,7 +526,10 @@ async fn t001_global_ttl_via_builder_expires() {
         .await
         .expect("build with TTL");
 
-    cache.set(&"k".to_string(), &User::new(1, "v")).await.expect("set");
+    cache
+        .set(&"k".to_string(), &User::new(1, "v"))
+        .await
+        .expect("set");
 
     // Before expiry.
     assert!(cache.get(&"k".to_string()).await.unwrap().is_some());
@@ -546,7 +594,10 @@ async fn t003_tti_builder_accepts_and_cache_works() {
 
     // Should be expired (TTI exceeded, no access to reset).
     let val = cache.get(&"tti_key".to_string()).await.unwrap();
-    assert!(val.is_none(), "entry should expire after TTI with no access");
+    assert!(
+        val.is_none(),
+        "entry should expire after TTI with no access"
+    );
 }
 
 /// T-004: ChainCache default_ttl is applied when set(ttl=None).
@@ -648,14 +699,23 @@ async fn c001_concurrent_get_or_dedup_single_fallback() {
     for result in &results {
         assert!(result.is_ok(), "task should not panic: {result:?}");
         let timeout_result = result.as_ref().unwrap();
-        assert!(timeout_result.is_ok(), "task should not time out: {timeout_result:?}");
+        assert!(
+            timeout_result.is_ok(),
+            "task should not time out: {timeout_result:?}"
+        );
         let get_or_result = timeout_result.as_ref().unwrap();
-        assert!(get_or_result.is_ok(), "get_or should succeed: {get_or_result:?}");
+        assert!(
+            get_or_result.is_ok(),
+            "get_or should succeed: {get_or_result:?}"
+        );
     }
 
     // Fallback should have been called exactly once.
     let count = counter.load(Ordering::SeqCst);
-    assert_eq!(count, 1, "fallback should be called exactly once, got {count}");
+    assert_eq!(
+        count, 1,
+        "fallback should be called exactly once, got {count}"
+    );
 }
 
 /// C-002: get_or leader success — followers get the cached value.
@@ -715,7 +775,9 @@ async fn c003_get_or_leader_failure_followers_get_error() {
                 cache
                     .get_or(&key, || async {
                         tokio::time::sleep(Duration::from_millis(30)).await;
-                        Err(oxcache::OxCacheError::Connection("leader failed".to_string()))
+                        Err(oxcache::OxCacheError::Connection(
+                            "leader failed".to_string(),
+                        ))
                     })
                     .await
             })
@@ -777,7 +839,11 @@ async fn c005_concurrent_set_same_key_last_wins_no_panic() {
 
     // Final value is one of the 20 (last writer wins).
     let final_val: User = cache.get(&key).await.unwrap().expect("value must exist");
-    assert!(final_val.id < 20, "id should be one of the writers: {}", final_val.id);
+    assert!(
+        final_val.id < 20,
+        "id should be one of the writers: {}",
+        final_val.id
+    );
 }
 
 /// C-006: Concurrent GET + SET — no panic, reads see either old or new value.
@@ -788,7 +854,10 @@ async fn c006_concurrent_get_set_no_panic() {
     let key = "c006_rw".to_string();
 
     // Pre-populate.
-    cache.set(&key, &User::new(0, "initial")).await.expect("set");
+    cache
+        .set(&key, &User::new(0, "initial"))
+        .await
+        .expect("set");
 
     // Writers and readers use separate handle vectors (different return types).
     let mut writer_handles = Vec::new();
@@ -831,9 +900,13 @@ async fn c008_concurrent_backfill_idempotent() {
     let l1 = Arc::new(MokaMemoryBackend::new());
     let l2 = DashMapMemoryBackend::new();
 
-    l2.set(Arc::from("bf_concurrent"), Arc::new(b"shared".to_vec()), None)
-        .await
-        .expect("l2 set");
+    l2.set(
+        Arc::from("bf_concurrent"),
+        Arc::new(b"shared".to_vec()),
+        None,
+    )
+    .await
+    .expect("l2 set");
 
     let chain = Arc::new(
         ChainCache::builder()
@@ -846,7 +919,9 @@ async fn c008_concurrent_backfill_idempotent() {
     let mut handles = Vec::new();
     for _ in 0..10 {
         let chain = chain.clone();
-        handles.push(tokio::spawn(async move { chain.get("bf_concurrent").await }));
+        handles.push(tokio::spawn(
+            async move { chain.get("bf_concurrent").await },
+        ));
     }
 
     let mut results = Vec::with_capacity(handles.len());
@@ -855,12 +930,19 @@ async fn c008_concurrent_backfill_idempotent() {
     }
     for result in &results {
         assert!(result.is_ok(), "backfill task panicked: {result:?}");
-        let val = result.as_ref().unwrap().as_ref().expect("get should succeed");
+        let val = result
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .expect("get should succeed");
         assert_eq!(val, &Some(b"shared".to_vec()));
     }
 
     // L1 should have the backfilled value.
-    assert_eq!(l1.get("bf_concurrent").await.unwrap(), Some(b"shared".to_vec()));
+    assert_eq!(
+        l1.get("bf_concurrent").await.unwrap(),
+        Some(b"shared".to_vec())
+    );
 }
 
 // ============================================================================
@@ -878,7 +960,11 @@ async fn d003_serialization_failure_corrupt_data() {
     // Write corrupt bytes directly to the backend.
     let backend = MokaMemoryBackend::new();
     backend
-        .set(Arc::from("corrupt"), Arc::new(b"{not valid json".to_vec()), None)
+        .set(
+            Arc::from("corrupt"),
+            Arc::new(b"{not valid json".to_vec()),
+            None,
+        )
         .await
         .expect("set corrupt bytes");
 
@@ -897,13 +983,22 @@ async fn d003_serialization_failure_corrupt_data() {
 #[tokio::test]
 async fn d010_shutdown_then_operations_safe() {
     let cache: Cache<String, User> = Cache::memory().await.expect("cache");
-    cache.set(&"a".to_string(), &User::new(1, "x")).await.expect("set");
-    cache.set(&"b".to_string(), &User::new(2, "y")).await.expect("set");
+    cache
+        .set(&"a".to_string(), &User::new(1, "x"))
+        .await
+        .expect("set");
+    cache
+        .set(&"b".to_string(), &User::new(2, "y"))
+        .await
+        .expect("set");
 
     cache.shutdown().await;
 
     // get after shutdown — no panic, returns None.
-    let val: Option<User> = cache.get(&"a".to_string()).await.expect("get after shutdown");
+    let val: Option<User> = cache
+        .get(&"a".to_string())
+        .await
+        .expect("get after shutdown");
     assert_eq!(val, None, "shutdown should clear cache");
 
     // set after shutdown — should not panic (may succeed silently or error).
@@ -1001,9 +1096,18 @@ async fn sec005_redact_connection_string_hides_password() {
 
     let original = "redis://user:s3cr3t@localhost:6379";
     let masked = redact_connection_string(original);
-    assert!(!masked.contains("s3cr3t"), "password must be hidden, got: {masked}");
-    assert!(masked.contains("****"), "should contain **** mask: {masked}");
-    assert!(masked.contains("localhost:6379"), "host should be visible: {masked}");
+    assert!(
+        !masked.contains("s3cr3t"),
+        "password must be hidden, got: {masked}"
+    );
+    assert!(
+        masked.contains("****"),
+        "should contain **** mask: {masked}"
+    );
+    assert!(
+        masked.contains("localhost:6379"),
+        "host should be visible: {masked}"
+    );
 }
 
 /// SEC-007: KeyGenerator validate_key rejects empty and over-length keys.
@@ -1112,8 +1216,14 @@ async fn cfg001_default_build_creates_moka_10000() {
     let cap = cache.capacity().await.expect("capacity");
     assert_eq!(cap, 10000, "default capacity should be 10000");
 
-    cache.set(&"k".to_string(), &User::new(1, "v")).await.expect("set");
-    assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(User::new(1, "v")));
+    cache
+        .set(&"k".to_string(), &User::new(1, "v"))
+        .await
+        .expect("set");
+    assert_eq!(
+        cache.get(&"k".to_string()).await.unwrap(),
+        Some(User::new(1, "v"))
+    );
 }
 
 /// CFG-002: capacity(0) — builder defaults to 10000 (Moka fallback).
@@ -1137,7 +1247,10 @@ async fn cfg003_ttl_tti_combo_accepted() {
         .await
         .expect("build with TTL+TTI");
 
-    cache.set(&"k".to_string(), &User::new(1, "v")).await.expect("set");
+    cache
+        .set(&"k".to_string(), &User::new(1, "v"))
+        .await
+        .expect("set");
     assert!(cache.get(&"k".to_string()).await.unwrap().is_some());
 }
 
@@ -1149,7 +1262,11 @@ async fn cfg004_sync_mode_with_backend_arc_returns_not_supported() {
 
     let backend: Arc<dyn oxcache::backend::CacheBackend> = Arc::new(MokaMemoryBackend::new());
 
-    let result: Result<Cache<String, User>, _> = Cache::builder().sync_mode(true).backend_arc(backend).build().await;
+    let result: Result<Cache<String, User>, _> = Cache::builder()
+        .sync_mode(true)
+        .backend_arc(backend)
+        .build()
+        .await;
 
     match result {
         Err(oxcache::OxCacheError::NotSupported(msg)) => {
@@ -1233,7 +1350,10 @@ async fn s001_sync_get_set_via_sync_mode() {
 #[cfg(feature = "memory")]
 #[tokio::test(flavor = "multi_thread")]
 async fn s002_sync_api_without_sync_mode_returns_not_supported() {
-    let cache: Cache<String, User> = Cache::builder().build().await.expect("build without sync_mode");
+    let cache: Cache<String, User> = Cache::builder()
+        .build()
+        .await
+        .expect("build without sync_mode");
 
     // sync API not available (sync_mode was not enabled).
     let result = cache.get_sync(&"any".to_string());
@@ -1255,7 +1375,9 @@ async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
     use oxcache::{ChainCache, ChainLink, DashMapMemoryBackend};
 
     let backend = DashMapMemoryBackend::new();
-    let chain = ChainCache::builder().link(ChainLink::from_backend(backend)).build();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(backend))
+        .build();
 
     let result = chain.get_sync("any");
     match result {
@@ -1291,7 +1413,10 @@ async fn m003_export_prometheus_format_valid() {
     use oxcache::export_prometheus_format;
 
     let prom = export_prometheus_format();
-    assert!(prom.contains("cache_l1_hits_total"), "should contain l1_hits: {prom}");
+    assert!(
+        prom.contains("cache_l1_hits_total"),
+        "should contain l1_hits: {prom}"
+    );
     assert!(
         prom.contains("cache_operations_total"),
         "should contain operations: {prom}"

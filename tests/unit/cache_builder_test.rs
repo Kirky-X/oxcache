@@ -29,7 +29,11 @@ async fn test_cache_builder_default() {
 
 #[tokio::test]
 async fn test_cache_builder_with_capacity() {
-    let cache: Cache<String, TestValue> = CacheBuilder::default().capacity(1000).build().await.unwrap();
+    let cache: Cache<String, TestValue> = CacheBuilder::default()
+        .capacity(1000)
+        .build()
+        .await
+        .unwrap();
     cache.health_check().await.unwrap();
     assert_eq!(cache.capacity().await.unwrap(), 1000);
 }

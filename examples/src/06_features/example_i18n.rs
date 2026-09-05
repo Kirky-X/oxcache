@@ -74,7 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. Cache key 生成
     println!("\n--- 5. Cache key 生成 ---");
     let user_counts: [u64; 4] = [1, 1000, 1_000_000, 1_000_000_000];
-    println!("  {:<15} {:<20} {:<20}", "namespace:count", "en-US key", "zh-CN key");
+    println!(
+        "  {:<15} {:<20} {:<20}",
+        "namespace:count", "en-US key", "zh-CN key"
+    );
     println!("  {}", "-".repeat(55));
     for count in &user_counts {
         println!(
@@ -89,7 +92,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- 6. 键比较（排序） ---");
     let keys = vec!["banana", "apple", "cherry", "date"];
     let mut sorted_keys = keys.clone();
-    sorted_keys.sort_by(|a, b| fmt_en.compare_keys(a, b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted_keys.sort_by(|a, b| {
+        fmt_en
+            .compare_keys(a, b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     println!("  原始顺序: {:?}", keys);
     println!("  en-US 排序: {:?}", sorted_keys);
 

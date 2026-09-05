@@ -63,7 +63,9 @@ async fn main() -> OxCacheResult<()> {
     // 使用 OXCACHE_ALLOW_INSECURE_REDIS=1 环境变量允许非TLS连接
     match Cache::redis("redis://127.0.0.1:6379").await {
         Ok(redis_cache) => {
-            redis_cache.set(&"user:3".to_string(), &user.clone()).await?;
+            redis_cache
+                .set(&"user:3".to_string(), &user.clone())
+                .await?;
             let cached_user: Option<User> = redis_cache.get(&"user:3".to_string()).await?;
             assert!(cached_user.is_some());
             println!("✓ 从Redis缓存检索用户: {:?}", cached_user.unwrap().name);
@@ -99,7 +101,10 @@ async fn main() -> OxCacheResult<()> {
     use std::time::Duration;
 
     // 使用 builder 创建高级配置缓存
-    let advanced_cache: Cache<String, User> = Cache::builder().ttl(Duration::from_secs(3600)).build().await?;
+    let advanced_cache: Cache<String, User> = Cache::builder()
+        .ttl(Duration::from_secs(3600))
+        .build()
+        .await?;
 
     advanced_cache.set(&"user:6".to_string(), &user).await?;
     let cached_user: Option<User> = advanced_cache.get(&"user:6".to_string()).await?;

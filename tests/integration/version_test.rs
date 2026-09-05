@@ -21,7 +21,8 @@ async fn test_version_control_set_and_update_value() {
         return;
     }
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     let l2: Arc<dyn oxcache::backend::CacheBackend> = match RedisBackend::new(&redis_url).await {
         Ok(backend) => Arc::new(backend),

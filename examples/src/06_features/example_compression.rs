@@ -41,7 +41,9 @@ fn create_small_data() -> User {
 
 fn create_medium_data() -> LargeData {
     let content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100);
-    let metadata: Vec<String> = (0..50).map(|i| format!("metadata_{}: value_{}", i, i)).collect();
+    let metadata: Vec<String> = (0..50)
+        .map(|i| format!("metadata_{}: value_{}", i, i))
+        .collect();
 
     LargeData {
         id: 1,
@@ -54,7 +56,12 @@ fn create_large_data() -> LargeData {
     // 创建约 150KB 的重复数据
     let content = "The quick brown fox jumps over the lazy dog. ".repeat(3000);
     let metadata: Vec<String> = (0..1000)
-        .map(|i| format!("item_{}: this is some repetitive content for compression testing", i))
+        .map(|i| {
+            format!(
+                "item_{}: this is some repetitive content for compression testing",
+                i
+            )
+        })
         .collect();
 
     LargeData {
@@ -153,7 +160,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 读取并解压
     if let Some(stored) = cache.get(&key).await? {
         let decompressed = compress_serializer.deserialize("LargeData", &stored)?;
-        println!("  读取并解压: {} bytes -> {} bytes", stored.len(), decompressed.len());
+        println!(
+            "  读取并解压: {} bytes -> {} bytes",
+            stored.len(),
+            decompressed.len()
+        );
         assert_eq!(decompressed, large_bytes);
         println!("  ✓ 数据完整性验证通过");
     }

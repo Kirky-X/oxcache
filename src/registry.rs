@@ -219,7 +219,10 @@ mod tests {
         // After ensure_initialized(), is_initialized() should return true.
         // This tests the init_empty -> is_initialized path.
         ensure_initialized();
-        assert!(is_initialized(), "is_initialized should return true after init");
+        assert!(
+            is_initialized(),
+            "is_initialized should return true after init"
+        );
     }
 
     #[test]

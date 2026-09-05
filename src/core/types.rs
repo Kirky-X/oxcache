@@ -8,8 +8,14 @@ use serde::{Deserialize, Serialize};
 
 /// Redis 连接模式
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
-#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "lowercase"))]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    derive(Serialize, Deserialize)
+)]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    serde(rename_all = "lowercase")
+)]
 pub enum RedisModeType {
     /// 单机模式
     #[default]
@@ -71,8 +77,14 @@ impl std::str::FromStr for RedisModeType {
 /// - `None` - 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
 /// - `Custom` - 任意层级（自定义后端）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
-#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "snake_case"))]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    derive(Serialize, Deserialize)
+)]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    serde(rename_all = "snake_case")
+)]
 pub enum BackendType {
     /// Moka 高性能内存缓存（推荐 L1/L2）
     #[cfg(feature = "memory")]
@@ -84,7 +96,10 @@ pub enum BackendType {
     #[cfg(feature = "redis")]
     Redis,
     /// 无后端（需通过 ChainCache 或 Custom 显式配置多后端）
-    #[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename = "none"))]
+    #[cfg_attr(
+        any(feature = "serialization", feature = "full"),
+        serde(rename = "none")
+    )]
     #[default]
     None,
     /// 自定义后端（任意层级，通过 BackendProvider 注入）
@@ -108,8 +123,14 @@ impl std::fmt::Display for BackendType {
 
 /// 缓存层级
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
-#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "PascalCase"))]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    derive(Serialize, Deserialize)
+)]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    serde(rename_all = "PascalCase")
+)]
 pub enum CacheLayer {
     /// L1 内存缓存
     #[default]
@@ -132,8 +153,14 @@ impl std::fmt::Display for CacheLayer {
 
 /// 序列化格式类型
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(any(feature = "serialization", feature = "full"), derive(Serialize, Deserialize))]
-#[cfg_attr(any(feature = "serialization", feature = "full"), serde(rename_all = "lowercase"))]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    derive(Serialize, Deserialize)
+)]
+#[cfg_attr(
+    any(feature = "serialization", feature = "full"),
+    serde(rename_all = "lowercase")
+)]
 pub enum SerializationType {
     /// JSON 格式
     #[default]
@@ -169,7 +196,10 @@ mod tests {
         assert_eq!(format!("{}", RedisModeType::Standalone), "standalone");
         assert_eq!(format!("{}", RedisModeType::Sentinel), "sentinel");
         assert_eq!(format!("{}", RedisModeType::Cluster), "cluster");
-        assert_eq!(format!("{}", RedisModeType::ValkeyStandalone), "valkey_standalone");
+        assert_eq!(
+            format!("{}", RedisModeType::ValkeyStandalone),
+            "valkey_standalone"
+        );
     }
 
     #[test]
@@ -178,8 +208,14 @@ mod tests {
             "standalone".parse::<RedisModeType>().unwrap(),
             RedisModeType::Standalone
         );
-        assert_eq!("SENTINEL".parse::<RedisModeType>().unwrap(), RedisModeType::Sentinel);
-        assert_eq!("Cluster".parse::<RedisModeType>().unwrap(), RedisModeType::Cluster);
+        assert_eq!(
+            "SENTINEL".parse::<RedisModeType>().unwrap(),
+            RedisModeType::Sentinel
+        );
+        assert_eq!(
+            "Cluster".parse::<RedisModeType>().unwrap(),
+            RedisModeType::Cluster
+        );
         assert!("invalid".parse::<RedisModeType>().is_err());
     }
 

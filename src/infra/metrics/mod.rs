@@ -27,8 +27,9 @@ pub use metrics_impl::{GLOBAL_METRICS, get_metrics_string};
 
 // Re-export unified metrics
 pub use unified::{
-    CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, GLOBAL_UNIFIED_METRICS, HistogramData, HitRates,
-    MetricValue, MetricsConfig, MetricsSnapshot, TimerData, convenience as unified_convenience,
+    CacheOpResult, CacheOpType, CacheOperation, CounterSnapshot, GLOBAL_UNIFIED_METRICS,
+    HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData,
+    convenience as unified_convenience,
 };
 
 // Re-export convenience module for test access

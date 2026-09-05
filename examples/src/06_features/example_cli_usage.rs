@@ -75,7 +75,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. 模拟 CLI metrics 命令输出
     println!("\n--- 模拟 `oxcache metrics` 输出 ---");
     println!("# TYPE cache_entries counter");
-    println!("cache_entries{{cache=\"demo_cache\"}} {}", cache.len().await?);
+    println!(
+        "cache_entries{{cache=\"demo_cache\"}} {}",
+        cache.len().await?
+    );
     println!("# TYPE cache_capacity counter");
     println!("cache_capacity{{cache=\"demo_cache\"}} 1000");
 

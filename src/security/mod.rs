@@ -33,13 +33,16 @@ mod security_impl;
 #[cfg(feature = "redis")]
 pub use log::{log_cache_key, sanitize_message};
 #[cfg(feature = "redis")]
-pub use redaction::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
+pub use redaction::{
+    Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value,
+};
 #[cfg(feature = "redis")]
 #[allow(unused_imports)] // Public API re-exports for external consumers
 pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 #[cfg(feature = "redis")]
 pub use validation::{
-    DANGEROUS_CHARS, MAX_KEY_LENGTH, validate_max_length, validate_no_dangerous_chars, validate_not_empty,
+    DANGEROUS_CHARS, MAX_KEY_LENGTH, validate_max_length, validate_no_dangerous_chars,
+    validate_not_empty,
 };
 
 // OxCacheError is only referenced by the test module below (via `use super::*`).
@@ -48,13 +51,16 @@ use crate::error::OxCacheError;
 
 // Re-export public functions from security_impl
 #[cfg(feature = "redis")]
-pub use security_impl::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
+pub use security_impl::{
+    clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern,
+};
 
 // Import private functions and constants for test access (tests use `use super::*;`)
 #[cfg(all(test, feature = "redis"))]
 use security_impl::{
-    MAX_LUA_SCRIPT_KEYS, MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS, SCAN_COUNT_MAX,
-    SCAN_COUNT_MIN, count_lua_long_string_level, preprocess_lua_script, skip_lua_long_string,
+    MAX_LUA_SCRIPT_KEYS, MAX_LUA_SCRIPT_LENGTH, MAX_SCAN_PATTERN_LENGTH, MAX_SCAN_WILDCARDS,
+    SCAN_COUNT_MAX, SCAN_COUNT_MIN, count_lua_long_string_level, preprocess_lua_script,
+    skip_lua_long_string,
 };
 
 #[cfg(all(test, feature = "redis"))]
@@ -896,5 +902,7 @@ mod tests {
 #[cfg(all(any(test, feature = "testing"), feature = "redis"))]
 #[allow(unused_imports)]
 pub mod test_helpers {
-    pub use super::{clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern};
+    pub use super::{
+        clamp_scan_count, validate_lua_script, validate_redis_key, validate_scan_pattern,
+    };
 }

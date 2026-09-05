@@ -31,7 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 示例 1: 使用 ChainCache::builder() 创建多级缓存
     println!("1. ChainCache::builder() 创建多级缓存");
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+    let redis_url =
+        std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
     println!("   连接 Redis: {}", redis_url);
 
@@ -103,7 +104,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("   批量存储了 {} 个用户", users.len());
 
-    let keys = ["user:1".to_string(), "user:2".to_string(), "user:3".to_string()];
+    let keys = [
+        "user:1".to_string(),
+        "user:2".to_string(),
+        "user:3".to_string(),
+    ];
     let results = cache.get_many(keys.iter()).await?;
     println!("   批量读取: {} 个用户\n", results.len());
 
@@ -113,7 +118,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 #[allow(dead_code)]
-async fn demo_chain_cache_operations(chain: &ChainCache) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn demo_chain_cache_operations(
+    chain: &ChainCache,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user = User {
         id: 1,
         name: "Alice".to_string(),

@@ -68,7 +68,12 @@ fn calculate_depth_inner(value: &serde_json::Value, current: usize) -> usize {
             } else {
                 let max_child = map
                     .values()
-                    .filter(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)))
+                    .filter(|v| {
+                        matches!(
+                            v,
+                            serde_json::Value::Object(_) | serde_json::Value::Array(_)
+                        )
+                    })
                     .map(|v| calculate_depth_inner(v, current + 1))
                     .max()
                     .unwrap_or(0);
@@ -81,7 +86,12 @@ fn calculate_depth_inner(value: &serde_json::Value, current: usize) -> usize {
             } else {
                 let max_child = arr
                     .iter()
-                    .filter(|v| matches!(v, serde_json::Value::Object(_) | serde_json::Value::Array(_)))
+                    .filter(|v| {
+                        matches!(
+                            v,
+                            serde_json::Value::Object(_) | serde_json::Value::Array(_)
+                        )
+                    })
                     .map(|v| calculate_depth_inner(v, current + 1))
                     .max()
                     .unwrap_or(0);
@@ -127,7 +137,10 @@ impl DepthLimited {
         if depth > max_depth {
             return Err(serde_json::Error::io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("JSON depth {} exceeds maximum allowed depth {}", depth, max_depth),
+                format!(
+                    "JSON depth {} exceeds maximum allowed depth {}",
+                    depth, max_depth
+                ),
             )));
         }
         Ok(DepthLimited { value, max_depth })
@@ -173,7 +186,10 @@ impl<'de> Deserialize<'de> for DepthLimited {
 /// 解析时禁用 serde_json 内置的递归深度上限，并借助 `serde_stacker`
 /// 动态扩栈，避免深层 JSON 导致栈溢出；深度限制由调用方通过
 /// `max_depth` 显式控制。
-pub fn deserialize_safe<T: serde::de::DeserializeOwned>(data: &[u8], max_depth: usize) -> Result<T, serde_json::Error> {
+pub fn deserialize_safe<T: serde::de::DeserializeOwned>(
+    data: &[u8],
+    max_depth: usize,
+) -> Result<T, serde_json::Error> {
     let mut de = serde_json::Deserializer::from_slice(data);
     de.disable_recursion_limit();
     let de = serde_stacker::Deserializer::new(&mut de);
@@ -182,7 +198,10 @@ pub fn deserialize_safe<T: serde::de::DeserializeOwned>(data: &[u8], max_depth: 
     if depth > max_depth {
         return Err(serde_json::Error::io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!("JSON depth {} exceeds maximum allowed depth {}", depth, max_depth),
+            format!(
+                "JSON depth {} exceeds maximum allowed depth {}",
+                depth, max_depth
+            ),
         )));
     }
     serde_json::from_value(value)
@@ -247,7 +266,10 @@ mod tests {
         let data = br#"{"a": {"b": "value"}}"#;
         let result = DepthLimited::from_slice(data, 3);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, serde_json::json!({"a": {"b": "value"}}));
+        assert_eq!(
+            result.unwrap().value,
+            serde_json::json!({"a": {"b": "value"}})
+        );
     }
 
     #[test]

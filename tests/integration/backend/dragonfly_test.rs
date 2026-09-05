@@ -164,7 +164,10 @@ async fn test_dragonfly_cache_reader_operations() {
     assert!(result);
 
     // expire nonexistent
-    let Ok(result) = backend.expire("df:nonexistent", Duration::from_secs(60)).await else {
+    let Ok(result) = backend
+        .expire("df:nonexistent", Duration::from_secs(60))
+        .await
+    else {
         return;
     };
     assert!(!result);
@@ -190,7 +193,9 @@ async fn test_dragonfly_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let Some(dragonfly) = setup().await else { return };
+    let Some(dragonfly) = setup().await else {
+        return;
+    };
 
     let moka = MokaMemoryBackend::new();
 
@@ -201,7 +206,11 @@ async fn test_dragonfly_chain_cache_basic() {
         .build();
 
     // Write through chain
-    if chain.set("chain:df_key1", b"chain_value".to_vec(), None).await.is_err() {
+    if chain
+        .set("chain:df_key1", b"chain_value".to_vec(), None)
+        .await
+        .is_err()
+    {
         return;
     }
 

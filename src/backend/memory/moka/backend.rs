@@ -39,8 +39,14 @@ pub(crate) struct MokaEntry {
 pub(crate) struct MokaExpiry;
 
 impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
-    fn expire_after_create(&self, _key: &Arc<str>, val: &MokaEntry, created_at: Instant) -> Option<Duration> {
-        val.expires_at.map(|e| e.saturating_duration_since(created_at))
+    fn expire_after_create(
+        &self,
+        _key: &Arc<str>,
+        val: &MokaEntry,
+        created_at: Instant,
+    ) -> Option<Duration> {
+        val.expires_at
+            .map(|e| e.saturating_duration_since(created_at))
     }
 
     fn expire_after_update(
@@ -50,7 +56,8 @@ impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
         updated_at: Instant,
         _duration_until_expiry: Option<Duration>,
     ) -> Option<Duration> {
-        val.expires_at.map(|e| e.saturating_duration_since(updated_at))
+        val.expires_at
+            .map(|e| e.saturating_duration_since(updated_at))
     }
 }
 
@@ -128,7 +135,10 @@ impl CacheReader for MokaMemoryBackend {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
+        stats.insert(
+            "entry_count".to_string(),
+            self.cache.entry_count().to_string(),
+        );
         Ok(stats)
     }
 
@@ -139,7 +149,12 @@ impl CacheReader for MokaMemoryBackend {
 
 #[async_trait]
 impl CacheWriter for MokaMemoryBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let expires_at = ttl.map(|d| Instant::now() + d);
         let entry = MokaEntry {
             value: (*value).clone(),
@@ -165,16 +180,18 @@ impl CacheWriter for MokaMemoryBackend {
         let result = self
             .cache
             .entry(key_arc)
-            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
-                match maybe_entry {
-                    Some(entry) => {
-                        let mut old = entry.into_value();
-                        old.expires_at = Some(new_expires_at);
-                        Op::Put(old)
+            .and_compute_with(
+                |maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                    match maybe_entry {
+                        Some(entry) => {
+                            let mut old = entry.into_value();
+                            old.expires_at = Some(new_expires_at);
+                            Op::Put(old)
+                        }
+                        None => Op::Nop,
                     }
-                    None => Op::Nop,
-                }
-            })
+                },
+            )
             .await;
         match result {
             CompResult::ReplacedWith(_) => Ok(true),
@@ -268,7 +285,10 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
         let mut stats = HashMap::new();
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
-        stats.insert("entry_count".to_string(), self.cache.entry_count().to_string());
+        stats.insert(
+            "entry_count".to_string(),
+            self.cache.entry_count().to_string(),
+        );
         Ok(stats)
     }
 }
@@ -330,7 +350,9 @@ impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
         BackendKind::Moka
     }
 
-    fn as_sync_atomic_writer(&self) -> Option<&dyn crate::backend::interface::SyncAtomicCacheWriter> {
+    fn as_sync_atomic_writer(
+        &self,
+    ) -> Option<&dyn crate::backend::interface::SyncAtomicCacheWriter> {
         Some(self)
     }
 }
@@ -347,10 +369,17 @@ impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
         new: Vec<u8>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
-        sync_block_on(AtomicCacheWriter::compare_and_swap(self, key, expected, new, ttl))
+        sync_block_on(AtomicCacheWriter::compare_and_swap(
+            self, key, expected, new, ttl,
+        ))
     }
 
-    fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         sync_block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))
     }
 }
@@ -384,48 +413,56 @@ impl AtomicCacheWriter for MokaMemoryBackend {
         let result = self
             .cache
             .entry(key_arc.clone())
-            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
-                let current_val = match maybe_entry {
-                    Some(entry) => {
-                        let old = entry.into_value();
-                        // Parse existing value as i64, return Nop if invalid
-                        match String::from_utf8(old.value) {
-                            Ok(s) => match s.parse::<i64>() {
-                                Ok(v) => v,
+            .and_compute_with(
+                |maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                    let current_val = match maybe_entry {
+                        Some(entry) => {
+                            let old = entry.into_value();
+                            // Parse existing value as i64, return Nop if invalid
+                            match String::from_utf8(old.value) {
+                                Ok(s) => match s.parse::<i64>() {
+                                    Ok(v) => v,
+                                    Err(_) => return Op::Nop,
+                                },
                                 Err(_) => return Op::Nop,
-                            },
-                            Err(_) => return Op::Nop,
+                            }
                         }
-                    }
-                    None => 0,
-                };
-                let new_val = match current_val.checked_add(delta) {
-                    Some(v) => v,
-                    None => {
-                        // Overflow: do not modify the entry, return Nop
-                        return Op::Nop;
-                    }
-                };
-                Op::Put(MokaEntry {
-                    value: new_val.to_string().into_bytes(),
-                    expires_at,
-                })
-            })
+                        None => 0,
+                    };
+                    let new_val = match current_val.checked_add(delta) {
+                        Some(v) => v,
+                        None => {
+                            // Overflow: do not modify the entry, return Nop
+                            return Op::Nop;
+                        }
+                    };
+                    Op::Put(MokaEntry {
+                        value: new_val.to_string().into_bytes(),
+                        expires_at,
+                    })
+                },
+            )
             .await;
 
         match result {
             CompResult::Inserted(entry) | CompResult::ReplacedWith(entry) => {
                 let val_str = String::from_utf8(entry.value().value.clone()).map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!("incr: invalid UTF-8 in stored value: {}", e))
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid UTF-8 in stored value: {}",
+                        e
+                    ))
                 })?;
                 val_str.parse::<i64>().map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!("incr: invalid integer in stored value: {}", e))
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid integer in stored value: {}",
+                        e
+                    ))
                 })
             }
             // Op::Nop → Unchanged (entry existed, not modified) or StillNone (no entry)
-            CompResult::Unchanged(_) | CompResult::StillNone(_) => {
-                Err(crate::error::OxCacheError::Operation("incr: i64 overflow".to_string()))
-            }
+            CompResult::Unchanged(_) | CompResult::StillNone(_) => Err(
+                crate::error::OxCacheError::Operation("incr: i64 overflow".to_string()),
+            ),
             _ => Err(crate::error::OxCacheError::Operation(
                 "incr: unexpected compute result".to_string(),
             )),
@@ -447,31 +484,35 @@ impl AtomicCacheWriter for MokaMemoryBackend {
         let result = self
             .cache
             .entry(key_arc)
-            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
-                match &expected_owned {
-                    None => {
-                        // SETNX: set only if key doesn't exist
-                        if maybe_entry.is_none() {
-                            Op::Put(MokaEntry {
-                                value: new_clone,
-                                expires_at,
-                            })
-                        } else {
-                            Op::Nop
+            .and_compute_with(
+                |maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                    match &expected_owned {
+                        None => {
+                            // SETNX: set only if key doesn't exist
+                            if maybe_entry.is_none() {
+                                Op::Put(MokaEntry {
+                                    value: new_clone,
+                                    expires_at,
+                                })
+                            } else {
+                                Op::Nop
+                            }
+                        }
+                        Some(exp_bytes) => {
+                            // CAS: set only if current value matches
+                            match &maybe_entry {
+                                Some(entry) if entry.value().value == *exp_bytes => {
+                                    Op::Put(MokaEntry {
+                                        value: new_clone,
+                                        expires_at,
+                                    })
+                                }
+                                _ => Op::Nop,
+                            }
                         }
                     }
-                    Some(exp_bytes) => {
-                        // CAS: set only if current value matches
-                        match &maybe_entry {
-                            Some(entry) if entry.value().value == *exp_bytes => Op::Put(MokaEntry {
-                                value: new_clone,
-                                expires_at,
-                            }),
-                            _ => Op::Nop,
-                        }
-                    }
-                }
-            })
+                },
+            )
             .await;
 
         match result {
@@ -480,20 +521,27 @@ impl AtomicCacheWriter for MokaMemoryBackend {
         }
     }
 
-    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         let key_arc: Arc<str> = Arc::from(key);
         let expires_at = ttl.map(|d| Instant::now() + d);
 
         let result = self
             .cache
             .entry(key_arc)
-            .and_compute_with(|maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
-                if maybe_entry.is_none() {
-                    Op::Put(MokaEntry { value, expires_at })
-                } else {
-                    Op::Nop
-                }
-            })
+            .and_compute_with(
+                |maybe_entry: Option<moka::Entry<Arc<str>, MokaEntry>>| async move {
+                    if maybe_entry.is_none() {
+                        Op::Put(MokaEntry { value, expires_at })
+                    } else {
+                        Op::Nop
+                    }
+                },
+            )
             .await;
 
         match result {
@@ -584,7 +632,10 @@ pub fn moka_memory_with_capacity(capacity: u64) -> MokaMemoryBackend {
 
 /// Convenience function to create a Moka memory backend with capacity and TTL
 pub fn moka_memory_with_capacity_and_ttl(capacity: u64, ttl: Duration) -> MokaMemoryBackend {
-    MokaMemoryBackend::builder().capacity(capacity).ttl(ttl).build()
+    MokaMemoryBackend::builder()
+        .capacity(capacity)
+        .ttl(ttl)
+        .build()
 }
 
 /// Default memory backend (Moka-based)
@@ -662,7 +713,11 @@ mod tests {
     async fn test_moka_set_with_ttl_expires_after_timeout() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(50)),
+            )
             .await
             .unwrap();
         // 立即可读
@@ -685,7 +740,11 @@ mod tests {
     async fn test_moka_set_with_ttl_readable_within_window() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
         // 60s TTL 内应可读
@@ -707,14 +766,21 @@ mod tests {
         assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
         // 全局 TTL 查询（per-entry 未设置时返回 None，符合 spec "无 TTL 键返回 None"）
         let ttl = backend.ttl("k").await.unwrap();
-        assert_eq!(ttl, None, "set(None) with global TTL should report None per-entry");
+        assert_eq!(
+            ttl, None,
+            "set(None) with global TTL should report None per-entry"
+        );
     }
 
     #[tokio::test]
     async fn test_moka_ttl_returns_remaining() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap().expect("ttl should be Some");
@@ -751,7 +817,11 @@ mod tests {
     async fn test_moka_expire_extends_ttl() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
         let ok = backend.expire("k", Duration::from_secs(120)).await.unwrap();
@@ -772,10 +842,17 @@ mod tests {
     async fn test_moka_expire_shrinks_ttl() {
         let backend = MokaMemoryBackend::new();
         backend
-            .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
-        let ok = backend.expire("k", Duration::from_millis(50)).await.unwrap();
+        let ok = backend
+            .expire("k", Duration::from_millis(50))
+            .await
+            .unwrap();
         assert!(ok, "expire on existing key should return true");
         // 等待 100ms 后应过期
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -793,7 +870,10 @@ mod tests {
     #[tokio::test]
     async fn test_moka_expire_missing_key_returns_false() {
         let backend = MokaMemoryBackend::new();
-        let ok = backend.expire("missing", Duration::from_secs(60)).await.unwrap();
+        let ok = backend
+            .expire("missing", Duration::from_secs(60))
+            .await
+            .unwrap();
         assert!(!ok, "expire on missing key should return false");
     }
 
@@ -835,7 +915,11 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_millis(50)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_millis(50)),
+                )
                 .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
@@ -861,11 +945,18 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_secs(60)),
+                )
                 .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
-            let ttl = reader.ttl("k").unwrap().expect("ttl should be Some for TTL'd key");
+            let ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some for TTL'd key");
             assert!(
                 ttl > Duration::from_secs(58),
                 "ttl={} should be > 58s",
@@ -878,7 +969,9 @@ mod tests {
             );
 
             // 无 TTL 的 key 返回 None
-            writer.set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None).unwrap();
+            writer
+                .set(Arc::from("no_ttl"), Arc::new(b"v".to_vec()), None)
+                .unwrap();
             assert_eq!(reader.ttl("no_ttl").unwrap(), None);
             // 不存在的 key 返回 None
             assert_eq!(reader.ttl("missing").unwrap(), None);
@@ -890,7 +983,11 @@ mod tests {
 
             let writer: &dyn SyncCacheWriter = &backend;
             writer
-                .set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
+                .set(
+                    Arc::from("k"),
+                    Arc::new(b"v".to_vec()),
+                    Some(Duration::from_secs(60)),
+                )
                 .unwrap();
 
             // expire 已存在 key → true，TTL 延长至 120s
@@ -898,7 +995,10 @@ mod tests {
             assert!(ok, "expire on existing key should return true");
 
             let reader: &dyn SyncCacheReader = &backend;
-            let new_ttl = reader.ttl("k").unwrap().expect("ttl should be Some after expire");
+            let new_ttl = reader
+                .ttl("k")
+                .unwrap()
+                .expect("ttl should be Some after expire");
             assert!(
                 new_ttl > Duration::from_secs(118),
                 "new_ttl={} should be > 118s",
@@ -915,8 +1015,12 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None).unwrap();
-            writer.set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None).unwrap();
+            writer
+                .set(Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+                .unwrap();
+            writer
+                .set(Arc::from("k2"), Arc::new(b"v2".to_vec()), None)
+                .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert!(reader.exists("k1").unwrap());
@@ -948,7 +1052,9 @@ mod tests {
             let backend = MokaMemoryBackend::new();
 
             let writer: &dyn SyncCacheWriter = &backend;
-            writer.set(Arc::from("mt"), Arc::new(b"v".to_vec()), None).unwrap();
+            writer
+                .set(Arc::from("mt"), Arc::new(b"v".to_vec()), None)
+                .unwrap();
 
             let reader: &dyn SyncCacheReader = &backend;
             assert_eq!(reader.get("mt").unwrap(), Some(b"v".to_vec()));
@@ -1059,25 +1165,53 @@ mod tests {
     #[test]
     fn test_moka_sync_atomic_cas() {
         let backend = MokaMemoryBackend::new();
-        let ok =
-            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", None, b"v1".to_vec(), None).unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend,
+            "k",
+            None,
+            b"v1".to_vec(),
+            None,
+        )
+        .unwrap();
         assert!(ok);
-        let ok =
-            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v2".to_vec(), None)
-                .unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend,
+            "k",
+            Some(b"v1"),
+            b"v2".to_vec(),
+            None,
+        )
+        .unwrap();
         assert!(ok);
-        let ok =
-            crate::backend::SyncAtomicCacheWriter::compare_and_swap(&backend, "k", Some(b"v1"), b"v3".to_vec(), None)
-                .unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::compare_and_swap(
+            &backend,
+            "k",
+            Some(b"v1"),
+            b"v3".to_vec(),
+            None,
+        )
+        .unwrap();
         assert!(!ok);
     }
 
     #[test]
     fn test_moka_sync_atomic_set_if_absent() {
         let backend = MokaMemoryBackend::new();
-        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v".to_vec(), None).unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
+            &backend,
+            "k",
+            b"v".to_vec(),
+            None,
+        )
+        .unwrap();
         assert!(ok);
-        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(&backend, "k", b"v2".to_vec(), None).unwrap();
+        let ok = crate::backend::SyncAtomicCacheWriter::set_if_absent(
+            &backend,
+            "k",
+            b"v2".to_vec(),
+            None,
+        )
+        .unwrap();
         assert!(!ok);
     }
 }

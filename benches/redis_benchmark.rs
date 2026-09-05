@@ -28,7 +28,11 @@ fn bench_redis_set(c: &mut Criterion) {
     let redis_url = get_redis_url();
 
     // 预先建立连接
-    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
+    let backend = rt.block_on(async {
+        RedisBackend::new(&redis_url)
+            .await
+            .expect("Failed to connect to Redis")
+    });
 
     c.bench_function("redis_set", |b| {
         b.to_async(&rt).iter(|| async {
@@ -55,13 +59,19 @@ fn bench_redis_get(c: &mut Criterion) {
 
     // 预先建立连接并准备测试数据
     let backend = rt.block_on(async {
-        let backend = RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis");
+        let backend = RedisBackend::new(&redis_url)
+            .await
+            .expect("Failed to connect to Redis");
 
         // 预填充测试数据
         let key = "bench:redis:get:test";
         let value = vec![0u8; 100];
         let _ = backend
-            .set(Arc::from(key), Arc::new(value), Some(Duration::from_secs(300)))
+            .set(
+                Arc::from(key),
+                Arc::new(value),
+                Some(Duration::from_secs(300)),
+            )
             .await;
 
         backend
@@ -80,7 +90,11 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
     let redis_url = get_redis_url();
 
     // 预先建立连接
-    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
+    let backend = rt.block_on(async {
+        RedisBackend::new(&redis_url)
+            .await
+            .expect("Failed to connect to Redis")
+    });
 
     let mut group = c.benchmark_group("redis_different_sizes");
 
@@ -110,7 +124,11 @@ fn bench_redis_ttl(c: &mut Criterion) {
     let redis_url = get_redis_url();
 
     // 预先建立连接
-    let backend = rt.block_on(async { RedisBackend::new(&redis_url).await.expect("Failed to connect to Redis") });
+    let backend = rt.block_on(async {
+        RedisBackend::new(&redis_url)
+            .await
+            .expect("Failed to connect to Redis")
+    });
 
     c.bench_function("redis_ttl", |b| {
         b.to_async(&rt).iter(|| async {

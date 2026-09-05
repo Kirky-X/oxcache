@@ -158,7 +158,8 @@ fn test_concurrent_memory_safety() {
     use std::sync::Arc;
     use std::thread;
 
-    let cache: Arc<dyn CacheBackend + Send + Sync> = Arc::new(MokaMemoryBackend::builder().capacity(100).build());
+    let cache: Arc<dyn CacheBackend + Send + Sync> =
+        Arc::new(MokaMemoryBackend::builder().capacity(100).build());
     let mut handles = vec![];
 
     for thread_id in 0..5 {

@@ -143,7 +143,12 @@ where
         self.set_with_ttl(key, value, None).await
     }
 
-    pub async fn set_with_ttl(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
+    pub async fn set_with_ttl(
+        &self,
+        key: &K,
+        value: &V,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let ttl = ttl.map(|t| self.apply_jitter(t));
 
@@ -153,7 +158,9 @@ where
                 Ok(b) => b,
                 Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
             };
-            self.backend.set(Arc::from(key_str), Arc::new(bytes), ttl).await
+            self.backend
+                .set(Arc::from(key_str), Arc::new(bytes), ttl)
+                .await
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -238,7 +245,9 @@ where
             notify.notified().await;
             // leader 应将结果写入缓存
             return self.get(key).await?.ok_or_else(|| {
-                OxCacheError::L1Error("get_or: concurrent fetch leader failed to cache result".to_string())
+                OxCacheError::L1Error(
+                    "get_or: concurrent fetch leader failed to cache result".to_string(),
+                )
             });
         }
 
@@ -486,11 +495,9 @@ impl Drop for GetOrSyncGuard {
     fn drop(&mut self) {
         if !self.removed {
             {
-                let mut done = self
-                    .flight
-                    .0
-                    .lock()
-                    .expect("GetOrSyncGuard: flight mutex poisoned - leader panicked during fallback");
+                let mut done = self.flight.0.lock().expect(
+                    "GetOrSyncGuard: flight mutex poisoned - leader panicked during fallback",
+                );
                 *done = true;
             }
             self.flight.1.notify_all();
@@ -539,14 +546,20 @@ where
     }
 
     /// Synchronously set a value with an optional per-entry TTL.
-    pub fn set_with_ttl_sync(&self, key: &K, value: &V, ttl: Option<Duration>) -> OxCacheResult<()> {
+    pub fn set_with_ttl_sync(
+        &self,
+        key: &K,
+        value: &V,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let ttl = ttl.map(|t| self.apply_jitter(t));
         let backend = self.sync_backend()?;
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+            let bytes = serde_json::to_vec(value)
+                .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
             backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
         }
 
@@ -643,7 +656,9 @@ where
             // Leader has finished — re-check cache. If leader succeeded the
             // value is now cached; if leader failed, return an error.
             return self.get_sync(key)?.ok_or_else(|| {
-                OxCacheError::L1Error("get_or_sync: concurrent fetch leader failed to cache result".to_string())
+                OxCacheError::L1Error(
+                    "get_or_sync: concurrent fetch leader failed to cache result".to_string(),
+                )
             });
         }
 
@@ -702,7 +717,12 @@ where
 
     /// Mark the flight as done, notify all followers, and remove the entry
     /// from the registry. Idempotent via the `guard.removed` flag.
-    fn finish_sync_flight(shard_index: usize, key_str: &str, flight: &SyncFlight, guard: &mut GetOrSyncGuard) {
+    fn finish_sync_flight(
+        shard_index: usize,
+        key_str: &str,
+        flight: &SyncFlight,
+        guard: &mut GetOrSyncGuard,
+    ) {
         {
             let mut done = flight
                 .0
@@ -866,7 +886,10 @@ mod tests {
     #[tokio::test]
     async fn test_cache_clear() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         cache.clear().await.unwrap();
         assert!(cache.get(&"key".to_string()).await.unwrap().is_none());
     }
@@ -883,7 +906,10 @@ mod tests {
             "x".repeat(1024).as_str(),
         ] {
             let idx = get_or_shard_index(key);
-            assert!(idx < GET_OR_LOCK_SHARDS, "key={key} shard={idx} out of range");
+            assert!(
+                idx < GET_OR_LOCK_SHARDS,
+                "key={key} shard={idx} out of range"
+            );
         }
     }
 
@@ -940,7 +966,10 @@ mod tests {
     #[tokio::test]
     async fn test_cache_len() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"key1".to_string(), &"v1".to_string()).await.unwrap();
+        cache
+            .set(&"key1".to_string(), &"v1".to_string())
+            .await
+            .unwrap();
         // Moka's entry_count() is approximate; verify it returns a reasonable value
         let len = cache.len().await.unwrap();
         assert!(len <= 100, "len should be reasonable after single insert");
@@ -949,7 +978,10 @@ mod tests {
     #[tokio::test]
     async fn test_cache_is_empty() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         // Moka's is_empty is based on approximate entry_count; just verify no error
         let _ = cache.is_empty().await.unwrap();
     }
@@ -958,14 +990,20 @@ mod tests {
     async fn test_cache_exists() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         assert!(!cache.exists(&"key".to_string()).await.unwrap());
-        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         assert!(cache.exists(&"key".to_string()).await.unwrap());
     }
 
     #[tokio::test]
     async fn test_cache_delete() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         cache.delete(&"key".to_string()).await.unwrap();
         assert!(cache.get(&"key".to_string()).await.unwrap().is_none());
     }
@@ -1010,12 +1048,24 @@ mod tests {
     async fn test_cache_set_overwrite() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-        cache.set(&"k".to_string(), &"v1".to_string()).await.unwrap();
-        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v1".to_string());
+        cache
+            .set(&"k".to_string(), &"v1".to_string())
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().unwrap(),
+            "v1".to_string()
+        );
 
         // Overwrite with a new value
-        cache.set(&"k".to_string(), &"v2".to_string()).await.unwrap();
-        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v2".to_string());
+        cache
+            .set(&"k".to_string(), &"v2".to_string())
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().unwrap(),
+            "v2".to_string()
+        );
     }
 
     #[tokio::test]
@@ -1041,17 +1091,27 @@ mod tests {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
         cache
-            .set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .set_with_ttl(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
-        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v".to_string());
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().unwrap(),
+            "v".to_string()
+        );
     }
 
     #[tokio::test]
     async fn test_cache_set_with_ttl_none() {
         let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
 
-        cache.set_with_ttl(&"k".to_string(), &42, None).await.unwrap();
+        cache
+            .set_with_ttl(&"k".to_string(), &42, None)
+            .await
+            .unwrap();
         assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), 42);
     }
 
@@ -1060,7 +1120,10 @@ mod tests {
         let cache: Cache<String, i64> = Cache::builder().build().await.unwrap();
 
         cache.set(&"count".to_string(), &12345).await.unwrap();
-        assert_eq!(cache.get(&"count".to_string()).await.unwrap().unwrap(), 12345);
+        assert_eq!(
+            cache.get(&"count".to_string()).await.unwrap().unwrap(),
+            12345
+        );
     }
 
     #[tokio::test]
@@ -1093,12 +1156,17 @@ mod tests {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
         // Pre-populate cache
-        cache.set(&"k".to_string(), &"cached".to_string()).await.unwrap();
+        cache
+            .set(&"k".to_string(), &"cached".to_string())
+            .await
+            .unwrap();
 
         // get_or should return cached value without calling fallback
         let value = cache
             .get_or(&"k".to_string(), || async {
-                Err(OxCacheError::Operation("fallback should not be called".to_string()))
+                Err(OxCacheError::Operation(
+                    "fallback should not be called".to_string(),
+                ))
             })
             .await
             .unwrap();
@@ -1127,7 +1195,10 @@ mod tests {
         let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
 
         // First call: miss, fallback computes and caches
-        let v1 = cache.get_or(&"k".to_string(), || async { Ok(99) }).await.unwrap();
+        let v1 = cache
+            .get_or(&"k".to_string(), || async { Ok(99) })
+            .await
+            .unwrap();
         assert_eq!(v1, 99);
 
         // Verify it was cached: a direct get should return the value
@@ -1220,9 +1291,18 @@ mod tests {
     #[tokio::test]
     async fn test_cache_keys_returns_matching() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"user:1".to_string(), &"a".to_string()).await.unwrap();
-        cache.set(&"user:2".to_string(), &"b".to_string()).await.unwrap();
-        cache.set(&"session:1".to_string(), &"c".to_string()).await.unwrap();
+        cache
+            .set(&"user:1".to_string(), &"a".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"user:2".to_string(), &"b".to_string())
+            .await
+            .unwrap();
+        cache
+            .set(&"session:1".to_string(), &"c".to_string())
+            .await
+            .unwrap();
 
         let all = cache.keys("*").await.unwrap();
         assert_eq!(all.len(), 3);
@@ -1238,10 +1318,18 @@ mod tests {
     async fn test_cache_ttl_returns_remaining() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         cache
-            .set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .set_with_ttl(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
-        let ttl = cache.ttl(&"k".to_string()).await.unwrap().expect("ttl should be Some");
+        let ttl = cache
+            .ttl(&"k".to_string())
+            .await
+            .unwrap()
+            .expect("ttl should be Some");
         assert!(ttl > Duration::from_secs(58));
         assert!(ttl <= Duration::from_secs(60));
         // Missing key
@@ -1252,12 +1340,23 @@ mod tests {
     async fn test_cache_expire_extends_ttl() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         cache
-            .set_with_ttl(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .set_with_ttl(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
             .await
             .unwrap();
-        let ok = cache.expire(&"k".to_string(), Duration::from_secs(120)).await.unwrap();
+        let ok = cache
+            .expire(&"k".to_string(), Duration::from_secs(120))
+            .await
+            .unwrap();
         assert!(ok);
-        let ttl = cache.ttl(&"k".to_string()).await.unwrap().expect("ttl should be Some");
+        let ttl = cache
+            .ttl(&"k".to_string())
+            .await
+            .unwrap()
+            .expect("ttl should be Some");
         assert!(ttl > Duration::from_secs(118));
         // expire missing key
         let ok = cache
@@ -1359,12 +1458,16 @@ mod sync_tests {
     #[test]
     fn test_cache_get_or_sync_cache_hit() {
         let cache = make_sync_cache();
-        cache.set_sync(&"k".to_string(), &"cached".to_string()).unwrap();
+        cache
+            .set_sync(&"k".to_string(), &"cached".to_string())
+            .unwrap();
 
         // Fallback should NOT be called — pre-populated value wins
         let v = cache
             .get_or_sync(&"k".to_string(), || {
-                Err(OxCacheError::Operation("fallback should not run".to_string()))
+                Err(OxCacheError::Operation(
+                    "fallback should not run".to_string(),
+                ))
             })
             .unwrap();
         assert_eq!(v, "cached");
@@ -1423,11 +1526,18 @@ mod sync_tests {
     fn test_cache_set_with_ttl_sync_expires() {
         let cache = make_sync_cache();
         cache
-            .set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_millis(50)))
+            .set_with_ttl_sync(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_millis(50)),
+            )
             .unwrap();
 
         // Within TTL window: readable
-        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some("v".to_string()));
+        assert_eq!(
+            cache.get_sync(&"k".to_string()).unwrap(),
+            Some("v".to_string())
+        );
 
         // After TTL: expired
         thread::sleep(Duration::from_millis(120));
@@ -1454,9 +1564,16 @@ mod sync_tests {
     fn test_cache_ttl_sync() {
         let cache = make_sync_cache();
         cache
-            .set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .set_with_ttl_sync(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
             .unwrap();
-        let ttl = cache.ttl_sync(&"k".to_string()).unwrap().expect("ttl should be Some");
+        let ttl = cache
+            .ttl_sync(&"k".to_string())
+            .unwrap()
+            .expect("ttl should be Some");
         assert!(ttl > Duration::from_secs(58));
         assert!(ttl <= Duration::from_secs(60));
         // Missing key
@@ -1467,11 +1584,20 @@ mod sync_tests {
     fn test_cache_expire_sync() {
         let cache = make_sync_cache();
         cache
-            .set_with_ttl_sync(&"k".to_string(), &"v".to_string(), Some(Duration::from_secs(60)))
+            .set_with_ttl_sync(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
             .unwrap();
-        let ok = cache.expire_sync(&"k".to_string(), Duration::from_secs(120)).unwrap();
+        let ok = cache
+            .expire_sync(&"k".to_string(), Duration::from_secs(120))
+            .unwrap();
         assert!(ok);
-        let ttl = cache.ttl_sync(&"k".to_string()).unwrap().expect("ttl should be Some");
+        let ttl = cache
+            .ttl_sync(&"k".to_string())
+            .unwrap()
+            .expect("ttl should be Some");
         assert!(ttl > Duration::from_secs(118));
         // expire missing key
         let ok = cache
@@ -1486,6 +1612,10 @@ mod sync_tests {
         assert!(cache.delete_sync(&"k".to_string()).is_err());
         assert!(cache.exists_sync(&"k".to_string()).is_err());
         assert!(cache.ttl_sync(&"k".to_string()).is_err());
-        assert!(cache.expire_sync(&"k".to_string(), Duration::from_secs(1)).is_err());
+        assert!(
+            cache
+                .expire_sync(&"k".to_string(), Duration::from_secs(1))
+                .is_err()
+        );
     }
 }

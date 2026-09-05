@@ -126,7 +126,11 @@ mod tests {
             RedisCommand::SetNx,
         ];
         for cmd in &variants {
-            assert!(!cmd.as_str().is_empty(), "Command {:?} has empty as_str()", cmd);
+            assert!(
+                !cmd.as_str().is_empty(),
+                "Command {:?} has empty as_str()",
+                cmd
+            );
         }
     }
 

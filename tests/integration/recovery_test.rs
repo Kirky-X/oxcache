@@ -29,7 +29,8 @@ async fn test_degradation_logic() {
     let ttl_key = format!("ttl_key_{}", test_id);
 
     // Redis可用时，测试正常操作
-    let cache_result: Result<Cache<String, String>, oxcache::OxCacheError> = Cache::redis(&redis_url).await;
+    let cache_result: Result<Cache<String, String>, oxcache::OxCacheError> =
+        Cache::redis(&redis_url).await;
 
     match &cache_result {
         Ok(cache) => {
@@ -37,7 +38,10 @@ async fn test_degradation_logic() {
             println!("✓ Redis connection successful, testing cache operations");
 
             // 测试基本的缓存操作
-            cache.set(&test_key, &"test_value".to_string()).await.unwrap();
+            cache
+                .set(&test_key, &"test_value".to_string())
+                .await
+                .unwrap();
             let value = cache.get(&test_key).await.unwrap();
             assert_eq!(value, Some("test_value".to_string()));
             println!("✓ Basic cache operations work correctly");
@@ -50,7 +54,11 @@ async fn test_degradation_logic() {
 
             // 测试TTL过期
             cache
-                .set_with_ttl(&ttl_key, &"ttl_value".to_string(), Some(Duration::from_secs(1)))
+                .set_with_ttl(
+                    &ttl_key,
+                    &"ttl_value".to_string(),
+                    Some(Duration::from_secs(1)),
+                )
                 .await
                 .unwrap();
             // ponytail: requires Docker, polling not feasible without container

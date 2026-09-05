@@ -101,7 +101,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    async fn cache_aside_invalidate(cache: &Cache<String, Article>, id: u64) -> Result<(), Box<dyn std::error::Error>> {
+    async fn cache_aside_invalidate(
+        cache: &Cache<String, Article>,
+        id: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let key = format!("article:{}", id);
         cache.delete(&key).await?;
         Ok(())
@@ -277,14 +280,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let total = access_pattern.len() as u32;
     println!("  模拟 {} 次访问:", total);
-    println!("    命中: {} ({:.1}%)", hits, hits as f64 / total as f64 * 100.0);
-    println!("    未中: {} ({:.1}%)", misses, misses as f64 / total as f64 * 100.0);
+    println!(
+        "    命中: {} ({:.1}%)",
+        hits,
+        hits as f64 / total as f64 * 100.0
+    );
+    println!(
+        "    未中: {} ({:.1}%)",
+        misses,
+        misses as f64 / total as f64 * 100.0
+    );
 
     // 5. 统计信息
     println!("\n--- 5. 缓存统计 ---");
     let stats = cache.stats().await?;
-    println!("  条目数: {}", stats.get("entry_count").unwrap_or(&"N/A".to_string()));
-    println!("  容量:   {}", stats.get("capacity").unwrap_or(&"N/A".to_string()));
+    println!(
+        "  条目数: {}",
+        stats.get("entry_count").unwrap_or(&"N/A".to_string())
+    );
+    println!(
+        "  容量:   {}",
+        stats.get("capacity").unwrap_or(&"N/A".to_string())
+    );
 
     // 清理
     cache.clear().await?;

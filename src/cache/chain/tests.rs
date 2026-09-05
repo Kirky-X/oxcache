@@ -63,8 +63,18 @@ async fn test_chain_cache_delete() {
 async fn test_chain_cache_backfill() {
     // Build chain with backfill enabled
     let chain = ChainCache::builder()
-        .link(ChainLink::new(MockBackend::new("high", 100, false), 100, false, "high"))
-        .link(ChainLink::new(MockBackend::new("low", 50, true), 50, true, "low"))
+        .link(ChainLink::new(
+            MockBackend::new("high", 100, false),
+            100,
+            false,
+            "high",
+        ))
+        .link(ChainLink::new(
+            MockBackend::new("low", 50, true),
+            50,
+            true,
+            "low",
+        ))
         .enable_backfill()
         .build();
 
@@ -144,7 +154,9 @@ fn test_chain_cache_len_is_empty() {
     assert!(empty.is_empty());
     assert_eq!(empty.len(), 0);
 
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
     assert!(!chain.is_empty());
     assert_eq!(chain.len(), 1);
 }
@@ -267,9 +279,14 @@ fn test_builder_disable_backfill() {
 #[tokio::test]
 async fn test_chain_cache_get_bytes_set_bytes() {
     use crate::UnifiedCache;
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
-    chain.set_bytes("key", b"value".to_vec(), None).await.unwrap();
+    chain
+        .set_bytes("key", b"value".to_vec(), None)
+        .await
+        .unwrap();
     let value = chain.get_bytes("key").await.unwrap();
     assert_eq!(value, Some(b"value".to_vec()));
 }
@@ -277,7 +294,9 @@ async fn test_chain_cache_get_bytes_set_bytes() {
 #[tokio::test]
 async fn test_chain_cache_get_bytes_missing() {
     use crate::UnifiedCache;
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     let value = chain.get_bytes("missing").await.unwrap();
     assert!(value.is_none());
@@ -289,7 +308,9 @@ async fn test_chain_cache_get_bytes_missing() {
 
 #[tokio::test]
 async fn test_chain_cache_clear() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     chain.set("key", b"value".to_vec(), None).await.unwrap();
     assert!(chain.exists("key").await.unwrap());
@@ -306,7 +327,9 @@ async fn test_chain_cache_clear_empty() {
 
 #[tokio::test]
 async fn test_chain_cache_expire() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     chain.set("key", b"value".to_vec(), None).await.unwrap();
     // Moka now supports per-entry TTL via Expiry trait; expire on existing key returns true
@@ -316,9 +339,14 @@ async fn test_chain_cache_expire() {
 
 #[tokio::test]
 async fn test_chain_cache_expire_missing_key() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
-    let result = chain.expire("missing", Duration::from_secs(60)).await.unwrap();
+    let result = chain
+        .expire("missing", Duration::from_secs(60))
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -337,7 +365,9 @@ async fn test_chain_cache_delete_empty_chain() {
 
 #[tokio::test]
 async fn test_chain_cache_set_with_explicit_ttl() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     chain
         .set("key", b"value".to_vec(), Some(Duration::from_secs(60)))
@@ -469,7 +499,9 @@ async fn test_chain_cache_no_backfill_when_disabled() {
 
 #[tokio::test]
 async fn test_chain_cache_ttl_len_capacity() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     chain.set("key", b"value".to_vec(), None).await.unwrap();
 
@@ -528,7 +560,9 @@ async fn test_chain_cache_stats_empty() {
 
 #[tokio::test]
 async fn test_chain_cache_health_check() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     assert!(chain.health_check().await.is_ok());
 }
@@ -562,7 +596,11 @@ async fn test_chain_read_degrades_when_high_backend_fails() {
         .unwrap();
 
     let value = chain.get("key").await.unwrap();
-    assert_eq!(value, Some(b"low_value".to_vec()), "L1 get 失败时应降级到 L2 读取");
+    assert_eq!(
+        value,
+        Some(b"low_value".to_vec()),
+        "L1 get 失败时应降级到 L2 读取"
+    );
 }
 
 #[tokio::test]
@@ -612,7 +650,9 @@ async fn test_chain_write_succeeds_when_partial_backend_fails() {
 
 #[tokio::test]
 async fn test_chain_cache_shutdown() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     // Should not panic
     chain.shutdown().await;
@@ -620,7 +660,9 @@ async fn test_chain_cache_shutdown() {
 
 #[test]
 fn test_chain_cache_backend_kind() {
-    let chain = ChainCache::builder().backend(MokaMemoryBackend::new()).build();
+    let chain = ChainCache::builder()
+        .backend(MokaMemoryBackend::new())
+        .build();
 
     assert_eq!(chain.backend_kind(), BackendKind::Chain);
 }
@@ -700,7 +742,10 @@ async fn test_chain_ttl_returns_highest_score_link_ttl() {
         .unwrap();
 
     let ttl = chain.ttl("k").await.unwrap();
-    assert!(ttl.is_some(), "chain ttl should return Some for highest-score link");
+    assert!(
+        ttl.is_some(),
+        "chain ttl should return Some for highest-score link"
+    );
     let ttl = ttl.unwrap();
     // 58s < ttl <= 60s（最高分链接 Moka 的剩余 TTL）
     assert!(
@@ -727,7 +772,10 @@ async fn test_chain_expire_any_link_success_returns_true() {
         .unwrap();
 
     let result = chain.expire("k", Duration::from_secs(120)).await.unwrap();
-    assert!(result, "chain expire should return true when any link succeeds");
+    assert!(
+        result,
+        "chain expire should return true when any link succeeds"
+    );
 }
 
 #[tokio::test]
@@ -741,8 +789,14 @@ async fn test_chain_expire_all_missing_returns_false() {
         .link(ChainLink::from_backend(dashmap))
         .build();
 
-    let result = chain.expire("missing", Duration::from_secs(60)).await.unwrap();
-    assert!(!result, "chain expire should return false when all links miss");
+    let result = chain
+        .expire("missing", Duration::from_secs(60))
+        .await
+        .unwrap();
+    assert!(
+        !result,
+        "chain expire should return false when all links miss"
+    );
 }
 
 // ========================================================================
@@ -862,7 +916,9 @@ async fn test_chain_race_read_returns_earliest_hit() {
     // race_read 默认关闭时走串行路径，返回值仍正确
     let high = MockBackend::new("high", 100, false);
     let low = MockBackend::new("low", 50, true);
-    high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+    high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder().backend(high).backend(low).build();
     let value = chain.get("k").await.unwrap();
@@ -871,7 +927,9 @@ async fn test_chain_race_read_returns_earliest_hit() {
     // race_read 开启后同样返回命中值
     let high = MockBackend::new("high", 100, false);
     let low = MockBackend::new("low", 50, true);
-    low.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None).await.unwrap();
+    low.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None)
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder()
         .backend(high)
@@ -891,7 +949,9 @@ async fn test_chain_race_read_backs_off_on_backend_error() {
     // L1 失败、L2 命中：race read 应返回 L2 值而非 Err（5.1 降级语义）
     let failing = MockBackend::new("high", 100, false).with_fail_get();
     let ok = MockBackend::new("low", 50, true);
-    ok.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None).await.unwrap();
+    ok.set(Arc::from("k"), Arc::new(b"l2".to_vec()), None)
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder()
         .backend(failing)
@@ -997,10 +1057,16 @@ async fn test_chain_atomic_set_if_absent() {
     let mock = MockBackend::new("mock", 100, false);
     let chain = ChainCache::builder().backend(mock).build();
 
-    let ok = chain.set_if_absent("nx_key", b"first".to_vec(), None).await.unwrap();
+    let ok = chain
+        .set_if_absent("nx_key", b"first".to_vec(), None)
+        .await
+        .unwrap();
     assert!(ok);
 
-    let ok = chain.set_if_absent("nx_key", b"second".to_vec(), None).await.unwrap();
+    let ok = chain
+        .set_if_absent("nx_key", b"second".to_vec(), None)
+        .await
+        .unwrap();
     assert!(!ok);
 }
 
@@ -1035,16 +1101,28 @@ async fn test_chain_keys_merges_and_deduplicates() {
     let low = MockBackend::new("low", 50, true);
 
     // 两个后端写入不同 key + 重叠 key
-    high.set(Arc::from("a"), Arc::new(b"1".to_vec()), None).await.unwrap();
-    high.set(Arc::from("b"), Arc::new(b"2".to_vec()), None).await.unwrap();
-    low.set(Arc::from("b"), Arc::new(b"2b".to_vec()), None).await.unwrap();
-    low.set(Arc::from("c"), Arc::new(b"3".to_vec()), None).await.unwrap();
+    high.set(Arc::from("a"), Arc::new(b"1".to_vec()), None)
+        .await
+        .unwrap();
+    high.set(Arc::from("b"), Arc::new(b"2".to_vec()), None)
+        .await
+        .unwrap();
+    low.set(Arc::from("b"), Arc::new(b"2b".to_vec()), None)
+        .await
+        .unwrap();
+    low.set(Arc::from("c"), Arc::new(b"3".to_vec()), None)
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder().backend(high).backend(low).build();
 
     let mut keys = chain.keys("*").await.unwrap();
     keys.sort();
-    assert_eq!(keys, vec!["a", "b", "c"], "keys should be merged and deduplicated");
+    assert_eq!(
+        keys,
+        vec!["a", "b", "c"],
+        "keys should be merged and deduplicated"
+    );
 }
 
 #[tokio::test]
@@ -1230,9 +1308,13 @@ async fn test_chain_exists_and_ttl() {
     let high = MockBackend::new("high", 100, false);
     let low = MockBackend::new("low", 50, true);
 
-    low.set(Arc::from("k"), Arc::new(b"v".to_vec()), Some(Duration::from_secs(60)))
-        .await
-        .unwrap();
+    low.set(
+        Arc::from("k"),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_secs(60)),
+    )
+    .await
+    .unwrap();
 
     let chain = ChainCache::builder().backend(high).backend(low).build();
 
@@ -1253,11 +1335,18 @@ async fn test_chain_expire_propagates_to_all() {
     let low = MockBackend::new("low", 50, true);
 
     // 两个后端都有 key
-    high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
-    low.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await.unwrap();
+    high.set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+        .await
+        .unwrap();
+    low.set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+        .await
+        .unwrap();
 
     let chain = ChainCache::builder().backend(high).backend(low).build();
 
     let ok = chain.expire("k", Duration::from_secs(60)).await.unwrap();
-    assert!(ok, "expire should return true when at least one backend succeeds");
+    assert!(
+        ok,
+        "expire should return true when at least one backend succeeds"
+    );
 }

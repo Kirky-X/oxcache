@@ -34,7 +34,8 @@ impl Metrics {
 
 /// 全局空指标实例
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
-pub static GLOBAL_METRICS: ::once_cell::sync::Lazy<Metrics> = ::once_cell::sync::Lazy::new(|| Metrics);
+pub static GLOBAL_METRICS: ::once_cell::sync::Lazy<Metrics> =
+    ::once_cell::sync::Lazy::new(|| Metrics);
 
 #[cfg(not(any(feature = "metrics", feature = "memory")))]
 /// 当 metrics 功能禁用时返回空字符串

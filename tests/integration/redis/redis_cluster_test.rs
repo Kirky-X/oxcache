@@ -120,7 +120,11 @@ async fn test_redis_cluster_data_distribution() {
         let key = format!("distributed_key_{}", i);
         let value = format!("value_{}", i);
         backend
-            .set(Arc::from(key.as_str()), Arc::new(value.as_bytes().to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(value.as_bytes().to_vec()),
+                None,
+            )
             .await
             .unwrap();
     }
@@ -241,7 +245,11 @@ async fn test_redis_cluster_stats() {
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
     backend
-        .set(Arc::from("stats_test_key"), Arc::new(b"stats_value".to_vec()), None)
+        .set(
+            Arc::from("stats_test_key"),
+            Arc::new(b"stats_value".to_vec()),
+            None,
+        )
         .await
         .unwrap();
 

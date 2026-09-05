@@ -40,12 +40,13 @@ pub(super) static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
 
 /// 预编译的 Lua 循环检测正则
 #[cfg(feature = "redis")]
-pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>> = ::once_cell::sync::Lazy::new(|| {
-    LUA_LOOP_PATTERNS
-        .iter()
-        .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
-        .collect()
-});
+pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>> =
+    ::once_cell::sync::Lazy::new(|| {
+        LUA_LOOP_PATTERNS
+            .iter()
+            .map(|(pattern, _)| ::regex::Regex::new(pattern).expect("Invalid loop pattern regex"))
+            .collect()
+    });
 
 /// 空白字符替换正则
 #[cfg(feature = "redis")]
@@ -364,7 +365,11 @@ fn try_skip_long_string(chars: &mut std::iter::Peekable<std::str::Chars>) -> boo
 ///
 /// 位置：`chars` 指向字符串内容起点（引号后的第一个字符）。
 #[cfg(feature = "redis")]
-fn scan_quoted_string(chars: &mut std::iter::Peekable<std::str::Chars>, result: &mut String, quote: char) {
+fn scan_quoted_string(
+    chars: &mut std::iter::Peekable<std::str::Chars>,
+    result: &mut String,
+    quote: char,
+) {
     while let Some(&next_c) = chars.peek() {
         if next_c == quote {
             chars.next();
@@ -372,10 +377,10 @@ fn scan_quoted_string(chars: &mut std::iter::Peekable<std::str::Chars>, result: 
             break;
         } else if next_c == '\\' {
             chars.next();
-            if let Some(escaped) = chars.next() {
-                if escaped.is_alphanumeric() || escaped == '_' {
-                    result.push(escaped);
-                }
+            if let Some(escaped) = chars.next()
+                && (escaped.is_alphanumeric() || escaped == '_')
+            {
+                result.push(escaped);
             }
         } else if next_c == '\n' {
             break; // 未闭合的字符串

@@ -252,7 +252,12 @@ mod testing;
 
 // Registry module for #[cached] macro support
 // 需要 backend (CacheBackend trait) 和 dashmap，仅在 memory 及其超集下可用
-#[cfg(any(feature = "memory", feature = "minimal", feature = "core", feature = "full"))]
+#[cfg(any(
+    feature = "memory",
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
+))]
 pub mod registry;
 
 // Traits module: CacheKey
@@ -343,8 +348,9 @@ pub use infra::{CacheStats, export_json_format, export_prometheus_format, get_en
 // Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]
 pub use crate::security::{
-    Redacted, clamp_scan_count, log_cache_key, redact_cache_key, redact_connection_string, redact_field, redact_value,
-    sanitize_message, validate_lua_script, validate_redis_key, validate_scan_pattern,
+    Redacted, clamp_scan_count, log_cache_key, redact_cache_key, redact_connection_string,
+    redact_field, redact_value, sanitize_message, validate_lua_script, validate_redis_key,
+    validate_scan_pattern,
 };
 
 // Distributed lock re-exports
@@ -390,8 +396,8 @@ pub use core::{CacheEvent, CacheEventType, EventPublisher};
     feature = "full"
 ))]
 pub use backend::{
-    BackendScore, DashMapMemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores, dashmap_memory,
-    default_memory_backend, moka_memory,
+    BackendScore, DashMapMemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores,
+    dashmap_memory, default_memory_backend, moka_memory,
 };
 
 #[cfg(feature = "redis")]

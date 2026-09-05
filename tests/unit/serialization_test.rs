@@ -74,7 +74,10 @@ fn test_json_serializer_large_payload_round_trip() {
     let serialized = serializer.serialize("large", &original_data).unwrap();
     let deserialized = serializer.deserialize("large", &serialized).unwrap();
 
-    assert_eq!(deserialized, original_data, "大对象 round-trip 数据必须逐字节一致");
+    assert_eq!(
+        deserialized, original_data,
+        "大对象 round-trip 数据必须逐字节一致"
+    );
 }
 
 /// 特殊 type_name / 非法输入边界：不 panic，损坏数据返回 Err
@@ -104,7 +107,10 @@ fn test_json_serializer_special_keys_and_corrupt_data() {
     assert!(serializer.deserialize("oversized", &oversized).is_err());
     let passthrough = b"not-json-at-all!!";
     assert_eq!(
-        serializer.deserialize("passthrough", passthrough).unwrap().as_slice(),
+        serializer
+            .deserialize("passthrough", passthrough)
+            .unwrap()
+            .as_slice(),
         passthrough.as_slice(),
         "非压缩模式须为字节直通"
     );

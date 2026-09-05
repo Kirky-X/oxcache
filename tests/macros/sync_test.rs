@@ -43,7 +43,10 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 async fn sync_mode_generates_sync_fn() {
     // Register a cache built with sync_mode(true) so backend_sync is wired up.
     let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
-    cache.register_for_macro("macros_sync_test_svc").await.unwrap();
+    cache
+        .register_for_macro("macros_sync_test_svc")
+        .await
+        .unwrap();
 
     // First call: cache miss → runs original fn → caches result
     let result1 = get_user_sync(1).unwrap();
@@ -75,7 +78,10 @@ async fn get_user_async(id: u64) -> Result<User, String> {
 #[tokio::test(flavor = "multi_thread")]
 async fn no_sync_keeps_async_behavior() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    cache.register_for_macro("macros_async_test_svc").await.unwrap();
+    cache
+        .register_for_macro("macros_async_test_svc")
+        .await
+        .unwrap();
 
     let result1 = get_user_async(1).await.unwrap();
     assert_eq!(result1.id, 1);

@@ -208,7 +208,11 @@ mod tests {
     #[tokio::test]
     async fn test_builder_single_backend() {
         let backend = MokaMemoryBackend::builder().capacity(100).build();
-        let cache: Cache<String, i32> = Cache::builder().backend_arc(Arc::new(backend)).build().await.unwrap();
+        let cache: Cache<String, i32> = Cache::builder()
+            .backend_arc(Arc::new(backend))
+            .build()
+            .await
+            .unwrap();
         cache.set(&"key".to_string(), &42).await.unwrap();
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
@@ -219,19 +223,23 @@ mod tests {
 
     #[test]
     fn test_builder_ttl() {
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().ttl(Duration::from_secs(60));
+        let builder: CacheBuilder<String, String> =
+            CacheBuilder::default().ttl(Duration::from_secs(60));
         assert_eq!(builder.ttl, Some(Duration::from_secs(60)));
     }
 
     #[test]
     fn test_builder_ttl_zero() {
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().ttl(Duration::from_secs(0));
+        let builder: CacheBuilder<String, String> =
+            CacheBuilder::default().ttl(Duration::from_secs(0));
         assert_eq!(builder.ttl, Some(Duration::from_secs(0)));
     }
 
     #[test]
     fn test_builder_ttl_chained() {
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().ttl(Duration::from_secs(30)).capacity(100);
+        let builder: CacheBuilder<String, String> = CacheBuilder::default()
+            .ttl(Duration::from_secs(30))
+            .capacity(100);
         assert_eq!(builder.ttl, Some(Duration::from_secs(30)));
         assert_eq!(builder.capacity, Some(100));
     }
@@ -242,13 +250,15 @@ mod tests {
 
     #[test]
     fn test_builder_tti() {
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().tti(Duration::from_secs(120));
+        let builder: CacheBuilder<String, String> =
+            CacheBuilder::default().tti(Duration::from_secs(120));
         assert_eq!(builder.tti, Some(Duration::from_secs(120)));
     }
 
     #[test]
     fn test_builder_tti_zero() {
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().tti(Duration::from_secs(0));
+        let builder: CacheBuilder<String, String> =
+            CacheBuilder::default().tti(Duration::from_secs(0));
         assert_eq!(builder.tti, Some(Duration::from_secs(0)));
     }
 
@@ -295,7 +305,8 @@ mod tests {
     #[test]
     fn test_builder_backend_arc() {
         let backend = MokaMemoryBackend::builder().capacity(100).build();
-        let builder: CacheBuilder<String, String> = CacheBuilder::default().backend_arc(Arc::new(backend));
+        let builder: CacheBuilder<String, String> =
+            CacheBuilder::default().backend_arc(Arc::new(backend));
         assert_eq!(builder.backends.len(), 1);
     }
 
@@ -315,14 +326,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_build_with_ttl() {
-        let cache: Cache<String, i32> = Cache::builder().ttl(Duration::from_secs(60)).build().await.unwrap();
+        let cache: Cache<String, i32> = Cache::builder()
+            .ttl(Duration::from_secs(60))
+            .build()
+            .await
+            .unwrap();
         cache.set(&"key".to_string(), &42).await.unwrap();
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
 
     #[tokio::test]
     async fn test_builder_build_with_tti() {
-        let cache: Cache<String, i32> = Cache::builder().tti(Duration::from_secs(60)).build().await.unwrap();
+        let cache: Cache<String, i32> = Cache::builder()
+            .tti(Duration::from_secs(60))
+            .build()
+            .await
+            .unwrap();
         cache.set(&"key".to_string(), &42).await.unwrap();
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
@@ -391,13 +410,19 @@ mod tests {
     #[test]
     fn test_builder_sync_mode_true() {
         let builder: CacheBuilder<String, String> = CacheBuilder::default().sync_mode(true);
-        assert!(builder.sync_mode, "sync_mode(true) should set field to true");
+        assert!(
+            builder.sync_mode,
+            "sync_mode(true) should set field to true"
+        );
     }
 
     #[test]
     fn test_builder_sync_mode_false_explicit() {
         let builder: CacheBuilder<String, String> = CacheBuilder::default().sync_mode(false);
-        assert!(!builder.sync_mode, "sync_mode(false) should set field to false");
+        assert!(
+            !builder.sync_mode,
+            "sync_mode(false) should set field to false"
+        );
     }
 
     #[test]
@@ -421,7 +446,10 @@ mod tests {
         let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();
         // Sync API should work end-to-end
         cache.set_sync(&"k".to_string(), &"v".to_string()).unwrap();
-        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some("v".to_string()));
+        assert_eq!(
+            cache.get_sync(&"k".to_string()).unwrap(),
+            Some("v".to_string())
+        );
     }
 
     #[tokio::test]
@@ -449,7 +477,10 @@ mod tests {
             .build()
             .await;
 
-        assert!(result.is_err(), "sync_mode(true) + backend_arc() should return Err");
+        assert!(
+            result.is_err(),
+            "sync_mode(true) + backend_arc() should return Err"
+        );
         match result {
             Err(crate::error::OxCacheError::NotSupported(msg)) => {
                 assert!(

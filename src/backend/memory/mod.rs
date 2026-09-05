@@ -57,8 +57,12 @@ pub use moka::default_memory_backend;
 pub use moka::moka_memory;
 
 // Re-export builder helpers for external test usage
-pub use dashmap::{DashMapBackendBuilder, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl};
-pub use moka::{MokaMemoryBackendBuilder, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl};
+pub use dashmap::{
+    DashMapBackendBuilder, dashmap_memory_with_capacity, dashmap_memory_with_capacity_and_ttl,
+};
+pub use moka::{
+    MokaMemoryBackendBuilder, moka_memory_with_capacity, moka_memory_with_capacity_and_ttl,
+};
 
 // Re-export MockBackend for crate-internal test usage
 #[cfg(test)]

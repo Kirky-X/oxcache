@@ -101,7 +101,10 @@ impl LatencyHistogram {
             )));
         }
 
-        let bucket_counts: Vec<_> = bucket_bounds_us.iter().map(|_| Arc::new(AtomicU64::new(0))).collect();
+        let bucket_counts: Vec<_> = bucket_bounds_us
+            .iter()
+            .map(|_| Arc::new(AtomicU64::new(0)))
+            .collect();
 
         let max_latency = u64::MAX;
 
@@ -124,7 +127,8 @@ impl LatencyHistogram {
 
         // 更新统计
         self.total_count.fetch_add(1, Ordering::Relaxed);
-        self.total_latency_us.fetch_add(latency_us, Ordering::Relaxed);
+        self.total_latency_us
+            .fetch_add(latency_us, Ordering::Relaxed);
 
         // 更新最小/最大
         loop {
@@ -135,7 +139,12 @@ impl LatencyHistogram {
             }
             if self
                 .min_latency_us
-                .compare_exchange(current_min, latency_us, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(
+                    current_min,
+                    latency_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
                 .is_ok()
             {
                 break;
@@ -149,7 +158,12 @@ impl LatencyHistogram {
             }
             if self
                 .max_latency_us
-                .compare_exchange(current_max, latency_us, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(
+                    current_max,
+                    latency_us,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
                 .is_ok()
             {
                 break;
@@ -174,7 +188,11 @@ impl LatencyHistogram {
     pub fn buckets(&self) -> Vec<HistogramBucket> {
         let total = self.total_count.load(Ordering::Relaxed);
         if total == 0 {
-            return self.buckets.iter().map(|b| HistogramBucket::new(*b)).collect();
+            return self
+                .buckets
+                .iter()
+                .map(|b| HistogramBucket::new(*b))
+                .collect();
         }
 
         let mut result = Vec::new();
@@ -258,7 +276,10 @@ pub struct OperationCounter {
 
 impl OperationCounter {
     /// 创建新的操作计数器
-    pub fn new(op_type: OperationType, bucket_bounds_us: Vec<u64>) -> Result<Self, crate::error::OxCacheError> {
+    pub fn new(
+        op_type: OperationType,
+        bucket_bounds_us: Vec<u64>,
+    ) -> Result<Self, crate::error::OxCacheError> {
         Ok(Self {
             op_type,
             success_count: Arc::new(AtomicU64::new(0)),
@@ -380,7 +401,9 @@ impl MetricsCollector {
 
     /// 获取操作计数器
     pub fn operation_counter(&self, op_type: OperationType) -> Option<&OperationCounter> {
-        self.operation_counters.iter().find(|c| c.op_type == op_type)
+        self.operation_counters
+            .iter()
+            .find(|c| c.op_type == op_type)
     }
 
     /// 记录 L1 命中
@@ -607,7 +630,8 @@ impl SlidingWindowMetrics {
 
         // 清理过期的快照
         let now = Instant::now();
-        snapshots.retain(|s| now.duration_since(s.timestamp) < Duration::from_secs(self.window_secs));
+        snapshots
+            .retain(|s| now.duration_since(s.timestamp) < Duration::from_secs(self.window_secs));
 
         // 保持最大数量
         while snapshots.len() > self.max_snapshots {
@@ -737,7 +761,9 @@ mod tests {
 
     #[test]
     fn test_latency_histogram_new_too_many_buckets() {
-        let bounds: Vec<u64> = (0..MAX_HISTOGRAM_BUCKETS + 1).map(|i| i as u64 * 100).collect();
+        let bounds: Vec<u64> = (0..MAX_HISTOGRAM_BUCKETS + 1)
+            .map(|i| i as u64 * 100)
+            .collect();
         let result = LatencyHistogram::new(bounds);
         assert!(result.is_err(), "Should reject too many buckets");
     }
@@ -986,7 +1012,11 @@ mod tests {
         }
 
         let stats = collector.full_stats();
-        let get_stats = stats.operation_stats.iter().find(|s| s.op_type == "get").unwrap();
+        let get_stats = stats
+            .operation_stats
+            .iter()
+            .find(|s| s.op_type == "get")
+            .unwrap();
         assert_eq!(get_stats.total_count, 2);
         assert_eq!(get_stats.success_count, 1);
         assert_eq!(get_stats.failure_count, 1);

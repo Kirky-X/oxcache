@@ -20,9 +20,16 @@ where
         self.backend.get(key).await
     }
 
-    pub async fn set_bytes(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
+    pub async fn set_bytes(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<u64>,
+    ) -> OxCacheResult<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
-        self.backend.set(Arc::from(key), Arc::new(value), ttl_duration).await
+        self.backend
+            .set(Arc::from(key), Arc::new(value), ttl_duration)
+            .await
     }
 
     /// Synchronously get raw bytes from the cache (macro-compatible sync path).
@@ -30,7 +37,10 @@ where
     /// Returns `Err(NotSupported)` if `sync_mode(true)` was not set on the
     /// builder (i.e., `backend_sync` is `None`).
     pub fn get_bytes_sync(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
-        let backend = self.backend_sync.as_ref().ok_or_else(Self::sync_mode_error)?;
+        let backend = self
+            .backend_sync
+            .as_ref()
+            .ok_or_else(Self::sync_mode_error)?;
         backend.get(key)
     }
 
@@ -40,7 +50,10 @@ where
     /// macro symmetry). Returns `Err(NotSupported)` if `sync_mode(true)` was
     /// not set on the builder.
     pub fn set_bytes_sync(&self, key: &str, value: Vec<u8>, ttl: Option<u64>) -> OxCacheResult<()> {
-        let backend = self.backend_sync.as_ref().ok_or_else(Self::sync_mode_error)?;
+        let backend = self
+            .backend_sync
+            .as_ref()
+            .ok_or_else(Self::sync_mode_error)?;
         let ttl_duration = ttl.map(Duration::from_secs);
         backend.set(Arc::from(key), Arc::new(value), ttl_duration)
     }
@@ -76,7 +89,10 @@ mod tests {
     async fn test_get_bytes_returns_stored_value() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let data = vec![1, 2, 3, 4, 5];
-        cache.set_bytes("test_key", data.clone(), None).await.unwrap();
+        cache
+            .set_bytes("test_key", data.clone(), None)
+            .await
+            .unwrap();
         let result = cache.get_bytes("test_key").await.unwrap();
         assert_eq!(result, Some(data));
     }
@@ -118,7 +134,10 @@ mod tests {
     async fn test_set_bytes_empty_value() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let empty_data: Vec<u8> = vec![];
-        cache.set_bytes("empty", empty_data.clone(), None).await.unwrap();
+        cache
+            .set_bytes("empty", empty_data.clone(), None)
+            .await
+            .unwrap();
         let result = cache.get_bytes("empty").await.unwrap();
         assert_eq!(result, Some(empty_data));
     }
@@ -159,7 +178,10 @@ mod tests {
     async fn test_set_bytes_large_data() {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let large_data = vec![0xAB; 1024 * 100]; // 100KB
-        cache.set_bytes("large", large_data.clone(), None).await.unwrap();
+        cache
+            .set_bytes("large", large_data.clone(), None)
+            .await
+            .unwrap();
         let result = cache.get_bytes("large").await.unwrap();
         assert_eq!(result, Some(large_data));
     }
@@ -181,7 +203,9 @@ mod tests {
     async fn test_set_bytes_sync_then_get_bytes_sync_roundtrip() {
         let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
         let data = vec![1, 2, 3, 4, 5];
-        cache.set_bytes_sync("test_key", data.clone(), None).unwrap();
+        cache
+            .set_bytes_sync("test_key", data.clone(), None)
+            .unwrap();
         let result = cache.get_bytes_sync("test_key").unwrap();
         assert_eq!(result, Some(data));
     }
@@ -190,7 +214,9 @@ mod tests {
     async fn test_set_bytes_sync_with_ttl_roundtrip() {
         let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
         let data = b"expiring".to_vec();
-        cache.set_bytes_sync("temp", data.clone(), Some(3600)).unwrap();
+        cache
+            .set_bytes_sync("temp", data.clone(), Some(3600))
+            .unwrap();
         let result = cache.get_bytes_sync("temp").unwrap();
         assert_eq!(result, Some(data));
     }

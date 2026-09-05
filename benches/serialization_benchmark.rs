@@ -45,7 +45,9 @@ fn bench_serialize_plain(c: &mut Criterion) {
 
     c.bench_function("serialize_json_plain", |b| {
         b.iter(|| {
-            let out = serializer.serialize(black_box("User"), black_box(&data)).unwrap();
+            let out = serializer
+                .serialize(black_box("User"), black_box(&data))
+                .unwrap();
             black_box(out);
         });
     });
@@ -71,7 +73,9 @@ fn bench_serialize_compressed(c: &mut Criterion) {
 
     c.bench_function("serialize_json_compressed", |b| {
         b.iter(|| {
-            let out = serializer.serialize(black_box("User"), black_box(&data)).unwrap();
+            let out = serializer
+                .serialize(black_box("User"), black_box(&data))
+                .unwrap();
             black_box(out);
         });
     });

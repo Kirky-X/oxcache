@@ -58,7 +58,9 @@ impl RedisBackend {
                 for key in &keys {
                     pipe.cmd(RedisCommand::Del.as_str()).arg(key);
                 }
-                pipe.query_async::<()>(&mut conn).await.map_err(map_redis_error)?;
+                pipe.query_async::<()>(&mut conn)
+                    .await
+                    .map_err(map_redis_error)?;
             }
 
             cursor = new_cursor;

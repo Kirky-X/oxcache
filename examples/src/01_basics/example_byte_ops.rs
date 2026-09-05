@@ -39,7 +39,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  写入: {} 字节（无 TTL）", data2.len());
 
     let retrieved2 = cache.get_bytes(&key2).await?;
-    println!("  读取: {} 字节", retrieved2.as_ref().map(|d| d.len()).unwrap_or(0));
+    println!(
+        "  读取: {} 字节",
+        retrieved2.as_ref().map(|d| d.len()).unwrap_or(0)
+    );
 
     // 3. 二进制数据
     println!("\n--- 3. 二进制数据 ---");
@@ -47,7 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let key3 = "binary_data".to_string();
     let binary_data: Vec<u8> = (0..=255).collect();
 
-    cache.set_bytes(&key3, binary_data.clone(), Some(300)).await?;
+    cache
+        .set_bytes(&key3, binary_data.clone(), Some(300))
+        .await?;
     println!("  写入: {} 字节二进制数据", binary_data.len());
 
     let retrieved3 = cache.get_bytes(&key3).await?;
@@ -91,7 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  写入: {} 字节", large_data.len());
 
     let retrieved4 = cache.get_bytes(&key4).await?;
-    println!("  读取: {} 字节", retrieved4.as_ref().map(|d| d.len()).unwrap_or(0));
+    println!(
+        "  读取: {} 字节",
+        retrieved4.as_ref().map(|d| d.len()).unwrap_or(0)
+    );
 
     // 清理
     cache.clear().await?;

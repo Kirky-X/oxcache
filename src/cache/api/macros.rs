@@ -24,7 +24,9 @@ impl Cache<String, Vec<u8>> {
         use crate::internal::__internal_register_cache;
 
         if service_name.is_empty() {
-            return Err(OxCacheError::InvalidInput("service_name must not be empty".to_string()));
+            return Err(OxCacheError::InvalidInput(
+                "service_name must not be empty".to_string(),
+            ));
         }
 
         let backend = self.backend.clone();
@@ -44,7 +46,12 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     #[cfg(feature = "lua")]
-    pub async fn eval_lua(&self, script: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
+    pub async fn eval_lua(
+        &self,
+        script: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
@@ -54,7 +61,12 @@ where
     }
 
     #[cfg(feature = "lua")]
-    pub async fn eval_sha(&self, sha: &str, keys: &[&str], args: &[&str]) -> OxCacheResult<redis::Value> {
+    pub async fn eval_sha(
+        &self,
+        sha: &str,
+        keys: &[&str],
+        args: &[&str],
+    ) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
             OxCacheError::Operation(
                 "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),

@@ -33,7 +33,13 @@ async fn test_sync_exists() {
     let backend = make_backend().await;
     let key = unique_key("sync_exists");
 
-    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).expect("sync set failed");
+    SyncCacheWriter::set(
+        &backend,
+        Arc::from(key.as_str()),
+        Arc::new(b"v".to_vec()),
+        None,
+    )
+    .expect("sync set failed");
 
     assert!(SyncCacheReader::exists(&backend, &key).expect("sync exists failed"));
 
@@ -46,7 +52,13 @@ async fn test_sync_delete() {
     let backend = make_backend().await;
     let key = unique_key("sync_delete");
 
-    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).expect("sync set failed");
+    SyncCacheWriter::set(
+        &backend,
+        Arc::from(key.as_str()),
+        Arc::new(b"v".to_vec()),
+        None,
+    )
+    .expect("sync set failed");
 
     SyncCacheWriter::delete(&backend, &key).expect("sync delete failed");
     assert!(!SyncCacheReader::exists(&backend, &key).expect("sync exists failed"));
@@ -80,9 +92,16 @@ async fn test_sync_expire() {
     let backend = make_backend().await;
     let key = unique_key("sync_expire");
 
-    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"v".to_vec()), None).expect("sync set failed");
+    SyncCacheWriter::set(
+        &backend,
+        Arc::from(key.as_str()),
+        Arc::new(b"v".to_vec()),
+        None,
+    )
+    .expect("sync set failed");
 
-    let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50)).expect("sync expire failed");
+    let ok = SyncCacheWriter::expire(&backend, &key, Duration::from_secs(50))
+        .expect("sync expire failed");
     assert!(ok);
 
     cleanup(&backend, &key).await;
@@ -149,11 +168,11 @@ async fn test_sync_atomic_set_if_absent() {
     use crate::backend::SyncAtomicCacheWriter;
     let backend = make_backend().await;
     let key = unique_key("sync_setnx");
-    let ok =
-        SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v1".to_vec(), None).expect("sync set_if_absent failed");
+    let ok = SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v1".to_vec(), None)
+        .expect("sync set_if_absent failed");
     assert!(ok);
-    let ok2 =
-        SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v2".to_vec(), None).expect("sync set_if_absent failed");
+    let ok2 = SyncAtomicCacheWriter::set_if_absent(&backend, &key, b"v2".to_vec(), None)
+        .expect("sync set_if_absent failed");
     assert!(!ok2);
     cleanup(&backend, &key).await;
 }
@@ -166,9 +185,21 @@ async fn test_sync_atomic_compare_and_swap() {
     use crate::backend::interface::SyncCacheWriter;
     let backend = make_backend().await;
     let key = unique_key("sync_cas");
-    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"old".to_vec()), None).expect("sync set failed");
-    let ok = SyncAtomicCacheWriter::compare_and_swap(&backend, &key, Some(b"old"), b"new".to_vec(), None)
-        .expect("sync cas failed");
+    SyncCacheWriter::set(
+        &backend,
+        Arc::from(key.as_str()),
+        Arc::new(b"old".to_vec()),
+        None,
+    )
+    .expect("sync set failed");
+    let ok = SyncAtomicCacheWriter::compare_and_swap(
+        &backend,
+        &key,
+        Some(b"old"),
+        b"new".to_vec(),
+        None,
+    )
+    .expect("sync cas failed");
     assert!(ok);
     let val = SyncCacheReader::get(&backend, &key).expect("cas get");
     assert_eq!(val.as_deref(), Some(b"new" as &[u8]));
@@ -182,11 +213,22 @@ async fn test_sync_atomic_cas_wrong_expected() {
     use crate::backend::interface::SyncCacheWriter;
     let backend = make_backend().await;
     let key = unique_key("sync_cas_neg");
-    SyncCacheWriter::set(&backend, Arc::from(key.as_str()), Arc::new(b"actual".to_vec()), None)
-        .expect("sync set failed");
+    SyncCacheWriter::set(
+        &backend,
+        Arc::from(key.as_str()),
+        Arc::new(b"actual".to_vec()),
+        None,
+    )
+    .expect("sync set failed");
     // CAS with wrong expected value should return false
-    let ok = SyncAtomicCacheWriter::compare_and_swap(&backend, &key, Some(b"wrong"), b"new".to_vec(), None)
-        .expect("sync cas should not error");
+    let ok = SyncAtomicCacheWriter::compare_and_swap(
+        &backend,
+        &key,
+        Some(b"wrong"),
+        b"new".to_vec(),
+        None,
+    )
+    .expect("sync cas should not error");
     assert!(!ok);
     cleanup(&backend, &key).await;
 }

@@ -21,7 +21,9 @@
 //! 2. Future interception at `CacheConnector::execute_raw_command()` (if implemented)
 //! 3. User-customizable extension via `with_disabled_commands()`
 
-use crate::backend::interface::{AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter};
+use crate::backend::interface::{
+    AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter,
+};
 use crate::backend::memory::redis::RedisBackend;
 use crate::backend::score::{BackendScore, Scores};
 use crate::error::OxCacheResult;
@@ -160,7 +162,12 @@ impl CacheReader for DragonflyBackend {
 
 #[async_trait]
 impl CacheWriter for DragonflyBackend {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         self.inner.set(key, value, ttl).await
     }
 
@@ -176,7 +183,10 @@ impl CacheWriter for DragonflyBackend {
         self.inner.expire(key, ttl).await
     }
 
-    async fn set_many(&self, items: &[(Arc<str>, Arc<Vec<u8>>, Option<Duration>)]) -> OxCacheResult<()> {
+    async fn set_many(
+        &self,
+        items: &[(Arc<str>, Arc<Vec<u8>>, Option<Duration>)],
+    ) -> OxCacheResult<()> {
         self.inner.set_many(items).await
     }
 
@@ -333,7 +343,11 @@ mod tests {
 
         // set
         backend
-            .set(Arc::from(key.as_str()), Arc::new(b"dragonfly_value".to_vec()), None)
+            .set(
+                Arc::from(key.as_str()),
+                Arc::new(b"dragonfly_value".to_vec()),
+                None,
+            )
             .await
             .expect("set failed");
 
@@ -346,7 +360,12 @@ mod tests {
 
         // delete
         backend.delete(&key).await.expect("delete failed");
-        assert!(!backend.exists(&key).await.expect("exists after delete failed"));
+        assert!(
+            !backend
+                .exists(&key)
+                .await
+                .expect("exists after delete failed")
+        );
         cleanup_insecure_env();
     }
 
@@ -431,7 +450,10 @@ mod tests {
         assert_eq!(values[0], Some(b"v1".to_vec()));
         assert_eq!(values[1], Some(b"v2".to_vec()));
 
-        backend.delete_many(&keys).await.expect("delete_many failed");
+        backend
+            .delete_many(&keys)
+            .await
+            .expect("delete_many failed");
         cleanup_insecure_env();
     }
 

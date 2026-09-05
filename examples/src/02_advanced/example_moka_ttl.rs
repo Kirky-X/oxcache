@@ -22,7 +22,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // set with 60s per-entry TTL
     backend
-        .set("k1".into(), b"value1".to_vec().into(), Some(Duration::from_secs(60)))
+        .set(
+            "k1".into(),
+            b"value1".to_vec().into(),
+            Some(Duration::from_secs(60)),
+        )
         .await?;
     println!("\nset 'k1'（60s per-entry TTL）");
 
@@ -40,11 +44,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // expire 不存在的 key 返回 false
     let result = backend.expire("missing", Duration::from_secs(60)).await?;
-    println!("expire('missing', 60s) = {}（key 不存在应返回 false）", result);
+    println!(
+        "expire('missing', 60s) = {}（key 不存在应返回 false）",
+        result
+    );
 
     // === 无 TTL 的 key ===
     println!("\n=== 无 TTL 的 key ===");
-    backend.set("k2".into(), b"value2".to_vec().into(), None).await?;
+    backend
+        .set("k2".into(), b"value2".to_vec().into(), None)
+        .await?;
     println!("set 'k2'（无 TTL，永不过期）");
 
     let ttl = backend.ttl("k2").await?;
@@ -84,7 +93,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 有 per-entry TTL：覆盖全局 TTL
     backend_with_global_ttl
-        .set("b".into(), b"b_val".to_vec().into(), Some(Duration::from_secs(10)))
+        .set(
+            "b".into(),
+            b"b_val".to_vec().into(),
+            Some(Duration::from_secs(10)),
+        )
         .await?;
     println!("set 'b'（per-entry TTL=10s → 覆盖全局 300s）");
 

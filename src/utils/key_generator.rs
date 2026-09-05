@@ -16,9 +16,10 @@ const DEFAULT_NAMESPACE: &str = "default";
 
 /// 有效的键字符集
 const VALID_KEY_CHARS: &[char] = &[
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-    'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
-    'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4',
+    '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
 ];
 
 /// 缓存键生成器
@@ -139,7 +140,11 @@ impl KeyGenerator {
     /// # Errors
     ///
     /// 返回 [`OxCacheError::InvalidInput`] 当生成的键未通过验证时。
-    pub fn try_generate_full(&self, template: &str, params: &[(&str, &str)]) -> Result<String, OxCacheError> {
+    pub fn try_generate_full(
+        &self,
+        template: &str,
+        params: &[(&str, &str)],
+    ) -> Result<String, OxCacheError> {
         let key = self.generate(template, params);
         let prefixed = self.apply_prefix(&key);
         let full_key = self.namespaced_key(&prefixed);
@@ -159,7 +164,9 @@ impl KeyGenerator {
     /// 验证键是否有效
     pub fn validate_key(&self, key: &str) -> Result<(), OxCacheError> {
         if key.is_empty() {
-            return Err(OxCacheError::InvalidInput("Cache key cannot be empty".to_string()));
+            return Err(OxCacheError::InvalidInput(
+                "Cache key cannot be empty".to_string(),
+            ));
         }
         if key.len() > self.max_key_length {
             return Err(OxCacheError::InvalidInput(format!(
@@ -241,7 +248,10 @@ mod tests {
     #[test]
     fn test_key_generator_generate_multiple_params() {
         let key_gen = KeyGenerator::new();
-        let key = key_gen.generate("search:{type}:{query}", &[("type", "products"), ("query", "laptop")]);
+        let key = key_gen.generate(
+            "search:{type}:{query}",
+            &[("type", "products"), ("query", "laptop")],
+        );
         assert_eq!(key, "search:products:laptop");
     }
 
@@ -315,7 +325,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            crate::error::OxCacheError::InvalidInput(msg) => assert!(msg.contains("cannot be empty")),
+            crate::error::OxCacheError::InvalidInput(msg) => {
+                assert!(msg.contains("cannot be empty"))
+            }
             _ => panic!("Expected InvalidInput error"),
         }
     }
@@ -327,7 +339,9 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         match err {
-            crate::error::OxCacheError::InvalidInput(msg) => assert!(msg.contains("maximum length")),
+            crate::error::OxCacheError::InvalidInput(msg) => {
+                assert!(msg.contains("maximum length"))
+            }
             _ => panic!("Expected InvalidInput error"),
         }
     }

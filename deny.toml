@@ -1,21 +1,19 @@
-# cargo-deny 配置文件
-# 文档: https://embarkstudios.github.io/cargo-deny/
+# cargo-deny 配置 — 7 仓库统一基线(见 base/CONFIG_BASELINE.md)
+# `cargo deny check` 校验 漏洞/许可证/禁用源/重复依赖。
+# 完整字段见: https://embarkstudios.github.io/cargo-deny/
+# 仓库特有豁免写在 [advisories].ignore 与 [[licenses.exceptions]],须附原因注释。
 
 [advisories]
-db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = [
-    # 历史死代码 ignore 已清理（2026-07）— 下列 crate 已随依赖升级移除（cargo-deny advisory-not-detected）：
-    #   RUSTSEC-2023-0071 (rsa, sqlx→rsa)       — sqlx 升级后 rsa 已移除
-    #   RUSTSEC-2025-0111 (tokio-tar, testcontainers) — testcontainers 升级后已移除
-    #   RUSTSEC-2025-0134 (rustls-pemfile, bollard)   — bollard 升级后已移除
-    #   RUSTSEC-2025-0141 (bincode, 直接依赖)         — bincode 已替换/移除
-    # 新增 unmaintained ignore 请用 { id = "RUSTSEC-XXXX", reason = "..." } 格式
-]
+db-urls = ["https://github.com/RustSec/advisory-db"]
+yanked = "warn"
+# 按仓库填:传递依赖 RUSTSEC 豁免(每项须注释原因)
 
 [licenses]
+# 允许的宽松许可证;新增非宽松许可证需在此放行
+# 注:下列条目为本仓依赖树实际命中的集合(未命中项已按 unused-allowed-license 移除)
 allow = [
     "MIT",
-    "MIT-0",  # MIT No Attribution - OSI批准
+    "MIT-0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
@@ -24,9 +22,10 @@ allow = [
     "Unicode-3.0",
     "Zlib",
     "CC0-1.0",
-    "BSL-1.0",  # Boost Software License 1.0 - OSI批准, xxhash-rust使用
+    "BSL-1.0",
 ]
 confidence-threshold = 0.8
+unused-allowed-license = "warn"
 
 # 传递依赖许可证例外
 [[licenses.exceptions]]
@@ -37,13 +36,26 @@ crate = "rhexdump"
 
 [bans]
 multiple-versions = "warn"
-wildcards = "allow"
-highlight = "all"
-skip = []
+wildcards = "deny"
+# 传递依赖树版本分裂豁免(aerospike→pwhash 旧加密栈、trybuild→syn 2 等第三方内部分裂,
+# 无法在 manifest 层收敛;skip 旧版本条目,保留最新):
+skip = [
+    { name = "block-buffer", version = "0.9.0" },   # pwhash 旧栈 vs digest 0.11 链
+    { name = "digest", version = "0.9.0" },         # pwhash 旧栈 vs ripemd 链
+    { name = "cpufeatures", version = "0.2.17" },   # getrandom/sha 旧链
+    { name = "getrandom", version = "0.2.17" },     # rand 0.8 链(pwhash)
+    { name = "rand", version = "0.8.8" },           # pwhash 旧链 vs rand 0.10
+    { name = "rand_core", version = "0.6.4" },      # rand 0.8 链(pwhash)
+    { name = "syn", version = "2.0.119" },          # trybuild 旧链 vs oxcache_macros syn 3
+    { name = "windows-sys", version = "0.52.0" },   # 旧传递链 vs 0.61
+]
 skip-tree = []
+
+[[bans.deny]]
+name = "serde_yaml" # deprecated, use serde_yaml_ng
+wrappers = []
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []

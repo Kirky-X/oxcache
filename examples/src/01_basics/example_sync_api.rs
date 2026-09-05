@@ -38,7 +38,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("获取 user:1 = {:?}", cached);
     assert_eq!(cached, Some(alice));
 
-    println!("exists user:1 = {}", cache.exists_sync(&"user:1".to_string())?);
+    println!(
+        "exists user:1 = {}",
+        cache.exists_sync(&"user:1".to_string())?
+    );
 
     cache.delete_sync(&"user:1".to_string())?;
     println!("删除 user:1");

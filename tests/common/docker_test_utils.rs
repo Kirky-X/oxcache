@@ -52,7 +52,12 @@ pub async fn wait_for_redis(url: &str, timeout_secs: u64) -> bool {
     let timeout = Duration::from_secs(timeout_secs);
 
     while start.elapsed() < timeout {
-        match tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await {
+        match tokio::time::timeout(
+            Duration::from_secs(2),
+            client.get_multiplexed_async_connection(),
+        )
+        .await
+        {
             Ok(Ok(_)) => return true,
             _ => tokio::time::sleep(Duration::from_millis(100)).await,
         }
@@ -69,13 +74,19 @@ pub async fn is_redis_available(url: &str) -> bool {
     };
 
     matches!(
-        tokio::time::timeout(Duration::from_secs(2), client.get_multiplexed_async_connection()).await,
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            client.get_multiplexed_async_connection()
+        )
+        .await,
         Ok(Ok(_))
     )
 }
 
 /// 创建多个 Redis 容器用于集群测试
-pub async fn setup_redis_cluster_nodes(count: usize) -> Result<Vec<(RedisContainer, String)>, String> {
+pub async fn setup_redis_cluster_nodes(
+    count: usize,
+) -> Result<Vec<(RedisContainer, String)>, String> {
     let mut containers = Vec::new();
 
     for i in 0..count {

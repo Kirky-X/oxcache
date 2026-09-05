@@ -15,7 +15,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use oxcache::integrations::kit::{
-    OxcacheBuildObserver, OxcacheConfig, OxcacheModule, register_cache_decorator, register_cache_shutdown,
+    OxcacheBuildObserver, OxcacheConfig, OxcacheModule, register_cache_decorator,
+    register_cache_shutdown,
 };
 use trait_kit::prelude::*;
 
@@ -43,7 +44,9 @@ impl CacheReader for CountingDecorator {
     async fn capacity(&self) -> oxcache::error::OxCacheResult<u64> {
         self.inner.capacity().await
     }
-    async fn stats(&self) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
+    async fn stats(
+        &self,
+    ) -> oxcache::error::OxCacheResult<std::collections::HashMap<String, String>> {
         self.inner.stats().await
     }
 }
@@ -65,7 +68,11 @@ impl CacheWriter for CountingDecorator {
     async fn clear(&self) -> oxcache::error::OxCacheResult<()> {
         self.inner.clear().await
     }
-    async fn expire(&self, key: &str, ttl: std::time::Duration) -> oxcache::error::OxCacheResult<bool> {
+    async fn expire(
+        &self,
+        key: &str,
+        ttl: std::time::Duration,
+    ) -> oxcache::error::OxCacheResult<bool> {
         self.inner.expire(key, ttl).await
     }
 }

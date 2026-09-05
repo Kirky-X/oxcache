@@ -63,31 +63,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn demonstrate_error_categories() {
     // 连接类错误 — 通常是暂时性的
     let conn_err = OxCacheError::Connection("Redis 连接被拒绝".into());
-    println!("  连接错误: {} (可恢复: {})", conn_err, conn_err.is_recoverable());
+    println!(
+        "  连接错误: {} (可恢复: {})",
+        conn_err,
+        conn_err.is_recoverable()
+    );
 
     // 超时类错误 — 可重试
     let timeout_err = OxCacheError::Timeout("5s 内未响应".into());
-    println!("  超时错误: {} (可恢复: {})", timeout_err, timeout_err.is_recoverable());
+    println!(
+        "  超时错误: {} (可恢复: {})",
+        timeout_err,
+        timeout_err.is_recoverable()
+    );
 
     // 后端错误 — 可能是暂时性的
     let backend_err = OxCacheError::BackendError("Moka 内存不足".into());
-    println!("  后端错误: {} (可恢复: {})", backend_err, backend_err.is_recoverable());
+    println!(
+        "  后端错误: {} (可恢复: {})",
+        backend_err,
+        backend_err.is_recoverable()
+    );
 
     // 未找到 — 不可恢复（需要回源）
     let not_found = OxCacheError::NotFound("user:42".into());
-    println!("  未找到:   {} (可恢复: {})", not_found, not_found.is_recoverable());
+    println!(
+        "  未找到:   {} (可恢复: {})",
+        not_found,
+        not_found.is_recoverable()
+    );
 
     // 序列化错误 — 通常不可恢复
     let ser_err = OxCacheError::Serialization("invalid UTF-8".into());
-    println!("  序列化:   {} (可恢复: {})", ser_err, ser_err.is_recoverable());
+    println!(
+        "  序列化:   {} (可恢复: {})",
+        ser_err,
+        ser_err.is_recoverable()
+    );
 
     // 降级模式
     let degraded = OxCacheError::Degraded("L2 Redis 不可用，仅 L1 可用".into());
-    println!("  降级:     {} (降级模式: {})", degraded, degraded.is_degraded());
+    println!(
+        "  降级:     {} (降级模式: {})",
+        degraded,
+        degraded.is_degraded()
+    );
 
     // 内部错误 — 不可恢复，不应重试
     let internal = OxCacheError::Internal("锁中毒".into());
-    println!("  内部错误: {} (可恢复: {})", internal, internal.is_recoverable());
+    println!(
+        "  内部错误: {} (可恢复: {})",
+        internal,
+        internal.is_recoverable()
+    );
 }
 
 /// 演示错误的可恢复性判断
@@ -95,15 +123,27 @@ fn demonstrate_recoverability() {
     let errors: Vec<(&str, OxCacheError)> = vec![
         ("Connection", OxCacheError::Connection("refused".into())),
         ("Timeout", OxCacheError::Timeout("30s".into())),
-        ("BackendError", OxCacheError::BackendError("transient".into())),
-        ("BufferFull", OxCacheError::BufferFull("batch buffer full".into())),
+        (
+            "BackendError",
+            OxCacheError::BackendError("transient".into()),
+        ),
+        (
+            "BufferFull",
+            OxCacheError::BufferFull("batch buffer full".into()),
+        ),
         ("NotFound", OxCacheError::NotFound("key".into())),
-        ("Serialization", OxCacheError::Serialization("bad data".into())),
+        (
+            "Serialization",
+            OxCacheError::Serialization("bad data".into()),
+        ),
         ("Internal", OxCacheError::Internal("lock poisoned".into())),
         ("KeyTooLong", OxCacheError::KeyTooLong(1024, 512)),
     ];
 
-    println!("  {:<16} {:<10} {:<12} 错误码", "错误类型", "可恢复?", "连接错误?");
+    println!(
+        "  {:<16} {:<10} {:<12} 错误码",
+        "错误类型", "可恢复?", "连接错误?"
+    );
     println!("  {}", "-".repeat(50));
     for (name, err) in &errors {
         println!(
@@ -132,7 +172,11 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
     let cache: Cache<String, Config> = Cache::builder().build().await?;
 
     /// 带指数退避的重试包装器
-    async fn with_retry<F, Fut, T>(operation_name: &str, max_retries: u32, mut operation: F) -> OxCacheResult<T>
+    async fn with_retry<F, Fut, T>(
+        operation_name: &str,
+        max_retries: u32,
+        mut operation: F,
+    ) -> OxCacheResult<T>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = OxCacheResult<T>>,
@@ -235,7 +279,9 @@ async fn demonstrate_runtime_errors() -> OxCacheResult<()> {
 
     // 使用 get_or 处理缓存未命中
     let value = cache
-        .get_or(&"computed".to_string(), || async { Ok("计算结果".to_string()) })
+        .get_or(&"computed".to_string(), || async {
+            Ok("计算结果".to_string())
+        })
         .await?;
     println!("  get_or 计算结果: {}", value);
 

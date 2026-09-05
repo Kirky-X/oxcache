@@ -7,7 +7,8 @@
 
 use crate::backend::BackendScore;
 use crate::backend::{
-    AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter, SyncCacheBackend,
+    AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter,
+    SyncCacheBackend,
 };
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
@@ -234,7 +235,10 @@ impl ChainCache {
     /// （日志、metrics、告警或忽略）。未配置 publisher 时为零开销 no-op。
     fn emit_backend_error(&self, key: &str, backend: &str, error: &OxCacheError) {
         if let Some(publisher) = &self.event_publisher {
-            let _ = publisher.publish_error(Some(key.to_string()), format!("backend {}: {}", backend, error));
+            let _ = publisher.publish_error(
+                Some(key.to_string()),
+                format!("backend {}: {}", backend, error),
+            );
         }
     }
 
@@ -255,12 +259,18 @@ impl ChainCache {
 
     /// 获取所有持久化后端
     pub fn persistent_backends(&self) -> Vec<&ChainLink> {
-        self.links.iter().filter(|link| link.is_persistent()).collect()
+        self.links
+            .iter()
+            .filter(|link| link.is_persistent())
+            .collect()
     }
 
     /// 获取所有非持久化后端
     pub fn non_persistent_backends(&self) -> Vec<&ChainLink> {
-        self.links.iter().filter(|link| !link.is_persistent()).collect()
+        self.links
+            .iter()
+            .filter(|link| !link.is_persistent())
+            .collect()
     }
 
     /// 从链中读取数据
@@ -282,12 +292,20 @@ impl ChainCache {
                     // 回填到更高分后端
                     if self.backfill_enabled && index > 0 {
                         // 查询原始 TTL 并在回填时保留
-                        let original_ttl = self.links[index].backend().ttl(key).await.ok().flatten();
+                        let original_ttl =
+                            self.links[index].backend().ttl(key).await.ok().flatten();
                         // 将 value 移入 Arc 后直接用于回填和返回，避免额外 clone（OCR #36）
                         let value = Arc::new(value);
-                        self.backfill_to_higher_backends(Arc::from(key), value.clone(), index, original_ttl)
-                            .await;
-                        return Ok(Some(Arc::try_unwrap(value).unwrap_or_else(|arc| (*arc).clone())));
+                        self.backfill_to_higher_backends(
+                            Arc::from(key),
+                            value.clone(),
+                            index,
+                            original_ttl,
+                        )
+                        .await;
+                        return Ok(Some(
+                            Arc::try_unwrap(value).unwrap_or_else(|arc| (*arc).clone()),
+                        ));
                     }
                     return Ok(Some(value));
                 }
@@ -308,8 +326,9 @@ impl ChainCache {
             return Ok(None);
         }
         if all_failed {
-            return Err(last_err
-                .unwrap_or_else(|| OxCacheError::Operation("All backends failed during sequential read".to_string())));
+            return Err(last_err.unwrap_or_else(|| {
+                OxCacheError::Operation("All backends failed during sequential read".to_string())
+            }));
         }
         Ok(None)
     }
@@ -351,8 +370,13 @@ impl ChainCache {
             if self.backfill_enabled && index > 0 {
                 // 查询原始 TTL 并在回填时保留
                 let original_ttl = self.links[index].backend().ttl(key).await.ok().flatten();
-                self.backfill_to_higher_backends(Arc::from(key), Arc::new(value.clone()), index, original_ttl)
-                    .await;
+                self.backfill_to_higher_backends(
+                    Arc::from(key),
+                    Arc::new(value.clone()),
+                    index,
+                    original_ttl,
+                )
+                .await;
             }
             return Ok(Some(value));
         }
@@ -438,7 +462,9 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
-            return Err(OxCacheError::Operation("All backends failed to write".to_string()));
+            return Err(OxCacheError::Operation(
+                "All backends failed to write".to_string(),
+            ));
         }
 
         Ok(())
@@ -510,7 +536,9 @@ impl ChainCache {
                 .collect::<Option<Vec<_>>>()
         });
         cached.as_deref().ok_or_else(|| {
-            OxCacheError::NotSupported("chain sync API requires all links to support SyncCacheBackend".to_string())
+            OxCacheError::NotSupported(
+                "chain sync API requires all links to support SyncCacheBackend".to_string(),
+            )
         })
     }
 
@@ -548,7 +576,9 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() {
-            return Err(OxCacheError::Operation("All backends failed to write".to_string()));
+            return Err(OxCacheError::Operation(
+                "All backends failed to write".to_string(),
+            ));
         }
 
         Ok(())
@@ -663,7 +693,12 @@ impl CacheReader for ChainCache {
 
 #[async_trait]
 impl CacheWriter for ChainCache {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
         if self.links.is_empty() {
             return Err(OxCacheError::Operation("Chain has no backends".to_string()));
         }
@@ -727,7 +762,8 @@ impl CacheConnector for ChainCache {
             let backend = link.backend().clone();
             let name = link.name();
             set.spawn(async move {
-                let result = tokio::time::timeout(HEALTH_CHECK_TIMEOUT, backend.health_check()).await;
+                let result =
+                    tokio::time::timeout(HEALTH_CHECK_TIMEOUT, backend.health_check()).await;
                 (name, result)
             });
         }
@@ -780,7 +816,9 @@ impl AtomicCacheWriter for ChainCache {
             .first()
             .and_then(|link| link.backend().as_atomic_writer())
             .ok_or_else(|| {
-                OxCacheError::NotSupported("incr: no link in chain implements AtomicCacheWriter".to_string())
+                OxCacheError::NotSupported(
+                    "incr: no link in chain implements AtomicCacheWriter".to_string(),
+                )
             })?;
         writer.incr(key, delta, ttl).await
     }
@@ -804,13 +842,20 @@ impl AtomicCacheWriter for ChainCache {
         writer.compare_and_swap(key, expected, new, ttl).await
     }
 
-    async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool> {
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
         let writer = self
             .links
             .first()
             .and_then(|link| link.backend().as_atomic_writer())
             .ok_or_else(|| {
-                OxCacheError::NotSupported("set_if_absent: no link in chain implements AtomicCacheWriter".to_string())
+                OxCacheError::NotSupported(
+                    "set_if_absent: no link in chain implements AtomicCacheWriter".to_string(),
+                )
             })?;
         writer.set_if_absent(key, value, ttl).await
     }

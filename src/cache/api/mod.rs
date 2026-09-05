@@ -65,7 +65,10 @@ mod tests {
     #[tokio::test]
     async fn test_cache_serializer_pool() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"test".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"test".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         assert!(cache.get(&"test".to_string()).await.unwrap().is_some());
     }
 
@@ -84,7 +87,10 @@ mod tests {
         let cache: Cache<String, String> = Cache::new();
         assert!(cache.health_check().await.is_ok());
 
-        cache.set(&"key".to_string(), &"value".to_string()).await.unwrap();
+        cache
+            .set(&"key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
         let val = cache.get(&"key".to_string()).await.unwrap().unwrap();
         assert_eq!(val, "value");
     }
@@ -107,7 +113,10 @@ mod tests {
         assert!(cache.health_check().await.is_ok());
 
         cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
-        assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), "v".to_string());
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().unwrap(),
+            "v".to_string()
+        );
     }
 
     #[test]
@@ -134,7 +143,8 @@ mod tests {
         // Verify builder() works with a pre-built backend
         use crate::backend::MokaMemoryBackend;
         let backend = Arc::new(MokaMemoryBackend::new());
-        let cache: Cache<String, i32> = Cache::builder().backend_arc(backend).build().await.unwrap();
+        let cache: Cache<String, i32> =
+            Cache::builder().backend_arc(backend).build().await.unwrap();
 
         cache.set(&"n".to_string(), &7).await.unwrap();
         assert_eq!(cache.get(&"n".to_string()).await.unwrap().unwrap(), 7);

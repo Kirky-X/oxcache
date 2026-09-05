@@ -112,7 +112,10 @@ async fn test_session_storage_scenario() {
 
     // 验证更新
     let cached: Option<Session> = cache.get(&key).await.unwrap();
-    assert_eq!(cached.unwrap().data.get("last_page"), Some(&"/dashboard".to_string()));
+    assert_eq!(
+        cached.unwrap().data.get("last_page"),
+        Some(&"/dashboard".to_string())
+    );
 
     // 注销会话
     cache.delete(&key).await.unwrap();
@@ -217,11 +220,18 @@ async fn test_rate_limiting_scenario() {
 
     // 模拟请求计数
     for i in 1..=max_requests + 5 {
-        let count: u64 = cache.get_or(&rate_limit_key, || async { Ok(0u64) }).await.unwrap();
+        let count: u64 = cache
+            .get_or(&rate_limit_key, || async { Ok(0u64) })
+            .await
+            .unwrap();
 
         if count < max_requests {
             cache
-                .set_with_ttl(&rate_limit_key, &(count + 1), Some(Duration::from_secs(window_secs)))
+                .set_with_ttl(
+                    &rate_limit_key,
+                    &(count + 1),
+                    Some(Duration::from_secs(window_secs)),
+                )
                 .await
                 .unwrap();
             println!("请求 {} 允许，当前计数: {}", i, count + 1);
@@ -259,12 +269,16 @@ async fn test_bulk_operations_scenario() {
         .collect();
 
     // 批量写入
-    cache.set_many(users.iter().map(|(k, v)| (k, v))).await.unwrap();
+    cache
+        .set_many(users.iter().map(|(k, v)| (k, v)))
+        .await
+        .unwrap();
     println!("批量写入 {} 个用户", users.len());
 
     // 批量读取
     let keys: Vec<String> = (1..=100).map(|i| format!("user:{}", i)).collect();
-    let results: std::collections::HashMap<String, User> = cache.get_many(keys.iter()).await.unwrap();
+    let results: std::collections::HashMap<String, User> =
+        cache.get_many(keys.iter()).await.unwrap();
     println!("批量读取 {} 个用户", results.len());
 
     assert_eq!(results.len(), 100);
@@ -350,7 +364,10 @@ async fn test_cache_warming_scenario() {
     ];
 
     // 预热缓存
-    cache.set_many(hot_users.iter().map(|(k, v)| (k, v))).await.unwrap();
+    cache
+        .set_many(hot_users.iter().map(|(k, v)| (k, v)))
+        .await
+        .unwrap();
     println!("缓存预热完成，预热 {} 个热点用户", hot_users.len());
 
     // 验证预热数据

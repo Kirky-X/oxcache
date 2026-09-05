@@ -118,8 +118,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 模拟访问序列 — 部分会话被频繁访问
     let access_sequence = vec![
-        "sess_1", "sess_2", "sess_1", "sess_3", "sess_1", "sess_2", "sess_4", "sess_1", "sess_5", "sess_2", "sess_1",
-        "sess_3",
+        "sess_1", "sess_2", "sess_1", "sess_3", "sess_1", "sess_2", "sess_4", "sess_1", "sess_5",
+        "sess_2", "sess_1", "sess_3",
     ];
 
     println!("  访问序列 ({} 次):", access_sequence.len());
@@ -170,8 +170,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         data: "短生命周期".into(),
         last_accessed: chrono::Utc::now(),
     };
-    l2.set_with_ttl(&"short:1".into(), &short_lived, Some(Duration::from_secs(5)))
-        .await?;
+    l2.set_with_ttl(
+        &"short:1".into(),
+        &short_lived,
+        Some(Duration::from_secs(5)),
+    )
+    .await?;
     println!("  ✓ 设置短 TTL (5s) 会话");
 
     let remaining = l2.ttl(&"short:1".into()).await?;

@@ -315,7 +315,11 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 4);
         // Verify global metric was incremented by at least 3 (may be more from concurrent tests)
         let after = GLOBAL_UNIFIED_METRICS.get_counters().l2_retry_total;
-        assert!(after >= 3, "Expected at least 3 retry metrics, got {}", after);
+        assert!(
+            after >= 3,
+            "Expected at least 3 retry metrics, got {}",
+            after
+        );
         let _ = before; // suppress unused warning
     }
 }

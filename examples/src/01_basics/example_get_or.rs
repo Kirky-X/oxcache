@@ -43,12 +43,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 第一次调用：缓存未命中，执行 fallback
     println!("第一次调用 get_or:");
-    let user1 = cache.get_or(&key, || async { load_user_from_db(1).await }).await?;
+    let user1 = cache
+        .get_or(&key, || async { load_user_from_db(1).await })
+        .await?;
     println!("  结果: {:?}\n", user1);
 
     // 第二次调用：缓存命中，不执行 fallback
     println!("第二次调用 get_or:");
-    let user2 = cache.get_or(&key, || async { load_user_from_db(1).await }).await?;
+    let user2 = cache
+        .get_or(&key, || async { load_user_from_db(1).await })
+        .await?;
     println!("  结果: {:?}\n", user2);
 
     // 2. 并发场景：single-flight 去重

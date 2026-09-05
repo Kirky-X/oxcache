@@ -93,10 +93,16 @@ async fn test_bf_backend_set_updates_bloom_and_inner() {
     assert!(backend.bloom().contains("k"));
 
     // inner 应有该值
-    assert_eq!(CacheReader::get(&inner_ref, "k").await.unwrap(), Some(b"v".to_vec()));
+    assert_eq!(
+        CacheReader::get(&inner_ref, "k").await.unwrap(),
+        Some(b"v".to_vec())
+    );
 
     // 装饰器 get 应返回值
-    assert_eq!(CacheReader::get(&backend, "k").await.unwrap(), Some(b"v".to_vec()));
+    assert_eq!(
+        CacheReader::get(&backend, "k").await.unwrap(),
+        Some(b"v".to_vec())
+    );
 }
 
 #[tokio::test]
@@ -137,7 +143,10 @@ async fn test_bf_backend_set_with_ttl_passes_through() {
     .unwrap();
 
     // 立即查询应返回 Some
-    assert_eq!(CacheReader::get(&backend, "k").await.unwrap(), Some(b"v".to_vec()));
+    assert_eq!(
+        CacheReader::get(&backend, "k").await.unwrap(),
+        Some(b"v".to_vec())
+    );
 
     // 等 100ms 让 TTL 过期
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -239,5 +248,8 @@ async fn test_bf_backend_sync_set_with_ttl_passes_through() {
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    assert!(expired, "BF backend sync get should return None after TTL expires");
+    assert!(
+        expired,
+        "BF backend sync get should return None after TTL expires"
+    );
 }
