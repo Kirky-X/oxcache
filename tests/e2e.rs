@@ -19,3 +19,11 @@ mod cache_e2e_test;
 mod macro_test;
 #[path = "e2e/real_world_scenario_test.rs"]
 mod real_world_scenario_test;
+// 阶段 2 E2E 查缺补漏：看门狗组合语义（依赖 lock，lock 隐含 redis）
+#[cfg(feature = "lock")]
+#[path = "e2e/dist_lock_watchdog_e2e.rs"]
+mod dist_lock_watchdog_e2e;
+// 阶段 2 E2E 查缺补漏：ChainCache event_publisher 失败事件集成链
+#[cfg(feature = "redis")]
+#[path = "e2e/events_chain_e2e.rs"]
+mod events_chain_e2e;
