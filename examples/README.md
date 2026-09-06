@@ -119,4 +119,4 @@ examples/src/
 
 ## 许可证
 
-MIT License - 详见 [LICENSE](../LICENSE)。
+MIT + Commons Clause 许可证 - 商业使用需单独授权，详见 [LICENSE](../LICENSE)。

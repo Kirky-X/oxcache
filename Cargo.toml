@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 description = "A high-performance multi-level cache library for Rust with L1 (memory) and L2 (Redis) caching."
 authors.workspace = true
-license.workspace = true
+license-file.workspace = true
 repository.workspace = true
 readme = "README.md"
 keywords = ["cache", "redis", "memory", "async", "performance"]
@@ -30,7 +30,7 @@ version = "0.5.0-rc.2"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky.X"]
-license = "MIT"
+license-file = "LICENSE"
 repository = "https://github.com/Kirky-X/oxcache"
 
 [workspace.dependencies]
