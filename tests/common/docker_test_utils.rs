@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! Docker test utilities using testcontainers 0.23+
+//! Docker test utilities using testcontainers 0.28+
 //!
 //! This module provides helper functions for setting up Docker-based test environments
 //! using testcontainers for Redis.
@@ -8,11 +8,12 @@
 #![allow(dead_code)]
 
 use std::time::Duration;
-use testcontainers::ImageExt;
+use testcontainers::GenericImage;
+use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 
 /// Redis 容器类型别名
-pub type RedisContainer = testcontainers::ContainerAsync<testcontainers_modules::redis::Redis>;
+pub type RedisContainer = testcontainers::ContainerAsync<GenericImage>;
 
 /// 创建 Redis 测试容器
 ///
@@ -25,8 +26,9 @@ pub type RedisContainer = testcontainers::ContainerAsync<testcontainers_modules:
 /// }
 /// ```
 pub async fn setup_redis_container() -> Result<(RedisContainer, String), String> {
-    let redis = testcontainers_modules::redis::Redis::default()
-        .with_tag("7-alpine")
+    let redis = GenericImage::new("redis", "7-alpine")
+        .with_exposed_port(6379.tcp())
+        .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
         .start()
         .await
         .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;

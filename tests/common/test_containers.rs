@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: MIT
 //! Testcontainers 测试工具
 //!
-//! 使用 testcontainers 0.23+ API 提供容器管理功能
+//! 使用 testcontainers 0.28+ API 提供容器管理功能
 
 #![allow(dead_code)]
 
 use std::time::Duration;
 use testcontainers::core::WaitFor;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, GenericImage, ImageExt};
+use testcontainers::{ContainerAsync, GenericImage};
 
 /// Generic poll-until-ready helper for Redis-protocol containers.
 async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
@@ -29,17 +29,20 @@ async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
     Err(format!("等待 {} 就绪超时", label))
 }
 
-/// Redis 容器包装器
+/// Redis 容器包装器（使用 GenericImage）
 pub struct RedisContainer {
-    container: ContainerAsync<testcontainers_modules::redis::Redis>,
+    container: ContainerAsync<GenericImage>,
     port: u16,
 }
 
 impl RedisContainer {
     /// 启动一个新的 Redis 容器
     pub async fn start() -> Result<Self, String> {
-        let redis = testcontainers_modules::redis::Redis::default()
-            .with_tag("7-alpine")
+        use testcontainers::core::IntoContainerPort;
+
+        let redis = GenericImage::new("redis", "7-alpine")
+            .with_exposed_port(6379.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
             .start()
             .await
             .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
@@ -73,19 +76,22 @@ impl RedisContainer {
 
 /// Redis Cluster 容器管理器
 pub struct RedisClusterManager {
-    nodes: Vec<ContainerAsync<testcontainers_modules::redis::Redis>>,
+    nodes: Vec<ContainerAsync<GenericImage>>,
     ports: Vec<u16>,
 }
 
 impl RedisClusterManager {
     /// 启动 Redis Cluster (6 个节点)
     pub async fn start_cluster() -> Result<Self, String> {
+        use testcontainers::core::IntoContainerPort;
+
         let mut nodes = Vec::new();
         let mut ports = Vec::new();
 
         for i in 0..6 {
-            let redis = testcontainers_modules::redis::Redis::default()
-                .with_tag("7-alpine")
+            let redis = GenericImage::new("redis", "7-alpine")
+                .with_exposed_port(6379.tcp())
+                .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
                 .start()
                 .await
                 .map_err(|e| format!("启动 Redis Cluster 节点 {} 失败: {}", i, e))?;
