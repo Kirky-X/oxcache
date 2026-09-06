@@ -4,7 +4,7 @@
 
 ### 高性能 Rust 双层缓存库完整使用指南
 
-[🏠 首页](../README.md) • [📚 文档](README.md) • [🎯 示例](../examples/) • [❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)
+[🏠 首页](../README.md) • [📚 文档](../README.md) • [🎯 示例](../examples/) • [❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)
 
 ---
 
@@ -31,7 +31,6 @@
     - [TTL 管理](#ttl-管理)
     - [Redis 模式配置](#redis-模式配置)
     - [监控指标](#监控指标)
-    - [分布式追踪](#分布式追踪)
     - [优雅关闭](#优雅关闭)
 - [最佳实践](#最佳实践)
 - [故障排除](#故障排除)
@@ -929,6 +928,6 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
 
 
 
-[⬆ 回到顶部](#-用户指南)
+[⬆ 回到顶部](#-oxcache-用户指南)
 
 </div>

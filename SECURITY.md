@@ -36,3 +36,5 @@
 - 零告警门槛:`cargo clippy -D warnings`、`cargo deny check`、`cargo audit` 全部通过
 - 密钥扫描(pre-commit detect-secrets)与 CI 安全检查常开
 - 源码、示例、测试中不写入可用凭据字面量;配置一律从环境变量或密钥服务读取
+
+> 完整的安全设计、最佳实践与安全修复记录见 [docs/SECURITY.md](docs/SECURITY.md)。
