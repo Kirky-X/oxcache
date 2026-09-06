@@ -5,6 +5,28 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [Unreleased]
+
+_暂无变更。_
+
+---
+
+## [0.5.0-rc.2] - 2026-09-07
+
+### Changed
+
+- 依赖升级：aerospike 2.1→2.2、testcontainers 0.27→0.28、icu 2.2→2.3；移除 testcontainers-modules 0.15（仍绑 tc ^0.27），Redis 容器测试改用裸 testcontainers GenericImage（redis:7-alpine）
+- 版本号递增至 `0.5.0-rc.2`（下一个 minor 预发布）
+
+### 测试
+
+- E2E 固化：新增 dist_lock_watchdog_e2e、events_chain_e2e 并聚合注册；ignored 补盲验证（lib/integration/performance）；docs/TEST_SCENARIOS.md 场景固化
+- deny 治理：licenses clarify（license-file 形态 crate 绑定）
+
+### 文档
+
+- 安装示例版本统一 0.5.0-rc.2（14 处）；CONTRIBUTING MSRV 对齐 1.97.1
+
 ## [0.4.3] - 2026-08-06
 
 ### 新增
