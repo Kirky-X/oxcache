@@ -26,6 +26,23 @@ allow = [
 ]
 confidence-threshold = 0.8
 unused-allowed-license = "warn"
+# 7 仓统一 license：MIT + Commons Clause v1.0（license-file 形态，见 base/CONFIG_BASELINE.md）。
+# cargo-deny 不识别 manifest 的 license-file 且 allow 不接受 LicenseRef-*，
+# 对本地工作区 crate 用 clarify 绑定 LICENSE 文件内容 hash（防篡改）并按文件内
+# MIT 主文识别放行；Commons Clause 商用限制由 LICENSE 文件本身承载
+
+[[licenses.clarify]]
+name = "oxcache"
+expression = "MIT"
+license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
+[[licenses.clarify]]
+name = "oxcache_macros"
+expression = "MIT"
+license-files = [{ path = "../LICENSE", hash = 0xfb13e7ad }]
+[[licenses.clarify]]
+name = "trait-kit"
+expression = "MIT"
+license-files = [{ path = "../trait-kit/LICENSE", hash = 0xfb13e7ad }]
 
 # 传递依赖许可证例外
 [[licenses.exceptions]]
