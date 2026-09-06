@@ -8,8 +8,8 @@
 # 运行单个示例
 cd examples && cargo run --example example_basic_operations
 
-# 列出所有可用示例
-cargo run --example --list
+# 列出所有可用示例（与 examples/Cargo.toml 的 [[example]] 清单一致）
+ls examples/src/*/*.rs
 
 # 运行所有示例测试
 cargo test --examples
@@ -78,6 +78,7 @@ cargo test --examples
 | `example_i18n` | 国际化 | `CacheI18nFormatter` |
 | `example_cli_usage` | CLI 使用 | 命令行工具 |
 | `example_database_integration` | 数据库集成 | Cache-Aside 模式 |
+| `example_kit_integration` | trait-kit 集成 | `OxcacheModule`/`OxcacheBuildObserver`/`register_cache_shutdown`/`register_cache_decorator` |
 | `example_comprehensive_usage` | 综合使用 | 全部功能概览 |
 
 ## 特性依赖
@@ -85,15 +86,16 @@ cargo test --examples
 示例 crate 启用了以下 oxcache 特性：
 
 ```toml
-oxcache = { path = "..", features = ["full", "bloom"] }
+oxcache = { path = "..", features = ["full", "bloom", "kit"] }
 ```
 
 - `full` — 包含所有核心功能（Redis、序列化、压缩、指标、Lua 脚本等）
 - `bloom` — 布隆过滤器支持
+- `kit` — trait-kit 集成（模块注册、构建观察者、三阶段优雅关闭、装饰器）
 
 ## 先决条件
 
-- Rust 1.85+
+- Rust 1.97.1+
 - Redis 6.0+（Redis 相关示例需要运行中的 Redis 服务）
 - 无 Redis 的示例可独立运行（内存后端）
 
@@ -105,7 +107,7 @@ examples/src/
 ├── 02_advanced/     # 进阶示例（14 个）
 ├── 03_config/       # 配置示例（2 个）
 ├── 05_database/     # 数据库集成（1 个）
-└── 06_features/     # 特性展示（8 个）
+└── 06_features/     # 特性展示（9 个）
 ```
 
 ## 贡献

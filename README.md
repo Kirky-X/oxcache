@@ -1,16 +1,53 @@
 <div align="center">
 
-<img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="250">
+<img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="200">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache) [![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE) [![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
+[![CI Status](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Version](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Docs.rs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](LICENSE) [![Rust](https://img.shields.io/badge/rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org/) [![Coverage](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
 
-中文 | [English](./README_EN.md)
+**中文** | [English](README_EN.md)
 
-高性能、生产级的 Rust 多后端缓存库，支持 L1（Moka/DashMap 内存缓存）+ L2（Redis / Valkey / Dragonfly / Aerospike）多层架构。
+**高性能、生产级的 Rust 多后端缓存库，支持 L1（Moka/DashMap 内存缓存）+ L2（Redis / Valkey / Dragonfly / Aerospike）多层架构。**
+
+[✨ 功能特性](#-功能特性) • [🚀 快速开始](#-快速开始) • [📚 文档](#-文档) • [💻 示例](#-示例) • [🤝 参与贡献](#-参与贡献)
 
 </div>
 
-## 核心特性
+---
+
+## 📋 目录
+
+<details open>
+<summary>📑 目录（点击折叠 / 展开）</summary>
+
+- [✨ 功能特性](#-功能特性)
+- [🚀 快速开始](#-快速开始)
+  - [📦 安装](#-安装)
+  - [💡 基本用法](#-基本用法)
+  - [🧱 Builder API](#-builder-api)
+- [🎨 特性标志](#-特性标志)
+- [📚 文档](#-文档)
+- [💻 示例](#-示例)
+- [🏗️ 架构](#️-架构)
+- [🎯 使用场景](#-使用场景)
+- [🔄 同步 API](#-同步-api)
+- [🌸 布隆过滤器](#-布隆过滤器)
+- [⏱️ TTL 行为对照表](#️-ttl-行为对照表)
+- [🧪 测试](#-测试)
+- [📊 性能](#-性能)
+- [🔒 安全](#-安全)
+- [🗺️ 开发路线图](#️-开发路线图)
+- [🤝 参与贡献](#-参与贡献)
+- [📋 更新日志](#-更新日志)
+- [📄 许可证](#-许可证)
+- [🙏 致谢](#-致谢)
+- [📞 联系与支持](#-联系与支持)
+- [⭐ Star 历史](#-star-历史)
+
+</details>
+
+---
+
+## ✨ 功能特性
 
 - **极致性能**: L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
 - **零侵入式**: 通过 `#[cached]` 宏一行代码启用缓存
@@ -21,9 +58,11 @@
 - **全局 per-entry TTL**: 所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom）都遵守 per-entry `set(key, value, Some(ttl))`
 - **生产级可靠**: 完整的可观测性、健康检查、混沌测试验证
 
-## 快速开始
+---
 
-### 安装
+## 🚀 快速开始
+
+### 📦 安装
 
 在 `Cargo.toml` 中添加依赖：
 
@@ -33,11 +72,11 @@ oxcache = "0.5.0-rc.2"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-`oxcache = { version = "0.5.0-rc.2", default-features = false }` 手动添加。
+> `oxcache = { version = "0.5.0-rc.2", default-features = false }` 手动添加。
 
 > **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`
 
-### 基础使用
+### 💡 基本用法
 
 ```rust
 use oxcache::cached;
@@ -85,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Builder API
+### 🧱 Builder API
 
 Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用的构建器方法：
 
@@ -103,9 +142,11 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 > **注意：** Redis 后端请使用 `RedisBackend::new(url).await?` 然后通过 `.backend_arc(Arc::new(backend))` 传入。
 > 分层缓存（L1+L2）请使用 `ChainCache::builder().link(...).build()`。
 
-## 特性标志
+---
 
-### 特性分层
+## 🎨 特性标志
+
+### 🧱 特性分层
 
 ```toml
 # 完整特性（推荐）
@@ -121,7 +162,7 @@ oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
 oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
-### 可用特性
+### 📦 可用特性
 
 | 层级 | 包含特性 | 描述 |
 |------|----------|------|
@@ -146,9 +187,142 @@ oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bl
 - `kit` - trait-kit AsyncKit 集成（OxcacheModule + 健康检查 + 生命周期 + 构建观察者 + 三阶段关闭 + 装饰器）；不在 `full` 中，需显式启用
 - `testing` - Testing utilities
 
-## 使用场景
+---
 
-### 场景 1: 用户信息缓存
+## 📚 文档
+
+| 文档 | 说明 |
+|------|------|
+| [📖 用户指南](docs/USER_GUIDE.md) | 从安装到进阶的完整使用教程 |
+| [📘 API 参考](docs/API_REFERENCE.md) | 全部公开 API 的详细说明 |
+| [🏗️ 架构文档](docs/ARCHITECTURE.md) | 设计理念与内部实现 |
+| [🔒 安全文档](docs/SECURITY.md) | 安全设计与最佳实践 |
+| [📋 更新日志](docs/CHANGELOG.md) | 每个版本的变更记录 |
+| [🤝 贡献指南](docs/CONTRIBUTING.md) | 如何参与项目开发 |
+| [📦 在线 API 文档](https://docs.rs/oxcache) | docs.rs 自动生成的最新文档 |
+
+---
+
+## 💻 示例
+
+`examples/` 目录（workspace 成员 `oxcache-examples`，已设为 `publish = false`）包含 37 个可运行示例：
+
+```bash
+# 运行单个示例（在 examples/ 目录下）
+cd examples && cargo run --example example_basic_operations
+
+# 列出所有可用示例
+cd examples && ls src/*/*.rs
+```
+
+### 🌱 入门（`examples/src/01_basics`）
+
+| 示例 | 说明 |
+|------|------|
+| `example_basic_operations` | 基本 CRUD 操作（`get`/`set`/`delete`/`exists`） |
+| `example_new_api` | 现代 API 入门（`Cache::builder()` / `Cache::memory()`） |
+| `example_cache_builder` | CacheBuilder 配置（`capacity` / `ttl` / `tti` / `sync_mode`） |
+| `example_serialization` | JSON 序列化 |
+| `example_cache_key` | 自定义缓存键（`CacheKey` trait） |
+| `example_cached_macro` | `#[cached]` 宏（`service` / `ttl` / `key_prefix`） |
+| `example_explicit_init` | 显式初始化（`Cache::new()` / 全局缓存） |
+| `example_get_or` | 缓存未命中时计算（`get_or`，single-flight） |
+| `example_sync_api` | 同步 API（`get_sync` / `set_sync` / `clear_sync` / `len_sync`） |
+| `example_byte_ops` | 字节级操作（`get_bytes` / `set_bytes` / `len` / `capacity` / `shutdown`） |
+| `example_comprehensive_usage` | 综合使用（全部功能概览） |
+
+### 🚀 进阶（`examples/src/02_advanced`）
+
+| 示例 | 说明 |
+|------|------|
+| `example_batch_write` | 批量操作（`set_many` / `get_many` / `delete_many`） |
+| `example_chain_cache` | 链式缓存（`ChainCache` / `ChainLink`） |
+| `example_invalidation` | 缓存失效策略（TTL / TTI / 手动失效） |
+| `example_warmup` | 缓存预热（批量预加载） |
+| `example_smart_strategy` | 缓存策略模式（Cache-Aside / Lazy Loading / TTL 分层） |
+| `example_cache_promotion` | 缓存提升（L2→L1 提升 / 热点分析） |
+| `example_error_handling` | 错误处理（`OxCacheError` / 重试 / 可恢复性） |
+| `example_custom_backend` | 自定义后端（`CacheReader` / `CacheWriter` / `CacheConnector`） |
+| `example_dashmap_backend` | DashMap 后端（`DashMapMemoryBackend`） |
+| `example_moka_ttl` | Moka per-entry TTL（`Expiry` trait） |
+| `example_redis_native` | Redis 原生操作（`RedisBackend`，需 Redis） |
+| `example_redis_modes` | Redis 部署模式（Standalone / Cluster / Sentinel，需 Redis） |
+| `example_redis_pipeline` | Pipeline 批量（`set_many_pipeline` / `get_many_pipeline`，需 Redis） |
+| `example_lua_script` | Lua 脚本执行（`eval_lua` / `script_load` / `eval_sha`，需 Redis） |
+
+### ⚙️ 配置（`examples/src/03_config`）
+
+| 示例 | 说明 |
+|------|------|
+| `example_dynamic_config` | 动态配置（运行时配置变更） |
+| `example_key_generator` | Key 生成器（`KeyGenerator`） |
+
+### 🗄️ 数据库集成（`examples/src/05_database`）
+
+| 示例 | 说明 |
+|------|------|
+| `example_database_integration` | 数据库集成（Cache-Aside 模式） |
+
+### 🧩 特性展示（`examples/src/06_features`）
+
+| 示例 | 说明 |
+|------|------|
+| `example_metrics` | 指标导出（`export_json_format` / `export_prometheus_format`） |
+| `example_compression` | 数据压缩（`JsonSerializer::with_compression()`） |
+| `example_security` | 安全脱敏（`redact_value` / `redact_connection_string`） |
+| `example_security_validation` | 安全验证（`validate_redis_key` / `validate_lua_script`） |
+| `example_bloom_filter` | 布隆过滤器（`BloomFilter` / `BloomFilterBackend`） |
+| `example_i18n` | 国际化（`CacheI18nFormatter`） |
+| `example_events` | 事件系统（`CacheEvent` / `CacheEventType`） |
+| `example_cli_usage` | CLI 使用（命令行工具） |
+| `example_kit_integration` | trait-kit AsyncKit 集成（OxcacheModule / 健康检查 / 生命周期 / 构建观察者 / 三阶段关闭 / 装饰器） |
+
+> **注意**：标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
+
+---
+
+## 🏗️ 架构
+
+```mermaid
+graph TD
+    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>统一缓存接口"]
+
+    B --> C[ChainCache<br/>分层后端]
+    B --> D[MokaMemoryBackend<br/>仅 L1]
+    B --> E[RedisBackend<br/>仅 L2]
+
+    C --> F[L1 Cache<br/>Moka]
+    C --> G[L2 Cache<br/>Redis]
+
+    D --> F
+    E --> G
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#fdf2e9
+```
+
+**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
+**L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
+
+**可靠性能力**：
+
+- [x] 单次请求去重 (Single-Flight)
+- [x] Redis 故障自动降级
+- [x] 优雅关闭机制
+- [x] 健康检查与自动恢复
+
+更详细的设计理念、模块划分与数据流请参阅 [架构文档](docs/ARCHITECTURE.md)。
+
+---
+
+## 🎯 使用场景
+
+### 👤 场景 1: 用户信息缓存
 
 ```rust
 #[cached(service = "user_cache", ttl = 600)]
@@ -157,7 +331,7 @@ async fn get_user_profile(user_id: u64) -> Result<UserProfile, Error> {
 }
 ```
 
-### 场景 2: API 响应缓存
+### 🌐 场景 2: API 响应缓存
 
 ```rust
 #[cached(
@@ -170,7 +344,7 @@ async fn fetch_api_data(endpoint: String, version: u32) -> Result<ApiResponse, E
 }
 ```
 
-### 场景 3: 仅 L1 热数据缓存
+### ⚡ 场景 3: 仅 L1 热数据缓存
 
 ```rust
 #[cached(service = "session_cache", ttl = 60)]
@@ -179,7 +353,7 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 }
 ```
 
-### 场景 4: 手动控制缓存
+### 🛠️ 场景 4: 手动控制缓存
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
@@ -214,7 +388,9 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## 同步 API（0.3.0）
+---
+
+## 🔄 同步 API
 
 Oxcache 0.3.0 在异步 API 之外引入了**同步 API 路径**。在 builder 上启用：
 
@@ -282,9 +458,11 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 }
 ```
 
-## 布隆过滤器（0.3.0）
+---
 
-`bloom` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
+## 🌸 布隆过滤器
+
+自 0.3.0 起，`bloom` 特性（需显式启用；不在 `full` 中）提供负查询过滤：
 
 ```toml
 [dependencies]
@@ -327,7 +505,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `clear` 同时清空两者；TTL 原样透传
 - 当 inner 后端实现 `SyncCacheBackend` 时，装饰器也实现
 
-## TTL 行为对照表（0.3.0）
+---
+
+## ⏱️ TTL 行为对照表
 
 自 0.3.0 起所有后端都遵守 per-entry TTL。行为汇总：
 
@@ -348,35 +528,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `set(key, value, Some(ttl))` 覆盖该条目的全局 TTL
 - `set(key, value, None)` 使用全局 TTL（若设置）；否则条目永不过期
 
-## 架构
+---
 
-```mermaid
-graph TD
-    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>统一缓存接口"]
+## 🧪 测试
 
-    B --> C[ChainCache<br/>分层后端]
-    B --> D[MokaMemoryBackend<br/>仅 L1]
-    B --> E[RedisBackend<br/>仅 L2]
+测试套件按 `tests/README.md` 组织，覆盖以下分类：
 
-    C --> F[L1 Cache<br/>Moka]
-    C --> G[L2 Cache<br/>Redis]
+| 分类 | 运行目标 | 说明 |
+|------|----------|------|
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试（1000+） |
+| 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等（325） |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster/Sentinel、分布式锁等（133） |
+| 端到端测试 | `--test e2e` | 基础 Cache 操作、`#[cached]` 宏、真实业务场景、高级场景（74） |
+| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例（10） |
+| Feature 门控测试 | `--test feature_test` 及 `feature_core` / `feature_minimal` | 窄特性组合验证 |
+| 混沌测试 | `--test chaos` | 后端故障注入、网络故障、随机故障 |
+| 安全测试 | `--test security` | 安全覆盖与安全验证 |
+| 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 |
 
-    D --> F
-    E --> G
+### ▶️ 常用命令
 
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#fce4ec
-    style F fill:#f1f8e9
-    style G fill:#fdf2e9
+```bash
+# 全部测试（等价于 make test）
+cargo test --all-features --no-fail-fast
+
+# 按测试二进制运行
+cargo test --features full --lib                    # 库单元测试
+cargo test --features full --test integration       # 集成测试
+cargo test --features full --test e2e               # 端到端测试
+
+# 窄特性组合（与 CI 一致）
+cargo test --no-default-features --features core --test feature_core
+cargo test --no-default-features --features minimal --test feature_minimal
+
+# 跳过需要 Redis 的测试
+cargo test --features full -- --skip redis
+
+# 覆盖率（CI 门禁：行覆盖 ≥ 85%）
+cargo llvm-cov --features full --workspace --fail-under-lines 85
 ```
 
-**L1**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略
-**L2**: 分布式共享缓存，支持 Sentinel/Cluster 模式
+> **注意**：Redis 相关测试通过 testcontainers 自动拉起 Redis 容器，需要本机 Docker 环境。
 
-## 性能
+---
+
+## 📊 性能
 
 > 测试环境: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
@@ -407,18 +603,15 @@ xychart-beta
 - **L2 单次写入**: 50-100K ops/sec
 - **L2 批量写入**: 200-500K ops/sec
 
-## 可靠性
+Criterion 基准测试代码见 `benches/` 目录（`modern_api_benchmark`、`redis_benchmark`、`serialization_benchmark`、`dashmap_benchmark`、`dragonfly_benchmark`）。
 
-- [x] 单次请求去重 (Single-Flight)
-- [x] Redis 故障自动降级
-- [x] 优雅关闭机制
-- [x] 健康检查与自动恢复
+---
 
-### 安全性
+## 🔒 安全
 
-Oxcache 实现了多项安全措施以防范常见攻击：
+Oxcache 实现了多项安全措施以防范常见攻击，完整的安全策略与漏洞报告流程见 [安全文档](docs/SECURITY.md)。
 
-#### 输入验证
+### 🛡️ 输入验证
 
 所有用户输入在传递给 Redis 之前都会进行验证：
 
@@ -437,7 +630,7 @@ Oxcache 实现了多项安全措施以防范常见攻击：
   - count 参数限制在安全范围内（1-1000）
 - **SQL/路径遍历检测**：Redis 键会扫描潜在的 SQL 注入和路径遍历模式
 
-#### 安全 API（公共函数）
+### 🔐 安全 API（公共函数）
 
 对于高级用例，您可以直接使用安全验证函数：
 
@@ -454,22 +647,22 @@ validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚
 validate_scan_pattern("user:*").expect("无效的模式");
 ```
 
-#### 超时保护
+### ⏱️ 超时保护
 
 长时间运行的操作有超时保护：
 
 - **Lua 脚本**：30 秒超时，防止 Redis 阻塞
 - **SCAN 操作**：30 秒超时，防止扫描挂起
 
-#### 安全锁值
+### 🔑 安全锁值
 
 分布式锁使用库自动生成的加密安全 UUID v4 值，消除锁值预测攻击的风险。
 
-#### 连接字符串脱敏
+### 🙈 连接字符串脱敏
 
 连接字符串中的密码在日志中默认脱敏，以防止凭据泄露。使用 `redact_connection_string()` 进行安全日志记录。
 
-#### 最佳实践
+### ✅ 最佳实践
 
 1. **使用库的键验证** - 不要绕过 `validate_redis_key()` 函数
 2. **避免自定义 Lua 脚本** - 尽可能使用内置缓存操作
@@ -477,34 +670,72 @@ validate_scan_pattern("user:*").expect("无效的模式");
 4. **轮换锁值** - 库会自动处理
 5. **永远不要记录连接字符串** - 使用脱敏工具进行调试
 
-更多详情请参阅 [安全文档](docs/SECURITY.md)。
+---
 
-## 文档
+## 🗺️ 开发路线图
 
-- [用户指南](docs/USER_GUIDE.md)
-- [API 文档](https://docs.rs/oxcache)
-- [示例代码](examples/)
+以下为工作区《验收与 +0.1 发布方案》中记录的 oxcache 相关规划（CHANGELOG 中暂无未完成项）：
 
-> **注意**：`oxcache-examples` 已设为 `publish = false` 并纳入 workspace 管理。
-
-## 贡献
-
-欢迎提交 Pull Request 和 Issue！详见 [贡献指南](docs/CONTRIBUTING.md)。
-
-## 更新日志
-
-详见 [CHANGELOG.md](docs/CHANGELOG.md)
-
-## 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+- [ ] **0.5.0 正式发布**：当前版本 0.5.0-rc.2；按发布流程完成版本 bump、`cargo publish --dry-run` 验证后，推送 tag 触发 `release.yml` 自动发布到 crates.io
+- [ ] **下游版本传导**：dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写）
+- [ ] **Valkey 集成测试环境门控**：8 个 Valkey 集成测试依赖 Docker（testcontainers），无 Docker 环境下无法运行，为验收记录中的已知限制
+- [ ] **质量审查留档项跟进**：代码质量审查（diting）留档的 3 项 Medium 建议与 2 项 Low 记录，按优先级评估处理
 
 ---
 
-<div align="center">
+## 🤝 参与贡献
 
-**如果这个项目对你有帮助，请给个 Star 支持一下！**
+欢迎提交 Pull Request 和 Issue！参与开发请先阅读 [贡献指南](docs/CONTRIBUTING.md)，其中包含：
 
-Made with love by Kirky.X
+- **开发环境准备**：Rust 1.97.1+（edition 2024）、pre-commit hooks 安装
+- **TDD 工作流**：定接口 → 写测试（red）→ 写实现（green）→ 提交 → 影响分析
+- **提交前检查**：`cargo fmt`、`cargo clippy --all-features -- -D warnings`、全特性与窄特性测试全部通过
 
-</div>
+---
+
+## 📋 更新日志
+
+完整的版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近版本要点：
+
+- **0.4.3**（2026-08-06）：`kit` 特性扩展 —— 构建观察者、`CacheBackend` 关闭映射到三阶段关闭协调、后端装饰器注册
+- **0.4.2**（2026-08-06）：死代码清理、`glob_match` 迭代化（消除多 `*` 模式下的指数级最坏情况）、安全校验函数复杂度降低
+- **0.4.1**（2026-08-04）：trait-kit 0.4 集成增强（`AsyncHealthCheck` / `AsyncLifecycle`），启用 workspace 继承并统一 edition 2024
+
+---
+
+## 📄 许可证
+
+本项目基于 [MIT 许可证](LICENSE) 发布。
+
+---
+
+## 🙏 致谢
+
+Oxcache 构建在众多优秀的开源项目之上：
+
+- [Moka](https://github.com/moka-rs/moka) 与 [DashMap](https://github.com/xacrimon/dashmap) —— L1 内存缓存后端
+- [redis-rs](https://github.com/redis-rs/redis) —— Redis / Valkey / Dragonfly / Sentinel / Cluster 客户端
+- [aerospike-client-rust](https://github.com/aerospike/aerospike-client-rust) —— Aerospike 后端
+- [Tokio](https://github.com/tokio-rs/tokio) 与 [Serde](https://github.com/serde-rs/serde) —— 异步运行时与序列化生态
+- [trait-kit](https://github.com/Kirky-X/trait-kit) —— AsyncKit 集成（生命周期 / 健康检查 / 关闭协调）
+- [testcontainers-rs](https://github.com/testcontainers/testcontainers-rs) 与 [Criterion](https://github.com/bheisler/criterion.rs) —— 集成测试与基准测试基础设施
+
+---
+
+## 📞 联系与支持
+
+- **Issue 反馈**：[GitHub Issues](https://github.com/Kirky-X/oxcache/issues)（提供 Bug 报告 / 功能建议 / 问题咨询三类模板）
+- **安全漏洞**：请勿通过公开 Issue 报告安全漏洞，参见 [安全文档](docs/SECURITY.md) 中的漏洞报告流程
+- **维护者**：Kirky.X
+
+---
+
+## ⭐ Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Kirky-X/oxcache&type=Date)](https://star-history.com/#Kirky-X/oxcache&Date)
+
+### 💝 支持本项目
+
+如果这个项目对你有帮助，请考虑给它一个 ⭐️！
+
+**Made with love by Kirky.X**

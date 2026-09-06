@@ -1,18 +1,53 @@
 <div align="center">
 
-<img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="250">
+<img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="200">
 
-[![CI](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Documentation](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![codecov](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache) [![Dependency Status](https://deps.rs/repo/github/Kirky-X/oxcache/status.svg)](https://deps.rs/repo/github/Kirky-X/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](https://github.com/Kirky-X/oxcache/blob/main/LICENSE) [![Rust Version](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
+[![CI Status](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Version](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Docs.rs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](LICENSE) [![Rust](https://img.shields.io/badge/rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org/) [![Coverage](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
 
+**[中文](README.md)** | English
 
-[中文](./README.md) | English
+**Oxcache is a high-performance, production-grade multi-backend caching library for Rust, supporting L1 (Moka/DashMap in-memory cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) multi-tier architecture.**
 
-Oxcache is a high-performance, production-grade multi-backend caching library for Rust, supporting L1 (Moka/DashMap in-memory
-cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) architecture.
+[✨ Features](#-features) • [🚀 Quick Start](#-quick-start) • [📚 Documentation](#-documentation) • [💻 Examples](#-examples) • [🤝 Contributing](#-contributing)
 
 </div>
 
-## Key Features
+---
+
+## 📋 Table of Contents
+
+<details open>
+<summary>📑 Table of Contents (click to collapse / expand)</summary>
+
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+  - [📦 Installation](#-installation)
+  - [💡 Basic Usage](#-basic-usage)
+  - [🧱 Builder API](#-builder-api)
+- [🎨 Feature Flags](#-feature-flags)
+- [📚 Documentation](#-documentation)
+- [💻 Examples](#-examples)
+- [🏗️ Architecture](#️-architecture)
+- [🎯 Use Cases](#-use-cases)
+- [🔄 Sync API](#-sync-api)
+- [🌸 Bloom Filter](#-bloom-filter)
+- [⏱️ TTL Behavior Reference](#️-ttl-behavior-reference)
+- [🧪 Testing](#-testing)
+- [📊 Performance](#-performance)
+- [🔒 Security](#-security)
+- [🗺️ Roadmap](#️-roadmap)
+- [🤝 Contributing](#-contributing)
+- [📋 Changelog](#-changelog)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📞 Contact & Support](#-contact--support)
+- [⭐ Star History](#-star-history)
+
+</details>
+
+---
+
+## ✨ Features
 
 - **Extreme Performance**: L1 nanosecond response (P99 < 100ns), L2 millisecond response (P99 < 5ms)
 - **Zero-Code Changes**: Enable caching with a single `#[cached]` macro
@@ -23,9 +58,11 @@ cache) + L2 (Redis / Valkey / Dragonfly / Aerospike) architecture.
 - **Universal per-entry TTL**: All backends (Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom) honor per-entry `set(key, value, Some(ttl))`
 - **Production Grade**: Complete observability, health checks, chaos testing verified
 
-## Quick Start
+---
 
-### 1. Add Dependency
+## 🚀 Quick Start
+
+### 📦 Installation
 
 Add `oxcache` to your `Cargo.toml`:
 
@@ -39,47 +76,7 @@ oxcache = "0.5.0-rc.2"
 
 > **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`
 
-#### Feature Tiers
-
-```toml
-# Full features (recommended)
-oxcache = { version = "0.5.0-rc.2", features = ["full"] }
-
-# Core functionality only
-oxcache = { version = "0.5.0-rc.2", features = ["core"] }
-
-# Minimal - L1 cache only
-oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
-
-# Custom selection
-oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
-```
-
-| Tier        | Features                                                                        | Description            |
-| ----------- | ------------------------------------------------------------------------------- | ---------------------- |
-| **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
-| **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
-| **full**    | `core` + `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | Complete functionality |
-
-**Individual Features**:
-
-- `memory` - L1 cache backends (Moka + DashMap)
-- `redis` - L2 distributed cache (Redis / Valkey)
-- `dragonfly` - Dragonfly cache backend (Redis protocol compatible)
-- `aerospike` - Aerospike cache backend (independent protocol)
-- `macros` - `#[cached]` attribute macro
-- `serialization` - JSON serialization (serde + serde\_json)
-- `compression` - Data compression (flate2)
-- `metrics` - Built-in performance metrics (latency histograms, operation counts, JSON export); OTLP export handled at application level
-- `batch` - Optimized batch writing
-- `lua` - Lua script execution support
-- `cli` - Command-line interface tools
-- `i18n` - Error message internationalization + auto system language detection
-- `bloom` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
-- `kit` - trait-kit AsyncKit integration (OxcacheModule + health check + lifecycle + build observer + shutdown coordinator + decorator); not in `full`, must be enabled explicitly
-- `testing` - Testing utilities
-
-### 2. Basic Usage
+### 💡 Basic Usage
 
 ```rust
 use oxcache::cached;
@@ -127,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Builder API
+### 🧱 Builder API
 
 Oxcache provides a type-safe builder API for configuring caches. Available builder methods:
 
@@ -145,94 +142,190 @@ Oxcache provides a type-safe builder API for configuring caches. Available build
 > **Note:** For Redis backend, use `RedisBackend::new(url).await?` then pass via `.backend_arc(Arc::new(backend))`.
 > For tiered (L1+L2) cache, use `ChainCache::builder().link(...).build()`.
 
-### 3. Usage
+---
 
-#### Using Macros (Recommended)
+## 🎨 Feature Flags
 
-```rust
-use oxcache::cached;
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
+### 🧱 Feature Tiers
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    id: u64,
-    name: String,
-}
+```toml
+# Full features (recommended)
+oxcache = { version = "0.5.0-rc.2", features = ["full"] }
 
-// One-line cache enable
-#[cached(service = "user_cache", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    // Simulate slow database query
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    Ok(User {
-        id,
-        name: format!("User {}", id),
-    })
-}
+# Core functionality only
+oxcache = { version = "0.5.0-rc.2", features = ["core"] }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
-    let cache: Cache<String, User> = Cache::builder()
-        .capacity(10000)
-        .ttl(std::time::Duration::from_secs(600))
-        .build()
-        .await?;
+# Minimal - L1 cache only
+oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
 
-    // Register cache for macro usage
-    cache.register_for_macro("user_cache").await;
-
-    // First call: execute function logic + cache result (~100ms)
-    let user = get_user(1).await?;
-    println!("First call: {:?}", user);
-
-    // Second call: return directly from cache (~0.1ms)
-    let cached_user = get_user(1).await?;
-    println!("Cached call: {:?}", cached_user);
-
-    Ok(())
-}
+# Custom selection
+oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
-#### Manual Client Usage
+### 📦 Available Features
 
-```rust
-use oxcache::{Cache, CacheBuilder};
-use serde::{Deserialize, Serialize};
+| Tier        | Features                                                                        | Description            |
+| ----------- | ------------------------------------------------------------------------------- | ---------------------- |
+| **minimal** | `memory`, `tokio/time`, `metrics`, `serialization`, `chrono`                  | L1 cache only          |
+| **core**    | `minimal` + `redis`                                                             | L1 + L2 cache          |
+| **full**    | `core` + `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | Complete functionality |
 
-#[derive(Serialize, Deserialize)]
-struct MyData {
-    field: String,
-}
+**Individual Features**:
 
-async fn manual_caching() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize cache using Builder pattern (default: Moka L1 memory backend)
-    let cache: Cache<String, MyData> = Cache::builder()
-        .capacity(10000)
-        .build()
-        .await?;
+- `memory` - L1 cache backends (Moka + DashMap)
+- `redis` - L2 distributed cache (Redis / Valkey)
+- `dragonfly` - Dragonfly cache backend (Redis protocol compatible)
+- `aerospike` - Aerospike cache backend (independent protocol)
+- `macros` - `#[cached]` attribute macro
+- `serialization` - JSON serialization (serde + serde\_json)
+- `compression` - Data compression (flate2)
+- `metrics` - Built-in performance metrics (latency histograms, operation counts, JSON export); OTLP export handled at application level
+- `batch` - Optimized batch writing
+- `lua` - Lua script execution support
+- `cli` - Command-line interface tools
+- `i18n` - Error message internationalization + auto system language detection
+- `bloom` - Negative query filtering (BloomFilter + BloomFilterBackend); not in `full`, must be enabled explicitly
+- `kit` - trait-kit AsyncKit integration (OxcacheModule + health check + lifecycle + build observer + shutdown coordinator + decorator); not in `full`, must be enabled explicitly
+- `testing` - Testing utilities
 
-    let my_data = MyData {
-        field: "value".to_string(),
-    };
+---
 
-    // Standard operation: write to cache
-    cache.set(&"key".to_string(), &my_data).await?;
+## 📚 Documentation
 
-    let data: Option<MyData> = cache.get(&"key".to_string()).await?;
-    println!("Data: {:?}", data);
+| Document | Description |
+|----------|-------------|
+| [📖 User Guide](docs/USER_GUIDE.md) | Complete tutorial from installation to advanced usage |
+| [📘 API Reference](docs/API_REFERENCE.md) | Detailed description of all public APIs |
+| [🏗️ Architecture](docs/ARCHITECTURE.md) | Design philosophy and internal implementation |
+| [🔒 Security](docs/SECURITY.md) | Security design and best practices |
+| [📋 Changelog](docs/CHANGELOG.md) | Change log for every release |
+| [🤝 Contributing Guide](docs/CONTRIBUTING.md) | How to contribute to the project |
+| [📦 Online API Docs](https://docs.rs/oxcache) | Latest auto-generated documentation on docs.rs |
 
-    // Delete
-    cache.delete(&"key".to_string()).await?;
+> **Note**: documentation under `docs/` is written in Chinese.
 
-    Ok(())
-}
+---
+
+## 💻 Examples
+
+The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains 37 runnable examples:
+
+```bash
+# Run a single example (from the examples/ directory)
+cd examples && cargo run --example example_basic_operations
+
+# List all available examples
+cd examples && ls src/*/*.rs
 ```
 
-## Use Cases
+### 🌱 Basics (`examples/src/01_basics`)
 
-### Scenario 1: User Information Cache
+| Example | Description |
+|---------|-------------|
+| `example_basic_operations` | Basic CRUD operations (`get`/`set`/`delete`/`exists`) |
+| `example_new_api` | Modern API introduction (`Cache::builder()` / `Cache::memory()`) |
+| `example_cache_builder` | CacheBuilder configuration (`capacity` / `ttl` / `tti` / `sync_mode`) |
+| `example_serialization` | JSON serialization |
+| `example_cache_key` | Custom cache keys (`CacheKey` trait) |
+| `example_cached_macro` | `#[cached]` macro (`service` / `ttl` / `key_prefix`) |
+| `example_explicit_init` | Explicit initialization (`Cache::new()` / global cache) |
+| `example_get_or` | Compute on cache miss (`get_or`, single-flight) |
+| `example_sync_api` | Sync API (`get_sync` / `set_sync` / `clear_sync` / `len_sync`) |
+| `example_byte_ops` | Byte-level operations (`get_bytes` / `set_bytes` / `len` / `capacity` / `shutdown`) |
+| `example_comprehensive_usage` | Comprehensive usage (overview of all features) |
+
+### 🚀 Advanced (`examples/src/02_advanced`)
+
+| Example | Description |
+|---------|-------------|
+| `example_batch_write` | Batch operations (`set_many` / `get_many` / `delete_many`) |
+| `example_chain_cache` | Chained cache (`ChainCache` / `ChainLink`) |
+| `example_invalidation` | Cache invalidation strategies (TTL / TTI / manual invalidation) |
+| `example_warmup` | Cache warm-up (batch preloading) |
+| `example_smart_strategy` | Caching strategy patterns (Cache-Aside / Lazy Loading / tiered TTL) |
+| `example_cache_promotion` | Cache promotion (L2→L1 promotion / hot-key analysis) |
+| `example_error_handling` | Error handling (`OxCacheError` / retry / recoverability) |
+| `example_custom_backend` | Custom backends (`CacheReader` / `CacheWriter` / `CacheConnector`) |
+| `example_dashmap_backend` | DashMap backend (`DashMapMemoryBackend`) |
+| `example_moka_ttl` | Moka per-entry TTL (`Expiry` trait) |
+| `example_redis_native` | Native Redis operations (`RedisBackend`, requires Redis) |
+| `example_redis_modes` | Redis deployment modes (Standalone / Cluster / Sentinel, requires Redis) |
+| `example_redis_pipeline` | Pipeline batching (`set_many_pipeline` / `get_many_pipeline`, requires Redis) |
+| `example_lua_script` | Lua script execution (`eval_lua` / `script_load` / `eval_sha`, requires Redis) |
+
+### ⚙️ Configuration (`examples/src/03_config`)
+
+| Example | Description |
+|---------|-------------|
+| `example_dynamic_config` | Dynamic configuration (runtime config changes) |
+| `example_key_generator` | Key generator (`KeyGenerator`) |
+
+### 🗄️ Database Integration (`examples/src/05_database`)
+
+| Example | Description |
+|---------|-------------|
+| `example_database_integration` | Database integration (Cache-Aside pattern) |
+
+### 🧩 Feature Showcase (`examples/src/06_features`)
+
+| Example | Description |
+|---------|-------------|
+| `example_metrics` | Metrics export (`export_json_format` / `export_prometheus_format`) |
+| `example_compression` | Data compression (`JsonSerializer::with_compression()`) |
+| `example_security` | Data redaction (`redact_value` / `redact_connection_string`) |
+| `example_security_validation` | Security validation (`validate_redis_key` / `validate_lua_script`) |
+| `example_bloom_filter` | Bloom filter (`BloomFilter` / `BloomFilterBackend`) |
+| `example_i18n` | Internationalization (`CacheI18nFormatter`) |
+| `example_events` | Event system (`CacheEvent` / `CacheEventType`) |
+| `example_cli_usage` | CLI usage (command-line tools) |
+| `example_kit_integration` | trait-kit AsyncKit integration (OxcacheModule / health check / lifecycle / build observer / three-phase shutdown / decorator) |
+
+> **Note**: examples marked "requires Redis" need a running Redis 6.0+ server; all other examples use in-memory backends and run standalone.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>Unified Cache Interface"]
+
+    B --> C[ChainCache<br/>Tiered Backend]
+    B --> D[MokaMemoryBackend<br/>L1 Only]
+    B --> E[RedisBackend<br/>L2 Only]
+
+    C --> F[L1 Cache<br/>Moka]
+    C --> G[L2 Cache<br/>Redis]
+
+    D --> F
+    E --> G
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style G fill:#fdf2e9
+```
+
+**L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy
+**L2**: Distributed shared cache supporting Sentinel/Cluster modes
+
+**Reliability capabilities**:
+
+- [x] Single-Flight (prevent cache stampede)
+- [x] Automatic degradation on Redis failure
+- [x] Graceful shutdown mechanism
+- [x] Health checks and auto-recovery
+
+For detailed design philosophy, module breakdown, and data flow, see the [Architecture documentation](docs/ARCHITECTURE.md).
+
+---
+
+## 🎯 Use Cases
+
+### 👤 Scenario 1: User Information Cache
 
 ```rust
 #[cached(service = "user_cache", ttl = 600)]
@@ -241,7 +334,7 @@ async fn get_user_profile(user_id: u64) -> Result<UserProfile, Error> {
 }
 ```
 
-### Scenario 2: API Response Cache
+### 🌐 Scenario 2: API Response Cache
 
 ```rust
 #[cached(
@@ -254,7 +347,7 @@ async fn fetch_api_data(endpoint: String, version: u32) -> Result<ApiResponse, E
 }
 ```
 
-### Scenario 3: L1-Only Hot Data Cache
+### ⚡ Scenario 3: L1-Only Hot Data Cache
 
 ```rust
 #[cached(service = "session_cache", ttl = 60)]
@@ -263,7 +356,7 @@ async fn get_user_session(session_id: String) -> Result<Session, Error> {
 }
 ```
 
-### Scenario 4: Manual Cache Control
+### 🛠️ Scenario 4: Manual Cache Control
 
 ```rust
 use oxcache::{Cache, CacheBuilder};
@@ -298,7 +391,9 @@ async fn advanced_caching() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Sync API (0.3.0)
+---
+
+## 🔄 Sync API
 
 Oxcache 0.3.0 introduces a **synchronous API path** alongside the async API. Enable it on the builder:
 
@@ -368,9 +463,11 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 }
 ```
 
-## Bloom Filter
+---
 
-The `bloom` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
+## 🌸 Bloom Filter
+
+Since 0.3.0, the `bloom` feature (must be enabled explicitly; not in `full`) provides negative-query filtering:
 
 ```toml
 [dependencies]
@@ -414,7 +511,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `clear` clears both; TTL passes through unchanged
 - Also implements `SyncCacheBackend` when inner backend does
 
-## TTL Behavior Reference
+---
+
+## ⏱️ TTL Behavior Reference
 
 All backends honor per-entry TTL since 0.3.0. Behavior summary:
 
@@ -436,35 +535,51 @@ All backends honor per-entry TTL since 0.3.0. Behavior summary:
 - `set(key, value, Some(ttl))` overrides the global TTL for that specific entry
 - `set(key, value, None)` uses the global TTL (if set); otherwise the entry never expires
 
-## Architecture
+---
 
-```mermaid
-graph TD
-    A["Application Code<br/>#[cached] Macro"] --> B["Cache&lt;K, V&gt;<br/>Unified Cache Interface"]
+## 🧪 Testing
 
-    B --> C[ChainCache<br/>Tiered Backend]
-    B --> D[MokaMemoryBackend<br/>L1 Only]
-    B --> E[RedisBackend<br/>L2 Only]
+The test suite is organized as described in `tests/README.md` and covers the following categories:
 
-    C --> F[L1 Cache<br/>Moka]
-    C --> G[L2 Cache<br/>Redis]
+| Category | Test target | Description |
+|----------|-------------|-------------|
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` (1000+) |
+| Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. (325) |
+| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster/Sentinel, distributed locks, etc. (133) |
+| End-to-end tests | `--test e2e` | Basic Cache operations, `#[cached]` macro, real-world scenarios, advanced scenarios (74) |
+| Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases (10) |
+| Feature-gating tests | `--test feature_test` plus `feature_core` / `feature_minimal` | Narrow feature combination verification |
+| Chaos tests | `--test chaos` | Backend failure injection, network failures, random failures |
+| Security tests | `--test security` | Security coverage and security validation |
+| Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance |
 
-    D --> F
-    E --> G
+### ▶️ Common Commands
 
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#fce4ec
-    style F fill:#f1f8e9
-    style G fill:#fdf2e9
+```bash
+# All tests (equivalent to make test)
+cargo test --all-features --no-fail-fast
+
+# Run by test binary
+cargo test --features full --lib                    # Library unit tests
+cargo test --features full --test integration       # Integration tests
+cargo test --features full --test e2e               # End-to-end tests
+
+# Narrow feature combinations (same as CI)
+cargo test --no-default-features --features core --test feature_core
+cargo test --no-default-features --features minimal --test feature_minimal
+
+# Skip tests that require Redis
+cargo test --features full -- --skip redis
+
+# Coverage (CI gate: line coverage >= 85%)
+cargo llvm-cov --features full --workspace --fail-under-lines 85
 ```
 
-**L1**: In-process high-speed cache using LRU/TinyLFU eviction strategy
-**L2**: Distributed shared cache supporting Sentinel/Cluster modes
+> **Note**: Redis-related tests spin up a Redis container automatically via testcontainers and require a local Docker environment.
 
-## Performance Benchmarks
+---
+
+## 📊 Performance
 
 > Test environment: M1 Pro, 16GB RAM, macOS, Redis 7.0
 >
@@ -496,18 +611,15 @@ xychart-beta
 - **L2 Single Write**: 50-100K ops/sec
 - **L2 Batch Write**: 200-500K ops/sec
 
-## Reliability
+Criterion benchmark sources live in the `benches/` directory (`modern_api_benchmark`, `redis_benchmark`, `serialization_benchmark`, `dashmap_benchmark`, `dragonfly_benchmark`).
 
-- [x] Single-Flight (prevent cache stampede)
-- [x] Automatic degradation on Redis failure
-- [x] Graceful shutdown mechanism
-- [x] Health checks and auto-recovery
+---
 
-## Security
+## 🔒 Security
 
-Oxcache implements multiple security measures to protect against common attacks:
+Oxcache implements multiple security measures to protect against common attacks. For the full security policy and vulnerability reporting process, see the [Security documentation](docs/SECURITY.md).
 
-### Input Validation
+### 🛡️ Input Validation
 
 All user inputs are validated before being passed to Redis:
 
@@ -526,7 +638,7 @@ All user inputs are validated before being passed to Redis:
   - Count parameter clamped to safe range (1-1000)
 - **SQL/Path Traversal Detection**: Redis keys are scanned for potential SQL injection and path traversal patterns
 
-### Security API (Public Functions)
+### 🔐 Security API (Public Functions)
 
 For advanced use cases, you can directly use the security validation functions:
 
@@ -543,22 +655,22 @@ validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("Invalid scri
 validate_scan_pattern("user:*").expect("Invalid pattern");
 ```
 
-### Timeout Protection
+### ⏱️ Timeout Protection
 
 Long-running operations have timeout protection:
 
 - **Lua Scripts**: 30-second timeout prevents Redis blocking
 - **SCAN Operations**: 30-second timeout prevents hanging scans
 
-### Secure Lock Values
+### 🔑 Secure Lock Values
 
 Distributed locks use cryptographically secure UUID v4 values automatically generated by the library, eliminating the risk of lock value prediction attacks.
 
-### Connection String Redaction
+### 🙈 Connection String Redaction
 
 Passwords in connection strings are redacted in logs by default to prevent credential leakage. Use `redact_connection_string()` for secure logging.
 
-### Best Practices
+### ✅ Best Practices
 
 1. **Use the library's key validation** - Don't bypass the `validate_redis_key()` function
 2. **Avoid custom Lua scripts** - Use the built-in cache operations when possible
@@ -566,34 +678,72 @@ Passwords in connection strings are redacted in logs by default to prevent crede
 4. **Rotate lock values** - The library handles this automatically
 5. **Never log connection strings** - Use the redaction utility for debugging
 
-For more details, see [Security Documentation](docs/SECURITY.md).
+---
 
-## Documentation
+## 🗺️ Roadmap
 
-- [User Guide](docs/USER_GUIDE.md)
-- [API Documentation](https://docs.rs/oxcache)
-- [Examples](examples/)
+The following items are recorded for oxcache in the workspace acceptance & release plan (no unfinished items in the CHANGELOG yet):
 
-> **Note**: `oxcache-examples` is set as `publish = false` and managed within the workspace.
-
-## Contributing
-
-Pull Requests and Issues are welcome! See [Contributing Guide](docs/CONTRIBUTING.md) for details.
-
-## Changelog
-
-See [CHANGELOG.md](docs/CHANGELOG.md)
-
-## License
-
-This project is licensed under MIT License. See [LICENSE](LICENSE) file.
+- [ ] **0.5.0 stable release**: current version is 0.5.0-rc.2; complete the version bump and `cargo publish --dry-run` verification, then push the tag to trigger automatic publishing to crates.io via `release.yml`
+- [ ] **Downstream version propagation**: dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration)
+- [ ] **Valkey integration test environment gating**: 8 Valkey integration tests depend on Docker (testcontainers) and cannot run without it — a known limitation recorded during acceptance
+- [ ] **Follow-up on archived review findings**: 3 Medium suggestions and 2 Low notes archived from the diting code quality review, to be triaged by priority
 
 ---
 
-<div align="center">
+## 🤝 Contributing
 
-**If this project helps you, please give a Star to show support!**
+Pull Requests and Issues are welcome! Before contributing, please read the [Contributing Guide](docs/CONTRIBUTING.md), which covers:
 
-Made with love by Kirky.X
+- **Environment setup**: Rust 1.97.1+ (edition 2024), pre-commit hooks installation
+- **TDD workflow**: define the interface → write tests (red) → implement (green) → commit → impact analysis
+- **Pre-submission checks**: `cargo fmt`, `cargo clippy --all-features -- -D warnings`, plus full-feature and narrow-feature tests all passing
 
-</div>
+---
+
+## 📋 Changelog
+
+See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
+
+- **0.4.3** (2026-08-06): `kit` feature extensions — build observer, `CacheBackend` shutdown mapped to the three-phase shutdown coordinator, backend decorator registration
+- **0.4.2** (2026-08-06): dead code cleanup, iterative rewrite of `glob_match` (eliminating exponential worst cases with multiple `*`), reduced complexity of security validation functions
+- **0.4.1** (2026-08-04): enhanced trait-kit 0.4 integration (`AsyncHealthCheck` / `AsyncLifecycle`), workspace inheritance enabled and edition 2024 unified
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 🙏 Acknowledgments
+
+Oxcache is built on top of many great open-source projects:
+
+- [Moka](https://github.com/moka-rs/moka) and [DashMap](https://github.com/xacrimon/dashmap) — L1 in-memory cache backends
+- [redis-rs](https://github.com/redis-rs/redis) — Redis / Valkey / Dragonfly / Sentinel / Cluster client
+- [aerospike-client-rust](https://github.com/aerospike/aerospike-client-rust) — Aerospike backend
+- [Tokio](https://github.com/tokio-rs/tokio) and [Serde](https://github.com/serde-rs/serde) — async runtime and serialization ecosystem
+- [trait-kit](https://github.com/Kirky-X/trait-kit) — AsyncKit integration (lifecycle / health check / shutdown coordination)
+- [testcontainers-rs](https://github.com/testcontainers/testcontainers-rs) and [Criterion](https://github.com/bheisler/criterion.rs) — integration testing and benchmarking infrastructure
+
+---
+
+## 📞 Contact & Support
+
+- **Issue tracker**: [GitHub Issues](https://github.com/Kirky-X/oxcache/issues) (templates available for bug reports / feature requests / questions)
+- **Security vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues; see the vulnerability reporting process in the [Security documentation](docs/SECURITY.md)
+- **Maintainer**: Kirky.X
+
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Kirky-X/oxcache&type=Date)](https://star-history.com/#Kirky-X/oxcache&Date)
+
+### 💝 Support This Project
+
+If you find this project useful, please consider giving it a ⭐️!
+
+**Made with love by Kirky.X**
