@@ -54,16 +54,16 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 ```toml
 # 完整特性（推荐，默认）
-oxcache = { version = "0.5", features = ["full"] }
+oxcache = { version = "0.5.0-rc.2", features = ["full"] }
 
 # 核心功能（L1 + L2）
-oxcache = { version = "0.5", features = ["core"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core"] }
 
 # 最小特性 - 仅 L1 缓存
-oxcache = { version = "0.5", features = ["minimal"] }
+oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
 
 # 自定义选择（例如在 core 基础上添加 bloom）
-oxcache = { version = "0.5", features = ["core", "macros", "bloom"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "bloom"] }
 ```
 
 ### 特性依赖
@@ -101,7 +101,7 @@ oxcache = { version = "0.5", features = ["core", "macros", "bloom"] }
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.0-rc.2", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]

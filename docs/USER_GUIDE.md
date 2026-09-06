@@ -99,7 +99,7 @@ L1 内存 + L2 分布式
 
 **必选**
 
-- ✅ Rust 1.88+ (stable)
+- ✅ Rust 1.97.1+ (stable)
 - ✅ Cargo (随 Rust 一起安装)
 - ✅ Git
 
@@ -122,11 +122,11 @@ L1 内存 + L2 分布式
 ```bash
 # 检查 Rust 版本
 rustc --version
-# 预期: rustc 1.88.0 (或更高)
+# 预期: rustc 1.97.1 (或更高)
 
 # 检查 Cargo 版本
 cargo --version
-# 预期: cargo 1.88.0 (或更高)
+# 预期: cargo 1.97.1 (或更高)
 ```
 
 </details>
@@ -137,27 +137,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5"
+oxcache = "0.5.0-rc.2"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层选择
 
 ```toml
 # 完整特性（推荐，默认）
-oxcache = { version = "0.5", features = ["full"] }
+oxcache = { version = "0.5.0-rc.2", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.5", features = ["core"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.5", features = ["minimal"] }
+oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
 
 # 自定义选择（注意：bloom 不在 full 内，需单独启用）
-oxcache = { version = "0.5", features = ["core", "macros", "bloom"] }
+oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "bloom"] }
 ```
 
 #### 特性依赖说明
@@ -175,7 +175,7 @@ oxcache = { version = "0.5", features = ["core", "macros", "bloom"] }
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5", default-features = false, features = ["core"] }
+oxcache = { version = "0.5.0-rc.2", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：
@@ -661,7 +661,7 @@ let backend = RedisBackend::builder()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5", features = ["dragonfly"] }
+oxcache = { version = "0.5.0-rc.2", features = ["dragonfly"] }
 ```
 
 ```rust
@@ -687,7 +687,7 @@ let chain = ChainCacheBuilder::default()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5", features = ["aerospike"] }
+oxcache = { version = "0.5.0-rc.2", features = ["aerospike"] }
 ```
 
 ```rust
