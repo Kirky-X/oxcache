@@ -158,6 +158,8 @@ optional = true
 # DEV DEPENDENCIES
 # ============================================================================
 [dev-dependencies]
+# 测试实现 EventPublisher（#[async_trait] trait）所需，与主依赖版本一致
+async-trait = "0.1"
 tempfile = "3.27"
 serial_test = "4.0"
 rand = "0.10"
