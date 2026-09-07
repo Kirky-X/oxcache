@@ -1,3 +1,4 @@
+# CI 质量门禁:fmt / clippy / check / test / cross-platform / doc / security / coverage
 name: CI
 
 on:

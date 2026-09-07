@@ -1,6 +1,6 @@
 name: Release
 
-"on":
+on:
   push:
     tags:
       - 'v*.*.*'
@@ -24,10 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.97.1
-
       - name: Verify build (full features)
         run: cargo build --release --features full --workspace
-
       - name: Verify tests pass
         run: cargo test --features full --workspace --no-fail-fast
 
