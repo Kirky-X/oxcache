@@ -86,10 +86,24 @@ impl ChainCacheBuilder {
     }
 
     /// 构建链式缓存
+    ///
+    /// # Panics
+    ///
+    /// Panics if no links were added — an empty chain silently turns every
+    /// `get` into a `None` miss, which is nearly always a misconfiguration.
+    /// This is a programmer error (forgot `.link(...)`/`.backend(...)`), so it
+    /// fails loudly at construction time; use [`ChainCache::new`] directly if
+    /// an intentionally empty chain is ever required.
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
         let mut links = self.links;
         links.sort_by_key(|link| std::cmp::Reverse(link.score()));
+        assert!(
+            !links.is_empty(),
+            "ChainCacheBuilder::build requires at least one link; \
+             add one via .link(...) or .backend(...), or use ChainCache::new \
+             for an intentionally empty chain"
+        );
 
         ChainCache {
             links,

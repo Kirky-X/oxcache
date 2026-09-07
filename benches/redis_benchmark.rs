@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Redis L2 缓存性能基准测试
 
+//! Redis 不可达时，各基准函数会打印 `[bench-skip]` 原因并跳过，
+//! 避免 `cargo test --all-targets` 在无服务环境下因 bench 假红。
+
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
@@ -9,6 +12,10 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
+
+mod common;
+
+use common::services_ready;
 
 // ============================= Redis L2 缓存基准测试 =============================
 
@@ -26,6 +33,10 @@ fn get_redis_url() -> String {
 fn bench_redis_set(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let redis_url = get_redis_url();
+
+    if !services_ready(&rt, &[("Redis", &redis_url)]) {
+        return;
+    }
 
     // 预先建立连接
     let backend = rt.block_on(async {
@@ -56,6 +67,10 @@ fn bench_redis_set(c: &mut Criterion) {
 fn bench_redis_get(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let redis_url = get_redis_url();
+
+    if !services_ready(&rt, &[("Redis", &redis_url)]) {
+        return;
+    }
 
     // 预先建立连接并准备测试数据
     let backend = rt.block_on(async {
@@ -88,6 +103,10 @@ fn bench_redis_get(c: &mut Criterion) {
 fn bench_redis_different_sizes(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let redis_url = get_redis_url();
+
+    if !services_ready(&rt, &[("Redis", &redis_url)]) {
+        return;
+    }
 
     // 预先建立连接
     let backend = rt.block_on(async {
@@ -122,6 +141,10 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
 fn bench_redis_ttl(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let redis_url = get_redis_url();
+
+    if !services_ready(&rt, &[("Redis", &redis_url)]) {
+        return;
+    }
 
     // 预先建立连接
     let backend = rt.block_on(async {

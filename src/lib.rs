@@ -138,7 +138,7 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.2")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.3")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua, cli, batch,
@@ -323,6 +323,13 @@ pub use crate::internal::__internal_get_cache;
 
 // New API exports
 // cache 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
+#[cfg(any(
+    feature = "memory",
+    feature = "redis",
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
+))]
 pub use cache::BytesCache;
 #[cfg(any(
     feature = "memory",

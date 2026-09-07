@@ -527,6 +527,39 @@ async fn test_clear_disabled_by_default_returns_error() {
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
+async fn test_clear_namespace_empty_prefix_rejected() {
+    let backend = make_backend().await;
+    let err = backend
+        .clear_namespace("")
+        .await
+        .expect_err("empty prefix would match the entire database");
+    assert!(
+        matches!(err, OxCacheError::InvalidInput(_)),
+        "expected InvalidInput, got {:?}",
+        err
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_clear_namespace_glob_metachars_rejected() {
+    let backend = make_backend().await;
+    for prefix in ["user:[ab]", "a\\b", "user?]"] {
+        let err = backend
+            .clear_namespace(prefix)
+            .await
+            .expect_err("glob metacharacters must be rejected");
+        assert!(
+            matches!(err, OxCacheError::InvalidInput(_)),
+            "prefix {:?}: expected InvalidInput, got {:?}",
+            prefix,
+            err
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
 async fn test_clear_namespace_prefix() {
     use crate::backend::CacheReader;
     let backend = make_backend().await;

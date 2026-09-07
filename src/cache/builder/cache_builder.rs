@@ -13,7 +13,10 @@ use std::time::Duration;
 
 /// Unified builder for creating Cache instances
 ///
-/// Supports both single backend and multi-backend (tiered cache) configurations.
+/// Supports a **single** backend (or the default Moka backend when none is
+/// set). For tiered / multi-backend behavior use
+/// [`ChainCacheBuilder`](crate::cache::ChainCacheBuilder) instead — building
+/// with more than one `backend_arc()` returns `Err(NotSupported)`.
 pub struct CacheBuilder<K, V> {
     backends: Vec<Arc<dyn CacheBackend>>,
     ttl: Option<Duration>,
@@ -67,6 +70,10 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     /// Add a pre-built backend
+    ///
+    /// Only one backend may be added: calling [`Self::build_sync`] with two or
+    /// more backends returns `Err(NotSupported)`. For tiered caching use
+    /// [`ChainCacheBuilder`](crate::cache::ChainCacheBuilder).
     pub fn backend_arc(mut self, backend: Arc<dyn CacheBackend>) -> Self {
         self.backends.push(backend);
         self
@@ -179,6 +186,17 @@ where
         }
 
         // User-provided backend (sync_mode is guaranteed false here)
+        // Fail fast on misconfiguration: only a single backend is supported.
+        // Silently dropping the extras would serve traffic from an unintended
+        // backend; use ChainCache for tiered/multi-backend behavior.
+        if self.backends.len() > 1 {
+            return Err(OxCacheError::NotSupported(format!(
+                "CacheBuilder supports a single backend, but {} backends were \
+                 added; only the first would be used. For tiered/multi-backend \
+                 behavior use ChainCache (oxcache::cache::ChainCacheBuilder).",
+                self.backends.len()
+            )));
+        }
         let backend = self.backends[0].clone();
         let mut cache = Cache::new_with_backend(backend);
         cache.set_null_cache_ttl(self.null_cache_ttl);
@@ -318,6 +336,26 @@ mod tests {
             .backend_arc(Arc::new(backend1))
             .backend_arc(Arc::new(backend2));
         assert_eq!(builder.backends.len(), 2);
+    }
+
+    #[test]
+    fn test_builder_multiple_backends_rejected_at_build() {
+        // Building with more than one backend must fail fast instead of
+        // silently serving traffic from the first backend only.
+        let backend1 = MokaMemoryBackend::builder().capacity(100).build();
+        let backend2 = MokaMemoryBackend::builder().capacity(200).build();
+        let result: OxCacheResult<Cache<String, String>> = CacheBuilder::default()
+            .backend_arc(Arc::new(backend1))
+            .backend_arc(Arc::new(backend2))
+            .build_sync();
+        let err = result.expect_err("multi-backend build must be rejected");
+        match &err {
+            OxCacheError::NotSupported(msg) => {
+                assert!(msg.contains("single backend"), "unexpected message: {msg}");
+                assert!(msg.contains("ChainCache"), "unexpected message: {msg}");
+            }
+            other => panic!("expected NotSupported, got {other:?}"),
+        }
     }
 
     // ============================================================================

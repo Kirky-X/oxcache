@@ -66,6 +66,16 @@ pub struct DistributedLock {
     pub(super) released: Arc<AtomicBool>,
 }
 
+/// Backoff delay for watchdog renewal after consecutive Redis errors.
+///
+/// Grows exponentially from 200ms and caps at ~6.4s so transient outages are
+/// retried without hot-looping, while a lost lock still exits promptly via
+/// the `Ok(_)` arm.
+fn watchdog_retry_delay(consecutive_errors: u32) -> Duration {
+    let shift = consecutive_errors.min(5);
+    Duration::from_millis(200 * (1 << shift))
+}
+
 impl DistributedLock {
     /// Acquire the distributed lock.
     ///
@@ -131,22 +141,15 @@ impl DistributedLock {
         }
 
         let new_count = count - 1;
-        self.reentrant_count.store(new_count, Ordering::SeqCst);
-
         if new_count > 0 {
             // Still reentrant, don't actually release
+            self.reentrant_count.store(new_count, Ordering::SeqCst);
             return Ok(());
         }
 
-        // Mark as released to stop watchdog
-        self.released.store(true, Ordering::SeqCst);
-
-        // Abort watchdog
-        if let Some(handle) = self.watchdog.lock().await.take() {
-            handle.abort();
-        }
-
-        // Execute Lua release script
+        // Final release: run the remote Lua script first. Only on success do
+        // we mutate local state, so a failed release stays retryable instead
+        // of leaking the remote lock while appearing released locally.
         let mut conn = self.backend.conn();
         let result: i64 = redis::cmd(RedisCommand::Eval.as_str())
             .arg(RELEASE_SCRIPT)
@@ -162,6 +165,16 @@ impl DistributedLock {
                 "dist_lock '{}' not held by owner (already expired or stolen)",
                 self.key
             )));
+        }
+
+        self.reentrant_count.store(0, Ordering::SeqCst);
+
+        // Mark as released to stop watchdog
+        self.released.store(true, Ordering::SeqCst);
+
+        // Abort watchdog
+        if let Some(handle) = self.watchdog.lock().await.take() {
+            handle.abort();
         }
 
         Ok(())
@@ -211,6 +224,7 @@ impl DistributedLock {
         let renew_interval = ttl / 3;
 
         tokio::spawn(async move {
+            let mut consecutive_errors: u32 = 0;
             loop {
                 tokio::time::sleep(renew_interval).await;
 
@@ -234,14 +248,17 @@ impl DistributedLock {
                 match result {
                     Ok(1) => {
                         // Successfully renewed, continue
+                        consecutive_errors = 0;
                     }
                     Ok(_) => {
                         // Lock no longer held (expired or stolen), stop watchdog
                         break;
                     }
                     Err(_) => {
-                        // Redis error, stop watchdog to avoid infinite retries
-                        break;
+                        // Transient Redis error: back off and retry instead of
+                        // abandoning the lock, which would let it expire early.
+                        consecutive_errors = consecutive_errors.saturating_add(1);
+                        tokio::time::sleep(watchdog_retry_delay(consecutive_errors)).await;
                     }
                 }
             }
@@ -308,5 +325,125 @@ mod tests {
         assert!(!released.load(Ordering::SeqCst));
         released.store(true, Ordering::SeqCst);
         assert!(released.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_watchdog_retry_delay_grows_and_caps() {
+        assert!(watchdog_retry_delay(0) <= watchdog_retry_delay(1));
+        assert!(watchdog_retry_delay(1) <= watchdog_retry_delay(5));
+        assert!(watchdog_retry_delay(u32::MAX) <= Duration::from_secs(10));
+    }
+
+    #[allow(unsafe_code)]
+    async fn live_test_backend() -> Arc<RedisBackend> {
+        // SAFETY: idempotent set of the same value; matches redis test helper pattern.
+        unsafe {
+            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+        }
+        Arc::new(
+            RedisBackend::new("redis://127.0.0.1:6379")
+                .await
+                .expect("live Redis required at 127.0.0.1:6379"),
+        )
+    }
+
+    #[tokio::test]
+    #[ignore = "needs live Redis at 127.0.0.1:6379"]
+    async fn test_release_stolen_lock_keeps_retryable_state() {
+        use super::super::DistLockBuilder;
+
+        let backend = live_test_backend().await;
+        let key = format!("test-lock-stolen-{}", Uuid::new_v4());
+        let mut lock = DistLockBuilder::new(backend.clone(), key.clone())
+            .ttl(Duration::from_secs(30))
+            .watchdog_enabled(false)
+            .build();
+        assert!(lock.acquire().await.expect("acquire"));
+        // Simulate expiry/steal: delete the key out-of-band.
+        let mut conn = backend.conn();
+        let _: i64 = redis::cmd(RedisCommand::Del.as_str())
+            .arg(&key)
+            .query_async(&mut conn)
+            .await
+            .expect("DEL");
+        let err = lock
+            .release()
+            .await
+            .expect_err("release of stolen lock must fail");
+        assert!(err.to_string().contains("not held by owner"));
+        assert_eq!(
+            lock.reentrant_count.load(Ordering::SeqCst),
+            1,
+            "failed release must keep retryable state"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs live Redis at 127.0.0.1:6379"]
+    async fn test_release_conn_error_keeps_retryable_state() {
+        use super::super::DistLockBuilder;
+        use std::process::Command;
+
+        let backend = live_test_backend().await;
+        let key = format!("test-lock-connerr-{}", Uuid::new_v4());
+        let mut lock = DistLockBuilder::new(backend.clone(), key.clone())
+            .ttl(Duration::from_secs(30))
+            .watchdog_enabled(false)
+            .build();
+        assert!(lock.acquire().await.expect("acquire"));
+        // Kill the server to force a connection error on release.
+        let _ = Command::new("redis-cli")
+            .args(["-p", "6379", "shutdown", "nosave"])
+            .status();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let err = lock
+            .release()
+            .await
+            .expect_err("release against dead server must fail");
+        assert!(err.to_string().contains("dist_lock release failed"));
+        assert_eq!(
+            lock.reentrant_count.load(Ordering::SeqCst),
+            1,
+            "failed release must keep retryable state"
+        );
+        assert!(
+            !lock.released.load(Ordering::SeqCst),
+            "failed release must not flag the lock as released"
+        );
+        // Restore the server for subsequent tests.
+        let _ = Command::new("redis-server")
+            .args([
+                "--port",
+                "6379",
+                "--daemonize",
+                "yes",
+                "--save",
+                "",
+                "--appendonly",
+                "no",
+            ])
+            .status();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    #[tokio::test]
+    #[ignore = "needs live Redis at 127.0.0.1:6379"]
+    async fn test_watchdog_renews_past_ttl() {
+        use super::super::DistLockBuilder;
+
+        let backend = live_test_backend().await;
+        let key = format!("test-lock-watchdog-{}", Uuid::new_v4());
+        let mut lock = DistLockBuilder::new(backend, key)
+            .ttl(Duration::from_secs(3))
+            .watchdog_enabled(true)
+            .build();
+        assert!(lock.acquire().await.expect("acquire"));
+        // Sleep past the TTL; the watchdog (renew every ~1s) must keep it held.
+        tokio::time::sleep(Duration::from_millis(4500)).await;
+        assert!(
+            lock.is_held().await.expect("is_held"),
+            "watchdog must renew the lock past TTL"
+        );
+        lock.release().await.expect("release");
     }
 }

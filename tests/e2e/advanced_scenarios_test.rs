@@ -352,7 +352,9 @@ async fn b010_bloom_filter_delete_does_not_remove_from_filter() {
 async fn b011_empty_chain_get_none_set_errors_delete_ok() {
     use oxcache::ChainCache;
 
-    let chain = ChainCache::builder().build(); // no links
+    // Intentionally empty chain: use the explicit constructor — the builder
+    // fail-fasts on empty links (programmer error guard).
+    let chain = ChainCache::new(vec![]); // no links
 
     // get on empty chain returns Ok(None).
     let val = chain.get("any").await.expect("get on empty chain");

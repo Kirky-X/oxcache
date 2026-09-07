@@ -20,6 +20,10 @@
 //! 可通过环境变量覆盖地址：
 //! - `OXCACHE_REDIS_URL`（默认 `redis://127.0.0.1:6379`）
 //! - `OXCACHE_DRAGONFLY_URL`（默认 `redis://127.0.0.1:6380`）
+//!
+//! 任一服务不可达时，各基准函数会打印 `[bench-skip]` 原因并跳过
+//! （服务齐全时行为不变），避免 `cargo test --all-targets` 在无服务
+//! 环境下因 bench 假红。
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use oxcache::backend::DragonflyBackend;
@@ -29,6 +33,10 @@ use std::hint::black_box;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
+
+mod common;
+
+use common::services_ready;
 
 // ============================= 辅助函数 =============================
 
@@ -50,11 +58,19 @@ fn setup_env_and_urls() -> (String, String) {
     (redis_url, dragonfly_url)
 }
 
+/// Redis 与 Dragonfly 双服务可达性检查；不可达时打印跳过原因。
+fn services_up(rt: &Runtime, redis_url: &str, dragonfly_url: &str) -> bool {
+    services_ready(rt, &[("Redis", redis_url), ("Dragonfly", dragonfly_url)])
+}
+
 // ============================= SET 对比 =============================
 
 fn bench_set_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
     let (redis_url, dragonfly_url) = setup_env_and_urls();
+    if !services_up(&rt, &redis_url, &dragonfly_url) {
+        return;
+    }
 
     let redis = rt.block_on(async {
         RedisBackend::new(&redis_url)
@@ -108,6 +124,9 @@ fn bench_set_comparison(c: &mut Criterion) {
 fn bench_get_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
     let (redis_url, dragonfly_url) = setup_env_and_urls();
+    if !services_up(&rt, &redis_url, &dragonfly_url) {
+        return;
+    }
 
     let redis = rt.block_on(async {
         let backend = RedisBackend::new(&redis_url)
@@ -167,6 +186,9 @@ fn bench_get_comparison(c: &mut Criterion) {
 fn bench_mget_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
     let (redis_url, dragonfly_url) = setup_env_and_urls();
+    if !services_up(&rt, &redis_url, &dragonfly_url) {
+        return;
+    }
 
     let key_count = 10;
     let keys: Vec<String> = (0..key_count).map(|i| format!("bench:mget:{i}")).collect();
@@ -233,6 +255,9 @@ fn bench_mget_comparison(c: &mut Criterion) {
 fn bench_set_size_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
     let (redis_url, dragonfly_url) = setup_env_and_urls();
+    if !services_up(&rt, &redis_url, &dragonfly_url) {
+        return;
+    }
 
     let redis = rt.block_on(async {
         RedisBackend::new(&redis_url)

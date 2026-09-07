@@ -85,12 +85,12 @@ fn test_redact_connection_string_with_password() {
     );
 }
 
-/// 测试无密码的连接字符串
+/// 测试无密码的连接字符串：无可脱敏内容，原样返回
 #[test]
 fn test_redact_connection_string_without_password() {
     assert_eq!(
         redact_connection_string("redis://user@localhost:6379"),
-        "redis://user:****@localhost:6379"
+        "redis://user@localhost:6379"
     );
     assert_eq!(
         redact_connection_string("redis://localhost:6379"),

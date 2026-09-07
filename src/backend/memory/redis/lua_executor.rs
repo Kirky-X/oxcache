@@ -26,6 +26,10 @@ impl LuaExecutor for RedisBackend {
     ) -> OxCacheResult<redis::Value> {
         security::validate_lua_script(script, keys.len())?;
 
+        for key in keys {
+            security::validate_redis_key(key)?;
+        }
+
         let mut conn = self.conn();
 
         let mut cmd = redis::cmd(RedisCommand::Eval.as_str());

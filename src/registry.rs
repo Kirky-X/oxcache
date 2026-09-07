@@ -105,6 +105,10 @@ pub fn remove(name: &str) -> Option<Arc<dyn CacheBackend>> {
 }
 
 /// Clear all caches from the registry
+///
+/// This removes **every** entry, including the `"default"` backend inserted
+/// by [`init()`]. After `clear()`, [`get`]`("default")` returns `None` until
+/// a new default is `register()`ed.
 pub fn clear() {
     if let Some(registry) = CACHE_REGISTRY.get() {
         registry.caches.clear();

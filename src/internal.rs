@@ -12,7 +12,9 @@ fn caches() -> &'static MacroCacheMap {
     MACRO_CACHES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub async fn __internal_register_cache(name: &str, cache: Arc<Cache<String, Vec<u8>>>) {
+/// Register a macro-managed cache. Fully synchronous (Mutex lock + insert):
+/// kept as a plain `fn` so callers pay no async-dispatch overhead.
+pub fn __internal_register_cache(name: &str, cache: Arc<Cache<String, Vec<u8>>>) {
     if let Ok(mut map) = caches().lock() {
         map.insert(name.to_string(), cache);
     }
@@ -30,7 +32,7 @@ mod tests {
     async fn test_register_and_get_cache() {
         let cache = Arc::new(Cache::builder().build().await.unwrap());
 
-        __internal_register_cache("test_cache", cache.clone()).await;
+        __internal_register_cache("test_cache", cache.clone());
 
         let retrieved = __internal_get_cache("test_cache");
         assert!(retrieved.is_some());
@@ -52,10 +54,10 @@ mod tests {
     #[tokio::test]
     async fn test_register_cache_overwrites_existing() {
         let cache1 = Arc::new(Cache::builder().build().await.unwrap());
-        __internal_register_cache("overwrite_test", cache1).await;
+        __internal_register_cache("overwrite_test", cache1);
 
         let cache2 = Arc::new(Cache::builder().build().await.unwrap());
-        __internal_register_cache("overwrite_test", cache2.clone()).await;
+        __internal_register_cache("overwrite_test", cache2.clone());
 
         let retrieved = __internal_get_cache("overwrite_test");
         assert!(retrieved.is_some());

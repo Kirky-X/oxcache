@@ -351,13 +351,32 @@ impl crate::backend::SyncAtomicCacheWriter for MockBackend {
         delta: i64,
         ttl: Option<Duration>,
     ) -> crate::error::OxCacheResult<i64> {
+        // Mirror the async incr: propagate UTF-8/parse/overflow errors instead
+        // of silently treating corrupt data as 0.
         let mut data = self.data.blocking_write();
-        let current = data
-            .get(key)
-            .and_then(|(v, _)| String::from_utf8(v.clone()).ok())
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(0);
-        let new_val = current + delta;
+        let current = match data.get(key) {
+            Some((v, _)) => {
+                let s = String::from_utf8(v.clone()).map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid UTF-8 in stored value for key '{}': {}",
+                        key, e
+                    ))
+                })?;
+                s.parse::<i64>().map_err(|e| {
+                    crate::error::OxCacheError::Operation(format!(
+                        "incr: invalid integer in stored value for key '{}': {}",
+                        key, e
+                    ))
+                })?
+            }
+            None => 0,
+        };
+        let new_val = current.checked_add(delta).ok_or_else(|| {
+            crate::error::OxCacheError::Operation(format!(
+                "incr: i64 overflow for key '{}': {} + {}",
+                key, current, delta
+            ))
+        })?;
         let expires_at = ttl.map(|d| Instant::now() + d);
         data.insert(
             key.to_string(),
@@ -872,6 +891,34 @@ mod mock_tests {
         assert_eq!(val, 5);
         let val = crate::backend::SyncAtomicCacheWriter::incr(&backend, "c", 3, None).unwrap();
         assert_eq!(val, 8);
+    }
+
+    #[test]
+    fn test_mock_sync_atomic_incr_error_paths_match_async() {
+        use crate::backend::SyncAtomicCacheWriter;
+
+        let backend = MockBackend::new("test", 50, false);
+        // Non-numeric stored value → Err (not silently treated as 0)
+        backend
+            .data
+            .blocking_write()
+            .insert("bad".to_string(), (b"not-a-number".to_vec(), None));
+        let err = SyncAtomicCacheWriter::incr(&backend, "bad", 1, None).unwrap_err();
+        assert!(
+            err.to_string().contains("invalid integer"),
+            "unexpected error: {err}"
+        );
+
+        // Overflow → Err
+        backend
+            .data
+            .blocking_write()
+            .insert("big".to_string(), (i64::MAX.to_string().into_bytes(), None));
+        let err = SyncAtomicCacheWriter::incr(&backend, "big", 1, None).unwrap_err();
+        assert!(
+            err.to_string().contains("overflow"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

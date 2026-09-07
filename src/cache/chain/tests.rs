@@ -32,6 +32,23 @@ fn test_chain_cache_builder() {
     assert_eq!(chain.links()[1].score(), 50);
 }
 
+#[test]
+fn test_chain_cache_builder_empty_links_panics() {
+    // Building without any link must fail loudly: an empty chain silently
+    // turns every get into a None miss.
+    let result = std::panic::catch_unwind(|| ChainCache::builder().build());
+    let err = match result {
+        Ok(_) => panic!("empty chain build must panic"),
+        Err(e) => e,
+    };
+    let msg = err
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| err.downcast_ref::<&str>().map(|s| s.to_string()))
+        .unwrap_or_default();
+    assert!(msg.contains("at least one link"), "unexpected panic: {msg}");
+}
+
 #[tokio::test]
 async fn test_chain_cache_get_set() {
     let high = MockBackend::new("high", 100, false);
@@ -1127,7 +1144,7 @@ async fn test_chain_keys_merges_and_deduplicates() {
 
 #[tokio::test]
 async fn test_chain_keys_empty_chain() {
-    let chain = ChainCache::builder().build();
+    let chain = ChainCache::new(vec![]);
     let keys = chain.keys("*").await.unwrap();
     assert!(keys.is_empty());
 }
@@ -1257,7 +1274,7 @@ fn test_chain_persistent_and_non_persistent_backends() {
 #[tokio::test]
 async fn test_chain_len_is_empty_capacity() {
     // Empty chain (no backends)
-    let empty_chain = ChainCache::builder().build();
+    let empty_chain = ChainCache::new(vec![]);
     assert!(empty_chain.is_empty());
     assert_eq!(empty_chain.len(), 0);
 
@@ -1282,7 +1299,9 @@ async fn test_chain_len_is_empty_capacity() {
 
 #[tokio::test]
 async fn test_chain_empty_chain_operations() {
-    let chain = ChainCache::builder().build();
+    // Intentionally empty chain — the explicit constructor (not the builder,
+    // which now fail-fasts on empty) preserves the empty-chain runtime semantics.
+    let chain = ChainCache::new(vec![]);
 
     // get on empty chain
     assert_eq!(chain.get("k").await.unwrap(), None);

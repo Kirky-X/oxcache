@@ -88,6 +88,8 @@ impl CacheReader for RedisBackend {
         .await
     }
 
+    // DBSIZE counts every key in the connected DB index, not only keys
+    // written through this instance — see CacheReader::len docs.
     async fn len(&self) -> OxCacheResult<u64> {
         self.execute_with_retry(|| {
             let mut conn = self.conn();

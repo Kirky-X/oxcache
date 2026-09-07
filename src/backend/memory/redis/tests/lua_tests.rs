@@ -123,6 +123,20 @@ async fn test_eval_lua_too_many_keys_rejected() {
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
+async fn test_eval_lua_invalid_key_rejected() {
+    let backend = make_backend().await;
+    let err = backend
+        .eval_lua("return 1", &[""], &[])
+        .await
+        .expect_err("empty key must be rejected like eval_sha does");
+    match err {
+        OxCacheError::InvalidInput(_) => {}
+        other => panic!("Expected InvalidInput, got {:?}", other),
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
 async fn test_as_lua_executor_returns_some() {
     use crate::backend::CacheConnector;
     let backend = make_backend().await;

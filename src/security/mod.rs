@@ -695,8 +695,9 @@ mod tests {
     #[test]
     fn test_skip_lua_long_string_basic() {
         // 测试 skip_lua_long_string 函数
+        // level 是真实 "=" 数量：闭合符 "]]" 对应 level 0
         let mut chars = "content]]rest".chars().peekable();
-        skip_lua_long_string(&mut chars, 1);
+        skip_lua_long_string(&mut chars, 0);
         // 跳过后应该指向 ]] 之后的内容
         let remaining: String = chars.collect();
         assert_eq!(remaining, "rest");

@@ -612,10 +612,13 @@ impl SlidingWindowMetrics {
 
     /// 捕获当前指标
     pub fn capture(&self) {
+        // Recover from a poisoned lock instead of cascading panics: the data
+        // is still valid (no invariant depends on cross-call atomicity), so a
+        // prior panic in one capture must not take down every later capture.
         let mut last = self
             .last_capture
             .lock()
-            .expect("metrics last_capture lock poisoned - previous panic detected");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let now = Instant::now();
         let interval = now.duration_since(*last).as_secs_f64();
 
@@ -625,7 +628,7 @@ impl SlidingWindowMetrics {
         let mut snapshots = self
             .snapshots
             .lock()
-            .expect("metrics snapshots lock poisoned - previous panic detected");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         snapshots.push_back(snapshot);
 
         // 清理过期的快照
@@ -646,7 +649,7 @@ impl SlidingWindowMetrics {
         let snapshots = self
             .snapshots
             .lock()
-            .expect("metrics snapshots lock poisoned - previous panic detected");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let count = snapshots.len();
 
         if count == 0 {

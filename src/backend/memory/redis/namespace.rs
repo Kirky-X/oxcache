@@ -15,6 +15,10 @@ impl RedisBackend {
     /// the specified prefix. Uses incremental SCAN to avoid blocking Redis
     /// and pipeline batch DEL for efficient deletion.
     ///
+    /// Note: SCAN + DEL is not atomic — keys created concurrently may be
+    /// missed or deleted after matching. Callers needing a point-in-time
+    /// snapshot must coordinate writes externally.
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -22,10 +26,27 @@ impl RedisBackend {
     /// backend.clear_namespace("user:session:").await?;
     /// ```
     pub async fn clear_namespace(&self, prefix: &str) -> OxCacheResult<()> {
+        // An empty prefix would match everything ("*"); refuse explicitly
+        // instead of wiping the whole database.
+        if prefix.is_empty() {
+            return Err(OxCacheError::InvalidInput(
+                "Namespace prefix must not be empty (empty prefix would delete the entire database)"
+                    .to_string(),
+            ));
+        }
+
         // Validate that prefix doesn't contain wildcards
         if prefix.contains('*') || prefix.contains('?') {
             return Err(OxCacheError::InvalidInput(
                 "Namespace prefix must not contain wildcard characters (* or ?)".to_string(),
+            ));
+        }
+
+        // Glob character classes and escapes would let the prefix match keys
+        // outside the intended namespace.
+        if prefix.contains('[') || prefix.contains(']') || prefix.contains('\\') {
+            return Err(OxCacheError::InvalidInput(
+                "Namespace prefix must not contain glob pattern characters ([, ], \\)".to_string(),
             ));
         }
 

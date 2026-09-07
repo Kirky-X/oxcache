@@ -305,6 +305,8 @@ impl OxCacheError {
             OxCacheError::Degraded(_) => "OXCACHE_005",
             OxCacheError::L1Error(_) => "OXCACHE_006",
             OxCacheError::L2Error(_) => "OXCACHE_007",
+            // OXCACHE_008 is intentionally reserved (historical numbering gap).
+            // Codes are public API — do not reassign 008 or renumber existing codes.
             OxCacheError::NotSupported(_) => "OXCACHE_009",
             OxCacheError::WalError(_) => "OXCACHE_010",
             OxCacheError::DatabaseError(_) => "OXCACHE_011",

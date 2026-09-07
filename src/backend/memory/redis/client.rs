@@ -113,14 +113,14 @@ impl RedisBackend {
             let protocol = &conn_str[..start + 3];
             let rest = &conn_str[start + 3..];
 
-            // Check for userinfo (username[:password]@host)
-            if let Some(at_pos) = rest.find('@') {
-                // Check if there's a slash before @ (which would mean @ is not part of userinfo)
-                let before_at = &rest[..at_pos];
-                if !before_at.contains('/') {
-                    // Found userinfo section - redact it
-                    return format!("{}[REDACTED]@{}", protocol, &rest[at_pos + 1..]);
-                }
+            // Check for userinfo (username[:password]@host). Use the last '@':
+            // passwords may legally contain '@' (and '/'); splitting at the
+            // first '@' would leave password fragments in the clear. A path
+            // '@' without userinfo is not a valid Redis URL; over-redacting
+            // it errs toward hiding rather than leaking.
+            if let Some(at_pos) = rest.rfind('@') {
+                // Found userinfo section - redact it
+                return format!("{}[REDACTED]@{}", protocol, &rest[at_pos + 1..]);
             }
         }
         conn_str.to_string()
@@ -187,5 +187,25 @@ impl RedisBackend {
             .await
             .map_err(super::error::map_redis_error)?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_redact_connection_string_password_with_slash() {
+        // 密码含 / 时不得绕过脱敏
+        let redacted = RedisBackend::redact_connection_string("redis://user:p@ss/w0rd@host:6379"); /* pragma: allowlist secret */
+        assert!(!redacted.contains("p@ss/w0rd"));
+        assert!(!redacted.contains("w0rd"));
+        assert!(redacted.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn test_redact_connection_string_no_userinfo_unchanged() {
+        let redacted = RedisBackend::redact_connection_string("redis://localhost:6379/0");
+        assert_eq!(redacted, "redis://localhost:6379/0");
     }
 }

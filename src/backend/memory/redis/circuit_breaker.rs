@@ -84,10 +84,15 @@ impl CircuitBreaker {
     /// - Closed: reset failure count
     pub(crate) fn record_success(&self) {
         self.failure_count.store(0, Ordering::Relaxed);
-        let prev_state = self.state.load(Ordering::Acquire);
-        if prev_state == STATE_HALF_OPEN {
-            self.state.store(STATE_CLOSED, Ordering::Release);
-        }
+        // Atomic HalfOpen → Closed: a concurrent record_failure() may flip
+        // HalfOpen back to Open between our load and store; only close the
+        // circuit if it is still HalfOpen.
+        let _ = self.state.compare_exchange(
+            STATE_HALF_OPEN,
+            STATE_CLOSED,
+            Ordering::Release,
+            Ordering::Relaxed,
+        );
     }
 
     /// Record a failed operation.
@@ -100,14 +105,24 @@ impl CircuitBreaker {
         self.last_failure_millis
             .store(now_millis(), Ordering::Relaxed);
 
-        let current_state = self.state.load(Ordering::Acquire);
-
-        if current_state == STATE_HALF_OPEN {
-            // HalfOpen → Open on any failure
-            self.state.store(STATE_OPEN, Ordering::Release);
+        // Atomic HalfOpen → Open: a concurrent record_success() may flip
+        // HalfOpen to Closed between our check and store; only reopen if
+        // the circuit is still HalfOpen.
+        if self
+            .state
+            .compare_exchange(
+                STATE_HALF_OPEN,
+                STATE_OPEN,
+                Ordering::Release,
+                Ordering::Acquire,
+            )
+            .is_ok()
+        {
             self.failure_count.store(0, Ordering::Relaxed);
             return true;
         }
+
+        let current_state = self.state.load(Ordering::Acquire);
 
         if current_state == STATE_OPEN {
             // Already Open — no-op, do not increment counter
@@ -117,8 +132,18 @@ impl CircuitBreaker {
         // Closed: increment and check threshold
         let count = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
         if count >= self.threshold {
-            self.state.store(STATE_OPEN, Ordering::Release);
-            return true;
+            // Atomic Closed → Open: only the thread that wins the CAS reports
+            // the transition, so concurrent threshold breaches do not clobber
+            // a state another thread has already moved past Closed.
+            return self
+                .state
+                .compare_exchange(
+                    STATE_CLOSED,
+                    STATE_OPEN,
+                    Ordering::Release,
+                    Ordering::Relaxed,
+                )
+                .is_ok();
         }
 
         false
@@ -258,6 +283,52 @@ mod tests {
 
         // 100 failures with threshold=100 → should be Open
         assert!(cb.is_open());
+    }
+
+    #[test]
+    fn test_concurrent_half_open_transitions_stay_consistent() {
+        use std::sync::Arc;
+        use std::thread;
+
+        // Drive record_success/record_failure concurrently from HalfOpen:
+        // with non-atomic check-then-act transitions this interleaves
+        // HalfOpen→Open→Closed (success closing a circuit that just reopened)
+        // or HalfOpen→Closed→Open. With compare_exchange every transition
+        // starts from the expected state, so the circuit must always end in a
+        // recoverable state: after the reset timeout it becomes HalfOpen and a
+        // single success closes it.
+        let cb = Arc::new(CircuitBreaker::new(2, Duration::from_millis(30)));
+        cb.record_failure();
+        cb.record_failure(); // → Open
+        std::thread::sleep(Duration::from_millis(40));
+        assert!(!cb.is_open()); // → HalfOpen
+
+        let mut handles = Vec::new();
+        for i in 0..8 {
+            let cb_clone = cb.clone();
+            handles.push(thread::spawn(move || {
+                for j in 0..500 {
+                    if (i + j) % 2 == 0 {
+                        cb_clone.record_success();
+                    } else {
+                        cb_clone.record_failure();
+                    }
+                    let _ = cb_clone.is_open();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // Whatever the final state, the breaker must remain functional:
+        // after the reset timeout an Open circuit admits a probe (HalfOpen),
+        // and one success from there closes it.
+        std::thread::sleep(Duration::from_millis(40));
+        let _ = cb.is_open(); // maybe Open → HalfOpen
+        cb.record_success();
+        assert_eq!(cb.state(), STATE_CLOSED);
+        assert!(!cb.is_open());
     }
 
     #[test]

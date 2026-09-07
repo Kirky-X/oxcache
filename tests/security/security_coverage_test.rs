@@ -67,3 +67,31 @@ fn test_clamp_scan_count() {
     assert_eq!(clamp_scan_count(1000), 1000); // 最大值
     assert_eq!(clamp_scan_count(2000), 1000); // 超过最大值
 }
+
+#[test]
+fn test_validate_lua_level1_long_string_does_not_hide_payload() {
+    // level-1 长字符串结束后载荷必须仍被检测（闭合符是 ]=] 而非 ]]）
+    let script = "local s = [=[ innocent ]=]; return redis.call('FLUSHALL')";
+    assert!(validate_lua_script(script, 0).is_err());
+}
+
+#[test]
+fn test_validate_lua_level0_long_string_still_detected() {
+    // level-0 长字符串内容仍参与检测（行为不变）
+    let script = "local s = [[ok]]; return redis.call('FLUSHALL')";
+    assert!(validate_lua_script(script, 0).is_err());
+}
+
+#[test]
+fn test_validate_lua_block_comment_levels_still_skipped() {
+    // 块注释各级别仍被正确跳过（不误报合法脚本）
+    assert!(validate_lua_script("--[[ innocent ]] return 1", 0).is_ok());
+    assert!(validate_lua_script("--[===[ innocent ]===] return 1", 0).is_ok());
+}
+
+#[test]
+fn test_validate_lua_escaped_quote_does_not_hide_keyword() {
+    // 转义引号不得丢弃引号字符致关键词检查失效
+    let script = "return redis.call(\\'FLUSHALL\\')";
+    assert!(validate_lua_script(script, 0).is_err());
+}

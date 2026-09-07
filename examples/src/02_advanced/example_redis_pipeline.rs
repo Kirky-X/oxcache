@@ -11,7 +11,9 @@
 //!
 //! 运行方式：
 //! ```bash
-//! cd examples && cargo run --example example_redis_pipeline
+//! # 本地开发需允许非 TLS 连接（生产请使用 rediss://）：
+//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
+//!   cargo run --example example_redis_pipeline
 //! ```
 
 use oxcache::backend::{CacheWriter, RedisBackend};

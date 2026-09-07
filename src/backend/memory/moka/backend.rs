@@ -110,6 +110,9 @@ impl CacheReader for MokaMemoryBackend {
         Ok(self.cache.contains_key(key))
     }
 
+    // get() refreshes the entry's access time, so with `time_to_idle`
+    // configured this query postpones idle eviction — moka exposes no
+    // non-refreshing read that returns the remaining TTL.
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         Ok(self
@@ -267,6 +270,7 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
         Ok(self.cache.contains_key(key))
     }
 
+    // Same TTI-refresh side effect as the async ttl() — see comment above.
     fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
         Ok(sync_block_on(self.cache.get(key))

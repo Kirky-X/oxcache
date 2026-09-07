@@ -143,9 +143,22 @@ pub trait CacheReader: Send + Sync + 'static {
     async fn exists(&self, key: &str) -> OxCacheResult<bool>;
 
     /// Get the time-to-live for a key.
+    ///
+    /// # Backend semantics
+    ///
+    /// On backends with an idle-based eviction policy (e.g. moka's
+    /// `time_to_idle`), querying `ttl` counts as an access and may postpone
+    /// idle eviction of the entry.
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
 
     /// Get the number of entries in the cache.
+    ///
+    /// # Backend semantics
+    ///
+    /// The Redis backend implements this via `DBSIZE`, which counts **all
+    /// keys in the connected DB index** — not only keys written through this
+    /// cache instance. Point the backend at a dedicated DB index when a
+    /// precise per-cache count is required.
     async fn len(&self) -> OxCacheResult<u64>;
 
     /// Check if the cache is empty.

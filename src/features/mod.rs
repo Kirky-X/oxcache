@@ -9,7 +9,19 @@ pub mod bloom_filter;
 pub mod dist_lock;
 
 #[cfg(feature = "bloom")]
-pub use bloom_filter::{BloomFilter, BloomFilterBackend, BloomFilterBackendBuilder};
+pub use bloom_filter::BloomFilter;
+
+#[cfg(all(
+    feature = "bloom",
+    any(
+        feature = "memory",
+        feature = "redis",
+        feature = "minimal",
+        feature = "core",
+        feature = "full"
+    )
+))]
+pub use bloom_filter::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 #[cfg(feature = "lock")]
 pub use dist_lock::{DistLockBuilder, DistributedLock};

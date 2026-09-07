@@ -219,6 +219,11 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
 
     // 预处理脚本：移除注释、字符串和多行内容，得到净化后的脚本
     let cleaned = preprocess_lua_script(script);
+    // 归一化反斜杠转义的引号（如 redis.call(\'FLUSHALL\')）：反斜杠若留在
+    // 清洗文本中会让带引号的黑名单模式失配，从而绕过检测。字符串字面量
+    // 内部的转义已在 scan_quoted_string 中处理，此处残留的转义引号均来自
+    // 字符串上下文之外，还原为普通引号不会把无害脚本变成危险模式。
+    let cleaned = cleaned.replace("\\'", "'").replace("\\\"", "\"");
     let cleaned_upper = cleaned.to_uppercase();
 
     // 使用简单字符串检查代替正则表达式（避免原始字符串语法问题）
@@ -331,7 +336,10 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
 fn skip_lua_comment(chars: &mut std::iter::Peekable<std::str::Chars>) {
     let level = count_lua_long_string_level(chars, 1);
     if level > 0 {
-        skip_lua_long_string(chars, level);
+        // count 起始 level 为 1（已消费的开括号计数），传给 skip 时归一化
+        // 为真实级别：level-0 块注释对应 closer "]]"，level-N 对应
+        // "]" + "=" * N + "]"。
+        skip_lua_long_string(chars, level - 1);
     } else {
         // 单行注释：消费至换行符（保留换行）
         while let Some(&next_c) = chars.peek() {
@@ -358,10 +366,11 @@ fn try_skip_long_string(chars: &mut std::iter::Peekable<std::str::Chars>) -> boo
 
 /// 扫描一个 Lua 字符串字面量（单引号或双引号）的内容。
 ///
-/// 保留标识符字符（字母/数字/下划线）与转义后的标识符字符用于后续的
-/// 危险命令模式检测，移除非标识符内容。遇到闭合引号、未转义的换行或
-/// 输入结束即停止。调用前 `quote` 已写入 `result`，函数负责扫描并写入
-/// 闭合引号与保留内容，但不处理输入流的首字符（由主循环已完成）。
+/// 保留标识符字符（字母/数字/下划线）、转义后的字符与括号用于后续的
+/// 危险命令模式检测（调用形态如 `REDIS.CALL('FLUSHALL')` 依赖括号），
+/// 移除其余非标识符内容。遇到闭合引号、未转义的换行或输入结束即停止。
+/// 调用前 `quote` 已写入 `result`，函数负责扫描并写入闭合引号与保留内容，
+/// 但不处理输入流的首字符（由主循环已完成）。
 ///
 /// 位置：`chars` 指向字符串内容起点（引号后的第一个字符）。
 #[cfg(feature = "redis")]
@@ -377,14 +386,18 @@ fn scan_quoted_string(
             break;
         } else if next_c == '\\' {
             chars.next();
-            if let Some(escaped) = chars.next()
-                && (escaped.is_alphanumeric() || escaped == '_')
-            {
+            // 保留被转义字符原样参与关键词匹配：丢弃引号类字符会让
+            // REDIS.CALL('FLUSHALL') 类载荷绕过带引号的黑名单模式。
+            if let Some(escaped) = chars.next() {
                 result.push(escaped);
             }
         } else if next_c == '\n' {
             break; // 未闭合的字符串
         } else if next_c.is_alphanumeric() || next_c == '_' {
+            result.push(next_c);
+            chars.next();
+        } else if next_c == '(' || next_c == ')' {
+            // 括号参与调用形态模式匹配，不可丢弃
             result.push(next_c);
             chars.next();
         } else {
@@ -417,10 +430,11 @@ pub(super) fn count_lua_long_string_level(
 }
 
 /// 跳过 Lua 长字符串内容
-/// level 是长字符串的级别（= 的数量 + 1）
+/// level 是长字符串的真实级别（= 的数量）：level-0 对应闭合符 "]]"，
+/// level-N 对应 "]" + "=" * N + "]"。
 #[cfg(feature = "redis")]
 pub(super) fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>, level: usize) {
-    let closing: String = format!("]{}{}]", "=".repeat(level - 1), "=".repeat(level - 1));
+    let closing: String = format!("]{}]", "=".repeat(level));
     let closing_chars: Vec<char> = closing.chars().collect();
     let mut pos = 0;
     let closing_len = closing.len();

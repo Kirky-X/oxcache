@@ -46,8 +46,13 @@ pub fn redact_value(value: &str, visible_chars: usize) -> String {
 pub fn redact_connection_string(connection_string: &str) -> String {
     // 安全修复：正确解析并移除密码部分
     // 格式: protocol://[user[:password]@]host:port
+    //
+    // - 用最后一个 '@' 切分：密码本身可能含 '@'，host 部分的残留即泄露。
+    // - 用 userinfo 段内第一个 ':' 切分：用户名不含冒号，密码可能含冒号，
+    //   按最后一个冒号切会把密码片段留在明文里。
+    // - 无密码时没有可脱敏内容，原样返回（不附加 ":****"）。
 
-    if let Some(at_idx) = connection_string.find('@') {
+    if let Some(at_idx) = connection_string.rfind('@') {
         // 找到@符号，分离认证信息和主机信息
         let auth_part = &connection_string[..at_idx];
         let host_part = &connection_string[at_idx..]; // 包含@
@@ -59,15 +64,14 @@ pub fn redact_connection_string(connection_string: &str) -> String {
             0
         };
 
-        if let Some(colon_idx) = auth_part[protocol_end..].rfind(':') {
+        if let Some(colon_rel) = auth_part[protocol_end..].find(':') {
             // 找到冒号，分离用户和密码
-            let colon_idx = protocol_end + colon_idx;
+            let colon_idx = protocol_end + colon_rel;
             let user_part = &auth_part[..colon_idx];
             return format!("{}:****{}", user_part, host_part);
-        } else {
-            // 没有密码，只有用户
-            return format!("{}:****{}", auth_part, host_part);
         }
+        // 没有密码，只有用户：无可脱敏内容，原样返回
+        return connection_string.to_string();
     }
 
     // 没有@符号，返回原字符串
@@ -213,7 +217,7 @@ mod tests {
         );
         assert_eq!(
             redact_connection_string("redis://user@localhost:6379"),
-            "redis://user:****@localhost:6379"
+            "redis://user@localhost:6379"
         );
         assert_eq!(
             redact_connection_string("redis://localhost:6379"),
@@ -254,15 +258,39 @@ mod tests {
 
     #[test]
     fn test_redact_connection_string_only_user_no_colon() {
-        // 有 @ 但没有冒号分隔用户和密码
+        // 有 @ 但没有冒号分隔用户和密码：无可脱敏内容，原样返回
         let result = redact_connection_string("redis://user@host:6379");
-        assert_eq!(result, "redis://user:****@host:6379");
+        assert_eq!(result, "redis://user@host:6379");
     }
 
     #[test]
     fn test_redact_connection_string_empty() {
         let result = redact_connection_string("");
         assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_redact_connection_string_password_with_at_sign() {
+        // 密码含 @ 时不得有片段残留到 host 部分
+        let result = redact_connection_string("redis://user:pa@ss@host:6379"); /* pragma: allowlist secret */
+        assert!(!result.contains("pa"));
+        assert!(!result.contains("ss"));
+        assert_eq!(result, "redis://user:****@host:6379");
+    }
+
+    #[test]
+    fn test_redact_connection_string_password_with_colon() {
+        // 密码含冒号时不得泄露冒号前的片段
+        let result = redact_connection_string("redis://user:p:ass@host:6379"); /* pragma: allowlist secret */
+        assert!(!result.contains("p:ass"));
+        assert_eq!(result, "redis://user:****@host:6379");
+    }
+
+    #[test]
+    fn test_redact_connection_string_user_only_unchanged() {
+        // 无密码时没有可脱敏内容，原样返回
+        let result = redact_connection_string("redis://user@host:6379");
+        assert_eq!(result, "redis://user@host:6379");
     }
 
     // ============================================================================

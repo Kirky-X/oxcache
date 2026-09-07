@@ -35,7 +35,11 @@ impl Cache<String, Vec<u8>> {
         if let Some(sync_backend) = &self.backend_sync {
             cache.set_sync_backend(sync_backend.clone());
         }
-        __internal_register_cache(service_name, Arc::new(cache)).await;
+        // Preserve per-instance configuration: new_with_backend resets both to
+        // defaults, which would silently downgrade the registered clone.
+        cache.set_null_cache_ttl(self.null_cache_ttl);
+        cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+        __internal_register_cache(service_name, Arc::new(cache));
         Ok(())
     }
 }
@@ -115,6 +119,27 @@ mod tests {
         let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
         let result = cache.register_for_macro("").await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_register_for_macro_preserves_builder_config() {
+        use crate::internal::__internal_get_cache;
+        use std::time::Duration;
+
+        // The registered clone must keep the original's per-instance config
+        // (null_cache_ttl / ttl_jitter), not the new_with_backend defaults.
+        let cache: Cache<String, Vec<u8>> = Cache::builder()
+            .null_cache_ttl(Duration::from_secs(60))
+            .ttl_jitter(0.2)
+            .build()
+            .await
+            .unwrap();
+        cache.register_for_macro("cfg_preserve_svc").await.unwrap();
+
+        let registered = __internal_get_cache("cfg_preserve_svc")
+            .expect("registered cache should be retrievable");
+        assert_eq!(registered.null_cache_ttl(), Some(Duration::from_secs(60)));
+        assert!((registered.ttl_jitter_factor() - 0.2).abs() < 1e-9);
     }
 
     // ========================================================================

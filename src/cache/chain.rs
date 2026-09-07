@@ -195,8 +195,22 @@ pub struct ChainCache {
 
 impl ChainCache {
     /// 创建新的链式缓存
+    ///
+    /// 与 [`ChainCacheBuilder::build`] 不同，此显式构造器允许空链
+    /// （运行时语义：`get` 返回 `None`、`set` 返回错误）。
     pub fn new(links: Vec<ChainLink>) -> Self {
-        Self::builder().links(links).build()
+        // 按分数降序排序（与 builder::build 保持一致）
+        let mut links = links;
+        links.sort_by_key(|link| std::cmp::Reverse(link.score()));
+
+        ChainCache {
+            links,
+            backfill_enabled: false,
+            race_read_enabled: false,
+            default_ttl: None,
+            sync_backends: OnceLock::new(),
+            event_publisher: None,
+        }
     }
 
     /// 创建链式缓存构建器

@@ -232,6 +232,8 @@ impl CacheI18nFormatter {
 mod tests {
     // locale 探测测试操作进程级 env（LANG/LC_ALL/LC_MESSAGES），
     // 并行执行互相污染 → 以下 5 个测试共用互斥锁。
+    // 修改进程级默认 locale（DEFAULT_LOCALE 全局单例）的测试也必须持锁：
+    // 并行测试互相覆盖会让 Display 语言随机（经典 flaky）。
     static LOCALE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     use super::*;
@@ -483,6 +485,7 @@ mod tests {
 
     #[test]
     fn test_i18n_error_display_en() {
+        let _guard = LOCALE_ENV_LOCK.lock();
         set_default_locale("en");
         let err = I18nError::DateError("month out of range".to_string());
         let s = err.to_string();
@@ -494,6 +497,7 @@ mod tests {
 
     #[test]
     fn test_i18n_error_display_zh() {
+        let _guard = LOCALE_ENV_LOCK.lock();
         set_default_locale("zh-CN");
         let err = I18nError::DateError("月份超出范围".to_string());
         let s = err.to_string();
@@ -506,6 +510,7 @@ mod tests {
 
     #[test]
     fn test_set_get_default_locale() {
+        let _guard = LOCALE_ENV_LOCK.lock();
         set_default_locale("en");
         assert_eq!(get_default_locale(), "en");
         set_default_locale("zh-CN");

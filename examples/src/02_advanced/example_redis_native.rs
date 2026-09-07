@@ -6,8 +6,11 @@
 //!
 //! 运行方式：
 //! ```bash
-//! cd examples && cargo run --example redis_native
-//!
+//! # 本地开发需允许非 TLS 连接（生产请使用 rediss://）：
+//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
+//!   cargo run --example redis_native
+//! ```
+//!（连接本机 Redis 时同样需要上述环境变量）
 
 use oxcache::Cache;
 

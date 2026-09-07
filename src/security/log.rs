@@ -70,26 +70,47 @@ pub fn sanitize_message(message: &str) -> String {
         if let Some(at_pos) = remaining[after_start..].find('@') {
             let abs_at_pos = after_start + at_pos;
             let user_part = &remaining[after_start..abs_at_pos];
-            // host_part 终止于下一个空白字符或字符串末尾，避免吞并后续 URL
-            let host_end = remaining[abs_at_pos..]
-                .find(|c: char| c.is_whitespace())
-                .map(|i| abs_at_pos + i)
-                .unwrap_or(remaining.len());
+            // host_part 终止于下一个空白字符、'?' 或 '#'，避免吞并后续 URL；
+            // query/fragment 可能携带秘密，同样脱敏而非原样透出。
+            let after_host = &remaining[abs_at_pos..];
+            let host_end_rel = after_host
+                .find(|c: char| c.is_whitespace() || c == '?' || c == '#')
+                .unwrap_or(after_host.len());
+            let host_end = abs_at_pos + host_end_rel;
             let host_part = &remaining[abs_at_pos..host_end];
 
-            let sanitized_user: String = user_part
-                .chars()
-                .take_while(|c| *c != ':')
-                .chain(std::iter::once('*').chain(std::iter::once('*')).take(2))
-                .collect();
+            // 仅当 userinfo 含密码段（有 ':'）时才掩码；纯用户名没有可脱敏
+            // 内容，原样保留（附加 "**" 会破坏可读且无安全收益）。
+            let sanitized_user: String = if user_part.contains(':') {
+                user_part
+                    .chars()
+                    .take_while(|c| *c != ':')
+                    .chain(std::iter::repeat_n('*', 2))
+                    .collect()
+            } else {
+                user_part.to_string()
+            };
 
             result.push_str(protocol);
             result.push_str("://");
             result.push_str(&sanitized_user);
             result.push_str(host_part);
 
-            // 移动 remaining 到 host_part 之后
-            remaining = &remaining[host_end..];
+            // query/fragment 一律掩码到下一个空白字符。
+            let mut tail_end = host_end;
+            if remaining[tail_end..].starts_with(['?', '#']) {
+                let marker = remaining[tail_end..tail_end + 1].to_string();
+                let query_end = remaining[tail_end..]
+                    .find(|c: char| c.is_whitespace())
+                    .map(|i| tail_end + i)
+                    .unwrap_or(remaining.len());
+                result.push_str(&marker);
+                result.push_str("**");
+                tail_end = query_end;
+            }
+
+            // 移动 remaining 到 host_part（及 query）之后
+            remaining = &remaining[tail_end..];
         } else {
             // 没有 @ 符号，保留协议名和 ://，继续搜索
             result.push_str(protocol);
@@ -227,5 +248,21 @@ mod tests {
         // 处理所有 :// 连接字符串
         assert!(!sanitized.contains("pass1"));
         assert!(!sanitized.contains("pass2"));
+    }
+
+    #[test]
+    fn test_sanitize_message_user_only_unchanged() {
+        // 无密码时不得附加 spurious "**"
+        let msg = "redis://user@host:6379";
+        assert_eq!(sanitize_message(msg), msg);
+    }
+
+    #[test]
+    fn test_sanitize_message_query_redacted() {
+        // query/fragment 中的秘密不得明文残留
+        let msg = "GET redis://user:secret123@host:6379/cache?token=abc123 done"; /* pragma: allowlist secret */
+        let sanitized = sanitize_message(msg);
+        assert!(!sanitized.contains("secret123"));
+        assert!(!sanitized.contains("token=abc123"));
     }
 }

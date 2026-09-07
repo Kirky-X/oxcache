@@ -817,18 +817,25 @@ where
 
         match fallback() {
             Ok(Some(value)) => {
-                let _ = self.set_sync(key, &value);
+                if let Err(e) = self.set_sync(key, &value) {
+                    // Caching failed — still wake followers before propagating
+                    Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                    return Err(e);
+                }
                 Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                 Ok(Some(value))
             }
             Ok(None) => {
                 if let Some(null_ttl) = self.null_cache_ttl {
                     let backend = self.sync_backend()?;
-                    let _ = backend.set(
+                    if let Err(e) = backend.set(
                         Arc::from(key_str.as_str()),
                         Arc::new(NULL_SENTINEL.to_vec()),
                         Some(null_ttl),
-                    );
+                    ) {
+                        Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
+                        return Err(e);
+                    }
                 }
                 Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                 Ok(None)
@@ -1616,6 +1623,116 @@ mod sync_tests {
             cache
                 .expire_sync(&"k".to_string(), Duration::from_secs(1))
                 .is_err()
+        );
+    }
+
+    /// Sync backend stub that delegates reads to Moka but fails every `set`.
+    /// Pins the `get_or_option_sync` error-propagation contract: a leader
+    /// whose cache write fails must surface `Err`, not a phantom `Ok`.
+    struct FailSetBackend {
+        inner: MokaMemoryBackend,
+    }
+
+    impl FailSetBackend {
+        fn new() -> Self {
+            Self {
+                inner: MokaMemoryBackend::new(),
+            }
+        }
+    }
+
+    impl crate::backend::SyncCacheReader for FailSetBackend {
+        fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+            self.inner.get(key)
+        }
+
+        fn exists(&self, key: &str) -> OxCacheResult<bool> {
+            self.inner.exists(key)
+        }
+
+        fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+            self.inner.ttl(key)
+        }
+
+        fn len(&self) -> OxCacheResult<u64> {
+            self.inner.len()
+        }
+
+        fn capacity(&self) -> OxCacheResult<u64> {
+            Ok(self.inner.capacity())
+        }
+
+        fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
+            self.inner.stats()
+        }
+    }
+
+    impl crate::backend::SyncCacheWriter for FailSetBackend {
+        fn set(
+            &self,
+            _key: Arc<str>,
+            _value: Arc<Vec<u8>>,
+            _ttl: Option<Duration>,
+        ) -> OxCacheResult<()> {
+            Err(OxCacheError::Operation(
+                "FailSetBackend: injected set failure".to_string(),
+            ))
+        }
+
+        fn delete(&self, key: &str) -> OxCacheResult<()> {
+            self.inner.delete(key)
+        }
+
+        fn clear(&self) -> OxCacheResult<()> {
+            self.inner.clear()
+        }
+
+        fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+            self.inner.expire(key, ttl)
+        }
+    }
+
+    impl crate::backend::SyncCacheConnector for FailSetBackend {
+        fn health_check(&self) -> OxCacheResult<()> {
+            self.inner.health_check()
+        }
+
+        fn shutdown(&self) {}
+
+        fn backend_kind(&self) -> crate::backend::BackendKind {
+            self.inner.backend_kind()
+        }
+    }
+
+    fn make_failing_sync_cache() -> Cache<String, String> {
+        let moka = Arc::new(MokaMemoryBackend::new());
+        let mut cache: Cache<String, String> = Cache::new_with_backend(moka);
+        cache.set_sync_backend(Arc::new(FailSetBackend::new()));
+        cache
+    }
+
+    #[test]
+    fn test_get_or_option_sync_propagates_value_set_failure() {
+        let cache = make_failing_sync_cache();
+        let result = cache.get_or_option_sync(&"k-value-set-fail".to_string(), || {
+            Ok(Some("v".to_string()))
+        });
+        assert!(
+            result.is_err(),
+            "leader set failure must propagate, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_get_or_option_sync_propagates_sentinel_set_failure() {
+        let mut cache = make_failing_sync_cache();
+        cache.set_null_cache_ttl(Some(Duration::from_secs(60)));
+        let result = cache.get_or_option_sync(&"k-sentinel-set-fail".to_string(), || Ok(None));
+        assert!(
+            result.is_err(),
+            "sentinel set failure must propagate, got {:?}",
+            result
         );
     }
 }
