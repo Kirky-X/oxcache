@@ -42,7 +42,7 @@ license-files = [{ path = "../LICENSE", hash = 0xfb13e7ad }]
 [[licenses.clarify]]
 name = "trait-kit"
 expression = "MIT"
-license-files = [{ path = "../trait-kit/LICENSE", hash = 0xfb13e7ad }]
+license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
 
 # 传递依赖许可证例外
 [[licenses.exceptions]]
