@@ -38,7 +38,7 @@ license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
 [[licenses.clarify]]
 name = "oxcache_macros"
 expression = "MIT"
-license-files = [{ path = "../LICENSE", hash = 0xfb13e7ad }]
+license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
 [[licenses.clarify]]
 name = "trait-kit"
 expression = "MIT"
