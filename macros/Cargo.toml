@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Procedural macros for oxcache"
-license-file = "LICENSE"
+license = "MIT"
 repository.workspace = true
 
 [lints]
