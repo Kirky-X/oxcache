@@ -68,13 +68,13 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.2"
+oxcache = "0.5.0-rc.3"
 ```
 
 > **Note**: `tokio` and `serde` are already included by default. If you need minimal dependencies, you can use
-> `oxcache = { version = "0.5.0-rc.2", default-features = false }` and add them manually.
+> `oxcache = { version = "0.5.0-rc.3", default-features = false }` and add them manually.
 
-> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`
+> **Features**: To use `#[cached]` macro, enable `macros` feature: `oxcache = { version = "0.5.0-rc.3", features = ["macros"] }`
 
 ### 💡 Basic Usage
 
@@ -150,16 +150,16 @@ Oxcache provides a type-safe builder API for configuring caches. Available build
 
 ```toml
 # Full features (recommended)
-oxcache = { version = "0.5.0-rc.2", features = ["full"] }
+oxcache = { version = "0.5.0-rc.3", features = ["full"] }
 
 # Core functionality only
-oxcache = { version = "0.5.0-rc.2", features = ["core"] }
+oxcache = { version = "0.5.0-rc.3", features = ["core"] }
 
 # Minimal - L1 cache only
-oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
+oxcache = { version = "0.5.0-rc.3", features = ["minimal"] }
 
 # Custom selection
-oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
+oxcache = { version = "0.5.0-rc.3", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
 ### 📦 Available Features
@@ -471,7 +471,7 @@ Since 0.3.0, the `bloom` feature (must be enabled explicitly; not in `full`) pro
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.2", features = ["memory", "bloom"] }
+oxcache = { version = "0.5.0-rc.3", features = ["memory", "bloom"] }
 ```
 
 ```rust
@@ -684,7 +684,7 @@ Passwords in connection strings are redacted in logs by default to prevent crede
 
 The following items are recorded for oxcache in the workspace acceptance & release plan (no unfinished items in the CHANGELOG yet):
 
-- [ ] **0.5.0 stable release**: current version is 0.5.0-rc.2; complete the version bump and `cargo publish --dry-run` verification, then push the tag to trigger automatic publishing to crates.io via `release.yml`
+- [ ] **0.5.0 stable release**: current version is 0.5.0-rc.3; complete the version bump and `cargo publish --dry-run` verification, then push the tag to trigger automatic publishing to crates.io via `release.yml`
 - [ ] **Downstream version propagation**: dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration)
 - [ ] **Valkey integration test environment gating**: 8 Valkey integration tests depend on Docker (testcontainers) and cannot run without it — a known limitation recorded during acceptance
 - [ ] **Follow-up on archived review findings**: 3 Medium suggestions and 2 Low notes archived from the diting code quality review, to be triaged by priority

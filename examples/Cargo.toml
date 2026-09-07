@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 # Path dependency to the main oxcache project
-oxcache = { path = "..", version = "0.5.0-rc.2", default-features = false, features = [
+oxcache = { path = "..", version = "0.5.0-rc.3", default-features = false, features = [
     "full",
     "bloom",
     "kit",

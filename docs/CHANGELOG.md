@@ -11,6 +11,36 @@ _暂无变更。_
 
 ---
 
+## [0.5.0-rc.3] - 2026-09-08
+
+### 修复
+
+- **熔断器状态转换竞态**：`record_success`/`record_failure` 的 HalfOpen 转换由 load+store 改为 `compare_exchange`，Closed→Open 同样原子化，消除并发下半开→开→闭的错序（新增并发回归测试）
+- **CacheBuilder 多后端静默丢弃**：`build_sync` 检测到多于 1 个 `backend_arc()` 时返回 `Err(NotSupported)`（原为静默只用第一个）；文档更正为单后端、多级缓存指引 `ChainCacheBuilder`
+- **ChainCacheBuilder 空链 fail-fast**：`build()` 无 link 时 panic 并给出可操作提示（原为静默构造空链）；`ChainCache::new` 显式构造器保持空链宽容语义
+- **`register_for_macro` 丢失 builder 配置**：宏注册克隆现保留 `null_cache_ttl`/`ttl_jitter_factor`（原被重置为默认）
+- **metrics 锁中毒连锁 panic**：3 处 `.lock().expect(...)` 改为 `unwrap_or_else(PoisonError::into_inner)` 恢复运行
+- **mock 后端 sync `incr` 吞错**：UTF-8/解析/溢出错误改为传播，与 async 路径一致
+- **Lua 注入校验增强**：预处理保留字符串内括号参与调用形态模式匹配；归一化反斜杠转义引号，堵住 `redis.call(\'FLUSHALL\')` 类绕过
+- **Redis 密码脱敏**：`redact_connection_string` 改用 `rfind('@')`，密码含 `/`/`@` 不再泄漏；用户名无密码连接串原样保留
+- **Lua 脚本键校验**：`eval_lua`/`eval_sha` 对每个 key 执行 `validate_redis_key`
+- **命名空间防护**：`clear_namespace` 拒绝空前缀（原会匹配全库）；prefix 额外拒绝 `[`/`]`/`\` glob 字符
+- **`get_or_option_sync` 错误传播**：空值哨兵写入失败不再被静默吞掉
+- **分布式锁**：watchdog 网络错误改为指数退避重试（原直接退出）；`release()` 状态变更延后至 Lua 脚本成功之后
+- **feature 门控**：`BloomFilterBackend`/`BloomFilterBackendBuilder` 再导出补齐 memory/redis 依赖门控；`BytesCache` 再导出对齐门控
+
+### 文档
+
+- `CacheReader::len`（Redis 后端为 DBSIZE 全库语义）、`ttl`（moka TTI 刷新副作用）契约说明
+- `registry::clear()` 明确会移除 `"default"` 条目；`OXCACHE_008` 保留注释
+- 4 个 Redis 示例运行方式同步非 TLS 开发环境变量要求；benches 服务不可达时优雅跳过（`[bench-skip]`）
+
+### 变更
+
+- 版本号递增至 `0.5.0-rc.3`；安装示例版本统一 rc.3（README / USER_GUIDE / API_REFERENCE）
+
+---
+
 ## [0.5.0-rc.2] - 2026-09-07
 
 ### Changed

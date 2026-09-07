@@ -68,13 +68,13 @@
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.2"
+oxcache = "0.5.0-rc.3"
 ```
 
 > **注意**：`tokio` 和 `serde` 已默认包含。如果需要最小依赖，可以使用
-> `oxcache = { version = "0.5.0-rc.2", default-features = false }` 手动添加。
+> `oxcache = { version = "0.5.0-rc.3", default-features = false }` 手动添加。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.2", features = ["macros"] }`
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.3", features = ["macros"] }`
 
 ### 💡 基本用法
 
@@ -150,16 +150,16 @@ Oxcache 提供类型安全的构建器 API 用于配置缓存。以下是可用�
 
 ```toml
 # 完整特性（推荐）
-oxcache = { version = "0.5.0-rc.2", features = ["full"] }
+oxcache = { version = "0.5.0-rc.3", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.5.0-rc.2", features = ["core"] }
+oxcache = { version = "0.5.0-rc.3", features = ["core"] }
 
 # 最小特性（仅 L1 缓存）
-oxcache = { version = "0.5.0-rc.2", features = ["minimal"] }
+oxcache = { version = "0.5.0-rc.3", features = ["minimal"] }
 
 # 自定义选择
-oxcache = { version = "0.5.0-rc.2", features = ["core", "macros", "metrics", "bloom"] }
+oxcache = { version = "0.5.0-rc.3", features = ["core", "macros", "metrics", "bloom"] }
 ```
 
 ### 📦 可用特性
@@ -466,7 +466,7 @@ fn get_user_sync(id: u64) -> Result<User, String> {
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.2", features = ["memory", "bloom"] }
+oxcache = { version = "0.5.0-rc.3", features = ["memory", "bloom"] }
 ```
 
 ```rust
@@ -676,7 +676,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 以下为工作区《验收与 +0.1 发布方案》中记录的 oxcache 相关规划（CHANGELOG 中暂无未完成项）：
 
-- [ ] **0.5.0 正式发布**：当前版本 0.5.0-rc.2；按发布流程完成版本 bump、`cargo publish --dry-run` 验证后，推送 tag 触发 `release.yml` 自动发布到 crates.io
+- [ ] **0.5.0 正式发布**：当前版本 0.5.0-rc.3；按发布流程完成版本 bump、`cargo publish --dry-run` 验证后，推送 tag 触发 `release.yml` 自动发布到 crates.io
 - [ ] **下游版本传导**：dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写）
 - [ ] **Valkey 集成测试环境门控**：8 个 Valkey 集成测试依赖 Docker（testcontainers），无 Docker 环境下无法运行，为验收记录中的已知限制
 - [ ] **质量审查留档项跟进**：代码质量审查（diting）留档的 3 项 Medium 建议与 2 项 Low 记录，按优先级评估处理

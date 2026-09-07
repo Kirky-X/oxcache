@@ -2255,7 +2255,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "oxcache"
-version = "0.5.0-rc.2"
+version = "0.5.0-rc.3"
 dependencies = [
  "aerospike",
  "anyhow",
@@ -2290,7 +2290,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache-examples"
-version = "0.5.0-rc.2"
+version = "0.5.0-rc.3"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache_macros"
-version = "0.5.0-rc.2"
+version = "0.5.0-rc.3"
 dependencies = [
  "proc-macro2",
  "quote",
