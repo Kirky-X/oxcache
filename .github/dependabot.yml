@@ -29,41 +29,6 @@ updates:
         update-types:
           - "minor"
 
-  # Rust 依赖更新 — examples 子 crate
-  - package-ecosystem: "cargo"
-    directory: "/examples"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Shanghai"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-
-  # Rust 依赖更新 — macros 子 crate
-  - package-ecosystem: "cargo"
-    directory: "/macros"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Asia/Shanghai"
-    cooldown:
-      default-days: 7
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
 
   # GitHub Actions 版本更新
   - package-ecosystem: "github-actions"
