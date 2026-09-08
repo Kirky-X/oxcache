@@ -924,13 +924,15 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_lua_bracket_index_non_ident_untouched() {
-        // 非标识符索引（含连字符）不应被折叠，合法脚本应通过
+    fn test_validate_lua_bracket_index_non_ident_remain_valid() {
+        // 含连字符的索引经引号剥离后仍可能被折叠（如 t['a-b'] → t.ab），
+        // 但折叠结果仍为合法 Lua 且不产生黑名单命中——合法脚本必须通过。
+        // 注意：不得据此断言"非标识符索引不被折叠"，折叠发生在剥引号之后。
         let script = r#"return t['a-b'](1)"#;
         let result = validate_lua_script(script, 0);
         assert!(
             result.is_ok(),
-            "non-identifier bracket index must not be folded: {:?}",
+            "legal script with non-ident bracket index must pass: {:?}",
             result.err()
         );
     }

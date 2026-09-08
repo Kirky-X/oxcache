@@ -28,7 +28,7 @@ _暂无变更。_
 - **`get_or_option_sync` 错误传播**：空值哨兵写入失败不再被静默吞掉
 - **分布式锁**：watchdog 网络错误改为指数退避重试（原直接退出）；`release()` 状态变更延后至 Lua 脚本成功之后
 - **feature 门控**：`BloomFilterBackend`/`BloomFilterBackendBuilder` 再导出补齐 memory/redis 依赖门控；`BytesCache` 再导出对齐门控
-- **Lua 方括号索引绕过闭合**：预处理将 `['ident']`/`["ident"]` 折叠为 `.ident`，`redis['eval']`/`redis["call"]('FLUSHALL')` 进入既有黑名单匹配；仅折叠标识符索引，`t['a-b']` 非标识符索引不受影响
+- **Lua 方括号索引绕过闭合**：预处理将 `['ident']`/`["ident"]` 折叠为 `.ident`，`redis['eval']`/`redis["call"]('FLUSHALL')` 进入既有黑名单匹配；折叠发生于引号剥离之后，含连字符的索引残段同样可能被折叠（结果仍为合法 Lua，不产生黑名单命中）
 - **aerospike TTL 钳制**：`write_policy_with_ttl`/`expire` 的 `as_secs() as u32` 改为先钳制到 `u32::MAX`，消除超大 TTL 截断为 0 后被当作永不过期的边界缺陷
 
 ### 安全
