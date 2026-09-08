@@ -90,6 +90,21 @@ fn test_validate_lua_block_comment_levels_still_skipped() {
 }
 
 #[test]
+fn test_validate_lua_block_comment_payload_after_closer_is_rejected() {
+    // 恶意方向回归：跳过越界会让闭合点之后的载荷被吞吃而对校验器不可见。
+    // skip_lua_comment 必须先消费 '[' 再计数，使 '=' 参与闭合符长度计算。
+    assert!(validate_lua_script("--[==[ x ]==] redis.call('FLUSHALL')", 0).is_err());
+    assert!(validate_lua_script("--[=[ x ]=] redis.call('FLUSHDB')", 0).is_err());
+}
+
+#[test]
+fn test_validate_lua_dash_bracket_single_line_comment_is_ok() {
+    // 行为修正说明：`--[foo` 在 Lua 中是单行注释（`[[` 才开块注释），
+    // 跳过边界从"到 EOL 或 ]]" 收紧为"到换行"。
+    assert!(validate_lua_script("--[note\nreturn redis.call('GET', KEYS[1])", 0).is_ok());
+}
+
+#[test]
 fn test_validate_lua_escaped_quote_does_not_hide_keyword() {
     // 转义引号不得丢弃引号字符致关键词检查失效
     let script = "return redis.call(\\'FLUSHALL\\')";

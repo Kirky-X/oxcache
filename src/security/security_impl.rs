@@ -58,8 +58,11 @@ pub(super) static WHITESPACE_REGEX: ::once_cell::sync::Lazy<::regex::Regex> =
 /// 防御形态：`redis['eval']("return 1")` 经预处理后引号被丢弃、方括号被丢弃，
 /// 归一化为 `REDIS EVAL`，无法命中 `REDIS.EVAL` 黑名单。本正则在归一化末尾
 /// 将 `['ident']` 折叠为 `.ident`，使方括号索引调用进入既有黑名单匹配。
-/// 仅匹配标识符索引（`[A-Za-z_][A-Za-z0-9_]*`），不含连字符——非标识符索引
-/// （如 `['a-b']`、`[123]`、变量）保持原样，避免误伤合法 Lua 表访问。
+/// 正则仅匹配标识符索引（`[A-Za-z_][A-Za-z0-9_]*`）；注意管线层面
+/// `scan_quoted_string` 会先剥离字符串内容中的非标识符字符，因此
+/// `['a-b']` 中的 `-` 先被剥除、`ab` 成为标识符后**同样会被折叠**——
+/// 折叠结果仍为合法 Lua 且不产生黑名单命中，但不得依赖"非标识符
+/// 索引保持原样"的假设。
 #[cfg(feature = "redis")]
 static BRACKET_INDEX_SINGLE: ::once_cell::sync::Lazy<::regex::Regex> =
     ::once_cell::sync::Lazy::new(|| {
@@ -361,20 +364,27 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
 /// 支持单行注释（至换行）和块注释（`--[...]=]`）。
 #[cfg(feature = "redis")]
 fn skip_lua_comment(chars: &mut std::iter::Peekable<std::str::Chars>) {
-    let level = count_lua_long_string_level(chars, 1);
-    if level > 0 {
-        // count 起始 level 为 1（已消费的开括号计数），传给 skip 时归一化
-        // 为真实级别：level-0 块注释对应 closer "]]"，level-N 对应
-        // "]" + "=" * N + "]"。
-        skip_lua_long_string(chars, level - 1);
-    } else {
-        // 单行注释：消费至换行符（保留换行）
-        while let Some(&next_c) = chars.peek() {
-            if next_c == '\n' {
-                break;
-            }
-            chars.next();
+    // 必须先消费开括号 '[' 再计数：count_lua_long_string_level 一看到 '['
+    // 就消费并立即返回 start_level，若不先消费，'=' 永远不会参与统计，
+    // 块注释闭合符退化为 "]]"，--[==[…]==] 之后的载荷会被越界吞吃而对
+    // 校验器不可见（CVE-184 类黑名单规范化不完备）。
+    if chars.peek() == Some(&'[') {
+        chars.next();
+        let level = count_lua_long_string_level(chars, 1);
+        if level > 0 {
+            // count 起始 level 为 1（已消费的开括号计数），传给 skip 时归一化
+            // 为真实级别：level-0 块注释对应 closer "]]"，level-N 对应
+            // "]" + "=" * N + "]"。
+            skip_lua_long_string(chars, level - 1);
+            return;
         }
+    }
+    // 单行注释：消费至换行符（保留换行）
+    while let Some(&next_c) = chars.peek() {
+        if next_c == '\n' {
+            break;
+        }
+        chars.next();
     }
 }
 
