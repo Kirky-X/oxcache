@@ -28,12 +28,21 @@ _暂无变更。_
 - **`get_or_option_sync` 错误传播**：空值哨兵写入失败不再被静默吞掉
 - **分布式锁**：watchdog 网络错误改为指数退避重试（原直接退出）；`release()` 状态变更延后至 Lua 脚本成功之后
 - **feature 门控**：`BloomFilterBackend`/`BloomFilterBackendBuilder` 再导出补齐 memory/redis 依赖门控；`BytesCache` 再导出对齐门控
+- **Lua 方括号索引绕过闭合**：预处理将 `['ident']`/`["ident"]` 折叠为 `.ident`，`redis['eval']`/`redis["call"]('FLUSHALL')` 进入既有黑名单匹配；仅折叠标识符索引，`t['a-b']` 非标识符索引不受影响
+- **aerospike TTL 钳制**：`write_policy_with_ttl`/`expire` 的 `as_secs() as u32` 改为先钳制到 `u32::MAX`，消除超大 TTL 截断为 0 后被当作永不过期的边界缺陷
+
+### 安全
+
+- **CI 供应链加固**：6 个 workflow 全部 58 处第三方 Action 引用改为 SHA 固定（`<action>@<40位SHA> # <原ref>`），可变标签（`@v*`/`@stable`）不再被信任
+- **依赖检查权限最小化**：`dependency-check.yml` 补顶层 `permissions: contents: read`（Checkov CKV2_GHA_1）
+- **unsafe 注释一致口径**：i18n 测试 9 处与 redis_benchmark 1 处 unsafe 块补齐 `// SAFETY:` 注释，src/+benches/ 范围达成 17/17
 
 ### 文档
 
 - `CacheReader::len`（Redis 后端为 DBSIZE 全库语义）、`ttl`（moka TTI 刷新副作用）契约说明
 - `registry::clear()` 明确会移除 `"default"` 条目；`OXCACHE_008` 保留注释
 - 4 个 Redis 示例运行方式同步非 TLS 开发环境变量要求；benches 服务不可达时优雅跳过（`[bench-skip]`）
+- `depth_limited` 饱和行为文档化（真实深度 >256 报告为 ~512 饱和值）；SECURITY.md 补 Lua 方括号归一化与 CI 供应链加固章节
 
 ### 变更
 

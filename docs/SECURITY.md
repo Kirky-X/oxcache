@@ -63,7 +63,10 @@ validate_redis_key("")?;                    // Err — 空键
 | 最大键数量 | 100 个键 | `MAX_LUA_SCRIPT_KEYS` — 防止参数泛滥 |
 | 禁止命令 | `FLUSHALL`、`FLUSHDB`、`SHUTDOWN`、`CONFIG`、`KEYS *`、无限循环模式 | 阻止破坏性和资源消耗操作 |
 
-校验器在模式匹配前预处理脚本以剥离注释、字符串字面量和长括号内容，防止通过字符串混淆绕过。
+校验器在模式匹配前预处理脚本以剥离注释、字符串字面量和长括号内容，防止通过字符串混淆绕过。预处理会做两类归一化：
+
+- **反斜杠转义引号归一化**：`redis.call(\'FLUSHALL\')` 中的转义引号还原为普通引号，防止绕过带引号的黑名单模式；
+- **方括号索引折叠**：`redis['eval']` / `redis["call"]('FLUSHALL')` 折叠为 `redis.eval` / `redis.call('FLUSHALL')`，使方括号索引调用形态进入既有黑名单匹配（仅折叠标识符索引，`t['a-b']` 等非标识符索引不受影响）。
 
 ### 示例
 
@@ -144,6 +147,15 @@ assert!(!redacted.contains("secret_password"));
 | Redis 流量中间人攻击 | TLS 强制（默认 `rediss://`） |
 | 通过大型 Lua 脚本进行资源耗尽 | `MAX_LUA_SCRIPT_LENGTH`（10 KB）和 `MAX_LUA_SCRIPT_KEYS`（100） |
 | 通过缓存键进行日志注入 | `sanitize_message`、`log_cache_key` |
+
+## 7. CI 供应链加固
+
+仓库 CI（`.github/workflows/`，共 6 个 workflow）从 0.5.0-rc.3 起对第三方 GitHub Actions 实施完整性固定：
+
+- **SHA 固定**：全部第三方 Action 引用采用 `uses: <owner>/<repo>@<40位commit SHA> # <原ref>` 形式（58 处），可变标签（`@v7`、`@stable` 等）不再被直接信任——标签被篡改时无法静默指向恶意代码，注释中的原 ref 便于人工审阅与自动更新。
+- **最小权限**：每个 workflow 顶层声明 `permissions:`（默认降级为 `contents: read` 或按需最小化），杜绝默认宽授权的 GITHUB_TOKEN。
+
+**维护指引**：升级 Action 时用 `git ls-remote https://github.com/<owner>/<repo>.git <ref>` 解析新 commit SHA 后整体替换并同步更新注释中的 ref；`dtolnay/rust-toolchain@stable` 等移动分支同样冻结于解析时刻的 SHA。
 
 ## 安全报告流程
 
