@@ -130,6 +130,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [security-audit, dependency-check]
     if: failure()
+    # 顶层 permissions 已收紧为 contents:read；本 job 需要创建失败工单，
+    # 仅在此处声明最小必需的 issues:write（未声明的 scope 一律为 none）。
+    permissions:
+      issues: write
     steps:
       - name: Create issue on failure
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
