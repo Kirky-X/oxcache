@@ -21,8 +21,7 @@ use common::services_ready;
 
 /// 获取 Redis URL（优先使用环境变量）
 fn get_redis_url() -> String {
-    // 先设置环境变量以允许不安全的 Redis 连接（仅用于测试）
-    // 必须在读取 URL 之前设置
+    // SAFETY: edition 2024 下 set_var 为 unsafe；bench 单线程运行，进程级 env 仅此处修改，设置允许不安全 Redis 连接的测试标志。
     unsafe {
         std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
     };

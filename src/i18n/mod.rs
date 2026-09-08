@@ -573,6 +573,7 @@ mod tests {
         assert_eq!(locale, "zh-CN", "should detect zh-CN from LANG");
 
         // Restore
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
         unsafe {
             std::env::remove_var("LANG");
             if let Some(ref v) = orig_lang {
@@ -595,6 +596,7 @@ mod tests {
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
@@ -604,6 +606,7 @@ mod tests {
         let locale = detect_system_locale();
         assert_eq!(locale, "en-US", "should detect en-US from LANG");
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
         unsafe {
             std::env::remove_var("LANG");
             if let Some(ref v) = orig_lang {
@@ -626,6 +629,7 @@ mod tests {
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
@@ -635,6 +639,7 @@ mod tests {
         let locale = detect_system_locale();
         assert_eq!(locale, "en", "C locale should fall back to en");
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
         unsafe {
             std::env::remove_var("LANG");
             if let Some(ref v) = orig_lang {
@@ -657,6 +662,7 @@ mod tests {
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
@@ -669,6 +675,7 @@ mod tests {
             "unsupported locale (ja) should fall back to en"
         );
 
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
         unsafe {
             std::env::remove_var("LANG");
             if let Some(ref v) = orig_lang {
@@ -692,6 +699,7 @@ mod tests {
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
 
         // LC_ALL should take priority over LC_MESSAGES and LANG
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，设置多个 locale env 验证优先级。
         unsafe {
             std::env::set_var("LC_ALL", "zh_CN.UTF-8");
             std::env::set_var("LC_MESSAGES", "en_US.UTF-8");
@@ -705,6 +713,7 @@ mod tests {
         );
 
         // Restore
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
         unsafe {
             if let Some(ref v) = orig_lc_all {
                 std::env::set_var("LC_ALL", v);
