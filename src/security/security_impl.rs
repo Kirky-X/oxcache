@@ -53,6 +53,28 @@ pub(super) static LUA_LOOP_REGEXES: ::once_cell::sync::Lazy<Vec<::regex::Regex>>
 pub(super) static WHITESPACE_REGEX: ::once_cell::sync::Lazy<::regex::Regex> =
     ::once_cell::sync::Lazy::new(|| ::regex::Regex::new(r"\s+").expect("Invalid whitespace regex"));
 
+/// 方括号索引折叠正则（单引号变体）。
+///
+/// 防御形态：`redis['eval']("return 1")` 经预处理后引号被丢弃、方括号被丢弃，
+/// 归一化为 `REDIS EVAL`，无法命中 `REDIS.EVAL` 黑名单。本正则在归一化末尾
+/// 将 `['ident']` 折叠为 `.ident`，使方括号索引调用进入既有黑名单匹配。
+/// 仅匹配标识符索引（`[A-Za-z_][A-Za-z0-9_]*`），不含连字符——非标识符索引
+/// （如 `['a-b']`、`[123]`、变量）保持原样，避免误伤合法 Lua 表访问。
+#[cfg(feature = "redis")]
+static BRACKET_INDEX_SINGLE: ::once_cell::sync::Lazy<::regex::Regex> =
+    ::once_cell::sync::Lazy::new(|| {
+        ::regex::Regex::new(r"\[\s*'([A-Za-z_][A-Za-z0-9_]*)'\s*\]")
+            .expect("Invalid bracket-index single-quote regex")
+    });
+
+/// 方括号索引折叠正则（双引号变体），语义同 [`BRACKET_INDEX_SINGLE`]。
+#[cfg(feature = "redis")]
+static BRACKET_INDEX_DOUBLE: ::once_cell::sync::Lazy<::regex::Regex> =
+    ::once_cell::sync::Lazy::new(|| {
+        ::regex::Regex::new(r#"\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\]"#)
+            .expect("Invalid bracket-index double-quote regex")
+    });
+
 /// SQL 注入检测模式表（模式, 描述）
 #[cfg(feature = "redis")]
 const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
@@ -327,7 +349,12 @@ pub(super) fn preprocess_lua_script(script: &str) -> String {
         }
     }
 
-    WHITESPACE_REGEX.replace_all(&result, " ").to_string()
+    let result = WHITESPACE_REGEX.replace_all(&result, " ").to_string();
+
+    // 方括号索引折叠：将 ['ident'] / ["ident"] 替换为 .ident
+    // 使 redis['eval'](...) 归一化为 redis.eval(...) 从而命中既有 REDIS.EVAL 检查
+    let result = BRACKET_INDEX_SINGLE.replace_all(&result, ".$1").to_string();
+    BRACKET_INDEX_DOUBLE.replace_all(&result, ".$1").to_string()
 }
 
 /// 跳过 Lua 注释内容（`--` 已消费）。

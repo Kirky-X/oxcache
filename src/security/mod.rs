@@ -896,6 +896,44 @@ mod tests {
         let result = validate_lua_script(script, 0);
         assert!(result.is_err(), "双引号内的危险命令应被检测并拒绝");
     }
+
+    // ============================================================================
+    // 方括号索引绕过测试（T004 RED — 预期 2 失败 1 通过）
+    // ============================================================================
+
+    #[test]
+    fn test_validate_lua_bracket_index_eval_is_rejected() {
+        // redis['eval']("return 1") 应被识别为嵌套 eval 调用
+        let script = r#"return redis['eval']("return 1")"#;
+        let result = validate_lua_script(script, 0);
+        assert!(
+            result.is_err(),
+            "bracket-index form redis['eval'] must be rejected as nested eval"
+        );
+    }
+
+    #[test]
+    fn test_validate_lua_bracket_index_call_flushall_is_rejected() {
+        // redis["call"]('FLUSHALL') 应被识别为 FLUSHALL 调用
+        let script = r#"return redis["call"]('FLUSHALL')"#;
+        let result = validate_lua_script(script, 0);
+        assert!(
+            result.is_err(),
+            "bracket-index form redis[\"call\"]('FLUSHALL') must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_validate_lua_bracket_index_non_ident_untouched() {
+        // 非标识符索引（含连字符）不应被折叠，合法脚本应通过
+        let script = r#"return t['a-b'](1)"#;
+        let result = validate_lua_script(script, 0);
+        assert!(
+            result.is_ok(),
+            "non-identifier bracket index must not be folded: {:?}",
+            result.err()
+        );
+    }
 }
 
 // 测试辅助模块 - 为集成测试提供访问
