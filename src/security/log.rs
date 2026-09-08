@@ -67,7 +67,9 @@ pub fn sanitize_message(message: &str) -> String {
         // 将 :// 之前的前导文本追加到结果
         result.push_str(&remaining[..protocol_start]);
 
-        if let Some(at_pos) = remaining[after_start..].find('@') {
+        // rfind 与 redaction.rs 口径一致：密码可含 '@'（user:p@ss@host），
+        // 按首个 '@' 切分会把密码尾部当作主机名残留到日志。
+        if let Some(at_pos) = remaining[after_start..].rfind('@') {
             let abs_at_pos = after_start + at_pos;
             let user_part = &remaining[after_start..abs_at_pos];
             // host_part 终止于下一个空白字符、'?' 或 '#'，避免吞并后续 URL；
@@ -116,6 +118,20 @@ pub fn sanitize_message(message: &str) -> String {
             result.push_str(protocol);
             result.push_str("://");
             remaining = &remaining[after_start..];
+            // 无 userinfo 的 URL 同样可能经 query/fragment 携带秘密：
+            // URL 边界内（'?'/'#' 之前无空白）遇到 '?'/'#' 时掩码到空白，
+            // 与含 '@' 分支的口径一致。
+            if let Some(q_rel) = remaining.find(['?', '#'])
+                && !remaining[..q_rel].contains(char::is_whitespace)
+            {
+                let query_end = remaining[q_rel..]
+                    .find(|c: char| c.is_whitespace())
+                    .map(|i| q_rel + i)
+                    .unwrap_or(remaining.len());
+                result.push_str(&remaining[..q_rel + 1]);
+                result.push_str("**");
+                remaining = &remaining[query_end..];
+            }
         }
     }
 
@@ -136,6 +152,23 @@ mod tests {
         let redacted = redact_connection_string(conn_str);
         assert!(!redacted.contains("password123"));
         assert!(redacted.contains("user:****"));
+    }
+
+    #[test]
+    fn test_sanitize_message_masks_query_without_userinfo() {
+        // 无 userinfo 的 URL 经 query 携带秘密时同样脱敏（口径与含 @ 分支一致）
+        let msg = sanitize_message("connect redis://host:6379?password=secret now");
+        assert!(msg.contains("redis://host:6379?**"), "got: {msg}");
+        assert!(!msg.contains("secret"), "got: {msg}");
+        assert!(msg.contains(" now"), "尾随文本应保留: {msg}");
+    }
+
+    #[test]
+    fn test_sanitize_message_password_with_at_sign_no_fragment_leak() {
+        // 密码含 '@'：按末个 '@' 切分，不得残留密码片段
+        let msg = sanitize_message("fail redis://user:p@ss@host:6379");
+        assert!(msg.contains("redis://user**@host:6379"), "got: {msg}");
+        assert!(!msg.contains("p@ss"), "got: {msg}");
     }
 
     #[test]
