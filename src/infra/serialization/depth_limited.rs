@@ -42,6 +42,11 @@ impl std::error::Error for DepthLimitExceededError {}
 ///
 /// Safety limit for `calculate_depth` recursion.
 /// Matches serde_json's default recursion limit.
+///
+/// 注意：递归在深度达到该上限后停止下降，但回溯时每个祖先层仍 +1，
+/// 因此真实深度 > 256 的值报告为最多 ~512（2× 上限）的饱和值，
+/// 而非精确深度。`max_depth` 取值在 256..512 区间时无法区分
+/// "恰好该深度" 与 "更深" —— 校验语义是饱和比较而非精确比较。
 const CALCULATE_DEPTH_SAFETY_LIMIT: usize = 256;
 
 /// Calculates the nesting depth of a JSON value
