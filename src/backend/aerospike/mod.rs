@@ -119,15 +119,25 @@ impl AerospikeBackend {
     /// Build a WritePolicy with the given TTL.
     fn write_policy_with_ttl(&self, ttl: Option<Duration>) -> WritePolicy {
         let mut wp = self.write_policy.clone();
-        // Aerospike expiration 为 u32 秒：先钳制到 u32::MAX 再转换，
-        // 避免超大 TTL 截断出任意值（截断为 0 会被当作永不过期）。
-        let ttl_secs = ttl
-            .map(|d| d.as_secs().min(u32::MAX as u64) as u32)
-            .unwrap_or(self.config.default_ttl);
+        // Aerospike expiration 为 u32 秒：
+        // - 先钳制到 u32::MAX 再转换，避免超大 TTL 截断出任意值
+        //   （截断为 0 会被当作永不过期）；
+        // - 非零的亚秒 TTL 上取整到 1 秒，避免 500ms 之类输入被截断为
+        //   0 后意外变成永不过期（显式 Duration::ZERO 仍保持 Never 语义）。
+        let ttl_secs: u64 = ttl
+            .map(|d| {
+                if d.is_zero() {
+                    0u64
+                } else {
+                    d.as_secs().max(1).min(u32::MAX as u64)
+                }
+            })
+            .unwrap_or(self.config.default_ttl as u64);
         wp.expiration = if ttl_secs == 0 {
             Expiration::Never
         } else {
-            Expiration::Seconds(ttl_secs)
+            // ttl_secs ≤ u32::MAX（max 分支已钳制；default_ttl 为 u32）
+            Expiration::Seconds(ttl_secs as u32)
         };
         wp
     }
@@ -268,8 +278,8 @@ impl CacheWriter for AerospikeBackend {
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         let as_key = self.make_key(key)?;
         let wp = WritePolicy {
-            // 同 write_policy_with_ttl：钳制到 u32::MAX 防截断
-            expiration: Expiration::Seconds(ttl.as_secs().min(u32::MAX as u64) as u32),
+            // 同 write_policy_with_ttl：钳制到 [1, u32::MAX]，防截断与亚秒归零
+            expiration: Expiration::Seconds(ttl.as_secs().max(1).min(u32::MAX as u64) as u32),
             ..WritePolicy::default()
         };
 
