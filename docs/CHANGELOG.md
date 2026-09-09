@@ -7,7 +7,16 @@
 
 ## [Unreleased]
 
-_暂无变更。_
+### 修复
+
+- **Lua 块注释跳过越界绕过**：`skip_lua_comment` 在计数前先消费开括号 `[`，使 `=` 参与闭合符长度计算——此前 `--[==[ x ]==] redis.call('FLUSHALL')` 会因越界吞吃而对校验器不可见（独立 diting 审查实证，存量缺陷）
+- **日志脱敏**：无 userinfo 的 URL 经 query/fragment 携带秘密时同样掩码；`sanitize_message` 切分改用 `rfind('@')`，密码含 `@` 不再残留片段
+- **aerospike 亚秒 TTL**：非零亚秒 TTL 上取整到 1 秒（原截断为 0 后被当作永不过期）；显式 `Duration::ZERO` 保持 Never 语义
+- **CI 权限回归**：`dependency-check.yml` 的 failure-notification job 补 `issues: write`（顶层权限收紧后建单调用将 403）
+
+### 文档
+
+- 修正方括号索引折叠的行为声明：折叠发生于引号剥离之后，含连字符的索引残段同样可能被折叠（结果仍为合法 Lua 且无黑名单命中）
 
 ---
 
