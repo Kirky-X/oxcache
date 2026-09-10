@@ -292,6 +292,11 @@ name = "modern_api_benchmark"
 harness = false
 
 [[bench]]
+name = "hot_path_benchmark"
+harness = false
+required-features = ["memory"]
+
+[[bench]]
 name = "redis_benchmark"
 harness = false
 required-features = ["redis"]

@@ -39,4 +39,15 @@
 
 ## 热路径零分配（T317）
 
-见下节（随 T317 补充 bench 前后对比）。
+`get_by_str` / `set_by_str` 借用键 API（T317）：
+`get` 路径每次调用省去 `K::to_key_string()` 的 String 分配（借用查询零堆分配）；
+`set` 路径省去 String 中转（1 次 `Arc<str>` 分配 vs 原来的 String+Arc 两次）。
+
+Criterion 基线（`benches/hot_path_benchmark.rs`，bench profile = release + lto=fat，Moka L1 命中路径）：
+
+| 基准 | owned 键（既有 API） | borrowed 键（T317） | 差异 |
+| --- | --- | --- | --- |
+| get 命中 | 241.07 ns | 224.88 ns | **-6.7%** |
+| set | 819.38 ns | 715.01 ns | **-12.7%** |
+
+复现：`cargo bench --bench hot_path_benchmark`

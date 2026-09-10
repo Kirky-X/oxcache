@@ -94,11 +94,24 @@
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
 //! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
-//!   (write-path broadcast + background listener with self-exemption)
+//!   (write-path broadcast + background listener with self-exemption) plus
+//!   optional keyspace-notification channel (`KeyspaceNotificationListener`)
 //! - `encrypt`: Value-level encryption decorator (XChaCha20-Poly1305,
 //!   confers-aligned envelope `[ver][nonce][ct]`, AAD binds the cache key)
 //! - `integrity`: Value integrity decorator (HMAC-SHA256 tag
 //!   `[ver][tag][payload]`; verification failure counts as a miss)
+//! - `config-confers`: Config-driven build via confers (`OxcacheConfig`
+//!   load + `ConfigBus` watch hot-reload of capacity/TTL/circuit params)
+//! - `degradation`: L2 degradation controller (Active/Degraded/HalfOpen
+//!   state machine + `DegradableBackend` guard decorator)
+//! - `audit`: Structured audit event stream (`AuditEventPublisher` port,
+//!   NoOp/InMemory/tracing publishers)
+//! - `versioning`: Version-based compare-and-swap (`MemoryVersionedCache`
+//!   + Redis WATCH-based `RedisVersionedCache`)
+//! - `red-lock`: RedLock-style multi-node majority lock (`RedLock`,
+//!   `LockNode` protocol layer, fencing tokens)
+//! - `serde-bincode` / `postcard`: Binary serialization formats
+//!   (`SerializationFormat`, `CacheBuilder::serialization_format`)
 //!
 //! # Distributed Lock (`lock` feature)
 //!
