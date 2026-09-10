@@ -4,6 +4,7 @@
 
 pub mod backend;
 pub mod export;
+pub mod recorder;
 pub mod snapshot;
 pub mod unified;
 
@@ -31,6 +32,11 @@ pub use unified::{
     HistogramData, HitRates, MetricValue, MetricsConfig, MetricsSnapshot, TimerData,
     convenience as unified_convenience,
 };
+
+// T302: metrics recorder port + standard naming exports
+pub use export::export_prometheus_standard;
+pub use recorder::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder, noop_recorder};
+pub use unified::{OPERATION_LATENCY_HISTOGRAM, PROMETHEUS_LATENCY_BUCKETS};
 
 // Re-export convenience module for test access
 pub use unified::convenience;

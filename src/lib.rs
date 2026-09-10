@@ -375,7 +375,12 @@ pub use cache::CacheBuilder;
 
 // Re-exports from infra module
 #[cfg(feature = "metrics")]
-pub use infra::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
+pub use infra::{
+    CacheStats, export_json_format, export_prometheus_format, export_prometheus_standard,
+    get_enhanced_stats,
+};
+#[cfg(feature = "metrics")]
+pub use infra::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder};
 
 // Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]

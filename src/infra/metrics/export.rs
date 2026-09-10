@@ -16,6 +16,12 @@ pub fn export_prometheus_format() -> String {
     GLOBAL_UNIFIED_METRICS.export_prometheus()
 }
 
+/// 导出标准 Prometheus exposition 格式（全局，T302：`# HELP`/`# TYPE` + `oxcache_*` 命名）
+#[cfg(feature = "metrics")]
+pub fn export_prometheus_standard() -> String {
+    GLOBAL_UNIFIED_METRICS.export_prometheus_standard()
+}
+
 /// 导出 JSON 格式（全局）
 #[cfg(feature = "metrics")]
 pub fn export_json_format() -> Result<String, serde_json::Error> {
@@ -52,6 +58,30 @@ mod tests {
         assert!(prom.contains("cache_l2_misses_total"));
         assert!(prom.contains("cache_operations_total"));
         assert!(prom.contains("cache_errors_total"));
+    }
+
+    #[test]
+    fn test_export_prometheus_standard_is_compliant() {
+        convenience::reset();
+        let prom = export_prometheus_standard();
+        // 标准 exposition 头：每个指标族必须有 HELP/TYPE
+        assert!(prom.contains("# HELP oxcache_hits_total "));
+        assert!(prom.contains("# TYPE oxcache_hits_total counter\n"));
+        assert!(prom.contains("# HELP oxcache_misses_total "));
+        assert!(prom.contains("# TYPE oxcache_misses_total counter\n"));
+        assert!(prom.contains("# HELP oxcache_evictions_total "));
+        assert!(prom.contains("# TYPE oxcache_evictions_total counter\n"));
+        assert!(prom.contains("# HELP oxcache_operation_duration_seconds "));
+        assert!(prom.contains("# TYPE oxcache_operation_duration_seconds histogram\n"));
+        // 标准命名计数行（含 layer 标签）
+        assert!(prom.contains("oxcache_hits_total{layer=\"l1\"} "));
+        assert!(prom.contains("oxcache_misses_total{layer=\"l1\"} "));
+        assert!(prom.contains("oxcache_evictions_total "));
+        // 直方图三件套：bucket/sum/count
+        assert!(prom.contains("oxcache_operation_duration_seconds_bucket{le="));
+        assert!(prom.contains("oxcache_operation_duration_seconds_bucket{le=\"+Inf\"} "));
+        assert!(prom.contains("oxcache_operation_duration_seconds_sum "));
+        assert!(prom.contains("oxcache_operation_duration_seconds_count "));
     }
 
     #[test]

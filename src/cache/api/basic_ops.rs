@@ -85,8 +85,22 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn get(&self, key: &K) -> OxCacheResult<Option<V>> {
+        // T302: 纯 L1 路径指标埋点（默认 NoOp 零开销）
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
+        #[cfg(feature = "metrics")]
+        {
+            let latency = __start.elapsed();
+            if bytes.is_some() {
+                self.metrics
+                    .record_hit(crate::core::CacheLayer::L1, latency);
+            } else {
+                self.metrics
+                    .record_miss(crate::core::CacheLayer::L1, latency);
+            }
+        }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
             Some(data) => deserialize_value(&data).map(Some),
@@ -158,9 +172,17 @@ where
                 Ok(b) => b,
                 Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
             };
-            self.backend
+            // T302: 写路径指标埋点
+            #[cfg(feature = "metrics")]
+            let __start = std::time::Instant::now();
+            let result = self
+                .backend
                 .set(Arc::from(key_str), Arc::new(bytes), ttl)
-                .await
+                .await;
+            #[cfg(feature = "metrics")]
+            self.metrics
+                .record_set(crate::core::CacheLayer::L1, __start.elapsed());
+            result
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -174,7 +196,14 @@ where
 
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
-        self.backend.delete(&key_str).await
+        // T302: 删除路径指标埋点
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self.backend.delete(&key_str).await;
+        #[cfg(feature = "metrics")]
+        self.metrics
+            .record_delete(crate::core::CacheLayer::L1, __start.elapsed());
+        result
     }
 
     pub async fn exists(&self, key: &K) -> OxCacheResult<bool> {

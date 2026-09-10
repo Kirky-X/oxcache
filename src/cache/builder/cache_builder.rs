@@ -32,6 +32,9 @@ pub struct CacheBuilder<K, V> {
     null_cache_ttl: Option<Duration>,
     /// TTL jitter factor for stampede prevention.
     ttl_jitter_factor: f64,
+    /// Injected metrics recorder (T302; metrics feature only).
+    #[cfg(feature = "metrics")]
+    metrics: Option<Arc<dyn crate::infra::MetricsRecorder>>,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -59,6 +62,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
             sync_mode: false,
             null_cache_ttl: None,
             ttl_jitter_factor: 0.0,
+            #[cfg(feature = "metrics")]
+            metrics: None,
             _phantom: PhantomData,
         }
     }
@@ -134,6 +139,21 @@ where
         self
     }
 
+    /// Inject a metrics recorder (T302).
+    ///
+    /// After injection, the pure L1 path (`get`/`set`/`delete`) records
+    /// hits/misses/latency samples through this recorder — previously the
+    /// default Moka path produced no metrics at all. Use
+    /// [`UnifiedMetricsRecorder`](crate::infra::UnifiedMetricsRecorder)
+    /// for counters with standard Prometheus naming, or implement the
+    /// [`MetricsRecorder`](crate::infra::MetricsRecorder) port to bridge
+    /// to a custom metrics stack.
+    #[cfg(feature = "metrics")]
+    pub fn metrics(mut self, recorder: Arc<dyn crate::infra::MetricsRecorder>) -> Self {
+        self.metrics = Some(recorder);
+        self
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -182,6 +202,10 @@ where
             }
             cache.set_null_cache_ttl(self.null_cache_ttl);
             cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+            #[cfg(feature = "metrics")]
+            if let Some(recorder) = self.metrics {
+                cache.set_metrics_recorder(recorder);
+            }
             return Ok(cache);
         }
 
@@ -201,6 +225,10 @@ where
         let mut cache = Cache::new_with_backend(backend);
         cache.set_null_cache_ttl(self.null_cache_ttl);
         cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+        #[cfg(feature = "metrics")]
+        if let Some(recorder) = self.metrics {
+            cache.set_metrics_recorder(recorder);
+        }
         Ok(cache)
     }
 }
@@ -568,5 +596,90 @@ mod tests {
             result.is_err(),
             "build_sync with sync_mode+backend_arc should return Err"
         );
+    }
+
+    // ============================================================================
+    // T302: 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
+    // ============================================================================
+
+    #[cfg(feature = "metrics")]
+    mod metrics_injection {
+        use super::*;
+        use crate::infra::UnifiedMetricsRecorder;
+        use crate::infra::MetricsRecorder;
+
+        #[tokio::test]
+        async fn injected_recorder_observes_l1_get_set_delete_counts() {
+            let recorder = Arc::new(UnifiedMetricsRecorder::new());
+            let cache: Cache<String, i32> = Cache::builder()
+                .metrics(recorder.clone())
+                .build()
+                .await
+                .unwrap();
+
+            // miss（键不存在）
+            assert_eq!(cache.get(&"m".to_string()).await.unwrap(), None);
+            // set + hit
+            cache.set(&"k".to_string(), &42).await.unwrap();
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(42));
+            // delete
+            cache.delete(&"k".to_string()).await.unwrap();
+
+            let counters = recorder.metrics().get_counters();
+            assert_eq!(counters.l1_misses, 1, "未命中应计数 1");
+            assert_eq!(counters.l1_hits, 1, "命中应计数 1");
+            assert_eq!(counters.l1_sets, 1, "写入应计数 1");
+            assert_eq!(counters.l1_deletes, 1, "删除应计数 1");
+            assert!(
+                counters.total_operations >= 4,
+                "总操作数应覆盖纯 L1 路径"
+            );
+
+            // 延迟直方图样本已记录（标准 Prometheus 命名）
+            let prom = recorder.metrics().export_prometheus_standard();
+            assert!(prom.contains("# TYPE oxcache_hits_total counter"));
+            assert!(prom.contains("# TYPE oxcache_misses_total counter"));
+            assert!(prom.contains("# TYPE oxcache_operation_duration_seconds histogram"));
+            assert!(prom.contains("oxcache_operation_duration_seconds_count 4"));
+        }
+
+        #[test]
+        fn standard_export_includes_evictions_with_help_type() {
+            let recorder = UnifiedMetricsRecorder::new();
+            recorder.record_eviction(7);
+            let prom = recorder.metrics().export_prometheus_standard();
+            assert!(prom.contains("# HELP oxcache_evictions_total "));
+            assert!(prom.contains("# TYPE oxcache_evictions_total counter\n"));
+            assert!(prom.contains("oxcache_evictions_total 7"));
+        }
+
+        #[tokio::test]
+        #[serial_test::serial]
+        async fn dashmap_capacity_evictions_reach_global_metrics() {
+            use crate::backend::DashMapMemoryBackend;
+            use crate::infra::GLOBAL_UNIFIED_METRICS;
+
+            convenience_reset();
+            let backend = DashMapMemoryBackend::builder().capacity(4).build();
+            let cache: Cache<String, i32> = Cache::builder()
+                .backend_arc(Arc::new(backend))
+                .build()
+                .await
+                .unwrap();
+
+            // 写入超过容量：触发 FIFO 淘汰
+            for i in 0..20 {
+                cache.set(&format!("evict-key-{i}"), &i).await.unwrap();
+            }
+
+            assert!(
+                GLOBAL_UNIFIED_METRICS.get_counters().evictions > 0,
+                "DashMap 容量淘汰应计入 evictions 指标"
+            );
+        }
+
+        fn convenience_reset() {
+            crate::infra::convenience::reset();
+        }
     }
 }
