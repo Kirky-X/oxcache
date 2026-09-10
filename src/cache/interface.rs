@@ -19,6 +19,12 @@ use std::time::Duration;
 /// This trait combines the functionality of CacheOps, CacheExt, and CacheBackend
 /// into a single, comprehensive interface. It provides both low-level byte operations
 /// and high-level typed operations.
+///
+/// # Object safety (T313)
+///
+/// 本 trait 是 **object-safe 核心**（`Arc<dyn UnifiedCache>` 可用）：泛型
+/// 的 typed 读写已拆分到 [`TypedCacheExt`]（blanket impl 保持所有既有调用
+/// 点兼容），关闭 kit 模块记录的 dyn-safety 设计分歧（H1）。
 #[async_trait]
 pub trait UnifiedCache: Send + Sync + 'static {
     // ============================================================================
@@ -61,37 +67,6 @@ pub trait UnifiedCache: Send + Sync + 'static {
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
 
     // ============================================================================
-    // Typed operations (from CacheExt)
-    // ============================================================================
-
-    /// Get typed value from cache
-    #[cfg(any(feature = "serialization", feature = "full"))]
-    async fn get_typed<T: DeserializeOwned + Send>(&self, key: &str) -> OxCacheResult<Option<T>> {
-        let bytes = self.get_bytes(key).await?;
-        match bytes {
-            Some(data) => {
-                let val: T = serde_json::from_slice(&data)
-                    .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
-                Ok(Some(val))
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Set typed value in cache
-    #[cfg(any(feature = "serialization", feature = "full"))]
-    async fn set_typed<T: Serialize + Send + Sync>(
-        &self,
-        key: &str,
-        value: &T,
-        ttl: Option<Duration>,
-    ) -> OxCacheResult<()> {
-        let bytes = serde_json::to_vec(value)
-            .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
-        self.set_bytes(key, bytes, ttl).await
-    }
-
-    // ============================================================================
     // Required methods for implementation
     // ============================================================================
 
@@ -103,6 +78,66 @@ pub trait UnifiedCache: Send + Sync + 'static {
     /// Get the backend type for runtime identification
     fn backend_kind(&self) -> crate::backend::interface::BackendKind;
 }
+
+/// Typed read/write extension (T313, generic — dyn-incompatible by nature)
+///
+/// 通过 blanket impl 自动为所有 `UnifiedCache`（含 `dyn UnifiedCache`）
+/// 提供 `get_typed` / `set_typed`；既有调用点在 trait 可见时无需改动。
+///
+/// ```rust,ignore
+/// use oxcache::cache::{UnifiedCache, TypedCacheExt};
+/// let cache: Arc<dyn UnifiedCache> = Arc::new(moka_backend);
+/// let v: Option<User> = cache.get_typed("user:1").await?;
+/// ```
+#[cfg(any(feature = "serialization", feature = "full"))]
+#[async_trait]
+pub trait TypedCacheExt: Send + Sync {
+    /// Get typed value from cache
+    async fn get_typed<T: DeserializeOwned + Send>(&self, key: &str) -> OxCacheResult<Option<T>>;
+
+    /// Set typed value in cache
+    async fn set_typed<T: Serialize + Send + Sync>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()>;
+}
+
+#[cfg(any(feature = "serialization", feature = "full"))]
+#[async_trait]
+impl<T: UnifiedCache + ?Sized> TypedCacheExt for T {
+    async fn get_typed<T2: DeserializeOwned + Send>(&self, key: &str) -> OxCacheResult<Option<T2>> {
+        let bytes = self.get_bytes(key).await?;
+        match bytes {
+            Some(data) => {
+                let val: T2 = crate::infra::serialization::depth_limited::deserialize_safe(
+                    &data,
+                    crate::core::MAX_JSON_DEPTH,
+                )
+                .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
+                Ok(Some(val))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn set_typed<T2: Serialize + Send + Sync>(
+        &self,
+        key: &str,
+        value: &T2,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
+        self.set_bytes(key, bytes, ttl).await
+    }
+}
+
+/// 兼容别名（T313）：`dyn UnifiedCache` 的可读别名
+///
+/// kit 集成等下游可改回 `Arc<dyn UnifiedCache>`（设计分歧关闭）。
+pub type DynUnifiedCache = dyn UnifiedCache;
 
 /// Blanket implementation for all CacheBackend implementations
 #[async_trait]
@@ -344,5 +379,52 @@ mod tests {
         let kind = backend.backend_kind();
         // MokaMemoryBackend should return Moka variant
         assert_eq!(kind, crate::backend::interface::BackendKind::Moka);
+    }
+
+    // ============================================================================
+    // T313: 对象安全拆分 —— Arc<dyn UnifiedCache> 可用，typed 走 TypedCacheExt
+    // ============================================================================
+
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    mod object_safety {
+        use super::*;
+        use crate::cache::TypedCacheExt;
+
+        #[tokio::test]
+        async fn dyn_unified_cache_is_usable() {
+            // 编译期断言：dyn UnifiedCache 成立（此前 get_typed/set_typed 泛型方法使其 dyn 不安全）
+            let cache: Arc<dyn UnifiedCache> = Arc::new(make_backend());
+
+            cache
+                .set_bytes("user:1", serde_json::to_vec(&TestData { id: 1, name: "a".into() }).unwrap(), None)
+                .await
+                .unwrap();
+            let raw = cache.get_bytes("user:1").await.unwrap().unwrap();
+            assert!(raw.starts_with(b"{"), "JSON 序列化的对象字节");
+
+            let dyn_ref: &DynUnifiedCache = cache.as_ref();
+            dyn_ref.health_check().await.unwrap();
+            assert_eq!(dyn_ref.backend_kind(), crate::backend::interface::BackendKind::Moka);
+        }
+
+        #[tokio::test]
+        async fn typed_ops_via_dyn_object_with_extension_trait() {
+            let cache: Arc<dyn UnifiedCache> = Arc::new(make_backend());
+            let data = TestData { id: 42, name: "dyn".into() };
+
+            cache.set_typed("k", &data, None).await.unwrap();
+            let back: Option<TestData> = cache.get_typed("k").await.unwrap();
+            assert_eq!(back, Some(data));
+        }
+
+        #[tokio::test]
+        async fn typed_ops_on_concrete_backend_still_compile() {
+            // 兼容性：具体后端上 get_typed/set_typed 经 blanket impl 照常可用
+            let backend = make_backend();
+            let data = TestData { id: 7, name: "concrete".into() };
+            backend.set_typed("k", &data, None).await.unwrap();
+            let back: Option<TestData> = backend.get_typed("k").await.unwrap();
+            assert_eq!(back, Some(data));
+        }
     }
 }

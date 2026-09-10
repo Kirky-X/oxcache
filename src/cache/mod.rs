@@ -14,7 +14,7 @@ pub mod tiered_builder;
 pub use api::Cache;
 pub use builder::CacheBuilder;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
-pub use interface::UnifiedCache;
+pub use interface::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
 #[cfg(feature = "memory")]
 pub use tiered_builder::{ChainBuilder, L1Builder, L2Builder};
 

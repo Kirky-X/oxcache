@@ -411,7 +411,7 @@ pub use features::dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedL
     feature = "core",
     feature = "full"
 ))]
-pub use cache::UnifiedCache;
+pub use cache::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
 #[cfg(any(
     feature = "memory",
     feature = "redis",
