@@ -262,6 +262,7 @@ integrity = ["dep:hmac", "dep:sha2"]
 serde-bincode = ["serialization", "dep:bincode"]
 postcard = ["serialization", "dep:postcard"]
 config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
+degradation = []
 
 # ============================================================================
 # PROFILES

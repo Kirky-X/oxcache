@@ -17,6 +17,9 @@ pub mod encryption;
 #[cfg(feature = "config-confers")]
 pub mod confers_config;
 
+#[cfg(feature = "degradation")]
+pub mod degradation;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -53,3 +56,6 @@ pub use confers_config::{
     CacheConfigSource, ConfigChangeListener, ConfigSnapshot, ConfersConfigSource,
     ConfersConfigWatcher, OxcacheConfig,
 };
+
+#[cfg(feature = "degradation")]
+pub use degradation::{DegradableBackend, DegradationController, DegradationState};
