@@ -124,6 +124,25 @@ impl ChainLink {
         }
     }
 
+    /// 从已擦除的后端 trait 对象创建链接（T306 分层构建器使用）
+    ///
+    /// 分数/持久化标志/名称由调用方提供（装饰器包装后的 `Arc<dyn CacheBackend>`
+    /// 无法再查询 [`BackendScore`]）。
+    pub fn from_arc(
+        backend: Arc<dyn CacheBackend>,
+        score: u8,
+        is_persistent: bool,
+        name: &'static str,
+    ) -> Self {
+        Self {
+            backend,
+            backend_sync: None,
+            score,
+            is_persistent,
+            name,
+        }
+    }
+
     /// 获取后端实例引用
     pub fn backend(&self) -> &Arc<dyn CacheBackend> {
         &self.backend

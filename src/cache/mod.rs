@@ -7,12 +7,16 @@ pub mod api;
 pub mod builder;
 pub mod chain;
 pub mod interface;
+#[cfg(feature = "memory")]
+pub mod tiered_builder;
 
 // Re-exports
 pub use api::Cache;
 pub use builder::CacheBuilder;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use interface::UnifiedCache;
+#[cfg(feature = "memory")]
+pub use tiered_builder::{ChainBuilder, L1Builder, L2Builder};
 
 /// 无泛型的 bytes 级缓存别名（问题 6.2）
 ///

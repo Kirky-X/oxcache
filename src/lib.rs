@@ -420,6 +420,8 @@ pub use cache::UnifiedCache;
     feature = "full"
 ))]
 pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
+#[cfg(feature = "memory")]
+pub use cache::{ChainBuilder, L1Builder, L2Builder};
 pub use traits::CacheKey;
 
 // Type-safe enum exports
