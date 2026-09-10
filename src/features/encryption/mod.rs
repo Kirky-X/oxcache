@@ -25,6 +25,9 @@
 //! // inner_backend 中为密文；backend.get("k") 解密返回明文
 //! ```
 
+#[cfg(feature = "integrity")]
+pub mod integrity;
+
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};

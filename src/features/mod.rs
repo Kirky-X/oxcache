@@ -39,4 +39,8 @@ pub use invalidation::{
 };
 
 #[cfg(feature = "encrypt")]
+#[cfg(feature = "encrypt")]
 pub use encryption::{EncryptedBackend, ENVELOPE_VERSION, ValueCipher};
+
+#[cfg(feature = "integrity")]
+pub use encryption::integrity::{HmacSigner, HMAC_ENVELOPE_VERSION, IntegrityBackend};

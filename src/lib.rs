@@ -97,6 +97,8 @@
 //!   (write-path broadcast + background listener with self-exemption)
 //! - `encrypt`: Value-level encryption decorator (XChaCha20-Poly1305,
 //!   confers-aligned envelope `[ver][nonce][ct]`, AAD binds the cache key)
+//! - `integrity`: Value integrity decorator (HMAC-SHA256 tag
+//!   `[ver][tag][payload]`; verification failure counts as a miss)
 //!
 //! # Distributed Lock (`lock` feature)
 //!

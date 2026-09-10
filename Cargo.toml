@@ -168,6 +168,15 @@ optional = true
 version = "0.4"
 optional = true
 
+# Value integrity (optional, HMAC-SHA256, aligned with confers audit chain)
+[dependencies.hmac]
+version = "0.13"
+optional = true
+
+[dependencies.sha2]
+version = "0.11"
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -231,6 +240,7 @@ compression = ["dep:flate2"]
 telemetry = ["dep:tracing"]
 invalidation = ["redis", "serialization", "dep:futures"]
 encrypt = ["dep:chacha20poly1305", "dep:getrandom"]
+integrity = ["dep:hmac", "dep:sha2"]
 
 # ============================================================================
 # PROFILES
