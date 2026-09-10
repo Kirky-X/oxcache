@@ -8,6 +8,9 @@ pub mod bloom_filter;
 #[cfg(feature = "lock")]
 pub mod dist_lock;
 
+#[cfg(feature = "invalidation")]
+pub mod invalidation;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -25,3 +28,9 @@ pub use bloom_filter::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 #[cfg(feature = "lock")]
 pub use dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockProvider};
+
+#[cfg(feature = "invalidation")]
+pub use invalidation::{
+    InMemoryPubSubTransport, InvalidationBus, InvalidationConfig, InvalidationKind,
+    InvalidationMessage, InvalidatingBackend, PubSubTransport, RedisPubSubTransport,
+};

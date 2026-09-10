@@ -220,6 +220,7 @@ kit = ["dep:trait-kit", "dep:futures"]
 lock = ["redis"]
 compression = ["dep:flate2"]
 telemetry = ["dep:tracing"]
+invalidation = ["redis", "serialization", "dep:futures"]
 
 # ============================================================================
 # PROFILES

@@ -93,6 +93,8 @@
 //! - `bloom`: Negative-query filtering (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
+//! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
+//!   (write-path broadcast + background listener with self-exemption)
 //!
 //! # Distributed Lock (`lock` feature)
 //!
@@ -231,6 +233,10 @@ pub mod backend;
 
 // Features module (optional capabilities)
 pub mod features;
+
+// Cross-instance invalidation bus (`invalidation` feature, T301)
+#[cfg(feature = "invalidation")]
+pub use features::invalidation;
 
 // Batch writer (optional, gated by `batch` feature)
 #[cfg(feature = "batch")]
