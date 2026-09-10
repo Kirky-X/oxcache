@@ -52,7 +52,6 @@ feature_check!(
     compression_available,
     "Check if compression is available"
 );
-feature_check!("cli", cli_available, "Check if CLI is available");
 feature_check!(
     "lock",
     dist_lock_available,
@@ -73,8 +72,6 @@ pub struct FeatureSet {
     pub(crate) l2_available: bool,
     /// Metrics available
     pub(crate) metrics_available: bool,
-    /// CLI available
-    pub(crate) cli_available: bool,
 }
 
 #[allow(dead_code)]
@@ -85,15 +82,12 @@ impl FeatureSet {
             l1_available: l1_available(),
             l2_available: l2_available(),
             metrics_available: metrics_available(),
-            cli_available: cli_available(),
         }
     }
 
     /// Get tier name
     pub fn tier_name(&self) -> &'static str {
-        if self.cli_available && self.metrics_available {
-            "full"
-        } else if self.l2_available && self.metrics_available {
+        if self.l2_available && self.metrics_available {
             "core"
         } else if self.l1_available {
             "minimal"
@@ -121,7 +115,6 @@ mod tests {
         assert!(fs.l1_available);
         assert!(fs.l2_available);
         assert!(fs.metrics_available);
-        assert!(fs.cli_available);
     }
 
     #[test]
@@ -132,18 +125,6 @@ mod tests {
         assert_eq!(fs.l1_available, current.l1_available);
         assert_eq!(fs.l2_available, current.l2_available);
         assert_eq!(fs.metrics_available, current.metrics_available);
-        assert_eq!(fs.cli_available, current.cli_available);
-    }
-
-    #[test]
-    fn test_feature_set_tier_name_full() {
-        let fs = FeatureSet {
-            l1_available: true,
-            l2_available: true,
-            metrics_available: true,
-            cli_available: true,
-        };
-        assert_eq!(fs.tier_name(), "full");
     }
 
     #[test]
@@ -152,7 +133,6 @@ mod tests {
             l1_available: true,
             l2_available: true,
             metrics_available: true,
-            cli_available: false,
         };
         assert_eq!(fs.tier_name(), "core");
     }
@@ -163,7 +143,6 @@ mod tests {
             l1_available: true,
             l2_available: false,
             metrics_available: false,
-            cli_available: false,
         };
         assert_eq!(fs.tier_name(), "minimal");
     }
@@ -175,7 +154,6 @@ mod tests {
             l1_available: false,
             l2_available: false,
             metrics_available: false,
-            cli_available: false,
         };
         assert_eq!(fs.tier_name(), "core");
     }
@@ -197,13 +175,6 @@ mod tests {
     fn test_metrics_available() {
         // With "metrics" feature, should be available
         assert!(metrics_available());
-    }
-
-    #[cfg(feature = "cli")]
-    #[test]
-    fn test_cli_available() {
-        // With "cli" feature, should be available
-        assert!(cli_available());
     }
 
     #[cfg(feature = "batch")]

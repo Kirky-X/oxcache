@@ -19,6 +19,28 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+// ---- T022: telemetry helpers (zero overhead when `telemetry` feature off) ----
+
+#[cfg(feature = "telemetry")]
+#[inline]
+fn oxcache_telemetry_backfill_ok(key: &str, backend: &str) {
+    tracing::debug!(target = "oxcache::chain", key, backend, "backfill succeeded");
+}
+
+#[cfg(feature = "telemetry")]
+#[inline]
+fn oxcache_telemetry_backfill_failed(key: &str, backend: &str, err: &OxCacheError) {
+    tracing::warn!(target = "oxcache::chain", key, backend, %err, "backfill failed");
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn oxcache_telemetry_backfill_ok(_key: &str, _backend: &str) {}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn oxcache_telemetry_backfill_failed(_key: &str, _backend: &str, _err: &OxCacheError) {}
+
 // Submodules
 mod builder;
 #[cfg(test)]
@@ -421,9 +443,11 @@ impl ChainCache {
             match backend.set(key.clone(), value.clone(), ttl).await {
                 Ok(()) => {
                     GLOBAL_UNIFIED_METRICS.record_backfill_success();
+                    oxcache_telemetry_backfill_ok(&key, link.name());
                 }
                 Err(e) => {
                     GLOBAL_UNIFIED_METRICS.record_backfill_failed();
+                    oxcache_telemetry_backfill_failed(&key, link.name(), &e);
                     self.emit_backend_error(&key, link.name(), &e);
                 }
             }

@@ -24,4 +24,4 @@ pub use bloom_filter::BloomFilter;
 pub use bloom_filter::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 #[cfg(feature = "lock")]
-pub use dist_lock::{DistLockBuilder, DistributedLock};
+pub use dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockProvider};

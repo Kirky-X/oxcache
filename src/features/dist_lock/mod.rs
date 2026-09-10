@@ -11,6 +11,14 @@
 
 mod builder;
 mod lock;
+mod provider;
 
 pub use builder::DistLockBuilder;
 pub use lock::DistributedLock;
+pub use provider::LockProvider;
+
+/// Type alias for the default lock provider implementation.
+///
+/// Downstream crates can depend on this alias for dependency injection
+/// without coupling to the concrete `DistributedLock` type.
+pub type DefaultLockProvider = DistributedLock;

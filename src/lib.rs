@@ -87,9 +87,8 @@
 //! - `serialization`: JSON serialization (serde + serde_json)
 //! - `compression`: Flate2 compression
 //! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
-//! - `batch`: Buffered L2 writes
+//! - `batch`: Buffered batch writer with capacity/time dual-threshold flush
 //! - `lua`: Lua script execution (requires redis)
-//! - `cli`: CLI tools
 //! - `testing`: Testing support (exposes internal functions)
 //! - `bloom`: Negative-query filtering (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
@@ -141,7 +140,7 @@
 #![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.3")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
-// data only consumed by specific sub-features (lua, cli, batch,
+// data only consumed by specific sub-features (lua, batch,
 // etc.). Only `full` enables all sub-features, so we allow dead_code in any
 // non-full feature combination rather than gating each constant individually.
 #![cfg_attr(not(feature = "full"), allow(dead_code))]
@@ -233,6 +232,10 @@ pub mod backend;
 // Features module (optional capabilities)
 pub mod features;
 
+// Batch writer (optional, gated by `batch` feature)
+#[cfg(feature = "batch")]
+pub mod batch;
+
 // Infrastructure module (metrics, serialization, telemetry, etc.)
 #[cfg(any(
     feature = "metrics",
@@ -241,8 +244,7 @@ pub mod features;
     feature = "minimal",
     feature = "core",
     feature = "full",
-    feature = "batch",
-    feature = "cli"
+    feature = "batch"
 ))]
 pub mod infra;
 
@@ -317,6 +319,23 @@ pub use error::{OxCacheError, OxCacheResult};
 #[doc(hidden)]
 pub use crate::internal::__internal_get_cache;
 
+// ---- T022: telemetry helpers for macro-generated code ----
+// These are called from #[cached] macro expansions. When `telemetry` is
+// off they compile to empty functions (zero overhead).
+
+/// Emit a trace event when the macro silently passes through (cache not registered).
+#[doc(hidden)]
+#[cfg(feature = "telemetry")]
+#[inline]
+pub fn __telemetry_macro_passthrough(service: &str, reason: &str) {
+    tracing::debug!(target = "oxcache::macro", service, reason, "cache passthrough");
+}
+
+#[doc(hidden)]
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+pub fn __telemetry_macro_passthrough(_service: &str, _reason: &str) {}
+
 // ============================================================================
 // New API (Recommended)
 // ============================================================================
@@ -362,7 +381,7 @@ pub use crate::security::{
 
 // Distributed lock re-exports
 #[cfg(feature = "lock")]
-pub use features::dist_lock::{DistLockBuilder, DistributedLock};
+pub use features::dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockProvider};
 
 // Public API re-exports (after features re-exports)
 // cache 模块 re-export 须与 cache 模块门控一致
@@ -445,5 +464,12 @@ mod tests {
     fn test_version_format() {
         // 测试 VERSION 格式（应该包含数字）
         assert!(VERSION.chars().any(|c: char| c.is_ascii_digit()));
+    }
+
+    /// T022: telemetry smoke test — verify the passthrough helper can be
+    /// called without panicking regardless of whether `telemetry` is on.
+    #[test]
+    fn telemetry_macro_passthrough_does_not_panic() {
+        crate::__telemetry_macro_passthrough("test_service", "unit_test");
     }
 }

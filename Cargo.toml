@@ -26,7 +26,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky.X"]
@@ -53,7 +53,7 @@ unexpected_cfgs = "allow"
 # ============================================================================
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.3", optional = true }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.4", optional = true }
 
 # Async Runtime
 tokio = { version = "1.53", default-features = false, features = [
@@ -77,7 +77,7 @@ optional = true
 
 # trait-kit integration (optional, feature-gated via `kit`)
 [dependencies.trait-kit]
-version = "0.5.0-rc.2"
+version = "0.5.0-rc.3"
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 optional = true
 default-features = false
@@ -153,6 +153,12 @@ default-features = false
 features = ["serde", "clock"]
 optional = true
 
+# Telemetry (optional tracing facade)
+[dependencies.tracing]
+version = "0.1"
+default-features = false
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -192,7 +198,6 @@ full = [
     "compression",
     "batch",
     "lua",
-    "cli",
     "testing",
     "dragonfly",
     "aerospike",
@@ -209,12 +214,12 @@ serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
 metrics = ["serialization", "dep:chrono", "dep:dashmap"]
 batch = []
 lua = ["redis"]
-cli = ["dep:dashmap", "metrics"]
 testing = []
 bloom = ["dep:bloomfilter"]
 kit = ["dep:trait-kit", "dep:futures"]
 lock = ["redis"]
 compression = ["dep:flate2"]
+telemetry = ["dep:tracing"]
 
 # ============================================================================
 # PROFILES
@@ -254,3 +259,9 @@ required-features = ["memory"]
 name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
+
+# ============================================================================
+# PATCH (local dev dependencies for rc cycle)
+# ============================================================================
+[patch.crates-io]
+trait-kit = { path = "../trait-kit" }

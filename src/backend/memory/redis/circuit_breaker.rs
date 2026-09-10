@@ -14,6 +14,22 @@ const STATE_CLOSED: u8 = 0;
 const STATE_OPEN: u8 = 1;
 const STATE_HALF_OPEN: u8 = 2;
 
+// ---- T022: telemetry helpers (zero overhead when `telemetry` feature off) ----
+
+#[cfg(feature = "telemetry")]
+#[inline]
+fn trace_transition(from: &str, to: &str) {
+    tracing::info!(
+        target = "oxcache::circuit_breaker",
+        from, to,
+        "circuit breaker state transition"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn trace_transition(_from: &str, _to: &str) {}
+
 /// Lightweight circuit breaker using atomic operations.
 ///
 /// # State Transitions
@@ -69,6 +85,7 @@ impl CircuitBreaker {
                 )
                 .is_ok()
             {
+                trace_transition("Open", "HalfOpen");
                 return false; // Now HalfOpen, allow request through
             }
             // Another thread already changed state; re-check
@@ -87,12 +104,18 @@ impl CircuitBreaker {
         // Atomic HalfOpen → Closed: a concurrent record_failure() may flip
         // HalfOpen back to Open between our load and store; only close the
         // circuit if it is still HalfOpen.
-        let _ = self.state.compare_exchange(
-            STATE_HALF_OPEN,
-            STATE_CLOSED,
-            Ordering::Release,
-            Ordering::Relaxed,
-        );
+        if self
+            .state
+            .compare_exchange(
+                STATE_HALF_OPEN,
+                STATE_CLOSED,
+                Ordering::Release,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            trace_transition("HalfOpen", "Closed");
+        }
     }
 
     /// Record a failed operation.
@@ -119,6 +142,7 @@ impl CircuitBreaker {
             .is_ok()
         {
             self.failure_count.store(0, Ordering::Relaxed);
+            trace_transition("HalfOpen", "Open");
             return true;
         }
 
@@ -143,7 +167,9 @@ impl CircuitBreaker {
                     Ordering::Release,
                     Ordering::Relaxed,
                 )
-                .is_ok();
+                .is_ok()
+                .then(|| trace_transition("Closed", "Open"))
+                .is_some();
         }
 
         false
