@@ -195,6 +195,11 @@ default-features = false
 features = ["config-bus"]
 optional = true
 
+# Adaptive compression (optional, zstd threshold decorator, T310)
+[dependencies.zstd]
+version = "0.13"
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -254,7 +259,7 @@ testing = []
 bloom = ["dep:bloomfilter"]
 kit = ["dep:trait-kit", "dep:futures"]
 lock = ["redis"]
-compression = ["dep:flate2"]
+compression = ["dep:flate2", "dep:zstd"]
 telemetry = ["dep:tracing"]
 invalidation = ["redis", "serialization", "dep:futures"]
 encrypt = ["dep:chacha20poly1305", "dep:getrandom"]

@@ -23,6 +23,20 @@
 
 复现：`cargo test --lib --features serde-bincode,postcard formats_are_interoperable -- --nocapture`
 
+## 自适应 zstd 压缩（T310）
+
+`CompressingBackend`（`compression` feature）：阈值 256 B、zstd level 3、
+可压缩重复负载（MockBackend 存储侧字节数）：
+
+| 原始大小 | 存储大小 | 压缩率 |
+| --- | --- | --- |
+| 1024 B | 37 B | 3.6% |
+| 8192 B | 38 B | 0.5% |
+| 65536 B | 38 B | 0.1% |
+
+阈值以下零压缩开销（原样存储）；读取端按魔数自动识别 zstd / 兼容旧 gzip / 透传。
+复现：`cargo test --lib --features compression size_comparison -- --nocapture`
+
 ## 热路径零分配（T317）
 
 见下节（随 T317 补充 bench 前后对比）。

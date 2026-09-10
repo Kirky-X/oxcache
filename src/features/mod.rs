@@ -23,6 +23,9 @@ pub mod degradation;
 #[cfg(feature = "audit")]
 pub mod audit;
 
+#[cfg(feature = "compression")]
+pub mod compression;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -71,3 +74,8 @@ pub use audit::{
 
 #[cfg(all(feature = "audit", feature = "telemetry"))]
 pub use audit::TracingAuditPublisher;
+
+#[cfg(feature = "compression")]
+pub use compression::{
+    CompressingBackend, DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_ZSTD_LEVEL, ZSTD_MAGIC,
+};
