@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! Infrastructure module
 //!
-//! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader, cli
+//! Provides infrastructure components: metrics, serialization, telemetry, warmup, db_loader
 
 #[cfg(feature = "metrics")]
 pub mod metrics;

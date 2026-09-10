@@ -2281,6 +2281,7 @@ dependencies = [
  "tempfile",
  "testcontainers",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "trait-kit",
  "trybuild",

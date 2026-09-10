@@ -20,6 +20,22 @@
 
 ---
 
+## [0.5.0-rc.4] - 2026-09-10
+
+### 新增
+
+- **`#[cached]` 宏高级参数**：新增 `single_flight`（同 key 并发 miss 仅回源一次）、`strict`（未注册缓存 panic 而非静默穿透）、`condition`（执行前谓词旁路）、`cache_none`（解析就绪）
+- **kit 全后端能力**：`OxcacheConfig` 新增 `backend` 枚举（Memory/Redis/Chain），`OxcacheModule::build()` 按配置构建 RedisBackend 或 ChainCache；`redis` feature 未启用时返回清晰错误
+- **telemetry feature**：新增 `telemetry` feature 引入 `tracing` 门面；在熔断器状态转换、ChainCache 回填、宏静默穿透路径发 event；feature 关闭时零开销
+- **BatchWriter**：实现容量/时间间隔双阈值刷盘的 `batch::BatchWriter`，兑现 `batch` feature
+- **LockProvider trait**：新增 `LockProvider` trait（try_lock/lock/unlock/is_held），现有 `DistributedLock` 挂接实现；导出 `DefaultLockProvider` 类型别名
+
+### 移除
+
+- **cli feature 移除**：空壳 `cli` feature 从 Cargo.toml 删除（管理面由下游 sdforge 承接）；`FeatureSet.cli_available` 字段同步移除
+
+---
+
 ## [0.5.0-rc.3] - 2026-09-08
 
 ### 修复

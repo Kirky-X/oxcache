@@ -12,3 +12,6 @@ mod skip_cache_write_test;
 
 #[path = "macros/sync_test.rs"]
 mod sync_test;
+
+#[path = "macros/advanced_params_test.rs"]
+mod advanced_params_test;

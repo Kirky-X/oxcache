@@ -25,11 +25,12 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut key_pattern = None;
     let mut key_prefix = None;
     let mut sync_mode = false;
-    // T003: when true, the macro skips the cache-write side effect for the
-    // `Ok` path (i.e. even successful results are NOT written to the cache).
-    // Default `false` preserves the existing behavior (Ok results are cached).
-    // Renamed from `skip_errors` (misleading) to `skip_cache_write` (accurate).
     let mut skip_cache_write = false;
+    // T020: new parameters
+    let mut single_flight = false;
+    let mut strict_mode = false;
+    let mut condition_fn = None;
+    let mut _cache_none = false;
 
     for arg in args {
         let arg_span = arg.span();
@@ -41,6 +42,18 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             // `skip_cache_write` flag — boolean path-style argument (no value).
             Meta::Path(path) if path.is_ident("skip_cache_write") => {
                 skip_cache_write = true;
+            }
+            // T020: `single_flight` flag — enable concurrent miss dedup
+            Meta::Path(path) if path.is_ident("single_flight") => {
+                single_flight = true;
+            }
+            // T020: `strict` flag — panic on unregistered cache name
+            Meta::Path(path) if path.is_ident("strict") => {
+                strict_mode = true;
+            }
+            // T020: `cache_none` flag — cache None results
+            Meta::Path(path) if path.is_ident("cache_none") => {
+                _cache_none = true;
             }
             Meta::NameValue(nv) => {
                 let nv_span = nv.path.span();
@@ -148,6 +161,21 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                             .into();
                         }
                     }
+                } else if nv.path.is_ident("condition") {
+                    // T020: condition = path_to_fn
+                    match nv.value {
+                        Expr::Path(expr_path) => {
+                            condition_fn = Some(quote! { #expr_path });
+                        }
+                        other => {
+                            return syn::Error::new(
+                                other.span(),
+                                "`condition` argument expects a function path, e.g. `condition = should_cache`",
+                            )
+                            .to_compile_error()
+                            .into();
+                        }
+                    }
                 } else {
                     // Rule 12: unknown NameValue argument — surface as
                     // compile_error instead of silent ignore.
@@ -159,7 +187,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     return syn::Error::new(
                         nv_span,
                         format!(
-                            "unknown `#[cached]` argument `{}`; supported: service, ttl, key, key_prefix",
+                            "unknown `#[cached]` argument `{}`; supported: service, ttl, key, key_prefix, condition",
                             unknown
                         ),
                     )
@@ -172,7 +200,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             _ => {
                 return syn::Error::new(
                     arg_span,
-                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\"",
+                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", condition = path",
                 )
                 .to_compile_error()
                 .into();
@@ -285,33 +313,149 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // T020: condition check generation
+    let condition_check = if let Some(cond) = &condition_fn {
+        let args_pass: Vec<_> = arg_names.iter().map(|n| quote! { #n.clone() }).collect();
+        quote! {
+            if !#cond(#(#args_pass),*) {
+                // Condition false: bypass cache entirely
+                return { #fn_block };
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let condition_check_async = if let Some(cond) = &condition_fn {
+        let args_pass: Vec<_> = arg_names.iter().map(|n| quote! { #n.clone() }).collect();
+        quote! {
+            if !#cond(#(#args_pass),*) {
+                return async { #fn_block }.await;
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    // T020: strict mode — cache lookup failure handling
+    let cache_miss_handler = if strict_mode {
+        quote! {
+            None => panic!("oxcache: service '{}' not registered (strict mode)", #service_name),
+        }
+    } else {
+        quote! {
+            None => {
+                ::oxcache::__telemetry_macro_passthrough(#service_name, "service_not_registered");
+                return { #fn_block };
+            }
+        }
+    };
+
+    let cache_miss_handler_async = if strict_mode {
+        quote! {
+            None => panic!("oxcache: service '{}' not registered (strict mode)", #service_name),
+        }
+    } else {
+        quote! {
+            None => {
+                ::oxcache::__telemetry_macro_passthrough(#service_name, "service_not_registered");
+                return async { #fn_block }.await;
+            }
+        }
+    };
+
+    // T020: single_flight — generate per-function static lock map
+    let sf_static = if single_flight && !sync_mode {
+        let sf_locks_name = syn::Ident::new(
+            &format!("__OXCACHE_SF_{}", fn_name.to_string().to_uppercase()),
+            fn_name.span(),
+        );
+        quote! {
+            static #sf_locks_name: ::std::sync::LazyLock<
+                ::std::sync::Mutex<::std::collections::HashMap<String, ::std::sync::Arc<tokio::sync::Notify>>>
+            > = ::std::sync::LazyLock::new(|| ::std::sync::Mutex::new(::std::collections::HashMap::new()));
+        }
+    } else {
+        quote! {}
+    };
+
+    let sf_locks_name = syn::Ident::new(
+        &format!("__OXCACHE_SF_{}", fn_name.to_string().to_uppercase()),
+        fn_name.span(),
+    );
+
+    let sf_logic_async = if single_flight {
+        quote! {
+            // Single-flight: register as leader or become follower
+            let (is_follower, notify) = {
+                let mut map = #sf_locks_name.lock().unwrap();
+                match map.entry(cache_key.clone()) {
+                    ::std::collections::hash_map::Entry::Occupied(e) => (true, e.get().clone()),
+                    ::std::collections::hash_map::Entry::Vacant(e) => {
+                        let n = ::std::sync::Arc::new(tokio::sync::Notify::new());
+                        e.insert(n.clone());
+                        (false, n)
+                    }
+                }
+            };
+
+            if is_follower {
+                notify.notified().await;
+                // Re-check cache after leader completes
+                if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
+                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                        return ::std::result::Result::Ok(val);
+                    }
+                }
+                // Leader failed to cache — run locally
+                return async { #fn_block }.await;
+            }
+
+            // Leader path: execute + cache + notify
+            let result = async { #fn_block }.await;
+
+            if !#skip_cache_write {
+                if let Ok(ref val) = result {
+                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                        let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                    }
+                }
+            }
+
+            // Notify followers and clean up
+            {
+                let mut map = #sf_locks_name.lock().unwrap();
+                map.remove(&cache_key);
+            }
+            notify.notify_waiters();
+
+            return result;
+        }
+    } else {
+        quote! {}
+    };
+
     let output = if sync_mode {
-        // Sync branch: generate a plain `fn` (no `async`). Uses
-        // `get_bytes_sync` / `set_bytes_sync` which require the registered
-        // cache to have been built with `sync_mode(true)`.
+        // Sync branch
         quote! {
             #vis fn #fn_name(#fn_args) #fn_output {
+                #condition_check
+
                 let cache_key = #key_gen_with_cloned_args;
 
-                // Try to get cache instance, if fails, run original function
                 let cache = match ::oxcache::__internal_get_cache(#service_name) {
                     Some(c) => c,
-                    None => return { #fn_block },
+                    #cache_miss_handler
                 };
 
-                // Try get from cache using sync byte-level operations.
-                // Deserialize failure is treated as cache miss (silent fallback).
                 if let Ok(Some(bytes)) = cache.get_bytes_sync(&cache_key) {
                     if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
                         return ::std::result::Result::Ok(val);
                     }
                 }
 
-                // Run original function
                 let result = { #fn_block };
 
-                // Cache result if Ok — skipped when `skip_cache_write` is set.
-                // Serialize/write failures are silently ignored (result still returned).
                 if !#skip_cache_write {
                     if let Ok(ref val) = result {
                         if let Ok(bytes) = cache.unified_serializer().serialize(val) {
@@ -324,30 +468,32 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     } else {
-        // Async branch (default, original behavior)
+        // Async branch
         quote! {
+            #sf_static
+
+            #[allow(unreachable_code)]
             #vis async fn #fn_name(#fn_args) #fn_output {
+                #condition_check_async
+
                 let cache_key = #key_gen_with_cloned_args;
 
-                // Try to get cache instance, if fails, run original function
                 let cache = match ::oxcache::__internal_get_cache(#service_name) {
                     Some(c) => c,
-                    None => return async { #fn_block }.await,
+                    #cache_miss_handler_async
                 };
 
-                // Try get from cache using byte-level operations.
-                // Deserialize failure is treated as cache miss (silent fallback).
+                #sf_logic_async
+
+                // Non-single-flight path
                 if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
                     if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
                         return ::std::result::Result::Ok(val);
                     }
                 }
 
-                // Run original function
                 let result = async { #fn_block }.await;
 
-                // Cache result if Ok — skipped when `skip_cache_write` is set.
-                // Serialize/write failures are silently ignored (result still returned).
                 if !#skip_cache_write {
                     if let Ok(ref val) = result {
                         if let Ok(bytes) = cache.unified_serializer().serialize(val) {
