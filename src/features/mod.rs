@@ -26,6 +26,9 @@ pub mod audit;
 #[cfg(feature = "compression")]
 pub mod compression;
 
+#[cfg(feature = "versioning")]
+pub mod versioning;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -80,3 +83,9 @@ pub use audit::TracingAuditPublisher;
 pub use compression::{
     CompressingBackend, DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_ZSTD_LEVEL, ZSTD_MAGIC,
 };
+
+#[cfg(feature = "versioning")]
+pub use versioning::{MemoryVersionedCache, VersionedStore, VersionedValue};
+
+#[cfg(all(feature = "versioning", feature = "redis"))]
+pub use versioning::RedisVersionedCache;

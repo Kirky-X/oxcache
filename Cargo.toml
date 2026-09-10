@@ -270,6 +270,7 @@ postcard = ["serialization", "dep:postcard"]
 config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 degradation = []
 audit = []
+versioning = []
 
 # ============================================================================
 # PROFILES
