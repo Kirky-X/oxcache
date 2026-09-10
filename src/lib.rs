@@ -95,6 +95,8 @@
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
 //! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
 //!   (write-path broadcast + background listener with self-exemption)
+//! - `encrypt`: Value-level encryption decorator (XChaCha20-Poly1305,
+//!   confers-aligned envelope `[ver][nonce][ct]`, AAD binds the cache key)
 //!
 //! # Distributed Lock (`lock` feature)
 //!
@@ -237,6 +239,10 @@ pub mod features;
 // Cross-instance invalidation bus (`invalidation` feature, T301)
 #[cfg(feature = "invalidation")]
 pub use features::invalidation;
+
+// Value-level encryption (`encrypt` feature, T303)
+#[cfg(feature = "encrypt")]
+pub use features::encryption;
 
 // Batch writer (optional, gated by `batch` feature)
 #[cfg(feature = "batch")]

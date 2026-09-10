@@ -159,6 +159,15 @@ version = "0.1"
 default-features = false
 optional = true
 
+# Value-level encryption (optional, XChaCha20-Poly1305, aligned with confers)
+[dependencies.chacha20poly1305]
+version = "0.11"
+optional = true
+
+[dependencies.getrandom]
+version = "0.4"
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -221,6 +230,7 @@ lock = ["redis"]
 compression = ["dep:flate2"]
 telemetry = ["dep:tracing"]
 invalidation = ["redis", "serialization", "dep:futures"]
+encrypt = ["dep:chacha20poly1305", "dep:getrandom"]
 
 # ============================================================================
 # PROFILES

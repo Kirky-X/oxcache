@@ -11,6 +11,9 @@ pub mod dist_lock;
 #[cfg(feature = "invalidation")]
 pub mod invalidation;
 
+#[cfg(feature = "encrypt")]
+pub mod encryption;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -34,3 +37,6 @@ pub use invalidation::{
     InMemoryPubSubTransport, InvalidationBus, InvalidationConfig, InvalidationKind,
     InvalidationMessage, InvalidatingBackend, PubSubTransport, RedisPubSubTransport,
 };
+
+#[cfg(feature = "encrypt")]
+pub use encryption::{EncryptedBackend, ENVELOPE_VERSION, ValueCipher};
