@@ -41,6 +41,11 @@ pub struct ListenerHandle {
 }
 
 impl ListenerHandle {
+    /// 由子模块构造句柄
+    pub(crate) fn new(join: JoinHandle<()>, stop: Arc<AtomicBool>) -> Self {
+        Self { join, stop }
+    }
+
     /// 请求停止监听（任务在下一条消息或轮询间隙退出）
     pub fn stop(&self) {
         self.stop.store(true, Ordering::SeqCst);

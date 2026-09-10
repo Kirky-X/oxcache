@@ -31,10 +31,12 @@
 
 pub mod bus;
 pub mod decorator;
+pub mod keyspace;
 pub mod transport;
 
 pub use bus::{InvalidationBus, InvalidationConfig, ListenerHandle};
 pub use decorator::InvalidatingBackend;
+pub use keyspace::{KeyspaceNotificationConfig, KeyspaceNotificationListener};
 pub use transport::{
     InMemoryPubSubTransport, PubSubTransport, RedisPubSubTransport, SubscriptionReceiver,
 };

@@ -47,7 +47,8 @@ pub use dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockP
 #[cfg(feature = "invalidation")]
 pub use invalidation::{
     InMemoryPubSubTransport, InvalidationBus, InvalidationConfig, InvalidationKind,
-    InvalidationMessage, InvalidatingBackend, PubSubTransport, RedisPubSubTransport,
+    InvalidationMessage, InvalidatingBackend, KeyspaceNotificationConfig,
+    KeyspaceNotificationListener, PubSubTransport, RedisPubSubTransport,
 };
 
 #[cfg(feature = "encrypt")]
