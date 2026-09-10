@@ -36,6 +36,18 @@ pub mod aerospike;
 ))]
 pub mod custom_tiered;
 
+// Backend factory registry (T315: kind-driven backend construction)
+#[cfg(any(
+    feature = "memory",
+    feature = "redis",
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
+))]
+pub mod factory;
+
+pub use factory::{BackendFactory, BackendRegistry, BackendSpec};
+
 // Re-exports for new API
 pub use interface::CacheSetItem;
 pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
