@@ -12,6 +12,7 @@ use crate::backend::{
 };
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -442,10 +443,12 @@ impl ChainCache {
             let backend = link.backend().clone();
             match backend.set(key.clone(), value.clone(), ttl).await {
                 Ok(()) => {
+                    #[cfg(feature = "metrics")]
                     GLOBAL_UNIFIED_METRICS.record_backfill_success();
                     oxcache_telemetry_backfill_ok(&key, link.name());
                 }
                 Err(e) => {
+                    #[cfg(feature = "metrics")]
                     GLOBAL_UNIFIED_METRICS.record_backfill_failed();
                     oxcache_telemetry_backfill_failed(&key, link.name(), &e);
                     self.emit_backend_error(&key, link.name(), &e);

@@ -2255,7 +2255,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "oxcache"
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
 dependencies = [
  "aerospike",
  "anyhow",
@@ -2291,7 +2291,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache-examples"
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2307,7 +2307,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache_macros"
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3602,9 +3602,7 @@ dependencies = [
 
 [[package]]
 name = "trait-kit"
-version = "0.5.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c42ac2757a63f328830f85ba42387a06ee475791dbf260cb9107014c5969dab1"
+version = "0.5.0-rc.3"
 
 [[package]]
 name = "try-lock"
