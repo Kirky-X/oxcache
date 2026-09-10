@@ -188,6 +188,13 @@ default-features = false
 features = ["use-std"]
 optional = true
 
+# Config-driven build (optional, confers watch hot-reload, T307)
+[dependencies.confers]
+version = "0.6.0-rc.3"
+default-features = false
+features = ["config-bus"]
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -254,6 +261,7 @@ encrypt = ["dep:chacha20poly1305", "dep:getrandom"]
 integrity = ["dep:hmac", "dep:sha2"]
 serde-bincode = ["serialization", "dep:bincode"]
 postcard = ["serialization", "dep:postcard"]
+config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 
 # ============================================================================
 # PROFILES
@@ -299,3 +307,4 @@ required-features = ["dragonfly"]
 # ============================================================================
 [patch.crates-io]
 trait-kit = { path = "../trait-kit" }
+confers = { path = "../confers" }

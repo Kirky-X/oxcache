@@ -14,6 +14,9 @@ pub mod invalidation;
 #[cfg(feature = "encrypt")]
 pub mod encryption;
 
+#[cfg(feature = "config-confers")]
+pub mod confers_config;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -44,3 +47,9 @@ pub use encryption::{EncryptedBackend, ENVELOPE_VERSION, ValueCipher};
 
 #[cfg(feature = "integrity")]
 pub use encryption::integrity::{HmacSigner, HMAC_ENVELOPE_VERSION, IntegrityBackend};
+
+#[cfg(feature = "config-confers")]
+pub use confers_config::{
+    CacheConfigSource, ConfigChangeListener, ConfigSnapshot, ConfersConfigSource,
+    ConfersConfigWatcher, OxcacheConfig,
+};
