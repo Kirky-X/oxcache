@@ -64,6 +64,7 @@ impl DistLockBuilder {
             watchdog_enabled: self.watchdog_enabled,
             watchdog: Mutex::new(None),
             released: Arc::new(AtomicBool::new(false)),
+            fencing_token: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }

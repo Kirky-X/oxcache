@@ -42,6 +42,14 @@ pub trait LockProvider: Send + Sync {
 
     /// Check whether this lock is currently held by the caller.
     async fn is_held(&self) -> OxCacheResult<bool>;
+
+    /// fencing token（T311）：锁获取成功后的单调递增值。
+    ///
+    /// `None` = 实现不支持 fencing。下游资源可据此做 staleness 检测：
+    /// 拒绝 token 小于已见最大值的写入（防主从切换丢锁后的旧持有者写入）。
+    fn fencing_token(&self) -> Option<u64> {
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +96,15 @@ impl LockProvider for DistributedLock {
 
     async fn is_held(&self) -> OxCacheResult<bool> {
         DistributedLock::is_held(self).await
+    }
+
+    fn fencing_token(&self) -> Option<u64> {
+        let token = DistributedLock::token(self);
+        if token == 0 {
+            None
+        } else {
+            Some(token)
+        }
     }
 }
 
