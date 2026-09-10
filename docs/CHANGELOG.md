@@ -29,6 +29,22 @@
 - **telemetry feature**：新增 `telemetry` feature 引入 `tracing` 门面；在熔断器状态转换、ChainCache 回填、宏静默穿透路径发 event；feature 关闭时零开销
 - **BatchWriter**：实现容量/时间间隔双阈值刷盘的 `batch::BatchWriter`，兑现 `batch` feature
 - **LockProvider trait**：新增 `LockProvider` trait（try_lock/lock/unlock/is_held），现有 `DistributedLock` 挂接实现；导出 `DefaultLockProvider` 类型别名
+- **invalidation feature 跨实例失效总线（T301）**：Redis Pub/Sub 广播失效事件（key/namespace 粒度），各实例后台监听失效本地 L1；消息带 `instance_id` 自失效豁免；`InvalidatingBackend` 写路径装饰器；协议层 `PubSubTransport` 抽象 + InMemory mock 测试；`KeyspaceNotificationListener` 键空间通知第二通道（keyevent 频道把外部 DEL/EXPIRED 投影为本地失效，需 Redis `notify-keyspace-events "Egx"`）（T312）
+- **指标体系升级（T302）**：`MetricsRecorder` 注入端口（`CacheBuilder::metrics()`）覆盖纯 L1 路径的 hit/miss/set/delete 计数与延迟样本（此前默认 Moka 路径零指标）；`export_prometheus_standard()` 输出合规 exposition（`# HELP`/`# TYPE` + `oxcache_hits_total` 等标准命名 + `oxcache_operation_duration_seconds` 直方图）；`evictions` 计数（DashMap FIFO 淘汰埋点）；默认 NoOp 零开销
+- **encrypt feature 值级加密（T303）**：`EncryptedBackend` 装饰器对 value 透明 XChaCha20-Poly1305 加解密（信封 `[ver][nonce][ct]`，AAD 绑定键名防换键移植，与 confers 加密口径一致）；密钥长度构造期校验、Debug 不泄露密钥
+- **integrity feature 值完整性（T304）**：`IntegrityBackend` 装饰器 value + HMAC-SHA256 标签（`[ver][tag][payload]`），读校验失败（篡改 payload/tag/ver、换钥）视为 miss 并计入 `oxcache_integrity_failures_total`；与加密装饰器双序组合正确
+- **serde-bincode / postcard feature 二进制序列化（T305）**：`SerializationFormat` 可插拔（Json/Bincode/Postcard）+ `CacheBuilder::serialization_format()`；同前缀键禁混格式；L2 传输体积对比记录 docs/PERFORMANCE.md
+- **config-confers feature 配置驱动构建（T307）**：`OxcacheConfig`（容量/TTL/熔断参数）经 confers 加载 + `ConfigBus` watch 热更新（快照原子换装 + 监听器回调，读侧免锁）；`From<&OxcacheConfig> for L1Builder`；confers 0.6.0-rc.3 依赖（层级合法）
+- **degradation feature 自动降级与恢复（T308）**：三态状态机（Active/Degraded/HalfOpen）+ `DegradableBackend` L2 保护装饰器：故障计数超阈值自动降级 L1-only（返回 Degraded 错误供 ChainCache 回落），降级超时半开放行探测，探测成功自动恢复、失败重新降级；状态变化回调 + 全局 degraded 指标
+- **audit feature 缓存审计事件流（T309）**：`AuditEventPublisher` 端口（hit/miss/set/delete/evict/expired 结构化事件，键脱敏 `redact_key_for_audit`）+ NoOp 默认 / 有界内存环形 / tracing 桥三种发布器；`CacheBuilder::audit_publisher()` 注入
+- **compression feature 自适应 zstd 压缩（T310）**：`CompressingBackend` 装饰器阈值触发（默认 1024B 以下零压缩开销，level 3 可调），读取按魔数识别 zstd / 兼容旧 gzip / 透传；体积对比记录 docs/PERFORMANCE.md
+- **red-lock feature 锁增强与 RedLock（T311）**：`LockProvider::fencing_token()`（acquire 成功经 `INCR key:fence` 取单调 token，下游 staleness 检测契约）；`RedLock` 多节点多数派锁（`LockNode` 协议层抽象 + Redis/InMemory 实现，5 节点 2 宕机仍可获取、3 宕机快速失败回滚、跨实例互斥、token 单调）
+- **对象安全拆分（T313）**：`UnifiedCache` 移除泛型 `get_typed/set_typed` 成为 dyn 可用核心（`Arc<dyn UnifiedCache>` 可用，关闭 kit 设计分歧 H1），typed 读写拆入 `TypedCacheExt`（blanket impl 保持既有调用点兼容）+ `DynUnifiedCache` 兼容别名
+- **TypedNamespace 类型化命名空间（T314）**：marker 类型 + `NamespaceName` trait 编译期命名空间隔离（`namespace!` 宏），`get/set/delete/invalidate_all` 限本命名空间前缀，运行时键与 KeyGenerator `ns:key` 约定一致
+- **BackendRegistry 后端工厂注册中心（T315）**：按名注册/构建后端（内置 moka/dashmap/memory，feature 门控 redis；全局 `GLOBAL_BACKEND_REGISTRY`），serde 友好 `BackendSpec`，未知 kind 报错附可用清单；供 kit/sdforge 动态选择（管理面承接，不恢复 cli）
+- **versioning feature 版本化 CAS（T316）**：`compare_and_swap(key, expect_version, new_value)` —— `MemoryVersionedCache`（并发 lost-update 单测）+ `RedisVersionedCache`（WATCH/MULTI/EXEC 事务 MVP，信封 `[8B 版本][payload]`）
+- **热路径零分配（T317）**：`get_by_str`/`set_by_str` 借用键 API 消除热路径 String/Vec 多余分配；criterion `hot_path_benchmark`（release 口径 get -6.7%、set -12.7%），记录 docs/PERFORMANCE.md
+- **分层构建器 API（T306）**：`L1Builder`/`L2Builder`/`ChainBuilder` 链式组合（容量/TTL/TTI/后端类型/装饰器叠加），`ChainLink::from_arc` 支持已擦除后端 trait 对象；与既有 `CacheBuilder`/`ChainCacheBuilder` 并存
 
 ### 移除
 

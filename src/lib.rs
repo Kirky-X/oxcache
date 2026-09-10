@@ -156,7 +156,7 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.3")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.4")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua, batch,
