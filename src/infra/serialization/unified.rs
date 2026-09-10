@@ -2,39 +2,57 @@
 // SPDX-License-Identifier: MIT
 //! Unified serialization manager
 
-use crate::core::MAX_JSON_DEPTH;
-use crate::error::{OxCacheError, OxCacheResult};
-use crate::infra::serialization::depth_limited::deserialize_safe;
+use crate::error::OxCacheResult;
+use crate::infra::serialization::SerializationFormat;
 use crate::infra::serialization::utils::{compress_data, decompress_data_with_limit};
 use serde::{Serialize, de::DeserializeOwned};
 
-/// Json-only unified serializer
+/// Unified serializer with pluggable format (T305)
 ///
-/// 直接使用 `serde_json` 做单次序列化/反序列化，不再经由
-/// `JsonSerializer` 的 base64 包装层，消除双重序列化开销。
+/// 默认 JSON（serde_json 单次序列化，带深度防御）；可选 bincode/postcard
+/// 二进制格式（`serde-bincode`/`postcard` feature）。同一键前缀不得混用格式。
 #[derive(Clone, Debug)]
 pub struct UnifiedSerializer {
     compress: bool,
+    format: SerializationFormat,
 }
 
 impl UnifiedSerializer {
     pub fn new() -> Self {
-        Self { compress: false }
+        Self {
+            compress: false,
+            format: SerializationFormat::default(),
+        }
     }
 
     pub fn json() -> Self {
         Self::new()
     }
 
+    /// 指定传输格式构造
+    pub fn with_format(format: SerializationFormat) -> Self {
+        Self {
+            compress: false,
+            format,
+        }
+    }
+
     /// 创建启用压缩的统一序列化器
     pub fn with_compression() -> Self {
-        Self { compress: true }
+        Self {
+            compress: true,
+            format: SerializationFormat::default(),
+        }
+    }
+
+    /// 当前传输格式
+    pub fn format(&self) -> SerializationFormat {
+        self.format
     }
 
     /// Serialize a value to bytes
     pub fn serialize<T: Serialize>(&self, value: &T) -> OxCacheResult<Vec<u8>> {
-        let data =
-            serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+        let data = crate::infra::serialization::serialize_with_format(self.format, value)?;
         if self.compress {
             compress_data(&data)
         } else {
@@ -53,7 +71,8 @@ impl UnifiedSerializer {
 
     /// Deserialize bytes to a value
     ///
-    /// 单次文本解析 + 深度校验（`MAX_JSON_DEPTH`），防止栈溢出攻击。
+    /// JSON：单次文本解析 + 深度校验（`MAX_JSON_DEPTH`）；二进制格式无深度
+    /// 递归问题，保留统一大小上限。
     pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> OxCacheResult<T> {
         let data = if self.compress {
             decompress_data_with_limit(
@@ -63,8 +82,7 @@ impl UnifiedSerializer {
         } else {
             data.to_vec()
         };
-        deserialize_safe(&data, MAX_JSON_DEPTH)
-            .map_err(|e| OxCacheError::Serialization(e.to_string()))
+        crate::infra::serialization::deserialize_with_format(self.format, &data)
     }
 
     /// Deserialize with explicit type name (for internal use)

@@ -35,6 +35,9 @@ pub struct CacheBuilder<K, V> {
     /// Injected metrics recorder (T302; metrics feature only).
     #[cfg(feature = "metrics")]
     metrics: Option<Arc<dyn crate::infra::MetricsRecorder>>,
+    /// Serialization transport format (T305; serialization feature only).
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    serialization_format: Option<crate::infra::serialization::SerializationFormat>,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -64,6 +67,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
             ttl_jitter_factor: 0.0,
             #[cfg(feature = "metrics")]
             metrics: None,
+            #[cfg(any(feature = "serialization", feature = "full"))]
+            serialization_format: None,
             _phantom: PhantomData,
         }
     }
@@ -154,6 +159,20 @@ where
         self
     }
 
+    /// Set the serialization transport format (T305).
+    ///
+    /// Default is JSON. Enable `serde-bincode` / `postcard` features and
+    /// select a binary format for compact L2 transport. **Do not mix formats
+    /// under the same key prefix** — values are not self-describing.
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn serialization_format(
+        mut self,
+        format: crate::infra::serialization::SerializationFormat,
+    ) -> Self {
+        self.serialization_format = Some(format);
+        self
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -206,6 +225,10 @@ where
             if let Some(recorder) = self.metrics {
                 cache.set_metrics_recorder(recorder);
             }
+            #[cfg(any(feature = "serialization", feature = "full"))]
+            if let Some(format) = self.serialization_format {
+                cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+            }
             return Ok(cache);
         }
 
@@ -228,6 +251,10 @@ where
         #[cfg(feature = "metrics")]
         if let Some(recorder) = self.metrics {
             cache.set_metrics_recorder(recorder);
+        }
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        if let Some(format) = self.serialization_format {
+            cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
         }
         Ok(cache)
     }
@@ -680,6 +707,77 @@ mod tests {
 
         fn convenience_reset() {
             crate::infra::convenience::reset();
+        }
+    }
+
+    // ============================================================================
+    // T305: 二进制序列化格式 —— Cache 级格式切换
+    // ============================================================================
+
+    #[cfg(all(feature = "serde-bincode", feature = "postcard"))]
+    mod binary_serialization {
+        use super::*;
+        use crate::infra::serialization::SerializationFormat;
+
+        #[tokio::test]
+        async fn bincode_format_roundtrips_through_cache() {
+            let cache: Cache<String, i32> = Cache::builder()
+                .serialization_format(SerializationFormat::Bincode)
+                .build()
+                .await
+                .unwrap();
+
+            cache.set(&"k".to_string(), &12345).await.unwrap();
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(12345));
+
+            // 原始字节应为 bincode 二进制而非 JSON 文本
+            // （bincode 1.x 默认 varint 编码，整数变长）
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_ne!(raw, b"12345".to_vec(), "不应存 JSON 文本");
+            assert!(raw.len() <= 8, "bincode i64 应不超过 8 字节，got {raw:?}");
+        }
+
+        #[tokio::test]
+        async fn postcard_format_roundtrips_through_cache() {
+            let cache: Cache<String, String> = Cache::builder()
+                .serialization_format(SerializationFormat::Postcard)
+                .build()
+                .await
+                .unwrap();
+
+            cache
+                .set(&"k".to_string(), &"postcard-value".to_string())
+                .await
+                .unwrap();
+            assert_eq!(
+                cache.get(&"k".to_string()).await.unwrap(),
+                Some("postcard-value".to_string())
+            );
+
+            // postcard 字符串不以引号开头（JSON 特征）
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_ne!(raw[0], b'"');
+        }
+
+        #[tokio::test]
+        async fn json_format_remains_default() {
+            let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+            cache.set(&"k".to_string(), &7).await.unwrap();
+            // JSON 文本特征：数字以 ASCII 数字存储
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_eq!(raw, b"7".to_vec());
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        async fn sync_api_honors_binary_format() {
+            let cache: Cache<String, i32> = Cache::builder()
+                .sync_mode(true)
+                .serialization_format(SerializationFormat::Bincode)
+                .build()
+                .await
+                .unwrap();
+            cache.set_sync(&"k".to_string(), &99).unwrap();
+            assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some(99));
         }
     }
 }

@@ -177,6 +177,17 @@ optional = true
 version = "0.11"
 optional = true
 
+# Binary serialization formats (optional, T305)
+[dependencies.bincode]
+version = "1.3"
+optional = true
+
+[dependencies.postcard]
+version = "1.1"
+default-features = false
+features = ["use-std"]
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -241,6 +252,8 @@ telemetry = ["dep:tracing"]
 invalidation = ["redis", "serialization", "dep:futures"]
 encrypt = ["dep:chacha20poly1305", "dep:getrandom"]
 integrity = ["dep:hmac", "dep:sha2"]
+serde-bincode = ["serialization", "dep:bincode"]
+postcard = ["serialization", "dep:postcard"]
 
 # ============================================================================
 # PROFILES

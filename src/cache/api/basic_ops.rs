@@ -3,9 +3,6 @@
 //! Cache 基础操作方法
 
 use super::Cache;
-// MAX_JSON_DEPTH 仅在 deserialize_value 中使用，需随 serialization/full feature 门控
-#[cfg(any(feature = "serialization", feature = "full"))]
-use crate::core::MAX_JSON_DEPTH;
 use crate::core::NULL_SENTINEL;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
@@ -63,21 +60,8 @@ impl Drop for GetOrGuard<'_> {
     }
 }
 
-#[cfg(any(feature = "serialization", feature = "full"))]
-fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> OxCacheResult<V> {
-    // 单次文本解析 + 深度校验：借助 serde_stacker 避免深层 JSON 栈溢出，
-    // 深度限制统一为 MAX_JSON_DEPTH。
-    crate::infra::serialization::depth_limited::deserialize_safe(data, MAX_JSON_DEPTH)
-        .map_err(|e| OxCacheError::Serialization(e.to_string()))
-}
-
-#[cfg(not(any(feature = "serialization", feature = "full")))]
-fn deserialize_value<V>(data: &[u8]) -> OxCacheResult<V> {
-    let _ = data;
-    Err(OxCacheError::Serialization(
-        "Serialization feature is required for typed get operations".to_string(),
-    ))
-}
+// T305: 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
+// 原 `deserialize_value` 辅助函数已被其取代。
 
 impl<K, V> Cache<K, V>
 where
@@ -103,7 +87,8 @@ where
         }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            Some(data) => deserialize_value(&data).map(Some),
+            // T305: 经 UnifiedSerializer 反序列化（JSON 默认；可切二进制格式）
+            Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
     }
@@ -168,10 +153,8 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = match serde_json::to_vec(value) {
-                Ok(b) => b,
-                Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
-            };
+            // T305: 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
+            let bytes = self.unified_serializer.serialize(value)?;
             // T302: 写路径指标埋点
             #[cfg(feature = "metrics")]
             let __start = std::time::Instant::now();
@@ -564,7 +547,8 @@ where
         let bytes = backend.get(&key_str)?;
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            Some(data) => deserialize_value(&data).map(Some),
+            // T305: 经 UnifiedSerializer 反序列化（格式可插拔）
+            Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
     }
@@ -587,8 +571,8 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value)
-                .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+            // T305: 经 UnifiedSerializer 序列化（格式可插拔）
+            let bytes = self.unified_serializer.serialize(value)?;
             backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
         }
 
@@ -918,6 +902,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::MAX_JSON_DEPTH;
 
     #[tokio::test]
     async fn test_cache_clear() {
