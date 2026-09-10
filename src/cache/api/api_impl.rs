@@ -41,6 +41,8 @@ where
             ttl_jitter_factor: 0.0,
             #[cfg(feature = "metrics")]
             metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -82,6 +84,18 @@ where
     #[cfg(feature = "metrics")]
     pub(crate) fn set_metrics_recorder(&mut self, recorder: Arc<dyn crate::infra::MetricsRecorder>) {
         self.metrics = recorder;
+    }
+
+    /// Inject an audit event publisher (T309).
+    ///
+    /// After injection, `get`/`set`/`delete` publish structured audit events
+    /// (hit/miss/set/delete) with redacted keys.
+    #[cfg(feature = "audit")]
+    pub(crate) fn set_audit_publisher(
+        &mut self,
+        publisher: Arc<dyn crate::features::audit::AuditEventPublisher>,
+    ) {
+        self.audit = Some(publisher);
     }
 
     /// Get the TTL jitter factor (diagnostics/tests).
@@ -135,6 +149,8 @@ where
             ttl_jitter_factor: 0.0,
             #[cfg(feature = "metrics")]
             metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: std::marker::PhantomData,
         })
     }

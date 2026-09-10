@@ -38,6 +38,9 @@ pub struct Cache<K, V> {
     /// 记录 hit/miss 计数与延迟样本。
     #[cfg(feature = "metrics")]
     pub(crate) metrics: Arc<dyn crate::infra::MetricsRecorder>,
+    /// 注入的审计事件发布端口（T309，`audit` feature）。None = 不审计。
+    #[cfg(feature = "audit")]
+    pub(crate) audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 

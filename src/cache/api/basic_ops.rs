@@ -85,6 +85,19 @@ where
                     .record_miss(crate::core::CacheLayer::L1, latency);
             }
         }
+        // T309: 审计事件（hit/miss）
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if bytes.is_some() {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
             // T305: 经 UnifiedSerializer 反序列化（JSON 默认；可切二进制格式）
@@ -150,6 +163,9 @@ where
     ) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let ttl = ttl.map(|t| self.apply_jitter(t));
+        // T309: 脱敏键需在 key_str 被 move 前计算
+        #[cfg(feature = "audit")]
+        let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
@@ -165,6 +181,18 @@ where
             #[cfg(feature = "metrics")]
             self.metrics
                 .record_set(crate::core::CacheLayer::L1, __start.elapsed());
+            // T309: 审计事件（set）
+            #[cfg(feature = "audit")]
+            if result.is_ok()
+                && let Some(publisher) = self.audit.as_ref()
+            {
+                publisher.publish(
+                    crate::features::audit::AuditEvent::new(
+                        crate::features::audit::AuditAction::Set,
+                    )
+                    .with_key(__redacted_key),
+                );
+            }
             result
         }
 
@@ -186,6 +214,18 @@ where
         #[cfg(feature = "metrics")]
         self.metrics
             .record_delete(crate::core::CacheLayer::L1, __start.elapsed());
+        // T309: 审计事件（delete）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(
+                    crate::features::audit::AuditAction::Delete,
+                )
+                .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
         result
     }
 

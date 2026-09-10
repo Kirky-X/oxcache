@@ -38,6 +38,9 @@ pub struct CacheBuilder<K, V> {
     /// Serialization transport format (T305; serialization feature only).
     #[cfg(any(feature = "serialization", feature = "full"))]
     serialization_format: Option<crate::infra::serialization::SerializationFormat>,
+    /// Injected audit event publisher (T309; audit feature only).
+    #[cfg(feature = "audit")]
+    audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -69,6 +72,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
             metrics: None,
             #[cfg(any(feature = "serialization", feature = "full"))]
             serialization_format: None,
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: PhantomData,
         }
     }
@@ -173,6 +178,21 @@ where
         self
     }
 
+    /// Inject an audit event publisher (T309).
+    ///
+    /// After injection, `get`/`set`/`delete` publish structured audit events
+    /// (hit/miss/set/delete) with redacted keys through this publisher.
+    /// See [`NoOpAuditPublisher`](crate::features::audit::NoOpAuditPublisher)
+    /// and [`InMemoryAuditPublisher`](crate::features::audit::InMemoryAuditPublisher).
+    #[cfg(feature = "audit")]
+    pub fn audit_publisher(
+        mut self,
+        publisher: Arc<dyn crate::features::audit::AuditEventPublisher>,
+    ) -> Self {
+        self.audit = Some(publisher);
+        self
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -229,6 +249,10 @@ where
             if let Some(format) = self.serialization_format {
                 cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
             }
+            #[cfg(feature = "audit")]
+            if let Some(publisher) = self.audit {
+                cache.set_audit_publisher(publisher);
+            }
             return Ok(cache);
         }
 
@@ -255,6 +279,10 @@ where
         #[cfg(any(feature = "serialization", feature = "full"))]
         if let Some(format) = self.serialization_format {
             cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+        }
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit {
+            cache.set_audit_publisher(publisher);
         }
         Ok(cache)
     }
@@ -609,6 +637,75 @@ mod tests {
             via_build.get(&"a".to_string()).await.unwrap(),
             via_sync.get(&"a".to_string()).await.unwrap()
         );
+    }
+
+    // ============================================================================
+    // T309: 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
+    // ============================================================================
+
+    #[cfg(feature = "audit")]
+    mod audit_injection {
+        use super::*;
+        use crate::features::audit::{AuditAction, InMemoryAuditPublisher};
+
+        #[tokio::test]
+        async fn injected_publisher_observes_get_set_delete() {
+            let publisher = Arc::new(InMemoryAuditPublisher::new(64));
+            let cache: Cache<String, i32> = Cache::builder()
+                .audit_publisher(publisher.clone())
+                .build()
+                .await
+                .unwrap();
+
+            let _ = cache.get(&"missing".to_string()).await.unwrap(); // miss
+            cache.set(&"user:1".to_string(), &42).await.unwrap(); // set
+            let _ = cache.get(&"user:1".to_string()).await.unwrap(); // hit
+            cache.delete(&"user:1".to_string()).await.unwrap(); // delete
+
+            let events = publisher.snapshot();
+            assert_eq!(events.len(), 4, "应发布 4 条审计事件");
+            assert_eq!(events[0].action, AuditAction::Miss);
+            assert_eq!(events[1].action, AuditAction::Set);
+            assert_eq!(events[2].action, AuditAction::Hit);
+            assert_eq!(events[3].action, AuditAction::Delete);
+            // 键已脱敏透传（普通键原样）
+            assert_eq!(events[1].key.as_deref(), Some("user:1"));
+            // 事件带时间戳
+            assert!(events.iter().all(|e| e.timestamp_ms > 0));
+        }
+
+        #[tokio::test]
+        async fn sensitive_keys_are_masked_in_audit_events() {
+            let publisher = Arc::new(InMemoryAuditPublisher::new(8));
+            let cache: Cache<String, String> = Cache::builder()
+                .audit_publisher(publisher.clone())
+                .build()
+                .await
+                .unwrap();
+
+            cache
+                .set(&"user:password".to_string(), &"hunter2".to_string())
+                .await
+                .unwrap();
+
+            let events = publisher.snapshot();
+            assert_eq!(events.len(), 1);
+            let key = events[0].key.as_deref().unwrap_or("");
+            assert!(
+                key.starts_with("<sensitive>"),
+                "敏感键应被掩码，got {key}"
+            );
+            assert!(!key.contains("hunter2"));
+        }
+
+        #[tokio::test]
+        async fn no_publisher_produces_no_events() {
+            let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+            cache.set(&"k".to_string(), &1).await.unwrap();
+            let _ = cache.get(&"k".to_string()).await.unwrap();
+            // 未注入 publisher：无审计字段，操作照常成功
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(1));
+        }
     }
 
     #[test]

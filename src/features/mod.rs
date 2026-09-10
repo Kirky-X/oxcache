@@ -20,6 +20,9 @@ pub mod confers_config;
 #[cfg(feature = "degradation")]
 pub mod degradation;
 
+#[cfg(feature = "audit")]
+pub mod audit;
+
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
@@ -59,3 +62,12 @@ pub use confers_config::{
 
 #[cfg(feature = "degradation")]
 pub use degradation::{DegradableBackend, DegradationController, DegradationState};
+
+#[cfg(feature = "audit")]
+pub use audit::{
+    AuditAction, AuditEvent, AuditEventPublisher, InMemoryAuditPublisher, NoOpAuditPublisher,
+    redact_key_for_audit,
+};
+
+#[cfg(all(feature = "audit", feature = "telemetry"))]
+pub use audit::TracingAuditPublisher;
