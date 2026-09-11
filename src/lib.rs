@@ -93,6 +93,25 @@
 //! - `bloom`: Negative-query filtering (not in `full`)
 //! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
+//! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
+//!   (write-path broadcast + background listener with self-exemption) plus
+//!   optional keyspace-notification channel (`KeyspaceNotificationListener`)
+//! - `encrypt`: Value-level encryption decorator (XChaCha20-Poly1305,
+//!   confers-aligned envelope `[ver][nonce][ct]`, AAD binds the cache key)
+//! - `integrity`: Value integrity decorator (HMAC-SHA256 tag
+//!   `[ver][tag][payload]`; verification failure counts as a miss)
+//! - `config-confers`: Config-driven build via confers (`OxcacheConfig`
+//!   load + `ConfigBus` watch hot-reload of capacity/TTL/circuit params)
+//! - `degradation`: L2 degradation controller (Active/Degraded/HalfOpen
+//!   state machine + `DegradableBackend` guard decorator)
+//! - `audit`: Structured audit event stream (`AuditEventPublisher` port,
+//!   NoOp/InMemory/tracing publishers)
+//! - `versioning`: Version-based compare-and-swap (`MemoryVersionedCache`
+//!   + Redis WATCH-based `RedisVersionedCache`)
+//! - `red-lock`: RedLock-style multi-node majority lock (`RedLock`,
+//!   `LockNode` protocol layer, fencing tokens)
+//! - `serde-bincode` / `postcard`: Binary serialization formats
+//!   (`SerializationFormat`, `CacheBuilder::serialization_format`)
 //!
 //! # Distributed Lock (`lock` feature)
 //!
@@ -137,7 +156,7 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.3")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.4")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua, batch,
@@ -231,6 +250,14 @@ pub mod backend;
 
 // Features module (optional capabilities)
 pub mod features;
+
+// Cross-instance invalidation bus (`invalidation` feature, T301)
+#[cfg(feature = "invalidation")]
+pub use features::invalidation;
+
+// Value-level encryption (`encrypt` feature, T303)
+#[cfg(feature = "encrypt")]
+pub use features::encryption;
 
 // Batch writer (optional, gated by `batch` feature)
 #[cfg(feature = "batch")]
@@ -369,7 +396,12 @@ pub use cache::CacheBuilder;
 
 // Re-exports from infra module
 #[cfg(feature = "metrics")]
-pub use infra::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
+pub use infra::{
+    CacheStats, export_json_format, export_prometheus_format, export_prometheus_standard,
+    get_enhanced_stats,
+};
+#[cfg(feature = "metrics")]
+pub use infra::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder};
 
 // Re-exports from security module (new brick architecture)
 #[cfg(any(feature = "redis", feature = "full"))]
@@ -392,7 +424,8 @@ pub use features::dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedL
     feature = "core",
     feature = "full"
 ))]
-pub use cache::UnifiedCache;
+pub use cache::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
+pub use cache::{NamespaceName, TypedNamespace};
 #[cfg(any(
     feature = "memory",
     feature = "redis",
@@ -401,6 +434,8 @@ pub use cache::UnifiedCache;
     feature = "full"
 ))]
 pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
+#[cfg(feature = "memory")]
+pub use cache::{ChainBuilder, L1Builder, L2Builder};
 pub use traits::CacheKey;
 
 // Type-safe enum exports

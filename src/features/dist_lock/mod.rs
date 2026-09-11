@@ -12,10 +12,14 @@
 mod builder;
 mod lock;
 mod provider;
+#[cfg(feature = "red-lock")]
+pub mod redlock;
 
 pub use builder::DistLockBuilder;
 pub use lock::DistributedLock;
 pub use provider::LockProvider;
+#[cfg(feature = "red-lock")]
+pub use redlock::{InMemoryLockNode, RedisLockNode, RedLock, LockNode};
 
 /// Type alias for the default lock provider implementation.
 ///

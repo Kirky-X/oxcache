@@ -32,6 +32,15 @@ pub struct CacheBuilder<K, V> {
     null_cache_ttl: Option<Duration>,
     /// TTL jitter factor for stampede prevention.
     ttl_jitter_factor: f64,
+    /// Injected metrics recorder (T302; metrics feature only).
+    #[cfg(feature = "metrics")]
+    metrics: Option<Arc<dyn crate::infra::MetricsRecorder>>,
+    /// Serialization transport format (T305; serialization feature only).
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    serialization_format: Option<crate::infra::serialization::SerializationFormat>,
+    /// Injected audit event publisher (T309; audit feature only).
+    #[cfg(feature = "audit")]
+    audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -59,6 +68,12 @@ impl<K, V> Default for CacheBuilder<K, V> {
             sync_mode: false,
             null_cache_ttl: None,
             ttl_jitter_factor: 0.0,
+            #[cfg(feature = "metrics")]
+            metrics: None,
+            #[cfg(any(feature = "serialization", feature = "full"))]
+            serialization_format: None,
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: PhantomData,
         }
     }
@@ -134,6 +149,50 @@ where
         self
     }
 
+    /// Inject a metrics recorder (T302).
+    ///
+    /// After injection, the pure L1 path (`get`/`set`/`delete`) records
+    /// hits/misses/latency samples through this recorder — previously the
+    /// default Moka path produced no metrics at all. Use
+    /// [`UnifiedMetricsRecorder`](crate::infra::UnifiedMetricsRecorder)
+    /// for counters with standard Prometheus naming, or implement the
+    /// [`MetricsRecorder`](crate::infra::MetricsRecorder) port to bridge
+    /// to a custom metrics stack.
+    #[cfg(feature = "metrics")]
+    pub fn metrics(mut self, recorder: Arc<dyn crate::infra::MetricsRecorder>) -> Self {
+        self.metrics = Some(recorder);
+        self
+    }
+
+    /// Set the serialization transport format (T305).
+    ///
+    /// Default is JSON. Enable `serde-bincode` / `postcard` features and
+    /// select a binary format for compact L2 transport. **Do not mix formats
+    /// under the same key prefix** — values are not self-describing.
+    #[cfg(any(feature = "serialization", feature = "full"))]
+    pub fn serialization_format(
+        mut self,
+        format: crate::infra::serialization::SerializationFormat,
+    ) -> Self {
+        self.serialization_format = Some(format);
+        self
+    }
+
+    /// Inject an audit event publisher (T309).
+    ///
+    /// After injection, `get`/`set`/`delete` publish structured audit events
+    /// (hit/miss/set/delete) with redacted keys through this publisher.
+    /// See [`NoOpAuditPublisher`](crate::features::audit::NoOpAuditPublisher)
+    /// and [`InMemoryAuditPublisher`](crate::features::audit::InMemoryAuditPublisher).
+    #[cfg(feature = "audit")]
+    pub fn audit_publisher(
+        mut self,
+        publisher: Arc<dyn crate::features::audit::AuditEventPublisher>,
+    ) -> Self {
+        self.audit = Some(publisher);
+        self
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -182,6 +241,18 @@ where
             }
             cache.set_null_cache_ttl(self.null_cache_ttl);
             cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+            #[cfg(feature = "metrics")]
+            if let Some(recorder) = self.metrics {
+                cache.set_metrics_recorder(recorder);
+            }
+            #[cfg(any(feature = "serialization", feature = "full"))]
+            if let Some(format) = self.serialization_format {
+                cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+            }
+            #[cfg(feature = "audit")]
+            if let Some(publisher) = self.audit {
+                cache.set_audit_publisher(publisher);
+            }
             return Ok(cache);
         }
 
@@ -201,6 +272,18 @@ where
         let mut cache = Cache::new_with_backend(backend);
         cache.set_null_cache_ttl(self.null_cache_ttl);
         cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+        #[cfg(feature = "metrics")]
+        if let Some(recorder) = self.metrics {
+            cache.set_metrics_recorder(recorder);
+        }
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        if let Some(format) = self.serialization_format {
+            cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+        }
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit {
+            cache.set_audit_publisher(publisher);
+        }
         Ok(cache)
     }
 }
@@ -556,6 +639,75 @@ mod tests {
         );
     }
 
+    // ============================================================================
+    // T309: 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
+    // ============================================================================
+
+    #[cfg(feature = "audit")]
+    mod audit_injection {
+        use super::*;
+        use crate::features::audit::{AuditAction, InMemoryAuditPublisher};
+
+        #[tokio::test]
+        async fn injected_publisher_observes_get_set_delete() {
+            let publisher = Arc::new(InMemoryAuditPublisher::new(64));
+            let cache: Cache<String, i32> = Cache::builder()
+                .audit_publisher(publisher.clone())
+                .build()
+                .await
+                .unwrap();
+
+            let _ = cache.get(&"missing".to_string()).await.unwrap(); // miss
+            cache.set(&"user:1".to_string(), &42).await.unwrap(); // set
+            let _ = cache.get(&"user:1".to_string()).await.unwrap(); // hit
+            cache.delete(&"user:1".to_string()).await.unwrap(); // delete
+
+            let events = publisher.snapshot();
+            assert_eq!(events.len(), 4, "应发布 4 条审计事件");
+            assert_eq!(events[0].action, AuditAction::Miss);
+            assert_eq!(events[1].action, AuditAction::Set);
+            assert_eq!(events[2].action, AuditAction::Hit);
+            assert_eq!(events[3].action, AuditAction::Delete);
+            // 键已脱敏透传（普通键原样）
+            assert_eq!(events[1].key.as_deref(), Some("user:1"));
+            // 事件带时间戳
+            assert!(events.iter().all(|e| e.timestamp_ms > 0));
+        }
+
+        #[tokio::test]
+        async fn sensitive_keys_are_masked_in_audit_events() {
+            let publisher = Arc::new(InMemoryAuditPublisher::new(8));
+            let cache: Cache<String, String> = Cache::builder()
+                .audit_publisher(publisher.clone())
+                .build()
+                .await
+                .unwrap();
+
+            cache
+                .set(&"user:password".to_string(), &"hunter2".to_string())
+                .await
+                .unwrap();
+
+            let events = publisher.snapshot();
+            assert_eq!(events.len(), 1);
+            let key = events[0].key.as_deref().unwrap_or("");
+            assert!(
+                key.starts_with("<sensitive>"),
+                "敏感键应被掩码，got {key}"
+            );
+            assert!(!key.contains("hunter2"));
+        }
+
+        #[tokio::test]
+        async fn no_publisher_produces_no_events() {
+            let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+            cache.set(&"k".to_string(), &1).await.unwrap();
+            let _ = cache.get(&"k".to_string()).await.unwrap();
+            // 未注入 publisher：无审计字段，操作照常成功
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(1));
+        }
+    }
+
     #[test]
     fn test_builder_build_sync_rejects_sync_mode_plus_backend_arc() {
         let backend = MokaMemoryBackend::builder().capacity(100).build();
@@ -568,5 +720,161 @@ mod tests {
             result.is_err(),
             "build_sync with sync_mode+backend_arc should return Err"
         );
+    }
+
+    // ============================================================================
+    // T302: 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
+    // ============================================================================
+
+    #[cfg(feature = "metrics")]
+    mod metrics_injection {
+        use super::*;
+        use crate::infra::UnifiedMetricsRecorder;
+        use crate::infra::MetricsRecorder;
+
+        #[tokio::test]
+        async fn injected_recorder_observes_l1_get_set_delete_counts() {
+            let recorder = Arc::new(UnifiedMetricsRecorder::new());
+            let cache: Cache<String, i32> = Cache::builder()
+                .metrics(recorder.clone())
+                .build()
+                .await
+                .unwrap();
+
+            // miss（键不存在）
+            assert_eq!(cache.get(&"m".to_string()).await.unwrap(), None);
+            // set + hit
+            cache.set(&"k".to_string(), &42).await.unwrap();
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(42));
+            // delete
+            cache.delete(&"k".to_string()).await.unwrap();
+
+            let counters = recorder.metrics().get_counters();
+            assert_eq!(counters.l1_misses, 1, "未命中应计数 1");
+            assert_eq!(counters.l1_hits, 1, "命中应计数 1");
+            assert_eq!(counters.l1_sets, 1, "写入应计数 1");
+            assert_eq!(counters.l1_deletes, 1, "删除应计数 1");
+            assert!(
+                counters.total_operations >= 4,
+                "总操作数应覆盖纯 L1 路径"
+            );
+
+            // 延迟直方图样本已记录（标准 Prometheus 命名）
+            let prom = recorder.metrics().export_prometheus_standard();
+            assert!(prom.contains("# TYPE oxcache_hits_total counter"));
+            assert!(prom.contains("# TYPE oxcache_misses_total counter"));
+            assert!(prom.contains("# TYPE oxcache_operation_duration_seconds histogram"));
+            assert!(prom.contains("oxcache_operation_duration_seconds_count 4"));
+        }
+
+        #[test]
+        fn standard_export_includes_evictions_with_help_type() {
+            let recorder = UnifiedMetricsRecorder::new();
+            recorder.record_eviction(7);
+            let prom = recorder.metrics().export_prometheus_standard();
+            assert!(prom.contains("# HELP oxcache_evictions_total "));
+            assert!(prom.contains("# TYPE oxcache_evictions_total counter\n"));
+            assert!(prom.contains("oxcache_evictions_total 7"));
+        }
+
+        #[tokio::test]
+        #[serial_test::serial]
+        async fn dashmap_capacity_evictions_reach_global_metrics() {
+            use crate::backend::DashMapMemoryBackend;
+            use crate::infra::GLOBAL_UNIFIED_METRICS;
+
+            convenience_reset();
+            let backend = DashMapMemoryBackend::builder().capacity(4).build();
+            let cache: Cache<String, i32> = Cache::builder()
+                .backend_arc(Arc::new(backend))
+                .build()
+                .await
+                .unwrap();
+
+            // 写入超过容量：触发 FIFO 淘汰
+            for i in 0..20 {
+                cache.set(&format!("evict-key-{i}"), &i).await.unwrap();
+            }
+
+            assert!(
+                GLOBAL_UNIFIED_METRICS.get_counters().evictions > 0,
+                "DashMap 容量淘汰应计入 evictions 指标"
+            );
+        }
+
+        fn convenience_reset() {
+            crate::infra::convenience::reset();
+        }
+    }
+
+    // ============================================================================
+    // T305: 二进制序列化格式 —— Cache 级格式切换
+    // ============================================================================
+
+    #[cfg(all(feature = "serde-bincode", feature = "postcard"))]
+    mod binary_serialization {
+        use super::*;
+        use crate::infra::serialization::SerializationFormat;
+
+        #[tokio::test]
+        async fn bincode_format_roundtrips_through_cache() {
+            let cache: Cache<String, i32> = Cache::builder()
+                .serialization_format(SerializationFormat::Bincode)
+                .build()
+                .await
+                .unwrap();
+
+            cache.set(&"k".to_string(), &12345).await.unwrap();
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap(), Some(12345));
+
+            // 原始字节应为 bincode 二进制而非 JSON 文本
+            // （bincode 1.x 默认 varint 编码，整数变长）
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_ne!(raw, b"12345".to_vec(), "不应存 JSON 文本");
+            assert!(raw.len() <= 8, "bincode i64 应不超过 8 字节，got {raw:?}");
+        }
+
+        #[tokio::test]
+        async fn postcard_format_roundtrips_through_cache() {
+            let cache: Cache<String, String> = Cache::builder()
+                .serialization_format(SerializationFormat::Postcard)
+                .build()
+                .await
+                .unwrap();
+
+            cache
+                .set(&"k".to_string(), &"postcard-value".to_string())
+                .await
+                .unwrap();
+            assert_eq!(
+                cache.get(&"k".to_string()).await.unwrap(),
+                Some("postcard-value".to_string())
+            );
+
+            // postcard 字符串不以引号开头（JSON 特征）
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_ne!(raw[0], b'"');
+        }
+
+        #[tokio::test]
+        async fn json_format_remains_default() {
+            let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+            cache.set(&"k".to_string(), &7).await.unwrap();
+            // JSON 文本特征：数字以 ASCII 数字存储
+            let raw = cache.backend.get("k").await.unwrap().unwrap();
+            assert_eq!(raw, b"7".to_vec());
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        async fn sync_api_honors_binary_format() {
+            let cache: Cache<String, i32> = Cache::builder()
+                .sync_mode(true)
+                .serialization_format(SerializationFormat::Bincode)
+                .build()
+                .await
+                .unwrap();
+            cache.set_sync(&"k".to_string(), &99).unwrap();
+            assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some(99));
+        }
     }
 }

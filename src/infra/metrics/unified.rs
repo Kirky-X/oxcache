@@ -89,6 +89,8 @@ pub struct AtomicCounters {
     pub backfill_success: AtomicU64,
     /// Backfill failure count (per backend)
     pub backfill_failed: AtomicU64,
+    /// Eviction / expiry removal count (T302)
+    pub evictions: AtomicU64,
 }
 
 /// Metric value types
@@ -158,6 +160,7 @@ impl Default for AtomicCounters {
             l2_retry_total: AtomicU64::new(0),
             backfill_success: AtomicU64::new(0),
             backfill_failed: AtomicU64::new(0),
+            evictions: AtomicU64::new(0),
         }
     }
 }
@@ -426,6 +429,7 @@ impl UnifiedMetrics {
             l2_retry_total: self.inner.counters.l2_retry_total.load(Ordering::Relaxed),
             backfill_success: self.inner.counters.backfill_success.load(Ordering::Relaxed),
             backfill_failed: self.inner.counters.backfill_failed.load(Ordering::Relaxed),
+            evictions: self.inner.counters.evictions.load(Ordering::Relaxed),
         }
     }
 
@@ -499,6 +503,7 @@ impl UnifiedMetrics {
             .counters
             .backfill_failed
             .store(0, Ordering::Relaxed);
+        self.inner.counters.evictions.store(0, Ordering::Relaxed);
 
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
@@ -577,7 +582,183 @@ impl UnifiedMetrics {
             .backfill_failed
             .fetch_add(1, Ordering::Relaxed);
     }
+
+    /// Record eviction / expiry removals (T302).
+    ///
+    /// `count` is the number of entries removed (batch eviction supported).
+    pub fn record_eviction(&self, count: u64) {
+        self.inner
+            .counters
+            .evictions
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Current eviction counter value.
+    pub fn eviction_count(&self) -> u64 {
+        self.inner.counters.evictions.load(Ordering::Relaxed)
+    }
+
+    /// Record one operation latency sample (in **seconds**) into the
+    /// standard Prometheus latency histogram
+    /// ([`OPERATION_LATENCY_HISTOGRAM`](self::OPERATION_LATENCY_HISTOGRAM)).
+    ///
+    /// Uses fixed Prometheus-style buckets; cumulative semantics
+    /// (`value <= boundary`), matching exposition format expectations.
+    pub fn record_latency_seconds(&self, seconds: f64) {
+        let value = if seconds.is_nan() || seconds.is_sign_negative() {
+            0.0
+        } else {
+            seconds
+        };
+        self.inner
+            .dynamic_metrics
+            .entry(OPERATION_LATENCY_HISTOGRAM.to_string())
+            .and_modify(|metric| {
+                if let MetricValue::Histogram(hist) = metric {
+                    hist.count += 1;
+                    hist.sum += value;
+                    hist.min = hist.min.min(value);
+                    hist.max = hist.max.max(value);
+                    for (boundary, count) in &mut hist.buckets {
+                        if value <= *boundary {
+                            *count += 1;
+                        }
+                    }
+                }
+            })
+            .or_insert_with(|| {
+                let buckets = PROMETHEUS_LATENCY_BUCKETS
+                    .iter()
+                    .map(|&boundary| (boundary, u64::from(value <= boundary)))
+                    .collect();
+                MetricValue::Histogram(HistogramData {
+                    count: 1,
+                    sum: value,
+                    min: value,
+                    max: value,
+                    buckets,
+                })
+            });
+    }
+
+    /// Export metrics in **standard Prometheus exposition format** (T302).
+    ///
+    /// Emits compliant `# HELP` / `# TYPE` headers with `oxcache_*` metric
+    /// names: hits/misses (per layer), sets/deletes, evictions, operations,
+    /// errors and the operation latency histogram in seconds.
+    ///
+    /// The legacy [`export_prometheus`](Self::export_prometheus) output is
+    /// kept unchanged for backward compatibility.
+    pub fn export_prometheus_standard(&self) -> String {
+        let counters = self.get_counters();
+        let mut out = String::with_capacity(2048);
+
+        let counter_line = |out: &mut String, name: &str, help: &str| {
+            out.push_str(&format!("# HELP {name} {help}.\n"));
+            out.push_str(&format!("# TYPE {name} counter\n"));
+        };
+
+        counter_line(&mut out, "oxcache_hits_total", "Total cache hits");
+        out.push_str(&format!(
+            "oxcache_hits_total{{layer=\"l1\"}} {}\n",
+            counters.l1_hits
+        ));
+        out.push_str(&format!(
+            "oxcache_hits_total{{layer=\"l2\"}} {}\n",
+            counters.l2_hits
+        ));
+
+        counter_line(&mut out, "oxcache_misses_total", "Total cache misses");
+        out.push_str(&format!(
+            "oxcache_misses_total{{layer=\"l1\"}} {}\n",
+            counters.l1_misses
+        ));
+        out.push_str(&format!(
+            "oxcache_misses_total{{layer=\"l2\"}} {}\n",
+            counters.l2_misses
+        ));
+
+        counter_line(&mut out, "oxcache_sets_total", "Total cache writes");
+        out.push_str(&format!(
+            "oxcache_sets_total{{layer=\"l1\"}} {}\n",
+            counters.l1_sets
+        ));
+        out.push_str(&format!(
+            "oxcache_sets_total{{layer=\"l2\"}} {}\n",
+            counters.l2_sets
+        ));
+
+        counter_line(&mut out, "oxcache_deletes_total", "Total cache deletions");
+        out.push_str(&format!(
+            "oxcache_deletes_total{{layer=\"l1\"}} {}\n",
+            counters.l1_deletes
+        ));
+        out.push_str(&format!(
+            "oxcache_deletes_total{{layer=\"l2\"}} {}\n",
+            counters.l2_deletes
+        ));
+
+        counter_line(&mut out, "oxcache_evictions_total", "Total cache evictions");
+        out.push_str(&format!("oxcache_evictions_total {}\n", counters.evictions));
+
+        counter_line(
+            &mut out,
+            "oxcache_operations_total",
+            "Total cache operations",
+        );
+        out.push_str(&format!(
+            "oxcache_operations_total {}\n",
+            counters.total_operations
+        ));
+
+        counter_line(&mut out, "oxcache_errors_total", "Total cache errors");
+        out.push_str(&format!("oxcache_errors_total {}\n", counters.errors));
+
+        // Latency histogram (seconds, cumulative buckets + +Inf + sum/count)
+        out.push_str("# HELP oxcache_operation_duration_seconds Cache operation latency in seconds.\n");
+        out.push_str("# TYPE oxcache_operation_duration_seconds histogram\n");
+        if let Some(MetricValue::Histogram(hist)) = self
+            .inner
+            .dynamic_metrics
+            .get(OPERATION_LATENCY_HISTOGRAM)
+            .map(|r| r.value().clone())
+        {
+            for (boundary, count) in &hist.buckets {
+                out.push_str(&format!(
+                    "oxcache_operation_duration_seconds_bucket{{le=\"{boundary}\"}} {count}\n"
+                ));
+            }
+            out.push_str(&format!(
+                "oxcache_operation_duration_seconds_bucket{{le=\"+Inf\"}} {}\n",
+                hist.count
+            ));
+            out.push_str(&format!(
+                "oxcache_operation_duration_seconds_sum {}\n",
+                hist.sum
+            ));
+            out.push_str(&format!(
+                "oxcache_operation_duration_seconds_count {}\n",
+                hist.count
+            ));
+        } else {
+            out.push_str(
+                "oxcache_operation_duration_seconds_bucket{le=\"+Inf\"} 0\n",
+            );
+            out.push_str("oxcache_operation_duration_seconds_sum 0\n");
+            out.push_str("oxcache_operation_duration_seconds_count 0\n");
+        }
+
+        out
+    }
 }
+
+/// Standard Prometheus metric name of the operation latency histogram
+pub const OPERATION_LATENCY_HISTOGRAM: &str = "oxcache_operation_duration_seconds";
+
+/// Fixed buckets (seconds) for the standard latency histogram
+pub const PROMETHEUS_LATENCY_BUCKETS: &[f64] = &[
+    0.000_1, 0.000_5, 0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+];
 
 /// Cache operation information
 #[derive(Debug, Clone)]
@@ -655,6 +836,8 @@ pub struct CounterSnapshot {
     pub backfill_success: u64,
     /// Backfill failure count
     pub backfill_failed: u64,
+    /// Eviction / expiry removal count (T302)
+    pub evictions: u64,
 }
 
 /// Comprehensive metrics snapshot
@@ -709,6 +892,10 @@ impl MetricsSnapshot {
             self.counters.total_operations
         ));
         output.push_str(&format!("cache_errors_total {}\n", self.counters.errors));
+        output.push_str(&format!(
+            "cache_evictions_total {}\n",
+            self.counters.evictions
+        ));
         output.push_str(&format!("cache_l1_items {}\n", self.counters.l1_items));
         output.push_str(&format!(
             "cache_l1_capacity_used_bytes {}\n",

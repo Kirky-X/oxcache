@@ -6,7 +6,7 @@ use crate::backend::RedisBackend;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -64,6 +64,8 @@ pub struct DistributedLock {
     pub(super) watchdog_enabled: bool,
     pub(super) watchdog: Mutex<Option<JoinHandle<()>>>,
     pub(super) released: Arc<AtomicBool>,
+    /// fencing token（T311）：acquire 成功时经 `INCR <key>:fence` 取单调递增值
+    pub(super) fencing_token: AtomicU64,
 }
 
 /// Backoff delay for watchdog renewal after consecutive Redis errors.
@@ -111,6 +113,17 @@ impl DistributedLock {
                 // Successfully acquired
                 self.reentrant_count.store(1, Ordering::SeqCst);
 
+                // T311: fencing token — 单调递增，供下游资源做 staleness 检测
+                match self.acquire_fence_token().await {
+                    Ok(token) => {
+                        self.fencing_token.store(token, Ordering::SeqCst);
+                    }
+                    Err(_) => {
+                        // fence INCR 失败不回滚锁本身（锁已持有）；token 为 0
+                        // 表示无 fencing 保护，下游按未带 token 处理。
+                    }
+                }
+
                 // Start watchdog if enabled
                 if self.watchdog_enabled {
                     let handle = self.spawn_watchdog();
@@ -127,6 +140,27 @@ impl DistributedLock {
                 )))
             }
         }
+    }
+
+    /// `INCR <key>:fence` 取单调递增 fencing token
+    async fn acquire_fence_token(&self) -> OxCacheResult<u64> {
+        let mut conn = self.backend.conn();
+        let token: i64 = redis::cmd(RedisCommand::Incr.as_str())
+            .arg(format!("{}:fence", self.key))
+            .query_async(&mut conn)
+            .await
+            .map_err(|e| OxCacheError::Operation(format!("dist_lock fence incr failed: {e}")))?;
+        Ok(u64::try_from(token).unwrap_or(0))
+    }
+
+    /// 当前 fencing token（0 = 尚未获取或不支持）
+    ///
+    /// # 下游使用契约
+    ///
+    /// fencing token 单调递增：锁的主从切换丢锁场景下，旧持有者的 token
+    /// 小于新持有者，下游资源（存储/队列）应拒绝 stale token 的写入。
+    pub fn token(&self) -> u64 {
+        self.fencing_token.load(Ordering::SeqCst)
     }
 
     /// Release the distributed lock.

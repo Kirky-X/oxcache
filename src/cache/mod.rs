@@ -7,12 +7,18 @@ pub mod api;
 pub mod builder;
 pub mod chain;
 pub mod interface;
+#[cfg(feature = "memory")]
+pub mod tiered_builder;
+pub mod typed_namespace;
 
 // Re-exports
 pub use api::Cache;
 pub use builder::CacheBuilder;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
-pub use interface::UnifiedCache;
+pub use interface::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
+#[cfg(feature = "memory")]
+pub use tiered_builder::{ChainBuilder, L1Builder, L2Builder};
+pub use typed_namespace::{NamespaceName, TypedNamespace};
 
 /// 无泛型的 bytes 级缓存别名（问题 6.2）
 ///

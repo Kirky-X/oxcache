@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统的序列化机制，支持多种序列化格式。
 
+pub mod binary;
 pub mod depth_limited;
 pub mod json;
 
@@ -10,6 +11,7 @@ pub mod utils;
 
 use crate::error::OxCacheResult;
 
+pub use binary::{SerializationFormat, deserialize_with_format, serialize_with_format};
 pub use json::JsonSerializer;
 
 // Unified serialization exports

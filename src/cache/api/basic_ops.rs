@@ -3,9 +3,6 @@
 //! Cache 基础操作方法
 
 use super::Cache;
-// MAX_JSON_DEPTH 仅在 deserialize_value 中使用，需随 serialization/full feature 门控
-#[cfg(any(feature = "serialization", feature = "full"))]
-use crate::core::MAX_JSON_DEPTH;
 use crate::core::NULL_SENTINEL;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
@@ -63,21 +60,8 @@ impl Drop for GetOrGuard<'_> {
     }
 }
 
-#[cfg(any(feature = "serialization", feature = "full"))]
-fn deserialize_value<V: serde::de::DeserializeOwned>(data: &[u8]) -> OxCacheResult<V> {
-    // 单次文本解析 + 深度校验：借助 serde_stacker 避免深层 JSON 栈溢出，
-    // 深度限制统一为 MAX_JSON_DEPTH。
-    crate::infra::serialization::depth_limited::deserialize_safe(data, MAX_JSON_DEPTH)
-        .map_err(|e| OxCacheError::Serialization(e.to_string()))
-}
-
-#[cfg(not(any(feature = "serialization", feature = "full")))]
-fn deserialize_value<V>(data: &[u8]) -> OxCacheResult<V> {
-    let _ = data;
-    Err(OxCacheError::Serialization(
-        "Serialization feature is required for typed get operations".to_string(),
-    ))
-}
+// T305: 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
+// 原 `deserialize_value` 辅助函数已被其取代。
 
 impl<K, V> Cache<K, V>
 where
@@ -85,13 +69,99 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn get(&self, key: &K) -> OxCacheResult<Option<V>> {
+        // T302: 纯 L1 路径指标埋点（默认 NoOp 零开销）
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
         let key_str = key.to_key_string();
         let bytes = self.backend.get(&key_str).await?;
+        #[cfg(feature = "metrics")]
+        {
+            let latency = __start.elapsed();
+            if bytes.is_some() {
+                self.metrics
+                    .record_hit(crate::core::CacheLayer::L1, latency);
+            } else {
+                self.metrics
+                    .record_miss(crate::core::CacheLayer::L1, latency);
+            }
+        }
+        // T309: 审计事件（hit/miss）
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if bytes.is_some() {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            Some(data) => deserialize_value(&data).map(Some),
+            // T305: 经 UnifiedSerializer 反序列化（JSON 默认；可切二进制格式）
+            Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
+    }
+
+    // ========================================================================
+    // T317: 热路径借用查询（零分配）
+    // ========================================================================
+
+    /// 借用键查询：跳过 `K::to_key_string()` 的 String 分配，直接以 `&str`
+    /// 查询后端（get 热路径零堆分配）。
+    ///
+    /// # 语义注意
+    ///
+    /// `key` 原样进入后端（不做任何键变换）：当 `K` 的 `to_key_string()`
+    /// 恰为原值（如 `K = String`）时与 [`Self::get`](Self::get) 等价；
+    /// 存在键前缀策略时调用方需自带完整键。
+    pub async fn get_by_str(&self, key: &str) -> OxCacheResult<Option<V>> {
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let bytes = self.backend.get(key).await?;
+        #[cfg(feature = "metrics")]
+        {
+            let latency = __start.elapsed();
+            if bytes.is_some() {
+                self.metrics
+                    .record_hit(crate::core::CacheLayer::L1, latency);
+            } else {
+                self.metrics
+                    .record_miss(crate::core::CacheLayer::L1, latency);
+            }
+        }
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if bytes.is_some() {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(key)),
+            );
+        }
+        match bytes {
+            Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
+            Some(data) => self.unified_serializer.deserialize(&data).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// 借用键写入：键路径仅产生一次 `Arc<str>` 分配
+    ///（`set` 路径为 `String` + `Arc<str>` 两次）。
+    pub async fn set_by_str(
+        &self,
+        key: &str,
+        value: &V,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        let bytes = self.unified_serializer.serialize(value)?;
+        self.backend.set(Arc::from(key), Arc::new(bytes), ttl).await
     }
 
     // ========================================================================
@@ -151,16 +221,37 @@ where
     ) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let ttl = ttl.map(|t| self.apply_jitter(t));
+        // T309: 脱敏键需在 key_str 被 move 前计算
+        #[cfg(feature = "audit")]
+        let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = match serde_json::to_vec(value) {
-                Ok(b) => b,
-                Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
-            };
-            self.backend
+            // T305: 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
+            let bytes = self.unified_serializer.serialize(value)?;
+            // T302: 写路径指标埋点
+            #[cfg(feature = "metrics")]
+            let __start = std::time::Instant::now();
+            let result = self
+                .backend
                 .set(Arc::from(key_str), Arc::new(bytes), ttl)
-                .await
+                .await;
+            #[cfg(feature = "metrics")]
+            self.metrics
+                .record_set(crate::core::CacheLayer::L1, __start.elapsed());
+            // T309: 审计事件（set）
+            #[cfg(feature = "audit")]
+            if result.is_ok()
+                && let Some(publisher) = self.audit.as_ref()
+            {
+                publisher.publish(
+                    crate::features::audit::AuditEvent::new(
+                        crate::features::audit::AuditAction::Set,
+                    )
+                    .with_key(__redacted_key),
+                );
+            }
+            result
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
@@ -174,7 +265,26 @@ where
 
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
-        self.backend.delete(&key_str).await
+        // T302: 删除路径指标埋点
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self.backend.delete(&key_str).await;
+        #[cfg(feature = "metrics")]
+        self.metrics
+            .record_delete(crate::core::CacheLayer::L1, __start.elapsed());
+        // T309: 审计事件（delete）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(
+                    crate::features::audit::AuditAction::Delete,
+                )
+                .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
+        result
     }
 
     pub async fn exists(&self, key: &K) -> OxCacheResult<bool> {
@@ -535,7 +645,8 @@ where
         let bytes = backend.get(&key_str)?;
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            Some(data) => deserialize_value(&data).map(Some),
+            // T305: 经 UnifiedSerializer 反序列化（格式可插拔）
+            Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
     }
@@ -558,8 +669,8 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            let bytes = serde_json::to_vec(value)
-                .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+            // T305: 经 UnifiedSerializer 序列化（格式可插拔）
+            let bytes = self.unified_serializer.serialize(value)?;
             backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
         }
 
@@ -889,6 +1000,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::MAX_JSON_DEPTH;
 
     #[tokio::test]
     async fn test_cache_clear() {
@@ -1237,6 +1349,67 @@ mod tests {
     // ========================================================================
     // deserialize_value internal functions
     // ========================================================================
+
+    /// T317: 热路径借用查询语义与吞吐对比（本机 debug 口径记录 docs/PERFORMANCE.md）
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_by_str_semantics_and_throughput() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set(&"hit".to_string(), &"v".to_string()).await.unwrap();
+
+        // 语义：K=String 时 get_by_str 与 get 等价
+        assert_eq!(
+            cache.get_by_str("hit").await.unwrap(),
+            Some("v".to_string())
+        );
+        assert_eq!(cache.get_by_str("miss").await.unwrap(), None);
+        cache.set_by_str("via-str", &"w".to_string(), None).await.unwrap();
+        assert_eq!(cache.get(&"via-str".to_string()).await.unwrap(), Some("w".to_string()));
+
+        // 吞吐对比（相对值；绝对值随环境波动）
+        // 公平口径：两个独立循环、各自 2 轮取优，均查询同样 100 个命中键
+        const ITER: u32 = 50_000;
+        let measure_owned = || async {
+            let mut total = Duration::ZERO;
+            for round in 0..2 {
+                let t = std::time::Instant::now();
+                for i in 0..ITER {
+                    let key = format!("hit{}", (i + round) % 100);
+                    let _: Option<String> = cache.get(&key).await.unwrap();
+                }
+                if round == 1 {
+                    total = t.elapsed();
+                }
+            }
+            total
+        };
+        let measure_borrowed = || async {
+            let mut total = Duration::ZERO;
+            for round in 0..2 {
+                let t = std::time::Instant::now();
+                for i in 0..ITER {
+                    let key = format!("hit{}", (i + round) % 100);
+                    let _: Option<String> = cache.get_by_str(&key).await.unwrap();
+                }
+                if round == 1 {
+                    total = t.elapsed();
+                }
+            }
+            total
+        };
+        let owned_total = measure_owned().await;
+        let borrowed_total = measure_borrowed().await;
+        let owned_us = owned_total.as_micros();
+        let borrowed_us = borrowed_total.as_micros();
+        println!(
+            "T317 hot path ({} iters, debug profile): get(owned)={}us get_by_str(borrowed)={}us",
+            ITER, owned_us, borrowed_us
+        );
+        // 借用查询不应显著劣化（允许测量抖动）
+        assert!(
+            borrowed_total <= owned_total.saturating_mul(3),
+            "borrowed 路径不应慢于 owned 3 倍以上: {owned_us}us vs {borrowed_us}us"
+        );
+    }
 
     #[tokio::test]
     async fn test_deserialize_value_valid() {

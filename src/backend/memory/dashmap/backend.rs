@@ -120,6 +120,12 @@ impl DashMapMemoryBackend {
             }
         }
 
+        // T302: 淘汰事件计入全局统一指标（与 chain/redis 埋点同一模式）
+        #[cfg(feature = "metrics")]
+        if evicted > 0 {
+            crate::infra::GLOBAL_UNIFIED_METRICS.record_eviction(evicted as u64);
+        }
+
         self.compact_fifo();
     }
 

@@ -39,6 +39,10 @@ where
             unified_serializer: UnifiedSerializer::json(),
             null_cache_ttl: None,
             ttl_jitter_factor: 0.0,
+            #[cfg(feature = "metrics")]
+            metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -71,6 +75,27 @@ where
     /// Set the TTL jitter factor for stampede prevention.
     pub(crate) fn set_ttl_jitter_factor(&mut self, factor: f64) {
         self.ttl_jitter_factor = factor;
+    }
+
+    /// Inject a metrics recorder (T302).
+    ///
+    /// When set (non-NoOp), the pure L1 path (`get`/`set`/`delete`) records
+    /// hit/miss/set/delete counts and latency samples through the recorder.
+    #[cfg(feature = "metrics")]
+    pub(crate) fn set_metrics_recorder(&mut self, recorder: Arc<dyn crate::infra::MetricsRecorder>) {
+        self.metrics = recorder;
+    }
+
+    /// Inject an audit event publisher (T309).
+    ///
+    /// After injection, `get`/`set`/`delete` publish structured audit events
+    /// (hit/miss/set/delete) with redacted keys.
+    #[cfg(feature = "audit")]
+    pub(crate) fn set_audit_publisher(
+        &mut self,
+        publisher: Arc<dyn crate::features::audit::AuditEventPublisher>,
+    ) {
+        self.audit = Some(publisher);
     }
 
     /// Get the TTL jitter factor (diagnostics/tests).
@@ -122,6 +147,10 @@ where
             unified_serializer: UnifiedSerializer::json(),
             null_cache_ttl: None,
             ttl_jitter_factor: 0.0,
+            #[cfg(feature = "metrics")]
+            metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            #[cfg(feature = "audit")]
+            audit: None,
             _phantom: std::marker::PhantomData,
         })
     }

@@ -159,6 +159,47 @@ version = "0.1"
 default-features = false
 optional = true
 
+# Value-level encryption (optional, XChaCha20-Poly1305, aligned with confers)
+[dependencies.chacha20poly1305]
+version = "0.11"
+optional = true
+
+[dependencies.getrandom]
+version = "0.4"
+optional = true
+
+# Value integrity (optional, HMAC-SHA256, aligned with confers audit chain)
+[dependencies.hmac]
+version = "0.13"
+optional = true
+
+[dependencies.sha2]
+version = "0.11"
+optional = true
+
+# Binary serialization formats (optional, T305)
+[dependencies.bincode]
+version = "1.3"
+optional = true
+
+[dependencies.postcard]
+version = "1.1"
+default-features = false
+features = ["use-std"]
+optional = true
+
+# Config-driven build (optional, confers watch hot-reload, T307)
+[dependencies.confers]
+version = "0.6.0-rc.3"
+default-features = false
+features = ["config-bus"]
+optional = true
+
+# Adaptive compression (optional, zstd threshold decorator, T310)
+[dependencies.zstd]
+version = "0.13"
+optional = true
+
 # ============================================================================
 # DEV DEPENDENCIES
 # ============================================================================
@@ -218,8 +259,18 @@ testing = []
 bloom = ["dep:bloomfilter"]
 kit = ["dep:trait-kit", "dep:futures"]
 lock = ["redis"]
-compression = ["dep:flate2"]
+red-lock = ["lock"]
+compression = ["dep:flate2", "dep:zstd"]
 telemetry = ["dep:tracing"]
+invalidation = ["redis", "serialization", "dep:futures"]
+encrypt = ["dep:chacha20poly1305", "dep:getrandom"]
+integrity = ["dep:hmac", "dep:sha2"]
+serde-bincode = ["serialization", "dep:bincode"]
+postcard = ["serialization", "dep:postcard"]
+config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
+degradation = []
+audit = []
+versioning = []
 
 # ============================================================================
 # PROFILES
@@ -239,6 +290,11 @@ inherits = "release"
 [[bench]]
 name = "modern_api_benchmark"
 harness = false
+
+[[bench]]
+name = "hot_path_benchmark"
+harness = false
+required-features = ["memory"]
 
 [[bench]]
 name = "redis_benchmark"
@@ -265,3 +321,4 @@ required-features = ["dragonfly"]
 # ============================================================================
 [patch.crates-io]
 trait-kit = { path = "../trait-kit" }
+confers = { path = "../confers" }
