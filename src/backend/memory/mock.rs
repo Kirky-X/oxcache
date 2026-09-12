@@ -32,7 +32,6 @@ pub struct MockFaultConfig {
 /// 内部数据结构存储 `(value, expires_at)`：`expires_at=None` 表示永不过期，
 /// `Some(Instant)` 表示在该时刻过期（`get` 时 lazy 校验并清理）。
 #[cfg(test)]
-#[allow(dead_code)]
 pub struct MockBackend {
     name: &'static str,
     score: u8,

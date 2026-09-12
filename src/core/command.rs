@@ -47,7 +47,6 @@ pub enum RedisCommand {
 
 impl RedisCommand {
     /// 返回命令的 Redis 协议字符串表示
-    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Ping => "PING",

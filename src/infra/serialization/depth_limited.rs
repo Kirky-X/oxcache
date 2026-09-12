@@ -17,7 +17,6 @@ pub const MAX_DESERIALIZE_DEPTH: usize = 32;
 /// to pattern-match on depth-limit violations. Internal code paths use
 /// `serde_json::Error` instead, so this struct appears unused within the crate.
 #[derive(Debug, PartialEq)]
-#[allow(dead_code)]
 pub struct DepthLimitExceededError {
     pub depth: usize,
     pub max_depth: usize,

@@ -134,7 +134,6 @@ pub struct MetricsConfig {
     /// Metrics retention period for time-based eviction of stale snapshots.
     /// Currently configured but not actively consumed by the eviction logic;
     /// reserved for future implementation of snapshot lifecycle management.
-    #[allow(dead_code)]
     pub retention_period: Option<Duration>,
 }
 
