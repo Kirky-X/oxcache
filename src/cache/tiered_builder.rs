@@ -367,8 +367,8 @@ mod tests {
     #[tokio::test]
     async fn l1_builder_applies_decorators() {
         let backend = L1Builder::new()
-            .decorate(|inner| Arc::new(TracingProbe { inner, tag: "first" }))
-            .decorate(|inner| Arc::new(TracingProbe { inner, tag: "second" }))
+            .decorate(|inner| Arc::new(TracingProbe { inner }))
+            .decorate(|inner| Arc::new(TracingProbe { inner }))
             .build();
 
         // 读写经两层装饰透传仍正确
@@ -382,7 +382,6 @@ mod tests {
     /// 测试装饰器：记录包装层级
     struct TracingProbe {
         inner: Arc<dyn CacheBackend>,
-        tag: &'static str,
     }
 
     #[async_trait::async_trait]

@@ -56,13 +56,13 @@ use std::sync::Once;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-#[allow(dead_code)]
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 static INIT: Once = Once::new();
 
 /// 初始化日志系统
 ///
 /// 在测试开始时调用，确保日志只初始化一次。
-#[allow(dead_code)]
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub fn setup_logging() {
     INIT.call_once(|| {
         tracing_subscriber::fmt()
@@ -82,7 +82,7 @@ use oxcache::Cache;
 /// 设置缓存 - 用于测试
 ///
 /// 创建默认的内存缓存实例，简化测试设置。
-#[allow(dead_code)]
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub async fn setup_cache() -> Cache<String, Vec<u8>> {
     setup_logging();
 
@@ -95,7 +95,7 @@ pub async fn setup_cache() -> Cache<String, Vec<u8>> {
 /// 生成唯一的服务器名称
 ///
 /// 在基础名称后附加 UUID，确保测试之间的隔离。
-#[allow(dead_code)]
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub fn generate_unique_service_name(base: &str) -> String {
     format!("{}_{}", base, uuid::Uuid::new_v4().simple())
 }
@@ -103,7 +103,7 @@ pub fn generate_unique_service_name(base: &str) -> String {
 /// 清理测试服务资源
 ///
 /// 测试结束后清理 WAL 数据库文件和缓存数据。
-#[allow(dead_code)]
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub async fn cleanup_service(service_name: &str) {
     tokio::fs::remove_file(format!("{}_wal.db", service_name))
         .await

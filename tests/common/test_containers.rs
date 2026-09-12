@@ -4,6 +4,7 @@
 //!
 //! 使用 testcontainers 0.28+ API 提供容器管理功能
 
+// 多个测试二进制共享本模块，助手函数按二进制各有取舍，统一放行死代码告警。
 #![allow(dead_code)]
 
 use std::time::Duration;

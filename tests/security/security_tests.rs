@@ -13,7 +13,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 /// 安全验收测试配置
-#[allow(dead_code)]
+#[expect(dead_code, reason = "安全验收场景尚未全部落地，配置结构体先行保留")]
 #[derive(Debug, Clone)]
 struct SecurityTestConfig {
     test_tls: bool,

@@ -260,7 +260,7 @@ impl CacheConnector for IntegrityBackend {
 mod tests {
     use super::*;
     use crate::backend::MockBackend;
-    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
+    use crate::backend::interface::{CacheReader, CacheWriter};
 
     fn key32(seed: u8) -> [u8; TAG_SIZE] {
         let mut key = [0u8; TAG_SIZE];

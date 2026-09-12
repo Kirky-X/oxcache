@@ -220,7 +220,7 @@ impl CacheConnector for CompressingBackend {
 mod tests {
     use super::*;
     use crate::backend::MockBackend;
-    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
+    use crate::backend::interface::{CacheReader, CacheWriter};
 
     fn backend() -> CompressingBackend {
         CompressingBackend::with_threshold(

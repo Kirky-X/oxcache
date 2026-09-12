@@ -78,7 +78,7 @@ fn test_no_circular_reference_leak() {
     use std::rc::Rc;
 
     struct Node {
-        #[allow(dead_code)]
+        #[expect(dead_code, reason = "字段仅为构造循环引用撑起节点布局，测试本身不读取")]
         value: Vec<u8>,
         next: Option<Rc<RefCell<Node>>>,
     }
