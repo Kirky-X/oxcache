@@ -165,7 +165,7 @@ use crate::error::OxCacheError;
 #[cfg(feature = "redis")]
 use crate::backend::RedisBackend;
 #[cfg(feature = "redis")]
-use crate::cache::{ChainCache, ChainCacheBuilder, ChainLink};
+use crate::cache::{ChainCacheBuilder, ChainLink};
 
 /// trait-kit `AsyncKit` module that constructs an oxcache cache backend.
 ///
@@ -545,7 +545,7 @@ mod tests {
         kit.register_lifecycle::<OxcacheModule>();
         let kit = kit.build().await.expect("AsyncKit::build");
         // Shutdown should complete without panic.
-        kit.shutdown();
+        kit.shutdown_async().await;
     }
 
     // ---- multi-backend tests ----
