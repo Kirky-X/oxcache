@@ -97,15 +97,24 @@ impl KeyspaceNotificationListener {
                 }
                 // 带超时轮询：100ms 内任意频道有消息即处理
                 let mut payload: Option<String> = None;
-                for rx in merged.iter_mut() {
+                let mut closed: Vec<usize> = Vec::new();
+                for (idx, rx) in merged.iter_mut().enumerate() {
                     match tokio::time::timeout(Duration::from_millis(1), rx.recv()).await {
                         Ok(Some(msg)) => {
                             payload = Some(msg);
                             break;
                         }
-                        Ok(None) => return, // 订阅端关闭
+                        // 单个频道订阅端关闭：仅摘除该频道，其余继续
+                        Ok(None) => closed.push(idx),
                         Err(_) => continue,
                     }
+                }
+                for idx in closed.into_iter().rev() {
+                    merged.remove(idx);
+                }
+                if merged.is_empty() {
+                    // 全部频道关闭：监听结束
+                    return;
                 }
                 let Some(key) = payload else {
                     // 无消息：稍作让步避免热循环

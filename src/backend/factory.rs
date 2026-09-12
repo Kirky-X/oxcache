@@ -109,9 +109,12 @@ impl BackendRegistry {
         kind: impl Into<String>,
         factory: Arc<dyn BackendFactory>,
     ) -> &Self {
-        if let Ok(mut map) = self.factories.write() {
-            map.insert(kind.into(), factory);
-        }
+        // 与 build/registered 同口径：锁中毒时恢复数据继续写入，
+        // 避免注册静默丢失后 build 报出误导性的 unknown kind
+        self.factories
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(kind.into(), factory);
         self
     }
 
@@ -125,25 +128,27 @@ impl BackendRegistry {
 
     /// 已注册 kind 列表（排序）
     pub fn registered(&self) -> Vec<String> {
-        self.factories
+        let mut kinds: Vec<String> = self
+            .factories
             .read()
-            .map(|map| {
-                let mut kinds: Vec<String> = map.keys().cloned().collect();
-                kinds.sort();
-                kinds
-            })
-            .unwrap_or_default()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .keys()
+            .cloned()
+            .collect();
+        kinds.sort();
+        kinds
     }
 
     /// 按名构建后端
     ///
     /// 未知 kind 报错并附带可用列表（Agent DX：错误即文档）。
     pub async fn build(&self, spec: &BackendSpec) -> OxCacheResult<Arc<dyn CacheBackend>> {
-        let factory = self
-            .factories
-            .read()
-            .ok()
-            .and_then(|map| map.get(&spec.kind).cloned());
+        // 锁中毒时注册表数据本身仍一致，恢复后继续查找，
+        // 避免把「已注册」误报成 unknown kind
+        let factory = match self.factories.read() {
+            Ok(map) => map.get(&spec.kind).cloned(),
+            Err(poisoned) => poisoned.into_inner().get(&spec.kind).cloned(),
+        };
         match factory {
             Some(factory) => factory.build(spec).await,
             None => Err(OxCacheError::InvalidInput(format!(

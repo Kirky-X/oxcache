@@ -17,6 +17,12 @@
 //! 广播给全部订阅者、at-most-once），供无真实 Redis 的单测使用；
 //! [`RedisPubSubTransport`] 为真实 Redis 实现。
 //!
+//! # 信任边界
+//!
+//! 失效消息无认证签名：Pub/Sub 信道视为内网可信面——任何能 PUBLISH 该
+//! 频道的客户端都可触发订阅实例的 L1 失效（DoS 面）。跨信任域部署需
+//! 以 Redis ACL 限制频道写权限或做网络隔离。
+//!
 //! # Example
 //!
 //! ```rust,ignore

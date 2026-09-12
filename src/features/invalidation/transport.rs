@@ -80,13 +80,17 @@ impl InMemoryPubSubTransport {
 #[async_trait]
 impl PubSubTransport for InMemoryPubSubTransport {
     async fn publish(&self, channel: &str, payload: &str) -> OxCacheResult<()> {
-        let senders = match self.channels.lock() {
-            Ok(map) => map.get(channel).cloned().unwrap_or_default(),
-            Err(_) => Vec::new(),
-        };
-        // 广播给全部订阅者；已断开（接收端 dropped）的发送者静默剔除
-        for tx in senders {
-            let _ = tx.send(payload.to_string());
+        match self.channels.lock() {
+            Ok(mut map) => {
+                if let Some(list) = map.get_mut(channel) {
+                    let payload = payload.to_string();
+                    // 广播给全部订阅者；接收端已断开的发送者当场剔除，
+                    // 防止订阅churn 导致死 sender 在 map 中持续累积
+                    list.retain(|tx| tx.send(payload.clone()).is_ok());
+                }
+            }
+            // 锁中毒：与 subscribe 的容错口径一致，静默放弃本次投递
+            Err(_) => {}
         }
         Ok(())
     }
@@ -248,6 +252,19 @@ mod tests {
         transport.publish("ch", "fanout").await.unwrap();
         assert_eq!(rx1.recv().await, Some("fanout".to_string()));
         assert_eq!(rx2.recv().await, Some("fanout".to_string()));
+    }
+
+    #[tokio::test]
+    async fn in_memory_disconnected_senders_are_pruned() {
+        // 接收端 dropped 后，死 sender 应在下一次 publish 时被剔除，
+        // 不在通道 map 中无限累积
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let rx = transport.subscribe("ch").await.unwrap();
+        assert_eq!(transport.subscriber_count("ch"), 1);
+
+        drop(rx);
+        transport.publish("ch", "after-drop").await.unwrap();
+        assert_eq!(transport.subscriber_count("ch"), 0, "死 sender 应被剔除");
     }
 
     #[tokio::test]

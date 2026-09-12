@@ -7,7 +7,8 @@
 //! - L2 连续故障计数超阈值 → 自动降级 L1-only（`Degraded`）；
 //! - 降级期 L2 流量被拦截（装饰器返回 `Degraded` 错误，ChainCache 部分失败
 //!   容忍机制使读回落 L1）；
-//! - 半开探测：降级超过 `recovery_timeout` 后放行单个探测请求（`HalfOpen`）；
+//! - 半开探测：降级超过 `recovery_timeout` 后转 `HalfOpen` 放行 L2 探测
+//!   流量（并发探测均放行）；
 //! - 探测成功 → 自动恢复 `Active`；探测失败 → 重新 `Degraded`。
 //!
 //! # Example
@@ -110,10 +111,12 @@ impl DegradationController {
 
     /// 当前状态
     pub fn state(&self) -> DegradationState {
+        // 与 record_failure/record_success/allow_l2 同口径：锁中毒时恢复
+        // 内部数据（状态机数据本身一致），避免永久卡在降级态
         self.inner
             .lock()
-            .map(|inner| inner.state)
-            .unwrap_or(DegradationState::Degraded)
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .state
     }
 
     /// 是否处于 L1-only 降级
@@ -164,6 +167,8 @@ impl DegradationController {
     /// 是否放行 L2 流量。
     ///
     /// Degraded 状态且降级时长已超过恢复超时 → 转 HalfOpen 并放行探测。
+    /// HalfOpen 期间 L2 流量全部放行（并发探测均放行），由探测的
+    /// 成功/失败反馈驱动恢复或重回降级。
     pub fn allow_l2(&self) -> bool {
         let mut inner = self
             .inner

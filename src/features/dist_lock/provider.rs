@@ -8,7 +8,7 @@
 //! downstream crates can depend on the abstraction rather than the concrete
 //! type.
 
-use crate::error::OxCacheResult;
+use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::time::Duration;
 
@@ -65,14 +65,12 @@ impl LockProvider for DistributedLock {
             Ok(acquired) => Ok(acquired),
             // acquire() returns Err when another owner holds the lock;
             // translate to Ok(false) per the LockProvider contract.
-            Err(e) => {
-                let msg = e.to_string();
-                if msg.contains("already held") {
-                    Ok(false)
-                } else {
-                    Err(e)
-                }
+            // 仅识别 acquire 的争用错误变体（Operation + dist_lock 标记），
+            // 其余错误原样透传，避免对任意错误文本做宽泛匹配误判
+            Err(OxCacheError::Operation(msg)) if msg.contains("already held by another owner") => {
+                Ok(false)
             }
+            Err(e) => Err(e),
         }
     }
 

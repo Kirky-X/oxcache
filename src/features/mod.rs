@@ -55,7 +55,6 @@ pub use invalidation::{
 };
 
 #[cfg(feature = "encrypt")]
-#[cfg(feature = "encrypt")]
 pub use encryption::{EncryptedBackend, ENVELOPE_VERSION, ValueCipher};
 
 #[cfg(feature = "integrity")]

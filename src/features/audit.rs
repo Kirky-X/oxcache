@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! 缓存审计事件流（`audit` feature）
 //!
-//! [`AuditEventPublisher`] 端口：get/set/delete/evict/expired 等操作发布
-//! 结构化审计事件（脱敏 key + 操作 + 时间戳 + operator 元数据），满足
-//! Repudiation 维度的审计留痕。
+//! [`AuditEventPublisher`] 端口：get/set/delete 操作发布结构化审计事件
+//! （脱敏 key + 操作 + 时间戳 + operator 元数据），满足 Repudiation 维度
+//! 的审计留痕。
 //!
 //! - [`NoOpAuditPublisher`]：默认实现，零开销；
 //! - [`InMemoryAuditPublisher`]：有界环形缓冲，测试/调试用；

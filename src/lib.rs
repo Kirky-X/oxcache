@@ -425,6 +425,13 @@ pub use features::dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedL
     feature = "full"
 ))]
 pub use cache::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
+#[cfg(any(
+    feature = "memory",
+    feature = "redis",
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
+))]
 pub use cache::{NamespaceName, TypedNamespace};
 #[cfg(any(
     feature = "memory",

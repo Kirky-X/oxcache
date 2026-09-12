@@ -143,9 +143,14 @@ where
     /// `base_ttl * (1.0 ± factor)`. For example, with `factor = 0.1`
     /// and `base_ttl = 60s`, the actual TTL will be between 54s and 66s.
     ///
-    /// Range: `0.0..=1.0`. Values outside this range are clamped.
+    /// Range: `0.0..=1.0`. Values outside this range are clamped; NaN is
+    /// treated as `0.0` (no jitter) since NaN would poison the TTL math.
     pub fn ttl_jitter(mut self, factor: f64) -> Self {
-        self.ttl_jitter_factor = factor.clamp(0.0, 1.0);
+        self.ttl_jitter_factor = if factor.is_nan() {
+            0.0
+        } else {
+            factor.clamp(0.0, 1.0)
+        };
         self
     }
 

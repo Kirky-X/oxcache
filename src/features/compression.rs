@@ -78,14 +78,10 @@ impl CompressingBackend {
     /// 解压（按魔数分发；非压缩数据原样返回）
     fn decode(&self, data: &[u8]) -> OxCacheResult<Vec<u8>> {
         if Self::is_zstd(data) {
-            use std::io::Read;
-            let mut decoder = zstd::stream::Decoder::new(data)
-                .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?;
-            let mut out = Vec::new();
-            decoder
-                .read_to_end(&mut out)
-                .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?;
-            Ok(out)
+            Self::decode_zstd_with_limit(
+                data,
+                crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE,
+            )
         } else if Self::is_gzip(data) {
             // 兼容旧 gzip 数据
             crate::infra::serialization::utils::decompress_data_with_limit(
@@ -95,6 +91,26 @@ impl CompressingBackend {
         } else {
             Ok(data.to_vec())
         }
+    }
+
+    /// 解压 zstd 帧，输出上限 `max_size`（防解压炸弹，与 gzip 路径同口径）
+    fn decode_zstd_with_limit(data: &[u8], max_size: usize) -> OxCacheResult<Vec<u8>> {
+        use std::io::Read;
+        let mut decoder = zstd::stream::Decoder::new(data)
+            .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?
+            .take(max_size as u64 + 1);
+        let mut out = Vec::new();
+        decoder
+            .read_to_end(&mut out)
+            .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?;
+        if out.len() > max_size {
+            return Err(crate::error::OxCacheError::Serialization(format!(
+                "zstd decompressed data too large: {} bytes (max: {} bytes)",
+                out.len(),
+                max_size
+            )));
+        }
+        Ok(out)
     }
 }
 
@@ -215,6 +231,24 @@ mod tests {
 
     fn compressible(len: usize) -> Vec<u8> {
         b"compressible-pattern-".repeat(len / 21 + 1)[..len].to_vec()
+    }
+
+    #[test]
+    fn zstd_decode_rejects_output_over_limit() {
+        // 1 MiB 高可压缩数据用小上限解码 → 必须报错而非无界分配
+        let bomb = vec![0u8; 1024 * 1024];
+        let compressed = zstd::stream::encode_all(bomb.as_slice(), 19).unwrap();
+        assert!(compressed.len() < 64 * 1024, "测试前提：压缩后应很小");
+
+        let err = CompressingBackend::decode_zstd_with_limit(&compressed, 64 * 1024).unwrap_err();
+        assert!(
+            err.to_string().contains("too large"),
+            "超限解压必须被拒绝: {err}"
+        );
+
+        // 上限内正常解压不受影响
+        let ok = CompressingBackend::decode_zstd_with_limit(&compressed, 2 * 1024 * 1024).unwrap();
+        assert_eq!(ok.len(), 1024 * 1024);
     }
 
     #[tokio::test]

@@ -187,20 +187,27 @@ impl CacheReader for DashMapMemoryBackend {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
-        // 查找：DashMap 返回 Option<Ref>，仅检查 key 是否存在
-        let found = self.cache.get(key).map(|entry_ref| {
-            let entry = entry_ref.value();
-            // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
-            if let Some(expires_at) = entry.expires_at
-                && expires_at <= now
-            {
-                return None; // expired
+        let found = match self.cache.get(key) {
+            Some(entry_ref) => {
+                let entry = entry_ref.value();
+                if let Some(expires_at) = entry.expires_at
+                    && expires_at <= now
+                {
+                    // 过期即物理删除（与 exists/ttl 同一口径），防止条目滞留内存
+                    drop(entry_ref);
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.is_some_and(|exp| exp <= now)
+                    });
+                    None
+                } else {
+                    Some((*entry.value).clone())
+                }
             }
-            Some((*entry.value).clone())
-        });
+            None => None,
+        };
 
-        // 统一计数：flatten 后判断最终命中/未命中，仅在此处计数一次
-        match found.flatten() {
+        // 统一计数：命中/未命中仅在此处计数一次
+        match found {
             Some(value) => {
                 self.hits.fetch_add(1, Ordering::SeqCst);
                 Ok(Some(value))
@@ -282,6 +289,16 @@ impl CacheReader for DashMapMemoryBackend {
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
         Ok(stats)
     }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        // glob 匹配口径与 MokaMemoryBackend::keys_matching 一致
+        Ok(self
+            .cache
+            .iter()
+            .filter(|entry| crate::backend::interface::glob_match(pattern, entry.key()))
+            .map(|entry| entry.key().to_string())
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -316,6 +333,9 @@ impl CacheWriter for DashMapMemoryBackend {
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.cache.remove(key);
+        // FIFO 中的陈旧条目（含被删 key 的字符串）依赖紧缩回收，
+        // 删除路径主动检查一次，避免低于容量的删除密集负载下队列无限增长
+        self.compact_fifo();
         Ok(())
     }
 
@@ -371,20 +391,27 @@ impl crate::backend::interface::SyncCacheReader for DashMapMemoryBackend {
     fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         let now = Instant::now();
 
-        // 查找：DashMap 返回 Option<Ref>，仅检查 key 是否存在
-        let found = self.cache.get(key).map(|entry_ref| {
-            let entry = entry_ref.value();
-            // 过期检查（持有 Ref 期间不能 remove，留给下次访问或淘汰清理）
-            if let Some(expires_at) = entry.expires_at
-                && expires_at <= now
-            {
-                return None; // expired
+        let found = match self.cache.get(key) {
+            Some(entry_ref) => {
+                let entry = entry_ref.value();
+                if let Some(expires_at) = entry.expires_at
+                    && expires_at <= now
+                {
+                    // 过期即物理删除（与 exists/ttl 同一口径），防止条目滞留内存
+                    drop(entry_ref);
+                    self.cache.remove_if(key, |_, entry| {
+                        entry.expires_at.is_some_and(|exp| exp <= now)
+                    });
+                    None
+                } else {
+                    Some((*entry.value).clone())
+                }
             }
-            Some((*entry.value).clone())
-        });
+            None => None,
+        };
 
-        // 统一计数：flatten 后判断最终命中/未命中，仅在此处计数一次
-        match found.flatten() {
+        // 统一计数：命中/未命中仅在此处计数一次
+        match found {
             Some(value) => {
                 self.hits.fetch_add(1, Ordering::SeqCst);
                 Ok(Some(value))
@@ -490,6 +517,9 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
 
     fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.cache.remove(key);
+        // FIFO 中的陈旧条目（含被删 key 的字符串）依赖紧缩回收，
+        // 删除路径主动检查一次，避免低于容量的删除密集负载下队列无限增长
+        self.compact_fifo();
         Ok(())
     }
 
@@ -890,6 +920,77 @@ mod tests {
         // ttl 应返回 None 并从 cache 中移除条目
         assert_eq!(backend.ttl("expire_me").await.unwrap(), None);
         assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+    }
+
+    #[tokio::test]
+    async fn test_get_removes_expired_entry() {
+        // get 读到过期条目时应物理删除，而非仅返回 None（防条目滞留内存）
+        let backend = dashmap_memory_with_capacity(100);
+
+        backend
+            .set(
+                Arc::from("expire_me"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_millis(30)),
+            )
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        assert_eq!(backend.get("expire_me").await.unwrap(), None);
+        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+    }
+
+    #[tokio::test]
+    async fn test_keys_glob_matching() {
+        let backend = dashmap_memory_with_capacity(100);
+
+        for key in ["user:1", "user:2", "order:1"] {
+            backend
+                .set(Arc::from(key), Arc::new(b"v".to_vec()), None)
+                .await
+                .unwrap();
+        }
+
+        let mut users = backend.keys("user:*").await.unwrap();
+        users.sort();
+        assert_eq!(users, vec!["user:1".to_string(), "user:2".to_string()]);
+        assert_eq!(backend.keys("missing:*").await.unwrap(), Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn test_delete_compacts_stale_fifo() {
+        // 大量删除后 FIFO 中陈旧条目（含被删 key 字符串）应被紧缩回收；
+        // 紧缩阈值为 max(4 × 存活条目数, 1024)，需超过阈值才能观察到重建
+        let backend = dashmap_memory_with_capacity(4000);
+
+        for i in 0..3000u64 {
+            backend
+                .set(
+                    Arc::from(format!("k{i}").as_str()),
+                    Arc::new(b"v".to_vec()),
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        // 删到只剩 100 条：FIFO 曾达 3000（> 1024），删除路径的紧缩必须生效
+        for i in 0..2900u64 {
+            backend.delete(format!("k{i}").as_str()).await.unwrap();
+        }
+
+        let cache_len = backend.cache.len();
+        let fifo_len = backend.fifo.lock().unwrap().len();
+        assert_eq!(cache_len, 100);
+        assert!(
+            fifo_len < 1500,
+            "删除后 FIFO 陈旧条目应被紧缩: fifo_len={fifo_len}"
+        );
+        assert!(
+            fifo_len <= 1024.max(cache_len * 4),
+            "FIFO 应满足紧缩不变量: fifo_len={fifo_len}, cache_len={cache_len}"
+        );
     }
 
     #[tokio::test]

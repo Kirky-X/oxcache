@@ -36,14 +36,18 @@ impl InvalidationConfig {
 
 /// 后台监听任务句柄
 pub struct ListenerHandle {
-    join: JoinHandle<()>,
+    /// `Some` = 尚未 join；`None` = join 已消费句柄
+    join: Option<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
 }
 
 impl ListenerHandle {
     /// 由子模块构造句柄
     pub(crate) fn new(join: JoinHandle<()>, stop: Arc<AtomicBool>) -> Self {
-        Self { join, stop }
+        Self {
+            join: Some(join),
+            stop,
+        }
     }
 
     /// 请求停止监听（任务在下一条消息或轮询间隙退出）
@@ -52,8 +56,17 @@ impl ListenerHandle {
     }
 
     /// 等待监听任务退出
-    pub async fn join(self) {
-        let _ = self.join.await;
+    pub async fn join(mut self) {
+        if let Some(join) = self.join.take() {
+            let _ = join.await;
+        }
+    }
+}
+
+impl Drop for ListenerHandle {
+    fn drop(&mut self) {
+        // 句柄被丢弃即请求停止，避免监听任务在无主状态下空转泄漏
+        self.stop.store(true, Ordering::SeqCst);
     }
 }
 
@@ -141,7 +154,7 @@ impl InvalidationBus {
             }
         });
 
-        Ok(ListenerHandle { join, stop })
+        Ok(ListenerHandle::new(join, stop))
     }
 }
 

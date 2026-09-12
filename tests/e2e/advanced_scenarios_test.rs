@@ -190,11 +190,12 @@ async fn b001_moka_capacity_zero_defaults_to_10000() {
     assert_eq!(val, Some(b"v".to_vec()));
 }
 
-/// B-002: DashMap lazy TTL — expired entry returns None on get but is NOT
-/// removed from the map (len still counts it).
+/// B-002: DashMap TTL — expired entry returns None on get AND is physically
+/// removed from the map (len no longer counts it; same cleanup contract as
+/// exists/ttl).
 #[cfg(feature = "memory")]
 #[tokio::test]
-async fn b002_dashmap_lazy_ttl_expired_entry_not_removed() {
+async fn b002_dashmap_get_removes_expired_entry() {
     use oxcache::DashMapMemoryBackend;
 
     let backend = DashMapMemoryBackend::new();
@@ -213,14 +214,14 @@ async fn b002_dashmap_lazy_ttl_expired_entry_not_removed() {
     // Wait for expiry.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // get returns None (expired) but entry is still in the map.
+    // get returns None (expired) and physically removes the entry.
     let val = backend.get("temp").await.expect("get must succeed");
     assert!(val.is_none(), "expired entry should return None");
 
     let len = backend.len().await.expect("len must succeed");
     assert_eq!(
-        len, 1,
-        "DashMap lazy expiry: stale entry still counted in len"
+        len, 0,
+        "DashMap get should remove expired entries from the map"
     );
 }
 
@@ -629,9 +630,9 @@ async fn t004_chain_default_ttl_applied_on_set_none() {
     );
 }
 
-/// T-006: DashMap lazy expiration — get checks expiry without removing the
-/// entry, but exists actively removes expired entries via remove_if.
-/// After exists, len no longer counts the stale entry.
+/// T-006: DashMap expiration — get, exists and ttl all actively remove
+/// expired entries via remove_if. After get, len no longer counts the
+/// stale entry.
 #[cfg(feature = "memory")]
 #[tokio::test]
 async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
@@ -649,13 +650,12 @@ async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // get returns None (checks expiry) but does NOT remove the entry.
+    // get returns None AND removes the expired entry.
     assert!(backend.get("lazy").await.unwrap().is_none());
-    // len is still 1 because get does not clean up expired entries.
-    assert_eq!(backend.len().await.unwrap(), 1);
-    // exists returns false AND removes the expired entry via remove_if.
+    // len is now 0 because get cleaned up the stale entry.
+    assert_eq!(backend.len().await.unwrap(), 0);
+    // exists returns false (entry already gone).
     assert!(!backend.exists("lazy").await.unwrap());
-    // len is now 0 because exists cleaned up the stale entry.
     assert_eq!(backend.len().await.unwrap(), 0);
 }
 

@@ -161,7 +161,10 @@ impl LockNode for RedisLockNode {
             .query_async(&mut conn)
             .await
             .map_err(|e| OxCacheError::Operation(format!("redlock fence incr failed: {e}")))?;
-        Ok(u64::try_from(token).unwrap_or(0))
+        // 负值（如被外部 DECR 过的计数）不得静默折算为 0（0 会被下游
+        // 视为「无 fencing 保护」）：显式报错，由 best-effort 调用方忽略
+        u64::try_from(token)
+            .map_err(|_| OxCacheError::Operation(format!("redlock fence token invalid: {token}")))
     }
 }
 
