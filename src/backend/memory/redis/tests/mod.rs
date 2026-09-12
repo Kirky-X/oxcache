@@ -68,15 +68,6 @@ pub(crate) async fn make_backend() -> RedisBackend {
         .unwrap_or_else(|e| panic!("Redis connection failed ({}): {}", REDIS_URL, e))
 }
 
-/// Create a RedisBackend connected to a specific URL
-#[allow(dead_code)]
-pub(crate) async fn make_backend_with_url(url: &str) -> RedisBackend {
-    set_allow_insecure_env();
-    RedisBackend::new(url)
-        .await
-        .unwrap_or_else(|e| panic!("Redis connection failed ({}): {}", url, e))
-}
-
 /// Clean up a test key
 pub(crate) async fn cleanup(backend: &RedisBackend, key: &str) {
     // Intentionally discard errors — test teardown should not fail the test

@@ -5,7 +5,7 @@
 //! Provides fine-grained mapping from `RedisError` to `OxCacheError` variants,
 //! replacing the coarse `conn_err` / `op_err` binary mapping.
 
-use crate::error::{OxCacheError, OxCacheResult};
+use crate::error::OxCacheError;
 use redis::RedisError;
 
 /// Map a `RedisError` to the most specific `OxCacheError` variant.
@@ -28,7 +28,3 @@ pub(crate) fn map_redis_error(e: RedisError) -> OxCacheError {
 pub(crate) fn is_connection_error(e: &RedisError) -> bool {
     e.is_timeout() || e.is_io_error() || e.is_connection_dropped()
 }
-
-/// Convenience result type for Redis operations.
-#[allow(dead_code)]
-pub(crate) type RedisResult<T> = OxCacheResult<T>;

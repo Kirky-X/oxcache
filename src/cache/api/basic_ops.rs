@@ -3,7 +3,7 @@
 //! Cache 基础操作方法
 
 use super::Cache;
-use crate::core::NULL_SENTINEL;
+use crate::core::constants::NULL_SENTINEL;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
@@ -1000,7 +1000,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::MAX_JSON_DEPTH;
+    use crate::core::constants::MAX_JSON_DEPTH;
 
     #[tokio::test]
     async fn test_cache_clear() {

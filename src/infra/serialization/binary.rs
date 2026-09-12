@@ -95,7 +95,7 @@ pub fn serialize_with_format<T: Serialize>(
     };
     crate::infra::serialization::utils::check_data_size(
         &bytes,
-        crate::core::MAX_JSON_SIZE,
+        crate::core::constants::MAX_JSON_SIZE,
         format.name(),
     )?;
     Ok(bytes)
@@ -108,13 +108,13 @@ pub fn deserialize_with_format<T: DeserializeOwned>(
 ) -> OxCacheResult<T> {
     crate::infra::serialization::utils::check_data_size(
         data,
-        crate::core::MAX_JSON_SIZE,
+        crate::core::constants::MAX_JSON_SIZE,
         format.name(),
     )?;
     match format {
         SerializationFormat::Json => crate::infra::serialization::depth_limited::deserialize_safe(
             data,
-            crate::core::MAX_JSON_DEPTH,
+            crate::core::constants::MAX_JSON_DEPTH,
         )
         .map_err(|e| OxCacheError::Serialization(e.to_string())),
         #[cfg(feature = "serde-bincode")]
@@ -250,7 +250,7 @@ mod tests {
         // 小数据不应报错（正常路径）
         let _: Vec<u8> = deserialize_with_format(SerializationFormat::Json, &serialize_with_format(SerializationFormat::Json, &big).unwrap()).unwrap();
         // 超限数据必须被拒（纵深防御对二进制格式同样生效）
-        let oversized = vec![0u8; crate::core::MAX_JSON_SIZE + 1];
+        let oversized = vec![0u8; crate::core::constants::MAX_JSON_SIZE + 1];
         let err = serialize_with_format(SerializationFormat::Json, &oversized)
             .expect_err("超限序列化必须报错");
         assert!(matches!(err, OxCacheError::Serialization(_)));

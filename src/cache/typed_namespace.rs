@@ -106,7 +106,7 @@ where
             Some(data) => {
                 let val: V = crate::infra::serialization::depth_limited::deserialize_safe(
                     &data,
-                    crate::core::MAX_JSON_DEPTH,
+                    crate::core::constants::MAX_JSON_DEPTH,
                 )
                 .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
                 Ok(Some(val))
@@ -162,7 +162,6 @@ where
 mod tests {
     use super::*;
     use crate::backend::MockBackend;
-    use crate::backend::interface::{CacheReader, CacheWriter};
     use serde::{Deserialize, Serialize};
 
     namespace!(Users);

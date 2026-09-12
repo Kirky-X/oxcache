@@ -113,7 +113,7 @@ impl<T: UnifiedCache + ?Sized> TypedCacheExt for T {
             Some(data) => {
                 let val: T2 = crate::infra::serialization::depth_limited::deserialize_safe(
                     &data,
-                    crate::core::MAX_JSON_DEPTH,
+                    crate::core::constants::MAX_JSON_DEPTH,
                 )
                 .map_err(|e| crate::error::OxCacheError::Serialization(e.to_string()))?;
                 Ok(Some(val))

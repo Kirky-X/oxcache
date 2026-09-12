@@ -23,8 +23,6 @@ pub mod log;
 #[cfg(feature = "redis")]
 pub mod redaction;
 #[cfg(feature = "redis")]
-pub mod regex;
-#[cfg(feature = "redis")]
 pub mod validation;
 
 mod security_impl;
@@ -38,7 +36,6 @@ pub use redaction::{
 };
 #[cfg(feature = "redis")]
 #[allow(unused_imports)] // Public API re-exports for external consumers
-pub use regex::{compile_glob_pattern, compile_regex, glob_to_regex, match_safe};
 #[cfg(feature = "redis")]
 pub use validation::{
     DANGEROUS_CHARS, MAX_KEY_LENGTH, validate_max_length, validate_no_dangerous_chars,
