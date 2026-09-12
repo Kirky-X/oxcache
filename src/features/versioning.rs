@@ -78,6 +78,8 @@ impl MemoryVersionedCache {
         Self::default()
     }
 
+    // 仅供本模块测试断言失败路径不残留条目；生产路径经 VersionedStore trait。
+    #[cfg(test)]
     fn entry_count(&self) -> usize {
         self.entries.lock().map(|m| m.len()).unwrap_or(0)
     }
