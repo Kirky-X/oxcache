@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 配置驱动构建（`config-confers` feature，T307）
+//! 配置驱动构建（`config-confers` feature）
 //!
 //! [`OxcacheConfig`] 经 confers 配置源加载，容量 / TTL / 熔断参数支持
 //! confers [`ConfigBus`](confers::ConfigBus) watch **热更新**（快照原子换装）。

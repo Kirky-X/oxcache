@@ -32,13 +32,13 @@ pub struct CacheBuilder<K, V> {
     null_cache_ttl: Option<Duration>,
     /// TTL jitter factor for stampede prevention.
     ttl_jitter_factor: f64,
-    /// Injected metrics recorder (T302; metrics feature only).
+    /// Injected metrics recorder (metrics feature only).
     #[cfg(feature = "metrics")]
     metrics: Option<Arc<dyn crate::infra::MetricsRecorder>>,
-    /// Serialization transport format (T305; serialization feature only).
+    /// Serialization transport format (serialization feature only).
     #[cfg(any(feature = "serialization", feature = "full"))]
     serialization_format: Option<crate::infra::serialization::SerializationFormat>,
-    /// Injected audit event publisher (T309; audit feature only).
+    /// Injected audit event publisher (audit feature only).
     #[cfg(feature = "audit")]
     audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: PhantomData<(K, V)>,
@@ -149,7 +149,7 @@ where
         self
     }
 
-    /// Inject a metrics recorder (T302).
+    /// Inject a metrics recorder.
     ///
     /// After injection, the pure L1 path (`get`/`set`/`delete`) records
     /// hits/misses/latency samples through this recorder — previously the
@@ -164,7 +164,7 @@ where
         self
     }
 
-    /// Set the serialization transport format (T305).
+    /// Set the serialization transport format.
     ///
     /// Default is JSON. Enable `serde-bincode` / `postcard` features and
     /// select a binary format for compact L2 transport. **Do not mix formats
@@ -178,7 +178,7 @@ where
         self
     }
 
-    /// Inject an audit event publisher (T309).
+    /// Inject an audit event publisher.
     ///
     /// After injection, `get`/`set`/`delete` publish structured audit events
     /// (hit/miss/set/delete) with redacted keys through this publisher.
@@ -640,7 +640,7 @@ mod tests {
     }
 
     // ============================================================================
-    // T309: 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
+    // 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
     // ============================================================================
 
     #[cfg(feature = "audit")]
@@ -723,7 +723,7 @@ mod tests {
     }
 
     // ============================================================================
-    // T302: 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
+    // 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
     // ============================================================================
 
     #[cfg(feature = "metrics")]
@@ -808,7 +808,7 @@ mod tests {
     }
 
     // ============================================================================
-    // T305: 二进制序列化格式 —— Cache 级格式切换
+    // 二进制序列化格式 —— Cache 级格式切换
     // ============================================================================
 
     #[cfg(all(feature = "serde-bincode", feature = "postcard"))]

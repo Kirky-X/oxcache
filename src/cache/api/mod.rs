@@ -33,12 +33,12 @@ pub struct Cache<K, V> {
     /// TTL jitter factor (0.0..=1.0). When > 0, actual TTL is randomized
     /// within `base_ttl * (1.0 ± factor)` to prevent cache stampede.
     pub(crate) ttl_jitter_factor: f64,
-    /// 注入的指标记录端口（T302）。默认 NoOp（零开销）；
+    /// 注入的指标记录端口。默认 NoOp（零开销）；
     /// 经 `CacheBuilder::metrics()` 注入后，get/set/delete 纯 L1 路径
     /// 记录 hit/miss 计数与延迟样本。
     #[cfg(feature = "metrics")]
     pub(crate) metrics: Arc<dyn crate::infra::MetricsRecorder>,
-    /// 注入的审计事件发布端口（T309，`audit` feature）。None = 不审计。
+    /// 注入的审计事件发布端口（`audit` feature）。None = 不审计。
     #[cfg(feature = "audit")]
     pub(crate) audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: std::marker::PhantomData<(K, V)>,

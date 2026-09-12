@@ -77,7 +77,7 @@ where
         self.ttl_jitter_factor = factor;
     }
 
-    /// Inject a metrics recorder (T302).
+    /// Inject a metrics recorder.
     ///
     /// When set (non-NoOp), the pure L1 path (`get`/`set`/`delete`) records
     /// hit/miss/set/delete counts and latency samples through the recorder.
@@ -86,7 +86,7 @@ where
         self.metrics = recorder;
     }
 
-    /// Inject an audit event publisher (T309).
+    /// Inject an audit event publisher.
     ///
     /// After injection, `get`/`set`/`delete` publish structured audit events
     /// (hit/miss/set/delete) with redacted keys.

@@ -43,7 +43,7 @@ pub trait LockProvider: Send + Sync {
     /// Check whether this lock is currently held by the caller.
     async fn is_held(&self) -> OxCacheResult<bool>;
 
-    /// fencing token（T311）：锁获取成功后的单调递增值。
+    /// fencing token：锁获取成功后的单调递增值。
     ///
     /// `None` = 实现不支持 fencing。下游资源可据此做 staleness 检测：
     /// 拒绝 token 小于已见最大值的写入（防主从切换丢锁后的旧持有者写入）。
@@ -112,14 +112,14 @@ impl LockProvider for DistributedLock {
 mod tests {
     use super::*;
 
-    /// T024: verify `LockProvider` is object-safe (can be used as
+    /// verify `LockProvider` is object-safe (can be used as
     /// `Box<dyn LockProvider>`).
     #[test]
     fn lock_provider_is_object_safe() {
         fn _assert_dyn_safe(_: &dyn LockProvider) {}
     }
 
-    /// T024: verify `DefaultLockProvider` type alias resolves to
+    /// verify `DefaultLockProvider` type alias resolves to
     /// `DistributedLock`.
     #[test]
     fn default_lock_provider_alias() {

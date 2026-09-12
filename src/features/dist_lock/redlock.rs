@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! RedLock 多节点多数派锁（`red-lock` feature，T311）
+//! RedLock 多节点多数派锁（`red-lock` feature）
 //!
 //! [`RedLock`] 在 N 个独立锁节点上执行 RedLock 风格的多数派获取：
 //! 逐节点 `SET NX PX`，成功节点数 ≥ `N/2 + 1` 才视为获取成功；

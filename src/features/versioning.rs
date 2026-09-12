@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 版本化 CAS 写（T316）
+//! 版本化 CAS 写
 //!
 //! 与 [`AtomicCacheWriter::compare_and_swap`](crate::backend::AtomicCacheWriter)
 //! 的**按值比较**不同，这里基于**版本号**：

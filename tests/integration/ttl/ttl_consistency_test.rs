@@ -9,7 +9,7 @@
 // 覆盖构建参数差异下 TTL 语义不变。这是任务组 4 的跨后端回归套件，
 // 防止后续重构破坏 TTL 语义。
 //
-// 变更记录（production-mock-purge T027）：原本地 TtlMockBackend（mock）已移除，
+// 变更记录：原本地 TtlMockBackend（mock）已移除，
 // 替换为真实 DashMapMemoryBackend；集成/e2e 禁止 mock。
 
 use std::sync::Arc;

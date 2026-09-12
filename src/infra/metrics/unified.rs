@@ -89,7 +89,7 @@ pub struct AtomicCounters {
     pub backfill_success: AtomicU64,
     /// Backfill failure count (per backend)
     pub backfill_failed: AtomicU64,
-    /// Eviction / expiry removal count (T302)
+    /// Eviction / expiry removal count
     pub evictions: AtomicU64,
 }
 
@@ -583,7 +583,7 @@ impl UnifiedMetrics {
             .fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Record eviction / expiry removals (T302).
+    /// Record eviction / expiry removals.
     ///
     /// `count` is the number of entries removed (batch eviction supported).
     pub fn record_eviction(&self, count: u64) {
@@ -641,7 +641,7 @@ impl UnifiedMetrics {
             });
     }
 
-    /// Export metrics in **standard Prometheus exposition format** (T302).
+    /// Export metrics in **standard Prometheus exposition format**.
     ///
     /// Emits compliant `# HELP` / `# TYPE` headers with `oxcache_*` metric
     /// names: hits/misses (per layer), sets/deletes, evictions, operations,
@@ -836,7 +836,7 @@ pub struct CounterSnapshot {
     pub backfill_success: u64,
     /// Backfill failure count
     pub backfill_failed: u64,
-    /// Eviction / expiry removal count (T302)
+    /// Eviction / expiry removal count
     pub evictions: u64,
 }
 

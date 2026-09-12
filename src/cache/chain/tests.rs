@@ -1021,7 +1021,7 @@ async fn test_chain_race_read_miss_returns_none() {
 }
 
 // ========================================================================
-// AtomicCacheWriter for ChainCache (T028) 补充测试
+// AtomicCacheWriter for ChainCache 补充测试
 // ========================================================================
 
 #[tokio::test]
@@ -1109,7 +1109,7 @@ async fn test_chain_atomic_no_atomic_backend_returns_not_supported() {
 }
 
 // ========================================================================
-// keys() 合并去重测试 (T029)
+// keys() 合并去重测试
 // ========================================================================
 
 #[tokio::test]

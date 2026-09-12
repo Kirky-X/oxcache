@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 后端工厂注册中心（T315）
+//! 后端工厂注册中心
 //!
 //! [`BackendRegistry`] 按名注册/构建后端：字符串驱动的 `kind → factory`
 //! 映射，供 kit / sdforge / 配置层**动态选择**后端（替代已删 cli 的管理面

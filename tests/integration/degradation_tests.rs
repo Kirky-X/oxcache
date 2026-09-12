@@ -330,7 +330,7 @@ mod degradation_tests_inner {
                 "stats should contain memory_info"
             );
 
-            // 增强字段（T012 新增）
+            // 增强字段
             assert!(
                 stats.contains_key("connected_clients"),
                 "stats should contain connected_clients"

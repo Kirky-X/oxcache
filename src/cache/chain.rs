@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-// ---- T022: telemetry helpers (zero overhead when `telemetry` feature off) ----
+// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
 
 #[cfg(feature = "telemetry")]
 #[inline]
@@ -124,7 +124,7 @@ impl ChainLink {
         }
     }
 
-    /// 从已擦除的后端 trait 对象创建链接（T306 分层构建器使用）
+    /// 从已擦除的后端 trait 对象创建链接（分层构建器使用）
     ///
     /// 分数/持久化标志/名称由调用方提供（装饰器包装后的 `Arc<dyn CacheBackend>`
     /// 无法再查询 [`BackendScore`]）。
@@ -864,7 +864,7 @@ impl CacheConnector for ChainCache {
 }
 
 // ============================================================================
-// AtomicCacheWriter for ChainCache (T028)
+// AtomicCacheWriter for ChainCache
 // ============================================================================
 
 #[async_trait]
@@ -922,5 +922,5 @@ impl AtomicCacheWriter for ChainCache {
 }
 
 // ============================================================================
-// keys() override for ChainCache (T029)
+// keys() override for ChainCache
 // ============================================================================

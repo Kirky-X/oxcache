@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! `MetricsRecorder` 端口（T302 指标体系升级）
+//! `MetricsRecorder` 端口。
 //!
 //! 对象安全的指标注入端口：`Cache<K,V>` 纯 L1 路径（此前零指标）在
 //! get/set/delete 后调用注入的 [`MetricsRecorder`] 记录 hit/miss 计数与

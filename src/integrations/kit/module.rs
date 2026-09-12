@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! `OxcacheModule` — trait-kit 0.4 `AsyncKit` integration for oxcache.
 //!
-//! Phase 2 (T018 Red / T019 Green) of the `trait-kit-async-integration`
-//! change. Wires oxcache's cache backend into the `AsyncKit` dependency
+//! Wires oxcache's cache backend into the `AsyncKit` dependency
 //! injection framework as a leaf module (no upstream dependencies).
 //!
 //! # Design divergence from `design.md` / `spec.md` (Rule 7: expose, don't
@@ -40,9 +39,9 @@
 //! `CacheBackend` exposes the full operational surface (`get`/`set`/
 //! `delete`/`exists`/`clear`/`expire`/`ttl`/`health_check`/`shutdown`/
 //! `stats`/`backend_kind`/...) that downstream consumers (e.g. dbnexus's
-//! `OxcacheDbCacheAdapter` in Phase 4) need.
+//! `OxcacheDbCacheAdapter`) need.
 //!
-//! **Follow-up** (out of scope for T017-T019): if the spec owner requires
+//! **Follow-up**: if the spec owner requires
 //! the literal `Arc<dyn UnifiedCache>` form, oxcache's `UnifiedCache` trait
 //! must be split — moving `get_typed`/`set_typed` into a separate
 //! `TypedCacheExt` trait so `UnifiedCache` becomes object-safe. That change
@@ -549,15 +548,15 @@ mod tests {
         kit.shutdown();
     }
 
-    // ---- T021: multi-backend tests ----
+    // ---- multi-backend tests ----
 
-    /// T021: `BackendType::default()` is `Memory`.
+    /// `BackendType::default()` is `Memory`.
     #[test]
     fn backend_type_default_is_memory() {
         assert_eq!(BackendType::default(), BackendType::Memory);
     }
 
-    /// T021: `OxcacheConfig::default()` selects Memory backend.
+    /// `OxcacheConfig::default()` selects Memory backend.
     #[test]
     fn oxcache_config_default_selects_memory() {
         let cfg = OxcacheConfig::default();
@@ -566,7 +565,7 @@ mod tests {
         assert!(cfg.chain.is_empty());
     }
 
-    /// T021: Explicit `BackendType::Memory` builds a working memory backend.
+    /// Explicit `BackendType::Memory` builds a working memory backend.
     #[tokio::test]
     async fn explicit_memory_backend_builds() {
         let cfg = OxcacheConfig {
@@ -584,7 +583,7 @@ mod tests {
         assert_eq!(got, Some(b"ok".to_vec()));
     }
 
-    /// T021: `BackendType::Redis` without `redis` feature returns clear error.
+    /// `BackendType::Redis` without `redis` feature returns clear error.
     /// With `redis` feature, it returns error due to missing redis config.
     #[tokio::test]
     async fn redis_backend_without_config_errors() {
@@ -602,7 +601,7 @@ mod tests {
         );
     }
 
-    /// T021: `BackendType::Chain` without `redis` feature returns clear error.
+    /// `BackendType::Chain` without `redis` feature returns clear error.
     #[tokio::test]
     async fn chain_backend_without_config_errors() {
         let cfg = OxcacheConfig {
@@ -613,7 +612,7 @@ mod tests {
         assert!(result.is_err(), "expected error for Chain without config");
     }
 
-    /// T021: Chain with nested Chain link returns error.
+    /// Chain with nested Chain link returns error.
     #[cfg(feature = "redis")]
     #[tokio::test]
     async fn chain_nested_chain_errors() {
@@ -632,7 +631,7 @@ mod tests {
         assert!(format!("{}", result.err().unwrap()).contains("nested"));
     }
 
-    /// T021: `RedisConfig::default()` has sane defaults.
+    /// `RedisConfig::default()` has sane defaults.
     #[test]
     fn redis_config_defaults() {
         let rc = RedisConfig::default();

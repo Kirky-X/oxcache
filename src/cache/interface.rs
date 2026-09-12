@@ -20,7 +20,7 @@ use std::time::Duration;
 /// into a single, comprehensive interface. It provides both low-level byte operations
 /// and high-level typed operations.
 ///
-/// # Object safety (T313)
+/// # Object safety
 ///
 /// 本 trait 是 **object-safe 核心**（`Arc<dyn UnifiedCache>` 可用）：泛型
 /// 的 typed 读写已拆分到 [`TypedCacheExt`]（blanket impl 保持所有既有调用
@@ -79,7 +79,7 @@ pub trait UnifiedCache: Send + Sync + 'static {
     fn backend_kind(&self) -> crate::backend::interface::BackendKind;
 }
 
-/// Typed read/write extension (T313, generic — dyn-incompatible by nature)
+/// Typed read/write extension (generic — dyn-incompatible by nature)
 ///
 /// 通过 blanket impl 自动为所有 `UnifiedCache`（含 `dyn UnifiedCache`）
 /// 提供 `get_typed` / `set_typed`；既有调用点在 trait 可见时无需改动。
@@ -134,7 +134,7 @@ impl<T: UnifiedCache + ?Sized> TypedCacheExt for T {
     }
 }
 
-/// 兼容别名（T313）：`dyn UnifiedCache` 的可读别名
+/// 兼容别名：`dyn UnifiedCache` 的可读别名
 ///
 /// kit 集成等下游可改回 `Arc<dyn UnifiedCache>`（设计分歧关闭）。
 pub type DynUnifiedCache = dyn UnifiedCache;
@@ -382,7 +382,7 @@ mod tests {
     }
 
     // ============================================================================
-    // T313: 对象安全拆分 —— Arc<dyn UnifiedCache> 可用，typed 走 TypedCacheExt
+    // 对象安全拆分 —— Arc<dyn UnifiedCache> 可用，typed 走 TypedCacheExt
     // ============================================================================
 
     #[cfg(any(feature = "serialization", feature = "full"))]

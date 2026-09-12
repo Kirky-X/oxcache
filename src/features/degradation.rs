@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 自动降级与恢复（T308）
+//! 自动降级与恢复
 //!
 //! [`DegradationController`] 三态状态机：**Active → Degraded → HalfOpen → Active**
 //!

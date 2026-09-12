@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-// Integration tests for `#[cached(skip_cache_write)]` — the T003 extension.
+// Integration tests for the `#[cached(skip_cache_write)]` extension.
 //
 // These tests verify:
 //   1. `#[cached(skip_cache_write)]` compiles (smoke test)
@@ -43,7 +43,7 @@ async fn cached_async_default(id: u64) -> Result<u64, String> {
     Ok(id * 2)
 }
 
-/// `#[cached(skip_cache_write)]` on an async fn must compile (T003 smoke test)
+/// `#[cached(skip_cache_write)]` on an async fn must compile (smoke test)
 /// and the generated code must still produce the correct return value.
 #[tokio::test]
 #[serial]
@@ -135,7 +135,7 @@ fn cached_sync_default(id: u64) -> Result<u64, String> {
     Ok(id * 3)
 }
 
-/// `#[cached(sync, skip_cache_write)]` must compile (sync-branch T003 smoke test).
+/// `#[cached(sync, skip_cache_write)]` must compile (sync-branch smoke test).
 // Multi-thread flavor required: MokaMemoryBackend sync ops rely on
 // `block_in_place`, which panics on current_thread runtimes.
 #[tokio::test(flavor = "multi_thread")]

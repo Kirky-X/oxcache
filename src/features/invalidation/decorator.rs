@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 写路径失效广播装饰器（T301）
+//! 写路径失效广播装饰器
 //!
 //! [`InvalidatingBackend`] 包装任意 [`CacheBackend`]：写操作（set/delete/
 //! set_many/delete_many/clear）成功后经 [`InvalidationBus`] 广播失效事件，

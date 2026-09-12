@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 二进制序列化格式（T305）
+//! 二进制序列化格式
 //!
 //! [`SerializationFormat`] 提供 JSON 之外的可选传输格式：
 //!
@@ -24,7 +24,7 @@
 use crate::error::{OxCacheError, OxCacheResult};
 use serde::{Serialize, de::DeserializeOwned};
 
-/// 序列化传输格式（T305）
+/// 序列化传输格式
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum SerializationFormat {
     /// JSON（serde_json，默认；带深度防御解析）

@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 值完整性 HMAC 装饰器（`integrity` feature，T304）
+//! 值完整性 HMAC 装饰器（`integrity` feature）
 //!
 //! [`IntegrityBackend`] 为 value 附加 **HMAC-SHA256** 标签，读取时校验，
 //! 防不可信 L2 部署下的值篡改。与 [`EncryptedBackend`](super::EncryptedBackend)

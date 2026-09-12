@@ -14,7 +14,7 @@ const STATE_CLOSED: u8 = 0;
 const STATE_OPEN: u8 = 1;
 const STATE_HALF_OPEN: u8 = 2;
 
-// ---- T022: telemetry helpers (zero overhead when `telemetry` feature off) ----
+// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
 
 #[cfg(feature = "telemetry")]
 #[inline]

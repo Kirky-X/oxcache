@@ -17,7 +17,7 @@ pub use infra_impl::validate_cache_key;
 #[cfg(feature = "metrics")]
 pub use metrics::{CacheStats, export_json_format, export_prometheus_format, get_enhanced_stats};
 
-// T302: standard Prometheus exposition export + metrics recorder port
+// standard Prometheus exposition export + metrics recorder port
 #[cfg(feature = "metrics")]
 pub use metrics::{
     MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder, export_prometheus_standard,

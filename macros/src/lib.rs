@@ -26,7 +26,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut key_prefix = None;
     let mut sync_mode = false;
     let mut skip_cache_write = false;
-    // T020: new parameters
+    // new parameters
     let mut single_flight = false;
     let mut strict_mode = false;
     let mut condition_fn = None;
@@ -43,15 +43,15 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             Meta::Path(path) if path.is_ident("skip_cache_write") => {
                 skip_cache_write = true;
             }
-            // T020: `single_flight` flag — enable concurrent miss dedup
+            // `single_flight` flag — enable concurrent miss dedup
             Meta::Path(path) if path.is_ident("single_flight") => {
                 single_flight = true;
             }
-            // T020: `strict` flag — panic on unregistered cache name
+            // `strict` flag — panic on unregistered cache name
             Meta::Path(path) if path.is_ident("strict") => {
                 strict_mode = true;
             }
-            // T020: `cache_none` flag — cache None results
+            // `cache_none` flag — cache None results
             Meta::Path(path) if path.is_ident("cache_none") => {
                 _cache_none = true;
             }
@@ -162,7 +162,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         }
                     }
                 } else if nv.path.is_ident("condition") {
-                    // T020: condition = path_to_fn
+                    // condition = path_to_fn
                     match nv.value {
                         Expr::Path(expr_path) => {
                             condition_fn = Some(quote! { #expr_path });
@@ -313,7 +313,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // T020: condition check generation
+    // condition check generation
     let condition_check = if let Some(cond) = &condition_fn {
         let args_pass: Vec<_> = arg_names.iter().map(|n| quote! { #n.clone() }).collect();
         quote! {
@@ -337,7 +337,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    // T020: strict mode — cache lookup failure handling
+    // strict mode — cache lookup failure handling
     let cache_miss_handler = if strict_mode {
         quote! {
             None => panic!("oxcache: service '{}' not registered (strict mode)", #service_name),
@@ -364,7 +364,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // T020: single_flight — generate per-function static lock map
+    // single_flight — generate per-function static lock map
     let sf_static = if single_flight && !sync_mode {
         let sf_locks_name = syn::Ident::new(
             &format!("__OXCACHE_SF_{}", fn_name.to_string().to_uppercase()),

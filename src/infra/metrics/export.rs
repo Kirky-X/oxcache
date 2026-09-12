@@ -16,7 +16,7 @@ pub fn export_prometheus_format() -> String {
     GLOBAL_UNIFIED_METRICS.export_prometheus()
 }
 
-/// 导出标准 Prometheus exposition 格式（全局，T302：`# HELP`/`# TYPE` + `oxcache_*` 命名）
+/// 导出标准 Prometheus exposition 格式（全局：`# HELP`/`# TYPE` + `oxcache_*` 命名）
 #[cfg(feature = "metrics")]
 pub fn export_prometheus_standard() -> String {
     GLOBAL_UNIFIED_METRICS.export_prometheus_standard()

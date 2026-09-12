@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 跨实例失效总线（`invalidation` feature，T301）
+//! 跨实例失效总线（`invalidation` feature）
 //!
 //! 多实例部署下各实例的 L1 进程内缓存相互独立；本模块提供基于
 //! Redis Pub/Sub 的失效广播总线：

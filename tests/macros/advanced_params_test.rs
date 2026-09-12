@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Kirky.X
 // SPDX-License-Identifier: MIT
-// Integration tests for T020 #[cached] advanced parameters:
+// Integration tests for `#[cached]` advanced parameters:
 //   - `single_flight`: concurrent miss dedup (same key → one source call)
 //   - `condition`: pre-execution predicate (skip cache when false)
 //   - `cache_none`: whether to cache None results (default: false)

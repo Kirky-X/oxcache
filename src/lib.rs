@@ -251,11 +251,11 @@ pub mod backend;
 // Features module (optional capabilities)
 pub mod features;
 
-// Cross-instance invalidation bus (`invalidation` feature, T301)
+// Cross-instance invalidation bus (`invalidation` feature)
 #[cfg(feature = "invalidation")]
 pub use features::invalidation;
 
-// Value-level encryption (`encrypt` feature, T303)
+// Value-level encryption (`encrypt` feature)
 #[cfg(feature = "encrypt")]
 pub use features::encryption;
 
@@ -346,7 +346,7 @@ pub use error::{OxCacheError, OxCacheResult};
 #[doc(hidden)]
 pub use crate::internal::__internal_get_cache;
 
-// ---- T022: telemetry helpers for macro-generated code ----
+// ---- telemetry helpers for macro-generated code ----
 // These are called from #[cached] macro expansions. When `telemetry` is
 // off they compile to empty functions (zero overhead).
 
@@ -501,7 +501,7 @@ mod tests {
         assert!(VERSION.chars().any(|c: char| c.is_ascii_digit()));
     }
 
-    /// T022: telemetry smoke test — verify the passthrough helper can be
+    /// telemetry smoke test — verify the passthrough helper can be
     /// called without panicking regardless of whether `telemetry` is on.
     #[test]
     fn telemetry_macro_passthrough_does_not_panic() {

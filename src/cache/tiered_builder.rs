@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 分层构建器 API（T306）
+//! 分层构建器 API
 //!
 //! [`L1Builder`] / [`L2Builder`] / [`ChainBuilder`] 提供 L1+L2 分层缓存的
 //! 链式组合（容量 / TTL / 后端 / 装饰器），与既有

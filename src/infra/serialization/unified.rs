@@ -7,7 +7,7 @@ use crate::infra::serialization::SerializationFormat;
 use crate::infra::serialization::utils::{compress_data, decompress_data_with_limit};
 use serde::{Serialize, de::DeserializeOwned};
 
-/// Unified serializer with pluggable format (T305)
+/// Unified serializer with pluggable format
 ///
 /// 默认 JSON（serde_json 单次序列化，带深度防御）；可选 bincode/postcard
 /// 二进制格式（`serde-bincode`/`postcard` feature）。同一键前缀不得混用格式。

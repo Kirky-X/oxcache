@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // 后端故障注入（FailingBackend）混沌测试
 //
-// 变更记录（production-mock-purge T027）：本文件原为 tests/e2e/advanced_scenarios_test.rs
+// 变更记录：本文件原为 tests/e2e/advanced_scenarios_test.rs
 // 中的 FailingBackend 故障注入用例（P0 D-007 / P1 D-001 / P1 N-004 / D-007 单后端失败），
 // 按"集成/e2e 禁止 mock（含故障注入替身）"原则下沉至 tests/chaos/——故障注入即混沌测试。
 //

@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 自适应压缩装饰器（`compression` feature，T310）
+//! 自适应压缩装饰器（`compression` feature）
 //!
 //! [`CompressingBackend`] 对**超过阈值**的 value 做 zstd 压缩（小值零压缩
 //! 开销），读取端按魔数自动识别：

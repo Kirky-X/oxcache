@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 缓存审计事件流（`audit` feature，T309）
+//! 缓存审计事件流（`audit` feature）
 //!
 //! [`AuditEventPublisher`] 端口：get/set/delete/evict/expired 等操作发布
 //! 结构化审计事件（脱敏 key + 操作 + 时间戳 + operator 元数据），满足

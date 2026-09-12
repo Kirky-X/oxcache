@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 值级静态加密装饰器（`encrypt` feature，T303）
+//! 值级静态加密装饰器（`encrypt` feature）
 //!
 //! [`EncryptedBackend`] 对任意 [`CacheBackend`](crate::backend::CacheBackend)
 //! 的 value 做**透明加解密**：写入时加密、读取时解密，L2 存储侧不见明文。

@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 类型化命名空间（T314）
+//! 类型化命名空间
 //!
 //! [`TypedNamespace<K, V, N>`] 把命名空间绑定到**编译期类型**（marker type +
 //! [`NamespaceName`] trait）：两个不同命名空间的句柄是不同类型，跨服务键

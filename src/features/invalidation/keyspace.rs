@@ -1,8 +1,8 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! Redis 键空间通知监听（`invalidation` feature，T312）
+//! Redis 键空间通知监听（`invalidation` feature）
 //!
-//! T301 失效总线的**第二通道**：订阅 Redis keyspace notifications，把
+//! 失效总线的**第二通道**：订阅 Redis keyspace notifications，把
 //! **库外变更**（redis-cli DEL / TTL 过期）投影为本地 L1 失效——补齐
 //! "外部工具改 Redis → 应用感知" 的场景（总线只管库内写传播）。
 //!
@@ -69,7 +69,7 @@ impl KeyspaceNotificationConfig {
 /// 键空间通知监听器
 ///
 /// 收到频道消息（载荷 = key）即删除本地 L1 对应条目。所有 keyspace
-/// 消息视为**库外变更**（无实例归属），不做 T301 式自失效豁免；与本实例
+/// 消息视为**库外变更**（无实例归属），不做失效总线式自失效豁免；与本实例
 /// 经总线传播的失效天然幂等（重复 delete 为 no-op）。
 pub struct KeyspaceNotificationListener;
 

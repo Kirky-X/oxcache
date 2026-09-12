@@ -8,7 +8,7 @@
 //!
 //! Constraints:
 //! - No external Redis dependency (uses real memory backends MokaMemoryBackend / DashMapMemoryBackend;
-//!   fault-injection FailingBackend 已下沉 tests/chaos/ 见 production-mock-purge T027)
+//!   fault-injection FailingBackend 已下沉 tests/chaos/)
 //! - Redis-specific tests are `#[ignore]`
 //! - Concurrent tests use `#[tokio::test(flavor = "multi_thread")]`
 //! - Error assertions use `match` + `panic!`, never `is_err()`

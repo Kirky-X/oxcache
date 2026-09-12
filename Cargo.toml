@@ -177,7 +177,7 @@ optional = true
 version = "0.11"
 optional = true
 
-# Binary serialization formats (optional, T305)
+# Binary serialization formats (optional)
 [dependencies.bincode]
 version = "1.3"
 optional = true
@@ -188,14 +188,14 @@ default-features = false
 features = ["use-std"]
 optional = true
 
-# Config-driven build (optional, confers watch hot-reload, T307)
+# Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
 version = "0.6.0-rc.3"
 default-features = false
 features = ["config-bus"]
 optional = true
 
-# Adaptive compression (optional, zstd threshold decorator, T310)
+# Adaptive compression (optional, zstd threshold decorator)
 [dependencies.zstd]
 version = "0.13"
 optional = true

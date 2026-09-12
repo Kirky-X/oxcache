@@ -64,7 +64,7 @@ pub struct DistributedLock {
     pub(super) watchdog_enabled: bool,
     pub(super) watchdog: Mutex<Option<JoinHandle<()>>>,
     pub(super) released: Arc<AtomicBool>,
-    /// fencing token（T311）：acquire 成功时经 `INCR <key>:fence` 取单调递增值
+    /// fencing token：acquire 成功时经 `INCR <key>:fence` 取单调递增值
     pub(super) fencing_token: AtomicU64,
 }
 
@@ -113,7 +113,7 @@ impl DistributedLock {
                 // Successfully acquired
                 self.reentrant_count.store(1, Ordering::SeqCst);
 
-                // T311: fencing token — 单调递增，供下游资源做 staleness 检测
+                // fencing token — 单调递增，供下游资源做 staleness 检测
                 match self.acquire_fence_token().await {
                     Ok(token) => {
                         self.fencing_token.store(token, Ordering::SeqCst);

@@ -36,7 +36,7 @@ pub mod aerospike;
 ))]
 pub mod custom_tiered;
 
-// Backend factory registry (T315: kind-driven backend construction)
+// Backend factory registry 
 #[cfg(any(
     feature = "memory",
     feature = "redis",

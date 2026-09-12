@@ -98,7 +98,7 @@ async fn no_sync_keeps_async_behavior() {
 // ============================================================================
 
 /// Verifies that `#[cached(sync)]` applied to an `async fn` produces a
-/// compile error. After T002 the macro emits a `compile_error!` with a
+/// compile error. The macro emits a `compile_error!` with a
 /// span pointing at the attribute, instead of panicking.
 #[test]
 fn sync_flag_with_async_fn_compile_error() {
@@ -109,7 +109,7 @@ fn sync_flag_with_async_fn_compile_error() {
 /// Verifies that an invalid argument to `#[cached]` (e.g. a bare integer
 /// literal) produces a `compile_error!` with a span pointing at the bad
 /// argument, instead of panicking inside `parser.parse(...).expect(...)`.
-/// This covers the T001 fix (Rule 12 compliance).
+/// This covers the Rule 12 compliance fix.
 #[test]
 fn invalid_arg_compile_error() {
     let t = trybuild::TestCases::new();

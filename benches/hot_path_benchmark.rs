@@ -1,10 +1,10 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! 热路径零分配基准（T317）
+//! 热路径零分配基准
 //!
 //! 对比 `Cache::get`（`K::to_key_string()` 每次分配 String）与
 //! `Cache::get_by_str`（借用查询，零堆分配）以及 `set` / `set_by_str`
-//! 的吞吐差异。`get_by_str` 是 T317 引入的热路径 API。
+//! 的吞吐差异。`get_by_str` 是热路径 API。
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use oxcache::Cache;

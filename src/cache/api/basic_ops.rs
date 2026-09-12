@@ -60,7 +60,7 @@ impl Drop for GetOrGuard<'_> {
     }
 }
 
-// T305: 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
+// 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
 // 原 `deserialize_value` 辅助函数已被其取代。
 
 impl<K, V> Cache<K, V>
@@ -69,7 +69,7 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn get(&self, key: &K) -> OxCacheResult<Option<V>> {
-        // T302: 纯 L1 路径指标埋点（默认 NoOp 零开销）
+        // 纯 L1 路径指标埋点（默认 NoOp 零开销）
         #[cfg(feature = "metrics")]
         let __start = std::time::Instant::now();
         let key_str = key.to_key_string();
@@ -85,7 +85,7 @@ where
                     .record_miss(crate::core::CacheLayer::L1, latency);
             }
         }
-        // T309: 审计事件（hit/miss）
+        // 审计事件（hit/miss）
         #[cfg(feature = "audit")]
         if let Some(publisher) = self.audit.as_ref() {
             let action = if bytes.is_some() {
@@ -100,14 +100,14 @@ where
         }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            // T305: 经 UnifiedSerializer 反序列化（JSON 默认；可切二进制格式）
+            // 经 UnifiedSerializer 反序列化（JSON 默认；可切二进制格式）
             Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
     }
 
     // ========================================================================
-    // T317: 热路径借用查询（零分配）
+    // 热路径借用查询（零分配）
     // ========================================================================
 
     /// 借用键查询：跳过 `K::to_key_string()` 的 String 分配，直接以 `&str`
@@ -221,15 +221,15 @@ where
     ) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let ttl = ttl.map(|t| self.apply_jitter(t));
-        // T309: 脱敏键需在 key_str 被 move 前计算
+        // 脱敏键需在 key_str 被 move 前计算
         #[cfg(feature = "audit")]
         let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            // T305: 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
+            // 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
             let bytes = self.unified_serializer.serialize(value)?;
-            // T302: 写路径指标埋点
+            // 写路径指标埋点
             #[cfg(feature = "metrics")]
             let __start = std::time::Instant::now();
             let result = self
@@ -239,7 +239,7 @@ where
             #[cfg(feature = "metrics")]
             self.metrics
                 .record_set(crate::core::CacheLayer::L1, __start.elapsed());
-            // T309: 审计事件（set）
+            // 审计事件（set）
             #[cfg(feature = "audit")]
             if result.is_ok()
                 && let Some(publisher) = self.audit.as_ref()
@@ -265,14 +265,14 @@ where
 
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
-        // T302: 删除路径指标埋点
+        // 删除路径指标埋点
         #[cfg(feature = "metrics")]
         let __start = std::time::Instant::now();
         let result = self.backend.delete(&key_str).await;
         #[cfg(feature = "metrics")]
         self.metrics
             .record_delete(crate::core::CacheLayer::L1, __start.elapsed());
-        // T309: 审计事件（delete）
+        // 审计事件（delete）
         #[cfg(feature = "audit")]
         if result.is_ok()
             && let Some(publisher) = self.audit.as_ref()
@@ -645,7 +645,7 @@ where
         let bytes = backend.get(&key_str)?;
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
-            // T305: 经 UnifiedSerializer 反序列化（格式可插拔）
+            // 经 UnifiedSerializer 反序列化（格式可插拔）
             Some(data) => self.unified_serializer.deserialize(&data).map(Some),
             None => Ok(None),
         }
@@ -669,7 +669,7 @@ where
 
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
-            // T305: 经 UnifiedSerializer 序列化（格式可插拔）
+            // 经 UnifiedSerializer 序列化（格式可插拔）
             let bytes = self.unified_serializer.serialize(value)?;
             backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
         }
@@ -1350,7 +1350,7 @@ mod tests {
     // deserialize_value internal functions
     // ========================================================================
 
-    /// T317: 热路径借用查询语义与吞吐对比（本机 debug 口径记录 docs/PERFORMANCE.md）
+    /// 热路径借用查询语义与吞吐对比（本机 debug 口径记录 docs/PERFORMANCE.md）
     #[tokio::test(flavor = "multi_thread")]
     async fn get_by_str_semantics_and_throughput() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();

@@ -33,7 +33,7 @@ pub use unified::{
     convenience as unified_convenience,
 };
 
-// T302: metrics recorder port + standard naming exports
+// metrics recorder port + standard naming exports
 pub use export::export_prometheus_standard;
 pub use recorder::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder, noop_recorder};
 pub use unified::{OPERATION_LATENCY_HISTOGRAM, PROMETHEUS_LATENCY_BUCKETS};
