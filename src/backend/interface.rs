@@ -73,7 +73,7 @@ impl BackendKind {
 /// Used by backends implementing `CacheReader::keys` / `SyncCacheReader::keys`
 /// for in-memory key listing. Cache keys may contain `/` (see
 /// `crate::infra::validate_cache_key`), so `*` deliberately matches across
-/// path separators — unlike `security::glob_to_regex` whose `*` is `[^/]*`.
+/// path separators.
 ///
 /// Uses an iterative two-pointer algorithm: on mismatch, backtrack to the
 /// last `*` and advance the text position. Time O(m·n), space O(m+n).
