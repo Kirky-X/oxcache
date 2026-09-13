@@ -39,9 +39,6 @@
 - [📚 文档](#-文档)
 - [💻 示例](#-示例)
 - [🏗️ 架构](#️-架构)
-- [🔄 同步 API](#-同步-api)
-- [🌸 布隆过滤器与穿透防护](#-布隆过滤器与穿透防护)
-- [⏱️ TTL 行为对照表](#️-ttl-行为对照表)
 - [🧪 测试](#-测试)
 - [📊 性能](#-性能)
 - [🔒 安全](#-安全)
@@ -311,33 +308,9 @@ cd examples && ls src/*/*.rs
 
 > 标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
 
----
+### 🔄 同步 API
 
-## 🏗️ 架构
-
-Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面对 `Cache<K, V>` 一个类型安全入口，读写落到实现 `CacheReader` / `CacheWriter` / `CacheConnector` 三个 trait 的后端上（blanket impl 组合为 `CacheBackend`）；L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）可单独使用，也可经 `ChainCache` 按分数组链并按需回填，`features` 模块以装饰器形态叠加布隆过滤器、分布式锁、加密等能力。分层架构图、模块职责与数据流见[架构文档](docs/ARCHITECTURE.md)；`batch`、`integrations::kit`、`i18n`、`config`、`traits`、`testing` 等模块按特性门控挂载。
-
-### 宏执行路径
-
-`#[cached]` 宏展开后：按服务名查注册表，命中即反序列化返回；未命中执行原函数并将 `Ok` 结果序列化回写。未注册服务默认静默穿透执行原函数，`strict` 模式改为 panic。完整时序图与展开代码见[架构文档的数据流章节](docs/ARCHITECTURE.md#cached-宏执行路径)。
-
-### 链式缓存读取路径
-
-读取自最高分链接起穿透，非最高分链接命中时可异步回填（流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
-
-**可靠性要点**：
-
-- [x] 单飞去重（`get_or` / `get_or_sync`，64 分片降低锁竞争）
-- [x] ChainCache 链路容错（单链接故障不阻塞整体读写）
-- [x] 可选自动降级（`degradation` 特性，半开探测自动恢复）
-- [x] 健康检查（ChainCache 并发 ping，每链接 5 秒超时）
-- [x] 优雅关闭（`shutdown`；`kit` 特性映射到三阶段关闭协调）
-
----
-
-## 🔄 同步 API
-
-在 builder 上启用 `sync_mode(true)` 后，异步 API 之外获得完整同步镜像（无需 `.await`）：
+入门示例 `example_sync_api` 即同步 API 的完整可运行版本。在 builder 上启用 `sync_mode(true)` 后，异步 API 之外获得完整同步镜像（无需 `.await`）：
 
 ```rust
 use oxcache::Cache;
@@ -386,7 +359,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## 🌸 布隆过滤器与穿透防护
+## 🏗️ 架构
+
+Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面对 `Cache<K, V>` 一个类型安全入口，读写落到实现 `CacheReader` / `CacheWriter` / `CacheConnector` 三个 trait 的后端上（blanket impl 组合为 `CacheBackend`）；L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）可单独使用，也可经 `ChainCache` 按分数组链并按需回填，`features` 模块以装饰器形态叠加布隆过滤器、分布式锁、加密等能力。分层架构图、模块职责与数据流见[架构文档](docs/ARCHITECTURE.md)；`batch`、`integrations::kit`、`i18n`、`config`、`traits`、`testing` 等模块按特性门控挂载。
+
+### 宏执行路径
+
+`#[cached]` 宏展开后：按服务名查注册表，命中即反序列化返回；未命中执行原函数并将 `Ok` 结果序列化回写。未注册服务默认静默穿透执行原函数，`strict` 模式改为 panic。完整时序图与展开代码见[架构文档的数据流章节](docs/ARCHITECTURE.md#cached-宏执行路径)。
+
+### 链式缓存读取路径
+
+读取自最高分链接起穿透，非最高分链接命中时可异步回填（流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
+
+**可靠性要点**：
+
+- [x] 单飞去重（`get_or` / `get_or_sync`，64 分片降低锁竞争）
+- [x] ChainCache 链路容错（单链接故障不阻塞整体读写）
+- [x] 可选自动降级（`degradation` 特性，半开探测自动恢复）
+- [x] 健康检查（ChainCache 并发 ping，每链接 5 秒超时）
+- [x] 优雅关闭（`shutdown`；`kit` 特性映射到三阶段关闭协调）
+
+### 🌸 布隆过滤器与穿透防护
 
 `bloom` 特性（需显式启用，不在 `full` 中）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
 
@@ -435,9 +428,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | TTL 抖动 | builder `ttl_jitter(factor)` | 实际 TTL 在 `base * (1 ± factor)` 内随机，防止批量同时过期 |
 | 布隆过滤 | `BloomFilterBackend` | 负查询 O(1) 短路，inner 后端零请求 |
 
----
-
-## ⏱️ TTL 行为对照表
+### ⏱️ TTL 行为对照表
 
 所有后端统一遵守 per-entry `set(key, value, Some(ttl))`。行为汇总：
 

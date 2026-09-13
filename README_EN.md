@@ -39,9 +39,6 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 - [📚 Documentation](#-documentation)
 - [💻 Examples](#-examples)
 - [🏗️ Architecture](#️-architecture)
-- [🔄 Sync API](#-sync-api)
-- [🌸 Bloom Filter & Penetration Guard](#-bloom-filter--penetration-guard)
-- [⏱️ TTL Behavior Reference](#️-ttl-behavior-reference)
 - [🧪 Testing](#-testing)
 - [📊 Performance](#-performance)
 - [🔒 Security](#-security)
@@ -313,33 +310,9 @@ cd examples && ls src/*/*.rs
 
 > Examples marked "requires Redis" need a running Redis 6.0+ server; all other examples use in-memory backends and run standalone.
 
----
+### 🔄 Sync API
 
-## 🏗️ Architecture
-
-Oxcache follows a layered design of unified interface plus pluggable backends: applications face a single type-safe entry point, `Cache<K, V>`, and all reads and writes land on backends implementing the three traits `CacheReader` / `CacheWriter` / `CacheConnector` (composed into `CacheBackend` by a blanket impl). L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) can be used standalone or chained by score via `ChainCache` with on-demand backfill, and the `features` module layers capabilities such as bloom filters and distributed locks as decorators. For the full architecture diagram, module responsibilities and data flow, see the [Architecture documentation](docs/ARCHITECTURE.md); `batch`, `integrations::kit`, `i18n`, `config`, `traits` and `testing` mount behind feature gates.
-
-### Macro Execution Path
-
-After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-宏执行路径).
-
-### Chained Cache Read Path
-
-Reads fall through starting from the highest-scored link, and a hit on a non-top link can be backfilled asynchronously (flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-读取路径)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and the first hit wins.
-
-**Reliability highlights**:
-
-- [x] Single-flight dedup (`get_or` / `get_or_sync`, 64 shards to reduce lock contention)
-- [x] ChainCache link fault tolerance (single-link failure never blocks overall reads or writes)
-- [x] Optional auto-degradation (`degradation` feature, half-open probes with automatic recovery)
-- [x] Health checks (ChainCache pings all links concurrently, 5s timeout each)
-- [x] Graceful shutdown (`shutdown`; `kit` feature maps it onto the three-phase shutdown coordinator)
-
----
-
-## 🔄 Sync API
-
-With `sync_mode(true)` on the builder, you get a full synchronous mirror alongside the async API (no `.await`):
+The basics example `example_sync_api` is the fully runnable version of the sync API. With `sync_mode(true)` on the builder, you get a full synchronous mirror alongside the async API (no `.await`):
 
 ```rust
 use oxcache::Cache;
@@ -388,7 +361,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## 🌸 Bloom Filter & Penetration Guard
+## 🏗️ Architecture
+
+Oxcache follows a layered design of unified interface plus pluggable backends: applications face a single type-safe entry point, `Cache<K, V>`, and all reads and writes land on backends implementing the three traits `CacheReader` / `CacheWriter` / `CacheConnector` (composed into `CacheBackend` by a blanket impl). L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) can be used standalone or chained by score via `ChainCache` with on-demand backfill, and the `features` module layers capabilities such as bloom filters and distributed locks as decorators. For the full architecture diagram, module responsibilities and data flow, see the [Architecture documentation](docs/ARCHITECTURE.md); `batch`, `integrations::kit`, `i18n`, `config`, `traits` and `testing` mount behind feature gates.
+
+### Macro Execution Path
+
+After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-宏执行路径).
+
+### Chained Cache Read Path
+
+Reads fall through starting from the highest-scored link, and a hit on a non-top link can be backfilled asynchronously (flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-读取路径)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and the first hit wins.
+
+**Reliability highlights**:
+
+- [x] Single-flight dedup (`get_or` / `get_or_sync`, 64 shards to reduce lock contention)
+- [x] ChainCache link fault tolerance (single-link failure never blocks overall reads or writes)
+- [x] Optional auto-degradation (`degradation` feature, half-open probes with automatic recovery)
+- [x] Health checks (ChainCache pings all links concurrently, 5s timeout each)
+- [x] Graceful shutdown (`shutdown`; `kit` feature maps it onto the three-phase shutdown coordinator)
+
+### 🌸 Bloom Filter & Penetration Guard
 
 The `bloom` feature (opt-in; not in `full`) provides negative-query filtering. The `BloomFilterBackend` decorator wraps any backend: when the bloom filter says "definitely absent", it returns `None` immediately and the inner backend is never touched.
 
@@ -437,9 +430,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | TTL jitter | builder `ttl_jitter(factor)` | Actual TTL randomized within `base * (1 ± factor)` to prevent mass simultaneous expiry |
 | Bloom filtering | `BloomFilterBackend` | O(1) short-circuit for negative queries, zero requests to the inner backend |
 
----
-
-## ⏱️ TTL Behavior Reference
+### ⏱️ TTL Behavior Reference
 
 All backends honor per-entry `set(key, value, Some(ttl))` uniformly. Behavior summary:
 
