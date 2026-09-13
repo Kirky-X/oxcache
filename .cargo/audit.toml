@@ -1,0 +1,9 @@
+# cargo-audit 配置（`cargo audit --deny warnings` 读取）
+[advisories]
+ignore = [
+    # RUSTSEC-2025-0141: bincode 全系（含 2.x）被作者标记 unmaintained。
+    # 已升级至 2.0.1（作者停维前的重写版本，无已知漏洞）；oxcache 仅在
+    # serde-bincode feature 下用于本地缓存条目序列化，无网络输入面。
+    # 迁移出路：postcard（已在依赖中，见 serialization/binary.rs）。
+    "RUSTSEC-2025-0141",
+]

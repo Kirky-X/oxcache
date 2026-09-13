@@ -89,7 +89,8 @@ pub fn serialize_with_format<T: Serialize>(
         }
         #[cfg(feature = "serde-bincode")]
         SerializationFormat::Bincode => {
-            bincode::serialize(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?
+            bincode::serde::encode_to_vec(value, bincode::config::standard())
+                .map_err(|e| OxCacheError::Serialization(e.to_string()))?
         }
         #[cfg(feature = "postcard")]
         SerializationFormat::Postcard => {
@@ -122,7 +123,9 @@ pub fn deserialize_with_format<T: DeserializeOwned>(
         .map_err(|e| OxCacheError::Serialization(e.to_string())),
         #[cfg(feature = "serde-bincode")]
         SerializationFormat::Bincode => {
-            bincode::deserialize(data).map_err(|e| OxCacheError::Serialization(e.to_string()))
+            bincode::serde::decode_from_slice(data, bincode::config::standard())
+                .map(|(value, _consumed): (T, usize)| value)
+                .map_err(|e| OxCacheError::Serialization(e.to_string()))
         }
         #[cfg(feature = "postcard")]
         SerializationFormat::Postcard => {
