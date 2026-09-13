@@ -4,75 +4,60 @@
 
 ### 高性能 Rust 双层缓存库完整使用指南
 
-[🏠 首页](../README.md) • [📚 文档](../README.md) • [🎯 示例](../examples/) • [❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)
+[🏠 首页](../README.md) • [📚 文档中心](../README.md#-文档) • [🎯 示例](../examples/) • [📘 API 参考](API_REFERENCE.md)
 
 ---
 
 </div>
 
-> **⚠️ 版本说明**: 本文档基于 **Oxcache v0.5.0-rc.3** 编写。
+> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.4** 编写。
 
 ## 📋 目录
 
-- [简介](#简介)
-- [快速入门](#快速入门)
-    - [先决条件](#先决条件)
-    - [安装](#安装)
-    - [第一步](#第一步)
-- [核心概念](#核心概念)
-- [基础用法](#基础用法)
-    - [使用缓存宏](#使用缓存宏)
-    - [手动控制缓存](#手动控制缓存)
-    - [序列化](#序列化)
-- [高级用法](#高级用法)
-    - [链式多层缓存](#链式多层缓存-chaincache)
-    - [同步 API](#同步-api)
-    - [布隆过滤器](#布隆过滤器)
-    - [TTL 管理](#ttl-管理)
-    - [Redis 模式配置](#redis-模式配置)
-    - [监控指标](#监控指标)
-    - [优雅关闭](#优雅关闭)
-- [最佳实践](#最佳实践)
-- [故障排除](#故障排除)
-- [后续步骤](#后续步骤)
+<details open>
+<summary>📑 目录</summary>
+
+- [🧭 简介](#-简介)
+- [🚀 快速入门](#-快速入门)
+  - [先决条件](#先决条件)
+  - [安装](#安装)
+  - [第一步](#第一步)
+- [🧱 核心概念](#-核心概念)
+- [📖 基础用法](#-基础用法)
+  - [使用缓存宏](#使用缓存宏)
+  - [手动控制缓存](#手动控制缓存)
+  - [序列化](#序列化)
+- [⚡ 高级用法](#-高级用法)
+  - [链式多层缓存（ChainCache）](#链式多层缓存chaincache)
+  - [启用同步 API](#启用同步-api)
+  - [布隆过滤器](#布隆过滤器)
+  - [TTL 管理](#ttl-管理)
+  - [Redis 模式配置](#redis-模式配置)
+  - [监控指标](#监控指标)
+  - [事件发射（EventPublisher）](#事件发射eventpublisher)
+  - [优雅关闭](#优雅关闭)
+  - [Valkey 后端](#valkey-后端)
+  - [Dragonfly 后端](#dragonfly-后端)
+  - [Aerospike 后端](#aerospike-后端)
+- [🌟 最佳实践](#-最佳实践)
+- [🔧 故障排除](#-故障排除)
+- [🎯 后续步骤](#-后续步骤)
+
+</details>
 
 ---
 
-## 简介
-
-<div align="center">
-
-### 🎯 你将学到什么
-
-</div>
-
-<table>
-<tr>
-<td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/rocket.png" width="64"><br>
-<b>快速入门</b><br>
-5 分钟内完成环境搭建
-</td>
-<td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/settings.png" width="64"><br>
-<b>双层缓存</b><br>
-L1 内存 + L2 分布式
-</td>
-<td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/code.png" width="64"><br>
-<b>宏支持</b><br>
-一行代码启用缓存
-</td>
-<td width="25%" align="center">
-<img src="https://img.icons8.com/fluency/96/000000/rocket-take-off.png" width="64"><br>
-<b>高级特性</b><br>
-同步 API 与可观测性
-</td>
-</tr>
-</table>
+## 🧭 简介
 
 **oxcache** 是一个高性能、生产级可用的 Rust 缓存库，提供 L1（进程内内存缓存，使用 Moka）+ L2（分布式 Redis 缓存）的双层架构。它通过
 `#[cached]` 宏实现零侵入式缓存，并支持同步 API、布隆过滤器和链式多层后端。
+
+| 学习板块 | 内容 | 收获 |
+|---------|------|------|
+| 🚀 快速入门 | 环境搭建与首个缓存 | 5 分钟内完成接入 |
+| 🧱 核心概念 | 双层架构、链式缓存、同步 API | 理解设计模型 |
+| 📖 基础用法 | 宏与手动控制、序列化 | 日常读写上手 |
+| ⚡ 高级用法 | ChainCache、布隆、TTL、监控 | 生产级能力运用 |
 
 主要特性包括：
 
@@ -82,39 +67,21 @@ L1 内存 + L2 分布式
 - **🛡️ 安全内置**：键/Lua/SCAN 校验、TLS 强制、敏感信息脱敏
 - **📊 可观测性**：内置指标、EventPublisher 事件发射
 
-> 💡 **提示**: 本指南假设你具备基本的 Rust 知识。如果你是 Rust
+> 💡 **提示**：本指南假设你具备基本的 Rust 知识。如果你是 Rust
 > 新手，建议先阅读 [Rust 官方教程](https://doc.rust-lang.org/book/)。
 
 ---
 
-## 快速入门
+## 🚀 快速入门
 
 ### 先决条件
 
 在开始之前，请确保你已安装以下工具：
 
-<table>
-<tr>
-<td width="50%">
-
-**必选**
-
-- ✅ Rust 1.97.1+ (stable)
-- ✅ Cargo (随 Rust 一起安装)
-- ✅ Git
-
-</td>
-<td width="50%">
-
-**可选**
-
-- 🔧 支持 Rust 的 IDE (如 VS Code + rust-analyzer)
-- 🔧 Docker (用于容器化部署)
-- 🔧 Redis 6.0+ (用于 L2 缓存测试)
-
-</td>
-</tr>
-</table>
+| 类别 | 工具 |
+|------|------|
+| **必选** | ✅ Rust 1.97.1+（stable）　✅ Cargo（随 Rust 一起安装）　✅ Git |
+| **可选** | 🔧 支持 Rust 的 IDE（如 VS Code + rust-analyzer）　🔧 Docker（用于容器化部署）　🔧 Redis 6.0+（用于 L2 缓存测试） |
 
 <details>
 <summary><b>🔍 验证安装</b></summary>
@@ -137,27 +104,27 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.3"
+oxcache = "0.5.0-rc.4"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.3", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.4", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层选择
 
 ```toml
-# 完整特性（推荐，默认）
-oxcache = { version = "0.5.0-rc.3", features = ["full"] }
+# 全量特性（推荐）
+oxcache = { version = "0.5.0-rc.4", features = ["full"] }
 
 # 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.5.0-rc.3", features = ["core"] }
+oxcache = { version = "0.5.0-rc.4", features = ["core"] }
 
-# 最小特性（仅 L1 缓存）
-oxcache = { version = "0.5.0-rc.3", features = ["minimal"] }
+# 最小特性（仅 L1 缓存，默认）
+oxcache = { version = "0.5.0-rc.4", features = ["minimal"] }
 
 # 自定义选择（注意：bloom 不在 full 内，需单独启用）
-oxcache = { version = "0.5.0-rc.3", features = ["core", "macros", "bloom"] }
+oxcache = { version = "0.5.0-rc.4", features = ["core", "macros", "bloom"] }
 ```
 
 #### 特性依赖说明
@@ -167,15 +134,17 @@ oxcache = { version = "0.5.0-rc.3", features = ["core", "macros", "bloom"] }
 | 特性 | 前置要求 | 说明 |
 |------|----------|------|
 | `lua` | `redis` | Lua 脚本执行 |
-| `cli` | `metrics`, `dashmap` | 命令行界面工具 |
+| `lock` | `redis` | 分布式锁（`red-lock` 依赖 `lock`） |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `cli`, `testing`, `dragonfly`, `aerospike`, `lock` | 全部功能（**不含** `bloom`、`kit`） |
+| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock` | 全量预设（**不含** `bloom`、`kit` 等选择加入特性） |
+
+完整的特性清单见 [README 特性标志](../README.md#-特性标志) 与 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
 
 如果需要最小依赖或自定义特性：
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.3", default-features = false, features = ["core"] }
+oxcache = { version = "0.5.0-rc.4", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：
@@ -254,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
     // 注册缓存实例到全局管理器（供宏通过 service 名查找）
-    cache.register_for_macro("user_cache").await;
+    cache.register_for_macro("user_cache").await?;
 
     // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
     let user = get_user(1).await?;
@@ -296,46 +265,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-> **说明**：`Cache::builder()` 没有 `.redis(...)` 或 `.tiered(...)` 方法。要使用 Redis，请用 `RedisBackend::new(url).await?` 构造后端，再通过 `.backend_arc(Arc::new(redis))` 注入。要实现 L1+L2 分层，请使用 [ChainCache](#链式多层缓存-chaincache)。
+> **说明**：`Cache::builder()` 没有 `.redis(...)` 或 `.tiered(...)` 方法。要使用 Redis，请用 `RedisBackend::new(url).await?` 构造后端，再通过 `.backend_arc(Arc::new(redis))` 注入。要实现 L1+L2 分层，请使用 [ChainCache](#链式多层缓存chaincache)。
 
 ---
 
-## 核心概念
+## 🧱 核心概念
 
 理解这些核心概念将帮助你更有效地使用 `oxcache`。
 
-### 1️⃣ 双层缓存架构
+### 双层缓存架构
 
 `oxcache` 的核心是 L1 (Moka) + L2 (Redis) 两级缓存架构。L1 是本地内存缓存，访问速度极快；L2 是分布式缓存，支持多实例共享。
 
-- **L1 (Moka)**: 进程内高速缓存，使用 LRU/TinyLFU 淘汰策略，支持 per-entry TTL（通过 `moka::Expiry`）
-- **L2 (Redis)**: 分布式共享缓存，支持 Standalone/Sentinel/Cluster 模式
+- **L1 (Moka)**：进程内高速缓存，使用 LRU/TinyLFU 淘汰策略，支持 per-entry TTL（通过 `moka::Expiry`）
+- **L2 (Redis)**：分布式共享缓存，支持 Standalone/Sentinel/Cluster 模式
 
-### 2️⃣ 链式多层与回填
+### 链式多层与回填
 
 `ChainCache` 把多个后端按分数（score）从高到低排序：Moka=100、DashMap=90、Redis=50。
 读取时从最高分后端开始查找；写入时写入所有后端。启用 `enable_backfill()` 后，低分后端命中会回填到更高分的后端，从而减少后续对低分后端的访问。
 
-### 3️⃣ 同步 API
+### 同步 API
 
 通过 `Cache::builder().sync_mode(true).build().await?` 启用同步方法
 （`get_sync`/`set_sync`/`delete_sync`/`exists_sync`/`get_or_sync`/`clear_sync`/`ttl_sync`/`expire_sync`）。
 同步 API 通过 `tokio::task::block_in_place` 实现，需要 **multi_thread** Tokio runtime。
 **限制**：`sync_mode(true)` 不能与 `backend_arc(...)` 同时使用（受 stable Rust 的 trait 上转限制）。
 
-### 4️⃣ 容错与单飞
+### 容错与单飞
 
-- **Single-Flight**: `get_or` / `get_or_sync` 对同一 key 的并发请求去重，只执行一次计算
-- **容错降级**: L2 不可用时，链式缓存的读取会跳过失败的后端，继续从其他后端取值
+- **Single-Flight**：`get_or` / `get_or_sync` 对同一 key 的并发请求去重，只执行一次计算
+- **容错降级**：L2 不可用时，链式缓存的读取会跳过失败的后端，继续从其他后端取值
 
-### 5️⃣ 通用 per-entry TTL
+### 通用 per-entry TTL
 
 所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))`
 设置单条目 TTL。可用 `cache.ttl(&key)` 读取剩余 TTL，用 `cache.expire(&key, d)` 修改已存在 key 的 TTL。
 
 ---
 
-## 基础用法
+## 📖 基础用法
 
 ### 使用缓存宏
 
@@ -361,7 +330,21 @@ async fn get_user(id: u64) -> Result<User, String> {
 ```
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
-可选参数还有 `key_prefix`（键前缀）、`sync`（使用同步代码路径，要求 `sync_mode(true)` 且函数非 `async`）和 `skip_cache_write`（跳过 Ok 结果的缓存写入）。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `service` | `&str` | 注册名（默认 `"default"`） |
+| `ttl` | `u64` | 生存时间（秒） |
+| `key` | `&str` | 自定义键模板（支持 `{param}` 插值） |
+| `key_prefix` | `&str` | 键前缀 |
+| `sync` | 标志 | 生成同步函数（需 `sync_mode(true)` 且函数非 `async`） |
+| `skip_cache_write` | 标志 | 跳过 `Ok` 结果的缓存写入 |
+| `single_flight` | 标志 | 同 key 并发 miss 仅回源一次 |
+| `strict` | 标志 | 未注册缓存时 panic 而非静默穿透 |
+| `condition` | 函数路径 | 执行前谓词，返回 false 时旁路缓存 |
+| `cache_none` | 标志 | 缓存 `None` 结果 |
+
+完整参数说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
 
 ### 手动控制缓存
 
@@ -434,18 +417,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 序列化
 
-`oxcache` 的 `serialization` 特性 **仅支持 JSON**（基于 `serde` + `serde_json`）。所有类型化
-`Cache<K, V>` 的 `get`/`set`/`set_with_ttl` 都通过 JSON 序列化/反序列化。值类型 `V` 需实现
+类型化 `Cache<K, V>` 的 `get`/`set`/`set_with_ttl` 均经序列化层：值类型 `V` 需实现
 `serde::Serialize + serde::Deserialize<'de>`，键类型 `K` 需实现 `oxcache::CacheKey`。
 
-> **注意**：不支持 bincode / MessagePack / CBOR。如需原始字节操作，可使用后端层的
-> `get`/`set`（接收 `Vec<u8>`），或 `Cache` 的字节级接口。
+| 格式 | 特性 | 说明 |
+|------|------|------|
+| **JSON** | 默认（`serialization`） | 可读性与跨语言互操作；`serde_stacker` 深度防护防嵌套 DoS |
+| **bincode 1.x** | `serde-bincode` | 二进制紧凑格式，经 `CacheBuilder::serialization_format()` 切换 |
+| **postcard** | `postcard` | varint 编码，混合负载下体积约为 JSON 的 46% |
+
+```rust
+use oxcache::infra::serialization::SerializationFormat;
+
+// 需启用 serde-bincode / postcard 特性（serialization_format 方法需 serialization 或 full）
+let cache: Cache<String, User> = Cache::builder()
+    .serialization_format(SerializationFormat::Postcard)
+    .build()
+    .await?;
+```
+
+> **注意**：二进制格式无自描述头，**同一键前缀不得混用格式**。各格式的 L2 传输体积实测见 [性能基线](PERFORMANCE.md)。
 
 ---
 
-## 高级用法
+## ⚡ 高级用法
 
-### 链式多层缓存 (ChainCache)
+### 链式多层缓存（ChainCache）
 
 `ChainCache` 把多个后端组合成链，按分数排序读写：
 
@@ -483,7 +480,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **ChainCacheBuilder 方法**：`link(ChainLink)`、`links(Vec<ChainLink>)`、`backend(B)`、
 `default_time_to_live(Duration)`、`enable_backfill()` / `disable_backfill()`、`build()`（同步）。
 
-### 同步 API
+### 启用同步 API
 
 在 multi_thread runtime 下，启用 `sync_mode(true)` 即可使用同步方法：
 
@@ -544,6 +541,8 @@ let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
+各后端 TTL 行为对照表见 [README](../README.md#-ttl-行为对照表)。
+
 ### Redis 模式配置
 
 oxcache 支持多种 Redis 部署模式。所有模式都建议使用 TLS（`rediss://`）：
@@ -579,12 +578,12 @@ let backend = RedisBackend::builder()
 use oxcache::{get_enhanced_stats, export_prometheus_format, export_json_format, CacheStats};
 
 let stats: CacheStats = get_enhanced_stats();
-println!("Hits: {}", stats.hits());
-println!("Hit rate: {:.2}%", stats.hit_rate() * 100.0);
+println!("L1 命中: {}", stats.l1_hits);
+println!("整体命中率: {:.2}%", stats.overall_hit_rate() * 100.0);
 
-// 导出为 Prometheus / JSON 文本
+// 导出为 Prometheus / JSON 文本（export_json_format 返回 Result）
 let prom = export_prometheus_format();
-let json = export_json_format();
+let json = export_json_format()?;
 ```
 
 更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。
@@ -596,7 +595,7 @@ oxcache 通过 `EventPublisher` trait 提供结构化事件发射机制。
 用户可自行决定处理方式（日志、metrics、告警或忽略）：
 
 ```rust
-use oxcache::core::EventPublisher;
+use oxcache::EventPublisher;  // crate 根重导出（core 模块为私有）
 use std::sync::Arc;
 
 struct MyPublisher;
@@ -661,7 +660,7 @@ let backend = RedisBackend::builder()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.3", features = ["dragonfly"] }
+oxcache = { version = "0.5.0-rc.4", features = ["dragonfly"] }
 ```
 
 ```rust
@@ -687,7 +686,7 @@ let chain = ChainCacheBuilder::default()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.3", features = ["aerospike"] }
+oxcache = { version = "0.5.0-rc.4", features = ["aerospike"] }
 ```
 
 ```rust
@@ -709,36 +708,31 @@ let backend = AerospikeBackend::new(config).await?;
 
 ---
 
-## 最佳实践
-
-<div align="center">
-
-### 🌟 推荐的设计模式
-
-</div>
+## 🌟 最佳实践
 
 ### ✅ 推荐做法
 
-- **合理设置 TTL**: 根据数据更新频率设置缓存过期时间，避免数据不一致。
-- **使用 ChainCache 做分层**: L1 用 Moka 缓存热数据，L2 用 Redis 共享数据，并启用回填。
-- **监控缓存命中率**: 定期检查命中率，及时调整容量和 TTL。
-- **使用单飞防击穿**: 热点 key 用 `get_or` / `get_or_sync` 避免重复回源。
-- **分离冷热数据**: L1 缓存热数据，L2 缓存共享数据。
+- **合理设置 TTL**：根据数据更新频率设置缓存过期时间，避免数据不一致。
+- **使用 ChainCache 做分层**：L1 用 Moka 缓存热数据，L2 用 Redis 共享数据，并启用回填。
+- **监控缓存命中率**：定期检查命中率，及时调整容量和 TTL。
+- **使用单飞防击穿**：热点 key 用 `get_or` / `get_or_sync` 避免重复回源。
+- **分离冷热数据**：L1 缓存热数据，L2 缓存共享数据。
 
 ### ❌ 避免做法
 
-- **缓存过大数据**: 避免缓存 large object，优先缓存元数据和 ID。
-- **忽略过期策略**: 合理设置 TTL，避免缓存脏数据。
-- **单点故障**: 生产环境务必使用 Sentinel 或 Cluster 模式。
-- **忽视监控**: 启用指标收集和监控，及时发现问题。
+- **缓存过大数据**：避免缓存 large object，优先缓存元数据和 ID。
+- **忽略过期策略**：合理设置 TTL，避免缓存脏数据。
+- **单点故障**：生产环境务必使用 Sentinel 或 Cluster 模式。
+- **忽视监控**：启用指标收集和监控，及时发现问题。
 
 ### 🔒 安全最佳实践
 
-OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安全最佳实践：
+oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安全最佳实践：
 
 #### 1. 敏感信息保护
 
-- **使用环境变量存储密码**: 永远不要在配置文件中硬编码密码
+- **使用环境变量存储密码**：永远不要在配置文件中硬编码密码
+
   ```toml
   # ✅ 正确做法
   connection_string = "rediss://:${REDIS_PASSWORD}@localhost:6379/0"
@@ -747,11 +741,12 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
   connection_string = "rediss://:mypassword123@localhost:6379/0"
   ```
 
-- **启用日志脱敏**: OxCache 会自动脱敏日志中的敏感信息，确保生产环境日志不包含密码
+- **启用日志脱敏**：oxcache 会自动脱敏日志中的敏感信息，确保生产环境日志不包含密码
 
 #### 2. 连接安全
 
-- **使用 TLS 加密**: 生产环境必须使用 `rediss://`，否则 oxcache 会拒绝连接
+- **使用 TLS 加密**：生产环境必须使用 `rediss://`，否则 oxcache 会拒绝连接
+
   ```rust
   // ✅ 生产环境
   let backend = RedisBackend::new("rediss://:${REDIS_PASSWORD}@localhost:6380").await?;
@@ -761,29 +756,31 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
   let backend = RedisBackend::new("redis://127.0.0.1:6379").await?;
   ```
 
-- **使用强密码**: Redis 密码至少 32 位，包含大小写字母、数字和特殊字符
+- **使用强密码**：Redis 密码至少 32 位，包含大小写字母、数字和特殊字符
 
 #### 3. 访问控制
 
-- **配置网络隔离**: 使用防火墙限制 Redis 访问来源
-- **使用 ACL**: 生产环境建议使用 Redis ACL 限制用户权限
-- **定期轮换密码**: 定期更换 Redis 密码，建议每 90 天更换一次
+- **配置网络隔离**：使用防火墙限制 Redis 访问来源
+- **使用 ACL**：生产环境建议使用 Redis ACL 限制用户权限
+- **定期轮换密码**：定期更换 Redis 密码，建议每 90 天更换一次
 
 #### 4. 审计与监控
 
-- **启用安全日志**: 监控认证失败和异常访问
-- **配置告警**: 对连接失败和认证失败设置告警
-- **定期审计**: 定期检查日志和安全配置
+- **启用安全日志**：监控认证失败和异常访问
+- **配置告警**：对连接失败和认证失败设置告警
+- **定期审计**：定期检查日志和安全配置
 
 #### 5. 输入校验
 
-- **键名校验**: oxcache 自动校验 Redis 键（拒绝空键、超长键、含 `\r\n\0;|` 的键、路径穿越）
-- **Lua 脚本校验**: 执行前自动拦截 `FLUSHALL`/`FLUSHDB`/`KEYS`/`SHUTDOWN` 等危险命令
-- **SCAN 模式校验**: 自动限制通配符数量与长度，防止 ReDoS
+- **键名校验**：oxcache 自动校验 Redis 键（拒绝空键、超长键、含 `\r` / `\n` / `\0` 与命令注入字符的键，扫描 SQL 注入与路径遍历模式）
+- **Lua 脚本校验**：执行前自动拦截 `FLUSHALL`/`FLUSHDB`/`KEYS`/`SHUTDOWN` 等危险命令
+- **SCAN 模式校验**：自动限制通配符数量与长度，防止 ReDoS
+
+完整机制见 [🔒 安全文档](SECURITY.md)。
 
 ---
 
-## 故障排除
+## 🔧 故障排除
 
 <details>
 <summary><b>❓ 问题：缓存未命中率高</b></summary>
@@ -842,91 +839,22 @@ OxCache 内置多层安全防护机制，建议在生产环境中遵循以下安
 
 ---
 
+## 🎯 后续步骤
 
-
-## 后续步骤
-
-
-
-<div align="center">
-
-
-
-### 🎯 继续探索
-
-
-
-</div>
-
-
-
-<table>
-
-<tr>
-
-<td width="33%" align="center">
-
-<a href="API_REFERENCE.md">
-
-<img src="https://img.icons8.com/fluency/96/000000/graduation-cap.png" width="64"><br>
-
-<b>📚 API 参考</b>
-
-</a><br>
-
-详细的接口说明
-
-</td>
-
-<td width="33%" align="center">
-
-<a href="ARCHITECTURE.md">
-
-<img src="https://img.icons8.com/fluency/96/000000/settings.png" width="64"><br>
-
-<b>🔧 架构设计</b>
-
-</a><br>
-
-深入了解内部机制
-
-</td>
-
-<td width="33%" align="center">
-
-<a href="../examples/">
-
-<img src="https://img.icons8.com/fluency/96/000000/code.png" width="64"><br>
-
-<b>💻 示例代码</b>
-
-</a><br>
-
-真实场景的代码样例
-
-</td>
-
-</tr>
-
-</table>
-
-
-
----
-
-
+| 去向 | 内容 |
+|------|------|
+| [📘 API 参考](API_REFERENCE.md) | 详细的接口说明与错误码表 |
+| [🏗️ 架构设计](ARCHITECTURE.md) | 深入了解内部机制与数据流 |
+| [🧪 测试场景矩阵](TEST_SCENARIOS.md) | 功能域到测试落点的映射与执行口径 |
+| [💻 示例代码](../examples/) | 真实场景的代码样例 |
+| [📊 性能基线](PERFORMANCE.md) | 序列化体积与热路径基准 |
+| [🔒 安全文档](SECURITY.md) | 威胁模型与安全配置 |
 
 <div align="center">
-
-
 
 **[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)** • **[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
 
-
-
 由 oxcache Team 用 ❤️ 制作
-
-
 
 [⬆ 回到顶部](#-oxcache-用户指南)
 

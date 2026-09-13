@@ -1,9 +1,11 @@
-# oxcache 性能基线（docs/PERFORMANCE.md）
+# ⚡ Oxcache 性能基线
 
-> 本机基线记录。运行环境：WSL2 (linux 6.6)、Rust 1.97.1、debug profile（除非另有说明）。
+> 本机基线记录。运行环境：WSL2（linux 6.6）、Rust 1.97.1、debug profile（除非另有说明）。
 > CI 阈值门禁待基线稳定后启用（design D4 口径）。
 
-## 序列化格式 L2 传输体积对比（T305）
+架构层面的量级参考（L1/L2 吞吐与延迟估计）见 [🏗️ 架构文档](ARCHITECTURE.md) 的基准测试章节；本文记录可复现的实测数据。
+
+## 📦 序列化格式 L2 传输体积对比
 
 格式选择（`serde-bincode` / `postcard` feature，`CacheBuilder::serialization_format()`）。
 代表负载（`Sample { id: u64, name: String, tags: Vec<String>×3, score: f64 }`）与
@@ -21,9 +23,13 @@
   但短字符串场景可能略大于 JSON（长度前缀 + 无字段名压缩）；
 - JSON 优势是可读性与跨语言互操作；**同一键前缀不得混用格式**（无自描述头）。
 
-复现：`cargo test --lib --features serde-bincode,postcard formats_are_interoperable -- --nocapture`
+复现：
 
-## 自适应 zstd 压缩（T310）
+```bash
+cargo test --lib --features serde-bincode,postcard formats_are_interoperable -- --nocapture
+```
+
+## 🗜️ 自适应 zstd 压缩
 
 `CompressingBackend`（`compression` feature）：阈值 256 B、zstd level 3、
 可压缩重复负载（MockBackend 存储侧字节数）：
@@ -35,19 +41,29 @@
 | 65536 B | 38 B | 0.1% |
 
 阈值以下零压缩开销（原样存储）；读取端按魔数自动识别 zstd / 兼容旧 gzip / 透传。
-复现：`cargo test --lib --features compression size_comparison -- --nocapture`
 
-## 热路径零分配（T317）
+复现：
 
-`get_by_str` / `set_by_str` 借用键 API（T317）：
-`get` 路径每次调用省去 `K::to_key_string()` 的 String 分配（借用查询零堆分配）；
-`set` 路径省去 String 中转（1 次 `Arc<str>` 分配 vs 原来的 String+Arc 两次）。
+```bash
+cargo test --lib --features compression size_comparison -- --nocapture
+```
+
+## 🔥 热路径零分配
+
+`get_by_str` / `set_by_str` 借用键 API：
+
+- `get` 路径每次调用省去 `K::to_key_string()` 的 String 分配（借用查询零堆分配）；
+- `set` 路径省去 String 中转（1 次 `Arc<str>` 分配，原来的 String + Arc 为两次）。
 
 Criterion 基线（`benches/hot_path_benchmark.rs`，bench profile = release + lto=fat，Moka L1 命中路径）：
 
-| 基准 | owned 键（既有 API） | borrowed 键（T317） | 差异 |
+| 基准 | owned 键（既有 API） | borrowed 键（借用 API） | 差异 |
 | --- | --- | --- | --- |
 | get 命中 | 241.07 ns | 224.88 ns | **-6.7%** |
 | set | 819.38 ns | 715.01 ns | **-12.7%** |
 
-复现：`cargo bench --bench hot_path_benchmark`
+复现：
+
+```bash
+cargo bench --bench hot_path_benchmark
+```

@@ -1,11 +1,15 @@
-# oxcache 测试场景矩阵（TEST_SCENARIOS）
+# 🧪 Oxcache 测试场景矩阵
 
-> 阶段 2 验收产物：功能域 → 测试落点地图 + E2E 缺口补盲记录。
+> 功能域 → 测试落点地图 + E2E 缺口补盲记录。
 > 执行口径：一律使用项目自身测试框架 `cargo test`（禁止独立脚本替代）；
 > 集成/E2E 依赖 Docker 真实容器（testcontainers 自起自清 / `tests/real_env/`
 > compose 集群），禁用 test double（mockall 等），进程内真实实现与故障注入
 > 替身（chaos 式 `FailingBackend`）为项目既有口径；断言按真实行为固化，
 > 文档推测与实现不符时修正并注明依据。
+>
+> **快照口径**：本文数据为该轮验收时的实测快照；当前版本的测试函数数以
+> [README](../README.md#-测试) 与 CI 为准（快照之后移除的特性，如 `cli`，
+> 对应行仅保留快照记录）。
 
 ## 1. 测试金字塔基线（all-features 实测）
 
@@ -14,7 +18,7 @@
 | 单元 | `cargo test --lib` | 1132 passed / 0 failed / 120 ignored（ignored 补盲见 §4） |
 | 集成 | `tests/unit.rs` | 327 passed |
 | 集成 | `tests/integration.rs` | 137 passed + 4 --ignored 补盲全过（valkey 首轮 1 失败为镜像拉取瞬态，复验 8/8 过） |
-| E2E | `tests/e2e.rs` | 75 passed（72 既有 + 本阶段新增 3，见 §3） |
+| E2E | `tests/e2e.rs` | 75 passed（72 既有 + 新增 3，见 §3） |
 | 安全 | `tests/security.rs` | 14 passed |
 | 宏 | `tests/macros.rs`（trybuild） | 10 passed（51.4s 含编译失败快照校验） |
 | 特性 | `tests/feature_test.rs` | 2 passed |
@@ -23,7 +27,7 @@
 | 性能 | `tests/performance.rs` | 19 passed + 5 --ignored 补盲全过 |
 
 examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例输出为
-设计性错误演示，符合附录 A 口径）。
+设计性错误演示，符合预期设计口径）。
 
 ## 2. 功能域 → 落点矩阵
 
@@ -37,8 +41,8 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 | Valkey | 显式模式/透明复用 | `tests/integration/backend/valkey_test.rs`（8 测试） | 无缺口 |
 | Aerospike | 容器自管+access-address 注入+全操作面 | `tests/integration/backend/aerospike_test.rs`（7 测试） | lib 内联 11 个 --ignored 为同路径冗余且 CI 从不跑，记录为环境边界（§4.4） |
 | 链式缓存 | 排序/回填/竞速读/部分失败 | `tests/integration/chain_cache_integration_test.rs` | 无缺口 |
-| 分布式锁 | 重入/TTL/争用/续期/释放 | `tests/integration/redis/dist_lock_test.rs`（§4.1 注）+ **新增** `tests/e2e/dist_lock_watchdog_e2e.rs` | 看门狗组合语义缺口 → OXL-WD-01/02/03 |
-| 事件系统 | 事件构建/发布订阅/错误事件 | `src/core/events.rs` 21 内联（组件级）+ **新增** `tests/e2e/events_chain_e2e.rs` | publisher→失败→订阅方集成链缺口 → OXE-01/02/03 |
+| 分布式锁 | 重入/TTL/争用/续期/释放 | `tests/integration/redis/dist_lock_test.rs`（§4.1 注）+ 新增 `tests/e2e/dist_lock_watchdog_e2e.rs` | 看门狗组合语义缺口 → OXL-WD-01/02/03 |
+| 事件系统 | 事件构建/发布订阅/错误事件 | `src/core/events.rs` 21 内联（组件级）+ 新增 `tests/e2e/events_chain_e2e.rs` | publisher→失败→订阅方集成链缺口 → OXE-01/02/03 |
 | Lua 脚本 | 脚本加载/EVAL/原子性 | lib 内联（8 --ignored 补盲全过） | 无缺口 |
 | 序列化 | JSON/bincode/typed API | lib 内联 + `tests/unit.rs` | 无缺口 |
 | 批量操作 | mget/mset/pipeline | lib 内联 + e2e advanced | 无缺口 |
@@ -59,7 +63,7 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 `REDIS_CLUSTER_AVAILABLE` / `REDIS_SENTINEL_AVAILABLE` / `REDIS_SENTINEL_MASTER_URL`
 （默认 `redis://127.0.0.1:16379`）/ `REDIS_VERSION_TEST_ENABLED`。
 
-## 3. 阶段 2 E2E 缺口补盲（本阶段新增落地）
+## 3. E2E 缺口补盲（新增落地）
 
 ### 3.1 `tests/e2e/dist_lock_watchdog_e2e.rs`（场景 ID：OXL-WD-01/02/03）
 
@@ -88,12 +92,12 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 事件契约断言：三条失败路径各产生恰好一条 `publish_error`，格式
 `"backend {name}: {error}"`，key 为 `Some(原始键)`。
 
-## 4. 真实行为核正与发现（阶段 2）
+## 4. 真实行为核正与发现
 
 1. **容器生命周期发现（重要）**：testcontainers 0.28 的 `ContainerAsync` 在
    drop 时即删除容器。`dist_lock_test.rs` 既有模式把容器锁在 `setup()` 局部
    作用域内，返回后首个连接操作必报 `broken pipe`，被既有 `ok_or_skip!` 宏
-   静默吞掉——该文件断言在此环境下实际未执行（表现为"绿"）。本阶段新增
+   静默吞掉，该文件断言在此环境下实际未执行（表现为"绿"）。新增
    e2e 均返回容器句柄由测试体持有至结束，规避该问题（见
    `dist_lock_watchdog_e2e.rs::setup` 文档注释）。
 2. **`read_from_chain` 降级语义核正**：L1 明确 miss + L2 失败时返回
@@ -125,3 +129,10 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 | 文档 | `cargo doc --no-deps --all-features`（`-D warnings`） | 零告警 |
 | 供应链 | `cargo deny check` / `cargo audit` | 无高危 |
 | MSRV | `rust-version = "1.97.1"`（workspace.package） | 工具链 1.97.1 编译通过 |
+
+## 📚 相关文档
+
+- [📖 用户指南](USER_GUIDE.md)：功能行为的使用视角说明
+- [🤝 贡献指南](CONTRIBUTING.md)：TDD 工作流与静态门槛的日常执行方式
+- [🔒 安全文档](SECURITY.md)：`tests/security.rs` 覆盖的安全机制说明
+- [README 测试章节](../README.md#-测试)：当前版本的测试函数数与常用命令
