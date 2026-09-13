@@ -12,17 +12,16 @@
 
 </div>
 
-<div align="center">
+---
 
-<table>
-  <tr>
-    <td width="50%" align="center"><b>🚀 极致性能</b><br/>L1 纳秒级读写，热路径借用键 API 消除多余分配</td>
-    <td width="50%" align="center"><b>🧩 多级后端</b><br/>L1（Moka / DashMap）+ L2（Redis / Valkey / Dragonfly / Aerospike），ChainCache 自由组链</td>
-  </tr>
-  <tr>
-    <td align="center"><b>⚡ 零侵入接入</b><br/>#[cached] 宏一行启用，CacheBuilder 类型安全构建</td>
-    <td align="center"><b>🛡️ 生产就绪</b><br/>输入校验与脱敏、可选自动降级、混沌测试、CI 质量门禁</td>
-  </tr>
+<div align="center" style="padding: 32px; margin: 24px 0">
+
+### 🚀 多级缓存，纳秒级热路径
+
+`#[cached]` 宏一行启用，L1/L2 后端经 ChainCache 自由组链：
+
+<table style="width:100%; border-collapse: collapse">
+<tr><td align="center" width="25%" style="padding: 12px">🚀<br><b>极致性能</b><br><span style="color:#64748B">L1 纳秒级读写，借用键热路径 API</span></td><td align="center" width="25%" style="padding: 12px">🧩<br><b>多级后端</b><br><span style="color:#64748B">L1 Moka/DashMap + L2 Redis/Valkey/Dragonfly/Aerospike</span></td><td align="center" width="25%" style="padding: 12px">⚡<br><b>零侵入接入</b><br><span style="color:#64748B">#[cached] 宏一行启用，CacheBuilder 类型安全构建</span></td><td align="center" width="25%" style="padding: 12px">🛡️<br><b>生产就绪</b><br><span style="color:#64748B">输入校验与脱敏，可选自动降级，混沌测试</span></td></tr>
 </table>
 
 </div>
@@ -36,9 +35,6 @@
 
 - [✨ 功能特性](#-功能特性)
 - [🚀 快速开始](#-快速开始)
-  - [📦 安装](#-安装)
-  - [💡 最小可运行示例](#-最小可运行示例)
-  - [🧭 核心概念](#-核心概念)
 - [🎨 特性标志](#-特性标志)
 - [📚 文档](#-文档)
 - [💻 示例](#-示例)

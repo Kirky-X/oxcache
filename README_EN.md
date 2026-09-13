@@ -12,17 +12,16 @@
 
 </div>
 
-<div align="center">
+---
 
-<table>
-  <tr>
-    <td width="50%" align="center"><b>🚀 Extreme Performance</b><br/>Nanosecond L1 reads and writes, borrowed-key hot-path APIs eliminate redundant allocations</td>
-    <td width="50%" align="center"><b>🧩 Multi-Tier Backends</b><br/>L1 (Moka / DashMap) + L2 (Redis / Valkey / Dragonfly / Aerospike), freely chained via ChainCache</td>
-  </tr>
-  <tr>
-    <td align="center"><b>⚡ Zero-Boilerplate Integration</b><br/>One-line #[cached] macro, type-safe CacheBuilder</td>
-    <td align="center"><b>🛡️ Production Ready</b><br/>Input validation and redaction, optional auto-degradation, chaos testing, CI quality gates</td>
-  </tr>
+<div align="center" style="padding: 32px; margin: 24px 0">
+
+### 🚀 Multi-Tier Cache, Nanosecond Hot Path
+
+One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCache:
+
+<table style="width:100%; border-collapse: collapse">
+<tr><td align="center" width="25%" style="padding: 12px">🚀<br><b>Extreme Performance</b><br><span style="color:#64748B">nanosecond L1 I/O, borrowed-key hot-path APIs</span></td><td align="center" width="25%" style="padding: 12px">🧩<br><b>Multi-Tier Backends</b><br><span style="color:#64748B">L1 Moka/DashMap + L2 Redis/Valkey/Dragonfly/Aerospike</span></td><td align="center" width="25%" style="padding: 12px">⚡<br><b>Zero-Boilerplate Integration</b><br><span style="color:#64748B">one-line #[cached] macro, type-safe CacheBuilder</span></td><td align="center" width="25%" style="padding: 12px">🛡️<br><b>Production Ready</b><br><span style="color:#64748B">validation and redaction, optional auto-degradation, chaos testing</span></td></tr>
 </table>
 
 </div>
@@ -32,13 +31,10 @@
 ## 📋 Table of Contents
 
 <details open>
-<summary>📑 Table of Contents</summary>
+<summary>📑 目录</summary>
 
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
-  - [📦 Installation](#-installation)
-  - [💡 Minimal Runnable Example](#-minimal-runnable-example)
-  - [🧭 Core Concepts](#-core-concepts)
 - [🎨 Feature Flags](#-feature-flags)
 - [📚 Documentation](#-documentation)
 - [💻 Examples](#-examples)
