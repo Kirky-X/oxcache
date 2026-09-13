@@ -7,7 +7,7 @@
 //! 冲突与误删前缀在编译期即被阻止；运行时键与 [`KeyGenerator`](crate::KeyGenerator)
 //! 的 `ns:key` 前缀约定保持一致（兼容既有数据）。
 //!
-//! 用 [`namespace!`] 宏声明命名空间 marker：
+//! 用 `namespace!` 宏声明命名空间 marker：
 //!
 //! ```rust,ignore
 //! use oxcache::namespace;
@@ -186,7 +186,10 @@ mod tests {
     #[tokio::test]
     async fn typed_roundtrip_with_namespace_prefix() {
         let ns: TypedNamespace<String, User, Users> = TypedNamespace::scoped(backend());
-        let user = User { id: 1, name: "alice".into() };
+        let user = User {
+            id: 1,
+            name: "alice".into(),
+        };
 
         ns.set(&"1".to_string(), &user, None).await.unwrap();
         assert_eq!(ns.get(&"1".to_string()).await.unwrap(), Some(user));
@@ -203,7 +206,14 @@ mod tests {
         let orders: TypedNamespace<String, Order, Orders> = TypedNamespace::scoped(backend.clone());
 
         users
-            .set(&"1".to_string(), &User { id: 1, name: "a".into() }, None)
+            .set(
+                &"1".to_string(),
+                &User {
+                    id: 1,
+                    name: "a".into(),
+                },
+                None,
+            )
             .await
             .unwrap();
 
@@ -225,11 +235,25 @@ mod tests {
         let orders: TypedNamespace<String, Order, Orders> = TypedNamespace::scoped(backend.clone());
 
         users
-            .set(&"1".to_string(), &User { id: 1, name: "a".into() }, None)
+            .set(
+                &"1".to_string(),
+                &User {
+                    id: 1,
+                    name: "a".into(),
+                },
+                None,
+            )
             .await
             .unwrap();
         users
-            .set(&"2".to_string(), &User { id: 2, name: "b".into() }, None)
+            .set(
+                &"2".to_string(),
+                &User {
+                    id: 2,
+                    name: "b".into(),
+                },
+                None,
+            )
             .await
             .unwrap();
         orders
@@ -240,11 +264,7 @@ mod tests {
         let removed = users.invalidate_all().await.unwrap();
         assert_eq!(removed, 2, "应只清除 Users 前缀的 2 条");
         assert!(users.is_empty().await.unwrap());
-        assert_eq!(
-            orders.len().await.unwrap(),
-            1,
-            "Orders 命名空间不受影响"
-        );
+        assert_eq!(orders.len().await.unwrap(), 1, "Orders 命名空间不受影响");
 
         // 原始键确认：Users 已被清除，Orders 保留
         assert!(!backend.exists("Users:1").await.unwrap());
@@ -254,9 +274,16 @@ mod tests {
     #[tokio::test]
     async fn delete_and_ttl_passthrough() {
         let ns: TypedNamespace<String, User, Users> = TypedNamespace::scoped(backend());
-        ns.set(&"k".to_string(), &User { id: 3, name: "c".into() }, None)
-            .await
-            .unwrap();
+        ns.set(
+            &"k".to_string(),
+            &User {
+                id: 3,
+                name: "c".into(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
         ns.delete(&"k".to_string()).await.unwrap();
         assert_eq!(ns.get(&"k".to_string()).await.unwrap(), None);
     }

@@ -25,7 +25,12 @@ use std::time::Duration;
 #[cfg(feature = "telemetry")]
 #[inline]
 fn oxcache_telemetry_backfill_ok(key: &str, backend: &str) {
-    tracing::debug!(target = "oxcache::chain", key, backend, "backfill succeeded");
+    tracing::debug!(
+        target = "oxcache::chain",
+        key,
+        backend,
+        "backfill succeeded"
+    );
 }
 
 #[cfg(feature = "telemetry")]

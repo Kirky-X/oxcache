@@ -82,10 +82,7 @@ async fn condition_fn(id: u64) -> Result<u64, String> {
 #[serial]
 async fn condition_true_enables_caching() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    cache
-        .register_for_macro("condition_svc")
-        .await
-        .unwrap();
+    cache.register_for_macro("condition_svc").await.unwrap();
 
     CONDITION_CALLS.store(0, Ordering::SeqCst);
 
@@ -108,10 +105,7 @@ async fn condition_true_enables_caching() {
 #[serial]
 async fn condition_false_bypasses_cache() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    cache
-        .register_for_macro("condition_svc")
-        .await
-        .unwrap();
+    cache.register_for_macro("condition_svc").await.unwrap();
 
     CONDITION_CALLS.store(0, Ordering::SeqCst);
 
@@ -148,10 +142,7 @@ async fn sf_fn(id: u64) -> Result<u64, String> {
 #[serial]
 async fn single_flight_deduplicates_concurrent_misses() {
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
-    cache
-        .register_for_macro("single_flight_svc")
-        .await
-        .unwrap();
+    cache.register_for_macro("single_flight_svc").await.unwrap();
 
     SF_CALLS.store(0, Ordering::SeqCst);
 

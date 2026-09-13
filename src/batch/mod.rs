@@ -197,13 +197,9 @@ mod tests {
 
         // Enqueue 3 entries — below capacity, so no auto-flush.
         for i in 0..3u8 {
-            bw.enqueue(
-                Arc::from(format!("k{i}")),
-                Arc::new(vec![i]),
-                None,
-            )
-            .await
-            .expect("enqueue");
+            bw.enqueue(Arc::from(format!("k{i}")), Arc::new(vec![i]), None)
+                .await
+                .expect("enqueue");
         }
         assert_eq!(bw.pending().await, 3);
 
@@ -228,13 +224,9 @@ mod tests {
 
         // Enqueue up to capacity — should trigger auto-flush.
         for i in 0..3u8 {
-            bw.enqueue(
-                Arc::from(format!("auto{i}")),
-                Arc::new(vec![i]),
-                None,
-            )
-            .await
-            .expect("enqueue");
+            bw.enqueue(Arc::from(format!("auto{i}")), Arc::new(vec![i]), None)
+                .await
+                .expect("enqueue");
         }
 
         // Buffer should be drained after auto-flush.

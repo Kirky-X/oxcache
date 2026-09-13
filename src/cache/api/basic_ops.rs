@@ -1354,7 +1354,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn get_by_str_semantics_and_throughput() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
-        cache.set(&"hit".to_string(), &"v".to_string()).await.unwrap();
+        cache
+            .set(&"hit".to_string(), &"v".to_string())
+            .await
+            .unwrap();
 
         // 语义：K=String 时 get_by_str 与 get 等价
         assert_eq!(
@@ -1362,8 +1365,14 @@ mod tests {
             Some("v".to_string())
         );
         assert_eq!(cache.get_by_str("miss").await.unwrap(), None);
-        cache.set_by_str("via-str", &"w".to_string(), None).await.unwrap();
-        assert_eq!(cache.get(&"via-str".to_string()).await.unwrap(), Some("w".to_string()));
+        cache
+            .set_by_str("via-str", &"w".to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get(&"via-str".to_string()).await.unwrap(),
+            Some("w".to_string())
+        );
 
         // 吞吐对比（相对值；绝对值随环境波动）
         // 公平口径：两个独立循环、各自 2 轮取优，均查询同样 100 个命中键

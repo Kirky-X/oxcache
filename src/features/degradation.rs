@@ -22,9 +22,9 @@
 //! // 30s 后 allow_l2() 放行探测 → 成功自动恢复 Active
 //! ```
 
+use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};
-use crate::backend::interface::{BackendKind, CacheSetItem};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -389,7 +389,11 @@ mod tests {
     use crate::backend::MockBackend;
 
     fn failing_backend() -> Arc<dyn CacheBackend> {
-        Arc::new(MockBackend::new("mock", 50, false).with_fail_get().with_fail_set())
+        Arc::new(
+            MockBackend::new("mock", 50, false)
+                .with_fail_get()
+                .with_fail_set(),
+        )
     }
 
     fn healthy_backend() -> Arc<dyn CacheBackend> {
@@ -431,7 +435,11 @@ mod tests {
         assert!(controller.allow_l2());
 
         controller.record_success();
-        assert_eq!(controller.state(), DegradationState::Active, "探测成功应恢复");
+        assert_eq!(
+            controller.state(),
+            DegradationState::Active,
+            "探测成功应恢复"
+        );
         assert!(controller.allow_l2());
     }
 
@@ -494,8 +502,12 @@ mod tests {
         let backend = DegradableBackend::new(failing_backend(), controller.clone());
 
         // 两次故障达到阈值
-        let _ = backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await;
-        let _ = backend.set(Arc::from("k"), Arc::new(b"v".to_vec()), None).await;
+        let _ = backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await;
+        let _ = backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await;
         assert_eq!(controller.state(), DegradationState::Degraded);
 
         // 降级后 get 直接短路返回 Degraded（不再触达内层）

@@ -49,21 +49,21 @@ pub use dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockP
 
 #[cfg(feature = "invalidation")]
 pub use invalidation::{
-    InMemoryPubSubTransport, InvalidationBus, InvalidationConfig, InvalidationKind,
-    InvalidationMessage, InvalidatingBackend, KeyspaceNotificationConfig,
+    InMemoryPubSubTransport, InvalidatingBackend, InvalidationBus, InvalidationConfig,
+    InvalidationKind, InvalidationMessage, KeyspaceNotificationConfig,
     KeyspaceNotificationListener, PubSubTransport, RedisPubSubTransport,
 };
 
 #[cfg(feature = "encrypt")]
-pub use encryption::{EncryptedBackend, ENVELOPE_VERSION, ValueCipher};
+pub use encryption::{ENVELOPE_VERSION, EncryptedBackend, ValueCipher};
 
 #[cfg(feature = "integrity")]
-pub use encryption::integrity::{HmacSigner, HMAC_ENVELOPE_VERSION, IntegrityBackend};
+pub use encryption::integrity::{HMAC_ENVELOPE_VERSION, HmacSigner, IntegrityBackend};
 
 #[cfg(feature = "config-confers")]
 pub use confers_config::{
-    CacheConfigSource, ConfigChangeListener, ConfigSnapshot, ConfersConfigSource,
-    ConfersConfigWatcher, OxcacheConfig,
+    CacheConfigSource, ConfersConfigSource, ConfersConfigWatcher, ConfigChangeListener,
+    ConfigSnapshot, OxcacheConfig,
 };
 
 #[cfg(feature = "degradation")]

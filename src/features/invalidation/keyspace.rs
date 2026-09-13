@@ -174,7 +174,10 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        assert!(!l1.exists("user:1").await.unwrap(), "外部 DEL 库失效本地条目");
+        assert!(
+            !l1.exists("user:1").await.unwrap(),
+            "外部 DEL 库失效本地条目"
+        );
 
         handle.stop();
         handle.join().await;
@@ -230,8 +233,14 @@ mod tests {
         .unwrap();
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        transport.publish("__keyevent@1__:del", "keep:1").await.unwrap();
-        transport.publish("__keyevent@0__:hdel", "keep:1").await.unwrap();
+        transport
+            .publish("__keyevent@1__:del", "keep:1")
+            .await
+            .unwrap();
+        transport
+            .publish("__keyevent@0__:hdel", "keep:1")
+            .await
+            .unwrap();
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         assert!(l1.exists("keep:1").await.unwrap(), "未订阅频道不得失效");
@@ -248,6 +257,10 @@ mod tests {
         assert!(cfg.channels[1].ends_with(":expired"));
 
         let cfg = KeyspaceNotificationConfig::for_db(3);
-        assert!(cfg.channels[0].contains("@3__:"), "got {:?}", cfg.channels[0]);
+        assert!(
+            cfg.channels[0].contains("@3__:"),
+            "got {:?}",
+            cfg.channels[0]
+        );
     }
 }

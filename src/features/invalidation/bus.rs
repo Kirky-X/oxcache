@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 失效总线：发布失效事件 + 后台监听失效本地 L1
 
-use super::{InvalidationKind, InvalidationMessage, PubSubTransport, DEFAULT_CHANNEL};
+use super::{DEFAULT_CHANNEL, InvalidationKind, InvalidationMessage, PubSubTransport};
 use crate::backend::CacheBackend;
 use crate::error::OxCacheResult;
 use std::sync::Arc;
@@ -132,16 +132,14 @@ impl InvalidationBus {
                     break;
                 }
                 // 带超时轮询以便响应 stop
-                let payload = match tokio::time::timeout(
-                    std::time::Duration::from_millis(100),
-                    rx.recv(),
-                )
-                .await
-                {
-                    Ok(Some(payload)) => payload,
-                    Ok(None) => break, // 订阅端关闭
-                    Err(_) => continue, // 超时：回到 stop 检查
-                };
+                let payload =
+                    match tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv())
+                        .await
+                    {
+                        Ok(Some(payload)) => payload,
+                        Ok(None) => break,  // 订阅端关闭
+                        Err(_) => continue, // 超时：回到 stop 检查
+                    };
                 let msg = match InvalidationMessage::decode(&payload) {
                     Ok(m) => m,
                     Err(_) => continue, // 无法解析的消息跳过（不 panic）
@@ -328,7 +326,10 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // 直接经传输层注入垃圾载荷
-        transport.publish("test-ch", "garbage-not-json").await.unwrap();
+        transport
+            .publish("test-ch", "garbage-not-json")
+            .await
+            .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         assert!(l1.exists("user:1").await.unwrap());

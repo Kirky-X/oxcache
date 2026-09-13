@@ -704,7 +704,9 @@ dependencies = [
 
 [[package]]
 name = "confers"
-version = "0.6.0-rc.3"
+version = "0.6.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e93a0924eabc16e4fd10766c890d0c661ac62d32243ce8d8197a105931dbfb8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -729,7 +731,9 @@ dependencies = [
 
 [[package]]
 name = "confers-macros"
-version = "0.6.0-rc.3"
+version = "0.6.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "246b658b18e09a056e9a69f5e8bd3be8f34ebe8efe2a13cd369c286e40f9367a"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -3861,7 +3865,9 @@ dependencies = [
 
 [[package]]
 name = "trait-kit"
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94e896c580ee8995766ef4bd58734ecb4bc88118ccb73cb67f38d6ef3c8ad739"
 
 [[package]]
 name = "try-lock"

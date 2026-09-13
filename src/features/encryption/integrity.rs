@@ -117,7 +117,10 @@ impl IntegrityBackend {
     }
 
     /// 从字节切片注入密钥（长度错误在构造期报错）
-    pub fn from_slice_key(inner: Arc<dyn CacheBackend>, key: &[u8]) -> crate::error::OxCacheResult<Self> {
+    pub fn from_slice_key(
+        inner: Arc<dyn CacheBackend>,
+        key: &[u8],
+    ) -> crate::error::OxCacheResult<Self> {
         Ok(Self {
             inner,
             signer: HmacSigner::from_slice(key)?,
@@ -316,7 +319,11 @@ mod tests {
         let mut raw = backend.inner.get("k").await.unwrap().unwrap();
         let payload_len = raw.len();
         raw[payload_len - 1] ^= 0xFF; // 翻转 payload 最后一个字节
-        backend.inner.set(Arc::from("k"), Arc::new(raw), None).await.unwrap();
+        backend
+            .inner
+            .set(Arc::from("k"), Arc::new(raw), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.get("k").await.unwrap(), None, "篡改后应视为 miss");
     }
@@ -331,7 +338,11 @@ mod tests {
 
         let mut raw = backend.inner.get("k").await.unwrap().unwrap();
         raw[1] ^= 0x01; // 翻转 tag 首字节
-        backend.inner.set(Arc::from("k"), Arc::new(raw), None).await.unwrap();
+        backend
+            .inner
+            .set(Arc::from("k"), Arc::new(raw), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.get("k").await.unwrap(), None);
     }
@@ -346,7 +357,11 @@ mod tests {
 
         let mut raw = backend.inner.get("k").await.unwrap().unwrap();
         raw[0] = 0xFF; // 未知版本
-        backend.inner.set(Arc::from("k"), Arc::new(raw), None).await.unwrap();
+        backend
+            .inner
+            .set(Arc::from("k"), Arc::new(raw), None)
+            .await
+            .unwrap();
 
         assert_eq!(backend.get("k").await.unwrap(), None);
     }
@@ -365,11 +380,17 @@ mod tests {
         let mut raw = backend.inner.get("k").await.unwrap().unwrap();
         let last = raw.len() - 1;
         raw[last] ^= 0xFF;
-        backend.inner.set(Arc::from("k"), Arc::new(raw), None).await.unwrap();
+        backend
+            .inner
+            .set(Arc::from("k"), Arc::new(raw), None)
+            .await
+            .unwrap();
 
         #[cfg(feature = "metrics")]
         {
-            let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters().l1_misses;
+            let before = crate::infra::GLOBAL_UNIFIED_METRICS
+                .get_counters()
+                .l1_misses;
             let before_failures = crate::infra::GLOBAL_UNIFIED_METRICS
                 .get_dynamic_metrics()
                 .get("oxcache_integrity_failures_total")
@@ -381,7 +402,9 @@ mod tests {
 
             assert_eq!(backend.get("k").await.unwrap(), None);
 
-            let after = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters().l1_misses;
+            let after = crate::infra::GLOBAL_UNIFIED_METRICS
+                .get_counters()
+                .l1_misses;
             let after_failures = crate::infra::GLOBAL_UNIFIED_METRICS
                 .get_dynamic_metrics()
                 .get("oxcache_integrity_failures_total")
@@ -419,14 +442,17 @@ mod tests {
     async fn composes_with_encryption_in_both_orders() {
         use super::super::EncryptedBackend;
 
-        let mk_inner = || -> Arc<dyn CacheBackend> { Arc::new(MockBackend::new("mock", 100, false)) };
+        let mk_inner =
+            || -> Arc<dyn CacheBackend> { Arc::new(MockBackend::new("mock", 100, false)) };
 
         // 顺序 1：HMAC(Encrypted(inner))
         let a = IntegrityBackend::new(
             Arc::new(EncryptedBackend::new(mk_inner(), key32(7))),
             key32(8),
         );
-        a.set(Arc::from("k"), Arc::new(b"both".to_vec()), None).await.unwrap();
+        a.set(Arc::from("k"), Arc::new(b"both".to_vec()), None)
+            .await
+            .unwrap();
         assert_eq!(a.get("k").await.unwrap(), Some(b"both".to_vec()));
 
         // 顺序 2：Encrypted(HMAC(inner))
@@ -434,7 +460,9 @@ mod tests {
             Arc::new(IntegrityBackend::new(mk_inner(), key32(8))),
             key32(7),
         );
-        b.set(Arc::from("k"), Arc::new(b"both".to_vec()), None).await.unwrap();
+        b.set(Arc::from("k"), Arc::new(b"both".to_vec()), None)
+            .await
+            .unwrap();
         assert_eq!(b.get("k").await.unwrap(), Some(b"both".to_vec()));
     }
 

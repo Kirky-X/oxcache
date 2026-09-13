@@ -80,17 +80,14 @@ impl InMemoryPubSubTransport {
 #[async_trait]
 impl PubSubTransport for InMemoryPubSubTransport {
     async fn publish(&self, channel: &str, payload: &str) -> OxCacheResult<()> {
-        match self.channels.lock() {
-            Ok(mut map) => {
-                if let Some(list) = map.get_mut(channel) {
-                    let payload = payload.to_string();
-                    // 广播给全部订阅者；接收端已断开的发送者当场剔除，
-                    // 防止订阅churn 导致死 sender 在 map 中持续累积
-                    list.retain(|tx| tx.send(payload.clone()).is_ok());
-                }
-            }
-            // 锁中毒：与 subscribe 的容错口径一致，静默放弃本次投递
-            Err(_) => {}
+        // 锁中毒：与 subscribe 的容错口径一致，静默放弃本次投递
+        if let Ok(mut map) = self.channels.lock()
+            && let Some(list) = map.get_mut(channel)
+        {
+            let payload = payload.to_string();
+            // 广播给全部订阅者；接收端已断开的发送者当场剔除，
+            // 防止订阅 churn 导致死 sender 在 map 中持续累积
+            list.retain(|tx| tx.send(payload.clone()).is_ok());
         }
         Ok(())
     }
@@ -104,7 +101,7 @@ impl PubSubTransport for InMemoryPubSubTransport {
             Err(_) => {
                 return Err(OxCacheError::Operation(
                     "in-memory pubsub transport lock poisoned".to_string(),
-                ))
+                ));
             }
         }
         Ok(SubscriptionReceiver::new(rx))

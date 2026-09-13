@@ -21,7 +21,8 @@ const STATE_HALF_OPEN: u8 = 2;
 fn trace_transition(from: &str, to: &str) {
     tracing::info!(
         target = "oxcache::circuit_breaker",
-        from, to,
+        from,
+        to,
         "circuit breaker state transition"
     );
 }

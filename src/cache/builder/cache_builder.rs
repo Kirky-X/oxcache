@@ -696,10 +696,7 @@ mod tests {
             let events = publisher.snapshot();
             assert_eq!(events.len(), 1);
             let key = events[0].key.as_deref().unwrap_or("");
-            assert!(
-                key.starts_with("<sensitive>"),
-                "敏感键应被掩码，got {key}"
-            );
+            assert!(key.starts_with("<sensitive>"), "敏感键应被掩码，got {key}");
             assert!(!key.contains("hunter2"));
         }
 
@@ -734,8 +731,8 @@ mod tests {
     #[cfg(feature = "metrics")]
     mod metrics_injection {
         use super::*;
-        use crate::infra::UnifiedMetricsRecorder;
         use crate::infra::MetricsRecorder;
+        use crate::infra::UnifiedMetricsRecorder;
 
         #[tokio::test]
         async fn injected_recorder_observes_l1_get_set_delete_counts() {
@@ -759,10 +756,7 @@ mod tests {
             assert_eq!(counters.l1_hits, 1, "命中应计数 1");
             assert_eq!(counters.l1_sets, 1, "写入应计数 1");
             assert_eq!(counters.l1_deletes, 1, "删除应计数 1");
-            assert!(
-                counters.total_operations >= 4,
-                "总操作数应覆盖纯 L1 路径"
-            );
+            assert!(counters.total_operations >= 4, "总操作数应覆盖纯 L1 路径");
 
             // 延迟直方图样本已记录（标准 Prometheus 命名）
             let prom = recorder.metrics().export_prometheus_standard();

@@ -232,16 +232,11 @@ async fn build_redis_backend(
     config: &OxcacheConfig,
 ) -> Result<Arc<dyn CacheBackend + Send + Sync>, OxCacheError> {
     let rc = config.redis.as_ref().ok_or_else(|| {
-        OxCacheError::InvalidInput(
-            "OxcacheModule: backend=Redis requires `redis` config".into(),
-        )
+        OxCacheError::InvalidInput("OxcacheModule: backend=Redis requires `redis` config".into())
     })?;
-    let backend = apply_redis_config(
-        RedisBackend::builder(),
-        rc,
-    )
-    .build()
-    .await?;
+    let backend = apply_redis_config(RedisBackend::builder(), rc)
+        .build()
+        .await?;
     Ok(Arc::new(backend) as Arc<dyn CacheBackend + Send + Sync>)
 }
 
@@ -323,12 +318,7 @@ async fn build_chain_link(
                 b = b.time_to_idle(tti);
             }
             let backend = b.build();
-            Ok(ChainLink::new(
-                backend,
-                link_cfg.score,
-                false,
-                "memory",
-            ))
+            Ok(ChainLink::new(backend, link_cfg.score, false, "memory"))
         }
         BackendType::Redis => {
             let rc = link_cfg
@@ -343,12 +333,7 @@ async fn build_chain_link(
             let backend = apply_redis_config(RedisBackend::builder(), rc)
                 .build()
                 .await?;
-            Ok(ChainLink::new(
-                backend,
-                link_cfg.score,
-                true,
-                "redis",
-            ))
+            Ok(ChainLink::new(backend, link_cfg.score, true, "redis"))
         }
         BackendType::Chain => Err(OxCacheError::InvalidInput(
             "OxcacheModule: nested Chain inside Chain is not supported".into(),

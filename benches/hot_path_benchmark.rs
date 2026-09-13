@@ -18,7 +18,10 @@ fn bench_hot_path_borrowed_keys(c: &mut Criterion) {
     rt.block_on(async {
         for i in 0..1000u32 {
             let key = format!("bench_key_{i}");
-            cache.set_by_str(&key, &format!("value_{i}"), None).await.unwrap();
+            cache
+                .set_by_str(&key, &format!("value_{i}"), None)
+                .await
+                .unwrap();
         }
     });
 
@@ -33,8 +36,7 @@ fn bench_hot_path_borrowed_keys(c: &mut Criterion) {
     // 新路径：借用键（get 热路径零分配）
     c.bench_function("hot_path_get_borrowed_key", |b| {
         b.to_async(&rt).iter(|| async {
-            let _: Option<String> =
-                cache.get_by_str(black_box("bench_key_42")).await.unwrap();
+            let _: Option<String> = cache.get_by_str(black_box("bench_key_42")).await.unwrap();
         });
     });
 

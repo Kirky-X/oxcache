@@ -75,8 +75,9 @@ pub trait BackendFactory: Send + Sync {
     async fn build(&self, spec: &BackendSpec) -> OxCacheResult<Arc<dyn CacheBackend>>;
 }
 
-type BoxFutureBuild =
-    std::pin::Pin<Box<dyn std::future::Future<Output = OxCacheResult<Arc<dyn CacheBackend>>> + Send>>;
+type BoxFutureBuild = std::pin::Pin<
+    Box<dyn std::future::Future<Output = OxCacheResult<Arc<dyn CacheBackend>>> + Send>,
+>;
 
 /// 函数式工厂便捷包装
 pub struct FnFactory<F>(pub F);
@@ -104,11 +105,7 @@ impl BackendRegistry {
     }
 
     /// 注册（或覆盖）kind 对应工厂
-    pub fn register(
-        &self,
-        kind: impl Into<String>,
-        factory: Arc<dyn BackendFactory>,
-    ) -> &Self {
+    pub fn register(&self, kind: impl Into<String>, factory: Arc<dyn BackendFactory>) -> &Self {
         // 与 build/registered 同口径：锁中毒时恢复数据继续写入，
         // 避免注册静默丢失后 build 报出误导性的 unknown kind
         self.factories
@@ -169,10 +166,10 @@ impl BackendRegistry {
                 let spec = spec.clone();
                 Box::pin(async move {
                     let mut builder =
-                        crate::backend::MokaMemoryBackend::builder()
-                            .capacity(spec.capacity.max(1));
+                        crate::backend::MokaMemoryBackend::builder().capacity(spec.capacity.max(1));
                     if spec.default_ttl_ms > 0 {
-                        builder = builder.ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
+                        builder =
+                            builder.ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
                     }
                     Ok(Arc::new(builder.build()) as Arc<dyn CacheBackend>)
                 })
@@ -185,8 +182,8 @@ impl BackendRegistry {
                         builder = builder.capacity(spec.capacity as usize);
                     }
                     if spec.default_ttl_ms > 0 {
-                        builder =
-                            builder.default_ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
+                        builder = builder
+                            .default_ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
                     }
                     Ok(Arc::new(builder.build()) as Arc<dyn CacheBackend>)
                 })
@@ -196,10 +193,10 @@ impl BackendRegistry {
                 let spec = spec.clone();
                 Box::pin(async move {
                     let mut builder =
-                        crate::backend::MokaMemoryBackend::builder()
-                            .capacity(spec.capacity.max(1));
+                        crate::backend::MokaMemoryBackend::builder().capacity(spec.capacity.max(1));
                     if spec.default_ttl_ms > 0 {
-                        builder = builder.ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
+                        builder =
+                            builder.ttl(std::time::Duration::from_millis(spec.default_ttl_ms));
                     }
                     Ok(Arc::new(builder.build()) as Arc<dyn CacheBackend>)
                 })
@@ -226,7 +223,8 @@ impl BackendRegistry {
 }
 
 /// 全局默认注册中心（OnceLock，内置工厂按 feature 自动注册）
-pub static GLOBAL_BACKEND_REGISTRY: Lazy<BackendRegistry> = Lazy::new(BackendRegistry::with_builtins);
+pub static GLOBAL_BACKEND_REGISTRY: Lazy<BackendRegistry> =
+    Lazy::new(BackendRegistry::with_builtins);
 
 impl BackendRegistry {
     /// 全局默认注册中心
@@ -296,12 +294,22 @@ mod tests {
         // 覆盖注册
         registry.register_fn("mock:test", |_spec| {
             Box::pin(async move {
-                Ok(Arc::new(MockBackend::new("mock-2", 10, true))
-                    as Arc<dyn CacheBackend>)
+                Ok(Arc::new(MockBackend::new("mock-2", 10, true)) as Arc<dyn CacheBackend>)
             })
         });
-        let backend = registry.build(&BackendSpec::new("mock:test")).await.unwrap();
-        assert_eq!(backend.stats().await.unwrap().get("type").map(String::as_str), Some("mock-2"));
+        let backend = registry
+            .build(&BackendSpec::new("mock:test"))
+            .await
+            .unwrap();
+        assert_eq!(
+            backend
+                .stats()
+                .await
+                .unwrap()
+                .get("type")
+                .map(String::as_str),
+            Some("mock-2")
+        );
     }
 
     #[tokio::test]

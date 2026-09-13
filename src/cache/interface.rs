@@ -396,7 +396,15 @@ mod tests {
             let cache: Arc<dyn UnifiedCache> = Arc::new(make_backend());
 
             cache
-                .set_bytes("user:1", serde_json::to_vec(&TestData { id: 1, name: "a".into() }).unwrap(), None)
+                .set_bytes(
+                    "user:1",
+                    serde_json::to_vec(&TestData {
+                        id: 1,
+                        name: "a".into(),
+                    })
+                    .unwrap(),
+                    None,
+                )
                 .await
                 .unwrap();
             let raw = cache.get_bytes("user:1").await.unwrap().unwrap();
@@ -404,13 +412,19 @@ mod tests {
 
             let dyn_ref: &DynUnifiedCache = cache.as_ref();
             dyn_ref.health_check().await.unwrap();
-            assert_eq!(dyn_ref.backend_kind(), crate::backend::interface::BackendKind::Moka);
+            assert_eq!(
+                dyn_ref.backend_kind(),
+                crate::backend::interface::BackendKind::Moka
+            );
         }
 
         #[tokio::test]
         async fn typed_ops_via_dyn_object_with_extension_trait() {
             let cache: Arc<dyn UnifiedCache> = Arc::new(make_backend());
-            let data = TestData { id: 42, name: "dyn".into() };
+            let data = TestData {
+                id: 42,
+                name: "dyn".into(),
+            };
 
             cache.set_typed("k", &data, None).await.unwrap();
             let back: Option<TestData> = cache.get_typed("k").await.unwrap();
@@ -421,7 +435,10 @@ mod tests {
         async fn typed_ops_on_concrete_backend_still_compile() {
             // 兼容性：具体后端上 get_typed/set_typed 经 blanket impl 照常可用
             let backend = make_backend();
-            let data = TestData { id: 7, name: "concrete".into() };
+            let data = TestData {
+                id: 7,
+                name: "concrete".into(),
+            };
             backend.set_typed("k", &data, None).await.unwrap();
             let back: Option<TestData> = backend.get_typed("k").await.unwrap();
             assert_eq!(back, Some(data));

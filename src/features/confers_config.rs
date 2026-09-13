@@ -92,20 +92,10 @@ impl OxcacheConfig {
         if let Some(v) = get_u64(connector, "cache.default_ttl_ms").await? {
             cfg.default_ttl_ms = v;
         }
-        if let Some(v) = get_u64(
-            connector,
-            "cache.circuit_breaker.failure_threshold",
-        )
-        .await?
-        {
+        if let Some(v) = get_u64(connector, "cache.circuit_breaker.failure_threshold").await? {
             cfg.circuit_breaker.failure_threshold = u32::try_from(v).unwrap_or(u32::MAX);
         }
-        if let Some(v) = get_u64(
-            connector,
-            "cache.circuit_breaker.recovery_timeout_ms",
-        )
-        .await?
-        {
+        if let Some(v) = get_u64(connector, "cache.circuit_breaker.recovery_timeout_ms").await? {
             cfg.circuit_breaker.recovery_timeout_ms = v;
         }
         Ok(cfg)
@@ -233,11 +223,7 @@ impl ConfersConfigWatcher {
     ///
     /// 事件含任何 `cache.*` 变更 key（或 key 列表为空的全量刷新）时重载。
     /// 返回后台任务句柄。
-    pub fn watch<B, S>(
-        self: &Arc<Self>,
-        bus: Arc<B>,
-        source: Arc<S>,
-    ) -> tokio::task::JoinHandle<()>
+    pub fn watch<B, S>(self: &Arc<Self>, bus: Arc<B>, source: Arc<S>) -> tokio::task::JoinHandle<()>
     where
         B: confers::ConfigBus + 'static,
         S: CacheConfigSource + 'static,
@@ -286,13 +272,21 @@ mod tests {
         let conn = new_in_memory();
         conn.set(
             "cache.capacity",
-            confers::AnnotatedValue::new(ConfigValue::U64(capacity), SourceId::default(), "cache.capacity"),
+            confers::AnnotatedValue::new(
+                ConfigValue::U64(capacity),
+                SourceId::default(),
+                "cache.capacity",
+            ),
         )
         .await
         .unwrap();
         conn.set(
             "cache.default_ttl_ms",
-            confers::AnnotatedValue::new(ConfigValue::U64(120_000), SourceId::default(), "cache.default_ttl_ms"),
+            confers::AnnotatedValue::new(
+                ConfigValue::U64(120_000),
+                SourceId::default(),
+                "cache.default_ttl_ms",
+            ),
         )
         .await
         .unwrap();
@@ -429,7 +423,11 @@ mod tests {
             9999,
             "热更新后快照应换装"
         );
-        assert_eq!(listener.calls.load(Ordering::SeqCst), 1, "监听器应被回调 1 次");
+        assert_eq!(
+            listener.calls.load(Ordering::SeqCst),
+            1,
+            "监听器应被回调 1 次"
+        );
         assert_eq!(listener.last_capacity.load(Ordering::SeqCst), 9999);
 
         handle.abort();

@@ -127,7 +127,11 @@ pub fn redact_key_for_audit(key: &str) -> String {
     const MAX_LEN: usize = 32;
     let lower = key.to_ascii_lowercase();
     if SENSITIVE.iter().any(|p| lower.contains(p)) {
-        let suffix = if key.len() > 2 { &key[key.len() - 2..] } else { key };
+        let suffix = if key.len() > 2 {
+            &key[key.len() - 2..]
+        } else {
+            key
+        };
         return format!("<sensitive>…{suffix}");
     }
     if key.len() > MAX_LEN {

@@ -19,7 +19,7 @@ pub use builder::DistLockBuilder;
 pub use lock::DistributedLock;
 pub use provider::LockProvider;
 #[cfg(feature = "red-lock")]
-pub use redlock::{InMemoryLockNode, RedisLockNode, RedLock, LockNode};
+pub use redlock::{InMemoryLockNode, LockNode, RedLock, RedisLockNode};
 
 /// Type alias for the default lock provider implementation.
 ///

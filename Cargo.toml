@@ -77,7 +77,7 @@ optional = true
 
 # trait-kit integration (optional, feature-gated via `kit`)
 [dependencies.trait-kit]
-version = "0.5.0-rc.3"
+version = "0.5.0-rc.4"
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 optional = true
 default-features = false
@@ -190,7 +190,7 @@ optional = true
 
 # Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
-version = "0.6.0-rc.3"
+version = "0.6.0-rc.4"
 default-features = false
 features = ["config-bus"]
 optional = true
@@ -319,6 +319,3 @@ required-features = ["dragonfly"]
 # ============================================================================
 # PATCH (local dev dependencies for rc cycle)
 # ============================================================================
-[patch.crates-io]
-trait-kit = { path = "../trait-kit" }
-confers = { path = "../confers" }

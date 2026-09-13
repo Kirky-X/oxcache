@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! 值级静态加密装饰器（`encrypt` feature）
 //!
-//! [`EncryptedBackend`] 对任意 [`CacheBackend`](crate::backend::CacheBackend)
+//! [`EncryptedBackend`] 对任意 [`CacheBackend`]
 //! 的 value 做**透明加解密**：写入时加密、读取时解密，L2 存储侧不见明文。
 //!
 //! # 加密口径（与 confers 一致）
@@ -64,9 +64,7 @@ impl std::fmt::Debug for ValueCipher {
 impl ValueCipher {
     /// 从 32 字节密钥创建加密器
     pub fn new(key: [u8; KEY_SIZE]) -> Self {
-        Self {
-            key: Arc::new(key),
-        }
+        Self { key: Arc::new(key) }
     }
 
     /// 从字节切片创建（长度错误返回 Err）
@@ -294,7 +292,11 @@ mod tests {
     async fn encrypt_roundtrip_is_transparent() {
         let backend = encrypted(1);
         backend
-            .set(Arc::from("user:1"), Arc::new(b"alice-secret".to_vec()), None)
+            .set(
+                Arc::from("user:1"),
+                Arc::new(b"alice-secret".to_vec()),
+                None,
+            )
             .await
             .unwrap();
         assert_eq!(
@@ -308,7 +310,11 @@ mod tests {
     async fn raw_storage_never_contains_plaintext() {
         let backend = encrypted(1);
         backend
-            .set(Arc::from("user:1"), Arc::new(b"plaintext-value".to_vec()), None)
+            .set(
+                Arc::from("user:1"),
+                Arc::new(b"plaintext-value".to_vec()),
+                None,
+            )
             .await
             .unwrap();
 
@@ -316,7 +322,11 @@ mod tests {
         let raw = backend.inner.get("user:1").await.unwrap().unwrap();
         assert_ne!(raw, b"plaintext-value".to_vec(), "存储层不得出现明文");
         assert_eq!(raw[0], ENVELOPE_VERSION, "信封首字节应为版本号");
-        assert_eq!(raw.len(), 1 + NONCE_SIZE + 15 + 16, "ver+nonce+明文长度+tag");
+        assert_eq!(
+            raw.len(),
+            1 + NONCE_SIZE + 15 + 16,
+            "ver+nonce+明文长度+tag"
+        );
     }
 
     #[tokio::test]

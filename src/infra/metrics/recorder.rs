@@ -5,11 +5,11 @@
 //! 对象安全的指标注入端口：`Cache<K,V>` 纯 L1 路径（此前零指标）在
 //! get/set/delete 后调用注入的 [`MetricsRecorder`] 记录 hit/miss 计数与
 //! 延迟样本。默认 [`NoOpMetricsRecorder`] 零开销；[`UnifiedMetricsRecorder`]
-//! 适配到 [`UnifiedMetrics`](super::UnifiedMetrics)（含标准 Prometheus
+//! 适配到 [`UnifiedMetrics`]（含标准 Prometheus
 //! 命名导出）。
 
 use super::unified::{
-    CacheOpResult, CacheOpType, CacheOperation, UnifiedMetrics, GLOBAL_UNIFIED_METRICS,
+    CacheOpResult, CacheOpType, CacheOperation, GLOBAL_UNIFIED_METRICS, UnifiedMetrics,
 };
 use crate::core::CacheLayer;
 use std::sync::Arc;
@@ -176,9 +176,7 @@ mod tests {
         // 延迟直方图样本（标准命名 key）
         let dynamic = recorder.metrics().get_dynamic_metrics();
         assert!(
-            dynamic
-                .get(super::super::unified::OPERATION_LATENCY_HISTOGRAM)
-                .is_some(),
+            dynamic.contains_key(super::super::unified::OPERATION_LATENCY_HISTOGRAM),
             "延迟直方图样本应被记录"
         );
     }

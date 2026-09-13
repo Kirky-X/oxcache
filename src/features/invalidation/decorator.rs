@@ -8,8 +8,8 @@
 //! 底层写入已成功，广播为尽力而为）。
 
 use super::InvalidationBus;
-use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::CacheBackend;
+use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::error::OxCacheResult;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -137,10 +137,14 @@ mod tests {
     use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
     use crate::backend::{CacheBackend, MockBackend};
     use crate::features::invalidation::{
-        InMemoryPubSubTransport, InvalidationConfig, DEFAULT_CHANNEL,
+        DEFAULT_CHANNEL, InMemoryPubSubTransport, InvalidationConfig,
     };
 
-    async fn setup() -> (Arc<InvalidatingBackend>, Arc<dyn CacheBackend>, Arc<dyn CacheBackend>) {
+    async fn setup() -> (
+        Arc<InvalidatingBackend>,
+        Arc<dyn CacheBackend>,
+        Arc<dyn CacheBackend>,
+    ) {
         let transport = Arc::new(InMemoryPubSubTransport::new());
         let bus_a = Arc::new(InvalidationBus::new(
             transport.clone(),

@@ -599,7 +599,7 @@ impl UnifiedMetrics {
 
     /// Record one operation latency sample (in **seconds**) into the
     /// standard Prometheus latency histogram
-    /// ([`OPERATION_LATENCY_HISTOGRAM`](self::OPERATION_LATENCY_HISTOGRAM)).
+    /// ([`OPERATION_LATENCY_HISTOGRAM`]).
     ///
     /// Uses fixed Prometheus-style buckets; cumulative semantics
     /// (`value <= boundary`), matching exposition format expectations.
@@ -714,7 +714,9 @@ impl UnifiedMetrics {
         out.push_str(&format!("oxcache_errors_total {}\n", counters.errors));
 
         // Latency histogram (seconds, cumulative buckets + +Inf + sum/count)
-        out.push_str("# HELP oxcache_operation_duration_seconds Cache operation latency in seconds.\n");
+        out.push_str(
+            "# HELP oxcache_operation_duration_seconds Cache operation latency in seconds.\n",
+        );
         out.push_str("# TYPE oxcache_operation_duration_seconds histogram\n");
         if let Some(MetricValue::Histogram(hist)) = self
             .inner
@@ -740,9 +742,7 @@ impl UnifiedMetrics {
                 hist.count
             ));
         } else {
-            out.push_str(
-                "oxcache_operation_duration_seconds_bucket{le=\"+Inf\"} 0\n",
-            );
+            out.push_str("oxcache_operation_duration_seconds_bucket{le=\"+Inf\"} 0\n");
             out.push_str("oxcache_operation_duration_seconds_sum 0\n");
             out.push_str("oxcache_operation_duration_seconds_count 0\n");
         }

@@ -158,8 +158,10 @@ impl CacheWriter for CompressingBackend {
     ) -> OxCacheResult<()> {
         // 自适应：阈值以下零压缩开销
         let stored: Arc<Vec<u8>> = if value.len() >= self.threshold {
-            let compressed = zstd::stream::encode_all(value.as_slice(), self.level)
-                .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd encode: {e}")))?;
+            let compressed =
+                zstd::stream::encode_all(value.as_slice(), self.level).map_err(|e| {
+                    crate::error::OxCacheError::Serialization(format!("zstd encode: {e}"))
+                })?;
             Arc::new(compressed)
         } else {
             value
@@ -183,8 +185,8 @@ impl CacheWriter for CompressingBackend {
         let mut adapted: Vec<CacheSetItem> = Vec::with_capacity(items.len());
         for (key, value, ttl) in items {
             let stored: Arc<Vec<u8>> = if value.len() >= self.threshold {
-                let compressed = zstd::stream::encode_all(value.as_slice(), self.level)
-                    .map_err(|e| {
+                let compressed =
+                    zstd::stream::encode_all(value.as_slice(), self.level).map_err(|e| {
                         crate::error::OxCacheError::Serialization(format!("zstd encode: {e}"))
                     })?;
                 Arc::new(compressed)
@@ -223,10 +225,7 @@ mod tests {
     use crate::backend::interface::{CacheReader, CacheWriter};
 
     fn backend() -> CompressingBackend {
-        CompressingBackend::with_threshold(
-            Arc::new(MockBackend::new("mock", 100, false)),
-            256,
-        )
+        CompressingBackend::with_threshold(Arc::new(MockBackend::new("mock", 100, false)), 256)
     }
 
     fn compressible(len: usize) -> Vec<u8> {

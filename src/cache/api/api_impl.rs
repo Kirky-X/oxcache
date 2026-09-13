@@ -82,7 +82,10 @@ where
     /// When set (non-NoOp), the pure L1 path (`get`/`set`/`delete`) records
     /// hit/miss/set/delete counts and latency samples through the recorder.
     #[cfg(feature = "metrics")]
-    pub(crate) fn set_metrics_recorder(&mut self, recorder: Arc<dyn crate::infra::MetricsRecorder>) {
+    pub(crate) fn set_metrics_recorder(
+        &mut self,
+        recorder: Arc<dyn crate::infra::MetricsRecorder>,
+    ) {
         self.metrics = recorder;
     }
 

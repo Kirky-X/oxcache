@@ -210,7 +210,7 @@ impl L2Builder {
                     None => {
                         return Err(OxCacheError::InvalidInput(
                             "L2Builder requires .custom(backend) or .redis(url)".to_string(),
-                        ))
+                        ));
                     }
                 }
             }
@@ -305,7 +305,12 @@ impl ChainBuilder {
         if let Some(l2) = self.l2 {
             let score = l2.get_score();
             let persistent = l2.persistent;
-            links.push(ChainLink::from_arc(l2.build().await?, score, persistent, "l2"));
+            links.push(ChainLink::from_arc(
+                l2.build().await?,
+                score,
+                persistent,
+                "l2",
+            ));
         }
         for (backend, score, persistent, name) in self.extra {
             links.push(ChainLink::from_arc(backend, score, persistent, name));
@@ -313,7 +318,8 @@ impl ChainBuilder {
 
         if links.is_empty() {
             return Err(OxCacheError::InvalidInput(
-                "ChainBuilder requires at least one layer: add .l1(...) and/or .l2(...)".to_string(),
+                "ChainBuilder requires at least one layer: add .l1(...) and/or .l2(...)"
+                    .to_string(),
             ));
         }
 
@@ -334,8 +340,8 @@ impl ChainBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
     use crate::backend::BackendKind;
+    use crate::backend::interface::{CacheConnector, CacheReader, CacheWriter};
 
     #[tokio::test]
     async fn l1_builder_moka_default() {
@@ -443,11 +449,8 @@ mod tests {
 
     #[tokio::test]
     async fn l2_builder_custom_backend() {
-        let inner: Arc<dyn CacheBackend> = Arc::new(crate::backend::MockBackend::new(
-            "mock-l2",
-            50,
-            true,
-        ));
+        let inner: Arc<dyn CacheBackend> =
+            Arc::new(crate::backend::MockBackend::new("mock-l2", 50, true));
         let l2 = L2Builder::new().custom(inner).build().await.unwrap();
         assert!(l2.exists("nothing").await.unwrap().eq(&false));
     }

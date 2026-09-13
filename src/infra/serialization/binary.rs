@@ -84,14 +84,17 @@ pub fn serialize_with_format<T: Serialize>(
     value: &T,
 ) -> OxCacheResult<Vec<u8>> {
     let bytes = match format {
-        SerializationFormat::Json => serde_json::to_vec(value)
-            .map_err(|e| OxCacheError::Serialization(e.to_string()))?,
+        SerializationFormat::Json => {
+            serde_json::to_vec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?
+        }
         #[cfg(feature = "serde-bincode")]
-        SerializationFormat::Bincode => bincode::serialize(value)
-            .map_err(|e| OxCacheError::Serialization(e.to_string()))?,
+        SerializationFormat::Bincode => {
+            bincode::serialize(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?
+        }
         #[cfg(feature = "postcard")]
-        SerializationFormat::Postcard => postcard::to_allocvec(value)
-            .map_err(|e| OxCacheError::Serialization(e.to_string()))?,
+        SerializationFormat::Postcard => {
+            postcard::to_allocvec(value).map_err(|e| OxCacheError::Serialization(e.to_string()))?
+        }
     };
     crate::infra::serialization::utils::check_data_size(
         &bytes,
@@ -118,11 +121,13 @@ pub fn deserialize_with_format<T: DeserializeOwned>(
         )
         .map_err(|e| OxCacheError::Serialization(e.to_string())),
         #[cfg(feature = "serde-bincode")]
-        SerializationFormat::Bincode => bincode::deserialize(data)
-            .map_err(|e| OxCacheError::Serialization(e.to_string())),
+        SerializationFormat::Bincode => {
+            bincode::deserialize(data).map_err(|e| OxCacheError::Serialization(e.to_string()))
+        }
         #[cfg(feature = "postcard")]
-        SerializationFormat::Postcard => postcard::from_bytes(data)
-            .map_err(|e| OxCacheError::Serialization(e.to_string())),
+        SerializationFormat::Postcard => {
+            postcard::from_bytes(data).map_err(|e| OxCacheError::Serialization(e.to_string()))
+        }
     }
 }
 
@@ -158,7 +163,12 @@ mod tests {
         for format in all_expected_formats() {
             let bytes = serialize_with_format(format, &sample()).unwrap();
             let decoded: Sample = deserialize_with_format(format, &bytes).unwrap();
-            assert_eq!(decoded, sample(), "format {} roundtrip failed", format.name());
+            assert_eq!(
+                decoded,
+                sample(),
+                "format {} roundtrip failed",
+                format.name()
+            );
         }
     }
 
@@ -216,7 +226,11 @@ mod tests {
         };
         let h_json = serialize_with_format(SerializationFormat::Json, &heavy).unwrap();
         let h_bin = serialize_with_format(SerializationFormat::Bincode, &heavy).unwrap();
-        println!("numeric-heavy size: json={} bincode={}", h_json.len(), h_bin.len());
+        println!(
+            "numeric-heavy size: json={} bincode={}",
+            h_json.len(),
+            h_bin.len()
+        );
         assert!(
             h_bin.len() < h_json.len(),
             "数值密集场景 bincode 应更紧凑 (bin={}, json={})",
@@ -235,7 +249,10 @@ mod tests {
 
     #[test]
     fn format_by_name_lookup() {
-        assert_eq!(SerializationFormat::by_name("json"), Some(SerializationFormat::Json));
+        assert_eq!(
+            SerializationFormat::by_name("json"),
+            Some(SerializationFormat::Json)
+        );
         #[cfg(feature = "serde-bincode")]
         assert_eq!(
             SerializationFormat::by_name("bincode"),
@@ -248,7 +265,11 @@ mod tests {
     fn oversized_payload_rejected() {
         let big: Vec<u8> = Vec::new();
         // 小数据不应报错（正常路径）
-        let _: Vec<u8> = deserialize_with_format(SerializationFormat::Json, &serialize_with_format(SerializationFormat::Json, &big).unwrap()).unwrap();
+        let _: Vec<u8> = deserialize_with_format(
+            SerializationFormat::Json,
+            &serialize_with_format(SerializationFormat::Json, &big).unwrap(),
+        )
+        .unwrap();
         // 超限数据必须被拒（纵深防御对二进制格式同样生效）
         let oversized = vec![0u8; crate::core::constants::MAX_JSON_SIZE + 1];
         let err = serialize_with_format(SerializationFormat::Json, &oversized)

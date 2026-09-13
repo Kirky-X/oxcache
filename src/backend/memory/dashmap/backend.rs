@@ -956,7 +956,10 @@ mod tests {
         let mut users = backend.keys("user:*").await.unwrap();
         users.sort();
         assert_eq!(users, vec!["user:1".to_string(), "user:2".to_string()]);
-        assert_eq!(backend.keys("missing:*").await.unwrap(), Vec::<String>::new());
+        assert_eq!(
+            backend.keys("missing:*").await.unwrap(),
+            Vec::<String>::new()
+        );
     }
 
     #[tokio::test]

@@ -355,7 +355,12 @@ pub use crate::internal::__internal_get_cache;
 #[cfg(feature = "telemetry")]
 #[inline]
 pub fn __telemetry_macro_passthrough(service: &str, reason: &str) {
-    tracing::debug!(target = "oxcache::macro", service, reason, "cache passthrough");
+    tracing::debug!(
+        target = "oxcache::macro",
+        service,
+        reason,
+        "cache passthrough"
+    );
 }
 
 #[doc(hidden)]
@@ -413,10 +418,22 @@ pub use crate::security::{
 
 // Distributed lock re-exports
 #[cfg(feature = "lock")]
-pub use features::dist_lock::{DefaultLockProvider, DistLockBuilder, DistributedLock, LockProvider};
+pub use features::dist_lock::{
+    DefaultLockProvider, DistLockBuilder, DistributedLock, LockProvider,
+};
 
 // Public API re-exports (after features re-exports)
 // cache 模块 re-export 须与 cache 模块门控一致
+#[cfg(feature = "memory")]
+pub use cache::{ChainBuilder, L1Builder, L2Builder};
+#[cfg(any(
+    feature = "memory",
+    feature = "redis",
+    feature = "minimal",
+    feature = "core",
+    feature = "full"
+))]
+pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
 #[cfg(any(
     feature = "memory",
     feature = "redis",
@@ -433,16 +450,6 @@ pub use cache::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
     feature = "full"
 ))]
 pub use cache::{NamespaceName, TypedNamespace};
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
-pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
-#[cfg(feature = "memory")]
-pub use cache::{ChainBuilder, L1Builder, L2Builder};
 pub use traits::CacheKey;
 
 // Type-safe enum exports

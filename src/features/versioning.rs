@@ -208,7 +208,6 @@ impl VersionedStore for RedisVersionedCache {
         new_value: Vec<u8>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<Option<u64>> {
-
         let mut conn = self.backend.conn();
 
         // 1. WATCH：事务化的乐观锁
@@ -334,7 +333,10 @@ mod tests {
             "过期版本必须被拒绝"
         );
         // 值未被脏写
-        assert_eq!(store.get_versioned("k").await.unwrap().unwrap().data, b"b".to_vec());
+        assert_eq!(
+            store.get_versioned("k").await.unwrap().unwrap().data,
+            b"b".to_vec()
+        );
     }
 
     /// lost-update 场景：两方以同一期望版本并发写入，仅一方成功

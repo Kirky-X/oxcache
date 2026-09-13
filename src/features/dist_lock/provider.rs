@@ -98,11 +98,7 @@ impl LockProvider for DistributedLock {
 
     fn fencing_token(&self) -> Option<u64> {
         let token = DistributedLock::token(self);
-        if token == 0 {
-            None
-        } else {
-            Some(token)
-        }
+        if token == 0 { None } else { Some(token) }
     }
 }
 

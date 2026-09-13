@@ -36,7 +36,7 @@ pub mod aerospike;
 ))]
 pub mod custom_tiered;
 
-// Backend factory registry 
+// Backend factory registry
 #[cfg(any(
     feature = "memory",
     feature = "redis",

@@ -197,11 +197,7 @@ impl RedLock {
     }
 
     /// 创建 RedLock 并指定 TTL
-    pub fn with_ttl(
-        nodes: Vec<Arc<dyn LockNode>>,
-        key: impl Into<String>,
-        ttl: Duration,
-    ) -> Self {
+    pub fn with_ttl(nodes: Vec<Arc<dyn LockNode>>, key: impl Into<String>, ttl: Duration) -> Self {
         Self {
             nodes,
             key: key.into(),
@@ -220,10 +216,7 @@ impl RedLock {
         let mut max_token: u64 = 0;
 
         for (idx, node) in self.nodes.iter().enumerate() {
-            match node
-                .try_acquire(&self.key, &self.owner, self.ttl)
-                .await
-            {
+            match node.try_acquire(&self.key, &self.owner, self.ttl).await {
                 Ok(true) => {
                     acquired.push(idx);
                     // 每个成功节点取 fence，取最大值作为全局 token
