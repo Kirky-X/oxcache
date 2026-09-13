@@ -15,9 +15,6 @@
 //!   status via `kit.health_check::<OxcacheModule>()`.
 //! - **Lifecycle hooks** — `AsyncLifecycle` implementation provides graceful
 //!   shutdown via `kit.shutdown()`.
-//!
-//! See `specmark/changes/trait-kit-async-integration/specs/oxcache-module/spec.md`
-//! for the acceptance criteria driving this module.
 
 pub mod decorator;
 pub mod module;

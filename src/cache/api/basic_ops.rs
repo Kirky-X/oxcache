@@ -1401,7 +1401,7 @@ mod tests {
         let owned_us = owned_total.as_micros();
         let borrowed_us = borrowed_total.as_micros();
         println!(
-            "T317 hot path ({} iters, debug profile): get(owned)={}us get_by_str(borrowed)={}us",
+            "hot path ({} iters, debug profile): get(owned)={}us get_by_str(borrowed)={}us",
             ITER, owned_us, borrowed_us
         );
         // 借用查询不应显著劣化（允许测量抖动）
