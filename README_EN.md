@@ -317,73 +317,15 @@ cd examples && ls src/*/*.rs
 
 ## 🏗️ Architecture
 
-Oxcache follows a layered design of unified interface plus pluggable backends. Applications face a single type-safe entry point, `Cache<K, V>`, with serialization (`infra::serialization`) and metrics (`infra::metrics`) layered crosswise behind it. All reads and writes land on backends implementing the three traits `CacheReader` / `CacheWriter` / `CacheConnector`; a blanket impl automatically composes them into `CacheBackend`. L1 (Moka / DashMap in `backend::memory`) and L2 (`redis` / `dragonfly` / `aerospike`) can be used standalone, or chained by score via `ChainCache` with on-demand backfill; the `features` module layers capabilities such as bloom filters, distributed locks, encryption, integrity and the invalidation bus as decorators. The `#[cached]` macro is provided by the separate `oxcache_macros` crate and routes function calls into the same cache path through the `internal::MACRO_CACHES` registry.
-
-```mermaid
-flowchart TD
-    APP["Application code"] --> CACHE
-    MACRO["oxcache_macros<br/>cached attribute macro"] --> REG["internal<br/>MACRO_CACHES registry"]
-    REG --> CACHE["cache<br/>Cache / CacheBuilder / ChainCache"]
-    CACHE --> BACKEND["backend<br/>CacheReader / CacheWriter / CacheConnector"]
-    CACHE --> INFRA["infra<br/>serialization / metrics"]
-    CACHE --> SEC["security<br/>input validation / redaction"]
-    CACHE --> UTILS["utils<br/>KeyGenerator"]
-    CACHE --> ERR["error<br/>OxCacheError"]
-    BACKEND --> MEM["memory<br/>Moka / DashMap"]
-    BACKEND --> DIST["redis / dragonfly / aerospike"]
-    BACKEND --> FEATS["features<br/>bloom_filter / dist_lock / encryption / invalidation"]
-```
-
-`batch` (buffered writes), `integrations::kit` (lifecycle integration), `i18n`, `config`, `traits` and `testing` mount behind feature gates. See the [Architecture documentation](docs/ARCHITECTURE.md) for details.
+Oxcache follows a layered design of unified interface plus pluggable backends: applications face a single type-safe entry point, `Cache<K, V>`, and all reads and writes land on backends implementing the three traits `CacheReader` / `CacheWriter` / `CacheConnector` (composed into `CacheBackend` by a blanket impl). L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) can be used standalone or chained by score via `ChainCache` with on-demand backfill, and the `features` module layers capabilities such as bloom filters and distributed locks as decorators. For the full architecture diagram, module responsibilities and data flow, see the [Architecture documentation](docs/ARCHITECTURE.md); `batch`, `integrations::kit`, `i18n`, `config`, `traits` and `testing` mount behind feature gates.
 
 ### Macro Execution Path
 
-After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead.
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant Gen as Macro-generated code
-    participant Reg as MACRO_CACHES registry
-    participant Cache as Cache
-    participant BE as CacheBackend
-
-    App->>Gen: Call annotated function
-    Gen->>Reg: Look up cache by service name
-    Reg-->>Gen: Return cache instance
-    Gen->>Gen: Build cache key
-    Gen->>Cache: get_bytes key
-    Cache->>BE: get
-    BE-->>Cache: Option bytes
-    alt Cache hit
-        Cache-->>Gen: Byte value
-        Gen->>Gen: JSON deserialization
-        Gen-->>App: Return cached value
-    else Cache miss
-        Gen->>Gen: Execute original function
-        Gen->>Gen: JSON serialize result
-        Gen->>Cache: set_bytes key bytes ttl
-        Cache->>BE: set
-        Gen-->>App: Return function result
-    end
-```
+After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-宏执行路径).
 
 ### Chained Cache Read Path
 
-```mermaid
-flowchart TD
-    A["Cache read request"] --> B["ChainCache starts from the highest-scored link"]
-    B --> C{"Highest-scored link hit? e.g. L1 Moka"}
-    C -->|hit| D["Return value"]
-    C -->|miss or error| E{"Next link hit? e.g. L2 Redis"}
-    E -->|hit| F{"Backfill enabled?"}
-    F -->|yes| G["Backfill higher-scored links asynchronously"]
-    F -->|no| D
-    G --> D
-    E -->|miss or error| H["Return None"]
-```
-
-A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and the first hit wins.
+Reads fall through starting from the highest-scored link, and a hit on a non-top link can be backfilled asynchronously (flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-读取路径)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and the first hit wins.
 
 **Reliability highlights**:
 
@@ -442,19 +384,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - Without `sync_mode(true)`, any `*_sync` method returns `Err(OxCacheError::NotSupported)`
 - `sync_mode(true)` cannot be combined with `backend_arc(...)`; setting both makes `build()` return `Err(OxCacheError::NotSupported)`
 
-**`#[cached]` macro parameters**:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `service` | string | Cache service name (required) |
-| `ttl` | integer | Default TTL in seconds |
-| `key` | string | Custom key pattern (supports `{param}` interpolation) |
-| `key_prefix` | string | Key prefix namespace |
-| `sync` | flag | Generate a synchronous function (no async runtime needed) |
-| `skip_cache_write` | flag | Skip cache writes for `Ok` results |
-| `single_flight` | flag | Concurrent misses on the same key trigger only one fallback |
-| `strict` | flag | Panic on unregistered cache instead of silently passing through |
-| `condition` | function path | Pre-execution predicate; bypasses the cache when it returns false |
+**`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#-缓存宏); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
 
 ---
 
@@ -575,28 +505,9 @@ cargo llvm-cov --features full --workspace --fail-under-lines 80
 
 ## 📊 Performance
 
-> Architecture benchmark environment: M1 Pro, 16GB RAM, macOS, Redis 7.0. Performance varies with hardware, network conditions and data size; treat these as order-of-magnitude estimates (source: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+> Order-of-magnitude reference (L1/L2 throughput and P99 latency; M1 Pro / 16GB RAM / macOS / Redis 7.0 benchmark environment; performance varies with hardware, network conditions and data size) lives in the [benchmark chapter of the Architecture documentation](docs/ARCHITECTURE.md#基准测试结果). Reproducible measured data (serialization sizes, compression ratios, hot-path benchmarks and reproduction commands) lives in the [Performance Baseline](docs/PERFORMANCE.md).
 
-| Operation | Throughput | Latency (P99) |
-|-----------|------------|---------------|
-| L1 read | 5-10M ops/sec | 50-100ns |
-| L1 write | 2-5M ops/sec | 50-200ns |
-| L2 read | 50-100K ops/sec | 1-5ms |
-| L2 write (batched) | 200-500K ops/sec | 1-10ms |
-
-**Hot-path benchmarks** (source: [docs/PERFORMANCE.md](docs/PERFORMANCE.md); `benches/hot_path_benchmark.rs`, bench profile = release + lto=fat, Moka L1 hit path):
-
-| Benchmark | Owned key (existing API) | Borrowed key (`get_by_str` / `set_by_str`) | Delta |
-|-----------|--------------------------|--------------------------------------------|-------|
-| get hit | 241.07 ns | 224.88 ns | **-6.7%** |
-| set | 819.38 ns | 715.01 ns | **-12.7%** |
-
-**L2 transfer size comparison** (source: [docs/PERFORMANCE.md](docs/PERFORMANCE.md); serialization format switched via the `serde-bincode` / `postcard` features):
-
-| Payload | JSON | bincode 1.x | postcard 1.x |
-|---------|------|-------------|--------------|
-| Sample (mixed short strings) | 69 B | 74 B | 32 B |
-| NumericHeavy (6×64-bit numbers) | 84 B | 48 B | — |
+Highlights: the borrowed-key hot-path APIs (`get_by_str` / `set_by_str`) measure **-6.7%** for get and **-12.7%** for set; with serialization-format switching (`serde-bincode` / `postcard`), postcard's mixed-payload transfer size is about **46%** of JSON.
 
 Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_path_benchmark`, `redis_benchmark`, `serialization_benchmark`, `dashmap_benchmark`, `dragonfly_benchmark`; run e.g. `cargo bench --bench hot_path_benchmark`.
 

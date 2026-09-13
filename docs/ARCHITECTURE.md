@@ -144,57 +144,9 @@ async fn get_user(id: u64) -> User { /* ... */ }
 - `ChainCache` / `ChainLink` / `ChainCacheBuilder`：多级缓存链（按分数排序）
 - `L1Builder` / `L2Builder` / `ChainBuilder`：分层构建器 API（与 `CacheBuilder`/`ChainCacheBuilder` 并存）
 
-**`Cache<K, V>` 上的构造方法**：
+`Cache<K, V>` 的构造方法（`builder` / `new` / `memory` / `redis` / `with_dependencies`）、`CacheBuilder` 全部方法与「`CacheBuilder` 不暴露 `.redis(...)` / `.tiered(...)` 等方法，组合多后端用 `ChainCache` + `.backend_arc(...)`」的说明见 [API 参考](API_REFERENCE.md#-cachebuilder)。要点：`sync_mode(true)` 不能与 `backend_arc(Arc<dyn CacheBackend>)` 组合，两者同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`（OXCACHE_009）——这是 stable Rust 上 `trait_upcasting` 的临时限制。
 
-| 方法 | 特性 | 说明 |
-|------|------|------|
-| `Cache::memory().await` | `memory` | 便捷方法：默认 Moka 后端 |
-| `Cache::redis(url).await` | `redis` | 便捷方法：Redis 后端（强制 TLS） |
-| `Cache::builder()` | — | 启动 `CacheBuilder<K, V>` |
-| `Cache::with_dependencies(backend: Arc<dyn CacheBackend>)` | — | 将任意 backend 包装为 `Cache` |
-| `Cache::new()` | `memory` | 同步构造方法（默认 Moka 后端） |
-
-> **重要**：`CacheBuilder` **不**暴露 `.redis(url)`、`.tiered(…)`、`.with_backend(…)`、`.batch_writes(…)` 或 `.auto_promote(…)` 方法。要组合多个后端请使用 `ChainCache` 并通过 `.backend_arc(Arc::new(chain))` 注入。
-
-**CacheBuilder API**（`Cache::builder()`）：
-
-```rust
-pub fn backend_arc(self, backend: Arc<dyn CacheBackend>) -> Self;
-pub fn ttl(self, ttl: Duration) -> Self;             // 默认 TTL
-pub fn tti(self, tti: Duration) -> Self;             // 默认 TTI（Moka）
-pub fn capacity(self, capacity: u64) -> Self;        // L1 容量提示
-pub fn sync_mode(self, enabled: bool) -> Self;       // 启用同步 API
-pub fn serialization_format(self, format: SerializationFormat) -> Self;  // JSON/Bincode/Postcard
-pub fn null_cache_ttl(self, ttl: Duration) -> Self;  // 空值哨兵 TTL
-pub fn ttl_jitter(self, factor: f64) -> Self;        // TTL 抖动系数
-pub fn metrics(self, recorder: Arc<dyn MetricsRecorder>) -> Self;        // 指标注入
-pub async fn build(self) -> OxCacheResult<Cache<K, V>>;
-```
-
-**约束**：`sync_mode(true)` 不能与 `backend_arc(Arc<dyn CacheBackend>)` 组合。两者同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`（OXCACHE_009）。这是 stable Rust 上 `trait_upcasting` 的临时限制；同步模式要求后端由构建器内部构造（如通过 `Cache::memory()` / `Cache::redis()` 路径或省略 `backend_arc`）。
-
-**关键异步方法**：
-
-- `get(key) -> OxCacheResult<Option<V>>`
-- `set(key, value) -> OxCacheResult<()>`（使用构建器 TTL）
-- `set_with_ttl(key, value, ttl: Option<Duration>) -> OxCacheResult<()>`
-- `get_by_str(key) / set_by_str(key, value, ttl)` — 借用键热路径，消除多余分配
-- `delete(key) -> OxCacheResult<()>`
-- `exists(key) -> OxCacheResult<bool>`
-- `clear() -> OxCacheResult<()>`
-- `get_or(key, fallback) -> OxCacheResult<V>`（单飞，通过 `tokio::sync::Notify`）
-- `ttl(key) -> OxCacheResult<Option<Duration>>` — 剩余 TTL（无单条目 TTL 或键不存在时为 None）
-- `expire(key, ttl) -> OxCacheResult<bool>` — 更新已有键的 TTL 而不修改其值
-- `get_bytes(key) / set_bytes(key, bytes, ttl)` — 原始字节操作
-- `len() / is_empty() / capacity() / stats() / health_check() / shutdown()` — 生命周期与统计
-- `register_for_macro(service_name) -> OxCacheResult<()>` — 注册到 `MACRO_CACHES`
-
-**同步 API**（需构建器上 `sync_mode(true)`；否则返回 `Err(NotSupported)`）：
-
-- `get_sync(key)`、`set_sync(key, value)`、`set_with_ttl_sync(key, value, ttl)`
-- `delete_sync(key)`、`exists_sync(key)`、`clear_sync()`
-- `ttl_sync(key)`、`expire_sync(key, ttl)`
-- `get_or_sync(key, fallback)`（单飞，通过 `std::sync::Condvar`）
+关键异步方法（`get` / `set` / `set_with_ttl` / `get_by_str` / `set_by_str` / `delete` / `exists` / `clear` / `get_or` / `ttl` / `expire` / `get_bytes` / `set_bytes` / 生命周期与统计 / `register_for_macro`）与同步方法（`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `clear_sync` / `ttl_sync` / `expire_sync` / `get_or_sync`）的逐项签名见 [API 参考](API_REFERENCE.md#-cachek-v) 与 [API 参考的同步 API 章节](API_REFERENCE.md#-同步-api)。
 
 **线程安全**：所有操作通过 `Arc<dyn CacheBackend>`（同步路径为 `Option<Arc<dyn SyncCacheBackend>>`）保证线程安全。
 
@@ -599,7 +551,7 @@ flowchart TD
     E -->|未命中或出错| H["返回 None"]
 ```
 
-单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
+读取、写入与回填的逐步语义（含 `enable_race_read()` 竞速读取）见[后端层的 ChainCache 路径](#3-后端层)。
 
 ### 写操作（配合 #[cached] 宏）
 
@@ -751,54 +703,17 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 
 ### 防御措施
 
-1. **单飞**：通过请求去重防止缓存击穿（`get_or` / `get_or_sync`）
-2. **空值哨兵与 TTL 抖动**：`null_cache_ttl` 缓存 None 结果、`ttl_jitter` 防批量同时过期（穿透防护）
-3. **输入校验**：`validate_redis_key`、`validate_lua_script`、`validate_scan_pattern`、`clamp_scan_count`（在 crate 根重导出）
-4. **注释预处理**：校验前剥离 Lua 注释以防止绕过
-5. **敏感数据脱敏**：`Redacted` 包装器、`redact_connection_string`、`redact_cache_key`、`redact_field`、`redact_value`
-6. **JSON 深度限制**：`MAX_JSON_DEPTH` + 64 MiB 上限 + 基于栈的递归（`serde_stacker`）
-7. **TLS 强制**：`RedisBackend` 要求 `rediss://` URL，除非设置了 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`
-8. **值保护**：`encrypt`（XChaCha20-Poly1305）与 `integrity`（HMAC-SHA256）装饰器
+上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + 64 MiB 上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见[安全文档](SECURITY.md)，README 安全章节提供防线速览。
 
 > **注意**：oxcache **无内置限流**。限流由应用或上游代理负责。
 
 ### 布隆过滤器穿透防护
 
-`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回：
-
-```mermaid
-flowchart TD
-    A["backend.get key"] --> B{"布隆过滤器包含 key？"}
-    B -->|一定不存在| C["直接返回 None<br/>inner 后端未被触及"]
-    B -->|可能存在| D["查询 inner 后端"]
-    D --> E["返回结果"]
-```
+`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回；机制图解、示例与穿透防护组合表见 [README 布隆过滤器章节](../README.md#-布隆过滤器与穿透防护)。
 
 ### 输入校验
 
-`security` 模块（私有；通过 crate 根重导出消费）提供：
-
-#### Redis 键校验（`validate_redis_key`）
-
-- 拒绝空键
-- 512KB 大小限制
-- 危险字符检测（`\r`、`\n`、`\0`）与命令注入字符（`;`、`|`、`&`、`` ` ``）
-- SQL 注入模式检测
-- 路径遍历模式检测
-
-#### Lua 脚本校验（`validate_lua_script`）
-
-- 10KB 脚本长度限制
-- 100 个键限制
-- 危险命令阻止：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
-- 沙箱逃逸调用拦截（`os.execute` / `io.popen` / `loadstring`）与无限循环模式检测
-- 注释与字符串预处理防止绕过
-
-#### SCAN 模式校验（`validate_scan_pattern`）
-
-- 256 字符长度限制
-- 10 个通配符限制
-- `clamp_scan_count(count)` 将 count 参数钳制到 1-1000
+`security` 模块（私有；通过 crate 根重导出消费，见 [API 参考](API_REFERENCE.md#-安全特性)）提供 `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count`，逐条校验规则与常量见[安全文档](SECURITY.md)。
 
 ### 最佳实践
 
@@ -844,43 +759,7 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 ## 🎨 特性标志
 
-### 分层特性集
-
-- **`minimal`**：仅 L1 内存缓存（`memory` + `metrics` + `serialization` + `chrono`），**默认**
-- **`core`**：L1 + L2 Redis（`minimal` + `redis`）
-- **`full`**：全量预设（含 `dragonfly` 和 `aerospike`），**不含** `bloom`、`kit` 等选择加入特性
-
-### 组件特性
-
-| 特性 | 说明 | 在 `full` 中？ |
-|------|------|:---:|
-| `memory` | L1 内存缓存（Moka + DashMap） | ✅（经 `core`） |
-| `redis` | L2 分布式缓存（Redis + regex） | ✅（经 `core`） |
-| `macros` | `#[cached]` 过程宏 | ✅ |
-| `serialization` | 序列化层（serde + serde_json + serde_stacker） | ✅（经 `minimal`） |
-| `compression` | 自适应压缩（zstd + 兼容旧 gzip） | ✅ |
-| `metrics` | 内置指标与可观测性 | ✅（经 `minimal`） |
-| `batch` | `BatchWriter` 缓冲 L2 写入 | ✅ |
-| `lua` | Lua 脚本执行（需要 `redis`） | ✅ |
-| `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） | ✅ |
-| `aerospike` | Aerospike 缓存后端（独立协议） | ✅ |
-| `testing` | 暴露内部函数供测试使用 | ✅ |
-| `bloom` | 负查询过滤（bloomfilter crate） | ❌（选择加入） |
-| `lock` | 分布式锁（watchdog 续期、可重入） | ✅ |
-| `red-lock` | RedLock 多节点多数派锁 + fencing token（依赖 `lock`） | ❌（选择加入） |
-| `telemetry` | `tracing` 门面遥测（关闭时零开销） | ❌（选择加入） |
-| `invalidation` | 跨实例失效总线（Redis Pub/Sub + 键空间通知） | ❌（选择加入） |
-| `encrypt` | 值级加密装饰器（XChaCha20-Poly1305） | ❌（选择加入） |
-| `integrity` | 值完整性装饰器（HMAC-SHA256） | ❌（选择加入） |
-| `serde-bincode` | bincode 1.x 二进制序列化格式 | ❌（选择加入） |
-| `postcard` | postcard 二进制序列化格式 | ❌（选择加入） |
-| `config-confers` | confers 配置驱动构建 + 热更新 | ❌（选择加入） |
-| `degradation` | 自动降级与恢复（三态状态机） | ❌（选择加入） |
-| `audit` | 结构化审计事件流 | ❌（选择加入） |
-| `versioning` | 版本化 CAS | ❌（选择加入） |
-| `kit` | trait-kit AsyncKit 集成 | ❌（选择加入） |
-
-> **重要**：`bloom`、`kit` 及其余选择加入特性**不包含**在 `full` 中，需通过 `features = ["bloom"]` 等显式启用。`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
+分层特性集（`minimal` / `core` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`kit` 及其余选择加入特性**不包含**在 `full` 中，需通过 `features = ["bloom"]` 等显式启用；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
 ## 🔮 未来增强
 

@@ -315,73 +315,15 @@ cd examples && ls src/*/*.rs
 
 ## 🏗️ 架构
 
-Oxcache 采用「统一接口 + 可插拔后端」的分层设计。应用只面对 `Cache<K, V>` 一个类型安全入口，序列化（`infra::serialization`）与指标（`infra::metrics`）横切其后。所有读写最终落到实现 `CacheReader` / `CacheWriter` / `CacheConnector` 三个 trait 的后端上，blanket impl 自动将其组合为 `CacheBackend`。L1（`backend::memory` 的 Moka / DashMap）与 L2（`redis` / `dragonfly` / `aerospike`）可单独使用，也可经 `ChainCache` 按分数组链并按需回填；`features` 模块以装饰器形态叠加布隆过滤器、分布式锁、加密、完整性、失效总线等能力。`#[cached]` 宏由独立的 `oxcache_macros` crate 提供，经 `internal::MACRO_CACHES` 注册表把函数调用接入同一套缓存路径。
-
-```mermaid
-flowchart TD
-    APP["应用代码"] --> CACHE
-    MACRO["oxcache_macros<br/>cached 属性宏"] --> REG["internal<br/>MACRO_CACHES 注册表"]
-    REG --> CACHE["cache<br/>Cache / CacheBuilder / ChainCache"]
-    CACHE --> BACKEND["backend<br/>CacheReader / CacheWriter / CacheConnector"]
-    CACHE --> INFRA["infra<br/>serialization / metrics"]
-    CACHE --> SEC["security<br/>输入校验 / 脱敏"]
-    CACHE --> UTILS["utils<br/>KeyGenerator"]
-    CACHE --> ERR["error<br/>OxCacheError"]
-    BACKEND --> MEM["memory<br/>Moka / DashMap"]
-    BACKEND --> DIST["redis / dragonfly / aerospike"]
-    BACKEND --> FEATS["features<br/>bloom_filter / dist_lock / encryption / invalidation"]
-```
-
-`batch`（缓冲写入）、`integrations::kit`（生命周期集成）、`i18n`、`config`、`traits`、`testing` 等模块按特性门控挂载，详见[架构文档](docs/ARCHITECTURE.md)。
+Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面对 `Cache<K, V>` 一个类型安全入口，读写落到实现 `CacheReader` / `CacheWriter` / `CacheConnector` 三个 trait 的后端上（blanket impl 组合为 `CacheBackend`）；L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）可单独使用，也可经 `ChainCache` 按分数组链并按需回填，`features` 模块以装饰器形态叠加布隆过滤器、分布式锁、加密等能力。分层架构图、模块职责与数据流见[架构文档](docs/ARCHITECTURE.md)；`batch`、`integrations::kit`、`i18n`、`config`、`traits`、`testing` 等模块按特性门控挂载。
 
 ### 宏执行路径
 
-`#[cached]` 宏展开后：按服务名查注册表，命中即反序列化返回；未命中执行原函数并将 `Ok` 结果序列化回写。未注册服务默认静默穿透执行原函数，`strict` 模式改为 panic。
-
-```mermaid
-sequenceDiagram
-    participant App as 应用
-    participant Gen as 宏生成代码
-    participant Reg as MACRO_CACHES 注册表
-    participant Cache as Cache
-    participant BE as CacheBackend
-
-    App->>Gen: 调用被标注函数
-    Gen->>Reg: 按服务名查找缓存
-    Reg-->>Gen: 返回缓存实例
-    Gen->>Gen: 生成缓存键
-    Gen->>Cache: get_bytes key
-    Cache->>BE: get
-    BE-->>Cache: Option bytes
-    alt 缓存命中
-        Cache-->>Gen: 字节值
-        Gen->>Gen: JSON 反序列化
-        Gen-->>App: 返回缓存值
-    else 缓存未命中
-        Gen->>Gen: 执行原函数
-        Gen->>Gen: JSON 序列化结果
-        Gen->>Cache: set_bytes key bytes ttl
-        Cache->>BE: set
-        Gen-->>App: 返回函数结果
-    end
-```
+`#[cached]` 宏展开后：按服务名查注册表，命中即反序列化返回；未命中执行原函数并将 `Ok` 结果序列化回写。未注册服务默认静默穿透执行原函数，`strict` 模式改为 panic。完整时序图与展开代码见[架构文档的数据流章节](docs/ARCHITECTURE.md#cached-宏执行路径)。
 
 ### 链式缓存读取路径
 
-```mermaid
-flowchart TD
-    A["Cache 读请求"] --> B["ChainCache 从最高分链接开始"]
-    B --> C{"最高分链接命中？如 L1 Moka"}
-    C -->|命中| D["返回值"]
-    C -->|未命中或出错| E{"下一个链接命中？如 L2 Redis"}
-    E -->|命中| F{"已启用回填？"}
-    F -->|是| G["异步回填更高分链接"]
-    F -->|否| D
-    G --> D
-    E -->|未命中或出错| H["返回 None"]
-```
-
-单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
+读取自最高分链接起穿透，非最高分链接命中时可异步回填（流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
 
 **可靠性要点**：
 
@@ -440,19 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - 未启用 `sync_mode(true)` 时调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`
 - `sync_mode(true)` 不能与 `backend_arc(...)` 组合，同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`
 
-**`#[cached]` 宏参数**：
-
-| 参数 | 类型 | 描述 |
-|------|------|------|
-| `service` | 字符串 | 缓存服务名（必填） |
-| `ttl` | 整数 | 默认 TTL（秒） |
-| `key` | 字符串 | 自定义键模式（支持 `{param}` 插值） |
-| `key_prefix` | 字符串 | 键前缀命名空间 |
-| `sync` | 标志 | 生成同步函数（无需 async 运行时） |
-| `skip_cache_write` | 标志 | 跳过 `Ok` 结果的缓存写入 |
-| `single_flight` | 标志 | 同 key 并发 miss 仅回源一次 |
-| `strict` | 标志 | 未注册缓存时 panic 而非静默穿透 |
-| `condition` | 函数路径 | 执行前谓词，返回 false 时旁路缓存 |
+**`#[cached]` 宏参数**：完整参数表（含默认值与 `cache_none`）见 [API 参考的缓存宏章节](docs/API_REFERENCE.md#-缓存宏)；与同步路径相关的参数为 `sync`（生成同步函数，无需 async 运行时）。
 
 ---
 
@@ -573,28 +503,9 @@ cargo llvm-cov --features full --workspace --fail-under-lines 80
 
 ## 📊 性能
 
-> 架构基准测试环境：M1 Pro，16GB RAM，macOS，Redis 7.0。性能因硬件、网络条件和数据大小而异，以下为数量级估计（来源：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)）。
+> 量级参考（L1/L2 吞吐与 P99 延迟，M1 Pro / 16GB RAM / macOS / Redis 7.0 基准环境；性能因硬件、网络条件和数据大小而异）见[架构文档的基准测试章节](docs/ARCHITECTURE.md#基准测试结果)。可复现实测数据（序列化体积、压缩率、热路径基准与复现命令）见[性能基线](docs/PERFORMANCE.md)。
 
-| 操作 | 吞吐量 | 延迟（P99） |
-|------|--------|-------------|
-| L1 读取 | 5-10M ops/sec | 50-100ns |
-| L1 写入 | 2-5M ops/sec | 50-200ns |
-| L2 读取 | 50-100K ops/sec | 1-5ms |
-| L2 写入（批量） | 200-500K ops/sec | 1-10ms |
-
-**热路径基准**（来源：[docs/PERFORMANCE.md](docs/PERFORMANCE.md)；`benches/hot_path_benchmark.rs`，bench profile = release + lto=fat，Moka L1 命中路径）：
-
-| 基准 | owned 键（既有 API） | 借用键（`get_by_str` / `set_by_str`） | 差异 |
-|------|----------------------|--------------------------------------|------|
-| get 命中 | 241.07 ns | 224.88 ns | **-6.7%** |
-| set | 819.38 ns | 715.01 ns | **-12.7%** |
-
-**L2 传输体积对比**（来源：[docs/PERFORMANCE.md](docs/PERFORMANCE.md)；序列化格式经 `serde-bincode` / `postcard` 特性切换）：
-
-| 负载 | JSON | bincode 1.x | postcard 1.x |
-|------|------|-------------|--------------|
-| Sample（短字符串混合） | 69 B | 74 B | 32 B |
-| NumericHeavy（6×64 位数值） | 84 B | 48 B | — |
+要点速览：热路径借用键 API（`get_by_str` / `set_by_str`）实测 get **-6.7%**、set **-12.7%**；序列化格式切换（`serde-bincode` / `postcard`）下 postcard 混合负载传输体积约为 JSON 的 **46%**。
 
 Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_benchmark`、`redis_benchmark`、`serialization_benchmark`、`dashmap_benchmark`、`dragonfly_benchmark`，运行方式如 `cargo bench --bench hot_path_benchmark`。
 

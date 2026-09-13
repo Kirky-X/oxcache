@@ -44,46 +44,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 ### 组件特性
 
-| 特性 | 说明 |
-|------|------|
-| `memory` | L1 缓存后端（Moka + DashMap） |
-| `redis` | L2 缓存实现（Redis + regex） |
-| `dragonfly` | Dragonfly 缓存后端（Redis 协议兼容） |
-| `aerospike` | Aerospike 缓存后端（独立协议） |
-| `macros` | `#[cached]` 属性宏所需 |
-| `serialization` | 序列化层（serde + serde_json + serde_stacker 深度防护） |
-| `compression` | 自适应压缩（zstd 阈值触发，兼容旧 gzip） |
-| `metrics` | 内置指标与可观测性 |
-| `batch` | `BatchWriter` 缓冲 L2 写入 |
-| `lua` | Lua 脚本执行支持（需要 `redis`） |
-| `testing` | 测试支持工具 |
-| `lock` / `red-lock` | 分布式锁与 RedLock 多节点多数派锁 |
-| `telemetry` | `tracing` 门面遥测 |
-| `invalidation` | 跨实例失效总线（Redis Pub/Sub） |
-| `encrypt` / `integrity` | 值级加密与完整性装饰器 |
-| `serde-bincode` / `postcard` | 二进制序列化格式 |
-| `config-confers` | confers 配置驱动构建 + 热更新 |
-| `degradation` | 自动降级与恢复（三态状态机） |
-| `audit` | 结构化审计事件流 |
-| `versioning` | 版本化 CAS |
-| `bloom` | 负查询过滤（**不包含**在 `full` 中） |
-| `kit` | trait-kit AsyncKit 集成（**不包含**在 `full` 中） |
-
-### 示例配置
-
-```toml
-# 全量特性（推荐）
-oxcache = { version = "0.5.0-rc.4", features = ["full"] }
-
-# 核心功能（L1 + L2）
-oxcache = { version = "0.5.0-rc.4", features = ["core"] }
-
-# 最小特性 - 仅 L1 缓存（默认）
-oxcache = { version = "0.5.0-rc.4", features = ["minimal"] }
-
-# 自定义选择（例如在 core 基础上添加 bloom）
-oxcache = { version = "0.5.0-rc.4", features = ["core", "macros", "bloom"] }
-```
+组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#-特性标志)；关键门控：`bloom`、`kit` 等选择加入特性**不包含**在 `full` 中，配置示例同见该章节。
 
 ### 特性依赖
 
@@ -342,56 +303,11 @@ let cache: Cache<String, String> = Cache::builder()
 
 ### 后端 Trait
 
-```rust
-#[async_trait]
-pub trait CacheReader: Send + Sync + 'static {
-    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
-    async fn exists(&self, key: &str) -> OxCacheResult<bool>;
-    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
-    async fn len(&self) -> OxCacheResult<u64>;
-    async fn is_empty(&self) -> OxCacheResult<bool>;  // 默认实现
-    async fn capacity(&self) -> OxCacheResult<u64>;
-    async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>>;  // 默认实现
-}
-
-/// 批量写入条目类型：`(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
-pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
-
-#[async_trait]
-pub trait CacheWriter: Send + Sync + 'static {
-    async fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>;
-    async fn delete(&self, key: &str) -> OxCacheResult<()>;
-    async fn clear(&self) -> OxCacheResult<()>;
-    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
-    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()>;  // 默认实现
-    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()>;  // 默认实现
-}
-
-#[async_trait]
-pub trait CacheConnector: Send + Sync + 'static {
-    async fn health_check(&self) -> OxCacheResult<()>;
-    async fn shutdown(&self);
-    fn backend_kind(&self) -> BackendKind;
-    #[cfg(feature = "lua")]
-    fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
-}
-
-// blanket 实现：实现以上三个 trait 的类型自动成为 CacheBackend。
-pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
-```
+后端 trait 层级（`CacheReader` / `CacheWriter` / `CacheConnector`，blanket impl 自动组合为 `CacheBackend`；批量条目类型 `CacheSetItem`；同步镜像 trait 与 `AtomicCacheWriter`）的完整定义见[架构文档的后端层章节](ARCHITECTURE.md#3-后端层)。
 
 ### 后端类型
 
-| 类型 | 特性 | 说明 |
-|------|------|------|
-| `MokaMemoryBackend` | `memory` | 使用 Moka 的内存缓存（LRU/TinyLFU 淘汰）。通过 `moka::Expiry` 支持单条目 TTL。 |
-| `DashMapMemoryBackend` | `memory` | 使用 DashMap 的纯内存并发缓存（懒 TTL 过期，FIFO O(1) 超容量淘汰）。 |
-| `RedisBackend` | `redis` | 使用 Redis 的分布式缓存（Standalone/Sentinel/Cluster）。 |
-| `DragonflyBackend` | `dragonfly` | Dragonfly 缓存（Redis 协议兼容，包装 RedisBackend）。 |
-| `AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储（独立协议，feature-gated）。 |
-| `ChainCache` | — | 多级缓存链（参见 [ChainCache](#-chaincache)）。 |
-| `BloomFilterBackend` | `bloom` | 装饰器，布隆过滤器判定 key 不存在时跳过内部后端。 |
+后端类型、模块路径与所属特性见[架构文档](ARCHITECTURE.md#3-后端层)。
 
 ### 内存后端辅助
 
@@ -612,12 +528,7 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 
 ### `SyncCacheBackend` Trait 层级
 
-```rust
-pub trait SyncCacheReader: Send + Sync + 'static { fn get(&self, key: &str) -> OxCacheResult<Option<Arc<Vec<u8>>>>; /* ... */ }
-pub trait SyncCacheWriter: Send + Sync + 'static { fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()>; /* ... */ }
-pub trait SyncCacheConnector: Send + Sync + 'static { fn health_check(&self) -> OxCacheResult<()>; /* ... */ }
-pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector {}
-```
+同步 trait 层级（`SyncCacheReader` / `SyncCacheWriter` / `SyncCacheConnector` / `SyncCacheBackend`）的完整定义见[架构文档的后端层章节](ARCHITECTURE.md#3-后端层)。
 
 实现者：`MokaMemoryBackend`、`DashMapMemoryBackend`、`RedisBackend`。
 
@@ -705,7 +616,7 @@ let backend = BloomFilterBackend::builder()
 - **DashMap** 使用懒过期（条目在访问时过期）。
 - **Redis** 使用 `SETEX`。
 
-各后端的完整行为对照表见 [README](../README.md#-ttl-行为对照表)。
+各后端的完整行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 
 ### TTL 方法
 
@@ -743,12 +654,7 @@ validate_redis_key("user:123").expect("合法的键");
 // 空、过长或包含危险字符的键返回 Err(OxCacheError::InvalidInput)
 ```
 
-**校验规则：**
-- 键不能为空
-- 键不能超过 512KB
-- 键不能包含危险字符（`\r`、`\n`、`\0`）与命令注入字符（`;`、`|`、`&`、`` ` ``）
-- 拒绝除 `\t` 外的 Unicode 控制字符
-- 键会扫描 SQL 注入和路径遍历模式（`../`、`etc/passwd`）
+校验规则（512 KB 长度上限、`\r` / `\n` / `\0` 与命令注入字符、控制字符、SQL 注入与路径遍历模式扫描）见[安全文档](SECURITY.md#-键校验)。
 
 ### Lua 脚本校验（validate_lua_script）
 
@@ -760,12 +666,7 @@ use oxcache::validate_lua_script;
 validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("合法的脚本");
 ```
 
-**校验规则：**
-- 脚本长度不能超过 10KB
-- 键数量不能超过 100
-- 阻止危险命令：`FLUSHALL`、`FLUSHDB`、`KEYS`、`SHUTDOWN`、`DEBUG`、`CONFIG`、`SAVE`、`BGSAVE`、`MONITOR`
-- 拦截 `os.execute` / `io.popen` / `loadstring` 等沙箱逃逸调用与无限循环模式
-- 注释预处理防止通过注释绕过
+校验规则（10 KB 脚本与 100 键上限、危险命令黑名单、沙箱逃逸调用拦截、注释预处理防绕过）见[安全文档](SECURITY.md#-lua-脚本沙箱)。
 
 ### SCAN 校验（validate_scan_pattern 与 clamp_scan_count）
 
@@ -777,11 +678,7 @@ use oxcache::validate_scan_pattern;
 validate_scan_pattern("user:*").expect("合法的模式");
 ```
 
-**校验规则：**
-- 模式长度不能超过 256 个字符
-- 最多 10 个通配符（`*`）
-
-`clamp_scan_count(count: usize) -> usize` 将 SCAN `COUNT` 参数钳制到安全范围（1–1000）。
+校验规则（256 字符与 10 通配符上限）与 `clamp_scan_count` 的 1–1000 钳制见[安全文档](SECURITY.md#-scan-模式限制)。
 
 ### 敏感数据脱敏
 

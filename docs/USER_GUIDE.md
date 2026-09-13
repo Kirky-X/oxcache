@@ -111,34 +111,9 @@ oxcache = "0.5.0-rc.4"
 
 > **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.4", features = ["macros"] }`（`full` 已包含）。
 
-#### 特性分层选择
+#### 特性分层与依赖
 
-```toml
-# 全量特性（推荐）
-oxcache = { version = "0.5.0-rc.4", features = ["full"] }
-
-# 核心功能（L1 + L2 缓存）
-oxcache = { version = "0.5.0-rc.4", features = ["core"] }
-
-# 最小特性（仅 L1 缓存，默认）
-oxcache = { version = "0.5.0-rc.4", features = ["minimal"] }
-
-# 自定义选择（注意：bloom 不在 full 内，需单独启用）
-oxcache = { version = "0.5.0-rc.4", features = ["core", "macros", "bloom"] }
-```
-
-#### 特性依赖说明
-
-某些特性需要其他特性作为前置条件：
-
-| 特性 | 前置要求 | 说明 |
-|------|----------|------|
-| `lua` | `redis` | Lua 脚本执行 |
-| `lock` | `redis` | 分布式锁（`red-lock` 依赖 `lock`） |
-| `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock` | 全量预设（**不含** `bloom`、`kit` 等选择加入特性） |
-
-完整的特性清单见 [README 特性标志](../README.md#-特性标志) 与 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
+分层预设（`minimal` / `core` / `full`）与完整特性清单见 [README 特性标志](../README.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`、`full` 不含 `bloom` / `kit` 等选择加入特性）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
 
 如果需要最小依赖或自定义特性：
 
@@ -287,10 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 同步 API
 
-通过 `Cache::builder().sync_mode(true).build().await?` 启用同步方法
-（`get_sync`/`set_sync`/`delete_sync`/`exists_sync`/`get_or_sync`/`clear_sync`/`ttl_sync`/`expire_sync`）。
-同步 API 通过 `tokio::task::block_in_place` 实现，需要 **multi_thread** Tokio runtime。
-**限制**：`sync_mode(true)` 不能与 `backend_arc(...)` 同时使用（受 stable Rust 的 trait 上转限制）。
+通过 `Cache::builder().sync_mode(true)` 启用异步 API 的同步镜像。运行时要求与限制（multi_thread 运行时、不能与 `backend_arc(...)` 组合）见[启用同步 API](#启用同步-api) 与 [API 参考](API_REFERENCE.md#-同步-api)。
 
 ### 容错与单飞
 
@@ -299,8 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 通用 per-entry TTL
 
-所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))`
-设置单条目 TTL。可用 `cache.ttl(&key)` 读取剩余 TTL，用 `cache.expire(&key, d)` 修改已存在 key 的 TTL。
+所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))` 设置单条目 TTL；设置、读取与修改方法见 [TTL 管理](#ttl-管理)。
 
 ---
 
@@ -331,20 +302,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `service` | `&str` | 注册名（默认 `"default"`） |
-| `ttl` | `u64` | 生存时间（秒） |
-| `key` | `&str` | 自定义键模板（支持 `{param}` 插值） |
-| `key_prefix` | `&str` | 键前缀 |
-| `sync` | 标志 | 生成同步函数（需 `sync_mode(true)` 且函数非 `async`） |
-| `skip_cache_write` | 标志 | 跳过 `Ok` 结果的缓存写入 |
-| `single_flight` | 标志 | 同 key 并发 miss 仅回源一次 |
-| `strict` | 标志 | 未注册缓存时 panic 而非静默穿透 |
-| `condition` | 函数路径 | 执行前谓词，返回 false 时旁路缓存 |
-| `cache_none` | 标志 | 缓存 `None` 结果 |
-
-完整参数说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
+宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
 
 ### 手动控制缓存
 
@@ -501,9 +459,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-可用同步方法：`get_sync`、`set_sync`、`set_with_ttl_sync`、`delete_sync`、`exists_sync`、
-`ttl_sync`、`expire_sync`、`get_or_sync`、`clear_sync`。
-未启用 `sync_mode` 时，这些方法返回 `Err(OxCacheError::NotSupported)`。
+完整同步方法表与未启用 `sync_mode` 时的 `NotSupported` 行为见 [API 参考](API_REFERENCE.md#-同步-api)。
 
 ### 布隆过滤器
 
@@ -519,8 +475,7 @@ let inner = MokaMemoryBackend::new();
 let backend = BloomFilterBackend::new(inner);  // 可作为 CacheBackend 使用
 ```
 
-`BloomFilter` 方法：`insert`、`contains`、`clear`、`len`、`is_empty`、`capacity`、
-`false_positive_rate`、`load_factor`、`rebuild`。它是 `Clone` 的，克隆共享底层状态。
+`BloomFilter` 与 `BloomFilterBackend` 的完整方法列表、builder 用法与语义见 [API 参考](API_REFERENCE.md#-布隆过滤器)。
 
 ### TTL 管理
 
@@ -541,7 +496,7 @@ let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
-各后端 TTL 行为对照表见 [README](../README.md#-ttl-行为对照表)。
+各后端 TTL 行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 
 ### Redis 模式配置
 
@@ -572,40 +527,11 @@ let backend = RedisBackend::builder()
 
 ### 监控指标
 
-启用 `metrics` 特性后，可获取缓存运行指标（在 crate 根重导出）：
-
-```rust
-use oxcache::{get_enhanced_stats, export_prometheus_format, export_json_format, CacheStats};
-
-let stats: CacheStats = get_enhanced_stats();
-println!("L1 命中: {}", stats.l1_hits);
-println!("整体命中率: {:.2}%", stats.overall_hit_rate() * 100.0);
-
-// 导出为 Prometheus / JSON 文本（export_json_format 返回 Result）
-let prom = export_prometheus_format();
-let json = export_json_format()?;
-```
-
-更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。
+启用 `metrics` 特性后，可使用 crate 根重导出的 `get_enhanced_stats` / `export_prometheus_format` / `export_json_format` 读取 `CacheStats`（命中率等）并导出 Prometheus / JSON 文本；更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。用法示例见 [API 参考的可观测性章节](API_REFERENCE.md#-可观测性)。
 
 ### 事件发射（EventPublisher）
 
-oxcache 通过 `EventPublisher` trait 提供结构化事件发射机制。
-`ChainCache` 后端操作失败时通过配置的 `EventPublisher` 抛出事件，
-用户可自行决定处理方式（日志、metrics、告警或忽略）：
-
-```rust
-use oxcache::EventPublisher;  // crate 根重导出（core 模块为私有）
-use std::sync::Arc;
-
-struct MyPublisher;
-impl EventPublisher for MyPublisher { /* ... */ }
-
-let chain = ChainCache::builder()
-    .link(ChainLink::from_backend(l1))
-    .event_publisher(Arc::new(MyPublisher))
-    .build();
-```
+oxcache 通过 `EventPublisher` trait（crate 根重导出，`core` 模块为私有）提供结构化事件发射机制：`ChainCache` 后端操作失败时通过配置的 `EventPublisher` 抛出事件，用户可自行决定处理方式（日志、metrics、告警或忽略）。实现与配置示例见 [API 参考的可观测性章节](API_REFERENCE.md#-可观测性)。
 
 启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `chrono` + `dashmap`），
 不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理。
@@ -665,18 +591,12 @@ oxcache = { version = "0.5.0-rc.4", features = ["dragonfly"] }
 
 ```rust
 use oxcache::backend::DragonflyBackend;
-use oxcache::backend::MokaMemoryBackend;
-use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
 // 构造 Dragonfly 后端
 let dragonfly = DragonflyBackend::new("redis://127.0.0.1:6379", 8).await?;
-
-// 推荐与 Moka 组合为 ChainCache
-let chain = ChainCacheBuilder::default()
-    .link(ChainLink::new(MokaMemoryBackend::new(), 100, false, "moka"))
-    .link(ChainLink::new(dragonfly, 50, true, "dragonfly"))
-    .build();
 ```
+
+推荐与 Moka 组合为 ChainCache（组合示例与限制说明见 [API 参考](API_REFERENCE.md#-dragonflybackend)）。
 
 ### Aerospike 后端
 
@@ -689,19 +609,7 @@ let chain = ChainCacheBuilder::default()
 oxcache = { version = "0.5.0-rc.4", features = ["aerospike"] }
 ```
 
-```rust
-use oxcache::backend::{AerospikeBackend, AerospikeConfig};
-use std::collections::HashMap;
-
-let config = AerospikeConfig {
-    seed_nodes: vec!["127.0.0.1:3000".to_string()],
-    namespace: "cache".to_string(),
-    set_name: "my_app".to_string(),
-    default_ttl: 3600,
-    ip_map: None, // Docker 环境需设置 IP 转换表
-};
-let backend = AerospikeBackend::new(config).await?;
-```
+后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#-aerospikebackend)。
 
 > **Docker 环境注意**：Aerospike 容器内部 IP 与主机不同，需通过 `ip_map` 配置
 > IP 地址转换表，或使用 `access-address` 配置服务器广播地址。
