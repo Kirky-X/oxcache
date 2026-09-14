@@ -56,20 +56,32 @@
 
 ## ✨ 功能特性
 
-| 特性 | 说明 |
-|------|------|
-| 🚀 **多级缓存** | L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）经 `ChainCache` 按分数组链，非最高分命中可异步回填 |
-| ⚡ **零侵入宏** | `#[cached]` 一行接入，支持 `service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` |
-| 🔄 **同步 API** | `sync_mode(true)` 后 `get_sync` / `set_sync` / `get_or_sync` 与异步 API 在同一 `Cache<K, V>` 上共存 |
-| ⏱️ **全后端 per-entry TTL** | `ttl` / `expire` 在 Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom 九类后端语义一致 |
-| 🌸 **穿透防护** | 单飞去重（64 分片）、空值哨兵、TTL 抖动、布隆过滤器负查询短路 |
-| 🔐 **安全内建** | 键 / Lua / SCAN 三层输入校验、连接串脱敏、值级加密与完整性装饰器 |
-| 📈 **可观测性** | 延迟直方图与操作计数、Prometheus / JSON 导出、`telemetry` tracing 遥测、审计事件流 |
-| 🧬 **可插拔序列化** | JSON 默认，`serde-bincode` / `postcard` 二进制格式可选，深度限制防嵌套 DoS |
-| 🗜️ **自适应压缩** | `CompressingBackend` 按阈值触发 zstd，读取按魔数识别并兼容旧 gzip |
-| 🔑 **分布式协调** | Redis 分布式锁（watchdog 续期 / 可重入）、RedLock 多节点多数派锁、跨实例失效总线 |
-| 🧯 **故障韧性** | ChainCache 单链路容错、`degradation` 三态自动降级与恢复、健康检查、优雅关闭 |
-| 🧪 **工程化质量** | 1900+ 测试函数（截至 0.5.0-rc.4）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁 |
+<table style="width:100%; border-collapse: collapse">
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">🚀 <b>多级缓存</b><br><span style="color:#64748B">L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）经 <code>ChainCache</code> 按分数组链，非最高分命中可异步回填</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>零侵入宏</b><br><span style="color:#64748B"><code>#[cached]</code> 一行接入，支持 <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code></span></td>
+</tr>
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">🔄 <b>同步 API</b><br><span style="color:#64748B"><code>sync_mode(true)</code> 后 <code>get_sync</code> / <code>set_sync</code> / <code>get_or_sync</code> 与异步 API 在同一 <code>Cache&lt;K, V&gt;</code> 上共存</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⏱️ <b>全后端 per-entry TTL</b><br><span style="color:#64748B"><code>ttl</code> / <code>expire</code> 在 Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom 九类后端语义一致</span></td>
+</tr>
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">🌸 <b>穿透防护</b><br><span style="color:#64748B">单飞去重（64 分片）、空值哨兵、TTL 抖动、布隆过滤器负查询短路</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🔐 <b>安全内建</b><br><span style="color:#64748B">键 / Lua / SCAN 三层输入校验、连接串脱敏、值级加密与完整性装饰器</span></td>
+</tr>
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">📈 <b>可观测性</b><br><span style="color:#64748B">延迟直方图与操作计数、Prometheus / JSON 导出、<code>telemetry</code> tracing 遥测、审计事件流</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧬 <b>可插拔序列化</b><br><span style="color:#64748B">JSON 默认，<code>serde-bincode</code> / <code>postcard</code> 二进制格式可选，深度限制防嵌套 DoS</span></td>
+</tr>
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">🗜️ <b>自适应压缩</b><br><span style="color:#64748B"><code>CompressingBackend</code> 按阈值触发 zstd，读取按魔数识别并兼容旧 gzip</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🔑 <b>分布式协调</b><br><span style="color:#64748B">Redis 分布式锁（watchdog 续期 / 可重入）、RedLock 多节点多数派锁、跨实例失效总线</span></td>
+</tr>
+<tr>
+<td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">1900+ 测试函数（截至 0.5.0-rc.4）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+</tr>
+</table>
 
 <details>
 <summary>🔎 进阶能力一览</summary>
