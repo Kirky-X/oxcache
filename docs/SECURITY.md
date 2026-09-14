@@ -185,7 +185,7 @@ assert!(!redacted.contains("secret_password"));
 如果您发现 oxcache 中的安全漏洞：
 
 1. **请勿在 GitHub 上提交公开 issue。**
-2. 发送邮件至 `Cargo.toml` `authors` 字段中列出的维护者邮箱。
+2. 发送邮件至 Kirky-X@outlook.com。
 3. 包含以下内容：
    - 漏洞描述
    - 复现步骤（概念验证）
