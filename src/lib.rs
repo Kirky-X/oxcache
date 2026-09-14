@@ -207,6 +207,11 @@ macro_rules! check_feature_dependence {
 mod core;
 pub mod error;
 
+// 同步字节权重缓存（tokio-free 直连 moka::sync）：L1 场景按字节预算控容量，
+// single-flight + 单条准入阈值 + 命中统计（Mirrors limiteron sync module pattern）
+#[cfg(feature = "byte-weight")]
+pub mod sync;
+
 // Internal module for #[cached] macro support
 // Must be `pub` (not `pub(crate)`) so the #[cached] macro can access
 // __internal_get_cache from external crates. #[doc(hidden)] keeps it out of public docs.

@@ -248,6 +248,8 @@ full = [
 
 # Component features
 memory = ["dep:moka", "dep:dashmap", "dep:serde"]
+# 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
+byte-weight = ["dep:moka", "moka/sync"]
 redis = ["dep:redis", "dep:regex"]
 dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
