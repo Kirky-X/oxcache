@@ -1397,7 +1397,7 @@ async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
 // METRICS (M-001 ~ M-004) — requires `metrics` feature (in minimal)
 // ============================================================================
 
-/// M-002: JSON format export produces valid JSON with expected fields.
+/// JSON format export produces valid JSON with expected fields.
 #[cfg(feature = "metrics")]
 #[tokio::test]
 async fn m002_export_json_format_valid() {
@@ -1408,7 +1408,7 @@ async fn m002_export_json_format_valid() {
     assert!(json.contains("l1_hits"), "should contain l1_hits: {json}");
 }
 
-/// M-003: Prometheus format export contains expected metric names.
+/// Prometheus format export contains expected metric names.
 #[cfg(feature = "metrics")]
 #[tokio::test]
 async fn m003_export_prometheus_format_valid() {

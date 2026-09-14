@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! E2E：分布式锁看门狗（watchdog）组合语义（场景 ID：OXL-WD-01/02/03）。
+//! E2E：分布式锁看门狗（watchdog）组合语义（场景 ID：02/03）。
 //!
 //! 场景来源：`docs/TEST_SCENARIOS.md`「分布式锁（LOCK）」域。
 //!
@@ -10,10 +10,10 @@
 //! acquire/release 基本环（其余测试均 `watchdog_enabled(false)`）。本文件
 //! 补看门狗与其他语义的**组合行为**：
 //!
-//! - OXL-WD-01：watchdog 续期期间互斥保持——A 持锁跨多个 TTL（2.5s >
+//! - watchdog 续期期间互斥保持——A 持锁跨多个 TTL（2.5s >
 //!   2×TTL，续期间隔 ttl/3 ≈ 333ms）后 B 仍被拒，错误表明 "already held"；
-//! - OXL-WD-02：`release` 停止续期并立即转手——B 随即 acquire 成功；
-//! - OXL-WD-03：release 后看门狗确已停止——TTL 到期后键消失、无"复活"
+//! - `release` 停止续期并立即转手——B 随即 acquire 成功；
+//! - release 后看门狗确已停止——TTL 到期后键消失、无"复活"
 //!   续期（`is_held` 为 false 且 `backend.exists` 为 false）。
 //!
 //! 环境依赖：Docker（testcontainers 自起 redis:7-alpine，测毕自清）；
@@ -57,7 +57,7 @@ async fn setup() -> Option<(RedisContainer, Arc<RedisBackend>)> {
     Some((container, Arc::new(backend)))
 }
 
-/// OXL-WD-01/02：watchdog 续期保持互斥；release 停止续期并立即可转手。
+/// 02：watchdog 续期保持互斥；release 停止续期并立即可转手。
 #[tokio::test]
 async fn test_dist_lock_watchdog_exclusive_then_handover() {
     // 容器句柄绑定到测试体作用域，防止 drop 提前删除容器
@@ -67,7 +67,7 @@ async fn test_dist_lock_watchdog_exclusive_then_handover() {
 
     let key = unique_key("exclusive-handover");
 
-    // OXL-WD-01：A 持锁，watchdog 每 ttl/3 ≈ 333ms 自动续期
+    // A 持锁，watchdog 每 ttl/3 ≈ 333ms 自动续期
     let mut lock_a = DistLockBuilder::new(backend.clone(), key.clone())
         .ttl(Duration::from_secs(1))
         .watchdog_enabled(true)
@@ -94,7 +94,7 @@ async fn test_dist_lock_watchdog_exclusive_then_handover() {
         "互斥错误应表明锁被他人持有: {err}"
     );
 
-    // OXL-WD-02：release 停止 A 的看门狗并删键，B 立即可转手
+    // release 停止 A 的看门狗并删键，B 立即可转手
     lock_a.release().await.expect("A release");
     assert!(
         lock_b.acquire().await.expect("B 转手获取"),
@@ -103,7 +103,7 @@ async fn test_dist_lock_watchdog_exclusive_then_handover() {
     lock_b.release().await.expect("B release");
 }
 
-/// OXL-WD-03：release 后看门狗确已停止——TTL 到期后键消失，无"复活"续期。
+/// release 后看门狗确已停止——TTL 到期后键消失，无"复活"续期。
 #[tokio::test]
 async fn test_dist_lock_no_renewal_after_release() {
     // 容器句柄绑定到测试体作用域，防止 drop 提前删除容器

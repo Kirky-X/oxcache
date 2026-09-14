@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X
 // SPDX-License-Identifier: MIT
-//! E2E：ChainCache `event_publisher` 后端失败事件集成链（场景 ID：OXE-01/02/03）。
+//! E2E：ChainCache `event_publisher` 后端失败事件集成链（场景 ID：02/03）。
 //!
 //! 场景来源：`docs/TEST_SCENARIOS.md`「事件系统（EVT）」域。
 //!
@@ -11,10 +11,10 @@
 //! 到达订阅方的完整链路。本文件以停止真实 Redis 容器注入故障（进程内真实
 //! 实现 + 真实失败路径，非 mock），补齐三条公开 API 路径：
 //!
-//! - OXE-01：`set`——L2 失败 → 部分成功语义（`Ok(())`）+ 事件到达；
-//! - OXE-02：`get`——L1 命中不触发 L2（对照：无新事件）；L1 miss → L2
+//! - `set`——L2 失败 → 部分成功语义（`Ok(())`）+ 事件到达；
+//! - `get`——L1 命中不触发 L2（对照：无新事件）；L1 miss → L2
 //!   失败 → 降级为 `Ok(None)`（部分明确 miss 即不整体失败）+ 事件到达；
-//! - OXE-03：`delete`——L2 失败 → 部分成功语义 + 事件到达。
+//! - `delete`——L2 失败 → 部分成功语义 + 事件到达。
 //!
 //! 环境依赖：Docker（testcontainers 自起 redis:7-alpine，`stop_with_timeout`
 //! 注入故障，测毕自清）；Docker 不可用时静默跳过。
@@ -77,7 +77,7 @@ async fn setup() -> Option<(ContainerAsync<GenericImage>, RedisBackend)> {
     Some((container, backend))
 }
 
-/// OXE-01/02/03：L2 停机注入 → set/get/delete 三条公开 API 路径的事件链。
+/// 02/03：L2 停机注入 → set/get/delete 三条公开 API 路径的事件链。
 #[tokio::test]
 async fn test_chain_publishes_error_events_on_backend_failure() {
     let Some((container, redis)) = setup().await else {
@@ -112,13 +112,13 @@ async fn test_chain_publishes_error_events_on_backend_failure() {
         .await
         .expect("stop redis container");
 
-    // OXE-01：set——L1 成功 L2 失败 → 部分成功语义（Ok），事件到达
+    // set——L1 成功 L2 失败 → 部分成功语义（Ok），事件到达
     chain
         .set("evt:set-path", b"v2".to_vec(), None)
         .await
         .expect("部分后端失败时 set 仍应成功（部分成功语义）");
 
-    // OXE-02：get——L1 命中不触发 L2（无新事件）；L1 miss → L2 失败时
+    // get——L1 命中不触发 L2（无新事件）；L1 miss → L2 失败时
     // 降级为 Ok(None)（部分明确 miss 即不整体失败），事件仍然到达
     let cached = chain.get("evt:set-path").await.expect("L1 命中读取");
     assert_eq!(cached, Some(b"v2".to_vec()), "L1 数据应仍可读");
@@ -128,7 +128,7 @@ async fn test_chain_publishes_error_events_on_backend_failure() {
         .expect("部分后端失败时 get 不应整体失败");
     assert_eq!(ghost, None, "L1 miss 且 L2 失败时应降级为 miss");
 
-    // OXE-03：delete——L1 成功 L2 失败 → 部分成功语义，事件到达
+    // delete——L1 成功 L2 失败 → 部分成功语义，事件到达
     chain
         .delete("evt:bootstrap")
         .await

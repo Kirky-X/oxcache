@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // 新API使用示例
 //
-// 本示例演示新API (v0.2.0+) 的创建和使用缓存。
+// 本示例演示新API  的创建和使用缓存。
 // 新API提供类型安全、独立的缓存接口。
 
 use oxcache::{Cache, CacheKey, OxCacheResult};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // tests/backend_interface_test.rs
 // 此测试验证 CacheBackend trait 签名变化后编译正常
-// FIX-02: 移除 as_any() 和 is() 方法，改用 backend_kind() 进行类型识别
+// 移除 as_any() 和 is() 方法，改用 backend_kind() 进行类型识别
 
 use oxcache::backend::BackendKind;
 
