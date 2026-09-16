@@ -643,6 +643,19 @@ where
         // `Arc<dyn SyncCacheBackend>: SyncCacheReader` which needs the
         // unstable `trait_upcasting` feature.
         let bytes = backend.get(&key_str)?;
+        // 审计事件（hit/miss）——与 async get 同语义（sentinel 命中计为 Hit）
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if bytes.is_some() {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
         match bytes {
             Some(data) if data.as_slice() == NULL_SENTINEL => Ok(None),
             // 经 UnifiedSerializer 反序列化（格式可插拔）
@@ -667,16 +680,34 @@ where
         let ttl = ttl.map(|t| self.apply_jitter(t));
         let backend = self.sync_backend()?;
 
+        #[cfg(feature = "audit")]
+        let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
+
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
             // 经 UnifiedSerializer 序列化（格式可插拔）
             let bytes = self.unified_serializer.serialize(value)?;
-            backend.set(Arc::from(key_str), Arc::new(bytes), ttl)
+            let result = backend.set(Arc::from(key_str), Arc::new(bytes), ttl);
+            // 审计事件（set）——与 async set_with_ttl 同语义（仅成功发布）
+            #[cfg(feature = "audit")]
+            if result.is_ok()
+                && let Some(publisher) = self.audit.as_ref()
+            {
+                publisher.publish(
+                    crate::features::audit::AuditEvent::new(
+                        crate::features::audit::AuditAction::Set,
+                    )
+                    .with_key(__redacted_key),
+                );
+            }
+            result
         }
 
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         {
             let _ = (backend, key_str, value, ttl);
+            #[cfg(feature = "audit")]
+            let _ = __redacted_key;
             Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set operations".to_string(),
             ))
@@ -687,7 +718,20 @@ where
     pub fn delete_sync(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
         let backend = self.sync_backend()?;
-        backend.delete(&key_str)
+        let result = backend.delete(&key_str);
+        // 审计事件（delete）——与 async delete 同语义（仅成功发布）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(
+                    crate::features::audit::AuditAction::Delete,
+                )
+                .with_key(crate::features::audit::redact_key_for_audit(&key_str)),
+            );
+        }
+        result
     }
 
     /// Synchronously check if a key exists.
