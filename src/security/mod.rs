@@ -937,7 +937,7 @@ mod tests {
 
 // 测试辅助模块 - 为集成测试提供访问
 // 注意：这些函数仅供测试使用，生产代码应使用公共 API
-#[cfg(all(any(test, feature = "testing"), feature = "redis"))]
+#[cfg(all(any(test, feature = "test-util"), feature = "redis"))]
 #[allow(unused_imports)]
 pub mod test_helpers {
     pub use super::{

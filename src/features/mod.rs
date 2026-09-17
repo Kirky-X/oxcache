@@ -32,16 +32,7 @@ pub mod versioning;
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;
 
-#[cfg(all(
-    feature = "bloom",
-    any(
-        feature = "memory",
-        feature = "redis",
-        feature = "minimal",
-        feature = "core",
-        feature = "full"
-    )
-))]
+#[cfg(all(feature = "bloom", any(feature = "memory", feature = "redis")))]
 pub use bloom_filter::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 #[cfg(feature = "lock")]

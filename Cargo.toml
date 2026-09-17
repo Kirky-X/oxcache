@@ -11,6 +11,9 @@ readme = "README.md"
 keywords = ["cache", "redis", "memory", "async", "performance"]
 categories = ["caching", "asynchronous", "database"]
 
+[package.metadata.docs.rs]
+features = ["full", "bloom", "kit"]
+
 [lints]
 workspace = true
 
@@ -44,9 +47,8 @@ chrono = { version = "0.4", default-features = false }
 criterion = { version = "0.8", features = ["async_tokio"] }
 
 [workspace.lints.rust]
-unexpected_cfgs = "allow"
-
-[workspace.lints.clippy]
+# docsrs 是 docs.rs 构建注入的自定义 cfg（doc(cfg(...)) 标注用）
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 
 # ============================================================================
 # DEPENDENCIES
@@ -56,7 +58,7 @@ unexpected_cfgs = "allow"
 oxcache_macros = { path = "macros", version = "0.5.0-rc.4", optional = true }
 
 # Async Runtime
-tokio = { version = "1.53", default-features = false, features = [
+tokio = { workspace = true, features = [
     "rt",
     "rt-multi-thread",
     "sync",
@@ -68,21 +70,16 @@ async-trait = "0.1"
 once_cell = "1.21"
 
 # Utilities
-uuid = { version = "1.24", features = ["v4"] }
+uuid = { version = "1.26", features = ["v4"] }
 
-# Error Handling
-[dependencies.anyhow]
-version = "1.0"
-optional = true
-
-# trait-kit integration (optional, feature-gated via `kit`)
+# trait-kit integration (optional, feature-gated via `trait-kit`)
 [dependencies.trait-kit]
-version = "0.5.0-rc.4"
+version = "0.5.0-rc.5"
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 optional = true
 default-features = false
 
-# futures executor for sync health check in async context (kit feature only)
+# futures executor for sync health check in async context (trait-kit feature only)
 [dependencies.futures]
 version = "0.3"
 optional = true
@@ -109,7 +106,7 @@ optional = true
 
 # L2 Cache (Redis)
 [dependencies.redis]
-version = "1.5"
+version = "1.7"
 default-features = false
 features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentinel"]
 optional = true
@@ -121,12 +118,11 @@ optional = true
 
 # Serialization & Compression
 [dependencies.serde]
-version = "1.0"
-features = ["derive"]
+workspace = true
 optional = true
 
 [dependencies.serde_json]
-version = "1.0"
+workspace = true
 features = ["unbounded_depth"]
 optional = true
 
@@ -198,7 +194,7 @@ optional = true
 
 # Adaptive compression (optional, zstd threshold decorator)
 [dependencies.zstd]
-version = "0.13"
+version = "0.14"
 optional = true
 
 # ============================================================================
@@ -210,7 +206,7 @@ async-trait = "0.1"
 tempfile = "3.27"
 serial_test = "4.0"
 rand = "0.10"
-criterion = { version = "0.8", features = ["async_tokio"] }
+criterion.workspace = true
 ctor = "1.0"
 trybuild = "1.0"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
@@ -228,7 +224,6 @@ default = ["minimal"]
 # Tiered presets
 minimal = [
     "memory",
-    "tokio/time",
     "metrics",
     "serialization",
     "dep:chrono",
@@ -258,11 +253,17 @@ serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
 metrics = ["serialization", "dep:chrono", "dep:dashmap"]
 batch = []
 lua = ["redis"]
-testing = []
+test-util = []
+# 已弃用别名：改用 `test-util`
+testing = ["test-util"]
 bloom = ["dep:bloomfilter"]
-kit = ["dep:trait-kit", "dep:futures"]
+trait-kit = ["dep:trait-kit", "dep:futures"]
+# 已弃用别名：改用 `trait-kit`
+kit = ["trait-kit"]
 lock = ["redis"]
-red-lock = ["lock"]
+redlock = ["lock"]
+# 已弃用别名：改用 `redlock`
+red-lock = ["redlock"]
 compression = ["dep:flate2", "dep:zstd"]
 telemetry = ["dep:tracing"]
 invalidation = ["redis", "serialization", "dep:futures"]
@@ -293,6 +294,7 @@ inherits = "release"
 [[bench]]
 name = "modern_api_benchmark"
 harness = false
+required-features = ["minimal"]
 
 [[bench]]
 name = "hot_path_benchmark"
@@ -318,7 +320,3 @@ required-features = ["memory"]
 name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
-
-# ============================================================================
-# PATCH (local dev dependencies for rc cycle)
-# ============================================================================

@@ -6,22 +6,10 @@
 //! by the `bloomfilter` crate. State is shared via `Arc<RwLock<>>` so that
 //! [`BloomFilter`] is cheaply `Clone` and mutations are visible across clones.
 
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 mod backend;
 
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use backend::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 mod bloom_filter_impl;

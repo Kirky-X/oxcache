@@ -27,23 +27,11 @@ pub mod dragonfly;
 pub mod aerospike;
 
 // Custom tiered backend configuration (always available)
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub mod custom_tiered;
 
 // Backend factory registry
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub mod factory;
 
 pub use factory::{BackendFactory, BackendRegistry, BackendSpec};
@@ -97,13 +85,7 @@ pub use memory::MockBackend;
 pub use memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 
 // Re-exports for custom tiered configuration
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use custom_tiered::LayerRestriction;
 
 // 从 core::types 重新导出统一的枚举类型

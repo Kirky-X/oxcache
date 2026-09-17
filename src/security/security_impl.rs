@@ -128,7 +128,7 @@ const COMMAND_INJECTION_CHARS: &[char] = &[';', '|', '&', '`'];
 /// * `Ok(())` - 键是安全的
 /// * `Err(OxCacheError::InvalidInput)` - 键包含不安全字符
 #[cfg(feature = "redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
     use crate::security::{DANGEROUS_CHARS, MAX_KEY_LENGTH};
     use crate::security::{validate_max_length, validate_no_dangerous_chars, validate_not_empty};
@@ -223,7 +223,7 @@ fn check_command_injection(key: &str) -> OxCacheResult<()> {
 /// * `Ok(())` - 脚本验证通过
 /// * `Err(OxCacheError::InvalidInput)` - 脚本验证失败
 #[cfg(feature = "redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> {
     // 检查脚本长度
     if script.len() > MAX_LUA_SCRIPT_LENGTH {
@@ -528,7 +528,7 @@ pub(super) fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Cha
 ///
 /// 防止恶意模式导致 Redis 性能问题。
 #[cfg(feature = "redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
     // 检查模式长度
     if pattern.len() > MAX_SCAN_PATTERN_LENGTH {
@@ -563,7 +563,7 @@ pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
 /// 返回限制在安全范围内的 count 值（1-1000）
 /// 将 SCAN count 参数限制在安全范围内
 #[cfg(feature = "redis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "security")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn clamp_scan_count(count: usize) -> usize {
     count.clamp(SCAN_COUNT_MIN, SCAN_COUNT_MAX)
 }

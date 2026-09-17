@@ -444,9 +444,6 @@ impl UnifiedMetrics {
     /// Create a comprehensive snapshot
     pub fn snapshot(&self) -> MetricsSnapshot {
         MetricsSnapshot {
-            #[cfg(feature = "chrono")]
-            timestamp: chrono::Utc::now(),
-            #[cfg(not(feature = "chrono"))]
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -842,10 +839,8 @@ pub struct CounterSnapshot {
 /// Comprehensive metrics snapshot
 #[derive(Debug, Clone, Serialize)]
 pub struct MetricsSnapshot {
-    #[cfg(feature = "chrono")]
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-    #[cfg(not(feature = "chrono"))]
-    pub timestamp: u64, // Unix timestamp as fallback
+    /// Unix timestamp (seconds since epoch)
+    pub timestamp: u64,
     pub counters: CounterSnapshot,
     pub dynamic_metrics: std::collections::HashMap<String, MetricValue>,
 }

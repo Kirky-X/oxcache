@@ -8,19 +8,9 @@ pub mod recorder;
 pub mod snapshot;
 pub mod unified;
 
-mod metrics_impl;
-
 pub use export::{export_json_format, export_prometheus_format, get_enhanced_stats};
 pub use snapshot::CacheStats;
 pub use unified::{AtomicCounters, UnifiedMetrics};
-
-// 当 metrics 和 moka 功能都禁用时的空实现
-#[cfg(not(any(feature = "metrics", feature = "memory")))]
-#[derive(Debug, Clone, Default)]
-pub struct Metrics;
-
-#[cfg(not(any(feature = "metrics", feature = "memory")))]
-pub use metrics_impl::{GLOBAL_METRICS, get_metrics_string};
 
 // ============================================================================
 // Unified Metrics Exports

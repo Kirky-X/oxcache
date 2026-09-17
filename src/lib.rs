@@ -77,7 +77,10 @@
 //!
 //! - `minimal`: L1 memory cache only (memory + metrics + serialization + chrono)
 //! - `core`: L1 + L2 Redis (minimal + redis)
-//! - `full`: All features enabled (opt-in via features = ["full"])
+//! - `full`: Layered preset = core + macros + compression + batch + lua +
+//!   testing + dragonfly + aerospike + lock. Deliberately excludes the
+//!   opt-in features: audit, encrypt, integrity, invalidation, versioning,
+//!   telemetry, config-confers, serde-bincode, postcard, bloom, kit.
 //!
 //! ## Core Component Features
 //!
@@ -89,9 +92,10 @@
 //! - `metrics`: Built-in performance metrics (latency histograms, operation counters, JSON export); OTLP export handled at application layer
 //! - `batch`: Buffered batch writer with capacity/time dual-threshold flush
 //! - `lua`: Lua script execution (requires redis)
-//! - `testing`: Testing support (exposes internal functions)
+//! - `test-util` (deprecated alias: `testing`): Testing support (exposes internal functions)
 //! - `bloom`: Negative-query filtering (not in `full`)
-//! - `kit`: trait-kit AsyncKit integration (OxcacheModule) (not in `full`)
+//! - `trait-kit` (deprecated alias: `kit`): trait-kit AsyncKit integration
+//!   (OxcacheModule) (not in `full`)
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
 //! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
 //!   (write-path broadcast + background listener with self-exemption) plus
@@ -108,8 +112,8 @@
 //!   NoOp/InMemory/tracing publishers)
 //! - `versioning`: Version-based compare-and-swap (`MemoryVersionedCache`
 //!   + Redis WATCH-based `RedisVersionedCache`)
-//! - `red-lock`: RedLock-style multi-node majority lock (`RedLock`,
-//!   `LockNode` protocol layer, fencing tokens)
+//! - `redlock` (deprecated alias: `red-lock`): RedLock-style multi-node
+//!   majority lock (`RedLock`, `LockNode` protocol layer, fencing tokens)
 //! - `serde-bincode` / `postcard`: Binary serialization formats
 //!   (`SerializationFormat`, `CacheBuilder::serialization_format`)
 //!
@@ -216,13 +220,7 @@ pub mod sync;
 // Must be `pub` (not `pub(crate)`) so the #[cached] macro can access
 // __internal_get_cache from external crates. #[doc(hidden)] keeps it out of public docs.
 // 依赖 crate::Cache，须与 cache 模块门控一致
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 #[doc(hidden)]
 pub mod internal;
 
@@ -234,23 +232,11 @@ pub mod internal;
 // Gated behind backend-enabling features because cache depends on backend + infra modules.
 // memory-only is supported: serde is included in the memory feature for trait bounds,
 // and serde_json usage is internally gated behind serialization/full.
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub mod cache;
 
 // Backend module (L1/L2 cache implementation)
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub mod backend;
 
 // Features module (optional capabilities)
@@ -286,12 +272,7 @@ mod testing;
 
 // Registry module for #[cached] macro support
 // 需要 backend (CacheBackend trait) 和 dashmap，仅在 memory 及其超集下可用
-#[cfg(any(
-    feature = "memory",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(feature = "memory")]
 pub mod registry;
 
 // Traits module: CacheKey
@@ -305,7 +286,7 @@ mod utils;
 
 // Integrations module: optional adapters for external frameworks (trait-kit, etc.)
 // Each integration is feature-gated and pulls no deps unless explicitly enabled.
-#[cfg(feature = "kit")]
+#[cfg(feature = "trait-kit")]
 pub mod integrations;
 
 // i18n module: ICU4X-backed locale-aware formatting for cache keys, statistics,
@@ -341,13 +322,7 @@ pub use error::{OxCacheError, OxCacheResult};
 // Re-export internal functions needed by #[cached] macro at crate root
 // The macro generates code calling ::oxcache::__internal_get_cache()
 // internal 模块依赖 cache::Cache，须与 cache 模块门控一致
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 #[doc(hidden)]
 pub use crate::internal::__internal_get_cache;
 
@@ -379,29 +354,11 @@ pub fn __telemetry_macro_passthrough(_service: &str, _reason: &str) {}
 
 // New API exports
 // cache 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::BytesCache;
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::Cache;
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::CacheBuilder;
 
 // Re-exports from infra module
@@ -431,29 +388,11 @@ pub use features::dist_lock::{
 // cache 模块 re-export 须与 cache 模块门控一致
 #[cfg(feature = "memory")]
 pub use cache::{ChainBuilder, L1Builder, L2Builder};
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::{ChainCache, ChainCacheBuilder, ChainLink};
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use cache::{NamespaceName, TypedNamespace};
 pub use traits::CacheKey;
 
@@ -468,13 +407,7 @@ pub use core::{CacheEvent, CacheEventType, EventPublisher};
 
 // Backend exports
 // backend 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
-#[cfg(any(
-    feature = "memory",
-    feature = "redis",
-    feature = "minimal",
-    feature = "core",
-    feature = "full"
-))]
+#[cfg(any(feature = "memory", feature = "redis"))]
 pub use backend::{
     BackendScore, DashMapMemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores,
     dashmap_memory, default_memory_backend, moka_memory,
