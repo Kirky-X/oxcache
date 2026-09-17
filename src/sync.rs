@@ -37,8 +37,8 @@
 //! assert_eq!(cache.get(&"k2".to_string()), None);
 //! ```
 
-use std::hash::RandomState;
 use std::hash::Hash;
+use std::hash::RandomState;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -195,8 +195,8 @@ mod tests {
 
     #[test]
     fn test_oversized_entry_skipped_by_admission() {
-        let cache = ByteWeightCache::new(64 * 1024, |v: &String| v.len() as u64)
-            .with_max_entry_bytes(256);
+        let cache =
+            ByteWeightCache::new(64 * 1024, |v: &String| v.len() as u64).with_max_entry_bytes(256);
         // 512 字节 > 256 阈值：跳过写入，但 get_or_compute 返回值不受影响
         let big = "x".repeat(512);
         cache.insert("big".to_string(), big.clone());

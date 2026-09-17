@@ -394,13 +394,13 @@ impl trait_kit::core::lifecycle::AsyncLifecycle for OxcacheModule {
 mod tests {
     use super::*;
 
-    /// R-oxcache-module-001: `OxcacheModule::NAME == "oxcache"`.
+    /// `OxcacheModule::NAME == "oxcache"`.
     #[test]
     fn oxcache_module_meta_name() {
         assert_eq!(OxcacheModule::NAME, "oxcache");
     }
 
-    /// R-oxcache-module-001: `OxcacheModule::dependencies()` is empty
+    /// `OxcacheModule::dependencies()` is empty
     /// (oxcache is a leaf module — no upstream deps).
     #[test]
     fn oxcache_module_meta_dependencies_empty() {
@@ -410,7 +410,7 @@ mod tests {
         );
     }
 
-    /// R-oxcache-module-001: register `OxcacheModule` + `set_config` +
+    /// register `OxcacheModule` + `set_config` +
     /// `build()` + `require::<OxcacheModule>()` returns an
     /// `Arc<dyn CacheBackend + Send + Sync>` that performs real cache ops.
     #[tokio::test]
@@ -432,7 +432,7 @@ mod tests {
         assert_eq!(got, Some(b"v".to_vec()));
     }
 
-    /// R-oxcache-module-001: build reads `OxcacheConfig` from
+    /// build reads `OxcacheConfig` from
     /// `kit.config::<OxcacheConfig>()` — verifies the config we set is
     /// honored by the constructed backend (capacity / ttl / tti all wired).
     #[tokio::test]
@@ -459,7 +459,7 @@ mod tests {
         cache.health_check().await.expect("health_check");
     }
 
-    /// R-oxcache-module-001: `OxcacheModule::build` returns a
+    /// `OxcacheModule::build` returns a
     /// `Pin<Box<dyn Future + Send>>` (async build), not a sync `Result`.
     /// Verified by calling `AsyncAutoBuilder::build` directly on an unbuilt
     /// kit and awaiting the returned future.
@@ -478,7 +478,7 @@ mod tests {
         assert_send_sync::<Arc<dyn CacheBackend + Send + Sync>>();
     }
 
-    /// R-oxcache-module-002: `AsyncHealthCheck::check` returns `Healthy`
+    /// `AsyncHealthCheck::check` returns `Healthy`
     /// for a functioning cache backend.
     #[tokio::test]
     async fn oxcache_module_health_check_returns_healthy() {
@@ -495,7 +495,7 @@ mod tests {
         );
     }
 
-    /// R-oxcache-module-002: `AsyncHealthCheck::check` called directly
+    /// `AsyncHealthCheck::check` called directly
     /// on the capability returns `Healthy`.
     #[tokio::test]
     async fn oxcache_module_health_check_direct_call() {
@@ -507,7 +507,7 @@ mod tests {
         assert!(status.is_healthy(), "expected Healthy, got {status:?}");
     }
 
-    /// R-oxcache-module-003: `AsyncLifecycle::on_shutdown` calls
+    /// `AsyncLifecycle::on_shutdown` calls
     /// `CacheBackend::shutdown()` gracefully without panicking.
     #[tokio::test]
     async fn oxcache_module_lifecycle_on_shutdown() {
@@ -519,7 +519,7 @@ mod tests {
         <OxcacheModule as trait_kit::core::lifecycle::AsyncLifecycle>::on_shutdown(&cache).await;
     }
 
-    /// R-oxcache-module-003: Full lifecycle integration — register,
+    /// Full lifecycle integration — register,
     /// build, shutdown via AsyncKit.
     #[tokio::test]
     async fn oxcache_module_lifecycle_full_kit_integration() {

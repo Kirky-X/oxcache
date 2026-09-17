@@ -436,7 +436,7 @@ mod tests {
         assert_eq!(other.get("k").await.unwrap(), None);
     }
 
-    /// 与加密装饰器叠加顺序无关：两种嵌套顺序都正确（R-ox4-003）
+    /// 与加密装饰器叠加顺序无关：两种嵌套顺序都正确
     #[cfg(feature = "encrypt")]
     #[tokio::test]
     async fn composes_with_encryption_in_both_orders() {

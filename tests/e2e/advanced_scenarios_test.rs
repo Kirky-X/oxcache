@@ -1324,10 +1324,10 @@ async fn cfg007_chain_default_time_to_live_stored() {
 }
 
 // ============================================================================
-// SYNC API (S-001 ~ S-005)
+// SYNC API
 // ============================================================================
 
-/// S-001: Sync GET/SET via sync_mode(true) on multi_thread runtime.
+/// Sync GET/SET via sync_mode(true) on multi_thread runtime.
 #[cfg(feature = "memory")]
 #[tokio::test(flavor = "multi_thread")]
 async fn s001_sync_get_set_via_sync_mode() {
@@ -1347,7 +1347,7 @@ async fn s001_sync_get_set_via_sync_mode() {
     assert_eq!(val, Some(User::new(1, "sync_v")));
 }
 
-/// S-002: sync_mode + backend_arc returns NotSupported (same as CFG-004 but
+/// sync_mode + backend_arc returns NotSupported (same as CFG-004 but
 /// tested via the sync API path).
 #[cfg(feature = "memory")]
 #[tokio::test(flavor = "multi_thread")]
@@ -1367,7 +1367,7 @@ async fn s002_sync_api_without_sync_mode_returns_not_supported() {
     }
 }
 
-/// S-004: ChainCache sync API with a link created via `from_backend` returns
+/// ChainCache sync API with a link created via `from_backend` returns
 /// NotSupported. `ChainLink::from_backend` 不主动声明 SyncCacheBackend 支持
 /// （backend_sync 为 None），即使底层后端本身实现了 SyncCacheBackend
 /// （如真实 DashMapMemoryBackend）也不例外；必须使用 `from_sync_backend` 显式 opt-in。
@@ -1394,7 +1394,7 @@ async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
 }
 
 // ============================================================================
-// METRICS (M-001 ~ M-004) — requires `metrics` feature (in minimal)
+// METRICS — requires `metrics` feature (in minimal)
 // ============================================================================
 
 /// JSON format export produces valid JSON with expected fields.
