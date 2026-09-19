@@ -246,6 +246,16 @@ pub mod features;
 #[cfg(feature = "invalidation")]
 pub use features::invalidation;
 
+// Redis Pub/Sub 广播设施（`pubsub` feature）：通用频道 publish/subscribe，
+// 专用订阅连接 + 断线重连 + handler panic 隔离（下沉自 garrison SSO 通道）
+#[cfg(feature = "pubsub")]
+pub mod pubsub;
+
+// redis crate re-export：`eval_lua`/pubsub 的伴生类型（如 `redis::Value`）
+// 供 consumer 侧模式匹配使用，consumer 不再直接依赖 redis crate
+#[cfg(feature = "redis")]
+pub use redis;
+
 // Value-level encryption (`encrypt` feature)
 #[cfg(feature = "encrypt")]
 pub use features::encryption;
