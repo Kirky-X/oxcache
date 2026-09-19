@@ -14,8 +14,9 @@
 /release
 **/*.rs.bk
 
-# Cargo 本地覆盖(.cargo/config.toml 等机器特定配置)
-.cargo/
+# Cargo 本地覆盖(.cargo/config.toml 等机器特定配置);audit.toml 为项目级安全配置,纳入版本控制
+.cargo/*
+!.cargo/audit.toml
 
 # --- Code coverage ---
 coverage/

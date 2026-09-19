@@ -1,3 +1,4 @@
+authors = ["Kirky-X <Kirky-X@outlook.com>"]
 [package]
 name = "oxcache_macros"
 version.workspace = true
