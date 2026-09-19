@@ -516,15 +516,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
-name = "castaway"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "cc"
 version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -691,20 +682,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compact_str"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79fcda08c33bb58b97008b2cdada6622500e949e060f5913361763121abd2416"
-dependencies = [
- "castaway",
- "cfg-if",
- "itoa",
- "serde",
- "static_assertions",
- "zmij",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -716,17 +693,14 @@ dependencies = [
 [[package]]
 name = "confers"
 version = "0.6.0-rc.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e93a0924eabc16e4fd10766c890d0c661ac62d32243ce8d8197a105931dbfb8"
 dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.23.1",
  "chrono",
- "compact_str",
  "confers-macros",
+ "fluent-bundle",
  "futures-util",
- "getset",
  "indexmap 2.14.2",
  "itoa",
  "log",
@@ -734,17 +708,17 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "sys-locale",
  "thiserror",
  "tokio",
  "tokio-stream",
+ "unic-langid",
  "url",
 ]
 
 [[package]]
 name = "confers-macros"
 version = "0.6.0-rc.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "246b658b18e09a056e9a69f5e8bd3be8f34ebe8efe2a13cd369c286e40f9367a"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -1395,17 +1369,6 @@ dependencies = [
  "libc",
  "r-efi",
  "rand_core 0.10.1",
-]
-
-[[package]]
-name = "getset"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cf442baaabe4213ce7d1239afc26c039180b6456da2cededa316ae2c8a77a77"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -2570,7 +2533,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "trait-kit",
+ "trait-kit 0.5.0-rc.5",
  "trybuild",
  "unic-langid",
  "uuid",
@@ -2591,7 +2554,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "trait-kit",
+ "trait-kit 0.5.0-rc.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3477,12 +3440,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "static_assertions"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3554,6 +3511,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -3933,6 +3899,14 @@ dependencies = [
  "thread_local",
  "tracing",
  "tracing-core",
+]
+
+[[package]]
+name = "trait-kit"
+version = "0.5.0-rc.5"
+dependencies = [
+ "fluent-bundle",
+ "unic-langid",
 ]
 
 [[package]]

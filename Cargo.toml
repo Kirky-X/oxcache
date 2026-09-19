@@ -76,6 +76,7 @@ uuid = { version = "1.26", features = ["v4"] }
 # trait-kit integration (optional, feature-gated via `trait-kit`)
 [dependencies.trait-kit]
 version = "0.5.0-rc.5"
+path = "../trait-kit"
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 optional = true
 default-features = false
@@ -196,6 +197,7 @@ optional = true
 # Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
 version = "0.6.0-rc.4"
+path = "../confers"
 default-features = false
 features = ["config-bus"]
 optional = true
