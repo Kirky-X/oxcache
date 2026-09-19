@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! Redis L2 缓存性能基准测试
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! Redis 多模式连接示例
 //!

@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // 随机故障混沌测试（已迁移到新版 API）
 //

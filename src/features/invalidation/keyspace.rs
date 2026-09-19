@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! Redis 键空间通知监听（`invalidation` feature）
 //!

@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // 窄特性验证：确保各 tier 预设（minimal / core）可正常编译运行。
 // 迁移自 examples/feature_matrix/，防止回归。

@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! E2E：ChainCache `event_publisher` 后端失败事件集成链（场景 ID：02/03）。
 //!

@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // This file should FAIL to compile because `#[cached(sync)]` cannot be
 // combined with `async fn`. The macro panics at expansion time with:

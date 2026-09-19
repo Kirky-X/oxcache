@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // This file should FAIL to compile because `123` is not a valid
 // `Meta` argument for `#[cached]`. The macro must emit a

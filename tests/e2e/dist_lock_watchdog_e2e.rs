@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! E2E：分布式锁看门狗（watchdog）组合语义（场景 ID：02/03）。
 //!

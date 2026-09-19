@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // 锁预热功能集成测试 - 使用新API
 // 注意：锁和预热功能需要直接使用后端，新API暂不支持

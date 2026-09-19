@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! `register_cache_shutdown` — maps `CacheBackend` lifecycle onto
 //! trait-kit's `AsyncShutdownCoordinator` three-phase shutdown.

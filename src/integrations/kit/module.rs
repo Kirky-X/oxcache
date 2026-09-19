@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! `OxcacheModule` — trait-kit 0.4 `AsyncKit` integration for oxcache.
 //!

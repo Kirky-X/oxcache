@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // Redis版本兼容性测试 - 支持Redis 6.0, 6.2, 7.0, 7.2等多个版本
 

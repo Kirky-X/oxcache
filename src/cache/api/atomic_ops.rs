@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! Cache 原子操作方法 — 通过 `as_atomic_writer()` / `as_sync_atomic_writer()` 运行时发现后端原子能力。
 

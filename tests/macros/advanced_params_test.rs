@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // Integration tests for `#[cached]` advanced parameters:
 //   - `single_flight`: concurrent miss dedup (same key → one source call)
