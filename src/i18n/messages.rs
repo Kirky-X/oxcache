@@ -121,10 +121,8 @@ pub(crate) fn lookup(locale: &str, message_id: &str, params: &[(&str, &str)]) ->
     let lang = locale.split('-').next().unwrap_or(locale);
     let key = ftl_key(message_id);
     match lang {
-        "zh" => {
-            format_from_bundle("zh", &key, params)
-                .or_else(|| format_from_bundle("en", &key, params))
-        }
+        "zh" => format_from_bundle("zh", &key, params)
+            .or_else(|| format_from_bundle("en", &key, params)),
         _ => format_from_bundle("en", &key, params),
     }
 }
@@ -194,11 +192,7 @@ mod tests {
     fn ftl_keys(ftl: &str) -> Vec<&str> {
         ftl.lines()
             .filter_map(|line| line.split_once(" = "))
-            .filter(|(key, _)| {
-                key.chars()
-                    .next()
-                    .is_some_and(|c| c.is_ascii_alphabetic())
-            })
+            .filter(|(key, _)| key.chars().next().is_some_and(|c| c.is_ascii_alphabetic()))
             .map(|(key, _)| key)
             .collect()
     }
@@ -341,8 +335,7 @@ mod tests {
 
     #[test]
     fn test_lookup_en_with_args() {
-        let msg = lookup("en", MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
-            .expect("en message");
+        let msg = lookup("en", MSG_ERR_NOT_FOUND, &[("detail", "user:42")]).expect("en message");
         assert!(
             msg.contains("Key not found: user:42"),
             "en message: got '{msg}'"
@@ -351,12 +344,8 @@ mod tests {
 
     #[test]
     fn test_lookup_zh_with_args() {
-        let msg = lookup("zh-CN", MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
-            .expect("zh message");
-        assert!(
-            msg.contains("键未找到：user:42"),
-            "zh message: got '{msg}'"
-        );
+        let msg = lookup("zh-CN", MSG_ERR_NOT_FOUND, &[("detail", "user:42")]).expect("zh message");
+        assert!(msg.contains("键未找到：user:42"), "zh message: got '{msg}'");
     }
 
     #[test]
@@ -377,11 +366,12 @@ mod tests {
     #[test]
     fn test_macro_service_not_registered_message() {
         let args = &[("service", "strict_svc")];
-        let en = lookup("en", "macro.service_not_registered", args)
-            .expect("en macro message");
-        assert_eq!(en, "oxcache: service 'strict_svc' not registered (strict mode)");
-        let zh = lookup("zh-CN", "macro.service_not_registered", args)
-            .expect("zh macro message");
+        let en = lookup("en", "macro.service_not_registered", args).expect("en macro message");
+        assert_eq!(
+            en,
+            "oxcache: service 'strict_svc' not registered (strict mode)"
+        );
+        let zh = lookup("zh-CN", "macro.service_not_registered", args).expect("zh macro message");
         assert_eq!(zh, "oxcache：服务 'strict_svc' 未注册（严格模式）");
     }
 }
