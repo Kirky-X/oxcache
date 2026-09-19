@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! ICU4X-backed internationalization formatting for cache operations.
 //!
@@ -42,17 +42,19 @@ static DEFAULT_LOCALE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(detect_sy
 
 /// Detect the system locale from environment variables.
 ///
-/// Reads `LC_ALL`, `LC_MESSAGES`, and `LANG` (in priority order) and returns
-/// a normalized locale string. Falls back to `"en"` when:
+/// Detection chain (priority order): `OXCACHE_LANG` (project override),
+/// `LC_ALL`, `LC_MESSAGES`, `LANG`. Returns a normalized locale string.
+/// Falls back to `"en"` when:
 /// - No environment variable is set
 /// - The locale is `C` or `POSIX`
 /// - The language is not in the [supported list](messages::is_supported)
 ///
 /// This function is called once during global initialization.
 pub fn detect_system_locale() -> String {
-    let raw = std::env::var("LC_ALL")
+    let raw = std::env::var("OXCACHE_LANG")
         .ok()
         .filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("LC_ALL").ok().filter(|v| !v.is_empty()))
         .or_else(|| std::env::var("LC_MESSAGES").ok().filter(|v| !v.is_empty()))
         .or_else(|| std::env::var("LANG").ok().filter(|v| !v.is_empty()));
 
@@ -173,9 +175,9 @@ impl I18nError {
             I18nError::DateError(d) => vec![("detail", d.clone())],
             I18nError::FormatError(d) => vec![("detail", d.clone())],
         };
-        let template = messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        messages::format_template(template, &borrowed)
+        messages::lookup(locale, self.message_id(), &borrowed)
+            .unwrap_or_else(|| self.message_id().to_string())
     }
 }
 
@@ -223,8 +225,8 @@ impl CacheI18nFormatter {
         message_id: &str,
         params: &[(&str, &str)],
     ) -> Result<String, I18nError> {
-        let template = messages::lookup(&self.locale_tag, message_id).unwrap_or(message_id);
-        Ok(messages::format_template(template, params))
+        Ok(messages::lookup(&self.locale_tag, message_id, params)
+            .unwrap_or_else(|| message_id.to_string()))
     }
 }
 
@@ -436,21 +438,6 @@ mod tests {
     }
 
     #[test]
-    fn test_template_substitution() {
-        let result = messages::format_template(
-            "Hello {name}, age {age}",
-            &[("name", "Alice"), ("age", "30")],
-        );
-        assert_eq!(result, "Hello Alice, age 30");
-    }
-
-    #[test]
-    fn test_template_unmatched_placeholder_preserved() {
-        let result = messages::format_template("Hello {name}, {unknown}", &[("name", "Alice")]);
-        assert_eq!(result, "Hello Alice, {unknown}");
-    }
-
-    #[test]
     fn test_i18n_error_message_id() {
         let err = I18nError::InvalidLocale {
             input: "bad".to_string(),
@@ -560,10 +547,12 @@ mod tests {
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
 
         // Clear higher-priority vars
         // SAFETY: test-only; serialised by `--test-threads=1` or env mutex in practice.
         unsafe {
+            std::env::remove_var("OXCACHE_LANG");
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
             std::env::set_var("LANG", "zh_CN.UTF-8");
@@ -585,6 +574,9 @@ mod tests {
             if let Some(ref v) = orig_lc_messages {
                 std::env::set_var("LC_MESSAGES", v);
             }
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            }
         }
     }
 
@@ -595,9 +587,11 @@ mod tests {
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
 
         // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
+            std::env::remove_var("OXCACHE_LANG");
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
             std::env::set_var("LANG", "en_US.UTF-8");
@@ -618,6 +612,9 @@ mod tests {
             if let Some(ref v) = orig_lc_messages {
                 std::env::set_var("LC_MESSAGES", v);
             }
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            }
         }
     }
 
@@ -628,9 +625,11 @@ mod tests {
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
 
         // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
+            std::env::remove_var("OXCACHE_LANG");
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
             std::env::set_var("LANG", "C");
@@ -651,6 +650,9 @@ mod tests {
             if let Some(ref v) = orig_lc_messages {
                 std::env::set_var("LC_MESSAGES", v);
             }
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            }
         }
     }
 
@@ -661,9 +663,11 @@ mod tests {
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
 
         // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，清除高优先级 env 并设置测试 locale。
         unsafe {
+            std::env::remove_var("OXCACHE_LANG");
             std::env::remove_var("LC_ALL");
             std::env::remove_var("LC_MESSAGES");
             std::env::set_var("LANG", "ja_JP.UTF-8");
@@ -687,6 +691,9 @@ mod tests {
             if let Some(ref v) = orig_lc_messages {
                 std::env::set_var("LC_MESSAGES", v);
             }
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            }
         }
     }
 
@@ -697,10 +704,12 @@ mod tests {
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
 
         // LC_ALL should take priority over LC_MESSAGES and LANG
         // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，设置多个 locale env 验证优先级。
         unsafe {
+            std::env::remove_var("OXCACHE_LANG");
             std::env::set_var("LC_ALL", "zh_CN.UTF-8");
             std::env::set_var("LC_MESSAGES", "en_US.UTF-8");
             std::env::set_var("LANG", "fr_FR.UTF-8");
@@ -724,6 +733,66 @@ mod tests {
                 std::env::set_var("LC_MESSAGES", v);
             } else {
                 std::env::remove_var("LC_MESSAGES");
+            }
+            if let Some(ref v) = orig_lang {
+                std::env::set_var("LANG", v);
+            } else {
+                std::env::remove_var("LANG");
+            }
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            } else {
+                std::env::remove_var("OXCACHE_LANG");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(unsafe_code)]
+    fn test_detect_system_locale_oxcache_lang_priority() {
+        let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
+        let orig_oxcache_lang = std::env::var("OXCACHE_LANG").ok();
+        let orig_lc_all = std::env::var("LC_ALL").ok();
+        let orig_lang = std::env::var("LANG").ok();
+
+        // OXCACHE_LANG should take priority over LC_ALL and LANG
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，设置多个 locale env 验证优先级。
+        unsafe {
+            std::env::set_var("OXCACHE_LANG", "zh_CN.UTF-8");
+            std::env::set_var("LC_ALL", "en_US.UTF-8");
+            std::env::remove_var("LC_MESSAGES");
+            std::env::set_var("LANG", "fr_FR.UTF-8");
+        }
+
+        let locale = detect_system_locale();
+        assert_eq!(
+            locale, "zh-CN",
+            "OXCACHE_LANG should take priority: got '{locale}'"
+        );
+
+        // Empty OXCACHE_LANG must fall through the chain (LC_ALL wins)
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，验证空值穿透。
+        unsafe {
+            std::env::set_var("OXCACHE_LANG", "");
+        }
+        let locale = detect_system_locale();
+        assert_eq!(
+            locale, "en-US",
+            "empty OXCACHE_LANG should fall through to LC_ALL: got '{locale}'"
+        );
+
+        // Restore
+        // SAFETY: edition 2024 下 set_var/remove_var 为 unsafe；测试单线程且持 LOCALE_ENV_LOCK，回写块前保存的原值恢复进程环境。
+        unsafe {
+            if let Some(ref v) = orig_oxcache_lang {
+                std::env::set_var("OXCACHE_LANG", v);
+            } else {
+                std::env::remove_var("OXCACHE_LANG");
+            }
+            if let Some(ref v) = orig_lc_all {
+                std::env::set_var("LC_ALL", v);
+            } else {
+                std::env::remove_var("LC_ALL");
             }
             if let Some(ref v) = orig_lang {
                 std::env::set_var("LANG", v);

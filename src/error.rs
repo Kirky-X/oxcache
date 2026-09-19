@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! 该模块定义了缓存系统的错误类型和处理机制。
 
@@ -78,10 +78,9 @@ impl OxCacheConfigError {
             OxCacheConfigError::UnsupportedBackend(d) => vec![("detail", d.clone())],
             OxCacheConfigError::ConnectionFailed(d) => vec![("detail", d.clone())],
         };
-        let template =
-            crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        crate::i18n::messages::format_template(template, &borrowed)
+        crate::i18n::messages::lookup(locale, self.message_id(), &borrowed)
+            .unwrap_or_else(|| self.message_id().to_string())
     }
 }
 
@@ -467,10 +466,9 @@ impl OxCacheError {
     /// if the catalog has no entry for this error.
     pub fn localized_message(&self, locale: &str) -> String {
         let params = self.message_params();
-        let template =
-            crate::i18n::messages::lookup(locale, self.message_id()).unwrap_or(self.message_id());
         let borrowed: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        crate::i18n::messages::format_template(template, &borrowed)
+        crate::i18n::messages::lookup(locale, self.message_id(), &borrowed)
+            .unwrap_or_else(|| self.message_id().to_string())
     }
 
     /// Extract `(key, value)` parameters for message template substitution.

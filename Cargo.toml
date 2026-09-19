@@ -1,3 +1,4 @@
+authors = ["Kirky-X <Kirky-X@outlook.com>"]
 [package]
 name = "oxcache"
 version.workspace = true
@@ -32,7 +33,7 @@ members = [".", "macros", "examples"]
 version = "0.5.0-rc.4"
 edition = "2024"
 rust-version = "1.97.1"
-authors = ["Kirky.X <Kirky-X@outlook.com>"]
+authors = ["Kirky-X <Kirky-X@outlook.com>"]
 license = "MIT"
 repository = "https://github.com/Kirky-X/oxcache"
 
@@ -92,6 +93,13 @@ version = "2.3"
 
 [dependencies.writeable]
 version = "0.6"
+
+# Fluent internationalization message catalog (always enabled)
+[dependencies.fluent-bundle]
+version = "0.16"
+
+[dependencies.unic-langid]
+version = "0.9"
 
 # L1 Cache (Memory)
 [dependencies.moka]

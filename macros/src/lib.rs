@@ -1,4 +1,4 @@
-// Copyright (c) 2025-2026 Kirky.X
+// Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! 该模块定义了oxcache的宏实现，提供缓存注解功能。
 
@@ -338,9 +338,17 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     // strict mode — cache lookup failure handling
+    // The panic message is rendered through oxcache's Fluent i18n catalog
+    // (key `macro-service-not-registered`), resolving under the user's locale.
     let cache_miss_handler = if strict_mode {
         quote! {
-            None => panic!("oxcache: service '{}' not registered (strict mode)", #service_name),
+            None => panic!(
+                "{}",
+                ::oxcache::i18n::messages::t(
+                    "macro.service_not_registered",
+                    &[("service", #service_name.to_string())],
+                )
+            ),
         }
     } else {
         quote! {
@@ -353,7 +361,13 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let cache_miss_handler_async = if strict_mode {
         quote! {
-            None => panic!("oxcache: service '{}' not registered (strict mode)", #service_name),
+            None => panic!(
+                "{}",
+                ::oxcache::i18n::messages::t(
+                    "macro.service_not_registered",
+                    &[("service", #service_name.to_string())],
+                )
+            ),
         }
     } else {
         quote! {
