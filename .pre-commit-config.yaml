@@ -22,8 +22,14 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: [--exclude-files, tests/, --exclude-files, examples/]
-        exclude: '^Cargo\.lock$'
+        # --baseline: .secrets.baseline 记录已人工核实的误报(测试夹具/文档占位符)。
+        # 基线由 `detect-secrets scan --exclude-files tests/ --exclude-files examples/`
+        # 生成，本仓初次扫描结果为空——即非 tests/examples 文件当前无任何疑似凭证；
+        # 之后新增发现须先人工核实确为误报，再以同一条 scan 命令
+        # (`--baseline .secrets.baseline` 合并)并入基线，否则一律阻断提交。
+        args: [--baseline, .secrets.baseline, --exclude-files, tests/, --exclude-files, examples/]
+        # 自排除: 基线文件本身(内含凭证哈希)与锁文件不参与扫描
+        exclude: '^(Cargo\.lock|\.secrets\.baseline)$'
 
   - repo: https://github.com/crate-ci/typos
     rev: v1.28.0
