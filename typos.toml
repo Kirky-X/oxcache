@@ -1,0 +1,21 @@
+# typos 白名单 —— 仅登记「确为真词 / 真实标识符 / 刻意测试数据」的命中，
+# 不放宽任何门禁：真正的拼写错误仍会由 typos 报告并阻断提交。
+#
+# 词条大小写不敏感（查找走 UniCase），故 `flate` 一条同时覆盖 `Flate`。
+[default.extend-words]
+# flate2 —— 真实 crate 名（gzip 压缩后端）。typos 把 `flate2` 切成 `flate`，
+# 误判为 `flat`；曾导致 CHANGELOG/ARCHITECTURE/lib.rs/tests/README 被改写。
+flate = "flate"
+# fpr —— false positive rate（布隆过滤器标准缩写），是真实术语与真实标识符
+# （`let fpr = 0.01;`、`new_for_fp_rate(new_capacity, fpr)`）。
+fpr = "fpr"
+# alue —— 脱敏函数 redact_value 的**刻意期望值**末 4 位（`"****alue"`）。
+# 脱敏规则为「保留末 N 位 + 前缀星号」，同组断言还有 `"****123"`、`"****sword"`；
+# 改成 `"****value"` 会直接改坏测试语义。
+alue = "alue"
+# hellow —— `glob_match("h?l*w", "hellow")` 的刻意入参（`*` 匹配 "lo"），
+# 用于验证 glob 组合通配；非拼写错误，改写会改坏测试。
+hellow = "hellow"
+# ba —— docs/CHANGELOG.md 中 commit 短哈希 `26987ba` 被切出的片段
+# （`e4197af`、`26987ba`）。把 `ba` 判成 `by`/`be` 是纯误报。
+ba = "ba"
