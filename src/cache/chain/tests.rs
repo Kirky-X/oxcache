@@ -622,7 +622,7 @@ async fn test_chain_read_degrades_when_high_backend_fails() {
 
 #[tokio::test]
 async fn test_chain_read_returns_none_when_all_backends_fail() {
-    // L7 修复验证：所有后端 get 都失败时，链式 get 应返回 Err（与竞速读语义一致）
+    // 修复验证：所有后端 get 都失败时，链式 get 应返回 Err（与竞速读语义一致）
     let high = MockBackend::new("high", 100, false).with_fail_get();
     let low = MockBackend::new("low", 50, true).with_fail_get();
 

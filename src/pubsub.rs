@@ -19,6 +19,7 @@
 //! ## 示例
 //!
 //! ```rust,no_run
+//! # use std::sync::Arc;
 //! # async fn example() -> Result<(), oxcache::OxCacheError> {
 //! let ps = oxcache::pubsub::RedisPubSub::new("redis://127.0.0.1:6379").await?;
 //! ps.subscribe("sso:kickout", Arc::new(|msg| {
@@ -46,7 +47,7 @@ const RECONNECT_BACKOFF_MAX_MS: u64 = 5000;
 /// Redis Pub/Sub 广播通道。
 ///
 /// `publish` 经多路复用连接管理器；每个 `subscribe` 独占一条订阅连接
-/// （由 [`Self::client`] 现场创建）。后台订阅任务统一登记，
+/// （由 `Self::client` 现场创建）。后台订阅任务统一登记，
 /// [`Self::shutdown`]/Drop 时 abort 回收。
 pub struct RedisPubSub {
     /// Redis 客户端（为每个订阅创建专用 PubSub 连接）。

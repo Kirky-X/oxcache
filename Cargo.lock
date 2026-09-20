@@ -692,7 +692,9 @@ dependencies = [
 
 [[package]]
 name = "confers"
-version = "0.6.0-rc.4"
+version = "0.6.0-rc.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff95e01ed3c29084efe4e95e365fa831e3101504d269a59972d5914020b3d389"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -718,7 +720,9 @@ dependencies = [
 
 [[package]]
 name = "confers-macros"
-version = "0.6.0-rc.4"
+version = "0.6.0-rc.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f68d3acdd765107a376e4fca48d40d8bc027d52a99a94e307992f2dfdc824077"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -2498,7 +2502,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "oxcache"
-version = "0.5.0-rc.4"
+version = "0.5.0-rc.5"
 dependencies = [
  "aerospike",
  "async-trait",
@@ -2533,7 +2537,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "trait-kit 0.5.0-rc.5",
+ "trait-kit",
  "trybuild",
  "unic-langid",
  "uuid",
@@ -2543,7 +2547,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache-examples"
-version = "0.5.0-rc.4"
+version = "0.5.0-rc.5"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2554,12 +2558,12 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "trait-kit 0.5.0-rc.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "trait-kit",
 ]
 
 [[package]]
 name = "oxcache_macros"
-version = "0.5.0-rc.4"
+version = "0.5.0-rc.5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2929,6 +2933,7 @@ dependencies = [
  "pin-project-lite",
  "rand 0.10.2",
  "ryu",
+ "sha1_smol",
  "socket2",
  "tokio",
  "tokio-util",
@@ -3044,9 +3049,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.43"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -3336,6 +3341,12 @@ dependencies = [
  "digest 0.9.0",
  "opaque-debug",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -3903,17 +3914,13 @@ dependencies = [
 
 [[package]]
 name = "trait-kit"
-version = "0.5.0-rc.5"
+version = "0.5.0-rc.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "726ca13fe2e870e40548c8eff4d02614548e31615282395da2df696a4981bfb9"
 dependencies = [
  "fluent-bundle",
  "unic-langid",
 ]
-
-[[package]]
-name = "trait-kit"
-version = "0.5.0-rc.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2645fc42f8787abe89d0031b798c0a881087ebc2ebb40a67ad71fa65def62534"
 
 [[package]]
 name = "try-lock"

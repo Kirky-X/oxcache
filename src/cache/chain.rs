@@ -355,7 +355,7 @@ impl ChainCache {
                         // 查询原始 TTL 并在回填时保留
                         let original_ttl =
                             self.links[index].backend().ttl(key).await.ok().flatten();
-                        // 将 value 移入 Arc 后直接用于回填和返回，避免额外 clone（OCR #36）
+                        // 将 value 移入 Arc 后直接用于回填和返回，避免额外 clone
                         let value = Arc::new(value);
                         self.backfill_to_higher_backends(
                             Arc::from(key),

@@ -15,7 +15,7 @@
 //! `"error.not_found"`). Fluent identifiers cannot contain dots, so catalog
 //! keys are the dashed equivalent (`error-not-found`); the conversion is
 //! purely mechanical (`.` and `_` become `-`) and happens inside
-//! [`lookup`]/[`t`].
+//! `lookup`/`t`.
 //!
 //! # Supported locales
 //!
