@@ -14,8 +14,9 @@ repos:
       - id: detect-private-key
       - id: check-merge-conflict
         args: ['--assume-in-merge']
+      # 本仓工作流在 main 上提交,故仅保护 master
       - id: no-commit-to-branch
-        args: ['--branch', 'main', '--branch', 'master']
+        args: ['--branch', 'master']
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
