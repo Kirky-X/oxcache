@@ -378,7 +378,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // single_flight — generate per-function static lock map
+    // single_flight — generate per-function sharded static lock map
     let sf_static = if single_flight && !sync_mode {
         let sf_locks_name = syn::Ident::new(
             &format!("__OXCACHE_SF_{}", fn_name.to_string().to_uppercase()),
@@ -386,8 +386,8 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         );
         quote! {
             static #sf_locks_name: ::std::sync::LazyLock<
-                ::std::sync::Mutex<::std::collections::HashMap<String, ::std::sync::Arc<tokio::sync::Notify>>>
-            > = ::std::sync::LazyLock::new(|| ::std::sync::Mutex::new(::std::collections::HashMap::new()));
+                [::oxcache::macro_support::SfShard; ::oxcache::macro_support::SF_SHARDS]
+            > = ::std::sync::LazyLock::new(|| ::std::array::from_fn(|_| ::std::sync::Mutex::new(::std::collections::HashMap::new())));
         }
     } else {
         quote! {}
@@ -400,50 +400,67 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let sf_logic_async = if single_flight {
         quote! {
-            // Single-flight: register as leader or become follower
-            let (is_follower, notify) = {
-                let mut map = #sf_locks_name.lock().unwrap();
-                match map.entry(cache_key.clone()) {
-                    ::std::collections::hash_map::Entry::Occupied(e) => (true, e.get().clone()),
+            // Single-flight（审计 F03/F04 修复）：64 路分片 + watch flight 信号
+            // + panic 守卫。follower 在分片锁内 subscribe（owned Receiver 可带出
+            // 锁），watch 版本比对语义使 "leader 先完成、follower 后等待" 仍立即
+            // 返回，不存在 Notify::notify_waiters 的丢失唤醒窗口。
+            enum __OxcacheFlight {
+                Leader(::std::sync::Arc<tokio::sync::watch::Sender<()>>),
+                Follower(tokio::sync::watch::Receiver<()>),
+            }
+            let __flight = {
+                let __idx = ::oxcache::macro_support::shard_index(&cache_key);
+                let mut __map = #sf_locks_name[__idx].lock().unwrap();
+                match __map.entry(cache_key.clone()) {
+                    ::std::collections::hash_map::Entry::Occupied(e) => {
+                        __OxcacheFlight::Follower(e.get().subscribe())
+                    }
                     ::std::collections::hash_map::Entry::Vacant(e) => {
-                        let n = ::std::sync::Arc::new(tokio::sync::Notify::new());
-                        e.insert(n.clone());
-                        (false, n)
+                        let (__tx, _rx) = tokio::sync::watch::channel(());
+                        let __tx = ::std::sync::Arc::new(__tx);
+                        e.insert(__tx.clone());
+                        __OxcacheFlight::Leader(__tx)
                     }
                 }
             };
 
-            if is_follower {
-                notify.notified().await;
-                // Re-check cache after leader completes
-                if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
-                    if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
-                        return ::std::result::Result::Ok(val);
+            match __flight {
+                __OxcacheFlight::Follower(mut __rx) => {
+                    ::oxcache::macro_support::wait_flight(__rx).await;
+                    // Re-check cache after leader completes
+                    if let Ok(Some(bytes)) = cache.get_bytes(&cache_key).await {
+                        if let Ok(val) = cache.unified_serializer().deserialize::<#return_type>(&bytes) {
+                            return ::std::result::Result::Ok(val);
+                        }
                     }
+                    // Leader failed to cache — run locally
+                    return async { #fn_block }.await;
                 }
-                // Leader failed to cache — run locally
-                return async { #fn_block }.await;
-            }
+                __OxcacheFlight::Leader(__signal) => {
+                    // panic 安全守卫：panic / 早退时 Drop 兜底移除条目并放行等待者，
+                    // 该 key 后续调用可重新成为 leader（不产生 key 级永久死锁）
+                    let mut __guard = ::oxcache::macro_support::AsyncSfGuard::new(
+                        &#sf_locks_name,
+                        ::oxcache::macro_support::shard_index(&cache_key),
+                        cache_key.clone(),
+                        __signal,
+                    );
 
-            // Leader path: execute + cache + notify
-            let result = async { #fn_block }.await;
+                    // Leader path: execute + cache + signal
+                    let result = async { #fn_block }.await;
 
-            if !#skip_cache_write {
-                if let Ok(ref val) = result {
-                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                        let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                    if !#skip_cache_write {
+                        if let Ok(ref val) = result {
+                            if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                                let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
+                            }
+                        }
                     }
+
+                    __guard.finish();
+                    return result;
                 }
             }
-
-            // Notify followers and clean up
-            {
-                let mut map = #sf_locks_name.lock().unwrap();
-                map.remove(&cache_key);
-            }
-            notify.notify_waiters();
-
-            return result;
         }
     } else {
         quote! {}

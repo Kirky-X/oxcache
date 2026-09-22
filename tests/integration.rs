@@ -74,3 +74,7 @@ mod l2_backend_test;
 #[cfg(feature = "redis")]
 #[path = "integration/backend/valkey_test.rs"]
 mod valkey_test;
+
+#[cfg(feature = "serde-bincode")]
+#[path = "integration/batch_serialization_format_test.rs"]
+mod batch_serialization_format_test;

@@ -67,7 +67,7 @@ impl<K, V> Default for CacheBuilder<K, V> {
             capacity: None,
             sync_mode: false,
             null_cache_ttl: None,
-            ttl_jitter_factor: 0.0,
+            ttl_jitter_factor: crate::core::constants::DEFAULT_TTL_JITTER_FACTOR,
             #[cfg(feature = "metrics")]
             metrics: None,
             #[cfg(any(feature = "serialization", feature = "full"))]

@@ -75,6 +75,35 @@ impl<B: CacheBackend> BloomFilterBackend<B> {
     pub fn bloom(&self) -> &BloomFilter {
         &self.bloom
     }
+
+    /// 直接灌入已知存在的 key（进程重启预热 / 首次部署对齐）。
+    ///
+    /// 过滤器状态为**进程内存**：重启清零、多实例各自独立，对共享持久后端
+    /// （如 Redis）中已存在但不在本过滤器插入集合内的 key 会产生假阴性——
+    /// `get` 判"不存在"直接短路返回 `None`，连后端都不查询。部署/重启后
+    /// 必须预热对齐，或使用 [`Self::prefill_from_backend`]。
+    pub fn prefill_from_keys<I, K>(&self, keys: I)
+    where
+        I: IntoIterator<Item = K>,
+        K: AsRef<str>,
+    {
+        for key in keys {
+            self.bloom.insert(key.as_ref());
+        }
+    }
+
+    /// 以 `inner.keys(pattern)` 回灌过滤器，返回回灌的 key 数。
+    ///
+    /// 适用于重启后过滤器为空而后端仍有数据的场景：回灌后 get 才能查到
+    /// 后端已有条目。注意多实例部署下各进程仍需各自回灌（过滤器不共享）。
+    pub async fn prefill_from_backend(&self, pattern: &str) -> OxCacheResult<usize> {
+        let keys = self.inner.keys(pattern).await?;
+        let count = keys.len();
+        for key in &keys {
+            self.bloom.insert(key);
+        }
+        Ok(count)
+    }
 }
 
 /// Builder for [`BloomFilterBackend`].
@@ -121,7 +150,9 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
 impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
         // BF first: if the filter says the key is absent, skip the inner
-        // backend entirely (no false negatives).
+        // backend entirely. （"无假阴性"仅对本过滤器的 insert 集合成立：
+        // 进程内存态，重启清零 / 多实例独立 / 对共享持久后端存在假阴性，
+        // 部署后需经 prefill_from_keys / prefill_from_backend 预热对齐。）
         if !self.bloom.contains(key) {
             return Ok(None);
         }
@@ -132,8 +163,8 @@ impl<B: CacheBackend> CacheReader for BloomFilterBackend<B> {
     }
 
     async fn exists(&self, key: &str) -> OxCacheResult<bool> {
-        // BF has no false negatives: a miss means the key definitely does not
-        // exist, so we can skip the inner backend entirely.
+        // BF miss（对本进程 insert 集合）→ 视为不存在跳过后端；
+        // 进程边界假阴性风险见 prefill_from_keys 文档。
         if !self.bloom.contains(key) {
             return Ok(false);
         }
@@ -886,5 +917,49 @@ mod tests {
             assert_eq!(log.set_calls.len(), 1);
             assert_eq!(log.set_calls[0].2, Some(ttl));
         }
+    }
+}
+
+#[cfg(test)]
+mod prefill_tests {
+    use super::*;
+    use crate::backend::memory::DashMapMemoryBackend;
+
+    /// 审计 F01 验收：重启后（过滤器空、后端有数据）经 prefill_from_backend
+    /// 回灌，get 才能查到已有条目；未回灌的 key 假阴性短路返回 None。
+    #[tokio::test]
+    async fn prefill_from_backend_aligns_filter_with_inner() {
+        let inner = DashMapMemoryBackend::new();
+        CacheWriter::set(
+            &inner,
+            Arc::from("warm-key"),
+            Arc::new(b"warm-value".to_vec()),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let backend = BloomFilterBackend::new(inner);
+        // 未预热：bloom miss 短路 → None（假阴性，连后端都不查）
+        let cold = CacheReader::get(&backend, "warm-key").await.unwrap();
+        assert_eq!(cold, None, "未预热时假阴性短路应返回 None");
+
+        // 回灌后：命中真实值
+        let count = backend.prefill_from_backend("*").await.unwrap();
+        assert_eq!(count, 1);
+        let warm = CacheReader::get(&backend, "warm-key").await.unwrap();
+        assert_eq!(warm, Some(b"warm-value".to_vec()));
+    }
+
+    /// prefill_from_keys 对未在 inner 的 key 仅产生假阳性（get 返回 None）而非 panic
+    #[tokio::test]
+    async fn prefill_from_keys_false_positive_only() {
+        let backend = BloomFilterBackend::new(DashMapMemoryBackend::new());
+        backend.prefill_from_keys(["ghost-key", "warm-key"]);
+        let ghost = CacheReader::get(&backend, "ghost-key").await.unwrap();
+        assert_eq!(
+            ghost, None,
+            "假阳性应退化为后端 miss，不得 panic 或错误命中"
+        );
     }
 }

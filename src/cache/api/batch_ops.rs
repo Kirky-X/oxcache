@@ -8,6 +8,7 @@ use crate::traits::CacheKey;
 use std::collections::HashMap;
 #[cfg(any(feature = "serialization", feature = "full"))]
 use std::sync::Arc;
+use std::time::Duration;
 
 impl<K, V> Cache<K, V>
 where
@@ -25,10 +26,9 @@ where
             let mut batch_items = Vec::new();
             for (key, value) in items {
                 let key_str = key.to_key_string();
-                let bytes = match serde_json::to_vec(value) {
-                    Ok(b) => b,
-                    Err(e) => return Err(OxCacheError::Serialization(e.to_string())),
-                };
+                // 经 UnifiedSerializer 序列化，与单条 set 同口径（审计 F13：
+                // 硬编码 JSON 会在二进制格式下与单条读写错配）
+                let bytes = self.unified_serializer.serialize(value)?;
                 batch_items.push((Arc::from(key_str), Arc::new(bytes), None));
             }
             self.backend.set_many(&batch_items).await
@@ -39,6 +39,42 @@ where
             let _ = items;
             Err(OxCacheError::Serialization(
                 "Serialization feature is required for typed set_many operations".to_string(),
+            ))
+        }
+    }
+
+    /// 批量写入并附带 per-entry TTL（经 `apply_jitter` 抖动，防同批同时过期）。
+    ///
+    /// `set_many`（无 TTL 语义）保持不变；本方法为需要批量预热且要求过期
+    /// 的场景提供抖动 TTL。
+    pub async fn set_many_with_ttl<'a, I>(
+        &self,
+        items: I,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()>
+    where
+        K: 'a,
+        V: 'a,
+        I: IntoIterator<Item = (&'a K, &'a V)>,
+    {
+        #[cfg(any(feature = "serialization", feature = "full"))]
+        {
+            let jittered = ttl.map(|t| self.apply_jitter(t));
+            let mut batch_items = Vec::new();
+            for (key, value) in items {
+                let key_str = key.to_key_string();
+                let bytes = self.unified_serializer.serialize(value)?;
+                batch_items.push((Arc::from(key_str), Arc::new(bytes), jittered));
+            }
+            self.backend.set_many(&batch_items).await
+        }
+
+        #[cfg(not(any(feature = "serialization", feature = "full")))]
+        {
+            let _ = (items, ttl);
+            Err(OxCacheError::Serialization(
+                "Serialization feature is required for typed set_many_with_ttl operations"
+                    .to_string(),
             ))
         }
     }
@@ -56,7 +92,8 @@ where
             let mut result = HashMap::new();
             for (key, value) in key_strings.into_iter().zip(values) {
                 if let Some(bytes) = value {
-                    match serde_json::from_slice::<V>(&bytes) {
+                    // 经 UnifiedSerializer 反序列化，与单条 get 同口径（审计 F13）
+                    match self.unified_serializer.deserialize::<V>(&bytes) {
                         Ok(decoded) => {
                             result.insert(key, decoded);
                         }

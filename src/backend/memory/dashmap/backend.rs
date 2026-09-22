@@ -75,6 +75,10 @@ pub struct DashMapMemoryBackend {
     capacity: usize,
     /// Default TTL for new entries
     default_ttl: Option<Duration>,
+    /// 字节预算上限（审计 F10：None = 不启用，条目数口径不变）
+    max_capacity_bytes: Option<u64>,
+    /// 当前字节占用近似值（Σ value.len()，最终一致）
+    bytes_used: Arc<AtomicU64>,
 }
 
 impl_backend_builder!(DashMapMemoryBackend, DashMapBackendBuilder);
@@ -85,13 +89,23 @@ impl DashMapMemoryBackend {
     /// 相比旧的 O(n) 全表扫描，这里每次只从队头弹出，摊销 O(1)。
     /// FIFO 中的条目带 `seq`：若 key 已被重新 set（seq 不匹配）或已删除，
     /// 该队列条目视为陈旧直接跳过。过期条目同样可以被淘汰。
+    ///
+    /// 触发条件（审计 F10）：条目数超 `capacity` **或**字节占用超
+    /// `max_capacity_bytes` 任一超标即持续淘汰，直到达标或达单次上限。
     fn evict_if_full(&self) {
         let batch = (self.capacity / EVICT_BATCH_RATIO).max(1);
         let now = Instant::now();
+        let byte_over = || {
+            self.max_capacity_bytes
+                .is_some_and(|max| self.bytes_used.load(Ordering::Relaxed) > max)
+        };
 
         let mut evicted = 0usize;
         loop {
-            if self.cache.len() <= self.capacity || evicted >= batch {
+            if evicted >= batch {
+                break;
+            }
+            if self.cache.len() <= self.capacity && !byte_over() {
                 break;
             }
             let (key, seq) = match self.fifo.lock().unwrap().pop_front() {
@@ -100,22 +114,23 @@ impl DashMapMemoryBackend {
             };
             // 淘汰条件：seq 匹配（未被 re-set）OR 条目已过期
             // 即使 seq 不匹配（re-set 过），如果已过期也应淘汰以释放内存
+            let mut removed_bytes = 0u64;
             let should_remove = self
                 .cache
                 .remove_if(&key, |_, entry| {
-                    if entry.seq == seq {
-                        return true;
+                    let evictable =
+                        entry.seq == seq || entry.expires_at.is_some_and(|exp| exp <= now);
+                    if evictable {
+                        removed_bytes = entry.value.len() as u64;
                     }
-                    // 即使 seq 不匹配，过期条目也应淘汰
-                    if let Some(exp) = entry.expires_at
-                        && exp <= now
-                    {
-                        return true;
-                    }
-                    false
+                    evictable
                 })
                 .is_some();
             if should_remove {
+                // 近似饱和扣减：并发窗口内短暂偏差与条目数口径一致
+                let cur = self.bytes_used.load(Ordering::Relaxed);
+                self.bytes_used
+                    .store(cur.saturating_sub(removed_bytes), Ordering::Relaxed);
                 evicted += 1;
             }
         }
@@ -287,6 +302,13 @@ impl CacheReader for DashMapMemoryBackend {
             self.misses.load(Ordering::Relaxed).to_string(),
         );
         stats.insert("hit_rate".to_string(), format!("{:.4}", self.hit_rate()));
+        stats.insert(
+            "bytes_used".to_string(),
+            self.bytes_used.load(Ordering::Relaxed).to_string(),
+        );
+        if let Some(max) = self.max_capacity_bytes {
+            stats.insert("max_capacity_bytes".to_string(), max.to_string());
+        }
         Ok(stats)
     }
 
@@ -312,6 +334,7 @@ impl CacheWriter for DashMapMemoryBackend {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
+        let value_len = value.len() as u64;
 
         let entry = CacheEntry {
             value,
@@ -322,9 +345,14 @@ impl CacheWriter for DashMapMemoryBackend {
         // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
         self.cache.insert(key.clone(), entry);
         self.fifo.lock().unwrap().push_back((key, seq));
+        self.bytes_used.fetch_add(value_len, Ordering::Relaxed);
 
-        // Evict if at capacity
-        if self.cache.len() > self.capacity {
+        // Evict if at entry capacity or over byte budget (审计 F10)
+        if self.cache.len() > self.capacity
+            || self
+                .max_capacity_bytes
+                .is_some_and(|max| self.bytes_used.load(Ordering::Relaxed) > max)
+        {
             self.evict_if_full();
         }
 
@@ -332,7 +360,13 @@ impl CacheWriter for DashMapMemoryBackend {
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
-        self.cache.remove(key);
+        if let Some((_, entry)) = self.cache.remove(key) {
+            let cur = self.bytes_used.load(Ordering::Relaxed);
+            self.bytes_used.store(
+                cur.saturating_sub(entry.value.len() as u64),
+                Ordering::Relaxed,
+            );
+        }
         // FIFO 中的陈旧条目（含被删 key 的字符串）依赖紧缩回收，
         // 删除路径主动检查一次，避免低于容量的删除密集负载下队列无限增长
         self.compact_fifo();
@@ -342,6 +376,7 @@ impl CacheWriter for DashMapMemoryBackend {
     async fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
         self.fifo.lock().unwrap().clear();
+        self.bytes_used.store(0, Ordering::Relaxed);
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
@@ -370,6 +405,7 @@ impl CacheConnector for DashMapMemoryBackend {
     async fn shutdown(&self) {
         self.cache.clear();
         self.fifo.lock().unwrap().clear();
+        self.bytes_used.store(0, Ordering::Relaxed);
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -496,6 +532,7 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
         let now = Instant::now();
         let expires_at = ttl.or(self.default_ttl).map(|duration| now + duration);
         let seq = self.next_seq.fetch_add(1, Ordering::SeqCst);
+        let value_len = value.len() as u64;
 
         let entry = CacheEntry {
             value,
@@ -506,9 +543,14 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
         // key 已是 Arc<str>，直接插入 + 记入 FIFO，零拷贝共享
         self.cache.insert(key.clone(), entry);
         self.fifo.lock().unwrap().push_back((key, seq));
+        self.bytes_used.fetch_add(value_len, Ordering::Relaxed);
 
-        // Evict if at capacity
-        if self.cache.len() > self.capacity {
+        // Evict if at entry capacity or over byte budget (审计 F10)
+        if self.cache.len() > self.capacity
+            || self
+                .max_capacity_bytes
+                .is_some_and(|max| self.bytes_used.load(Ordering::Relaxed) > max)
+        {
             self.evict_if_full();
         }
 
@@ -516,7 +558,13 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
     }
 
     fn delete(&self, key: &str) -> OxCacheResult<()> {
-        self.cache.remove(key);
+        if let Some((_, entry)) = self.cache.remove(key) {
+            let cur = self.bytes_used.load(Ordering::Relaxed);
+            self.bytes_used.store(
+                cur.saturating_sub(entry.value.len() as u64),
+                Ordering::Relaxed,
+            );
+        }
         // FIFO 中的陈旧条目（含被删 key 的字符串）依赖紧缩回收，
         // 删除路径主动检查一次，避免低于容量的删除密集负载下队列无限增长
         self.compact_fifo();
@@ -526,6 +574,7 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
     fn clear(&self) -> OxCacheResult<()> {
         self.cache.clear();
         self.fifo.lock().unwrap().clear();
+        self.bytes_used.store(0, Ordering::Relaxed);
         self.hits.store(0, Ordering::Relaxed);
         self.misses.store(0, Ordering::Relaxed);
         Ok(())
@@ -553,6 +602,7 @@ impl crate::backend::interface::SyncCacheConnector for DashMapMemoryBackend {
     fn shutdown(&self) {
         self.cache.clear();
         self.fifo.lock().unwrap().clear();
+        self.bytes_used.store(0, Ordering::Relaxed);
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -581,6 +631,7 @@ impl BackendScore for DashMapMemoryBackend {
 pub struct DashMapBackendBuilder {
     capacity: usize,
     default_ttl: Option<Duration>,
+    max_capacity_bytes: Option<u64>,
 }
 
 impl DashMapBackendBuilder {
@@ -593,6 +644,16 @@ impl DashMapBackendBuilder {
     /// Set the default TTL for new entries
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
+        self
+    }
+
+    /// Set the byte budget for the cache.
+    ///
+    /// 审计 F10：条目数上限按条计不按字节，大值场景会内存超卖。设置后写入
+    /// 路径记账 Σvalue 字节数，条目数**或**字节任一超标即触发 FIFO 淘汰。
+    /// 未设置（默认）时行为与现状一致。
+    pub fn max_capacity_bytes(mut self, max_capacity_bytes: u64) -> Self {
+        self.max_capacity_bytes = Some(max_capacity_bytes.max(1));
         self
     }
 
@@ -613,6 +674,8 @@ impl DashMapBackendBuilder {
             misses: Arc::new(AtomicUsize::new(0)),
             capacity,
             default_ttl: self.default_ttl,
+            max_capacity_bytes: self.max_capacity_bytes,
+            bytes_used: Arc::new(AtomicU64::new(0)),
         }
     }
 }
@@ -1211,5 +1274,90 @@ mod tests {
             assert_eq!(connector.backend_kind(), BackendKind::DashMap);
             connector.shutdown();
         }
+    }
+}
+
+#[cfg(test)]
+mod byte_budget_tests {
+    use super::*;
+
+    fn budget_backend(max_bytes: u64) -> DashMapMemoryBackend {
+        DashMapMemoryBackend::builder()
+            .capacity(10_000)
+            .max_capacity_bytes(max_bytes)
+            .build()
+    }
+
+    /// 审计 F10：字节预算下 16 × 8KB 写入 64KB 预算必须触发淘汰（≤ 10 条）
+    #[tokio::test]
+    async fn byte_budget_bounds_entry_count() {
+        let backend = budget_backend(64 * 1024);
+        let eight_kb = vec![0u8; 8 * 1024];
+        for i in 0..16u32 {
+            let key = Arc::from(format!("dashmap-budget-k{i}").as_str());
+            backend
+                .set(key, Arc::new(eight_kb.clone()), None)
+                .await
+                .unwrap();
+        }
+        let count = backend.entry_count();
+        assert!(count <= 10, "64KB 预算 + 8KB 值应 ≤ ~9 条，实际 {count}");
+        let used = backend.bytes_used.load(Ordering::Relaxed);
+        assert!(used <= 72 * 1024, "bytes_used {used} 不得超过预算+单批余量");
+    }
+
+    /// delete 精确递减字节记账；clear 归零
+    #[tokio::test]
+    async fn byte_accounting_on_delete_and_clear() {
+        let backend = budget_backend(64 * 1024);
+        let eight_kb = vec![0u8; 8 * 1024];
+        for i in 0..4u32 {
+            let key = Arc::from(format!("dashmap-acc-k{i}").as_str());
+            backend
+                .set(key, Arc::new(eight_kb.clone()), None)
+                .await
+                .unwrap();
+        }
+        assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 32 * 1024);
+
+        backend.delete("dashmap-acc-k0").await.unwrap();
+        assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 24 * 1024);
+
+        backend.clear().await.unwrap();
+        assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 0);
+    }
+
+    /// 未设置字节预算时条目数口径不变（行为回归）
+    #[tokio::test]
+    async fn default_entry_capacity_unchanged() {
+        let backend = DashMapMemoryBackend::builder().capacity(10).build();
+        for i in 0..25u32 {
+            let key = Arc::from(format!("dashmap-entry-cap-k{i}").as_str());
+            backend
+                .set(key, Arc::new(vec![1u8; 64]), None)
+                .await
+                .unwrap();
+        }
+        assert!(
+            backend.entry_count() <= 12,
+            "条目数口径 10 条预算应 ≤ ~12 条"
+        );
+    }
+
+    /// sync 路径与 async 路径共用同一记账
+    #[test]
+    fn sync_set_delete_tracks_bytes() {
+        let backend = budget_backend(64 * 1024);
+        use crate::backend::SyncCacheWriter;
+        SyncCacheWriter::set(
+            &backend,
+            Arc::from(String::from("sync-acc-k")),
+            Arc::new(vec![0u8; 8 * 1024]),
+            None,
+        )
+        .unwrap();
+        assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 8 * 1024);
+        SyncCacheWriter::delete(&backend, "sync-acc-k").unwrap();
+        assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 0);
     }
 }

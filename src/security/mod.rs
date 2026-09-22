@@ -14,6 +14,14 @@
 //!
 //! 这些验证函数是内部 API，仅供 crate 内部使用。
 //! 外部用户应通过缓存 API 的安全封装来受益于这些验证。
+//!
+//! # 键校验挂载点（opt-in）
+//!
+//! 本模块的键校验（512KB 上限 / CR-LF-NUL 危险字符）为**装饰器 opt-in**：
+//! 默认 `Cache::get/set` 不做键校验（热路径零开销优先）。生产环境建议经
+//! security 装饰器挂载校验，或调用方在入口层使用 [`crate::security`] 导出的
+//! `validate_not_empty` / `validate_max_length` / `validate_no_dangerous_chars`
+//! 自行校验。
 
 #![allow(unused_doc_comments)]
 

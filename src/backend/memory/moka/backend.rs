@@ -574,6 +574,7 @@ impl MokaMemoryBackend {
 #[derive(Default)]
 pub struct MokaMemoryBackendBuilder {
     capacity: u64,
+    max_capacity_bytes: Option<u64>,
     ttl: Option<Duration>,
     time_to_idle: Option<Duration>,
 }
@@ -582,6 +583,17 @@ impl MokaMemoryBackendBuilder {
     /// Set the maximum number of entries
     pub fn capacity(mut self, capacity: u64) -> Self {
         self.capacity = capacity;
+        self
+    }
+
+    /// Set the byte budget for the cache.
+    ///
+    /// 审计 F10：条目数上限在大值场景下会内存超卖（单值上限 5MB × 10k 条目
+    /// 理论可达 50GB）。设置后 moka `max_capacity` 单位切换为字节（weigher 按
+    /// value 字节长计权），条目数隐式受"每条至少 1 字节"约束；`capacity`
+    /// 被忽略。未设置（默认）时行为与现状一致。
+    pub fn max_capacity_bytes(mut self, max_capacity_bytes: u64) -> Self {
+        self.max_capacity_bytes = Some(max_capacity_bytes.max(1));
         self
     }
 
@@ -599,16 +611,29 @@ impl MokaMemoryBackendBuilder {
 
     /// Build the Moka backend
     pub fn build(self) -> MokaMemoryBackend {
-        // Use a reasonable default capacity if not set
-        let capacity = if self.capacity > 0 {
-            self.capacity
-        } else {
-            10_000 // Default capacity of 10,000 entries
+        // 字节预算优先（审计 F10）：weigher 按 value 字节长计权，容量单位切换为字节；
+        // 未设置时按条目数（默认 10_000）
+        let (capacity, weigher) = match self.max_capacity_bytes {
+            Some(bytes) => (bytes, true),
+            None => (
+                if self.capacity > 0 {
+                    self.capacity
+                } else {
+                    10_000
+                },
+                false,
+            ),
         };
 
         let mut builder = moka::future::Cache::builder()
             .max_capacity(capacity)
             .expire_after(MokaExpiry);
+
+        if weigher {
+            builder = builder.weigher(|_k: &Arc<str>, v: &MokaEntry| {
+                v.value.len().min(u32::MAX as usize) as u32
+            });
+        }
 
         if let Some(ttl) = self.ttl {
             builder = builder.time_to_live(ttl);
@@ -1217,5 +1242,50 @@ mod tests {
         )
         .unwrap();
         assert!(!ok);
+    }
+}
+
+#[cfg(test)]
+mod byte_budget_tests {
+    use super::*;
+
+    /// 审计 F10：字节预算下内存不得超卖（1MB 预算 × 10KB 值 → 上界 ~105 条）
+    #[tokio::test]
+    async fn byte_budget_bounds_entry_count() {
+        let backend = MokaMemoryBackend::builder()
+            .max_capacity_bytes(1024 * 1024)
+            .build();
+        let ten_kb = vec![0u8; 10 * 1024];
+        for i in 0..200u32 {
+            let key = Arc::from(format!("byte-budget-k{i}").as_str());
+            backend
+                .set(key, Arc::new(ten_kb.clone()), None)
+                .await
+                .unwrap();
+        }
+        // moka 惰性维护：先执行待处理任务再读取最终一致的条目数
+        backend.cache.run_pending_tasks().await;
+        let count = backend.entry_count();
+        assert!(
+            count <= 110,
+            "1MB 预算 + 10KB 值应 ≤ ~105 条，实际 {count}（条目数口径会到 200 → 内存超卖）"
+        );
+        assert!(count > 0, "预算缓存不应为空");
+    }
+
+    /// 未设置字节预算时保持条目数口径（行为不变）
+    #[tokio::test]
+    async fn default_capacity_semantics_unchanged() {
+        let backend = MokaMemoryBackend::builder().capacity(10).build();
+        for i in 0..25u32 {
+            let key = Arc::from(format!("entry-cap-k{i}").as_str());
+            backend
+                .set(key, Arc::new(vec![1u8; 64]), None)
+                .await
+                .unwrap();
+        }
+        backend.cache.run_pending_tasks().await;
+        let count = backend.entry_count();
+        assert!(count <= 12, "条目数口径 10 条预算应 ≤ ~12 条，实际 {count}");
     }
 }

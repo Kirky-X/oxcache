@@ -39,9 +39,16 @@ impl BloomFilter {
 
     /// Check if `key` may be present.
     ///
-    /// Bloom filters have no false negatives: every inserted key returns
-    /// `true`. Non-inserted keys usually return `false` but may return `true`
-    /// (false positive) at the configured rate.
+    /// 对**本过滤器的 insert 集合**无假阴性：每个 insert 过的 key 恒返回
+    /// `true`。未插入的 key 通常返回 `false`，也可能返回 `true`（误判率
+    /// 为配置的 false positive rate）。
+    ///
+    /// # 进程边界（重要）
+    ///
+    /// 过滤器状态为进程内存：进程重启即清零、多实例各自独立、不随后端
+    /// 持久化。对共享持久后端（如 Redis）中"已存在但不在本进程插入集合
+    /// 内"的 key，`contains` 返回 `false` 属于假阴性——装饰器会据此短路
+    /// 返回 miss。重启 / 多实例部署后必须预热对齐（prefill）。
     pub fn contains(&self, key: &str) -> bool {
         let state = self.state.read().unwrap();
         state.bloom.check(key)

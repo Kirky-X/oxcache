@@ -314,8 +314,9 @@ async fn test_ttl_jitter_applied() {
 
 #[tokio::test]
 async fn test_ttl_jitter_zero_no_change() {
-    // factor = 0.0 (default) — TTL should not be modified
-    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+    // 显式关闭抖动（ttl_jitter(0.0)）— TTL should not be modified.
+    // 默认因子已是 0.1（审计 F06），默认行为见 test_ttl_jitter_default_on。
+    let cache: Cache<String, String> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
 
     let base_ttl = Duration::from_secs(60);
     cache
@@ -332,6 +333,33 @@ async fn test_ttl_jitter_zero_no_change() {
     assert!(
         remaining > Duration::from_secs(58) && remaining <= Duration::from_secs(60),
         "with zero jitter, TTL should remain close to base: {:?}",
+        remaining
+    );
+}
+
+#[tokio::test]
+async fn test_ttl_jitter_default_on() {
+    // 审计 F06：默认因子 0.1 → 60s 的实际 TTL 落在 [54s, 66s)
+    let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+
+    let base_ttl = Duration::from_secs(60);
+    cache
+        .set_with_ttl(
+            &"jittered-key".to_string(),
+            &"v".to_string(),
+            Some(base_ttl),
+        )
+        .await
+        .unwrap();
+
+    let remaining = cache
+        .ttl(&"jittered-key".to_string())
+        .await
+        .unwrap()
+        .expect("key should exist");
+    assert!(
+        remaining >= Duration::from_secs(54) && remaining < Duration::from_secs(66),
+        "with default jitter 0.1, TTL should be in [54s, 66s): {:?}",
         remaining
     );
 }

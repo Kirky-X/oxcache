@@ -211,6 +211,10 @@ macro_rules! check_feature_dependence {
 mod core;
 pub mod error;
 
+// #[cached] 宏 single-flight 支撑设施（分片注册表 + panic 守卫 + watch flight
+// 信号）。宏生成代码按路径引用，必须始终编译（无 feature 门）。
+pub mod macro_support;
+
 // 同步字节权重缓存（tokio-free 直连 moka::sync）：L1 场景按字节预算控容量，
 // single-flight + 单条准入阈值 + 命中统计（Mirrors limiteron sync module pattern）
 #[cfg(feature = "byte-weight")]

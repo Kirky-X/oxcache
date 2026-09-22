@@ -38,7 +38,7 @@ where
             #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
             null_cache_ttl: None,
-            ttl_jitter_factor: 0.0,
+            ttl_jitter_factor: crate::core::constants::DEFAULT_TTL_JITTER_FACTOR,
             #[cfg(feature = "metrics")]
             metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
             #[cfg(feature = "audit")]
@@ -149,7 +149,7 @@ where
             #[cfg(any(feature = "serialization", feature = "full"))]
             unified_serializer: UnifiedSerializer::json(),
             null_cache_ttl: None,
-            ttl_jitter_factor: 0.0,
+            ttl_jitter_factor: crate::core::constants::DEFAULT_TTL_JITTER_FACTOR,
             #[cfg(feature = "metrics")]
             metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
             #[cfg(feature = "audit")]

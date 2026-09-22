@@ -169,3 +169,90 @@ async fn single_flight_deduplicates_concurrent_misses() {
         "single_flight should limit source calls to ~1, got {call_count}"
     );
 }
+
+// ============================================================================
+// single_flight panic recovery & sharding（审计 F04 回归）
+// ============================================================================
+
+static SF_PANIC_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[cached(service = "single_flight_panic_svc", single_flight)]
+async fn sf_panic_fn(id: u64) -> Result<u64, String> {
+    let n = SF_PANIC_CALLS.fetch_add(1, Ordering::SeqCst);
+    if n == 0 {
+        panic!("simulated leader panic");
+    }
+    Ok(id * 100)
+}
+
+/// Leader panic 后：注册表条目必须被守卫清理，同 key 后续调用重新执行而非
+/// 永久成为等待已死信号的 follower（修复前：key 级永久死锁）。
+#[tokio::test]
+#[serial]
+async fn single_flight_recovers_after_leader_panic() {
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+    cache
+        .register_for_macro("single_flight_panic_svc")
+        .await
+        .unwrap();
+    SF_PANIC_CALLS.store(0, Ordering::SeqCst);
+
+    // First call: leader panics inside the spawned task (JoinError expected)
+    let first = tokio::spawn(async { sf_panic_fn(7).await });
+    assert!(first.await.is_err(), "首次调用应因 leader panic 失败");
+
+    // Second call must re-execute and succeed within timeout
+    let second = tokio::time::timeout(tokio::time::Duration::from_secs(2), sf_panic_fn(7)).await;
+    assert!(
+        second.is_ok(),
+        "leader panic 后同 key 不得永久死锁（follower 丢失唤醒/条目残留）"
+    );
+    assert_eq!(second.unwrap().unwrap(), 700);
+    assert_eq!(
+        SF_PANIC_CALLS.load(Ordering::SeqCst),
+        2,
+        "panic 后应重新执行底层函数"
+    );
+}
+
+static SF_MULTI_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[cached(service = "single_flight_multi_svc", single_flight)]
+async fn sf_multi_fn(id: u64) -> Result<u64, String> {
+    SF_MULTI_CALLS.fetch_add(1, Ordering::SeqCst);
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    Ok(id + 1)
+}
+
+/// 分片活性行为：多 key 并发 single_flight 全部完成且各 key 恰执行一次
+///（防止回退为单把全局锁时引入的争用/死锁回归）。
+#[tokio::test]
+#[serial]
+async fn single_flight_concurrent_distinct_keys_all_complete() {
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await.unwrap();
+    cache
+        .register_for_macro("single_flight_multi_svc")
+        .await
+        .unwrap();
+    SF_MULTI_CALLS.store(0, Ordering::SeqCst);
+
+    let mut handles = Vec::new();
+    for i in 0..32u64 {
+        handles.push(tokio::spawn(async move {
+            let fut = sf_multi_fn(i);
+            tokio::time::timeout(tokio::time::Duration::from_secs(5), fut)
+                .await
+                .expect("key 任务不得挂起")
+                .unwrap()
+        }));
+    }
+    for (i, h) in handles.into_iter().enumerate() {
+        assert_eq!(h.await.unwrap(), i as u64 + 1);
+    }
+
+    let calls = SF_MULTI_CALLS.load(Ordering::SeqCst);
+    assert!(
+        (16..=32).contains(&calls),
+        "distinct-key 并发应分散执行（分片生效），got {calls}/32"
+    );
+}

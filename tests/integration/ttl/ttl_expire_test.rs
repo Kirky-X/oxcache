@@ -196,7 +196,13 @@ async fn test_cache_ttl_sync_returns_none_for_no_ttl_key() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_cache_ttl_sync_returns_remaining_for_ttl_key() {
-    let cache: Cache<String, Token> = Cache::builder().sync_mode(true).build().await.unwrap();
+    // 断言精确 TTL 窗口：显式关闭默认抖动（审计 F06）
+    let cache: Cache<String, Token> = Cache::builder()
+        .sync_mode(true)
+        .ttl_jitter(0.0)
+        .build()
+        .await
+        .unwrap();
     cache
         .set_with_ttl_sync(
             &"with_ttl".to_string(),

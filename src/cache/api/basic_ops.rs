@@ -5,18 +5,20 @@
 use super::Cache;
 use crate::core::constants::NULL_SENTINEL;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::macro_support::{AsyncSfGuard, shard_index as global_shard_index};
 use crate::traits::CacheKey;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
+use tokio::sync::watch;
 
 /// 分片数量（2 的幂，通过掩码路由）
-const GET_OR_LOCK_SHARDS: usize = 64;
-const GET_OR_LOCK_MASK: usize = GET_OR_LOCK_SHARDS - 1;
+const GET_OR_LOCK_SHARDS: usize = crate::macro_support::SF_SHARDS;
 
-/// 单个 get_or 分片的存储类型：key → 该 key 的 leader 通知器
-type GetOrShard = Mutex<HashMap<String, Arc<tokio::sync::Notify>>>;
+/// 单个 get_or 分片的存储类型：key → 该 key 的 flight 完成信号
+type GetOrShard = Mutex<HashMap<String, std::sync::Arc<watch::Sender<()>>>>;
 
 /// 全局 get_or 去重锁，防止缓存击穿（thundering herd）。
 /// 当多个并发请求同时调用 `get_or` 且缓存未命中时，
@@ -24,40 +26,22 @@ type GetOrShard = Mutex<HashMap<String, Arc<tokio::sync::Notify>>>;
 ///
 /// 使用 64 路分片（按 key hash 路由），避免所有 key 竞争同一把 Mutex，
 /// 消除全局锁热点（问题 3.1）。
+///
+/// # 进程边界
+///
+/// 本注册表为**进程级**：多实例部署时各进程各自去重，跨实例合并需配合
+/// `crate::features::dist_lock` 在 fallback 外层加分布式锁，例如：
+///
+/// ```text
+/// let _lock = dist_lock.acquire(key).await?;   // 跨实例 leader 选举
+/// cache.get_or(&key, || load_from_db(key)).await?  // 进程内合并
+/// ```
 static GET_OR_LOCKS: Lazy<[GetOrShard; GET_OR_LOCK_SHARDS]> =
     Lazy::new(|| std::array::from_fn(|_| Mutex::new(HashMap::new())));
 
-/// 计算 key 对应的分片索引
+/// 计算 key 对应的分片索引（复用 macro_support 单一实现）
 fn get_or_shard_index(key: &str) -> usize {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    key.hash(&mut hasher);
-    (hasher.finish() as usize) & GET_OR_LOCK_MASK
-}
-
-/// 用于 panic 安全地清理 GET_OR_LOCKS 中的条目，并唤醒等待的 follower。
-///
-/// 如果 leader 在插入条目后 panic（或通过 `?` 提前返回），此守卫会在 Drop 时
-/// 移除该条目并调用 notify_waiters()，防止 follower 永远等待（死锁）或锁条目
-/// 永久残留导致后续所有 get_or 调用死锁。
-struct GetOrGuard<'a> {
-    map: &'a Mutex<HashMap<String, Arc<tokio::sync::Notify>>>,
-    key: String,
-    notify: Arc<tokio::sync::Notify>,
-    removed: bool,
-}
-
-impl Drop for GetOrGuard<'_> {
-    fn drop(&mut self) {
-        if !self.removed {
-            if let Ok(mut map) = self.map.lock() {
-                map.remove(&self.key);
-            }
-            // 唤醒已注册的 follower：即使 leader 未写入结果，
-            // follower 也会醒来并返回清晰的错误，而非永久挂起。
-            self.notify.notify_waiters();
-        }
-    }
+    global_shard_index(key)
 }
 
 // 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
@@ -322,6 +306,39 @@ where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = OxCacheResult<V>>,
     {
+        self.get_or_core(key, None, fallback).await
+    }
+
+    /// get-or-compute with a per-entry TTL for the cached value.
+    ///
+    /// 与 [`Self::get_or`] 语义一致，区别仅在于 fallback 成功后经
+    /// [`Self::set_with_ttl`] 写入（TTL 经 `apply_jitter` 抖动）。避免
+    /// `get_or` 主值永不过期（审计 F09：Redis 后端将产生永久键）。
+    pub async fn get_or_with_ttl<F, Fut>(
+        &self,
+        key: &K,
+        ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = OxCacheResult<V>>,
+    {
+        self.get_or_core(key, ttl, fallback).await
+    }
+
+    /// `get_or` / `get_or_with_ttl` 的共享实现：`value_ttl=None` 保持旧路径
+    /// 行为（无 TTL），`Some` 经 `apply_jitter` 抖动后写入。
+    async fn get_or_core<F, Fut>(
+        &self,
+        key: &K,
+        value_ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = OxCacheResult<V>>,
+    {
         // 快速路径：缓存命中
         if let Some(value) = self.get(key).await? {
             return Ok(value);
@@ -330,94 +347,71 @@ where
         let key_str = key.to_key_string();
         let shard_index = get_or_shard_index(&key_str);
 
-        // 尝试注册为 leader；如果 key 已存在则成为 follower
-        // 注意：锁必须在 await 之前释放，避免 await_holding_lock
-        let (is_follower, notify) = {
+        // 注册为 leader 或成为 follower。锁在 match 结束即释放，不跨 await。
+        //
+        // follower 侧 `subscribe()` 返回 owned Receiver，watch 的版本比对
+        // 语义保证"leader 先完成、follower 后 changed()"仍立即返回——不存在
+        // `Notify::notify_waiters` 在注册与首次 poll 之间丢失唤醒的窗口（审计 F03）。
+        enum FlightReg {
+            Leader(Arc<watch::Sender<()>>),
+            Follower(watch::Receiver<()>),
+        }
+        let reg = {
             let shard = &GET_OR_LOCKS[shard_index];
             let mut map = shard
                 .lock()
                 .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected");
             match map.entry(key_str.clone()) {
                 std::collections::hash_map::Entry::Occupied(entry) => {
-                    // 已有其他请求在执行 fallback，等待结果
-                    (true, entry.get().clone())
+                    // 已有其他请求在执行 fallback，订阅其完成信号
+                    FlightReg::Follower(entry.get().subscribe())
                 }
                 std::collections::hash_map::Entry::Vacant(entry) => {
-                    let n = Arc::new(tokio::sync::Notify::new());
-                    entry.insert(n.clone());
-                    (false, n)
+                    let (tx, _rx) = watch::channel(());
+                    let tx = Arc::new(tx);
+                    entry.insert(tx.clone());
+                    FlightReg::Leader(tx)
                 }
             }
-        }; // 锁在此处释放
-
-        if is_follower {
-            // follower：等待 leader 完成后获取结果
-            notify.notified().await;
-            // leader 应将结果写入缓存
-            return self.get(key).await?.ok_or_else(|| {
-                OxCacheError::L1Error(
-                    "get_or: concurrent fetch leader failed to cache result".to_string(),
-                )
-            });
-        }
-
-        // 创建 panic 安全守卫，确保 leader 即使在 panic 时也会清理锁条目
-        let mut guard = GetOrGuard {
-            map: &GET_OR_LOCKS[shard_index],
-            key: key_str.clone(),
-            notify: notify.clone(),
-            removed: false,
         };
 
-        // leader：二次检查缓存（避免与另一个刚刚完成的 leader 竞争）
-        if let Some(value) = self.get(key).await? {
-            GET_OR_LOCKS[shard_index]
-                .lock()
-                .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
-                .remove(&key_str);
-            guard.removed = true;
-            notify.notify_waiters();
-            return Ok(value);
-        }
-
-        self.execute_fallback(key, &key_str, shard_index, fallback, &notify, &mut guard)
-            .await
-    }
-
-    /// Execute the fallback function and notify waiters of the result.
-    async fn execute_fallback<F, Fut>(
-        &self,
-        key: &K,
-        key_str: &str,
-        shard_index: usize,
-        fallback: F,
-        notify: &Arc<tokio::sync::Notify>,
-        guard: &mut GetOrGuard<'_>,
-    ) -> OxCacheResult<V>
-    where
-        F: FnOnce() -> Fut,
-        Fut: std::future::Future<Output = OxCacheResult<V>>,
-    {
-        let result = fallback().await;
-        match result {
-            Ok(value) => {
-                self.set(key, &value).await?;
-                GET_OR_LOCKS[shard_index]
-                    .lock()
-                    .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
-                    .remove(key_str);
-                guard.removed = true;
-                notify.notify_waiters();
-                Ok(value)
+        match reg {
+            FlightReg::Follower(mut rx) => {
+                // 等待 leader 完成（信号发送或通道关闭均放行），随后读缓存
+                let _ = rx.changed().await;
+                // leader 应将结果写入缓存
+                self.get(key).await?.ok_or_else(|| {
+                    OxCacheError::L1Error(
+                        "get_or: concurrent fetch leader failed to cache result".to_string(),
+                    )
+                })
             }
-            Err(e) => {
-                GET_OR_LOCKS[shard_index]
-                    .lock()
-                    .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected")
-                    .remove(key_str);
-                guard.removed = true;
-                notify.notify_waiters();
-                Err(e)
+            FlightReg::Leader(signal) => {
+                // panic 安全守卫：panic / 早退时 Drop 兜底移除条目并放行等待者
+                let mut guard =
+                    AsyncSfGuard::new(&GET_OR_LOCKS, shard_index, key_str.clone(), signal);
+
+                // leader：二次检查缓存（避免与另一个刚刚完成的 leader 竞争）
+                if let Some(value) = self.get(key).await? {
+                    guard.finish();
+                    return Ok(value);
+                }
+
+                let result = fallback().await;
+                match result {
+                    Ok(value) => {
+                        match value_ttl {
+                            Some(ttl) => self.set_with_ttl(key, &value, Some(ttl)).await?,
+                            None => self.set(key, &value).await?,
+                        }
+                        guard.finish();
+                        Ok(value)
+                    }
+                    Err(e) => {
+                        guard.finish();
+                        Err(e)
+                    }
+                }
             }
         }
     }
@@ -425,23 +419,25 @@ where
     /// Apply TTL jitter based on the configured jitter factor.
     ///
     /// When `ttl_jitter_factor` is 0.0, returns the original TTL unchanged.
-    /// Otherwise, returns `base_ttl * (1.0 + uniform(-factor, factor))` using
-    /// a fast pseudo-random calculation based on the system clock.
-    fn apply_jitter(&self, ttl: Duration) -> Duration {
+    /// Otherwise, returns `base_ttl * (1.0 + uniform(-factor, factor))`.
+    ///
+    /// 随机源为静态原子状态 + `Instant` 单调纳秒混合的 xorshift（审计 F07）：
+    /// 弃用 SystemTime——NTP 回拨时其 seed 恒为 0，所有 key 同时取得最小 TTL，
+    /// 反而制造相关性雪崩。单调时钟不可回拨，且无锁开销。
+    pub(super) fn apply_jitter(&self, ttl: Duration) -> Duration {
         if self.ttl_jitter_factor <= 0.0 {
             return ttl;
         }
-        let millis = ttl.as_millis() as f64;
-        // Fast PRNG: combine system clock with a hash multiplier
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        let seed = (now.subsec_nanos() as u64)
-            .wrapping_mul(now.as_secs().wrapping_add(1))
-            .wrapping_mul(6364136223846793005);
-        // Map to [-factor, +factor]
-        let uniform = (seed % 20001) as f64 / 10000.0 - 1.0;
-        let jittered = millis * (1.0 + self.ttl_jitter_factor * uniform);
+        static JITTER_STATE: AtomicU64 = AtomicU64::new(0x9E37_79B9_7F4A_7C15);
+        let mut s = JITTER_STATE
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(std::time::Instant::now().elapsed().subsec_nanos() as u64 | 1);
+        // xorshift64 混合（Marsaglia）；仅用于抖动分布，无需密码学强度
+        s ^= s >> 12;
+        s ^= s << 25;
+        s ^= s >> 27;
+        let uniform = (s % 20_001) as f64 / 10_000.0 - 1.0;
+        let jittered = ttl.as_millis() as f64 * (1.0 + self.ttl_jitter_factor * uniform);
         Duration::from_millis(jittered.max(1.0) as u64)
     }
 
@@ -457,108 +453,149 @@ where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = OxCacheResult<Option<V>>>,
     {
+        self.get_or_option_core(key, None, false, fallback).await
+    }
+
+    /// get-or-compute with per-entry TTL for the cached value AND jittered null
+    /// sentinel TTL.
+    ///
+    /// 与 [`Self::get_or_option`] 语义一致，区别在于：真实值经
+    /// [`Self::set_with_ttl`] 写入（抖动），空值哨兵 TTL 同样过 `apply_jitter`
+    /// ——攻击突发产生的同批哨兵不会同时过期（审计 F09）。
+    pub async fn get_or_option_with_ttl<F, Fut>(
+        &self,
+        key: &K,
+        ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = OxCacheResult<Option<V>>>,
+    {
+        self.get_or_option_core(key, ttl, true, fallback).await
+    }
+
+    /// `get_or_option` / `get_or_option_with_ttl` 的共享实现。
+    async fn get_or_option_core<F, Fut>(
+        &self,
+        key: &K,
+        value_ttl: Option<Duration>,
+        jitter_sentinel: bool,
+        fallback: F,
+    ) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = OxCacheResult<Option<V>>>,
+    {
         // Fast path: cache hit (returns None for null sentinel too)
         if let Some(value) = self.get(key).await? {
             return Ok(Some(value));
         }
 
-        // Check if this is a null sentinel hit (key exists but value is sentinel)
+        // Check if this is a null sentinel hit (key exists but value is sentinel).
+        // 哨兵判定用 get + 字节比对而非 exists（审计 F02）：exists 无法区分
+        // 哨兵与真实值——get miss 后并发写入真实值会被 exists 误判为"哨兵有效"
+        // 而返回 Ok(None)；get + 比对在竞态命中时直接返回真实值。
         let key_str = key.to_key_string();
-        if self.null_cache_ttl.is_some() && self.backend.exists(&key_str).await? {
-            // Null sentinel is still valid — don't call fallback
-            return Ok(None);
+        if self.null_cache_ttl.is_some()
+            && let Some(bytes) = self.backend.get(&key_str).await?
+        {
+            if bytes.as_slice() == NULL_SENTINEL {
+                return Ok(None);
+            }
+            return self.unified_serializer.deserialize(&bytes).map(Some);
         }
 
         let shard_index = get_or_shard_index(&key_str);
 
-        // Single-flight: register as leader or become follower
-        let (is_follower, notify) = {
+        // Single-flight: register as leader or become follower.
+        // watch 订阅语义保证 follower 不丢失唤醒（审计 F03），锁不跨 await。
+        enum FlightReg {
+            Leader(Arc<watch::Sender<()>>),
+            Follower(watch::Receiver<()>),
+        }
+        let reg = {
             let shard = &GET_OR_LOCKS[shard_index];
             let mut map = shard
                 .lock()
                 .expect("GET_OR_LOCKS poisoned - concurrent operation panic detected");
             match map.entry(key_str.clone()) {
-                std::collections::hash_map::Entry::Occupied(entry) => (true, entry.get().clone()),
+                std::collections::hash_map::Entry::Occupied(entry) => {
+                    FlightReg::Follower(entry.get().subscribe())
+                }
                 std::collections::hash_map::Entry::Vacant(entry) => {
-                    let n = Arc::new(tokio::sync::Notify::new());
-                    entry.insert(n.clone());
-                    (false, n)
+                    let (tx, _rx) = watch::channel(());
+                    let tx = Arc::new(tx);
+                    entry.insert(tx.clone());
+                    FlightReg::Leader(tx)
                 }
             }
         };
 
-        if is_follower {
-            notify.notified().await;
-            // Re-check cache after leader completes
-            if let Some(value) = self.get(key).await? {
-                return Ok(Some(value));
-            }
-            // Leader cached a null sentinel or fallback failed
-            if self.null_cache_ttl.is_some() && self.backend.exists(&key_str).await? {
-                return Ok(None);
-            }
-            return Err(OxCacheError::L1Error(
-                "get_or_option: concurrent fetch leader failed to cache result".to_string(),
-            ));
-        }
-
-        // Leader path with double-check
-        let mut guard = GetOrGuard {
-            map: &GET_OR_LOCKS[shard_index],
-            key: key_str.clone(),
-            notify: notify.clone(),
-            removed: false,
-        };
-
-        if let Some(value) = self.get(key).await? {
-            GET_OR_LOCKS[shard_index]
-                .lock()
-                .expect("GET_OR_LOCKS poisoned")
-                .remove(&key_str);
-            guard.removed = true;
-            notify.notify_waiters();
-            return Ok(Some(value));
-        }
-
-        let result = fallback().await;
-        match result {
-            Ok(Some(value)) => {
-                self.set(key, &value).await?;
-                GET_OR_LOCKS[shard_index]
-                    .lock()
-                    .expect("GET_OR_LOCKS poisoned")
-                    .remove(&key_str);
-                guard.removed = true;
-                notify.notify_waiters();
-                Ok(Some(value))
-            }
-            Ok(None) => {
-                // Cache null sentinel if null_cache_ttl is configured
-                if let Some(null_ttl) = self.null_cache_ttl {
-                    self.backend
-                        .set(
-                            Arc::from(key_str.as_str()),
-                            Arc::new(NULL_SENTINEL.to_vec()),
-                            Some(null_ttl),
-                        )
-                        .await?;
+        match reg {
+            FlightReg::Follower(mut rx) => {
+                // Re-check cache after leader completes
+                let _ = rx.changed().await;
+                if let Some(value) = self.get(key).await? {
+                    return Ok(Some(value));
                 }
-                GET_OR_LOCKS[shard_index]
-                    .lock()
-                    .expect("GET_OR_LOCKS poisoned")
-                    .remove(&key_str);
-                guard.removed = true;
-                notify.notify_waiters();
-                Ok(None)
+                // Leader cached a null sentinel or fallback failed（get + 字节比对，审计 F02）
+                if self.null_cache_ttl.is_some()
+                    && let Some(bytes) = self.backend.get(&key_str).await?
+                    && bytes.as_slice() == NULL_SENTINEL
+                {
+                    return Ok(None);
+                }
+                Err(OxCacheError::L1Error(
+                    "get_or_option: concurrent fetch leader failed to cache result".to_string(),
+                ))
             }
-            Err(e) => {
-                GET_OR_LOCKS[shard_index]
-                    .lock()
-                    .expect("GET_OR_LOCKS poisoned")
-                    .remove(&key_str);
-                guard.removed = true;
-                notify.notify_waiters();
-                Err(e)
+            FlightReg::Leader(signal) => {
+                // panic 安全守卫：panic / 早退时 Drop 兜底移除条目并放行等待者
+                let mut guard =
+                    AsyncSfGuard::new(&GET_OR_LOCKS, shard_index, key_str.clone(), signal);
+
+                // Double-check
+                if let Some(value) = self.get(key).await? {
+                    guard.finish();
+                    return Ok(Some(value));
+                }
+
+                let result = fallback().await;
+                match result {
+                    Ok(Some(value)) => {
+                        match value_ttl {
+                            Some(ttl) => self.set_with_ttl(key, &value, Some(ttl)).await?,
+                            None => self.set(key, &value).await?,
+                        }
+                        guard.finish();
+                        Ok(Some(value))
+                    }
+                    Ok(None) => {
+                        // Cache null sentinel if null_cache_ttl is configured
+                        //（jitter_sentinel 时哨兵 TTL 同样过抖动，防同批同时过期）
+                        if let Some(null_ttl) = self.null_cache_ttl {
+                            let effective = if jitter_sentinel {
+                                self.apply_jitter(null_ttl)
+                            } else {
+                                null_ttl
+                            };
+                            self.backend
+                                .set(
+                                    Arc::from(key_str.as_str()),
+                                    Arc::new(NULL_SENTINEL.to_vec()),
+                                    Some(effective),
+                                )
+                                .await?;
+                        }
+                        guard.finish();
+                        Ok(None)
+                    }
+                    Err(e) => {
+                        guard.finish();
+                        Err(e)
+                    }
+                }
             }
         }
     }
@@ -599,6 +636,13 @@ struct GetOrSyncGuard {
     map_key: String,
     flight: SyncFlight,
     removed: bool,
+}
+
+/// leader 执行上下文（打包 run_sync_fallback 的定位参数，避免超长参数列表）
+struct SyncLeaderCtx<'a> {
+    shard_index: usize,
+    key_str: &'a str,
+    flight: &'a SyncFlight,
 }
 
 impl Drop for GetOrSyncGuard {
@@ -768,6 +812,35 @@ where
     where
         F: FnOnce() -> OxCacheResult<V>,
     {
+        self.get_or_sync_core(key, None, fallback)
+    }
+
+    /// Synchronously get-or-compute with a per-entry TTL for the cached value.
+    ///
+    /// 与 [`Self::get_or_sync`] 语义一致，缓存写入经 `apply_jitter` 抖动
+    /// （审计 F09：避免主值永不过期）。
+    pub fn get_or_with_ttl_sync<F>(
+        &self,
+        key: &K,
+        ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> OxCacheResult<V>,
+    {
+        self.get_or_sync_core(key, ttl, fallback)
+    }
+
+    /// `get_or_sync` / `get_or_with_ttl_sync` 的共享实现。
+    fn get_or_sync_core<F>(
+        &self,
+        key: &K,
+        value_ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> OxCacheResult<V>,
+    {
         // Fast path: cache hit
         if let Some(value) = self.get_sync(key)? {
             return Ok(value);
@@ -825,7 +898,12 @@ where
             removed: false,
         };
 
-        self.run_sync_fallback(key, &key_str, shard_index, &flight, fallback, &mut guard)
+        let leader = SyncLeaderCtx {
+            shard_index,
+            key_str: &key_str,
+            flight: &flight,
+        };
+        self.run_sync_fallback(key, leader, value_ttl, fallback, &mut guard)
     }
 
     /// Execute the fallback as the single-flight leader and notify followers.
@@ -836,9 +914,8 @@ where
     fn run_sync_fallback<F>(
         &self,
         key: &K,
-        key_str: &str,
-        shard_index: usize,
-        flight: &SyncFlight,
+        leader: SyncLeaderCtx<'_>,
+        value_ttl: Option<Duration>,
         fallback: F,
         guard: &mut GetOrSyncGuard,
     ) -> OxCacheResult<V>
@@ -848,23 +925,32 @@ where
         // Double-check cache after acquiring leadership (another leader may
         // have just finished and cached the value)
         if let Some(value) = self.get_sync(key)? {
-            Self::finish_sync_flight(shard_index, key_str, flight, guard);
+            Self::finish_sync_flight(leader.shard_index, leader.key_str, leader.flight, guard);
             return Ok(value);
         }
 
         // Run fallback
         match fallback() {
             Ok(value) => {
-                if let Err(e) = self.set_sync(key, &value) {
+                let cache_result = match value_ttl {
+                    Some(ttl) => self.set_with_ttl_sync(key, &value, Some(ttl)),
+                    None => self.set_sync(key, &value),
+                };
+                if let Err(e) = cache_result {
                     // Caching failed — still wake followers before propagating
-                    Self::finish_sync_flight(shard_index, key_str, flight, guard);
+                    Self::finish_sync_flight(
+                        leader.shard_index,
+                        leader.key_str,
+                        leader.flight,
+                        guard,
+                    );
                     return Err(e);
                 }
-                Self::finish_sync_flight(shard_index, key_str, flight, guard);
+                Self::finish_sync_flight(leader.shard_index, leader.key_str, leader.flight, guard);
                 Ok(value)
             }
             Err(e) => {
-                Self::finish_sync_flight(shard_index, key_str, flight, guard);
+                Self::finish_sync_flight(leader.shard_index, leader.key_str, leader.flight, guard);
                 Err(e)
             }
         }
@@ -900,6 +986,34 @@ where
     where
         F: FnOnce() -> OxCacheResult<Option<V>>,
     {
+        self.get_or_option_sync_core(key, None, false, fallback)
+    }
+
+    /// Synchronously get-or-compute with per-entry TTL AND jittered null
+    /// sentinel TTL（sync 变体，语义同 [`Self::get_or_option_with_ttl`]）。
+    pub fn get_or_option_with_ttl_sync<F>(
+        &self,
+        key: &K,
+        ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> OxCacheResult<Option<V>>,
+    {
+        self.get_or_option_sync_core(key, ttl, true, fallback)
+    }
+
+    /// `get_or_option_sync` / `get_or_option_with_ttl_sync` 的共享实现。
+    fn get_or_option_sync_core<F>(
+        &self,
+        key: &K,
+        value_ttl: Option<Duration>,
+        jitter_sentinel: bool,
+        fallback: F,
+    ) -> OxCacheResult<Option<V>>
+    where
+        F: FnOnce() -> OxCacheResult<Option<V>>,
+    {
         // Fast path: cache hit
         if let Some(value) = self.get_sync(key)? {
             return Ok(Some(value));
@@ -907,11 +1021,14 @@ where
 
         let key_str = key.to_key_string();
 
-        // Check null sentinel
+        // Check null sentinel（get + 字节比对，审计 F02——exists 无法区分哨兵与真实值）
         if self.null_cache_ttl.is_some() {
             let backend = self.sync_backend()?;
-            if backend.exists(&key_str)? {
-                return Ok(None);
+            if let Some(bytes) = backend.get(&key_str)? {
+                if bytes.as_slice() == NULL_SENTINEL {
+                    return Ok(None);
+                }
+                return self.unified_serializer.deserialize(&bytes).map(Some);
             }
         }
 
@@ -946,9 +1063,12 @@ where
             if let Some(value) = self.get_sync(key)? {
                 return Ok(Some(value));
             }
+            // Leader cached a null sentinel or fallback failed（get + 字节比对，审计 F02）
             if self.null_cache_ttl.is_some() {
                 let backend = self.sync_backend()?;
-                if backend.exists(&key_str)? {
+                if let Some(bytes) = backend.get(&key_str)?
+                    && bytes.as_slice() == NULL_SENTINEL
+                {
                     return Ok(None);
                 }
             }
@@ -972,7 +1092,11 @@ where
 
         match fallback() {
             Ok(Some(value)) => {
-                if let Err(e) = self.set_sync(key, &value) {
+                let cache_result = match value_ttl {
+                    Some(ttl) => self.set_with_ttl_sync(key, &value, Some(ttl)),
+                    None => self.set_sync(key, &value),
+                };
+                if let Err(e) = cache_result {
                     // Caching failed — still wake followers before propagating
                     Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                     return Err(e);
@@ -982,11 +1106,17 @@ where
             }
             Ok(None) => {
                 if let Some(null_ttl) = self.null_cache_ttl {
+                    // jitter_sentinel 时哨兵 TTL 同样过抖动，防同批同时过期
+                    let effective = if jitter_sentinel {
+                        self.apply_jitter(null_ttl)
+                    } else {
+                        null_ttl
+                    };
                     let backend = self.sync_backend()?;
                     if let Err(e) = backend.set(
                         Arc::from(key_str.as_str()),
                         Arc::new(NULL_SENTINEL.to_vec()),
-                        Some(null_ttl),
+                        Some(effective),
                     ) {
                         Self::finish_sync_flight(shard_index, &key_str, &flight, &mut guard);
                         return Err(e);
@@ -1549,7 +1679,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_ttl_returns_remaining() {
-        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        // 断言精确 TTL 窗口：显式关闭默认抖动（审计 F06）
+        let cache: Cache<String, String> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
         cache
             .set_with_ttl(
                 &"k".to_string(),
@@ -1665,6 +1796,8 @@ mod sync_tests {
         let moka = Arc::new(MokaMemoryBackend::new());
         let mut cache: Cache<String, String> = Cache::new_with_backend(moka.clone());
         cache.set_sync_backend(moka);
+        // 既有 sync 测试断言精确 TTL 窗口：显式关闭默认抖动（审计 F06）
+        cache.set_ttl_jitter_factor(0.0);
         cache
     }
 
@@ -1959,6 +2092,330 @@ mod sync_tests {
             result.is_err(),
             "sentinel set failure must propagate, got {:?}",
             result
+        );
+    }
+}
+
+#[cfg(test)]
+mod sentinel_race_tests {
+    use super::*;
+    use crate::backend::memory::MokaMemoryBackend;
+    use crate::backend::{CacheConnector, CacheReader, CacheWriter};
+    use std::sync::atomic::AtomicBool;
+
+    /// 首次 get 返回 None（模拟快速路径 miss），其后透传真实数据的 scripted backend。
+    struct FirstGetMissBackend {
+        inner: Arc<MokaMemoryBackend>,
+        key: &'static str,
+        swallowed: AtomicBool,
+    }
+
+    impl FirstGetMissBackend {
+        fn new(key: &'static str) -> Self {
+            Self {
+                inner: Arc::new(MokaMemoryBackend::new()),
+                key,
+                swallowed: AtomicBool::new(false),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CacheReader for FirstGetMissBackend {
+        async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+            if key == self.key
+                && !self
+                    .swallowed
+                    .swap(true, std::sync::atomic::Ordering::SeqCst)
+            {
+                return Ok(None);
+            }
+            self.inner.get(key).await
+        }
+        async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+            self.inner.exists(key).await
+        }
+        async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+            CacheReader::ttl(&*self.inner, key).await
+        }
+        async fn len(&self) -> OxCacheResult<u64> {
+            self.inner.len().await
+        }
+        async fn capacity(&self) -> OxCacheResult<u64> {
+            Ok(self.inner.capacity())
+        }
+        async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
+            self.inner.stats().await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CacheWriter for FirstGetMissBackend {
+        async fn set(
+            &self,
+            key: Arc<str>,
+            value: Arc<Vec<u8>>,
+            ttl: Option<Duration>,
+        ) -> OxCacheResult<()> {
+            self.inner.set(key, value, ttl).await
+        }
+        async fn delete(&self, key: &str) -> OxCacheResult<()> {
+            self.inner.delete(key).await
+        }
+        async fn clear(&self) -> OxCacheResult<()> {
+            self.inner.clear().await
+        }
+        async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+            self.inner.expire(key, ttl).await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl CacheConnector for FirstGetMissBackend {
+        async fn health_check(&self) -> OxCacheResult<()> {
+            self.inner.health_check().await
+        }
+        async fn shutdown(&self) {
+            self.inner.shutdown().await
+        }
+        fn backend_kind(&self) -> crate::backend::BackendKind {
+            self.inner.backend_kind()
+        }
+    }
+
+    /// 审计 F02 确定性回归：快速路径 get miss 后、哨兵判定前该 key 被并发写入
+    /// 真实值。旧 `exists()` 判定无法区分哨兵与真实值，会把真实值误判为
+    /// "哨兵有效" 返回 Ok(None)；get + 字节比对必须返回 Ok(Some(真实值))。
+    #[tokio::test]
+    async fn get_or_option_returns_real_value_written_after_fast_path() {
+        let backend: Arc<dyn crate::backend::CacheBackend> =
+            Arc::new(FirstGetMissBackend::new("race-real"));
+        let mut cache: Cache<String, String> = Cache::new_with_backend(backend);
+        cache.set_null_cache_ttl(Some(Duration::from_secs(60)));
+
+        // 真实值在"快速路径 miss 之后"才可见（scripted backend 吞掉首查）
+        cache
+            .backend
+            .set(
+                Arc::from("race-real"),
+                Arc::new(b"\"real-value\"".to_vec()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        let got = cache
+            .get_or_option(&"race-real".to_string(), || async {
+                Err(OxCacheError::Operation("fallback must not run".into()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            got,
+            Some("real-value".to_string()),
+            "真实值不得被 exists 判定误判为空值哨兵"
+        );
+    }
+}
+
+#[cfg(test)]
+mod jitter_tests {
+    use super::*;
+
+    fn jitter_cache(factor: f64) -> Cache<String, String> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let mut cache: Cache<String, String> = rt
+            .block_on(async { Cache::builder().build().await })
+            .unwrap();
+        cache.set_ttl_jitter_factor(factor);
+        cache
+    }
+
+    /// 审计 F07 验收：10000 次采样全部落在 [ttl*(1-f), ttl*(1+f)] 且分布非退化
+    #[test]
+    fn jitter_samples_within_bounds_and_non_degenerate() {
+        let cache = jitter_cache(0.1);
+        let base = Duration::from_secs(60);
+        let low = base.mul_f64(0.9).as_millis() as u64;
+        let high = base.mul_f64(1.1).as_millis() as u64;
+        let mut samples: Vec<u64> = (0..10_000)
+            .map(|_| cache.apply_jitter(base).as_millis() as u64)
+            .collect();
+        assert!(
+            samples.iter().all(|&s| s >= low && s <= high),
+            "采样必须落在 ±factor 区间内 [{low}, {high}]"
+        );
+        samples.sort_unstable();
+        assert!(
+            samples[0] < samples[5_000] && samples[5_000] < samples[9_999],
+            "分布非退化：min < median < max，实际 {} / {} / {}",
+            samples[0],
+            samples[5_000],
+            samples[9_999]
+        );
+    }
+
+    /// factor=0 恒等返回（显式关闭抖动语义不变）
+    #[test]
+    fn zero_factor_is_identity() {
+        let cache = jitter_cache(0.0);
+        let base = Duration::from_secs(60);
+        for _ in 0..100 {
+            assert_eq!(cache.apply_jitter(base), base);
+        }
+    }
+}
+
+#[cfg(test)]
+mod get_or_with_ttl_tests {
+    use super::*;
+    use crate::backend::memory::MokaMemoryBackend;
+    use std::sync::Arc as StdArc;
+
+    /// 审计 F09 验收：get_or_with_ttl 写入带 TTL（≤ 传入值，抖动上界）
+    #[tokio::test]
+    async fn get_or_with_ttl_caches_with_ttl() {
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        let v = cache
+            .get_or_with_ttl(
+                &"ttl-or".to_string(),
+                Some(Duration::from_secs(60)),
+                || async { Ok("v".to_string()) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(v, "v");
+        let ttl = cache
+            .ttl(&"ttl-or".to_string())
+            .await
+            .unwrap()
+            .expect("ttl 应存在");
+        // 默认抖动 ±10%：60s → [54s, 66s)
+        assert!(
+            ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
+            "ttl {ttl:?} 应在抖动区间 [54s, 66s)"
+        );
+
+        // 旧 get_or 语义不变：无 TTL
+        let cache2: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache2
+            .get_or(&"no-ttl-or".to_string(), || async { Ok("v".to_string()) })
+            .await
+            .unwrap();
+        assert_eq!(
+            cache2.ttl(&"no-ttl-or".to_string()).await.unwrap(),
+            None,
+            "get_or 旧路径必须保持无 TTL 语义"
+        );
+    }
+
+    /// get_or_option_with_ttl：真实值与空值哨兵均带抖动 TTL
+    #[tokio::test]
+    async fn get_or_option_with_ttl_jitters_sentinel() {
+        let mut cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache.set_null_cache_ttl(Some(Duration::from_secs(30)));
+
+        // fallback 返回 None → 哨兵写入且带 TTL
+        let got = cache
+            .get_or_option_with_ttl(
+                &"sentinel-ttl".to_string(),
+                Some(Duration::from_secs(60)),
+                || async { Ok(None) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(got, None);
+        let ttl = cache
+            .ttl(&"sentinel-ttl".to_string())
+            .await
+            .unwrap()
+            .expect("哨兵应存在");
+        assert!(
+            ttl >= Duration::from_secs(27) && ttl < Duration::from_secs(33),
+            "哨兵 ttl {ttl:?} 应在抖动区间 [27s, 33s)"
+        );
+
+        // 第二次调用命中哨兵直接返回 None（不执行 fallback）
+        let got2 = cache
+            .get_or_option_with_ttl(
+                &"sentinel-ttl".to_string(),
+                Some(Duration::from_secs(60)),
+                || async { Err(OxCacheError::Operation("must not run".into())) },
+            )
+            .await
+            .unwrap();
+        assert_eq!(got2, None);
+    }
+
+    /// sync 变体：get_or_with_ttl_sync 带 TTL
+    #[test]
+    fn get_or_with_ttl_sync_caches_with_ttl() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let mut cache: Cache<String, String> = rt
+            .block_on(async { Cache::builder().build().await })
+            .unwrap();
+        cache.set_sync_backend(StdArc::new(MokaMemoryBackend::new()));
+
+        cache
+            .get_or_with_ttl_sync(
+                &"ttl-sync".to_string(),
+                Some(Duration::from_secs(60)),
+                || Ok("v".to_string()),
+            )
+            .unwrap();
+        let ttl = cache
+            .ttl_sync(&"ttl-sync".to_string())
+            .unwrap()
+            .expect("ttl 应存在");
+        // 默认抖动 ±10%：60s → [54s, 66s)
+        assert!(
+            ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
+            "ttl {ttl:?} 应在抖动区间 [54s, 66s)"
+        );
+    }
+}
+
+#[cfg(test)]
+mod default_jitter_tests {
+    use super::*;
+
+    /// 审计 F06 验收：默认构建抖动 0.1 生效（±10%），显式 0.0 关闭后恒等
+    #[tokio::test]
+    async fn default_jitter_is_on_and_can_be_disabled() {
+        // 默认构建：60s → [54s, 66s)
+        let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
+        cache
+            .set_with_ttl(
+                &"dj-on".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
+            .await
+            .unwrap();
+        let ttl = cache.ttl(&"dj-on".to_string()).await.unwrap().unwrap();
+        assert!(
+            ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
+            "默认抖动应使 ttl ∈ [54s, 66s)，实际 {ttl:?}"
+        );
+
+        // 显式关闭：60s → (58s, 60s]
+        let cache2: Cache<String, String> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
+        cache2
+            .set_with_ttl(
+                &"dj-off".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(60)),
+            )
+            .await
+            .unwrap();
+        let ttl2 = cache2.ttl(&"dj-off".to_string()).await.unwrap().unwrap();
+        assert!(
+            ttl2 > Duration::from_secs(58),
+            "关闭抖动后 ttl 应 ≈ 60s，实际 {ttl2:?}"
         );
     }
 }

@@ -26,8 +26,15 @@ pub mod audit;
 #[cfg(feature = "compression")]
 pub mod compression;
 
+/// 热 key 采样观测（审计 F11）：独立组件，不入读路径
+#[cfg(feature = "hotkey")]
+pub mod hotkey;
+
 #[cfg(feature = "versioning")]
 pub mod versioning;
+
+#[cfg(feature = "hotkey")]
+pub use hotkey::HotKeyTracker;
 
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;

@@ -485,6 +485,15 @@ impl ChainCache {
     /// ttl=None 时各 backend 用自己的默认 TTL
     /// ttl=Some 时所有 backend 用同一个 TTL
     ///
+    /// # 一致性窗口（已知权衡）
+    ///
+    /// 并发写所有后端**不保证原子性**：部分后端失败时仅记录事件不回滚——
+    /// 例如 L1 写成功、L2 写失败时，本实例读到新值而其他实例回源读到旧值，
+    /// 跨实例读取存在分叉窗口。缓解手段：写入后通过 `invalidation` 失效总线
+    /// 广播失效事件（`crate::features::invalidation`），或依赖各后端 TTL 最终
+    /// 收敛。需要跨后端强一致的场景应在调用方引入版本号
+    /// （`crate::features::versioning`）或放弃多后端双写。
+    ///
     /// 并发写入所有后端（JoinSet），写入延迟从 O(Σbackend) 降至 O(max(backend))（问题 4.3）。
     /// key/value 以 `Arc` 共享所有权传入，各后端 `Arc::clone` 零拷贝（问题 2.2 / 2.3）。
     async fn write_to_all_backends(
