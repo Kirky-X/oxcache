@@ -37,6 +37,8 @@ pub enum BackendKind {
     Chain,
     /// Mock backend for testing
     Mock,
+    /// Disk-persistent embedded backend (redb)
+    Disk,
     /// Unknown or custom backend
     Unknown,
 }
@@ -64,6 +66,23 @@ impl BackendKind {
     /// Returns true if this is a composite (multi-tier) cache
     pub fn is_composite(&self) -> bool {
         matches!(self, BackendKind::Chain)
+    }
+
+    /// Stable backend identifier used as the metrics label dimension
+    /// (`oxcache_backend_<name>_operations_total`).
+    pub fn name(&self) -> &'static str {
+        match self {
+            BackendKind::Moka => "moka",
+            BackendKind::DashMap => "dashmap",
+            BackendKind::Redis => "redis",
+            BackendKind::Valkey => "valkey",
+            BackendKind::Dragonfly => "dragonfly",
+            BackendKind::Aerospike => "aerospike",
+            BackendKind::Chain => "chain",
+            BackendKind::Mock => "mock",
+            BackendKind::Disk => "disk",
+            BackendKind::Unknown => "unknown",
+        }
     }
 }
 

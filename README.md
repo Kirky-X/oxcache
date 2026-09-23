@@ -59,7 +59,7 @@
 <table style="width:100%; border-collapse: collapse">
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🚀 <b>多级缓存</b><br><span style="color:#64748B">L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）经 <code>ChainCache</code> 按分数组链，非最高分命中可异步回填</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>零侵入宏</b><br><span style="color:#64748B"><code>#[cached]</code> 一行接入，支持 <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code></span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>零侵入宏</b><br><span style="color:#64748B"><code>#[cached]</code> 一行接入，支持 <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code> / <code>skip</code></span></td>
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🔄 <b>同步 API</b><br><span style="color:#64748B"><code>sync_mode(true)</code> 后 <code>get_sync</code> / <code>set_sync</code> / <code>get_or_sync</code> 与异步 API 在同一 <code>Cache&lt;K, V&gt;</code> 上共存</span></td>
@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">1900+ 测试函数（截至 0.5.0-rc.4）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">1900+ 测试函数（截至 0.5.0-rc.5）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -96,6 +96,10 @@
 - **自动降级**（`degradation`）：Active / Degraded / HalfOpen 三态状态机，探测成功自动恢复
 - **审计事件流**（`audit`）：结构化 hit / miss / set / delete / evict / expired 事件，键脱敏
 - **宏高级参数**：`single_flight` 并发 miss 去重、`strict` 未注册 panic、`condition` 谓词旁路
+- **SWR 三态过期**（`stale`）：过期条目在 stale 窗口内仍可返回旧值，`Return` / `Revalidate` / `OffloadRevalidate` 三策略（`CacheBuilder::stale_ttl()` + `stale_policy()`；后台刷新经 `Cache::get_or_refresh()`）
+- **后台任务子系统**（`offload`）：`OffloadManager` 同 key 去重、并发上限、超时 Cancel/Warn 策略
+- **磁盘持久化 L3**（`disk`）：`RedbDiskBackend`（redb 嵌入式），重启不冷启动，`max_entries` 超限自动清扫，挂链为 L3
+- **链路读策略**：`ChainReadStrategy`（Sequential / Race / `ParallelFreshest` 按剩余 TTL 择新），`enable_race_read()` 为兼容别名
 - **分层构建器**：`L1Builder` / `L2Builder` / `ChainBuilder` 链式组合
 - **生命周期集成**（`kit`）：trait-kit AsyncKit 的 `OxcacheModule`、健康检查、三阶段关闭、后端装饰器
 - **错误国际化**：基于 ICU4X 的错误消息 i18n 与系统语言自动检测
@@ -118,7 +122,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.4"
+oxcache = "0.5.0-rc.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -187,9 +191,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0-rc.4", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.4", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.4", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
+oxcache = { version = "0.5.0-rc.5", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0-rc.5", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.5", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
 ```
 
 | 标志 | 说明 | 默认 |
@@ -222,6 +226,9 @@ oxcache = { version = "0.5.0-rc.4", features = ["full"] }      # 全量（不含
 | `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing 发布器） | ❌ |
 | `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
 | `kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器） | ❌ |
+| `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
+| `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
+| `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
 
 > `bloom` 与 `kit` 等选择加入特性**不在** `full` 中，需显式启用。
 
@@ -476,7 +483,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计，截至 **0.5.0-rc.4**；合计 1900+（`src/` 1335 + `tests/` 606）。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计，截至 **0.5.0-rc.5**；合计 1900+（`src/` 1335 + `tests/` 606）。
 
 ### 常用命令（与 CI 一致）
 
@@ -548,7 +555,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 | 状态 | 事项 | 说明 |
 |:----:|------|------|
-| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.4（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
+| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.5（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
 | 📋 | **Valkey 集成测试环境门控** | 8 个 Valkey 集成测试依赖 Docker（testcontainers），无 Docker 环境无法运行，为验收记录中的已知限制 |
 | 📋 | **质量审查留档项跟进** | 代码质量审查（diting）留档的 3 项 Medium 建议与 2 项 Low 记录，按优先级评估处理 |

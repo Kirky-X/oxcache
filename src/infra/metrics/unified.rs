@@ -329,6 +329,35 @@ impl UnifiedMetrics {
             .or_insert(MetricValue::Counter(value));
     }
 
+    /// Record one backend-labeled operation (dynamic counter
+    /// `oxcache_backend_<name>_operations_total`). Exported by
+    /// [`Self::export_prometheus_standard`] with a `backend` label.
+    pub fn record_backend_operation(&self, backend: &str) {
+        self.increment_counter(&format!("oxcache_backend_{backend}_operations_total"), 1);
+    }
+
+    /// Snapshot of backend-labeled operation counters, sorted by name for
+    /// deterministic export output.
+    pub fn backend_operation_counters(&self) -> Vec<(String, u64)> {
+        let mut out: Vec<(String, u64)> = self
+            .inner
+            .dynamic_metrics
+            .iter()
+            .filter_map(|entry| {
+                let key = entry.key();
+                if key.starts_with("oxcache_backend_")
+                    && key.ends_with("_operations_total")
+                    && let MetricValue::Counter(count) = entry.value()
+                {
+                    return Some((key.clone(), *count));
+                }
+                None
+            })
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+
     /// Set a gauge metric
     pub fn set_gauge(&self, key: &str, value: f64) {
         self.inner
@@ -709,6 +738,16 @@ impl UnifiedMetrics {
 
         counter_line(&mut out, "oxcache_errors_total", "Total cache errors");
         out.push_str(&format!("oxcache_errors_total {}\n", counters.errors));
+
+        // Backend-labeled operation counters (dynamic, sorted deterministically)
+        for (key, count) in &self.backend_operation_counters() {
+            let backend = key
+                .trim_start_matches("oxcache_backend_")
+                .trim_end_matches("_operations_total");
+            out.push_str(&format!("# HELP {key} Operations on backend {backend}.\n"));
+            out.push_str(&format!("# TYPE {key} counter\n"));
+            out.push_str(&format!("{key}{{backend=\"{backend}\"}} {count}\n"));
+        }
 
         // Latency histogram (seconds, cumulative buckets + +Inf + sum/count)
         out.push_str(

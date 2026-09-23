@@ -79,7 +79,8 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 | `single_flight` | （标志） | 否 | `false` | 同 key 并发 miss 仅回源一次 |
 | `strict` | （标志） | 否 | `false` | 未注册缓存时 panic 而非静默穿透 |
 | `condition` | 函数路径 | 否 | — | 执行前谓词，返回 false 时旁路缓存 |
-| `cache_none` | （标志） | 否 | `false` | 缓存 `None` 结果 |
+| `skip` | 参数名列表，如 `skip(password)` | 否 | — | 被点名参数不进入默认缓存 key；与 `key` 模板互斥（编译期报错）；未知参数名编译期报错 |
+| `cache_none` | （标志） | 否 | `false` | 返回类型为 `Result<Option<T>, E>` 时生效：默认仅缓存 `Ok(Some)`（`Ok(None)` 不回写）；开启后 `Ok(None)` 以 `null` 缓存并在读取时还原。返回类型非 Option 时无效果 |
 
 该宏通过 `oxcache::__internal_get_cache(service)` 从内部注册表获取 `Cache` 实例。
 如果 `service` 下未注册缓存，则原始函数不经缓存直接执行（`strict` 模式改为 panic）。
@@ -625,6 +626,32 @@ let backend = BloomFilterBackend::builder()
 | 读取剩余 TTL | `cache.ttl(&key).await` | `cache.ttl_sync(&key)` |
 | 更新已有键的 TTL | `cache.expire(&key, d).await` | `cache.expire_sync(&key, d)` |
 | 设置显式 TTL | `cache.set_with_ttl(&key, &v, Some(d)).await` | `cache.set_with_ttl_sync(&key, &v, Some(d))` |
+
+## ⏳ SWR 三态过期（`stale`）
+
+- `StaleWhileRevalidateBackend`（`oxcache::features::stale`）— 装饰任意 `CacheBackend`：双时间戳 envelope（`expire_at`/`stale_at`），读取三态 Actual/Stale/Expired；非 envelope 旧数据按新鲜透传；物理 TTL = `ttl + stale_ttl`；`get_with_state(key)` 返回 `(payload, StaleState)`
+- `StalePolicy` — `Return`（旧值兜底，默认）/ `Revalidate`（同步回源）/ `OffloadRevalidate`（立即回旧值 + 后台刷新）；经 `CacheBuilder::stale_ttl(Duration)` + `stale_policy(StalePolicy)` 启用
+- `Cache::get_or_refresh(key, ttl, fallback)` — `get_or` 的后台刷新变体（`OffloadRevalidate` 生效；fallback 需 `Send + 'static`）；`get_or` 在该策略下按 Return 降级
+- `Cache::offload_manager()` — Offload 管理器访问器（优雅关闭前 `wait_all` 用）
+
+## 📡 Offload 后台任务（`offload`）
+
+- `OffloadManager::new(max_concurrent)` / `with_policy(max, TimeoutPolicy)` — 同 key 去重 + 信号量并发上限
+- `spawn(key, future) -> bool` — `false` 表示同 key 在飞（去重）或许可已满（超限丢弃，不排队）
+- `is_in_flight` / `in_flight_count` / `cancel_all` / `wait_all(timeout) -> usize`
+- `TimeoutPolicy` — `None` / `Cancel(Duration)`（超时取消）/ `Warn(Duration)`（默认 `Warn(30s)`，仅告警）
+- 指标：`oxcache_offload_{spawned,deduplicated,completed,timeout}_total` + gauge `oxcache_offload_active`
+
+## 💾 磁盘持久化后端（`disk`）
+
+- `RedbDiskBackend`（`oxcache::backend::disk`）— redb 3.x 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
+- 懒过期：读路径惰性判定 + 物理删除（与 DashMap 同口径）；`max_entries` 超限清扫先删过期、按 seq 升序删最旧
+- `BackendKind::Disk`；`BackendScore`：score 85（`Scores::REDB`）/ persistent / name `"disk"`；经 `ChainLink::from_arc` 或 `ChainBuilder::extra_backend` 挂链为 L3
+
+## 🔗 链路读策略（`ChainReadStrategy`）
+
+- `Sequential`（默认，逐层命中即返回）/ `Race`（并发全读取最高分命中）/ `ParallelFreshest`（并发全读后按剩余 TTL 择新，None 最低优先、并列取最高分）
+- `ChainCacheBuilder::read_strategy(strategy)`；`enable_race_read()` / `disable_race_read()` 为兼容别名
 
 ## 🔒 安全特性
 

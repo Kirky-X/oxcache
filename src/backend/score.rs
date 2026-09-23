@@ -97,6 +97,12 @@ impl Scores {
     /// 适合作为 L2 本地持久化缓存。
     pub const SQLITE: u8 = 70;
 
+    /// redb 磁盘持久化缓存分数（absorb-hitbox-features）
+    ///
+    /// redb 是纯安全 Rust 嵌入式键值存储（ACID + WAL）。
+    /// 适合作为 L3 本地持久化层。
+    pub const REDB: u8 = 85;
+
     /// Redis 分布式缓存分数
     ///
     /// Redis 是高性能分布式缓存。

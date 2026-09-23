@@ -17,7 +17,21 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
-        self.backend.get(key).await
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self.backend.get(key).await;
+        #[cfg(feature = "metrics")]
+        {
+            let latency = __start.elapsed();
+            let layer = self.metrics_layer();
+            match &result {
+                Ok(Some(_)) => self.metrics.record_hit(layer, latency),
+                Ok(None) => self.metrics.record_miss(layer, latency),
+                Err(_) => {}
+            }
+            self.record_backend_op();
+        }
+        result
     }
 
     pub async fn set_bytes(
@@ -27,9 +41,19 @@ where
         ttl: Option<u64>,
     ) -> OxCacheResult<()> {
         let ttl_duration = ttl.map(Duration::from_secs);
-        self.backend
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self
+            .backend
             .set(Arc::from(key), Arc::new(value), ttl_duration)
-            .await
+            .await;
+        #[cfg(feature = "metrics")]
+        {
+            self.metrics
+                .record_set(self.metrics_layer(), __start.elapsed());
+            self.record_backend_op();
+        }
+        result
     }
 
     /// Synchronously get raw bytes from the cache (macro-compatible sync path).
@@ -41,7 +65,21 @@ where
             .backend_sync
             .as_ref()
             .ok_or_else(Self::sync_mode_error)?;
-        backend.get(key)
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = backend.get(key);
+        #[cfg(feature = "metrics")]
+        {
+            let latency = __start.elapsed();
+            let layer = self.metrics_layer();
+            match &result {
+                Ok(Some(_)) => self.metrics.record_hit(layer, latency),
+                Ok(None) => self.metrics.record_miss(layer, latency),
+                Err(_) => {}
+            }
+            self.record_backend_op();
+        }
+        result
     }
 
     /// Synchronously set raw bytes in the cache (macro-compatible sync path).
@@ -55,7 +93,16 @@ where
             .as_ref()
             .ok_or_else(Self::sync_mode_error)?;
         let ttl_duration = ttl.map(Duration::from_secs);
-        backend.set(Arc::from(key), Arc::new(value), ttl_duration)
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = backend.set(Arc::from(key), Arc::new(value), ttl_duration);
+        #[cfg(feature = "metrics")]
+        {
+            self.metrics
+                .record_set(self.metrics_layer(), __start.elapsed());
+            self.record_backend_op();
+        }
+        result
     }
 
     #[cfg(any(feature = "serialization", feature = "full"))]
@@ -241,6 +288,51 @@ mod tests {
             matches!(result, Err(crate::error::OxCacheError::NotSupported(_))),
             "expected Err(NotSupported) when sync_mode is false, got {:?}",
             result
+        );
+    }
+
+    // ========================================================================
+    // 字节 API 指标埋点（absorb-hitbox-features T006）
+    // ========================================================================
+
+    /// 字节 API 与泛型路径同口径：get_bytes hit/miss、set_bytes 计入 unified。
+    #[tokio::test]
+    async fn bytes_api_records_unified_metrics() {
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+
+        let cache: Cache<String, Vec<u8>> = Cache::memory().await.unwrap();
+        cache
+            .set_bytes("metrics-bytes", vec![1, 2], None)
+            .await
+            .unwrap();
+        let _ = cache.get_bytes("metrics-bytes").await.unwrap(); // hit
+        let _ = cache.get_bytes("metrics-bytes-miss").await.unwrap(); // miss
+
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+        assert!(after.l1_sets > before.l1_sets, "set_bytes must record sets");
+        assert!(after.l1_hits > before.l1_hits, "get_bytes hit must record");
+        assert!(
+            after.l1_misses > before.l1_misses,
+            "get_bytes miss must record"
+        );
+    }
+
+    /// sync 字节 API 同样埋点。
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sync_bytes_api_records_unified_metrics() {
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+
+        let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();
+        cache
+            .set_bytes_sync("metrics-bytes-sync", vec![9], None)
+            .unwrap();
+        let _ = cache.get_bytes_sync("metrics-bytes-sync").unwrap();
+
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+        assert!(after.l1_sets > before.l1_sets, "set_bytes_sync must record");
+        assert!(
+            after.l1_hits > before.l1_hits,
+            "get_bytes_sync hit must record"
         );
     }
 }

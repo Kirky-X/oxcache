@@ -43,6 +43,23 @@ fn oxcache_telemetry_backfill_failed(key: &str, backend: &str, err: &OxCacheErro
 #[inline]
 fn oxcache_telemetry_backfill_ok(_key: &str, _backend: &str) {}
 
+#[cfg(feature = "telemetry")]
+#[inline]
+fn telemetry_read_strategy(key: &str, strategy: &str, backend: &str, hit: bool) {
+    tracing::debug!(
+        target = "oxcache::chain",
+        key,
+        strategy,
+        backend,
+        hit,
+        "chain read completed"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn telemetry_read_strategy(_key: &str, _strategy: &str, _backend: &str, _hit: bool) {}
+
 #[cfg(not(feature = "telemetry"))]
 #[inline]
 fn oxcache_telemetry_backfill_failed(_key: &str, _backend: &str, _err: &OxCacheError) {}
@@ -59,6 +76,21 @@ pub use self::builder::ChainCacheBuilder;
 ///
 /// ChainLink 封装了一个后端实例及其分数信息。
 /// 分数用于确定链式访问的顺序。
+/// 链路读策略（absorb-hitbox-features T014）。
+///
+/// - `Sequential`：按分数降序逐个读取，命中即返回（默认）
+/// - `Race`：并发查询全部链接，全部完成后取 index 最小（分数最高）的命中
+///   （原 `enable_race_read()` 行为）
+/// - `ParallelFreshest`：并发查询全部链接，命中者并发查询剩余 TTL，
+///   返回剩余最长（最新鲜）者；并列或全 None 时取 index 最小
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ChainReadStrategy {
+    #[default]
+    Sequential,
+    Race,
+    ParallelFreshest,
+}
+
 #[derive(Clone)]
 pub struct ChainLink {
     /// 后端实例（async trait object）
@@ -229,8 +261,8 @@ pub struct ChainCache {
     links: Vec<ChainLink>,
     /// 是否启用回填
     backfill_enabled: bool,
-    /// 是否启用竞速读（并发查询所有后端，返回最先命中者）
-    race_read_enabled: bool,
+    /// 链路读策略（默认 Sequential；原 race_read_enabled 布尔的枚举化）
+    read_strategy: ChainReadStrategy,
     /// 默认 TTL
     default_ttl: Option<Duration>,
     /// 懒缓存的 sync backend 收集结果（问题 4.4）：
@@ -253,7 +285,7 @@ impl ChainCache {
         ChainCache {
             links,
             backfill_enabled: false,
-            race_read_enabled: false,
+            read_strategy: ChainReadStrategy::Sequential,
             default_ttl: None,
             sync_backends: OnceLock::new(),
             event_publisher: None,
@@ -340,8 +372,12 @@ impl ChainCache {
     /// 若启用了竞速读（race_read），则并发查询所有后端并返回最先命中者。
     /// 所有后端都失败时返回 `Err`（与竞速读语义一致）。
     async fn read_from_chain(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
-        if self.race_read_enabled {
-            return self.race_read_from_chain(key).await;
+        match self.read_strategy {
+            ChainReadStrategy::Race => return self.race_read_from_chain(key).await,
+            ChainReadStrategy::ParallelFreshest => {
+                return self.parallel_freshest_read(key).await;
+            }
+            ChainReadStrategy::Sequential => {}
         }
 
         let mut all_failed = true;
@@ -364,10 +400,12 @@ impl ChainCache {
                             original_ttl,
                         )
                         .await;
+                        telemetry_read_strategy(key, "sequential", self.links[index].name(), true);
                         return Ok(Some(
                             Arc::try_unwrap(value).unwrap_or_else(|arc| (*arc).clone()),
                         ));
                     }
+                    telemetry_read_strategy(key, "sequential", self.links[index].name(), true);
                     return Ok(Some(value));
                 }
                 Ok(None) => {
@@ -439,6 +477,7 @@ impl ChainCache {
                 )
                 .await;
             }
+            telemetry_read_strategy(key, "race", self.links[index].name(), true);
             return Ok(Some(value));
         }
 
@@ -449,6 +488,88 @@ impl ChainCache {
         }
 
         Ok(None)
+    }
+
+    /// 并行择新读（absorb-hitbox-features T014）：并发查询全部链接，
+    /// 收集命中后并发查询各自剩余 TTL，返回剩余最长者（None 视为最低
+    /// 优先级）；并列或全 None 时取 index 最小（分数最高）。单链接错误
+    /// 容忍口径与 race read 一致；全部失败时传播错误。
+    async fn parallel_freshest_read(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        if self.links.is_empty() {
+            return Ok(None);
+        }
+
+        let mut set = tokio::task::JoinSet::new();
+        for (index, link) in self.links.iter().enumerate() {
+            let backend = link.backend().clone();
+            let key = key.to_string();
+            set.spawn(async move { (index, backend.get(&key).await) });
+        }
+
+        let mut errs: Vec<(&'static str, OxCacheError)> = Vec::new();
+        let mut hits: Vec<(usize, Vec<u8>)> = Vec::new();
+
+        while let Some(joined) = set.join_next().await {
+            match joined {
+                Ok((index, Ok(Some(value)))) => hits.push((index, value)),
+                Ok((_index, Ok(None))) => {}
+                Ok((index, Err(e))) => {
+                    self.emit_backend_error(key, self.links[index].name(), &e);
+                    errs.push((self.links[index].name(), e));
+                }
+                Err(e) => errs.push(("unknown", OxCacheError::Operation(e.to_string()))),
+            }
+        }
+
+        if hits.is_empty() {
+            if errs.len() == self.links.len() {
+                return Err(OxCacheError::Operation(
+                    "All backends failed during parallel freshest read".to_string(),
+                ));
+            }
+            return Ok(None);
+        }
+
+        // 并发查询命中者的剩余 TTL，剩余最长者胜出（None 最低优先）
+        let freshness_queries: Vec<(usize, Arc<dyn crate::backend::CacheBackend>)> = hits
+            .iter()
+            .map(|(index, _)| (*index, self.links[*index].backend().clone()))
+            .collect();
+        let values: std::collections::HashMap<usize, Vec<u8>> = hits.into_iter().collect();
+        let mut ttl_set = tokio::task::JoinSet::new();
+        for (index, backend) in freshness_queries {
+            let key = key.to_string();
+            ttl_set.spawn(async move { (index, backend.ttl(&key).await.ok().flatten()) });
+        }
+        let mut freshness: Vec<(usize, Option<Duration>)> = Vec::with_capacity(values.len());
+        while let Some(joined) = ttl_set.join_next().await {
+            if let Ok((index, remaining)) = joined {
+                freshness.push((index, remaining));
+            }
+        }
+        let pick = freshness
+            .into_iter()
+            .max_by(|a, b| {
+                // 剩余 TTL 比较：None 视为最低优先；并列取 index 最小
+                let key = |(i, t): &(usize, Option<Duration>)| (*t, std::cmp::Reverse(*i));
+                key(a).cmp(&key(b))
+            })
+            .map(|(index, _)| index)
+            .expect("hits non-empty implies freshness non-empty");
+        let value = values[&pick].clone();
+
+        telemetry_read_strategy(key, "parallel_freshest", self.links[pick].name(), true);
+        if self.backfill_enabled && pick > 0 {
+            let original_ttl = self.links[pick].backend().ttl(key).await.ok().flatten();
+            self.backfill_to_higher_backends(
+                Arc::from(key),
+                Arc::new(value.clone()),
+                pick,
+                original_ttl,
+            )
+            .await;
+        }
+        Ok(Some(value))
     }
 
     /// 回填数据到更高分后端，保留原始 TTL

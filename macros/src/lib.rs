@@ -30,7 +30,8 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut single_flight = false;
     let mut strict_mode = false;
     let mut condition_fn = None;
-    let mut _cache_none = false;
+    let mut cache_none = false;
+    let mut skip_idents: Vec<syn::Ident> = Vec::new();
 
     for arg in args {
         let arg_span = arg.span();
@@ -51,9 +52,30 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             Meta::Path(path) if path.is_ident("strict") => {
                 strict_mode = true;
             }
-            // `cache_none` flag — cache None results
+            // `cache_none` flag — cache None results (only meaningful when the
+            // success type is `Option<T>`; consumed by the cache-write filter).
             Meta::Path(path) if path.is_ident("cache_none") => {
-                _cache_none = true;
+                cache_none = true;
+            }
+            // `skip(a, b)` — exclude named parameters from the default cache
+            // key. Rejected in combination with `key` (explicit template makes
+            // skip meaningless) and for unknown parameter names.
+            Meta::List(list) if list.path.is_ident("skip") => {
+                let parsed = match list
+                    .parse_args_with(Punctuated::<syn::Ident, Token![,]>::parse_terminated)
+                {
+                    Ok(p) => p,
+                    Err(e) => return e.to_compile_error().into(),
+                };
+                if parsed.is_empty() {
+                    return syn::Error::new(
+                        list.span(),
+                        "`skip` expects at least one parameter name, e.g. `skip(password)`",
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+                skip_idents.extend(parsed);
             }
             Meta::NameValue(nv) => {
                 let nv_span = nv.path.span();
@@ -200,7 +222,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             _ => {
                 return syn::Error::new(
                     arg_span,
-                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", condition = path",
+                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, skip(param, ...), service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", condition = path",
                 )
                 .to_compile_error()
                 .into();
@@ -227,35 +249,68 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     let fn_block = &input.block;
     let vis = &input.vis;
 
-    // Extract return type from fn_output for type annotations
-    // For Result<T, E>, we need to extract T
-    let return_type = match fn_output {
-        syn::ReturnType::Default => quote! { () },
+    // Extract the success type T from `Result<T, E>` (fall back to the whole
+    // return type) and detect whether it is `Option<...>` — the latter drives
+    // the `cache_none` write filter below.
+    let success_ty: Option<&syn::Type> = match fn_output {
+        syn::ReturnType::Default => None,
         syn::ReturnType::Type(_, ty) => {
-            // Try to extract T from Result<T, E>
-            if let syn::Type::Path(path) = &**ty {
-                if let Some(seg) = path.path.segments.last() {
-                    if seg.ident == "Result" {
-                        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                            if let Some(first_arg) = args.args.first() {
-                                quote! { #first_arg }
-                            } else {
-                                quote! { #ty }
-                            }
-                        } else {
-                            quote! { #ty }
+            let mut found: Option<&syn::Type> = Some(ty);
+            if let syn::Type::Path(path) = &**ty
+                && let Some(seg) = path.path.segments.last()
+                && seg.ident == "Result"
+                && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+            {
+                found = Some(inner);
+            }
+            found
+        }
+    };
+    // For Result<T, E>, we need to extract T
+    let return_type = match success_ty {
+        Some(t) => quote! { #t },
+        None => quote! { () },
+    };
+    let result_is_option = matches!(
+        success_ty,
+        Some(syn::Type::Path(p))
+            if p.path.segments.last().is_some_and(|s| s.ident == "Option")
+    );
+
+    // Cache-write filter shared by the async, single-flight leader and sync
+    // paths. With `T = Option<X>` and no `cache_none`, `Ok(None)` is not
+    // written back (documented default: absent results are not cached); the
+    // stored bytes are the serialized `Some` inner value, which deserializes
+    // back through `Option<X>` transparently. With `cache_none`, `Ok(None)`
+    // is written as `null` and restored as `Ok(None)` on read.
+    let cache_write_block = |set_call: proc_macro2::TokenStream| {
+        if result_is_option && !cache_none {
+            quote! {
+                if let ::std::result::Result::Ok(ref val) = result {
+                    if let ::std::option::Option::Some(inner) = val {
+                        if let Ok(bytes) = cache.unified_serializer().serialize(inner) {
+                            let _ = #set_call;
                         }
-                    } else {
-                        quote! { #ty }
                     }
-                } else {
-                    quote! { #ty }
                 }
-            } else {
-                quote! { #ty }
+            }
+        } else {
+            quote! {
+                if let ::std::result::Result::Ok(ref val) = result {
+                    if let Ok(bytes) = cache.unified_serializer().serialize(val) {
+                        let _ = #set_call;
+                    }
+                }
             }
         }
     };
+    let async_cache_write = cache_write_block(quote! {
+        cache.set_bytes(&cache_key, bytes, #ttl).await
+    });
+    let sync_cache_write = cache_write_block(quote! {
+        cache.set_bytes_sync(&cache_key, bytes, #ttl)
+    });
 
     // Generate argument names for key generation.
     // Rule 12: surface unsupported parameter shapes (destructuring) as
@@ -279,8 +334,46 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         // FnArg::Receiver (self) is silently skipped — not part of cache key.
     }
 
+    // Validate `skip` references (Rule 12): every skipped identifier must be
+    // an actual function parameter, and `skip` must not be combined with an
+    // explicit `key` template (the template fully determines the key, so
+    // silently ignoring skip would conceal a configuration mistake).
+    if !skip_idents.is_empty() && key_pattern.is_some() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`#[cached]` `skip` cannot be combined with `key`; an explicit key template already determines the cache key, remove one of them",
+        )
+        .to_compile_error()
+        .into();
+    }
+    for skipped in &skip_idents {
+        let skipped_name = skipped.to_string();
+        if !arg_names.iter().any(|arg| arg.to_string() == skipped_name) {
+            return syn::Error::new(
+                skipped.span(),
+                format!(
+                    "`skip` references `{}`, which is not a parameter of `{}`",
+                    skipped, fn_name
+                ),
+            )
+            .to_compile_error()
+            .into();
+        }
+    }
+
+    // Key generation uses only non-skipped parameters; `condition` keeps
+    // receiving the full argument list.
+    let key_arg_names: Vec<&syn::Ident> = arg_names
+        .iter()
+        .filter(|arg| {
+            let name = arg.to_string();
+            !skip_idents.iter().any(|skipped| *skipped == name)
+        })
+        .copied()
+        .collect();
+
     // Generate cloned argument names for key generation to avoid ownership issues
-    let arg_names_cloned: Vec<_> = arg_names
+    let arg_names_cloned: Vec<_> = key_arg_names
         .iter()
         .map(|name| {
             quote! { (#name).clone() }
@@ -295,7 +388,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     } else if let Some(prefix) = key_prefix {
         // Use key_prefix with default generation
-        if arg_names.is_empty() {
+        if key_arg_names.is_empty() {
             quote! { format!("{}:{}:{}", #service_name, #prefix, stringify!(#fn_name)) }
         } else {
             quote! {
@@ -303,8 +396,9 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     } else {
-        // Default key generation: service:fn_name:arg1:arg2...
-        if arg_names.is_empty() {
+        // Default key generation: service:fn_name:arg1:arg2... (skipped
+        // parameters excluded)
+        if key_arg_names.is_empty() {
             quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
         } else {
             quote! {
@@ -450,11 +544,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     let result = async { #fn_block }.await;
 
                     if !#skip_cache_write {
-                        if let Ok(ref val) = result {
-                            if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                                let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
-                            }
-                        }
+                        #async_cache_write
                     }
 
                     __guard.finish();
@@ -488,11 +578,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 let result = { #fn_block };
 
                 if !#skip_cache_write {
-                    if let Ok(ref val) = result {
-                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                            let _ = cache.set_bytes_sync(&cache_key, bytes, #ttl);
-                        }
-                    }
+                    #sync_cache_write
                 }
 
                 result
@@ -526,11 +612,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 let result = async { #fn_block }.await;
 
                 if !#skip_cache_write {
-                    if let Ok(ref val) = result {
-                        if let Ok(bytes) = cache.unified_serializer().serialize(val) {
-                            let _ = cache.set_bytes(&cache_key, bytes, #ttl).await;
-                        }
-                    }
+                    #async_cache_write
                 }
 
                 result

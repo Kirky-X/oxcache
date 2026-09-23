@@ -117,6 +117,8 @@ pub fn clear() {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
     use crate::backend::MokaMemoryBackend;
 
@@ -138,12 +140,14 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_is_initialized_returns_bool() {
         // is_initialized should return a bool without panicking
         let _ = is_initialized();
     }
 
     #[test]
+    #[serial]
     fn test_get_returns_none_for_nonexistent() {
         // If not initialized, get returns None.
         // If initialized, get for a nonexistent key also returns None.
@@ -151,18 +155,21 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_remove_returns_none_for_nonexistent() {
         // remove returns None if not initialized or key doesn't exist
         assert!(remove("definitely_does_not_exist_xyz_456").is_none());
     }
 
     #[test]
+    #[serial]
     fn test_clear_does_not_panic() {
         // clear is a no-op if not initialized; should not panic either way
         clear();
     }
 
     #[test]
+    #[serial]
     fn test_register_get_remove_flow() {
         ensure_initialized();
 
@@ -185,6 +192,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_register_overwrites_existing() {
         ensure_initialized();
 
@@ -202,6 +210,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_clear_removes_all_caches() {
         ensure_initialized();
 
@@ -219,6 +228,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_is_initialized_true_after_init() {
         // After ensure_initialized(), is_initialized() should return true.
         // This tests the init_empty -> is_initialized path.
@@ -230,6 +240,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_registry_debug_format() {
         ensure_initialized();
         // Access the registry via CACHE_REGISTRY to test Debug impl
@@ -240,6 +251,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_with_default_cache() {
         // init() with a default cache backend inserts it under "default" key
         // Since registry may already be initialized, we test the register+get flow
@@ -257,6 +269,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_register_multiple_backends_and_clear() {
         ensure_initialized();
 

@@ -26,6 +26,10 @@ pub mod dragonfly;
 #[cfg(feature = "aerospike")]
 pub mod aerospike;
 
+// Disk-persistent embedded backend (redb, feature-gated)
+#[cfg(feature = "disk")]
+pub mod disk;
+
 // Custom tiered backend configuration (always available)
 #[cfg(any(feature = "memory", feature = "redis"))]
 pub mod custom_tiered;

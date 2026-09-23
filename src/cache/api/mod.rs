@@ -33,14 +33,22 @@ pub struct Cache<K, V> {
     /// TTL jitter factor (0.0..=1.0). When > 0, actual TTL is randomized
     /// within `base_ttl * (1.0 ± factor)` to prevent cache stampede.
     pub(crate) ttl_jitter_factor: f64,
-    /// 注入的指标记录端口。默认 NoOp（零开销）；
-    /// 经 `CacheBuilder::metrics()` 注入后，get/set/delete 纯 L1 路径
-    /// 记录 hit/miss 计数与延迟样本。
+    /// 注入的指标记录端口。默认接入全局 unified 指标（`metrics` feature）；
+    /// 经 `CacheBuilder::metrics()` 可显式注入（`NoOpMetricsRecorder` 恢复静默）。
     #[cfg(feature = "metrics")]
     pub(crate) metrics: Arc<dyn crate::infra::MetricsRecorder>,
     /// 注入的审计事件发布端口（`audit` feature）。None = 不审计。
     #[cfg(feature = "audit")]
     pub(crate) audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
+    /// SWR 装饰器句柄（`stale` feature）。Some = 已启用三态过期。
+    #[cfg(feature = "stale")]
+    pub(crate) stale_backend: Option<Arc<crate::features::stale::StaleWhileRevalidateBackend>>,
+    /// SWR 命中策略（`stale` feature）。默认 Return。
+    #[cfg(feature = "stale")]
+    pub(crate) stale_policy: crate::features::stale::StalePolicy,
+    /// Offload 后台刷新执行器（`stale` feature，OffloadRevalidate 时填充）。
+    #[cfg(feature = "stale")]
+    pub(crate) offload: Option<Arc<crate::features::offload::OffloadManager>>,
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 

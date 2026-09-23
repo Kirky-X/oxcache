@@ -42,6 +42,15 @@ pub struct CacheBuilder<K, V> {
     #[cfg(feature = "audit")]
     audit: Option<Arc<dyn crate::features::audit::AuditEventPublisher>>,
     _phantom: PhantomData<(K, V)>,
+    /// SWR stale 窗口（`stale` feature）。Some = 启用三态过期装饰器。
+    #[cfg(feature = "stale")]
+    stale_ttl: Option<Duration>,
+    /// SWR 命中策略（`stale` feature）。默认 Return。
+    #[cfg(feature = "stale")]
+    stale_policy: crate::features::stale::StalePolicy,
+    /// SWR stale 事件发布器（`stale` feature）。
+    #[cfg(feature = "stale")]
+    event_publisher: Option<Arc<dyn crate::core::events::EventPublisher>>,
 }
 
 impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
@@ -61,6 +70,12 @@ impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
 impl<K, V> Default for CacheBuilder<K, V> {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "stale")]
+            stale_ttl: None,
+            #[cfg(feature = "stale")]
+            stale_policy: crate::features::stale::StalePolicy::default(),
+            #[cfg(feature = "stale")]
+            event_publisher: None,
             backends: Vec::new(),
             ttl: None,
             tti: None,
@@ -169,6 +184,32 @@ where
         self
     }
 
+    /// 启用 SWR 三态过期：过期条目在 `stale_ttl` 窗口内仍可返回旧值
+    /// （absorb-hitbox-features）。与 `sync_mode(true)` 互斥。
+    #[cfg(feature = "stale")]
+    pub fn stale_ttl(mut self, stale_ttl: Duration) -> Self {
+        self.stale_ttl = Some(stale_ttl);
+        self
+    }
+
+    /// 设置 SWR 命中策略（默认 Return；OffloadRevalidate 经
+    /// `get_or_refresh` 触发后台刷新）。
+    #[cfg(feature = "stale")]
+    pub fn stale_policy(mut self, policy: crate::features::stale::StalePolicy) -> Self {
+        self.stale_policy = policy;
+        self
+    }
+
+    /// 注入 SWR stale 命中事件的发布器（`CacheEventType::Expire`）。
+    #[cfg(feature = "stale")]
+    pub fn event_publisher(
+        mut self,
+        publisher: Arc<dyn crate::core::events::EventPublisher>,
+    ) -> Self {
+        self.event_publisher = Some(publisher);
+        self
+    }
+
     /// Set the serialization transport format.
     ///
     /// Default is JSON. Enable `serde-bincode` / `postcard` features and
@@ -250,6 +291,35 @@ where
             if let Some(recorder) = self.metrics {
                 cache.set_metrics_recorder(recorder);
             }
+            // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
+            #[cfg(feature = "stale")]
+            if let Some(stale_ttl) = self.stale_ttl {
+                if self.sync_mode {
+                    return Err(OxCacheError::NotSupported(
+                        "stale_ttl cannot be combined with sync_mode(true); the sync API \
+                     bypasses the decorator and would see incomplete stale semantics"
+                            .to_string(),
+                    ));
+                }
+                let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
+                    cache.backend.clone(),
+                    stale_ttl,
+                )
+                .with_policy(self.stale_policy);
+                if let Some(publisher) = self.event_publisher.clone() {
+                    decorator = decorator.with_event_publisher(publisher);
+                }
+                let decorator = Arc::new(decorator);
+                cache.backend = decorator.clone();
+                cache.set_stale_backend(decorator);
+                cache.set_stale_policy(self.stale_policy);
+                if self.stale_policy == crate::features::stale::StalePolicy::OffloadRevalidate {
+                    cache.set_offload_manager(Arc::new(
+                        crate::features::offload::OffloadManager::new(8),
+                    ));
+                }
+            }
+
             #[cfg(any(feature = "serialization", feature = "full"))]
             if let Some(format) = self.serialization_format {
                 cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
@@ -281,6 +351,35 @@ where
         if let Some(recorder) = self.metrics {
             cache.set_metrics_recorder(recorder);
         }
+        // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
+        #[cfg(feature = "stale")]
+        if let Some(stale_ttl) = self.stale_ttl {
+            if self.sync_mode {
+                return Err(OxCacheError::NotSupported(
+                    "stale_ttl cannot be combined with sync_mode(true); the sync API \
+                     bypasses the decorator and would see incomplete stale semantics"
+                        .to_string(),
+                ));
+            }
+            let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
+                cache.backend.clone(),
+                stale_ttl,
+            )
+            .with_policy(self.stale_policy);
+            if let Some(publisher) = self.event_publisher.clone() {
+                decorator = decorator.with_event_publisher(publisher);
+            }
+            let decorator = Arc::new(decorator);
+            cache.backend = decorator.clone();
+            cache.set_stale_backend(decorator);
+            cache.set_stale_policy(self.stale_policy);
+            if self.stale_policy == crate::features::stale::StalePolicy::OffloadRevalidate {
+                cache.set_offload_manager(Arc::new(crate::features::offload::OffloadManager::new(
+                    8,
+                )));
+            }
+        }
+
         #[cfg(any(feature = "serialization", feature = "full"))]
         if let Some(format) = self.serialization_format {
             cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
@@ -321,6 +420,77 @@ mod tests {
             .unwrap();
         cache.set(&"key".to_string(), &42).await.unwrap();
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
+    }
+
+    // ========================================================================
+    // 默认 unified 指标（absorb-hitbox-features T005/T007）
+    // ========================================================================
+
+    /// 默认构建（未注入 recorder）即产生 unified 指标：set/get/delete 后
+    /// 全局计数器递增。全局静态为跨测试共享，用单调 delta 断言保证并行安全。
+    #[tokio::test]
+    async fn default_cache_records_unified_metrics() {
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+        cache.set(&"metrics-key".to_string(), &7).await.unwrap();
+        let _ = cache.get(&"metrics-key".to_string()).await.unwrap(); // hit
+        let _ = cache.get(&"metrics-miss".to_string()).await.unwrap(); // miss
+        cache.delete(&"metrics-key".to_string()).await.unwrap();
+
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
+        assert!(
+            after.l1_sets > before.l1_sets,
+            "default cache must record sets into unified metrics"
+        );
+        assert!(
+            after.l1_hits > before.l1_hits,
+            "default cache must record hits into unified metrics"
+        );
+        assert!(
+            after.l1_misses > before.l1_misses,
+            "default cache must record misses into unified metrics"
+        );
+        assert!(
+            after.l1_deletes > before.l1_deletes,
+            "default cache must record deletes into unified metrics"
+        );
+    }
+
+    /// 显式注入 NoOpMetricsRecorder 仍可恢复静默（覆盖默认 unified）。
+    #[tokio::test]
+    async fn explicit_noop_recorder_still_supported() {
+        let cache: Cache<String, i32> = Cache::builder()
+            .metrics(Arc::new(crate::infra::NoOpMetricsRecorder))
+            .build()
+            .await
+            .unwrap();
+        // 不 panic、不落 unified 计数即可构建使用
+        cache.set(&"noop-key".to_string(), &1).await.unwrap();
+        assert_eq!(
+            cache.get(&"noop-key".to_string()).await.unwrap().unwrap(),
+            1
+        );
+    }
+
+    /// backend 维度计数经 export_prometheus_standard 以 backend label 导出。
+    #[tokio::test]
+    async fn backend_label_exported_in_prometheus_standard() {
+        let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();
+        cache
+            .set(&"backend-label-key".to_string(), &1)
+            .await
+            .unwrap();
+
+        let exported = crate::infra::export_prometheus_standard();
+        assert!(
+            exported.contains("# TYPE oxcache_backend_moka_operations_total counter"),
+            "prometheus standard export must declare backend counter type"
+        );
+        assert!(
+            exported.contains("oxcache_backend_moka_operations_total{backend=\"moka\"} "),
+            "prometheus standard export must carry the backend label"
+        );
     }
 
     // ============================================================================

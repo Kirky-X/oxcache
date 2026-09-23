@@ -160,7 +160,7 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.4")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.5")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua, batch,
@@ -236,11 +236,11 @@ pub mod internal;
 // Gated behind backend-enabling features because cache depends on backend + infra modules.
 // memory-only is supported: serde is included in the memory feature for trait bounds,
 // and serde_json usage is internally gated behind serialization/full.
-#[cfg(any(feature = "memory", feature = "redis"))]
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub mod cache;
 
 // Backend module (L1/L2 cache implementation)
-#[cfg(any(feature = "memory", feature = "redis"))]
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub mod backend;
 
 // Features module (optional capabilities)

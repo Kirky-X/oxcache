@@ -37,12 +37,10 @@ mod tests {
     fn test_get_enhanced_stats_returns_cache_stats() {
         convenience::reset();
         let stats = get_enhanced_stats();
-        // After reset, all counters should be 0
-        assert_eq!(stats.l1_hits, 0);
-        assert_eq!(stats.l1_misses, 0);
-        assert_eq!(stats.l2_hits, 0);
-        assert_eq!(stats.l2_misses, 0);
-        assert_eq!(stats.total_operations, 0);
+        // 默认指标落地后（absorb-hitbox-features T005），默认 Cache 会写入
+        // 全局 unified 计数：并行测试可能在 reset 之后递增计数器，"reset 后
+        // 绝对为零" 的断言不再成立。改为断言快照字段自洽。
+        assert!(stats.total_operations >= stats.l1_hits + stats.l1_misses);
     }
 
     #[test]

@@ -256,3 +256,24 @@ async fn single_flight_concurrent_distinct_keys_all_complete() {
         "distinct-key 并发应分散执行（分片生效），got {calls}/32"
     );
 }
+
+// ============================================================================
+// skip(...) / cache_none — compile-fail validation
+// ============================================================================
+
+/// `skip` referencing a non-existent parameter must be a compile error
+/// naming the offending identifier.
+#[test]
+fn skip_unknown_param_compile_error() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/macros/compile_fail/skip_unknown_param.rs");
+}
+
+/// `skip` combined with an explicit `key` template must be a compile error
+/// (the template fully determines the key; silent ignore would conceal the
+/// configuration mistake).
+#[test]
+fn skip_with_key_conflict_compile_error() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/macros/compile_fail/skip_with_key_conflict.rs");
+}

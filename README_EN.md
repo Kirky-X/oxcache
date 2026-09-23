@@ -59,7 +59,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | Feature | Description |
 |---------|-------------|
 | 🚀 **Multi-tier caching** | L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) chained by score via `ChainCache`, with async backfill on non-top hits |
-| ⚡ **Zero-boilerplate macro** | One-line `#[cached]` integration supporting `service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` |
+| ⚡ **Zero-boilerplate macro** | One-line `#[cached]` integration supporting `service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` / `skip` |
 | 🔄 **Sync API** | With `sync_mode(true)`, `get_sync` / `set_sync` / `get_or_sync` coexist with the async API on the same `Cache<K, V>` |
 | ⏱️ **Universal per-entry TTL** | `ttl` / `expire` behave consistently across all nine backend kinds: Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom |
 | 🌸 **Penetration guard** | Single-flight dedup (64 shards), null sentinel, TTL jitter, bloom-filter negative-query short-circuit |
@@ -69,7 +69,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🗜️ **Adaptive compression** | `CompressingBackend` applies zstd above a size threshold; reads auto-detect by magic bytes and stay compatible with legacy gzip |
 | 🔑 **Distributed coordination** | Redis distributed lock (watchdog renewal / reentrant), RedLock multi-node majority lock, cross-instance invalidation bus |
 | 🧯 **Fault resilience** | ChainCache per-link fault tolerance, `degradation` three-state auto-degradation and recovery, health checks, graceful shutdown |
-| 🧪 **Engineering quality** | 1900+ test functions (as of 0.5.0-rc.4), chaos and security tests, three-platform CI matrix, coverage gate |
+| 🧪 **Engineering quality** | 1900+ test functions (as of 0.5.0-rc.5), chaos and security tests, three-platform CI matrix, coverage gate |
 
 <details>
 <summary>🔎 Advanced capabilities at a glance</summary>
@@ -106,7 +106,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.4"
+oxcache = "0.5.0-rc.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -175,9 +175,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0-rc.4", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.4", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.4", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
+oxcache = { version = "0.5.0-rc.5", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.5", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.5", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
 ```
 
 | Flag | Description | Default |
@@ -210,6 +210,9 @@ oxcache = { version = "0.5.0-rc.4", features = ["full"] }      # full (excludes 
 | `audit` | Structured audit event stream (NoOp / bounded in-memory ring / tracing publishers) | ❌ |
 | `versioning` | Versioned CAS (in-memory + Redis WATCH/MULTI/EXEC implementations) | ❌ |
 | `kit` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / shutdown / decorators) | ❌ |
+| `disk` | Disk-persistent L3 backend (embedded redb, lazy expiry + `max_entries` sweep, `Scores::REDB = 85`) | ❌ |
+| `stale` | SWR three-state expiry: `StaleWhileRevalidateBackend` + `StalePolicy` (Return / Revalidate / OffloadRevalidate) (requires `offload`) | ❌ |
+| `offload` | Background task subsystem: `OffloadManager` dedup / concurrency limit / timeout policies, `get_or_refresh` background revalidation | ❌ |
 
 > Opt-in features such as `bloom` and `kit` are **not** part of `full` and must be enabled explicitly.
 
@@ -466,7 +469,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep, as of **0.5.0-rc.4**; 1900+ in total (`src/` 1335 + `tests/` 606).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep, as of **0.5.0-rc.5**; 1900+ in total (`src/` 1335 + `tests/` 606).
 
 ### Common Commands (same as CI)
 
@@ -538,7 +541,7 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 
 | Status | Item | Notes |
 |:------:|------|-------|
-| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.4 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
+| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.5 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
 | 📋 | **Valkey integration test environment gating** | 8 Valkey integration tests depend on Docker (testcontainers) and cannot run without it — a known limitation recorded during acceptance |
 | 📋 | **Follow-up on archived review findings** | 3 Medium suggestions and 2 Low notes archived from the diting code quality review, to be triaged by priority |

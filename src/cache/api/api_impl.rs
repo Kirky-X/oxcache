@@ -7,6 +7,39 @@ use crate::backend::{CacheBackend, SyncCacheBackend};
 // UnifiedSerializer 仅在 serialization/full feature 下可用
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
+
+/// BackendKind → CacheLayer 映射（纯函数，T018）：内存 → L1，分布式 → L2。
+#[cfg(feature = "metrics")]
+pub(crate) fn layer_for(kind: crate::backend::BackendKind) -> crate::core::CacheLayer {
+    if kind.is_distributed() {
+        crate::core::CacheLayer::L2
+    } else {
+        crate::core::CacheLayer::L1
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod layer_tests {
+    use super::layer_for;
+    use crate::backend::BackendKind;
+    use crate::core::CacheLayer;
+
+    #[test]
+    fn memory_kinds_map_to_l1() {
+        assert_eq!(layer_for(BackendKind::Moka), CacheLayer::L1);
+        assert_eq!(layer_for(BackendKind::DashMap), CacheLayer::L1);
+        assert_eq!(layer_for(BackendKind::Mock), CacheLayer::L1);
+        assert_eq!(layer_for(BackendKind::Unknown), CacheLayer::L1);
+    }
+
+    #[test]
+    fn distributed_kinds_map_to_l2() {
+        assert_eq!(layer_for(BackendKind::Redis), CacheLayer::L2);
+        assert_eq!(layer_for(BackendKind::Valkey), CacheLayer::L2);
+        assert_eq!(layer_for(BackendKind::Dragonfly), CacheLayer::L2);
+        assert_eq!(layer_for(BackendKind::Aerospike), CacheLayer::L2);
+    }
+}
 use crate::traits::CacheKey;
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,12 +72,52 @@ where
             unified_serializer: UnifiedSerializer::json(),
             null_cache_ttl: None,
             ttl_jitter_factor: crate::core::constants::DEFAULT_TTL_JITTER_FACTOR,
+            // 默认接入全局 unified 指标：metrics feature 随 minimal 预设
+            // 默认开启，所有构造路径（new/memory/builder）不再默认零计数。
+            // 显式注入 NoOpMetricsRecorder 可恢复静默。
             #[cfg(feature = "metrics")]
-            metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            metrics: Arc::new(crate::infra::UnifiedMetricsRecorder::global()),
             #[cfg(feature = "audit")]
             audit: None,
+            #[cfg(feature = "stale")]
+            stale_backend: None,
+            #[cfg(feature = "stale")]
+            stale_policy: crate::features::stale::StalePolicy::default(),
+            #[cfg(feature = "stale")]
+            offload: None,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    /// 注入 SWR 装饰器句柄（builder 专用）。
+    #[cfg(feature = "stale")]
+    pub(crate) fn set_stale_backend(
+        &mut self,
+        backend: Arc<crate::features::stale::StaleWhileRevalidateBackend>,
+    ) {
+        self.stale_backend = Some(backend);
+    }
+
+    /// 设置 SWR 命中策略（builder 专用）。
+    #[cfg(feature = "stale")]
+    pub(crate) fn set_stale_policy(&mut self, policy: crate::features::stale::StalePolicy) {
+        self.stale_policy = policy;
+    }
+
+    /// 注入 Offload 管理器（builder 专用）。
+    #[cfg(feature = "stale")]
+    pub(crate) fn set_offload_manager(
+        &mut self,
+        manager: Arc<crate::features::offload::OffloadManager>,
+    ) {
+        self.offload = Some(manager);
+    }
+
+    /// Offload 管理器访问器（`stale` feature，OffloadRevalidate 策略时为
+    /// `Some`）。可用于优雅关闭前 `wait_all` 等待后台刷新完成。
+    #[cfg(feature = "stale")]
+    pub fn offload_manager(&self) -> Option<Arc<crate::features::offload::OffloadManager>> {
+        self.offload.clone()
     }
 
     #[cfg(feature = "memory")]
@@ -75,6 +148,20 @@ where
     /// Set the TTL jitter factor for stampede prevention.
     pub(crate) fn set_ttl_jitter_factor(&mut self, factor: f64) {
         self.ttl_jitter_factor = factor;
+    }
+
+    /// Metrics layer for the current backend: in-memory backends report as
+    /// L1, distributed backends as L2 (replaces the former hardcoded L1).
+    #[cfg(feature = "metrics")]
+    pub(crate) fn metrics_layer(&self) -> crate::core::CacheLayer {
+        layer_for(self.backend.backend_kind())
+    }
+
+    /// Backend-labeled operation counter (global unified metrics).
+    #[cfg(feature = "metrics")]
+    pub(crate) fn record_backend_op(&self) {
+        crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS
+            .record_backend_operation(self.backend.backend_kind().name());
     }
 
     /// Inject a metrics recorder.
@@ -151,9 +238,15 @@ where
             null_cache_ttl: None,
             ttl_jitter_factor: crate::core::constants::DEFAULT_TTL_JITTER_FACTOR,
             #[cfg(feature = "metrics")]
-            metrics: Arc::new(crate::infra::NoOpMetricsRecorder),
+            metrics: Arc::new(crate::infra::UnifiedMetricsRecorder::global()),
             #[cfg(feature = "audit")]
             audit: None,
+            #[cfg(feature = "stale")]
+            stale_backend: None,
+            #[cfg(feature = "stale")]
+            stale_policy: crate::features::stale::StalePolicy::default(),
+            #[cfg(feature = "stale")]
+            offload: None,
             _phantom: std::marker::PhantomData,
         })
     }

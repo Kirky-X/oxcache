@@ -7,8 +7,23 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **`#[cached]` 宏 `skip(...)` 参数**：被点名参数不进入默认缓存 key（如 `skip(password)` 排除敏感参数）；与显式 `key` 模板互斥（编译期报错）、未知参数名编译期报错（对标 hitbox `skip` 语义）
+- **`stale` feature SWR 三态过期**：`StaleWhileRevalidateBackend` 装饰器以双时间戳 envelope（`expire_at`/`stale_at`）实现 Actual/Stale/Expired 三态判定；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；`StalePolicy::Return`（旧值兜底，默认）/ `Revalidate`（同步回源刷新）/ `OffloadRevalidate`（立即回旧值 + 后台刷新）；非 envelope 旧数据按新鲜透传，零迁移成本；物理 TTL = `ttl + stale_ttl`；stale 命中发布 `CacheEventType::Expire` 事件并计入 `oxcache_stale_hits_total`
+- **`offload` feature 后台任务子系统**：`OffloadManager` 同 key 去重 + 信号量并发上限 + 超时策略（`None`/`Cancel`/`Warn`，默认 `Warn(30s)`）；`Cache::get_or_refresh()` 触发后台重验证（fallback 需 `Send + 'static`）；`oxcache_offload_*` 指标全集与 `oxcache::offload` 遥测
+- **`disk` feature 磁盘持久化 L3 后端**：`RedbDiskBackend`（redb 3.x 纯安全 Rust，ACID + WAL）；value envelope（seq + epoch 毫秒过期）+ 读路径懒过期物理删除（与 DashMap 同口径）；`max_entries` 超限清扫（先删过期、按 seq 升序删最旧，摊销触发，`spawn_blocking` 执行）；`BackendKind::Disk`、`Scores::REDB = 85`；`ChainLink::from_arc` / `ChainBuilder::extra_backend` 挂链为 L3（读穿透 + 回填）；`full` 预设包含 `disk`/`stale`/`offload`
+- **ChainCache 读策略枚举**：`ChainReadStrategy`（`Sequential`/`Race`/`ParallelFreshest`）+ `ChainCacheBuilder::read_strategy()`；`ParallelFreshest` 并发全读后按剩余 TTL 择新（None 最低优先，并列取最高分）；`enable_race_read()`/`disable_race_read()` 保留为兼容别名；三策略读结果遥测埋点
+
+### 变更
+
+- **默认指标落地（行为变化）**：`Cache` 默认 recorder 由 `NoOpMetricsRecorder` 改为全局 `UnifiedMetricsRecorder`（`metrics` feature 下所有构造路径生效）——`minimal` 预设开箱即产生 hit/miss/set/delete 计数；显式注入 `NoOpMetricsRecorder` 可恢复静默
+- **指标维度补强**：单后端 `Cache` 指标 layer 依后端类型判定（内存 L1 / 分布式 L2，原硬编码 L1）；`get_bytes`/`set_bytes` 及 sync 版补齐与泛型路径同口径打点；新增 backend 维度计数 `oxcache_backend_<name>_operations_total`（`export_prometheus_standard` 以 `backend` label 导出）
+
 ### 修复
 
+- **宏 `cache_none` no-op 缺陷**：`cache_none` 参数此前解析后从未消费；且 `Result<Option<T>, E>` 的 `Ok(None)` 被无条件缓存（与文档宣称相反）。现按文档语义修复：默认仅缓存 `Ok(Some)`，开启 `cache_none` 后 `Ok(None)` 以 `null` 缓存并在读取时还原；single_flight leader 与 sync 路径同口径
+- **文档版本漂移**：README/README_EN/lib.rs 中 13 处 `0.5.0-rc.4` 当前版本引用同步至 `0.5.0-rc.5`（历史发布条目保留）
 - **Lua 块注释跳过越界绕过**：`skip_lua_comment` 在计数前先消费开括号 `[`，使 `=` 参与闭合符长度计算——此前 `--[==[ x ]==] redis.call('FLUSHALL')` 会因越界吞吃而对校验器不可见（独立 diting 审查实证，存量缺陷）
 - **日志脱敏**：无 userinfo 的 URL 经 query/fragment 携带秘密时同样掩码；`sanitize_message` 切分改用 `rfind('@')`，密码含 `@` 不再残留片段
 - **aerospike 亚秒 TTL**：非零亚秒 TTL 上取整到 1 秒（原截断为 0 后被当作永不过期）；显式 `Duration::ZERO` 保持 Never 语义
@@ -17,6 +32,7 @@
 ### 文档
 
 - 修正方括号索引折叠的行为声明：折叠发生于引号剥离之后，含连字符的索引残段同样可能被折叠（结果仍为合法 Lua 且无黑名单命中）
+- README / README_EN / API_REFERENCE / ARCHITECTURE 同步 `disk`/`stale`/`offload`/读策略/宏 `skip` 能力说明（中英对称）
 
 ---
 

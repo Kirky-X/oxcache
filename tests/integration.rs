@@ -26,6 +26,8 @@ mod invalidation_test;
 #[cfg(feature = "redis")]
 #[path = "integration/recovery_test.rs"]
 mod recovery_test;
+#[path = "integration/stale_revalidate_test.rs"]
+mod stale_revalidate_test;
 #[path = "integration/sync_api_test.rs"]
 mod sync_api_test;
 #[cfg(feature = "redis")]

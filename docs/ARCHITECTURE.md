@@ -215,6 +215,7 @@ cache.register_for_macro("my_service").await?;
 | `AerospikeBackend` | `oxcache::backend::AerospikeBackend` | `aerospike` | Aerospike 持久化 KV 存储 |
 | `ChainCache` | `oxcache::cache::chain::ChainCache` | — | 按分数排序的多后端缓存链 |
 | `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom` | 负查询过滤装饰器 |
+| `RedbDiskBackend` | `oxcache::backend::disk::RedbDiskBackend` | `disk` | L3 磁盘持久化（redb 嵌入式，懒过期 + `max_entries` 清扫） |
 
 **异步 Trait 层级**（`backend/interface.rs`）：
 
@@ -304,6 +305,12 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 后端（`JoinSet`）并返回首个命中；非最高分命中时仍执行回填，
 仅当所有后端都失败时读取才报错。
 
+读取行为现已枚举化为 `ChainReadStrategy`（`ChainCacheBuilder::read_strategy()`）：
+`Sequential`（默认，等价未启用竞速读）、`Race`（等价 `enable_race_read()`，
+取分数最高命中）、`ParallelFreshest`（并发全读后按剩余 TTL 择新，None 最低
+优先、并列取最高分；absorb-hitbox-features 引入）。`enable_race_read()` /
+`disable_race_read()` 保留为兼容别名。
+
 **ChainCache 写入路径**：
 
 ```
@@ -332,6 +339,8 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 - `features::invalidation` — 跨实例失效总线（Redis Pub/Sub 广播 + 键空间通知）
 - `features::degradation` — `DegradableBackend` 三态自动降级装饰器
 - `features::compression` — `CompressingBackend` 自适应 zstd 压缩装饰器
+- `features::stale` — `StaleWhileRevalidateBackend` SWR 三态过期装饰器（Actual/Stale/Expired 双时间戳 envelope）+ `StalePolicy` 三策略（Return / Revalidate / OffloadRevalidate）；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；后台刷新经 `Cache::get_or_refresh()`（`offload` feature）
+- `features::offload` — `OffloadManager` 后台任务子系统（同 key 去重、信号量并发上限、超时 Cancel/Warn）
 - `features::audit` — `AuditEventPublisher` 结构化审计事件流
 - `features::versioning` — 版本化 CAS 实现
 - `features::confers_config` — confers 配置驱动构建（`OxcacheConfig` + `ConfigBus` 热更新）

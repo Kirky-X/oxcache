@@ -1,0 +1,5 @@
+error: `skip` references `nope`, which is not a parameter of `bad_skip_fn`
+ --> tests/macros/compile_fail/skip_unknown_param.rs:9:46
+  |
+9 | #[cached(service = "skip_unknown_test", skip(nope))]
+  |                                              ^^^^

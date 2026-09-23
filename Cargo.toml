@@ -112,6 +112,11 @@ optional = true
 version = "6.2"
 optional = true
 
+# redb 嵌入式键值存储（磁盘 L3 后端）
+[dependencies.redb]
+version = "3.1"
+optional = true
+
 # L2 Cache (Redis)
 [dependencies.redis]
 version = "1.7"
@@ -247,6 +252,9 @@ full = [
     "dragonfly",
     "aerospike",
     "lock",
+    "offload",
+    "disk",
+    "stale",
 ]
 
 # Component features
@@ -274,6 +282,12 @@ redlock = ["lock"]
 red-lock = ["redlock"]
 compression = ["dep:flate2", "dep:zstd"]
 telemetry = ["dep:tracing"]
+# Offload 后台任务子系统（去重 / 并发上限 / 超时策略）
+offload = ["dep:dashmap"]
+# redb 嵌入式磁盘持久化 L3 后端（memory 为模块门控基线）
+disk = ["memory", "serialization", "dep:redb"]
+# SWR 三态过期（依赖 offload 做后台重验证）
+stale = ["memory", "offload", "serialization"]
 invalidation = ["redis", "serialization", "dep:futures"]
 pubsub = ["redis", "dep:futures", "dep:tracing"]
 encrypt = ["dep:chacha20poly1305", "dep:getrandom"]

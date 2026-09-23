@@ -44,6 +44,27 @@ fn get_or_shard_index(key: &str) -> usize {
     global_shard_index(key)
 }
 
+// SWR telemetry 双版本 inline 埋点（stale feature）
+#[cfg(all(feature = "stale", feature = "telemetry"))]
+#[inline]
+fn telemetry_stale_downgrade(key: &str) {
+    tracing::debug!(target: "oxcache::stale", key, "stale hit served via get_or (Return downgrade; use get_or_refresh for background revalidation)");
+}
+
+#[cfg(not(all(feature = "stale", feature = "telemetry")))]
+#[inline]
+fn telemetry_stale_downgrade(_key: &str) {}
+
+#[cfg(all(feature = "stale", feature = "telemetry"))]
+#[inline]
+fn telemetry_stale_refresh(key: &str, spawned: bool) {
+    tracing::debug!(target: "oxcache::stale", key, spawned, "stale hit; background revalidation scheduled");
+}
+
+#[cfg(not(all(feature = "stale", feature = "telemetry")))]
+#[inline]
+fn telemetry_stale_refresh(_key: &str, _spawned: bool) {}
+
 // 生产路径的序列化/反序列化统一走 `UnifiedSerializer`（格式可插拔），
 // 原 `deserialize_value` 辅助函数已被其取代。
 
@@ -61,13 +82,13 @@ where
         #[cfg(feature = "metrics")]
         {
             let latency = __start.elapsed();
+            let layer = self.metrics_layer();
             if bytes.is_some() {
-                self.metrics
-                    .record_hit(crate::core::CacheLayer::L1, latency);
+                self.metrics.record_hit(layer, latency);
             } else {
-                self.metrics
-                    .record_miss(crate::core::CacheLayer::L1, latency);
+                self.metrics.record_miss(layer, latency);
             }
+            self.record_backend_op();
         }
         // 审计事件（hit/miss）
         #[cfg(feature = "audit")]
@@ -109,13 +130,13 @@ where
         #[cfg(feature = "metrics")]
         {
             let latency = __start.elapsed();
+            let layer = self.metrics_layer();
             if bytes.is_some() {
-                self.metrics
-                    .record_hit(crate::core::CacheLayer::L1, latency);
+                self.metrics.record_hit(layer, latency);
             } else {
-                self.metrics
-                    .record_miss(crate::core::CacheLayer::L1, latency);
+                self.metrics.record_miss(layer, latency);
             }
+            self.record_backend_op();
         }
         #[cfg(feature = "audit")]
         if let Some(publisher) = self.audit.as_ref() {
@@ -145,7 +166,16 @@ where
         ttl: Option<Duration>,
     ) -> OxCacheResult<()> {
         let bytes = self.unified_serializer.serialize(value)?;
-        self.backend.set(Arc::from(key), Arc::new(bytes), ttl).await
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self.backend.set(Arc::from(key), Arc::new(bytes), ttl).await;
+        #[cfg(feature = "metrics")]
+        {
+            self.metrics
+                .record_set(self.metrics_layer(), __start.elapsed());
+            self.record_backend_op();
+        }
+        result
     }
 
     // ========================================================================
@@ -221,8 +251,11 @@ where
                 .set(Arc::from(key_str), Arc::new(bytes), ttl)
                 .await;
             #[cfg(feature = "metrics")]
-            self.metrics
-                .record_set(crate::core::CacheLayer::L1, __start.elapsed());
+            {
+                self.metrics
+                    .record_set(self.metrics_layer(), __start.elapsed());
+                self.record_backend_op();
+            }
             // 审计事件（set）
             #[cfg(feature = "audit")]
             if result.is_ok()
@@ -254,8 +287,11 @@ where
         let __start = std::time::Instant::now();
         let result = self.backend.delete(&key_str).await;
         #[cfg(feature = "metrics")]
-        self.metrics
-            .record_delete(crate::core::CacheLayer::L1, __start.elapsed());
+        {
+            self.metrics
+                .record_delete(self.metrics_layer(), __start.elapsed());
+            self.record_backend_op();
+        }
         // 审计事件（delete）
         #[cfg(feature = "audit")]
         if result.is_ok()
@@ -327,6 +363,106 @@ where
         self.get_or_core(key, ttl, fallback).await
     }
 
+    /// SWR stale 探测（get_or 路径，无 offload 能力）：
+    /// Stale 命中按策略处理——Return（及 OffloadRevalidate 的降级）返回旧值；
+    /// Revalidate 返回 None 落入 miss 路径同步回源；Fresh/Opaque/Expired
+    /// 交由标准路径。
+    #[cfg(feature = "stale")]
+    async fn stale_step_basic(&self, key: &K) -> OxCacheResult<Option<V>> {
+        let Some(stale) = self.stale_backend.as_ref() else {
+            return Ok(None);
+        };
+        let key_str = key.to_key_string();
+        let (bytes, state) = stale.get_with_state(&key_str).await?;
+        if state != crate::features::stale::StaleState::Stale {
+            return Ok(None);
+        }
+        // 哨兵载荷按 miss 处理：fallback 重执行自然刷新哨兵
+        if bytes.as_deref() == Some(crate::core::constants::NULL_SENTINEL) {
+            return Ok(None);
+        }
+        let Some(raw) = bytes else {
+            return Ok(None);
+        };
+        match self.stale_policy {
+            crate::features::stale::StalePolicy::Return
+            | crate::features::stale::StalePolicy::OffloadRevalidate => {
+                // OffloadRevalidate 经 get_or（非 offloadable）按 Return 降级
+                telemetry_stale_downgrade(&key_str);
+                let old = self.unified_serializer.deserialize(&raw)?;
+                Ok(Some(old))
+            }
+            crate::features::stale::StalePolicy::Revalidate => {
+                // 视同 miss（hitbox Revalidate 语义）：先删除 stale 条目，
+                // 使标准 miss/single-flight 路径的 hit 检查不再把 stale 视为
+                // 命中；leader 回源写新值，follower 重查得 fresh 值。代价：
+                // fallback 失败时旧值不再保留（同步刷新语义的固有取舍）。
+                let _ = crate::backend::CacheWriter::delete(stale.as_ref(), &key_str).await;
+                Ok(None)
+            }
+        }
+    }
+
+    /// `get_or_refresh`：`get_or` 的后台刷新变体（`stale` feature）。
+    ///
+    /// `OffloadRevalidate` 策略下 stale 命中立即返回旧值，并将 fallback 交由
+    /// [`OffloadManager`](crate::features::offload::OffloadManager) 后台执行
+    /// （同 key 去重；这正是 fallback 需要 `Send + 'static` 约束的原因）。
+    /// Return / Revalidate 语义与 [`Self::get_or_with_ttl`] 一致。
+    #[cfg(feature = "stale")]
+    pub async fn get_or_refresh<F, Fut>(
+        &self,
+        key: &K,
+        ttl: Option<Duration>,
+        fallback: F,
+    ) -> OxCacheResult<V>
+    where
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = OxCacheResult<V>> + Send + 'static,
+        V: Send + 'static,
+    {
+        if let Some(stale) = self.stale_backend.as_ref() {
+            let key_str = key.to_key_string();
+            let (bytes, state) = stale.get_with_state(&key_str).await?;
+            let stale_hit = state == crate::features::stale::StaleState::Stale
+                && bytes.as_deref() != Some(crate::core::constants::NULL_SENTINEL);
+            if stale_hit {
+                let raw = bytes.expect("Stale state must carry payload");
+                match self.stale_policy {
+                    crate::features::stale::StalePolicy::Return => {
+                        return self.unified_serializer.deserialize(&raw);
+                    }
+                    crate::features::stale::StalePolicy::OffloadRevalidate => {
+                        let old = self.unified_serializer.deserialize(&raw)?;
+                        if let Some(offload) = self.offload.as_ref() {
+                            let backend = self.backend.clone();
+                            let serializer = self.unified_serializer.clone();
+                            let write_ttl = ttl.map(|t| self.apply_jitter(t));
+                            let refresh_key: std::sync::Arc<str> = Arc::from(key_str.as_str());
+                            let spawned = offload.spawn(refresh_key.clone(), async move {
+                                if let Ok(value) = fallback().await
+                                    && let Ok(bytes) = serializer.serialize(&value)
+                                {
+                                    let _ =
+                                        backend.set(refresh_key, Arc::new(bytes), write_ttl).await;
+                                }
+                            });
+                            telemetry_stale_refresh(&key_str, spawned);
+                            return Ok(old);
+                        }
+                        // 无管理器（不应发生）→ Return 降级
+                        return Ok(old);
+                    }
+                    crate::features::stale::StalePolicy::Revalidate => {
+                        // 同 stale_step_basic：删除 stale 条目后走 miss 路径
+                        let _ = crate::backend::CacheWriter::delete(stale.as_ref(), &key_str).await;
+                    }
+                }
+            }
+        }
+        self.get_or_core(key, ttl, fallback).await
+    }
+
     /// `get_or` / `get_or_with_ttl` 的共享实现：`value_ttl=None` 保持旧路径
     /// 行为（无 TTL），`Some` 经 `apply_jitter` 抖动后写入。
     async fn get_or_core<F, Fut>(
@@ -339,6 +475,11 @@ where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = OxCacheResult<V>>,
     {
+        // SWR 三态探测（stale feature）：Stale 命中按策略处理，其余走标准路径
+        #[cfg(feature = "stale")]
+        if let Some(v) = self.stale_step_basic(key).await? {
+            return Ok(v);
+        }
         // 快速路径：缓存命中
         if let Some(value) = self.get(key).await? {
             return Ok(value);

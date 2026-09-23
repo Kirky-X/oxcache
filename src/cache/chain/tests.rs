@@ -1369,3 +1369,133 @@ async fn test_chain_expire_propagates_to_all() {
         "expire should return true when at least one backend succeeds"
     );
 }
+
+// ============================================================================
+// 读策略枚举与 ParallelFreshest（absorb-hitbox-features T014）
+// ============================================================================
+
+mod read_strategy_tests {
+    use super::*;
+    use crate::backend::CacheWriter;
+    use crate::cache::chain::ChainReadStrategy;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    async fn set_on(backend: &MockBackend, key: &str, value: &[u8], ttl: Option<Duration>) {
+        let key: Arc<str> = Arc::from(key);
+        let value = Arc::new(value.to_vec());
+        CacheWriter::set(backend, key, value, ttl).await.unwrap();
+    }
+
+    fn build_chain(
+        l1: MockBackend,
+        l2: MockBackend,
+        l3: MockBackend,
+        strategy: ChainReadStrategy,
+    ) -> ChainCache {
+        ChainCache::builder()
+            .backend(l1)
+            .backend(l2)
+            .backend(l3)
+            .read_strategy(strategy)
+            .build()
+    }
+
+    /// 三链接不同剩余 TTL：ParallelFreshest 返回剩余最长（低分慢层）的值
+    #[tokio::test]
+    async fn parallel_freshest_picks_longest_remaining_ttl() {
+        let fast = MockBackend::new("fast", 100, false);
+        let mid = MockBackend::new("mid", 90, false);
+        let slow = MockBackend::new("slow", 50, true);
+        set_on(&fast, "k", b"from-fast", Some(Duration::from_secs(30))).await;
+        set_on(&mid, "k", b"from-mid", Some(Duration::from_secs(5))).await;
+        set_on(&slow, "k", b"from-slow", Some(Duration::from_secs(300))).await;
+
+        let chain = build_chain(fast, mid, slow, ChainReadStrategy::ParallelFreshest);
+        let v = chain.get("k").await.unwrap();
+        assert_eq!(
+            v,
+            Some(b"from-slow".to_vec()),
+            "freshest (longest remaining TTL) link must win, not the highest score"
+        );
+    }
+
+    /// 命中者 TTL 查询全部 None：回落到 index 最小（分数最高），与 Race 同结果
+    #[tokio::test]
+    async fn parallel_freshest_falls_back_to_highest_score_when_no_ttl() {
+        let fast = MockBackend::new("fast", 100, false);
+        let slow = MockBackend::new("slow", 50, true);
+        set_on(&fast, "k", b"from-fast", None).await;
+        set_on(&slow, "k", b"from-slow", None).await;
+
+        let chain = build_chain(
+            fast,
+            MockBackend::new("empty", 90, false),
+            slow,
+            ChainReadStrategy::ParallelFreshest,
+        );
+        let v = chain.get("k").await.unwrap();
+        assert_eq!(v, Some(b"from-fast".to_vec()));
+    }
+
+    /// 部分链接 get 故障：ParallelFreshest 容忍并参与剩余链接择新
+    #[tokio::test]
+    async fn parallel_freshest_tolerates_partial_backend_failure() {
+        let fast = MockBackend::new("fast", 100, false).with_fail_get();
+        let slow = MockBackend::new("slow", 50, true);
+        set_on(&slow, "k", b"from-slow", Some(Duration::from_secs(300))).await;
+
+        let chain = build_chain(
+            fast,
+            MockBackend::new("empty", 90, false),
+            slow,
+            ChainReadStrategy::ParallelFreshest,
+        );
+        let v = chain.get("k").await.unwrap();
+        assert_eq!(
+            v,
+            Some(b"from-slow".to_vec()),
+            "single-link failure must not block"
+        );
+    }
+
+    /// Race 兼容别名：行为不变——全部完成后取分数最高命中（非最新鲜）
+    #[tokio::test]
+    async fn race_alias_keeps_highest_score_semantics() {
+        let fast = MockBackend::new("fast", 100, false);
+        let slow = MockBackend::new("slow", 50, true);
+        set_on(&fast, "k", b"from-fast", Some(Duration::from_secs(5))).await;
+        set_on(&slow, "k", b"from-slow", Some(Duration::from_secs(300))).await;
+
+        let chain = build_chain(
+            fast,
+            MockBackend::new("empty", 90, false),
+            slow,
+            ChainReadStrategy::Race,
+        );
+        let v = chain.get("k").await.unwrap();
+        assert_eq!(
+            v,
+            Some(b"from-fast".to_vec()),
+            "race must pick the highest-score hit"
+        );
+    }
+
+    /// Sequential（默认）：按分数逐个读，最高分命中即返回
+    #[tokio::test]
+    async fn sequential_default_reads_highest_score_first() {
+        let fast = MockBackend::new("fast", 100, false);
+        let slow = MockBackend::new("slow", 50, true);
+        set_on(&fast, "k", b"from-fast", Some(Duration::from_secs(5))).await;
+        set_on(&slow, "k", b"from-slow", Some(Duration::from_secs(300))).await;
+
+        // 未调用 read_strategy：默认 Sequential
+        let chain = ChainCache::builder()
+            .backend(fast)
+            .backend(MockBackend::new("empty", 90, false))
+            .backend(slow)
+            .build();
+        let v = chain.get("k").await.unwrap();
+        assert_eq!(v, Some(b"from-fast".to_vec()));
+    }
+}

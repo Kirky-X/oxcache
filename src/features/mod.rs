@@ -26,6 +26,14 @@ pub mod audit;
 #[cfg(feature = "compression")]
 pub mod compression;
 
+/// Offload 后台任务子系统（absorb-hitbox-features）：去重 + 限并发 + 超时策略
+#[cfg(feature = "offload")]
+pub mod offload;
+
+/// SWR 三态过期装饰器（absorb-hitbox-features）：Actual/Stale/Expired + 三策略
+#[cfg(feature = "stale")]
+pub mod stale;
+
 /// 热 key 采样观测（审计 F11）：独立组件，不入读路径
 #[cfg(feature = "hotkey")]
 pub mod hotkey;

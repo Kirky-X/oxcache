@@ -4,7 +4,7 @@
 //!
 //! 提供 `ChainCacheBuilder` 用于分步构建 `ChainCache` 实例。
 
-use super::{ChainCache, ChainLink};
+use super::{ChainCache, ChainLink, ChainReadStrategy};
 use crate::backend::BackendScore;
 use crate::backend::CacheBackend;
 use crate::core::EventPublisher;
@@ -17,7 +17,7 @@ use std::time::Duration;
 pub struct ChainCacheBuilder {
     links: Vec<ChainLink>,
     backfill_enabled: bool,
-    race_read_enabled: bool,
+    read_strategy: ChainReadStrategy,
     default_ttl: Option<Duration>,
     event_publisher: Option<Arc<dyn EventPublisher>>,
 }
@@ -61,18 +61,28 @@ impl ChainCacheBuilder {
         self
     }
 
-    /// 启用竞速读（默认关闭）
-    ///
-    /// 开启后 `get` 会并发查询所有后端，返回最先命中者（问题 4.1）。
-    /// 适用于 L1/L2 延迟差异小但可用性要求高的场景。
+    /// 兼容别名：启用竞速读策略（映射 [`ChainReadStrategy::Race`]，
+    /// 即原「并发查询所有后端、取分数最高命中」语义，问题 4.1）。
+    /// 新代码建议直接使用 [`Self::read_strategy`]。
     pub fn enable_race_read(mut self) -> Self {
-        self.race_read_enabled = true;
+        self.read_strategy = ChainReadStrategy::Race;
         self
     }
 
-    /// 禁用竞速读
+    /// 兼容别名：禁用竞速读（映射 [`ChainReadStrategy::Sequential`]）。
     pub fn disable_race_read(mut self) -> Self {
-        self.race_read_enabled = false;
+        self.read_strategy = ChainReadStrategy::Sequential;
+        self
+    }
+
+    /// 设置链路读策略（absorb-hitbox-features T014）。
+    ///
+    /// - [`ChainReadStrategy::Sequential`]：逐个读取，命中即返回（默认）
+    /// - [`ChainReadStrategy::Race`]：并发全读，取分数最高命中
+    /// - [`ChainReadStrategy::ParallelFreshest`]：并发全读 + 并发查 TTL，
+    ///   取剩余最长（最新鲜）命中
+    pub fn read_strategy(mut self, strategy: ChainReadStrategy) -> Self {
+        self.read_strategy = strategy;
         self
     }
 
@@ -108,7 +118,7 @@ impl ChainCacheBuilder {
         ChainCache {
             links,
             backfill_enabled: self.backfill_enabled,
-            race_read_enabled: self.race_read_enabled,
+            read_strategy: self.read_strategy,
             default_ttl: self.default_ttl,
             sync_backends: OnceLock::new(),
             event_publisher: self.event_publisher,

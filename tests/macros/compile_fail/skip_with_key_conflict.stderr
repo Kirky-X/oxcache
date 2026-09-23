@@ -1,0 +1,7 @@
+error: `#[cached]` `skip` cannot be combined with `key`; an explicit key template already determines the cache key, remove one of them
+  --> tests/macros/compile_fail/skip_with_key_conflict.rs:10:1
+   |
+10 | #[cached(service = "skip_key_conflict_test", key = "u_{a}", skip(a))]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `cached` (in Nightly builds, run with -Z macro-backtrace for more info)

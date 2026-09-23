@@ -18,7 +18,7 @@
 //!     .await?;
 //! ```
 
-use super::chain::{ChainCache, ChainLink};
+use super::chain::{ChainCache, ChainLink, ChainReadStrategy};
 use crate::backend::CacheBackend;
 use crate::error::{OxCacheError, OxCacheResult};
 use std::sync::Arc;
@@ -242,7 +242,7 @@ pub struct ChainBuilder {
     l2: Option<L2Builder>,
     extra: Vec<(Arc<dyn CacheBackend>, u8, bool, &'static str)>,
     backfill_enabled: bool,
-    race_read_enabled: bool,
+    read_strategy: ChainReadStrategy,
     default_ttl: Option<Duration>,
 }
 
@@ -282,9 +282,14 @@ impl ChainBuilder {
         self
     }
 
-    /// 启用竞速读
     pub fn enable_race_read(mut self) -> Self {
-        self.race_read_enabled = true;
+        self.read_strategy = ChainReadStrategy::Race;
+        self
+    }
+
+    /// 设置链路读策略（absorb-hitbox-features T014）。
+    pub fn read_strategy(mut self, strategy: ChainReadStrategy) -> Self {
+        self.read_strategy = strategy;
         self
     }
 
@@ -327,8 +332,8 @@ impl ChainBuilder {
         if self.backfill_enabled {
             builder = builder.enable_backfill();
         }
-        if self.race_read_enabled {
-            builder = builder.enable_race_read();
+        if self.read_strategy != ChainReadStrategy::Sequential {
+            builder = builder.read_strategy(self.read_strategy);
         }
         if let Some(ttl) = self.default_ttl {
             builder = builder.default_time_to_live(ttl);
