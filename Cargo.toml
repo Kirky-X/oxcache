@@ -223,6 +223,9 @@ criterion.workspace = true
 ctor = "1.0"
 trybuild = "1.0"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+# 序列化格式对照探针（serialization_rkyv_probe）专用，非承诺特性
+rkyv = "0.8"
+postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 
 [dev-dependencies.testcontainers]
 version = "0.28"
@@ -334,6 +337,11 @@ required-features = ["redis"]
 
 [[bench]]
 name = "serialization_benchmark"
+harness = false
+required-features = ["serialization"]
+
+[[bench]]
+name = "serialization_rkyv_probe"
 harness = false
 required-features = ["serialization"]
 
