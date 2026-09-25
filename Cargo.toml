@@ -301,7 +301,9 @@ integrity = ["dep:hmac", "dep:sha2"]
 serde-bincode = ["serialization", "dep:bincode"]
 postcard = ["serialization", "dep:postcard"]
 config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
-degradation = []
+# degradation 装饰 L2 后端,其模块引用 crate::backend(backend 模块门控
+# any(memory,redis,disk)),单开须隐含最小 backend 基线方可编译
+degradation = ["memory"]
 audit = []
 versioning = []
 
