@@ -75,6 +75,8 @@ mod tests {
         assert!(l2_available());
     }
 
+    // 以下特性可用性断言仅在对应特性开启时成立（组合矩阵下按特性门控）
+    #[cfg(feature = "metrics")]
     #[test]
     fn test_metrics_available() {
         // With "metrics" feature, should be available

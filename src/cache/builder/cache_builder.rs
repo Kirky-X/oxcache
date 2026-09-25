@@ -304,7 +304,7 @@ where
                 if let Some(recorder) = self.metrics {
                     cache.set_metrics_recorder(recorder);
                 }
-                // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
+                // stale 装饰器包装（构建路径共用）
                 #[cfg(feature = "stale")]
                 if let Some(stale_ttl) = self.stale_ttl {
                     if self.sync_mode {
@@ -365,7 +365,7 @@ where
         if let Some(recorder) = self.metrics {
             cache.set_metrics_recorder(recorder);
         }
-        // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
+        // stale 装饰器包装（构建路径共用）
         #[cfg(feature = "stale")]
         if let Some(stale_ttl) = self.stale_ttl {
             if self.sync_mode {
@@ -437,12 +437,15 @@ mod tests {
     }
 
     // ========================================================================
-    // 默认 unified 指标（absorb-hitbox-features T005/T007）
+    // 默认 unified 指标
     // ========================================================================
 
     /// 默认构建（未注入 recorder）即产生 unified 指标：set/get/delete 后
-    /// 全局计数器递增。全局静态为跨测试共享，用单调 delta 断言保证并行安全。
+    /// 全局计数器递增。全局静态为跨测试共享，用单调 delta 断言保证并行安全；
+    /// 与 metrics 重置类测试互斥执行（serial 组），避免 reset 竞态。
+    #[cfg(feature = "metrics")]
     #[tokio::test]
+    #[serial_test::serial]
     async fn default_cache_records_unified_metrics() {
         let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
 
@@ -472,6 +475,7 @@ mod tests {
     }
 
     /// 显式注入 NoOpMetricsRecorder 仍可恢复静默（覆盖默认 unified）。
+    #[cfg(feature = "metrics")]
     #[tokio::test]
     async fn explicit_noop_recorder_still_supported() {
         let cache: Cache<String, i32> = Cache::builder()
@@ -488,6 +492,7 @@ mod tests {
     }
 
     /// backend 维度计数经 export_prometheus_standard 以 backend label 导出。
+    #[cfg(feature = "metrics")]
     #[tokio::test]
     async fn backend_label_exported_in_prometheus_standard() {
         let cache: Cache<String, i32> = Cache::builder().build().await.unwrap();

@@ -3,6 +3,8 @@
 // Miri内存安全测试
 // 这个文件包含专门用于Miri检测的内存安全测试
 // 运行方式: cargo +nightly miri test --test miri_memory_test
+// 依赖 memory 后端（MokaMemoryBackend/CacheBackend），无 memory 时整文件置空
+#![cfg(feature = "memory")]
 
 use std::sync::Arc;
 

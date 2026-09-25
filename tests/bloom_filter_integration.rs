@@ -11,7 +11,8 @@
 // SyncCacheReader/SyncCacheWriter（sync），方法名相同（get/set/clear 等）。
 // 直接 `.await` 调用无法消歧，必须使用 UFCS（`CacheReader::get(&backend, ...).await`）。
 
-#![cfg(feature = "bloom")]
+// Moka 后端与装饰器接点需要 memory
+#![cfg(all(feature = "bloom", feature = "memory"))]
 
 use std::sync::Arc;
 use std::time::Duration;

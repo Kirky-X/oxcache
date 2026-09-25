@@ -278,7 +278,9 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
     }
 
+    #[cfg(feature = "metrics")]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_l2_retry_metric_incremented() {
         use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 

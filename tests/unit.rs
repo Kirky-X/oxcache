@@ -6,6 +6,8 @@
 // These tests verify individual component functionality.
 
 #![allow(clippy::duplicate_mod)]
+// 目标内容依赖 memory 后端与 serde 序列化（memory 隐含 serialization）
+#![cfg(feature = "memory")]
 
 mod common;
 
