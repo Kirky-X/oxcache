@@ -107,7 +107,8 @@
 //! - `config-confers`: Config-driven build via confers (`OxcacheConfig`
 //!   load + `ConfigBus` watch hot-reload of capacity/TTL/circuit params)
 //! - `degradation`: L2 degradation controller (Active/Degraded/HalfOpen
-//!   state machine + `DegradableBackend` guard decorator)
+//!   state machine + `DegradableBackend` guard decorator + `snapshot()`
+//!   observability; `DegradationTracing` under `telemetry`)
 //! - `audit`: Structured audit event stream (`AuditEventPublisher` port,
 //!   NoOp/InMemory/tracing publishers)
 //! - `versioning`: Version-based compare-and-swap (`MemoryVersionedCache`

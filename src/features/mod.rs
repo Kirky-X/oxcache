@@ -73,7 +73,13 @@ pub use confers_config::{
 };
 
 #[cfg(feature = "degradation")]
-pub use degradation::{DegradableBackend, DegradationController, DegradationState};
+pub use degradation::{
+    DegradableBackend, DegradationController, DegradationSnapshot, DegradationState,
+};
+
+/// 降级观测桥依赖 `degradation` 的类型与 `telemetry` 的 tracing 依赖
+#[cfg(all(feature = "degradation", feature = "telemetry"))]
+pub use degradation::DegradationTracing;
 
 #[cfg(feature = "audit")]
 pub use audit::{

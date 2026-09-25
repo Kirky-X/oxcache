@@ -337,7 +337,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 - `features::dist_lock` — Redis 分布式锁（watchdog 续期、可重入）；`red-lock` 提供 `RedLock` 多节点多数派锁与 fencing token
 - `features::encryption` — `EncryptedBackend` 值级 XChaCha20-Poly1305 加密装饰器
 - `features::invalidation` — 跨实例失效总线（Redis Pub/Sub 广播 + 键空间通知）
-- `features::degradation` — `DegradableBackend` 三态自动降级装饰器
+- `features::degradation` — `DegradableBackend` 三态自动降级装饰器；`DegradationController::snapshot()` 只读快照 + `DegradationTracing`（telemetry）状态迁移观测桥；与后端内建熔断（RedisBackend 默认 5 次/30s）构成双层语义，恢复窗口各自独立计时
 - `features::compression` — `CompressingBackend` 自适应 zstd 压缩装饰器
 - `features::stale` — `StaleWhileRevalidateBackend` SWR 三态过期装饰器（Actual/Stale/Expired 双时间戳 envelope）+ `StalePolicy` 三策略（Return / Revalidate / OffloadRevalidate）；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；后台刷新经 `Cache::get_or_refresh()`（`offload` feature）
 - `features::offload` — `OffloadManager` 后台任务子系统（同 key 去重、信号量并发上限、超时 Cancel/Warn）
@@ -624,7 +624,7 @@ flowchart TD
 
 1. `Cache::health_check().await` 返回 `Err(OxCacheError::*)` — 调用方可切换到回退代码路径
 2. `ChainCache` 即使 L2 链接报错仍继续提供 L1 命中（未命中仅传播为 `None`）；L1 读取错误被记录并穿透到下一链接；L2 写入失败被记录，仅当所有后端都失败时写入才向调用方报错
-3. **`degradation` 特性**：`DegradableBackend` 保护 L2，故障计数超阈值自动降级为 L1-only（返回 `Degraded` 错误供 ChainCache 回落），降级超时后进入半开探测，探测成功自动恢复、失败重新降级；状态变化回调 + 全局 degraded 指标
+3. **`degradation` 特性**：`DegradableBackend` 保护 L2，故障计数超阈值自动降级为 L1-only（返回 `Degraded` 错误供 ChainCache 回落），降级超时后进入半开探测，探测成功自动恢复、失败重新降级；状态变化回调 + 全局 degraded 指标。与后端内建熔断（如 RedisBackend 默认连续 5 次失败打开、30s 后半开）叠加为双层语义：两层独立计时独立恢复，外层半开探测可能被仍处 Open 的内层熔断拒绝而形成假恢复（外层 `recovery_timeout` 建议不小于内层 `reset_timeout`）；`snapshot()` 与 telemetry 的 `DegradationTracing` 提供观测面
 4. 应用也可以在缓存外包裹自己的熔断器/重试策略
 
 重连后无 WAL 重放机制（WAL 层不存在于当前代码库）。
