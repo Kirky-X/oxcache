@@ -494,6 +494,7 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 | `enable_backfill()` / `disable_backfill()` | 切换回填（默认关闭） |
 | `enable_race_read()` / `disable_race_read()` | 切换并发首次命中读取（默认关闭） |
 | `event_publisher(Arc<dyn EventPublisher>)` | 配置事件发布器（后端操作失败时发射事件） |
+| `with_invalidation(Arc<InvalidationBus>)` | 启用写路径失效广播（`invalidation` feature）：构建时将持久层（`is_persistent == true`）link 以 `InvalidatingBackend` 包装，set/delete/clear/set_many/delete_many 成功后经总线广播，其他实例失效各自本地缓存；expire 不广播；包装层不支持 sync API |
 | `build()` | 构建 `ChainCache`（同步；按分数降序排列链接） |
 
 ### `ChainLink`
@@ -530,6 +531,13 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 // entries: Vec<(String, Option<Vec<u8>>)>，方法本身不返回 Err
 let entries = chain.iter_entries(&["k1", "k2", "k3"]).await;
 ```
+
+### 一站式失效广播装配
+
+`tiered_with_invalidation(l1, l2, bus)`（`memory` + `invalidation` feature）
+等价于 `ChainBuilder::new().l1(l1).l2(l2).with_invalidation(bus)`：
+持久层（L2 需 `.persistent(true)`）写成功后经 `bus` 广播失效事件，
+其他实例的监听任务失效各自本地 L1；expire 不广播。
 
 ### ChainCache 同步 API
 

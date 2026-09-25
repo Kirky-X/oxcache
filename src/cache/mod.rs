@@ -16,6 +16,9 @@ pub use api::Cache;
 pub use builder::CacheBuilder;
 pub use chain::{ChainCache, ChainCacheBuilder, ChainLink};
 pub use interface::{DynUnifiedCache, TypedCacheExt, UnifiedCache};
+/// 一站式带失效广播装配，依赖 `memory` 分层构建器与 `invalidation` 总线
+#[cfg(all(feature = "memory", feature = "invalidation"))]
+pub use tiered_builder::tiered_with_invalidation;
 #[cfg(feature = "memory")]
 pub use tiered_builder::{ChainBuilder, L1Builder, L2Builder};
 pub use typed_namespace::{NamespaceName, TypedNamespace};

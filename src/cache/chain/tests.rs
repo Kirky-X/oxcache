@@ -1759,3 +1759,176 @@ async fn iter_entries_empty_input_returns_empty_vec() {
         .build();
     assert!(chain.iter_entries(&[]).await.is_empty());
 }
+
+// ========================================================================
+// 写路径失效集成(with_invalidation / tiered_with_invalidation)
+// ========================================================================
+
+#[cfg(feature = "invalidation")]
+mod invalidation_integration {
+    use super::*;
+    use crate::cache::tiered_with_invalidation;
+    use crate::features::invalidation::{
+        DEFAULT_CHANNEL, InMemoryPubSubTransport, InvalidationBus, InvalidationConfig,
+    };
+
+    /// 双实例失效总线 + 远端实例缓存（bus_b 监听并失效其条目）
+    ///
+    /// 返回的 [`crate::features::invalidation::ListenerHandle`] 须由调用方
+    /// 持有至测试结束：句柄丢弃即请求停止监听任务（drop 置 stop 标志）。
+    async fn setup_buses() -> (
+        Arc<InvalidationBus>,
+        Arc<InvalidationBus>,
+        Arc<dyn CacheBackend>,
+        crate::features::invalidation::ListenerHandle,
+    ) {
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let bus_a = Arc::new(InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-a").with_channel(DEFAULT_CHANNEL),
+        ));
+        let bus_b = Arc::new(InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-b").with_channel(DEFAULT_CHANNEL),
+        ));
+        let remote: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("remote", 50, true));
+        let handle = bus_b.spawn_listener(remote.clone()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        (bus_a, bus_b, remote, handle)
+    }
+
+    async fn poll_until_gone(backend: &Arc<dyn CacheBackend>, key: &str) -> bool {
+        for _ in 0..50 {
+            if !backend.exists(key).await.unwrap() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        !backend.exists(key).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn with_invalidation_wraps_persistent_links_and_broadcasts() {
+        let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(
+                MockBackend::new("l1", 100, false),
+                100,
+                false,
+                "l1",
+            ))
+            .link(ChainLink::new(
+                MockBackend::new("l2", 50, true),
+                50,
+                true,
+                "l2",
+            ))
+            .with_invalidation(bus_a)
+            .build();
+
+        remote
+            .set(Arc::from("user:1"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        chain.set("user:1", b"fresh".to_vec(), None).await.unwrap();
+        assert_eq!(chain.get("user:1").await.unwrap(), Some(b"fresh".to_vec()));
+
+        assert!(
+            poll_until_gone(&remote, "user:1").await,
+            "持久层写入后远端旧值应被广播失效"
+        );
+    }
+
+    #[tokio::test]
+    async fn with_invalidation_skips_non_persistent_links() {
+        let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
+
+        // 只有非持久层：不包装、不广播
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(
+                MockBackend::new("l1", 100, false),
+                100,
+                false,
+                "l1",
+            ))
+            .with_invalidation(bus_a)
+            .build();
+
+        remote
+            .set(Arc::from("user:1"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        chain.set("user:1", b"fresh".to_vec(), None).await.unwrap();
+        assert_eq!(chain.get("user:1").await.unwrap(), Some(b"fresh".to_vec()));
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(
+            remote.exists("user:1").await.unwrap(),
+            "无持久层时不得产生失效广播"
+        );
+    }
+
+    #[tokio::test]
+    async fn with_invalidation_expire_does_not_broadcast() {
+        let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
+
+        let chain = ChainCache::builder()
+            .link(ChainLink::new(
+                MockBackend::new("l2", 50, true),
+                50,
+                true,
+                "l2",
+            ))
+            .with_invalidation(bus_a)
+            .build();
+
+        remote
+            .set(Arc::from("user:2"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        chain
+            .expire("user:2", Duration::from_secs(60))
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(
+            remote.exists("user:2").await.unwrap(),
+            "expire 不广播失效(既有语义,集成不得改变)"
+        );
+    }
+
+    #[tokio::test]
+    async fn tiered_with_invalidation_assembles_wrapped_persistent_layer() {
+        use crate::cache::{L1Builder, L2Builder};
+
+        let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
+        let l2_backend: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("mock-l2", 50, true));
+
+        let chain = tiered_with_invalidation(
+            L1Builder::new().capacity(100),
+            L2Builder::new().custom(l2_backend).persistent(true),
+            bus_a,
+        )
+        .await
+        .unwrap();
+
+        remote
+            .set(Arc::from("user:3"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        chain.set("user:3", b"fresh".to_vec(), None).await.unwrap();
+        assert_eq!(chain.get("user:3").await.unwrap(), Some(b"fresh".to_vec()));
+        assert_eq!(chain.len(), 2);
+
+        assert!(
+            poll_until_gone(&remote, "user:3").await,
+            "一站式装配的持久层写入应广播失效"
+        );
+    }
+}
