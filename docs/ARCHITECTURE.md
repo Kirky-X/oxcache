@@ -770,6 +770,8 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 分层特性集（`minimal` / `core` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`kit` 及其余选择加入特性**不包含**在 `full` 中，需通过 `features = ["bloom"]` 等显式启用；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
+**隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端，其模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
+
 ## 🔮 未来增强
 
 1. **自适应 TTL**：基于访问模式的 TTL 优化启发式
