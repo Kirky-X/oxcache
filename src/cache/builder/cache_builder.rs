@@ -3,6 +3,7 @@
 //! Unified cache builder for single and multi-backend configurations
 
 use crate::backend::CacheBackend;
+#[cfg(feature = "memory")]
 use crate::backend::MokaMemoryBackend;
 use crate::cache::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
@@ -268,67 +269,80 @@ where
         }
 
         if self.backends.is_empty() {
-            // Default Moka path — keep the concrete Arc<MokaMemoryBackend> so
-            // we can coerce it to BOTH Arc<dyn CacheBackend> (for async API)
-            // AND Arc<dyn SyncCacheBackend> (for sync API) when sync_mode is on.
-            let capacity = self.capacity.unwrap_or(10000);
-            let mut builder = MokaMemoryBackend::builder().capacity(capacity);
-            if let Some(ttl) = self.ttl {
-                builder = builder.ttl(ttl);
+            // 默认 Moka 路径依赖 `memory` 特性；关闭时必须显式提供 backend
+            #[cfg(not(feature = "memory"))]
+            {
+                return Err(OxCacheError::NotSupported(
+                    "CacheBuilder with no backend requires the `memory` feature \
+                     (default Moka); pass .backend_arc() explicitly otherwise."
+                        .to_string(),
+                ));
             }
-            if let Some(tti) = self.tti {
-                builder = builder.time_to_idle(tti);
-            }
-            let moka = Arc::new(builder.build());
 
-            let mut cache = Cache::new_with_backend(moka.clone());
-            if self.sync_mode {
-                cache.set_sync_backend(moka);
-            }
-            cache.set_null_cache_ttl(self.null_cache_ttl);
-            cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
-            #[cfg(feature = "metrics")]
-            if let Some(recorder) = self.metrics {
-                cache.set_metrics_recorder(recorder);
-            }
-            // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
-            #[cfg(feature = "stale")]
-            if let Some(stale_ttl) = self.stale_ttl {
+            #[cfg(feature = "memory")]
+            {
+                // Default Moka path — keep the concrete Arc<MokaMemoryBackend> so
+                // we can coerce it to BOTH Arc<dyn CacheBackend> (for async API)
+                // AND Arc<dyn SyncCacheBackend> (for sync API) when sync_mode is on.
+                let capacity = self.capacity.unwrap_or(10000);
+                let mut builder = MokaMemoryBackend::builder().capacity(capacity);
+                if let Some(ttl) = self.ttl {
+                    builder = builder.ttl(ttl);
+                }
+                if let Some(tti) = self.tti {
+                    builder = builder.time_to_idle(tti);
+                }
+                let moka = Arc::new(builder.build());
+
+                let mut cache = Cache::new_with_backend(moka.clone());
                 if self.sync_mode {
-                    return Err(OxCacheError::NotSupported(
-                        "stale_ttl cannot be combined with sync_mode(true); the sync API \
+                    cache.set_sync_backend(moka);
+                }
+                cache.set_null_cache_ttl(self.null_cache_ttl);
+                cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+                #[cfg(feature = "metrics")]
+                if let Some(recorder) = self.metrics {
+                    cache.set_metrics_recorder(recorder);
+                }
+                // absorb-hitbox-features T013：stale 装饰器包装（构建路径共用）
+                #[cfg(feature = "stale")]
+                if let Some(stale_ttl) = self.stale_ttl {
+                    if self.sync_mode {
+                        return Err(OxCacheError::NotSupported(
+                            "stale_ttl cannot be combined with sync_mode(true); the sync API \
                      bypasses the decorator and would see incomplete stale semantics"
-                            .to_string(),
-                    ));
+                                .to_string(),
+                        ));
+                    }
+                    let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
+                        cache.backend.clone(),
+                        stale_ttl,
+                    )
+                    .with_policy(self.stale_policy);
+                    if let Some(publisher) = self.event_publisher.clone() {
+                        decorator = decorator.with_event_publisher(publisher);
+                    }
+                    let decorator = Arc::new(decorator);
+                    cache.backend = decorator.clone();
+                    cache.set_stale_backend(decorator);
+                    cache.set_stale_policy(self.stale_policy);
+                    if self.stale_policy == crate::features::stale::StalePolicy::OffloadRevalidate {
+                        cache.set_offload_manager(Arc::new(
+                            crate::features::offload::OffloadManager::new(8),
+                        ));
+                    }
                 }
-                let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
-                    cache.backend.clone(),
-                    stale_ttl,
-                )
-                .with_policy(self.stale_policy);
-                if let Some(publisher) = self.event_publisher.clone() {
-                    decorator = decorator.with_event_publisher(publisher);
-                }
-                let decorator = Arc::new(decorator);
-                cache.backend = decorator.clone();
-                cache.set_stale_backend(decorator);
-                cache.set_stale_policy(self.stale_policy);
-                if self.stale_policy == crate::features::stale::StalePolicy::OffloadRevalidate {
-                    cache.set_offload_manager(Arc::new(
-                        crate::features::offload::OffloadManager::new(8),
-                    ));
-                }
-            }
 
-            #[cfg(any(feature = "serialization", feature = "full"))]
-            if let Some(format) = self.serialization_format {
-                cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+                #[cfg(any(feature = "serialization", feature = "full"))]
+                if let Some(format) = self.serialization_format {
+                    cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
+                }
+                #[cfg(feature = "audit")]
+                if let Some(publisher) = self.audit {
+                    cache.set_audit_publisher(publisher);
+                }
+                return Ok(cache);
             }
-            #[cfg(feature = "audit")]
-            if let Some(publisher) = self.audit {
-                cache.set_audit_publisher(publisher);
-            }
-            return Ok(cache);
         }
 
         // User-provided backend (sync_mode is guaranteed false here)

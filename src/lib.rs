@@ -421,12 +421,17 @@ pub use crate::utils::KeyGenerator;
 pub use core::{CacheEvent, CacheEventType, EventPublisher};
 
 // Backend exports
-// backend 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
+// backend 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控；
+// memory 实现符号进一步按依赖开启特性门控（dashmap: offload；moka: byte-weight；
+// serde derive: serialization），与 backend 模块内部整合
+#[cfg(any(feature = "memory", all(feature = "redis", feature = "serialization")))]
+pub use backend::MemoryBackendType;
 #[cfg(any(feature = "memory", feature = "redis"))]
-pub use backend::{
-    BackendScore, DashMapMemoryBackend, MemoryBackendType, MokaMemoryBackend, Scores,
-    dashmap_memory, default_memory_backend, moka_memory,
-};
+pub use backend::{BackendScore, Scores};
+#[cfg(any(feature = "memory", all(feature = "redis", feature = "offload")))]
+pub use backend::{DashMapMemoryBackend, dashmap_memory};
+#[cfg(any(feature = "memory", all(feature = "redis", feature = "byte-weight")))]
+pub use backend::{MokaMemoryBackend, default_memory_backend, moka_memory};
 
 #[cfg(feature = "redis")]
 pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};

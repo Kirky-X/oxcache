@@ -6,6 +6,7 @@
 //! recoverable operations with exponential delay between attempts.
 
 use crate::error::OxCacheResult;
+#[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use std::future::Future;
 use std::time::Duration;
@@ -39,6 +40,7 @@ where
             Ok(val) => return Ok(val),
             Err(e) if e.is_recoverable() && attempt < max_retries => {
                 attempt += 1;
+                #[cfg(feature = "metrics")]
                 GLOBAL_UNIFIED_METRICS.record_l2_retry();
                 let delay = base_delay.saturating_mul(2u32.saturating_pow(attempt - 1));
                 tokio::time::sleep(delay).await;
