@@ -34,6 +34,7 @@ mod tests {
     use crate::infra::convenience;
 
     #[test]
+    #[serial_test::serial]
     fn test_get_enhanced_stats_returns_cache_stats() {
         convenience::reset();
         let stats = get_enhanced_stats();
@@ -44,6 +45,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_export_prometheus_format_returns_valid_output() {
         convenience::reset();
         let prom = export_prometheus_format();
@@ -59,6 +61,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_export_prometheus_standard_is_compliant() {
         convenience::reset();
         let prom = export_prometheus_standard();
@@ -83,6 +86,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_export_json_format_returns_valid_json() {
         convenience::reset();
         let json = export_json_format().unwrap();

@@ -17,7 +17,9 @@
 //! - **single-flight**：基于 moka `try_get_with`，并发相同 key 仅 leader 执行
 //!   计算，错误原样传播给所有等待者且不写缓存（无 "backend error" 包装）；
 //! - **命中统计**：moka 0.12 不内建计数器，由本模块维护（leader 计 miss、
-//!   follower 计 hit）。
+//!   follower 计 hit）；
+//! - **逐出监听与权重查询**：`with_eviction_listener` 注册 `(key, value,
+//!   cause)` 旁路回调（逐出写回等），`weighted_size()` 查询当前权重总量。
 //!
 //! # Example
 //!
@@ -37,6 +39,7 @@
 //! assert_eq!(cache.get(&"k2".to_string()), None);
 //! ```
 
+use moka::notification::RemovalCause;
 use std::hash::Hash;
 use std::hash::RandomState;
 use std::sync::Arc;
@@ -64,6 +67,8 @@ where
     W: Fn(&V) -> u64 + Send + Sync + 'static,
 {
     inner: moka::sync::Cache<K, V, RandomState>,
+    /// 字节预算（`with_eviction_listener` 重建 moka Cache 时复用）
+    max_capacity_bytes: u64,
     max_entry_bytes: Option<u64>,
     // Arc 共享：moka weigher 闭包与准入检查各持一份
     weigher: Arc<W>,
@@ -89,6 +94,7 @@ where
             .build();
         Self {
             inner,
+            max_capacity_bytes,
             max_entry_bytes: None,
             weigher,
             hits: AtomicU64::new(0),
@@ -99,6 +105,27 @@ where
     /// 设置单条准入阈值：估算超过该值的条目在 [`insert`](Self::insert) 时跳过写入。
     pub fn with_max_entry_bytes(mut self, max_entry_bytes: u64) -> Self {
         self.max_entry_bytes = Some(max_entry_bytes);
+        self
+    }
+
+    /// 注册逐出监听器 `(key, value, cause)`，逐出原因含容量逐出（`Size`）
+    /// 与替换（`Replaced`）等，可用于逐出写回等旁路逻辑（fire-and-forget：
+    /// 监听器在 moka 维护任务中异步执行，勿在其中做重活或 panic）。
+    ///
+    /// 实现取舍：moka 的 `eviction_listener` 是 `CacheBuilder` 方法，只能在
+    /// build 前设置。本方法按 builder 语义须在写入前调用——此时缓存为空，
+    /// 内部直接重建 moka Cache，重建无损；不采用延迟 build（构建推迟到
+    /// 首次使用），以避免热路径上多一层内部 `Option<Cache>` 分支。
+    pub fn with_eviction_listener(
+        mut self,
+        listener: impl Fn(Arc<K>, V, RemovalCause) + Send + Sync + 'static,
+    ) -> Self {
+        let moka_weigher = self.weigher.clone();
+        self.inner = moka::sync::Cache::builder()
+            .max_capacity(self.max_capacity_bytes)
+            .weigher(move |_k, v: &V| (moka_weigher)(v).min(u32::MAX as u64) as u32)
+            .eviction_listener(listener)
+            .build();
         self
     }
 
@@ -157,6 +184,12 @@ where
     pub fn entry_count(&self) -> u64 {
         self.inner.run_pending_tasks();
         self.inner.entry_count()
+    }
+
+    /// 当前权重总量（字节估算；先同步执行 moka 待维护任务，保证读取时点准确）。
+    pub fn weighted_size(&self) -> u64 {
+        self.inner.run_pending_tasks();
+        self.inner.weighted_size()
     }
 
     /// 缓存统计。
@@ -278,5 +311,105 @@ mod tests {
         assert_eq!(stats.hits, 1);
         assert_eq!(stats.misses, 1);
         assert_eq!(stats.entry_count, 1);
+    }
+
+    // ========================================================================
+    // 逐出监听器 + weighted_size
+    // ========================================================================
+
+    use moka::notification::RemovalCause;
+
+    #[test]
+    fn test_eviction_listener_fires_on_capacity_eviction() {
+        let evicted = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = evicted.clone();
+        let cache = ByteWeightCache::new(100, |v: &String| v.len() as u64).with_eviction_listener(
+            move |k: Arc<String>, v: String, cause: RemovalCause| {
+                sink.lock().unwrap().push((k.to_string(), v, cause));
+            },
+        );
+
+        // 预算 100 字节,两条 64 字节:必有一条被容量逐出
+        cache.insert("k1".to_string(), "x".repeat(64));
+        cache.insert("k2".to_string(), "x".repeat(64));
+
+        // moka 逐出与监听回调在维护任务中执行:驱动任务直至监听器触发
+        for _ in 0..100 {
+            let _ = cache.weighted_size();
+            let recorded = evicted.lock().unwrap();
+            if !recorded.is_empty() {
+                assert_eq!(recorded.len(), 1, "只应逐出一条");
+                let (key, value, cause) = &recorded[0];
+                assert!(
+                    key == "k1" || key == "k2",
+                    "逐出的应是超预算的键, got {key}"
+                );
+                assert_eq!(value.len(), 64);
+                assert!(
+                    *cause == RemovalCause::Size,
+                    "容量逐出原因应为 Size, got {cause:?}"
+                );
+                assert!(
+                    cache.weighted_size() <= 100,
+                    "逐出后权重总量应回到预算内, got {}",
+                    cache.weighted_size()
+                );
+                return;
+            }
+            drop(recorded);
+            thread::sleep(Duration::from_millis(20));
+        }
+        panic!("容量逐出应触发监听器");
+    }
+
+    #[test]
+    fn test_eviction_listener_fires_on_replaced() {
+        let evicted = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = evicted.clone();
+        let cache = ByteWeightCache::new(1024, |v: &String| v.len() as u64).with_eviction_listener(
+            move |k: Arc<String>, v: String, cause: RemovalCause| {
+                sink.lock().unwrap().push((k.to_string(), v, cause));
+            },
+        );
+
+        cache.insert("k".to_string(), "old".to_string());
+        cache.insert("k".to_string(), "new".to_string());
+
+        for _ in 0..100 {
+            let _ = cache.weighted_size();
+            let recorded = evicted.lock().unwrap();
+            if !recorded.is_empty() {
+                let (key, value, cause) = &recorded[0];
+                assert_eq!(key, "k");
+                assert_eq!(value, "old", "替换时应携带旧值");
+                assert!(
+                    *cause == RemovalCause::Replaced,
+                    "替换逐出原因应为 Replaced, got {cause:?}"
+                );
+                return;
+            }
+            drop(recorded);
+            thread::sleep(Duration::from_millis(20));
+        }
+        panic!("替换应触发监听器");
+    }
+
+    #[test]
+    fn test_weighted_size_sums_entry_weights() {
+        let cache = ByteWeightCache::new(1024, |v: &String| v.len() as u64);
+        assert_eq!(cache.weighted_size(), 0, "空缓存权重为 0");
+
+        cache.insert("a".to_string(), "abcd".to_string()); // 4
+        cache.insert("b".to_string(), "ef".to_string()); // 2
+        assert_eq!(cache.weighted_size(), 6, "权重应等于各条目权重之和");
+        assert_eq!(cache.entry_count(), 2);
+
+        // 超预算后权重总量应回落到预算内
+        cache.insert("c".to_string(), "x".repeat(2000));
+        assert!(
+            cache.weighted_size() <= 1024,
+            "超预算后应回落到预算内, got {}",
+            cache.weighted_size()
+        );
     }
 }

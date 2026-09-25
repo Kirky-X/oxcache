@@ -62,6 +62,7 @@ feature_check!(
 mod tests {
     use super::*;
 
+    #[cfg(feature = "memory")]
     #[test]
     fn test_l1_available() {
         // With "memory" feature, l1 should be available
@@ -75,6 +76,8 @@ mod tests {
         assert!(l2_available());
     }
 
+    // 以下特性可用性断言仅在对应特性开启时成立（组合矩阵下按特性门控）
+    #[cfg(feature = "metrics")]
     #[test]
     fn test_metrics_available() {
         // With "metrics" feature, should be available
@@ -88,6 +91,7 @@ mod tests {
         assert!(batch_write_available());
     }
 
+    #[cfg(feature = "serialization")]
     #[test]
     fn test_serialization_available() {
         // With "serialization" feature

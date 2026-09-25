@@ -12,6 +12,7 @@ use super::OxCacheError;
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_missing_field_display() {
     let err = OxCacheConfigError::MissingField("host".to_string());
     assert_eq!(err.to_string(), "Missing required field: host.");
@@ -19,6 +20,7 @@ fn test_cache_config_error_missing_field_display() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_invalid_value_display() {
     let err = OxCacheConfigError::InvalidValue {
         field: "capacity".to_string(),
@@ -32,6 +34,7 @@ fn test_cache_config_error_invalid_value_display() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_unsupported_backend_display() {
     let err = OxCacheConfigError::UnsupportedBackend("unknown".to_string());
     assert_eq!(err.to_string(), "Unsupported backend combination: unknown.");
@@ -39,6 +42,7 @@ fn test_cache_config_error_unsupported_backend_display() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_connection_failed_display() {
     let err = OxCacheConfigError::ConnectionFailed("timeout".to_string());
     assert_eq!(
@@ -52,6 +56,7 @@ fn test_cache_config_error_connection_failed_display() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_serialization_display() {
     let err = OxCacheError::Serialization("bad data".to_string());
     let s = err.to_string();
@@ -59,6 +64,7 @@ fn test_cache_error_serialization_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_operation_display() {
     let err = OxCacheError::Operation("fail".to_string());
     let s = err.to_string();
@@ -66,6 +72,7 @@ fn test_cache_error_operation_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_connection_display() {
     let err = OxCacheError::Connection("refused".to_string());
     let s = err.to_string();
@@ -73,6 +80,7 @@ fn test_cache_error_connection_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_not_found_display() {
     let err = OxCacheError::NotFound("key1".to_string());
     let s = err.to_string();
@@ -80,6 +88,7 @@ fn test_cache_error_not_found_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_degraded_display() {
     let err = OxCacheError::Degraded("L2 down".to_string());
     let s = err.to_string();
@@ -87,6 +96,7 @@ fn test_cache_error_degraded_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_l1_error_display() {
     let err = OxCacheError::L1Error("oom".to_string());
     let s = err.to_string();
@@ -94,6 +104,7 @@ fn test_cache_error_l1_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_l2_error_display() {
     let err = OxCacheError::L2Error("redis down".to_string());
     let s = err.to_string();
@@ -101,6 +112,7 @@ fn test_cache_error_l2_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_not_supported_display() {
     let err = OxCacheError::NotSupported("scan".to_string());
     let s = err.to_string();
@@ -108,6 +120,7 @@ fn test_cache_error_not_supported_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_wal_error_display() {
     let err = OxCacheError::WalError("disk full".to_string());
     let s = err.to_string();
@@ -115,6 +128,7 @@ fn test_cache_error_wal_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_database_error_display() {
     let err = OxCacheError::DatabaseError("query failed".to_string());
     let s = err.to_string();
@@ -122,6 +136,7 @@ fn test_cache_error_database_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_redis_error_display() {
     #[cfg(feature = "redis")]
     {
@@ -140,6 +155,7 @@ fn test_cache_error_redis_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_io_error_display() {
     let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
     let err = OxCacheError::IoError(io_err);
@@ -148,6 +164,7 @@ fn test_cache_error_io_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_backend_error_display() {
     let err = OxCacheError::BackendError("transient".to_string());
     let s = err.to_string();
@@ -155,6 +172,7 @@ fn test_cache_error_backend_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_timeout_display() {
     let err = OxCacheError::Timeout("5s".to_string());
     let s = err.to_string();
@@ -162,6 +180,7 @@ fn test_cache_error_timeout_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_shutdown_error_display() {
     let err = OxCacheError::ShutdownError("leak".to_string());
     let s = err.to_string();
@@ -169,6 +188,7 @@ fn test_cache_error_shutdown_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_key_too_long_display() {
     let err = OxCacheError::KeyTooLong(600, 512);
     let s = err.to_string();
@@ -176,6 +196,7 @@ fn test_cache_error_key_too_long_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_value_too_large_display() {
     let err = OxCacheError::ValueTooLarge(2048, 1024);
     let s = err.to_string();
@@ -183,6 +204,7 @@ fn test_cache_error_value_too_large_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_buffer_full_display() {
     let err = OxCacheError::BufferFull("batch".to_string());
     let s = err.to_string();
@@ -190,6 +212,7 @@ fn test_cache_error_buffer_full_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_invalid_input_display() {
     let err = OxCacheError::InvalidInput("bad".to_string());
     let s = err.to_string();
@@ -197,6 +220,7 @@ fn test_cache_error_invalid_input_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_invalid_key_display() {
     let err = OxCacheError::InvalidKey("bad key".to_string());
     let s = err.to_string();
@@ -204,6 +228,7 @@ fn test_cache_error_invalid_key_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_lock_error_display() {
     let err = OxCacheError::LockError("poisoned".to_string());
     let s = err.to_string();
@@ -211,6 +236,7 @@ fn test_cache_error_lock_error_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_service_not_found_display() {
     let err = OxCacheError::ServiceNotFound("svc".to_string());
     let s = err.to_string();
@@ -218,6 +244,7 @@ fn test_cache_error_service_not_found_display() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_internal_display() {
     let err = OxCacheError::Internal("boom".to_string());
     let s = err.to_string();
@@ -229,6 +256,7 @@ fn test_cache_error_internal_display() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_from_io_error() {
     let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
     let cache_err: OxCacheError = io_err.into();
@@ -237,6 +265,7 @@ fn test_from_io_error() {
 
 #[cfg(any(feature = "serialization", feature = "full"))]
 #[test]
+#[serial_test::serial]
 fn test_from_serde_json_error() {
     let serde_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
     let cache_err: OxCacheError = serde_err.into();
@@ -248,6 +277,7 @@ fn test_from_serde_json_error() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_not_found() {
     assert_eq!(
         OxCacheError::NotFound("k".to_string()).code(),
@@ -256,6 +286,7 @@ fn test_error_code_not_found() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_connection() {
     assert_eq!(
         OxCacheError::Connection("c".to_string()).code(),
@@ -264,6 +295,7 @@ fn test_error_code_connection() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_serialization() {
     assert_eq!(
         OxCacheError::Serialization("s".to_string()).code(),
@@ -272,6 +304,7 @@ fn test_error_code_serialization() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_operation() {
     assert_eq!(
         OxCacheError::Operation("o".to_string()).code(),
@@ -280,6 +313,7 @@ fn test_error_code_operation() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_degraded() {
     assert_eq!(
         OxCacheError::Degraded("d".to_string()).code(),
@@ -288,6 +322,7 @@ fn test_error_code_degraded() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_l1() {
     assert_eq!(
         OxCacheError::L1Error("l1".to_string()).code(),
@@ -296,6 +331,7 @@ fn test_error_code_l1() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_l2() {
     assert_eq!(
         OxCacheError::L2Error("l2".to_string()).code(),
@@ -304,6 +340,7 @@ fn test_error_code_l2() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_not_supported() {
     assert_eq!(
         OxCacheError::NotSupported("ns".to_string()).code(),
@@ -312,6 +349,7 @@ fn test_error_code_not_supported() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_wal() {
     assert_eq!(
         OxCacheError::WalError("w".to_string()).code(),
@@ -320,6 +358,7 @@ fn test_error_code_wal() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_database() {
     assert_eq!(
         OxCacheError::DatabaseError("db".to_string()).code(),
@@ -328,6 +367,7 @@ fn test_error_code_database() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_redis() {
     #[cfg(feature = "redis")]
     {
@@ -344,12 +384,14 @@ fn test_error_code_redis() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_io() {
     let io_err = std::io::Error::other("x");
     assert_eq!(OxCacheError::IoError(io_err).code(), "OXCACHE_013");
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_backend() {
     assert_eq!(
         OxCacheError::BackendError("b".to_string()).code(),
@@ -358,11 +400,13 @@ fn test_error_code_backend() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_timeout() {
     assert_eq!(OxCacheError::Timeout("t".to_string()).code(), "OXCACHE_015");
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_shutdown() {
     assert_eq!(
         OxCacheError::ShutdownError("s".to_string()).code(),
@@ -371,16 +415,19 @@ fn test_error_code_shutdown() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_key_too_long() {
     assert_eq!(OxCacheError::KeyTooLong(1, 2).code(), "OXCACHE_017");
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_value_too_large() {
     assert_eq!(OxCacheError::ValueTooLarge(1, 2).code(), "OXCACHE_018");
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_buffer_full() {
     assert_eq!(
         OxCacheError::BufferFull("b".to_string()).code(),
@@ -389,6 +436,7 @@ fn test_error_code_buffer_full() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_invalid_input() {
     assert_eq!(
         OxCacheError::InvalidInput("i".to_string()).code(),
@@ -397,6 +445,7 @@ fn test_error_code_invalid_input() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_invalid_key() {
     assert_eq!(
         OxCacheError::InvalidKey("k".to_string()).code(),
@@ -405,6 +454,7 @@ fn test_error_code_invalid_key() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_lock_error() {
     assert_eq!(
         OxCacheError::LockError("l".to_string()).code(),
@@ -413,6 +463,7 @@ fn test_error_code_lock_error() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_service_not_found() {
     assert_eq!(
         OxCacheError::ServiceNotFound("s".to_string()).code(),
@@ -421,6 +472,7 @@ fn test_error_code_service_not_found() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_code_internal() {
     assert_eq!(
         OxCacheError::Internal("i".to_string()).code(),
@@ -433,16 +485,19 @@ fn test_error_code_internal() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_connection() {
     assert!(OxCacheError::Connection("c".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_timeout() {
     assert!(OxCacheError::Timeout("t".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_redis() {
     // RedisError is a connection error and should be recoverable
     #[cfg(feature = "redis")]
@@ -455,31 +510,37 @@ fn test_is_recoverable_redis() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_l2() {
     assert!(OxCacheError::L2Error("l2".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_backend() {
     assert!(OxCacheError::BackendError("b".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_recoverable_buffer_full() {
     assert!(OxCacheError::BufferFull("b".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_not_recoverable_not_found() {
     assert!(!OxCacheError::NotFound("k".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_not_recoverable_internal() {
     assert!(!OxCacheError::Internal("i".to_string()).is_recoverable());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_not_recoverable_serialization() {
     assert!(!OxCacheError::Serialization("s".to_string()).is_recoverable());
 }
@@ -489,11 +550,13 @@ fn test_is_not_recoverable_serialization() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_is_not_found_true() {
     assert!(OxCacheError::NotFound("key".to_string()).is_not_found());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_not_found_false() {
     assert!(!OxCacheError::Connection("c".to_string()).is_not_found());
 }
@@ -503,11 +566,13 @@ fn test_is_not_found_false() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_is_connection_error_connection() {
     assert!(OxCacheError::Connection("c".to_string()).is_connection_error());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_connection_error_redis() {
     #[cfg(feature = "redis")]
     {
@@ -524,11 +589,13 @@ fn test_is_connection_error_redis() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_connection_error_l2() {
     assert!(OxCacheError::L2Error("l2".to_string()).is_connection_error());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_connection_error_false() {
     assert!(!OxCacheError::NotFound("k".to_string()).is_connection_error());
 }
@@ -538,11 +605,13 @@ fn test_is_connection_error_false() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_is_degraded_true() {
     assert!(OxCacheError::Degraded("d".to_string()).is_degraded());
 }
 
 #[test]
+#[serial_test::serial]
 fn test_is_degraded_false() {
     assert!(!OxCacheError::NotFound("k".to_string()).is_degraded());
 }
@@ -552,6 +621,7 @@ fn test_is_degraded_false() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_debug() {
     let err = OxCacheError::NotFound("key".to_string());
     let debug_str = format!("{:?}", err);
@@ -560,6 +630,7 @@ fn test_cache_error_debug() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_debug() {
     let err = OxCacheConfigError::MissingField("f".to_string());
     let debug_str = format!("{:?}", err);
@@ -571,6 +642,7 @@ fn test_cache_config_error_debug() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_cache_error_is_std_error() {
     let err = OxCacheError::NotFound("key".to_string());
     let _: &dyn std::error::Error = &err;
@@ -578,6 +650,7 @@ fn test_cache_error_is_std_error() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_cache_config_error_is_std_error() {
     let err = OxCacheConfigError::MissingField("f".to_string());
     let _: &dyn std::error::Error = &err;
@@ -588,6 +661,7 @@ fn test_cache_config_error_is_std_error() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_error_message_id_not_found() {
     assert_eq!(
         OxCacheError::NotFound("k".to_string()).message_id(),
@@ -596,6 +670,7 @@ fn test_error_message_id_not_found() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_message_id_connection() {
     assert_eq!(
         OxCacheError::Connection("c".to_string()).message_id(),
@@ -604,6 +679,7 @@ fn test_error_message_id_connection() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_message_id_serialization() {
     assert_eq!(
         OxCacheError::Serialization("s".to_string()).message_id(),
@@ -612,6 +688,7 @@ fn test_error_message_id_serialization() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_message_id_key_too_long() {
     assert_eq!(
         OxCacheError::KeyTooLong(1, 2).message_id(),
@@ -620,6 +697,7 @@ fn test_error_message_id_key_too_long() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_error_message_id_internal() {
     assert_eq!(
         OxCacheError::Internal("i".to_string()).message_id(),
@@ -632,6 +710,7 @@ fn test_error_message_id_internal() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_not_found() {
     let err = OxCacheError::NotFound("user:42".to_string());
     let msg = err.localized_message("en");
@@ -642,6 +721,7 @@ fn test_localized_message_en_not_found() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_connection() {
     let err = OxCacheError::Connection("refused".to_string());
     let msg = err.localized_message("en");
@@ -652,6 +732,7 @@ fn test_localized_message_en_connection() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_key_too_long() {
     let err = OxCacheError::KeyTooLong(600, 512);
     let msg = err.localized_message("en");
@@ -662,6 +743,7 @@ fn test_localized_message_en_key_too_long() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_value_too_large() {
     let err = OxCacheError::ValueTooLarge(2048, 1024);
     let msg = err.localized_message("en");
@@ -672,6 +754,7 @@ fn test_localized_message_en_value_too_large() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_timeout() {
     let err = OxCacheError::Timeout("5s".to_string());
     let msg = err.localized_message("en");
@@ -682,6 +765,7 @@ fn test_localized_message_en_timeout() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_en_internal() {
     let err = OxCacheError::Internal("boom".to_string());
     let msg = err.localized_message("en");
@@ -696,6 +780,7 @@ fn test_localized_message_en_internal() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_zh_not_found() {
     let err = OxCacheError::NotFound("user:42".to_string());
     let msg = err.localized_message("zh-CN");
@@ -706,6 +791,7 @@ fn test_localized_message_zh_not_found() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_zh_connection() {
     let err = OxCacheError::Connection("连接被拒绝".to_string());
     let msg = err.localized_message("zh-CN");
@@ -716,6 +802,7 @@ fn test_localized_message_zh_connection() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_zh_key_too_long() {
     let err = OxCacheError::KeyTooLong(600, 512);
     let msg = err.localized_message("zh-CN");
@@ -726,6 +813,7 @@ fn test_localized_message_zh_key_too_long() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_zh_timeout() {
     let err = OxCacheError::Timeout("5秒".to_string());
     let msg = err.localized_message("zh-CN");
@@ -736,6 +824,7 @@ fn test_localized_message_zh_timeout() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_zh_internal() {
     let err = OxCacheError::Internal("内部异常".to_string());
     let msg = err.localized_message("zh-CN");
@@ -750,6 +839,7 @@ fn test_localized_message_zh_internal() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_localized_message_unknown_locale_falls_back_to_en() {
     let err = OxCacheError::NotFound("key".to_string());
     let msg = err.localized_message("fr-FR");
@@ -765,6 +855,7 @@ fn test_localized_message_unknown_locale_falls_back_to_en() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_config_error_message_id() {
     let err = OxCacheConfigError::MissingField("host".to_string());
     assert_eq!(err.message_id(), "config.missing_field");
@@ -772,6 +863,7 @@ fn test_config_error_message_id() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_config_error_localized_message_en() {
     let err = OxCacheConfigError::MissingField("host".to_string());
     let msg = err.localized_message("en");
@@ -783,6 +875,7 @@ fn test_config_error_localized_message_en() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_config_error_localized_message_zh() {
     let err = OxCacheConfigError::MissingField("host".to_string());
     let msg = err.localized_message("zh-CN");
@@ -794,6 +887,7 @@ fn test_config_error_localized_message_zh() {
 
 #[cfg(feature = "redis")]
 #[test]
+#[serial_test::serial]
 fn test_config_error_invalid_value_localized_zh() {
     let err = OxCacheConfigError::InvalidValue {
         field: "capacity".to_string(),
@@ -811,6 +905,7 @@ fn test_config_error_invalid_value_localized_zh() {
 // ============================================================================
 
 #[test]
+#[serial_test::serial]
 fn test_display_uses_default_locale_en() {
     // Default locale is "en"
     crate::i18n::set_default_locale("en");
@@ -823,6 +918,7 @@ fn test_display_uses_default_locale_en() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_display_uses_default_locale_zh() {
     crate::i18n::set_default_locale("zh-CN");
     let err = OxCacheError::NotFound("key1".to_string());
@@ -836,6 +932,7 @@ fn test_display_uses_default_locale_zh() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_display_config_error_uses_default_locale_zh() {
     #[cfg(feature = "redis")]
     {
@@ -852,6 +949,7 @@ fn test_display_config_error_uses_default_locale_zh() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_set_and_get_default_locale() {
     assert_eq!(crate::i18n::get_default_locale(), "en");
     crate::i18n::set_default_locale("zh-CN");

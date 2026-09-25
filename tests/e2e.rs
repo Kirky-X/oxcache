@@ -1,10 +1,12 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
+
+// 目标内容依赖 backend/Cache 导出，无 memory/redis 时整目标置空
+#![cfg(all(feature = "memory", feature = "metrics"))]
 // E2E Tests Module
 //
 // Contains all end-to-end tests for the cache system.
 // These tests verify the complete user workflow.
-
 #![allow(clippy::duplicate_mod)]
 
 // Common modules shared by E2E tests

@@ -292,11 +292,14 @@ mod tests {
     }
 
     // ========================================================================
-    // 字节 API 指标埋点（absorb-hitbox-features T006）
+    // 字节 API 指标埋点
     // ========================================================================
 
     /// 字节 API 与泛型路径同口径：get_bytes hit/miss、set_bytes 计入 unified。
+    /// 全局计数器与 metrics 重置类测试互斥执行（serial 组），避免 reset 竞态。
+    #[cfg(feature = "metrics")]
     #[tokio::test]
+    #[serial_test::serial]
     async fn bytes_api_records_unified_metrics() {
         let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
 
@@ -318,7 +321,9 @@ mod tests {
     }
 
     /// sync 字节 API 同样埋点。
+    #[cfg(feature = "metrics")]
     #[tokio::test(flavor = "multi_thread")]
+    #[serial_test::serial]
     async fn sync_bytes_api_records_unified_metrics() {
         let before = crate::infra::GLOBAL_UNIFIED_METRICS.get_counters();
 

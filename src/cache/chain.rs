@@ -64,6 +64,22 @@ fn telemetry_read_strategy(_key: &str, _strategy: &str, _backend: &str, _hit: bo
 #[inline]
 fn oxcache_telemetry_backfill_failed(_key: &str, _backend: &str, _err: &OxCacheError) {}
 
+#[cfg(feature = "telemetry")]
+#[inline]
+fn telemetry_iter_entries_key_failed(key: &str, backend: &str, err: &OxCacheError) {
+    tracing::warn!(
+        target = "oxcache::chain",
+        key,
+        backend,
+        %err,
+        "iter_entries batch layer failed for key"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn telemetry_iter_entries_key_failed(_key: &str, _backend: &str, _err: &OxCacheError) {}
+
 // Submodules
 mod builder;
 #[cfg(test)]
@@ -348,6 +364,78 @@ impl ChainCache {
         let key = Arc::from(key);
         let value = Arc::new(value);
         CacheWriter::set(self, key, value, ttl).await
+    }
+
+    /// 批量读取：命中层单层批量读（公开 API）。
+    ///
+    /// 按分数从高到低逐层处理尚未命中的键，每层一次
+    /// [`CacheReader::get_many`] 调用（`RedisBackend` 的 `get_many` 已是
+    /// pipeline 批量读，见 `backend/memory/redis/pipeline.rs`）；命中键由
+    /// 最高分命中层应答。与逐键 [`ChainCache::get`] 的差异：每层网络
+    /// 往返从 N 次降为 1 次。
+    ///
+    /// 失败语义：
+    /// - 某层批量读**整批失败**时，错误**按键拆分映射**——每个未解析键
+    ///   独立记录错误（事件发布 + warn），键继续降级到下一层；不向上
+    ///   传播 `Err`；
+    /// - 全部层处理完后仍未命中的键以 `None` 结束（miss 与失败同形，
+    ///   失败路径额外有逐键 warn）。
+    ///
+    /// 输出顺序与输入 `keys` 一致；不触发回填（批量读为观测/预取语义）；
+    /// 逐键 `get`/`keys` API 与各后端 trait 实现不受影响。
+    pub async fn iter_entries(&self, keys: &[&str]) -> Vec<(String, Option<Vec<u8>>)> {
+        if keys.is_empty() {
+            return Vec::new();
+        }
+
+        let mut values: Vec<Option<Vec<u8>>> = vec![None; keys.len()];
+        // 尚未命中的键下标；某层整批失败时原样保留（降级到下一层）
+        let mut pending: Vec<usize> = (0..keys.len()).collect();
+
+        for link in &self.links {
+            if pending.is_empty() {
+                break;
+            }
+
+            let batch_keys: Vec<String> = pending.iter().map(|&i| keys[i].to_string()).collect();
+
+            match link.backend().get_many(&batch_keys).await {
+                // 长度必须与请求键数一致（trait 契约）；错位即整批失败口径
+                Ok(results) if results.len() == batch_keys.len() => {
+                    let mut still_pending = Vec::with_capacity(pending.len());
+                    for (i, result) in std::mem::take(&mut pending).into_iter().zip(results) {
+                        match result {
+                            Some(value) => values[i] = Some(value),
+                            None => still_pending.push(i),
+                        }
+                    }
+                    pending = still_pending;
+                }
+                Ok(results) => {
+                    // 返回长度与请求数不符：无法按键对位，若按 zip 截断处理
+                    // 被截断键会静默按 miss 收尾（失败被吞）——按整批失败
+                    // 显性化，未解析键继续降级到下一层
+                    let e = OxCacheError::Operation(format!(
+                        "get_many returned {} results for {} keys",
+                        results.len(),
+                        batch_keys.len()
+                    ));
+                    for &i in &pending {
+                        self.emit_backend_error(keys[i], link.name(), &e);
+                        telemetry_iter_entries_key_failed(keys[i], link.name(), &e);
+                    }
+                }
+                Err(e) => {
+                    // 整批错误按键拆分映射：每键独立上报
+                    for &i in &pending {
+                        self.emit_backend_error(keys[i], link.name(), &e);
+                        telemetry_iter_entries_key_failed(keys[i], link.name(), &e);
+                    }
+                }
+            }
+        }
+
+        keys.iter().map(|k| k.to_string()).zip(values).collect()
     }
 
     /// 获取所有持久化后端

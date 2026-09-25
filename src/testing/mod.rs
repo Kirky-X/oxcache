@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 // Testing module — internal test utilities
 
-#[cfg(test)]
+// MockBackend 位处 backend 模块（门控 any(memory,redis,disk)），随之门控
+#[cfg(all(test, any(feature = "memory", feature = "redis", feature = "disk")))]
 pub mod mock;
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "memory", feature = "redis", feature = "disk")))]
 pub use mock::MockBackend;

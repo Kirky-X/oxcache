@@ -8,6 +8,8 @@ use super::{ChainCache, ChainLink, ChainReadStrategy};
 use crate::backend::BackendScore;
 use crate::backend::CacheBackend;
 use crate::core::EventPublisher;
+#[cfg(feature = "invalidation")]
+use crate::features::invalidation::{InvalidatingBackend, InvalidationBus};
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -20,6 +22,9 @@ pub struct ChainCacheBuilder {
     read_strategy: ChainReadStrategy,
     default_ttl: Option<Duration>,
     event_publisher: Option<Arc<dyn EventPublisher>>,
+    /// 写路径失效总线（`invalidation` feature；构建时包装持久层 link）
+    #[cfg(feature = "invalidation")]
+    invalidation_bus: Option<Arc<InvalidationBus>>,
 }
 
 impl ChainCacheBuilder {
@@ -95,6 +100,27 @@ impl ChainCacheBuilder {
         self
     }
 
+    /// 启用写路径失效广播（`invalidation` feature）。
+    ///
+    /// 构建时将所有**持久层**（`is_persistent == true`）link 的后端以
+    /// [`InvalidatingBackend`](crate::features::invalidation::InvalidatingBackend)
+    /// 包装：该层 set/delete/clear/set_many/delete_many 成功后经 `bus` 广播
+    /// 失效事件，其他实例的监听任务失效各自本地缓存；expire 既有语义不变
+    /// （不广播）。非持久层（本地 L1）不包装、不广播。
+    ///
+    /// 注意：包装层不实现 `SyncCacheBackend`，含持久层 link 的链此后不再
+    /// 支持 sync API（返回 `NotSupported`）。
+    ///
+    /// # Panics
+    ///
+    /// 构建时链中无任何持久层（`is_persistent == true`）link 则 panic——
+    /// 无持久层意味着广播永远不会有触发点，静默零广播属配置错误。
+    #[cfg(feature = "invalidation")]
+    pub fn with_invalidation(mut self, bus: Arc<InvalidationBus>) -> Self {
+        self.invalidation_bus = Some(bus);
+        self
+    }
+
     /// 构建链式缓存
     ///
     /// # Panics
@@ -104,6 +130,9 @@ impl ChainCacheBuilder {
     /// This is a programmer error (forgot `.link(...)`/`.backend(...)`), so it
     /// fails loudly at construction time; use [`ChainCache::new`] directly if
     /// an intentionally empty chain is ever required.
+    ///
+    /// 启用 [`Self::with_invalidation`] 且链中无持久层 link 时同样 panic
+    /// （广播无触发点，属配置错误）。
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
         let mut links = self.links;
@@ -114,6 +143,38 @@ impl ChainCacheBuilder {
              add one via .link(...) or .backend(...), or use ChainCache::new \
              for an intentionally empty chain"
         );
+
+        // 持久层 link 以失效广播装饰器包装（仅 `invalidation` feature；
+        // 语义与 `InvalidatingBackend` 既有行为一致：set/delete 广播，expire 不广播）
+        #[cfg(feature = "invalidation")]
+        if let Some(bus) = self.invalidation_bus {
+            assert!(
+                links.iter().any(|link| link.is_persistent()),
+                "ChainCacheBuilder::with_invalidation requires at least one \
+                 persistent link (mark it via ChainLink::new(.., true, ..) or \
+                 L2Builder::persistent(true)); without one the bus would never \
+                 broadcast and writes would silently skip invalidation"
+            );
+            links = links
+                .into_iter()
+                .map(|link| {
+                    if link.is_persistent() {
+                        let wrapped = Arc::new(InvalidatingBackend::new(
+                            link.backend().clone(),
+                            bus.clone(),
+                        ));
+                        ChainLink::from_arc(
+                            wrapped,
+                            link.score(),
+                            link.is_persistent(),
+                            link.name(),
+                        )
+                    } else {
+                        link
+                    }
+                })
+                .collect();
+        }
 
         ChainCache {
             links,

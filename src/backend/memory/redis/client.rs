@@ -15,6 +15,7 @@ use super::circuit_breaker::CircuitBreaker;
 use super::retry::retry_with_backoff;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use redis::Client;
 use std::future::Future;
@@ -171,6 +172,7 @@ impl RedisBackend {
             Err(_) => {
                 if self.circuit_breaker.record_failure() {
                     // Circuit breaker just transitioned to Open
+                    #[cfg(feature = "metrics")]
                     GLOBAL_UNIFIED_METRICS.record_l2_degraded();
                 }
             }

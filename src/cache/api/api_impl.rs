@@ -258,8 +258,17 @@ where
     V: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
     pub async fn memory() -> crate::error::OxCacheResult<Self> {
-        use crate::backend::MokaMemoryBackend as MemoryBackend;
-        let backend = MemoryBackend::new();
-        Ok(Self::new_with_backend(Arc::new(backend)))
+        #[cfg(feature = "memory")]
+        {
+            use crate::backend::MokaMemoryBackend as MemoryBackend;
+            let backend = MemoryBackend::new();
+            Ok(Self::new_with_backend(Arc::new(backend)))
+        }
+        #[cfg(not(feature = "memory"))]
+        Err(crate::error::OxCacheError::NotSupported(
+            "Cache::memory() requires the `memory` feature; \
+             construct via Cache::new_with_backend instead."
+                .to_string(),
+        ))
     }
 }

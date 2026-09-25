@@ -6,6 +6,11 @@
 //! set_many/delete_many/clear）成功后经 [`InvalidationBus`] 广播失效事件，
 //! 其他实例的监听任务失效各自本地 L1。发布失败不影响写结果（fire-and-forget：
 //! 底层写入已成功，广播为尽力而为）。
+//!
+//! `expire` 默认仅透传（TTL 变更不改变值的一致性）；需要 TTL 变更也触发
+//! 失效（如心跳/续期键形）时，用
+//! [`with_expire_broadcast`](InvalidatingBackend::with_expire_broadcast)
+//! 开启（默认 `false`，关闭时与不开启该装饰器的既有行为逐位一致）。
 
 use super::InvalidationBus;
 use crate::backend::CacheBackend;
@@ -20,12 +25,33 @@ use std::time::Duration;
 pub struct InvalidatingBackend {
     inner: Arc<dyn CacheBackend>,
     bus: Arc<InvalidationBus>,
+    /// expire 广播开关（默认 `false`：TTL 变更不改变值的一致性，不广播）
+    expire_broadcast: bool,
 }
 
 impl InvalidatingBackend {
     /// 包装内部后端与失效总线
+    ///
+    /// expire 默认不广播；需要 TTL 变更也触发失效（如心跳/续期键形）时，
+    /// 用 [`Self::with_expire_broadcast`] 开启。
     pub fn new(inner: Arc<dyn CacheBackend>, bus: Arc<InvalidationBus>) -> Self {
-        Self { inner, bus }
+        Self {
+            inner,
+            bus,
+            expire_broadcast: false,
+        }
+    }
+
+    /// 开启 expire 广播（默认关闭）。
+    ///
+    /// 开启后，`expire` 调用成功即广播该键的失效事件（与 `delete` 的
+    /// 语义一致，不区分键是否存在）；`false`（默认）时 `expire` 仅透传。
+    ///
+    /// **流量提示**：开启后每次 expire 都多一次 PUBLISH，高频键形
+    /// （心跳/续期类）会放大 Pub/Sub 流量，请按命名空间评估限流后再开启。
+    pub fn with_expire_broadcast(mut self) -> Self {
+        self.expire_broadcast = true;
+        self
     }
 
     /// 内部后端
@@ -92,8 +118,12 @@ impl crate::backend::CacheWriter for InvalidatingBackend {
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
-        // TTL 变更不改变值的一致性，不广播失效
-        self.inner.expire(key, ttl).await
+        let result = self.inner.expire(key, ttl).await?;
+        // 默认关闭：TTL 变更不改变值的一致性，仅透传；开启后广播尽力而为
+        if self.expire_broadcast {
+            let _ = self.bus.invalidate_key(key).await;
+        }
+        Ok(result)
     }
 
     async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
@@ -246,5 +276,101 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(inner.get("k").await.unwrap(), Some(b"v".to_vec()));
+    }
+
+    // ========================================================================
+    // expire 广播开关（默认关）
+    // ========================================================================
+
+    /// 双实例总线：bus_b 监听并失效 remote 上的条目
+    async fn setup_two_instances() -> (
+        Arc<InvalidatingBackend>,
+        Arc<InvalidatingBackend>,
+        Arc<dyn CacheBackend>,
+        crate::features::invalidation::ListenerHandle,
+    ) {
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let bus_a = Arc::new(InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-a").with_channel(DEFAULT_CHANNEL),
+        ));
+        let bus_b = Arc::new(InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-b").with_channel(DEFAULT_CHANNEL),
+        ));
+        let inner_a: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("mock-a", 100, false));
+        let remote: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("remote", 100, false));
+        let handle = bus_b.spawn_listener(remote.clone()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let plain = Arc::new(InvalidatingBackend::new(inner_a.clone(), bus_a.clone()));
+        let broadcasting =
+            Arc::new(InvalidatingBackend::new(inner_a, bus_a).with_expire_broadcast());
+        (plain, broadcasting, remote, handle)
+    }
+
+    /// 默认关闭：expire 透传但不得广播——与既有行为逐位一致
+    #[tokio::test]
+    async fn expire_broadcast_disabled_by_default_keeps_passthrough() {
+        let (plain, _broadcasting, remote, _handle) = setup_two_instances().await;
+
+        // 键经 inner() 直写内层（不经装饰器，不产生广播）
+        plain
+            .inner()
+            .set(Arc::from("user:1"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        remote
+            .set(Arc::from("user:1"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        // expire 在内层成功（键存在），但默认开关下不得广播
+        assert!(
+            plain
+                .expire("user:1", Duration::from_secs(30))
+                .await
+                .unwrap()
+        );
+
+        // 否定断言：窗口内轮询确认远端条目始终存在，任何时点消失即失败
+        for _ in 0..15 {
+            assert!(
+                remote.exists("user:1").await.unwrap(),
+                "默认关闭时 expire 不得广播失效(与既有行为一致)"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    /// 开关开启：expire 成功后广播失效，其他实例的条目被删除
+    #[tokio::test]
+    async fn expire_broadcast_enabled_notifies_other_instances() {
+        let (_plain, broadcasting, remote, _handle) = setup_two_instances().await;
+
+        // 键经 inner() 直写内层（不经装饰器，不产生广播）
+        broadcasting
+            .inner()
+            .set(Arc::from("user:2"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        remote
+            .set(Arc::from("user:2"), Arc::new(b"stale".to_vec()), None)
+            .await
+            .unwrap();
+
+        assert!(
+            broadcasting
+                .expire("user:2", Duration::from_secs(30))
+                .await
+                .unwrap()
+        );
+
+        for _ in 0..50 {
+            if !remote.exists("user:2").await.unwrap() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("开关开启后 expire 应广播失效远端条目");
     }
 }

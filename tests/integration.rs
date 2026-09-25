@@ -1,5 +1,8 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
+
+// 目标内容依赖 backend/Cache 导出，无 memory/redis 时整目标置空
+#![cfg(any(feature = "memory", feature = "redis"))]
 // Integration Tests Module
 //
 // Contains all integration tests for the cache system.
@@ -18,6 +21,7 @@ mod batch_write_test;
 mod chain_cache_integration_test;
 #[path = "integration/comprehensive_test.rs"]
 mod comprehensive_test;
+#[cfg(all(feature = "redis", feature = "metrics"))]
 #[path = "integration/degradation_tests.rs"]
 mod degradation_tests;
 #[cfg(feature = "redis")]

@@ -21,6 +21,8 @@
 use super::chain::{ChainCache, ChainLink, ChainReadStrategy};
 use crate::backend::CacheBackend;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "invalidation")]
+use crate::features::invalidation::InvalidationBus;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -244,6 +246,9 @@ pub struct ChainBuilder {
     backfill_enabled: bool,
     read_strategy: ChainReadStrategy,
     default_ttl: Option<Duration>,
+    /// 写路径失效总线（`invalidation` feature；透传给 `ChainCacheBuilder`）
+    #[cfg(feature = "invalidation")]
+    invalidation_bus: Option<Arc<InvalidationBus>>,
 }
 
 impl ChainBuilder {
@@ -299,6 +304,17 @@ impl ChainBuilder {
         self
     }
 
+    /// 启用写路径失效广播（`invalidation` feature）。
+    ///
+    /// 语义与 [`ChainCacheBuilder::with_invalidation`] 一致：构建时将
+    /// 持久层（`.persistent(true)`，通常为 L2）link 以 `InvalidatingBackend`
+    /// 包装，写成功后经 `bus` 广播失效；expire 不广播。
+    #[cfg(feature = "invalidation")]
+    pub fn with_invalidation(mut self, bus: Arc<InvalidationBus>) -> Self {
+        self.invalidation_bus = Some(bus);
+        self
+    }
+
     /// 构建分层链式缓存
     pub async fn build(self) -> OxCacheResult<ChainCache> {
         let mut links: Vec<ChainLink> = Vec::new();
@@ -338,8 +354,41 @@ impl ChainBuilder {
         if let Some(ttl) = self.default_ttl {
             builder = builder.default_time_to_live(ttl);
         }
+        #[cfg(feature = "invalidation")]
+        if let Some(bus) = self.invalidation_bus {
+            builder = builder.with_invalidation(bus);
+        }
         Ok(builder.build())
     }
+}
+
+/// 一站式装配带写路径失效广播的分层链（`memory` + `invalidation` feature）。
+///
+/// 等价于 `ChainBuilder::new().l1(l1).l2(l2).with_invalidation(bus)`：
+/// 持久层（`.persistent(true)`，通常为 L2）写成功后经 `bus` 广播失效事件，
+/// 其他实例的监听任务失效各自本地 L1；expire 不广播。
+///
+/// ```rust,ignore
+/// use oxcache::cache::{L1Builder, L2Builder, tiered_with_invalidation};
+///
+/// let chain = tiered_with_invalidation(
+///     L1Builder::new().capacity(10_000),
+///     L2Builder::new().redis("redis://127.0.0.1:6379").persistent(true),
+///     bus,
+/// ).await?;
+/// ```
+#[cfg(feature = "invalidation")]
+pub async fn tiered_with_invalidation(
+    l1: L1Builder,
+    l2: L2Builder,
+    bus: Arc<InvalidationBus>,
+) -> OxCacheResult<ChainCache> {
+    ChainBuilder::new()
+        .l1(l1)
+        .l2(l2)
+        .with_invalidation(bus)
+        .build()
+        .await
 }
 
 #[cfg(test)]

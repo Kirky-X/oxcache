@@ -70,16 +70,18 @@ pub use aerospike::{AerospikeBackend, AerospikeConfig};
 pub use score::{BackendScore, Scores};
 
 // Memory backend implementations
-pub use memory::{
-    DashMapMemoryBackend,
-    // Type definitions
-    MemoryBackendType,
-    MokaMemoryBackend,
-    dashmap_memory,
-    default_memory_backend,
-    // Convenience functions
-    moka_memory,
-};
+// 按依赖开启特性门控（dashmap: memory/offload；moka: memory/byte-weight；
+// serde derive: memory/serialization），与 memory 模块内部门控保持一致
+#[cfg(any(feature = "memory", feature = "offload"))]
+pub use memory::DashMapMemoryBackend;
+#[cfg(any(feature = "memory", feature = "serialization"))]
+pub use memory::MemoryBackendType;
+#[cfg(any(feature = "memory", feature = "byte-weight"))]
+pub use memory::MokaMemoryBackend;
+#[cfg(any(feature = "memory", feature = "offload"))]
+pub use memory::dashmap_memory;
+#[cfg(any(feature = "memory", feature = "byte-weight"))]
+pub use memory::{default_memory_backend, moka_memory};
 
 // Re-export MockBackend for crate-internal test usage
 #[cfg(test)]
