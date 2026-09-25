@@ -46,6 +46,9 @@ impl InvalidatingBackend {
     ///
     /// 开启后，`expire` 调用成功即广播该键的失效事件（与 `delete` 的
     /// 语义一致，不区分键是否存在）；`false`（默认）时 `expire` 仅透传。
+    ///
+    /// **流量提示**：开启后每次 expire 都多一次 PUBLISH，高频键形
+    /// （心跳/续期类）会放大 Pub/Sub 流量，请按命名空间评估限流后再开启。
     pub fn with_expire_broadcast(mut self) -> Self {
         self.expire_broadcast = true;
         self
@@ -329,11 +332,14 @@ mod tests {
                 .unwrap()
         );
 
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        assert!(
-            remote.exists("user:1").await.unwrap(),
-            "默认关闭时 expire 不得广播失效(与既有行为一致)"
-        );
+        // 否定断言：窗口内轮询确认远端条目始终存在，任何时点消失即失败
+        for _ in 0..15 {
+            assert!(
+                remote.exists("user:1").await.unwrap(),
+                "默认关闭时 expire 不得广播失效(与既有行为一致)"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     }
 
     /// 开关开启：expire 成功后广播失效，其他实例的条目被删除
