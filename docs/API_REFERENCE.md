@@ -516,6 +516,21 @@ let v = chain.get("key").await?; // Some(Vec<u8>)
 - `ttl(key)` → 返回从最高分开始扫描找到的第一个 `Some(ttl)`。
 - `expire(key, d)` → 转发到所有链接；任一链接成功即返回 `Ok(true)`。
 
+### 批量读取 `iter_entries`
+
+`iter_entries(&self, keys: &[&str]) -> Vec<(String, Option<Vec<u8>>)>`：
+按分数从高到低逐层批量读取尚未命中的键，每层一次 `get_many` 调用
+（`RedisBackend` 的 `get_many` 即 pipeline 批量读），命中键由最高分
+命中层应答；输出顺序与输入一致，不触发回填。某层批量读整批失败时
+错误按键拆分映射（每键一条错误事件 + warn），键继续降级到下一层；
+全部层处理完仍未命中的键（miss 或各层失败）以 `None` 结束，方法本身
+不返回 `Err`。
+
+```rust
+// entries: Vec<(String, Option<Vec<u8>>)>，方法本身不返回 Err
+let entries = chain.iter_entries(&["k1", "k2", "k3"]).await;
+```
+
 ### ChainCache 同步 API
 
 `ChainCache` 暴露 `get_sync`/`set_sync`/`delete_sync`。这些方法要求**每个**

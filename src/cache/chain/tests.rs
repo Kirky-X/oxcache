@@ -1499,3 +1499,263 @@ mod read_strategy_tests {
         assert_eq!(v, Some(b"from-fast".to_vec()));
     }
 }
+
+// ========================================================================
+// iter_entries 批量读取
+// ========================================================================
+
+use crate::core::CacheEvent;
+
+/// 批量读探针后端：记录每层 `get_many` 实际收到的键批次，
+/// 可注入整批失败（fail_batch），底层存储复用 MockBackend。
+struct BatchProbeBackend {
+    inner: MockBackend,
+    fail_batch: bool,
+    batch_calls: Arc<std::sync::Mutex<Vec<Vec<String>>>>,
+}
+
+impl BatchProbeBackend {
+    fn new(name: &'static str, score: u8, fail_batch: bool) -> Self {
+        Self {
+            inner: MockBackend::new(name, score, false),
+            fail_batch,
+            batch_calls: Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+}
+
+impl BackendScore for BatchProbeBackend {
+    fn score(&self) -> u8 {
+        self.inner.score()
+    }
+
+    fn is_persistent(&self) -> bool {
+        self.inner.is_persistent()
+    }
+
+    fn backend_name(&self) -> &'static str {
+        self.inner.backend_name()
+    }
+}
+
+#[async_trait]
+impl CacheReader for BatchProbeBackend {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        self.inner.get(key).await
+    }
+
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        self.inner.exists(key).await
+    }
+
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        self.inner.ttl(key).await
+    }
+
+    async fn len(&self) -> OxCacheResult<u64> {
+        self.inner.len().await
+    }
+
+    async fn capacity(&self) -> OxCacheResult<u64> {
+        self.inner.capacity().await
+    }
+
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
+        self.inner.stats().await
+    }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        self.inner.keys(pattern).await
+    }
+
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        self.batch_calls.lock().unwrap().push(keys.to_vec());
+        if self.fail_batch {
+            return Err(OxCacheError::Operation("batch fault injected".to_string()));
+        }
+        let mut results = Vec::with_capacity(keys.len());
+        for key in keys {
+            results.push(self.inner.get(key).await?);
+        }
+        Ok(results)
+    }
+}
+
+#[async_trait]
+impl CacheWriter for BatchProbeBackend {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        self.inner.set(key, value, ttl).await
+    }
+
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
+        self.inner.delete(key).await
+    }
+
+    async fn clear(&self) -> OxCacheResult<()> {
+        self.inner.clear().await
+    }
+
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+        self.inner.expire(key, ttl).await
+    }
+}
+
+#[async_trait]
+impl CacheConnector for BatchProbeBackend {
+    async fn health_check(&self) -> OxCacheResult<()> {
+        self.inner.health_check().await
+    }
+
+    async fn shutdown(&self) {
+        self.inner.shutdown().await;
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        self.inner.backend_kind()
+    }
+}
+
+/// 捕获 publish_error 事件的发布器（用于断言整批失败按键拆分映射）
+#[derive(Default)]
+struct CapturingPublisher {
+    errors: CapturedErrors,
+}
+
+type CapturedErrors = Arc<std::sync::Mutex<Vec<(Option<String>, String)>>>;
+
+#[async_trait]
+impl EventPublisher for CapturingPublisher {
+    async fn publish(&self, _event: CacheEvent) -> Result<(), OxCacheError> {
+        Ok(())
+    }
+
+    fn publish_error(&self, key: Option<String>, error: String) -> Result<(), OxCacheError> {
+        self.errors.lock().unwrap().push((key, error));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn iter_entries_resolves_hits_in_input_order_with_single_batch_per_layer() {
+    let l1 = BatchProbeBackend::new("probe-l1", 100, false);
+    let l2 = BatchProbeBackend::new("probe-l2", 50, false);
+    let l1_calls = l1.batch_calls.clone();
+    let l2_calls = l2.batch_calls.clone();
+
+    // k1 仅在 L1，k2 仅在 L2，k3 无处存在
+    CacheWriter::set(&l1.inner, Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+        .await
+        .unwrap();
+    CacheWriter::set(&l2.inner, Arc::from("k2"), Arc::new(b"v2".to_vec()), None)
+        .await
+        .unwrap();
+
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(l1))
+        .link(ChainLink::from_backend(l2))
+        .build();
+
+    let result = chain.iter_entries(&["k1", "k2", "k3"]).await;
+    assert_eq!(
+        result,
+        vec![
+            ("k1".to_string(), Some(b"v1".to_vec())),
+            ("k2".to_string(), Some(b"v2".to_vec())),
+            ("k3".to_string(), None),
+        ]
+    );
+
+    // 单层批量读：每层至多一次 get_many，且只携带尚未命中的键
+    assert_eq!(
+        *l1_calls.lock().unwrap(),
+        vec![vec!["k1".to_string(), "k2".to_string(), "k3".to_string()]]
+    );
+    assert_eq!(
+        *l2_calls.lock().unwrap(),
+        vec![vec!["k2".to_string(), "k3".to_string()]]
+    );
+}
+
+#[tokio::test]
+async fn iter_entries_layer_batch_failure_splits_per_key_and_falls_through() {
+    // L1 整批失败：错误按键拆分（每键一条错误事件），未解析键降级到 L2；
+    // L2 只有 k1 有值 → k1 部分恢复，k2 以 None 结束（部分失败）
+    let l1 = BatchProbeBackend::new("faulty-l1", 100, true);
+    let l2 = BatchProbeBackend::new("probe-l2", 50, false);
+    let l2_calls = l2.batch_calls.clone();
+    CacheWriter::set(&l2.inner, Arc::from("k1"), Arc::new(b"v1".to_vec()), None)
+        .await
+        .unwrap();
+
+    let publisher = Arc::new(CapturingPublisher::default());
+    let errors = publisher.errors.clone();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(l1))
+        .link(ChainLink::from_backend(l2))
+        .event_publisher(publisher)
+        .build();
+
+    let result = chain.iter_entries(&["k1", "k2"]).await;
+    assert_eq!(
+        result,
+        vec![
+            ("k1".to_string(), Some(b"v1".to_vec())),
+            ("k2".to_string(), None),
+        ]
+    );
+
+    // 整批失败按键拆分映射：每个失败键一条错误事件
+    let errors = errors.lock().unwrap();
+    assert_eq!(errors.len(), 2, "L1 整批失败应拆分为每键一条错误");
+    assert_eq!(errors[0].0.as_deref(), Some("k1"));
+    assert_eq!(errors[1].0.as_deref(), Some("k2"));
+    drop(errors);
+
+    // 未解析键（含失败键）整批降级到 L2
+    assert_eq!(
+        *l2_calls.lock().unwrap(),
+        vec![vec!["k1".to_string(), "k2".to_string()]]
+    );
+}
+
+#[tokio::test]
+async fn iter_entries_all_layers_failing_maps_every_key_to_none() {
+    // 所有层整批失败：不向上传播 Err，全部键逐层拆分失败后以 None 结束
+    let l1 = BatchProbeBackend::new("faulty-l1", 100, true);
+    let l2 = BatchProbeBackend::new("faulty-l2", 50, true);
+    let l1_calls = l1.batch_calls.clone();
+    let l2_calls = l2.batch_calls.clone();
+
+    let publisher = Arc::new(CapturingPublisher::default());
+    let errors = publisher.errors.clone();
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(l1))
+        .link(ChainLink::from_backend(l2))
+        .event_publisher(publisher)
+        .build();
+
+    let result = chain.iter_entries(&["k1", "k2"]).await;
+    assert_eq!(
+        result,
+        vec![("k1".to_string(), None), ("k2".to_string(), None)]
+    );
+
+    // 两层各整批失败一次，错误逐键拆分（2 键 × 2 层 = 4 条）
+    assert_eq!(errors.lock().unwrap().len(), 4);
+    assert_eq!(l1_calls.lock().unwrap().len(), 1);
+    assert_eq!(l2_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn iter_entries_empty_input_returns_empty_vec() {
+    let l1 = BatchProbeBackend::new("probe-l1", 100, false);
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(l1))
+        .build();
+    assert!(chain.iter_entries(&[]).await.is_empty());
+}
