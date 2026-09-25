@@ -261,10 +261,13 @@ full = [
 ]
 
 # Component features
-memory = ["dep:moka", "dep:dashmap", "dep:serde"]
+# memory/redis 开启即编译 backend 与 cache 核心 API，而 Cache<K,V> 的 serde
+# 约束与 UnifiedSerializer 是核心面事实依赖，故隐含 serialization
+# （与 minimal/disk 预置既有口径一致）
+memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization"]
 # 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
 byte-weight = ["dep:moka", "moka/sync"]
-redis = ["dep:redis", "dep:regex"]
+redis = ["dep:redis", "dep:regex", "serialization"]
 dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
 macros = ["dep:oxcache_macros", "minimal"]
