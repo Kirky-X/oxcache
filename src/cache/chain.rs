@@ -400,15 +400,30 @@ impl ChainCache {
             let batch_keys: Vec<String> = pending.iter().map(|&i| keys[i].to_string()).collect();
 
             match link.backend().get_many(&batch_keys).await {
-                Ok(results) => {
+                // 长度必须与请求键数一致（trait 契约）；错位即整批失败口径
+                Ok(results) if results.len() == batch_keys.len() => {
                     let mut still_pending = Vec::with_capacity(pending.len());
-                    for (&i, result) in pending.iter().zip(&results) {
+                    for (i, result) in std::mem::take(&mut pending).into_iter().zip(results) {
                         match result {
-                            Some(value) => values[i] = Some(value.clone()),
+                            Some(value) => values[i] = Some(value),
                             None => still_pending.push(i),
                         }
                     }
                     pending = still_pending;
+                }
+                Ok(results) => {
+                    // 返回长度与请求数不符：无法按键对位，若按 zip 截断处理
+                    // 被截断键会静默按 miss 收尾（失败被吞）——按整批失败
+                    // 显性化，未解析键继续降级到下一层
+                    let e = OxCacheError::Operation(format!(
+                        "get_many returned {} results for {} keys",
+                        results.len(),
+                        batch_keys.len()
+                    ));
+                    for &i in &pending {
+                        self.emit_backend_error(keys[i], link.name(), &e);
+                        telemetry_iter_entries_key_failed(keys[i], link.name(), &e);
+                    }
                 }
                 Err(e) => {
                     // 整批错误按键拆分映射：每键独立上报

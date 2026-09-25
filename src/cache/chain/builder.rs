@@ -110,6 +110,11 @@ impl ChainCacheBuilder {
     ///
     /// 注意：包装层不实现 `SyncCacheBackend`，含持久层 link 的链此后不再
     /// 支持 sync API（返回 `NotSupported`）。
+    ///
+    /// # Panics
+    ///
+    /// 构建时链中无任何持久层（`is_persistent == true`）link 则 panic——
+    /// 无持久层意味着广播永远不会有触发点，静默零广播属配置错误。
     #[cfg(feature = "invalidation")]
     pub fn with_invalidation(mut self, bus: Arc<InvalidationBus>) -> Self {
         self.invalidation_bus = Some(bus);
@@ -125,6 +130,9 @@ impl ChainCacheBuilder {
     /// This is a programmer error (forgot `.link(...)`/`.backend(...)`), so it
     /// fails loudly at construction time; use [`ChainCache::new`] directly if
     /// an intentionally empty chain is ever required.
+    ///
+    /// 启用 [`Self::with_invalidation`] 且链中无持久层 link 时同样 panic
+    /// （广播无触发点，属配置错误）。
     pub fn build(self) -> ChainCache {
         // 按分数降序排序
         let mut links = self.links;
@@ -140,6 +148,13 @@ impl ChainCacheBuilder {
         // 语义与 `InvalidatingBackend` 既有行为一致：set/delete 广播，expire 不广播）
         #[cfg(feature = "invalidation")]
         if let Some(bus) = self.invalidation_bus {
+            assert!(
+                links.iter().any(|link| link.is_persistent()),
+                "ChainCacheBuilder::with_invalidation requires at least one \
+                 persistent link (mark it via ChainLink::new(.., true, ..) or \
+                 L2Builder::persistent(true)); without one the bus would never \
+                 broadcast and writes would silently skip invalidation"
+            );
             links = links
                 .into_iter()
                 .map(|link| {

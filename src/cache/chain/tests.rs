@@ -1807,6 +1807,19 @@ mod invalidation_integration {
         !backend.exists(key).await.unwrap()
     }
 
+    /// 否定断言：在窗口内轮询确认条目始终存在，任何时点消失即失败
+    /// （替代固定 sleep 后单次断言，慢环境下不会漏检也不会假失败）
+    async fn poll_stays(backend: &Arc<dyn CacheBackend>, key: &str, window_ms: u64) {
+        let rounds = window_ms / 10;
+        for _ in 0..rounds {
+            assert!(
+                backend.exists(key).await.unwrap(),
+                "条目不应被广播失效: {key}"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
     #[tokio::test]
     async fn with_invalidation_wraps_persistent_links_and_broadcasts() {
         let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
@@ -1841,33 +1854,39 @@ mod invalidation_integration {
         );
     }
 
-    #[tokio::test]
-    async fn with_invalidation_skips_non_persistent_links() {
-        let (bus_a, _bus_b, remote, _handle) = setup_buses().await;
-
-        // 只有非持久层：不包装、不广播
-        let chain = ChainCache::builder()
-            .link(ChainLink::new(
-                MockBackend::new("l1", 100, false),
-                100,
-                false,
-                "l1",
-            ))
-            .with_invalidation(bus_a)
-            .build();
-
-        remote
-            .set(Arc::from("user:1"), Arc::new(b"stale".to_vec()), None)
-            .await
-            .unwrap();
-
-        chain.set("user:1", b"fresh".to_vec(), None).await.unwrap();
-        assert_eq!(chain.get("user:1").await.unwrap(), Some(b"fresh".to_vec()));
-
-        tokio::time::sleep(Duration::from_millis(150)).await;
+    #[test]
+    fn with_invalidation_without_persistent_link_panics() {
+        // 只有非持久层时广播无触发点：构建必须显性失败而非静默零广播
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let bus = Arc::new(InvalidationBus::new(
+            transport,
+            InvalidationConfig::new("instance-a").with_channel(DEFAULT_CHANNEL),
+        ));
+        // InvalidatingBackend 持有含内部可变性的 transport，测试断言 panic
+        // 需显式声明 unwind 安全（此处仅构造即 panic，无不变量破坏风险）
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = ChainCache::builder()
+                .link(ChainLink::new(
+                    MockBackend::new("l1", 100, false),
+                    100,
+                    false,
+                    "l1",
+                ))
+                .with_invalidation(bus)
+                .build();
+        }));
+        let msg = result
+            .err()
+            .map(|e| {
+                e.downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| e.downcast_ref::<&str>().map(|s| s.to_string()))
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
         assert!(
-            remote.exists("user:1").await.unwrap(),
-            "无持久层时不得产生失效广播"
+            msg.contains("persistent link"),
+            "panic 应说明缺少持久层, got {msg}"
         );
     }
 
@@ -1895,11 +1914,7 @@ mod invalidation_integration {
             .await
             .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        assert!(
-            remote.exists("user:2").await.unwrap(),
-            "expire 不广播失效(既有语义,集成不得改变)"
-        );
+        poll_stays(&remote, "user:2", 150).await;
     }
 
     #[tokio::test]
