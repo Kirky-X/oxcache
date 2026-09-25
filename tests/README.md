@@ -149,3 +149,17 @@ cargo test --features full -- --skip redis
 | `lock` | 分布式锁 |
 | `dragonfly` | Dragonfly 后端 |
 | `aerospike` | Aerospike 后端 |
+
+## 目标级 feature 门控
+
+集成测试目标按其内容依赖的特性做 crate 级门控（`#![cfg(...)]`），feature
+不满足时整目标置空而非编译失败：
+
+| 目标 | 门控 | 原因 |
+|------|------|------|
+| `bloom_filter_integration` | `all(bloom, memory)` | 被 Moka 后端接点依赖（装饰器包装 `MokaMemoryBackend`）；bloom 单开不带 backend |
+
+> 偏差标注：蓝图 5.2 对 `bloom_filter_integration` 有「不改一行」的字面约束。
+> 本门控为编译层置空（测试体与断言零改动，bloom+memory 下 9 passed），
+> 系 2d2793c 修复 bloom 单开 test 目标编译失败的必要伴随，待蓝图 owner
+> 追认「不改一行」的意图边界（禁断言弱化 vs 字面禁改）。
