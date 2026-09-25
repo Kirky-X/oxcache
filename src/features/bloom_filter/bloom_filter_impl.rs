@@ -67,20 +67,23 @@ impl<K: ?Sized> BloomFilter<K> {
             "false_positive_rate must be in (0.0, 1.0)"
         );
 
-        // k_num 只依赖 (bitmap_bits, items_count)，与种子无关：用全零种子
-        // 探针反解，最终实例以随机种子构造
-        let k_num_at = |bitmap_size: usize| {
-            Bloom::<K>::new_with_seed(bitmap_size, capacity, &[0u8; 32])
-                .expect("failed to probe bloom filter size")
-                .number_of_hash_functions()
+        // crate 的 k_num 公式：max(round(bitmap_bits/items·ln2), 1)，与种子
+        // 无关且随位图位数单调不减。对位图字节数直接做闭式二分定位目标 k，
+        // 避免二分过程中逐探针全尺寸位图分配；最终实例以
+        // number_of_hash_functions 硬断言校验，crate 公式若有变化会在此
+        // 显性失败而非静默偏离。
+        let k_formula = |bitmap_size: usize| -> u32 {
+            let bits = (bitmap_size as u64 * 8) as f64;
+            let k = (bits / capacity as f64 * std::f64::consts::LN_2).round() as u32;
+            k.max(1)
         };
 
-        // 上界按 bits ≈ capacity·k/ln2 估算并放大，保证 k_num(hi) ≥ 目标
+        // 上界按 bits ≈ capacity·k/ln2 估算并放大，保证 k_formula(hi) ≥ 目标
         let mut hi = ((capacity as f64) * f64::from(hash_count) / std::f64::consts::LN_2).ceil()
             as usize
             / 8
             + 16;
-        if k_num_at(hi) < hash_count {
+        if k_formula(hi) < hash_count {
             panic!("hash_count {hash_count} unreachable for capacity {capacity}");
         }
 
@@ -88,7 +91,7 @@ impl<K: ?Sized> BloomFilter<K> {
         let mut size = hi;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            if k_num_at(mid) >= hash_count {
+            if k_formula(mid) >= hash_count {
                 size = mid;
                 hi = mid;
             } else {
@@ -96,7 +99,7 @@ impl<K: ?Sized> BloomFilter<K> {
             }
         }
         assert_eq!(
-            k_num_at(size),
+            k_formula(size),
             hash_count,
             "hash_count {hash_count} unreachable for capacity {capacity}: \
              k steps by more than 1 per bitmap byte at this capacity"
@@ -104,6 +107,12 @@ impl<K: ?Sized> BloomFilter<K> {
 
         let bloom = Bloom::<K>::new(size, capacity)
             .expect("failed to create bloom filter: random seed generation failed");
+        assert_eq!(
+            bloom.number_of_hash_functions(),
+            hash_count,
+            "bloomfilter k_num formula drifted; \
+             new_with_hash_count back-solve must be updated"
+        );
         Self {
             state: Arc::new(RwLock::new(BloomState {
                 bloom,
@@ -165,6 +174,10 @@ impl<K: ?Sized> BloomFilter<K> {
     ///
     /// 序列化布局为「头部位图元数据 + 数据区」，数据区字节数恰为总位数/8；
     /// 从切片尾部切出数据区统计置位数，不依赖私有头部长度常量。
+    ///
+    /// 布局前提依赖 bloomfilter 3.0.x 的序列化格式；crate 升级时以
+    /// `set_bits_reflects_inserts` 与
+    /// `k_str_bits_identical_to_crate_native_set_path` 两测试复验。
     pub fn set_bits(&self) -> u64 {
         let state = self.state.read().unwrap();
         let bloom = &state.bloom;
