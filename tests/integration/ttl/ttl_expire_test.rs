@@ -46,7 +46,9 @@ async fn test_cache_ttl_returns_none_for_no_ttl_key() {
 
 #[tokio::test]
 async fn test_cache_ttl_returns_remaining_for_ttl_key() {
-    let cache: Cache<String, Token> = Cache::builder().build().await.unwrap();
+    // 默认 10% TTL 抖动(防雪崩)会使剩余时长落在 [54s,66s];
+    // 本测试断言精确窗口,显式关闭抖动
+    let cache: Cache<String, Token> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
     cache
         .set_with_ttl(
             &"with_ttl".to_string(),
