@@ -62,6 +62,7 @@ feature_check!(
 mod tests {
     use super::*;
 
+    #[cfg(feature = "memory")]
     #[test]
     fn test_l1_available() {
         // With "memory" feature, l1 should be available
@@ -90,6 +91,7 @@ mod tests {
         assert!(batch_write_available());
     }
 
+    #[cfg(feature = "serialization")]
     #[test]
     fn test_serialization_available() {
         // With "serialization" feature
