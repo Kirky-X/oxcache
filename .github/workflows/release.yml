@@ -28,6 +28,8 @@ jobs:
         run: cargo build --release --features full --workspace
       - name: Verify tests pass
         run: cargo test --features full --workspace --no-fail-fast
+        env:
+          OXCACHE_TEST_STRICT: "1"
 
   github-release:
     name: Create GitHub Release

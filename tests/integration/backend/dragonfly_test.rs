@@ -15,7 +15,9 @@ use oxcache::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter, Dr
 
 #[path = "../../common/mod.rs"]
 mod common;
-use common::test_containers::DragonflyContainer;
+use common::test_containers::{
+    DragonflyContainer, backend_skip, container_or_skip, start_dragonfly_container,
+};
 
 /// 设置环境变量以允许不安全连接（测试用）
 fn set_allow_insecure() {
@@ -23,20 +25,38 @@ fn set_allow_insecure() {
     unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
 }
 
-/// 创建 Dragonfly 后端；连接失败时返回 None
-async fn make_dragonfly_backend(url: &str) -> Option<DragonflyBackend> {
+/// 创建 Dragonfly 后端；连接失败不在此处定语义，由调用方路由门控
+async fn make_dragonfly_backend(url: &str) -> oxcache::OxCacheResult<DragonflyBackend> {
     set_allow_insecure();
-    DragonflyBackend::new(url, 4).await.ok()
+    DragonflyBackend::new(url, 4).await
 }
 
-/// 启动 Dragonfly 容器并创建后端；Docker 不可用或后端不可用时返回 None
-async fn setup() -> Option<DragonflyBackend> {
-    let container = DragonflyContainer::start().await.ok()?;
-    container.wait_ready().await.ok()?;
-    let backend = make_dragonfly_backend(&container.url()).await?;
+/// 启动 Dragonfly 容器并创建后端；Docker 不可用时跳过测试
+/// （OXCACHE_TEST_STRICT 置位时改为失败，语义见 container_or_skip）。
+///
+/// 返回容器句柄由调用方持有至测试结束：`ContainerAsync` drop 即 force-rm
+/// 容器，句柄若在 setup 内提前消亡，后端连接面对的是已删容器。
+/// 后端创建/健康检查失败路由 backend_skip（可见、计数，但不置短路闩）：
+/// 与基础设施不可用分档，避免一次握手抖动放大为整组覆盖丢失。
+async fn setup() -> Option<(DragonflyContainer, DragonflyBackend)> {
+    let (container, url) = container_or_skip("Dragonfly", start_dragonfly_container()).await?;
+    let backend = match make_dragonfly_backend(&url).await {
+        Ok(backend) => backend,
+        Err(e) => {
+            return backend_skip(
+                "Dragonfly",
+                &format!("backend connect failed after container ready: {e}"),
+            );
+        }
+    };
     // 验证后端实际可用（连接成功不代表操作正常）
-    backend.health_check().await.ok()?;
-    Some(backend)
+    if let Err(e) = backend.health_check().await {
+        return backend_skip(
+            "Dragonfly",
+            &format!("health check failed after container ready: {e}"),
+        );
+    }
+    Some((container, backend))
 }
 
 // ============================================================================
@@ -45,14 +65,18 @@ async fn setup() -> Option<DragonflyBackend> {
 
 #[tokio::test]
 async fn test_dragonfly_backend_kind() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup().await else {
+        return;
+    };
 
     assert_eq!(backend.backend_kind(), BackendKind::Dragonfly);
 }
 
 #[tokio::test]
 async fn test_dragonfly_atomic_writer_is_none() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup().await else {
+        return;
+    };
 
     // Dragonfly atomic operations not yet verified
     assert!(backend.as_atomic_writer().is_none());
@@ -60,7 +84,9 @@ async fn test_dragonfly_atomic_writer_is_none() {
 
 #[tokio::test]
 async fn test_dragonfly_cache_writer_operations() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup().await else {
+        return;
+    };
 
     // set
     if backend
@@ -107,7 +133,9 @@ async fn test_dragonfly_cache_writer_operations() {
 
 #[tokio::test]
 async fn test_dragonfly_cache_reader_operations() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup().await else {
+        return;
+    };
 
     // Setup data
     if backend
@@ -175,7 +203,9 @@ async fn test_dragonfly_cache_reader_operations() {
 
 #[tokio::test]
 async fn test_dragonfly_cache_connector_operations() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup().await else {
+        return;
+    };
 
     // backend_kind
     assert_eq!(backend.backend_kind(), BackendKind::Dragonfly);
@@ -193,7 +223,7 @@ async fn test_dragonfly_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let Some(dragonfly) = setup().await else {
+    let Some((_container, dragonfly)) = setup().await else {
         return;
     };
 

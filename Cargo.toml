@@ -229,6 +229,9 @@ postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 
 [dev-dependencies.testcontainers]
 version = "0.28"
+# watchdog：信号退出时回收 managed 容器，兜底门控超时取消 start future 的
+# 窄窗口孤儿（容器已创建、ContainerAsync 句柄未 construct 即被 drop）
+features = ["watchdog"]
 
 # ============================================================================
 # FEATURES

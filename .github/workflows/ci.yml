@@ -105,6 +105,11 @@ jobs:
           key: test-${{ matrix.features }}
       - name: Run tests
         run: cargo test --features "${{ matrix.features }}" --workspace
+        env:
+          # 容器门控 fail-closed：置位后已接入 container_or_skip 的容器集成测试
+          # （当前仅 valkey/dragonfly；lock/aerospike 尚为静默 .ok()? 跳过）在容器
+          # 不可用时失败而非静默跳过；跳过原因本地用 --nocapture 查看
+          OXCACHE_TEST_STRICT: "1"
 
   test-critical-combinations:
     name: Test (critical combinations)
@@ -131,6 +136,11 @@ jobs:
           key: test-${{ matrix.features }}
       - name: Run tests
         run: cargo test --features "${{ matrix.features }}" --workspace
+        env:
+          # 容器门控 fail-closed：置位后已接入 container_or_skip 的容器集成测试
+          # （当前仅 valkey/dragonfly；lock/aerospike 尚为静默 .ok()? 跳过）在容器
+          # 不可用时失败而非静默跳过；跳过原因本地用 --nocapture 查看
+          OXCACHE_TEST_STRICT: "1"
 
   build:
     name: Build (${{ matrix.os }}, ${{ matrix.features }})

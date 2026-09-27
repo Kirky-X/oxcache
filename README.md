@@ -557,8 +557,8 @@ validate_scan_pattern("user:*").expect("无效的模式");
 |:----:|------|------|
 | 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.5（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
-| 📋 | **Valkey 集成测试环境门控** | 8 个 Valkey 集成测试依赖 Docker（testcontainers），无 Docker 环境无法运行，为验收记录中的已知限制 |
-| 📋 | **质量审查留档项跟进** | 代码质量审查（diting）留档的 3 项 Medium 建议与 2 项 Low 记录，按优先级评估处理 |
+| ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey（及 Dragonfly）集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
+| ✅ | **质量审查留档项跟进** | 重建留档见 `docs/diting-review.md`（3 Medium + 2 Low）：2 Medium + 1 Low 已修复，其余登记待办 |
 
 ---
 

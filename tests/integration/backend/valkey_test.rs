@@ -19,7 +19,14 @@ use oxcache::backend::{
 
 #[path = "../../common/mod.rs"]
 mod common;
-use common::test_containers::ValkeyContainer;
+use common::test_containers::{ValkeyContainer, container_or_skip, start_valkey_container};
+
+/// 获取就绪的 Valkey 容器；Docker 不可用、启动超时或容器无法就绪时跳过测试
+/// （OXCACHE_TEST_STRICT 置位时改为失败，语义见 container_or_skip）
+async fn setup_container() -> Option<ValkeyContainer> {
+    let (container, _) = container_or_skip("Valkey", start_valkey_container()).await?;
+    Some(container)
+}
 
 /// 设置环境变量以允许不安全连接（测试用）
 fn set_allow_insecure() {
@@ -52,10 +59,9 @@ async fn make_valkey_backend_transparent(url: &str) -> RedisBackend {
 
 #[tokio::test]
 async fn test_valkey_backend_kind_is_valkey() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend(&container.url()).await;
 
     // 显式 ValkeyStandalone 模式应返回 BackendKind::Valkey
@@ -64,10 +70,9 @@ async fn test_valkey_backend_kind_is_valkey() {
 
 #[tokio::test]
 async fn test_valkey_backend_kind_transparent_is_redis() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend_transparent(&container.url()).await;
 
     // 普通 Redis URL 连接 Valkey 时仍返回 BackendKind::Redis
@@ -76,10 +81,9 @@ async fn test_valkey_backend_kind_transparent_is_redis() {
 
 #[tokio::test]
 async fn test_valkey_cache_writer_operations() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend(&container.url()).await;
 
     // set
@@ -118,10 +122,9 @@ async fn test_valkey_cache_writer_operations() {
 
 #[tokio::test]
 async fn test_valkey_cache_reader_operations() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend(&container.url()).await;
 
     // Setup data
@@ -179,10 +182,9 @@ async fn test_valkey_cache_reader_operations() {
 
 #[tokio::test]
 async fn test_valkey_cache_connector_operations() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend(&container.url()).await;
 
     // health_check
@@ -197,10 +199,9 @@ async fn test_valkey_cache_connector_operations() {
 
 #[tokio::test]
 async fn test_valkey_atomic_writer_operations() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let backend = make_valkey_backend(&container.url()).await;
 
     let atomic = backend
@@ -250,10 +251,9 @@ async fn test_valkey_atomic_writer_operations() {
 
 #[tokio::test]
 async fn test_detect_valkey_returns_true_for_valkey() {
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
 
     let client = redis::Client::open(container.url().as_str()).expect("Failed to create client");
     let mut conn = client.get_connection().expect("Failed to connect");
@@ -271,10 +271,9 @@ async fn test_valkey_chain_cache_basic() {
     use oxcache::backend::MokaMemoryBackend;
     use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 
-    let container = ValkeyContainer::start()
-        .await
-        .expect("Failed to start Valkey");
-    container.wait_ready().await.expect("Valkey not ready");
+    let Some(container) = setup_container().await else {
+        return;
+    };
     let valkey = make_valkey_backend(&container.url()).await;
 
     let moka = MokaMemoryBackend::new();

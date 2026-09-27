@@ -132,6 +132,27 @@ cargo test --features minimal
 cargo test --features full -- --skip redis
 ```
 
+## 容器可用性门控
+
+valkey/dragonfly 集成测试经 `common/test_containers.rs` 的 `container_or_skip`
+门控容器启动（90 秒预算覆盖镜像拉取与创建，失败后同模块副本内短路后续探测）：
+
+- **本地默认**：Docker/镜像不可用时打印 `[TEST-SKIP] ... (gate skip #N)` 并跳过
+  （结果计入 passed，需 `--nocapture` 查看跳过原因）；
+- **CI（fail-closed）**：ci.yml 与 release.yml 的 test step 置位
+  `OXCACHE_TEST_STRICT=1`，容器不可用时跳过转为 panic 失败，杜绝静默失去覆盖；
+- **与 `OXCACHE_SKIP_REDIS_TESTS` 的分工**：后者显式跳过基于 Redis URL 探测的
+  redis 系测试（跳过即预期行为）；`OXCACHE_TEST_STRICT` 是反向开关，要求容器
+  必须可用，把「环境不可用」从静默跳过升级为失败；
+- **两档跳过语义**：容器不可用走 `gate_skip`（置失败短路闩，`first failure`
+  仅记录基础设施类原因）；容器就绪后的后端连接/健康检查瞬时失败走
+  `backend_skip`（可见带计数，但不置闩、不占首因槽），避免一次握手抖动
+  放大为整组覆盖丢失。`OXCACHE_TEST_STRICT` 置位时两档跳过均转 panic
+  （含后端层瞬时失败，CI 抖动以重跑吸收）；
+- 已知残留：90 秒超时取消启动流程的窄窗口可能在 daemon 侧留下无管理者容器
+  （testcontainers `watchdog` feature 已兜底信号退出），长寿命开发机可偶发
+  `docker system prune`。
+
 ## Feature Flags
 
 | Feature | Description |
