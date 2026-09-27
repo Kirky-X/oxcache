@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.5.0-rc.6] - 2026-09-28
+
 ### 新增
 
 - **`#[cached]` 宏 `skip(...)` 参数**：被点名参数不进入默认缓存 key（如 `skip(password)` 排除敏感参数）；与显式 `key` 模板互斥（编译期报错）、未知参数名编译期报错（对标 hitbox `skip` 语义）
@@ -14,16 +16,49 @@
 - **`offload` feature 后台任务子系统**：`OffloadManager` 同 key 去重 + 信号量并发上限 + 超时策略（`None`/`Cancel`/`Warn`，默认 `Warn(30s)`）；`Cache::get_or_refresh()` 触发后台重验证（fallback 需 `Send + 'static`）；`oxcache_offload_*` 指标全集与 `oxcache::offload` 遥测
 - **`disk` feature 磁盘持久化 L3 后端**：`RedbDiskBackend`（redb 3.x 纯安全 Rust，ACID + WAL）；value envelope（seq + epoch 毫秒过期）+ 读路径懒过期物理删除（与 DashMap 同口径）；`max_entries` 超限清扫（先删过期、按 seq 升序删最旧，摊销触发，`spawn_blocking` 执行）；`BackendKind::Disk`、`Scores::REDB = 85`；`ChainLink::from_arc` / `ChainBuilder::extra_backend` 挂链为 L3（读穿透 + 回填）；`full` 预设包含 `disk`/`stale`/`offload`
 - **ChainCache 读策略枚举**：`ChainReadStrategy`（`Sequential`/`Race`/`ParallelFreshest`）+ `ChainCacheBuilder::read_strategy()`；`ParallelFreshest` 并发全读后按剩余 TTL 择新（None 最低优先，并列取最高分）；`enable_race_read()`/`disable_race_read()` 保留为兼容别名；三策略读结果遥测埋点
+- **缓存审计加固配套 API**：新增 `hotkey` feature（`HotKeyTracker` 分片计数 + 快照半衰 Top-K）；`max_capacity_bytes` 容量上限（Moka weigher / DashMap 字节记账，防大值内存超卖）；`get_or_with_ttl` / `get_or_option_with_ttl`（含 sync 变体）与 `set_many_with_ttl`；布隆过滤器 `prefill` 预热 API
+- **ChainCache 批量读取 `iter_entries`**：命中层单层批量读与整批错误按键拆分；长度契约显性化、命中值移动语义修正
+- **invalidation 写路径失效链集成**：`with_invalidation` / `tiered_with_invalidation` 一站式装配；`InvalidatingBackend::with_expire_broadcast()` expire 广播开关（默认关）
+- **`ByteWeightCache` 权重观测**：`with_eviction_listener()` 逐出监听器与 `weighted_size()` 权重总量查询
+- **`BloomFilter` 泛型化**：键类型放宽为 `K: ?Sized = str`；新增 `hash_count` / `set_bits` 访问器与 `new_with_hash_count`（闭式二分反解，免去逐探针全尺寸位图分配）
+- **degradation 降级观测桥**：状态 snapshot 只读快照、telemetry 状态迁移观测桥与双层熔断语义文档
 
 ### 变更
 
 - **默认指标落地（行为变化）**：`Cache` 默认 recorder 由 `NoOpMetricsRecorder` 改为全局 `UnifiedMetricsRecorder`（`metrics` feature 下所有构造路径生效）——`minimal` 预设开箱即产生 hit/miss/set/delete 计数；显式注入 `NoOpMetricsRecorder` 可恢复静默
 - **指标维度补强**：单后端 `Cache` 指标 layer 依后端类型判定（内存 L1 / 分布式 L2，原硬编码 L1）；`get_bytes`/`set_bytes` 及 sync 版补齐与泛型路径同口径打点；新增 backend 维度计数 `oxcache_backend_<name>_operations_total`（`export_prometheus_standard` 以 `backend` label 导出）
+- **集成测试容器门控 STRICT 两档**：valkey/dragonfly 集成测试接入 `gate_skip` / `backend_skip` 门控原语（失败短路闩、首因记录、90 秒门控预算）；ci.yml / release.yml 的 test step 置位 `OXCACHE_TEST_STRICT=1` fail-closed——容器不可用时失败而非静默跳过；testcontainers 启用 watchdog feature 兜底容器回收
 
 ### 修复
 
 - **宏 `cache_none` no-op 缺陷**：`cache_none` 参数此前解析后从未消费；且 `Result<Option<T>, E>` 的 `Ok(None)` 被无条件缓存（与文档宣称相反）。现按文档语义修复：默认仅缓存 `Ok(Some)`，开启 `cache_none` 后 `Ok(None)` 以 `null` 缓存并在读取时还原；single_flight leader 与 sync 路径同口径
 - **文档版本漂移**：README/README_EN/lib.rs 中 13 处 `0.5.0-rc.4` 当前版本引用同步至 `0.5.0-rc.5`（历史发布条目保留）
+- **缓存审计加固修复组**：single-flight follower 丢失唤醒（`Notify`→`watch` + `macro_support` 64 分片同步守卫与 panic 清理）；`get_or_option` 穿透哨兵判定竞态（改 get + 字节比对，消 exists 竞态）；雪崩防护默认 TTL 抖动 0.1（xorshift64 + 单调时钟随机源，弃 `SystemTime` 防 NTP 回拨）；`set_many` / `get_many` 统一走 `UnifiedSerializer`
+- **feature 组合编译修复**：`memory` / `redis` 隐含 `serialization`（核心 Cache API 的 serde 约束为事实依赖）、`degradation` 隐含 `memory`；无 memory 组合的 backend 实现与 metrics 引用按依赖特性门控——单开特性组合编译基线恢复
+
+### 文档
+
+- README / README_EN / API_REFERENCE / ARCHITECTURE 同步 `disk`/`stale`/`offload`/读策略/宏 `skip` 能力说明（中英对称）
+- 蓝图全量采用库侧改动配套文档：API_REFERENCE / ARCHITECTURE 增补 bloom 泛型化、批量读取、invalidation 装配、degradation 快照等条目，补记 `memory` / `redis` / `degradation` 特性隐含依赖口径；tests/README 登记「容器可用性门控」STRICT 两档语义与 bloom_filter_integration 目标级门控
+
+---
+
+## [0.5.0-rc.5] - 2026-09-21
+
+### 新增
+
+- **pubsub Redis Pub/Sub 广播组件**：跨实例消息广播传输层（收编并行会话改动），为 invalidation 失效总线提供协议基础
+- **ByteWeightCache 字节权重同步缓存（byte-weight feature）**：按字节权重计量与控制容量的同步缓存实现
+- **i18n 整改**：接入 unify-rust-i18n 统一错误与消息文案（`src/i18n/messages.rs`）
+
+### 变更
+
+- **跨仓 path 依赖改走 crates.io**：trait-kit / confers 改为 crates.io 版本依赖；供应链与工程加固（detect-secrets 基线、pre-commit 门禁、CodeQL Action SHA 统一 bump、zstd 0.14、GitHub Actions 批量升级）
+
+### 修复
+
+- **sync 缓存审计事件**：sync 缓存操作补齐审计事件发布（对齐 async 路径）
+- **feature 门控清理**：清理 chrono 幽灵门控；red-lock / trait-kit / test-util 特性正名
 - **Lua 块注释跳过越界绕过**：`skip_lua_comment` 在计数前先消费开括号 `[`，使 `=` 参与闭合符长度计算——此前 `--[==[ x ]==] redis.call('FLUSHALL')` 会因越界吞吃而对校验器不可见（独立 diting 审查实证，存量缺陷）
 - **日志脱敏**：无 userinfo 的 URL 经 query/fragment 携带秘密时同样掩码；`sanitize_message` 切分改用 `rfind('@')`，密码含 `@` 不再残留片段
 - **aerospike 亚秒 TTL**：非零亚秒 TTL 上取整到 1 秒（原截断为 0 后被当作永不过期）；显式 `Duration::ZERO` 保持 Never 语义
@@ -32,7 +67,6 @@
 ### 文档
 
 - 修正方括号索引折叠的行为声明：折叠发生于引号剥离之后，含连字符的索引残段同样可能被折叠（结果仍为合法 Lua 且无黑名单命中）
-- README / README_EN / API_REFERENCE / ARCHITECTURE 同步 `disk`/`stale`/`offload`/读策略/宏 `skip` 能力说明（中英对称）
 
 ---
 

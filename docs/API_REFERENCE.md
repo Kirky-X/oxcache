@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.5.0-rc.4** 的 API。
+> 本文档描述 **Oxcache v0.5.0-rc.6** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -89,7 +89,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0-rc.4", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.0-rc.6", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]

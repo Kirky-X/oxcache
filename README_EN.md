@@ -69,7 +69,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🗜️ **Adaptive compression** | `CompressingBackend` applies zstd above a size threshold; reads auto-detect by magic bytes and stay compatible with legacy gzip |
 | 🔑 **Distributed coordination** | Redis distributed lock (watchdog renewal / reentrant), RedLock multi-node majority lock, cross-instance invalidation bus |
 | 🧯 **Fault resilience** | ChainCache per-link fault tolerance, `degradation` three-state auto-degradation and recovery, health checks, graceful shutdown |
-| 🧪 **Engineering quality** | 1900+ test functions (as of 0.5.0-rc.5), chaos and security tests, three-platform CI matrix, coverage gate |
+| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.6), chaos and security tests, three-platform CI matrix, coverage gate |
 
 <details>
 <summary>🔎 Advanced capabilities at a glance</summary>
@@ -106,7 +106,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.5"
+oxcache = "0.5.0-rc.6"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -175,9 +175,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0-rc.5", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.5", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.5", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
+oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
 ```
 
 | Flag | Description | Default |
@@ -459,7 +459,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1335 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1437 |
 | Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 331 |
 | Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 131 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
@@ -469,7 +469,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep, as of **0.5.0-rc.5**; 1900+ in total (`src/` 1335 + `tests/` 606).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.6**; 2000+ in total (`src/` 1437 + `tests/` 629).
 
 ### Common Commands (same as CI)
 
@@ -541,10 +541,10 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 
 | Status | Item | Notes |
 |:------:|------|-------|
-| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.5 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
+| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.6 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
-| 📋 | **Valkey integration test environment gating** | 8 Valkey integration tests depend on Docker (testcontainers) and cannot run without it — a known limitation recorded during acceptance |
-| 📋 | **Follow-up on archived review findings** | 3 Medium suggestions and 2 Low notes archived from the diting code quality review, to be triaged by priority |
+| ✅ | **Valkey integration test environment gating** | 8 Valkey (and Dragonfly) integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
+| ✅ | **Follow-up on archived review findings** | Rebuilt archive in `docs/diting-review.md` (3 Medium + 2 Low): 2 Medium + 1 Low fixed, the rest logged as backlog |
 
 ---
 
@@ -563,6 +563,8 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
 
+- **0.5.0-rc.6** (2026-09-28): absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed
+- **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature
 - **0.5.0-rc.3** (2026-09-08): fixed circuit-breaker state-transition races; hardened Lua-injection validation and Redis password redaction; CI supply-chain hardening (58 third-party Action references pinned to SHAs)
 - **0.4.3** (2026-08-06): `kit` feature extensions (build observer, `CacheBackend` shutdown mapped to three-phase coordination, backend decorator registration)

@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">1900+ 测试函数（截至 0.5.0-rc.5）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.6）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -122,7 +122,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.5"
+oxcache = "0.5.0-rc.6"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -191,9 +191,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0-rc.5", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.5", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.5", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
+oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
 ```
 
 | 标志 | 说明 | 默认 |
@@ -473,7 +473,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1335 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1437 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 331 |
 | 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 131 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
@@ -483,7 +483,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计，截至 **0.5.0-rc.5**；合计 1900+（`src/` 1335 + `tests/` 606）。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.6**；合计 2000+（`src/` 1437 + `tests/` 629）。
 
 ### 常用命令（与 CI 一致）
 
@@ -555,7 +555,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 | 状态 | 事项 | 说明 |
 |:----:|------|------|
-| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.5（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
+| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.6（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
 | ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey（及 Dragonfly）集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
 | ✅ | **质量审查留档项跟进** | 重建留档见 `docs/diting-review.md`（3 Medium + 2 Low）：2 Medium + 1 Low 已修复，其余登记待办 |
@@ -577,6 +577,8 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近要点：
 
+- **0.5.0-rc.6**（2026-09-28）：吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed
+- **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
 - **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性
 - **0.5.0-rc.3**（2026-09-08）：熔断器状态转换竞态修复；Lua 注入校验与 Redis 密码脱敏加固；CI 供应链加固（58 处第三方 Action 引用 SHA 固定）
 - **0.4.3**（2026-08-06）：`kit` 特性扩展（构建观察者、`CacheBackend` 关闭映射三阶段协调、后端装饰器注册）
