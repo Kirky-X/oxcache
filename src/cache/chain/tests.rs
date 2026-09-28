@@ -1640,6 +1640,160 @@ impl EventPublisher for CapturingPublisher {
     }
 }
 
+/// expire 注错后端：仅 `expire` 返回 Err，其余委托 MockBackend，
+/// 用于验证链式 expire 对后端故障的上报路径与部分成功语义。
+struct ExpireFailingBackend {
+    inner: MockBackend,
+}
+
+impl ExpireFailingBackend {
+    fn new(name: &'static str, score: u8) -> Self {
+        Self {
+            inner: MockBackend::new(name, score, false),
+        }
+    }
+}
+
+impl BackendScore for ExpireFailingBackend {
+    fn score(&self) -> u8 {
+        self.inner.score()
+    }
+
+    fn is_persistent(&self) -> bool {
+        self.inner.is_persistent()
+    }
+
+    fn backend_name(&self) -> &'static str {
+        self.inner.backend_name()
+    }
+}
+
+#[async_trait]
+impl CacheReader for ExpireFailingBackend {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        self.inner.get(key).await
+    }
+
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        self.inner.exists(key).await
+    }
+
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        self.inner.ttl(key).await
+    }
+
+    async fn len(&self) -> OxCacheResult<u64> {
+        self.inner.len().await
+    }
+
+    async fn capacity(&self) -> OxCacheResult<u64> {
+        self.inner.capacity().await
+    }
+
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
+        self.inner.stats().await
+    }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        self.inner.keys(pattern).await
+    }
+
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        self.inner.get_many(keys).await
+    }
+}
+
+#[async_trait]
+impl CacheWriter for ExpireFailingBackend {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        self.inner.set(key, value, ttl).await
+    }
+
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
+        self.inner.delete(key).await
+    }
+
+    async fn clear(&self) -> OxCacheResult<()> {
+        self.inner.clear().await
+    }
+
+    async fn expire(&self, _key: &str, _ttl: Duration) -> OxCacheResult<bool> {
+        Err(OxCacheError::Operation("expire fault injected".to_string()))
+    }
+}
+
+#[async_trait]
+impl CacheConnector for ExpireFailingBackend {
+    async fn health_check(&self) -> OxCacheResult<()> {
+        self.inner.health_check().await
+    }
+
+    async fn shutdown(&self) {
+        self.inner.shutdown().await;
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        self.inner.backend_kind()
+    }
+}
+
+#[tokio::test]
+async fn chain_expire_backend_error_emits_event_and_keeps_partial_success() {
+    let publisher = Arc::new(CapturingPublisher::default());
+    let errors = publisher.errors.clone();
+
+    let good = MockBackend::new("good", 100, false);
+    let bad = ExpireFailingBackend::new("bad", 50);
+
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(good))
+        .link(ChainLink::from_backend(bad))
+        .event_publisher(publisher)
+        .build();
+
+    CacheWriter::set(&chain, Arc::from("k"), Arc::new(b"v".to_vec()), None)
+        .await
+        .unwrap();
+
+    // 单个后端 expire 故障不翻转整体成败：好后端成功即 Ok(true)
+    let result = chain.expire("k", Duration::from_secs(60)).await.unwrap();
+    assert!(result, "partial success should still return true");
+
+    // 故障后端必须触发 error 事件而非静默吞掉
+    let captured = errors.lock().unwrap();
+    assert_eq!(captured.len(), 1, "one backend error event expected");
+    let (key, error) = &captured[0];
+    assert_eq!(key.as_deref(), Some("k"));
+    assert!(error.contains("backend bad:"), "error = {}", error);
+}
+
+#[tokio::test]
+async fn chain_expire_all_backends_error_returns_false_with_events() {
+    let publisher = Arc::new(CapturingPublisher::default());
+    let errors = publisher.errors.clone();
+
+    let chain = ChainCache::builder()
+        .link(ChainLink::from_backend(ExpireFailingBackend::new(
+            "bad1", 100,
+        )))
+        .link(ChainLink::from_backend(ExpireFailingBackend::new(
+            "bad2", 50,
+        )))
+        .event_publisher(publisher)
+        .build();
+
+    // 全部后端失败：无任何成功，返回值语义保持 Ok(false)
+    let result = chain.expire("k", Duration::from_secs(60)).await.unwrap();
+    assert!(!result);
+
+    assert_eq!(errors.lock().unwrap().len(), 2);
+}
+
 #[tokio::test]
 async fn iter_entries_resolves_hits_in_input_order_with_single_batch_per_layer() {
     let l1 = BatchProbeBackend::new("probe-l1", 100, false);

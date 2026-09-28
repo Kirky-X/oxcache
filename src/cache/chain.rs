@@ -56,6 +56,22 @@ fn telemetry_read_strategy(key: &str, strategy: &str, backend: &str, hit: bool) 
     );
 }
 
+#[cfg(feature = "telemetry")]
+#[inline]
+fn telemetry_expire_backend_failed(key: &str, backend: &str, err: &OxCacheError) {
+    tracing::warn!(
+        target = "oxcache::chain",
+        key,
+        backend,
+        %err,
+        "backend expire failed"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn telemetry_expire_backend_failed(_key: &str, _backend: &str, _err: &OxCacheError) {}
+
 #[cfg(not(feature = "telemetry"))]
 #[inline]
 fn telemetry_read_strategy(_key: &str, _strategy: &str, _backend: &str, _hit: bool) {}
@@ -1020,7 +1036,12 @@ impl CacheWriter for ChainCache {
         for link in &self.links {
             match link.backend().expire(key, ttl).await {
                 Ok(true) => any_success = true,
-                _ => continue,
+                // 键不存在属正常业务结果，非后端故障
+                Ok(false) => continue,
+                Err(e) => {
+                    telemetry_expire_backend_failed(key, link.name(), &e);
+                    self.emit_backend_error(key, link.name(), &e);
+                }
             }
         }
 
