@@ -5,6 +5,10 @@
 //! Provides structured configuration types for distributed cache parameters
 //! including retry policies, circuit breaker thresholds, and health check intervals.
 
+mod cache_config;
+
+pub use cache_config::{CacheConfig, CacheConfigBuilder, ENV_PREFIX};
+
 use std::time::Duration;
 
 /// Distributed cache configuration.

@@ -792,6 +792,62 @@ let chain = ChainCache::builder()
 OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serialization`、
 `chrono` 和 `dashmap` 用于内部统计收集和 JSON 导出。
 
+## ⚙️ 统一配置中枢（CacheConfig）
+
+`oxcache::config::CacheConfig` 以单一结构承载缓存构建全量参数，支持三条配置通路：
+程序化 builder、`OXCACHE_*` 环境变量、confers 配置源（`config-confers` feature）。
+
+```rust
+use oxcache::config::CacheConfig;
+use std::time::Duration;
+
+// 程序化构建
+let config = CacheConfig::builder()
+    .capacity(10_000)
+    .ttl(Duration::from_secs(60))
+    .backend("redis")
+    .redis_url("redis://127.0.0.1:6379")
+    .build();
+
+// 一致性检查（值域 / 参数组合 / feature 可用性）
+config.validate()?;
+
+// 应用到既有构建器
+let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, String>::default()).await?;
+```
+
+### 环境变量约定（`CacheConfig::try_from_env()`）
+
+| 环境变量 | 类型 | 映射字段 | Feature 前提 |
+| --- | --- | --- | --- |
+| `OXCACHE_CAPACITY` | u64 | `capacity` | — |
+| `OXCACHE_TTL_MS` | u64（毫秒） | `ttl` | — |
+| `OXCACHE_TTI_MS` | u64（毫秒） | `tti` | — |
+| `OXCACHE_NULL_CACHE_TTL_MS` | u64（毫秒） | `null_cache_ttl` | — |
+| `OXCACHE_TTL_JITTER_FACTOR` | f64 | `ttl_jitter_factor` | — |
+| `OXCACHE_SYNC_MODE` | bool | `sync_mode` | — |
+| `OXCACHE_BACKEND` | 枚举串（moka/dashmap/redis/...） | `backend` | `memory`/`redis`/`disk` 任一 |
+| `OXCACHE_METRICS` | bool | `metrics_enabled` | `metrics` |
+| `OXCACHE_SERIALIZATION_FORMAT` | 枚举串（json/bincode/postcard） | `serialization_format` | `serialization`（bincode/postcard 各需子 feature） |
+| `OXCACHE_REDIS_URL` | 字符串 | `redis_url` | `redis`/`dragonfly` 构建时消费 |
+| `OXCACHE_DISK_PATH` | 字符串 | `disk_path` | `disk` 构建时消费 |
+| `OXCACHE_CONNECTION_POOL_SIZE` | usize | `connection_pool_size` | `redis`/`dragonfly` 构建时消费（缺省 8） |
+| `OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | u64 | `circuit_breaker_failure_threshold` | `redis` 构建时消费 |
+| `OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` | u64（毫秒） | `circuit_breaker_reset_timeout` | `redis` 构建时消费 |
+
+未设置的键回落底层构建器默认（零行为漂移）；解析失败与「键已设置但对应 feature
+未启用」均显性报错（附变量名与原始值），布尔值接受 `true/1/yes/on` 与
+`false/0/no/off`。`redis_url` 可能携带凭证，`Debug` 输出脱敏为 `"***"`。
+
+### confers 配置源（`config-confers` feature）
+
+`CacheConfig::try_from_confers(&OxcacheConfig)` 将 confers 快照映射为统一配置，
+键约定见 `oxcache::features::confers_config` 模块文档。注意：`OxcacheConfig`
+的 `capacity`/`default_ttl_ms` 内置默认（10000 / 60000ms），confers 通路映射后
+恒为已设置值——即使未配置对应键，也会以该默认覆盖底层构建器默认（与 env 通路
+的「未设置 = 零行为漂移」不同）。`OXCACHE_SYNC_MODE` 同样适用于 confers 通路
+的 `cache.sync_mode`：启用后不得再配置 `cache.backend`。
+
 ## 🚨 错误处理
 
 ### `OxCacheError`

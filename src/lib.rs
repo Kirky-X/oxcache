@@ -294,7 +294,7 @@ pub mod registry;
 pub mod traits;
 
 // Config module
-mod config;
+pub mod config;
 
 // Utils module: key generation utilities
 mod utils;
