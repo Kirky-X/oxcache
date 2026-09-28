@@ -15,9 +15,11 @@ pub enum RedisCommand {
     Ping,
     Get,
     Set,
+    /// TTL 毫秒化后数据路径改用 `SET PX`，秒粒度变体仅为枚举完整性保留
     SetEx,
     Del,
     Exists,
+    /// TTL 毫秒化后数据路径改用 `PEXPIRE`，秒粒度变体仅为枚举完整性保留
     Expire,
     PExpire,
     Ttl,

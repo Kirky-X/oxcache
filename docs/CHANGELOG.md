@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **Redis TTL 毫秒化**：亚秒 TTL（< 1s）此前被秒口径校验（`as_secs() == 0` 即拒绝）静默拒之门外，导致 `set` 不写 L2、`expire` 完全不生效；`RedisCommand` 新增 `PExpire`，`set`/`set_many` 由 SETEX 改为 `SET key value PX <ms>`、`expire` 改为 `PEXPIRE`、`set_if_absent` 改 `SET NX PX`，`incr`/`compare_and_swap` Lua 脚本内的 EXPIRE/SET EX 同步切换（Redis/Valkey ≥ 2.6.12：SET 的 PX/NX 选项自 2.6.12 引入，构成命令面下限；PEXPIRE 自 2.6.0）；校验改毫秒口径（`as_millis() == 0` 才拒绝，u128 比较防截断误放行），`set_many_pipeline` 与 `CacheWriter::set_many` 同根因一并修复
+- **ChainCache `expire` 后端故障静默吞错**：原实现对后端 `Err` 与 `Ok(false)` 一律 `continue`，TTL 校验失败等错误无任何事件/日志可观测；后端 `Err` 时发布 error 事件（对齐 set 路径既有机制），并按 backfill/iter_entries 既有惯例补 telemetry warn（feature 关闭时零开销），返回值语义不变（部分成功仍 `Ok(true)`，键不存在 `Ok(false)` 属正常结果非故障）
+
+### 测试
+
+- **Redis 亚秒 TTL 直查断言**：直连 Redis 断言 `PTTL` 毫秒精度与键按亚秒 TTL 过期后消失，覆盖 writer/pipeline 路径回归
+
 ## [0.5.0-rc.6] - 2026-09-28
 
 ### 新增

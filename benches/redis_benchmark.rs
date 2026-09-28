@@ -136,7 +136,8 @@ fn bench_redis_different_sizes(c: &mut Criterion) {
     group.finish();
 }
 
-/// 基准测试Redis的TTL操作性能
+/// 基准测试Redis的TTL操作性能：秒级/亚秒 set 与 PEXPIRE 同组对比，
+/// 覆盖 SET PX 四参 payload 与毫秒参数的命令面
 fn bench_redis_ttl(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let redis_url = get_redis_url();
@@ -152,10 +153,24 @@ fn bench_redis_ttl(c: &mut Criterion) {
             .expect("Failed to connect to Redis")
     });
 
-    c.bench_function("redis_ttl", |b| {
+    // 预置永久键供 expire 反复重设 TTL（PEXPIRE 对既有键刷新时限，可循环计量）
+    rt.block_on(async {
+        backend
+            .set(
+                Arc::from("bench:redis:expire"),
+                Arc::new(vec![0u8; 100]),
+                None,
+            )
+            .await
+            .expect("setup set for expire bench failed");
+    });
+
+    let mut group = c.benchmark_group("redis_ttl");
+
+    group.bench_function("set_60s", |b| {
         b.to_async(&rt).iter(|| async {
             let key = format!(
-                "bench:redis:ttl:{}",
+                "bench:redis:ttl:set60:{}",
                 std::time::SystemTime::now().elapsed().unwrap().as_nanos()
             );
             let value = vec![0u8; 100];
@@ -168,6 +183,35 @@ fn bench_redis_ttl(c: &mut Criterion) {
                 .await;
         });
     });
+
+    group.bench_function("set_100ms", |b| {
+        b.to_async(&rt).iter(|| async {
+            let key = format!(
+                "bench:redis:ttl:set100ms:{}",
+                std::time::SystemTime::now().elapsed().unwrap().as_nanos()
+            );
+            let value = vec![0u8; 100];
+            let _ = backend
+                .set(
+                    Arc::from(black_box(&key).as_str()),
+                    Arc::new(black_box(value)),
+                    Some(Duration::from_millis(100)),
+                )
+                .await;
+        });
+    });
+
+    group.bench_function("expire_60s", |b| {
+        b.to_async(&rt).iter(|| async {
+            let _ = black_box(
+                backend
+                    .expire("bench:redis:expire", Duration::from_secs(60))
+                    .await,
+            );
+        });
+    });
+
+    group.finish();
 }
 
 criterion_group!(

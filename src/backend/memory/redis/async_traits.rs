@@ -18,7 +18,7 @@ const REDIS_MAX_TTL_SECS: u64 = i32::MAX as u64;
 
 /// 校验 TTL 值是否在 Redis 可接受范围内，成功返回毫秒值。
 ///
-/// Redis 2.6+ 的 SET PX/PEXPIRE 以毫秒为最小粒度，亚秒 TTL 合法；
+/// SET PX 自 Redis 2.6.12、PEXPIRE 自 2.6.0 起可用，以毫秒为最小粒度，亚秒 TTL 合法；
 /// 仅当整体时长不足 1ms 时才视为无效。pipeline 模块的批量写入复用同一口径。
 pub(super) fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
     let millis = ttl.as_millis();
@@ -211,13 +211,18 @@ impl CacheWriter for RedisBackend {
         let key_ref = key.as_ref();
         security::validate_redis_key(key_ref)?;
 
+        // Validate TTL before entering retry closure
+        let ttl_millis = match ttl {
+            Some(t) => Some(validate_redis_ttl(t)?),
+            None => None,
+        };
+
         self.execute_with_retry(|| {
             let mut conn = self.conn();
             let key = key.clone();
             let value = value.clone();
             async move {
-                if let Some(ttl) = ttl {
-                    let ttl_millis = validate_redis_ttl(ttl)?;
+                if let Some(ttl_millis) = ttl_millis {
                     redis::cmd(RedisCommand::Set.as_str())
                         .arg(key.as_ref())
                         .arg(value.as_ref())
@@ -334,19 +339,34 @@ impl CacheWriter for RedisBackend {
         for (key, _, _) in items {
             security::validate_redis_key(key)?;
         }
+
+        // Validate TTLs before entering retry closure
+        let prepared: OxCacheResult<
+            Vec<(std::sync::Arc<str>, std::sync::Arc<Vec<u8>>, Option<u64>)>,
+        > = items
+            .iter()
+            .map(|(key, value, ttl)| {
+                let ttl_millis = match ttl {
+                    Some(t) => Some(validate_redis_ttl(*t)?),
+                    None => None,
+                };
+                Ok((key.clone(), value.clone(), ttl_millis))
+            })
+            .collect();
+        let prepared = prepared?;
+
         self.execute_with_retry(|| {
             let mut conn = self.conn();
-            let items = items.to_vec();
+            let prepared = prepared.clone();
             async move {
                 let mut pipe = redis::pipe();
-                for (key, value, ttl) in &items {
-                    if let Some(ttl) = ttl {
-                        let ttl_millis = validate_redis_ttl(*ttl)?;
+                for (key, value, ttl_millis) in prepared.iter() {
+                    if let Some(ms) = ttl_millis {
                         pipe.cmd(RedisCommand::Set.as_str())
                             .arg(key.as_ref())
                             .arg(value.as_ref().as_slice())
                             .arg("PX")
-                            .arg(ttl_millis);
+                            .arg(ms);
                     } else {
                         pipe.cmd(RedisCommand::Set.as_str())
                             .arg(key.as_ref())
@@ -432,13 +452,18 @@ impl BackendScore for RedisBackend {
 impl AtomicCacheWriter for RedisBackend {
     async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         security::validate_redis_key(key)?;
+
+        // Validate TTL before entering retry closure
+        let ttl_millis = match ttl {
+            Some(t) => Some(validate_redis_ttl(t)?),
+            None => None,
+        };
+
         self.execute_with_retry(|| {
             let mut conn = self.conn();
             async move {
-                if let Some(ttl) = ttl {
+                if let Some(ttl_millis) = ttl_millis {
                     // Atomic INCR + PEXPIRE via Lua script to avoid non-atomic two-step
-                    let ttl_millis = validate_redis_ttl(ttl)?;
-                    let delta_owned = delta.to_string();
                     let script = "local r = redis.call('INCRBY', KEYS[1], ARGV[1]); \
                          redis.call('PEXPIRE', KEYS[1], ARGV[2]); \
                          return r";
@@ -446,7 +471,7 @@ impl AtomicCacheWriter for RedisBackend {
                         .arg(script)
                         .arg(1)
                         .arg(key)
-                        .arg(delta_owned.as_str())
+                        .arg(delta)
                         .arg(ttl_millis)
                         .query_async(&mut conn)
                         .await
@@ -557,15 +582,21 @@ impl AtomicCacheWriter for RedisBackend {
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
+
+        // Validate TTL before entering retry closure
+        let ttl_millis = match ttl {
+            Some(t) => Some(validate_redis_ttl(t)?),
+            None => None,
+        };
+
         self.execute_with_retry(|| {
             let mut conn = self.conn();
             let value = value.clone();
             async move {
                 let mut cmd = redis::cmd(RedisCommand::Set.as_str());
                 cmd.arg(key).arg(value.as_slice()).arg("NX");
-                if let Some(ttl) = ttl {
-                    let ttl_millis = validate_redis_ttl(ttl)?;
-                    cmd.arg("PX").arg(ttl_millis);
+                if let Some(millis) = ttl_millis {
+                    cmd.arg("PX").arg(millis);
                 }
                 let result: Option<redis::Value> = cmd
                     .query_async(&mut conn)

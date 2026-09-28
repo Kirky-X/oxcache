@@ -218,6 +218,34 @@ async fn test_set_many_with_ttl() {
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
+async fn test_set_many_subsecond_ttl_direct_redis_check() {
+    let backend = make_backend().await;
+    let k1 = unique_key("msub1");
+    let items = vec![(
+        Arc::from(k1.clone()),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_millis(100)),
+    )];
+    backend
+        .set_many(&items)
+        .await
+        .expect("set_many(100ms) failed");
+
+    // 直查 L2：CacheWriter::set_many 批量路径同样承载亚秒 TTL
+    let pttl = redis_pttl(&k1).await;
+    assert!(
+        pttl > 0 && pttl <= 100,
+        "PTTL after set_many(100ms) = {}",
+        pttl
+    );
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&k1).await;
+    assert_eq!(pttl, -2, "key should be gone from Redis after set_many TTL");
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
 async fn test_set_many_with_invalid_key_rejected() {
     let backend = make_backend().await;
     let items = vec![
@@ -467,6 +495,83 @@ async fn test_atomic_compare_and_swap_wrong_expected() {
     let val = backend.get(&key).await.unwrap().unwrap();
     assert_eq!(val, b"actual");
     cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_incr_subsecond_ttl_direct_redis_check() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("incrttl");
+    let val = backend
+        .incr(&key, 1, Some(Duration::from_millis(100)))
+        .await
+        .expect("incr(100ms) failed");
+    assert_eq!(val, 1);
+
+    // 直查 L2：INCRBY + PEXPIRE Lua 脚本路径承载亚秒 TTL
+    let pttl = redis_pttl(&key).await;
+    assert!(pttl > 0 && pttl <= 100, "PTTL after incr(100ms) = {}", pttl);
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&key).await;
+    assert_eq!(pttl, -2, "key should be gone from Redis after incr TTL");
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_set_if_absent_subsecond_ttl_direct_redis_check() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("setnxsub");
+    let ok = backend
+        .set_if_absent(&key, b"v".to_vec(), Some(Duration::from_millis(100)))
+        .await
+        .expect("set_if_absent(100ms) failed");
+    assert!(ok);
+
+    // 直查 L2：SET NX PX 路径承载亚秒 TTL
+    let pttl = redis_pttl(&key).await;
+    assert!(
+        pttl > 0 && pttl <= 100,
+        "PTTL after set_if_absent(100ms) = {}",
+        pttl
+    );
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&key).await;
+    assert_eq!(
+        pttl, -2,
+        "key should be gone from Redis after set_if_absent TTL"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_atomic_compare_and_swap_subsecond_ttl_direct_redis_check() {
+    use crate::backend::AtomicCacheWriter;
+    let backend = make_backend().await;
+    let key = unique_key("casttl");
+    let ok = backend
+        .compare_and_swap(&key, None, b"v".to_vec(), Some(Duration::from_millis(100)))
+        .await
+        .expect("compare_and_swap(100ms) failed");
+    assert!(ok);
+
+    // 直查 L2：Lua 内 SET PX 路径承载亚秒 TTL
+    let pttl = redis_pttl(&key).await;
+    assert!(
+        pttl > 0 && pttl <= 100,
+        "PTTL after compare_and_swap(100ms) = {}",
+        pttl
+    );
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&key).await;
+    assert_eq!(
+        pttl, -2,
+        "key should be gone from Redis after compare_and_swap TTL"
+    );
 }
 
 // ============================================================================
