@@ -74,3 +74,19 @@ pub(crate) async fn cleanup(backend: &RedisBackend, key: &str) {
     #[allow(let_underscore_drop)]
     let _ = backend.delete(key).await;
 }
+
+/// 直查 Redis PTTL，绕过 oxcache 读路径，防止上层吞错或读语义转换掩盖 L2 真实状态。
+///
+/// 返回值语义与 Redis 一致：-2 键不存在；-1 存在但无 TTL；>=0 剩余毫秒。
+pub(crate) async fn redis_pttl(key: &str) -> i64 {
+    let client = redis::Client::open(REDIS_URL).expect("open direct redis client");
+    let mut conn = client
+        .get_multiplexed_async_connection()
+        .await
+        .expect("connect direct redis");
+    redis::cmd("PTTL")
+        .arg(key)
+        .query_async::<i64>(&mut conn)
+        .await
+        .expect("PTTL direct query failed")
+}

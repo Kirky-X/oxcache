@@ -617,19 +617,98 @@ async fn test_set_ttl_zero_rejected() {
         )
         .await;
     assert!(result.is_err());
+    // expire 走同一校验入口，0ms 同样拒绝
+    let result = backend.expire(&key, Duration::from_millis(0)).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
-async fn test_set_ttl_subsecond_rejected() {
+async fn test_set_ttl_subsecond_accepted() {
     let backend = make_backend().await;
     let key = unique_key("ttl_subsecond");
-    let result = backend
+    backend
         .set(
             Arc::from(key.as_str()),
             Arc::new(b"v".to_vec()),
             Some(Duration::from_millis(500)),
         )
-        .await;
-    assert!(result.is_err());
+        .await
+        .expect("sub-second ttl set should succeed");
+    cleanup(&backend, &key).await;
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_set_subsecond_ttl_direct_redis_check() {
+    let backend = make_backend().await;
+    let key = unique_key("ttl_100ms");
+    backend
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(100)),
+        )
+        .await
+        .expect("set(100ms) failed");
+
+    // 直查 L2：键真实存在，PTTL 落在 (0, 100]
+    let pttl = redis_pttl(&key).await;
+    assert!(pttl > 0 && pttl <= 100, "PTTL after set(100ms) = {}", pttl);
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&key).await;
+    assert_eq!(pttl, -2, "key should be gone from Redis after 100ms TTL");
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_expire_subsecond_ttl_direct_redis_check() {
+    let backend = make_backend().await;
+    let key = unique_key("expire_100ms");
+    backend
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(300)),
+        )
+        .await
+        .expect("set(300s) failed");
+
+    let ok = backend
+        .expire(&key, Duration::from_millis(100))
+        .await
+        .expect("expire(100ms) failed");
+    assert!(ok, "expire should return true for existing key");
+
+    // 直查 L2：PEXPIRE 生效，剩余时长立即进入亚秒区间
+    let pttl = redis_pttl(&key).await;
+    assert!(
+        pttl > 0 && pttl <= 100,
+        "PTTL right after expire(100ms) = {}",
+        pttl
+    );
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&key).await;
+    assert_eq!(pttl, -2, "key should be gone from Redis after expire");
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_set_ttl_exactly_one_second() {
+    let backend = make_backend().await;
+    let key = unique_key("ttl_exactly_1s");
+    backend
+        .set(
+            Arc::from(key.as_str()),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(1)),
+        )
+        .await
+        .expect("set(1s) failed");
+
+    let pttl = redis_pttl(&key).await;
+    assert!(pttl > 0 && pttl <= 1000, "PTTL after set(1s) = {}", pttl);
+    cleanup(&backend, &key).await;
 }

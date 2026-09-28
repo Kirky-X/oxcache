@@ -87,6 +87,30 @@ async fn test_set_many_pipeline_with_ttl() {
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
+async fn test_set_many_pipeline_with_subsecond_ttl() {
+    let backend = make_backend().await;
+    let k1 = unique_key("psub1");
+    let items: Vec<(&str, Vec<u8>)> = vec![(k1.as_str(), b"v".to_vec())];
+    backend
+        .set_many_pipeline(&items, Some(Duration::from_millis(100)))
+        .await
+        .expect("set_many_pipeline(100ms) failed");
+
+    // 直查 L2：pipeline 批量写入同样承载亚秒 TTL
+    let pttl = redis_pttl(&k1).await;
+    assert!(
+        pttl > 0 && pttl <= 100,
+        "PTTL after pipeline set(100ms) = {}",
+        pttl
+    );
+
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let pttl = redis_pttl(&k1).await;
+    assert_eq!(pttl, -2, "key should be gone from Redis after pipeline TTL");
+}
+
+#[tokio::test]
+#[ignore = "requires Redis server"]
 async fn test_set_many_pipeline_with_invalid_key_rejected() {
     let backend = make_backend().await;
     let items: Vec<(&str, Vec<u8>)> = vec![("bad;key", b"v".to_vec())];
