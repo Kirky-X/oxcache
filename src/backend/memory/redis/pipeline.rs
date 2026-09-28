@@ -4,7 +4,7 @@
 
 use super::client::RedisBackend;
 use super::error::map_redis_error;
-use crate::error::{OxCacheError, OxCacheResult};
+use crate::error::OxCacheResult;
 use crate::security;
 use std::time::Duration;
 
@@ -26,25 +26,22 @@ impl RedisBackend {
             security::validate_redis_key(key)?;
         }
 
-        // Validate TTL before building pipeline: Redis SETEX rejects TTL=0
-        if let Some(ttl) = ttl {
-            let secs = ttl.as_secs();
-            if secs == 0 {
-                return Err(OxCacheError::InvalidInput(
-                    "TTL must be at least 1 second for Redis SETEX; sub-second TTL is truncated to 0".to_string(),
-                ));
-            }
-        }
+        // Validate TTL before building pipeline: SET PX rejects non-positive TTL
+        let ttl_millis = match ttl {
+            Some(ttl) => Some(super::async_traits::validate_redis_ttl(ttl)?),
+            None => None,
+        };
 
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
 
         for (key, value) in items {
-            if let Some(ttl) = ttl {
-                pipe.cmd("SETEX")
+            if let Some(ttl_millis) = ttl_millis {
+                pipe.cmd("SET")
                     .arg(key)
-                    .arg(ttl.as_secs())
-                    .arg(value.as_slice());
+                    .arg(value.as_slice())
+                    .arg("PX")
+                    .arg(ttl_millis);
             } else {
                 pipe.cmd("SET").arg(key).arg(value.as_slice());
             }

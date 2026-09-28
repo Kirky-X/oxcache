@@ -19,6 +19,7 @@ pub enum RedisCommand {
     Del,
     Exists,
     Expire,
+    PExpire,
     Ttl,
     Scan,
     Keys,
@@ -56,6 +57,7 @@ impl RedisCommand {
             Self::Del => "DEL",
             Self::Exists => "EXISTS",
             Self::Expire => "EXPIRE",
+            Self::PExpire => "PEXPIRE",
             Self::Ttl => "TTL",
             Self::Scan => "SCAN",
             Self::Keys => "KEYS",
@@ -99,6 +101,7 @@ mod tests {
             RedisCommand::Del,
             RedisCommand::Exists,
             RedisCommand::Expire,
+            RedisCommand::PExpire,
             RedisCommand::Ttl,
             RedisCommand::Scan,
             RedisCommand::Keys,
@@ -142,6 +145,7 @@ mod tests {
         assert_eq!(RedisCommand::Del.as_str(), "DEL");
         assert_eq!(RedisCommand::Exists.as_str(), "EXISTS");
         assert_eq!(RedisCommand::Expire.as_str(), "EXPIRE");
+        assert_eq!(RedisCommand::PExpire.as_str(), "PEXPIRE");
         assert_eq!(RedisCommand::Ttl.as_str(), "TTL");
         assert_eq!(RedisCommand::Scan.as_str(), "SCAN");
         assert_eq!(RedisCommand::Keys.as_str(), "KEYS");

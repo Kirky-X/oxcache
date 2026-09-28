@@ -12,24 +12,29 @@ use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
 use std::time::Duration;
 
-/// Redis 最大 TTL 上界（秒）。Redis SETEX/EXPIRE 仅接受 i32::MAX 秒（~68 年）。
+/// Redis 最大 TTL 上界（秒）。Redis SETEX/EXPIRE 仅接受 i32::MAX 秒（~68 年）；
+/// 毫秒口径（SET PX/PEXPIRE）沿用同一上界换算，避免隐式放大可写时长。
 const REDIS_MAX_TTL_SECS: u64 = i32::MAX as u64;
 
-/// 校验 TTL 值是否在 Redis 可接受范围内。
-fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
-    let secs = ttl.as_secs();
-    if secs == 0 {
+/// 校验 TTL 值是否在 Redis 可接受范围内，成功返回毫秒值。
+///
+/// Redis 2.6+ 的 SET PX/PEXPIRE 以毫秒为最小粒度，亚秒 TTL 合法；
+/// 仅当整体时长不足 1ms 时才视为无效。pipeline 模块的批量写入复用同一口径。
+pub(super) fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
+    let millis = ttl.as_millis();
+    if millis == 0 {
         return Err(OxCacheError::InvalidInput(
-            "TTL must be at least 1 second for Redis SETEX/EXPIRE".to_string(),
+            "TTL must be at least 1 millisecond for Redis SET PX/PEXPIRE".to_string(),
         ));
     }
-    if secs > REDIS_MAX_TTL_SECS {
+    if millis > (REDIS_MAX_TTL_SECS * 1000) as u128 {
         return Err(OxCacheError::InvalidInput(format!(
-            "TTL {}s exceeds Redis maximum of {}s (~68 years)",
-            secs, REDIS_MAX_TTL_SECS
+            "TTL {}ms exceeds Redis maximum of {}ms (~68 years)",
+            millis,
+            REDIS_MAX_TTL_SECS * 1000
         )));
     }
-    Ok(secs)
+    Ok(millis as u64)
 }
 use crate::security;
 use async_trait::async_trait;
@@ -212,11 +217,12 @@ impl CacheWriter for RedisBackend {
             let value = value.clone();
             async move {
                 if let Some(ttl) = ttl {
-                    let ttl_secs = validate_redis_ttl(ttl)?;
-                    redis::cmd(RedisCommand::SetEx.as_str())
+                    let ttl_millis = validate_redis_ttl(ttl)?;
+                    redis::cmd(RedisCommand::Set.as_str())
                         .arg(key.as_ref())
-                        .arg(ttl_secs)
                         .arg(value.as_ref())
+                        .arg("PX")
+                        .arg(ttl_millis)
                         .query_async::<()>(&mut conn)
                         .await
                         .map_err(error::map_redis_error)?;
@@ -305,13 +311,13 @@ impl CacheWriter for RedisBackend {
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
         security::validate_redis_key(key)?;
-        let ttl_secs = validate_redis_ttl(ttl)?;
+        let ttl_millis = validate_redis_ttl(ttl)?;
         self.execute_with_retry(|| {
             let mut conn = self.conn();
             async move {
-                let result: i64 = redis::cmd(RedisCommand::Expire.as_str())
+                let result: i64 = redis::cmd(RedisCommand::PExpire.as_str())
                     .arg(key)
-                    .arg(ttl_secs)
+                    .arg(ttl_millis)
                     .query_async(&mut conn)
                     .await
                     .map_err(error::map_redis_error)?;
@@ -335,11 +341,12 @@ impl CacheWriter for RedisBackend {
                 let mut pipe = redis::pipe();
                 for (key, value, ttl) in &items {
                     if let Some(ttl) = ttl {
-                        let ttl_secs = validate_redis_ttl(*ttl)?;
-                        pipe.cmd(RedisCommand::SetEx.as_str())
+                        let ttl_millis = validate_redis_ttl(*ttl)?;
+                        pipe.cmd(RedisCommand::Set.as_str())
                             .arg(key.as_ref())
-                            .arg(ttl_secs)
-                            .arg(value.as_ref().as_slice());
+                            .arg(value.as_ref().as_slice())
+                            .arg("PX")
+                            .arg(ttl_millis);
                     } else {
                         pipe.cmd(RedisCommand::Set.as_str())
                             .arg(key.as_ref())
@@ -429,18 +436,18 @@ impl AtomicCacheWriter for RedisBackend {
             let mut conn = self.conn();
             async move {
                 if let Some(ttl) = ttl {
-                    // Atomic INCR + EXPIRE via Lua script to avoid non-atomic two-step
-                    let ttl_secs = validate_redis_ttl(ttl)?;
+                    // Atomic INCR + PEXPIRE via Lua script to avoid non-atomic two-step
+                    let ttl_millis = validate_redis_ttl(ttl)?;
                     let delta_owned = delta.to_string();
                     let script = "local r = redis.call('INCRBY', KEYS[1], ARGV[1]); \
-                         redis.call('EXPIRE', KEYS[1], ARGV[2]); \
+                         redis.call('PEXPIRE', KEYS[1], ARGV[2]); \
                          return r";
                     let result: i64 = redis::cmd(RedisCommand::Eval.as_str())
                         .arg(script)
                         .arg(1)
                         .arg(key)
                         .arg(delta_owned.as_str())
-                        .arg(ttl_secs)
+                        .arg(ttl_millis)
                         .query_async(&mut conn)
                         .await
                         .map_err(error::map_redis_error)?;
@@ -477,13 +484,13 @@ impl AtomicCacheWriter for RedisBackend {
 
         // Static Lua scripts — avoid per-call heap allocation
         static NO_EXPECT_WITH_TTL: &str = "if redis.call('EXISTS', KEYS[1]) == 0 then \
-             redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]) \
+             redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2]) \
              return 1 else return 0 end";
         static NO_EXPECT_WITHOUT_TTL: &str = "if redis.call('EXISTS', KEYS[1]) == 0 then \
              redis.call('SET', KEYS[1], ARGV[1]) \
              return 1 else return 0 end";
         static WITH_EXPECT_WITH_TTL: &str = "if redis.call('GET', KEYS[1]) == ARGV[1] then \
-             redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) \
+             redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3]) \
              return 1 else return 0 end";
         static WITH_EXPECT_WITHOUT_TTL: &str = "if redis.call('GET', KEYS[1]) == ARGV[1] then \
              redis.call('SET', KEYS[1], ARGV[2]) \
@@ -507,7 +514,7 @@ impl AtomicCacheWriter for RedisBackend {
         };
 
         // Validate TTL before entering retry closure
-        let ttl_secs = match ttl {
+        let ttl_millis = match ttl {
             Some(t) => Some(validate_redis_ttl(t)?),
             None => None,
         };
@@ -521,15 +528,15 @@ impl AtomicCacheWriter for RedisBackend {
                 match expected {
                     None => {
                         cmd.arg(new.as_slice());
-                        if let Some(secs) = ttl_secs {
-                            cmd.arg(secs);
+                        if let Some(millis) = ttl_millis {
+                            cmd.arg(millis);
                         }
                     }
                     Some(exp_bytes) => {
                         cmd.arg(exp_bytes);
                         cmd.arg(new.as_slice());
-                        if let Some(secs) = ttl_secs {
-                            cmd.arg(secs);
+                        if let Some(millis) = ttl_millis {
+                            cmd.arg(millis);
                         }
                     }
                 }
@@ -557,8 +564,8 @@ impl AtomicCacheWriter for RedisBackend {
                 let mut cmd = redis::cmd(RedisCommand::Set.as_str());
                 cmd.arg(key).arg(value.as_slice()).arg("NX");
                 if let Some(ttl) = ttl {
-                    let ttl_secs = validate_redis_ttl(ttl)?;
-                    cmd.arg("EX").arg(ttl_secs);
+                    let ttl_millis = validate_redis_ttl(ttl)?;
+                    cmd.arg("PX").arg(ttl_millis);
                 }
                 let result: Option<redis::Value> = cmd
                     .query_async(&mut conn)
