@@ -359,6 +359,11 @@ harness = false
 required-features = ["metrics"]
 
 [[bench]]
+name = "sync_surface_benchmark"
+harness = false
+required-features = ["memory"]
+
+[[bench]]
 name = "dashmap_benchmark"
 harness = false
 required-features = ["memory"]

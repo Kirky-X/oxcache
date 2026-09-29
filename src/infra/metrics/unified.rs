@@ -24,6 +24,10 @@ struct UnifiedMetricsInner {
     counters: AtomicCounters,
     /// Low-frequency dynamic metrics
     dynamic_metrics: DashMap<String, MetricValue>,
+    /// Per-service operation totals（R9 service 维度，显式记录才存在）
+    service_operation_counters: DashMap<String, AtomicU64>,
+    /// 超出 `max_service_labels` 后被丢弃归因的操作次数
+    service_label_overflow: AtomicU64,
     /// Configuration
     config: MetricsConfig,
 }
@@ -43,6 +47,8 @@ impl Default for UnifiedMetricsInner {
         Self {
             counters: AtomicCounters::default(),
             dynamic_metrics: DashMap::new(),
+            service_operation_counters: DashMap::new(),
+            service_label_overflow: AtomicU64::new(0),
             config: MetricsConfig::default(),
         }
     }
@@ -131,6 +137,9 @@ pub struct MetricsConfig {
     pub histogram_buckets: Vec<f64>,
     /// Maximum number of dynamic metrics
     pub max_dynamic_metrics: usize,
+    /// service 维度标签基数上限（R9）：不同 service 名超过该数量后，新标签的
+    /// 归因被丢弃并计入 `oxcache_service_labels_overflow_total`，防标签爆炸
+    pub max_service_labels: usize,
     /// Metrics retention period for time-based eviction of stale snapshots.
     /// Currently configured but not actively consumed by the eviction logic;
     /// reserved for future implementation of snapshot lifecycle management.
@@ -172,6 +181,7 @@ impl Default for MetricsConfig {
                 0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0,
             ],
             max_dynamic_metrics: 1000,
+            max_service_labels: 64,
             retention_period: Some(Duration::from_secs(3600)), // 1 hour
         }
     }
@@ -189,6 +199,8 @@ impl UnifiedMetrics {
             inner: Arc::new(UnifiedMetricsInner {
                 counters: AtomicCounters::default(),
                 dynamic_metrics: DashMap::new(),
+                service_operation_counters: DashMap::new(),
+                service_label_overflow: AtomicU64::new(0),
                 config,
             }),
         }
@@ -329,6 +341,45 @@ impl UnifiedMetrics {
             .or_insert(MetricValue::Counter(value));
     }
 
+    /// Record a cache operation attributed to a service label（R9 service 维度）
+    ///
+    /// 原子总账与无标签路径完全一致；service 归因记入独立
+    /// `service_operation_counters`（稳态为分片读锁 + `fetch_add`，写锁仅
+    /// 首次建键）。标签基数超过 `max_service_labels` 时，新标签的归因被
+    /// 丢弃并计入溢出计数（总账不受影响）——防标签爆炸；并发首触经
+    /// entry 合并无丢计数，极端交错至多短暂越限 1 个标签。
+    /// 默认不启用：仅显式经本方法（如 service 标签 recorder）记录的
+    /// 操作才产生 service 维度数据。
+    pub fn record_operation_with_service(&self, operation: &CacheOperation, service: &str) {
+        self.record_operation(operation.clone());
+        if service.is_empty() {
+            return;
+        }
+        let cap = self.inner.config.max_service_labels;
+        // 稳态：分片读锁 + fetch_add（值内嵌原子），不取分片写锁
+        if let Some(count) = self.inner.service_operation_counters.get(service) {
+            count.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        // 首触慢路径：上限复核后 entry 合并建键与并发重复首触（无丢计数）
+        if self.inner.service_operation_counters.len() < cap {
+            self.inner
+                .service_operation_counters
+                .entry(service.to_string())
+                .and_modify(|count| {
+                    count.fetch_add(1, Ordering::Relaxed);
+                })
+                .or_insert_with(|| AtomicU64::new(1));
+        } else if let Some(count) = self.inner.service_operation_counters.get_mut(service) {
+            // 双检：并发首触的键可能刚被另一线程建立（满载瞬间的竞态）
+            count.fetch_add(1, Ordering::Relaxed);
+        } else {
+            self.inner
+                .service_label_overflow
+                .fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
     /// Record one backend-labeled operation (dynamic counter
     /// `oxcache_backend_<name>_operations_total`). Exported by
     /// [`Self::export_prometheus_standard`] with a `backend` label.
@@ -356,6 +407,25 @@ impl UnifiedMetrics {
             .collect();
         out.sort_by(|a, b| a.0.cmp(&b.0));
         out
+    }
+
+    /// Snapshot of per-service operation counters（R9），sorted by name for
+    /// deterministic export output. Only contains services explicitly
+    /// recorded via [`Self::record_operation_with_service`].
+    pub fn service_operation_counters(&self) -> Vec<(String, u64)> {
+        let mut out: Vec<(String, u64)> = self
+            .inner
+            .service_operation_counters
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().load(Ordering::Relaxed)))
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+
+    /// 超出标签基数上限后被丢弃归因的操作次数
+    pub fn service_label_overflow(&self) -> u64 {
+        self.inner.service_label_overflow.load(Ordering::Relaxed)
     }
 
     /// Set a gauge metric
@@ -479,6 +549,7 @@ impl UnifiedMetrics {
                 .as_secs(),
             counters: self.get_counters(),
             dynamic_metrics: self.get_dynamic_metrics(),
+            service_operations: self.service_operation_counters().into_iter().collect(),
         }
     }
 
@@ -532,6 +603,12 @@ impl UnifiedMetrics {
 
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
+
+        // Clear service dimension（R9）
+        self.inner.service_operation_counters.clear();
+        self.inner
+            .service_label_overflow
+            .store(0, Ordering::Relaxed);
     }
 
     /// Export metrics in Prometheus format
@@ -746,7 +823,39 @@ impl UnifiedMetrics {
                 .trim_end_matches("_operations_total");
             out.push_str(&format!("# HELP {key} Operations on backend {backend}.\n"));
             out.push_str(&format!("# TYPE {key} counter\n"));
-            out.push_str(&format!("{key}{{backend=\"{backend}\"}} {count}\n"));
+            out.push_str(&format!(
+                "{key}{{backend=\"{}\"}} {count}\n",
+                escape_prometheus_label_value(backend)
+            ));
+        }
+
+        // Service-labeled operation counters (R9, sorted deterministically).
+        // 默认关闭：无显式 service 归因时本节整体缺席（导出与既有格式兼容）
+        let service_counters = self.service_operation_counters();
+        if !service_counters.is_empty() {
+            out.push_str(
+                "# HELP oxcache_service_operations_total Operations attributed to service labels.\n",
+            );
+            out.push_str("# TYPE oxcache_service_operations_total counter\n");
+            for (service, count) in &service_counters {
+                out.push_str(&format!(
+                    "oxcache_service_operations_total{{service=\"{}\"}} {count}\n",
+                    escape_prometheus_label_value(service)
+                ));
+            }
+        }
+
+        // 溢出计数独立门控：即使 service map 为空（如 max_service_labels=0），
+        // 被丢弃的归因次数也必须在导出面可观测
+        let overflow = self.service_label_overflow();
+        if overflow > 0 {
+            out.push_str(
+                "# HELP oxcache_service_labels_overflow_total Operations dropped after the service label cardinality cap.\n",
+            );
+            out.push_str("# TYPE oxcache_service_labels_overflow_total counter\n");
+            out.push_str(&format!(
+                "oxcache_service_labels_overflow_total {overflow}\n"
+            ));
         }
 
         // Latency histogram (seconds, cumulative buckets + +Inf + sum/count)
@@ -789,6 +898,23 @@ impl UnifiedMetrics {
 
 /// Standard Prometheus metric name of the operation latency histogram
 pub const OPERATION_LATENCY_HISTOGRAM: &str = "oxcache_operation_duration_seconds";
+
+/// Escape a label value for the Prometheus text exposition format
+///（`\\` → `\\\\`、`"` → `\"`、`\n` → `\n`）——标签值是自由表单字符串
+///（如 R9 service 名），不转义会静默破坏格式或伪造额外序列
+pub(crate) fn escape_prometheus_label_value(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            other => out.push(other),
+        }
+    }
+    out
+}
 
 /// Fixed buckets (seconds) for the standard latency histogram
 pub const PROMETHEUS_LATENCY_BUCKETS: &[f64] = &[
@@ -882,6 +1008,9 @@ pub struct MetricsSnapshot {
     pub timestamp: u64,
     pub counters: CounterSnapshot,
     pub dynamic_metrics: std::collections::HashMap<String, MetricValue>,
+    /// Per-service operation totals（R9；无显式 service 归因时为空 map）
+    #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub service_operations: std::collections::HashMap<String, u64>,
 }
 
 /// Hit rate calculations
@@ -1490,5 +1619,210 @@ mod tests {
         assert_eq!(rates.l1_hit_rate, 0.0);
         assert_eq!(rates.l2_hit_rate, 0.0);
         assert_eq!(rates.overall_hit_rate, 0.0);
+    }
+
+    // ========================================================================
+    // service 维度（R9）：显式记录才计数、双格式可见、基数上限
+    // ========================================================================
+
+    fn l1_hit() -> CacheOperation {
+        CacheOperation {
+            layer: CacheLayer::L1,
+            op_type: CacheOpType::Get,
+            result: CacheOpResult::Hit,
+        }
+    }
+
+    #[test]
+    fn service_dimension_records_per_service_and_exports_prometheus() {
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation_with_service(&l1_hit(), "svc-a");
+        metrics.record_operation_with_service(&l1_hit(), "svc-a");
+        metrics.record_operation_with_service(&l1_hit(), "svc-b");
+
+        // 原子总账照常递增（service 维度是附加拆分而非替代）
+        assert_eq!(metrics.get_counters().l1_hits, 3);
+
+        let export = metrics.export_prometheus_standard();
+        assert!(
+            export.contains("# HELP oxcache_service_operations_total"),
+            "HELP line missing: {export}"
+        );
+        assert!(
+            export.contains("# TYPE oxcache_service_operations_total counter"),
+            "TYPE line missing: {export}"
+        );
+        assert!(
+            export.contains("oxcache_service_operations_total{service=\"svc-a\"} 2"),
+            "svc-a line missing: {export}"
+        );
+        assert!(
+            export.contains("oxcache_service_operations_total{service=\"svc-b\"} 1"),
+            "svc-b line missing: {export}"
+        );
+        // 未溢出时不出现溢出行
+        assert!(!export.contains("service_labels_overflow"));
+    }
+
+    #[test]
+    fn service_dimension_default_off() {
+        // 默认（无 service 标签的 record_operation）不产生任何 service 行——
+        // 未显式开启时导出与既有格式逐字节兼容
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation(l1_hit());
+        assert_eq!(metrics.get_counters().l1_hits, 1);
+
+        let export = metrics.export_prometheus_standard();
+        assert!(
+            !export.contains("oxcache_service_operations_total"),
+            "service lines must be absent by default: {export}"
+        );
+        assert!(metrics.service_operation_counters().is_empty());
+        // JSON 面同一承诺：skip_serializing_if 使空 map 整体缺席
+        #[cfg(feature = "serialization")]
+        {
+            let json = metrics.export_json().unwrap();
+            assert!(
+                !json.contains("\"service_operations\""),
+                "default snapshot JSON must omit service_operations: {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn service_dimension_cap_prevents_label_explosion() {
+        let config = MetricsConfig {
+            max_service_labels: 2,
+            ..MetricsConfig::default()
+        };
+        let metrics = UnifiedMetrics::with_config(config);
+
+        metrics.record_operation_with_service(&l1_hit(), "svc-1");
+        metrics.record_operation_with_service(&l1_hit(), "svc-2");
+        // 超出上限的第 3 个 service：不进 map，计入溢出计数；总账不受影响
+        metrics.record_operation_with_service(&l1_hit(), "svc-3");
+        metrics.record_operation_with_service(&l1_hit(), "svc-3");
+
+        let counters = metrics.service_operation_counters();
+        assert_eq!(counters.len(), 2, "cap must hold: {counters:?}");
+        assert!(counters.iter().all(|(k, _)| k != "svc-3"));
+
+        let export = metrics.export_prometheus_standard();
+        assert!(
+            !export.contains("svc-3"),
+            "over-cap service must not appear: {export}"
+        );
+        assert!(
+            export.contains("oxcache_service_labels_overflow_total 2"),
+            "overflow counter must reflect dropped attributions: {export}"
+        );
+        // 总账照常
+        assert_eq!(metrics.get_counters().l1_hits, 4);
+    }
+
+    #[cfg(feature = "serialization")]
+    #[test]
+    fn service_dimension_visible_in_json() {
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation_with_service(&l1_hit(), "orders");
+        metrics.record_operation_with_service(&l1_hit(), "orders");
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(
+            snapshot.service_operations.get("orders"),
+            Some(&2),
+            "snapshot must carry per-service counters"
+        );
+
+        let json = metrics.export_json().unwrap();
+        assert!(json.contains("\"service_operations\""), "json key: {json}");
+        assert!(json.contains("\"orders\""), "json service name: {json}");
+    }
+
+    #[test]
+    fn service_dimension_reset_clears_counters() {
+        let metrics = UnifiedMetrics::new();
+        metrics.record_operation_with_service(&l1_hit(), "svc-reset");
+        metrics.reset();
+        assert!(metrics.service_operation_counters().is_empty());
+        let export = metrics.export_prometheus_standard();
+        assert!(!export.contains("svc-reset"));
+    }
+
+    #[test]
+    fn service_label_value_is_escaped_in_prometheus_export() {
+        // 引号/反斜杠/换行必须转义：否则 exposition 格式被破坏或可伪造序列
+        let metrics = UnifiedMetrics::new();
+        let hostile = "svc\"quote\\back\nnewline";
+        metrics.record_operation_with_service(&l1_hit(), hostile);
+        metrics.record_operation_with_service(&l1_hit(), hostile);
+
+        let export = metrics.export_prometheus_standard();
+        let expected_line =
+            "oxcache_service_operations_total{service=\"svc\\\"quote\\\\back\\nnewline\"} 2";
+        assert!(
+            export.contains(expected_line),
+            "escaped service line missing: {export}"
+        );
+        // 序列总数不得因注入而增加：转义后恰好一行 service 计数序列
+        assert_eq!(
+            export
+                .matches("oxcache_service_operations_total{service=")
+                .count(),
+            1,
+            "hostile label must not forge extra series: {export}"
+        );
+        // 原始未转义字符不得出现
+        assert!(!export.contains("svc\"quote"));
+    }
+
+    #[test]
+    fn service_dimension_cap_zero_keeps_overflow_visible() {
+        let config = MetricsConfig {
+            max_service_labels: 0,
+            ..MetricsConfig::default()
+        };
+        let metrics = UnifiedMetrics::with_config(config);
+        metrics.record_operation_with_service(&l1_hit(), "svc-any");
+        metrics.record_operation_with_service(&l1_hit(), "svc-any");
+
+        // cap=0 时 map 恒空，但溢出次数必须在 prometheus 导出面可观测
+        assert!(metrics.service_operation_counters().is_empty());
+        assert_eq!(metrics.service_label_overflow(), 2);
+        let export = metrics.export_prometheus_standard();
+        assert!(
+            export.contains("oxcache_service_labels_overflow_total 2"),
+            "overflow must be exported even with empty service map: {export}"
+        );
+        // 总账照常
+        assert_eq!(metrics.get_counters().l1_hits, 2);
+    }
+
+    #[test]
+    fn service_dimension_concurrent_first_touch_has_no_lost_counts() {
+        use std::sync::Arc;
+
+        let metrics = Arc::new(UnifiedMetrics::new());
+        // 多线程并发首触同一新 service：entry 合并语义下计数不得丢失
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let metrics = Arc::clone(&metrics);
+                std::thread::spawn(move || {
+                    for _ in 0..250 {
+                        metrics.record_operation_with_service(&l1_hit(), "svc-race");
+                    }
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let counters = metrics.service_operation_counters();
+        assert_eq!(
+            counters.first().map(|(_, c)| *c),
+            Some(2_000),
+            "concurrent first-touch must not lose counts: {counters:?}"
+        );
     }
 }

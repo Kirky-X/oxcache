@@ -48,7 +48,7 @@ pub use interface::{AtomicCacheWriter, SyncAtomicCacheWriter};
 // Re-exports for synchronous API (任务组 5)
 pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
 // 同步后端 → async 面门面（sync 一等构建入口的后端承载）
-pub use interface::SyncBackendAdapter;
+pub use interface::{AsyncToSyncBridge, SyncBackendAdapter};
 
 // Re-export BackendKind for runtime type identification
 pub use interface::BackendKind;

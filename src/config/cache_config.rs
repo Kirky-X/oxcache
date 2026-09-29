@@ -63,6 +63,7 @@ pub(crate) const KEY_DISK_PATH: &str = "OXCACHE_DISK_PATH";
 pub(crate) const KEY_CONNECTION_POOL_SIZE: &str = "OXCACHE_CONNECTION_POOL_SIZE";
 pub(crate) const KEY_CB_FAILURE_THRESHOLD: &str = "OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 pub(crate) const KEY_CB_RESET_TIMEOUT_MS: &str = "OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS";
+pub(crate) const KEY_SERVICE_NAME: &str = "OXCACHE_SERVICE_NAME";
 
 /// 统一缓存配置
 ///
@@ -80,8 +81,9 @@ pub struct CacheConfig {
     pub null_cache_ttl: Option<Duration>,
     /// TTL 抖动因子（底层构建器 clamp 到 `0.0..=1.0`，NaN 视为 0）
     pub ttl_jitter_factor: Option<f64>,
-    /// 同步 API 模式（仅默认构建路径支持；`backend` 配置键解析为 async-only
-    /// 句柄，与之互斥，见 [`CacheConfig::validate()`]）
+    /// 同步 API 模式（与 `backend` 可组合：Moka/DashMap 双面皆原生——async
+    /// 面运行时无关、sync 面直连；其余后端 sync 面经 `AsyncToSyncBridge`
+    /// 桥出、调用期要求多线程 runtime）
     pub sync_mode: Option<bool>,
     /// 后端类型原始串（moka/dashmap/redis/...；`None` = 未选择，由构建器自定）
     ///
@@ -110,6 +112,8 @@ pub struct CacheConfig {
     pub circuit_breaker_failure_threshold: Option<u32>,
     /// 熔断器 Open → HalfOpen 恢复超时（当前由 Redis 后端构建消费）
     pub circuit_breaker_reset_timeout: Option<Duration>,
+    /// R9 service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
+    pub service_name: Option<String>,
 }
 
 // redis_url 可能携带凭证，手动实现 Debug 脱敏，防止连接串明文进日志
@@ -136,6 +140,7 @@ impl std::fmt::Debug for CacheConfig {
                 "circuit_breaker_reset_timeout",
                 &self.circuit_breaker_reset_timeout,
             )
+            .field("service_name", &self.service_name)
             .finish()
     }
 }
@@ -257,6 +262,9 @@ impl CacheConfig {
             })?;
             config.circuit_breaker_reset_timeout = Some(Duration::from_millis(ms));
         }
+        if let Some(raw) = env_value(KEY_SERVICE_NAME)? {
+            config.service_name = Some(raw);
+        }
         Ok(config)
     }
 
@@ -269,10 +277,9 @@ impl CacheConfig {
     ///   `ttl`/`tti`/`null_cache_ttl` 不得为 `Duration::ZERO`（永不过期用 `None` 表达）；
     /// - 组合：`backend` ∈ {Redis, Valkey, Dragonfly} 时 `redis_url` 必填非空；
     ///   `backend == Disk` 时 `disk_path` 必填非空；`sync_mode == Some(true)`
-    ///   时不得同时配置 `backend`——显式后端经 `backend_arc` 注入后与 sync
-    ///   模式在 [`CacheBuilder::build`](crate::cache::CacheBuilder) 必然冲突
-    ///   （`Arc<dyn CacheBackend>` 无法上转型为 `SyncCacheBackend`），sync 仅
-    ///   适用于不注入后端的默认构建；
+    ///   与 `backend` 可组合（Moka/DashMap 经槽位注入走原生同步面，其余后端
+    ///   sync API 桥出、调用期要求多线程 runtime，见
+    ///   [`CacheBuilder::build`](crate::cache::CacheBuilder)）；
     /// - feature：未启用 `metrics` 时配置 `metrics_enabled`、未启用
     ///   `serialization` 时配置 `serialization_format`、未启用 `memory`/`redis`/
     ///   `disk` 任一时配置 `backend` 均显性报错；
@@ -352,6 +359,13 @@ impl CacheConfig {
         if self.circuit_breaker_failure_threshold == Some(0) {
             return Err(OxCacheError::InvalidInput(
                 "circuit_breaker_failure_threshold must be greater than 0".to_string(),
+            ));
+        }
+        if self.service_name.as_deref() == Some("") {
+            return Err(OxCacheError::InvalidInput(
+                "service_name must not be empty; drop the key to keep the service \
+                 dimension disabled"
+                    .to_string(),
             ));
         }
         if self.connection_pool_size == Some(0) {
@@ -449,23 +463,12 @@ impl CacheConfig {
             }
         }
 
-        // sync_mode 与 backend 配置键互斥：backend 串经 build_backend 解析为
-        // Arc<dyn CacheBackend>（仅 async 面，sync 实现在 dyn 层已擦除），
-        // CacheBuilder::build 对 sync + backend_arc 组合必返 NotSupported，
-        // 失败在此左移；同步后端注入应走程序化 sync_backend_arc 一等入口
-        if self.sync_mode == Some(true) && self.backend.is_some() {
-            return Err(OxCacheError::InvalidInput(
-                "sync_mode=true cannot be combined with the `backend` key: the configured \
-                 backend resolves to an async-only handle. Use the default build path \
-                 (unset `backend`) or inject a native sync backend programmatically via \
-                 CacheBuilder::sync_backend_arc"
-                    .to_string(),
-            ));
-        }
+        // sync_mode 与 backend 可组合：有原生同步面的后端经槽位注入直连，
+        // 其余后端 sync 面桥出（多线程 runtime 要求在调用期显性报错）
         Ok(())
     }
 
-    /// 按配置构建后端实例
+    /// 按配置构建后端实例（async 面句柄）
     ///
     /// 返回 `None` 表示未配置 `backend`（调用方自行选择后端）。
     /// 构建前先行 [`CacheConfig::validate()`]；[`apply_to_cache_builder`](Self::apply_to_cache_builder)
@@ -474,17 +477,48 @@ impl CacheConfig {
     ///
     /// 注意：`Disk` 分支含阻塞文件 I/O（redb 打开/建库，耗时可达毫秒到秒级），
     /// 仅限启动期调用，不得用于请求路径。
+    ///
+    /// 有原生同步面的后端（Moka/DashMap）经 [`Self::build_backend_slot`]
+    /// 保留同步面，且 Dual 槽直接返回原生 async 面（运行时无关，零交接税）；
+    /// 仅 sync 一等入口的场景经 `SyncBackendAdapter` 门面呈现 async 面
+    ///（门面的 async 方法完成于后端同步面，runtime 要求随后端）。
     #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     pub async fn build_backend(
         &self,
     ) -> OxCacheResult<Option<std::sync::Arc<dyn crate::backend::CacheBackend>>> {
+        Ok(match self.build_backend_slot().await? {
+            None => None,
+            Some(crate::cache::builder::cache_builder::BackendSlot::Async(backend)) => {
+                Some(backend)
+            }
+            Some(crate::cache::builder::cache_builder::BackendSlot::Sync(sync_backend)) => Some(
+                std::sync::Arc::new(crate::backend::SyncBackendAdapter::new(sync_backend)),
+            ),
+            Some(crate::cache::builder::cache_builder::BackendSlot::Dual {
+                async_face, ..
+            }) => Some(async_face),
+        })
+    }
+
+    /// 按配置构建后端槽位（保留原生同步面信息）
+    ///
+    /// 与 [`Self::build_backend`] 同一构建逻辑，但以
+    /// [`BackendSlot`](crate::cache::builder::cache_builder::BackendSlot)
+    /// 表达：有原生同步面的后端（Moka/DashMap）产 `Dual` 槽（同一具体
+    /// Arc 的两次 coerce，async/sync 两面皆原生，零桥接税）；仅 async 面的
+    /// 后端（Redis/Dragonfly/Disk/Mock）产 `Async` 槽，sync 面经桥接呈现。
+    #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+    pub(crate) async fn build_backend_slot(
+        &self,
+    ) -> OxCacheResult<Option<crate::cache::builder::cache_builder::BackendSlot>> {
+        use crate::cache::builder::cache_builder::BackendSlot;
         self.validate()?;
         let backend = match self.backend.as_deref() {
             None => return Ok(None),
             Some(raw) => parse_backend_kind("backend", raw)?,
         };
         use crate::backend::BackendKind;
-        let built: std::sync::Arc<dyn crate::backend::CacheBackend> = match backend {
+        let slot = match backend {
             BackendKind::Moka => {
                 #[cfg(not(feature = "memory"))]
                 unreachable!("validate rejects Moka without the memory feature");
@@ -498,7 +532,14 @@ impl CacheConfig {
                     if let Some(tti) = self.tti {
                         builder = builder.time_to_idle(tti);
                     }
-                    std::sync::Arc::new(builder.build())
+                    // 同一具体 Arc 双向 coerce：async 面保持原生 future
+                    //（运行时无关），sync 面原生直连——不走任何桥接
+                    let moka: std::sync::Arc<crate::backend::MokaMemoryBackend> =
+                        std::sync::Arc::new(builder.build());
+                    BackendSlot::Dual {
+                        async_face: moka.clone(),
+                        sync_face: moka,
+                    }
                 }
             }
             BackendKind::DashMap => {
@@ -513,18 +554,23 @@ impl CacheConfig {
                     if let Some(ttl) = self.ttl {
                         builder = builder.default_ttl(ttl);
                     }
-                    std::sync::Arc::new(builder.build())
+                    let dashmap: std::sync::Arc<crate::backend::DashMapMemoryBackend> =
+                        std::sync::Arc::new(builder.build());
+                    BackendSlot::Dual {
+                        async_face: dashmap.clone(),
+                        sync_face: dashmap,
+                    }
                 }
             }
             BackendKind::Mock => {
                 // validate 已拦截所有非法组合；arm 主体仅测试构建 + memory 下编译，
-                // 其余组合由类型为 `!` 的兜底表达式填充（不依赖外部 feature 隐含关系）
+                // 其余组合由类型为 `!` 的兜底表达式填充（不依赖外部 feature 隐含关系）。
+                // MockBackend 无原生 sync 读/写面（仅 SyncAtomicCacheWriter），
+                // 进不了 Sync 槽，保持 Async 槽桥接
                 #[cfg(all(test, feature = "memory"))]
                 {
-                    std::sync::Arc::new(crate::backend::memory::MockBackend::new(
-                        "cache-config-mock",
-                        100,
-                        false,
+                    BackendSlot::Async(std::sync::Arc::new(
+                        crate::backend::memory::MockBackend::new("cache-config-mock", 100, false),
                     ))
                 }
                 #[cfg(not(all(test, feature = "memory")))]
@@ -547,7 +593,10 @@ impl CacheConfig {
                     if let Some(timeout) = self.circuit_breaker_reset_timeout {
                         builder = builder.circuit_breaker_reset_timeout(timeout);
                     }
-                    std::sync::Arc::new(builder.build().await?)
+                    // Redis 虽有同步面，但那是 block_in_place 桥接自身 async 面
+                    // 的产物：进 Sync 槽会让 async API 变成 async→sync→async
+                    // 双重跳，保持 Async 槽（sync 面单次桥接）
+                    BackendSlot::Async(std::sync::Arc::new(builder.build().await?))
                 }
             }
             BackendKind::Dragonfly => {
@@ -557,7 +606,9 @@ impl CacheConfig {
                 {
                     let url = self.redis_url.as_deref().unwrap_or_default();
                     let pool = self.connection_pool_size.unwrap_or(8);
-                    std::sync::Arc::new(crate::backend::DragonflyBackend::new(url, pool).await?)
+                    BackendSlot::Async(std::sync::Arc::new(
+                        crate::backend::DragonflyBackend::new(url, pool).await?,
+                    ))
                 }
             }
             BackendKind::Disk => {
@@ -579,7 +630,7 @@ impl CacheConfig {
                         Some(ttl) => disk.with_default_ttl(ttl),
                         None => disk,
                     };
-                    std::sync::Arc::new(disk)
+                    BackendSlot::Async(std::sync::Arc::new(disk))
                 }
             }
             other => {
@@ -588,14 +639,17 @@ impl CacheConfig {
                 )));
             }
         };
-        Ok(Some(built))
+        Ok(Some(slot))
     }
 
     /// 将配置应用到 [`CacheBuilder`](crate::cache::CacheBuilder)
     ///
-    /// 覆盖全部可映射字段；`backend` 已配置时构建后端实例并注入
-    /// `backend_arc`（若调用方已另行注入后端，构建期将因多后端
-    /// `Err(NotSupported)` fail-fast，与 [`CacheBuilder`] 既有契约一致）。
+    /// 覆盖全部可映射字段；`backend` 已配置时按槽位注入——Moka/DashMap 走
+    /// `Dual` 槽（同一具体后端的双面原生 coerce：async 面运行时无关，
+    /// `sync_mode(true)` 下 sync API 原生直连），Redis/Dragonfly/Disk/Mock
+    /// 走 `backend_arc`（sync 面经 `AsyncToSyncBridge` 桥出，调用期要求
+    /// 多线程 runtime）。若调用方已另行注入后端，构建期将因多后端
+    /// `Err(NotSupported)` fail-fast，与 [`CacheBuilder`] 既有契约一致。
     #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     pub async fn apply_to_cache_builder<K, V>(
         &self,
@@ -625,6 +679,10 @@ impl CacheConfig {
             builder = builder.sync_mode(sync_mode);
         }
         #[cfg(feature = "metrics")]
+        if let Some(service) = self.service_name.clone() {
+            builder = builder.service_name(service);
+        }
+        #[cfg(feature = "metrics")]
         if self.metrics_enabled == Some(false) {
             builder = builder.metrics(std::sync::Arc::new(crate::infra::NoOpMetricsRecorder));
         }
@@ -633,8 +691,13 @@ impl CacheConfig {
             let format = parse_serialization_format("serialization_format", raw)?;
             builder = builder.serialization_format(format);
         }
-        if let Some(backend) = self.build_backend().await? {
-            builder = builder.backend_arc(backend);
+        // 按槽位注入：Dual 槽（Moka/DashMap 双面原生 coerce）两面皆不走桥接；
+        // Sync 槽 async 面经门面；Async 槽 sync 面经 AsyncToSyncBridge 桥出
+        match self.build_backend_slot().await? {
+            None => {}
+            Some(slot) => {
+                builder = builder.backend_slot(slot);
+            }
         }
         Ok(builder)
     }
@@ -748,6 +811,12 @@ impl CacheConfigBuilder {
     /// 熔断器 Open → HalfOpen 恢复超时
     pub fn circuit_breaker_reset_timeout(mut self, timeout: Duration) -> Self {
         self.config.circuit_breaker_reset_timeout = Some(timeout);
+        self
+    }
+
+    /// R9 service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
+    pub fn service_name(mut self, service: impl Into<String>) -> Self {
+        self.config.service_name = Some(service.into());
         self
     }
 
@@ -884,6 +953,7 @@ mod tests {
         KEY_CONNECTION_POOL_SIZE,
         KEY_CB_FAILURE_THRESHOLD,
         KEY_CB_RESET_TIMEOUT_MS,
+        KEY_SERVICE_NAME,
     ];
 
     #[test]
@@ -932,6 +1002,7 @@ mod tests {
                 connection_pool_size: None,
                 circuit_breaker_failure_threshold: None,
                 circuit_breaker_reset_timeout: None,
+                service_name: None,
             }
         );
     }
@@ -962,6 +1033,7 @@ mod tests {
         set_env(KEY_REDIS_URL, "redis://127.0.0.1:6379");
         set_env("OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD", "7");
         set_env("OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS", "45000");
+        set_env("OXCACHE_SERVICE_NAME", "r9-env-svc");
         #[cfg(any(feature = "serialization", feature = "full"))]
         set_env("OXCACHE_SERIALIZATION_FORMAT", "json");
 
@@ -981,6 +1053,7 @@ mod tests {
             config.circuit_breaker_reset_timeout,
             Some(Duration::from_millis(45_000))
         );
+        assert_eq!(config.service_name.as_deref(), Some("r9-env-svc"));
         #[cfg(any(feature = "serialization", feature = "full"))]
         assert_eq!(config.serialization_format, Some("json".to_string()));
     }
@@ -1187,37 +1260,47 @@ mod tests {
 
     #[test]
     #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
-    fn validate_sync_mode_rejects_any_explicit_backend() {
-        // 显式后端经 backend_arc 注入后与 sync 模式在构建期必冲突（含 moka），
-        // 失败左移到 validate；窄 feature 组合下显式 backend 本身被前提检查拦截
-        // memory 系后端（config-confers 隐含 memory，无 redis 时同样可达）
+    fn validate_sync_mode_combines_with_backend() {
+        // sync_mode 与显式 backend 合法：Moka/DashMap 走原生同步面（槽位
+        // 注入），其余后端 sync 面桥出（runtime 要求属调用期契约，不在配置层拦截）
         for raw in ["moka", "dashmap"] {
-            let err = CacheConfig::builder()
+            CacheConfig::builder()
                 .sync_mode(true)
                 .backend(raw)
                 .build()
                 .validate()
-                .unwrap_err();
-            assert!(
-                matches!(err, OxCacheError::InvalidInput(m) if m.contains("sync_mode")),
-                "raw = {raw}"
-            );
+                .unwrap_or_else(|e| panic!("{raw}: {e}"));
         }
-        // redis 后端仅在 redis feature 下抵达 sync 检查
         #[cfg(feature = "redis")]
-        {
-            let err = CacheConfig::builder()
-                .sync_mode(true)
-                .backend("redis")
-                .redis_url("redis://127.0.0.1:6379")
-                .build()
-                .validate()
-                .unwrap_err();
-            assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains("sync_mode")));
-        }
-        // 未配置 backend 时 sync 合法（默认构建路径）
         CacheConfig::builder()
             .sync_mode(true)
+            .backend("redis")
+            .redis_url("redis://127.0.0.1:6379")
+            .build()
+            .validate()
+            .unwrap();
+        // 未配置 backend 时 sync 合法（默认构建路径，原生同步）
+        CacheConfig::builder()
+            .sync_mode(true)
+            .build()
+            .validate()
+            .unwrap();
+    }
+
+    #[test]
+    fn validate_rejects_empty_service_name() {
+        let err = CacheConfig::builder()
+            .service_name("")
+            .build()
+            .validate()
+            .unwrap_err();
+        assert!(
+            matches!(&err, OxCacheError::InvalidInput(m) if m.contains("service_name")),
+            "{err:?}"
+        );
+        // 非空合法
+        CacheConfig::builder()
+            .service_name("orders")
             .build()
             .validate()
             .unwrap();
@@ -1246,6 +1329,55 @@ mod tests {
             cache.get_sync(&"k".to_string()).unwrap(),
             Some("v".to_string())
         );
+    }
+
+    #[test]
+    #[cfg(feature = "memory")]
+    fn apply_sync_mode_with_backend_uses_native_sync_surface() {
+        use crate::cache::CacheBuilder;
+
+        // sync_mode × backend 组合经 CacheConfig 通路解锁，且 Moka 双面原生：
+        // Dual 槽注入后 sync API 在 runtime 之外可用（桥接面在此处显性
+        // NotSupported）、async API 在 current_thread runtime 内可用（门面
+        // 在此处显性拒绝）——两个判别性证据共同锁定「原生双面零桥接」契约
+        let config = CacheConfig::builder()
+            .capacity(32)
+            .sync_mode(true)
+            .backend("moka")
+            .build();
+        let builder = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .build()
+            .unwrap()
+            .block_on(async {
+                config
+                    .apply_to_cache_builder(CacheBuilder::<String, String>::default())
+                    .await
+                    .unwrap()
+            });
+        let cache = builder.build_sync().unwrap();
+        // 判别一：sync 面运行时无关（runtime 之外直连）
+        cache
+            .set_sync(&"cfg-native".to_string(), &"v1".to_string())
+            .unwrap();
+        assert_eq!(
+            cache.get_sync(&"cfg-native".to_string()).unwrap(),
+            Some("v1".to_string())
+        );
+        // 判别二：async 面在 current_thread runtime 内可用（未降级为门面）
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(async {
+                cache
+                    .set(&"cfg-native".to_string(), &"v2".to_string())
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    cache.get(&"cfg-native".to_string()).await.unwrap(),
+                    Some("v2".to_string())
+                );
+            });
     }
 
     #[test]
@@ -1304,6 +1436,8 @@ mod tests {
         }
     }
 
+    // Dual 槽：build_backend 公开入口返回原生 moka async 面——current_thread
+    // runtime 可用是「未降级为门面」的判别性证据（回归锁）
     #[tokio::test]
     #[cfg(feature = "memory")]
     async fn build_backend_moka_applies_capacity_and_ttl() {

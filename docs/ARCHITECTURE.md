@@ -144,7 +144,7 @@ async fn get_user(id: u64) -> User { /* ... */ }
 - `ChainCache` / `ChainLink` / `ChainCacheBuilder`：多级缓存链（按分数排序）
 - `L1Builder` / `L2Builder` / `ChainBuilder`：分层构建器 API（与 `CacheBuilder`/`ChainCacheBuilder` 并存）
 
-`Cache<K, V>` 的构造方法（`builder` / `new` / `memory` / `redis` / `with_dependencies`）、`CacheBuilder` 全部方法与「`CacheBuilder` 不暴露 `.redis(...)` / `.tiered(...)` 等方法，组合多后端用 `ChainCache` + `.backend_arc(...)`」的说明见 [API 参考](API_REFERENCE.md#-cachebuilder)。要点：`sync_mode(true)` 支持默认 Moka 后端与 `sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连、异步 API 经 `SyncBackendAdapter` 门面桥出）；`backend_arc(Arc<dyn CacheBackend>)` 仅携带 async 面（具体类型同步实现已擦除，两套 trait 层次无 supertrait 关系、上转不可达），与 `sync_mode(true)` 同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`（OXCACHE_009）。
+`Cache<K, V>` 的构造方法（`builder` / `new` / `memory` / `redis` / `with_dependencies`）、`CacheBuilder` 全部方法与「`CacheBuilder` 不暴露 `.redis(...)` / `.tiered(...)` 等方法，组合多后端用 `ChainCache` + `.backend_arc(...)`」的说明见 [API 参考](API_REFERENCE.md#-cachebuilder)。要点：`sync_mode(true)` 三路支持——默认 Moka 后端（原生同步，运行时无关）、`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连、异步 API 经 `SyncBackendAdapter` 门面桥出）、`backend_arc(Arc<dyn CacheBackend>)`（具体类型同步实现已擦除，sync API 经通用 `AsyncToSyncBridge` 桥出：`block_in_place` + `block_on`，要求调用时处于多线程 runtime，否则逐调用显性 `Err(NotSupported)`）。
 
 关键异步方法（`get` / `set` / `set_with_ttl` / `get_by_str` / `set_by_str` / `delete` / `exists` / `clear` / `get_or` / `ttl` / `expire` / `get_bytes` / `set_bytes` / 生命周期与统计 / `register_for_macro`）与同步方法（`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `clear_sync` / `ttl_sync` / `expire_sync` / `get_or_sync`）的逐项签名见 [API 参考](API_REFERENCE.md#-cachek-v) 与 [API 参考的同步 API 章节](API_REFERENCE.md#-同步-api)。
 
@@ -730,7 +730,7 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 2. **TTL 策略**：根据数据易变性设置适当的 TTL；使用 `cache.ttl(&key)` 在保留 TTL 的更新工作流中读取已有 TTL
 3. **访问控制**：使用 Redis AUTH + TLS（`rediss://` URL）
 4. **监控**：通过 `get_enhanced_stats` / `export_prometheus_format` 跟踪 `CacheStats`（命中率、操作计数器、延迟直方图）
-5. **同步 API**：为非异步调用场景启用 `sync_mode(true)`。在 `multi_thread` tokio 运行时上，Moka 的同步桥通过 `block_in_place` 复用当前运行时；否则它用 `noop` waker + 手动轮询驱动（运行时无关的）moka future，在任何运行时内外都安全，无全局运行时线程。自定义同步后端经 `sync_backend_arc(...)` 注入（配合 `sync_mode(true)`），`backend_arc(...)` 仅携带 async 面
+5. **同步 API**：为非异步调用场景启用 `sync_mode(true)`。Moka 同步桥的三环境矩阵：`multi_thread` runtime 上经 `block_in_place` 复用当前 runtime；current_thread runtime 的异步上下文内显性 `Err(NotSupported)`（tokio 禁止嵌套阻塞驱动）；runtime 之外以临时 current_thread runtime 兜底驱动。配置通路 `backend=moka/dashmap` 走双面原生槽（async 面运行时无关、sync 面直连，零桥接）；自定义同步后端经 `sync_backend_arc(...)` 注入（配合 `sync_mode(true)`）；`backend_arc(...)` 与 `sync_mode(true)` 组合经 `AsyncToSyncBridge` 桥出 sync API（阻塞语义，要求调用时处于多线程 runtime，I/O 型后端需 ≥2 worker）
 
 ## 📈 可扩展性
 
@@ -778,9 +778,12 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 2. **地理分布**：多区域复制原语
 3. **缓存预热**：智能预热策略
 
-> 原「`trait_upcasting` 迁移解除 `sync_mode + backend_arc` 互斥」已通过
-> `sync_backend_arc` 一等入口 + `SyncBackendAdapter` 门面实现（两套 trait
-> 层次无 supertrait 关系，上转方案本身不适用），见 [CacheBuilder](API_REFERENCE.md#-cachebuilder)。
+> 原「`trait_upcasting` 迁移解除 `sync_mode + backend_arc` 互斥」最终经双门面
+> 方案完整落地：`sync_backend_arc` 一等入口 + `SyncBackendAdapter` 门面先行
+> （sync→async 方向），`AsyncToSyncBridge` 通用桥接随后补齐 async→sync 方向
+> （`sync_mode(true)` + `backend_arc` 经其桥出 sync API，调用期要求多线程
+> runtime；两套 trait 层次无 supertrait 关系，上转方案本身不适用），见
+> [CacheBuilder](API_REFERENCE.md#-cachebuilder)。
 
 ## 📚 参考资料
 

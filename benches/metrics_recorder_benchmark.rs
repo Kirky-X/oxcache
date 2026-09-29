@@ -27,6 +27,14 @@ fn bench_recorder_overhead(c: &mut Criterion) {
 
     // 默认路径：全局 UnifiedMetricsRecorder（rc.6 起的默认行为）
     let default_cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
+    // R9 service 维度：global_tagged 路径的逐操作标签归因税对照
+    let service_cache: Cache<String, String> = rt.block_on(async {
+        Cache::builder()
+            .service_name("bench_service")
+            .build()
+            .await
+            .unwrap()
+    });
     // NoOp 路径：metrics_enabled=false 的等价构建
     let noop_cache = rt.block_on(async {
         Cache::builder()
@@ -50,6 +58,15 @@ fn bench_recorder_overhead(c: &mut Criterion) {
         });
     });
 
+    c.bench_function("recorder_service_global_get", |b| {
+        b.to_async(&rt).iter(|| async {
+            let _: Option<String> = service_cache
+                .get_by_str(black_box("bench_key_42"))
+                .await
+                .unwrap();
+        });
+    });
+
     c.bench_function("recorder_noop_get", |b| {
         b.to_async(&rt).iter(|| async {
             let _: Option<String> = noop_cache
@@ -62,6 +79,15 @@ fn bench_recorder_overhead(c: &mut Criterion) {
     c.bench_function("recorder_default_global_set", |b| {
         b.to_async(&rt).iter(|| async {
             default_cache
+                .set_by_str(black_box("bench_set_42"), &"v".to_string(), None)
+                .await
+                .unwrap();
+        });
+    });
+
+    c.bench_function("recorder_service_global_set", |b| {
+        b.to_async(&rt).iter(|| async {
+            service_cache
                 .set_by_str(black_box("bench_set_42"), &"v".to_string(), None)
                 .await
                 .unwrap();

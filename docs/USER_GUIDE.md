@@ -262,7 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 同步 API
 
-通过 `Cache::builder().sync_mode(true)` 启用异步 API 的同步镜像。运行时要求与限制（multi_thread 运行时、不能与 `backend_arc(...)` 组合）见[启用同步 API](#启用同步-api) 与 [API 参考](API_REFERENCE.md#-同步-api)。
+通过 `Cache::builder().sync_mode(true)` 启用异步 API 的同步镜像。三路语义与运行时要求（默认 Moka 原生同步、`sync_backend_arc(...)` 原生同步面、`backend_arc(...)` 经 `AsyncToSyncBridge` 桥出——桥接面要求 multi_thread 运行时）见[启用同步 API](#启用同步-api) 与 [API 参考](API_REFERENCE.md#-同步-api)。
 
 ### 容错与单飞
 
@@ -721,9 +721,12 @@ oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安
 **解决方案**：
 
 1. 确认 `Cache::builder().sync_mode(true)` 已启用
-2. 确认未同时使用 `backend_arc(...)`（`sync_mode` 仅支持默认 Moka 后端）
-3. 确认运行在 `multi_thread` Tokio runtime（`#[tokio::main(flavor = "multi_thread")]`）
-4. current-thread runtime 下同步 API 会返回 `Err(NotSupported)`
+2. 确认运行在 `multi_thread` Tokio runtime（`#[tokio::main(flavor = "multi_thread")]`）
+3. current-thread runtime 下同步 API 会返回 `Err(NotSupported)`（runtime 之外同理）
+4. `backend_arc(...)` 注入的后端走 `AsyncToSyncBridge` 桥接面——同样要求
+   `multi_thread` runtime（I/O 型后端还需 ≥2 worker，单 worker 有挂起风险）；
+   需要运行时无关的同步 API 时，改用 `sync_backend_arc(...)` 注入原生同步后端
+   （Moka / DashMap）或使用默认 Moka 路径
 
 </details>
 

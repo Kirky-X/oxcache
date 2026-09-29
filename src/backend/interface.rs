@@ -626,8 +626,10 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
 /// explicit `NotSupported` error, not a panic), while purely synchronous
 /// backends (e.g. DashMap) are safe in any environment.
 ///
-/// The reverse direction (async → sync) is a backend-side concern (e.g.
-/// Redis's sync traits bridge via `block_in_place` + `handle.block_on`).
+/// The reverse direction (async → sync) exists both as a backend-side concern
+/// (e.g. Redis's sync traits bridge via `block_in_place` + `handle.block_on`)
+/// and as the generic [`AsyncToSyncBridge`] used by `CacheBuilder` when
+/// `sync_mode(true)` combines with `backend_arc`.
 ///
 /// Atomic capabilities are probed honestly through
 /// [`SyncCacheConnector::as_sync_atomic_writer`]: the facade advertises
@@ -856,6 +858,299 @@ impl AtomicCacheWriter for SyncBackendAdapter {
 
 // async 面三子 trait 齐备，CacheBackend 由 blanket 自动提供：
 // SyncBackendAdapter 同时是完整的 async 与 sync 后端
+
+// ============================================================================
+// Async → Sync Bridge Adapter
+// ============================================================================
+
+/// async→sync 桥接共用的运行时句柄守卫
+///
+/// 桥接方法以 `block_in_place` + `handle.block_on` 阻塞等待 async 操作：
+/// `block_in_place` 仅在多线程 runtime 可用，current_thread runtime 上会
+/// panic，故在调用前显性拒绝；runtime 之外同样无可等待对象，显性报错。
+pub(crate) fn multi_thread_bridge_handle() -> OxCacheResult<tokio::runtime::Handle> {
+    let handle = tokio::runtime::Handle::try_current().map_err(|e| {
+        OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))
+    })?;
+    if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
+        return Err(OxCacheError::NotSupported(
+            "sync API requires a multi-thread runtime; \
+             block_in_place is unavailable on current_thread runtime"
+                .to_string(),
+        ));
+    }
+    Ok(handle)
+}
+
+/// Bridge an async [`CacheBackend`] handle into the sync surface.
+///
+/// Mirror of [`SyncBackendAdapter`] for the opposite direction: the two trait
+/// hierarchies share no supertrait relationship, so `Arc<dyn CacheBackend>`
+/// cannot be presented as `Arc<dyn SyncCacheBackend>` — the concrete sync
+/// impl is erased at the `dyn` boundary. This adapter closes that gap
+/// generically (used by `CacheBuilder` when `sync_mode(true)` combines with
+/// `backend_arc`): every sync method bridges by
+/// `block_in_place` + `handle.block_on` over the async method, so futures are
+/// never dropped mid-flight (unlike noop-waker polling, which could abandon
+/// partially-completed I/O).
+///
+/// # Runtime requirements
+///
+/// Calls require a **multi-thread Tokio runtime** (enforced by the
+/// crate-internal runtime guard): outside any runtime or on a
+/// current_thread runtime every sync method returns `Err(NotSupported)`.
+/// Backends whose sync face can run without a runtime (e.g. Moka/DashMap
+/// native sync) should be injected via `sync_backend_arc` instead.
+///
+/// **`worker_threads(1)` runtimes are hazardous for I/O-backed backends**
+/// (e.g. Redis): `block_in_place` converts the sole worker into a blocking
+/// thread, leaving no active worker to poll the reactor — a bridged call
+/// waiting on network readiness may then **hang indefinitely**. Use
+/// `worker_threads(2)` or more for bridged I/O, or drive such backends
+/// through the async API only. (Same hazard applies to backend-provided sync
+/// faces built on `block_in_place`, e.g. `RedisBackend`'s.)
+///
+/// `shutdown` is the one method that degrades instead of erroring: outside
+/// any runtime it executes on a temporary current-thread runtime; inside a
+/// current-thread runtime (nested blocking drivers are forbidden) it is
+/// skipped and counted via `oxcache_bridge_shutdown_rejected_total`
+/// (metrics feature) with a tracing warn (telemetry feature).
+///
+/// # Deadlock Warning
+///
+/// Mirrors the hazard documented on backend-provided sync faces (e.g.
+/// `RedisBackend`): bridging blocks the calling thread. Invoking sync methods
+/// from a task running on the same multi-thread runtime is legal
+/// (`block_in_place` hands the worker off) but can starve the runtime under
+/// sustained load. Prefer the async API inside async contexts.
+///
+/// Atomic capabilities are probed honestly: the bridge advertises
+/// [`SyncAtomicCacheWriter`] only when the inner backend exposes
+/// [`AtomicCacheWriter`] via [`CacheConnector::as_atomic_writer`].
+pub struct AsyncToSyncBridge {
+    inner: Arc<dyn CacheBackend>,
+}
+
+impl AsyncToSyncBridge {
+    /// Wrap an async backend handle for presentation as a sync backend.
+    pub fn new(inner: Arc<dyn CacheBackend>) -> Self {
+        Self { inner }
+    }
+}
+
+impl SyncCacheReader for AsyncToSyncBridge {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::get(&*self.inner, key)))
+    }
+
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::exists(&*self.inner, key)))
+    }
+
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::ttl(&*self.inner, key)))
+    }
+
+    fn len(&self) -> OxCacheResult<u64> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::len(&*self.inner)))
+    }
+
+    fn capacity(&self) -> OxCacheResult<u64> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::capacity(&*self.inner)))
+    }
+
+    fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::stats(&*self.inner)))
+    }
+
+    fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::get_many(&*self.inner, keys)))
+    }
+
+    fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheReader::keys(&*self.inner, pattern)))
+    }
+}
+
+impl SyncCacheWriter for AsyncToSyncBridge {
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| {
+            handle.block_on(CacheWriter::set(&*self.inner, key, value, ttl))
+        })
+    }
+
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::delete(&*self.inner, key)))
+    }
+
+    fn clear(&self) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::clear(&*self.inner)))
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::expire(&*self.inner, key, ttl)))
+    }
+
+    fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheWriter::set_many(&*self.inner, items)))
+    }
+
+    fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| {
+            handle.block_on(CacheWriter::delete_many(&*self.inner, keys))
+        })
+    }
+}
+
+impl SyncCacheConnector for AsyncToSyncBridge {
+    fn health_check(&self) -> OxCacheResult<()> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| handle.block_on(CacheConnector::health_check(&*self.inner)))
+    }
+
+    fn shutdown(&self) {
+        match tokio::runtime::Handle::try_current() {
+            // 多线程 runtime：block_in_place 安全
+            Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+                tokio::task::block_in_place(|| {
+                    handle.block_on(CacheConnector::shutdown(&*self.inner))
+                });
+            }
+            // current_thread runtime 异步上下文：tokio 禁止嵌套阻塞驱动，
+            // 桥接无法执行——计数器 + telemetry warn 后跳过（拒绝必须可观测）；
+            // 与 confers 重载拒绝计数器（8cad1c3）同款默认可见信号
+            Ok(_) => {
+                record_bridge_shutdown_rejected();
+                warn_bridge_shutdown_rejected();
+            }
+            // runtime 之外（sync API 的自然调用场景）：临时 current_thread
+            // runtime 驱动真实 shutdown，不做静默跳过（moka sync_block_on
+            // 的 Err(_) 分支同款兜底）
+            Err(_) => {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to create temporary runtime for bridge shutdown");
+                rt.block_on(CacheConnector::shutdown(&*self.inner));
+            }
+        }
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        CacheConnector::backend_kind(&*self.inner)
+    }
+
+    // 探测语义须诚实：inner 的 async 原子面在场才广告同步原子能力，
+    // 桥接自身不虚构能力（调用路径以 NotSupported 兜底）
+    fn as_sync_atomic_writer(&self) -> Option<&dyn SyncAtomicCacheWriter> {
+        if self.inner.as_atomic_writer().is_some() {
+            Some(self)
+        } else {
+            None
+        }
+    }
+}
+
+// 同步面三子 trait 齐备，SyncCacheBackend 由 blanket 自动提供
+
+impl SyncAtomicCacheWriter for AsyncToSyncBridge {
+    fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| {
+            handle.block_on(match self.inner.as_atomic_writer() {
+                Some(w) => w.incr(key, delta, ttl),
+                None => {
+                    return Err(OxCacheError::NotSupported(
+                        "the wrapped async backend does not support atomic increment".to_string(),
+                    ));
+                }
+            })
+        })
+    }
+
+    fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| {
+            handle.block_on(match self.inner.as_atomic_writer() {
+                Some(w) => w.compare_and_swap(key, expected, new, ttl),
+                None => {
+                    return Err(OxCacheError::NotSupported(
+                        "the wrapped async backend does not support atomic compare-and-swap"
+                            .to_string(),
+                    ));
+                }
+            })
+        })
+    }
+
+    fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        let handle = multi_thread_bridge_handle()?;
+        tokio::task::block_in_place(|| {
+            handle.block_on(match self.inner.as_atomic_writer() {
+                Some(w) => w.set_if_absent(key, value, ttl),
+                None => {
+                    return Err(OxCacheError::NotSupported(
+                        "the wrapped async backend does not support atomic set-if-absent"
+                            .to_string(),
+                    ));
+                }
+            })
+        })
+    }
+}
+
+/// current_thread runtime 下桥接 shutdown 无法执行的计数（metrics feature：
+/// 默认预设可见；与 confers 重载拒绝计数器同款机制）
+#[cfg(feature = "metrics")]
+#[inline]
+fn record_bridge_shutdown_rejected() {
+    crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS
+        .increment_counter("oxcache_bridge_shutdown_rejected_total", 1);
+}
+
+#[cfg(not(feature = "metrics"))]
+#[inline]
+fn record_bridge_shutdown_rejected() {}
+
+/// 同上场景的 telemetry 增强信号（telemetry feature 下 tracing warn）
+#[cfg(feature = "telemetry")]
+#[inline]
+fn warn_bridge_shutdown_rejected() {
+    tracing::warn!(
+        target = "oxcache::backend",
+        "async→sync bridge shutdown skipped: cannot nest a blocking driver \
+         inside a current_thread runtime"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn warn_bridge_shutdown_rejected() {}
 
 #[cfg(test)]
 mod tests {
@@ -1509,6 +1804,8 @@ mod tests {
         assert!(glob_match("*world", "helloworld"));
         assert!(glob_match("he*ld", "helloworld"));
         assert!(!glob_match("he*ld", "hello"));
+        // 尾星跨 / 匹配
+        assert!(glob_match("prefix*", "prefix/with/slash"));
     }
 
     #[test]
@@ -1545,7 +1842,130 @@ mod tests {
         assert!(glob_match("cache/*", "cache/item"));
         assert!(glob_match("*/*", "a/b"));
         assert!(glob_match("a*b*c", "a/b/c"));
+        assert!(glob_match("a*b*c", "aXbYc"));
+        assert!(!glob_match("a*b*c", "aXbY"));
+        // 字面斜杠语义钉子：`cache/*` 的 / 必须逐字匹配（无斜杠文本不匹配）
         assert!(!glob_match("cache/*", "cache"));
-        assert!(glob_match("prefix*", "prefix/with/slash"));
+    }
+
+    // ========================================================================
+    // AsyncToSyncBridge —— 诚实探测与原子桥接臂
+    // ========================================================================
+
+    /// current_thread runtime 内桥接 shutdown 无法嵌套驱动：跳过并计数
+    /// `oxcache_bridge_shutdown_rejected_total`（默认预设可见的拒绝信号）。
+    #[tokio::test]
+    #[cfg(feature = "metrics")]
+    // delta 断言依赖全局计数器窗口期不被清零，须与重置全局指标的串行测试互斥
+    #[serial_test::serial]
+    async fn bridge_shutdown_inside_current_thread_runtime_counts_rejection() {
+        let before = dynamic_counter("oxcache_bridge_shutdown_rejected_total");
+
+        let bridge = AsyncToSyncBridge::new(Arc::new(MockBackend::new("bridge-skip", 50, false)));
+        bridge.shutdown();
+
+        assert!(
+            dynamic_counter("oxcache_bridge_shutdown_rejected_total") > before,
+            "shutdown rejection inside current_thread runtime must be counted"
+        );
+    }
+
+    /// 读取 unified 动态计数器快照（缺失视为 0）；metrics-only 依赖随唯一
+    /// 调用者的 feature 门控同步缺席
+    #[cfg(feature = "metrics")]
+    fn dynamic_counter(key: &str) -> u64 {
+        use crate::infra::metrics::unified::MetricValue;
+        crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS
+            .get_dynamic_metrics()
+            .get(key)
+            .and_then(|v| match v {
+                MetricValue::Counter(c) => Some(*c),
+                _ => None,
+            })
+            .unwrap_or(0)
+    }
+
+    /// inner 有 async 原子面（MockBackend as_atomic_writer→Some）：桥接广告
+    /// 同步原子能力且 incr 真实走通（block_in_place + block_on 阻塞路径）。
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bridge_advertises_sync_atomic_when_inner_has_async_atomic() {
+        let bridge = AsyncToSyncBridge::new(Arc::new(MockBackend::new("bridge-atomic", 50, false)));
+        // as_atomic_writer 探测在 dyn 层（&dyn CacheBackend）执行
+        assert!(bridge.as_sync_atomic_writer().is_some());
+
+        let writer: &dyn SyncAtomicCacheWriter = bridge.as_sync_atomic_writer().unwrap();
+        assert_eq!(writer.incr("bridge:counter", 5, None).unwrap(), 5);
+        assert_eq!(writer.incr("bridge:counter", 7, None).unwrap(), 12);
+        assert!(
+            writer
+                .set_if_absent("bridge:cas", b"v".to_vec(), None)
+                .unwrap()
+        );
+        assert!(
+            !writer
+                .set_if_absent("bridge:cas", b"w".to_vec(), None)
+                .unwrap()
+        );
+        assert!(
+            writer
+                .compare_and_swap("bridge:cas", Some(b"v"), b"v2".to_vec(), None)
+                .unwrap()
+        );
+    }
+
+    /// inner 无 async 原子面（DashMapMemoryBackend 用默认 as_atomic_writer→None）：
+    /// 桥接诚实返回 None，原子方法以 NotSupported 兜底——探测误写为无条件
+    /// Some(self) 时本测试显性失败。
+    #[cfg(feature = "memory")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bridge_hides_sync_atomic_when_inner_lacks_async_atomic() {
+        let dashmap = crate::backend::DashMapMemoryBackend::builder().build();
+        let bridge = AsyncToSyncBridge::new(Arc::new(dashmap));
+
+        let connector: &dyn SyncCacheConnector = &bridge;
+        assert!(
+            connector.as_sync_atomic_writer().is_none(),
+            "inner without an async atomic face must not be advertised as sync-atomic"
+        );
+
+        // 兜底路径：Cache::incr_sync 的探测链会因 None 而 NotSupported；
+        // 此处额外锁 method 级 NotSupported（绕过探测直接调用的防御分支）
+        let atomic_bridge: &dyn SyncAtomicCacheWriter = &bridge;
+        let err = atomic_bridge.incr("dashmap:counter", 1, None).unwrap_err();
+        assert!(
+            matches!(err, OxCacheError::NotSupported(_)),
+            "atomic fallback must be NotSupported, got {err:?}"
+        );
+    }
+
+    /// shutdown 在 runtime 之外真实执行（临时 current_thread runtime 兜底）：
+    /// 经桥接驱动 inner shutdown 而非静默跳过。
+    #[test]
+    fn bridge_shutdown_executes_outside_runtime() {
+        let bridge =
+            AsyncToSyncBridge::new(Arc::new(MockBackend::new("bridge-shutdown", 50, false)));
+        // 无返回值可断言：不 panic 即为执行成功（MockBackend shutdown 为 no-op，
+        // 本测试锁定的是「不再因缺 runtime 而拒绝」的路径）
+        bridge.shutdown();
+    }
+
+    /// Cache::incr_sync 端到端经桥接：backend_arc 注入的 async 原子面后端在
+    /// sync_mode 下经探针呈现同步原子能力并返回正确结果。
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn cache_incr_sync_end_to_end_via_bridge() {
+        let cache = crate::cache::CacheBuilder::<String, i64>::default()
+            .backend_arc(Arc::new(MockBackend::new("bridge-e2e", 100, false)))
+            .sync_mode(true)
+            .build_sync()
+            .unwrap();
+
+        let value = cache
+            .incr_sync(&"e2e:counter".to_string(), 21, None)
+            .unwrap();
+        assert_eq!(value, 21);
+        let value = cache
+            .incr_sync(&"e2e:counter".to_string(), 21, None)
+            .unwrap();
+        assert_eq!(value, 42);
     }
 }

@@ -1256,29 +1256,79 @@ async fn cfg003_ttl_tti_combo_accepted() {
     assert!(cache.get(&"k".to_string()).await.unwrap().is_some());
 }
 
-/// CFG-004: sync_mode(true) + backend_arc() returns NotSupported.
+/// CFG-004: sync_mode(true) + backend_arc() 经 AsyncToSyncBridge 桥出 sync
+/// API（多线程 runtime 内可用、阻塞语义）；runtime 之外逐调用显性
+/// NotSupported 而非 panic，async API 不受影响。
 #[cfg(feature = "memory")]
-#[tokio::test]
-async fn cfg004_sync_mode_with_backend_arc_returns_not_supported() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cfg004_sync_mode_with_backend_arc_bridges_sync_api() {
     use oxcache::MokaMemoryBackend;
 
     let backend: Arc<dyn oxcache::backend::CacheBackend> = Arc::new(MokaMemoryBackend::new());
 
-    let result: Result<Cache<String, User>, _> = Cache::builder()
+    let cache: Cache<String, User> = Cache::builder()
         .sync_mode(true)
         .backend_arc(backend)
         .build()
-        .await;
+        .await
+        .expect("sync_mode + backend_arc builds via AsyncToSyncBridge");
 
-    match result {
-        Err(oxcache::OxCacheError::NotSupported(msg)) => {
-            assert!(
-                msg.contains("sync_mode") && msg.contains("backend_arc"),
-                "error should explain the incompatibility: {msg}"
-            );
-        }
-        other => panic!("expected NotSupported for sync_mode + backend_arc, got {other:?}"),
-    }
+    // 桥接 sync 面读写一致（多线程 runtime 内 block_in_place 合法）
+    cache
+        .set_sync(&"cfg004".to_string(), &User::new(1, "v1"))
+        .expect("bridged set_sync");
+    assert_eq!(
+        cache.get_sync(&"cfg004".to_string()).unwrap(),
+        Some(User::new(1, "v1"))
+    );
+
+    // async 面直连后端本体，与 sync 面互通
+    cache
+        .set(&"cfg004".to_string(), &User::new(2, "v2"))
+        .await
+        .expect("async set");
+    assert_eq!(
+        cache.get_sync(&"cfg004".to_string()).unwrap(),
+        Some(User::new(2, "v2"))
+    );
+}
+
+/// CFG-004（拒绝分支）：桥接 sync 面在 runtime 之外逐调用显性
+/// `Err(NotSupported)`（`block_in_place` 不可用），async API 照常工作。
+#[cfg(feature = "memory")]
+#[test]
+fn cfg004_bridged_sync_outside_runtime_is_rejected_per_call() {
+    use oxcache::MokaMemoryBackend;
+
+    let backend: Arc<dyn oxcache::backend::CacheBackend> = Arc::new(MokaMemoryBackend::new());
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .build()
+        .expect("runtime");
+    let cache: Cache<String, User> = rt
+        .block_on(async {
+            Cache::builder()
+                .sync_mode(true)
+                .backend_arc(backend)
+                .build()
+                .await
+        })
+        .expect("build");
+
+    let sync_result = cache.get_sync(&"cfg004-off".to_string());
+    assert!(
+        matches!(sync_result, Err(oxcache::OxCacheError::NotSupported(_))),
+        "bridged sync outside a runtime must fail loudly per call, got {sync_result:?}"
+    );
+
+    let async_value = rt.block_on(async {
+        cache
+            .set(&"cfg004-off".to_string(), &User::new(3, "v3"))
+            .await
+            .expect("async set");
+        cache.get(&"cfg004-off".to_string()).await.unwrap()
+    });
+    assert_eq!(async_value, Some(User::new(3, "v3")));
 }
 
 /// CFG-006: ChainCache backfill enable/disable toggle.

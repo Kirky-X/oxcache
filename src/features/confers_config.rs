@@ -104,6 +104,8 @@ pub struct OxcacheConfig {
     pub serialization_format: Option<String>,
     /// 连接池大小（Redis / Dragonfly 后端消费，缺省 8）
     pub connection_pool_size: Option<usize>,
+    /// R9 指标 service 维度标签（`None` = 未设置；空串在 validate 期显性拒绝）
+    pub service_name: Option<String>,
     /// 熔断参数
     pub circuit_breaker: CircuitBreakerSettings,
 }
@@ -127,6 +129,7 @@ impl std::fmt::Debug for OxcacheConfig {
             .field("disk_path", &self.disk_path)
             .field("serialization_format", &self.serialization_format)
             .field("connection_pool_size", &self.connection_pool_size)
+            .field("service_name", &self.service_name)
             .field("circuit_breaker", &self.circuit_breaker)
             .finish()
     }
@@ -147,6 +150,7 @@ impl Default for OxcacheConfig {
             disk_path: None,
             serialization_format: None,
             connection_pool_size: None,
+            service_name: None,
             circuit_breaker: CircuitBreakerSettings::default(),
         }
     }
@@ -208,6 +212,9 @@ impl OxcacheConfig {
         }
         if let Some(v) = get_string(connector, "cache.serialization_format").await? {
             cfg.serialization_format = Some(v);
+        }
+        if let Some(v) = get_string(connector, "cache.service_name").await? {
+            cfg.service_name = Some(v);
         }
         Ok(cfg)
     }
@@ -327,6 +334,7 @@ impl crate::config::CacheConfig {
             circuit_breaker_reset_timeout: Some(Duration::from_millis(
                 config.circuit_breaker.recovery_timeout_ms,
             )),
+            service_name: config.service_name.clone(),
         })
     }
 }
@@ -573,6 +581,10 @@ mod tests {
             ),
             ("cache.connection_pool_size", ConfigValue::U64(16)),
             (
+                "cache.service_name",
+                ConfigValue::String("r9-confers".into()),
+            ),
+            (
                 "cache.circuit_breaker.failure_threshold",
                 ConfigValue::U64(9),
             ),
@@ -601,6 +613,7 @@ mod tests {
         assert_eq!(cfg.redis_url.as_deref(), Some("redis://cfg:6379"));
         assert_eq!(cfg.serialization_format.as_deref(), Some("postcard"));
         assert_eq!(cfg.connection_pool_size, Some(16));
+        assert_eq!(cfg.service_name.as_deref(), Some("r9-confers"));
         assert_eq!(cfg.circuit_breaker.failure_threshold, 9);
         assert_eq!(cfg.circuit_breaker.recovery_timeout_ms, 45_000);
     }
@@ -686,6 +699,7 @@ mod tests {
             disk_path: Some("/tmp/cfg.redb".into()),
             serialization_format: Some("bincode".into()),
             connection_pool_size: Some(16),
+            service_name: Some("r9-confers-unified".into()),
             circuit_breaker: CircuitBreakerSettings {
                 failure_threshold: 7,
                 recovery_timeout_ms: 25_000,
@@ -702,6 +716,7 @@ mod tests {
         assert_eq!(unified.metrics_enabled, Some(false));
         assert_eq!(unified.disk_path.as_deref(), Some("/tmp/cfg.redb"));
         assert_eq!(unified.connection_pool_size, Some(16));
+        assert_eq!(unified.service_name.as_deref(), Some("r9-confers-unified"));
         // 字段存原始串，解析在 validate/apply 处显性完成
         assert_eq!(unified.serialization_format.as_deref(), Some("bincode"));
         assert_eq!(unified.circuit_breaker_failure_threshold, Some(7));

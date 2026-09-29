@@ -264,8 +264,7 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 > `.backend_arc(Arc::new(...))` 插入 `RedisBackend` 或其他后端。
 
 **默认 Moka 路径**（未调用 `backend_arc` 时）：使用给定的 `capacity`/`ttl`/`tti`
-构建 `MokaMemoryBackend`。支持 `sync_mode(true)` 的配置为：默认 Moka 路径，
-或 `sync_backend_arc(...)` 注入的原生同步后端（Moka / DashMap 等）。
+构建 `MokaMemoryBackend`。`sync_mode(true)` 的三路配置见「同步 API 与显式后端」。
 
 **示例：**
 
@@ -294,16 +293,19 @@ let cache: Cache<String, String> = Cache::builder()
     .await?;
 ```
 
-**同步 API 与显式后端：** `sync_mode(true)` 支持两种配置——默认 Moka 后端，或
-`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连，
-异步 API 经 `SyncBackendAdapter` 门面呈现）。`backend_arc(...)` 只携带 async 面
-（具体类型的同步实现已被擦除），与 `sync_mode(true)` 组合仍返回
-`Err(OxCacheError::NotSupported)`。
+**同步 API 与显式后端：** `sync_mode(true)` 支持三种配置——默认 Moka 后端（原生
+同步，运行时无关）；`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步
+后端（同步 API 直连，异步 API 经 `SyncBackendAdapter` 门面呈现）；以及
+`backend_arc(Arc<dyn CacheBackend>)`（具体类型的同步实现已被擦除，sync API 经通用
+`AsyncToSyncBridge` 桥出——每个同步调用阻塞于 async 面，**要求调用时处于多线程
+Tokio runtime**，runtime 之外或 current_thread runtime 上逐调用返回
+`Err(OxCacheError::NotSupported)`）。需要运行时无关 sync API 的内存型后端请改用
+`sync_backend_arc` 注入其原生同步面。
 
-> **⚠️ 阻塞警告：** `SyncBackendAdapter` 的 async 方法同步完成——包装
-> `RedisBackend` 等**网络型**后端（其同步面经 `block_in_place` 桥接）时，每次
-> async API 调用都会阻塞一个 executor 线程，持续负载下将饿死 runtime。
-> 网络型后端必须经 `backend_arc(...)` 注入并走 async API；内存型
+> **⚠️ 阻塞警告：** 两条路径存在阻塞语义——`SyncBackendAdapter` 的 async 方法
+> 同步完成（包装 `RedisBackend` 等网络型同步后端时每次 async API 调用阻塞一个
+> executor 线程）；`AsyncToSyncBridge` 的 sync 方法阻塞于 async 面（网络型后端
+> 亦然）。网络型后端的推荐用法：经 `backend_arc(...)` 注入并走 async API；内存型
 > （Moka / DashMap）不受影响。
 
 ## 🔌 后端层
@@ -789,6 +791,14 @@ let json_text = export_json_format()?;
 计数器（L1/L2 命中/未命中、操作计数器）；标准 exposition 格式导出经
 `export_prometheus_standard()`。
 
+**per-service 维度（R9，默认关闭）**：builder 上显式 `.service_name("orders")`
+后，该缓存的操作计数附加 `service` 标签——`export_prometheus_standard()`
+出现 `oxcache_service_operations_total{service="orders"}` 行，JSON 导出
+（`export_json_format` / `snapshot()`）出现 `service_operations` 段；标签
+基数上限 `MetricsConfig::max_service_labels`（默认 64），超限归因计入
+`oxcache_service_labels_overflow_total`。未设置时导出与既有格式逐字节兼容；
+显式 `.metrics(...)` 注入优先于 `service_name`。
+
 ### 事件发射（`EventPublisher`）
 
 Oxcache 通过 `EventPublisher` trait 提供结构化事件发射机制。
@@ -856,6 +866,7 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 | `OXCACHE_CONNECTION_POOL_SIZE` | usize | `connection_pool_size` | `redis`/`dragonfly` 构建时消费（缺省 8） |
 | `OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | u64 | `circuit_breaker_failure_threshold` | `redis` 构建时消费 |
 | `OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` | u64（毫秒） | `circuit_breaker_reset_timeout` | `redis` 构建时消费 |
+| `OXCACHE_SERVICE_NAME` | 字符串 | `service_name` | metrics 构建时消费（R9 service 维度；空串显性拒绝） |
 
 未设置的键回落底层构建器默认（零行为漂移）；解析失败与「键已设置但对应 feature
 未启用」均显性报错（附变量名与原始值），布尔值接受 `true/1/yes/on` 与
@@ -868,7 +879,8 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 的 `capacity`/`default_ttl_ms` 内置默认（10000 / 60000ms），confers 通路映射后
 恒为已设置值——即使未配置对应键，也会以该默认覆盖底层构建器默认（与 env 通路
 的「未设置 = 零行为漂移」不同）。`OXCACHE_SYNC_MODE` 同样适用于 confers 通路
-的 `cache.sync_mode`：启用后不得再配置 `cache.backend`。
+的 `cache.sync_mode`：与 `cache.backend` 可组合（配置后端的 sync API 经
+`AsyncToSyncBridge` 桥出，要求调用时处于多线程 runtime）。
 
 ## 🚨 错误处理
 

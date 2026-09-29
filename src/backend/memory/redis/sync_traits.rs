@@ -7,7 +7,7 @@ use crate::backend::interface::{
     SyncAtomicCacheWriter, SyncCacheConnector, SyncCacheReader, SyncCacheWriter,
 };
 use crate::backend::{AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter};
-use crate::error::{OxCacheError, OxCacheResult};
+use crate::error::OxCacheResult;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -29,17 +29,7 @@ impl RedisBackend {
     /// ensure they are NOT inside an async task on the same runtime when invoking
     /// sync methods. If in doubt, use the async API instead.
     pub(crate) fn multi_thread_handle() -> OxCacheResult<tokio::runtime::Handle> {
-        let handle = tokio::runtime::Handle::try_current().map_err(|e| {
-            OxCacheError::NotSupported(format!("sync API requires a Tokio runtime: {}", e))
-        })?;
-        if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
-            return Err(OxCacheError::NotSupported(
-                "sync API requires a multi-thread runtime; \
-                 block_in_place is unavailable on current_thread runtime"
-                    .to_string(),
-            ));
-        }
-        Ok(handle)
+        crate::backend::interface::multi_thread_bridge_handle()
     }
 }
 
