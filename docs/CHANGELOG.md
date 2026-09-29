@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **统一配置中枢 `CacheConfig`**：单一结构（`oxcache::config::CacheConfig`，`config` 模块转公开）承载缓存构建全量参数，三条配置通路——程序化 builder / `OXCACHE_*` 环境变量（`try_from_env()`，14 键：capacity/TTL/TTI/空值 TTL/抖动因子/sync_mode/backend/指标/序列化格式/redis_url/disk_path/连接池/熔断阈值与恢复超时）/ confers 配置源（`config-confers` 下 `try_from_confers()`，`OxcacheConfig` 扩展 10 个 Option 键并按快照映射）；`validate()` 一致性检查覆盖值域（容量非零且不超平台 `usize`、TTL 非零、连接池与熔断阈值非零）、组合约束（Redis/Dragonfly 必填 redis_url、Disk 必填 disk_path、sync_mode 与显式 backend 互斥——冲突在构建期必败，此处左移报错）与 feature 可用性（未启用 `metrics`/`serialization`/后端 feature 时配置对应键显性报错）；`apply_to_cache_builder()` / `build_backend()` 落地到既有构建链（backend 解析为实例注入 `backend_arc`）；env 未设置的键保持 `None`（零行为漂移），解析失败与 feature 缺失均显性报错（附变量名与原始值）；confers 通路同轮消除两处静默截断——超界熔断阈值与连接池大小由钳位/丢弃改为显性报错，热更新重载被拒时保留旧快照并经 telemetry warn 可观测；`redis_url` 的 `Debug` 输出脱敏
+
 ### 修复
 
 - **Redis TTL 毫秒化**：亚秒 TTL（< 1s）此前被秒口径校验（`as_secs() == 0` 即拒绝）静默拒之门外，导致 `set` 不写 L2、`expire` 完全不生效；`RedisCommand` 新增 `PExpire`，`set`/`set_many` 由 SETEX 改为 `SET key value PX <ms>`、`expire` 改为 `PEXPIRE`、`set_if_absent` 改 `SET NX PX`，`incr`/`compare_and_swap` Lua 脚本内的 EXPIRE/SET EX 同步切换（Redis/Valkey ≥ 2.6.12：SET 的 PX/NX 选项自 2.6.12 引入，构成命令面下限；PEXPIRE 自 2.6.0）；校验改毫秒口径（`as_millis() == 0` 才拒绝，u128 比较防截断误放行），`set_many_pipeline` 与 `CacheWriter::set_many` 同根因一并修复

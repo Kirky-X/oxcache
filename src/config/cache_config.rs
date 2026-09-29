@@ -27,6 +27,7 @@
 //! | `OXCACHE_SERIALIZATION_FORMAT` | 枚举串 | `serialization_format` |
 //! | `OXCACHE_REDIS_URL` | 字符串 | `redis_url` |
 //! | `OXCACHE_DISK_PATH` | 字符串 | `disk_path` |
+//! | `OXCACHE_CONNECTION_POOL_SIZE` | usize | `connection_pool_size`（≥ 1） |
 //! | `OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | u64 | `circuit_breaker_failure_threshold` |
 //! | `OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` | u64（毫秒） | `circuit_breaker_reset_timeout` |
 //!
@@ -262,8 +263,8 @@ impl CacheConfig {
     ///
     /// 覆盖值域约束、参数组合约束与当前构建 feature 可用性三类：
     ///
-    /// - 值域：`capacity`/`circuit_breaker_failure_threshold` 必须 > 0 且
-    ///   `capacity` 不得超出目标平台 `usize` 范围（跨平台防静默截断）；
+    /// - 值域：`capacity`/`circuit_breaker_failure_threshold`/`connection_pool_size`
+    ///   必须 > 0 且 `capacity` 不得超出目标平台 `usize` 范围（跨平台防静默截断）；
     ///   `ttl`/`tti`/`null_cache_ttl` 不得为 `Duration::ZERO`（永不过期用 `None` 表达）；
     /// - 组合：`backend` ∈ {Redis, Valkey, Dragonfly} 时 `redis_url` 必填非空；
     ///   `backend == Disk` 时 `disk_path` 必填非空；`sync_mode == Some(true)`
@@ -278,6 +279,10 @@ impl CacheConfig {
     ///   `Dragonfly` 需 `dragonfly`，`Disk` 需 `disk`，`Aerospike` 需 `aerospike`；
     ///   `Valkey`（无后端实现）、`Chain`（经 `ChainBuilder` 组装）、`Unknown`
     ///   一律不可经本配置构建。
+    ///
+    /// 来源说明：本检查对 env/confers/程序化 builder 三条通路共用，无法得知
+    /// 配置实际来源，错误消息只报字段名，不伪装成环境变量名；env 与 confers
+    /// 解析层的报错各自携带 `OXCACHE_*` 变量名 / `cache.*` 键名的精确定位。
     pub fn validate(&self) -> OxCacheResult<()> {
         // backend 原始串在此统一解析；kind 级约束与 feature 可用性检查见下。
         // 窄 feature 组合下 `backend` 模块不编译，kind 解析不可用——配置了
@@ -287,20 +292,20 @@ impl CacheConfig {
             if let Some(raw) = self.backend.as_deref() {
                 let _ = raw;
                 return Err(OxCacheError::InvalidInput(format!(
-                    "OXCACHE_BACKEND={raw:?} requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build"
+                    "backend {raw:?} requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build"
                 )));
             }
         }
         #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
         let parsed_backend = match self.backend.as_deref() {
             None => None,
-            Some(raw) => Some(parse_backend_kind("OXCACHE_BACKEND", raw)?),
+            Some(raw) => Some(parse_backend_kind("backend", raw)?),
         };
         #[cfg(any(feature = "serialization", feature = "full"))]
         {
             // 序列化格式解析：json 恒可用，bincode/postcard 缺 feature 时显性报错
             if let Some(raw) = self.serialization_format.as_deref() {
-                parse_serialization_format("OXCACHE_SERIALIZATION_FORMAT", raw)?;
+                parse_serialization_format("serialization_format", raw)?;
             }
         }
         if let Some(capacity) = self.capacity {
@@ -346,6 +351,12 @@ impl CacheConfig {
         if self.circuit_breaker_failure_threshold == Some(0) {
             return Err(OxCacheError::InvalidInput(
                 "circuit_breaker_failure_threshold must be greater than 0".to_string(),
+            ));
+        }
+        if self.connection_pool_size == Some(0) {
+            return Err(OxCacheError::InvalidInput(
+                "connection_pool_size must be greater than 0 (drop the key to use the backend default)"
+                    .to_string(),
             ));
         }
 
@@ -465,7 +476,7 @@ impl CacheConfig {
         self.validate()?;
         let backend = match self.backend.as_deref() {
             None => return Ok(None),
-            Some(raw) => parse_backend_kind("OXCACHE_BACKEND", raw)?,
+            Some(raw) => parse_backend_kind("backend", raw)?,
         };
         use crate::backend::BackendKind;
         let built: std::sync::Arc<dyn crate::backend::CacheBackend> = match backend {
@@ -614,7 +625,7 @@ impl CacheConfig {
         }
         #[cfg(any(feature = "serialization", feature = "full"))]
         if let Some(raw) = self.serialization_format.as_deref() {
-            let format = parse_serialization_format("OXCACHE_SERIALIZATION_FORMAT", raw)?;
+            let format = parse_serialization_format("serialization_format", raw)?;
             builder = builder.serialization_format(format);
         }
         if let Some(backend) = self.build_backend().await? {
@@ -772,7 +783,9 @@ fn parse_bool_value(var: &str, raw: &str) -> OxCacheResult<bool> {
 
 /// 解析后端类型字符串（大小写不敏感）
 ///
-/// 无法识别的值显性报错；env 与 confers 两条配置通路共用同一映射。
+/// 无法识别的值显性报错；env 解析与 validate 一致性检查共用同一映射。
+/// `var` 为定位标签：env 通路传 `OXCACHE_BACKEND`，validate 无法区分配置
+/// 来源（env/confers/builder），只传字段名 `backend`，不伪装来源。
 /// 定义随 `backend` 模块门控：lib.rs 以 cfg(any(memory,redis,disk)) 门控整个
 /// `backend` 模块（含 [`BackendKind`](crate::backend::BackendKind)），窄
 /// feature 组合下该路径不存在，本函数与 `backend_kind` 入口同步门控。
@@ -793,7 +806,7 @@ pub(crate) fn parse_backend_kind(
         "disk" => crate::backend::BackendKind::Disk,
         _ => {
             return Err(OxCacheError::InvalidInput(format!(
-                "invalid backend value for {var}: {raw:?} (expected one of moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk)"
+                "invalid value for {var}: {raw:?} (expected one of moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk)"
             )));
         }
     };
@@ -801,6 +814,9 @@ pub(crate) fn parse_backend_kind(
 }
 
 /// 解析序列化格式字符串（大小写不敏感；feature 缺失时显性报错）
+///
+/// `var` 为定位标签，语义同 [`parse_backend_kind`]：env 传变量名，
+/// validate 传字段名（来源中立）。
 #[cfg(any(feature = "serialization", feature = "full"))]
 pub(crate) fn parse_serialization_format(
     var: &str,
@@ -813,16 +829,16 @@ pub(crate) fn parse_serialization_format(
         "bincode" => Ok(SerializationFormat::Bincode),
         #[cfg(not(feature = "serde-bincode"))]
         "bincode" => Err(OxCacheError::InvalidInput(format!(
-            "serialization format 'bincode' for {var} requires the `serde-bincode` feature, which is not enabled in this build"
+            "serialization format 'bincode' requires the `serde-bincode` feature, which is not enabled in this build (field: {var})"
         ))),
         #[cfg(feature = "postcard")]
         "postcard" => Ok(SerializationFormat::Postcard),
         #[cfg(not(feature = "postcard"))]
         "postcard" => Err(OxCacheError::InvalidInput(format!(
-            "serialization format 'postcard' for {var} requires the `postcard` feature, which is not enabled in this build"
+            "serialization format 'postcard' requires the `postcard` feature, which is not enabled in this build (field: {var})"
         ))),
         _ => Err(OxCacheError::InvalidInput(format!(
-            "invalid serialization format for {var}: {raw:?} (expected one of json/bincode/postcard)"
+            "invalid serialization format (field {var}): {raw:?} (expected one of json/bincode/postcard)"
         ))),
     }
 }
@@ -846,7 +862,6 @@ impl CacheConfig {
 mod tests {
     use super::*;
     use serial_test::serial;
-    use std::sync::Arc;
 
     /// try_from_env 读取的全部环境变量键（测试前置清理，防环境污染）
     const ALL_ENV_KEYS: &[&str] = &[
@@ -934,6 +949,8 @@ mod tests {
         set_env("OXCACHE_NULL_CACHE_TTL_MS", "500");
         set_env("OXCACHE_TTL_JITTER_FACTOR", "0.25");
         set_env("OXCACHE_SYNC_MODE", "true");
+        // 窄组合下 env 层显性拒绝 backend 键（见 env_backend_requires_backend_feature）
+        #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
         set_env("OXCACHE_BACKEND", "redis");
         set_env("OXCACHE_METRICS", "false");
         set_env(KEY_CONNECTION_POOL_SIZE, "16");
@@ -950,6 +967,7 @@ mod tests {
         assert_eq!(config.null_cache_ttl, Some(Duration::from_millis(500)));
         assert_eq!(config.ttl_jitter_factor, Some(0.25));
         assert_eq!(config.sync_mode, Some(true));
+        #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
         assert_eq!(config.backend, Some("redis".to_string()));
         assert_eq!(config.metrics_enabled, Some(false));
         assert_eq!(config.redis_url, Some("redis://127.0.0.1:6379".to_string()));
@@ -1015,13 +1033,39 @@ mod tests {
         }
     }
 
+    // 大小写不敏感解析仅在后端 feature 在场时可达（窄组合下 env 层先行拒绝）
     #[test]
     #[serial]
+    #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     fn env_backend_case_insensitive() {
         clear_all_env_keys();
         set_env("OXCACHE_BACKEND", "DASHMAP");
         let config = CacheConfig::try_from_env().unwrap();
         assert_eq!(config.backend, Some("dashmap".to_string()));
+    }
+
+    // 以下两条仅在窄 feature 组合下运行：对应 feature 在场时 env 层不做拦截
+    #[test]
+    #[serial]
+    #[cfg(not(any(feature = "serialization", feature = "full")))]
+    fn env_serialization_format_requires_feature() {
+        clear_all_env_keys();
+        set_env(KEY_SERIALIZATION_FORMAT, "json");
+        let err = CacheConfig::try_from_env().unwrap_err();
+        assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains("serialization")));
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(not(any(feature = "memory", feature = "redis", feature = "disk")))]
+    fn env_backend_requires_backend_feature() {
+        clear_all_env_keys();
+        set_env(KEY_BACKEND, "moka");
+        let err = CacheConfig::try_from_env().unwrap_err();
+        assert!(
+            matches!(&err, OxCacheError::InvalidInput(m) if m.contains("feature")),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -1066,6 +1110,18 @@ mod tests {
             .validate()
             .unwrap_err();
         assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains("circuit")));
+    }
+
+    #[test]
+    fn validate_rejects_zero_pool_size() {
+        // 与 capacity/threshold 同位次左移：底层 Redis/Dragonfly builder 亦拒 0，
+        // 在此提前拦截使三条配置通路的失败时点一致
+        let err = CacheConfig::builder()
+            .connection_pool_size(0)
+            .build()
+            .validate()
+            .unwrap_err();
+        assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains("connection_pool_size")));
     }
 
     #[test]
@@ -1188,6 +1244,43 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "metrics", feature = "memory"))]
+    fn apply_metrics_disabled_builds_functional_cache() {
+        use crate::cache::CacheBuilder;
+
+        // metrics_enabled=Some(false) 必须真的走到 recorder 注入分支：
+        // Debug 暴露 metrics_injected（dyn recorder 无类型名，判存在即锁定
+        // 分支被触发）；全局指标行为断言受并行测试共享状态干扰，不在此展开
+        let config = CacheConfig::builder()
+            .metrics_enabled(false)
+            .sync_mode(true)
+            .build();
+        let builder = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(async {
+                config
+                    .apply_to_cache_builder(CacheBuilder::<String, String>::default())
+                    .await
+                    .unwrap()
+            });
+        let debug = format!("{builder:?}");
+        assert!(debug.contains("metrics_injected: true"), "{debug}");
+        // build_sync 入口要求 sync_mode(true)，与 metrics 开关互不相干
+        let cache = builder.build_sync().unwrap();
+        cache.set_sync(&"m".to_string(), &"n".to_string()).unwrap();
+        assert_eq!(
+            cache.get_sync(&"m".to_string()).unwrap(),
+            Some("n".to_string())
+        );
+        // 默认构建不注入显式 recorder（沿用全局默认）
+        assert!(
+            !format!("{:?}", CacheBuilder::<String, String>::default())
+                .contains("metrics_injected: true")
+        );
+    }
+
+    #[test]
     fn validate_rejects_unbuildable_backends() {
         // Valkey 无后端实现；Chain 须经 ChainBuilder 组装；Unknown 不可构建
         for raw in ["valkey", "chain", "unknown"] {
@@ -1209,6 +1302,8 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "memory")]
     async fn build_backend_moka_applies_capacity_and_ttl() {
+        use std::sync::Arc;
+
         let config = CacheConfig::builder()
             .capacity(123)
             .ttl(Duration::from_millis(45_000))
@@ -1288,6 +1383,8 @@ mod tests {
     }
 
     #[tokio::test]
+    // 随 build_backend 方法的 backend 模块门控，窄组合下方法与测试同步缺席
+    #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     async fn build_backend_unset_returns_none() {
         let config = CacheConfig::default();
         config.validate().unwrap();
@@ -1295,6 +1392,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     async fn build_backend_chain_rejected() {
         let config = CacheConfig::builder().backend("chain").build();
         match config.build_backend().await {

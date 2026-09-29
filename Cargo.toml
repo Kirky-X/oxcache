@@ -354,6 +354,11 @@ harness = false
 required-features = ["serialization"]
 
 [[bench]]
+name = "metrics_recorder_benchmark"
+harness = false
+required-features = ["metrics"]
+
+[[bench]]
 name = "dashmap_benchmark"
 harness = false
 required-features = ["memory"]

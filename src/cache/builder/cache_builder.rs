@@ -56,6 +56,12 @@ pub struct CacheBuilder<K, V> {
 
 impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // metrics 下披露 recorder 是否已注入：dyn trait 无类型名可打印，
+        // 仅判存在——足以锁定「显式 metrics 配置必须真的走到注入分支」
+        #[cfg(feature = "metrics")]
+        let metrics_injected = self.metrics.is_some();
+        #[cfg(not(feature = "metrics"))]
+        let metrics_injected = false;
         f.debug_struct("CacheBuilder")
             .field("backends_count", &self.backends.len())
             .field("ttl", &self.ttl)
@@ -64,6 +70,7 @@ impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
             .field("sync_mode", &self.sync_mode)
             .field("null_cache_ttl", &self.null_cache_ttl)
             .field("ttl_jitter_factor", &self.ttl_jitter_factor)
+            .field("metrics_injected", &metrics_injected)
             .finish()
     }
 }

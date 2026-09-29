@@ -1139,6 +1139,8 @@ mod tests {
     }
 
     #[test]
+    // 重置全局单例，必须与其它读写全局指标的测试互斥（并行竞态曾致 offload delta 断言偶败）
+    #[serial_test::serial]
     fn test_global_metrics() {
         // Reset global metrics
         convenience::reset();
@@ -1433,6 +1435,8 @@ mod tests {
     }
 
     #[test]
+    // 同 test_global_metrics：重置全局单例，须串行
+    #[serial_test::serial]
     fn test_convenience_export_json() {
         // Covers lines 613-614 (convenience::export_json)
         convenience::reset();

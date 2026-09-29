@@ -340,6 +340,8 @@ mod tests {
 
     #[cfg(feature = "metrics")]
     #[tokio::test]
+    // delta 断言依赖全局计数器窗口期不被清零，须与重置全局指标的串行测试互斥
+    #[serial_test::serial]
     async fn metrics_counters_record_lifecycle() {
         let mgr = manager();
         let metrics = &crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
@@ -376,6 +378,9 @@ mod tests {
     }
 
     #[tokio::test]
+    // 与 metrics_counters_record_lifecycle 同规则：cfg(metrics) 下的 delta 断言
+    // 依赖全局计数器窗口期不被清零，须与重置全局指标的串行测试互斥
+    #[serial_test::serial]
     async fn cancel_policy_counts_timeout() {
         let mgr = OffloadManager::with_policy(2, TimeoutPolicy::Cancel(Duration::from_millis(30)));
         #[cfg(feature = "metrics")]

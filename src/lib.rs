@@ -270,7 +270,10 @@ pub use features::encryption;
 pub mod batch;
 
 // Infrastructure module (metrics, serialization, telemetry, etc.)
+// serialization 单开也须可用：SerializationFormat 属于该特性的公开类型，
+// config 中枢在其下引用（与 config 模块全组合可用承诺一致）
 #[cfg(any(
+    feature = "serialization",
     feature = "metrics",
     feature = "memory",
     feature = "redis",

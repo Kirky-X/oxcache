@@ -21,6 +21,7 @@
 //! | `cache.redis_url` | string | 未设置 |
 //! | `cache.disk_path` | string | 未设置 |
 //! | `cache.serialization_format` | string | 未设置（json/bincode/postcard） |
+//! | `cache.connection_pool_size` | u64 | 未设置（Redis/Dragonfly 消费，底层缺省 8，0 被一致性检查拒绝） |
 //! | `cache.circuit_breaker.failure_threshold` | u64 | 5 |
 //! | `cache.circuit_breaker.recovery_timeout_ms` | u64 | 30000 |
 //!
@@ -154,7 +155,7 @@ impl Default for OxcacheConfig {
 impl OxcacheConfig {
     /// 从 confers [`ConfigConnector`](confers::ConfigConnector) 加载。
     ///
-    /// key 缺失时回落默认值；值类型不匹配时忽略该 key（保守降级）。
+    /// key 缺失时回落默认值；值类型不匹配或数值超出目标类型范围时显性报错。
     pub async fn load_from<C>(connector: &C) -> OxCacheResult<Self>
     where
         C: confers::ConfigConnector,
@@ -168,7 +169,9 @@ impl OxcacheConfig {
             cfg.default_ttl_ms = v;
         }
         if let Some(v) = get_u64(connector, "cache.circuit_breaker.failure_threshold").await? {
-            cfg.circuit_breaker.failure_threshold = u32::try_from(v).unwrap_or(u32::MAX);
+            cfg.circuit_breaker.failure_threshold = u32::try_from(v).map_err(|_| {
+                out_of_range_u64("cache.circuit_breaker.failure_threshold", v, "u32")
+            })?;
         }
         if let Some(v) = get_u64(connector, "cache.circuit_breaker.recovery_timeout_ms").await? {
             cfg.circuit_breaker.recovery_timeout_ms = v;
@@ -198,7 +201,10 @@ impl OxcacheConfig {
             cfg.disk_path = Some(v);
         }
         if let Some(v) = get_u64(connector, "cache.connection_pool_size").await? {
-            cfg.connection_pool_size = usize::try_from(v).ok();
+            cfg.connection_pool_size = Some(
+                usize::try_from(v)
+                    .map_err(|_| out_of_range_u64("cache.connection_pool_size", v, "usize"))?,
+            );
         }
         if let Some(v) = get_string(connector, "cache.serialization_format").await? {
             cfg.serialization_format = Some(v);
@@ -236,6 +242,16 @@ where
             OxCacheError::InvalidInput(format!("confers key '{key}' expects u64, got {v:?}"))
         }),
     }
+}
+
+/// u64 值超出目标整型范围时的显性错误（避免静默钳位/回落）
+///
+/// `target` 携带真实目标类型（如 u32 / usize）：u64→u32 溢出与平台指针宽度
+/// 无关，措辞不预设「窄平台」，防止误导排障方向。
+fn out_of_range_u64(key: &str, value: u64, target: &str) -> OxCacheError {
+    OxCacheError::InvalidInput(format!(
+        "confers key '{key}' value {value} exceeds the {target} range"
+    ))
 }
 
 async fn get_bool<C>(connector: &C, key: &str) -> OxCacheResult<Option<bool>>
@@ -439,8 +455,10 @@ impl ConfersConfigWatcher {
                             listener.on_change(&old_arc, &new_arc);
                         }
                     }
-                    Err(_) => {
-                        // 重载失败：保留旧快照（配置快照永不空窗）
+                    Err(err) => {
+                        // 重载失败：保留旧快照（配置快照永不空窗），
+                        // 拒绝原因必须可观测，禁止静默丢弃坏配置
+                        oxcache_telemetry_config_reload_rejected(&err);
                         continue;
                     }
                 }
@@ -449,13 +467,29 @@ impl ConfersConfigWatcher {
     }
 }
 
+// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
+
+#[cfg(feature = "telemetry")]
+#[inline]
+fn oxcache_telemetry_config_reload_rejected(err: &OxCacheError) {
+    tracing::warn!(
+        target = "oxcache::confers_config",
+        %err,
+        "confers config reload rejected; keeping previous snapshot"
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn oxcache_telemetry_config_reload_rejected(_err: &OxCacheError) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::CacheConfig;
     use confers::{ConfigBus, ConfigChangeEvent, ConfigValue, InMemoryBus, SourceId};
     use confers::{ConfigWriter, new_in_memory};
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::time::Duration;
 
     async fn memory_connector_with_capacity(capacity: u64) -> impl confers::ConfigConnector {
@@ -544,6 +578,44 @@ mod tests {
         conn.set(
             key,
             confers::AnnotatedValue::new(ConfigValue::U64(1), SourceId::default(), key),
+        )
+        .await
+        .unwrap();
+        let err = OxcacheConfig::load_from(&conn).await.unwrap_err();
+        assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains(key)));
+    }
+
+    #[tokio::test]
+    async fn load_from_threshold_overflow_fails_loudly() {
+        let conn = new_in_memory();
+        let key = "cache.circuit_breaker.failure_threshold";
+        conn.set(
+            key,
+            confers::AnnotatedValue::new(
+                ConfigValue::U64(u32::MAX as u64 + 1),
+                SourceId::default(),
+                key,
+            ),
+        )
+        .await
+        .unwrap();
+        let err = OxcacheConfig::load_from(&conn).await.unwrap_err();
+        assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains(key)));
+    }
+
+    // 连接池超界仅在窄指针宽度平台可达（64 位上 u64 与 usize 等宽），测试随平台门控
+    #[cfg(target_pointer_width = "32")]
+    #[tokio::test]
+    async fn load_from_pool_size_overflow_fails_loudly() {
+        let conn = new_in_memory();
+        let key = "cache.connection_pool_size";
+        conn.set(
+            key,
+            confers::AnnotatedValue::new(
+                ConfigValue::U64(usize::MAX as u64 + 1),
+                SourceId::default(),
+                key,
+            ),
         )
         .await
         .unwrap();
@@ -794,6 +866,76 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         assert_eq!(watcher.snapshot().get().capacity, 100, "无关事件不应换装");
+        handle.abort();
+    }
+
+    /// 重载失败：保留旧快照且 watch 任务存活（拒绝原因经 telemetry 上报，
+    /// 不吞事件循环——坏配置被丢弃但必须可观测）
+    #[tokio::test]
+    async fn watch_keeps_snapshot_when_reload_fails() {
+        struct FlakySource {
+            fail: AtomicBool,
+        }
+        #[async_trait::async_trait]
+        impl CacheConfigSource for FlakySource {
+            async fn load(&self) -> OxCacheResult<OxcacheConfig> {
+                if self.fail.load(Ordering::SeqCst) {
+                    Err(OxCacheError::Operation("injected reload failure".into()))
+                } else {
+                    Ok(OxcacheConfig {
+                        capacity: 4321,
+                        ..OxcacheConfig::default()
+                    })
+                }
+            }
+        }
+
+        let source = Arc::new(FlakySource {
+            fail: AtomicBool::new(false),
+        });
+        let bus = Arc::new(InMemoryBus::new());
+        let watcher = Arc::new(ConfersConfigWatcher::new(OxcacheConfig {
+            capacity: 100,
+            ..OxcacheConfig::default()
+        }));
+        let handle = watcher.watch(bus.clone(), source.clone());
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // 先成功换装
+        bus.publish(ConfigChangeEvent::new(
+            "test",
+            "unit-test",
+            vec!["cache.capacity".to_string()],
+            "",
+        ))
+        .await
+        .unwrap();
+        for _ in 0..50 {
+            if watcher.snapshot().get().capacity == 4321 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(watcher.snapshot().get().capacity, 4321);
+
+        // 翻转为失败后发布变更：快照保持旧值，任务不得退出
+        source.fail.store(true, Ordering::SeqCst);
+        bus.publish(ConfigChangeEvent::new(
+            "test",
+            "unit-test",
+            vec!["cache.capacity".to_string()],
+            "",
+        ))
+        .await
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        assert_eq!(
+            watcher.snapshot().get().capacity,
+            4321,
+            "重载失败应保留旧快照"
+        );
+        assert!(!handle.is_finished(), "watch 任务在重载失败后必须存活");
         handle.abort();
     }
 }
