@@ -245,7 +245,8 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
-| `backend_arc` | `(backend: Arc<dyn CacheBackend>) -> Self` | 添加预构建的后端 |
+| `backend_arc` | `(backend: Arc<dyn CacheBackend>) -> Self` | 添加预构建的后端（仅 async 面） |
+| `sync_backend_arc` | `(backend: Arc<dyn SyncCacheBackend>) -> Self` | 添加预构建的**原生同步**后端（配合 `sync_mode(true)` 启用同步 API） |
 | `ttl` | `(ttl: Duration) -> Self` | 缓存条目的默认 TTL |
 | `tti` | `(tti: Duration) -> Self` | 内存后端的默认 TTI（time-to-idle） |
 | `capacity` | `(capacity: u64) -> Self` | 内存后端的容量（默认 10000） |
@@ -263,7 +264,8 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 > `.backend_arc(Arc::new(...))` 插入 `RedisBackend` 或其他后端。
 
 **默认 Moka 路径**（未调用 `backend_arc` 时）：使用给定的 `capacity`/`ttl`/`tti`
-构建 `MokaMemoryBackend`。这是唯一支持 `sync_mode(true)` 的配置。
+构建 `MokaMemoryBackend`。支持 `sync_mode(true)` 的配置为：默认 Moka 路径，
+或 `sync_backend_arc(...)` 注入的原生同步后端（Moka / DashMap 等）。
 
 **示例：**
 
@@ -292,11 +294,11 @@ let cache: Cache<String, String> = Cache::builder()
     .await?;
 ```
 
-**同步 API 限制：** `sync_mode(true)` 与 `backend_arc(...)` 组合使用时
-返回 `Err(OxCacheError::NotSupported)`，因为 stable Rust 不支持
-`Arc<dyn CacheBackend>` 到 `Arc<dyn SyncCacheBackend>` 的上转（缺少 `trait_upcasting`）。
-使用默认 Moka 后端配合 `sync_mode`，或通过 `Cache::with_dependencies` + `set_sync_backend`
-手动接入同步后端。
+**同步 API 与显式后端：** `sync_mode(true)` 支持两种配置——默认 Moka 后端，或
+`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连，
+异步 API 经 `SyncBackendAdapter` 门面呈现）。`backend_arc(...)` 只携带 async 面
+（具体类型的同步实现已被擦除），与 `sync_mode(true)` 组合仍返回
+`Err(OxCacheError::NotSupported)`。
 
 ## 🔌 后端层
 
@@ -568,6 +570,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let v = cache.get_sync(&"k".to_string())?; // Some("v")
     Ok(())
 }
+```
+
+注入自定义同步后端时使用 `sync_backend_arc`（后端以 `Arc<dyn SyncCacheBackend>`
+保存：同步 API 直连，异步 API 经 `SyncBackendAdapter` 门面桥出）：
+
+```rust
+use oxcache::backend::{MokaMemoryBackend, SyncCacheBackend};
+
+let moka = MokaMemoryBackend::builder().capacity(10_000).build();
+let sync_backend: std::sync::Arc<dyn SyncCacheBackend> = std::sync::Arc::new(moka);
+let cache: Cache<String, String> = Cache::builder()
+    .sync_backend_arc(sync_backend)
+    .sync_mode(true)
+    .build_sync()?;
 ```
 
 ### `Cache<K, V>` 上的同步方法

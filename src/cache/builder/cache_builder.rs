@@ -2,15 +2,28 @@
 // SPDX-License-Identifier: MIT
 //! Unified cache builder for single and multi-backend configurations
 
-use crate::backend::CacheBackend;
 #[cfg(feature = "memory")]
 use crate::backend::MokaMemoryBackend;
+use crate::backend::SyncCacheBackend;
+use crate::backend::{CacheBackend, SyncBackendAdapter};
 use crate::cache::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// 注入 builder 的后端槽位：async 一等入口或 sync 一等入口
+///
+/// async/sync 两条 trait 层次无 supertrait 关系，`Arc<dyn SyncCacheBackend>`
+/// 无法呈现为 `Arc<dyn CacheBackend>`（`trait_upcasting` 不适用），故以 enum
+/// 分槽保存；sync 槽位经 [`SyncBackendAdapter`] 门面同时呈现两个面。
+pub(crate) enum BackendSlot {
+    /// `backend_arc()` 注入的 async 面（无 sync 面，类型已擦除）
+    Async(Arc<dyn CacheBackend>),
+    /// `sync_backend_arc()` 注入的原生同步后端（双面经门面呈现）
+    Sync(Arc<dyn SyncCacheBackend>),
+}
 
 /// Unified builder for creating Cache instances
 ///
@@ -19,15 +32,16 @@ use std::time::Duration;
 /// [`ChainCacheBuilder`](crate::cache::ChainCacheBuilder) instead — building
 /// with more than one `backend_arc()` returns `Err(NotSupported)`.
 pub struct CacheBuilder<K, V> {
-    backends: Vec<Arc<dyn CacheBackend>>,
+    backends: Vec<BackendSlot>,
     ttl: Option<Duration>,
     tti: Option<Duration>,
     capacity: Option<u64>,
     /// When true, `build()` wires up `Cache.backend_sync` so the sync API
-    /// (`get_sync`/`set_sync`/...) is usable. Only supported with the default
-    /// Moka backend; combining with `backend_arc()` returns
-    /// `Err(NotSupported)` because `Arc<dyn CacheBackend>` cannot be upcast
-    /// to `Arc<dyn SyncCacheBackend>` in stable Rust (no `trait_upcasting`).
+    /// (`get_sync`/`set_sync`/...) is usable. Supported with the default Moka
+    /// backend and with a native sync backend injected via `sync_backend_arc()`;
+    /// `backend_arc()` only carries the async surface (the concrete sync impl
+    /// is erased behind `Arc<dyn CacheBackend>`), so that combination still
+    /// returns `Err(NotSupported)` by necessity.
     sync_mode: bool,
     /// Null cache TTL for penetration guard.
     null_cache_ttl: Option<Duration>,
@@ -112,8 +126,28 @@ where
     /// Only one backend may be added: calling [`Self::build_sync`] with two or
     /// more backends returns `Err(NotSupported)`. For tiered caching use
     /// [`ChainCacheBuilder`](crate::cache::ChainCacheBuilder).
+    ///
+    /// The handle carries only the async surface — combining this with
+    /// `sync_mode(true)` cannot yield a sync API (the concrete sync impl is
+    /// erased); use [`Self::sync_backend_arc`] for that.
     pub fn backend_arc(mut self, backend: Arc<dyn CacheBackend>) -> Self {
-        self.backends.push(backend);
+        self.backends.push(BackendSlot::Async(backend));
+        self
+    }
+
+    /// Add a pre-built **native sync** backend (sync-first injection)
+    ///
+    /// The backend is stored as `Arc<dyn SyncCacheBackend>`: with
+    /// `sync_mode(true)` the sync API (`get_sync`/`set_sync`/...) calls it
+    /// directly, while the async API reaches it through a
+    /// [`SyncBackendAdapter`] facade whose async methods complete
+    /// synchronously (no runtime required, blocking semantics of the
+    /// underlying sync call). Without `sync_mode(true)` only the async API
+    /// is wired — same contract as the default Moka path.
+    ///
+    /// Only one backend may be added (see [`Self::backend_arc`]).
+    pub fn sync_backend_arc(mut self, backend: Arc<dyn SyncCacheBackend>) -> Self {
+        self.backends.push(BackendSlot::Sync(backend));
         self
     }
 
@@ -261,20 +295,6 @@ where
     /// user-provided backend path are both fully synchronous, so this is
     /// equivalent to [`Self::build`] without an `async` boundary.
     pub fn build_sync(self) -> OxCacheResult<Cache<K, V>> {
-        // sync_mode(true) + backend_arc() is unsupported: Arc<dyn CacheBackend>
-        // cannot be upcast to Arc<dyn SyncCacheBackend> in stable Rust (no
-        // `trait_upcasting` feature). Reject early with a clear message.
-        if self.sync_mode && !self.backends.is_empty() {
-            return Err(OxCacheError::NotSupported(
-                "sync_mode(true) cannot be combined with backend_arc(); \
-                 Arc<dyn CacheBackend> cannot be upcast to Arc<dyn SyncCacheBackend> \
-                 in stable Rust (no trait_upcasting). Use the default Moka backend \
-                 with sync_mode, or construct the Cache manually via \
-                 Cache::new_with_backend + set_sync_backend."
-                    .to_string(),
-            ));
-        }
-
         if self.backends.is_empty() {
             // 默认 Moka 路径依赖 `memory` 特性；关闭时必须显式提供 backend
             #[cfg(not(feature = "memory"))]
@@ -352,10 +372,10 @@ where
             }
         }
 
-        // User-provided backend (sync_mode is guaranteed false here)
-        // Fail fast on misconfiguration: only a single backend is supported.
-        // Silently dropping the extras would serve traffic from an unintended
-        // backend; use ChainCache for tiered/multi-backend behavior.
+        // User-provided backend. Fail fast on misconfiguration: only a single
+        // backend is supported. Silently dropping the extras would serve
+        // traffic from an unintended backend; use ChainCache for
+        // tiered/multi-backend behavior.
         if self.backends.len() > 1 {
             return Err(OxCacheError::NotSupported(format!(
                 "CacheBuilder supports a single backend, but {} backends were \
@@ -364,8 +384,37 @@ where
                 self.backends.len()
             )));
         }
-        let backend = self.backends[0].clone();
+        // 槽位归一：Async 仅 async 面（sync 面在 dyn 层已擦除，无法凭空恢复）；
+        // Sync 经门面同时呈现双面，sync API 直连原生同步调用
+        let (backend, sync_surface) = match &self.backends[0] {
+            BackendSlot::Async(b) => {
+                if self.sync_mode {
+                    return Err(OxCacheError::NotSupported(
+                        "backend_arc() only carries Arc<dyn CacheBackend> — the concrete \
+                         sync impl is erased behind the async trait object, so the sync API \
+                         has nothing to call. Inject a native sync backend via \
+                         sync_backend_arc(Arc<dyn SyncCacheBackend>) (e.g. MokaMemoryBackend \
+                         or DashMapMemoryBackend), or use the default Moka backend with \
+                         sync_mode(true)."
+                            .to_string(),
+                    ));
+                }
+                (b.clone(), None)
+            }
+            BackendSlot::Sync(s) => {
+                let adapter: Arc<dyn CacheBackend> = Arc::new(SyncBackendAdapter::new(s.clone()));
+                let sync_surface = if self.sync_mode {
+                    Some(s.clone())
+                } else {
+                    None
+                };
+                (adapter, sync_surface)
+            }
+        };
         let mut cache = Cache::new_with_backend(backend);
+        if let Some(sync) = sync_surface {
+            cache.set_sync_backend(sync);
+        }
         cache.set_null_cache_ttl(self.null_cache_ttl);
         cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
         #[cfg(feature = "metrics")]
@@ -787,11 +836,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_builder_sync_mode_with_unsupported_backend_returns_err() {
-        // backend_arc() provides Arc<dyn CacheBackend> which cannot be upcast
-        // to Arc<dyn SyncCacheBackend> in stable Rust — even if the underlying
-        // concrete type implements SyncCacheBackend. This is a builder-level
-        // limitation, not a backend capability issue.
+    async fn test_builder_sync_mode_with_async_backend_still_rejected() {
+        // backend_arc() 擦除具体类型后仅剩 async 面：sync API 无可调用对象，
+        // 该组合在类型系统上无解（与 trait_upcasting 无关——两套 trait 层次
+        // 无 supertrait 关系）。拒绝信息必须指向 sync_backend_arc 一等入口。
         let backend = MokaMemoryBackend::builder().capacity(100).build();
         let result: crate::error::OxCacheResult<Cache<String, String>> = Cache::builder()
             .backend_arc(Arc::new(backend))
@@ -806,14 +854,82 @@ mod tests {
         match result {
             Err(crate::error::OxCacheError::NotSupported(msg)) => {
                 assert!(
-                    msg.contains("sync_mode") || msg.contains("backend_arc"),
-                    "error message should explain the sync_mode+backend_arc limitation, got: {}",
+                    msg.contains("sync_backend_arc"),
+                    "error message should point to sync_backend_arc, got: {}",
                     msg
                 );
             }
             Err(e) => panic!("expected NotSupported, got {:?}", e),
             Ok(_) => panic!("expected error, got Ok"),
         }
+    }
+
+    #[test]
+    fn test_builder_sync_backend_arc_enables_sync_api() {
+        use crate::backend::SyncCacheBackend;
+
+        // sync 一等入口：原生同步后端 + sync_mode(true) → sync API 直连，
+        // async API 经 SyncBackendAdapter 门面。Moka 的 sync 面内部桥接
+        // （sync_block_on）：sync 直连须在 runtime 外，async 经门面须
+        // multi_thread（block_in_place）——与 bytes_ops/cache_builder 既有 NOTE 一致
+        let moka = MokaMemoryBackend::builder().capacity(100).build();
+        let sync_backend: Arc<dyn SyncCacheBackend> = Arc::new(moka);
+        let cache: Cache<String, i32> = Cache::builder()
+            .sync_backend_arc(Arc::clone(&sync_backend))
+            .sync_mode(true)
+            .build_sync()
+            .expect("sync backend + sync_mode should build");
+
+        // sync API 直连（无 runtime 上下文）
+        cache.set_sync(&"k".to_string(), &7).unwrap();
+        assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some(7));
+
+        // async API 经门面（multi_thread runtime：block_in_place 安全桥接）
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            cache.set(&"a".to_string(), &1).await.unwrap();
+            assert_eq!(cache.get(&"a".to_string()).await.unwrap().unwrap(), 1);
+            assert_eq!(
+                cache.get(&"k".to_string()).await.unwrap().unwrap(),
+                7,
+                "sync 写入必须经同一后端对 async 面可见"
+            );
+        });
+
+        // async 写入对 sync 面同样可见（单一后端，两面共享数据）
+        assert_eq!(cache.get_sync(&"a".to_string()).unwrap(), Some(1));
+    }
+
+    #[test]
+    fn test_builder_sync_backend_arc_without_sync_mode_wires_async_only() {
+        use crate::backend::SyncCacheBackend;
+
+        // 不开 sync_mode：仅接线 async 面（与默认 Moka 路径契约一致），
+        // sync API 显性报错而非静默可用
+        let moka = MokaMemoryBackend::builder().capacity(100).build();
+        let sync_backend: Arc<dyn SyncCacheBackend> = Arc::new(moka);
+        let cache: Cache<String, i32> = Cache::builder()
+            .sync_backend_arc(sync_backend)
+            .build_sync()
+            .expect("sync backend without sync_mode should still build");
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            cache.set(&"k".to_string(), &3).await.unwrap();
+            assert_eq!(cache.get(&"k".to_string()).await.unwrap().unwrap(), 3);
+        });
+
+        let err = cache.get_sync(&"k".to_string()).unwrap_err();
+        assert!(
+            matches!(err, crate::error::OxCacheError::NotSupported(ref m) if m.contains("sync_mode")),
+            "sync API without sync_mode must stay rejected, got: {err:?}"
+        );
     }
 
     #[tokio::test]

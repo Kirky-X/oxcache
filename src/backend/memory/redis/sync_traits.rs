@@ -118,6 +118,13 @@ impl SyncCacheConnector for RedisBackend {
             BackendKind::Redis
         }
     }
+
+    // 与 async 面探针（CacheConnector::as_atomic_writer → Some(self)）对齐：
+    // 同步原子能力实际存在，探针必须如实呈现，否则经 sync_backend_arc 注入
+    // 时门面探测为 None、原子操作被误报 NotSupported
+    fn as_sync_atomic_writer(&self) -> Option<&dyn SyncAtomicCacheWriter> {
+        Some(self)
+    }
 }
 
 impl SyncAtomicCacheWriter for RedisBackend {

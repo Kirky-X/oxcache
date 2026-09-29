@@ -8,7 +8,7 @@
 //! - `CacheConnector` - Lifecycle management
 //! - `CacheBackend` - Combines all traits
 
-use crate::error::OxCacheResult;
+use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
@@ -606,6 +606,256 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool>;
 }
+
+// ============================================================================
+// Sync → Async Facade Adapter
+// ============================================================================
+
+/// Bridge a native synchronous backend into the async [`CacheBackend`] surface.
+///
+/// The async and sync trait hierarchies are intentionally separate (see
+/// [`SyncCacheBackend`]), and `Arc<dyn SyncCacheBackend>` cannot be presented
+/// as `Arc<dyn CacheBackend>` — the two share no supertrait relationship and
+/// `trait_upcasting` does not apply. This adapter closes the gap for backends
+/// that are sync-first: the adapter itself has no await point, so `.await` on
+/// the facade resolves with the blocking semantics of the underlying sync
+/// call. **The runtime requirements are those of the wrapped backend** —
+/// e.g. `MokaMemoryBackend`'s sync surface drives via `sync_block_on`
+/// (multi_thread runtime: `block_in_place`; outside a runtime: a temporary
+/// current_thread runtime; inside a current_thread runtime async context:
+/// explicit `NotSupported` error, not a panic), while purely synchronous
+/// backends (e.g. DashMap) are safe in any environment.
+///
+/// The reverse direction (async → sync) is a backend-side concern (e.g.
+/// Redis's sync traits bridge via `block_in_place` + `handle.block_on`).
+///
+/// Atomic capabilities are probed honestly through
+/// [`SyncCacheConnector::as_sync_atomic_writer`]: the facade advertises
+/// [`AtomicCacheWriter`] only when the inner backend implements it; call-path
+/// probing returns `NotSupported` as a defensive fallback.
+pub struct SyncBackendAdapter {
+    inner: Arc<dyn SyncCacheBackend>,
+}
+
+impl SyncBackendAdapter {
+    /// Wrap a native sync backend for presentation as a full backend.
+    pub fn new(inner: Arc<dyn SyncCacheBackend>) -> Self {
+        Self { inner }
+    }
+}
+
+// 同步面三子 trait 委托；齐备后由 blanket impl 自动获得 SyncCacheBackend
+impl SyncCacheReader for SyncBackendAdapter {
+    fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        self.inner.get(key)
+    }
+
+    fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        self.inner.exists(key)
+    }
+
+    fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        self.inner.ttl(key)
+    }
+
+    fn len(&self) -> OxCacheResult<u64> {
+        self.inner.len()
+    }
+
+    fn capacity(&self) -> OxCacheResult<u64> {
+        self.inner.capacity()
+    }
+
+    fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
+        self.inner.stats()
+    }
+
+    fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        self.inner.get_many(keys)
+    }
+
+    fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        self.inner.keys(pattern)
+    }
+}
+
+impl SyncCacheWriter for SyncBackendAdapter {
+    fn set(&self, key: Arc<str>, value: Arc<Vec<u8>>, ttl: Option<Duration>) -> OxCacheResult<()> {
+        self.inner.set(key, value, ttl)
+    }
+
+    fn delete(&self, key: &str) -> OxCacheResult<()> {
+        self.inner.delete(key)
+    }
+
+    fn clear(&self) -> OxCacheResult<()> {
+        self.inner.clear()
+    }
+
+    fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+        self.inner.expire(key, ttl)
+    }
+
+    fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
+        self.inner.set_many(items)
+    }
+
+    fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
+        self.inner.delete_many(keys)
+    }
+}
+
+impl SyncCacheConnector for SyncBackendAdapter {
+    fn health_check(&self) -> OxCacheResult<()> {
+        self.inner.health_check()
+    }
+
+    fn shutdown(&self) {
+        self.inner.shutdown()
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        self.inner.backend_kind()
+    }
+}
+
+// 同步面三子 trait 齐备，SyncCacheBackend 由 blanket 自动提供
+
+#[async_trait]
+impl CacheReader for SyncBackendAdapter {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        self.inner.get(key)
+    }
+
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        self.inner.exists(key)
+    }
+
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        self.inner.ttl(key)
+    }
+
+    async fn len(&self) -> OxCacheResult<u64> {
+        self.inner.len()
+    }
+
+    async fn capacity(&self) -> OxCacheResult<u64> {
+        self.inner.capacity()
+    }
+
+    async fn stats(&self) -> OxCacheResult<std::collections::HashMap<String, String>> {
+        self.inner.stats()
+    }
+
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        self.inner.get_many(keys)
+    }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        self.inner.keys(pattern)
+    }
+}
+
+#[async_trait]
+impl CacheWriter for SyncBackendAdapter {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        self.inner.set(key, value, ttl)
+    }
+
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
+        self.inner.delete(key)
+    }
+
+    async fn clear(&self) -> OxCacheResult<()> {
+        self.inner.clear()
+    }
+
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+        self.inner.expire(key, ttl)
+    }
+
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
+        self.inner.set_many(items)
+    }
+
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
+        self.inner.delete_many(keys)
+    }
+}
+
+#[async_trait]
+impl CacheConnector for SyncBackendAdapter {
+    async fn health_check(&self) -> OxCacheResult<()> {
+        self.inner.health_check()
+    }
+
+    async fn shutdown(&self) {
+        self.inner.shutdown()
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        self.inner.backend_kind()
+    }
+
+    // dyn 同步面无法呈现为 async 原子面：以自身为桥。探测语义须诚实——
+    // 按 inner 的 as_sync_atomic_writer 判定，无能力即 None（与 direct
+    // backend_arc 注入同一后端的探测结果一致），调用路径仅作兜底显性报错
+    fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
+        match self.inner.as_sync_atomic_writer() {
+            Some(_) => Some(self),
+            None => None,
+        }
+    }
+}
+
+#[async_trait]
+impl AtomicCacheWriter for SyncBackendAdapter {
+    async fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
+        match self.inner.as_sync_atomic_writer() {
+            Some(w) => w.incr(key, delta, ttl),
+            None => Err(OxCacheError::NotSupported(
+                "the wrapped sync backend does not support atomic increment".to_string(),
+            )),
+        }
+    }
+
+    async fn compare_and_swap(
+        &self,
+        key: &str,
+        expected: Option<&[u8]>,
+        new: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        match self.inner.as_sync_atomic_writer() {
+            Some(w) => w.compare_and_swap(key, expected, new, ttl),
+            None => Err(OxCacheError::NotSupported(
+                "the wrapped sync backend does not support atomic compare-and-swap".to_string(),
+            )),
+        }
+    }
+
+    async fn set_if_absent(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<bool> {
+        match self.inner.as_sync_atomic_writer() {
+            Some(w) => w.set_if_absent(key, value, ttl),
+            None => Err(OxCacheError::NotSupported(
+                "the wrapped sync backend does not support atomic set-if-absent".to_string(),
+            )),
+        }
+    }
+}
+
+// async 面三子 trait 齐备，CacheBackend 由 blanket 自动提供：
+// SyncBackendAdapter 同时是完整的 async 与 sync 后端
 
 #[cfg(test)]
 mod tests {

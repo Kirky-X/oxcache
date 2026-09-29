@@ -8,7 +8,7 @@ use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 // 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
 // 与同名 async trait 方法（如 `get`）产生歧义。
 use crate::backend::{BackendScore, Scores};
-use crate::error::OxCacheResult;
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::impl_backend_builder;
 use async_trait::async_trait;
 use moka::Expiry;
@@ -229,41 +229,47 @@ impl CacheConnector for MokaMemoryBackend {
 //
 // Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/
 // `invalidate` 的前台 future 不依赖 tokio runtime 驱动（无 `tokio::spawn`/
-// `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 在已有
-// multi-thread runtime 时优先复用（`block_in_place`）；否则创建临时
-// current-thread runtime 来驱动 future，确保 waker 正确注册。
+// `tokio::time` 调用），可通过 `block_on` 安全轮询。`sync_block_on` 的三种
+// 执行环境：multi-thread runtime 内复用当前 runtime（`block_in_place`）；
+// runtime 外创建临时 current-thread runtime 驱动（确保 waker 正确注册）；
+// current-thread runtime 的异步上下文内——tokio 禁止任何嵌套阻塞驱动
+// （临时 runtime 亦被 context 检查拒绝），唯一出路是显性报错而非 panic。
 
-/// 驱动 future 至完成。
+/// 驱动 future 至完成；失败（仅 current-thread 异步上下文）显性报错。
 ///
-/// - 已有 multi-thread runtime 时：使用 `block_in_place` + `handle.block_on`。
-/// - 无 runtime 或在 current-thread runtime 中：创建临时 current-thread runtime。
-///
-/// 临时 runtime 开销极小（~1μs），仅在无可用 multi-thread runtime 时触发。
-fn sync_block_on<F: std::future::Future>(fut: F) -> F::Output {
+/// - 已有 multi-thread runtime：`block_in_place` + `handle.block_on`（安全）。
+/// - 无 runtime：创建临时 current-thread runtime（~1μs 量级开销）。
+/// - current-thread runtime 的异步上下文内：返回 `Err(NotSupported)`——
+///   此前该分支直接 `handle.block_on` 会触发 tokio 的
+///   "Cannot start a runtime from within a runtime" panic；改为显性错误，
+///   指引 multi-thread runtime 或 runtime 外调用。
+fn sync_block_on<F: std::future::Future>(fut: F) -> OxCacheResult<F::Output> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
             // Multi-thread runtime: use block_in_place to safely block
-            tokio::task::block_in_place(|| handle.block_on(fut))
+            Ok(tokio::task::block_in_place(|| handle.block_on(fut)))
         }
-        Ok(handle) => {
-            // Current-thread runtime: use handle.block_on directly.
-            // This works when called from an async context on the runtime thread.
-            handle.block_on(fut)
-        }
+        Ok(_) => Err(OxCacheError::NotSupported(
+            "Moka sync surface cannot be driven from within a current-thread \
+             runtime async context (tokio forbids nested blocking drivers). \
+             Call the sync API outside a runtime, or use a multi_thread runtime \
+             (block_in_place handles it)."
+                .to_string(),
+        )),
         Err(_) => {
             // No runtime: create a temporary current_thread runtime.
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("failed to create temporary tokio runtime for sync_block_on");
-            rt.block_on(fut)
+            Ok(rt.block_on(fut))
         }
     }
 }
 
 impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
     fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
-        Ok(sync_block_on(self.cache.get(key)).map(|e| e.value))
+        Ok(sync_block_on(self.cache.get(key))?.map(|e| e.value))
     }
 
     fn exists(&self, key: &str) -> OxCacheResult<bool> {
@@ -273,7 +279,7 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
     // Same TTI-refresh side effect as the async ttl() — see comment above.
     fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
         let now = Instant::now();
-        Ok(sync_block_on(self.cache.get(key))
+        Ok(sync_block_on(self.cache.get(key))?
             .and_then(|e| e.expires_at.and_then(|exp| exp.checked_duration_since(now))))
     }
 
@@ -304,12 +310,12 @@ impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
             value: (*value).clone(),
             expires_at,
         };
-        sync_block_on(self.cache.insert(key, entry));
+        sync_block_on(self.cache.insert(key, entry))?;
         Ok(())
     }
 
     fn delete(&self, key: &str) -> OxCacheResult<()> {
-        sync_block_on(self.cache.invalidate(key));
+        sync_block_on(self.cache.invalidate(key))?;
         Ok(())
     }
 
@@ -332,7 +338,7 @@ impl crate::backend::interface::SyncCacheWriter for MokaMemoryBackend {
                     None => Op::Nop,
                 }
             },
-        ));
+        ))?;
         match result {
             CompResult::ReplacedWith(_) => Ok(true),
             _ => Ok(false),
@@ -363,7 +369,7 @@ impl crate::backend::interface::SyncCacheConnector for MokaMemoryBackend {
 
 impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
     fn incr(&self, key: &str, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
-        sync_block_on(AtomicCacheWriter::incr(self, key, delta, ttl))
+        sync_block_on(AtomicCacheWriter::incr(self, key, delta, ttl))?
     }
 
     fn compare_and_swap(
@@ -375,7 +381,7 @@ impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
     ) -> OxCacheResult<bool> {
         sync_block_on(AtomicCacheWriter::compare_and_swap(
             self, key, expected, new, ttl,
-        ))
+        ))?
     }
 
     fn set_if_absent(
@@ -384,7 +390,7 @@ impl crate::backend::interface::SyncAtomicCacheWriter for MokaMemoryBackend {
         value: Vec<u8>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
-        sync_block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))
+        sync_block_on(AtomicCacheWriter::set_if_absent(self, key, value, ttl))?
     }
 }
 

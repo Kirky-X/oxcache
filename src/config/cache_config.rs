@@ -80,7 +80,8 @@ pub struct CacheConfig {
     pub null_cache_ttl: Option<Duration>,
     /// TTL 抖动因子（底层构建器 clamp 到 `0.0..=1.0`，NaN 视为 0）
     pub ttl_jitter_factor: Option<f64>,
-    /// 同步 API 模式（仅默认 Moka 后端支持，见 [`CacheConfig::validate()`]）
+    /// 同步 API 模式（仅默认构建路径支持；`backend` 配置键解析为 async-only
+    /// 句柄，与之互斥，见 [`CacheConfig::validate()`]）
     pub sync_mode: Option<bool>,
     /// 后端类型原始串（moka/dashmap/redis/...；`None` = 未选择，由构建器自定）
     ///
@@ -448,12 +449,16 @@ impl CacheConfig {
             }
         }
 
-        // sync_mode 与显式 backend 互斥：显式后端经 backend_arc 注入后，
+        // sync_mode 与 backend 配置键互斥：backend 串经 build_backend 解析为
+        // Arc<dyn CacheBackend>（仅 async 面，sync 实现在 dyn 层已擦除），
         // CacheBuilder::build 对 sync + backend_arc 组合必返 NotSupported，
-        // 失败在此左移而非推迟到构建期
+        // 失败在此左移；同步后端注入应走程序化 sync_backend_arc 一等入口
         if self.sync_mode == Some(true) && self.backend.is_some() {
             return Err(OxCacheError::InvalidInput(
-                "sync_mode=true cannot be combined with an explicit backend: sync is only supported by the default build path (unset `backend`)"
+                "sync_mode=true cannot be combined with the `backend` key: the configured \
+                 backend resolves to an async-only handle. Use the default build path \
+                 (unset `backend`) or inject a native sync backend programmatically via \
+                 CacheBuilder::sync_backend_arc"
                     .to_string(),
             ));
         }

@@ -9,6 +9,8 @@
 
 ### 新增
 
+- **`sync_backend_arc` 同步一等构建入口**：`CacheBuilder` 新增注入 `Arc<dyn SyncCacheBackend>` 的方法（内部以 `BackendSlot` enum 分槽保存 async/sync 两类入口），配合 `sync_mode(true)` 时同步 API 直连原生同步后端、异步 API 经新增的 `SyncBackendAdapter` 门面呈现（async 方法体内同步完成，无运行时依赖；原子操作经 `as_sync_atomic_writer` 动态探测）；`backend_arc`（仅 async 面，具体类型同步实现已擦除）与 `sync_mode(true)` 组合仍返回 `Err(NotSupported)`，错误信息改指 `sync_backend_arc`；解锁此前「同步 API 仅限默认 Moka 后端」的限制
+
 - **统一配置中枢 `CacheConfig`**：单一结构（`oxcache::config::CacheConfig`，`config` 模块转公开）承载缓存构建全量参数，三条配置通路——程序化 builder / `OXCACHE_*` 环境变量（`try_from_env()`，14 键：capacity/TTL/TTI/空值 TTL/抖动因子/sync_mode/backend/指标/序列化格式/redis_url/disk_path/连接池/熔断阈值与恢复超时）/ confers 配置源（`config-confers` 下 `try_from_confers()`，`OxcacheConfig` 扩展 10 个 Option 键并按快照映射）；`validate()` 一致性检查覆盖值域（容量非零且不超平台 `usize`、TTL 非零、连接池与熔断阈值非零）、组合约束（Redis/Dragonfly 必填 redis_url、Disk 必填 disk_path、sync_mode 与显式 backend 互斥——冲突在构建期必败，此处左移报错）与 feature 可用性（未启用 `metrics`/`serialization`/后端 feature 时配置对应键显性报错）；`apply_to_cache_builder()` / `build_backend()` 落地到既有构建链（backend 解析为实例注入 `backend_arc`）；env 未设置的键保持 `None`（零行为漂移），解析失败与 feature 缺失均显性报错（附变量名与原始值）；confers 通路同轮消除两处静默截断——超界熔断阈值与连接池大小由钳位/丢弃改为显性报错，热更新重载被拒时保留旧快照并经 telemetry warn 可观测；`redis_url` 的 `Debug` 输出脱敏
 
 ### 修复
