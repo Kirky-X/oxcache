@@ -145,6 +145,16 @@ where
     /// underlying sync call). Without `sync_mode(true)` only the async API
     /// is wired — same contract as the default Moka path.
     ///
+    /// # Blocking hazard
+    ///
+    /// Because the facade's async methods complete synchronously, wrapping a
+    /// **network-backed** sync backend (e.g. `RedisBackend`, whose sync
+    /// surface bridges each call through `block_in_place`) makes every async
+    /// API call block an executor thread — under sustained load this starves
+    /// the runtime. Network backends must be injected via
+    /// [`Self::backend_arc`] and driven through the async API instead;
+    /// in-memory backends (Moka / DashMap) are unaffected.
+    ///
     /// Only one backend may be added (see [`Self::backend_arc`]).
     pub fn sync_backend_arc(mut self, backend: Arc<dyn SyncCacheBackend>) -> Self {
         self.backends.push(BackendSlot::Sync(backend));

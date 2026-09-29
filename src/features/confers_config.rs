@@ -458,7 +458,7 @@ impl ConfersConfigWatcher {
                     Err(err) => {
                         // 重载失败：保留旧快照（配置快照永不空窗），
                         // 拒绝原因必须可观测，禁止静默丢弃坏配置
-                        oxcache_telemetry_config_reload_rejected(&err);
+                        oxcache_report_config_reload_rejected(&err);
                         continue;
                     }
                 }
@@ -467,11 +467,24 @@ impl ConfersConfigWatcher {
     }
 }
 
-// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
+// ---- 重载拒绝上报（计数器为默认信号，tracing warn 为 telemetry 增强信号）----
+
+/// 拒绝计数（`metrics` feature：unified 动态计数器；metrics 在全部预设组合中在场，
+/// 保证默认/全量构建下重载被拒可观测，不再仅依赖不在任何预设中的 telemetry feature）
+#[cfg(feature = "metrics")]
+#[inline]
+fn record_reload_rejected_counter() {
+    crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS
+        .increment_counter("oxcache_config_reload_rejected_total", 1);
+}
+
+#[cfg(not(feature = "metrics"))]
+#[inline]
+fn record_reload_rejected_counter() {}
 
 #[cfg(feature = "telemetry")]
 #[inline]
-fn oxcache_telemetry_config_reload_rejected(err: &OxCacheError) {
+fn warn_reload_rejected(err: &OxCacheError) {
     tracing::warn!(
         target = "oxcache::confers_config",
         %err,
@@ -481,7 +494,14 @@ fn oxcache_telemetry_config_reload_rejected(err: &OxCacheError) {
 
 #[cfg(not(feature = "telemetry"))]
 #[inline]
-fn oxcache_telemetry_config_reload_rejected(_err: &OxCacheError) {}
+fn warn_reload_rejected(_err: &OxCacheError) {}
+
+/// 热更新重载被拒的统一上报：计数器 + warn（各自 feature 门控，关闭时零开销）
+#[inline]
+fn oxcache_report_config_reload_rejected(err: &OxCacheError) {
+    record_reload_rejected_counter();
+    warn_reload_rejected(err);
+}
 
 #[cfg(test)]
 mod tests {
@@ -491,6 +511,20 @@ mod tests {
     use confers::{ConfigWriter, new_in_memory};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::time::Duration;
+
+    /// 读取 unified 动态计数器快照（缺失视为 0），用于重载拒绝的 delta 断言
+    #[cfg(feature = "metrics")]
+    fn dynamic_counter(metrics: &crate::infra::metrics::unified::UnifiedMetrics, key: &str) -> u64 {
+        use crate::infra::metrics::unified::MetricValue;
+        metrics
+            .get_dynamic_metrics()
+            .get(key)
+            .and_then(|v| match v {
+                MetricValue::Counter(c) => Some(*c),
+                _ => None,
+            })
+            .unwrap_or(0)
+    }
 
     async fn memory_connector_with_capacity(capacity: u64) -> impl confers::ConfigConnector {
         let conn = new_in_memory();
@@ -869,9 +903,11 @@ mod tests {
         handle.abort();
     }
 
-    /// 重载失败：保留旧快照且 watch 任务存活（拒绝原因经 telemetry 上报，
-    /// 不吞事件循环——坏配置被丢弃但必须可观测）
+    /// 重载失败：保留旧快照且 watch 任务存活；metrics 下拒绝计数器增量即确定性
+    /// 拒绝信号（无 metrics 构建回退为 sleep 等待后断言快照语义）
     #[tokio::test]
+    // delta 断言依赖全局计数器窗口期不被清零，须与重置全局指标的串行测试互斥
+    #[serial_test::serial]
     async fn watch_keeps_snapshot_when_reload_fails() {
         struct FlakySource {
             fail: AtomicBool,
@@ -919,6 +955,11 @@ mod tests {
         assert_eq!(watcher.snapshot().get().capacity, 4321);
 
         // 翻转为失败后发布变更：快照保持旧值，任务不得退出
+        #[cfg(feature = "metrics")]
+        let rejected_before = dynamic_counter(
+            &crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS,
+            "oxcache_config_reload_rejected_total",
+        );
         source.fail.store(true, Ordering::SeqCst);
         bus.publish(ConfigChangeEvent::new(
             "test",
@@ -928,6 +969,28 @@ mod tests {
         ))
         .await
         .unwrap();
+        // metrics 下以拒绝计数器增量确定性等待信号落地（替代盲等固定毫秒）；
+        // 无 metrics 构建无该信号可测，回退 sleep 后仅断言快照语义
+        #[cfg(feature = "metrics")]
+        {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while dynamic_counter(
+                &crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS,
+                "oxcache_config_reload_rejected_total",
+            ) <= rejected_before
+                && std::time::Instant::now() < deadline
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert!(
+                dynamic_counter(
+                    &crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS,
+                    "oxcache_config_reload_rejected_total",
+                ) > rejected_before,
+                "reload rejection must increment oxcache_config_reload_rejected_total"
+            );
+        }
+        #[cfg(not(feature = "metrics"))]
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         assert_eq!(

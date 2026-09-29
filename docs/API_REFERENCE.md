@@ -300,6 +300,12 @@ let cache: Cache<String, String> = Cache::builder()
 （具体类型的同步实现已被擦除），与 `sync_mode(true)` 组合仍返回
 `Err(OxCacheError::NotSupported)`。
 
+> **⚠️ 阻塞警告：** `SyncBackendAdapter` 的 async 方法同步完成——包装
+> `RedisBackend` 等**网络型**后端（其同步面经 `block_in_place` 桥接）时，每次
+> async API 调用都会阻塞一个 executor 线程，持续负载下将饿死 runtime。
+> 网络型后端必须经 `backend_arc(...)` 注入并走 async API；内存型
+> （Moka / DashMap）不受影响。
+
 ## 🔌 后端层
 
 `backend` 模块暴露后端 trait 和实现。
