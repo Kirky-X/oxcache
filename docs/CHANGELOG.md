@@ -9,20 +9,12 @@
 
 ### 新增
 
+- **自适应 TTL（R5，`adaptive-ttl` feature，默认关闭）**：`AdaptiveTtlBackend` 装饰任意 `CacheBackend`，按访问模式调整条目 TTL——命中计数达 `hot_threshold` 的 hot 键 set 时 TTL 乘 `hot_ttl_multiplier`、get 时受 `adjust_interval` 限速把已存条目 `expire` 调整到 `clamp(hot_ttl_multiplier × 剩余 TTL)`（方向不限，基准超出上界同样收敛，限制写放大）；已知键最近访问早于 `cold_idle_after` 时 set 的 TTL 除以 `cold_ttl_divisor`；hot 与 cold 同时满足时 hot 优先。全部阈值为 `AdaptiveTtlConfig` 显式常量（无黑盒启发式）：调整结果钳制在 `[min_ttl, max_ttl]`（默认 1s..1h），`None`（永不过期）不参与调整原样透传；追踪表上限 `max_tracked_keys`（默认 65 536）防内存失控，满时新键按普通键透传；配置经 `validate()` 在构建期校验——`min_ttl > max_ttl`、`hot_ttl_multiplier` 非有限正数（0/负/NaN/inf）、`cold_ttl_divisor = 0`、`max_tracked_keys = 0` 均显性 `Err(InvalidInput)`（拒绝发生在构造期而非请求路径 `Duration::clamp` panic 或乘除静默畸变）。经 `CacheBuilder::adaptive_ttl()` 一等接线，与 `sync_mode(true)` / `stale_ttl` 组合在构建期显性拒绝（装饰器对 sync API 不可见、双 TTL 改写器叠加语义未定义）；`stats()` / `reset_stats()` 暴露追踪键数与延长/缩短计数，get 路径主动调整遇后端 `expire` 故障不阻断命中、以 `failed_adjustments` 显性计数，后端 `stats()` 附加 `adaptive_tracked_keys` / `adaptive_hot_extensions` / `adaptive_cold_shortenings` / `adaptive_failed_adjustments`，`clear()` 同步清零访问历史
 - **指标 per-service 维度（R9，默认关闭）**：`CacheBuilder::service_name(...)` 或配置通路 `OXCACHE_SERVICE_NAME`/`cache.service_name` 显式启用后，该缓存的操作计数附加 `service` 标签——`export_prometheus_standard()` 出现 `oxcache_service_operations_total{service="..."}` 行（按名排序确定输出，标签值按 exposition 格式转义 `\\`/`"`/换行，恶意或含特殊字符的命名无法伪造额外序列），JSON 快照（`snapshot()`/`export_json()`）新增 `service_operations` 段（空时经 skip_serializing_if 整体缺席）；标签基数上限 `MetricsConfig::max_service_labels`（默认 64）防标签爆炸，超限归因计入 `oxcache_service_labels_overflow_total`（独立门控导出——含 `max_service_labels=0` 时 map 恒空的场景；总账不受影响）；`UnifiedMetricsRecorder::global_tagged(service)` 为装配入口，计数器为 `DashMap<String, AtomicU64>`（稳态分片读锁 + fetch_add，首触 entry 合并无丢计数），原子总账与无标签路径逐字节一致（service 是附加拆分维度）；未设置时 prometheus 导出与既有格式逐字节一致；空串 service 在构建/validate 期显性拒绝
 - **`sync_mode(true)` × `backend_arc` 解除互斥（`AsyncToSyncBridge`）**：`backend_arc` 注入的 async 面后端现在可与 `sync_mode(true)` 组合——sync API 经通用 `AsyncToSyncBridge` 桥出（每个同步调用 `block_in_place` + `block_on` 异步面，futures 不会中途被丢弃；原子能力按 inner 的 `as_atomic_writer` 诚实探测），要求调用时处于多线程 Tokio runtime（I/O 型后端需 ≥2 worker，单 worker 有挂起风险），runtime 之外或 current_thread runtime 上逐调用显性 `Err(NotSupported)`（原先该组合在构建期直接 `Err(NotSupported)`，现已解锁）；`shutdown` 在 runtime 之外经临时 runtime 真实执行，current_thread runtime 下跳过并计数 `oxcache_bridge_shutdown_rejected_total`（默认预设可见，telemetry feature 下另发 warn）；分层一等构建 API 收尾，`CacheConfig` 的 `sync_mode` × `backend` 组合约束同步解除，且配置通路按槽位注入——Moka/DashMap 走双面原生槽（async 面保持原生运行时无关，sync 面直连，均零桥接），Redis/Dragonfly/Disk 保持桥接；`RedisBackend` 同步面运行时守卫与桥接守卫合并为共享 `multi_thread_bridge_handle`（语义不变）；分层取舍：运行时无关的 sync API 仍建议走 `sync_backend_arc`（原生同步面）或默认 Moka 路径
 - **`sync_backend_arc` 同步一等构建入口**：`CacheBuilder` 新增注入 `Arc<dyn SyncCacheBackend>` 的方法（内部以 `BackendSlot` enum 分槽保存 async/sync 两类入口），配合 `sync_mode(true)` 时同步 API 直连原生同步后端、异步 API 经新增的 `SyncBackendAdapter` 门面呈现（async 方法体内同步完成，无运行时依赖；原子操作经 `as_sync_atomic_writer` 动态探测）；`backend_arc`（仅 async 面，具体类型同步实现已擦除）与 `sync_mode(true)` 组合彼时返回 `Err(NotSupported)`，错误信息改指 `sync_backend_arc`（后经 `AsyncToSyncBridge` 解除，见上条）；解锁此前「同步 API 仅限默认 Moka 后端」的限制
 
 - **统一配置中枢 `CacheConfig`**：单一结构（`oxcache::config::CacheConfig`，`config` 模块转公开）承载缓存构建全量参数，三条配置通路——程序化 builder / `OXCACHE_*` 环境变量（`try_from_env()`，15 键：capacity/TTL/TTI/空值 TTL/抖动因子/sync_mode/backend/指标/序列化格式/redis_url/disk_path/连接池/熔断阈值与恢复超时/service_name）/ confers 配置源（`config-confers` 下 `try_from_confers()`，`OxcacheConfig` 扩展 10 个 Option 键并按快照映射）；`validate()` 一致性检查覆盖值域（容量非零且不超平台 `usize`、TTL 非零、连接池与熔断阈值非零）、组合约束（Redis/Dragonfly 必填 redis_url、Disk 必填 disk_path）与 feature 可用性（未启用 `metrics`/`serialization`/后端 feature 时配置对应键显性报错）；`apply_to_cache_builder()` / `build_backend()` 落地到既有构建链，backend 按槽位注入——Moka/DashMap 走双面原生槽（async 面运行时无关、`sync_mode(true)` 下 sync API 原生直连，均零桥接），其余后端 async 面经 `backend_arc` 注入（sync 面经 `AsyncToSyncBridge` 桥出）；env 未设置的键保持 `None`（零行为漂移），解析失败与 feature 缺失均显性报错（附变量名与原始值）；confers 通路同轮消除两处静默截断——超界熔断阈值与连接池大小由钳位/丢弃改为显性报错，热更新重载被拒时保留旧快照并可观测（`oxcache_config_reload_rejected_total` 计数器为默认信号，telemetry feature 下另发 tracing warn）；`redis_url` 的 `Debug` 输出脱敏
-
-### 修复
-
-- **Redis TTL 毫秒化**：亚秒 TTL（< 1s）此前被秒口径校验（`as_secs() == 0` 即拒绝）静默拒之门外，导致 `set` 不写 L2、`expire` 完全不生效；`RedisCommand` 新增 `PExpire`，`set`/`set_many` 由 SETEX 改为 `SET key value PX <ms>`、`expire` 改为 `PEXPIRE`、`set_if_absent` 改 `SET NX PX`，`incr`/`compare_and_swap` Lua 脚本内的 EXPIRE/SET EX 同步切换（Redis/Valkey ≥ 2.6.12：SET 的 PX/NX 选项自 2.6.12 引入，构成命令面下限；PEXPIRE 自 2.6.0）；校验改毫秒口径（`as_millis() == 0` 才拒绝，u128 比较防截断误放行），`set_many_pipeline` 与 `CacheWriter::set_many` 同根因一并修复
-- **ChainCache `expire` 后端故障静默吞错**：原实现对后端 `Err` 与 `Ok(false)` 一律 `continue`，TTL 校验失败等错误无任何事件/日志可观测；后端 `Err` 时发布 error 事件（对齐 set 路径既有机制），并按 backfill/iter_entries 既有惯例补 telemetry warn（feature 关闭时零开销），返回值语义不变（部分成功仍 `Ok(true)`，键不存在 `Ok(false)` 属正常结果非故障）
-
-### 测试
-
-- **Redis 亚秒 TTL 直查断言**：直连 Redis 断言 `PTTL` 毫秒精度与键按亚秒 TTL 过期后消失，覆盖 writer/pipeline 路径回归
 
 ## [0.5.0-rc.6] - 2026-09-28
 
@@ -52,6 +44,12 @@
 - **文档版本漂移**：README/README_EN/lib.rs 中 13 处 `0.5.0-rc.4` 当前版本引用同步至 `0.5.0-rc.5`（历史发布条目保留）
 - **缓存审计加固修复组**：single-flight follower 丢失唤醒（`Notify`→`watch` + `macro_support` 64 分片同步守卫与 panic 清理）；`get_or_option` 穿透哨兵判定竞态（改 get + 字节比对，消 exists 竞态）；雪崩防护默认 TTL 抖动 0.1（xorshift64 + 单调时钟随机源，弃 `SystemTime` 防 NTP 回拨）；`set_many` / `get_many` 统一走 `UnifiedSerializer`
 - **feature 组合编译修复**：`memory` / `redis` 隐含 `serialization`（核心 Cache API 的 serde 约束为事实依赖）、`degradation` 隐含 `memory`；无 memory 组合的 backend 实现与 metrics 引用按依赖特性门控——单开特性组合编译基线恢复
+- **Redis TTL 毫秒化**：亚秒 TTL（< 1s）此前被秒口径校验（`as_secs() == 0` 即拒绝）静默拒之门外，导致 `set` 不写 L2、`expire` 完全不生效；`RedisCommand` 新增 `PExpire`，`set`/`set_many` 由 SETEX 改为 `SET key value PX <ms>`、`expire` 改为 `PEXPIRE`、`set_if_absent` 改 `SET NX PX`，`incr`/`compare_and_swap` Lua 脚本内的 EXPIRE/SET EX 同步切换（Redis/Valkey ≥ 2.6.12：SET 的 PX/NX 选项自 2.6.12 引入，构成命令面下限；PEXPIRE 自 2.6.0）；校验改毫秒口径（`as_millis() == 0` 才拒绝，u128 比较防截断误放行），`set_many_pipeline` 与 `CacheWriter::set_many` 同根因一并修复
+- **ChainCache `expire` 后端故障静默吞错**：原实现对后端 `Err` 与 `Ok(false)` 一律 `continue`，TTL 校验失败等错误无任何事件/日志可观测；后端 `Err` 时发布 error 事件（对齐 set 路径既有机制），并按 backfill/iter_entries 既有惯例补 telemetry warn（feature 关闭时零开销），返回值语义不变（部分成功仍 `Ok(true)`，键不存在 `Ok(false)` 属正常结果非故障）
+
+### 测试
+
+- **Redis 亚秒 TTL 直查断言**：直连 Redis 断言 `PTTL` 毫秒精度与键按亚秒 TTL 过期后消失，覆盖 writer/pipeline 路径回归
 
 ### 文档
 

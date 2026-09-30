@@ -341,6 +341,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 - `features::compression` — `CompressingBackend` 自适应 zstd 压缩装饰器
 - `features::stale` — `StaleWhileRevalidateBackend` SWR 三态过期装饰器（Actual/Stale/Expired 双时间戳 envelope）+ `StalePolicy` 三策略（Return / Revalidate / OffloadRevalidate）；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；后台刷新经 `Cache::get_or_refresh()`（`offload` feature）
 - `features::offload` — `OffloadManager` 后台任务子系统（同 key 去重、信号量并发上限、超时 Cancel/Warn）
+- `features::adaptive_ttl` — `AdaptiveTtlBackend` 自适应 TTL 装饰器（hot 延长 / cold 缩短，全部阈值显式常量，`adaptive-ttl` feature 默认关闭）；`CacheBuilder::adaptive_ttl()` 接线
 - `features::audit` — `AuditEventPublisher` 结构化审计事件流
 - `features::versioning` — 版本化 CAS 实现
 - `features::confers_config` — confers 配置驱动构建（`OxcacheConfig` + `ConfigBus` 热更新）
@@ -770,13 +771,19 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 分层特性集（`minimal` / `core` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`kit` 及其余选择加入特性**不包含**在 `full` 中，需通过 `features = ["bloom"]` 等显式启用；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
-**隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端，其模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
+**隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端、`adaptive-ttl` 装饰任意后端，两者模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
 
 ## 🔮 未来增强
 
-1. **自适应 TTL**：基于访问模式的 TTL 优化启发式
-2. **地理分布**：多区域复制原语
-3. **缓存预热**：智能预热策略
+1. **地理分布**：多区域复制原语
+2. **缓存预热**：智能预热策略
+
+> 「自适应 TTL」已按访问模式度量方案落地：`adaptive-ttl` 特性（默认关闭）的
+> `AdaptiveTtlBackend` 装饰器按命中计数延长 hot 键 TTL、按闲置时长缩短 cold 键
+> TTL，全部阈值为显式常量（无黑盒启发式），经 `CacheBuilder::adaptive_ttl()`
+> 接线，见 [API 参考](API_REFERENCE.md#-自适应-ttladaptive-ttl)。追踪表饱和具粘性：
+> 达 `max_tracked_keys` 后存量条目不淘汰、新键不再被追踪（直至 `reset_stats()`），
+> 容量应按工作集唯一键基数预留。
 
 > 原「`trait_upcasting` 迁移解除 `sync_mode + backend_arc` 互斥」最终经双门面
 > 方案完整落地：`sync_backend_arc` 一等入口 + `SyncBackendAdapter` 门面先行

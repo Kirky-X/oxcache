@@ -38,11 +38,17 @@ pub mod stale;
 #[cfg(feature = "hotkey")]
 pub mod hotkey;
 
+#[cfg(feature = "adaptive-ttl")]
+pub mod adaptive_ttl;
+
 #[cfg(feature = "versioning")]
 pub mod versioning;
 
 #[cfg(feature = "hotkey")]
 pub use hotkey::HotKeyTracker;
+
+#[cfg(feature = "adaptive-ttl")]
+pub use adaptive_ttl::{AdaptiveTtlBackend, AdaptiveTtlConfig};
 
 #[cfg(feature = "bloom")]
 pub use bloom_filter::BloomFilter;

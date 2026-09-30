@@ -213,6 +213,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full (excludes 
 | `disk` | Disk-persistent L3 backend (embedded redb, lazy expiry + `max_entries` sweep, `Scores::REDB = 85`) | ❌ |
 | `stale` | SWR three-state expiry: `StaleWhileRevalidateBackend` + `StalePolicy` (Return / Revalidate / OffloadRevalidate) (requires `offload`) | ❌ |
 | `offload` | Background task subsystem: `OffloadManager` dedup / concurrency limit / timeout policies, `get_or_refresh` background revalidation | ❌ |
+| `adaptive-ttl` | Adaptive TTL: `AdaptiveTtlBackend` adjusts per-entry TTL by access pattern (hot extension / cold shortening, explicit constants) | ❌ |
 
 > Opt-in features such as `bloom` and `kit` are **not** part of `full` and must be enabled explicitly.
 

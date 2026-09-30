@@ -229,6 +229,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量（不含
 | `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
 | `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
 | `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
+| `adaptive-ttl` | 自适应 TTL：`AdaptiveTtlBackend` 按访问模式调整条目 TTL（hot 延长 / cold 缩短，显式常量配置） | ❌ |
 
 > `bloom` 与 `kit` 等选择加入特性**不在** `full` 中，需显式启用。
 

@@ -312,6 +312,10 @@ versioning = []
 
 # 热 key 采样观测（审计 F11）
 hotkey = ["dep:dashmap"]
+# 自适应 TTL（R5）：hot 延长 / cold 缩短装饰器，显式常量配置，默认关闭；
+# 装饰 crate::backend(backend 模块门控 any(memory,redis,disk)),单开须隐含
+# memory 基线方可编译（与 degradation 同口径）
+adaptive-ttl = ["dep:dashmap", "memory"]
 
 # ============================================================================
 # PROFILES

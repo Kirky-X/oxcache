@@ -700,6 +700,13 @@ let backend = BloomFilterBackend::builder()
 - `Sequential`（默认，逐层命中即返回）/ `Race`（并发全读取最高分命中）/ `ParallelFreshest`（并发全读后按剩余 TTL 择新，None 最低优先、并列取最高分）
 - `ChainCacheBuilder::read_strategy(strategy)`；`enable_race_read()` / `disable_race_read()` 为兼容别名
 
+## 🔁 自适应 TTL（`adaptive-ttl`）
+
+- `AdaptiveTtlBackend`（`oxcache::features::adaptive_ttl`）— 装饰任意 `CacheBackend`：按访问模式调整条目 TTL。hot 键（命中计数 ≥ `hot_threshold`）set 时 TTL 乘 `hot_ttl_multiplier`，get 时受 `adjust_interval` 限速把已存条目 `expire` 调整到 `clamp(hot_ttl_multiplier × 剩余 TTL)`（方向不限，限制写放大）；已知键最近访问早于 `cold_idle_after` 时 set 的 TTL 除以 `cold_ttl_divisor`；hot 与 cold 同时满足时 hot 优先
+- `AdaptiveTtlConfig` — 全部阈值显式常量（无黑盒启发式）：调整结果钳制在 `[min_ttl, max_ttl]`（默认 1s..1h）；`None`（永不过期）不参与调整原样透传；追踪表上限 `max_tracked_keys`（默认 65 536，0 在 `validate()` 显性拒绝），满时新键按普通键透传；配置经 `validate()` 在构建期校验，`min_ttl > max_ttl`、`hot_ttl_multiplier` 非有限正数（0/负/NaN/inf）、`cold_ttl_divisor = 0`、`max_tracked_keys = 0` 均显性 `Err(InvalidInput)`（而非请求路径 `Duration::clamp` panic 或经乘除静默畸变）
+- 启用：`CacheBuilder::adaptive_ttl(AdaptiveTtlConfig)`；与 `sync_mode(true)` / `stale_ttl` 组合在构建期显性拒绝（`Err(NotSupported)`）
+- 观测：`stats()` / `reset_stats()` 暴露追踪键数与延长/缩短计数；get 路径主动调整遇后端 `expire` 故障不阻断命中、以 `failed_adjustments` 显性计数；后端 `stats()` 附加 `adaptive_tracked_keys` / `adaptive_hot_extensions` / `adaptive_cold_shortenings` / `adaptive_failed_adjustments`
+
 ## 🔒 安全特性
 
 安全函数在 **crate 根**重导出（启用 `redis` 或 `full` 特性时），不在 `oxcache::security` 下：

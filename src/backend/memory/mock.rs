@@ -25,6 +25,8 @@ pub struct MockFaultConfig {
     pub fail_set: bool,
     /// 为 true 时 `health_check` 返回错误
     pub fail_health: bool,
+    /// 为 true 时 `expire` 返回错误（模拟 TTL 调整写入失败路径）
+    pub fail_expire: bool,
 }
 
 /// Mock 后端 - 用于测试的模拟缓存后端
@@ -67,6 +69,12 @@ impl MockBackend {
     /// 注入故障：`health_check` 返回错误
     pub fn with_fail_health(mut self) -> Self {
         self.fault.fail_health = true;
+        self
+    }
+
+    /// 注入故障：`expire` 返回错误
+    pub fn with_fail_expire(mut self) -> Self {
+        self.fault.fail_expire = true;
         self
     }
 
@@ -219,6 +227,11 @@ impl crate::backend::CacheWriter for MockBackend {
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> crate::error::OxCacheResult<bool> {
+        if self.fault.fail_expire {
+            return Err(crate::error::OxCacheError::Operation(
+                "mock expire failure injected".to_string(),
+            ));
+        }
         let mut data = self.data.write().await;
         // 单次查找：避免 contains_key + get_mut 的双重哈希探测
         if let Some(entry) = data.get_mut(key) {

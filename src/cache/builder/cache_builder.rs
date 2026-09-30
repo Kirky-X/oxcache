@@ -79,6 +79,9 @@ pub struct CacheBuilder<K, V> {
     /// SWR stale 事件发布器（`stale` feature）。
     #[cfg(feature = "stale")]
     event_publisher: Option<Arc<dyn crate::core::events::EventPublisher>>,
+    /// 自适应 TTL 配置（R5，`adaptive-ttl` feature）。Some = 装饰器启用。
+    #[cfg(feature = "adaptive-ttl")]
+    adaptive_ttl: Option<crate::features::adaptive_ttl::AdaptiveTtlConfig>,
 }
 
 impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
@@ -111,6 +114,8 @@ impl<K, V> Default for CacheBuilder<K, V> {
             stale_policy: crate::features::stale::StalePolicy::default(),
             #[cfg(feature = "stale")]
             event_publisher: None,
+            #[cfg(feature = "adaptive-ttl")]
+            adaptive_ttl: None,
             backends: Vec::new(),
             ttl: None,
             tti: None,
@@ -282,6 +287,18 @@ where
         self
     }
 
+    /// R5 自适应 TTL：按访问模式调整条目 TTL（hot 延长 / cold 缩短，
+    /// 全部阈值显式见 [`AdaptiveTtlConfig`](crate::features::adaptive_ttl::AdaptiveTtlConfig)）。
+    /// 与 `sync_mode(true)`、`stale_ttl` 互斥（构建期显性拒绝）。
+    #[cfg(feature = "adaptive-ttl")]
+    pub fn adaptive_ttl(
+        mut self,
+        config: crate::features::adaptive_ttl::AdaptiveTtlConfig,
+    ) -> Self {
+        self.adaptive_ttl = Some(config);
+        self
+    }
+
     /// 启用 SWR 三态过期：过期条目在 `stale_ttl` 窗口内仍可返回旧值
     /// （absorb-hitbox-features）。与 `sync_mode(true)` 互斥。
     #[cfg(feature = "stale")]
@@ -434,6 +451,31 @@ where
                     }
                 }
 
+                #[cfg(feature = "adaptive-ttl")]
+                if let Some(config) = self.adaptive_ttl {
+                    if self.sync_mode {
+                        return Err(OxCacheError::NotSupported(
+                            "adaptive_ttl cannot be combined with sync_mode(true); the sync \
+                             API bypasses the decorator and would see unadjusted TTLs"
+                                .to_string(),
+                        ));
+                    }
+                    #[cfg(feature = "stale")]
+                    if self.stale_ttl.is_some() {
+                        return Err(OxCacheError::NotSupported(
+                            "adaptive_ttl cannot be combined with stale_ttl; stacking two TTL \
+                             rewriters has undefined semantics"
+                                .to_string(),
+                        ));
+                    }
+                    let decorator =
+                        Arc::new(crate::features::adaptive_ttl::AdaptiveTtlBackend::new(
+                            cache.backend.clone(),
+                            config,
+                        )?);
+                    cache.backend = decorator;
+                }
+
                 #[cfg(any(feature = "serialization", feature = "full"))]
                 if let Some(format) = self.serialization_format {
                     cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
@@ -537,6 +579,30 @@ where
                     8,
                 )));
             }
+        }
+
+        #[cfg(feature = "adaptive-ttl")]
+        if let Some(config) = self.adaptive_ttl {
+            if self.sync_mode {
+                return Err(OxCacheError::NotSupported(
+                    "adaptive_ttl cannot be combined with sync_mode(true); the sync API \
+                     bypasses the decorator and would see unadjusted TTLs"
+                        .to_string(),
+                ));
+            }
+            #[cfg(feature = "stale")]
+            if self.stale_ttl.is_some() {
+                return Err(OxCacheError::NotSupported(
+                    "adaptive_ttl cannot be combined with stale_ttl; stacking two TTL \
+                     rewriters has undefined semantics"
+                        .to_string(),
+                ));
+            }
+            let decorator = Arc::new(crate::features::adaptive_ttl::AdaptiveTtlBackend::new(
+                cache.backend.clone(),
+                config,
+            )?);
+            cache.backend = decorator;
         }
 
         #[cfg(any(feature = "serialization", feature = "full"))]
@@ -1313,6 +1379,20 @@ mod tests {
                 "explicit .metrics() must override service_name: {export}"
             );
         }
+
+        #[tokio::test]
+        async fn empty_service_name_fails_at_build() {
+            // 空串会静默吞掉维度（record 层早退），构建期显性拒绝
+            let result: OxCacheResult<Cache<String, i32>> =
+                Cache::builder().service_name("").build().await;
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxCacheError::InvalidInput(m)) if m.contains("service_name")
+                ),
+                "empty service_name must fail loudly: {result:?}"
+            );
+        }
     }
 
     // ============================================================================
@@ -1383,6 +1463,140 @@ mod tests {
                 .unwrap();
             cache.set_sync(&"k".to_string(), &99).unwrap();
             assert_eq!(cache.get_sync(&"k".to_string()).unwrap(), Some(99));
+        }
+    }
+
+    // ========================================================================
+    // R5 自适应 TTL：builder 接线端到端与互斥
+    // ========================================================================
+
+    #[cfg(all(feature = "adaptive-ttl", feature = "memory"))]
+    mod adaptive_ttl_builder {
+        use super::*;
+        use crate::features::adaptive_ttl::AdaptiveTtlConfig;
+        use std::time::Duration;
+
+        fn config() -> AdaptiveTtlConfig {
+            AdaptiveTtlConfig {
+                hot_threshold: 2,
+                hot_ttl_multiplier: 10.0,
+                min_ttl: Duration::from_secs(1),
+                max_ttl: Duration::from_secs(30),
+                ..AdaptiveTtlConfig::default()
+            }
+        }
+
+        /// 端到端：builder 装配装饰器后 hot 键在 get 时被延长到上界
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn adaptive_ttl_extends_hot_keys_end_to_end() {
+            let cache: Cache<String, i32> = Cache::builder()
+                .adaptive_ttl(config())
+                .build()
+                .await
+                .unwrap();
+            cache
+                .set_with_ttl(&"hot".to_string(), &1, Some(Duration::from_secs(60)))
+                .await
+                .unwrap();
+            let before = cache.ttl(&"hot".to_string()).await.unwrap();
+            assert!(
+                before > Some(Duration::from_secs(50)),
+                "plain base ttl: {before:?}"
+            );
+
+            // set 已计 freq=1：首次 get 达 hot_threshold=2 → get 主动延长，
+            // 目标 clamp(剩余×10, 1s, 30s)=30s 上界（读数含亚毫秒衰减，按区间断言）
+            let _ = cache.get(&"hot".to_string()).await.unwrap();
+            let after_first = cache.ttl(&"hot".to_string()).await.unwrap();
+
+            // adjust_interval（默认 60s）限速：同周期第二次 get 不再延长
+            //（重置会跳回满额 30s，只会因限速缺席而单调衰减）
+            let _ = cache.get(&"hot".to_string()).await.unwrap();
+            let after_second = cache.ttl(&"hot".to_string()).await.unwrap();
+
+            let first = after_first.expect("ttl after first get");
+            assert!(
+                first > Duration::from_secs(29) && first <= Duration::from_secs(30),
+                "first get must land on the 30s cap, got {first:?}"
+            );
+            let second = after_second.expect("ttl after second get");
+            assert!(
+                second <= first,
+                "second get within adjust_interval must not re-extend: {second:?} vs {first:?}"
+            );
+        }
+
+        /// 与 sync_mode 互斥：构建期显性拒绝
+        #[tokio::test]
+        async fn adaptive_ttl_rejects_sync_mode() {
+            let result: OxCacheResult<Cache<String, i32>> = Cache::builder()
+                .adaptive_ttl(config())
+                .sync_mode(true)
+                .build()
+                .await;
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxCacheError::NotSupported(m)) if m.contains("adaptive_ttl")
+                ),
+                "{result:?}"
+            );
+        }
+
+        /// 与 stale_ttl 互斥：构建期显性拒绝（sync 构建路径）
+        #[cfg(feature = "stale")]
+        #[test]
+        fn adaptive_ttl_rejects_stale_ttl() {
+            let result: OxCacheResult<Cache<String, i32>> = Cache::builder()
+                .adaptive_ttl(config())
+                .stale_ttl(Duration::from_secs(10))
+                .build_sync();
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxCacheError::NotSupported(m)) if m.contains("adaptive_ttl")
+                ),
+                "{result:?}"
+            );
+        }
+
+        /// min_ttl > max_ttl：非法配置必须在构建期显性拒绝（Err 而非
+        /// 请求路径上 Duration::clamp panic）
+        #[tokio::test]
+        async fn adaptive_ttl_rejects_min_ttl_above_max_ttl() {
+            let bad = AdaptiveTtlConfig {
+                min_ttl: Duration::from_secs(30),
+                max_ttl: Duration::from_secs(1),
+                ..config()
+            };
+            let result: OxCacheResult<Cache<String, i32>> =
+                Cache::builder().adaptive_ttl(bad).build().await;
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxCacheError::InvalidInput(m)) if m.contains("min_ttl") && m.contains("max_ttl")
+                ),
+                "min_ttl > max_ttl must be rejected at build: {result:?}"
+            );
+        }
+
+        /// 同上，走 sync 构建入口
+        #[test]
+        fn adaptive_ttl_sync_build_rejects_min_ttl_above_max_ttl() {
+            let bad = AdaptiveTtlConfig {
+                min_ttl: Duration::from_secs(30),
+                max_ttl: Duration::from_secs(1),
+                ..config()
+            };
+            let result: OxCacheResult<Cache<String, i32>> =
+                Cache::builder().adaptive_ttl(bad).build_sync();
+            assert!(
+                matches!(
+                    &result,
+                    Err(OxCacheError::InvalidInput(m)) if m.contains("min_ttl") && m.contains("max_ttl")
+                ),
+                "min_ttl > max_ttl must be rejected at build_sync: {result:?}"
+            );
         }
     }
 }
