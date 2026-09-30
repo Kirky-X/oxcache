@@ -6,7 +6,8 @@ use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::traits::CacheKey;
 use std::collections::HashMap;
-#[cfg(any(feature = "serialization", feature = "full"))]
+// cache 模块门控 any(memory,redis,disk) 且三者均隐含 serialization，
+// 序列化双分支的负分支不可达，本文件无条件处于序列化面
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,26 +22,15 @@ where
         V: 'a,
         I: IntoIterator<Item = (&'a K, &'a V)>,
     {
-        #[cfg(any(feature = "serialization", feature = "full"))]
-        {
-            let mut batch_items = Vec::new();
-            for (key, value) in items {
-                let key_str = key.to_key_string();
-                // 经 UnifiedSerializer 序列化，与单条 set 同口径（审计 F13：
-                // 硬编码 JSON 会在二进制格式下与单条读写错配）
-                let bytes = self.unified_serializer.serialize(value)?;
-                batch_items.push((Arc::from(key_str), Arc::new(bytes), None));
-            }
-            self.backend.set_many(&batch_items).await
+        let mut batch_items = Vec::new();
+        for (key, value) in items {
+            let key_str = key.to_key_string();
+            // 经 UnifiedSerializer 序列化，与单条 set 同口径（审计 F13：
+            // 硬编码 JSON 会在二进制格式下与单条读写错配）
+            let bytes = self.unified_serializer.serialize(value)?;
+            batch_items.push((Arc::from(key_str), Arc::new(bytes), None));
         }
-
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = items;
-            Err(OxCacheError::Serialization(
-                "Serialization feature is required for typed set_many operations".to_string(),
-            ))
-        }
+        self.backend.set_many(&batch_items).await
     }
 
     /// 批量写入并附带 per-entry TTL（经 `apply_jitter` 抖动，防同批同时过期）。
@@ -57,26 +47,14 @@ where
         V: 'a,
         I: IntoIterator<Item = (&'a K, &'a V)>,
     {
-        #[cfg(any(feature = "serialization", feature = "full"))]
-        {
-            let jittered = ttl.map(|t| self.apply_jitter(t));
-            let mut batch_items = Vec::new();
-            for (key, value) in items {
-                let key_str = key.to_key_string();
-                let bytes = self.unified_serializer.serialize(value)?;
-                batch_items.push((Arc::from(key_str), Arc::new(bytes), jittered));
-            }
-            self.backend.set_many(&batch_items).await
+        let jittered = ttl.map(|t| self.apply_jitter(t));
+        let mut batch_items = Vec::new();
+        for (key, value) in items {
+            let key_str = key.to_key_string();
+            let bytes = self.unified_serializer.serialize(value)?;
+            batch_items.push((Arc::from(key_str), Arc::new(bytes), jittered));
         }
-
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = (items, ttl);
-            Err(OxCacheError::Serialization(
-                "Serialization feature is required for typed set_many_with_ttl operations"
-                    .to_string(),
-            ))
-        }
+        self.backend.set_many(&batch_items).await
     }
 
     pub async fn get_many<'a, I>(&self, keys: I) -> OxCacheResult<HashMap<String, V>>
@@ -84,39 +62,30 @@ where
         K: 'a,
         I: IntoIterator<Item = &'a K>,
     {
-        #[cfg(any(feature = "serialization", feature = "full"))]
-        {
-            let key_strings: Vec<String> = keys.into_iter().map(|k| k.to_key_string()).collect();
-            let values = self.backend.get_many(&key_strings).await?;
+        let key_strings: Vec<String> = keys.into_iter().map(|k| k.to_key_string()).collect();
+        let values = self.backend.get_many(&key_strings).await?;
 
-            let mut result = HashMap::new();
-            for (key, value) in key_strings.into_iter().zip(values) {
-                if let Some(bytes) = value {
-                    // 经 UnifiedSerializer 反序列化，与单条 get 同口径（审计 F13）
-                    match self.unified_serializer.deserialize::<V>(&bytes) {
-                        Ok(decoded) => {
-                            result.insert(key, decoded);
-                        }
-                        Err(e) => {
-                            return Err(OxCacheError::Serialization(format!(
-                                "failed to deserialize value for key '{}': {}",
-                                key, e
-                            )));
-                        }
+        // 预分配结果容器（批量读多为命中场景）：避免逐条 insert 触发
+        // 的多轮 grow + rehash；miss 占多数时最多浪费一次容量分配
+        let mut result = HashMap::with_capacity(values.len());
+        for (key, value) in key_strings.into_iter().zip(values) {
+            if let Some(bytes) = value {
+                // 经 UnifiedSerializer 反序列化，与单条 get 同口径（审计 F13）
+                match self.unified_serializer.deserialize::<V>(&bytes) {
+                    Ok(decoded) => {
+                        result.insert(key, decoded);
+                    }
+                    Err(e) => {
+                        return Err(OxCacheError::Serialization(format!(
+                            "failed to deserialize value for key '{}': {}",
+                            key, e
+                        )));
                     }
                 }
             }
-
-            Ok(result)
         }
 
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = keys;
-            Err(OxCacheError::Serialization(
-                "Serialization feature is required for typed get_many operations".to_string(),
-            ))
-        }
+        Ok(result)
     }
 
     pub async fn delete_many<'a, I>(&self, keys: I) -> OxCacheResult<()>

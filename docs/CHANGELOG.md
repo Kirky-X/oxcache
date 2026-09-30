@@ -5,7 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [0.5.0-rc.7] - 2026-09-30
 
 ### 新增
 
@@ -14,7 +14,25 @@
 - **`sync_mode(true)` × `backend_arc` 解除互斥（`AsyncToSyncBridge`）**：`backend_arc` 注入的 async 面后端现在可与 `sync_mode(true)` 组合——sync API 经通用 `AsyncToSyncBridge` 桥出（每个同步调用 `block_in_place` + `block_on` 异步面，futures 不会中途被丢弃；原子能力按 inner 的 `as_atomic_writer` 诚实探测），要求调用时处于多线程 Tokio runtime（I/O 型后端需 ≥2 worker，单 worker 有挂起风险），runtime 之外或 current_thread runtime 上逐调用显性 `Err(NotSupported)`（原先该组合在构建期直接 `Err(NotSupported)`，现已解锁）；`shutdown` 在 runtime 之外经临时 runtime 真实执行，current_thread runtime 下跳过并计数 `oxcache_bridge_shutdown_rejected_total`（默认预设可见，telemetry feature 下另发 warn）；分层一等构建 API 收尾，`CacheConfig` 的 `sync_mode` × `backend` 组合约束同步解除，且配置通路按槽位注入——Moka/DashMap 走双面原生槽（async 面保持原生运行时无关，sync 面直连，均零桥接），Redis/Dragonfly/Disk 保持桥接；`RedisBackend` 同步面运行时守卫与桥接守卫合并为共享 `multi_thread_bridge_handle`（语义不变）；分层取舍：运行时无关的 sync API 仍建议走 `sync_backend_arc`（原生同步面）或默认 Moka 路径
 - **`sync_backend_arc` 同步一等构建入口**：`CacheBuilder` 新增注入 `Arc<dyn SyncCacheBackend>` 的方法（内部以 `BackendSlot` enum 分槽保存 async/sync 两类入口），配合 `sync_mode(true)` 时同步 API 直连原生同步后端、异步 API 经新增的 `SyncBackendAdapter` 门面呈现（async 方法体内同步完成，无运行时依赖；原子操作经 `as_sync_atomic_writer` 动态探测）；`backend_arc`（仅 async 面，具体类型同步实现已擦除）与 `sync_mode(true)` 组合彼时返回 `Err(NotSupported)`，错误信息改指 `sync_backend_arc`（后经 `AsyncToSyncBridge` 解除，见上条）；解锁此前「同步 API 仅限默认 Moka 后端」的限制
 
-- **统一配置中枢 `CacheConfig`**：单一结构（`oxcache::config::CacheConfig`，`config` 模块转公开）承载缓存构建全量参数，三条配置通路——程序化 builder / `OXCACHE_*` 环境变量（`try_from_env()`，15 键：capacity/TTL/TTI/空值 TTL/抖动因子/sync_mode/backend/指标/序列化格式/redis_url/disk_path/连接池/熔断阈值与恢复超时/service_name）/ confers 配置源（`config-confers` 下 `try_from_confers()`，`OxcacheConfig` 扩展 10 个 Option 键并按快照映射）；`validate()` 一致性检查覆盖值域（容量非零且不超平台 `usize`、TTL 非零、连接池与熔断阈值非零）、组合约束（Redis/Dragonfly 必填 redis_url、Disk 必填 disk_path）与 feature 可用性（未启用 `metrics`/`serialization`/后端 feature 时配置对应键显性报错）；`apply_to_cache_builder()` / `build_backend()` 落地到既有构建链，backend 按槽位注入——Moka/DashMap 走双面原生槽（async 面运行时无关、`sync_mode(true)` 下 sync API 原生直连，均零桥接），其余后端 async 面经 `backend_arc` 注入（sync 面经 `AsyncToSyncBridge` 桥出）；env 未设置的键保持 `None`（零行为漂移），解析失败与 feature 缺失均显性报错（附变量名与原始值）；confers 通路同轮消除两处静默截断——超界熔断阈值与连接池大小由钳位/丢弃改为显性报错，热更新重载被拒时保留旧快照并可观测（`oxcache_config_reload_rejected_total` 计数器为默认信号，telemetry feature 下另发 tracing warn）；`redis_url` 的 `Debug` 输出脱敏
+- **统一配置中枢 `CacheConfig`**：单一结构（`oxcache::config::CacheConfig`，`config` 模块转公开）承载缓存构建全量参数，三条配置通路——程序化 builder / `OXCACHE_*` 环境变量（`try_from_env()`，15 键：capacity/TTL/TTI/空值 TTL/抖动因子/sync_mode/backend/指标/序列化格式/redis_url/disk_path/连接池/熔断阈值与恢复超时/service_name）/ confers 配置源（`config-confers` 下 `try_from_confers()`，`OxcacheConfig` 扩展 10 个 Option 键并按快照映射）；`validate()` 一致性检查覆盖值域（容量非零且不超平台 `usize`、TTL 非零、连接池与熔断阈值非零）、组合约束（Redis/Dragonfly 必填 redis_url、Disk 必填 disk_path）与 feature 可用性（未启用 `metrics`/`serialization`/后端 feature 时配置对应键显性报错）；`apply_to_cache_builder()` / `build_backend()` 落地到既有构建链，backend 按槽位注入——Moka/DashMap 走双面原生槽（async 面运行时无关、`sync_mode(true)` 下 sync API 原生直连，均零桥接），其余后端 async 面经 `backend_arc` 注入（sync 面经 `AsyncToSyncBridge` 桥出）；env 未设置的键保持 `None`（零行为漂移），解析失败与 feature 缺失均显性报错（附变量名与原始值）；confers 通路同轮消除两处静默截断——超界熔断阈值与连接池大小由钳制/丢弃改为显性报错，热更新重载被拒时保留旧快照并可观测（`oxcache_config_reload_rejected_total` 计数器为默认信号，telemetry feature 下另发 tracing warn）；`redis_url` 的 `Debug` 输出脱敏
+- **智能预热（R7，`warmup` feature，默认关闭）**：`WarmupLoader` 端口（对象安全，`Arc<dyn WarmupLoader>` 注入）拉取热 key 集合，异步回填 `ChainCache`——`WarmupEntry` 直供值经链式写入落全部后端，仅 key 条目经 `ChainCache::iter_entries` 批量读从低层晋升（链上无值计 `missing`），晋升回填查链上剩余 TTL 透传源过期语义（不把带 TTL 的源条目重置为链默认 TTL）；key 去重（首次出现生效，loader 顺序即优先级）、回填写入并发上界可配（默认 8，0 视为 1 串行，Semaphore 滑窗恒定在飞数）、直供值单值大小上限（默认与序列化写入面 `MAX_JSON_SIZE` 同口径）与单轮条目数上限（默认 100_000）防 loader 无界集合放大回填规模（均可经 builder 调整，置 0 解除）；`WarmupReport` 全量显性计数（`loader_entries`/`deduped`/`warmed`/`promoted`/`missing`/`failed` + 逐条失败明细 + 实测并发峰值 + `dropped_value_too_large`/`dropped_over_entry_cap` 超限丢弃）；失败语义：loader 端口失败显性 `Err` 中止（缓存本体不受影响），单条写入失败不中断整批、计入报告。11 例单测覆盖回填命中/批量晋升/去重/loader 失败容错/写入失败计数/并发上界/零并发收敛/空 loader/单值上限丢弃/条目数上限丢弃/晋升 TTL 透传
+- **审计事件 → inklog 结构化日志桥接（R10，`inklog` feature，默认关闭）**：`InklogAuditPublisher` 实现既有 `AuditEventPublisher` 端口，审计事件映射为 `inklog::LogRecord` 经有界通道（容量 1024，`BRIDGE_CHANNEL_CAPACITY`）交由单一 writer task 保序写入注入的 `inklog::sink::LogSink`（ConsoleSink/FileSink/自定义实现；每事件无界 spawn 改单消费者，过载以丢弃替代无界任务堆积）；级别映射为显式常量表（状态变更 Set/Delete/Clear → INFO，读探测与容量/过期清理 Hit/Miss/Evict/Expired → DEBUG），字段携带 `action`/`key`/`namespace`/`operator`/`timestamp_ms` 与 `meta.*` 元数据；`publish` 非阻塞——无 runtime 上下文（如 runtime 之外的 sync API 调用路径）、通道过载、通道关闭（writer 所属 runtime 关停后的后续 publish）、runtime 关停时通道内滞留事件（接收端守卫清算）均显性丢弃并计数 `dropped_count()`，sink 写失败计数 `write_failure_count()`，均不反压缓存操作；inklog 依赖精确钉 =0.3.0-rc.5（`default-features = false`，禁止 caret 自动升级引入端口漂移；所需端口 `LogRecord`/`LogSink`/`InklogError` 均为该版本无条件编译面，证据：rc.5 源 `lib.rs:161/222/223` 根重导出、`support/io/sink/mod.rs:77` `LogSink` trait、`domain/types/log_record.rs:191` `LogRecord::new`；rc.5 对 oxcache 0.5.0-rc.5 的 registry 依赖与本仓为不同 package id 的合法 DAG，非包级循环）；示例 `examples/src/06_features/example_inklog_audit_bridge.rs`（`inklog-bridge` feature 隔离，默认示例构建不引入 inklog），9 例单测覆盖转发/级别映射/写失败计数/无 runtime 丢弃/通道过载丢弃/runtime 关停窗口丢失/映射全覆盖/可选字段省略
+
+### 性能
+
+- **热路径分配削减（R12）**：分配剖析基线入库 `docs/allocation-baseline.md`（口径与环境说明 + 复测 harness），两个削减点——`UnifiedSerializer::deserialize` 非压缩分支去除 `to_vec()` 全量中间拷贝（三种格式的解析入口均以 `&[u8]` 借用工作，拷贝纯属浪费；每次反序列化省 1 次堆分配 + memcpy，get/get_many/get_or 逐键生效）；`batch_ops::get_many` 结果容器预分配 `HashMap::with_capacity(values.len())`（消除逐条 insert 的多轮 grow + rehash）。`get_many`（100 键全命中）每调用堆分配 **517 → 412（−20.3%）**（`#[global_allocator]` 计数法，确定性主指标；criterion 时间项在噪声内不可分辨，已在文档诚实披露）；基线文档同时给出评估后未削减候选点的 ROI 结论
+
+### 变更
+
+- **治理复核收口（HK2，§9.2 第 2 项）**：复核记录入库 `docs/FEATURE_AUDIT_RECHECK.md`——「redis-only 编译失败」经实证过时（`--no-default-features --features redis` 通过）；「bare-kit 编译失败」成立已修（`trait-kit`/`kit` 隐含 `memory` 基线）；「`core`/`full` 语义重整」论据不足维持现状（三处文档口径一致，选择加入特性不在 `full` 为既定设计）；「basic_ops 序列化双分支」成立已修（cache 模块编译必然隐含 `serialization`，5 处不可达负分支删除、正分支去恒真 cfg，无可达行为变化）。cargo-hack 单特性全矩阵（30+ 特性）另暴露并修复 4 个同类单开编译裂缝：`batch`/`compression`/`encrypt` 隐含 `memory` 基线、`integrity` 隐含 `encrypt`（模块寄生在 encryption 内）；修复后单特性矩阵与 14 组主要组合抽查全绿；`docs/API_REFERENCE.md`「特性依赖」表补全
+
+### 测试
+
+- **diting-review 登记待办收口**：MED-001（测试线程内 `unsafe set_var` 与 libtest 并发构成形式数据竞争）已修——`tests/common/mod.rs` 增 `#[ctor::ctor(unsafe)]` 进程加载期一次性写入 `OXCACHE_ALLOW_INSECURE_REDIS`，删除 11 个测试文件共 31 处测试体内环境变量写点与 2 个空壳 helper；LOW-002 部分修复——`start_redis/valkey/dragonfly_container` 三胞胎以 `container_start_fn!` 宏收敛，骨架残余经实证评估不收敛（理由留档 `docs/diting-review.md`「待办修复轮」）
+
+### 文档
+
+- `docs/allocation-baseline.md`（新增，热路径分配基线与削减对账；放 `docs/` 而非任务指定的 `reviews/`——该目录被 `.gitignore` 排除，入库必丢文件，循 `diting-review.md` 重建先例）；`docs/FEATURE_AUDIT_RECHECK.md`（新增，治理复核记录）；`docs/diting-review.md` 待办收口与状态同步；`docs/ARCHITECTURE.md` 未来增强节落地注记（智能预热）；`docs/API_REFERENCE.md` 智能预热节与 `audit_publisher` 发布器清单、特性依赖表补全；README 特性表增 `warmup` 行、`audit` 行补 inklog 发布器、版本历史与测试计数刷新
 
 ## [0.5.0-rc.6] - 2026-09-28
 

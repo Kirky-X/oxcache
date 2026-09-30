@@ -231,9 +231,6 @@ mod redis_sync_tests {
     }
 
     async fn make_backend() -> RedisBackend {
-        unsafe {
-            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-        };
         RedisBackend::new(REDIS_URL)
             .await
             .expect("Failed to connect to Redis — start a Redis server before running this test")

@@ -239,45 +239,34 @@ where
         #[cfg(feature = "audit")]
         let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
 
-        #[cfg(any(feature = "serialization", feature = "full"))]
+        // cache 模块门控 any(memory,redis,disk) 且三者均隐含 serialization，
+        // 序列化双分支的负分支不可达，本文件无条件处于序列化面
+        // 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
+        let bytes = self.unified_serializer.serialize(value)?;
+        // 写路径指标埋点
+        #[cfg(feature = "metrics")]
+        let __start = std::time::Instant::now();
+        let result = self
+            .backend
+            .set(Arc::from(key_str), Arc::new(bytes), ttl)
+            .await;
+        #[cfg(feature = "metrics")]
         {
-            // 经 UnifiedSerializer 序列化（JSON 默认；可切二进制格式）
-            let bytes = self.unified_serializer.serialize(value)?;
-            // 写路径指标埋点
-            #[cfg(feature = "metrics")]
-            let __start = std::time::Instant::now();
-            let result = self
-                .backend
-                .set(Arc::from(key_str), Arc::new(bytes), ttl)
-                .await;
-            #[cfg(feature = "metrics")]
-            {
-                self.metrics
-                    .record_set(self.metrics_layer(), __start.elapsed());
-                self.record_backend_op();
-            }
-            // 审计事件（set）
-            #[cfg(feature = "audit")]
-            if result.is_ok()
-                && let Some(publisher) = self.audit.as_ref()
-            {
-                publisher.publish(
-                    crate::features::audit::AuditEvent::new(
-                        crate::features::audit::AuditAction::Set,
-                    )
+            self.metrics
+                .record_set(self.metrics_layer(), __start.elapsed());
+            self.record_backend_op();
+        }
+        // 审计事件（set）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(crate::features::audit::AuditAction::Set)
                     .with_key(__redacted_key),
-                );
-            }
-            result
+            );
         }
-
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = (key_str, value, ttl);
-            Err(OxCacheError::Serialization(
-                "Serialization feature is required for typed set operations".to_string(),
-            ))
-        }
+        result
     }
 
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
@@ -868,35 +857,20 @@ where
         #[cfg(feature = "audit")]
         let __redacted_key = crate::features::audit::redact_key_for_audit(&key_str);
 
-        #[cfg(any(feature = "serialization", feature = "full"))]
+        // 经 UnifiedSerializer 序列化（格式可插拔）
+        let bytes = self.unified_serializer.serialize(value)?;
+        let result = backend.set(Arc::from(key_str), Arc::new(bytes), ttl);
+        // 审计事件（set）——与 async set_with_ttl 同语义（仅成功发布）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
         {
-            // 经 UnifiedSerializer 序列化（格式可插拔）
-            let bytes = self.unified_serializer.serialize(value)?;
-            let result = backend.set(Arc::from(key_str), Arc::new(bytes), ttl);
-            // 审计事件（set）——与 async set_with_ttl 同语义（仅成功发布）
-            #[cfg(feature = "audit")]
-            if result.is_ok()
-                && let Some(publisher) = self.audit.as_ref()
-            {
-                publisher.publish(
-                    crate::features::audit::AuditEvent::new(
-                        crate::features::audit::AuditAction::Set,
-                    )
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(crate::features::audit::AuditAction::Set)
                     .with_key(__redacted_key),
-                );
-            }
-            result
+            );
         }
-
-        #[cfg(not(any(feature = "serialization", feature = "full")))]
-        {
-            let _ = (backend, key_str, value, ttl);
-            #[cfg(feature = "audit")]
-            let _ = __redacted_key;
-            Err(OxCacheError::Serialization(
-                "Serialization feature is required for typed set operations".to_string(),
-            ))
-        }
+        result
     }
 
     /// Synchronously delete a key.

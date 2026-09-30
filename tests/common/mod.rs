@@ -49,6 +49,23 @@ pub use test_containers::{
 pub use mock_backend::MockBackend;
 
 // ============================================================================
+// 环境变量一次性初始化
+// ============================================================================
+
+// libtest 默认多线程并发运行测试，POSIX `environ` 非线程安全（std 将
+// `set_var` 标记 `unsafe` 即因此）；测试进程对该变量的取值恒为同一常量，
+// 故在进程加载期（main 前、单线程期）由 ctor 一次性写入，测试体内不再
+// 出现任何并发写环境变量的位点。取值必须与
+// `src/backend/memory/redis/builder.rs` 的白名单字面量一致。
+#[cfg(feature = "redis")]
+#[ctor::ctor(unsafe)]
+fn init_allow_insecure_redis_env() {
+    unsafe {
+        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
+    }
+}
+
+// ============================================================================
 // 日志设置
 // ============================================================================
 

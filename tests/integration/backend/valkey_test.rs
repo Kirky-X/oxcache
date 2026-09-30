@@ -28,15 +28,8 @@ async fn setup_container() -> Option<ValkeyContainer> {
     Some(container)
 }
 
-/// 设置环境变量以允许不安全连接（测试用）
-fn set_allow_insecure() {
-    // SAFETY: test-only environment variable, single-threaded test context
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
-}
-
 /// 创建 Valkey 后端（显式 ValkeyStandalone 模式）
 async fn make_valkey_backend(url: &str) -> RedisBackend {
-    set_allow_insecure();
     RedisBackend::builder()
         .connection_string(url)
         .mode(RedisMode::ValkeyStandalone)
@@ -47,7 +40,6 @@ async fn make_valkey_backend(url: &str) -> RedisBackend {
 
 /// 创建 Valkey 后端（普通 Redis 模式，透明复用）
 async fn make_valkey_backend_transparent(url: &str) -> RedisBackend {
-    set_allow_insecure();
     RedisBackend::new(url)
         .await
         .expect("Failed to connect to Valkey")

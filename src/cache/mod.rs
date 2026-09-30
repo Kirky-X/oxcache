@@ -10,6 +10,8 @@ pub mod interface;
 #[cfg(feature = "memory")]
 pub mod tiered_builder;
 pub mod typed_namespace;
+#[cfg(feature = "warmup")]
+pub mod warmup;
 
 // Re-exports
 pub use api::Cache;
@@ -22,6 +24,8 @@ pub use tiered_builder::tiered_with_invalidation;
 #[cfg(feature = "memory")]
 pub use tiered_builder::{ChainBuilder, L1Builder, L2Builder};
 pub use typed_namespace::{NamespaceName, TypedNamespace};
+#[cfg(feature = "warmup")]
+pub use warmup::{Warmup, WarmupBuilder, WarmupEntry, WarmupLoader, WarmupReport};
 
 /// 无泛型的 bytes 级缓存别名（问题 6.2）
 ///

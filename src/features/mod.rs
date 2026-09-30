@@ -96,6 +96,11 @@ pub use audit::{
 #[cfg(all(feature = "audit", feature = "telemetry"))]
 pub use audit::TracingAuditPublisher;
 
+// inklog 依赖精确钉 =0.3.0-rc.5（其自身 registry 依赖 oxcache 0.5.0-rc.5）；
+// 升级 oxcache 版本时须同步确认 inklog 发布版的依赖对齐
+#[cfg(all(feature = "audit", feature = "inklog"))]
+pub use audit::InklogAuditPublisher;
+
 #[cfg(feature = "compression")]
 pub use compression::{
     CompressingBackend, DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_ZSTD_LEVEL, ZSTD_MAGIC,

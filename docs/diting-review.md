@@ -23,7 +23,7 @@
 | ✨ Simplification | 2 | 🔵 Low |
 | **Total** | **5** | |
 
-**Verdict**: ✅ Approved（无 Critical/High；2 Medium + 1 Low 当轮修复，1 Medium + 1 Low 登记待办）
+**Verdict**: ✅ Approved（无 Critical/High；2 Medium + 1 Low 当轮修复，1 Medium + 1 Low 登记待办；**2026-09-30 待办修复轮已将 MED-001 与 LOW-002 收口，见文末「待办修复轮」**）
 
 ---
 
@@ -38,7 +38,7 @@
 
 **Problem**: `set_allow_insecure()`（如 `valkey_test.rs:31-34`、`dragonfly_test.rs:20-24`）及 degradation_tests/redis_cluster_test/redis_sentinel_test/redis_client_comprehensive_test 等存量文件在测试体内直接 `unsafe env::set_var`。libtest 默认多线程并发运行测试，POSIX `environ` 非线程安全，标准库将 `set_var` 标记为 `unsafe` 即因此；同进程并发写环境变量属于形式 UB（实际危害受限于写入恒为同值，但读侧如 `redis_test_utils.rs` 的 env 探测与写侧并发即构成 race）。
 
-**Remediation（登记待办，代价大）**: 统一改为进程启动时一次性初始化——dev-deps 已有 `ctor`，在 `tests/common/mod.rs` 加 `#[ctor]` 于 main 前单线程设置 `OXCACHE_ALLOW_INSECURE_REDIS`，删除全部测试内 `set_var` 点（20+ 处、跨 10+ 文件）。单修近期两文件无法消除进程级竞争且会制造「已修复」错觉，故不拆散修。**待办。**
+**Remediation（✅ 已修复，2026-09-30 待办修复轮）**: 统一改为进程启动时一次性初始化——dev-deps 已有 `ctor`，在 `tests/common/mod.rs` 加 `#[ctor]` 于 main 前单线程设置 `OXCACHE_ALLOW_INSECURE_REDIS`，删除全部测试内 `set_var` 点（20+ 处、跨 10+ 文件）。
 
 ---
 
@@ -78,7 +78,7 @@
 
 **Problem**: 三个 `start_*_container` 便捷函数均为「start → wait_ready → 组 URL」的同构 7 行（仅镜像/类型不同）；两个 backend 测试文件的 `set_allow_insecure` + `make_*_backend` + setup 骨架亦高度相似。语义收敛已由 `container_or_skip` 完成，剩属结构重复。
 
-**Remediation（登记待办，收益有限）**: 可用宏或泛型 trait（`Image: IntoContainer` 风格）收敛三胞胎；测试骨架可下沉共享。当前重复度低、改动会触碰稳定测试面，收益/风险比不划算。**待办。**
+**Remediation（✅ 部分修复，2026-09-30 待办修复轮）**: 容器三胞胎已用声明式宏收敛；测试骨架残余（构造包装层）经实证评估不收敛（抽象成本高于残余重复，理由见文末「待办修复轮」）。
 
 ---
 
@@ -91,3 +91,10 @@
 | MED-003 | ✅ 本轮修复 |
 | LOW-001 | ✅ 本轮修复 |
 | LOW-002 | 📋 登记待办（结构收敛，收益/风险比待评估） |
+
+## 待办修复轮（2026-09-30）
+
+| ID | 处置 | 证据 |
+|---|---|---|
+| MED-001 | ✅ 已修复：`tests/common/mod.rs` 增 `#[ctor::ctor(unsafe)]` 进程加载期一次性写入 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`（单线程期写环境变量，消除并发写 `environ` 竞争）；删除 `tests/` 目录下 11 个测试文件共 31 处测试体内 `set_var` 位点与 2 个 `set_allow_insecure` 空壳 helper，`tests/` 目录内测试体内不再存在任何环境变量写点（本声明仅限定 `tests/` 目录） | `integration`/`chaos`/`e2e` 三二进制零警告编译；`--features full` 下 degradation_tests 14/14、valkey/dragonfly/redis_cluster/redis_sentinel 模块全绿（容器不可达路径走既有门控跳过） |
+| LOW-002 | ✅ 部分修复：`start_redis/valkey/dragonfly_container` 三胞胎以 `container_start_fn!` 声明式宏收敛（`tests/common/test_containers.rs`，`start → wait_ready → 组 URL` 单点维护）。**残余不修理由**：两份 backend 测试骨架在 MED-001 修复后仅剩 `make_*_backend` 构造包装层——valkey（2 函数，`RedisMode::ValkeyStandalone` + 透明模式双语义）与 dragonfly（1 函数，`OxCacheResult` 错误路由给门控）签名、模式与错误语义各异，收敛需为 3 个单行构造引入跨文件泛型抽象，抽象成本高于残余重复，维持原 LOW-002 裁决的收益/风险比结论 | 宏收敛后 `--features full` integration 二进制零警告编译，valkey 8/8、dragonfly 6/6 通过 |

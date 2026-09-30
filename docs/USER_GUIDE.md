@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.6** 编写。
+> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.7** 编写。
 
 ## 📋 目录
 
@@ -104,12 +104,12 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.6", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.7", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层与依赖
 
@@ -119,7 +119,7 @@ oxcache = "0.5.0-rc.6"
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.6", default-features = false, features = ["core"] }
+oxcache = { version = "0.5.0-rc.7", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：
@@ -461,6 +461,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 完整同步方法表与未启用 `sync_mode` 时的 `NotSupported` 行为见 [API 参考](API_REFERENCE.md#-同步-api)。
 
+审计行为：同步路径与异步路径同语义发布审计事件（`audit` 特性）；依赖 tokio runtime 的发布器（`inklog` 桥接）在 runtime 之外调用时逐条丢弃并计数（`dropped_count`），runtime 外场景应选运行时无关发布器。
+
 ### 布隆过滤器
 
 启用 `bloom` 特性（不在 `full` 内）可进行负查询过滤。`BloomFilterBackend`
@@ -586,7 +588,7 @@ let backend = RedisBackend::builder()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.6", features = ["dragonfly"] }
+oxcache = { version = "0.5.0-rc.7", features = ["dragonfly"] }
 ```
 
 ```rust
@@ -606,7 +608,7 @@ let dragonfly = DragonflyBackend::new("redis://127.0.0.1:6379", 8).await?;
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.6", features = ["aerospike"] }
+oxcache = { version = "0.5.0-rc.7", features = ["aerospike"] }
 ```
 
 后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#-aerospikebackend)。

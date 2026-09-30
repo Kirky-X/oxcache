@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.6）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.7）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -122,7 +122,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -191,9 +191,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
+oxcache = { version = "0.5.0-rc.7", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0-rc.7", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # 全量（不含 bloom / kit 等选择加入特性）
 ```
 
 | 标志 | 说明 | 默认 |
@@ -223,13 +223,14 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量（不含
 | `postcard` | postcard 二进制序列化格式 | ❌ |
 | `config-confers` | confers 配置驱动构建 + `ConfigBus` watch 热更新 | ❌ |
 | `degradation` | 自动降级与恢复（Active / Degraded / HalfOpen 三态状态机） | ❌ |
-| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing 发布器） | ❌ |
+| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing / inklog 结构化日志发布器） | ❌ |
 | `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
 | `kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器） | ❌ |
 | `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
 | `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
 | `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
 | `adaptive-ttl` | 自适应 TTL：`AdaptiveTtlBackend` 按访问模式调整条目 TTL（hot 延长 / cold 缩短，显式常量配置） | ❌ |
+| `warmup` | 智能预热：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`（批量晋升 + 直供回填，去重/并发可控，报告显性计数） | ❌ |
 
 > `bloom` 与 `kit` 等选择加入特性**不在** `full` 中，需显式启用。
 
@@ -484,7 +485,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.6**；合计 2000+（`src/` 1437 + `tests/` 629）。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**；合计 2161（`src/` 1532 + `tests/` 629）。
 
 ### 常用命令（与 CI 一致）
 
@@ -556,10 +557,10 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 | 状态 | 事项 | 说明 |
 |:----:|------|------|
-| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.6（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
+| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.7（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
 | ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey（及 Dragonfly）集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
-| ✅ | **质量审查留档项跟进** | 重建留档见 `docs/diting-review.md`（3 Medium + 2 Low）：2 Medium + 1 Low 已修复，其余登记待办 |
+| ✅ | **质量审查留档项跟进** | 留档见 `docs/diting-review.md`（3 Medium + 2 Low）：5 项全部收口（2 Medium + 1 Low 当轮修复，MED-001 与 LOW-002 于 2026-09-30 待办修复轮收口） |
 
 ---
 
@@ -578,6 +579,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近要点：
 
+- **0.5.0-rc.7**（2026-09-30）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；热路径分配基线与削减（`get_many` 结果 HashMap 预分配等，见 `docs/allocation-baseline.md`）；治理复核与审查留档修复
 - **0.5.0-rc.6**（2026-09-28）：吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed
 - **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
 - **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性

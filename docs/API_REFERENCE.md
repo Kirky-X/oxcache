@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.5.0-rc.6** 的 API。
+> 本文档描述 **Oxcache v0.5.0-rc.7** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -59,6 +59,21 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 | `macros` | `minimal` | 属性宏 |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
 | `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock` | 全量预设（注意：`bloom`、`kit` 不在 `full` 中） |
+| `memory` | `serialization` | backend 与 cache 核心 API 的编译基线 |
+| `redis` | `serialization` | L2 Redis 后端 |
+| `disk` | `memory`, `serialization` | redb 嵌入式 L3 |
+| `degradation` | `memory` | 降级装饰器（引用 `crate::backend`） |
+| `adaptive-ttl` | `memory` | 自适应 TTL 装饰器（引用 `crate::backend`） |
+| `warmup` | `memory` | 智能预热（操作 `ChainCache`） |
+| `batch` | `memory` | BatchWriter（包装 `CacheBackend`） |
+| `compression` | `memory` | 压缩装饰器（引用 backend 与序列化面） |
+| `encrypt` | `memory` | 加密装饰器（引用 `crate::backend`） |
+| `integrity` | `encrypt`, `dep:hmac`, `dep:sha2` | 完整性签名层（模块寄生在 encryption 内） |
+| `trait-kit` / `kit` | `memory` | kit 集成（引用 `crate::backend`） |
+| `config-confers` | `memory` | 配置中枢 |
+| `inklog` | `audit` | 审计事件 → inklog 结构化日志发布器 |
+| `stale` | `memory`, `offload` | SWR 三态过期 |
+| `hotkey` | `dashmap` | 热 key 采样观测 |
 
 ## 🪄 缓存宏
 
@@ -89,7 +104,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0-rc.6", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.0-rc.7", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
@@ -255,7 +270,7 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 | `null_cache_ttl` | `(ttl: Duration) -> Self` | 空值哨兵 TTL（穿透防护） |
 | `ttl_jitter` | `(factor: f64) -> Self` | TTL 抖动系数（防批量同时过期） |
 | `metrics` | `(recorder: Arc<dyn MetricsRecorder>) -> Self` | 注入 `MetricsRecorder`（覆盖纯 L1 路径指标） |
-| `audit_publisher` | `(publisher: Arc<dyn AuditEventPublisher>) -> Self` | 注入审计事件发布器（`audit` 特性，hit/miss/set/delete 结构化事件、键脱敏） |
+| `audit_publisher` | `(publisher: Arc<dyn AuditEventPublisher>) -> Self` | 注入审计事件发布器（`audit` 特性，hit/miss/set/delete 结构化事件、键脱敏）；内置实现：`NoOpAuditPublisher` / `InMemoryAuditPublisher`（有界环形）/ `TracingAuditPublisher`（`telemetry`）/ `InklogAuditPublisher`（`inklog`，事件→`LogRecord` 经有界通道（1024）由单一 writer task 保序写 `LogSink`，写操作 INFO/读探测 DEBUG；无 runtime/通道过载/通道关闭/关停滞留均计入 `dropped_count`，写失败计入 `write_failure_count`） |
 | `build` | `async (self) -> Result<Cache<K, V>>` | 构建缓存实例（异步包装，内部无 await） |
 | `build_sync` | `(self) -> Result<Cache<K, V>>` | 同步构建缓存实例（无需运行时） |
 
@@ -611,6 +626,8 @@ let cache: Cache<String, String> = Cache::builder()
 当 `sync_mode` 为 `false`（默认）时，所有 `*_sync` 方法返回
 `Err(OxCacheError::NotSupported)`。
 
+审计事件：`*_sync` 路径与异步路径同语义发布（`audit` 特性）；发布器若依赖 tokio runtime（如 `InklogAuditPublisher`），在 runtime 之外的同步调用中事件无法落盘、逐条计入 `dropped_count()`（空转无留痕）——runtime 外的同步场景请选运行时无关发布器（`InMemoryAuditPublisher` / `TracingAuditPublisher`）。
+
 ## 🌸 布隆过滤器
 
 `bloom` 特性（**不包含**在 `full` 中）提供负查询过滤。
@@ -706,6 +723,13 @@ let backend = BloomFilterBackend::builder()
 - `AdaptiveTtlConfig` — 全部阈值显式常量（无黑盒启发式）：调整结果钳制在 `[min_ttl, max_ttl]`（默认 1s..1h）；`None`（永不过期）不参与调整原样透传；追踪表上限 `max_tracked_keys`（默认 65 536，0 在 `validate()` 显性拒绝），满时新键按普通键透传；配置经 `validate()` 在构建期校验，`min_ttl > max_ttl`、`hot_ttl_multiplier` 非有限正数（0/负/NaN/inf）、`cold_ttl_divisor = 0`、`max_tracked_keys = 0` 均显性 `Err(InvalidInput)`（而非请求路径 `Duration::clamp` panic 或经乘除静默畸变）
 - 启用：`CacheBuilder::adaptive_ttl(AdaptiveTtlConfig)`；与 `sync_mode(true)` / `stale_ttl` 组合在构建期显性拒绝（`Err(NotSupported)`）
 - 观测：`stats()` / `reset_stats()` 暴露追踪键数与延长/缩短计数；get 路径主动调整遇后端 `expire` 故障不阻断命中、以 `failed_adjustments` 显性计数；后端 `stats()` 附加 `adaptive_tracked_keys` / `adaptive_hot_extensions` / `adaptive_cold_shortenings` / `adaptive_failed_adjustments`
+
+## 🔥 智能预热（`warmup`）
+
+- `WarmupLoader`（`oxcache::cache::warmup`，crate 根重导出）— 预热数据源端口（对象安全，`Arc<dyn WarmupLoader>` 注入）：`load_hot_keys()` 返回 `Vec<WarmupEntry>`；实现来源由调用方决定（业务预测、`HotKeyTracker` 快照、上游分析导出等）。端口失败显性 `Err` 中止本轮预热，缓存本体不受影响
+- `WarmupEntry` — 单条热 key：`value = Some(bytes)` 为直供值回填（源数据/快照路径）；`None` 为仅 key，经 `ChainCache::iter_entries` 批量读从低层晋升（链上无值计 `missing`）
+- `Warmup::builder(chain).concurrency(n).build()` — 回填写入并发上界（默认 8，0 视为 1 串行）；`run(loader)` 异步执行，写入经 `ChainCache::set` 落全部后端，Semaphore 滑窗恒定在飞数（任一时刻在飞任务数 ≤ 上界）；`.max_value_bytes(n)` 直供值单值大小上限（默认与序列化写入面 `MAX_JSON_SIZE` 同口径，0 = 不限），`.max_entries(n)` 单轮条目数上限（默认 100_000，0 = 不限，去重后按 loader 顺序保留前 N 条）
+- `WarmupReport` — 结果全量显性计数：`loader_entries`（去重前）/ `deduped`（key 首次出现生效）/ `warmed`（直供回填成功）/ `promoted`（低层晋升成功，回填透传链上剩余 TTL，不重置源条目过期语义）/ `missing`（链上无值）/ `failed` + `failures`（逐条写入失败明细，不中断整批）/ `peak_concurrency`（实测并发峰值，≤ 配置上界）/ `dropped_value_too_large`（超单值上限显性丢弃）/ `dropped_over_entry_cap`（超条目数上限显性丢弃）
 
 ## 🔒 安全特性
 

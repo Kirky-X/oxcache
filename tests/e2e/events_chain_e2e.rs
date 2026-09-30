@@ -64,7 +64,6 @@ impl RecordingPublisher {
 /// （`RedisContainer` 封装未暴露容器句柄，故此处直接使用 testcontainers API）。
 async fn setup() -> Option<(ContainerAsync<GenericImage>, RedisBackend)> {
     // SAFETY: test-only environment variable, idempotent same-value set
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
     let image = GenericImage::new("redis", "7-alpine")
         .with_exposed_port(6379.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"));

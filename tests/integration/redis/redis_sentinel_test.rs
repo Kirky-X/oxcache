@@ -43,9 +43,6 @@ async fn test_sentinel_connection() {
     }
 
     // 测试连接到 Sentinel 节点
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let urls = get_sentinel_urls();
     for url in &urls {
         let backend = RedisBackend::new(url).await;
@@ -74,9 +71,6 @@ async fn test_sentinel_master_operations() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -119,9 +113,6 @@ async fn test_sentinel_ttl() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -173,9 +164,6 @@ async fn test_sentinel_expire() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -226,9 +214,6 @@ async fn test_sentinel_health_check() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -258,9 +243,6 @@ async fn test_sentinel_stats() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -302,9 +284,6 @@ async fn test_sentinel_many_keys() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
@@ -360,9 +339,6 @@ async fn test_sentinel_large_value() {
 
     let master_url = get_master_url();
 
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {

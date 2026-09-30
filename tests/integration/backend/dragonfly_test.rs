@@ -19,15 +19,8 @@ use common::test_containers::{
     DragonflyContainer, backend_skip, container_or_skip, start_dragonfly_container,
 };
 
-/// 设置环境变量以允许不安全连接（测试用）
-fn set_allow_insecure() {
-    // SAFETY: test-only environment variable, single-threaded test context
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
-}
-
 /// 创建 Dragonfly 后端；连接失败不在此处定语义，由调用方路由门控
 async fn make_dragonfly_backend(url: &str) -> oxcache::OxCacheResult<DragonflyBackend> {
-    set_allow_insecure();
     DragonflyBackend::new(url, 4).await
 }
 

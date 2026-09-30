@@ -56,6 +56,17 @@ fn bench_hot_path_borrowed_keys(c: &mut Criterion) {
                 .unwrap();
         });
     });
+
+    // 批量读路径：100 键全命中的 get_many（批量读多为命中场景，
+    // 结果容器分配策略对该路径吞吐敏感；键集构造置于计时窗外，
+    // 计时只覆盖 get_many 本体）
+    let many_keys: Vec<String> = (0..100u32).map(|i| format!("bench_key_{i}")).collect();
+    c.bench_function("hot_path_get_many_100_hits", |b| {
+        b.to_async(&rt).iter(|| async {
+            let _: std::collections::HashMap<String, String> =
+                cache.get_many(many_keys.iter()).await.unwrap();
+        });
+    });
 }
 
 criterion_group!(benches, bench_hot_path_borrowed_keys);

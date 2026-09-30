@@ -404,6 +404,8 @@ pub use features::dist_lock::{
 
 // Public API re-exports (after features re-exports)
 // cache 模块 re-export 须与 cache 模块门控一致
+#[cfg(feature = "warmup")]
+pub use cache::warmup::{Warmup, WarmupBuilder, WarmupEntry, WarmupLoader, WarmupReport};
 #[cfg(feature = "memory")]
 pub use cache::{ChainBuilder, L1Builder, L2Builder};
 #[cfg(any(feature = "memory", feature = "redis"))]

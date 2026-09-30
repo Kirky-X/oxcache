@@ -73,16 +73,20 @@ impl UnifiedSerializer {
     ///
     /// JSON：单次文本解析 + 深度校验（`MAX_JSON_DEPTH`）；二进制格式无深度
     /// 递归问题，保留统一大小上限。
+    ///
+    /// 未压缩时直接借用解析（`from_slice`/`from_bytes` 均以 `&[u8]` 工作），
+    /// 不再经 `to_vec()` 全量拷贝中间缓冲——每次反序列化省一次堆分配与
+    /// memcpy（get/get_many 热路径逐键生效）。
     pub fn deserialize<T: DeserializeOwned>(&self, data: &[u8]) -> OxCacheResult<T> {
-        let data = if self.compress {
-            decompress_data_with_limit(
+        if self.compress {
+            let data = decompress_data_with_limit(
                 data,
                 crate::infra::serialization::utils::MAX_DECOMPRESS_SIZE,
-            )?
+            )?;
+            crate::infra::serialization::deserialize_with_format(self.format, &data)
         } else {
-            data.to_vec()
-        };
-        crate::infra::serialization::deserialize_with_format(self.format, &data)
+            crate::infra::serialization::deserialize_with_format(self.format, data)
+        }
     }
 
     /// Deserialize with explicit type name (for internal use)

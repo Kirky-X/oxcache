@@ -35,9 +35,6 @@ mod degradation_tests_inner {
     }
 
     async fn setup_backend() -> RedisBackend {
-        unsafe {
-            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-        }
         let url = standalone_url();
         RedisBackend::builder()
             .connection_string(&url)
@@ -235,10 +232,6 @@ mod degradation_tests_inner {
         #[serial(redis_degradation)]
         #[tokio::test]
         async fn test_circuit_breaker_opens_on_unreachable_host() {
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-            }
-
             // 使用低阈值加速测试
             let result = RedisBackend::builder()
                 .connection_string("redis://192.0.2.1:6379") // TEST-NET, 不可达
@@ -277,9 +270,6 @@ mod degradation_tests_inner {
         async fn test_distributed_config_injection() {
             if !skip_if_unavailable().await {
                 return;
-            }
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
             }
 
             let url = standalone_url();
@@ -569,10 +559,6 @@ mod degradation_tests_inner {
                 return;
             }
 
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-            }
-
             // Cluster 模式使用第一个节点 URL
             let backend = RedisBackend::builder()
                 .connection_string(&urls[0])
@@ -630,10 +616,6 @@ mod degradation_tests_inner {
             if !wait_for_sentinel().await {
                 println!("[SKIP] Redis Sentinel not ready");
                 return;
-            }
-
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
             }
 
             // Step 1: Ask Sentinel for master address

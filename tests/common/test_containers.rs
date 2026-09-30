@@ -243,13 +243,24 @@ impl Default for TestEnvironment {
     }
 }
 
-/// 便捷函数：启动 Redis 容器并返回 URL
-pub async fn start_redis_container() -> Result<(RedisContainer, String), String> {
-    let container = RedisContainer::start().await?;
-    container.wait_ready().await?;
-    let url = container.url();
-    Ok((container, url))
+/// 容器便捷函数的宏收敛：三个 `start_*_container` 均为
+/// `start → wait_ready → 组 URL` 的同构样板（仅容器类型不同），
+/// 以声明式宏消除三份克隆（diting 复查 LOW-002 的结构收敛项）。
+macro_rules! container_start_fn {
+    ($fn_name:ident, $container_ty:ident) => {
+        /// 便捷函数：启动容器并返回 `(容器句柄, 连接 URL)`
+        pub async fn $fn_name() -> Result<($container_ty, String), String> {
+            let container = $container_ty::start().await?;
+            container.wait_ready().await?;
+            let url = container.url();
+            Ok((container, url))
+        }
+    };
 }
+
+container_start_fn!(start_redis_container, RedisContainer);
+container_start_fn!(start_valkey_container, ValkeyContainer);
+container_start_fn!(start_dragonfly_container, DragonflyContainer);
 
 /// 便捷函数：检查 Redis 是否可用
 pub async fn is_redis_available(url: &str) -> bool {
@@ -310,14 +321,6 @@ impl ValkeyContainer {
     }
 }
 
-/// 便捷函数：启动 Valkey 容器并返回 URL
-pub async fn start_valkey_container() -> Result<(ValkeyContainer, String), String> {
-    let container = ValkeyContainer::start().await?;
-    container.wait_ready().await?;
-    let url = container.url();
-    Ok((container, url))
-}
-
 /// Dragonfly 容器包装器（使用 GenericImage）
 pub struct DragonflyContainer {
     container: ContainerAsync<GenericImage>,
@@ -358,12 +361,4 @@ impl DragonflyContainer {
     pub async fn wait_ready(&self) -> Result<(), String> {
         wait_for_redis_ready(&self.url(), "Dragonfly").await
     }
-}
-
-/// 便捷函数：启动 Dragonfly 容器并返回 URL
-pub async fn start_dragonfly_container() -> Result<(DragonflyContainer, String), String> {
-    let container = DragonflyContainer::start().await?;
-    container.wait_ready().await?;
-    let url = container.url();
-    Ok((container, url))
 }

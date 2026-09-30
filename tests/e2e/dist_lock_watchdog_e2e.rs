@@ -49,7 +49,6 @@ fn unique_key(label: &str) -> String {
 /// （同值重复设置幂等安全，沿用 `valkey_test.rs` 的口径）。
 async fn setup() -> Option<(RedisContainer, Arc<RedisBackend>)> {
     // SAFETY: test-only environment variable, idempotent same-value set
-    unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
     let container = RedisContainer::start().await.ok()?;
     container.wait_ready().await.ok()?;
     let backend = RedisBackend::new(&container.url()).await.ok()?;

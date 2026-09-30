@@ -291,9 +291,6 @@ async fn test_with_testcontainers_network_failure() {
     }
 
     // 设置环境变量以允许不安全连接（testcontainers 创建的 Redis）
-    unsafe {
-        std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-    };
 
     let backend = RedisBackend::new(&redis_url).await.unwrap();
 

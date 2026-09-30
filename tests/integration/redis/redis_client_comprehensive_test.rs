@@ -24,9 +24,6 @@ mod redis_client_tests {
     // ============================================================================
 
     async fn create_backend() -> RedisBackend {
-        unsafe {
-            std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-        }
         let url = get_redis_url();
         let result = RedisBackend::new(&url).await;
         result.expect("Redis should be running on localhost:6380")
@@ -54,9 +51,6 @@ mod redis_client_tests {
             if !skip_if_redis_unavailable().await {
                 return;
             }
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-            }
             let url = get_redis_url();
             let backend = RedisBackendBuilder::default()
                 .connection_string(&url)
@@ -70,9 +64,6 @@ mod redis_client_tests {
         async fn test_builder_modes() {
             if !skip_if_redis_unavailable().await {
                 return;
-            }
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
             }
             let url = get_redis_url();
 
@@ -112,9 +103,6 @@ mod redis_client_tests {
         async fn test_with_pool() {
             if !skip_if_redis_unavailable().await {
                 return;
-            }
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
             }
             let url = get_redis_url();
             let backend = RedisBackend::with_pool(&url, 10).await;
@@ -773,9 +761,6 @@ mod redis_client_tests {
 
         #[tokio::test]
         async fn test_connection_to_invalid_host() {
-            unsafe {
-                std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
-            }
             assert!(
                 RedisBackend::new("redis://nonexistent-host-test:6379")
                     .await
