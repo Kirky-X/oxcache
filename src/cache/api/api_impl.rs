@@ -8,7 +8,7 @@ use crate::backend::{CacheBackend, SyncCacheBackend};
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
 
-/// BackendKind → CacheLayer 映射（纯函数，T018）：内存 → L1，分布式 → L2。
+/// BackendKind → CacheLayer 映射（纯函数）：内存 → L1，分布式 → L2。
 #[cfg(feature = "metrics")]
 pub(crate) fn layer_for(kind: crate::backend::BackendKind) -> crate::core::CacheLayer {
     if kind.is_distributed() {

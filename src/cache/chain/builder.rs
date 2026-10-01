@@ -80,7 +80,7 @@ impl ChainCacheBuilder {
         self
     }
 
-    /// 设置链路读策略（absorb-hitbox-features T014）。
+    /// 设置链路读策略。
     ///
     /// - [`ChainReadStrategy::Sequential`]：逐个读取，命中即返回（默认）
     /// - [`ChainReadStrategy::Race`]：并发全读，取分数最高命中

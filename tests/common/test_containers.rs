@@ -245,7 +245,7 @@ impl Default for TestEnvironment {
 
 /// 容器便捷函数的宏收敛：三个 `start_*_container` 均为
 /// `start → wait_ready → 组 URL` 的同构样板（仅容器类型不同），
-/// 以声明式宏消除三份克隆（diting 复查 LOW-002 的结构收敛项）。
+/// 以声明式宏消除三份克隆（diting 复查 结构收敛项）。
 macro_rules! container_start_fn {
     ($fn_name:ident, $container_ty:ident) => {
         /// 便捷函数：启动容器并返回 `(容器句柄, 连接 URL)`

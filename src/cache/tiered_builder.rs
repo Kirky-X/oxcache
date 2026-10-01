@@ -292,7 +292,7 @@ impl ChainBuilder {
         self
     }
 
-    /// 设置链路读策略（absorb-hitbox-features T014）。
+    /// 设置链路读策略。
     pub fn read_strategy(mut self, strategy: ChainReadStrategy) -> Self {
         self.read_strategy = strategy;
         self

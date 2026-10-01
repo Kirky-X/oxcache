@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! 批量 API 与 UnifiedSerializer 口径一致性测试（审计 F13 回归，T004）。
+//! 批量 API 与 UnifiedSerializer 口径一致性测试（审计 F13 回归）。
 //!
 //! 钉住的行为：`set_many`/`get_many` 必须经 `UnifiedSerializer`，与单条
 //! `set`/`get` 同口径；配置二进制格式（bincode）后批量与单条互相可读。

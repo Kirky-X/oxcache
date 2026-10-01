@@ -3,7 +3,7 @@
 
 // 目标内容经 Cache::get_or 驱动，无 memory/redis 时整目标置空
 #![cfg(any(feature = "memory", feature = "redis"))]
-//! single-flight flight 信号回归测试（变更 2026-09-23-cache-audit-hardening T001/T002/T003）。
+//! single-flight flight 信号回归测试。
 //!
 //! 钉住的核心行为：flight 完成信号具备**无丢失唤醒**语义——leader 的完成通知
 //! 先于 follower 订阅时，follower 仍必须立即醒来（旧 `Notify` + `notify_waiters`

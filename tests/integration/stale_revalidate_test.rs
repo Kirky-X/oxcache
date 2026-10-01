@@ -1,7 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // Integration tests for SWR three-state expiry + StalePolicy wiring
-// (absorb-hitbox-features T012/T013).
 //
 // Verifies, at the `Cache` API level:
 //   1. `Return` policy: stale hit serves the old value, fallback not run

@@ -108,7 +108,7 @@ pub use self::builder::ChainCacheBuilder;
 ///
 /// ChainLink 封装了一个后端实例及其分数信息。
 /// 分数用于确定链式访问的顺序。
-/// 链路读策略（absorb-hitbox-features T014）。
+/// 链路读策略。
 ///
 /// - `Sequential`：按分数降序逐个读取，命中即返回（默认）
 /// - `Race`：并发查询全部链接，全部完成后取 index 最小（分数最高）的命中
@@ -594,7 +594,7 @@ impl ChainCache {
         Ok(None)
     }
 
-    /// 并行择新读（absorb-hitbox-features T014）：并发查询全部链接，
+    /// 并行择新读：并发查询全部链接，
     /// 收集命中后并发查询各自剩余 TTL，返回剩余最长者（None 视为最低
     /// 优先级）；并列或全 None 时取 index 最小（分数最高）。单链接错误
     /// 容忍口径与 race read 一致；全部失败时传播错误。

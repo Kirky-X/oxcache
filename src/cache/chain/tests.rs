@@ -1371,7 +1371,7 @@ async fn test_chain_expire_propagates_to_all() {
 }
 
 // ============================================================================
-// 读策略枚举与 ParallelFreshest（absorb-hitbox-features T014）
+// 读策略枚举与 ParallelFreshest
 // ============================================================================
 
 mod read_strategy_tests {
