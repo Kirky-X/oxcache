@@ -17,6 +17,7 @@ pub mod common;
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
 #[cfg(feature = "redis")]
+#[cfg(feature = "memory")]
 #[path = "integration/chain_cache_integration_test.rs"]
 mod chain_cache_integration_test;
 #[path = "integration/comprehensive_test.rs"]
@@ -62,6 +63,7 @@ mod redis_sentinel_test;
 mod redis_version_compatibility_test;
 
 // --- TTL tests ---
+#[cfg(feature = "memory")]
 #[path = "integration/ttl/ttl_consistency_test.rs"]
 mod ttl_consistency_test;
 #[path = "integration/ttl/ttl_expire_test.rs"]

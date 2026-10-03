@@ -68,6 +68,8 @@ tests/
 │
 ├── macros.rs                            # 宏测试入口
 ├── macros/
+│   ├── advanced_params_test.rs          # 宏高级参数（single_flight / strict / condition / skip）
+│   ├── skip_cache_none_test.rs          # cache_none 模式宏测试
 │   ├── skip_cache_write_test.rs         # skip_cache_write 宏测试
 │   ├── sync_test.rs                     # sync 模式宏测试
 │   └── compile_fail/                    # trybuild 编译失败测试
@@ -113,14 +115,18 @@ cargo test --features full
 
 ### By Test Binary
 ```bash
-cargo test --features full --lib                    # 库单元测试 (1000+)
-cargo test --features full --test unit              # 单元测试 (325)
-cargo test --features full --test integration       # 集成测试 (133)
-cargo test --features full --test e2e               # 端到端测试 (74)
-cargo test --features full --test macros            # 宏测试 (10)
+cargo test --features full --lib                    # 库单元测试 (1537)
+cargo test --features full --test unit              # 单元测试 (332)
+cargo test --features full --test integration       # 集成测试 (139)
+cargo test --features full --test e2e               # 端到端测试 (65)
+cargo test --features full --test macros            # 宏测试 (21)
 cargo test --features full --test feature_test      # Feature 门控测试 (2)
-cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filter (9)
+cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filter (7)
 ```
+
+> 括号内为 `#[test]` / `#[tokio::test]` 函数的 grep 文本计数（与
+> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.7）；feature 门控与
+> `--ignored` 用例不计入运行数，实际以 `-- --list` 为准。
 
 ### Minimal Feature
 ```bash
@@ -164,7 +170,7 @@ valkey/dragonfly 集成测试经 `common/test_containers.rs` 的 `container_or_s
 | `redis` | Redis 后端 |
 | `macros` | `#[cached]` 过程宏 |
 | `serialization` | 序列化支持 |
-| `compression` | 压缩支持 (flate2) |
+| `compression` | 压缩支持 (flate2 + zstd) |
 | `lua` | Lua 脚本支持 |
 | `batch` | 批量写入 |
 | `lock` | 分布式锁 |
@@ -181,6 +187,6 @@ valkey/dragonfly 集成测试经 `common/test_containers.rs` 的 `container_or_s
 | `bloom_filter_integration` | `all(bloom, memory)` | 被 Moka 后端接点依赖（装饰器包装 `MokaMemoryBackend`）；bloom 单开不带 backend |
 
 > 偏差标注：蓝图 5.2 对 `bloom_filter_integration` 有「不改一行」的字面约束。
-> 本门控为编译层置空（测试体与断言零改动，bloom+memory 下 9 passed），
+> 本门控为编译层置空（测试体与断言零改动，bloom+memory 下 7 passed），
 > 系 2d2793c 修复 bloom 单开 test 目标编译失败的必要伴随，待蓝图 owner
 > 追认「不改一行」的意图边界（禁断言弱化 vs 字面禁改）。

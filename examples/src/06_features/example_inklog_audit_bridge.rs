@@ -21,10 +21,14 @@ use inklog::LogSink;
 use inklog::LogTemplate;
 use inklog::sink::ConsoleSink;
 use oxcache::features::InklogAuditPublisher;
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED, MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
+    MSG_EXAMPLE_INKLOG_BRIDGE_TITLE, MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES, t,
+};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== inklog 审计日志桥接示例 ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_INKLOG_BRIDGE_TITLE, &[]));
 
     // inklog 侧：控制台 sink + 渲染模板（生产可换 FileSink / 网络sink）
     let sink = Arc::new(ConsoleSink::new(
@@ -54,14 +58,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::time::sleep(Duration::from_millis(100)).await;
     sink.flush().await?;
 
-    println!("\n=== 桥接可观测面 ===");
+    println!("\n{}", t(MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY, &[]));
     println!(
-        "dropped（无 runtime 上下文丢弃）: {}",
-        publisher.dropped_count()
+        "{}",
+        t(
+            MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,
+            &[("count", publisher.dropped_count().to_string())]
+        )
     );
     println!(
-        "write_failures（sink 写失败）: {}",
-        publisher.write_failure_count()
+        "{}",
+        t(
+            MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES,
+            &[("count", publisher.write_failure_count().to_string())]
+        )
     );
 
     Ok(())

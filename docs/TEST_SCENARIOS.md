@@ -23,7 +23,7 @@
 | 宏 | `tests/macros.rs`（trybuild） | 10 passed（51.4s 含编译失败快照校验） |
 | 特性 | `tests/feature_test.rs` | 2 passed |
 | 混沌 | `tests/chaos/backend_failure_test.rs` | 19 passed |
-| 布隆 | `tests/bloom_filter_integration_test.rs` | 9 passed |
+| 布隆 | `tests/bloom_filter_integration.rs` | 9 passed |
 | 性能 | `tests/performance.rs` | 19 passed + 5 --ignored 补盲全过 |
 
 examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例输出为
@@ -48,7 +48,7 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 | 批量操作 | mget/mset/pipeline | lib 内联 + e2e advanced | 无缺口 |
 | 指标 | 统计/Prometheus/JSON 导出 | lib 内联 + `tests/unit.rs` | 无缺口 |
 | 压缩 | zstd/flate2 透明压缩 | lib 内联 | 无缺口 |
-| 布隆过滤器 | 误判率/扩容/集成 | `tests/bloom_filter_integration_test.rs` | 无缺口 |
+| 布隆过滤器 | 误判率/扩容/集成 | `tests/bloom_filter_integration.rs` | 无缺口 |
 | 过程宏 | derive/属性宏/编译失败快照 | `tests/macros.rs`（trybuild） | 无缺口 |
 | 安全 | 键注入/脱敏/审计日志 | `tests/security.rs` | 无缺口 |
 | 混沌 | 后端故障注入/降级 | `tests/chaos/backend_failure_test.rs`（`FailingBackend`） | 无缺口 |
@@ -61,7 +61,8 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 测试环境协议（环境变量）：`REDIS_URL` 优先 / `OXCACHE_SKIP_REDIS_TESTS` 全跳过 /
 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`（非 TLS 门禁）/
 `REDIS_CLUSTER_AVAILABLE` / `REDIS_SENTINEL_AVAILABLE` / `REDIS_SENTINEL_MASTER_URL`
-（默认 `redis://127.0.0.1:16379`）/ `REDIS_VERSION_TEST_ENABLED`。
+（默认 `redis://127.0.0.1:16379`；`tests/real_env/docker-compose.sentinel.yml` 栈的
+master 宿主端口默认 16380，对应 `redis://127.0.0.1:16380`）/ `REDIS_VERSION_TEST_ENABLED`。
 
 ## 3. E2E 缺口补盲（新增落地）
 
@@ -114,10 +115,12 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 
 ## 5. 分层特性组合矩阵（CI 口径复刻）
 
-组合集（`.github/workflows/ci.yml`）：`minimal` / `core` / `full` 三基础组 +
-10 关键组合 `minimal,macros` / `minimal,bloom` / `minimal,compression` /
-`core,macros` / `core,bloom` / `core,compression` / `core,batch` / `core,lua` /
-`core,cli` / `core,bloom,macros`；口径 `cargo test --features "<组合>" --workspace`
+组合集（`.github/workflows/ci.yml`「Test (critical combinations)」，当前 9 组合）：
+`minimal,macros` / `minimal,bloom` / `minimal,compression` / `core,macros` /
+`core,bloom` / `core,compression` / `core,batch` / `core,lua` /
+`core,bloom,macros`；三基础组 `minimal` / `core` / `full`（及 `adaptive-ttl`）
+由独立 Test / Clippy job 覆盖。快照验收时为 10 组合（含 `core,cli`，`cli` 特性
+自 rc.4 移除后该组合随之撤销）。口径 `cargo test --features "<组合>" --workspace`
 （叠加默认 minimal，与 CI 一致）。执行结果见 `reviews/acceptance-report.md` 台账。
 
 ## 6. 静态门槛

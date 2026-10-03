@@ -3,7 +3,7 @@
 // Redis Cluster 集成测试
 
 use crate::common::wait_for_redis_cluster;
-use oxcache::backend::memory::RedisBackend;
+use oxcache::backend::memory::{RedisBackend, RedisBackendBuilder, RedisMode};
 use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,8 +39,12 @@ async fn test_redis_cluster_connection() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     // 测试连接到第一个节点
@@ -48,6 +52,54 @@ async fn test_redis_cluster_connection() {
     assert!(backend.is_ok(), "应该能连接到 Cluster 节点");
 
     println!("✓ Redis Cluster 连接测试成功");
+}
+
+#[tokio::test]
+async fn test_redis_cluster_explicit_mode_build() {
+    println!("测试显式 mode(Cluster) 构建...");
+
+    if !is_cluster_available() {
+        println!("跳过测试: Redis Cluster 不可用");
+        return;
+    }
+
+    let urls = get_cluster_urls();
+    let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
+
+    if !wait_for_redis_cluster(&url_refs).await {
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
+    }
+
+    // 显式 mode(Cluster)：builder 不经默认模式探测直接走集群连接
+    // （单机端点被服务端以 "cluster support disabled" 显性拒绝，由
+    // redis_client_comprehensive_test::test_builder_modes 覆盖该分支）
+    let backend = RedisBackendBuilder::default()
+        .connection_string(&urls[0])
+        .mode(RedisMode::Cluster)
+        .build()
+        .await
+        .expect("显式 mode(Cluster) 对集群端点应构建成功");
+    assert_eq!(backend.mode(), RedisMode::Cluster);
+
+    // 集群连接正路径：跨分片键写入/读取/删除
+    backend
+        .set(
+            Arc::from("cluster_explicit_mode_key"),
+            Arc::new(b"explicit_value".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
+        .await
+        .unwrap();
+    let value = backend.get("cluster_explicit_mode_key").await.unwrap();
+    assert_eq!(value, Some(b"explicit_value".to_vec()));
+    backend.delete("cluster_explicit_mode_key").await.unwrap();
+
+    println!("✓ 显式 mode(Cluster) 构建测试成功");
 }
 
 #[tokio::test]
@@ -63,8 +115,12 @@ async fn test_redis_cluster_basic_operations() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
@@ -100,8 +156,12 @@ async fn test_redis_cluster_data_distribution() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
@@ -150,8 +210,12 @@ async fn test_redis_cluster_ttl() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
@@ -196,8 +260,12 @@ async fn test_redis_cluster_health_check() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
@@ -220,8 +288,12 @@ async fn test_redis_cluster_stats() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        println!("跳过测试: Redis Cluster 未就绪");
-        return;
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
+        // 必须失败而非按跳过记账
+        panic!(
+            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+        );
     }
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();

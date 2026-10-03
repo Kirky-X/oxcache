@@ -242,6 +242,27 @@ mod tests {
             .is_ok()
     }
 
+    /// 端到端收发测试的前置探测：127.0.0.1:6379 必须是**支持 PUBLISH 的真
+    /// Redis**。同进程 `test_support::ensure_server(6379)` 会在真 Redis 缺席时
+    /// 架起最小假服务器（无 PUBLISH），仅 TCP 探活无法区分，故以一条探测
+    /// PUBLISH 的整数回复为准；非真 Redis 时 SKIP（与不可达同一口径）。
+    async fn real_redis_available() -> bool {
+        if !redis_reachable().await {
+            return false;
+        }
+        let probe = async {
+            let client = redis::Client::open("redis://127.0.0.1:6379").ok()?;
+            let mut conn = client.get_multiplexed_async_connection().await.ok()?;
+            redis::cmd("PUBLISH")
+                .arg("oxcache-pubsub-probe")
+                .arg("1")
+                .query_async::<i64>(&mut conn)
+                .await
+                .ok()
+        };
+        probe.await.is_some()
+    }
+
     /// 构造指向不可达端口的实例（确定性失败路径，无 Redis 依赖）。
     #[tokio::test]
     async fn new_with_unreachable_port_fails_fast() {
@@ -258,12 +279,16 @@ mod tests {
     /// subscribe 收到 publish 的消息（端到端收发）。
     #[tokio::test]
     async fn subscribe_receives_published_message() {
-        if !redis_reachable().await {
-            eprintln!("[SKIP] Redis 不可达（127.0.0.1:6379 未监听）");
+        if !real_redis_available().await {
+            eprintln!("[SKIP] 127.0.0.1:6379 无支持 PUBLISH 的真 Redis");
             return;
         }
         let ps = RedisPubSub::new("redis://127.0.0.1:6379").await.unwrap();
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        // 接收端用 tokio mpsc + timeout 异步等待：std 的 recv_timeout 会阻塞
+        // current_thread 运行时的唯一线程，后台订阅任务无从投递；
+        // 发送端须 unbounded——tokio 1.53 起有界 Sender::send 为 async，
+        // 同步 handler 内无法 await，未 poll 的 future 会导致消息静默丢失
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         ps.subscribe(
             "oxcache-pubsub-test-e2e",
             Arc::new(move |msg| {
@@ -277,20 +302,25 @@ mod tests {
         ps.publish("oxcache-pubsub-test-e2e", "hello-pubsub")
             .await
             .unwrap();
-        let received = rx.recv_timeout(std::time::Duration::from_secs(2));
-        assert_eq!(received.ok().as_deref(), Some("hello-pubsub"));
+        let received = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
+        assert_eq!(
+            received.ok().flatten().as_deref(),
+            Some("hello-pubsub"),
+            "订阅端应收到发布的消息"
+        );
         ps.shutdown();
     }
 
     /// handler panic 被隔离：panic 后续消息仍投递、订阅不中断。
     #[tokio::test]
     async fn subscribe_handler_panic_does_not_interrupt() {
-        if !redis_reachable().await {
-            eprintln!("[SKIP] Redis 不可达（127.0.0.1:6379 未监听）");
+        if !real_redis_available().await {
+            eprintln!("[SKIP] 127.0.0.1:6379 无支持 PUBLISH 的真 Redis");
             return;
         }
         let ps = RedisPubSub::new("redis://127.0.0.1:6379").await.unwrap();
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        // 同上：unbounded 同步 send + 异步等待投递
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         let counter = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let counter_clone = counter.clone();
         ps.subscribe(
@@ -309,12 +339,28 @@ mod tests {
         ps.publish("oxcache-pubsub-test-panic", "panic-trigger")
             .await
             .unwrap();
-        ps.publish("oxcache-pubsub-test-panic", "after-panic")
-            .await
-            .unwrap();
-        let received = rx.recv_timeout(std::time::Duration::from_secs(2));
+        // 共享 Redis 在并行负载下会抖动：panic 处理期间若恰逢订阅任务断线
+        // 重连，该窗口内发布的消息会丢失（重连后恢复订阅）。每轮重发一次覆盖
+        // 重连窗口（pub/sub 重复投递无害），钉住「订阅存活 + panic 后恢复
+        // 投递」的核心语义。
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut received: Option<String> = None;
+        while std::time::Instant::now() < deadline {
+            ps.publish("oxcache-pubsub-test-panic", "after-panic")
+                .await
+                .unwrap();
+            match tokio::time::timeout(std::time::Duration::from_millis(500), rx.recv()).await {
+                Ok(Some(msg)) => {
+                    received = Some(msg);
+                    break;
+                }
+                // 通道关闭 = 订阅任务提前退出，与静默超时是两种失败，须区分
+                Ok(None) => panic!("订阅任务提前退出（通道关闭），panic 隔离失效"),
+                Err(_) => {}
+            }
+        }
         assert_eq!(
-            received.ok().as_deref(),
+            received.as_deref(),
             Some("after-panic"),
             "panic 后续消息应继续投递"
         );
@@ -328,12 +374,13 @@ mod tests {
     /// shutdown 停止消息投递：shutdown 后发布的消息不再到达 handler。
     #[tokio::test]
     async fn shutdown_stops_message_delivery() {
-        if !redis_reachable().await {
-            eprintln!("[SKIP] Redis 不可达（127.0.0.1:6379 未监听）");
+        if !real_redis_available().await {
+            eprintln!("[SKIP] 127.0.0.1:6379 无支持 PUBLISH 的真 Redis");
             return;
         }
         let ps = RedisPubSub::new("redis://127.0.0.1:6379").await.unwrap();
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        // 异步等待窗口：std 阻塞接收会冻结运行时，泄漏消息反而探测不到
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
         ps.subscribe(
             "oxcache-pubsub-test-shutdown",
             Arc::new(move |msg| {
@@ -350,10 +397,12 @@ mod tests {
         ps.publish("oxcache-pubsub-test-shutdown", "after-shutdown")
             .await
             .unwrap();
-        // 留出潜在投递窗口：不应收到任何消息
-        let leaked = rx.recv_timeout(std::time::Duration::from_millis(300));
+        // 留出潜在投递窗口：不应收到任何消息。
+        // Ok(None)（channel 关闭：handler 连同被 abort 的任务一起 drop）与
+        // Err(Elapsed)（超时无消息）都是"无泄漏"；Ok(Some(_)) 才是泄漏
+        let leaked = tokio::time::timeout(std::time::Duration::from_millis(300), rx.recv()).await;
         assert!(
-            leaked.is_err(),
+            !matches!(leaked, Ok(Some(_))),
             "shutdown 后不应再收到消息，实际: {leaked:?}"
         );
     }

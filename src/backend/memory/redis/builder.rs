@@ -4,6 +4,7 @@
 
 use super::circuit_breaker::CircuitBreaker;
 use super::client::RedisBackend;
+use super::client::RedisConnection;
 use super::error::map_redis_error;
 use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
@@ -30,6 +31,9 @@ pub type RedisMode = RedisModeType;
 pub struct RedisBackendBuilder {
     connection_string: Option<String>,
     mode: RedisMode,
+    /// mode 是否被显式设置：默认模式下连接目标若探测为集群实例，
+    /// 自动切换 ClusterConnection；显式 Standalone/Sentinel 则尊重用户意图。
+    mode_explicit: bool,
     pool_size: usize,
     connection_timeout: Duration,
     retry_count: u32,
@@ -45,6 +49,7 @@ impl Default for RedisBackendBuilder {
         Self {
             connection_string: None,
             mode: RedisMode::default(),
+            mode_explicit: false,
             pool_size: 8,
             connection_timeout: Duration::from_secs(2),
             retry_count: 3,
@@ -67,6 +72,7 @@ impl RedisBackendBuilder {
     /// Set the Redis mode.
     pub fn mode(mut self, mode: RedisMode) -> Self {
         self.mode = mode;
+        self.mode_explicit = true;
         self
     }
 
@@ -176,30 +182,62 @@ impl RedisBackendBuilder {
             }
         }
 
-        let client = redis::Client::open(connection_string).map_err(map_redis_error)?;
+        let client = redis::Client::open(connection_string.as_str()).map_err(map_redis_error)?;
 
-        let connection_result =
-            tokio::time::timeout(self.connection_timeout, client.get_connection_manager()).await;
+        let (mode, connection) = if self.mode == RedisMode::Cluster {
+            (
+                self.mode,
+                Self::connect_cluster(&connection_string, self.connection_timeout).await?,
+            )
+        } else {
+            let connection_result =
+                tokio::time::timeout(self.connection_timeout, client.get_connection_manager())
+                    .await;
 
-        let connection_manager = match connection_result {
-            Ok(Ok(mgr)) => mgr,
-            Ok(Err(e)) => {
-                return Err(OxCacheError::Connection(format!(
-                    "Failed to connect to Redis: {}",
-                    e
-                )));
-            }
-            Err(_) => {
-                return Err(OxCacheError::Connection(
-                    "Connection timeout - Redis server unavailable".to_string(),
-                ));
+            let mut connection_manager = match connection_result {
+                Ok(Ok(mgr)) => mgr,
+                Ok(Err(e)) => {
+                    return Err(OxCacheError::Connection(format!(
+                        "Failed to connect to Redis: {}",
+                        e
+                    )));
+                }
+                Err(_) => {
+                    return Err(OxCacheError::Connection(
+                        "Connection timeout - Redis server unavailable".to_string(),
+                    ));
+                }
+            };
+
+            // 默认模式下探测目标是否为集群实例（显式 Standalone/Sentinel 不探测，
+            // 尊重用户意图）。非集群实例对 CLUSTER INFO 直接报错（cluster support
+            // disabled），成功应答（cluster_state:...）即集群实例。建群未完成
+            // （cluster_state:fail）交由后续操作显性报错。
+            if !self.mode_explicit {
+                let probe: redis::RedisResult<String> = redis::cmd("CLUSTER")
+                    .arg("INFO")
+                    .query_async(&mut connection_manager)
+                    .await;
+                if probe
+                    .map(|info| info.contains("cluster_state:"))
+                    .unwrap_or(false)
+                {
+                    (
+                        RedisMode::Cluster,
+                        Self::connect_cluster(&connection_string, self.connection_timeout).await?,
+                    )
+                } else {
+                    (self.mode, RedisConnection::Single(connection_manager))
+                }
+            } else {
+                (self.mode, RedisConnection::Single(connection_manager))
             }
         };
 
         Ok(RedisBackend::from_parts(
             std::sync::Arc::new(client),
-            self.mode,
-            connection_manager,
+            mode,
+            connection,
             self.dangerous_clear_enabled,
             self.retry_count,
             self.retry_delay,
@@ -208,5 +246,35 @@ impl RedisBackendBuilder {
                 self.circuit_breaker_reset_timeout,
             )),
         ))
+    }
+
+    /// Connect through a cluster client seeded with the given node.
+    ///
+    /// ClusterConnection 按 CLUSTER SLOTS 路由并自动跟随 MOVED/ASK 重定向，
+    /// 初始节点只需一个，其余节点自动发现。
+    async fn connect_cluster(
+        connection_string: &str,
+        connection_timeout: Duration,
+    ) -> OxCacheResult<RedisConnection> {
+        let cluster_client =
+            redis::cluster::ClusterClient::new(vec![connection_string]).map_err(map_redis_error)?;
+
+        let connect = cluster_client.get_async_connection();
+        let conn = match tokio::time::timeout(connection_timeout, connect).await {
+            Ok(Ok(conn)) => conn,
+            Ok(Err(e)) => {
+                return Err(OxCacheError::Connection(format!(
+                    "Failed to connect to Redis Cluster: {}",
+                    e
+                )));
+            }
+            Err(_) => {
+                return Err(OxCacheError::Connection(
+                    "Connection timeout - Redis Cluster unavailable".to_string(),
+                ));
+            }
+        };
+
+        Ok(RedisConnection::Cluster(conn))
     }
 }

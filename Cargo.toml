@@ -42,10 +42,10 @@ tokio = { version = "1.53", default-features = false }
 async-trait = "0.1"
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0" }
+serde = { version = "1.0", default-features = false, features = ["std", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false }
-criterion = { version = "0.8", features = ["async_tokio"] }
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
 
 [workspace.lints.rust]
 # docsrs 是 docs.rs 构建注入的自定义 cfg（doc(cfg(...)) 标注用）
@@ -67,17 +67,17 @@ tokio = { workspace = true, features = [
     "macros",
     "bytes",
 ] }
-async-trait = "0.1"
-once_cell = "1.21"
+async-trait = { version = "0.1", default-features = false }
+once_cell = { version = "1.21", default-features = false, features = ["std"] }
 
 # Utilities
-uuid = { version = "1.26", features = ["v4"] }
+uuid = { version = "1.27", default-features = false, features = ["std", "v4"] }
 
 # trait-kit integration (optional, feature-gated via `trait-kit`)
 # integrations/kit 装饰/包装 CacheBackend（引用 crate::backend），单开须隐含
 # memory 基线方可编译（与 degradation/config-confers 同口径）
 [dependencies.trait-kit]
-version = "0.5.0-rc.6"
+version = "0.5.0-rc.7"
 optional = true
 default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
@@ -99,18 +99,24 @@ default-features = false
 features = ["executor"]
 
 # ICU4X internationalization (always enabled)
+# 注意：icu 元包将全部子组件声明为非 optional 依赖且不暴露按组件激活特性，
+# default（compiled_data + 各组件推荐面）无法细粒度裁剪，保持元包推荐组合
 [dependencies.icu]
 version = "2.3"
 
 [dependencies.writeable]
 version = "0.6"
+default-features = false
+features = ["alloc"]
 
 # Fluent internationalization message catalog (always enabled)
 [dependencies.fluent-bundle]
 version = "0.16"
+default-features = false
 
 [dependencies.unic-langid]
 version = "0.9"
+default-features = false
 
 # L1 Cache (Memory)
 [dependencies.moka]
@@ -121,11 +127,12 @@ optional = true
 
 [dependencies.dashmap]
 version = "6.2"
+default-features = false
 optional = true
 
 # redb 嵌入式键值存储（磁盘 L3 后端）
 [dependencies.redb]
-version = "3.1"
+version = "4.3"
 optional = true
 
 # L2 Cache (Redis)
@@ -136,8 +143,11 @@ features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentine
 optional = true
 
 # Aerospike (independent protocol, feature-gated)
+# 裁 tls：backend 仅 TCP 直连（ClientPolicy 未配置 TLS 栈）
 [dependencies.aerospike]
 version = "2.2"
+default-features = false
+features = ["async", "serialization", "rt-tokio"]
 optional = true
 
 # Serialization & Compression
@@ -152,19 +162,28 @@ optional = true
 
 [dependencies.flate2]
 version = "1.1"
+default-features = false
+features = ["rust_backend"]
 optional = true
 
 [dependencies.serde_stacker]
 version = "0.1"
+default-features = false
 optional = true
 
 # Observability & Metrics
 [dependencies.bloomfilter]
 version = "3.0"
+default-features = false
+features = ["random"]
 optional = true
 
+# Lua 注入防护模式均为 ASCII/显式字符类，保留 unicode 面——\s 在
+# unicode 关闭时退化为 ASCII 匹配，非 ASCII 空白（如 U+00A0）将绕过防护
 [dependencies.regex]
 version = "1.13"
+default-features = false
+features = ["std", "perf", "unicode"]
 optional = true
 
 [dependencies.chrono]
@@ -180,27 +199,38 @@ default-features = false
 optional = true
 
 # Value-level encryption (optional, XChaCha20-Poly1305, aligned with confers)
+# nonce 由顶层 getrandom::fill 生成，无需 aead 的 getrandom 特性
 [dependencies.chacha20poly1305]
 version = "0.11"
+default-features = false
+features = ["alloc"]
 optional = true
 
 [dependencies.getrandom]
 version = "0.4"
+default-features = false
 optional = true
 
 # Value integrity (optional, HMAC-SHA256, aligned with confers audit chain)
 [dependencies.hmac]
 version = "0.13"
+default-features = false
 optional = true
 
+# oid（DER 编码，PKI 场景）缓存完整性签名不需要
 [dependencies.sha2]
 version = "0.11"
+default-features = false
+features = ["alloc"]
 optional = true
 
 # Binary serialization formats (optional)
+# 不升 3：bincode 项目已停止开发，crates.io 的 3.0.0 为官方刻意发布的
+# compile_error 占位（阻止 caret 误升级），最后正式版为 2.x 线 2.0.1
 [dependencies.bincode]
-version = "2"
-features = ["serde"]
+version = "2.0"
+default-features = false
+features = ["std", "serde"]
 optional = true
 
 [dependencies.postcard]
@@ -211,14 +241,16 @@ optional = true
 
 # Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
-version = "0.6.0-rc.5"
+version = "0.6.0-rc.6"
 default-features = false
 features = ["config-bus"]
 optional = true
 
 # Adaptive compression (optional, zstd threshold decorator)
+# 只用 stream encode/decode，裁 legacy（旧格式解码）/arrays/zdict_builder（字典训练）
 [dependencies.zstd]
 version = "0.14"
+default-features = false
 optional = true
 
 # ============================================================================
@@ -226,22 +258,24 @@ optional = true
 # ============================================================================
 [dev-dependencies]
 # 测试实现 EventPublisher（#[async_trait] trait）所需，与主依赖版本一致
-async-trait = "0.1"
-tempfile = "3.27"
-serial_test = "4.0"
-rand = "0.10"
+async-trait = { version = "0.1", default-features = false }
+tempfile = { version = "3.27", default-features = false, features = ["getrandom"] }
+serial_test = { version = "4.0", default-features = false, features = ["async"] }
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "sys_rng", "thread_rng"] }
 criterion.workspace = true
-ctor = "1.0"
-trybuild = "1.0"
+ctor = { version = "1.0", default-features = false, features = ["std", "proc_macro", "priority"] }
+trybuild = { version = "1.0", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
 # 序列化格式对照探针（serialization_rkyv_probe）专用，非承诺特性
-rkyv = "0.8"
+rkyv = { version = "0.8", default-features = false, features = ["std", "bytecheck"] }
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 
 [dev-dependencies.testcontainers]
 version = "0.28"
+default-features = false
 # watchdog：信号退出时回收 managed 容器，兜底门控超时取消 start future 的
 # 窄窗口孤儿（容器已创建、ContainerAsync 句柄未 construct 即被 drop）
+# 裁 default（ring）：bollard TLS 栈，本地 docker socket 直连不需要
 features = ["watchdog"]
 
 # ============================================================================
@@ -388,7 +422,8 @@ required-features = ["serialization"]
 [[bench]]
 name = "metrics_recorder_benchmark"
 harness = false
-required-features = ["metrics"]
+# bench 走 `oxcache::Cache` 热路径（memory 面），单开 metrics 不满足
+required-features = ["metrics", "memory"]
 
 [[bench]]
 name = "sync_surface_benchmark"
@@ -404,3 +439,10 @@ required-features = ["memory"]
 name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
+
+# Redis 多模式示例（与 oxcache-examples 包共享同一源文件，单源双注册）：
+# 主包默认 features 不含 redis，源码内 cfg 据此降级为指引输出，保证
+# workspace 根 `cargo run --example example_redis_modes` 可解析运行（rc=0）
+[[example]]
+name = "example_redis_modes"
+path = "examples/src/02_advanced/example_redis_modes.rs"

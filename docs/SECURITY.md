@@ -64,7 +64,7 @@ validate_redis_key("")?;                    // Err，空键
 
 **函数**：`oxcache::validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()>`
 
-在 `EVAL`/`EVALSHA` 执行前校验 Lua 脚本，防止服务端资源耗尽和危险命令执行。
+在 Lua 脚本执行前校验，防止服务端资源耗尽和危险命令执行。覆盖点：`eval_lua`（EVAL 执行前）与 `script_load`（脚本缓存前）；`eval_sha`（EVALSHA）不重复校验脚本内容（脚本缓存时已校验），仅校验 SHA1 格式与键名，遇 NOSCRIPT 显性报错、不自动回退。
 
 ### 规则
 
@@ -185,7 +185,7 @@ assert!(!redacted.contains("secret_password"));
 如果您发现 oxcache 中的安全漏洞：
 
 1. **请勿在 GitHub 上提交公开 issue。**
-2. 发送邮件至 Kirky-X@outlook.com。
+2. 通过以下任一私密渠道报告（首选 [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new)），或发送邮件至 Kirky-X@outlook.com。
 3. 包含以下内容：
    - 漏洞描述
    - 复现步骤（概念验证）

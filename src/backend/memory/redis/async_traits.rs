@@ -36,6 +36,32 @@ pub(super) fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
     }
     Ok(millis as u64)
 }
+
+/// 将 INFO 应答归一为单节点文本。
+///
+/// 单机/哨兵连接应答为整段 bulk string；集群连接下 redis-rs 把 INFO 广播到
+/// 全部主节点，应答为 节点地址 → 文本 的 map——取地址字典序最小的节点作为
+/// 代表样本（确定性选取）。非文本应答返回 None 由调用方显性报错。
+fn normalize_info_reply(reply: redis::Value) -> Option<String> {
+    fn value_as_text(value: redis::Value) -> Option<String> {
+        match value {
+            redis::Value::BulkString(bytes) => String::from_utf8(bytes).ok(),
+            redis::Value::SimpleString(text) | redis::Value::VerbatimString { text, .. } => {
+                Some(text)
+            }
+            _ => None,
+        }
+    }
+
+    match reply {
+        redis::Value::Map(pairs) => pairs
+            .into_iter()
+            .filter_map(|(addr, info)| Some((value_as_text(addr)?, value_as_text(info)?)))
+            .min_by(|a, b| a.0.cmp(&b.0))
+            .map(|(_, info)| info),
+        other => value_as_text(other),
+    }
+}
 use crate::security;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -123,6 +149,10 @@ impl CacheReader for RedisBackend {
     /// - `"memory_info"`: raw output of `INFO memory`
     /// - `"connected_clients"`: current client count (parsed from `INFO clients`)
     /// - `"maxclients"`: maximum client limit (parsed from `INFO clients`)
+    ///
+    /// 集群连接下 redis-rs 将 INFO 广播到全部主节点并返回节点地址 → 文本
+    /// 的 map，此处取地址字典序最小节点作为代表样本（确定性选取，主节点
+    /// 角色等价）；单机连接直接使用整段应答。
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         self.execute_with_retry(|| {
             let mut conn = self.conn();
@@ -131,19 +161,29 @@ impl CacheReader for RedisBackend {
                 stats.insert("type".to_string(), "redis".to_string());
 
                 // INFO memory
-                let memory_info: String = redis::cmd(RedisCommand::Info.as_str())
+                let memory_reply = redis::cmd(RedisCommand::Info.as_str())
                     .arg("memory")
-                    .query_async(&mut conn)
+                    .query_async::<redis::Value>(&mut conn)
                     .await
                     .map_err(error::map_redis_error)?;
+                let memory_info = normalize_info_reply(memory_reply).ok_or_else(|| {
+                    crate::error::OxCacheError::Operation(
+                        "Unexpected INFO memory reply type".to_string(),
+                    )
+                })?;
                 stats.insert("memory_info".to_string(), memory_info);
 
                 // INFO clients — parse connected_clients and maxclients
-                let clients_info: String = redis::cmd(RedisCommand::Info.as_str())
+                let clients_reply = redis::cmd(RedisCommand::Info.as_str())
                     .arg("clients")
-                    .query_async(&mut conn)
+                    .query_async::<redis::Value>(&mut conn)
                     .await
                     .map_err(error::map_redis_error)?;
+                let clients_info = normalize_info_reply(clients_reply).ok_or_else(|| {
+                    crate::error::OxCacheError::Operation(
+                        "Unexpected INFO clients reply type".to_string(),
+                    )
+                })?;
                 for line in clients_info.lines() {
                     let line = line.trim();
                     if let Some((key, value)) = line.split_once(':') {

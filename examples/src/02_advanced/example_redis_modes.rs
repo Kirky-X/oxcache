@@ -10,15 +10,41 @@
 //! 运行方式：
 //! ```bash
 //! # 本地开发需允许非 TLS 连接（生产请使用 rediss://）：
+//! # workspace 根（默认 features 未启用 redis 时仅打印指引后正常退出）：
 //! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
 //!   cargo run --example example_redis_modes
+//! # 完整演示（二选一）：
+//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
+//!   cargo run --features redis --example example_redis_modes
+//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
+//!   cargo run -p oxcache-examples --example example_redis_modes
 //! ```
 
+// 本文件由主包与 oxcache-examples 包共享（单源双注册）：cfg(feature) 判定的
+// 是编译方包自身的 features——主包默认不含 redis，降级为指引输出保证
+// `cargo run --example` 可解析运行；examples 包 default 含 redis，走完整演示。
+#[cfg(feature = "redis")]
 use oxcache::backend::{CacheReader, CacheWriter};
+#[cfg(feature = "redis")]
 use oxcache::backend::{RedisBackend, RedisMode};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(feature = "redis"))]
+    {
+        println!("=== Redis 多模式连接示例 ===\n");
+        println!("  当前编译未启用 redis feature，无演示内容。");
+        println!("  完整运行：cargo run --features redis --example example_redis_modes");
+        println!("       或：cargo run -p oxcache-examples --example example_redis_modes");
+        return Ok(());
+    }
+
+    #[cfg(feature = "redis")]
+    run().await
+}
+
+#[cfg(feature = "redis")]
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Redis 多模式连接示例 ===\n");
 
     // 1. Standalone 模式（最常用）
@@ -27,7 +53,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     println!("  连接: {}", standalone_url);
 
-    let standalone = RedisBackend::new(&standalone_url).await?;
+    let standalone = match RedisBackend::new(&standalone_url).await {
+        Ok(backend) => backend,
+        Err(e) => {
+            println!("  ✗ Standalone 连接失败: {e}");
+            println!(
+                "    需要运行中的 Redis（可用 REDIS_URL 覆盖，默认 redis://127.0.0.1:6379），跳过 Standalone/Builder 演示"
+            );
+            print_mode_enum();
+            println!("\n✓ 示例完成（Standalone 因环境不可用而跳过）");
+            return Ok(());
+        }
+    };
     println!("  ✓ 连接成功，模式: {}", standalone.mode());
 
     // 基本操作测试
@@ -96,7 +133,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sentinel_url = "redis://127.0.0.1:26382";
         println!("  连接 Sentinel: {}", sentinel_url);
 
-        match RedisBackend::new(sentinel_url).await {
+        // Sentinel 必须用显式模式构建：RedisBackend::new 默认 Standalone，
+        // 直连哨兵端口会把哨兵进程当数据节点（SET 被哨兵拒绝）。
+        match RedisBackend::builder()
+            .connection_string(sentinel_url)
+            .mode(RedisMode::Sentinel)
+            .build()
+            .await
+        {
             Ok(sentinel) => {
                 println!("  ✓ Sentinel 连接成功，模式: {}", sentinel.mode());
 
@@ -127,6 +171,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 5. RedisModeType 枚举展示
+    print_mode_enum();
+
+    println!("\n✓ 示例完成");
+    Ok(())
+}
+
+/// 枚举展示段（Standalone 连接失败时作为独立降级出口复用）。
+#[cfg(feature = "redis")]
+fn print_mode_enum() {
     println!("\n--- 5. RedisModeType 枚举 ---");
     let modes = [
         RedisMode::Standalone,
@@ -136,7 +189,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for mode in &modes {
         println!("  模式: {} (Display: {})", mode, mode);
     }
-
-    println!("\n✓ 示例完成");
-    Ok(())
 }

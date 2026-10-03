@@ -44,3 +44,72 @@ i18n-format-error = formatting error: { $detail }.
 
 # -- #[cached] macro-generated strict-mode panic --
 macro-service-not-registered = oxcache: service '{ $service }' not registered (strict mode)
+
+# -- Tracing log messages (rendered as the event message field) --
+log-chain-read-completed = chain read completed
+log-chain-expire-backend-failed = backend expire failed
+log-chain-iter-entries-key-failed = iter_entries batch layer failed for key
+log-offload-lifecycle-event = offload lifecycle event
+log-offload-timeout-policy-exceeded = offload task exceeded timeout policy
+log-degradation-entered = L2 degradation entered, serving L1-only
+log-degradation-half-open-probing = L2 degradation half-open, probing recovery
+log-degradation-recovered = L2 degradation recovered
+log-confers-config-reload-rejected = confers config reload rejected; keeping previous snapshot
+log-backend-bridge-shutdown-skipped = async→sync bridge shutdown skipped: cannot nest a blocking driver inside a current_thread runtime
+log-disk-sweep-failed = disk cache sweep failed
+log-audit-event = cache audit event
+log-stale-hit-via-get-or = stale hit served via get_or (Return downgrade; use get_or_refresh for background revalidation)
+log-stale-revalidation-scheduled = stale hit; background revalidation scheduled
+log-stale-hit-served = stale hit served
+
+# -- Panic / invariant messages --
+panic-chain-parallel-freshest-invariant = hits non-empty implies freshness non-empty
+panic-bridge-temp-runtime-create-failed = failed to create temporary runtime for bridge shutdown
+panic-warmup-semaphore-not-closed = warmup semaphore must not be closed
+panic-audit-writer-lock-not-poisoned = writer receiver lock is never poisoned (critical section has no panic points)
+panic-audit-writer-rx-present-on-first-start = writer receiver must be present on first startup
+panic-stale-state-must-carry-payload = Stale state must carry payload
+panic-bloom-capacity-must-be-positive = capacity must be greater than 0
+panic-bloom-hash-count-must-be-positive = hash_count must be greater than 0
+panic-bloom-fpr-must-be-in-open-interval = false_positive_rate must be in (0.0, 1.0)
+panic-bloom-hash-count-unreachable = hash_count { $hash_count } unreachable for capacity { $capacity }
+panic-bloom-hash-count-backsolve-drift = hash_count { $hash_count } unreachable for capacity { $capacity }: k steps by more than 1 per bitmap byte at this capacity
+panic-bloom-seed-generation-failed = failed to create bloom filter: random seed generation failed
+
+# -- User-visible detail messages (interpolated into error templates) --
+detail-disk-redb-open-failed = redb open failed: { $err }
+detail-disk-redb-create-failed = redb create failed: { $err }
+detail-disk-corrupt-envelope = corrupt disk cache envelope
+detail-not-supported-sync-atomic-increment = the wrapped sync backend does not support atomic increment
+detail-not-supported-sync-atomic-cas = the wrapped sync backend does not support atomic compare-and-swap
+detail-not-supported-sync-atomic-set-if-absent = the wrapped sync backend does not support atomic set-if-absent
+detail-not-supported-async-atomic-increment = the wrapped async backend does not support atomic increment
+detail-not-supported-async-atomic-cas = the wrapped async backend does not support atomic compare-and-swap
+detail-not-supported-async-atomic-set-if-absent = the wrapped async backend does not support atomic set-if-absent
+detail-not-supported-sync-requires-runtime = sync API requires a Tokio runtime: { $err }
+detail-not-supported-sync-requires-multi-thread-runtime = sync API requires a multi-thread runtime; block_in_place is unavailable on current_thread runtime
+detail-config-env-invalid-value = invalid value for { $key }: { $raw } ({ $err })
+detail-config-env-backend-requires-features = { $key }={ $raw } requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build
+detail-config-env-serialization-requires-feature = { $key }={ $raw } requires the `serialization` feature, which is not enabled in this build
+detail-config-backend-requires-features = backend { $raw } requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build
+detail-config-capacity-zero = capacity must be greater than 0 (drop the key to use the builder default)
+detail-config-capacity-exceeds-usize = capacity { $capacity } exceeds this platform's usize range ({ $max })
+detail-config-ttl-zero = { $name } must not be zero; use None (unset) for no expiry
+detail-config-metrics-requires-feature = metrics_enabled requires the `metrics` feature, which is not enabled in this build
+detail-config-serialization-requires-feature = serialization_format requires the `serialization` feature, which is not enabled in this build
+detail-config-circuit-breaker-threshold-zero = circuit_breaker_failure_threshold must be greater than 0
+detail-config-service-name-empty = service_name must not be empty; drop the key to keep the service dimension disabled
+detail-config-connection-pool-size-zero = connection_pool_size must be greater than 0 (drop the key to use the backend default)
+detail-adaptive-ttl-min-ttl-exceeds-max = adaptive_ttl min_ttl ({ $min }) must not exceed max_ttl ({ $max })
+detail-adaptive-ttl-multiplier-not-finite-positive = adaptive_ttl hot_ttl_multiplier ({ $value }) must be a finite positive number
+detail-adaptive-ttl-divisor-at-least-one = adaptive_ttl cold_ttl_divisor must be at least 1
+detail-adaptive-ttl-max-tracked-keys-at-least-one = adaptive_ttl max_tracked_keys must be at least 1
+detail-get-or-leader-result-not-cached = get_or: concurrent fetch leader failed to cache result
+detail-get-or-option-leader-result-not-cached = get_or_option: concurrent fetch leader failed to cache result
+detail-warmup-ttl-lookup-failed = ttl lookup failed: { $err }
+
+# -- Example binary output messages --
+example-inklog-bridge-title = === inklog audit log bridge example ===
+example-inklog-bridge-observability = === bridge observability ===
+example-inklog-bridge-dropped = dropped (no runtime context, dropped): { $count }
+example-inklog-bridge-write-failures = write_failures (sink write failures): { $count }

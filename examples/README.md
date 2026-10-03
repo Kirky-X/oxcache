@@ -107,7 +107,8 @@ examples/src/
 ├── 02_advanced/     # 进阶示例（14 个）
 ├── 03_config/       # 配置示例（2 个）
 ├── 05_database/     # 数据库集成（1 个）
-└── 06_features/     # 特性展示（9 个）
+└── 06_features/     # 特性展示（10 个，含 inklog 审计桥接示例 example_inklog_audit_bridge，
+                     #   需 examples 的 inklog-bridge feature 构建）
 ```
 
 ## 贡献

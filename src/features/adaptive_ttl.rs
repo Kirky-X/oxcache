@@ -45,6 +45,10 @@
 
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_ADAPTIVE_TTL_DIVISOR_MIN, MSG_DETAIL_ADAPTIVE_TTL_MIN_EXCEEDS_MAX,
+    MSG_DETAIL_ADAPTIVE_TTL_MULTIPLIER_FINITE, MSG_DETAIL_ADAPTIVE_TTL_TRACKED_KEYS_MIN, t,
+};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -104,26 +108,31 @@ impl AdaptiveTtlConfig {
     /// `Duration::clamp` panic 或经乘/除法静默畸变。
     pub fn validate(&self) -> OxCacheResult<()> {
         if self.min_ttl > self.max_ttl {
-            return Err(OxCacheError::InvalidInput(format!(
-                "adaptive_ttl min_ttl ({:?}) must not exceed max_ttl ({:?})",
-                self.min_ttl, self.max_ttl
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_ADAPTIVE_TTL_MIN_EXCEEDS_MAX,
+                &[
+                    ("min", format!("{:?}", self.min_ttl)),
+                    ("max", format!("{:?}", self.max_ttl)),
+                ],
             )));
         }
         if !(self.hot_ttl_multiplier.is_finite() && self.hot_ttl_multiplier > 0.0) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "adaptive_ttl hot_ttl_multiplier ({}) must be a finite positive number",
-                self.hot_ttl_multiplier
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_ADAPTIVE_TTL_MULTIPLIER_FINITE,
+                &[("value", self.hot_ttl_multiplier.to_string())],
             )));
         }
         if self.cold_ttl_divisor == 0 {
-            return Err(OxCacheError::InvalidInput(
-                "adaptive_ttl cold_ttl_divisor must be at least 1".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_ADAPTIVE_TTL_DIVISOR_MIN,
+                &[],
+            )));
         }
         if self.max_tracked_keys == 0 {
-            return Err(OxCacheError::InvalidInput(
-                "adaptive_ttl max_tracked_keys must be at least 1".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_ADAPTIVE_TTL_TRACKED_KEYS_MIN,
+                &[],
+            )));
         }
         Ok(())
     }

@@ -48,8 +48,12 @@ impl LuaExecutor for RedisBackend {
 
     /// Execute a Lua script by its SHA1 hash.
     ///
-    /// If the script is not cached in Redis (NOSCRIPT error), automatically
-    /// falls back to `eval_lua` to re-cache and execute it.
+    /// Validates the SHA1 format and the key names, then runs `EVALSHA`
+    /// directly. If Redis replies NOSCRIPT (script not cached), this method
+    /// does **not** fall back to `eval_lua` (the original source is not
+    /// available here): it returns an explicit error telling the caller to
+    /// re-load the script via `script_load` or use `eval_lua` with the
+    /// source.
     async fn eval_sha(
         &self,
         sha: &str,

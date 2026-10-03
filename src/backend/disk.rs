@@ -28,6 +28,12 @@ use crate::backend::BackendKind;
 use crate::backend::interface::{CacheConnector, CacheReader, CacheSetItem, CacheWriter};
 use crate::backend::score::Scores;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "telemetry")]
+use crate::i18n::messages::MSG_LOG_DISK_SWEEP_FAILED;
+use crate::i18n::messages::{
+    MSG_DETAIL_DISK_CORRUPT_ENVELOPE, MSG_DETAIL_DISK_REDB_CREATE_FAILED,
+    MSG_DETAIL_DISK_REDB_OPEN_FAILED, t,
+};
 
 const CACHE_TABLE: TableDefinition<'static, &str, &[u8]> = TableDefinition::new("oxcache");
 
@@ -37,7 +43,12 @@ const ENV_HEADER_EXPIRY: usize = 17; // seq(8) + flag(1) + expires_at_ms(8)
 #[cfg(feature = "telemetry")]
 #[inline]
 fn telemetry_sweep_failed(err: &str) {
-    tracing::warn!(target: "oxcache::disk", err, "disk cache sweep failed");
+    tracing::warn!(
+        target: "oxcache::disk",
+        err,
+        "{}",
+        t(MSG_LOG_DISK_SWEEP_FAILED, &[])
+    );
 }
 
 #[cfg(not(feature = "telemetry"))]
@@ -109,8 +120,12 @@ pub struct RedbDiskBackend {
 impl RedbDiskBackend {
     /// 打开既有库文件（不存在时返回错误）。
     pub fn open(path: impl AsRef<std::path::Path>) -> OxCacheResult<Self> {
-        let db = Database::open(path.as_ref())
-            .map_err(|e| OxCacheError::DatabaseError(format!("redb open failed: {e}")))?;
+        let db = Database::open(path.as_ref()).map_err(|e| {
+            OxCacheError::DatabaseError(t(
+                MSG_DETAIL_DISK_REDB_OPEN_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         Ok(Self {
             db: Arc::new(db),
             path: Arc::new(path.as_ref().to_path_buf()),
@@ -123,8 +138,12 @@ impl RedbDiskBackend {
 
     /// 新建库文件（父目录需存在；文件已存在则打开它）。
     pub fn create(path: impl AsRef<std::path::Path>) -> OxCacheResult<Self> {
-        let db = Database::create(path.as_ref())
-            .map_err(|e| OxCacheError::DatabaseError(format!("redb create failed: {e}")))?;
+        let db = Database::create(path.as_ref()).map_err(|e| {
+            OxCacheError::DatabaseError(t(
+                MSG_DETAIL_DISK_REDB_CREATE_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         Ok(Self {
             db: Arc::new(db),
             path: Arc::new(path.as_ref().to_path_buf()),
@@ -176,7 +195,7 @@ impl RedbDiskBackend {
             Some(v) => decode_value(v.value())
                 .map(|(seq, expiry, payload)| (seq, expiry, payload.to_vec()))
                 .ok_or_else(|| {
-                    OxCacheError::DatabaseError("corrupt disk cache envelope".to_string())
+                    OxCacheError::DatabaseError(t(MSG_DETAIL_DISK_CORRUPT_ENVELOPE, &[]))
                 })
                 .map(Some),
             None => Ok(None),

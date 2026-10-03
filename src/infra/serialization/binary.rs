@@ -4,8 +4,8 @@
 //!
 //! [`SerializationFormat`] 提供 JSON 之外的可选传输格式：
 //!
-//! - `serde-bincode` feature → [`SerializationFormat::Bincode`]（bincode 1.x）；
-//! - `postcard` feature → [`SerializationFormat::Postcard`]（postcard 1.x）。
+//! - `serde-bincode` feature → `SerializationFormat::Bincode`（bincode 2）；
+//! - `postcard` feature → `SerializationFormat::Postcard`（postcard 1.x）。
 //!
 //! 二进制格式天然无嵌套 DoS（无深度递归文本解析），仍保留 5 MiB 大小上限
 //! 的纵深防御。**同一键前缀不得混用格式**：格式无自描述头，混用会产生
@@ -30,7 +30,7 @@ pub enum SerializationFormat {
     /// JSON（serde_json，默认；带深度防御解析）
     #[default]
     Json,
-    /// bincode 1.x（紧凑二进制，需 `serde-bincode` feature）
+    /// bincode 2（紧凑二进制，需 `serde-bincode` feature）
     #[cfg(feature = "serde-bincode")]
     Bincode,
     /// postcard 1.x（紧凑二进制，需 `postcard` feature）

@@ -200,7 +200,7 @@ oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # 全量（不含
 |------|------|:----:|
 | `minimal` | 预设：`memory` + `metrics` + `serialization` + `chrono`，仅 L1 | ✅ |
 | `core` | 预设：`minimal` + `redis`，L1 + L2 | ❌ |
-| `full` | 预设：`core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` | ❌ |
+| `full` | 预设：`core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` / `offload` / `disk` / `stale` | ❌ |
 | `memory` | L1 内存后端（Moka + DashMap） | ❌ |
 | `redis` | L2 分布式缓存（Redis / Valkey，Standalone / Sentinel / Cluster） | ❌ |
 | `dragonfly` | Dragonfly 后端（Redis 协议兼容） | ❌ |
@@ -210,29 +210,33 @@ oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # 全量（不含
 | `metrics` | 内置指标：延迟直方图、操作计数、JSON / Prometheus 导出 | ❌ |
 | `batch` | `BatchWriter` 缓冲批量写入（容量 / 时间双阈值刷盘） | ❌ |
 | `lua` | Lua 脚本执行（依赖 `redis`） | ❌ |
-| `testing` | 测试工具（暴露内部函数） | ❌ |
+| `test-util` | 测试工具（暴露内部函数）；`testing` 为已弃用别名 | ❌ |
 | `bloom` | 布隆过滤器负查询过滤（`BloomFilter` + `BloomFilterBackend`） | ❌ |
 | `lock` | 分布式锁：TTL、watchdog 自动续期、可重入（依赖 `redis`） | ❌ |
-| `red-lock` | RedLock 多节点多数派锁 + fencing token（依赖 `lock`） | ❌ |
+| `redlock` | RedLock 多节点多数派锁 + fencing token（依赖 `lock`）；`red-lock` 为已弃用别名 | ❌ |
 | `compression` | 自适应压缩：zstd 阈值触发，兼容旧 gzip 读取 | ❌ |
 | `telemetry` | `tracing` 门面：熔断 / 回填 / 宏穿透路径埋点，关闭时零开销 | ❌ |
 | `invalidation` | 跨实例失效总线：Redis Pub/Sub 广播 + 键空间通知通道 | ❌ |
 | `encrypt` | 值级加密装饰器（XChaCha20-Poly1305，AAD 绑定键名） | ❌ |
 | `integrity` | 值完整性装饰器（HMAC-SHA256，校验失败视为 miss） | ❌ |
-| `serde-bincode` | bincode 1.x 二进制序列化格式 | ❌ |
+| `serde-bincode` | bincode 2 二进制序列化格式 | ❌ |
 | `postcard` | postcard 二进制序列化格式 | ❌ |
 | `config-confers` | confers 配置驱动构建 + `ConfigBus` watch 热更新 | ❌ |
 | `degradation` | 自动降级与恢复（Active / Degraded / HalfOpen 三态状态机） | ❌ |
 | `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing / inklog 结构化日志发布器） | ❌ |
 | `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
-| `kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器） | ❌ |
+| `trait-kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器）；`kit` 为已弃用别名 | ❌ |
 | `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
 | `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
 | `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
 | `adaptive-ttl` | 自适应 TTL：`AdaptiveTtlBackend` 按访问模式调整条目 TTL（hot 延长 / cold 缩短，显式常量配置） | ❌ |
 | `warmup` | 智能预热：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`（批量晋升 + 直供回填，去重/并发可控，报告显性计数） | ❌ |
+| `byte-weight` | 字节权重同步缓存（`ByteWeightCache`，tokio-free 直连 `moka::sync`） | ❌ |
+| `pubsub` | Redis Pub/Sub 广播组件 | ❌ |
+| `inklog` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher` 直连 `LogSink`；依赖 `audit`） | ❌ |
+| `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
 
-> `bloom` 与 `kit` 等选择加入特性**不在** `full` 中，需显式启用。
+> `bloom` 与 `trait-kit` 等选择加入特性**不在** `full` 中，需显式启用。
 
 ---
 
@@ -255,7 +259,7 @@ oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # 全量（不含
 
 ## 💻 示例
 
-`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **37 个可运行示例**：
+`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **38 个可运行示例**：
 
 ```bash
 # 运行单个示例（在 examples/ 目录下）
@@ -326,6 +330,7 @@ cd examples && ls src/*/*.rs
 | `example_events` | 事件系统（`CacheEvent` / `CacheEventType`） |
 | `example_cli_usage` | CLI 场景（以代码方式获取缓存状态与指标） |
 | `example_kit_integration` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 三阶段关闭 / 装饰器） |
+| `example_inklog_audit_bridge` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher`，需 `inklog-bridge` examples feature） |
 
 > 标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
 
@@ -372,9 +377,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **运行时注意**：
 
-- `sync_mode(true)` 需 `multi_thread` tokio 运行时；`current_thread` 运行时上 Moka 的 `sync_block_on` 会 panic
+- 默认 Moka 路径为原生同步、运行时无关：runtime 之外可直接调用（临时 current-thread runtime 兜底驱动），`multi_thread` runtime 上经 `block_in_place` 复用当前 runtime；`current_thread` runtime 的异步上下文内 tokio 禁止嵌套阻塞驱动，调用显性返回 `Err(OxCacheError::NotSupported)`（不 panic）
+- `sync_mode(true)` 与 `backend_arc(...)` 可组合：sync API 经 `AsyncToSyncBridge` 桥出（阻塞语义），要求调用时处于 `multi_thread` runtime（I/O 型后端需 ≥2 worker），runtime 之外或 `current_thread` runtime 上逐调用返回 `Err(OxCacheError::NotSupported)`；运行时无关的注入请改用 `sync_backend_arc(...)`
 - 未启用 `sync_mode(true)` 时调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`
-- `sync_mode(true)` 不能与 `backend_arc(...)` 组合，同时设置时 `build()` 返回 `Err(OxCacheError::NotSupported)`
 
 **`#[cached]` 宏参数**：完整参数表（含默认值与 `cache_none`）见 [API 参考的缓存宏章节](docs/API_REFERENCE.md#-缓存宏)；与同步路径相关的参数为 `sync`（生成同步函数，无需 async 运行时）。
 
@@ -457,12 +462,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 |---------|-----------------|------------|------------------------|-------|
 | **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
 | **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期，条目在下次访问时移除；超容量时 FIFO O(1) 淘汰最旧条目 |
-| **RedisBackend** | `SET key value EX ttl` | `TTL key`（Redis 原生） | `EXPIRE key ttl` | 使用 Redis 原生 TTL |
+| **RedisBackend** | `SET key value PX <ms>` | `TTL key`（Redis 原生） | `PEXPIRE key <ms>` | Redis 原生 TTL，毫秒精度（亚秒 TTL 不再被拒绝） |
 | **Valkey**（经 RedisBackend） | 同 Redis | 同 Redis | 同 Redis | Redis 协议兼容，使用 `ValkeyStandalone` 模式 |
 | **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 一致 |
 | **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | Aerospike 原生 TTL（秒级精度），亚秒 TTL 上取整 |
 | **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用，与 DashMap 语义对齐 |
-| **ChainCache** | 将 `ttl` 透传到所有链接 | 返回拥有该 key 的最高分链接的 TTL | 透传到所有链接 | 所有链接接收相同 TTL |
+| **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
 | **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
 
 **全局与 per-entry 的关系**：`builder.ttl(Duration)` 设置作用于每个条目的全局 TTL；`set(key, value, Some(ttl))` 覆盖该条目；`set(key, value, None)` 沿用全局 TTL（未设置则永不过期）。
@@ -475,17 +480,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1437 |
-| 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 331 |
-| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 131 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1537 |
+| 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 139 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
-| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 11 |
+| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 21 |
 | 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
 | 混沌测试 | `--test chaos` | 后端故障注入、网络故障、随机故障 | 19 |
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**；合计 2161（`src/` 1532 + `tests/` 629）。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**；合计 2166（`src/` 1537 + `tests/` 629）。分表按各测试目录 grep 计数，未入表的 `tests/single_flight_flight_signal.rs`（4 例）与 `tests/common/` 共享工具（1 例）补足差额。
 
 ### 常用命令（与 CI 一致）
 
@@ -527,18 +532,18 @@ Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_ben
 
 Oxcache 在库层面内建多层防御，完整安全设计、威胁模型与安全修复记录见 [安全文档](docs/SECURITY.md)。
 
-**漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) 私密披露通道提交（48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。
+**漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) 私密披露通道提交，或发送邮件至 Kirky-X@outlook.com（48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。
 
 | 防线 | 机制 |
 |------|------|
 | 键校验 | `validate_redis_key`：拒绝空键、超过 512 KB、含 `\r` / `\n` / `\0` 的键，扫描 SQL 注入与路径遍历模式 |
-| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令黑名单（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等）、注释与字符串预处理防绕过、30 秒超时 |
-| SCAN 限制 | `validate_scan_pattern`（256 字符、10 个通配符上限）+ `clamp_scan_count`（钳制到 1-1000）、30 秒超时 |
+| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令黑名单（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等）、注释与字符串预处理防绕过 |
+| SCAN 限制 | `validate_scan_pattern`（256 字符、10 个通配符上限）+ `clamp_scan_count`（钳制到 1-1000） |
 | TLS 强制 | `RedisBackend` 默认要求 `rediss://`，除非显式设置 `OXCACHE_ALLOW_INSECURE_REDIS` 开发豁免 |
 | 脱敏 | `redact_connection_string` / `redact_value` / `Redacted` 包装器，日志与审计事件中的键与凭据默认脱敏 |
 | 内存安全 | crate 根 `#![deny(unsafe_code)]` |
 | 值保护 | `encrypt`（XChaCha20-Poly1305，AAD 绑定键名）与 `integrity`（HMAC-SHA256）装饰器 |
-| 反序列化防 DoS | `MAX_JSON_DEPTH` 深度限制 + 64 MiB 反序列化大小上限 + 基于栈的递归（`serde_stacker`） |
+| 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
 | 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
 
 **安全 API（公共验证函数）**：

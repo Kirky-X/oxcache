@@ -69,7 +69,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🗜️ **Adaptive compression** | `CompressingBackend` applies zstd above a size threshold; reads auto-detect by magic bytes and stay compatible with legacy gzip |
 | 🔑 **Distributed coordination** | Redis distributed lock (watchdog renewal / reentrant), RedLock multi-node majority lock, cross-instance invalidation bus |
 | 🧯 **Fault resilience** | ChainCache per-link fault tolerance, `degradation` three-state auto-degradation and recovery, health checks, graceful shutdown |
-| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.6), chaos and security tests, three-platform CI matrix, coverage gate |
+| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.7), chaos and security tests, three-platform CI matrix, coverage gate |
 
 <details>
 <summary>🔎 Advanced capabilities at a glance</summary>
@@ -83,9 +83,13 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 - **Config-driven build** (`config-confers`): capacity / TTL / circuit params loaded via confers with `ConfigBus` watch hot-reload
 - **Auto-degradation** (`degradation`): Active / Degraded / HalfOpen state machine with automatic recovery on successful probes
 - **Audit event stream** (`audit`): structured hit / miss / set / delete / evict / expired events with key redaction
-- **Advanced macro args**: `single_flight` concurrent-miss dedup, `strict` panic on unregistered cache, `condition` predicate bypass
+- **Advanced macro args**: `single_flight` concurrent-miss dedup, `strict` panic on unregistered cache, `condition` predicate bypass, `skip` named params excluded from the default cache key
+- **SWR tri-state expiry** (`stale`): expired entries may still serve stale values within the stale window via `Return` / `Revalidate` / `OffloadRevalidate` policies (`CacheBuilder::stale_ttl()` + `stale_policy()`; background refresh via `Cache::get_or_refresh()`)
+- **Background task subsystem** (`offload`): `OffloadManager` per-key dedup, concurrency cap, Cancel/Warn timeout policies
+- **Disk-persistent L3** (`disk`): `RedbDiskBackend` (embedded redb) survives restarts, auto-sweeps beyond `max_entries`, chains as L3
+- **Chain read strategies**: `ChainReadStrategy` (Sequential / Race / `ParallelFreshest` picks freshest by remaining TTL), `enable_race_read()` kept as a compatibility alias
 - **Tiered builders**: `L1Builder` / `L2Builder` / `ChainBuilder` fluent composition
-- **Lifecycle integration** (`kit`): trait-kit AsyncKit `OxcacheModule`, health checks, three-phase shutdown, backend decorators
+- **Lifecycle integration** (`trait-kit`): trait-kit AsyncKit `OxcacheModule`, health checks, three-phase shutdown, backend decorators (`kit` is a deprecated alias)
 - **Error i18n**: ICU4X-based error-message internationalization with system-language detection
 - **Penetration guard config**: `null_cache_ttl` null-sentinel TTL, `ttl_jitter` TTL jitter factor
 
@@ -106,7 +110,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -175,16 +179,16 @@ async fn get_user(id: u64) -> Result<User, String> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
+oxcache = { version = "0.5.0-rc.7", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.7", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
 ```
 
 | Flag | Description | Default |
 |------|-------------|:-------:|
 | `minimal` | Preset: `memory` + `metrics` + `serialization` + `chrono`, L1 only | ✅ |
 | `core` | Preset: `minimal` + `redis`, L1 + L2 | ❌ |
-| `full` | Preset: `core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` | ❌ |
+| `full` | Preset: `core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` / `offload` / `disk` / `stale` | ❌ |
 | `memory` | L1 in-memory backends (Moka + DashMap) | ❌ |
 | `redis` | L2 distributed cache (Redis / Valkey, Standalone / Sentinel / Cluster) | ❌ |
 | `dragonfly` | Dragonfly backend (Redis protocol compatible) | ❌ |
@@ -194,28 +198,33 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full (excludes 
 | `metrics` | Built-in metrics: latency histograms, operation counters, JSON / Prometheus export | ❌ |
 | `batch` | `BatchWriter` buffered batch writes (capacity / time dual-threshold flush) | ❌ |
 | `lua` | Lua script execution (requires `redis`) | ❌ |
-| `testing` | Testing utilities (exposes internal functions) | ❌ |
+| `test-util` | Testing utilities (exposes internal functions); `testing` is a deprecated alias | ❌ |
 | `bloom` | Bloom-filter negative-query filtering (`BloomFilter` + `BloomFilterBackend`) | ❌ |
 | `lock` | Distributed lock: TTL, watchdog auto-renewal, reentrant (requires `redis`) | ❌ |
-| `red-lock` | RedLock multi-node majority lock + fencing tokens (requires `lock`) | ❌ |
+| `redlock` | RedLock multi-node majority lock + fencing tokens (requires `lock`); `red-lock` is a deprecated alias | ❌ |
 | `compression` | Adaptive compression: threshold-triggered zstd, legacy-gzip compatible reads | ❌ |
 | `telemetry` | `tracing` facade: circuit / backfill / macro-passthrough events, zero overhead when off | ❌ |
 | `invalidation` | Cross-instance invalidation bus: Redis Pub/Sub broadcast + keyspace-notification channel | ❌ |
 | `encrypt` | Value-level encryption decorator (XChaCha20-Poly1305, key bound as AAD) | ❌ |
 | `integrity` | Value integrity decorator (HMAC-SHA256, verification failure counts as a miss) | ❌ |
-| `serde-bincode` | bincode 1.x binary serialization format | ❌ |
+| `serde-bincode` | bincode 2 binary serialization format | ❌ |
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | Config-driven build via confers + `ConfigBus` watch hot-reload | ❌ |
 | `degradation` | Auto-degradation and recovery (Active / Degraded / HalfOpen state machine) | ❌ |
-| `audit` | Structured audit event stream (NoOp / bounded in-memory ring / tracing publishers) | ❌ |
+| `audit` | Structured audit event stream (NoOp / bounded in-memory ring / tracing / inklog structured-log publishers) | ❌ |
 | `versioning` | Versioned CAS (in-memory + Redis WATCH/MULTI/EXEC implementations) | ❌ |
-| `kit` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / shutdown / decorators) | ❌ |
+| `trait-kit` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / shutdown / decorators); `kit` is a deprecated alias | ❌ |
 | `disk` | Disk-persistent L3 backend (embedded redb, lazy expiry + `max_entries` sweep, `Scores::REDB = 85`) | ❌ |
 | `stale` | SWR three-state expiry: `StaleWhileRevalidateBackend` + `StalePolicy` (Return / Revalidate / OffloadRevalidate) (requires `offload`) | ❌ |
 | `offload` | Background task subsystem: `OffloadManager` dedup / concurrency limit / timeout policies, `get_or_refresh` background revalidation | ❌ |
 | `adaptive-ttl` | Adaptive TTL: `AdaptiveTtlBackend` adjusts per-entry TTL by access pattern (hot extension / cold shortening, explicit constants) | ❌ |
+| `warmup` | Smart warm-up: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously (batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts) | ❌ |
+| `byte-weight` | Byte-weighted sync cache (`ByteWeightCache`, tokio-free direct `moka::sync`) | ❌ |
+| `pubsub` | Redis Pub/Sub broadcast component | ❌ |
+| `inklog` | Audit event → inklog structured-log bridging (`InklogAuditPublisher` wired to `LogSink`; requires `audit`) | ❌ |
+| `hotkey` | Hot-key sampling observability (`HotKeyTracker` sharded counting + snapshot decayed Top-K) | ❌ |
 
-> Opt-in features such as `bloom` and `kit` are **not** part of `full` and must be enabled explicitly.
+> Opt-in features such as `bloom` and `trait-kit` are **not** part of `full` and must be enabled explicitly.
 
 ---
 
@@ -240,7 +249,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full (excludes 
 
 ## 💻 Examples
 
-The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **37 runnable examples**:
+The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **38 runnable examples**:
 
 ```bash
 # Run a single example (from the examples/ directory)
@@ -311,6 +320,7 @@ cd examples && ls src/*/*.rs
 | `example_events` | Event system (`CacheEvent` / `CacheEventType`) |
 | `example_cli_usage` | CLI scenarios (obtaining cache status and metrics from code) |
 | `example_kit_integration` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / three-phase shutdown / decorators) |
+| `example_inklog_audit_bridge` | Audit event → inklog structured-log bridging (`InklogAuditPublisher`, requires the `inklog-bridge` examples feature) |
 
 > Examples marked "requires Redis" need a running Redis 6.0+ server; all other examples use in-memory backends and run standalone.
 
@@ -357,9 +367,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **Runtime notes**:
 
-- `sync_mode(true)` requires a `multi_thread` tokio runtime; on a `current_thread` runtime, Moka's `sync_block_on` panics
+- The default Moka path is native sync and runtime-independent: callable directly outside any runtime (driven by a temporary current-thread runtime), reusing the current runtime via `block_in_place` on a `multi_thread` runtime; inside a `current_thread` runtime's async context, tokio forbids nested blocking drivers, so calls return `Err(OxCacheError::NotSupported)` explicitly (no panic)
+- `sync_mode(true)` composes with `backend_arc(...)`: the sync API is bridged via `AsyncToSyncBridge` (blocking semantics), requiring a `multi_thread` runtime at call time (I/O-backed backends need ≥2 workers); outside any runtime or on a `current_thread` runtime every call returns `Err(OxCacheError::NotSupported)`; for runtime-independent injection use `sync_backend_arc(...)` instead
 - Without `sync_mode(true)`, any `*_sync` method returns `Err(OxCacheError::NotSupported)`
-- `sync_mode(true)` cannot be combined with `backend_arc(...)`; setting both makes `build()` return `Err(OxCacheError::NotSupported)`
 
 **`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#-缓存宏); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
 
@@ -442,12 +452,12 @@ All backends honor per-entry `set(key, value, Some(ttl))` uniformly. Behavior su
 |---------|-----------------|------------|------------------------|-------|
 | **MokaMemoryBackend** | Real per-entry TTL via `moka::Expiry` | Remaining TTL | Updates + returns `true` | Global TTL (`builder.ttl(...)`) is overridden by per-entry TTL |
 | **DashMapMemoryBackend** | Stores `(value, expiry Instant)`; lazy expiry on read | Remaining TTL (None if no TTL) | Updates + returns `true` | Lazy expiry — entries removed on next access; FIFO O(1) eviction of oldest entries when over capacity |
-| **RedisBackend** | `SET key value EX ttl` | `TTL key` (Redis native) | `EXPIRE key ttl` | Uses Redis native TTL |
+| **RedisBackend** | `SET key value PX <ms>` | `TTL key` (Redis native) | `PEXPIRE key <ms>` | Redis native TTL at millisecond precision (sub-second TTLs no longer rejected) |
 | **Valkey** (via RedisBackend) | Same as Redis | Same as Redis | Same as Redis | Redis protocol compatible, uses the `ValkeyStandalone` mode |
 | **DragonflyBackend** | Delegates to the inner RedisBackend | Delegates to the inner RedisBackend | Delegates to the inner RedisBackend | Redis protocol compatible, TTL behavior identical to Redis |
 | **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + new `Expiration` | Aerospike native TTL (second precision); sub-second TTLs round up |
 | **MockBackend** | Stores `(value, expiry Instant)`; lazy expiry | Remaining TTL | Updates + returns `true` | Test-only; aligns with DashMap semantics |
-| **ChainCache** | Passes `ttl` through to all links | Returns the TTL of the highest-scored link that owns the key | Passes through to all links | All links receive the same TTL |
+| **ChainCache** | Passes `ttl` through to all links | First `Some(ttl)` found scanning from the highest score (keeps descending when a higher-scored link owns the key but has no TTL) | Passes through to all links | All links receive the same TTL |
 | **BloomFilterBackend** | Passes `ttl` through to inner (also inserts the key into the BF) | Delegates to inner | Delegates to inner | The BF itself has no TTL concept |
 
 **Global vs per-entry**: `builder.ttl(Duration)` sets a global TTL applied to every entry; `set(key, value, Some(ttl))` overrides it for that entry; `set(key, value, None)` uses the global TTL (or never expires if unset).
@@ -460,17 +470,17 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1437 |
-| Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 331 |
-| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 131 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1537 |
+| Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 332 |
+| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 139 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
-| Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 11 |
+| Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 21 |
 | Security tests | `--test security` | Security coverage and security validation | 20 |
 | Chaos tests | `--test chaos` | Backend failure injection, network failures, random failures | 19 |
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.6**; 2000+ in total (`src/` 1437 + `tests/` 629).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7**; 2166 in total (`src/` 1537 + `tests/` 629). Per-layer rows are grep counts per test directory; `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
 
 ### Common Commands (same as CI)
 
@@ -512,18 +522,18 @@ Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_pat
 
 Oxcache ships multiple layers of defense inside the library. For the full security design, threat model and fix history, see the [Security documentation](docs/SECURITY.md).
 
-**Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues. Use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) disclosure channel (acknowledgement within 48 hours, initial assessment within 7 days, and reporters get a chance to verify the patch before release).
+**Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues. Use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) disclosure channel, or email Kirky-X@outlook.com (acknowledgement within 48 hours, initial assessment within 7 days, and reporters get a chance to verify the patch before release).
 
 | Defense layer | Mechanism |
 |---------------|-----------|
 | Key validation | `validate_redis_key`: rejects empty keys, keys over 512 KB, and keys containing `\r` / `\n` / `\0`; scans for SQL-injection and path-traversal patterns |
-| Lua sandbox | `validate_lua_script`: 10 KB limit, 100-key limit, dangerous-command blacklist (`FLUSHALL` / `CONFIG` / `SHUTDOWN` etc.), comment and string preprocessing against bypass, 30-second timeout |
-| SCAN limits | `validate_scan_pattern` (256 chars, max 10 wildcards) + `clamp_scan_count` (clamped to 1-1000), 30-second timeout |
+| Lua sandbox | `validate_lua_script`: 10 KB limit, 100-key limit, dangerous-command blacklist (`FLUSHALL` / `CONFIG` / `SHUTDOWN` etc.), comment and string preprocessing against bypass |
+| SCAN limits | `validate_scan_pattern` (256 chars, max 10 wildcards) + `clamp_scan_count` (clamped to 1-1000) |
 | TLS enforcement | `RedisBackend` requires `rediss://` by default unless the `OXCACHE_ALLOW_INSECURE_REDIS` development escape hatch is set explicitly |
 | Redaction | `redact_connection_string` / `redact_value` / `Redacted` wrapper; keys and credentials are redacted in logs and audit events by default |
 | Memory safety | Crate-root `#![deny(unsafe_code)]` |
 | Value protection | `encrypt` (XChaCha20-Poly1305 with the key bound as AAD) and `integrity` (HMAC-SHA256) decorators |
-| Deserialization DoS guard | `MAX_JSON_DEPTH` depth limit + 64 MiB deserialization size cap + stack-based recursion (`serde_stacker`) |
+| Deserialization DoS guard | `MAX_JSON_DEPTH` (64 levels) depth limit + `MAX_JSON_SIZE` (5 MB) deserialization size cap + 64 MiB decompressed-output cap (decompression-bomb guard) + stack-based recursion (`serde_stacker`) |
 | Supply chain | Every third-party GitHub Action pinned by commit SHA in CI; `cargo deny check` (advisories / licenses / duplicate deps, see `deny.toml`) and `cargo audit` run in CI |
 
 **Security API (public validation functions)**:
@@ -542,10 +552,10 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 
 | Status | Item | Notes |
 |:------:|------|-------|
-| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.6 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
+| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.7 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
 | ✅ | **Valkey integration test environment gating** | 8 Valkey (and Dragonfly) integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
-| ✅ | **Follow-up on archived review findings** | Rebuilt archive in `docs/diting-review.md` (3 Medium + 2 Low): 2 Medium + 1 Low fixed, the rest logged as backlog |
+| ✅ | **Follow-up on archived review findings** | Archive in `docs/diting-review.md` (3 Medium + 2 Low): all 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
 
 ---
 
@@ -564,6 +574,7 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
 
+- **0.5.0-rc.7** (2026-09-30): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); hot-path allocation baseline and reduction (preallocated result `HashMap` for `get_many` etc., see `docs/allocation-baseline.md`); governance recheck and review-archive fixes
 - **0.5.0-rc.6** (2026-09-28): absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed
 - **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature

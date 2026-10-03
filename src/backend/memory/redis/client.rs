@@ -22,16 +22,60 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Redis async connection abstraction.
+///
+/// 单机/哨兵场景走 [`redis::aio::ConnectionManager`]；集群场景走
+/// [`redis::cluster_async::ClusterConnection`]（按槽位路由并自动跟随
+/// MOVED/ASK 重定向）。两者都实现 `aio::ConnectionLike`，调用方以
+/// `cmd.query_async(&mut conn)` 统一驱动，无需感知分支。
+#[derive(Clone)]
+pub(crate) enum RedisConnection {
+    Single(redis::aio::ConnectionManager),
+    Cluster(redis::cluster_async::ClusterConnection),
+}
+
+impl redis::aio::ConnectionLike for RedisConnection {
+    fn req_packed_command<'a>(
+        &'a mut self,
+        cmd: &'a redis::Cmd,
+    ) -> redis::RedisFuture<'a, redis::Value> {
+        match self {
+            RedisConnection::Single(conn) => conn.req_packed_command(cmd),
+            RedisConnection::Cluster(conn) => conn.req_packed_command(cmd),
+        }
+    }
+
+    fn req_packed_commands<'a>(
+        &'a mut self,
+        pipeline: &'a redis::Pipeline,
+        offset: usize,
+        count: usize,
+    ) -> redis::RedisFuture<'a, Vec<redis::Value>> {
+        match self {
+            RedisConnection::Single(conn) => conn.req_packed_commands(pipeline, offset, count),
+            RedisConnection::Cluster(conn) => conn.req_packed_commands(pipeline, offset, count),
+        }
+    }
+
+    fn get_db(&self) -> i64 {
+        match self {
+            RedisConnection::Single(conn) => conn.get_db(),
+            RedisConnection::Cluster(conn) => conn.get_db(),
+        }
+    }
+}
+
 /// Redis cache backend.
 ///
 /// This backend provides a distributed cache using Redis.
 /// It supports standalone, sentinel, and cluster modes.
-/// Uses ConnectionManager for efficient connection pooling.
+/// 单机/哨兵用 ConnectionManager；集群自动切换 ClusterConnection
+/// （显式 `mode(Cluster)` 或默认模式下探测到 `cluster_enabled`）。
 #[derive(Clone)]
 pub struct RedisBackend {
     client: Arc<Client>,
     mode: RedisMode,
-    connection_manager: redis::aio::ConnectionManager,
+    connection: RedisConnection,
     dangerous_clear_enabled: bool,
     /// Maximum retry attempts for recoverable operations.
     retry_count: u32,
@@ -48,7 +92,7 @@ impl RedisBackend {
     pub(crate) fn from_parts(
         client: Arc<Client>,
         mode: RedisMode,
-        connection_manager: redis::aio::ConnectionManager,
+        connection: RedisConnection,
         dangerous_clear_enabled: bool,
         retry_count: u32,
         retry_delay: Duration,
@@ -57,7 +101,7 @@ impl RedisBackend {
         Self {
             client,
             mode,
-            connection_manager,
+            connection,
             dangerous_clear_enabled,
             retry_count,
             retry_delay,
@@ -139,9 +183,9 @@ impl RedisBackend {
 
     /// Get a cloned connection handle.
     ///
-    /// ConnectionManager uses Arc internally, so clone is cheap.
-    pub(crate) fn conn(&self) -> redis::aio::ConnectionManager {
-        self.connection_manager.clone()
+    /// ConnectionManager / ClusterConnection 内部均为 Arc 共享，clone 廉价。
+    pub(crate) fn conn(&self) -> RedisConnection {
+        self.connection.clone()
     }
 
     /// Get a reference to the circuit breaker.

@@ -1,5 +1,12 @@
 # Redis Sentinel模式测试配置
 # 用于真实环境下的高可用性测试
+#
+# 注意：
+# - Sentinel 配置以"只读模板 + 复制到可写卷"方式挂载：redis-sentinel 启动期
+#   会重写 sentinel.conf（记录主节点纪元/从节点清单），单文件 bind mount 的
+#   inode 归宿主持有，容器内重命名必然 Permission denied 而退出。
+# - master 宿主端口默认 16380：16379 与邻项目 confers-test-redis 冲突；
+#   可用 REDIS_MASTER_HOST_PORT 覆盖。
 
 services:
   # Redis主节点
@@ -7,7 +14,7 @@ services:
     image: redis:latest
     container_name: redis-master
     ports:
-      - "16379:6379"
+      - "${REDIS_MASTER_HOST_PORT:-16380}:6379"
     volumes:
       - ./configs/redis-master.conf:/usr/local/etc/redis/redis.conf
       - redis-master-data:/data
@@ -70,9 +77,9 @@ services:
     ports:
       - "26382:26379"
     volumes:
-      - ./configs/redis-sentinel1.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configs/redis-sentinel1.conf:/config-template/sentinel.conf:ro
       - sentinel1-data:/data
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    command: sh -c "cp /config-template/sentinel.conf /data/sentinel.conf && exec redis-sentinel /data/sentinel.conf"
     depends_on:
       - redis-master
       - redis-slave1
@@ -88,9 +95,9 @@ services:
     ports:
       - "26383:26379"
     volumes:
-      - ./configs/redis-sentinel2.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configs/redis-sentinel2.conf:/config-template/sentinel.conf:ro
       - sentinel2-data:/data
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    command: sh -c "cp /config-template/sentinel.conf /data/sentinel.conf && exec redis-sentinel /data/sentinel.conf"
     depends_on:
       - redis-master
       - redis-slave1
@@ -106,9 +113,9 @@ services:
     ports:
       - "26384:26379"
     volumes:
-      - ./configs/redis-sentinel3.conf:/usr/local/etc/redis/sentinel.conf
+      - ./configs/redis-sentinel3.conf:/config-template/sentinel.conf:ro
       - sentinel3-data:/data
-    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    command: sh -c "cp /config-template/sentinel.conf /data/sentinel.conf && exec redis-sentinel /data/sentinel.conf"
     depends_on:
       - redis-master
       - redis-slave1

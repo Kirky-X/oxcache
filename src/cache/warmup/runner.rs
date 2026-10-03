@@ -6,6 +6,7 @@ use super::{WarmupEntry, WarmupLoader, WarmupReport};
 use crate::backend::CacheReader;
 use crate::cache::ChainCache;
 use crate::error::OxCacheResult;
+use crate::i18n::messages::{MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED, MSG_PANIC_WARMUP_SEMAPHORE, t};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -166,7 +167,13 @@ impl Warmup {
                             Ok(ttl) => ttl,
                             Err(e) => {
                                 report.failed += 1;
-                                report.failures.push((key, format!("ttl 查询失败: {e}")));
+                                report.failures.push((
+                                    key,
+                                    t(
+                                        MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED,
+                                        &[("err", e.to_string())],
+                                    ),
+                                ));
                                 continue;
                             }
                         };
@@ -205,7 +212,7 @@ impl Warmup {
                 .clone()
                 .acquire_owned()
                 .await
-                .expect("预热信号量不会被 close");
+                .unwrap_or_else(|e| panic!("{}: {e:?}", t(MSG_PANIC_WARMUP_SEMAPHORE, &[])));
             let chain = self.chain.clone();
             let in_flight = in_flight.clone();
             let peak = peak.clone();

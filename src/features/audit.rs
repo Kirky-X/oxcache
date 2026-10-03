@@ -211,6 +211,7 @@ pub struct TracingAuditPublisher;
 #[cfg(feature = "telemetry")]
 impl AuditEventPublisher for TracingAuditPublisher {
     fn publish(&self, event: AuditEvent) {
+        use crate::i18n::messages::{MSG_LOG_AUDIT_EVENT, t};
         tracing::info!(
             target: "oxcache::audit",
             action = event.action.as_str(),
@@ -218,7 +219,8 @@ impl AuditEventPublisher for TracingAuditPublisher {
             namespace = event.namespace.as_deref().unwrap_or(""),
             operator = event.operator.as_deref().unwrap_or(""),
             timestamp_ms = event.timestamp_ms,
-            "cache audit event"
+            "{}",
+            t(MSG_LOG_AUDIT_EVENT, &[])
         );
     }
 }
@@ -382,13 +384,18 @@ impl AuditEventPublisher for InklogAuditPublisher {
                 // 随其所属 runtime 关停而取消，之后的 publish 走「通道已关闭」
                 // 丢弃计数
                 self.inner.writer_started.call_once(|| {
+                    use crate::i18n::messages::{
+                        MSG_PANIC_AUDIT_WRITER_LOCK, MSG_PANIC_AUDIT_WRITER_RX, t,
+                    };
                     let rx = self
                         .inner
                         .rx
                         .lock()
-                        .expect("writer 接收端锁不会中毒（临界区无 panic 点）")
+                        .unwrap_or_else(|e| {
+                            panic!("{}: {e:?}", t(MSG_PANIC_AUDIT_WRITER_LOCK, &[]))
+                        })
                         .take()
-                        .expect("writer 首次启动时接收端必然在位");
+                        .unwrap_or_else(|| panic!("{}", t(MSG_PANIC_AUDIT_WRITER_RX, &[])));
                     let sink = self.inner.sink.clone();
                     let dropped = self.inner.dropped.clone();
                     let write_failures = self.inner.write_failures.clone();

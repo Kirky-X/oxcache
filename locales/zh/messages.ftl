@@ -44,3 +44,72 @@ i18n-format-error = 格式化错误：{ $detail }。
 
 # -- #[cached] 宏生成的 strict 模式 panic --
 macro-service-not-registered = oxcache：服务 '{ $service }' 未注册（严格模式）
+
+# -- Tracing 日志消息（作为事件的 message 字段渲染） --
+log-chain-read-completed = 链路读取完成
+log-chain-expire-backend-failed = 后端过期操作失败
+log-chain-iter-entries-key-failed = iter_entries 批量层处理键失败
+log-offload-lifecycle-event = offload 生命周期事件
+log-offload-timeout-policy-exceeded = offload 任务超出超时策略
+log-degradation-entered = L2 降级已进入，仅以 L1 服务
+log-degradation-half-open-probing = L2 降级半开，正在探测恢复
+log-degradation-recovered = L2 降级已恢复
+log-confers-config-reload-rejected = confers 配置重载被拒；保留先前快照
+log-backend-bridge-shutdown-skipped = async→sync 桥接关闭已跳过：无法在 current_thread runtime 内嵌套阻塞驱动
+log-disk-sweep-failed = 磁盘缓存清扫失败
+log-audit-event = 缓存审计事件
+log-stale-hit-via-get-or = 经 get_or 返回 stale 命中（Return 降级；后台再验证请使用 get_or_refresh）
+log-stale-revalidation-scheduled = stale 命中；已调度后台再验证
+log-stale-hit-served = 已按 stale 命中返回
+
+# -- Panic / 不变量消息 --
+panic-chain-parallel-freshest-invariant = 命中列表非空则新鲜度列表必非空
+panic-bridge-temp-runtime-create-failed = 为桥接关闭创建临时 runtime 失败
+panic-warmup-semaphore-not-closed = 预热信号量不会被 close
+panic-audit-writer-lock-not-poisoned = writer 接收端锁不会中毒（临界区无 panic 点）
+panic-audit-writer-rx-present-on-first-start = writer 首次启动时接收端必然在位
+panic-stale-state-must-carry-payload = Stale 状态必须携带 payload
+panic-bloom-capacity-must-be-positive = capacity 必须大于 0
+panic-bloom-hash-count-must-be-positive = hash_count 必须大于 0
+panic-bloom-fpr-must-be-in-open-interval = false_positive_rate 必须在 (0.0, 1.0) 区间内
+panic-bloom-hash-count-unreachable = 容量 { $capacity } 下 hash_count { $hash_count } 不可达
+panic-bloom-hash-count-backsolve-drift = 容量 { $capacity } 下 hash_count { $hash_count } 不可达：该容量下位图每字节使 k 的步进超过 1
+panic-bloom-seed-generation-failed = 创建布隆过滤器失败：随机种子生成失败
+
+# -- 用户可见明细消息（插值进错误模板） --
+detail-disk-redb-open-failed = redb 打开失败：{ $err }
+detail-disk-redb-create-failed = redb 创建失败：{ $err }
+detail-disk-corrupt-envelope = 磁盘缓存 envelope 损坏
+detail-not-supported-sync-atomic-increment = 所包裹的同步后端不支持原子递增
+detail-not-supported-sync-atomic-cas = 所包裹的同步后端不支持原子比较并交换（compare-and-swap）
+detail-not-supported-sync-atomic-set-if-absent = 所包裹的同步后端不支持原子 set-if-absent（不存在时写入）
+detail-not-supported-async-atomic-increment = 所包裹的异步后端不支持原子递增
+detail-not-supported-async-atomic-cas = 所包裹的异步后端不支持原子比较并交换（compare-and-swap）
+detail-not-supported-async-atomic-set-if-absent = 所包裹的异步后端不支持原子 set-if-absent（不存在时写入）
+detail-not-supported-sync-requires-runtime = 同步 API 需要 Tokio runtime：{ $err }
+detail-not-supported-sync-requires-multi-thread-runtime = 同步 API 需要多线程 runtime；current_thread runtime 上 block_in_place 不可用
+detail-config-env-invalid-value = { $key } 的值无效：{ $raw }（{ $err }）
+detail-config-env-backend-requires-features = { $key }={ $raw } 需要 `memory`/`redis`/`disk` 中的 feature，当前构建一个也未启用
+detail-config-env-serialization-requires-feature = { $key }={ $raw } 需要 `serialization` feature，当前构建未启用
+detail-config-backend-requires-features = backend { $raw } 需要 `memory`/`redis`/`disk` 中的 feature，当前构建一个也未启用
+detail-config-capacity-zero = capacity 必须大于 0（删除该键以使用 builder 默认值）
+detail-config-capacity-exceeds-usize = capacity { $capacity } 超出本平台 usize 范围（{ $max }）
+detail-config-ttl-zero = { $name } 不得为零；如需永不过期请用 None（不设置）
+detail-config-metrics-requires-feature = metrics_enabled 需要 `metrics` feature，当前构建未启用
+detail-config-serialization-requires-feature = serialization_format 需要 `serialization` feature，当前构建未启用
+detail-config-circuit-breaker-threshold-zero = circuit_breaker_failure_threshold 必须大于 0
+detail-config-service-name-empty = service_name 不得为空；删除该键以保持服务维度关闭
+detail-config-connection-pool-size-zero = connection_pool_size 必须大于 0（删除该键以使用后端默认值）
+detail-adaptive-ttl-min-ttl-exceeds-max = adaptive_ttl min_ttl（{ $min }）不得大于 max_ttl（{ $max }）
+detail-adaptive-ttl-multiplier-not-finite-positive = adaptive_ttl hot_ttl_multiplier（{ $value }）必须为有限正数
+detail-adaptive-ttl-divisor-at-least-one = adaptive_ttl cold_ttl_divisor 至少为 1
+detail-adaptive-ttl-max-tracked-keys-at-least-one = adaptive_ttl max_tracked_keys 至少为 1
+detail-get-or-leader-result-not-cached = get_or：并发拉取的 leader 未能将结果写入缓存
+detail-get-or-option-leader-result-not-cached = get_or_option：并发拉取的 leader 未能将结果写入缓存
+detail-warmup-ttl-lookup-failed = ttl 查询失败：{ $err }
+
+# -- 示例二进制输出消息 --
+example-inklog-bridge-title = === inklog 审计日志桥接示例 ===
+example-inklog-bridge-observability = === 桥接可观测面 ===
+example-inklog-bridge-dropped = dropped（无 runtime 上下文丢弃）: { $count }
+example-inklog-bridge-write-failures = write_failures（sink 写失败）: { $count }

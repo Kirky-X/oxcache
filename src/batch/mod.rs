@@ -8,6 +8,11 @@
 //! - the buffer reaches `capacity` entries, **or**
 //! - `flush_interval` elapses (driven by a background tokio task).
 //!
+//! By default a full buffer triggers the automatic flush above. With
+//! [`BatchWriterBuilder::reject_when_full`] the writer instead refuses new
+//! entries with [`OxCacheError::BufferFull`] (code `OXCACHE_019`, recoverable:
+//! the caller can retry after the next flush drains the buffer).
+//!
 //! # Feature gate
 //!
 //! This module is only compiled when the `batch` cargo feature is enabled.
@@ -33,7 +38,7 @@
 //! ```
 
 use crate::backend::CacheBackend;
-use crate::error::OxCacheResult;
+use crate::error::{OxCacheError, OxCacheResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, Notify};
@@ -53,6 +58,9 @@ pub struct BatchWriter {
     buffer: Mutex<Vec<BatchEntry>>,
     capacity: usize,
     flush_interval: Duration,
+    /// When true, a full buffer rejects `enqueue` with `BufferFull` instead of
+    /// auto-flushing (recoverable: retry after the buffer drains).
+    reject_when_full: bool,
     /// Signalled when `stop()` is called to terminate the background flusher.
     stop_notify: Arc<Notify>,
 }
@@ -64,7 +72,9 @@ impl BatchWriter {
     }
 
     /// Enqueue a `set` operation. If the buffer reaches capacity, an
-    /// automatic flush is triggered.
+    /// automatic flush is triggered — unless the writer was built with
+    /// `reject_when_full(true)`, in which case the entry is refused with
+    /// [`OxCacheError::BufferFull`] and the buffer is left untouched.
     pub async fn enqueue(
         &self,
         key: Arc<str>,
@@ -73,8 +83,14 @@ impl BatchWriter {
     ) -> OxCacheResult<()> {
         let should_flush = {
             let mut buf = self.buffer.lock().await;
+            if self.reject_when_full && buf.len() >= self.capacity {
+                return Err(OxCacheError::BufferFull(format!(
+                    "batch writer buffer at capacity {}",
+                    self.capacity
+                )));
+            }
             buf.push(BatchEntry { key, value, ttl });
-            buf.len() >= self.capacity
+            !self.reject_when_full && buf.len() >= self.capacity
         };
         if should_flush {
             self.flush().await?;
@@ -141,6 +157,7 @@ pub struct BatchWriterBuilder {
     backend: Arc<dyn CacheBackend>,
     capacity: usize,
     flush_interval: Duration,
+    reject_when_full: bool,
 }
 
 impl BatchWriterBuilder {
@@ -149,6 +166,7 @@ impl BatchWriterBuilder {
             backend,
             capacity: 100,
             flush_interval: Duration::from_secs(5),
+            reject_when_full: false,
         }
     }
 
@@ -164,6 +182,15 @@ impl BatchWriterBuilder {
         self
     }
 
+    /// Refuse entries once the buffer is full instead of auto-flushing
+    /// (default false). The refused `enqueue` returns
+    /// [`OxCacheError::BufferFull`] — a recoverable error: the entry is not
+    /// buffered, and the caller can retry after a flush drains the buffer.
+    pub fn reject_when_full(mut self, reject: bool) -> Self {
+        self.reject_when_full = reject;
+        self
+    }
+
     /// Build the [`BatchWriter`].
     pub fn build(self) -> BatchWriter {
         BatchWriter {
@@ -171,6 +198,7 @@ impl BatchWriterBuilder {
             buffer: Mutex::new(Vec::new()),
             capacity: self.capacity,
             flush_interval: self.flush_interval,
+            reject_when_full: self.reject_when_full,
             stop_notify: Arc::new(Notify::new()),
         }
     }
@@ -272,5 +300,47 @@ mod tests {
         let bw = BatchWriter::builder(test_backend()).build();
         assert_eq!(bw.capacity, 100);
         assert_eq!(bw.flush_interval, Duration::from_secs(5));
+        assert!(!bw.reject_when_full);
+    }
+
+    /// 缓冲打满 → `Err(BufferFull)`（OXCACHE_019，可恢复）：拒绝入队、缓冲
+    /// 原样保留，flush 腾出空间后可继续写入。
+    #[tokio::test]
+    async fn batch_writer_rejects_when_full_with_recoverable_buffer_full() {
+        let backend = test_backend();
+        let bw = BatchWriter::builder(backend.clone())
+            .capacity(2)
+            .flush_interval(Duration::from_secs(60))
+            .reject_when_full(true)
+            .build();
+
+        bw.enqueue(Arc::from("full-k1"), Arc::new(b"v1".to_vec()), None)
+            .await
+            .expect("第 1 条应入队");
+        bw.enqueue(Arc::from("full-k2"), Arc::new(b"v2".to_vec()), None)
+            .await
+            .expect("第 2 条应入队");
+
+        let err = bw
+            .enqueue(Arc::from("full-k3"), Arc::new(b"v3".to_vec()), None)
+            .await
+            .expect_err("缓冲打满应拒绝入队");
+        assert!(
+            matches!(err, OxCacheError::BufferFull(_)),
+            "应为 BufferFull，实际: {err:?}"
+        );
+        assert_eq!(err.code(), "OXCACHE_019");
+        assert!(err.is_recoverable(), "BufferFull 应是可恢复错误");
+        assert_eq!(bw.pending().await, 2, "被拒绝的条目不应入缓冲");
+
+        // 可恢复路径：flush 腾出空间后恢复写入
+        bw.flush().await.expect("flush");
+        assert_eq!(
+            backend.get("full-k1").await.expect("get"),
+            Some(b"v1".to_vec())
+        );
+        bw.enqueue(Arc::from("full-k4"), Arc::new(b"v4".to_vec()), None)
+            .await
+            .expect("flush 后应恢复入队");
     }
 }

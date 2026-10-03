@@ -206,7 +206,7 @@ impl<T: crate::backend::CacheBackend + Send + Sync> UnifiedCache for T {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memory"))]
 mod tests {
     use super::*;
     use crate::backend::MokaMemoryBackend;

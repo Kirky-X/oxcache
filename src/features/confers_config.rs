@@ -25,7 +25,7 @@
 //! | `cache.circuit_breaker.failure_threshold` | u64 | 5 |
 //! | `cache.circuit_breaker.recovery_timeout_ms` | u64 | 30000 |
 //!
-//! 扩展键经 [`CacheConfig::try_from_confers`] 映射到统一配置中枢；
+//! 扩展键经 [`CacheConfig::try_from_confers`](crate::config::CacheConfig::try_from_confers) 映射到统一配置中枢；
 //! `backend` / `serialization_format` 存原始字符串，映射时解析，
 //! 无法识别的值显性报错（不做静默回落）。
 //!
@@ -73,7 +73,7 @@ impl Default for CircuitBreakerSettings {
 /// 基础字段（capacity / default_ttl_ms / circuit_breaker）缺省回落内置默认；
 /// 扩展字段（Option 系列）`None` = 未配置，映射到统一配置中枢时保持未设置语义。
 /// `backend` / `serialization_format` 存原始字符串，解析在
-/// [`CacheConfig::try_from_confers`] 处显性完成。
+/// [`CacheConfig::try_from_confers`](crate::config::CacheConfig::try_from_confers) 处显性完成。
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct OxcacheConfig {
@@ -309,11 +309,11 @@ where
     }
 }
 
-/// 统一配置中枢映射：confers 快照 → [`CacheConfig`]
+/// 统一配置中枢映射：confers 快照 → [`CacheConfig`](crate::config::CacheConfig)
 ///
 /// 纯字段映射（`backend` / `serialization_format` 保留原始串）；
 /// 字符串合法性、参数组合与 feature 可用性统一由
-/// [`CacheConfig::validate()`] 在应用前显性检查，映射本身不产生解析错误。
+/// [`CacheConfig::validate()`](crate::config::CacheConfig::validate) 在应用前显性检查，映射本身不产生解析错误。
 impl crate::config::CacheConfig {
     /// 从 confers [`OxcacheConfig`] 快照映射统一配置
     pub fn try_from_confers(config: &OxcacheConfig) -> OxCacheResult<Self> {
@@ -493,10 +493,12 @@ fn record_reload_rejected_counter() {}
 #[cfg(feature = "telemetry")]
 #[inline]
 fn warn_reload_rejected(err: &OxCacheError) {
+    use crate::i18n::messages::{MSG_LOG_CONFERS_RELOAD_REJECTED, t};
     tracing::warn!(
         target = "oxcache::confers_config",
         %err,
-        "confers config reload rejected; keeping previous snapshot"
+        "{}",
+        t(MSG_LOG_CONFERS_RELOAD_REJECTED, &[])
     );
 }
 

@@ -1,5 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
+#![cfg(feature = "memory")]
 //! Valkey 集成测试
 //!
 //! 验证 Valkey 后端通过 RedisBackend 复用的全部功能：

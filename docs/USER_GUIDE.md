@@ -381,7 +381,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 格式 | 特性 | 说明 |
 |------|------|------|
 | **JSON** | 默认（`serialization`） | 可读性与跨语言互操作；`serde_stacker` 深度防护防嵌套 DoS |
-| **bincode 1.x** | `serde-bincode` | 二进制紧凑格式，经 `CacheBuilder::serialization_format()` 切换 |
+| **bincode 2** | `serde-bincode` | 二进制紧凑格式，经 `CacheBuilder::serialization_format()` 切换 |
 | **postcard** | `postcard` | varint 编码，混合负载下体积约为 JSON 的 46% |
 
 ```rust

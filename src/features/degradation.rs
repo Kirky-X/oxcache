@@ -320,21 +320,28 @@ pub struct DegradationTracing;
 impl DegradationTracing {
     /// 生成可传入 [`DegradationController::on_state_change`] 的监听闭包
     pub fn listener() -> impl Fn(DegradationState) + Send + Sync + 'static {
+        use crate::i18n::messages::{
+            MSG_LOG_DEGRADATION_ENTERED, MSG_LOG_DEGRADATION_HALF_OPEN,
+            MSG_LOG_DEGRADATION_RECOVERED, t,
+        };
         |state| match state {
             DegradationState::Degraded => tracing::warn!(
                 target = "oxcache::degradation",
                 state = state.as_str(),
-                "L2 degradation entered, serving L1-only"
+                "{}",
+                t(MSG_LOG_DEGRADATION_ENTERED, &[])
             ),
             DegradationState::HalfOpen => tracing::info!(
                 target = "oxcache::degradation",
                 state = state.as_str(),
-                "L2 degradation half-open, probing recovery"
+                "{}",
+                t(MSG_LOG_DEGRADATION_HALF_OPEN, &[])
             ),
             DegradationState::Active => tracing::info!(
                 target = "oxcache::degradation",
                 state = state.as_str(),
-                "L2 degradation recovered"
+                "{}",
+                t(MSG_LOG_DEGRADATION_RECOVERED, &[])
             ),
         }
     }

@@ -131,7 +131,7 @@ impl ChainCacheBuilder {
     /// fails loudly at construction time; use [`ChainCache::new`] directly if
     /// an intentionally empty chain is ever required.
     ///
-    /// 启用 [`Self::with_invalidation`] 且链中无持久层 link 时同样 panic
+    /// 启用 `with_invalidation` 且链中无持久层 link 时同样 panic
     /// （广播无触发点，属配置错误）。
     pub fn build(self) -> ChainCache {
         // 按分数降序排序

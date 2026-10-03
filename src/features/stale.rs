@@ -25,6 +25,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
+#[cfg(feature = "telemetry")]
+use crate::i18n::messages::{MSG_LOG_STALE_HIT_SERVED, t};
+
 use crate::backend::{
     BackendKind, CacheBackend, CacheConnector, CacheReader, CacheSetItem, CacheWriter,
 };
@@ -176,7 +179,12 @@ impl StaleWhileRevalidateBackend {
 #[cfg(feature = "telemetry")]
 #[inline]
 fn telemetry_stale_hit(key: &str) {
-    tracing::debug!(target: "oxcache::stale", key, "stale hit served");
+    tracing::debug!(
+        target: "oxcache::stale",
+        key,
+        "{}",
+        t(MSG_LOG_STALE_HIT_SERVED, &[])
+    );
 }
 
 #[cfg(not(feature = "telemetry"))]
@@ -460,6 +468,7 @@ mod tests {
     }
 
     /// 与 CompressingBackend 双向叠加：两种包装顺序下三态判定与压缩均正确。
+    #[cfg(feature = "compression")]
     #[tokio::test]
     async fn composes_with_compression_in_both_orders() {
         use crate::features::compression::CompressingBackend;
@@ -501,5 +510,29 @@ mod tests {
             Some(payload),
             "compress(stale(base)) order must round-trip"
         );
+    }
+    #[test]
+    fn decode_envelope_rejects_foreign_payloads() {
+        // 短读
+        assert!(decode_envelope(&b"OW"[..]).is_none());
+        // 魔数不匹配（旁路直写数据）
+        let mut bad = vec![0u8; ENV_HEADER];
+        bad[0..4].copy_from_slice(&0x4F_57_52_54u32.to_le_bytes());
+        assert!(decode_envelope(&bad).is_none());
+        // 负时间戳
+        let mut neg = Vec::new();
+        neg.extend_from_slice(&STALE_MAGIC.to_le_bytes());
+        neg.extend_from_slice(&(-1i64).to_le_bytes());
+        neg.extend_from_slice(&1i64.to_le_bytes());
+        assert!(decode_envelope(&neg).is_none());
+        let mut neg2 = Vec::new();
+        neg2.extend_from_slice(&STALE_MAGIC.to_le_bytes());
+        neg2.extend_from_slice(&1i64.to_le_bytes());
+        neg2.extend_from_slice(&(-1i64).to_le_bytes());
+        assert!(decode_envelope(&neg2).is_none());
+        // 合法 envelope 解码
+        let ok = encode_envelope(10, 20, b"payload");
+        let (exp, stale, payload) = decode_envelope(&ok).expect("valid envelope");
+        assert_eq!((exp, stale, payload), (10, 20, b"payload".as_slice()));
     }
 }

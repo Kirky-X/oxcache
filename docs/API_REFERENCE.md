@@ -20,6 +20,7 @@
 - [🐉 DragonflyBackend](#-dragonflybackend)
 - [🌌 AerospikeBackend](#-aerospikebackend)
 - [🔗 ChainCache](#-chaincache)
+- [📢 Redis Pub/Sub 广播通道](#-redis-pubsub-广播通道pubsub-特性)
 - [🔄 同步 API](#-同步-api)
 - [🌸 布隆过滤器](#-布隆过滤器)
 - [🕒 TTL 管理](#-ttl-管理)
@@ -40,7 +41,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 - **`minimal`**：仅 L1 缓存（memory + metrics + serialization + chrono），**默认启用**
 - **`core`**：L1 + L2 缓存（minimal + redis）
-- **`full`**：全量预设（core + macros + compression + batch + lua + testing + dragonfly + aerospike + lock；不含 `bloom`、`kit` 等选择加入特性）
+- **`full`**：全量预设（core + macros + compression + batch + lua + testing + dragonfly + aerospike + lock + offload + disk + stale；不含 `bloom`、`kit` 等选择加入特性）
 
 ### 组件特性
 
@@ -52,28 +53,49 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 | 特性 | 所需特性 | 说明 |
 |------|----------|------|
-| `lua` | `redis` | Lua 脚本执行 |
-| `lock` | `redis` | 分布式锁 |
-| `red-lock` | `lock` | RedLock 多节点多数派锁 |
-| `metrics` | `serialization`, `chrono`, `dashmap` | 内置指标 |
-| `macros` | `minimal` | 属性宏 |
+| `minimal` | `memory`, `metrics`, `serialization` | 最小预设（L1 memory + 指标） |
 | `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock` | 全量预设（注意：`bloom`、`kit` 不在 `full` 中） |
+| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock`, `offload`, `disk`, `stale` | 全量预设（注意：`bloom`、`kit` 不在 `full` 中） |
 | `memory` | `serialization` | backend 与 cache 核心 API 的编译基线 |
 | `redis` | `serialization` | L2 Redis 后端 |
+| `dragonfly` | `redis` | Dragonfly 兼容模式后端 |
+| `aerospike` | — | Aerospike 后端（自管依赖） |
+| `serialization` | — | 序列化门面（JSON 基线） |
+| `serde-bincode` | `serialization` | bincode 二进制格式 |
+| `postcard` | `serialization` | postcard 二进制格式 |
+| `metrics` | `serialization`, `chrono`, `dashmap` | 内置指标 |
+| `telemetry` | — | tracing 门面（重连/失效等日志路径） |
+| `macros` | `minimal` | 属性宏 |
+| `batch` | `memory` | BatchWriter（包装 `CacheBackend`；缓冲满默认自动刷盘，`reject_when_full(true)` 改为拒绝并返回 `BufferFull`/`OXCACHE_019`） |
+| `lua` | `redis` | Lua 脚本执行 |
+| `test-util` | — | 测试辅助（`#[cfg(feature)]` 专用桩） |
+| `testing` | `test-util` | 测试实现 |
+| `bloom` | — | 布隆过滤器（选择加入，不在 `full` 中） |
+| `trait-kit` / `kit` | `memory` | kit 集成（引用 `crate::backend`；`kit` 隐含 `trait-kit`，选择加入，不在 `full` 中） |
+| `lock` | `redis` | 分布式锁 |
+| `redlock` | `lock` | RedLock 实现 |
+| `red-lock` | `redlock` | RedLock 多节点多数派锁（别名） |
+| `compression` | `memory` | 压缩装饰器（引用 backend 与序列化面） |
+| `offload` | `dashmap` | 进程内后台任务执行器 |
 | `disk` | `memory`, `serialization` | redb 嵌入式 L3 |
+| `stale` | `memory`, `offload`, `serialization` | SWR 三态过期 |
+| `invalidation` | `redis`, `serialization` | 跨实例失效广播总线 |
+| `pubsub` | `redis` | Redis Pub/Sub 通用广播通道 |
+| `encrypt` | `memory` | 加密装饰器（引用 `crate::backend`） |
+| `integrity` | `encrypt`, `hmac`, `sha2` | 完整性签名层（模块寄生在 encryption 内） |
+| `config-confers` | `memory`, `serialization` | 配置中枢 |
 | `degradation` | `memory` | 降级装饰器（引用 `crate::backend`） |
+| `audit` | — | 审计事件流 |
+| `inklog` | `audit` | 审计事件 → inklog 结构化日志发布器 |
+| `versioning` | — | 值版本化 |
+| `hotkey` | `dashmap` | 热 key 采样观测 |
+| `byte-weight` | `moka` | 按 byte 权重容量（moka 同步面） |
 | `adaptive-ttl` | `memory` | 自适应 TTL 装饰器（引用 `crate::backend`） |
 | `warmup` | `memory` | 智能预热（操作 `ChainCache`） |
-| `batch` | `memory` | BatchWriter（包装 `CacheBackend`） |
-| `compression` | `memory` | 压缩装饰器（引用 backend 与序列化面） |
-| `encrypt` | `memory` | 加密装饰器（引用 `crate::backend`） |
-| `integrity` | `encrypt`, `dep:hmac`, `dep:sha2` | 完整性签名层（模块寄生在 encryption 内） |
-| `trait-kit` / `kit` | `memory` | kit 集成（引用 `crate::backend`） |
-| `config-confers` | `memory` | 配置中枢 |
-| `inklog` | `audit` | 审计事件 → inklog 结构化日志发布器 |
-| `stale` | `memory`, `offload` | SWR 三态过期 |
-| `hotkey` | `dashmap` | 热 key 采样观测 |
+
+上表「所需特性」列只列 cargo feature（`dep:` 依赖不重复罗列；`dashmap`/`moka`/
+`hmac` 等词为对应可选依赖激活，非本 crate 特性）。`default` 预设即
+`minimal`。
 
 ## 🪄 缓存宏
 
@@ -434,7 +456,7 @@ let sha = backend.script_load("return 1 + 1").await?;
 let val = backend.eval_sha(&sha, &[], &[]).await?;
 ```
 
-所有 Lua 脚本在执行前通过 `validate_lua_script` 校验。
+`eval_lua` 与 `script_load` 在执行/缓存前通过 `validate_lua_script` 校验脚本；`eval_sha` 仅校验 SHA1 格式与键名，不重复校验脚本内容——脚本在 `script_load` 时已校验。`eval_sha` 遇 NOSCRIPT（脚本未缓存）不回退，显性返回错误，需调用方重新 `script_load` 或改用 `eval_lua`。
 
 ## 🐉 DragonflyBackend
 
@@ -570,6 +592,51 @@ let entries = chain.iter_entries(&["k1", "k2", "k3"]).await;
 链接都支持 `SyncCacheBackend`（即通过 `from_sync_backend` 构建）；
 否则返回 `Err(OxCacheError::NotSupported)`。
 
+## 📢 Redis Pub/Sub 广播通道（`pubsub` 特性）
+
+通用频道广播设施（`oxcache::pubsub::RedisPubSub`），与失效广播
+（`invalidation` 特性的 `InvalidationBus`，只承载缓存失效事件）不同，
+它面向任意跨实例消息语义：分布式会话/登录态同步（SSO kickout 广播）、
+业务事件扇出等。
+
+```rust,no_run
+# use std::sync::Arc;
+# async fn example() -> Result<(), oxcache::OxCacheError> {
+let ps = oxcache::pubsub::RedisPubSub::new("redis://127.0.0.1:6379").await?;
+ps.subscribe("sso:kickout", Arc::new(|msg| {
+    println!("kickout broadcast: {msg}");
+})).await?;
+let receivers = ps.publish("sso:kickout", "user-42").await?;
+ps.shutdown();
+# Ok(())
+# }
+```
+
+### 行为契约
+
+- **构造期 fail-fast**：`new` 预热发布连接（`ConnectionManager`），URL 非法
+  或端口不可达时立即返回 `Err`，不留"假成功"实例；
+- **独占订阅连接**：每个 `subscribe` 现场创建一条专用 Pub/Sub 连接
+  （`SUBSCRIBE` 会独占连接，无法复用多路复用连接），首次订阅成功经
+  oneshot 回传，`subscribe` 返回 `Ok(())` 即订阅已在服务端生效；
+- **publish 返回接收端数量**（无订阅者时为 0）；
+- **handler panic 隔离**：回调以 `catch_unwind` 包裹，panic 只记 warn 日志，
+  后续消息继续投递、订阅不中断；
+- **断线重连**：订阅连接断开后线性退避重连并重新 SUBSCRIBE（默认 5 次，
+  基数 500ms、封顶 5s；`with_reconnect_attempts(0)` 关闭重连，退化为
+  一次性订阅语义）；
+- **任务回收**：后台订阅任务统一登记，`shutdown()` / `Drop` 时全部 abort。
+
+### API 一览
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| `new` | `new(url: &str) -> OxCacheResult<Self>` | 构造并预热发布连接（fail-fast） |
+| `with_reconnect_attempts` | `with_reconnect_attempts(self, attempts: usize) -> Self` | 重连次数（默认 5；0 = 不重连） |
+| `publish` | `publish(&self, channel: &str, message: &str) -> OxCacheResult<i64>` | 发消息，返回接收端数量 |
+| `subscribe` | `subscribe(&self, channel: &str, handler: Arc<dyn Fn(String) + Send + Sync>) -> OxCacheResult<()>` | 订阅频道，handler 在后台任务逐条接收 |
+| `shutdown` | `shutdown(&self) -> usize` | abort 全部后台订阅任务，返回停止数 |
+
 ## 🔄 同步 API
 
 同步 API 镜像异步 API，但通过 `tokio::task::block_in_place` 阻塞。
@@ -679,7 +746,7 @@ let backend = BloomFilterBackend::builder()
 
 - **Moka** 使用 `moka::Expiry` trait 实现真正的单条目 TTL，覆盖构建器设置的全局 TTL。
 - **DashMap** 使用懒过期（条目在访问时过期）。
-- **Redis** 使用 `SETEX`。
+- **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
 
 各后端的完整行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 

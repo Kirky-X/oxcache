@@ -1,5 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
+#![cfg(feature = "memory")]
 //! Dragonfly 集成测试
 //!
 //! 验证 DragonflyBackend 包装层的全部功能：

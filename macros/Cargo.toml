@@ -15,7 +15,8 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-# 精简 syn 特性，避免引入不必要的依赖
-syn = { version = "3.0", features = ["full", "extra-traits", "parsing", "proc-macro"] }
-quote = "1.0"
-proc-macro2 = "1.0"
+# 精简 syn 特性，避免引入不必要的依赖；显式关闭 default（derive/printing/
+# clone-impls 由属性宏展开与 Debug 派生对照实际使用面决定保留）
+syn = { version = "3.0", default-features = false, features = ["full", "extra-traits", "parsing", "printing", "clone-impls", "proc-macro"] }
+quote = { version = "1.0", default-features = false }
+proc-macro2 = { version = "1.0", default-features = false }

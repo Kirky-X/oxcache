@@ -80,6 +80,86 @@ pub const MSG_I18N_INVALID_NUMBER: &str = "i18n.invalid_number";
 pub const MSG_I18N_DATE_ERROR: &str = "i18n.date_error";
 pub const MSG_I18N_FORMAT_ERROR: &str = "i18n.format_error";
 
+// -- Tracing log messages (rendered as the event message field) --
+pub const MSG_LOG_CHAIN_READ_COMPLETED: &str = "log.chain.read_completed";
+pub const MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED: &str = "log.chain.expire_backend_failed";
+pub const MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED: &str = "log.chain.iter_entries_key_failed";
+pub const MSG_LOG_OFFLOAD_LIFECYCLE_EVENT: &str = "log.offload.lifecycle_event";
+pub const MSG_LOG_OFFLOAD_TIMEOUT_POLICY_EXCEEDED: &str = "log.offload.timeout_policy_exceeded";
+pub const MSG_LOG_DEGRADATION_ENTERED: &str = "log.degradation.entered";
+pub const MSG_LOG_DEGRADATION_HALF_OPEN: &str = "log.degradation.half_open_probing";
+pub const MSG_LOG_DEGRADATION_RECOVERED: &str = "log.degradation.recovered";
+pub const MSG_LOG_CONFERS_RELOAD_REJECTED: &str = "log.confers_config.reload_rejected";
+pub const MSG_LOG_BRIDGE_SHUTDOWN_SKIPPED: &str = "log.backend.bridge_shutdown_skipped";
+pub const MSG_LOG_DISK_SWEEP_FAILED: &str = "log.disk.sweep_failed";
+pub const MSG_LOG_AUDIT_EVENT: &str = "log.audit.event";
+pub const MSG_LOG_STALE_HIT_VIA_GET_OR: &str = "log.stale.hit_via_get_or";
+pub const MSG_LOG_STALE_REVALIDATION_SCHEDULED: &str = "log.stale.revalidation_scheduled";
+pub const MSG_LOG_STALE_HIT_SERVED: &str = "log.stale.hit_served";
+
+// -- Panic / invariant messages (assert!/expect-equivalent texts) --
+pub const MSG_PANIC_CHAIN_FRESHNESS_INVARIANT: &str = "panic.chain.parallel_freshest_invariant";
+pub const MSG_PANIC_BRIDGE_TEMP_RUNTIME: &str = "panic.bridge.temp_runtime_create_failed";
+pub const MSG_PANIC_WARMUP_SEMAPHORE: &str = "panic.warmup.semaphore_not_closed";
+pub const MSG_PANIC_AUDIT_WRITER_LOCK: &str = "panic.audit.writer_lock_not_poisoned";
+pub const MSG_PANIC_AUDIT_WRITER_RX: &str = "panic.audit.writer_rx_present_on_first_start";
+pub const MSG_PANIC_STALE_STATE_PAYLOAD: &str = "panic.stale.state_must_carry_payload";
+pub const MSG_PANIC_BLOOM_CAPACITY_POSITIVE: &str = "panic.bloom.capacity_must_be_positive";
+pub const MSG_PANIC_BLOOM_HASH_COUNT_POSITIVE: &str = "panic.bloom.hash_count_must_be_positive";
+pub const MSG_PANIC_BLOOM_FPR_RANGE: &str = "panic.bloom.fpr_must_be_in_open_interval";
+pub const MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE: &str = "panic.bloom.hash_count_unreachable";
+pub const MSG_PANIC_BLOOM_BACKSOLVE_DRIFT: &str = "panic.bloom.hash_count_backsolve_drift";
+pub const MSG_PANIC_BLOOM_SEED_FAILED: &str = "panic.bloom.seed_generation_failed";
+
+// -- User-visible detail messages (interpolated into the { $detail } slot of
+//    the error/config templates above) --
+pub const MSG_DETAIL_DISK_REDB_OPEN_FAILED: &str = "detail.disk.redb_open_failed";
+pub const MSG_DETAIL_DISK_REDB_CREATE_FAILED: &str = "detail.disk.redb_create_failed";
+pub const MSG_DETAIL_DISK_CORRUPT_ENVELOPE: &str = "detail.disk.corrupt_envelope";
+pub const MSG_DETAIL_SYNC_ATOMIC_INCREMENT: &str = "detail.not_supported.sync_atomic_increment";
+pub const MSG_DETAIL_SYNC_ATOMIC_CAS: &str = "detail.not_supported.sync_atomic_cas";
+pub const MSG_DETAIL_SYNC_ATOMIC_SET_IF_ABSENT: &str =
+    "detail.not_supported.sync_atomic_set_if_absent";
+pub const MSG_DETAIL_ASYNC_ATOMIC_INCREMENT: &str = "detail.not_supported.async_atomic_increment";
+pub const MSG_DETAIL_ASYNC_ATOMIC_CAS: &str = "detail.not_supported.async_atomic_cas";
+pub const MSG_DETAIL_ASYNC_ATOMIC_SET_IF_ABSENT: &str =
+    "detail.not_supported.async_atomic_set_if_absent";
+pub const MSG_DETAIL_SYNC_REQUIRES_RUNTIME: &str = "detail.not_supported.sync_requires_runtime";
+pub const MSG_DETAIL_SYNC_REQUIRES_MULTI_THREAD: &str =
+    "detail.not_supported.sync_requires_multi_thread_runtime";
+pub const MSG_DETAIL_CONFIG_ENV_INVALID_VALUE: &str = "detail.config.env_invalid_value";
+pub const MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES: &str =
+    "detail.config.env_backend_requires_features";
+pub const MSG_DETAIL_CONFIG_ENV_SERIALIZATION_FEATURE: &str =
+    "detail.config.env_serialization_requires_feature";
+pub const MSG_DETAIL_CONFIG_BACKEND_FEATURES: &str = "detail.config.backend_requires_features";
+pub const MSG_DETAIL_CONFIG_CAPACITY_ZERO: &str = "detail.config.capacity_zero";
+pub const MSG_DETAIL_CONFIG_CAPACITY_EXCEEDS_USIZE: &str = "detail.config.capacity_exceeds_usize";
+pub const MSG_DETAIL_CONFIG_TTL_ZERO: &str = "detail.config.ttl_zero";
+pub const MSG_DETAIL_CONFIG_METRICS_FEATURE: &str = "detail.config.metrics_requires_feature";
+pub const MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE: &str =
+    "detail.config.serialization_requires_feature";
+pub const MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO: &str =
+    "detail.config.circuit_breaker_threshold_zero";
+pub const MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY: &str = "detail.config.service_name_empty";
+pub const MSG_DETAIL_CONFIG_POOL_SIZE_ZERO: &str = "detail.config.connection_pool_size_zero";
+pub const MSG_DETAIL_ADAPTIVE_TTL_MIN_EXCEEDS_MAX: &str = "detail.adaptive_ttl.min_ttl_exceeds_max";
+pub const MSG_DETAIL_ADAPTIVE_TTL_MULTIPLIER_FINITE: &str =
+    "detail.adaptive_ttl.multiplier_not_finite_positive";
+pub const MSG_DETAIL_ADAPTIVE_TTL_DIVISOR_MIN: &str = "detail.adaptive_ttl.divisor_at_least_one";
+pub const MSG_DETAIL_ADAPTIVE_TTL_TRACKED_KEYS_MIN: &str =
+    "detail.adaptive_ttl.max_tracked_keys_at_least_one";
+pub const MSG_DETAIL_GET_OR_LEADER_NOT_CACHED: &str = "detail.get_or.leader_result_not_cached";
+pub const MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED: &str =
+    "detail.get_or_option.leader_result_not_cached";
+pub const MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED: &str = "detail.warmup.ttl_lookup_failed";
+
+// -- Example binary output messages --
+pub const MSG_EXAMPLE_INKLOG_BRIDGE_TITLE: &str = "example.inklog_bridge.title";
+pub const MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY: &str = "example.inklog_bridge.observability";
+pub const MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED: &str = "example.inklog_bridge.dropped";
+pub const MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES: &str = "example.inklog_bridge.write_failures";
+
 // ============================================================================
 // Catalog lookup
 // ============================================================================
@@ -197,7 +277,8 @@ mod tests {
             .collect()
     }
 
-    /// All message IDs mapped by the error-variant → message_id tables.
+    /// All message IDs: error/config/i18n templates plus log, panic, detail
+    /// and example messages.
     const ALL_MESSAGE_IDS: &[&str] = &[
         MSG_ERR_SERIALIZATION,
         MSG_ERR_OPERATION,
@@ -230,6 +311,67 @@ mod tests {
         MSG_I18N_INVALID_NUMBER,
         MSG_I18N_DATE_ERROR,
         MSG_I18N_FORMAT_ERROR,
+        MSG_LOG_CHAIN_READ_COMPLETED,
+        MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED,
+        MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED,
+        MSG_LOG_OFFLOAD_LIFECYCLE_EVENT,
+        MSG_LOG_OFFLOAD_TIMEOUT_POLICY_EXCEEDED,
+        MSG_LOG_DEGRADATION_ENTERED,
+        MSG_LOG_DEGRADATION_HALF_OPEN,
+        MSG_LOG_DEGRADATION_RECOVERED,
+        MSG_LOG_CONFERS_RELOAD_REJECTED,
+        MSG_LOG_BRIDGE_SHUTDOWN_SKIPPED,
+        MSG_LOG_DISK_SWEEP_FAILED,
+        MSG_LOG_AUDIT_EVENT,
+        MSG_LOG_STALE_HIT_VIA_GET_OR,
+        MSG_LOG_STALE_REVALIDATION_SCHEDULED,
+        MSG_LOG_STALE_HIT_SERVED,
+        MSG_PANIC_CHAIN_FRESHNESS_INVARIANT,
+        MSG_PANIC_BRIDGE_TEMP_RUNTIME,
+        MSG_PANIC_WARMUP_SEMAPHORE,
+        MSG_PANIC_AUDIT_WRITER_LOCK,
+        MSG_PANIC_AUDIT_WRITER_RX,
+        MSG_PANIC_STALE_STATE_PAYLOAD,
+        MSG_PANIC_BLOOM_CAPACITY_POSITIVE,
+        MSG_PANIC_BLOOM_HASH_COUNT_POSITIVE,
+        MSG_PANIC_BLOOM_FPR_RANGE,
+        MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE,
+        MSG_PANIC_BLOOM_BACKSOLVE_DRIFT,
+        MSG_PANIC_BLOOM_SEED_FAILED,
+        MSG_DETAIL_DISK_REDB_OPEN_FAILED,
+        MSG_DETAIL_DISK_REDB_CREATE_FAILED,
+        MSG_DETAIL_DISK_CORRUPT_ENVELOPE,
+        MSG_DETAIL_SYNC_ATOMIC_INCREMENT,
+        MSG_DETAIL_SYNC_ATOMIC_CAS,
+        MSG_DETAIL_SYNC_ATOMIC_SET_IF_ABSENT,
+        MSG_DETAIL_ASYNC_ATOMIC_INCREMENT,
+        MSG_DETAIL_ASYNC_ATOMIC_CAS,
+        MSG_DETAIL_ASYNC_ATOMIC_SET_IF_ABSENT,
+        MSG_DETAIL_SYNC_REQUIRES_RUNTIME,
+        MSG_DETAIL_SYNC_REQUIRES_MULTI_THREAD,
+        MSG_DETAIL_CONFIG_ENV_INVALID_VALUE,
+        MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES,
+        MSG_DETAIL_CONFIG_ENV_SERIALIZATION_FEATURE,
+        MSG_DETAIL_CONFIG_BACKEND_FEATURES,
+        MSG_DETAIL_CONFIG_CAPACITY_ZERO,
+        MSG_DETAIL_CONFIG_CAPACITY_EXCEEDS_USIZE,
+        MSG_DETAIL_CONFIG_TTL_ZERO,
+        MSG_DETAIL_CONFIG_METRICS_FEATURE,
+        MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE,
+        MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO,
+        MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
+        MSG_DETAIL_CONFIG_POOL_SIZE_ZERO,
+        MSG_DETAIL_ADAPTIVE_TTL_MIN_EXCEEDS_MAX,
+        MSG_DETAIL_ADAPTIVE_TTL_MULTIPLIER_FINITE,
+        MSG_DETAIL_ADAPTIVE_TTL_DIVISOR_MIN,
+        MSG_DETAIL_ADAPTIVE_TTL_TRACKED_KEYS_MIN,
+        MSG_DETAIL_GET_OR_LEADER_NOT_CACHED,
+        MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED,
+        MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED,
+        MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
+        MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
+        MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,
+        MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES,
     ];
 
     // --------------------------------------------------------------------

@@ -52,7 +52,7 @@ pub struct Cache<K, V> {
     _phantom: std::marker::PhantomData<(K, V)>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "memory"))]
 mod tests {
     use super::*;
 

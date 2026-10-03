@@ -62,19 +62,16 @@ impl HotKeyTracker {
         (hasher.finish() as usize) % self.shards.len()
     }
 
-    /// 记录一次 key 访问（DashMap 分片锁，临界区为原子加，无采样丢失）。
+    /// 记录一次 key 访问（DashMap entry 锁内完成存在性判定与累加，无采样丢失；
+    /// `get` + `or_insert` 的两段式在并发首次插入时会丢弃后到者的 +1）。
     pub fn record(&self, key: &str) {
         let idx = self.shard_index(key);
-        match self.shards[idx].get(key) {
-            Some(counter) => {
-                counter.fetch_add(1, Ordering::Relaxed);
-            }
-            None => {
-                self.shards[idx]
-                    .entry(key.to_string())
-                    .or_insert(AtomicU64::new(1));
-            }
-        }
+        self.shards[idx]
+            .entry(key.to_string())
+            .and_modify(|c| {
+                c.fetch_add(1, Ordering::Relaxed);
+            })
+            .or_insert(AtomicU64::new(1));
     }
 
     /// 读取当前计数（不半衰）。

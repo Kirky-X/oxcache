@@ -64,7 +64,6 @@ skip = [
     { name = "rand", version = "0.8.8" },           # pwhash 旧链 vs rand 0.10
     { name = "rand_core", version = "0.6.4" },      # rand 0.8 链(pwhash)
     { name = "syn", version = "2.0.119" },          # trybuild 旧链 vs oxcache_macros syn 3
-    { name = "windows-sys", version = "0.52.0" },   # 旧传递链 vs 0.61
 ]
 skip-tree = []
 

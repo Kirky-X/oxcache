@@ -1,6 +1,6 @@
 # 🏗️ Oxcache 架构文档
 
-本文档描述 Oxcache 库（v0.5.0-rc.6）的架构、设计决策和技术细节。
+本文档描述 Oxcache 库（v0.5.0-rc.7）的架构、设计决策和技术细节。
 
 ## 📋 目录
 
@@ -174,7 +174,8 @@ let cache: Cache<String, User> = Cache::builder()
     .build()
     .await?;
 
-// 4) 同步 API（Moka 需要 multi_thread tokio 运行时）
+// 4) 同步 API（默认 Moka 路径原生同步、运行时无关；backend_arc + sync_mode
+//    经 AsyncToSyncBridge 桥出，要求 multi_thread runtime）
 let cache: Cache<String, String> = Cache::builder()
     .sync_mode(true)
     .build()
@@ -375,7 +376,7 @@ pub use infra::{export_json_format, export_prometheus_format, export_prometheus_
 
 - **`JsonSerializer`** — 异步/同步后端侧序列化器（值为 `Vec<u8>`）；`with_compression()` 启用 flate2 gzip 输出。
 - **`UnifiedSerializer`** — 值级编解码（`serialize<T>` / `deserialize<T>` / `estimate_size`），供 `Cache<K, V>` 和 `#[cached]` 宏使用。
-- **`depth_limited.rs`** — `deserialize_safe` 防止深层嵌套 JSON DoS：禁用 `serde_json` 递归限制（`unbounded_depth` 特性），流通过 `serde_stacker` 包装为基于堆栈的递归。`MAX_JSON_DEPTH` 常量加 64 MiB 反序列化大小上限和 gzip 魔数头检测加固了该路径。
+- **`depth_limited.rs`** — `deserialize_safe` 防止深层嵌套 JSON DoS：禁用 `serde_json` 递归限制（`unbounded_depth` 特性），流通过 `serde_stacker` 包装为基于堆栈的递归，深度由 `MAX_JSON_DEPTH`（64 层）显式控制；文本反序列化路径另有 `MAX_JSON_SIZE`（5 MB）大小上限与 64 MiB 解压输出上限加固。
 
 线上无 base64 往返：值以原始字节传递（可选压缩）。
 
@@ -472,7 +473,7 @@ let event = CacheEvent::new(CacheEventType::Hit)
 
 ### #[cached] 宏执行路径
 
-`#[cached]` 宏通过自动处理缓存查找、存储和序列化实现零模板代码缓存。有效的宏参数为：`service`、`ttl`、`key`、`key_prefix`、`sync`、`skip_cache_write`、`single_flight`、`strict`、`condition`、`cache_none`（不存在 `key_generator` 或 `cache_type` 参数）。
+`#[cached]` 宏通过自动处理缓存查找、存储和序列化实现零模板代码缓存。有效的宏参数为：`service`、`ttl`、`key`、`key_prefix`、`sync`、`skip_cache_write`、`single_flight`、`strict`、`condition`、`skip`、`cache_none`（不存在 `key_generator` 或 `cache_type` 参数）。
 
 ```mermaid
 sequenceDiagram
@@ -656,7 +657,7 @@ flowchart TD
 ### 优化技术
 
 1. **Moka 单条目 TTL**：使用 `moka::Expiry` trait 实现真正的单条目 TTL（覆盖构建器的全局 TTL），避免独立过期跟踪的开销。
-2. **连接池**：`RedisBackend::with_pool(url, pool_size)` 复用 Redis 连接。
+2. **连接复用**：`redis` crate 的 `ConnectionManager` 内部自管连接复用（`RedisBackend::with_pool` 的 `pool_size` 参数当前保留但未接线，行为等价于 `new()`）。
 3. **Pipeline / 批量操作**：`RedisBackend` 支持通过 Redis pipeline 的 `set_many` / `delete_many` / `get_many`（默认 trait 实现循环，但 `RedisBackend` 覆盖它们）。`batch` 特性添加 `BatchWriter` 缓冲 L2 写入（容量/时间双阈值刷盘）。
 4. **无锁 L1**：Moka 的并发缓存设计（TinyLFU 准入、LRU 淘汰）。
 5. **可插拔序列化**：默认 JSON；`serde-bincode` / `postcard` 二进制格式可显著降低 L2 传输体积（见[性能基线](PERFORMANCE.md)）。`MAX_JSON_DEPTH` 常量防止深层嵌套 JSON DoS。
@@ -713,7 +714,7 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 
 ### 防御措施
 
-上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + 64 MiB 上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见[安全文档](SECURITY.md)，README 安全章节提供防线速览。
+上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见[安全文档](SECURITY.md)，README 安全章节提供防线速览。
 
 > **注意**：oxcache **无内置限流**。限流由应用或上游代理负责。
 
@@ -761,7 +762,7 @@ flowchart TD
 - 通过 `CacheBuilder::capacity(u64)` 增加 L1 容量（更多内存）
 - 使用更快/专用的 Redis 实例
 - 在 Redis 端启用 Redis 持久化（AOF + RDB）
-- 通过 `RedisBackend::with_pool(url, pool_size)` 增加 Redis 连接池
+- `RedisBackend::with_pool(url, pool_size)` 的 `pool_size` 参数当前未接线（行为等价 `new()`），连接复用由 `redis` crate 的 `ConnectionManager` 内部自管
 
 ### 分区
 

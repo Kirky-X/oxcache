@@ -161,7 +161,7 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.6")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.7")]
 #![deny(unsafe_code)]
 // Many constants/types in core::constants and core::command are reference
 // data only consumed by specific sub-features (lua, batch,
@@ -211,6 +211,13 @@ macro_rules! check_feature_dependence {
 // ============================================================================
 mod core;
 pub mod error;
+#[cfg(test)]
+mod test_support;
+
+// 测试构建内使用 `#[cached]` 宏（覆盖宏参数解析分支）需要 `::oxcache`
+// 绝对路径可解析——把自身以 crate 名重新导出（仅 cfg(test) 编译）。
+#[cfg(test)]
+extern crate self as oxcache;
 
 // #[cached] 宏 single-flight 支撑设施（分片注册表 + panic 守卫 + watch flight
 // 信号）。宏生成代码按路径引用，必须始终编译（无 feature 门）。
@@ -448,7 +455,7 @@ pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "memory", feature = "full")))]
 mod tests {
     use crate::VERSION;
 

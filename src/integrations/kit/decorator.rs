@@ -301,4 +301,46 @@ mod tests {
             "decorator should modify the capability"
         );
     }
+
+    /// CountingDecorator 全委托面：读/写经装饰器计数，其余操作透传 inner。
+    #[tokio::test]
+    async fn counting_decorator_delegates_and_counts() {
+        use crate::backend::{CacheReader, CacheWriter};
+
+        let inner = Arc::new(DecoratorTestBackend);
+        let count = Arc::new(AtomicUsize::new(0));
+        let decorator = CountingDecorator {
+            inner: inner as Arc<dyn CacheBackend + Send + Sync>,
+            count: Arc::clone(&count),
+        };
+
+        assert_eq!(
+            CacheReader::get(&decorator, "k").await.unwrap().as_deref(),
+            Some(&b"original"[..])
+        );
+        assert!(CacheReader::exists(&decorator, "k").await.unwrap());
+        assert_eq!(CacheReader::ttl(&decorator, "k").await.unwrap(), None);
+        assert_eq!(CacheReader::len(&decorator).await.unwrap(), 0);
+        assert_eq!(CacheReader::capacity(&decorator).await.unwrap(), 0);
+        assert!(CacheReader::stats(&decorator).await.unwrap().is_empty());
+
+        CacheWriter::set(&decorator, Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        CacheWriter::delete(&decorator, "k").await.unwrap();
+        CacheWriter::clear(&decorator).await.unwrap();
+        assert!(
+            !CacheWriter::expire(&decorator, "k", std::time::Duration::from_secs(1))
+                .await
+                .unwrap()
+        );
+
+        CacheConnector::health_check(&decorator).await.unwrap();
+        CacheConnector::shutdown(&decorator).await;
+        assert_eq!(CacheConnector::backend_kind(&decorator), BackendKind::Mock);
+
+        // get×1 + exists×1（读计数）+ set×1 + delete×1 + clear×1（写计数）；
+        // ttl/len/capacity/stats/expire 为透传面，不计数
+        assert_eq!(count.load(Ordering::SeqCst), 5);
+    }
 }

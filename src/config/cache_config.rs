@@ -42,6 +42,22 @@
 //! 其余取值要求对应 feature 已启用（如 `redis` 需 `redis` feature）。
 
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(not(feature = "metrics"))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_METRICS_FEATURE;
+#[cfg(not(any(feature = "memory", feature = "redis", feature = "disk")))]
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_BACKEND_FEATURES, MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES,
+};
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_CAPACITY_EXCEEDS_USIZE, MSG_DETAIL_CONFIG_CAPACITY_ZERO,
+    MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO, MSG_DETAIL_CONFIG_ENV_INVALID_VALUE,
+    MSG_DETAIL_CONFIG_POOL_SIZE_ZERO, MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
+    MSG_DETAIL_CONFIG_TTL_ZERO, t,
+};
+#[cfg(not(any(feature = "serialization", feature = "full")))]
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_ENV_SERIALIZATION_FEATURE, MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE,
+};
 use std::time::Duration;
 
 /// 环境变量统一前缀
@@ -164,42 +180,33 @@ impl CacheConfig {
         let mut config = Self::default();
 
         if let Some(raw) = env_value(KEY_CAPACITY)? {
-            config.capacity = Some(raw.parse::<u64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_CAPACITY}: {raw:?} ({err})"
-                ))
-            })?);
+            config.capacity = Some(
+                raw.parse::<u64>()
+                    .map_err(invalid_value(KEY_CAPACITY, &raw))?,
+            );
         }
         if let Some(raw) = env_value(KEY_TTL_MS)? {
-            let ms = raw.parse::<u64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_TTL_MS}: {raw:?} ({err})"
-                ))
-            })?;
+            let ms = raw
+                .parse::<u64>()
+                .map_err(invalid_value(KEY_TTL_MS, &raw))?;
             config.ttl = Some(Duration::from_millis(ms));
         }
         if let Some(raw) = env_value(KEY_TTI_MS)? {
-            let ms = raw.parse::<u64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_TTI_MS}: {raw:?} ({err})"
-                ))
-            })?;
+            let ms = raw
+                .parse::<u64>()
+                .map_err(invalid_value(KEY_TTI_MS, &raw))?;
             config.tti = Some(Duration::from_millis(ms));
         }
         if let Some(raw) = env_value(KEY_NULL_CACHE_TTL_MS)? {
-            let ms = raw.parse::<u64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_NULL_CACHE_TTL_MS}: {raw:?} ({err})"
-                ))
-            })?;
+            let ms = raw
+                .parse::<u64>()
+                .map_err(invalid_value(KEY_NULL_CACHE_TTL_MS, &raw))?;
             config.null_cache_ttl = Some(Duration::from_millis(ms));
         }
         if let Some(raw) = env_value(KEY_TTL_JITTER_FACTOR)? {
-            let factor = raw.parse::<f64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_TTL_JITTER_FACTOR}: {raw:?} ({err})"
-                ))
-            })?;
+            let factor = raw
+                .parse::<f64>()
+                .map_err(invalid_value(KEY_TTL_JITTER_FACTOR, &raw))?;
             config.ttl_jitter_factor = Some(factor);
         }
         if let Some(raw) = env_value(KEY_SYNC_MODE)? {
@@ -208,8 +215,12 @@ impl CacheConfig {
         if let Some(raw) = env_value(KEY_BACKEND)? {
             #[cfg(not(any(feature = "memory", feature = "redis", feature = "disk")))]
             {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "{KEY_BACKEND}={raw:?} requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build"
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES,
+                    &[
+                        ("key", KEY_BACKEND.to_string()),
+                        ("raw", format!("{raw:?}")),
+                    ],
                 )));
             }
             #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
@@ -223,8 +234,12 @@ impl CacheConfig {
         }
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         if let Some(raw) = env_value(KEY_SERIALIZATION_FORMAT)? {
-            return Err(OxCacheError::InvalidInput(format!(
-                "{KEY_SERIALIZATION_FORMAT}={raw:?} requires the `serialization` feature, which is not enabled in this build"
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_ENV_SERIALIZATION_FEATURE,
+                &[
+                    ("key", KEY_SERIALIZATION_FORMAT.to_string()),
+                    ("raw", format!("{raw:?}")),
+                ],
             )));
         }
         #[cfg(any(feature = "serialization", feature = "full"))]
@@ -239,27 +254,21 @@ impl CacheConfig {
             config.disk_path = Some(raw);
         }
         if let Some(raw) = env_value(KEY_CONNECTION_POOL_SIZE)? {
-            let pool = raw.parse::<usize>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_CONNECTION_POOL_SIZE}: {raw:?} ({err})"
-                ))
-            })?;
+            let pool = raw
+                .parse::<usize>()
+                .map_err(invalid_value(KEY_CONNECTION_POOL_SIZE, &raw))?;
             config.connection_pool_size = Some(pool);
         }
         if let Some(raw) = env_value(KEY_CB_FAILURE_THRESHOLD)? {
-            let threshold = raw.parse::<u32>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_CB_FAILURE_THRESHOLD}: {raw:?} ({err})"
-                ))
-            })?;
+            let threshold = raw
+                .parse::<u32>()
+                .map_err(invalid_value(KEY_CB_FAILURE_THRESHOLD, &raw))?;
             config.circuit_breaker_failure_threshold = Some(threshold);
         }
         if let Some(raw) = env_value(KEY_CB_RESET_TIMEOUT_MS)? {
-            let ms = raw.parse::<u64>().map_err(|err| {
-                OxCacheError::InvalidInput(format!(
-                    "invalid value for {KEY_CB_RESET_TIMEOUT_MS}: {raw:?} ({err})"
-                ))
-            })?;
+            let ms = raw
+                .parse::<u64>()
+                .map_err(invalid_value(KEY_CB_RESET_TIMEOUT_MS, &raw))?;
             config.circuit_breaker_reset_timeout = Some(Duration::from_millis(ms));
         }
         if let Some(raw) = env_value(KEY_SERVICE_NAME)? {
@@ -299,8 +308,9 @@ impl CacheConfig {
         {
             if let Some(raw) = self.backend.as_deref() {
                 let _ = raw;
-                return Err(OxCacheError::InvalidInput(format!(
-                    "backend {raw:?} requires one of the `memory`/`redis`/`disk` features, none of which is enabled in this build"
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_BACKEND_FEATURES,
+                    &[("raw", format!("{raw:?}"))],
                 )));
             }
         }
@@ -318,16 +328,19 @@ impl CacheConfig {
         }
         if let Some(capacity) = self.capacity {
             if capacity == 0 {
-                return Err(OxCacheError::InvalidInput(
-                    "capacity must be greater than 0 (drop the key to use the builder default)"
-                        .to_string(),
-                ));
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_CAPACITY_ZERO,
+                    &[],
+                )));
             }
             // 32 位目标上 u64 容量会静默截断，超界直接显性拒绝
             if capacity > usize::MAX as u64 {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "capacity {capacity} exceeds this platform's usize range ({})",
-                    usize::MAX
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_CAPACITY_EXCEEDS_USIZE,
+                    &[
+                        ("capacity", capacity.to_string()),
+                        ("max", usize::MAX.to_string()),
+                    ],
                 )));
             }
         }
@@ -337,42 +350,43 @@ impl CacheConfig {
             ("null_cache_ttl", self.null_cache_ttl),
         ] {
             if ttl == Some(Duration::ZERO) {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "{name} must not be zero; use None (unset) for no expiry"
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_TTL_ZERO,
+                    &[("name", name.to_string())],
                 )));
             }
         }
         #[cfg(not(feature = "metrics"))]
         if self.metrics_enabled.is_some() {
-            return Err(OxCacheError::InvalidInput(
-                "metrics_enabled requires the `metrics` feature, which is not enabled in this build"
-                    .to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_METRICS_FEATURE,
+                &[],
+            )));
         }
         #[cfg(not(any(feature = "serialization", feature = "full")))]
         if self.serialization_format.is_some() {
-            return Err(OxCacheError::InvalidInput(
-                "serialization_format requires the `serialization` feature, which is not enabled in this build"
-                    .to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE,
+                &[],
+            )));
         }
         if self.circuit_breaker_failure_threshold == Some(0) {
-            return Err(OxCacheError::InvalidInput(
-                "circuit_breaker_failure_threshold must be greater than 0".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO,
+                &[],
+            )));
         }
         if self.service_name.as_deref() == Some("") {
-            return Err(OxCacheError::InvalidInput(
-                "service_name must not be empty; drop the key to keep the service \
-                 dimension disabled"
-                    .to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
+                &[],
+            )));
         }
         if self.connection_pool_size == Some(0) {
-            return Err(OxCacheError::InvalidInput(
-                "connection_pool_size must be greater than 0 (drop the key to use the backend default)"
-                    .to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_POOL_SIZE_ZERO,
+                &[],
+            )));
         }
 
         #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
@@ -478,7 +492,7 @@ impl CacheConfig {
     /// 注意：`Disk` 分支含阻塞文件 I/O（redb 打开/建库，耗时可达毫秒到秒级），
     /// 仅限启动期调用，不得用于请求路径。
     ///
-    /// 有原生同步面的后端（Moka/DashMap）经 [`Self::build_backend_slot`]
+    /// 有原生同步面的后端（Moka/DashMap）经私有方法 `build_backend_slot`
     /// 保留同步面，且 Dual 槽直接返回原生 async 面（运行时无关，零交接税）；
     /// 仅 sync 一等入口的场景经 `SyncBackendAdapter` 门面呈现 async 面
     ///（门面的 async 方法完成于后端同步面，runtime 要求随后端）。
@@ -649,7 +663,7 @@ impl CacheConfig {
     /// `sync_mode(true)` 下 sync API 原生直连），Redis/Dragonfly/Disk/Mock
     /// 走 `backend_arc`（sync 面经 `AsyncToSyncBridge` 桥出，调用期要求
     /// 多线程 runtime）。若调用方已另行注入后端，构建期将因多后端
-    /// `Err(NotSupported)` fail-fast，与 [`CacheBuilder`] 既有契约一致。
+    /// `Err(NotSupported)` fail-fast，与 [`CacheBuilder`](crate::cache::CacheBuilder) 既有契约一致。
     #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     pub async fn apply_to_cache_builder<K, V>(
         &self,
@@ -838,10 +852,18 @@ fn env_value(var: &str) -> OxCacheResult<Option<String>> {
 }
 
 /// 数值解析失败的显性错误（附变量名与原始值）
-#[allow(dead_code)] // 在途预留:env 解析路径收敛时启用
 fn invalid_value<E: std::fmt::Display>(var: &'static str, raw: &str) -> impl Fn(E) -> OxCacheError {
     let raw = raw.to_string();
-    move |err| OxCacheError::InvalidInput(format!("invalid value for {var}: {raw:?} ({err})"))
+    move |err| {
+        OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_ENV_INVALID_VALUE,
+            &[
+                ("key", var.to_string()),
+                ("raw", format!("{raw:?}")),
+                ("err", err.to_string()),
+            ],
+        ))
+    }
 }
 
 /// 解析布尔环境值：`true/1/yes/on` 与 `false/0/no/off`（大小写不敏感）
@@ -955,6 +977,79 @@ mod tests {
         KEY_CB_RESET_TIMEOUT_MS,
         KEY_SERVICE_NAME,
     ];
+
+    #[test]
+    fn try_from_env_parses_remaining_keys() {
+        clear_all_env_keys();
+        set_env(KEY_DISK_PATH, "/tmp/ox-env-disk.redb");
+        set_env(KEY_REDIS_URL, "redis://127.0.0.1:6379");
+        set_env(KEY_CONNECTION_POOL_SIZE, "4");
+        set_env(KEY_CB_FAILURE_THRESHOLD, "7");
+        set_env(KEY_CB_RESET_TIMEOUT_MS, "2500");
+        let cfg = CacheConfig::try_from_env().expect("parse env");
+        assert_eq!(cfg.disk_path.as_deref(), Some("/tmp/ox-env-disk.redb"));
+        assert_eq!(cfg.redis_url.as_deref(), Some("redis://127.0.0.1:6379"));
+        assert_eq!(cfg.connection_pool_size, Some(4));
+        assert_eq!(cfg.circuit_breaker_failure_threshold, Some(7));
+        assert_eq!(
+            cfg.circuit_breaker_reset_timeout,
+            Some(std::time::Duration::from_millis(2500))
+        );
+        clear_all_env_keys();
+    }
+
+    #[test]
+    fn validate_rejects_capacity_beyond_usize() {
+        // 32 位目标上 u64 容量会静默截断——超界显性拒绝；64 位 usize 与 u64
+        // 同宽，不存在可构造的超界值，边界值 u64::MAX 必须合法通过
+        #[cfg(target_pointer_width = "32")]
+        {
+            let err = CacheConfig::builder()
+                .capacity(u64::MAX)
+                .build()
+                .validate()
+                .unwrap_err();
+            assert!(!err.to_string().is_empty());
+        }
+        #[cfg(target_pointer_width = "64")]
+        {
+            CacheConfig::builder()
+                .capacity(u64::MAX)
+                .build()
+                .validate()
+                .expect("u64::MAX == usize::MAX on 64-bit is a legal capacity");
+        }
+    }
+
+    #[cfg(feature = "dragonfly")]
+    #[tokio::test]
+    #[serial]
+    async fn build_backend_dragonfly_with_fake_endpoint() {
+        // 进程内假服务器拉起后走 Dragonfly 槽完整构建
+        if !crate::test_support::ensure_server(6380) {
+            return;
+        }
+        let config = CacheConfig::builder()
+            .backend("dragonfly")
+            .redis_url("redis://127.0.0.1:6380")
+            .connection_pool_size(2)
+            .build();
+        let backend = config.build_backend().await.expect("build dragonfly");
+        assert!(backend.is_some());
+    }
+
+    #[test]
+    fn env_invalid_numeric_values_rejected() {
+        clear_all_env_keys();
+        set_env(KEY_CONNECTION_POOL_SIZE, "not-a-number");
+        let err = CacheConfig::try_from_env().unwrap_err();
+        assert!(err.to_string().contains("CONNECTION_POOL_SIZE") || !err.to_string().is_empty());
+        clear_all_env_keys();
+        set_env(KEY_CB_FAILURE_THRESHOLD, "-3");
+        let err = CacheConfig::try_from_env().unwrap_err();
+        assert!(!err.to_string().is_empty());
+        clear_all_env_keys();
+    }
 
     #[test]
     fn env_keys_share_prefix() {

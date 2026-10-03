@@ -68,8 +68,10 @@ pre-commit install
 
    ```bash
    cargo test --all-features
-   cargo test --no-default-features --features core --test feature_core
-   cargo test --no-default-features --features minimal --test feature_minimal
+   # 窄特性组合编译检查（与 CI feature-core / feature-minimal job 一致；
+   # 仓库无 feature_core / feature_minimal 测试目标）
+   cargo check -p oxcache --no-default-features --features core
+   cargo check -p oxcache --no-default-features --features minimal
    ```
 
 4. PR 描述包含：变更说明、测试结果、影响的模块
@@ -82,7 +84,7 @@ pre-commit install
 - 依赖必须通过 feature 门控，禁止使用默认特性引入不必要的依赖
 - 中文注释（与现有代码库一致）
 - 错误必须显性化：抛出、返回或上报，严禁吞掉或藏在默认值背后
-- 文档（`docs/` 与 README）改动后运行 `python3 scripts/check_docs.py oxcache` 校验结构与链接
+- 文档（`docs/` 与 README）改动后运行文档结构校验：脚本位于 base 工作区根的 `scripts/check_docs.py`（**不在本仓库内**），需在 base 工作区根目录执行 `python3 scripts/check_docs.py oxcache`；仓库外贡献者可跳过（CI 的 Documentation job 兜底 `cargo doc` 构建）
 
 ## ⌨️ 常用命令
 
@@ -93,9 +95,9 @@ cargo build --all-features
 # 测试（全特性）
 cargo test --all-features --lib
 
-# 窄特性测试
-cargo test --no-default-features --features core --test feature_core
-cargo test --no-default-features --features minimal --test feature_minimal
+# 窄特性组合编译检查（与 CI 一致）
+cargo check -p oxcache --no-default-features --features core
+cargo check -p oxcache --no-default-features --features minimal
 
 # 格式化
 cargo fmt

@@ -7,6 +7,12 @@ use bloomfilter::Bloom;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
 
+use crate::i18n::messages::{
+    MSG_PANIC_BLOOM_BACKSOLVE_DRIFT, MSG_PANIC_BLOOM_CAPACITY_POSITIVE, MSG_PANIC_BLOOM_FPR_RANGE,
+    MSG_PANIC_BLOOM_HASH_COUNT_POSITIVE, MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE,
+    MSG_PANIC_BLOOM_SEED_FAILED, t,
+};
+
 impl BloomFilter {
     /// Create a new Bloom filter sized for `capacity` items at the target
     /// `false_positive_rate`.
@@ -60,11 +66,20 @@ impl<K: ?Sized> BloomFilter<K> {
     /// is not in `(0.0, 1.0)`, or the target `hash_count` is unreachable for
     /// the given `capacity`.
     pub fn new_with_hash_count(capacity: usize, false_positive_rate: f64, hash_count: u32) -> Self {
-        assert!(capacity > 0, "capacity must be greater than 0");
-        assert!(hash_count >= 1, "hash_count must be greater than 0");
+        assert!(
+            capacity > 0,
+            "{}",
+            t(MSG_PANIC_BLOOM_CAPACITY_POSITIVE, &[])
+        );
+        assert!(
+            hash_count >= 1,
+            "{}",
+            t(MSG_PANIC_BLOOM_HASH_COUNT_POSITIVE, &[])
+        );
         assert!(
             false_positive_rate > 0.0 && false_positive_rate < 1.0,
-            "false_positive_rate must be in (0.0, 1.0)"
+            "{}",
+            t(MSG_PANIC_BLOOM_FPR_RANGE, &[])
         );
 
         // crate 的 k_num 公式：max(round(bitmap_bits/items·ln2), 1)，与种子
@@ -84,7 +99,16 @@ impl<K: ?Sized> BloomFilter<K> {
             / 8
             + 16;
         if k_formula(hi) < hash_count {
-            panic!("hash_count {hash_count} unreachable for capacity {capacity}");
+            panic!(
+                "{}",
+                t(
+                    MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE,
+                    &[
+                        ("hash_count", hash_count.to_string()),
+                        ("capacity", capacity.to_string()),
+                    ]
+                )
+            );
         }
 
         let mut lo = 1usize;
@@ -101,12 +125,18 @@ impl<K: ?Sized> BloomFilter<K> {
         assert_eq!(
             k_formula(size),
             hash_count,
-            "hash_count {hash_count} unreachable for capacity {capacity}: \
-             k steps by more than 1 per bitmap byte at this capacity"
+            "{}",
+            t(
+                MSG_PANIC_BLOOM_BACKSOLVE_DRIFT,
+                &[
+                    ("hash_count", hash_count.to_string()),
+                    ("capacity", capacity.to_string()),
+                ]
+            )
         );
 
         let bloom = Bloom::<K>::new(size, capacity)
-            .expect("failed to create bloom filter: random seed generation failed");
+            .unwrap_or_else(|e| panic!("{}: {e:?}", t(MSG_PANIC_BLOOM_SEED_FAILED, &[])));
         assert_eq!(
             bloom.number_of_hash_functions(),
             hash_count,

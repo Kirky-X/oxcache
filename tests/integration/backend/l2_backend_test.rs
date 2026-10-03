@@ -5,7 +5,7 @@
 #![cfg(feature = "redis")]
 
 use crate::common;
-use crate::common::test_redis_connection;
+use crate::common::{get_redis_url, test_redis_connection};
 use oxcache::backend::memory::RedisBackend;
 
 /// 测试 Redis Standalone/Cluster 连接模式
@@ -25,9 +25,10 @@ async fn test_redis_backend_connection_modes() {
         return;
     }
 
-    // 测试独立的 Redis 连接
-    let redis_url = "redis://127.0.0.1:6379";
-    let backend = RedisBackend::new(redis_url).await;
+    // 测试独立的 Redis 连接（与前置探测同一端点：硬编码端口是对
+    // 部署环境的错误假设，端点可用性已由上方 skip 检查确认）
+    let redis_url = get_redis_url();
+    let backend = RedisBackend::new(&redis_url).await;
     assert!(
         backend.is_ok(),
         "Backend creation failed: {:?}",

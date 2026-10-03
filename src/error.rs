@@ -106,8 +106,8 @@ pub type OxCacheConfigResult<T> = std::result::Result<T, OxCacheConfigError>;
 ///
 /// # 配置阶段错误
 ///
-/// 配置阶段的错误（如缺少必需字段、无效值等）使用 [`OxCacheConfigError`] 类型，
-/// 通过 [`OxCacheConfigResult`] 类型别名返回。
+/// 配置阶段的错误（如缺少必需字段、无效值等）使用 `OxCacheConfigError` 类型，
+/// 通过 `OxCacheConfigResult` 类型别名返回。
 ///
 /// # 示例
 ///

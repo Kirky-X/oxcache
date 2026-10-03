@@ -83,13 +83,18 @@ mod redis_client_tests {
                 .expect("Sentinel should work");
             assert_eq!(backend.mode(), RedisMode::Sentinel);
 
-            let backend = RedisBackendBuilder::default()
+            // mode(Cluster) 真实生效后对单机端点必须显性失败：集群连接要求
+            // cluster_enabled 实例，服务端以 "cluster support disabled" 拒绝
+            // （正路径由 redis_cluster_test 的显式 mode 用例在真实集群上覆盖）
+            let cluster = RedisBackendBuilder::default()
                 .connection_string(&url)
                 .mode(RedisMode::Cluster)
                 .build()
-                .await
-                .expect("Cluster should work");
-            assert_eq!(backend.mode(), RedisMode::Cluster);
+                .await;
+            assert!(
+                cluster.is_err(),
+                "mode(Cluster) against a non-cluster endpoint must fail explicitly"
+            );
         }
 
         #[tokio::test]

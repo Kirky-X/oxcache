@@ -12,6 +12,12 @@ use crate::backend::{
 };
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "telemetry")]
+use crate::i18n::messages::{
+    MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED, MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED,
+    MSG_LOG_CHAIN_READ_COMPLETED,
+};
+use crate::i18n::messages::{MSG_PANIC_CHAIN_FRESHNESS_INVARIANT, t};
 #[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use async_trait::async_trait;
@@ -52,7 +58,8 @@ fn telemetry_read_strategy(key: &str, strategy: &str, backend: &str, hit: bool) 
         strategy,
         backend,
         hit,
-        "chain read completed"
+        "{}",
+        t(MSG_LOG_CHAIN_READ_COMPLETED, &[])
     );
 }
 
@@ -64,7 +71,8 @@ fn telemetry_expire_backend_failed(key: &str, backend: &str, err: &OxCacheError)
         key,
         backend,
         %err,
-        "backend expire failed"
+        "{}",
+        t(MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED, &[])
     );
 }
 
@@ -88,7 +96,8 @@ fn telemetry_iter_entries_key_failed(key: &str, backend: &str, err: &OxCacheErro
         key,
         backend,
         %err,
-        "iter_entries batch layer failed for key"
+        "{}",
+        t(MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED, &[])
     );
 }
 
@@ -98,7 +107,7 @@ fn telemetry_iter_entries_key_failed(_key: &str, _backend: &str, _err: &OxCacheE
 
 // Submodules
 mod builder;
-#[cfg(test)]
+#[cfg(all(test, feature = "memory"))]
 mod tests;
 
 // Re-exports from submodules
@@ -659,7 +668,7 @@ impl ChainCache {
                 key(a).cmp(&key(b))
             })
             .map(|(index, _)| index)
-            .expect("hits non-empty implies freshness non-empty");
+            .unwrap_or_else(|| panic!("{}", t(MSG_PANIC_CHAIN_FRESHNESS_INVARIANT, &[])));
         let value = values[&pick].clone();
 
         telemetry_read_strategy(key, "parallel_freshest", self.links[pick].name(), true);
