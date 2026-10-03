@@ -97,6 +97,9 @@ detail-config-capacity-exceeds-usize = capacity { $capacity } exceeds this platf
 detail-config-ttl-zero = { $name } must not be zero; use None (unset) for no expiry
 detail-config-metrics-requires-feature = metrics_enabled requires the `metrics` feature, which is not enabled in this build
 detail-config-serialization-requires-feature = serialization_format requires the `serialization` feature, which is not enabled in this build
+detail-config-serialization-bincode-requires-feature = serialization format 'bincode' requires the `serde-bincode` feature, which is not enabled in this build (field: { $field })
+detail-config-serialization-postcard-requires-feature = serialization format 'postcard' requires the `postcard` feature, which is not enabled in this build (field: { $field })
+detail-config-serialization-invalid-format = invalid serialization format (field { $field }): { $raw } (expected one of json/bincode/postcard)
 detail-config-circuit-breaker-threshold-zero = circuit_breaker_failure_threshold must be greater than 0
 detail-config-service-name-empty = service_name must not be empty; drop the key to keep the service dimension disabled
 detail-config-connection-pool-size-zero = connection_pool_size must be greater than 0 (drop the key to use the backend default)
@@ -107,9 +110,24 @@ detail-adaptive-ttl-max-tracked-keys-at-least-one = adaptive_ttl max_tracked_key
 detail-get-or-leader-result-not-cached = get_or: concurrent fetch leader failed to cache result
 detail-get-or-option-leader-result-not-cached = get_or_option: concurrent fetch leader failed to cache result
 detail-warmup-ttl-lookup-failed = ttl lookup failed: { $err }
+detail-redis-ttl-min-millis = TTL must be at least 1 millisecond for Redis SET PX/PEXPIRE
+detail-redis-ttl-exceeds-max = TTL { $millis }ms exceeds Redis maximum of { $max }ms (~68 years)
+detail-redis-cluster-connect-failed = Failed to connect to Redis Cluster: { $err }
+detail-redis-cluster-connect-timeout = Connection timeout - Redis Cluster unavailable
+detail-confers-expects-u64 = confers key '{ $key }' expects u64, got { $value }
+detail-confers-value-exceeds-range = confers key '{ $key }' value { $value } exceeds the { $target } range
+detail-confers-expects-bool = confers key '{ $key }' expects bool, got { $value }
+detail-confers-expects-f64 = confers key '{ $key }' expects f64, got { $value }
+detail-confers-expects-string = confers key '{ $key }' expects string, got { $value }
 
 # -- Example binary output messages --
 example-inklog-bridge-title = === inklog audit log bridge example ===
 example-inklog-bridge-observability = === bridge observability ===
 example-inklog-bridge-dropped = dropped (no runtime context, dropped): { $count }
 example-inklog-bridge-write-failures = write_failures (sink write failures): { $count }
+example-redis-modes-feature-disabled = redis feature is not enabled in this build; nothing to demonstrate.
+example-redis-modes-run-with-redis-feature = full run: cargo run --features redis --example example_redis_modes
+example-redis-modes-run-with-examples-package = or: cargo run -p oxcache-examples --example example_redis_modes
+example-redis-modes-standalone-connect-failed = ✗ Standalone connection failed: { $err }
+example-redis-modes-standalone-env-required = a running Redis is required (override with REDIS_URL, default redis://127.0.0.1:6379); skipping the Standalone/Builder demos
+example-redis-modes-done-standalone-skipped = ✓ example finished (Standalone skipped: environment unavailable)

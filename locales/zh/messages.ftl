@@ -97,6 +97,9 @@ detail-config-capacity-exceeds-usize = capacity { $capacity } 超出本平台 us
 detail-config-ttl-zero = { $name } 不得为零；如需永不过期请用 None（不设置）
 detail-config-metrics-requires-feature = metrics_enabled 需要 `metrics` feature，当前构建未启用
 detail-config-serialization-requires-feature = serialization_format 需要 `serialization` feature，当前构建未启用
+detail-config-serialization-bincode-requires-feature = serialization format 'bincode' 需要 `serde-bincode` feature，当前构建未启用（字段：{ $field }）
+detail-config-serialization-postcard-requires-feature = serialization format 'postcard' 需要 `postcard` feature，当前构建未启用（字段：{ $field }）
+detail-config-serialization-invalid-format = 无效的序列化格式（字段 { $field }）：{ $raw }（应为 json/bincode/postcard 之一）
 detail-config-circuit-breaker-threshold-zero = circuit_breaker_failure_threshold 必须大于 0
 detail-config-service-name-empty = service_name 不得为空；删除该键以保持服务维度关闭
 detail-config-connection-pool-size-zero = connection_pool_size 必须大于 0（删除该键以使用后端默认值）
@@ -107,9 +110,24 @@ detail-adaptive-ttl-max-tracked-keys-at-least-one = adaptive_ttl max_tracked_key
 detail-get-or-leader-result-not-cached = get_or：并发拉取的 leader 未能将结果写入缓存
 detail-get-or-option-leader-result-not-cached = get_or_option：并发拉取的 leader 未能将结果写入缓存
 detail-warmup-ttl-lookup-failed = ttl 查询失败：{ $err }
+detail-redis-ttl-min-millis = Redis SET PX/PEXPIRE 的 TTL 至少须为 1 毫秒
+detail-redis-ttl-exceeds-max = TTL { $millis }ms 超出 Redis 上限 { $max }ms（约 68 年）
+detail-redis-cluster-connect-failed = Redis Cluster 连接失败：{ $err }
+detail-redis-cluster-connect-timeout = 连接超时：Redis Cluster 不可用
+detail-confers-expects-u64 = confers 键 '{ $key }' 应为 u64，实际为 { $value }
+detail-confers-value-exceeds-range = confers 键 '{ $key }' 的值 { $value } 超出 { $target } 的取值范围
+detail-confers-expects-bool = confers 键 '{ $key }' 应为 bool，实际为 { $value }
+detail-confers-expects-f64 = confers 键 '{ $key }' 应为 f64，实际为 { $value }
+detail-confers-expects-string = confers 键 '{ $key }' 应为字符串，实际为 { $value }
 
 # -- 示例二进制输出消息 --
 example-inklog-bridge-title = === inklog 审计日志桥接示例 ===
 example-inklog-bridge-observability = === 桥接可观测面 ===
 example-inklog-bridge-dropped = dropped（无 runtime 上下文丢弃）: { $count }
 example-inklog-bridge-write-failures = write_failures（sink 写失败）: { $count }
+example-redis-modes-feature-disabled = 当前编译未启用 redis feature，无演示内容。
+example-redis-modes-run-with-redis-feature = 完整运行：cargo run --features redis --example example_redis_modes
+example-redis-modes-run-with-examples-package = 或：cargo run -p oxcache-examples --example example_redis_modes
+example-redis-modes-standalone-connect-failed = ✗ Standalone 连接失败：{ $err }
+example-redis-modes-standalone-env-required = 需要运行中的 Redis（可用 REDIS_URL 覆盖，默认 redis://127.0.0.1:6379），跳过 Standalone/Builder 演示
+example-redis-modes-done-standalone-skipped = ✓ 示例完成（Standalone 因环境不可用而跳过）

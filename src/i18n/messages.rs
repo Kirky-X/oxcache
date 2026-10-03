@@ -139,6 +139,12 @@ pub const MSG_DETAIL_CONFIG_TTL_ZERO: &str = "detail.config.ttl_zero";
 pub const MSG_DETAIL_CONFIG_METRICS_FEATURE: &str = "detail.config.metrics_requires_feature";
 pub const MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE: &str =
     "detail.config.serialization_requires_feature";
+pub const MSG_DETAIL_CONFIG_SERIALIZATION_BINCODE_REQUIRES_FEATURE: &str =
+    "detail.config.serialization_bincode_requires_feature";
+pub const MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEATURE: &str =
+    "detail.config.serialization_postcard_requires_feature";
+pub const MSG_DETAIL_CONFIG_SERIALIZATION_INVALID_FORMAT: &str =
+    "detail.config.serialization_invalid_format";
 pub const MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO: &str =
     "detail.config.circuit_breaker_threshold_zero";
 pub const MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY: &str = "detail.config.service_name_empty";
@@ -153,12 +159,32 @@ pub const MSG_DETAIL_GET_OR_LEADER_NOT_CACHED: &str = "detail.get_or.leader_resu
 pub const MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED: &str =
     "detail.get_or_option.leader_result_not_cached";
 pub const MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED: &str = "detail.warmup.ttl_lookup_failed";
+pub const MSG_DETAIL_REDIS_TTL_MIN_MILLIS: &str = "detail.redis.ttl_min_millis";
+pub const MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX: &str = "detail.redis.ttl_exceeds_max";
+pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED: &str = "detail.redis.cluster_connect_failed";
+pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT: &str = "detail.redis.cluster_connect_timeout";
+pub const MSG_DETAIL_CONFERS_EXPECTS_U64: &str = "detail.confers.expects_u64";
+pub const MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE: &str = "detail.confers.value_exceeds_range";
+pub const MSG_DETAIL_CONFERS_EXPECTS_BOOL: &str = "detail.confers.expects_bool";
+pub const MSG_DETAIL_CONFERS_EXPECTS_F64: &str = "detail.confers.expects_f64";
+pub const MSG_DETAIL_CONFERS_EXPECTS_STRING: &str = "detail.confers.expects_string";
 
 // -- Example binary output messages --
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_TITLE: &str = "example.inklog_bridge.title";
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY: &str = "example.inklog_bridge.observability";
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED: &str = "example.inklog_bridge.dropped";
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES: &str = "example.inklog_bridge.write_failures";
+pub const MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED: &str = "example.redis_modes.feature_disabled";
+pub const MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE: &str =
+    "example.redis_modes.run_with_redis_feature";
+pub const MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE: &str =
+    "example.redis_modes.run_with_examples_package";
+pub const MSG_EXAMPLE_REDIS_MODES_STANDALONE_CONNECT_FAILED: &str =
+    "example.redis_modes.standalone_connect_failed";
+pub const MSG_EXAMPLE_REDIS_MODES_STANDALONE_ENV_REQUIRED: &str =
+    "example.redis_modes.standalone_env_required";
+pub const MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED: &str =
+    "example.redis_modes.done_standalone_skipped";
 
 // ============================================================================
 // Catalog lookup
@@ -358,6 +384,9 @@ mod tests {
         MSG_DETAIL_CONFIG_TTL_ZERO,
         MSG_DETAIL_CONFIG_METRICS_FEATURE,
         MSG_DETAIL_CONFIG_SERIALIZATION_FEATURE,
+        MSG_DETAIL_CONFIG_SERIALIZATION_BINCODE_REQUIRES_FEATURE,
+        MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEATURE,
+        MSG_DETAIL_CONFIG_SERIALIZATION_INVALID_FORMAT,
         MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO,
         MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
         MSG_DETAIL_CONFIG_POOL_SIZE_ZERO,
@@ -368,10 +397,25 @@ mod tests {
         MSG_DETAIL_GET_OR_LEADER_NOT_CACHED,
         MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED,
         MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED,
+        MSG_DETAIL_REDIS_TTL_MIN_MILLIS,
+        MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX,
+        MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED,
+        MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
+        MSG_DETAIL_CONFERS_EXPECTS_U64,
+        MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE,
+        MSG_DETAIL_CONFERS_EXPECTS_BOOL,
+        MSG_DETAIL_CONFERS_EXPECTS_F64,
+        MSG_DETAIL_CONFERS_EXPECTS_STRING,
         MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
         MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
         MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,
         MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES,
+        MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED,
+        MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE,
+        MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,
+        MSG_EXAMPLE_REDIS_MODES_STANDALONE_CONNECT_FAILED,
+        MSG_EXAMPLE_REDIS_MODES_STANDALONE_ENV_REQUIRED,
+        MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED,
     ];
 
     // --------------------------------------------------------------------

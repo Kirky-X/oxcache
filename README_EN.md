@@ -61,7 +61,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🚀 **Multi-tier caching** | L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) chained by score via `ChainCache`, with async backfill on non-top hits |
 | ⚡ **Zero-boilerplate macro** | One-line `#[cached]` integration supporting `service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` / `skip` |
 | 🔄 **Sync API** | With `sync_mode(true)`, `get_sync` / `set_sync` / `get_or_sync` coexist with the async API on the same `Cache<K, V>` |
-| ⏱️ **Universal per-entry TTL** | `ttl` / `expire` behave consistently across all nine backend kinds: Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom |
+| ⏱️ **Universal per-entry TTL** | `ttl` / `expire` behave consistently across all ten backend kinds: Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom |
 | 🌸 **Penetration guard** | Single-flight dedup (64 shards), null sentinel, TTL jitter, bloom-filter negative-query short-circuit |
 | 🔐 **Built-in security** | Key / Lua / SCAN input validation, connection-string redaction, value-level encryption and integrity decorators |
 | 📈 **Observability** | Latency histograms and operation counters, Prometheus / JSON export, `telemetry` tracing events, audit event stream |
@@ -456,6 +456,7 @@ All backends honor per-entry `set(key, value, Some(ttl))` uniformly. Behavior su
 | **Valkey** (via RedisBackend) | Same as Redis | Same as Redis | Same as Redis | Redis protocol compatible, uses the `ValkeyStandalone` mode |
 | **DragonflyBackend** | Delegates to the inner RedisBackend | Delegates to the inner RedisBackend | Delegates to the inner RedisBackend | Redis protocol compatible, TTL behavior identical to Redis |
 | **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + new `Expiration` | Aerospike native TTL (second precision); sub-second TTLs round up |
+| **RedbDiskBackend** (`disk`) | Stores a `(value, expiry epoch ms)` envelope; lazy expiry on read | Remaining TTL (None if no TTL) | Updates + returns `true` (`false` when the key is missing or already expired) | `set(ttl=None)` falls back to the backend default TTL from `with_default_ttl` (never expires if unset) |
 | **MockBackend** | Stores `(value, expiry Instant)`; lazy expiry | Remaining TTL | Updates + returns `true` | Test-only; aligns with DashMap semantics |
 | **ChainCache** | Passes `ttl` through to all links | First `Some(ttl)` found scanning from the highest score (keeps descending when a higher-scored link owns the key but has no TTL) | Passes through to all links | All links receive the same TTL |
 | **BloomFilterBackend** | Passes `ttl` through to inner (also inserts the key into the BF) | Delegates to inner | Delegates to inner | The BF itself has no TTL concept |
@@ -470,9 +471,9 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1537 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1564 |
 | Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 332 |
-| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 139 |
+| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 140 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
 | Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 21 |
 | Security tests | `--test security` | Security coverage and security validation | 20 |
@@ -480,7 +481,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7**; 2166 in total (`src/` 1537 + `tests/` 629). Per-layer rows are grep counts per test directory; `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7** (re-verified 2026-10-04); 2262 in total (`src/` 1564 + `tests/` 698). Per-layer rows are grep counts per test directory; the 13 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
 
 ### Common Commands (same as CI)
 
@@ -554,7 +555,7 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 |:------:|------|-------|
 | 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.7 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
-| ✅ | **Valkey integration test environment gating** | 8 Valkey (and Dragonfly) integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
+| ✅ | **Valkey integration test environment gating** | 8 Valkey and 6 Dragonfly integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
 | ✅ | **Follow-up on archived review findings** | Archive in `docs/diting-review.md` (3 Medium + 2 Low): all 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
 
 ---

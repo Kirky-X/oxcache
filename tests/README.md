@@ -115,9 +115,9 @@ cargo test --features full
 
 ### By Test Binary
 ```bash
-cargo test --features full --lib                    # 库单元测试 (1537)
+cargo test --features full --lib                    # 库单元测试 (1564)
 cargo test --features full --test unit              # 单元测试 (332)
-cargo test --features full --test integration       # 集成测试 (139)
+cargo test --features full --test integration       # 集成测试 (140)
 cargo test --features full --test e2e               # 端到端测试 (65)
 cargo test --features full --test macros            # 宏测试 (21)
 cargo test --features full --test feature_test      # Feature 门控测试 (2)
@@ -125,8 +125,8 @@ cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filt
 ```
 
 > 括号内为 `#[test]` / `#[tokio::test]` 函数的 grep 文本计数（与
-> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.7）；feature 门控与
-> `--ignored` 用例不计入运行数，实际以 `-- --list` 为准。
+> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.7，2026-10-04 复核）；
+> feature 门控与 `--ignored` 用例不计入运行数，实际以 `-- --list` 为准。
 
 ### Minimal Feature
 ```bash

@@ -152,7 +152,7 @@ assert!(!redacted.contains("secret_password"));
 
 ## 📝 日志安全
 
-**函数**：`oxcache::log_cache_key(key: &str) -> String`
+**函数**：`oxcache::log_cache_key(_level: &str, message: &str, key: &str) -> String`（返回 `"{message}: {脱敏后 key}"`；首参 `level` 当前未使用）
 **函数**：`oxcache::sanitize_message(msg: &str) -> String`
 
 这些工具确保缓存键和日志消息在写入日志前经过清理，防止日志注入攻击。

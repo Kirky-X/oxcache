@@ -271,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 通用 per-entry TTL
 
-所有后端（Moka / DashMap / Redis / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))` 设置单条目 TTL；设置、读取与修改方法见 [TTL 管理](#ttl-管理)。
+所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))` 设置单条目 TTL；设置、读取与修改方法见 [TTL 管理](#ttl-管理)。
 
 ---
 
@@ -723,10 +723,10 @@ oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安
 **解决方案**：
 
 1. 确认 `Cache::builder().sync_mode(true)` 已启用
-2. 确认运行在 `multi_thread` Tokio runtime（`#[tokio::main(flavor = "multi_thread")]`）
-3. current-thread runtime 下同步 API 会返回 `Err(NotSupported)`（runtime 之外同理）
-4. `backend_arc(...)` 注入的后端走 `AsyncToSyncBridge` 桥接面——同样要求
-   `multi_thread` runtime（I/O 型后端还需 ≥2 worker，单 worker 有挂起风险）；
+2. 默认 Moka 路径（含 `sync_backend_arc` 注入的原生同步面）运行时无关：runtime 之外可直接调用，`multi_thread` runtime 上经 `block_in_place` 复用；仅 **current-thread runtime 的异步上下文内**会返回 `Err(NotSupported)`（tokio 禁止嵌套阻塞驱动），改在 runtime 外调用或换 `multi_thread` runtime 即可
+3. `backend_arc(...)` 注入的后端走 `AsyncToSyncBridge` 桥接面——要求
+   `multi_thread` runtime（I/O 型后端还需 ≥2 worker，单 worker 有挂起风险），
+   runtime 之外或 current-thread runtime 上逐调用返回 `Err(NotSupported)`；
    需要运行时无关的同步 API 时，改用 `sync_backend_arc(...)` 注入原生同步后端
    （Moka / DashMap）或使用默认 Moka 路径
 

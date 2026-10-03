@@ -42,6 +42,11 @@
 //! ```
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFERS_EXPECTS_BOOL, MSG_DETAIL_CONFERS_EXPECTS_F64,
+    MSG_DETAIL_CONFERS_EXPECTS_STRING, MSG_DETAIL_CONFERS_EXPECTS_U64,
+    MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE, t,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -246,7 +251,10 @@ where
         None => Ok(None),
         // 键存在但类型不符：显性报错，与模块「不做静默回落」承诺一致
         Some(v) => v.as_u64().map(Some).ok_or_else(|| {
-            OxCacheError::InvalidInput(format!("confers key '{key}' expects u64, got {v:?}"))
+            OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFERS_EXPECTS_U64,
+                &[("key", key.to_string()), ("value", format!("{v:?}"))],
+            ))
         }),
     }
 }
@@ -256,8 +264,13 @@ where
 /// `target` 携带真实目标类型（如 u32 / usize）：u64→u32 溢出与平台指针宽度
 /// 无关，措辞不预设「窄平台」，防止误导排障方向。
 fn out_of_range_u64(key: &str, value: u64, target: &str) -> OxCacheError {
-    OxCacheError::InvalidInput(format!(
-        "confers key '{key}' value {value} exceeds the {target} range"
+    OxCacheError::InvalidInput(t(
+        MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE,
+        &[
+            ("key", key.to_string()),
+            ("value", value.to_string()),
+            ("target", target.to_string()),
+        ],
     ))
 }
 
@@ -272,7 +285,10 @@ where
     {
         None => Ok(None),
         Some(v) => v.as_bool().map(Some).ok_or_else(|| {
-            OxCacheError::InvalidInput(format!("confers key '{key}' expects bool, got {v:?}"))
+            OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFERS_EXPECTS_BOOL,
+                &[("key", key.to_string()), ("value", format!("{v:?}"))],
+            ))
         }),
     }
 }
@@ -288,7 +304,10 @@ where
     {
         None => Ok(None),
         Some(v) => v.as_f64().map(Some).ok_or_else(|| {
-            OxCacheError::InvalidInput(format!("confers key '{key}' expects f64, got {v:?}"))
+            OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFERS_EXPECTS_F64,
+                &[("key", key.to_string()), ("value", format!("{v:?}"))],
+            ))
         }),
     }
 }
@@ -304,7 +323,10 @@ where
     {
         None => Ok(None),
         Some(v) => v.as_str().map(|s| Some(s.to_string())).ok_or_else(|| {
-            OxCacheError::InvalidInput(format!("confers key '{key}' expects string, got {v:?}"))
+            OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFERS_EXPECTS_STRING,
+                &[("key", key.to_string()), ("value", format!("{v:?}"))],
+            ))
         }),
     }
 }

@@ -130,9 +130,11 @@ version = "6.2"
 default-features = false
 optional = true
 
-# redb 嵌入式键值存储（磁盘 L3 后端）
+# redb 嵌入式键值存储（磁盘 L3 后端）；default 仅 std，显式声明同面关闭默认
 [dependencies.redb]
 version = "4.3"
+default-features = false
+features = ["std"]
 optional = true
 
 # L2 Cache (Redis)

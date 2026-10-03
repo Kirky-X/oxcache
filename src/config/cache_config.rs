@@ -44,6 +44,18 @@
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(not(feature = "metrics"))]
 use crate::i18n::messages::MSG_DETAIL_CONFIG_METRICS_FEATURE;
+#[cfg(all(
+    any(feature = "serialization", feature = "full"),
+    not(feature = "serde-bincode")
+))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_BINCODE_REQUIRES_FEATURE;
+#[cfg(any(feature = "serialization", feature = "full"))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_INVALID_FORMAT;
+#[cfg(all(
+    any(feature = "serialization", feature = "full"),
+    not(feature = "postcard")
+))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEATURE;
 #[cfg(not(any(feature = "memory", feature = "redis", feature = "disk")))]
 use crate::i18n::messages::{
     MSG_DETAIL_CONFIG_BACKEND_FEATURES, MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES,
@@ -924,17 +936,20 @@ pub(crate) fn parse_serialization_format(
         #[cfg(feature = "serde-bincode")]
         "bincode" => Ok(SerializationFormat::Bincode),
         #[cfg(not(feature = "serde-bincode"))]
-        "bincode" => Err(OxCacheError::InvalidInput(format!(
-            "serialization format 'bincode' requires the `serde-bincode` feature, which is not enabled in this build (field: {var})"
+        "bincode" => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_SERIALIZATION_BINCODE_REQUIRES_FEATURE,
+            &[("field", var.to_string())],
         ))),
         #[cfg(feature = "postcard")]
         "postcard" => Ok(SerializationFormat::Postcard),
         #[cfg(not(feature = "postcard"))]
-        "postcard" => Err(OxCacheError::InvalidInput(format!(
-            "serialization format 'postcard' requires the `postcard` feature, which is not enabled in this build (field: {var})"
+        "postcard" => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEATURE,
+            &[("field", var.to_string())],
         ))),
-        _ => Err(OxCacheError::InvalidInput(format!(
-            "invalid serialization format (field {var}): {raw:?} (expected one of json/bincode/postcard)"
+        _ => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_SERIALIZATION_INVALID_FORMAT,
+            &[("field", var.to_string()), ("raw", format!("{raw:?}"))],
         ))),
     }
 }
@@ -979,6 +994,7 @@ mod tests {
     ];
 
     #[test]
+    #[serial]
     fn try_from_env_parses_remaining_keys() {
         clear_all_env_keys();
         set_env(KEY_DISK_PATH, "/tmp/ox-env-disk.redb");
@@ -1039,6 +1055,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn env_invalid_numeric_values_rejected() {
         clear_all_env_keys();
         set_env(KEY_CONNECTION_POOL_SIZE, "not-a-number");

@@ -10,6 +10,7 @@ use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX, MSG_DETAIL_REDIS_TTL_MIN_MILLIS, t};
 use std::time::Duration;
 
 /// Redis 最大 TTL 上界（秒）。Redis SETEX/EXPIRE 仅接受 i32::MAX 秒（~68 年）；
@@ -23,15 +24,18 @@ const REDIS_MAX_TTL_SECS: u64 = i32::MAX as u64;
 pub(super) fn validate_redis_ttl(ttl: Duration) -> OxCacheResult<u64> {
     let millis = ttl.as_millis();
     if millis == 0 {
-        return Err(OxCacheError::InvalidInput(
-            "TTL must be at least 1 millisecond for Redis SET PX/PEXPIRE".to_string(),
-        ));
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_REDIS_TTL_MIN_MILLIS,
+            &[],
+        )));
     }
     if millis > (REDIS_MAX_TTL_SECS * 1000) as u128 {
-        return Err(OxCacheError::InvalidInput(format!(
-            "TTL {}ms exceeds Redis maximum of {}ms (~68 years)",
-            millis,
-            REDIS_MAX_TTL_SECS * 1000
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX,
+            &[
+                ("millis", millis.to_string()),
+                ("max", (REDIS_MAX_TTL_SECS * 1000).to_string()),
+            ],
         )));
     }
     Ok(millis as u64)

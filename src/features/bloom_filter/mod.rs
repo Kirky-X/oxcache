@@ -197,8 +197,15 @@ mod tests {
         for i in 0..500u64 {
             assert!(bf.contains(&i), "无假阴性 {i}");
         }
-        // 非插入键通常返回 false（真阴性；fpr=1% 允许个别误判，不在此断言多键）
-        assert!(!bf.contains(&u64::MAX));
+        // 单键真阴性是概率事件：bloomfilter 的 random 特性经 getrandom
+        // 随进程播种，50% 负载下单键误判率约 1%，断言单键必为 false 会使
+        // 测试抖动。改为对 1 万个未插入键断言统计上限（期望 ~114，上限
+        // 200 留 8σ 余量）；contains 恒真或 u64 哈希退化时会大幅越界失败。
+        let false_positives = (500u64..10_500).filter(|k| bf.contains(k)).count();
+        assert!(
+            false_positives < 200,
+            "未插入键误判 {false_positives}/10000 超过统计上限 200"
+        );
     }
 
     #[test]

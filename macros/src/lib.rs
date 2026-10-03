@@ -5,20 +5,31 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    Expr, ItemFn, Lit, Meta, Token, parse::Parser, parse_macro_input, punctuated::Punctuated,
-    spanned::Spanned,
+    Expr, ItemFn, Lit, Meta, Token, parse::Parser, punctuated::Punctuated, spanned::Spanned,
 };
 
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
+    cached_impl(args.into(), item.into()).into()
+}
+
+/// `cached` 的实现体（proc_macro2 输入输出）：与 proc-macro 入口分离，使
+/// 各参数解析分支可被单元测试直接驱动，无需真实编译期调用。
+fn cached_impl(
+    args: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
     // Rule 12: surface parse failures as `compile_error!` with a span
     // pointing at the offending argument, instead of panicking.
-    let args = match parser.parse(args) {
+    let args = match parser.parse2(args) {
         Ok(args) => args,
-        Err(e) => return e.to_compile_error().into(),
+        Err(e) => return e.to_compile_error(),
     };
-    let input = parse_macro_input!(item as ItemFn);
+    let input = match syn::parse2::<ItemFn>(item) {
+        Ok(parsed) => parsed,
+        Err(e) => return e.to_compile_error(),
+    };
 
     let mut service_name = "default".to_string();
     let mut ttl = quote! { None };
@@ -65,7 +76,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     .parse_args_with(Punctuated::<syn::Ident, Token![,]>::parse_terminated)
                 {
                     Ok(p) => p,
-                    Err(e) => return e.to_compile_error().into(),
+                    Err(e) => return e.to_compile_error(),
                 };
                 if parsed.is_empty() {
                     return syn::Error::new(
@@ -73,7 +84,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         "`skip` expects at least one parameter name, e.g. `skip(password)`",
                     )
                     .to_compile_error()
-                    .into();
                 }
                 skip_idents.extend(parsed);
             }
@@ -89,7 +99,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                     "`service` argument expects a string literal, e.g. `service = \"my_svc\"`",
                                 )
                                 .to_compile_error()
-                                .into();
                             }
                         },
                         other => {
@@ -98,7 +107,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 "`service` argument expects a string literal, e.g. `service = \"my_svc\"`",
                             )
                             .to_compile_error()
-                            .into();
                         }
                     }
                 } else if nv.path.is_ident("ttl") {
@@ -116,7 +124,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                             format!("invalid ttl value: {}", e),
                                         )
                                         .to_compile_error()
-                                        .into();
                                     }
                                 };
                                 ttl = quote! { Some(#val) };
@@ -127,7 +134,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                     "`ttl` argument expects an integer literal, e.g. `ttl = 60`",
                                 )
                                 .to_compile_error()
-                                .into();
                             }
                         },
                         other => {
@@ -136,7 +142,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 "`ttl` argument expects an integer literal, e.g. `ttl = 60`",
                             )
                             .to_compile_error()
-                            .into();
                         }
                     }
                 } else if nv.path.is_ident("key") {
@@ -149,7 +154,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                     "`key` argument expects a string literal, e.g. `key = \"user_{id}\"`",
                                 )
                                 .to_compile_error()
-                                .into();
                             }
                         },
                         other => {
@@ -158,7 +162,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 "`key` argument expects a string literal, e.g. `key = \"user_{id}\"`",
                             )
                             .to_compile_error()
-                            .into();
                         }
                     }
                 } else if nv.path.is_ident("key_prefix") {
@@ -171,7 +174,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                     "`key_prefix` argument expects a string literal, e.g. `key_prefix = \"ns\"`",
                                 )
                                 .to_compile_error()
-                                .into();
                             }
                         },
                         other => {
@@ -180,7 +182,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 "`key_prefix` argument expects a string literal, e.g. `key_prefix = \"ns\"`",
                             )
                             .to_compile_error()
-                            .into();
                         }
                     }
                 } else if nv.path.is_ident("condition") {
@@ -195,7 +196,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                                 "`condition` argument expects a function path, e.g. `condition = should_cache`",
                             )
                             .to_compile_error()
-                            .into();
                         }
                     }
                 } else {
@@ -214,7 +214,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         ),
                     )
                     .to_compile_error()
-                    .into();
                 }
             }
             // Rule 12: unsupported argument shape (e.g. Meta::List or unknown
@@ -225,7 +224,6 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, skip(param, ...), service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", condition = path",
                 )
                 .to_compile_error()
-                .into();
             }
         }
     }
@@ -239,8 +237,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             proc_macro2::Span::call_site(),
             "`#[cached(sync)]` cannot be used with `async fn`; either remove `async` from the function signature or remove `sync` from the `#[cached]` arguments",
         )
-        .to_compile_error()
-        .into();
+        .to_compile_error();
     }
 
     let fn_name = &input.sig.ident;
@@ -326,8 +323,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                         other.span(),
                         "#[cached] does not support destructured parameters; use named parameters",
                     )
-                    .to_compile_error()
-                    .into();
+                    .to_compile_error();
                 }
             }
         }
@@ -343,8 +339,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
             proc_macro2::Span::call_site(),
             "`#[cached]` `skip` cannot be combined with `key`; an explicit key template already determines the cache key, remove one of them",
         )
-        .to_compile_error()
-        .into();
+        .to_compile_error();
     }
     for skipped in &skip_idents {
         let skipped_name = skipped.to_string();
@@ -356,8 +351,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                     skipped, fn_name
                 ),
             )
-            .to_compile_error()
-            .into();
+            .to_compile_error();
         }
     }
 
@@ -556,7 +550,7 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    let output = if sync_mode {
+    if sync_mode {
         // Sync branch
         quote! {
             #vis fn #fn_name(#fn_args) #fn_output {
@@ -618,7 +612,185 @@ pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
                 result
             }
         }
-    };
+    }
+}
 
-    output.into()
+#[cfg(test)]
+mod tests {
+    use super::cached_impl;
+
+    /// 展开为 Display 文本（token 间以空格分隔，字符串字面量内容原样保留）。
+    fn expand(args: &str, item: &str) -> String {
+        let args: proc_macro2::TokenStream = args.parse().expect("args tokenstream");
+        let item: proc_macro2::TokenStream = item.parse().expect("item tokenstream");
+        cached_impl(args, item).to_string()
+    }
+
+    /// 压缩全部空白：Display 在 token 间插入空格，压缩后便于断言相邻 token 片段。
+    fn compact(expanded: &str) -> String {
+        expanded.chars().filter(|c| !c.is_whitespace()).collect()
+    }
+
+    fn assert_compile_error(expanded: &str, fragment: &str) {
+        assert!(
+            expanded.contains("compile_error"),
+            "expected compile_error, got: {expanded}"
+        );
+        assert!(
+            expanded.contains(fragment),
+            "message fragment `{fragment}` missing in: {expanded}"
+        );
+    }
+
+    const FN_PLAIN: &str = "fn f(x: u32) -> String { format!(\"{}\", x) }";
+
+    #[test]
+    fn sync_and_flag_args_generate_read_path() {
+        let expanded = expand("sync, skip_cache_write", FN_PLAIN);
+        assert!(!expanded.contains("compile_error"));
+        assert!(expanded.contains("get_bytes_sync"), "{expanded}");
+        // skip_cache_write 的写回以常量 false 守卫（token 仍生成，运行期恒跳过）
+        assert!(expanded.contains("if ! true"), "{expanded}");
+    }
+
+    #[test]
+    fn async_path_without_flags_generates_cache_write() {
+        let expanded = expand("", FN_PLAIN);
+        assert!(!expanded.contains("compile_error"));
+        assert!(expanded.contains("get_bytes"), "{expanded}");
+        assert!(expanded.contains("set_bytes"), "{expanded}");
+    }
+
+    #[test]
+    fn skip_list_rejects_non_ident() {
+        let expanded = expand("skip(1)", FN_PLAIN);
+        assert_compile_error(&expanded, "expected identifier");
+    }
+
+    #[test]
+    fn skip_rejects_empty_list() {
+        let expanded = expand("skip()", FN_PLAIN);
+        assert_compile_error(&expanded, "`skip` expects at least one parameter name");
+    }
+
+    #[test]
+    fn service_rejects_non_literal_expr() {
+        let expanded = expand("service = svc_name()", FN_PLAIN);
+        assert_compile_error(&expanded, "`service` argument expects a string literal");
+    }
+
+    #[test]
+    fn service_rejects_non_string_literal() {
+        let expanded = expand("service = 42", FN_PLAIN);
+        assert_compile_error(&expanded, "`service` argument expects a string literal");
+    }
+
+    #[test]
+    fn ttl_rejects_integer_overflow() {
+        let expanded = expand("ttl = 99999999999999999999999", FN_PLAIN);
+        assert_compile_error(&expanded, "invalid ttl value");
+    }
+
+    #[test]
+    fn ttl_rejects_string_literal() {
+        let expanded = expand("ttl = \"60\"", FN_PLAIN);
+        assert_compile_error(&expanded, "`ttl` argument expects an integer literal");
+    }
+
+    #[test]
+    fn ttl_rejects_non_literal_expr() {
+        let expanded = expand("ttl = ttl_expr", FN_PLAIN);
+        assert_compile_error(&expanded, "`ttl` argument expects an integer literal");
+    }
+
+    #[test]
+    fn key_rejects_non_string_literal() {
+        let expanded = expand("key = 42", FN_PLAIN);
+        assert_compile_error(&expanded, "`key` argument expects a string literal");
+    }
+
+    #[test]
+    fn key_rejects_non_literal_expr() {
+        let expanded = expand("key = key_expr", FN_PLAIN);
+        assert_compile_error(&expanded, "`key` argument expects a string literal");
+    }
+
+    #[test]
+    fn key_prefix_rejects_non_string_literal() {
+        let expanded = expand("key_prefix = 42", FN_PLAIN);
+        assert_compile_error(&expanded, "`key_prefix` argument expects a string literal");
+    }
+
+    #[test]
+    fn key_prefix_rejects_non_literal_expr() {
+        let expanded = expand("key_prefix = prefix_expr", FN_PLAIN);
+        assert_compile_error(&expanded, "`key_prefix` argument expects a string literal");
+    }
+
+    #[test]
+    fn condition_rejects_non_path() {
+        let expanded = expand("condition = \"check\"", FN_PLAIN);
+        assert_compile_error(&expanded, "`condition` argument expects a function path");
+    }
+
+    #[test]
+    fn unknown_named_argument_rejected() {
+        let expanded = expand("unknown_arg = 1", FN_PLAIN);
+        assert_compile_error(&expanded, "unknown `#[cached]` argument `unknown_arg`");
+    }
+
+    #[test]
+    fn unsupported_argument_shape_rejected() {
+        let expanded = expand("bogus", FN_PLAIN);
+        assert_compile_error(&expanded, "unsupported `#[cached]` argument");
+    }
+
+    #[test]
+    fn default_return_type_maps_to_unit_deserialization() {
+        let expanded = compact(&expand("sync", "fn f() {}"));
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(expanded.contains("deserialize::<()>"), "{expanded}");
+    }
+
+    #[test]
+    fn destructured_parameter_rejected() {
+        let expanded = expand("", "fn f((a, b): (u32, u32)) -> u32 { a }");
+        assert_compile_error(&expanded, "does not support destructured parameters");
+    }
+
+    #[test]
+    fn non_function_item_rejected() {
+        let expanded = expand("", "struct S;");
+        assert_compile_error(&expanded, "expected `fn`");
+    }
+
+    #[test]
+    fn receiver_parameter_is_skipped_from_key() {
+        let expanded = expand("", "fn m(&self, k: u32) -> u32 { k }");
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(expanded.contains("get_bytes"), "{expanded}");
+    }
+
+    #[test]
+    fn key_template_is_used_verbatim() {
+        let expanded = compact(&expand(
+            "key = \"user_{id}\"",
+            "fn load(id: u64) -> String { String::new() }",
+        ));
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(expanded.contains("format!(\"user_{id}\")"), "{expanded}");
+    }
+
+    #[test]
+    fn key_prefix_without_args_uses_fn_name_only() {
+        let expanded = compact(&expand(
+            "key_prefix = \"ns\"",
+            "fn ping() -> String { String::new() }",
+        ));
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(
+            expanded.contains("format!(\"{}:{}:{}\",\"default\",\"ns\",stringify!(ping))"),
+            "{expanded}"
+        );
+    }
 }

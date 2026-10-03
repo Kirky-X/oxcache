@@ -288,7 +288,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 
 后端通过 `CacheConnector::as_atomic_writer()` 暴露原子能力。`Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` 通过此运行时发现方法委托；后端缺少原子支持时返回 `Err(NotSupported)`。`versioning` 特性另提供带版本信封的 `MemoryVersionedCache` / `RedisVersionedCache`（WATCH/MULTI/EXEC）实现。
 
-**`BackendKind` 枚举**（`Moka | DashMap | Redis | Valkey | Dragonfly | Aerospike | Chain | Mock | Unknown`）由 `backend_kind()` 返回，用于运行时标识而无需 `as_any()`。
+**`BackendKind` 枚举**（`Moka | DashMap | Redis | Valkey | Dragonfly | Aerospike | Chain | Mock | Disk | Unknown`）由 `backend_kind()` 返回，用于运行时标识而无需 `as_any()`。
 
 **ChainCache 读取路径**：
 
@@ -323,7 +323,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 4. 无 WAL（持久性委托给 Redis 后端本身）
 ```
 
-**ChainCache 健康检查**：每个链接并发 ping，每个后端 5 秒超时；仅当所有链接都失败时 `health_check()` 才失败。
+**ChainCache 健康检查**：每个链接并发 ping，每个后端 5 秒超时；任一链接失败（含超时）`health_check()` 即返回错误，所有链接健康才返回 `Ok`。
 
 ### 4. 特性模块
 
@@ -346,8 +346,6 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 - `features::audit` — `AuditEventPublisher` 结构化审计事件流
 - `features::versioning` — 版本化 CAS 实现
 - `features::confers_config` — confers 配置驱动构建（`OxcacheConfig` + `ConfigBus` 热更新）
-- `get_l1_feature_info() / get_l2_feature_info() / get_all_feature_info()`
-- `is_l1_enabled() / is_l2_enabled()`
 
 ### 5. 基础设施模块
 
@@ -432,10 +430,11 @@ use oxcache::KeyGenerator;
 
 let generator = KeyGenerator::new()
     .with_namespace("myapp")
-    .with_prefix_str("cache");
+    .with_prefix_str("cache:");
 
 let key = generator.generate_full("user:{id}", &[("id", "123")]);
 // 结果："myapp:cache:user:123"
+// 注意：前缀按原样直拼（无分隔符），需自带尾随冒号
 ```
 
 ### 8. 事件模块
@@ -465,7 +464,7 @@ let event = CacheEvent::new(CacheEventType::Hit)
 
 **位置**：`src/config/`、`src/registry.rs`、`src/backend/factory.rs`
 
-- **`config/`**：私有模块（`mod config`），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）。公开的配置入口是 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
+- **`config/`**：公开模块（`pub mod config`，0.5.0-rc.7 起转公开），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）与 `CacheConfig` 等配置入口；程序化构建仍推荐 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
 - **`registry.rs`**：全局缓存注册表（`init` / `register` / `get` / `remove` / `clear`），供显式管理多个命名缓存实例。
 - **`backend::factory`**：`BackendRegistry` 后端工厂注册中心，按名注册/构建后端（内置 moka/dashmap/memory，feature 门控 redis），serde 友好的 `BackendSpec`，供 kit 等动态选择后端。
 

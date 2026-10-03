@@ -330,6 +330,7 @@ impl InklogAuditPublisher {
 /// 审计事件 → inklog 日志记录的纯映射（级别/字段构造，无 IO）
 #[cfg(feature = "inklog")]
 fn audit_event_to_log_record(event: &AuditEvent) -> inklog::LogRecord {
+    use crate::i18n::messages::{MSG_LOG_AUDIT_EVENT, t};
     use serde_json::Value;
 
     let level = match event.action {
@@ -343,7 +344,7 @@ fn audit_event_to_log_record(event: &AuditEvent) -> inklog::LogRecord {
     let mut record = inklog::LogRecord::new(
         level,
         "oxcache::audit".to_string(),
-        "cache audit event".to_string(),
+        t(MSG_LOG_AUDIT_EVENT, &[]),
     );
     record
         .fields

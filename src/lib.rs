@@ -41,7 +41,14 @@
 //! Enable `sync_mode(true)` on the builder to get synchronous methods
 //! (`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` /
 //! `exists_sync` / `get_or_sync` / `clear_sync`) alongside the async API.
-//! Requires `multi_thread` tokio runtime for Moka-backed caches.
+//! The default Moka path (and native sync faces injected via
+//! `sync_backend_arc`) is runtime-independent: callable outside any runtime
+//! (a temporary current-thread runtime drives it), reusing the current
+//! runtime via `block_in_place` on a `multi_thread` runtime. Only inside a
+//! current-thread runtime's async context it returns `Err(NotSupported)`
+//! (tokio forbids nested blocking drivers). The bridged path
+//! (`backend_arc` combined with `sync_mode(true)`) still requires a
+//! `multi_thread` runtime.
 //!
 //! ```rust,ignore
 //! # #[tokio::main(flavor = "multi_thread")]
@@ -66,8 +73,9 @@
 //!
 //! # Universal per-entry TTL (0.3.0)
 //!
-//! All backends (Moka / DashMap / Redis / Mock / Chain / Bloom) honor
-//! per-entry `set(key, value, Some(ttl))`. Moka uses the `moka::Expiry`
+//! All backends (Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike /
+//! Disk / Mock / Chain / Bloom) honor per-entry
+//! `set(key, value, Some(ttl))`. Moka uses the `moka::Expiry`
 //! trait for real per-entry TTL (overriding the global TTL set on the
 //! builder).
 //!
@@ -78,9 +86,10 @@
 //! - `minimal`: L1 memory cache only (memory + metrics + serialization + chrono)
 //! - `core`: L1 + L2 Redis (minimal + redis)
 //! - `full`: Layered preset = core + macros + compression + batch + lua +
-//!   testing + dragonfly + aerospike + lock. Deliberately excludes the
-//!   opt-in features: audit, encrypt, integrity, invalidation, versioning,
-//!   telemetry, config-confers, serde-bincode, postcard, bloom, kit.
+//!   testing + dragonfly + aerospike + lock + offload + disk + stale.
+//!   Deliberately excludes the opt-in features: audit, encrypt, integrity,
+//!   invalidation, versioning, telemetry, config-confers, serde-bincode,
+//!   postcard, bloom, kit.
 //!
 //! ## Core Component Features
 //!

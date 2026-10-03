@@ -32,10 +32,21 @@ use oxcache::backend::{RedisBackend, RedisMode};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(feature = "redis"))]
     {
+        use oxcache::i18n::messages::{
+            MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED,
+            MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,
+            MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE, t,
+        };
         println!("=== Redis 多模式连接示例 ===\n");
-        println!("  当前编译未启用 redis feature，无演示内容。");
-        println!("  完整运行：cargo run --features redis --example example_redis_modes");
-        println!("       或：cargo run -p oxcache-examples --example example_redis_modes");
+        println!("  {}", t(MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED, &[]));
+        println!(
+            "  {}",
+            t(MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE, &[])
+        );
+        println!(
+            "       {}",
+            t(MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE, &[])
+        );
         return Ok(());
     }
 
@@ -56,12 +67,27 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let standalone = match RedisBackend::new(&standalone_url).await {
         Ok(backend) => backend,
         Err(e) => {
-            println!("  ✗ Standalone 连接失败: {e}");
+            use oxcache::i18n::messages::{
+                MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED,
+                MSG_EXAMPLE_REDIS_MODES_STANDALONE_CONNECT_FAILED,
+                MSG_EXAMPLE_REDIS_MODES_STANDALONE_ENV_REQUIRED, t,
+            };
             println!(
-                "    需要运行中的 Redis（可用 REDIS_URL 覆盖，默认 redis://127.0.0.1:6379），跳过 Standalone/Builder 演示"
+                "  {}",
+                t(
+                    MSG_EXAMPLE_REDIS_MODES_STANDALONE_CONNECT_FAILED,
+                    &[("err", e.to_string())]
+                )
+            );
+            println!(
+                "    {}",
+                t(MSG_EXAMPLE_REDIS_MODES_STANDALONE_ENV_REQUIRED, &[])
             );
             print_mode_enum();
-            println!("\n✓ 示例完成（Standalone 因环境不可用而跳过）");
+            println!(
+                "\n{}",
+                t(MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED, &[])
+            );
             return Ok(());
         }
     };

@@ -9,6 +9,9 @@ use super::error::map_redis_error;
 use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED, MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT, t,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -263,15 +266,16 @@ impl RedisBackendBuilder {
         let conn = match tokio::time::timeout(connection_timeout, connect).await {
             Ok(Ok(conn)) => conn,
             Ok(Err(e)) => {
-                return Err(OxCacheError::Connection(format!(
-                    "Failed to connect to Redis Cluster: {}",
-                    e
+                return Err(OxCacheError::Connection(t(
+                    MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED,
+                    &[("err", e.to_string())],
                 )));
             }
             Err(_) => {
-                return Err(OxCacheError::Connection(
-                    "Connection timeout - Redis Cluster unavailable".to_string(),
-                ));
+                return Err(OxCacheError::Connection(t(
+                    MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
+                    &[],
+                )));
             }
         };
 

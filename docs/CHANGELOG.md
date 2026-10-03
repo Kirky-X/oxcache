@@ -12,13 +12,20 @@
 - **`BatchWriterBuilder::reject_when_full(bool)`（`batch` feature）**：缓冲打满时拒绝入队并返回 `Err(OxCacheError::BufferFull)`（错误码 `OXCACHE_019`，`is_recoverable() == true`，被拒条目不入缓冲）；默认 `false` 保持既有「打满即自动刷盘」语义。`docs/API_REFERENCE.md` 补「Redis Pub/Sub 广播通道（`pubsub` 特性）」节（`RedisPubSub` 构造期 fail-fast / 独占订阅连接 / publish 接收端计数 / panic 隔离 / 断线线性退避重连 / 任务回收契约与 API 一览），特性表 `batch` 行同步注明拒绝模式
 - **`example_redis_modes` 单源双注册**：主包注册同名 example（path 指向 `examples/src/02_advanced/` 同一文件），workspace 根 `cargo run --example example_redis_modes` 可解析运行——默认 features（minimal，无 redis）下 cfg 降级为指引输出（rc=0），`--features redis` 走完整演示；`oxcache-examples` 包补 default feature（redis/kit/bloom，仅作为源码 cfg 判定面，oxcache 能力面仍由依赖行固定 features 决定）保持 `cargo run -p oxcache-examples --example ...` 完整演示；Standalone 连接失败从 `?` 硬退出改为与 Cluster/Sentinel 同风格的打印跳过（无 Redis 环境同样 rc=0）
 
-### 修复
+### 变更
+
+- **第十五跑依赖升级（2026-10-04 入库）**：`redb` 3.1 → 4.3（磁盘 L3 后端 `RedbDiskBackend` 适配新版本 API，对外语义不变）；trait-kit 采纳 `0.5.0-rc.7`、confers 采纳 `0.6.0-rc.6`；可选依赖特性显式化（`default-features = false` 收口，如 uuid、hmac）；`bincode` 钉在 2.0 线并注释说明不升 3 的原因——bincode 项目已停止开发，crates.io 的 3.0.0 为官方刻意发布的 `compile_error` 占位（阻止 caret 误升级），最后正式版为 2.x 线 2.0.1
+- **i18n 61 键接入**与 29 处文档校准随检查点入库
 
 ### 修复
 
 - **单特性全矩阵 `--all-targets` 口径裂缝**：`cargo hack check --each-feature --all-targets`（含 lib 内联测试与 tests/ 集成测试编译）暴露的存量裂缝——引用 memory 面（Moka/DashMap 后端、`Cache::new`）的 `#[cfg(test)]` 模块与无门控集成测试在单开 redis 系特性（dragonfly/redis/lock 等，不含 memory）时编译失败：`src/lib.rs` 宏依赖测试（redis 单开组合下自触发 `check_feature_dependence!` 的 compile_error，门控收紧为 `all(test, any(memory, full))`）、`backend/interface`、`cache/api`（主测试/atomic_ops/sync/sentinel_race/get_or_with_ttl）、`cache/builder/cache_builder`、`cache/chain`、`cache/interface` 测试模块统一收紧为 `all(test, feature = "memory")`（interface 兼顾 `testing` 用 any）；`tests/backend_interface_extra_test.rs` 补 `#![cfg(feature = "full")]` 文件级门控（对齐其余 12 个同类文件惯例）；`tests/integration.rs` 的 `chain_cache_integration_test`/`ttl_consistency_test` 补 `memory` 门控，`dragonfly_test`/`valkey_test`（L1+L2 组合测试）补文件级 `#![cfg(feature = "memory")]`；all-features 下 lib 测试数量不变（1477 passed，无误隐藏）
 - **`HotKeyTracker::record` 并发首次插入丢计数**：原 `get` + `entry().or_insert(1)` 两段式在多线程同时初始化同一 key 时，后到者的 `or_insert` 发现已存在即丢弃自己的 +1（并发回归实测 800 次记录采到 799）；改为单临界区 `entry().and_modify(fetch_add).or_insert(1)`，每次记录恰好 +1
 - **pubsub 内联测试基础设施**：接收端从 `std::sync::mpsc::recv_timeout`（阻塞 current_thread 运行时唯一线程，后台订阅任务无从投递）改为 `tokio::sync::mpsc` unbounded + `timeout` 异步等待——tokio 1.53 起有界 `Sender::send` 为 async，同步 handler 内未 poll 的 future 会静默丢消息；端到端用例前置探测升级为「支持 PUBLISH 的真 Redis」判定（同进程 `test_support::ensure_server(6379)` 会在真 Redis 缺席时架起无 PUBLISH 的最小假服务器，仅 TCP 探活无法区分），非真 Redis 与不可达同口径 SKIP
+- **rustdoc 断链（第十五跑 E2E#230）**：6 处指向 feature 门控目标的 intra-doc 链接降级为纯文本（`OxCacheConfigError` / `with_invalidation` / `Bincode` / `Postcard` / `global_tagged` 等），default 与 all-features 双口径 `-D warnings` 归零
+- **`stale` 特性内联测试 compression 引用（E2E#226）**：门控收口后 `cargo test --features stale --tests` 编译恢复 exit 0
+- **示例 Sentinel 段 API 误用（E2E#223）**：`example_redis_modes` 的 Sentinel 演示改显式 `RedisMode::Sentinel` 构建——`RedisBackend::new` 直连哨兵端口系 API 误用（显式路径实测 8/8 通过）
+- **pubsub panic 隔离测试环境鲁棒性（E2E#235）**：每轮重发覆盖断线重连窗口，失败时区分「静默超时」与「订阅任务提前退出」两种形态
 
 ## [0.5.0-rc.7] - 2026-09-30
 

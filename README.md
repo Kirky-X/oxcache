@@ -63,7 +63,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🔄 <b>同步 API</b><br><span style="color:#64748B"><code>sync_mode(true)</code> 后 <code>get_sync</code> / <code>set_sync</code> / <code>get_or_sync</code> 与异步 API 在同一 <code>Cache&lt;K, V&gt;</code> 上共存</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">⏱️ <b>全后端 per-entry TTL</b><br><span style="color:#64748B"><code>ttl</code> / <code>expire</code> 在 Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Mock / Chain / Bloom 九类后端语义一致</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⏱️ <b>全后端 per-entry TTL</b><br><span style="color:#64748B"><code>ttl</code> / <code>expire</code> 在 Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom 十类后端语义一致</span></td>
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🌸 <b>穿透防护</b><br><span style="color:#64748B">单飞去重（64 分片）、空值哨兵、TTL 抖动、布隆过滤器负查询短路</span></td>
@@ -466,6 +466,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | **Valkey**（经 RedisBackend） | 同 Redis | 同 Redis | 同 Redis | Redis 协议兼容，使用 `ValkeyStandalone` 模式 |
 | **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 一致 |
 | **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | Aerospike 原生 TTL（秒级精度），亚秒 TTL 上取整 |
+| **RedbDiskBackend**（`disk`） | 存储 `(value, expiry epoch ms)` envelope；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true`（键不存在或已过期返回 `false`） | `set(ttl=None)` 沿用 `with_default_ttl` 的后端默认 TTL（未设置则永不过期） |
 | **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用，与 DashMap 语义对齐 |
 | **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
 | **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
@@ -480,9 +481,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1537 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1564 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
-| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 139 |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 140 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
 | 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 21 |
 | 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
@@ -490,7 +491,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**；合计 2166（`src/` 1537 + `tests/` 629）。分表按各测试目录 grep 计数，未入表的 `tests/single_flight_flight_signal.rs`（4 例）与 `tests/common/` 共享工具（1 例）补足差额。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**（2026-10-04 复核）；合计 2262（`src/` 1564 + `tests/` 698）。分表按各测试目录 grep 计数，未入表的 13 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 68 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
 
 ### 常用命令（与 CI 一致）
 
@@ -564,7 +565,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 |:----:|------|------|
 | 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.7（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
-| ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey（及 Dragonfly）集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
+| ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey 与 6 个 Dragonfly 集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
 | ✅ | **质量审查留档项跟进** | 留档见 `docs/diting-review.md`（3 Medium + 2 Low）：5 项全部收口（2 Medium + 1 Low 当轮修复，MED-001 与 LOW-002 于 2026-09-30 待办修复轮收口） |
 
 ---

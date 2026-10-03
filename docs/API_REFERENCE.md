@@ -639,8 +639,10 @@ ps.shutdown();
 
 ## 🔄 同步 API
 
-同步 API 镜像异步 API，但通过 `tokio::task::block_in_place` 阻塞。
-它需要**多线程** Tokio 运行时（从 current-thread 运行时调用会返回 `Err(NotSupported)`）。
+同步 API 镜像异步 API。运行时要求按配置通路区分（与 README「运行时注意」、架构文档及下文 CacheBuilder 章节的三环境矩阵一致）：
+
+- **默认 Moka 路径（含 `sync_backend_arc` 注入的原生同步面）**：同步方法直连原生同步实现，运行时无关——runtime 之外可直接调用（临时 current-thread runtime 兜底驱动）；`multi_thread` runtime 上经 `tokio::task::block_in_place` 复用当前 runtime；仅 current-thread runtime 的**异步上下文内**显性返回 `Err(NotSupported)`（tokio 禁止嵌套阻塞驱动）
+- **`backend_arc(...)` + `sync_mode(true)` 桥接路径（`AsyncToSyncBridge`）**：每个同步调用经 `block_in_place` + `block_on` 阻塞于异步面，要求调用时处于**多线程** Tokio 运行时（I/O 型后端需 ≥2 worker）；runtime 之外或 current-thread runtime 上逐调用返回 `Err(NotSupported)`
 
 ### `SyncCacheBackend` Trait 层级
 
@@ -741,12 +743,13 @@ let backend = BloomFilterBackend::builder()
 
 ## 🕒 TTL 管理
 
-所有后端（Moka、DashMap、Redis、Mock、Chain、Bloom）都通过
+所有后端（Moka、DashMap、Redis、Valkey、Dragonfly、Aerospike、Disk、Mock、Chain、Bloom）都通过
 `set(key, value, Some(ttl))` 支持单条目 TTL。
 
 - **Moka** 使用 `moka::Expiry` trait 实现真正的单条目 TTL，覆盖构建器设置的全局 TTL。
 - **DashMap** 使用懒过期（条目在访问时过期）。
 - **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
+- **Disk（RedbDiskBackend）** 使用懒过期（读路径惰性判定 + 物理删除）；`with_default_ttl` 提供后端默认 TTL，`set(ttl=None)` 沿用之。
 
 各后端的完整行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 
@@ -775,7 +778,7 @@ let backend = BloomFilterBackend::builder()
 
 ## 💾 磁盘持久化后端（`disk`）
 
-- `RedbDiskBackend`（`oxcache::backend::disk`）— redb 3.x 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
+- `RedbDiskBackend`（`oxcache::backend::disk`）— redb 4.3 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
 - 懒过期：读路径惰性判定 + 物理删除（与 DashMap 同口径）；`max_entries` 超限清扫先删过期、按 seq 升序删最旧
 - `BackendKind::Disk`；`BackendScore`：score 85（`Scores::REDB`）/ persistent / name `"disk"`；经 `ChainLink::from_arc` 或 `ChainBuilder::extra_backend` 挂链为 L3
 
