@@ -27,7 +27,7 @@
 - **示例 Sentinel 段 API 误用（E2E#223）**：`example_redis_modes` 的 Sentinel 演示改显式 `RedisMode::Sentinel` 构建——`RedisBackend::new` 直连哨兵端口系 API 误用（显式路径实测 8/8 通过）
 - **pubsub panic 隔离测试环境鲁棒性（E2E#235）**：每轮重发覆盖断线重连窗口，失败时区分「静默超时」与「订阅任务提前退出」两种形态
 
-## [0.5.0-rc.7] - 2026-09-30
+## [0.5.0-rc.6] — 2026-10-05
 
 ### 新增
 

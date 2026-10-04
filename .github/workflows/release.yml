@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
+        with:
+          toolchain: 1.97.1
       - name: Verify build (full features)
         run: cargo build --release --features full --workspace
       - name: Verify tests pass
