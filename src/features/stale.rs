@@ -380,7 +380,10 @@ mod tests {
     #[tokio::test]
     async fn stale_window_serves_old_value_and_emits_event() {
         let publisher = Arc::new(RecordingPublisher::default());
-        let backend = backend(Duration::from_millis(500)).with_event_publisher(publisher.clone());
+        // stale 窗口 5s：插桩/并行负载下 await 点漂移可把 80ms sleep 拉到数百 ms，
+        // 500ms 窗会被越过误判 Expired；5s 窗留 30 倍余量（TTL 50ms 过期后
+        // 仍远在窗口内）。
+        let backend = backend(Duration::from_secs(5)).with_event_publisher(publisher.clone());
         backend
             .set(k("s"), Arc::new(vec![7]), Some(Duration::from_millis(50)))
             .await
