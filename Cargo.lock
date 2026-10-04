@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache"
-version = "0.5.0-rc.7"
+version = "0.5.0-rc.6"
 dependencies = [
  "aerospike",
  "async-trait",
@@ -2709,13 +2709,13 @@ dependencies = [
 
 [[package]]
 name = "oxcache-examples"
-version = "0.5.0-rc.7"
+version = "0.5.0-rc.6"
 dependencies = [
  "async-trait",
  "chrono",
  "criterion",
  "inklog",
- "oxcache 0.5.0-rc.7",
+ "oxcache 0.5.0-rc.6",
  "serde",
  "serde_json",
  "tokio",
@@ -2726,7 +2726,7 @@ dependencies = [
 
 [[package]]
 name = "oxcache_macros"
-version = "0.5.0-rc.7"
+version = "0.5.0-rc.6"
 dependencies = [
  "proc-macro2",
  "quote",
