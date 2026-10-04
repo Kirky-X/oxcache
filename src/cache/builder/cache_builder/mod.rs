@@ -8,6 +8,16 @@ use crate::backend::SyncCacheBackend;
 use crate::backend::{AsyncToSyncBridge, CacheBackend, SyncBackendAdapter};
 use crate::cache::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(all(feature = "adaptive-ttl", feature = "stale"))]
+use crate::i18n::messages::MSG_DETAIL_BUILDER_ADAPTIVE_TTL_STALE_CONFLICT;
+#[cfg(feature = "adaptive-ttl")]
+use crate::i18n::messages::MSG_DETAIL_BUILDER_ADAPTIVE_TTL_SYNC_CONFLICT;
+#[cfg(not(feature = "memory"))]
+use crate::i18n::messages::MSG_DETAIL_BUILDER_NO_BACKEND_REQUIRES_MEMORY;
+#[cfg(feature = "stale")]
+use crate::i18n::messages::MSG_DETAIL_BUILDER_STALE_TTL_SYNC_CONFLICT;
+#[cfg(any(not(feature = "memory"), feature = "stale", feature = "adaptive-ttl"))]
+use crate::i18n::messages::t;
 use crate::traits::CacheKey;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -382,11 +392,10 @@ where
             // 默认 Moka 路径依赖 `memory` 特性；关闭时必须显式提供 backend
             #[cfg(not(feature = "memory"))]
             {
-                return Err(OxCacheError::NotSupported(
-                    "CacheBuilder with no backend requires the `memory` feature \
-                     (default Moka); pass .backend_arc() explicitly otherwise."
-                        .to_string(),
-                ));
+                return Err(OxCacheError::NotSupported(t(
+                    MSG_DETAIL_BUILDER_NO_BACKEND_REQUIRES_MEMORY,
+                    &[],
+                )));
             }
 
             #[cfg(feature = "memory")]
@@ -426,11 +435,10 @@ where
                 #[cfg(feature = "stale")]
                 if let Some(stale_ttl) = self.stale_ttl {
                     if self.sync_mode {
-                        return Err(OxCacheError::NotSupported(
-                            "stale_ttl cannot be combined with sync_mode(true); the sync API \
-                     bypasses the decorator and would see incomplete stale semantics"
-                                .to_string(),
-                        ));
+                        return Err(OxCacheError::NotSupported(t(
+                            MSG_DETAIL_BUILDER_STALE_TTL_SYNC_CONFLICT,
+                            &[],
+                        )));
                     }
                     let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
                         cache.backend.clone(),
@@ -454,19 +462,17 @@ where
                 #[cfg(feature = "adaptive-ttl")]
                 if let Some(config) = self.adaptive_ttl {
                     if self.sync_mode {
-                        return Err(OxCacheError::NotSupported(
-                            "adaptive_ttl cannot be combined with sync_mode(true); the sync \
-                             API bypasses the decorator and would see unadjusted TTLs"
-                                .to_string(),
-                        ));
+                        return Err(OxCacheError::NotSupported(t(
+                            MSG_DETAIL_BUILDER_ADAPTIVE_TTL_SYNC_CONFLICT,
+                            &[],
+                        )));
                     }
                     #[cfg(feature = "stale")]
                     if self.stale_ttl.is_some() {
-                        return Err(OxCacheError::NotSupported(
-                            "adaptive_ttl cannot be combined with stale_ttl; stacking two TTL \
-                             rewriters has undefined semantics"
-                                .to_string(),
-                        ));
+                        return Err(OxCacheError::NotSupported(t(
+                            MSG_DETAIL_BUILDER_ADAPTIVE_TTL_STALE_CONFLICT,
+                            &[],
+                        )));
                     }
                     let decorator =
                         Arc::new(crate::features::adaptive_ttl::AdaptiveTtlBackend::new(
@@ -556,11 +562,10 @@ where
         #[cfg(feature = "stale")]
         if let Some(stale_ttl) = self.stale_ttl {
             if self.sync_mode {
-                return Err(OxCacheError::NotSupported(
-                    "stale_ttl cannot be combined with sync_mode(true); the sync API \
-                     bypasses the decorator and would see incomplete stale semantics"
-                        .to_string(),
-                ));
+                return Err(OxCacheError::NotSupported(t(
+                    MSG_DETAIL_BUILDER_STALE_TTL_SYNC_CONFLICT,
+                    &[],
+                )));
             }
             let mut decorator = crate::features::stale::StaleWhileRevalidateBackend::new(
                 cache.backend.clone(),
@@ -584,19 +589,17 @@ where
         #[cfg(feature = "adaptive-ttl")]
         if let Some(config) = self.adaptive_ttl {
             if self.sync_mode {
-                return Err(OxCacheError::NotSupported(
-                    "adaptive_ttl cannot be combined with sync_mode(true); the sync API \
-                     bypasses the decorator and would see unadjusted TTLs"
-                        .to_string(),
-                ));
+                return Err(OxCacheError::NotSupported(t(
+                    MSG_DETAIL_BUILDER_ADAPTIVE_TTL_SYNC_CONFLICT,
+                    &[],
+                )));
             }
             #[cfg(feature = "stale")]
             if self.stale_ttl.is_some() {
-                return Err(OxCacheError::NotSupported(
-                    "adaptive_ttl cannot be combined with stale_ttl; stacking two TTL \
-                     rewriters has undefined semantics"
-                        .to_string(),
-                ));
+                return Err(OxCacheError::NotSupported(t(
+                    MSG_DETAIL_BUILDER_ADAPTIVE_TTL_STALE_CONFLICT,
+                    &[],
+                )));
             }
             let decorator = Arc::new(crate::features::adaptive_ttl::AdaptiveTtlBackend::new(
                 cache.backend.clone(),

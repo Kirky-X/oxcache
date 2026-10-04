@@ -13,14 +13,14 @@
 
 | 负载 | JSON | bincode 2 | postcard 1.x |
 | --- | --- | --- | --- |
-| Sample（短字符串混合） | 69 B | 74 B | 32 B |
-| NumericHeavy（6×64 位数值） | 84 B | 48 B | — |
+| Sample（短字符串混合） | 69 B | 32 B | 32 B |
+| NumericHeavy（6×64 位数值） | 84 B | 40 B | — |
 
 结论（以真实负载度量为准）：
 
-- **postcard**（varint）对混合负载最紧凑（约为 JSON 的 46%）；
-- **bincode 2**（`config::standard()`）默认 varint 编码，数值密集场景约为 JSON 的 57%，
-  但短字符串场景可能略大于 JSON（长度前缀 + 无字段名压缩）；
+- **postcard** 与 **bincode 2**（`config::standard()`，varint 编码）对混合负载同为最紧凑
+  （32 B，约为 JSON 的 46%）；
+- **bincode 2** 数值密集场景约为 JSON 的 48%（40 B / 84 B）；
 - JSON 优势是可读性与跨语言互操作；**同一键前缀不得混用格式**（无自描述头）。
 
 复现：

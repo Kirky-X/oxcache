@@ -48,7 +48,7 @@ export OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
 | 危险字符 | `\r`、`\n`、`\0` | 拒绝 CR/LF/NULL（防止 CRLF 注入） |
 | 控制字符 | 所有 Unicode 控制字符（`\t` 除外） | 防止二进制/转义序列注入 |
 | 命令注入字符 | `;`、`\|`、`&`、`` ` `` | 拒绝 shell 风格命令拼接 |
-| 模式扫描 | SQL 注入与路径遍历特征 | 拒绝 `../`、`etc/passwd` 等模式 |
+| 模式扫描 | SQL 注入与路径遍历特征 | 按子串匹配拒绝 `../`、`%2e%2e` 等模式（裸路径段如 `etc/passwd` 不在扫描范围） |
 
 ### 示例
 
@@ -58,6 +58,7 @@ use oxcache::validate_redis_key;
 validate_redis_key("user:123")?;            // OK
 validate_redis_key("user\r\nSET foo bar")?; // Err，检测到 CRLF 注入
 validate_redis_key("")?;                    // Err，空键
+validate_redis_key("etc/passwd")?;          // OK，不含 `../` 等路径遍历变体
 ```
 
 ## 📜 Lua 脚本沙箱

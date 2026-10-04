@@ -75,13 +75,19 @@ mod redis_client_tests {
                 .expect("Standalone should work");
             assert_eq!(backend.mode(), RedisMode::Standalone);
 
-            let backend = RedisBackendBuilder::default()
+            // mode(Sentinel) 真实生效后连接串语义是 sentinel 节点列表，对
+            // 单机端点必须显性失败：单机不应答 SENTINEL 发现命令，服务端以
+            // "unknown command 'SENTINEL'" 拒绝（正路径由 redis_sentinel_test
+            // 在真实 sentinel 栈上覆盖）
+            let sentinel = RedisBackendBuilder::default()
                 .connection_string(&url)
                 .mode(RedisMode::Sentinel)
                 .build()
-                .await
-                .expect("Sentinel should work");
-            assert_eq!(backend.mode(), RedisMode::Sentinel);
+                .await;
+            assert!(
+                sentinel.is_err(),
+                "mode(Sentinel) against a non-sentinel endpoint must fail explicitly"
+            );
 
             // mode(Cluster) 真实生效后对单机端点必须显性失败：集群连接要求
             // cluster_enabled 实例，服务端以 "cluster support disabled" 拒绝

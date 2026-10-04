@@ -17,17 +17,21 @@ tests/
 ├── e2e/
 │   ├── advanced_scenarios_test.rs       # 高级场景（降级、并发、TTL 覆盖）
 │   ├── cache_e2e_test.rs                # 基础 Cache 操作 E2E
+│   ├── dist_lock_watchdog_e2e.rs        # 分布式锁看门狗组合语义 E2E
+│   ├── events_chain_e2e.rs              # ChainCache 事件发布-失败-订阅链 E2E
 │   ├── macro_test.rs                    # #[cached] 宏 E2E
 │   └── real_world_scenario_test.rs      # 真实业务场景 E2E
 │
 ├── integration.rs                       # 集成测试入口
 ├── integration/
+│   ├── batch_serialization_format_test.rs # 批量 API 与 UnifiedSerializer 口径一致性
 │   ├── batch_write_test.rs              # 批量写入
 │   ├── chain_cache_integration_test.rs  # 链式缓存
 │   ├── comprehensive_test.rs            # 综合集成测试
 │   ├── degradation_tests.rs             # 降级策略与健康检查
 │   ├── invalidation_test.rs             # 缓存失效
 │   ├── recovery_test.rs                 # 故障恢复
+│   ├── stale_revalidate_test.rs         # SWR 陈旧重验集成
 │   ├── sync_api_test.rs                 # Sync API (Moka/DashMap/Redis)
 │   ├── two_level_test.rs                # 双层缓存
 │   ├── version_test.rs                  # 版本管理
@@ -74,10 +78,27 @@ tests/
 │   ├── sync_test.rs                     # sync 模式宏测试
 │   └── compile_fail/                    # trybuild 编译失败测试
 │       ├── invalid_arg.rs / .stderr
+│       ├── skip_unknown_param.rs / .stderr
+│       ├── skip_with_key_conflict.rs / .stderr
 │       └── sync_with_async_fn.rs / .stderr
 │
 ├── feature_test.rs                      # Feature 门控测试
 ├── bloom_filter_integration.rs          # Bloom filter 集成测试 (feature = "bloom")
+│
+├── backend_atomic_gaps_test.rs          # 后端原子写（AtomicCacheWriter）与故障注入长尾
+├── backend_interface_extra_test.rs      # backend::interface 面（SyncBackendAdapter 等）
+├── bloom_filter_extra_test.rs           # BloomFilterBackend 面覆盖
+├── builders_extra_test.rs               # 分层构建器与 Cache 构建路径覆盖
+├── cache_config_build_paths_test.rs     # CacheConfig 构建路径长尾
+├── cache_config_extra_test.rs           # CacheConfig 校验与后端构建面
+├── cache_sync_ops_extra_test.rs         # Cache sync 面长尾与 stale 集成路径
+├── cache_tail_extra_test.rs             # 长尾面（后端工厂注册表、redb 磁盘后端等）
+├── chain_read_paths_test.rs             # ChainCache 读策略与批量读错误路径
+├── disk_backend_extra_test.rs           # RedbDiskBackend 长尾面
+├── kit_module_extra_test.rs             # trait-kit OxcacheModule 构建面
+├── redis_fake_backend_test.rs           # 内嵌 RESP2 假 Redis 服务器的 Redis 族覆盖
+├── single_flight_flight_signal.rs       # single-flight 信号（Cache::get_or 驱动）
+├── stale_extra_test.rs                  # StaleWhileRevalidate 透传面与双时间戳重算
 │
 ├── chaos.rs                             # 混沌测试入口
 ├── chaos/

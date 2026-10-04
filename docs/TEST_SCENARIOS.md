@@ -36,8 +36,8 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 | 内存后端 moka/dashmap | 读写/过期/TTL/TTI/容量 | lib 内联 + `tests/unit.rs` + e2e advanced/cache | 无缺口 |
 | Redis 后端 | 连接/读写/管道/重连 | `tests/integration/redis/redis_client_comprehensive_test.rs` | 无缺口 |
 | Redis 集群 | 6 节点建群/分片/failover | `tests/integration/redis/redis_cluster_test.rs` + real_env compose | 无缺口 |
-| Redis 哨兵 | 主从切换/发现 | `tests/integration/redis/redis_sentinel_test.rs` + real_env compose | 无缺口 |
-| Dragonfly | 兼容模式/操作面 | `tests/integration/backend/dragonfly_test.rs`（8 测试） | 无缺口 |
+| Redis 哨兵 | 主从切换/发现（failover 后同一客户端重新发现新 master 续读写） | `tests/integration/redis/redis_sentinel_test.rs` + real_env compose | 无缺口 |
+| Dragonfly | 兼容模式/操作面 | `tests/integration/backend/dragonfly_test.rs`（6 测试） | 无缺口 |
 | Valkey | 显式模式/透明复用 | `tests/integration/backend/valkey_test.rs`（8 测试） | 无缺口 |
 | Aerospike | 容器自管+access-address 注入+全操作面 | `tests/integration/backend/aerospike_test.rs`（7 测试） | lib 内联 11 个 --ignored 为同路径冗余且 CI 从不跑，记录为环境边界（§4.4） |
 | 链式缓存 | 排序/回填/竞速读/部分失败 | `tests/integration/chain_cache_integration_test.rs` | 无缺口 |
@@ -61,8 +61,10 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 测试环境协议（环境变量）：`REDIS_URL` 优先 / `OXCACHE_SKIP_REDIS_TESTS` 全跳过 /
 `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS`（非 TLS 门禁）/
 `REDIS_CLUSTER_AVAILABLE` / `REDIS_SENTINEL_AVAILABLE` / `REDIS_SENTINEL_MASTER_URL`
-（默认 `redis://127.0.0.1:16379`；`tests/real_env/docker-compose.sentinel.yml` 栈的
-master 宿主端口默认 16380，对应 `redis://127.0.0.1:16380`）/ `REDIS_VERSION_TEST_ENABLED`。
+（默认 `redis://127.0.0.1:16380`，对齐 `tests/real_env/docker-compose.sentinel.yml`
+栈的 master 宿主端口）/ `REDIS_SENTINEL_ADDR_MAP`（sentinel 模式 NAT 地址映射，
+`容器地址=宿主地址,...`，默认值即该 compose 拓扑：sentinel 报告容器内网地址，
+宿主机侧客户端须映射为发布端口）/ `REDIS_VERSION_TEST_ENABLED`。
 
 ## 3. E2E 缺口补盲（新增落地）
 

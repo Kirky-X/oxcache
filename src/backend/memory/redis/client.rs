@@ -13,6 +13,7 @@
 use super::builder::{RedisBackendBuilder, RedisMode};
 use super::circuit_breaker::CircuitBreaker;
 use super::retry::retry_with_backoff;
+use super::sentinel::SentinelConnection;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "metrics")]
@@ -24,14 +25,17 @@ use std::time::Duration;
 
 /// Redis async connection abstraction.
 ///
-/// 单机/哨兵场景走 [`redis::aio::ConnectionManager`]；集群场景走
+/// 单机场景走 [`redis::aio::ConnectionManager`]；集群场景走
 /// [`redis::cluster_async::ClusterConnection`]（按槽位路由并自动跟随
-/// MOVED/ASK 重定向）。两者都实现 `aio::ConnectionLike`，调用方以
-/// `cmd.query_async(&mut conn)` 统一驱动，无需感知分支。
+/// MOVED/ASK 重定向）；哨兵场景由 [`SentinelConnection`] 持有当前 master
+/// 连接，可恢复错误后重新发现 master（failover 跟随）。三者都实现
+/// `aio::ConnectionLike`，调用方以 `cmd.query_async(&mut conn)` 统一驱动，
+/// 无需感知分支。
 #[derive(Clone)]
 pub(crate) enum RedisConnection {
     Single(redis::aio::ConnectionManager),
     Cluster(redis::cluster_async::ClusterConnection),
+    Sentinel(SentinelConnection),
 }
 
 impl redis::aio::ConnectionLike for RedisConnection {
@@ -39,10 +43,13 @@ impl redis::aio::ConnectionLike for RedisConnection {
         &'a mut self,
         cmd: &'a redis::Cmd,
     ) -> redis::RedisFuture<'a, redis::Value> {
-        match self {
-            RedisConnection::Single(conn) => conn.req_packed_command(cmd),
-            RedisConnection::Cluster(conn) => conn.req_packed_command(cmd),
-        }
+        Box::pin(async move {
+            match self {
+                RedisConnection::Single(conn) => conn.req_packed_command(cmd).await,
+                RedisConnection::Cluster(conn) => conn.req_packed_command(cmd).await,
+                RedisConnection::Sentinel(sentinel) => sentinel.exec_cmd(cmd).await,
+            }
+        })
     }
 
     fn req_packed_commands<'a>(
@@ -51,16 +58,26 @@ impl redis::aio::ConnectionLike for RedisConnection {
         offset: usize,
         count: usize,
     ) -> redis::RedisFuture<'a, Vec<redis::Value>> {
-        match self {
-            RedisConnection::Single(conn) => conn.req_packed_commands(pipeline, offset, count),
-            RedisConnection::Cluster(conn) => conn.req_packed_commands(pipeline, offset, count),
-        }
+        Box::pin(async move {
+            match self {
+                RedisConnection::Single(conn) => {
+                    conn.req_packed_commands(pipeline, offset, count).await
+                }
+                RedisConnection::Cluster(conn) => {
+                    conn.req_packed_commands(pipeline, offset, count).await
+                }
+                RedisConnection::Sentinel(sentinel) => {
+                    sentinel.exec_pipeline(pipeline, offset, count).await
+                }
+            }
+        })
     }
 
     fn get_db(&self) -> i64 {
         match self {
             RedisConnection::Single(conn) => conn.get_db(),
             RedisConnection::Cluster(conn) => conn.get_db(),
+            RedisConnection::Sentinel(sentinel) => sentinel.db(),
         }
     }
 }
@@ -69,8 +86,9 @@ impl redis::aio::ConnectionLike for RedisConnection {
 ///
 /// This backend provides a distributed cache using Redis.
 /// It supports standalone, sentinel, and cluster modes.
-/// 单机/哨兵用 ConnectionManager；集群自动切换 ClusterConnection
-/// （显式 `mode(Cluster)` 或默认模式下探测到 `cluster_enabled`）。
+/// 单机用 ConnectionManager；哨兵模式发现 master 且 failover 后自动重新
+/// 发现；集群自动切换 ClusterConnection（显式 `mode(Cluster)` 或默认模式
+/// 下探测到 `cluster_enabled`）。
 #[derive(Clone)]
 pub struct RedisBackend {
     client: Arc<Client>,

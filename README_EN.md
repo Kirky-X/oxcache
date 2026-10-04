@@ -471,9 +471,9 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1564 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1585 |
 | Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 332 |
-| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel, distributed locks, etc. | 140 |
+| Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel (incl. failover re-discovery), distributed locks, etc. | 141 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
 | Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 21 |
 | Security tests | `--test security` | Security coverage and security validation | 20 |
@@ -481,7 +481,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7** (re-verified 2026-10-04); 2262 in total (`src/` 1564 + `tests/` 698). Per-layer rows are grep counts per test directory; the 13 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7** (re-verified 2026-10-05); 2284 in total (`src/` 1585 + `tests/` 699). Per-layer rows are grep counts per test directory; the 12 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
 
 ### Common Commands (same as CI)
 
@@ -515,7 +515,7 @@ cargo llvm-cov --features full --workspace --fail-under-lines 80
 
 Highlights: the borrowed-key hot-path APIs (`get_by_str` / `set_by_str`) measure **-6.7%** for get and **-12.7%** for set; with serialization-format switching (`serde-bincode` / `postcard`), postcard's mixed-payload transfer size is about **46%** of JSON.
 
-Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_path_benchmark`, `redis_benchmark`, `serialization_benchmark`, `dashmap_benchmark`, `dragonfly_benchmark`; run e.g. `cargo bench --bench hot_path_benchmark`.
+Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_path_benchmark`, `redis_benchmark`, `serialization_benchmark`, `serialization_rkyv_probe`, `metrics_recorder_benchmark`, `sync_surface_benchmark`, `dashmap_benchmark`, `dragonfly_benchmark`; run e.g. `cargo bench --bench hot_path_benchmark`.
 
 ---
 
@@ -537,7 +537,7 @@ Oxcache ships multiple layers of defense inside the library. For the full securi
 | Deserialization DoS guard | `MAX_JSON_DEPTH` (64 levels) depth limit + `MAX_JSON_SIZE` (5 MB) deserialization size cap + 64 MiB decompressed-output cap (decompression-bomb guard) + stack-based recursion (`serde_stacker`) |
 | Supply chain | Every third-party GitHub Action pinned by commit SHA in CI; `cargo deny check` (advisories / licenses / duplicate deps, see `deny.toml`) and `cargo audit` run in CI |
 
-**Security API (public validation functions)**:
+**Security API (public validation functions)** (requires the `redis` or `full` feature; these functions are not exported under the default `minimal` feature):
 
 ```rust
 use oxcache::{validate_lua_script, validate_redis_key, validate_scan_pattern};

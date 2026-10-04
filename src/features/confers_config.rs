@@ -45,7 +45,7 @@ use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_CONFERS_EXPECTS_BOOL, MSG_DETAIL_CONFERS_EXPECTS_F64,
     MSG_DETAIL_CONFERS_EXPECTS_STRING, MSG_DETAIL_CONFERS_EXPECTS_U64,
-    MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE, t,
+    MSG_DETAIL_CONFERS_READ_FAILED, MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE, t,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -243,11 +243,12 @@ async fn get_u64<C>(connector: &C, key: &str) -> OxCacheResult<Option<u64>>
 where
     C: confers::ConfigConnector,
 {
-    match connector
-        .get_raw(key)
-        .await
-        .map_err(|e| OxCacheError::Operation(format!("confers read '{key}' failed: {e}")))?
-    {
+    match connector.get_raw(key).await.map_err(|e| {
+        OxCacheError::Operation(t(
+            MSG_DETAIL_CONFERS_READ_FAILED,
+            &[("key", key.to_string()), ("err", e.to_string())],
+        ))
+    })? {
         None => Ok(None),
         // 键存在但类型不符：显性报错，与模块「不做静默回落」承诺一致
         Some(v) => v.as_u64().map(Some).ok_or_else(|| {
@@ -278,11 +279,12 @@ async fn get_bool<C>(connector: &C, key: &str) -> OxCacheResult<Option<bool>>
 where
     C: confers::ConfigConnector,
 {
-    match connector
-        .get_raw(key)
-        .await
-        .map_err(|e| OxCacheError::Operation(format!("confers read '{key}' failed: {e}")))?
-    {
+    match connector.get_raw(key).await.map_err(|e| {
+        OxCacheError::Operation(t(
+            MSG_DETAIL_CONFERS_READ_FAILED,
+            &[("key", key.to_string()), ("err", e.to_string())],
+        ))
+    })? {
         None => Ok(None),
         Some(v) => v.as_bool().map(Some).ok_or_else(|| {
             OxCacheError::InvalidInput(t(
@@ -297,11 +299,12 @@ async fn get_f64<C>(connector: &C, key: &str) -> OxCacheResult<Option<f64>>
 where
     C: confers::ConfigConnector,
 {
-    match connector
-        .get_raw(key)
-        .await
-        .map_err(|e| OxCacheError::Operation(format!("confers read '{key}' failed: {e}")))?
-    {
+    match connector.get_raw(key).await.map_err(|e| {
+        OxCacheError::Operation(t(
+            MSG_DETAIL_CONFERS_READ_FAILED,
+            &[("key", key.to_string()), ("err", e.to_string())],
+        ))
+    })? {
         None => Ok(None),
         Some(v) => v.as_f64().map(Some).ok_or_else(|| {
             OxCacheError::InvalidInput(t(
@@ -316,11 +319,12 @@ async fn get_string<C>(connector: &C, key: &str) -> OxCacheResult<Option<String>
 where
     C: confers::ConfigConnector,
 {
-    match connector
-        .get_raw(key)
-        .await
-        .map_err(|e| OxCacheError::Operation(format!("confers read '{key}' failed: {e}")))?
-    {
+    match connector.get_raw(key).await.map_err(|e| {
+        OxCacheError::Operation(t(
+            MSG_DETAIL_CONFERS_READ_FAILED,
+            &[("key", key.to_string()), ("err", e.to_string())],
+        ))
+    })? {
         None => Ok(None),
         Some(v) => v.as_str().map(|s| Some(s.to_string())).ok_or_else(|| {
             OxCacheError::InvalidInput(t(

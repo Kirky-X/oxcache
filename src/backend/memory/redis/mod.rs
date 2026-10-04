@@ -14,6 +14,7 @@ pub(crate) mod lua_executor;
 pub(crate) mod namespace;
 pub(crate) mod pipeline;
 pub(crate) mod retry;
+pub(crate) mod sentinel;
 pub(crate) mod sync_traits;
 
 #[cfg(test)]

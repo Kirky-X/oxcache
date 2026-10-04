@@ -4,6 +4,8 @@
 
 use super::*;
 use crate::backend::{CacheBackend, SyncCacheBackend};
+#[cfg(not(feature = "memory"))]
+use crate::i18n::messages::{MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE, t};
 // UnifiedSerializer 仅在 serialization/full feature 下可用
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
@@ -265,10 +267,9 @@ where
             Ok(Self::new_with_backend(Arc::new(backend)))
         }
         #[cfg(not(feature = "memory"))]
-        Err(crate::error::OxCacheError::NotSupported(
-            "Cache::memory() requires the `memory` feature; \
-             construct via Cache::new_with_backend instead."
-                .to_string(),
-        ))
+        Err(crate::error::OxCacheError::NotSupported(t(
+            MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE,
+            &[],
+        )))
     }
 }

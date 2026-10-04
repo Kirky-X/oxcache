@@ -481,9 +481,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1564 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1585 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
-| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel、分布式锁等 | 140 |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 141 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
 | 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 21 |
 | 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
@@ -491,7 +491,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**（2026-10-04 复核）；合计 2262（`src/` 1564 + `tests/` 698）。分表按各测试目录 grep 计数，未入表的 13 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 68 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.7**（2026-10-05 复核）；合计 2284（`src/` 1585 + `tests/` 699）。分表按各测试目录 grep 计数，未入表的 12 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 68 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
 
 ### 常用命令（与 CI 一致）
 
@@ -525,7 +525,7 @@ cargo llvm-cov --features full --workspace --fail-under-lines 80
 
 要点速览：热路径借用键 API（`get_by_str` / `set_by_str`）实测 get **-6.7%**、set **-12.7%**；序列化格式切换（`serde-bincode` / `postcard`）下 postcard 混合负载传输体积约为 JSON 的 **46%**。
 
-Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_benchmark`、`redis_benchmark`、`serialization_benchmark`、`dashmap_benchmark`、`dragonfly_benchmark`，运行方式如 `cargo bench --bench hot_path_benchmark`。
+Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_benchmark`、`redis_benchmark`、`serialization_benchmark`、`serialization_rkyv_probe`、`metrics_recorder_benchmark`、`sync_surface_benchmark`、`dashmap_benchmark`、`dragonfly_benchmark`，运行方式如 `cargo bench --bench hot_path_benchmark`。
 
 ---
 
@@ -547,7 +547,7 @@ Oxcache 在库层面内建多层防御，完整安全设计、威胁模型与安
 | 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
 | 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
 
-**安全 API（公共验证函数）**：
+**安全 API（公共验证函数）**（需启用 `redis` 或 `full` 特性；默认 `minimal` 特性下这些函数不导出）：
 
 ```rust
 use oxcache::{validate_lua_script, validate_redis_key, validate_scan_pattern};

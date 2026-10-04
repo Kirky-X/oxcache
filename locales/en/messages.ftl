@@ -75,6 +75,12 @@ panic-bloom-fpr-must-be-in-open-interval = false_positive_rate must be in (0.0, 
 panic-bloom-hash-count-unreachable = hash_count { $hash_count } unreachable for capacity { $capacity }
 panic-bloom-hash-count-backsolve-drift = hash_count { $hash_count } unreachable for capacity { $capacity }: k steps by more than 1 per bitmap byte at this capacity
 panic-bloom-seed-generation-failed = failed to create bloom filter: random seed generation failed
+panic-config-validate-moka-requires-memory = validate rejects Moka without the memory feature
+panic-config-validate-dashmap-requires-memory = validate rejects DashMap without the memory feature
+panic-config-validate-mock-requires-test-with-memory = validate rejects Mock outside test builds with memory
+panic-config-validate-redis-requires-redis-feature = validate rejects Redis without the redis feature
+panic-config-validate-dragonfly-requires-dragonfly-feature = validate rejects Dragonfly without the dragonfly feature
+panic-config-validate-disk-requires-disk-feature = validate rejects Disk without the disk feature
 
 # -- User-visible detail messages (interpolated into error templates) --
 detail-disk-redb-open-failed = redb open failed: { $err }
@@ -119,6 +125,28 @@ detail-confers-value-exceeds-range = confers key '{ $key }' value { $value } exc
 detail-confers-expects-bool = confers key '{ $key }' expects bool, got { $value }
 detail-confers-expects-f64 = confers key '{ $key }' expects f64, got { $value }
 detail-confers-expects-string = confers key '{ $key }' expects string, got { $value }
+detail-confers-read-failed = confers read '{ $key }' failed: { $err }
+detail-builder-no-backend-requires-memory = CacheBuilder with no backend requires the `memory` feature (default Moka); pass .backend_arc() explicitly otherwise.
+detail-builder-stale-ttl-sync-conflict = stale_ttl cannot be combined with sync_mode(true); the sync API bypasses the decorator and would see incomplete stale semantics
+detail-builder-adaptive-ttl-sync-conflict = adaptive_ttl cannot be combined with sync_mode(true); the sync API bypasses the decorator and would see unadjusted TTLs
+detail-builder-adaptive-ttl-stale-conflict = adaptive_ttl cannot be combined with stale_ttl; stacking two TTL rewriters has undefined semantics
+detail-config-backend-requires-feature = backend requires the `{ $feature }` feature, which is not enabled in this build
+detail-config-backend-kind-requires-feature = backend `{ $kind }` requires the `{ $kind }` feature, which is not enabled in this build
+detail-config-backend-mock-test-only = backend `mock` only exists in test builds and is not available here
+detail-config-backend-aerospike-programmatic = backend `aerospike` needs namespace/set configuration and must be built programmatically, not via CacheConfig
+detail-config-backend-valkey-no-impl = backend `valkey` has no implementation; use `redis` (protocol-compatible) or `dragonfly`
+detail-config-backend-chain-needs-builder = backend `chain` must be assembled via ChainBuilder, not a single CacheConfig backend
+detail-config-backend-unknown-kind = backend `{ $kind }` cannot be built from configuration
+detail-config-backend-not-config-buildable = backend `{ $kind }` cannot be built via CacheConfig (rejected by validate or requires programmatic assembly)
+detail-config-env-not-unicode = environment variable { $key } is not valid unicode: { $raw }
+detail-config-env-invalid-bool = invalid bool value for { $key }: { $raw } (expected true/1/yes/on or false/0/no/off)
+detail-config-backend-invalid-value = invalid value for { $key }: { $raw } (expected one of moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk)
+detail-disk-open-create-failed = disk backend open failed ({ $open_err }) and create failed ({ $create_err }): { $path }
+detail-cache-memory-requires-feature = Cache::memory() requires the `memory` feature; construct via Cache::new_with_backend instead.
+detail-not-supported-moka-sync-current-thread = Moka sync surface cannot be driven from within a current-thread runtime async context (tokio forbids nested blocking drivers). Call the sync API outside a runtime, or use a multi_thread runtime (block_in_place handles it).
+detail-redis-unexpected-info-reply = Unexpected INFO { $section } reply type
+detail-chain-get-many-length-mismatch = get_many returned { $returned } results for { $expected } keys
+detail-chain-parallel-freshest-all-failed = All backends failed during parallel freshest read
 
 # -- Example binary output messages --
 example-inklog-bridge-title = === inklog audit log bridge example ===

@@ -172,4 +172,31 @@ mod tests {
             "cancel-policy elapse must increment timeout counter"
         );
     }
+
+    #[tokio::test]
+    async fn accessors_report_normalized_limit_and_policy() {
+        let mgr = OffloadManager::with_policy(0, TimeoutPolicy::None);
+        assert_eq!(mgr.max_concurrent_tasks(), 1, "0 并发归一为 1");
+        assert!(matches!(mgr.timeout_policy(), TimeoutPolicy::None));
+        let mgr = OffloadManager::with_policy(3, TimeoutPolicy::Warn(Duration::from_millis(10)));
+        assert_eq!(mgr.max_concurrent_tasks(), 3);
+        assert!(matches!(mgr.timeout_policy(), TimeoutPolicy::Warn(_)));
+    }
+
+    #[tokio::test]
+    async fn none_policy_runs_task_without_timeout_wrap() {
+        let mgr = OffloadManager::with_policy(1, TimeoutPolicy::None);
+        assert!(mgr.spawn("plain", async { /* 无超时包装，直接跑完 */ }));
+        assert_eq!(mgr.wait_all(Duration::from_secs(2)).await, 1);
+    }
+
+    #[tokio::test]
+    async fn warn_policy_records_slow_but_uninterrupted_task() {
+        let mgr = OffloadManager::with_policy(1, TimeoutPolicy::Warn(Duration::from_millis(10)));
+        assert!(mgr.spawn("slow-but-finishes", async {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+        }));
+        let completed = mgr.wait_all(Duration::from_secs(2)).await;
+        assert_eq!(completed, 1, "warn 策略不打断任务，任务自然跑完");
+    }
 }

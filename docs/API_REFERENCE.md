@@ -413,9 +413,16 @@ let backend = RedisBackend::builder()
 
 | 方法 | 说明 |
 |------|------|
-| `connection_string(&str)` | 设置 Redis 连接字符串 |
+| `connection_string(&str)` | 设置 Redis 连接字符串（Sentinel 模式为逗号分隔的 sentinel URL 列表） |
 | `mode(RedisMode)` | 设置 Redis 模式（`Standalone`/`Sentinel`/`Cluster`/`ValkeyStandalone`） |
+| `sentinel_master_name(impl Into<String>)` | Sentinel 模式监控的 master 名（默认 `"mymaster"`） |
+| `sentinel_addr_map(impl IntoIterator<Item=(String,String)>)` | Sentinel 模式 NAT 地址映射（`ip:port` → 客户端可达 `host:port`），未命中原样使用 |
 | `build().await` | 构建 `RedisBackend`（2 秒连接超时） |
+
+**Sentinel 模式行为：** 连接串指向 sentinel 节点列表，master 经
+`SENTINEL get-master-addr-by-name` 依次发现（首个成功应答者胜出）；
+failover 后数据连接遇可恢复错误（断连/`READONLY`/`MASTERDOWN` 等）自动
+重新发现新 master 并重试一次，同一后端实例无感切换。
 
 ### 实例方法
 
@@ -468,7 +475,9 @@ use oxcache::backend::DragonflyBackend;
 use std::sync::Arc;
 
 // 构造 Dragonfly 后端（需要 dragonfly feature）
-let backend = DragonflyBackend::new("redis://localhost:6379", 8).await?;
+// 构造复用 RedisBackend 的 TLS 强制：连接串须为 rediss://；
+// 开发环境确需 redis:// 时，须设置 OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
+let backend = DragonflyBackend::new("rediss://localhost:6379", 8).await?;
 
 // 作为 ChainCache L2 使用
 use oxcache::backend::MokaMemoryBackend;

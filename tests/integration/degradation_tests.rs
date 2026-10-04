@@ -11,8 +11,8 @@
 #[cfg(feature = "redis")]
 mod degradation_tests_inner {
     use crate::common::{
-        create_cluster_redis_urls, is_redis_available_url, wait_for_redis_cluster,
-        wait_for_sentinel,
+        create_cluster_redis_urls, get_sentinel_addr_map, get_sentinel_urls,
+        is_redis_available_url, wait_for_redis_cluster, wait_for_sentinel,
     };
     use oxcache::backend::AtomicCacheWriter;
     use oxcache::backend::CacheConnector;
@@ -618,62 +618,15 @@ mod degradation_tests_inner {
                 return;
             }
 
-            // Step 1: Ask Sentinel for master address
-            let sentinel_url = "redis://127.0.0.1:26382";
-            let master_url = {
-                let client = match redis::Client::open(sentinel_url) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        println!("[SKIP] Cannot open Sentinel client: {}", e);
-                        return;
-                    }
-                };
-                let mut conn = match client.get_multiplexed_async_connection().await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        println!("[SKIP] Cannot connect to Sentinel: {}", e);
-                        return;
-                    }
-                };
-                // SENTINEL get-master-addr-by-name mymaster -> [ip, port]
-                let addr: Result<Vec<String>, _> = redis::cmd("SENTINEL")
-                    .arg("get-master-addr-by-name")
-                    .arg("mymaster")
-                    .query_async(&mut conn)
-                    .await;
-                match addr {
-                    Ok(parts) if parts.len() == 2 => {
-                        format!("redis://{}:{}", parts[0], parts[1])
-                    }
-                    Ok(_) => {
-                        println!("[SKIP] Sentinel returned unexpected master address format");
-                        return;
-                    }
-                    Err(e) => {
-                        println!("[SKIP] SENTINEL get-master-addr-by-name failed: {}", e);
-                        return;
-                    }
-                }
-            };
-
-            println!(
-                "[SENTINEL] Master discovered at {} (internal IP)",
-                master_url
-            );
-
-            // Docker NAT: Sentinel returns container-internal IP (172.26.0.2:6379)
-            // which is unreachable from the host. Use the host-mapped port instead.
-            let host_master_url = std::env::var("REDIS_SENTINEL_MASTER_URL")
-                .unwrap_or_else(|_| "redis://127.0.0.1:16379".to_string());
-            println!(
-                "[SENTINEL] Connecting via host-mapped URL: {}",
-                host_master_url
-            );
-
-            // Step 2: Connect to the discovered master with retry/circuit-breaker
+            // Sentinel 模式连接串语义是 sentinel 节点列表，master 由发现协议
+            // 解析；Docker NAT 下 sentinel 报告容器内网地址，经地址映射换为
+            // 宿主机发布端口
+            let addr_map = get_sentinel_addr_map();
             let backend = RedisBackend::builder()
-                .connection_string(&host_master_url)
+                .connection_string(&get_sentinel_urls().join(","))
                 .mode(RedisMode::Sentinel)
+                .sentinel_master_name("mymaster")
+                .sentinel_addr_map(addr_map)
                 .retry_count(2)
                 .retry_delay(Duration::from_millis(50))
                 .circuit_breaker_threshold(3)

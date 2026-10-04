@@ -301,3 +301,37 @@ pub async fn is_redis_available_default() -> bool {
     let redis_url = get_redis_url();
     is_redis_available_url(&redis_url).await
 }
+
+/// Sentinel 节点 URL 列表（`tests/real_env/docker-compose.sentinel.yml` 栈：
+/// 三个 sentinel 的宿主发布端口）
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
+pub fn get_sentinel_urls() -> Vec<String> {
+    vec![
+        "redis://127.0.0.1:26382".to_string(),
+        "redis://127.0.0.1:26383".to_string(),
+        "redis://127.0.0.1:26384".to_string(),
+    ]
+}
+
+/// Sentinel 模式 NAT 地址映射默认值，与
+/// `tests/real_env/docker-compose.sentinel.yml` 拓扑一致：sentinel 视野内
+/// 的容器网络地址 → 宿主机发布端口（sentinel 报告容器内网地址，宿主机侧
+/// 客户端须映射后方可连接）。可用 `REDIS_SENTINEL_ADDR_MAP`
+/// （`容器地址=宿主地址,...`）覆盖。
+#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
+pub fn get_sentinel_addr_map() -> Vec<(String, String)> {
+    match std::env::var("REDIS_SENTINEL_ADDR_MAP") {
+        Ok(raw) => raw
+            .split(',')
+            .filter_map(|pair| {
+                let (from, to) = pair.trim().split_once('=')?;
+                Some((from.to_string(), to.to_string()))
+            })
+            .collect(),
+        Err(_) => vec![
+            ("172.26.0.2:6379".to_string(), "127.0.0.1:16380".to_string()),
+            ("172.26.0.3:6379".to_string(), "127.0.0.1:26385".to_string()),
+            ("172.26.0.4:6379".to_string(), "127.0.0.1:26386".to_string()),
+        ],
+    }
+}

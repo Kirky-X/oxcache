@@ -1,6 +1,8 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! Lua script execution for RedisBackend with NOSCRIPT auto-fallback.
+//! Lua script execution for RedisBackend. NOSCRIPT on `eval_sha` returns an
+//! explicit error (no auto-fallback): re-load the script via `script_load()`
+//! or use `eval_lua()`.
 
 use super::client::RedisBackend;
 use super::error::map_redis_error;

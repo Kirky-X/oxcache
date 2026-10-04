@@ -42,6 +42,26 @@
 //! 其余取值要求对应 feature 已启用（如 `redis` 需 `redis` feature）。
 
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    feature = "aerospike"
+))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_BACKEND_AEROSPIKE_PROGRAMMATIC;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    any(
+        not(feature = "redis"),
+        not(feature = "dragonfly"),
+        not(feature = "disk"),
+        not(feature = "aerospike")
+    )
+))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(test)
+))]
+use crate::i18n::messages::MSG_DETAIL_CONFIG_BACKEND_MOCK_TEST_ONLY;
 #[cfg(not(feature = "metrics"))]
 use crate::i18n::messages::MSG_DETAIL_CONFIG_METRICS_FEATURE;
 #[cfg(all(
@@ -56,13 +76,56 @@ use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_INVALID_FORMAT;
     not(feature = "postcard")
 ))]
 use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEATURE;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    feature = "disk"
+))]
+use crate::i18n::messages::MSG_DETAIL_DISK_OPEN_CREATE_FAILED;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(feature = "disk")
+))]
+use crate::i18n::messages::MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(feature = "dragonfly")
+))]
+use crate::i18n::messages::MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(all(test, feature = "memory"))
+))]
+use crate::i18n::messages::MSG_PANIC_CONFIG_VALIDATE_MOCK_TEST_MEMORY;
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(feature = "redis")
+))]
+use crate::i18n::messages::MSG_PANIC_CONFIG_VALIDATE_REDIS_FEATURE;
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_BACKEND_CHAIN_NEEDS_BUILDER, MSG_DETAIL_CONFIG_BACKEND_UNKNOWN_KIND,
+    MSG_DETAIL_CONFIG_BACKEND_VALKEY_NO_IMPL,
+};
 #[cfg(not(any(feature = "memory", feature = "redis", feature = "disk")))]
 use crate::i18n::messages::{
     MSG_DETAIL_CONFIG_BACKEND_FEATURES, MSG_DETAIL_CONFIG_ENV_BACKEND_FEATURES,
 };
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE, MSG_DETAIL_CONFIG_BACKEND_NOT_CONFIG_BUILDABLE,
+};
+#[cfg(all(
+    any(feature = "memory", feature = "redis", feature = "disk"),
+    not(feature = "memory")
+))]
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_BACKEND_REQUIRES_FEATURE, MSG_PANIC_CONFIG_VALIDATE_DASHMAP_MEMORY,
+    MSG_PANIC_CONFIG_VALIDATE_MOKA_MEMORY,
+};
 use crate::i18n::messages::{
     MSG_DETAIL_CONFIG_CAPACITY_EXCEEDS_USIZE, MSG_DETAIL_CONFIG_CAPACITY_ZERO,
-    MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO, MSG_DETAIL_CONFIG_ENV_INVALID_VALUE,
+    MSG_DETAIL_CONFIG_CB_THRESHOLD_ZERO, MSG_DETAIL_CONFIG_ENV_INVALID_BOOL,
+    MSG_DETAIL_CONFIG_ENV_INVALID_VALUE, MSG_DETAIL_CONFIG_ENV_NOT_UNICODE,
     MSG_DETAIL_CONFIG_POOL_SIZE_ZERO, MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
     MSG_DETAIL_CONFIG_TTL_ZERO, t,
 };
@@ -408,82 +471,83 @@ impl CacheConfig {
                 None => {}
                 Some(BackendKind::Moka) | Some(BackendKind::DashMap) => {
                     #[cfg(not(feature = "memory"))]
-                    return Err(OxCacheError::InvalidInput(
-                        "backend requires the `memory` feature, which is not enabled in this build"
-                            .to_string(),
-                    ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_REQUIRES_FEATURE,
+                        &[("feature", "memory".to_string())],
+                    )));
                 }
                 Some(BackendKind::Mock) => {
                     // MockBackend 仅存在于测试构建（memory 模块 #[cfg(test)]）
                     #[cfg(not(test))]
-                    return Err(OxCacheError::InvalidInput(
-                        "backend `mock` only exists in test builds and is not available here"
-                            .to_string(),
-                    ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_MOCK_TEST_ONLY,
+                        &[],
+                    )));
                     #[cfg(test)]
                     {
                         #[cfg(not(feature = "memory"))]
-                    return Err(OxCacheError::InvalidInput(
-                        "backend requires the `memory` feature, which is not enabled in this build"
-                            .to_string(),
-                    ));
+                        return Err(OxCacheError::InvalidInput(t(
+                            MSG_DETAIL_CONFIG_BACKEND_REQUIRES_FEATURE,
+                            &[("feature", "memory".to_string())],
+                        )));
                     }
                 }
                 Some(BackendKind::Redis) => {
                     #[cfg(not(feature = "redis"))]
-                return Err(OxCacheError::InvalidInput(
-                    "backend `redis` requires the `redis` feature, which is not enabled in this build"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE,
+                        &[("kind", "redis".to_string())],
+                    )));
                     #[cfg(feature = "redis")]
                     self.require_non_empty("redis_url", self.redis_url.as_deref())?;
                 }
                 Some(BackendKind::Dragonfly) => {
                     #[cfg(not(feature = "dragonfly"))]
-                return Err(OxCacheError::InvalidInput(
-                    "backend `dragonfly` requires the `dragonfly` feature, which is not enabled in this build"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE,
+                        &[("kind", "dragonfly".to_string())],
+                    )));
                     #[cfg(feature = "dragonfly")]
                     self.require_non_empty("redis_url", self.redis_url.as_deref())?;
                 }
                 Some(BackendKind::Disk) => {
                     #[cfg(not(feature = "disk"))]
-                return Err(OxCacheError::InvalidInput(
-                    "backend `disk` requires the `disk` feature, which is not enabled in this build"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE,
+                        &[("kind", "disk".to_string())],
+                    )));
                     #[cfg(feature = "disk")]
                     self.require_non_empty("disk_path", self.disk_path.as_deref())?;
                 }
                 Some(BackendKind::Aerospike) => {
                     #[cfg(not(feature = "aerospike"))]
-                return Err(OxCacheError::InvalidInput(
-                    "backend `aerospike` requires the `aerospike` feature, which is not enabled in this build"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE,
+                        &[("kind", "aerospike".to_string())],
+                    )));
                     #[cfg(feature = "aerospike")]
-                return Err(OxCacheError::InvalidInput(
-                    "backend `aerospike` needs namespace/set configuration and must be built programmatically, not via CacheConfig"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_AEROSPIKE_PROGRAMMATIC,
+                        &[],
+                    )));
                 }
                 // Valkey: BackendKind variant exists but no backend implementation ships
                 Some(BackendKind::Valkey) => {
-                    return Err(OxCacheError::InvalidInput(
-                    "backend `valkey` has no implementation; use `redis` (protocol-compatible) or `dragonfly`"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_VALKEY_NO_IMPL,
+                        &[],
+                    )));
                 }
                 Some(BackendKind::Chain) => {
-                    return Err(OxCacheError::InvalidInput(
-                    "backend `chain` must be assembled via ChainBuilder, not a single CacheConfig backend"
-                        .to_string(),
-                ));
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_CHAIN_NEEDS_BUILDER,
+                        &[],
+                    )));
                 }
                 Some(kind @ BackendKind::Unknown) => {
-                    return Err(OxCacheError::InvalidInput(format!(
-                        "backend `{kind:?}` cannot be built from configuration"
+                    return Err(OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_CONFIG_BACKEND_UNKNOWN_KIND,
+                        &[("kind", format!("{kind:?}"))],
                     )));
                 }
             }
@@ -547,7 +611,7 @@ impl CacheConfig {
         let slot = match backend {
             BackendKind::Moka => {
                 #[cfg(not(feature = "memory"))]
-                unreachable!("validate rejects Moka without the memory feature");
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_MOKA_MEMORY, &[]));
                 #[cfg(feature = "memory")]
                 {
                     let mut builder = crate::backend::MokaMemoryBackend::builder()
@@ -570,7 +634,7 @@ impl CacheConfig {
             }
             BackendKind::DashMap => {
                 #[cfg(not(feature = "memory"))]
-                unreachable!("validate rejects DashMap without the memory feature");
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_DASHMAP_MEMORY, &[]));
                 #[cfg(feature = "memory")]
                 {
                     let mut builder = crate::backend::DashMapMemoryBackend::builder();
@@ -600,11 +664,11 @@ impl CacheConfig {
                     ))
                 }
                 #[cfg(not(all(test, feature = "memory")))]
-                unreachable!("validate rejects Mock outside test builds with memory")
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_MOCK_TEST_MEMORY, &[]))
             }
             BackendKind::Redis => {
                 #[cfg(not(feature = "redis"))]
-                unreachable!("validate rejects Redis without the redis feature");
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_REDIS_FEATURE, &[]));
                 #[cfg(feature = "redis")]
                 {
                     let url = self.redis_url.as_deref().unwrap_or_default();
@@ -627,7 +691,7 @@ impl CacheConfig {
             }
             BackendKind::Dragonfly => {
                 #[cfg(not(feature = "dragonfly"))]
-                unreachable!("validate rejects Dragonfly without the dragonfly feature");
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE, &[]));
                 #[cfg(feature = "dragonfly")]
                 {
                     let url = self.redis_url.as_deref().unwrap_or_default();
@@ -639,7 +703,7 @@ impl CacheConfig {
             }
             BackendKind::Disk => {
                 #[cfg(not(feature = "disk"))]
-                unreachable!("validate rejects Disk without the disk feature");
+                unreachable!("{}", t(MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE, &[]));
                 #[cfg(feature = "disk")]
                 {
                     let path = self.disk_path.as_deref().unwrap_or_default();
@@ -647,8 +711,13 @@ impl CacheConfig {
                         Ok(disk) => disk,
                         Err(open_err) => crate::backend::disk::RedbDiskBackend::create(path)
                             .map_err(|create_err| {
-                                OxCacheError::Operation(format!(
-                                    "disk backend open failed ({open_err}) and create failed ({create_err}): {path}"
+                                OxCacheError::Operation(t(
+                                    MSG_DETAIL_DISK_OPEN_CREATE_FAILED,
+                                    &[
+                                        ("open_err", open_err.to_string()),
+                                        ("create_err", create_err.to_string()),
+                                        ("path", path.to_string()),
+                                    ],
                                 ))
                             })?,
                     };
@@ -660,8 +729,9 @@ impl CacheConfig {
                 }
             }
             other => {
-                return Err(OxCacheError::NotSupported(format!(
-                    "backend `{other:?}` cannot be built via CacheConfig (rejected by validate or requires programmatic assembly)"
+                return Err(OxCacheError::NotSupported(t(
+                    MSG_DETAIL_CONFIG_BACKEND_NOT_CONFIG_BUILDABLE,
+                    &[("kind", format!("{other:?}"))],
                 )));
             }
         };
@@ -857,8 +927,9 @@ fn env_value(var: &str) -> OxCacheResult<Option<String>> {
     match std::env::var(var) {
         Ok(value) => Ok(Some(value)),
         Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(std::env::VarError::NotUnicode(raw)) => Err(OxCacheError::InvalidInput(format!(
-            "environment variable {var} is not valid unicode: {raw:?}"
+        Err(std::env::VarError::NotUnicode(raw)) => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_ENV_NOT_UNICODE,
+            &[("key", var.to_string()), ("raw", format!("{raw:?}"))],
         ))),
     }
 }
@@ -883,8 +954,9 @@ fn parse_bool_value(var: &str, raw: &str) -> OxCacheResult<bool> {
     match raw.to_ascii_lowercase().as_str() {
         "true" | "1" | "yes" | "on" => Ok(true),
         "false" | "0" | "no" | "off" => Ok(false),
-        _ => Err(OxCacheError::InvalidInput(format!(
-            "invalid bool value for {var}: {raw:?} (expected true/1/yes/on or false/0/no/off)"
+        _ => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_CONFIG_ENV_INVALID_BOOL,
+            &[("key", var.to_string()), ("raw", format!("{raw:?}"))],
         ))),
     }
 }
@@ -913,8 +985,9 @@ pub(crate) fn parse_backend_kind(
         "mock" => crate::backend::BackendKind::Mock,
         "disk" => crate::backend::BackendKind::Disk,
         _ => {
-            return Err(OxCacheError::InvalidInput(format!(
-                "invalid value for {var}: {raw:?} (expected one of moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk)"
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE,
+                &[("key", var.to_string()), ("raw", format!("{raw:?}"))],
             )));
         }
     };
@@ -1733,6 +1806,32 @@ mod tests {
         assert_eq!(
             config.circuit_breaker_reset_timeout,
             Some(Duration::from_secs(10))
+        );
+    }
+
+    #[test]
+    #[cfg(all(
+        any(feature = "serialization", feature = "full"),
+        not(feature = "serde-bincode")
+    ))]
+    fn parse_serialization_format_rejects_bincode_without_feature() {
+        let err = parse_serialization_format("serialization_format", "bincode").unwrap_err();
+        assert!(
+            matches!(err, OxCacheError::InvalidInput(ref m) if m.contains("bincode")),
+            "bincode without the serde-bincode feature must be rejected: {err:?}"
+        );
+    }
+
+    #[test]
+    #[cfg(all(
+        any(feature = "serialization", feature = "full"),
+        not(feature = "postcard")
+    ))]
+    fn parse_serialization_format_rejects_postcard_without_feature() {
+        let err = parse_serialization_format("serialization_format", "postcard").unwrap_err();
+        assert!(
+            matches!(err, OxCacheError::InvalidInput(ref m) if m.contains("postcard")),
+            "postcard without the postcard feature must be rejected: {err:?}"
         );
     }
 }

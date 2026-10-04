@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: MIT
 // Moka per-entry TTL 示例
 //
-// 本示例演示 oxcache 0.3.0 的 Moka per-entry TTL 功能：
+// 本示例演示 oxcache 的 Moka per-entry TTL 功能：
 // - set(key, value, Some(ttl))：per-entry TTL 真实生效（通过 moka::Expiry trait）
-// - ttl(key)：返回剩余 TTL
+// - ttl(key)：只上报 per-entry TTL（未设置时返回 None，即使该条目按全局 TTL 过期）
 // - expire(key, new_ttl)：更新已有 key 的 TTL
-// - 全局 TTL vs per-entry TTL 的优先级
+// - 全局 TTL vs per-entry TTL：set(None) 沿用全局 TTL；set(Some) 覆盖全局，
+//   且可长于全局 TTL（全局 TTL 不是封顶）
 
 use std::time::Duration;
 
@@ -81,30 +82,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== 全局 TTL vs per-entry TTL ===");
     let backend_with_global_ttl = MokaMemoryBackend::builder()
         .capacity(10_000)
-        .ttl(Duration::from_secs(300))
+        .ttl(Duration::from_millis(300))
         .build();
-    println!("创建 MokaMemoryBackend（全局 TTL=300s）");
+    println!("创建 MokaMemoryBackend（全局 TTL=300ms）");
 
-    // 无 per-entry TTL：使用全局 TTL
+    // 无 per-entry TTL：沿用全局 TTL，300ms 后过期
     backend_with_global_ttl
         .set("a".into(), b"a_val".to_vec().into(), None)
         .await?;
-    println!("set 'a'（无 per-entry TTL → 使用全局 300s）");
+    println!("set 'a'（无 per-entry TTL → 沿用全局 300ms）");
 
-    // 有 per-entry TTL：覆盖全局 TTL
+    // 有 per-entry TTL：覆盖全局 TTL（600ms > 300ms，全局 TTL 不封顶 per-entry）
     backend_with_global_ttl
         .set(
             "b".into(),
             b"b_val".to_vec().into(),
-            Some(Duration::from_secs(10)),
+            Some(Duration::from_millis(600)),
         )
         .await?;
-    println!("set 'b'（per-entry TTL=10s → 覆盖全局 300s）");
+    println!("set 'b'（per-entry TTL=600ms > 全局 300ms → per-entry 覆盖全局）");
 
+    // ttl() 只上报 per-entry TTL
     let ttl_a: Option<Duration> = backend_with_global_ttl.ttl("a").await?;
     let ttl_b: Option<Duration> = backend_with_global_ttl.ttl("b").await?;
-    println!("ttl('a') = {:?}（应接近 300s）", ttl_a.map(|d| d.as_secs()));
-    println!("ttl('b') = {:?}（应接近 10s）", ttl_b.map(|d| d.as_secs()));
+    println!(
+        "ttl('a') = {:?}（None：ttl() 只上报 per-entry TTL，'a' 仍按全局 300ms 过期）",
+        ttl_a.map(|d| d.as_millis())
+    );
+    println!(
+        "ttl('b') = {:?}（应约为 600ms：覆盖全局，而非被封顶到 300ms）",
+        ttl_b.map(|d| d.as_millis())
+    );
+
+    tokio::time::sleep(Duration::from_millis(450)).await;
+    let a = backend_with_global_ttl.get("a").await?;
+    let b = backend_with_global_ttl.get("b").await?;
+    println!("450ms 后 get('a') = {:?}（全局 300ms 已到 → None）", a);
+    println!("450ms 后 get('b') = {:?}（per-entry 600ms 未到 → Some）", b);
 
     println!("\nMoka per-entry TTL 示例完成！");
     Ok(())

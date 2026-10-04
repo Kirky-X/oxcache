@@ -12,12 +12,15 @@ use crate::backend::{
 };
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH, MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+    MSG_PANIC_CHAIN_FRESHNESS_INVARIANT, t,
+};
 #[cfg(feature = "telemetry")]
 use crate::i18n::messages::{
     MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED, MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED,
     MSG_LOG_CHAIN_READ_COMPLETED,
 };
-use crate::i18n::messages::{MSG_PANIC_CHAIN_FRESHNESS_INVARIANT, t};
 #[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use async_trait::async_trait;
@@ -440,10 +443,12 @@ impl ChainCache {
                     // 返回长度与请求数不符：无法按键对位，若按 zip 截断处理
                     // 被截断键会静默按 miss 收尾（失败被吞）——按整批失败
                     // 显性化，未解析键继续降级到下一层
-                    let e = OxCacheError::Operation(format!(
-                        "get_many returned {} results for {} keys",
-                        results.len(),
-                        batch_keys.len()
+                    let e = OxCacheError::Operation(t(
+                        MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH,
+                        &[
+                            ("returned", results.len().to_string()),
+                            ("expected", batch_keys.len().to_string()),
+                        ],
                     ));
                     for &i in &pending {
                         self.emit_backend_error(keys[i], link.name(), &e);
@@ -636,9 +641,10 @@ impl ChainCache {
 
         if hits.is_empty() {
             if errs.len() == self.links.len() {
-                return Err(OxCacheError::Operation(
-                    "All backends failed during parallel freshest read".to_string(),
-                ));
+                return Err(OxCacheError::Operation(t(
+                    MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+                    &[],
+                )));
             }
             return Ok(None);
         }

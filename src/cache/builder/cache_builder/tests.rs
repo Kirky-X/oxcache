@@ -984,4 +984,79 @@ mod tests {
             );
         }
     }
+
+    // ========================================================================
+    // 显式 backend 构建路径（backends 非空分支）：stale 装饰器 / metrics /
+    // serialization 槽位与默认 Moka 路径各有一份平行装配
+    // ========================================================================
+
+    /// async 槽 + stale 装饰器（OffloadRevalidate）+ 事件发布器 + metrics
+    /// 注入 + serialization 槽：一次构建覆盖该路径的全部装配分支
+    #[cfg(all(
+        feature = "stale",
+        feature = "metrics",
+        any(feature = "serialization", feature = "full")
+    ))]
+    #[tokio::test]
+    async fn user_backend_path_assembles_stale_metrics_and_serialization() {
+        use crate::core::events::{CacheEvent, CacheEventType, EventPublisher};
+        use crate::features::stale::StalePolicy;
+        use crate::infra::MetricsRecorder;
+        use crate::infra::serialization::SerializationFormat;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Default)]
+        struct CountingPublisher(AtomicUsize);
+
+        #[async_trait::async_trait]
+        impl EventPublisher for CountingPublisher {
+            async fn publish(&self, event: CacheEvent) -> Result<(), OxCacheError> {
+                if event.event_type == CacheEventType::Expire {
+                    self.0.fetch_add(1, Ordering::SeqCst);
+                }
+                Ok(())
+            }
+        }
+
+        let backend = MokaMemoryBackend::builder().capacity(64).build();
+        let cache: Cache<String, String> = Cache::builder()
+            .backend_arc(Arc::new(backend))
+            .stale_ttl(Duration::from_secs(5))
+            .stale_policy(StalePolicy::OffloadRevalidate)
+            .event_publisher(Arc::new(CountingPublisher::default()))
+            .metrics(
+                Arc::new(crate::infra::UnifiedMetricsRecorder::new()) as Arc<dyn MetricsRecorder>
+            )
+            .serialization_format(SerializationFormat::Json)
+            .build()
+            .await
+            .expect("user-backend path builds");
+        cache
+            .set(&"ub".to_string(), &"v1".to_string())
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get(&"ub".to_string()).await.unwrap().as_deref(),
+            Some("v1"),
+            "decorated backend round-trips"
+        );
+    }
+
+    /// async 槽 + stale_ttl + sync_mode：多后端构建路径的 stale/sync 冲突
+    /// 显性拒绝（默认 Moka 路径的同一冲突由集成测试覆盖）
+    #[cfg(feature = "stale")]
+    #[tokio::test]
+    async fn user_backend_path_rejects_stale_ttl_with_sync_mode() {
+        let backend = MokaMemoryBackend::builder().capacity(16).build();
+        let result: OxCacheResult<Cache<String, String>> = Cache::builder()
+            .backend_arc(Arc::new(backend))
+            .sync_mode(true)
+            .stale_ttl(Duration::from_secs(2))
+            .build()
+            .await;
+        assert!(
+            matches!(result, Err(OxCacheError::NotSupported(_))),
+            "stale_ttl + sync_mode must be rejected on the user-backend path"
+        );
+    }
 }

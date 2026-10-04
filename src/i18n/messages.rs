@@ -110,6 +110,18 @@ pub const MSG_PANIC_BLOOM_FPR_RANGE: &str = "panic.bloom.fpr_must_be_in_open_int
 pub const MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE: &str = "panic.bloom.hash_count_unreachable";
 pub const MSG_PANIC_BLOOM_BACKSOLVE_DRIFT: &str = "panic.bloom.hash_count_backsolve_drift";
 pub const MSG_PANIC_BLOOM_SEED_FAILED: &str = "panic.bloom.seed_generation_failed";
+pub const MSG_PANIC_CONFIG_VALIDATE_MOKA_MEMORY: &str =
+    "panic.config.validate_moka_requires_memory";
+pub const MSG_PANIC_CONFIG_VALIDATE_DASHMAP_MEMORY: &str =
+    "panic.config.validate_dashmap_requires_memory";
+pub const MSG_PANIC_CONFIG_VALIDATE_MOCK_TEST_MEMORY: &str =
+    "panic.config.validate_mock_requires_test_with_memory";
+pub const MSG_PANIC_CONFIG_VALIDATE_REDIS_FEATURE: &str =
+    "panic.config.validate_redis_requires_redis_feature";
+pub const MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE: &str =
+    "panic.config.validate_dragonfly_requires_dragonfly_feature";
+pub const MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE: &str =
+    "panic.config.validate_disk_requires_disk_feature";
 
 // -- User-visible detail messages (interpolated into the { $detail } slot of
 //    the error/config templates above) --
@@ -168,6 +180,39 @@ pub const MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE: &str = "detail.confers.value_e
 pub const MSG_DETAIL_CONFERS_EXPECTS_BOOL: &str = "detail.confers.expects_bool";
 pub const MSG_DETAIL_CONFERS_EXPECTS_F64: &str = "detail.confers.expects_f64";
 pub const MSG_DETAIL_CONFERS_EXPECTS_STRING: &str = "detail.confers.expects_string";
+pub const MSG_DETAIL_CONFERS_READ_FAILED: &str = "detail.confers.read_failed";
+pub const MSG_DETAIL_BUILDER_NO_BACKEND_REQUIRES_MEMORY: &str =
+    "detail.builder.no_backend_requires_memory";
+pub const MSG_DETAIL_BUILDER_STALE_TTL_SYNC_CONFLICT: &str =
+    "detail.builder.stale_ttl_sync_conflict";
+pub const MSG_DETAIL_BUILDER_ADAPTIVE_TTL_SYNC_CONFLICT: &str =
+    "detail.builder.adaptive_ttl_sync_conflict";
+pub const MSG_DETAIL_BUILDER_ADAPTIVE_TTL_STALE_CONFLICT: &str =
+    "detail.builder.adaptive_ttl_stale_conflict";
+pub const MSG_DETAIL_CONFIG_BACKEND_REQUIRES_FEATURE: &str =
+    "detail.config.backend_requires_feature";
+pub const MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE: &str =
+    "detail.config.backend_kind_requires_feature";
+pub const MSG_DETAIL_CONFIG_BACKEND_MOCK_TEST_ONLY: &str = "detail.config.backend_mock_test_only";
+pub const MSG_DETAIL_CONFIG_BACKEND_AEROSPIKE_PROGRAMMATIC: &str =
+    "detail.config.backend_aerospike_programmatic";
+pub const MSG_DETAIL_CONFIG_BACKEND_VALKEY_NO_IMPL: &str = "detail.config.backend_valkey_no_impl";
+pub const MSG_DETAIL_CONFIG_BACKEND_CHAIN_NEEDS_BUILDER: &str =
+    "detail.config.backend_chain_needs_builder";
+pub const MSG_DETAIL_CONFIG_BACKEND_UNKNOWN_KIND: &str = "detail.config.backend_unknown_kind";
+pub const MSG_DETAIL_CONFIG_BACKEND_NOT_CONFIG_BUILDABLE: &str =
+    "detail.config.backend_not_config_buildable";
+pub const MSG_DETAIL_CONFIG_ENV_NOT_UNICODE: &str = "detail.config.env_not_unicode";
+pub const MSG_DETAIL_CONFIG_ENV_INVALID_BOOL: &str = "detail.config.env_invalid_bool";
+pub const MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE: &str = "detail.config.backend_invalid_value";
+pub const MSG_DETAIL_DISK_OPEN_CREATE_FAILED: &str = "detail.disk.open_create_failed";
+pub const MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE: &str = "detail.cache.memory_requires_feature";
+pub const MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD: &str =
+    "detail.not_supported.moka_sync_current_thread";
+pub const MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY: &str = "detail.redis.unexpected_info_reply";
+pub const MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH: &str = "detail.chain.get_many_length_mismatch";
+pub const MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED: &str =
+    "detail.chain.parallel_freshest_all_failed";
 
 // -- Example binary output messages --
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_TITLE: &str = "example.inklog_bridge.title";
@@ -364,6 +409,12 @@ mod tests {
         MSG_PANIC_BLOOM_HASH_COUNT_UNREACHABLE,
         MSG_PANIC_BLOOM_BACKSOLVE_DRIFT,
         MSG_PANIC_BLOOM_SEED_FAILED,
+        MSG_PANIC_CONFIG_VALIDATE_MOKA_MEMORY,
+        MSG_PANIC_CONFIG_VALIDATE_DASHMAP_MEMORY,
+        MSG_PANIC_CONFIG_VALIDATE_MOCK_TEST_MEMORY,
+        MSG_PANIC_CONFIG_VALIDATE_REDIS_FEATURE,
+        MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE,
+        MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE,
         MSG_DETAIL_DISK_REDB_OPEN_FAILED,
         MSG_DETAIL_DISK_REDB_CREATE_FAILED,
         MSG_DETAIL_DISK_CORRUPT_ENVELOPE,
@@ -406,6 +457,28 @@ mod tests {
         MSG_DETAIL_CONFERS_EXPECTS_BOOL,
         MSG_DETAIL_CONFERS_EXPECTS_F64,
         MSG_DETAIL_CONFERS_EXPECTS_STRING,
+        MSG_DETAIL_CONFERS_READ_FAILED,
+        MSG_DETAIL_BUILDER_NO_BACKEND_REQUIRES_MEMORY,
+        MSG_DETAIL_BUILDER_STALE_TTL_SYNC_CONFLICT,
+        MSG_DETAIL_BUILDER_ADAPTIVE_TTL_SYNC_CONFLICT,
+        MSG_DETAIL_BUILDER_ADAPTIVE_TTL_STALE_CONFLICT,
+        MSG_DETAIL_CONFIG_BACKEND_REQUIRES_FEATURE,
+        MSG_DETAIL_CONFIG_BACKEND_KIND_REQUIRES_FEATURE,
+        MSG_DETAIL_CONFIG_BACKEND_MOCK_TEST_ONLY,
+        MSG_DETAIL_CONFIG_BACKEND_AEROSPIKE_PROGRAMMATIC,
+        MSG_DETAIL_CONFIG_BACKEND_VALKEY_NO_IMPL,
+        MSG_DETAIL_CONFIG_BACKEND_CHAIN_NEEDS_BUILDER,
+        MSG_DETAIL_CONFIG_BACKEND_UNKNOWN_KIND,
+        MSG_DETAIL_CONFIG_BACKEND_NOT_CONFIG_BUILDABLE,
+        MSG_DETAIL_CONFIG_ENV_NOT_UNICODE,
+        MSG_DETAIL_CONFIG_ENV_INVALID_BOOL,
+        MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE,
+        MSG_DETAIL_DISK_OPEN_CREATE_FAILED,
+        MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE,
+        MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD,
+        MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
+        MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH,
+        MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
         MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
         MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
         MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,

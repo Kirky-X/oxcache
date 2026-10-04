@@ -9,6 +9,7 @@ use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 // 与同名 async trait 方法（如 `get`）产生歧义。
 use crate::backend::{BackendScore, Scores};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD, t};
 use crate::impl_backend_builder;
 use async_trait::async_trait;
 use moka::Expiry;
@@ -19,8 +20,8 @@ use std::time::{Duration, Instant};
 
 /// Moka 缓存条目：承载 value 与 per-entry 过期时间戳。
 ///
-/// `expires_at=None` 表示该条目无 per-entry TTL（沿用 moka 全局 time_to_live /
-/// time_to_idle 策略，或永不过期）。`Some(Instant)` 表示在该时刻过期。
+/// `expires_at=None` 表示该条目无 per-entry TTL（由 [`MokaExpiry`] 以全局 TTL
+/// 兜底；未配置全局 TTL 则永不过期）。`Some(Instant)` 表示在该时刻过期。
 ///
 /// 通过 [`MokaExpiry`] 将 `expires_at` 暴露给 moka 淘汰策略，使 moka 在
 /// `expire_after_create` / `expire_after_update` 时知道真实过期时间。
@@ -33,10 +34,25 @@ pub(crate) struct MokaEntry {
 /// [`Expiry`] 实现：把 [`MokaEntry`] 的 `expires_at` 转换为 moka 期望的
 /// "从创建/更新时刻起的剩余 Duration"。
 ///
+/// `expires_at=None` 时回退到 `global_ttl`（对应 `builder.ttl(...)` 的全局
+/// TTL：`set(ttl=None)` 沿用全局，`set(ttl=Some(_))` 覆盖全局）。全局 TTL
+/// 必须在这里兜底而不能经 moka 的 `time_to_live` 配置——moka 对自定义
+/// `Expiry` 与 `time_to_live` 并存时按 `last_modified + ttl` 无条件封顶
+/// 每个条目，会使 per-entry TTL 无法长于全局 TTL，违反 README
+/// "全局 TTL 被 per-entry TTL 覆盖" 的跨后端契约。
+///
 /// `expire_after_read` 使用默认实现（返回 `duration_until_expiry`，不变更过期），
 /// 保证读操作不会意外延长或缩短 TTL。
 #[derive(Default, Clone)]
-pub(crate) struct MokaExpiry;
+pub(crate) struct MokaExpiry {
+    global_ttl: Option<Duration>,
+}
+
+impl MokaExpiry {
+    pub(crate) fn new(global_ttl: Option<Duration>) -> Self {
+        Self { global_ttl }
+    }
+}
 
 impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
     fn expire_after_create(
@@ -47,6 +63,7 @@ impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
     ) -> Option<Duration> {
         val.expires_at
             .map(|e| e.saturating_duration_since(created_at))
+            .or(self.global_ttl)
     }
 
     fn expire_after_update(
@@ -58,6 +75,7 @@ impl Expiry<Arc<str>, MokaEntry> for MokaExpiry {
     ) -> Option<Duration> {
         val.expires_at
             .map(|e| e.saturating_duration_since(updated_at))
+            .or(self.global_ttl)
     }
 }
 
@@ -249,13 +267,10 @@ fn sync_block_on<F: std::future::Future>(fut: F) -> OxCacheResult<F::Output> {
             // Multi-thread runtime: use block_in_place to safely block
             Ok(tokio::task::block_in_place(|| handle.block_on(fut)))
         }
-        Ok(_) => Err(OxCacheError::NotSupported(
-            "Moka sync surface cannot be driven from within a current-thread \
-             runtime async context (tokio forbids nested blocking drivers). \
-             Call the sync API outside a runtime, or use a multi_thread runtime \
-             (block_in_place handles it)."
-                .to_string(),
-        )),
+        Ok(_) => Err(OxCacheError::NotSupported(t(
+            MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD,
+            &[],
+        ))),
         Err(_) => {
             // No runtime: create a temporary current_thread runtime.
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -604,6 +619,9 @@ impl MokaMemoryBackendBuilder {
     }
 
     /// Set the time-to-live for entries
+    ///
+    /// 全局 TTL：`set(ttl=None)` 的条目沿用该值过期；`set(ttl=Some(d))` 的
+    /// 条目覆盖全局（`d` 可长于全局 TTL）。
     pub fn ttl(mut self, ttl: Duration) -> Self {
         self.ttl = Some(ttl);
         self
@@ -631,18 +649,17 @@ impl MokaMemoryBackendBuilder {
             ),
         };
 
+        // 全局 TTL 经 MokaExpiry 兜底（见 MokaExpiry 文档），不走 moka 的
+        // time_to_live——它与自定义 Expiry 并存时会无条件封顶每个条目，
+        // 破坏"per-entry TTL 覆盖全局 TTL"契约。
         let mut builder = moka::future::Cache::builder()
             .max_capacity(capacity)
-            .expire_after(MokaExpiry);
+            .expire_after(MokaExpiry::new(self.ttl));
 
         if weigher {
             builder = builder.weigher(|_k: &Arc<str>, v: &MokaEntry| {
                 v.value.len().min(u32::MAX as usize) as u32
             });
-        }
-
-        if let Some(ttl) = self.ttl {
-            builder = builder.time_to_live(ttl);
         }
 
         if let Some(tti) = self.time_to_idle {

@@ -132,6 +132,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_moka_set_without_ttl_expires_at_global_ttl() {
+        // set(None) 的条目按全局 TTL 真实过期（数据行为，非仅 ttl() 上报）
+        let backend = MokaMemoryBackend::builder()
+            .capacity(1000)
+            .ttl(Duration::from_millis(80))
+            .build();
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
+        // moka 异步清理可能略有延迟，循环等待最多 500ms 确保过期
+        let mut expired = false;
+        for _ in 0..10 {
+            if backend.get("k").await.unwrap().is_none() {
+                expired = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(expired, "set(None) entry should expire at global TTL");
+    }
+
+    #[tokio::test]
+    async fn test_moka_per_entry_ttl_overrides_longer_than_global() {
+        // 契约（README "TTL 行为对照表"）：per-entry TTL 覆盖全局 TTL，
+        // 可长于全局 TTL（全局 TTL 不是封顶）
+        let backend = MokaMemoryBackend::builder()
+            .capacity(1000)
+            .ttl(Duration::from_millis(80))
+            .build();
+        backend
+            .set(
+                Arc::from("k"),
+                Arc::new(b"v".to_vec()),
+                Some(Duration::from_secs(60)),
+            )
+            .await
+            .unwrap();
+        // 越过全局 TTL 窗口（80ms + 余量）后仍可读
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_eq!(
+            backend.get("k").await.unwrap(),
+            Some(b"v".to_vec()),
+            "per-entry TTL longer than global TTL must override it, not be capped"
+        );
+    }
+
+    #[tokio::test]
     async fn test_moka_ttl_returns_remaining() {
         let backend = MokaMemoryBackend::new();
         backend

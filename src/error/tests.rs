@@ -957,3 +957,24 @@ fn test_set_and_get_default_locale() {
     crate::i18n::set_default_locale("en");
     assert_eq!(crate::i18n::get_default_locale(), "en");
 }
+
+#[test]
+fn test_error_source_io_error_surfaces_underlying() {
+    let io = std::io::Error::new(std::io::ErrorKind::NotFound, "redb file gone");
+    let err: OxCacheError = io.into();
+    let source = std::error::Error::source(&err);
+    assert!(
+        source.is_some(),
+        "IoError must surface its underlying source"
+    );
+    assert_eq!(source.unwrap().to_string(), "redb file gone");
+}
+
+#[test]
+fn test_error_source_other_variants_have_no_source() {
+    let err = OxCacheError::NotFound("key1".to_string());
+    assert!(
+        std::error::Error::source(&err).is_none(),
+        "variants without an inner error must return None"
+    );
+}

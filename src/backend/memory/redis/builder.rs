@@ -6,12 +6,14 @@ use super::circuit_breaker::CircuitBreaker;
 use super::client::RedisBackend;
 use super::client::RedisConnection;
 use super::error::map_redis_error;
+use super::sentinel::{SentinelConnection, SentinelDiscovery};
 use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED, MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT, t,
 };
+use redis::Client;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,6 +46,12 @@ pub struct RedisBackendBuilder {
     circuit_breaker_threshold: u32,
     circuit_breaker_reset_timeout: Duration,
     database: Option<u16>,
+    /// Sentinel 模式监控的 master 名（与 sentinel.conf 的
+    /// `sentinel monitor <name> ...` 一致，默认 "mymaster"）。
+    sentinel_master_name: String,
+    /// Sentinel 模式 NAT 地址映射：sentinel 视野内节点地址（`ip:port`）
+    /// → 客户端可达地址（`host:port`），未命中的地址原样使用。
+    sentinel_addr_map: Vec<(String, String)>,
     pub(crate) dangerous_clear_enabled: bool,
 }
 
@@ -60,6 +68,8 @@ impl Default for RedisBackendBuilder {
             circuit_breaker_threshold: 5,
             circuit_breaker_reset_timeout: Duration::from_secs(30),
             database: None,
+            sentinel_master_name: "mymaster".to_string(),
+            sentinel_addr_map: Vec::new(),
             dangerous_clear_enabled: false,
         }
     }
@@ -106,6 +116,42 @@ impl RedisBackendBuilder {
     /// Set the Redis database index (appended as `/N` to connection string).
     pub fn database(mut self, db: u16) -> Self {
         self.database = Some(db);
+        self
+    }
+
+    /// Set the monitored master name for Sentinel mode (default: `"mymaster"`).
+    ///
+    /// Must match the name in the sentinels' `sentinel monitor <name> ...`
+    /// configuration.
+    pub fn sentinel_master_name(mut self, name: impl Into<String>) -> Self {
+        self.sentinel_master_name = name.into();
+        self
+    }
+
+    /// Set the NAT address map for Sentinel mode.
+    ///
+    /// Sentinels report node addresses as seen from their own network
+    /// (e.g. container-internal `172.x.0.2:6379`), which may be unreachable
+    /// for clients behind a network boundary. Each entry maps such an
+    /// address (`ip:port`) to a client-reachable one (`host:port`, e.g. a
+    /// published host port). Addresses not present in the map are used as
+    /// reported.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// RedisBackend::builder()
+    ///     .mode(RedisMode::Sentinel)
+    ///     .connection_string("redis://127.0.0.1:26382,redis://127.0.0.1:26383")
+    ///     .sentinel_addr_map([
+    ///         ("172.26.0.2:6379".to_string(), "127.0.0.1:16380".to_string()),
+    ///         ("172.26.0.3:6379".to_string(), "127.0.0.1:26385".to_string()),
+    ///     ])
+    ///     .build()
+    ///     .await?;
+    /// ```
+    pub fn sentinel_addr_map(mut self, map: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.sentinel_addr_map = map.into_iter().collect();
         self
     }
 
@@ -161,8 +207,10 @@ impl RedisBackendBuilder {
             OxCacheError::InvalidInput("Connection string is required".to_string())
         })?;
 
-        // Append database index if specified
-        if let Some(db) = self.database {
+        // Append database index if specified. Sentinel 模式例外：db 追加到
+        // 发现出的 master 地址（见 sentinel.rs），逗号分隔的 sentinel 列表
+        // 不能整体加后缀。
+        if let Some(db) = self.database.filter(|_| self.mode != RedisMode::Sentinel) {
             // Remove trailing slash if present, then append /N
             connection_string = connection_string.trim_end_matches('/').to_string();
             connection_string.push('/');
@@ -185,14 +233,27 @@ impl RedisBackendBuilder {
             }
         }
 
-        let client = redis::Client::open(connection_string.as_str()).map_err(map_redis_error)?;
-
-        let (mode, connection) = if self.mode == RedisMode::Cluster {
+        let (client, mode, connection) = if self.mode == RedisMode::Cluster {
+            let client = Arc::new(open_client(&connection_string)?);
+            let connection =
+                Self::connect_cluster(&connection_string, self.connection_timeout).await?;
+            (client, self.mode, connection)
+        } else if self.mode == RedisMode::Sentinel {
+            let discovery = SentinelDiscovery::new(
+                &connection_string,
+                &self.sentinel_master_name,
+                self.sentinel_addr_map.clone(),
+            )?;
+            let (connection, master_client) =
+                SentinelConnection::connect(discovery, self.connection_timeout, self.database)
+                    .await?;
             (
+                Arc::new(master_client),
                 self.mode,
-                Self::connect_cluster(&connection_string, self.connection_timeout).await?,
+                RedisConnection::Sentinel(connection),
             )
         } else {
+            let client = Arc::new(open_client(&connection_string)?);
             let connection_result =
                 tokio::time::timeout(self.connection_timeout, client.get_connection_manager())
                     .await;
@@ -225,20 +286,27 @@ impl RedisBackendBuilder {
                     .map(|info| info.contains("cluster_state:"))
                     .unwrap_or(false)
                 {
-                    (
-                        RedisMode::Cluster,
-                        Self::connect_cluster(&connection_string, self.connection_timeout).await?,
-                    )
+                    let connection =
+                        Self::connect_cluster(&connection_string, self.connection_timeout).await?;
+                    (client, RedisMode::Cluster, connection)
                 } else {
-                    (self.mode, RedisConnection::Single(connection_manager))
+                    (
+                        client,
+                        self.mode,
+                        RedisConnection::Single(connection_manager),
+                    )
                 }
             } else {
-                (self.mode, RedisConnection::Single(connection_manager))
+                (
+                    client,
+                    self.mode,
+                    RedisConnection::Single(connection_manager),
+                )
             }
         };
 
         Ok(RedisBackend::from_parts(
-            std::sync::Arc::new(client),
+            client,
             mode,
             connection,
             self.dangerous_clear_enabled,
@@ -281,4 +349,8 @@ impl RedisBackendBuilder {
 
         Ok(RedisConnection::Cluster(conn))
     }
+}
+
+fn open_client(connection_string: &str) -> OxCacheResult<Client> {
+    redis::Client::open(connection_string).map_err(map_redis_error)
 }

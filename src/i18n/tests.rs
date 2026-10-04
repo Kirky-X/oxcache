@@ -207,6 +207,50 @@ mod tests {
             "locale_tag should start with 'zh': got '{}'",
             fmt.locale_tag()
         );
+        let expected: icu::locale::Locale = "zh-CN".parse().expect("valid tag");
+        assert_eq!(fmt.locale(), &expected, "locale() returns the parsed tag");
+    }
+
+    /// 阿拉伯语复数规则覆盖 Zero/One/Two/Few/Many/Other 六类
+    /// （en 只有 One/Other，覆盖不到 plural_category_name 的全部分支）
+    #[test]
+    fn test_format_count_arabic_plural_categories() {
+        let fmt = CacheI18nFormatter::new("ar").expect("ar locale");
+        let cases = [
+            (0, "Zero"),
+            (1, "One"),
+            (2, "Two"),
+            (3, "Few"),
+            (11, "Many"),
+            (100, "Other"),
+        ];
+        for (count, expected) in cases {
+            assert_eq!(
+                fmt.format_count(count).expect("plural category"),
+                expected,
+                "ar: count={count} should be {expected}"
+            );
+        }
+    }
+
+    /// 有限但超出 FixedDecimal 容量的数值（f64::MAX 约 309 位十进制）
+    /// 必须返回 InvalidNumber 而非 panic
+    #[test]
+    fn test_format_number_finite_value_beyond_decimal_capacity() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        match fmt.format_number(f64::MAX) {
+            Err(I18nError::InvalidNumber { input, .. }) => {
+                assert!(!input.is_empty(), "input should echo the raw value");
+            }
+            Ok(formatted) => {
+                // 实现侧 FixedDecimal 若能承载该量级，则格式化必须无失真告警路径
+                assert!(
+                    formatted.len() >= 300,
+                    "unexpectedly short formatting of f64::MAX: '{formatted}'"
+                );
+            }
+            other => panic!("unexpected result for f64::MAX: {other:?}"),
+        }
     }
 
     #[test]
@@ -216,6 +260,49 @@ mod tests {
             reason: "parse failed".to_string(),
         };
         assert_eq!(err.message_id(), messages::MSG_I18N_INVALID_LOCALE);
+    }
+
+    #[test]
+    fn test_i18n_error_message_id_number_and_format_variants() {
+        let err = I18nError::InvalidNumber {
+            input: "NaN".to_string(),
+            reason: "not finite".to_string(),
+        };
+        assert_eq!(err.message_id(), messages::MSG_I18N_INVALID_NUMBER);
+        let err = I18nError::FormatError("compiled data missing".to_string());
+        assert_eq!(err.message_id(), messages::MSG_I18N_FORMAT_ERROR);
+    }
+
+    #[test]
+    fn test_i18n_error_localized_message_locale_and_number_variants() {
+        let err = I18nError::InvalidLocale {
+            input: "not-a-locale!".to_string(),
+            reason: "syntax error".to_string(),
+        };
+        let msg = err.localized_message("en");
+        assert!(
+            msg.contains("not-a-locale!") && msg.contains("syntax error"),
+            "en InvalidLocale message should carry input and reason: got '{msg}'"
+        );
+        let err = I18nError::InvalidNumber {
+            input: "Infinity".to_string(),
+            reason: "value is not finite".to_string(),
+        };
+        let msg = err.localized_message("en");
+        assert!(
+            msg.contains("Infinity"),
+            "en InvalidNumber message should carry input: got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_i18n_error_localized_message_format_variant() {
+        let err = I18nError::FormatError("decimal formatter unavailable".to_string());
+        let msg = err.localized_message("en");
+        assert!(
+            msg.contains("decimal formatter unavailable"),
+            "en FormatError message should carry detail: got '{msg}'"
+        );
     }
 
     #[test]

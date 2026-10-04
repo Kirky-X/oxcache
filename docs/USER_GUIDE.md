@@ -61,7 +61,7 @@
 
 主要特性包括：
 
-- **🚀 极致性能**：L1 纳秒级响应（P99 < 100ns），L2 毫秒级响应（P99 < 5ms）
+- **🚀 极致性能**：L1 纳秒级响应（P99 50-200ns），L2 毫秒级响应（P99 1-10ms，随环境变化）
 - **🔗 链式多层缓存**：`ChainCache` 按后端分数排序读写，支持回填（backfill）
 - **⚡ 同步 API**：`sync_mode(true)` 启用 `get_sync`/`set_sync` 等同步方法
 - **🛡️ 安全内置**：键/Lua/SCAN 校验、TLS 强制、敏感信息脱敏
@@ -302,7 +302,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
 
-宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
+宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
 
 ### 手动控制缓存
 
@@ -573,8 +573,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 use oxcache::backend::{RedisBackend, RedisMode};
 
 // Valkey 使用与 Redis 相同的 API，通过 RedisMode::ValkeyStandalone 标识
+// TLS 强制同样适用：须用 rediss://（开发豁免环境变量见上文「Redis 模式配置」一节）
 let backend = RedisBackend::builder()
-    .connection_string("redis://127.0.0.1:6379")
+    .connection_string("rediss://127.0.0.1:6379")
     .mode(RedisMode::ValkeyStandalone)
     .build()
     .await?;
@@ -594,8 +595,9 @@ oxcache = { version = "0.5.0-rc.7", features = ["dragonfly"] }
 ```rust
 use oxcache::backend::DragonflyBackend;
 
-// 构造 Dragonfly 后端
-let dragonfly = DragonflyBackend::new("redis://127.0.0.1:6379", 8).await?;
+// 构造 Dragonfly 后端（复用 RedisBackend 的 TLS 强制：须用 rediss://，
+// 或开发环境设置 OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS）
+let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 ```
 
 推荐与 Moka 组合为 ChainCache（组合示例与限制说明见 [API 参考](API_REFERENCE.md#-dragonflybackend)）。

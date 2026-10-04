@@ -389,7 +389,7 @@ pub use infra::{export_json_format, export_prometheus_format, export_prometheus_
 - `security/validation.rs` - Redis 键、Lua 脚本、SCAN 模式校验
 - `security/redaction.rs` - 敏感数据脱敏（`Redacted` 包装器）
 - `security/log.rs` - 安全日志工具
-- `security/regex.rs` - 模式匹配
+- `security/security_impl.rs` - `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` 实现与模式扫描表
 
 **Crate 根重导出**（启用 `redis` 或 `full` 特性时）：
 

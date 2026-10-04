@@ -75,6 +75,12 @@ panic-bloom-fpr-must-be-in-open-interval = false_positive_rate 必须在 (0.0, 1
 panic-bloom-hash-count-unreachable = 容量 { $capacity } 下 hash_count { $hash_count } 不可达
 panic-bloom-hash-count-backsolve-drift = 容量 { $capacity } 下 hash_count { $hash_count } 不可达：该容量下位图每字节使 k 的步进超过 1
 panic-bloom-seed-generation-failed = 创建布隆过滤器失败：随机种子生成失败
+panic-config-validate-moka-requires-memory = validate 拒绝未启用 memory feature 的 Moka
+panic-config-validate-dashmap-requires-memory = validate 拒绝未启用 memory feature 的 DashMap
+panic-config-validate-mock-requires-test-with-memory = validate 拒绝测试构建 + memory 组合之外的 Mock
+panic-config-validate-redis-requires-redis-feature = validate 拒绝未启用 redis feature 的 Redis
+panic-config-validate-dragonfly-requires-dragonfly-feature = validate 拒绝未启用 dragonfly feature 的 Dragonfly
+panic-config-validate-disk-requires-disk-feature = validate 拒绝未启用 disk feature 的 Disk
 
 # -- 用户可见明细消息（插值进错误模板） --
 detail-disk-redb-open-failed = redb 打开失败：{ $err }
@@ -119,6 +125,28 @@ detail-confers-value-exceeds-range = confers 键 '{ $key }' 的值 { $value } �
 detail-confers-expects-bool = confers 键 '{ $key }' 应为 bool，实际为 { $value }
 detail-confers-expects-f64 = confers 键 '{ $key }' 应为 f64，实际为 { $value }
 detail-confers-expects-string = confers 键 '{ $key }' 应为字符串，实际为 { $value }
+detail-confers-read-failed = confers 读取 '{ $key }' 失败：{ $err }
+detail-builder-no-backend-requires-memory = CacheBuilder 未提供后端时需要 `memory` feature（默认 Moka）；否则请显式传入 .backend_arc()。
+detail-builder-stale-ttl-sync-conflict = stale_ttl 不能与 sync_mode(true) 组合使用；同步 API 绕过装饰器，将看到不完整的 stale 语义
+detail-builder-adaptive-ttl-sync-conflict = adaptive_ttl 不能与 sync_mode(true) 组合使用；同步 API 绕过装饰器，将看到未经调整的 TTL
+detail-builder-adaptive-ttl-stale-conflict = adaptive_ttl 不能与 stale_ttl 组合使用；叠加两个 TTL 改写器的语义未定义
+detail-config-backend-requires-feature = backend 需要 `{ $feature }` feature，当前构建未启用
+detail-config-backend-kind-requires-feature = backend `{ $kind }` 需要 `{ $kind }` feature，当前构建未启用
+detail-config-backend-mock-test-only = backend `mock` 仅存在于测试构建，当前不可用
+detail-config-backend-aerospike-programmatic = backend `aerospike` 需要 namespace/set 配置，必须以编程方式构建，不能经由 CacheConfig
+detail-config-backend-valkey-no-impl = backend `valkey` 没有实现；请改用 `redis`（协议兼容）或 `dragonfly`
+detail-config-backend-chain-needs-builder = backend `chain` 必须经 ChainBuilder 组装，不能作为单个 CacheConfig backend 使用
+detail-config-backend-unknown-kind = backend `{ $kind }` 无法从配置构建
+detail-config-backend-not-config-buildable = backend `{ $kind }` 无法经由 CacheConfig 构建（已被 validate 拒绝，或需程序化组装）
+detail-config-env-not-unicode = 环境变量 { $key } 的值不是有效的 Unicode：{ $raw }
+detail-config-env-invalid-bool = { $key } 的 bool 值无效：{ $raw }（应为 true/1/yes/on 或 false/0/no/off）
+detail-config-backend-invalid-value = { $key } 的值无效：{ $raw }（应为 moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk 之一）
+detail-disk-open-create-failed = 磁盘后端打开失败（{ $open_err }）且创建失败（{ $create_err }）：{ $path }
+detail-cache-memory-requires-feature = Cache::memory() 需要 `memory` feature；请改用 Cache::new_with_backend 构建。
+detail-not-supported-moka-sync-current-thread = Moka 同步面无法在 current-thread runtime 的异步上下文中驱动（tokio 禁止嵌套阻塞驱动）。请在 runtime 之外调用同步 API，或改用 multi_thread runtime（block_in_place 可自动处理）。
+detail-redis-unexpected-info-reply = INFO { $section } 应答类型异常
+detail-chain-get-many-length-mismatch = get_many 对 { $expected } 个键返回了 { $returned } 个结果
+detail-chain-parallel-freshest-all-failed = 并行最新值读取期间所有后端均失败
 
 # -- 示例二进制输出消息 --
 example-inklog-bridge-title = === inklog 审计日志桥接示例 ===

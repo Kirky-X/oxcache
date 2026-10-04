@@ -99,10 +99,15 @@ default-features = false
 features = ["executor"]
 
 # ICU4X internationalization (always enabled)
-# 注意：icu 元包将全部子组件声明为非 optional 依赖且不暴露按组件激活特性，
-# default（compiled_data + 各组件推荐面）无法细粒度裁剪，保持元包推荐组合
+# icu 元包将全部子组件声明为非 optional 依赖（组件本体无法裁），但组件级
+# 推荐面（datetime/calendar/time 的 ixdtf ISO 串解析、segmenter 的 auto、
+# normalizer 的 utf8/utf16 迭代器）经核与 oxcache 用法无关：i18n 面仅做
+# 格式化（Date::try_new_iso 直接构造，无字符串解析入口），故关闭 default
+# 只留 compiled_data，裁掉这些未用 API 的编译面
 [dependencies.icu]
 version = "2.3"
+default-features = false
+features = ["compiled_data"]
 
 [dependencies.writeable]
 version = "0.6"

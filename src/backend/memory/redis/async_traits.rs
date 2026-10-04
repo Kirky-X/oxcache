@@ -10,7 +10,10 @@ use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
-use crate::i18n::messages::{MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX, MSG_DETAIL_REDIS_TTL_MIN_MILLIS, t};
+use crate::i18n::messages::{
+    MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX, MSG_DETAIL_REDIS_TTL_MIN_MILLIS,
+    MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY, t,
+};
 use std::time::Duration;
 
 /// Redis 最大 TTL 上界（秒）。Redis SETEX/EXPIRE 仅接受 i32::MAX 秒（~68 年）；
@@ -171,9 +174,10 @@ impl CacheReader for RedisBackend {
                     .await
                     .map_err(error::map_redis_error)?;
                 let memory_info = normalize_info_reply(memory_reply).ok_or_else(|| {
-                    crate::error::OxCacheError::Operation(
-                        "Unexpected INFO memory reply type".to_string(),
-                    )
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
+                        &[("section", "memory".to_string())],
+                    ))
                 })?;
                 stats.insert("memory_info".to_string(), memory_info);
 
@@ -184,9 +188,10 @@ impl CacheReader for RedisBackend {
                     .await
                     .map_err(error::map_redis_error)?;
                 let clients_info = normalize_info_reply(clients_reply).ok_or_else(|| {
-                    crate::error::OxCacheError::Operation(
-                        "Unexpected INFO clients reply type".to_string(),
-                    )
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
+                        &[("section", "clients".to_string())],
+                    ))
                 })?;
                 for line in clients_info.lines() {
                     let line = line.trim();
