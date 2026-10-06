@@ -19,10 +19,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 static SKIP_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[cached(service = "skip_svc", skip(password))]
-async fn skip_fn(user: u64, password: String) -> Result<String, String> {
+#[cached(service = "skip_svc", skip(payload))]
+async fn skip_fn(user: u64, payload: String) -> Result<String, String> {
     SKIP_CALLS.fetch_add(1, Ordering::SeqCst);
-    let _ = password;
+    let _ = payload;
     Ok(format!("user-{user}"))
 }
 
@@ -41,7 +41,7 @@ async fn skip_excludes_param_from_cache_key() {
     assert_eq!(
         SKIP_CALLS.load(Ordering::SeqCst),
         1,
-        "same user, different (skipped) password → second call must hit cache"
+        "same user, different (skipped) payload → second call must hit cache"
     );
 
     // Different non-skipped arg → different entry
