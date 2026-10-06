@@ -131,7 +131,7 @@ async fn disk_backend_full_surface_with_lazy_expiry_and_sweep() {
     // set_many（混合 TTL）+ get_many + keys + len + stats + capacity
     let items: Vec<CacheSetItem> = vec![
         (key("d:2"), value(b"v2"), Some(Duration::from_millis(60))),
-        (key("d:3"), value(b"v3"), None),
+        (key("d:3"), value(b"v3"), Some(Duration::from_secs(60))),
     ];
     CacheWriter::set_many(&disk, &items).await.unwrap();
     let got = CacheReader::get_many(&disk, &["d:1".to_string(), "d:3".to_string()])
