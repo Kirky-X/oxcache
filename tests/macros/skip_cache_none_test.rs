@@ -34,8 +34,8 @@ async fn skip_excludes_param_from_cache_key() {
     cache.register_for_macro("skip_svc").await.unwrap();
     SKIP_CALLS.store(0, Ordering::SeqCst);
 
-    let r1 = skip_fn(1, "secret-a".into()).await.unwrap();
-    let r2 = skip_fn(1, "secret-b".into()).await.unwrap();
+    let r1 = skip_fn(1, "arg-a".into()).await.unwrap();
+    let r2 = skip_fn(1, "arg-b".into()).await.unwrap();
     assert_eq!(r1, "user-1");
     assert_eq!(r2, "user-1");
     assert_eq!(
@@ -45,7 +45,7 @@ async fn skip_excludes_param_from_cache_key() {
     );
 
     // Different non-skipped arg → different entry
-    let r3 = skip_fn(2, "secret-a".into()).await.unwrap();
+    let r3 = skip_fn(2, "arg-a".into()).await.unwrap();
     assert_eq!(r3, "user-2");
     assert_eq!(SKIP_CALLS.load(Ordering::SeqCst), 2);
 }
