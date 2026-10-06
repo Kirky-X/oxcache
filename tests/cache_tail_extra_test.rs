@@ -130,7 +130,8 @@ async fn disk_backend_full_surface_with_lazy_expiry_and_sweep() {
 
     // set_many（混合 TTL）+ get_many + keys + len + stats + capacity
     let items: Vec<CacheSetItem> = vec![
-        (key("d:2"), value(b"v2"), Some(Duration::from_millis(60))),
+        // d:2 的存活被下方 keys==3 断言依赖，取长 TTL；短 TTL 过期只由 d:exp 段验证
+        (key("d:2"), value(b"v2"), Some(Duration::from_secs(2))),
         (key("d:3"), value(b"v3"), Some(Duration::from_secs(60))),
     ];
     CacheWriter::set_many(&disk, &items).await.unwrap();
