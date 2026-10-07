@@ -511,7 +511,7 @@ cargo check -p oxcache --no-default-features --features minimal
 # 跳过需要 Redis 的测试
 cargo test --features full -- --skip redis
 
-# 覆盖率（CI 与 pre-push 门禁：行覆盖 >= 80%）
+# 覆盖率（CI 与 pre-push 门禁：行覆盖 >= 90%）
 cargo llvm-cov --features full --workspace --fail-under-lines 90
 ```
 

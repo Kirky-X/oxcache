@@ -501,7 +501,7 @@ cargo check -p oxcache --no-default-features --features minimal
 # Skip tests that require Redis
 cargo test --features full -- --skip redis
 
-# Coverage (CI and pre-push gate: line coverage >= 80%)
+# Coverage (CI and pre-push gate: line coverage >= 90%)
 cargo llvm-cov --features full --workspace --fail-under-lines 90
 ```
 
