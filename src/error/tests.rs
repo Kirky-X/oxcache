@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! error 模块单元测试
 
+// OxCacheConfigError 类型本体随 redis 门控（见 error.rs），测试同步门控
 #[cfg(feature = "redis")]
 use super::OxCacheConfigError;
 use super::OxCacheError;
@@ -135,23 +136,26 @@ fn test_cache_error_database_error_display() {
     assert!(s.contains("Database error: query failed"));
 }
 
+// RedisError 的载荷随组合变体：redis 组合包装 redis::RedisError，非 redis
+// 组合退化为 String——两种形态 Display 输出不同，按组合拆为独立测试。
 #[test]
 #[serial_test::serial]
+#[cfg(feature = "redis")]
 fn test_cache_error_redis_error_display() {
-    #[cfg(feature = "redis")]
-    {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
-            "auth failed",
-        )));
-        let s = err.to_string();
-        assert!(s.contains("Redis connection failed"));
-    }
-    #[cfg(not(feature = "redis"))]
-    {
-        let err = OxCacheError::RedisError("auth failed".to_string());
-        let s = err.to_string();
-        assert!(s.contains("Redis connection failed: auth failed"));
-    }
+    let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
+        "auth failed",
+    )));
+    let s = err.to_string();
+    assert!(s.contains("Redis connection failed"));
+}
+
+#[test]
+#[serial_test::serial]
+#[cfg(not(feature = "redis"))]
+fn test_cache_error_redis_error_display_string_payload() {
+    let err = OxCacheError::RedisError("auth failed".to_string());
+    let s = err.to_string();
+    assert!(s.contains("Redis connection failed: auth failed"));
 }
 
 #[test]
@@ -368,19 +372,20 @@ fn test_error_code_database() {
 
 #[test]
 #[serial_test::serial]
+#[cfg(feature = "redis")]
 fn test_error_code_redis() {
-    #[cfg(feature = "redis")]
-    {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("r")));
-        assert_eq!(err.code(), "OXCACHE_012");
-    }
-    #[cfg(not(feature = "redis"))]
-    {
-        assert_eq!(
-            OxCacheError::RedisError("r".to_string()).code(),
-            "OXCACHE_012"
-        );
-    }
+    let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other("r")));
+    assert_eq!(err.code(), "OXCACHE_012");
+}
+
+#[test]
+#[serial_test::serial]
+#[cfg(not(feature = "redis"))]
+fn test_error_code_redis_string_payload() {
+    assert_eq!(
+        OxCacheError::RedisError("r".to_string()).code(),
+        "OXCACHE_012"
+    );
 }
 
 #[test]
@@ -496,17 +501,17 @@ fn test_is_recoverable_timeout() {
     assert!(OxCacheError::Timeout("t".to_string()).is_recoverable());
 }
 
+// 仅 redis 组合存在真实载荷构造；原实现把 cfg 放在函数体内，非 redis
+// 组合产出空体恒过用例——门控上移到测试函数，空断言用例不再出现。
 #[test]
 #[serial_test::serial]
+#[cfg(feature = "redis")]
 fn test_is_recoverable_redis() {
     // RedisError is a connection error and should be recoverable
-    #[cfg(feature = "redis")]
-    {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
-            "connection reset",
-        )));
-        assert!(err.is_recoverable());
-    }
+    let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::other(
+        "connection reset",
+    )));
+    assert!(err.is_recoverable());
 }
 
 #[test]
@@ -573,19 +578,20 @@ fn test_is_connection_error_connection() {
 
 #[test]
 #[serial_test::serial]
+#[cfg(feature = "redis")]
 fn test_is_connection_error_redis() {
-    #[cfg(feature = "redis")]
-    {
-        let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::new(
-            std::io::ErrorKind::ConnectionRefused,
-            "r",
-        )));
-        assert!(err.is_connection_error());
-    }
-    #[cfg(not(feature = "redis"))]
-    {
-        assert!(OxCacheError::RedisError("r".to_string()).is_connection_error());
-    }
+    let err = OxCacheError::RedisError(redis::RedisError::from(std::io::Error::new(
+        std::io::ErrorKind::ConnectionRefused,
+        "r",
+    )));
+    assert!(err.is_connection_error());
+}
+
+#[test]
+#[serial_test::serial]
+#[cfg(not(feature = "redis"))]
+fn test_is_connection_error_redis_string_payload() {
+    assert!(OxCacheError::RedisError("r".to_string()).is_connection_error());
 }
 
 #[test]
@@ -850,7 +856,7 @@ fn test_localized_message_unknown_locale_falls_back_to_en() {
 }
 
 // ============================================================================
-// OxCacheConfigError localized_message tests (redis feature only)
+// OxCacheConfigError localized_message tests
 // ============================================================================
 
 #[cfg(feature = "redis")]
@@ -931,21 +937,21 @@ fn test_display_uses_default_locale_zh() {
     crate::i18n::set_default_locale("en");
 }
 
+// 类型随 redis 门控，测试同步门控；cfg 置于函数级，非 redis 组合
+// 不再产出空体用例
+#[cfg(feature = "redis")]
 #[test]
 #[serial_test::serial]
 fn test_display_config_error_uses_default_locale_zh() {
-    #[cfg(feature = "redis")]
-    {
-        crate::i18n::set_default_locale("zh-CN");
-        let err = OxCacheConfigError::MissingField("host".to_string());
-        let s = err.to_string();
-        assert!(
-            s.contains("缺少必需字段：host"),
-            "zh ConfigError Display should contain '缺少必需字段：host': got '{s}'"
-        );
-        // Restore default
-        crate::i18n::set_default_locale("en");
-    }
+    crate::i18n::set_default_locale("zh-CN");
+    let err = OxCacheConfigError::MissingField("host".to_string());
+    let s = err.to_string();
+    assert!(
+        s.contains("缺少必需字段：host"),
+        "zh ConfigError Display should contain '缺少必需字段：host': got '{s}'"
+    );
+    // Restore default
+    crate::i18n::set_default_locale("en");
 }
 
 #[test]
