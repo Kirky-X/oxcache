@@ -29,6 +29,8 @@
 
 ## [0.5.0-rc.6] — 2026-10-05
 
+> 号位说明：本节涵盖原定名 `0.5.0-rc.7` 的工作波次（自适应 TTL、指标 per-service 维度、`sync_backend_arc` / `AsyncToSyncBridge`、统一配置中枢 `CacheConfig`、智能预热、inklog 审计桥、分配基线）——发布裁决将其并入 `0.5.0-rc.6` 号位（workspace 版本与 macros 钉版同步调回 rc.6），仓库内**不存在 rc.7 版本与 tag**；下方「hitbox 能力吸收批次」为同版本内的前一批内容。
+
 ### 新增
 
 - **自适应 TTL（R5，`adaptive-ttl` feature，默认关闭）**：`AdaptiveTtlBackend` 装饰任意 `CacheBackend`，按访问模式调整条目 TTL——命中计数达 `hot_threshold` 的 hot 键 set 时 TTL 乘 `hot_ttl_multiplier`、get 时受 `adjust_interval` 限速把已存条目 `expire` 调整到 `clamp(hot_ttl_multiplier × 剩余 TTL)`（方向不限，基准超出上界同样收敛，限制写放大）；已知键最近访问早于 `cold_idle_after` 时 set 的 TTL 除以 `cold_ttl_divisor`；hot 与 cold 同时满足时 hot 优先。全部阈值为 `AdaptiveTtlConfig` 显式常量（无黑盒启发式）：调整结果钳制在 `[min_ttl, max_ttl]`（默认 1s..1h），`None`（永不过期）不参与调整原样透传；追踪表上限 `max_tracked_keys`（默认 65 536）防内存失控，满时新键按普通键透传；配置经 `validate()` 在构建期校验——`min_ttl > max_ttl`、`hot_ttl_multiplier` 非有限正数（0/负/NaN/inf）、`cold_ttl_divisor = 0`、`max_tracked_keys = 0` 均显性 `Err(InvalidInput)`（拒绝发生在构造期而非请求路径 `Duration::clamp` panic 或乘除静默畸变）。经 `CacheBuilder::adaptive_ttl()` 一等接线，与 `sync_mode(true)` / `stale_ttl` 组合在构建期显性拒绝（装饰器对 sync API 不可见、双 TTL 改写器叠加语义未定义）；`stats()` / `reset_stats()` 暴露追踪键数与延长/缩短计数，get 路径主动调整遇后端 `expire` 故障不阻断命中、以 `failed_adjustments` 显性计数，后端 `stats()` 附加 `adaptive_tracked_keys` / `adaptive_hot_extensions` / `adaptive_cold_shortenings` / `adaptive_failed_adjustments`，`clear()` 同步清零访问历史
@@ -56,9 +58,10 @@
 
 - `docs/allocation-baseline.md`（新增，热路径分配基线与削减对账；放 `docs/` 而非任务指定的 `reviews/`——该目录被 `.gitignore` 排除，入库必丢文件，循 `diting-review.md` 重建先例）；`docs/FEATURE_AUDIT_RECHECK.md`（新增，治理复核记录）；`docs/diting-review.md` 待办收口与状态同步；`docs/ARCHITECTURE.md` 未来增强节落地注记（智能预热）；`docs/API_REFERENCE.md` 智能预热节与 `audit_publisher` 发布器清单、特性依赖表补全；README 特性表增 `warmup` 行、`audit` 行补 inklog 发布器、版本历史与测试计数刷新
 
-## [0.5.0-rc.6] - 2026-09-28
 
-### 新增
+### hitbox 能力吸收批次（2026-09-28 起草，随 v0.5.0-rc.6 一并发版）
+
+#### 新增
 
 - **`#[cached]` 宏 `skip(...)` 参数**：被点名参数不进入默认缓存 key（如 `skip(password)` 排除敏感参数）；与显式 `key` 模板互斥（编译期报错）、未知参数名编译期报错（对标 hitbox `skip` 语义）
 - **`stale` feature SWR 三态过期**：`StaleWhileRevalidateBackend` 装饰器以双时间戳 envelope（`expire_at`/`stale_at`）实现 Actual/Stale/Expired 三态判定；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；`StalePolicy::Return`（旧值兜底，默认）/ `Revalidate`（同步回源刷新）/ `OffloadRevalidate`（立即回旧值 + 后台刷新）；非 envelope 旧数据按新鲜透传，零迁移成本；物理 TTL = `ttl + stale_ttl`；stale 命中发布 `CacheEventType::Expire` 事件并计入 `oxcache_stale_hits_total`
@@ -72,13 +75,13 @@
 - **`BloomFilter` 泛型化**：键类型放宽为 `K: ?Sized = str`；新增 `hash_count` / `set_bits` 访问器与 `new_with_hash_count`（闭式二分反解，免去逐探针全尺寸位图分配）
 - **degradation 降级观测桥**：状态 snapshot 只读快照、telemetry 状态迁移观测桥与双层熔断语义文档
 
-### 变更
+#### 变更
 
 - **默认指标落地（行为变化）**：`Cache` 默认 recorder 由 `NoOpMetricsRecorder` 改为全局 `UnifiedMetricsRecorder`（`metrics` feature 下所有构造路径生效）——`minimal` 预设开箱即产生 hit/miss/set/delete 计数；显式注入 `NoOpMetricsRecorder` 可恢复静默
 - **指标维度补强**：单后端 `Cache` 指标 layer 依后端类型判定（内存 L1 / 分布式 L2，原硬编码 L1）；`get_bytes`/`set_bytes` 及 sync 版补齐与泛型路径同口径打点；新增 backend 维度计数 `oxcache_backend_<name>_operations_total`（`export_prometheus_standard` 以 `backend` label 导出）
 - **集成测试容器门控 STRICT 两档**：valkey/dragonfly 集成测试接入 `gate_skip` / `backend_skip` 门控原语（失败短路闩、首因记录、90 秒门控预算）；ci.yml / release.yml 的 test step 置位 `OXCACHE_TEST_STRICT=1` fail-closed——容器不可用时失败而非静默跳过；testcontainers 启用 watchdog feature 兜底容器回收
 
-### 修复
+#### 修复
 
 - **宏 `cache_none` no-op 缺陷**：`cache_none` 参数此前解析后从未消费；且 `Result<Option<T>, E>` 的 `Ok(None)` 被无条件缓存（与文档宣称相反）。现按文档语义修复：默认仅缓存 `Ok(Some)`，开启 `cache_none` 后 `Ok(None)` 以 `null` 缓存并在读取时还原；single_flight leader 与 sync 路径同口径
 - **文档版本漂移**：README/README_EN/lib.rs 中 13 处 `0.5.0-rc.4` 当前版本引用同步至 `0.5.0-rc.5`（历史发布条目保留）
@@ -87,11 +90,11 @@
 - **Redis TTL 毫秒化**：亚秒 TTL（< 1s）此前被秒口径校验（`as_secs() == 0` 即拒绝）静默拒之门外，导致 `set` 不写 L2、`expire` 完全不生效；`RedisCommand` 新增 `PExpire`，`set`/`set_many` 由 SETEX 改为 `SET key value PX <ms>`、`expire` 改为 `PEXPIRE`、`set_if_absent` 改 `SET NX PX`，`incr`/`compare_and_swap` Lua 脚本内的 EXPIRE/SET EX 同步切换（Redis/Valkey ≥ 2.6.12：SET 的 PX/NX 选项自 2.6.12 引入，构成命令面下限；PEXPIRE 自 2.6.0）；校验改毫秒口径（`as_millis() == 0` 才拒绝，u128 比较防截断误放行），`set_many_pipeline` 与 `CacheWriter::set_many` 同根因一并修复
 - **ChainCache `expire` 后端故障静默吞错**：原实现对后端 `Err` 与 `Ok(false)` 一律 `continue`，TTL 校验失败等错误无任何事件/日志可观测；后端 `Err` 时发布 error 事件（对齐 set 路径既有机制），并按 backfill/iter_entries 既有惯例补 telemetry warn（feature 关闭时零开销），返回值语义不变（部分成功仍 `Ok(true)`，键不存在 `Ok(false)` 属正常结果非故障）
 
-### 测试
+#### 测试
 
 - **Redis 亚秒 TTL 直查断言**：直连 Redis 断言 `PTTL` 毫秒精度与键按亚秒 TTL 过期后消失，覆盖 writer/pipeline 路径回归
 
-### 文档
+#### 文档
 
 - README / README_EN / API_REFERENCE / ARCHITECTURE 同步 `disk`/`stale`/`offload`/读策略/宏 `skip` 能力说明（中英对称）
 - 蓝图全量采用库侧改动配套文档：API_REFERENCE / ARCHITECTURE 增补 bloom 泛型化、批量读取、invalidation 装配、degradation 快照等条目，补记 `memory` / `redis` / `degradation` 特性隐含依赖口径；tests/README 登记「容器可用性门控」STRICT 两档语义与 bloom_filter_integration 目标级门控
@@ -286,7 +289,7 @@
 
 ### 新增
 
-- **Valkey 后端**：新增 `ValkeyBackend`，支持 Redis 兼容的 Valkey 分布式缓存（BSD-3 许可）。
+- **Valkey 后端**：支持 Redis 兼容的 Valkey 分布式缓存（BSD-3 许可）——经 `RedisBackend` 接入（无独立 `valkey` feature，也不存在 `ValkeyBackend` 类型；集成测试以 valkey 容器对 Redis 协议做兼容性验证）。本条旧文案曾写作「新增 `ValkeyBackend`」，与源码不符，已更正。
 - **Dragonfly 后端**：新增 `DragonflyBackend`，支持 Dragonfly 分布式缓存（BSL 1.1 许可）。
 - **Aerospike 迁移**：Aerospike 后端从独立子 crate 迁移为 feature-gated 模块（`aerospike` feature），统一纳入主 crate。
 - **AtomicCacheWriter**：新增 `AtomicCacheWriter` trait 和 `Cache` atomic API，支持原子写入操作。

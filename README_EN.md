@@ -6,7 +6,7 @@
 
 **[中文](README.md)** | English
 
-**Multi-tier caching for Rust: L1 in-memory + L2 distributed**
+**Multi-tier caching for Rust: L1 in-memory + L2 distributed + optional L3 disk (redb)**
 
 [✨ Features](#-features) • [🚀 Quick Start](#-quick-start) • [📚 Documentation](#-documentation) • [💻 Examples](#-examples) • [🤝 Contributing](#-contributing)
 
@@ -61,7 +61,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🚀 **Multi-tier caching** | L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) chained by score via `ChainCache`, with async backfill on non-top hits |
 | ⚡ **Zero-boilerplate macro** | One-line `#[cached]` integration supporting `service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` / `skip` |
 | 🔄 **Sync API** | With `sync_mode(true)`, `get_sync` / `set_sync` / `get_or_sync` coexist with the async API on the same `Cache<K, V>` |
-| ⏱️ **Universal per-entry TTL** | `ttl` / `expire` behave consistently across all ten backend kinds: Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom |
+| ⏱️ **Universal per-entry TTL** | `ttl` / `expire` behave consistently across all backend kinds: Moka / DashMap / Redis / Valkey (via RedisBackend) / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom |
 | 🌸 **Penetration guard** | Single-flight dedup (64 shards), null sentinel, TTL jitter, bloom-filter negative-query short-circuit |
 | 🔐 **Built-in security** | Key / Lua / SCAN input validation, connection-string redaction, value-level encryption and integrity decorators |
 | 📈 **Observability** | Latency histograms and operation counters, Prometheus / JSON export, `telemetry` tracing events, audit event stream |
@@ -69,7 +69,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🗜️ **Adaptive compression** | `CompressingBackend` applies zstd above a size threshold; reads auto-detect by magic bytes and stay compatible with legacy gzip |
 | 🔑 **Distributed coordination** | Redis distributed lock (watchdog renewal / reentrant), RedLock multi-node majority lock, cross-instance invalidation bus |
 | 🧯 **Fault resilience** | ChainCache per-link fault tolerance, `degradation` three-state auto-degradation and recovery, health checks, graceful shutdown |
-| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.7), chaos and security tests, three-platform CI matrix, coverage gate |
+| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.6), chaos and security tests, three-platform CI matrix, coverage gate |
 
 <details>
 <summary>🔎 Advanced capabilities at a glance</summary>
@@ -110,7 +110,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.7"
+oxcache = "0.5.0-rc.6"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -179,9 +179,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0-rc.7", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.7", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.7", features = ["full"] }      # full (excludes opt-in features such as bloom / kit)
+oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
+oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full: L1+L2+L3 disk + macro + compression + batch + Lua + lock + SWR/offload (excludes opt-in features such as bloom / kit)
 ```
 
 | Flag | Description | Default |
@@ -426,7 +426,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .inner(MokaMemoryBackend::new())
         .build()?;
 
-    backend.set("user:1", b"Alice".to_vec(), None).await?;
+    backend.set(Arc::from("user:1"), Arc::new(b"Alice".to_vec()), None).await?;
     assert!(backend.get("user:1").await?.is_some());
     assert!(backend.get("user:999").await?.is_none());   // BF filtered, inner untouched
     Ok(())
@@ -481,7 +481,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.7** (re-verified 2026-10-05); 2284 in total (`src/` 1585 + `tests/` 699). Per-layer rows are grep counts per test directory; the 12 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.6** (re-verified 2026-10-06); 2286 in total (`src/` 1587 + `tests/` 699). Per-layer rows are grep counts per test directory; the 12 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
 
 ### Common Commands (same as CI)
 
@@ -553,7 +553,7 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 
 | Status | Item | Notes |
 |:------:|------|-------|
-| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.7 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
+| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.6 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
 | ✅ | **Valkey integration test environment gating** | 8 Valkey and 6 Dragonfly integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
 | ✅ | **Follow-up on archived review findings** | Archive in `docs/diting-review.md` (3 Medium + 2 Low): all 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
@@ -575,8 +575,7 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
 
-- **0.5.0-rc.7** (2026-09-30): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); hot-path allocation baseline and reduction (preallocated result `HashMap` for `get_many` etc., see `docs/allocation-baseline.md`); governance recheck and review-archive fixes
-- **0.5.0-rc.6** (2026-09-28): absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed
+- **0.5.0-rc.6** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction (see `docs/allocation-baseline.md`); absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release (no rc.7 version or tag exists).
 - **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature
 - **0.5.0-rc.3** (2026-09-08): fixed circuit-breaker state-transition races; hardened Lua-injection validation and Redis password redaction; CI supply-chain hardening (58 third-party Action references pinned to SHAs)

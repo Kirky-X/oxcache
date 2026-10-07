@@ -2,7 +2,7 @@
 
 # 📖 Oxcache 用户指南
 
-### 高性能 Rust 双层缓存库完整使用指南
+### 高性能 Rust 多级缓存库（L1+L2+可选 L3）完整使用指南
 
 [🏠 首页](../README.md) • [📚 文档中心](../README.md#-文档) • [🎯 示例](../examples/) • [📘 API 参考](API_REFERENCE.md)
 
@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.7** 编写。
+> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.6** 编写。
 
 ## 📋 目录
 
@@ -49,13 +49,13 @@
 
 ## 🧭 简介
 
-**oxcache** 是一个高性能、生产级可用的 Rust 缓存库，提供 L1（进程内内存缓存，使用 Moka）+ L2（分布式 Redis 缓存）的双层架构。它通过
+**oxcache** 是一个高性能、生产级可用的 Rust 缓存库，提供 L1（进程内内存，Moka/DashMap）+ L2（分布式 Redis/Valkey/Dragonfly/Aerospike）+ 可选 L3 磁盘（redb）的多级架构。它通过
 `#[cached]` 宏实现零侵入式缓存，并支持同步 API、布隆过滤器和链式多层后端。
 
 | 学习板块 | 内容 | 收获 |
 |---------|------|------|
 | 🚀 快速入门 | 环境搭建与首个缓存 | 5 分钟内完成接入 |
-| 🧱 核心概念 | 双层架构、链式缓存、同步 API | 理解设计模型 |
+| 🧱 核心概念 | 多级架构、链式缓存、同步 API | 理解设计模型 |
 | 📖 基础用法 | 宏与手动控制、序列化 | 日常读写上手 |
 | ⚡ 高级用法 | ChainCache、布隆、TTL、监控 | 生产级能力运用 |
 
@@ -104,12 +104,12 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.7"
+oxcache = "0.5.0-rc.6"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.7", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.6", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层与依赖
 
@@ -119,7 +119,7 @@ oxcache = "0.5.0-rc.7"
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.7", default-features = false, features = ["core"] }
+oxcache = { version = "0.5.0-rc.6", default-features = false, features = ["core"] }
 ```
 
 或者使用命令行：
@@ -248,7 +248,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 理解这些核心概念将帮助你更有效地使用 `oxcache`。
 
-### 双层缓存架构
+### 多级缓存架构（L1+L2+可选 L3）
 
 `oxcache` 的核心是 L1 (Moka) + L2 (Redis) 两级缓存架构。L1 是本地内存缓存，访问速度极快；L2 是分布式缓存，支持多实例共享。
 
@@ -271,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 通用 per-entry TTL
 
-所有后端（Moka / DashMap / Redis / Valkey / Dragonfly / Aerospike / Disk / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))` 设置单条目 TTL；设置、读取与修改方法见 [TTL 管理](#ttl-管理)。
+所有后端（Moka / DashMap / Redis / Valkey（经 RedisBackend）/ Dragonfly / Aerospike / Disk / Mock / Chain / Bloom）都支持 `set(key, value, Some(ttl))` 设置单条目 TTL；设置、读取与修改方法见 [TTL 管理](#ttl-管理)。
 
 ---
 
@@ -364,10 +364,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let l2 = RedisBackend::new("rediss://127.0.0.1:6379").await?;
 
     // 直接写入 L1（临时数据）
-    l1.set("temp_key", b"temp_data".to_vec(), Some(Duration::from_secs(60))).await?;
+    l1.set(Arc::from("temp_key"), Arc::new(b"temp_data".to_vec()), Some(Duration::from_secs(60))).await?;
 
     // 直接写入 L2（共享数据）
-    l2.set("shared_key", b"shared_data".to_vec(), Some(Duration::from_secs(3600))).await?;
+    l2.set(Arc::from("shared_key"), Arc::new(b"shared_data".to_vec()), Some(Duration::from_secs(3600))).await?;
 
     Ok(())
 }
@@ -589,7 +589,7 @@ let backend = RedisBackend::builder()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.7", features = ["dragonfly"] }
+oxcache = { version = "0.5.0-rc.6", features = ["dragonfly"] }
 ```
 
 ```rust
@@ -610,7 +610,7 @@ let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.7", features = ["aerospike"] }
+oxcache = { version = "0.5.0-rc.6", features = ["aerospike"] }
 ```
 
 后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#-aerospikebackend)。

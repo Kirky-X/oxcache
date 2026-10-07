@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.5.0-rc.7** 的 API。
+> 本文档描述 **Oxcache v0.5.0-rc.6** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -126,7 +126,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0-rc.7", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.0-rc.6", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
@@ -377,7 +377,8 @@ let moka = MokaMemoryBackend::builder().capacity(10000).build();
 | Moka | 100 | false |
 | DashMap | 90 | false |
 | Redis | 50 | true |
-| Valkey | 50 | true |
+| Valkey（经 RedisBackend） | 50 | true |
+| Disk（redb） | 85 | true |
 | Dragonfly | 50 | true |
 | Aerospike | 30 | true |
 
@@ -752,7 +753,7 @@ let backend = BloomFilterBackend::builder()
 
 ## 🕒 TTL 管理
 
-所有后端（Moka、DashMap、Redis、Valkey、Dragonfly、Aerospike、Disk、Mock、Chain、Bloom）都通过
+所有后端（Moka、DashMap、Redis、Valkey（经 RedisBackend）、Dragonfly、Aerospike、Disk、Mock、Chain、Bloom）都通过
 `set(key, value, Some(ttl))` 支持单条目 TTL。
 
 - **Moka** 使用 `moka::Expiry` trait 实现真正的单条目 TTL，覆盖构建器设置的全局 TTL。
@@ -934,6 +935,18 @@ let chain = ChainCache::builder()
 OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serialization`、
 `chrono` 和 `dashmap` 用于内部统计收集和 JSON 导出。
 
+### `MetricsConfig`（`metrics` 特性）
+
+`UnifiedMetrics` / `UnifiedMetricsRecorder` 的采集面配置（`with_config` 注入）：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `detailed` | `bool` | `true` | 是否采集明细维度（含直方图与耗时分布） |
+| `histogram_buckets` | `Vec<f64>` | `0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000` | 直方图分桶边界（毫秒） |
+| `max_dynamic_metrics` | `usize` | 1000 | 动态指标名上限，超限不再新建序列 |
+| `max_service_labels` | `usize` | 64 | `service` 维度标签基数上限（R9）：超限的新归因丢弃并计入 `oxcache_service_labels_overflow_total`，防标签爆炸 |
+| `retention_period` | `Option<Duration>` | `Some(3600 秒)` | **当前未被淘汰逻辑消费**（字段保留给快照生命周期管理，设定不产生行为） |
+
 ## ⚙️ 统一配置中枢（CacheConfig）
 
 `oxcache::config::CacheConfig` 以单一结构承载缓存构建全量参数，支持三条配置通路：
@@ -981,6 +994,37 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 未设置的键回落底层构建器默认（零行为漂移）；解析失败与「键已设置但对应 feature
 未启用」均显性报错（附变量名与原始值），布尔值接受 `true/1/yes/on` 与
 `false/0/no/off`。`redis_url` 可能携带凭证，`Debug` 输出脱敏为 `"***"`。
+
+### `OxcacheConfig`（confers 快照，`config-confers` feature）
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `capacity` | `u64` | 10_000（内置） | L1 容量（条目数）——confers 通路映射后恒为已设置值 |
+| `default_ttl_ms` | `u64` | 60_000（内置） | 默认 TTL（毫秒）——同上 |
+| `tti_ms` | `Option<u64>` | `None` | 默认 TTI（毫秒） |
+| `null_cache_ttl_ms` | `Option<u64>` | `None` | 穿透防护空值缓存 TTL（毫秒） |
+| `ttl_jitter_factor` | `Option<f64>` | `None`（底层默认 0.1） | TTL 抖动因子 |
+| `sync_mode` | `Option<bool>` | `None` | 同步 API 模式 |
+| `backend` | `Option<String>` | `None` | 后端原始串（moka/dashmap/redis/…） |
+| `metrics_enabled` | `Option<bool>` | `None` | 指标开关（需 `metrics`） |
+| `redis_url` | `Option<String>` | `None` | Redis 兼容后端连接串（`Debug` 脱敏） |
+| `circuit_breaker` | `Option<CircuitBreakerSettings>` | `None` | 熔断参数：`failure_threshold` / `recovery_timeout_ms` |
+
+超界熔断阈值与连接池大小在 confers 通路**显性报错**（不钳制/不丢弃）；热更新重载被拒时保留旧快照并可观测（`oxcache_config_reload_rejected_total`）。
+
+### `DistributedConfig`（`oxcache::config`）
+
+分布式后端的重试/熔断/健康检查参数，经 `DistributedConfig::builder()` 构造：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `retry_count` | `u32` | 3 | 可恢复操作的最大重试次数 |
+| `retry_base_delay` | `Duration` | 100 毫秒 | 重试基础延迟（逐次翻倍） |
+| `circuit_breaker_threshold` | `u32` | 5 | 熔断打开前的连续失败数 |
+| `circuit_breaker_reset_timeout` | `Duration` | 30 秒 | Open → HalfOpen 等待时长 |
+| `health_check_interval` | `Duration` | 60 秒 | 周期健康检查间隔 |
+
+builder 方法同名（`retry_count(count)` / `retry_base_delay(delay)` / `circuit_breaker_threshold(threshold)` / `circuit_breaker_reset_timeout(timeout)` 等）。
 
 ### confers 配置源（`config-confers` feature）
 
@@ -1073,7 +1117,7 @@ pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster | ValkeyS
 | 类型 / 函数 | 说明 |
 |------------|------|
 | `OxcacheModule` | 实现 `AsyncAutoBuilder`，构建 `Arc<dyn CacheBackend + Send + Sync>` 能力 |
-| `OxcacheConfig` | 模块配置（`capacity: u64`, `ttl: Option<Duration>`, `tti: Option<Duration>`, `backend` 枚举 Memory/Redis/Chain） |
+| `OxcacheConfig` | 模块配置（`backend: BackendType` 枚举 Memory（默认）/Redis/Chain、`capacity: u64`（默认 10_000，镜像 Moka builder）、`ttl: Option<Duration>`、`tti: Option<Duration>`、`redis: Option<RedisConfig>`（`backend` 为 Redis 或链上含 Redis 时必填）、`chain: Vec<ChainLinkConfig>`（仅 `BackendType::Chain` 消费，其余类型忽略））。**与 `oxcache::features::confers_config::OxcacheConfig` 同名而异体**：本结构是 kit 装配用的独立最小配置，故意不接入 oxcache 配置体系 |
 | `OxcacheBuildObserver` | 实现 `BuildObserver`，可通过 `AsyncKit::with_observer` 注册构建观察者 |
 | `register_cache_shutdown` | 将 `CacheBackend` 关闭映射到 `AsyncShutdownCoordinator` 三阶段 |
 | `CacheBackendDecorator` | 装饰器类型别名 `Arc<dyn Fn(Arc<dyn CacheBackend>) -> Arc<dyn CacheBackend>>` |
@@ -1100,6 +1144,22 @@ let coord = AsyncShutdownCoordinator::new();
 register_cache_shutdown(&coord, backend.clone()).unwrap();
 coord.shutdown().await.unwrap();
 ```
+
+### `RedisConfig` 与 `ChainLinkConfig`（kit 装配面）
+
+`RedisConfig` 在 `apply_redis_config` 中逐字段下发到 `RedisBackendBuilder`：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `connection_string` | `String` | `""`（必填写入） | Redis 连接串（如 `redis://127.0.0.1:6379`） |
+| `pool_size` | `usize` | 8 | 连接池大小 |
+| `connection_timeout` | `Duration` | 2 秒 | 连接超时 |
+| `retry_count` | `u32` | 3 | 可恢复错误重试次数 |
+| `retry_delay` | `Duration` | 100 毫秒 | 重试间隔 |
+| `circuit_breaker_threshold` | `u32` | 5 | 熔断连续失败阈值 |
+| `circuit_breaker_reset_timeout` | `Duration` | 30 秒 | 熔断 Open→HalfOpen 重置超时 |
+
+`ChainLinkConfig` 描述链上每一层：`backend: BackendType`、`score: u8`（高分优先，默认 memory 100 / redis 50）、`redis: Option<RedisConfig>`（`backend == Redis` 时必填）。
 
 ## 💻 示例
 

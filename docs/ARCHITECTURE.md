@@ -1,6 +1,6 @@
 # 🏗️ Oxcache 架构文档
 
-本文档描述 Oxcache 库（v0.5.0-rc.7）的架构、设计决策和技术细节。
+本文档描述 Oxcache 库（v0.5.0-rc.6）的架构、设计决策和技术细节。
 
 ## 📋 目录
 
@@ -464,7 +464,7 @@ let event = CacheEvent::new(CacheEventType::Hit)
 
 **位置**：`src/config/`、`src/registry.rs`、`src/backend/factory.rs`
 
-- **`config/`**：公开模块（`pub mod config`，0.5.0-rc.7 起转公开），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）与 `CacheConfig` 等配置入口；程序化构建仍推荐 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
+- **`config/`**：公开模块（`pub mod config`，rc.7 工作波次起转公开，随下次发布生效），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）与 `CacheConfig` 等配置入口；程序化构建仍推荐 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
 - **`registry.rs`**：全局缓存注册表（`init` / `register` / `get` / `remove` / `clear`），供显式管理多个命名缓存实例。
 - **`backend::factory`**：`BackendRegistry` 后端工厂注册中心，按名注册/构建后端（内置 moka/dashmap/memory，feature 门控 redis），serde 友好的 `BackendSpec`，供 kit 等动态选择后端。
 
