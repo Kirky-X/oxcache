@@ -13,7 +13,7 @@ keywords = ["cache", "redis", "memory", "async", "performance"]
 categories = ["caching", "asynchronous", "database"]
 
 [package.metadata.docs.rs]
-features = ["full", "bloom", "kit"]
+features = ["full"]
 
 [lints]
 workspace = true
@@ -299,20 +299,43 @@ minimal = [
     "serialization",
     "dep:chrono",
 ]
-core = ["minimal", "redis"]
+# 正名：core 实为 minimal+redis 两级基线，名字反映网络层的存在
+redis-tier = ["minimal", "redis"]
+# 兼容别名：旧 feature 名 core 转发到 redis-tier
+core = ["redis-tier"]
+# 真全量：全部具名能力 feature（弃用别名 core/red-lock/testing/kit 不入列，用正名）
 full = [
-    "core",
+    "redis-tier",
     "macros",
+    "byte-weight",
     "compression",
     "batch",
     "lua",
-    "testing",
+    "test-util",
     "dragonfly",
     "aerospike",
     "lock",
+    "redlock",
     "offload",
     "disk",
     "stale",
+    "bloom",
+    "trait-kit",
+    "telemetry",
+    "invalidation",
+    "pubsub",
+    "encrypt",
+    "integrity",
+    "serde-bincode",
+    "postcard",
+    "config-confers",
+    "degradation",
+    "audit",
+    "inklog",
+    "versioning",
+    "hotkey",
+    "adaptive-ttl",
+    "warmup",
 ]
 
 # Component features

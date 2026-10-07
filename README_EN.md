@@ -180,15 +180,15 @@ Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
 oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full: L1+L2+L3 disk + macro + compression + batch + Lua + lock + SWR/offload (excludes opt-in features such as bloom / kit)
+oxcache = { version = "0.5.0-rc.6", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
 ```
 
 | Flag | Description | Default |
 |------|-------------|:-------:|
 | `minimal` | Preset: `memory` + `metrics` + `serialization` + `chrono`, L1 only | ✅ |
-| `core` | Preset: `minimal` + `redis`, L1 + L2 | ❌ |
-| `full` | Preset: `core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` / `offload` / `disk` / `stale` | ❌ |
+| `redis-tier` | Preset: `minimal` + `redis`, L1 + L2 (legacy `core` remains as a compat alias) | ❌ |
+| `full` | True full: `redis-tier` + every named capability feature (macros/compression/batch/Lua/locks/RedLock/three backends/bloom/kit/encrypt/integrity/inklog/config-confers etc.) | ❌ |
 | `memory` | L1 in-memory backends (Moka + DashMap) | ❌ |
 | `redis` | L2 distributed cache (Redis / Valkey, Standalone / Sentinel / Cluster) | ❌ |
 | `dragonfly` | Dragonfly backend (Redis protocol compatible) | ❌ |
@@ -224,7 +224,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # full: L1+L2+L3 
 | `inklog` | Audit event → inklog structured-log bridging (`InklogAuditPublisher` wired to `LogSink`; requires `audit`) | ❌ |
 | `hotkey` | Hot-key sampling observability (`HotKeyTracker` sharded counting + snapshot decayed Top-K) | ❌ |
 
-> Opt-in features such as `bloom` and `trait-kit` are **not** part of `full` and must be enabled explicitly.
+> `bloom` and `trait-kit` are part of `full` now; enabling them alone (`--features bloom`) remains supported.
 
 ---
 
@@ -397,7 +397,7 @@ Reads fall through starting from the highest-scored link, and a hit on a non-top
 
 ### 🌸 Bloom Filter & Penetration Guard
 
-The `bloom` feature (opt-in; not in `full`) provides negative-query filtering. The `BloomFilterBackend` decorator wraps any backend: when the bloom filter says "definitely absent", it returns `None` immediately and the inner backend is never touched.
+The `bloom` feature provides negative-query filtering. The `BloomFilterBackend` decorator wraps any backend: when the bloom filter says "definitely absent", it returns `None` immediately and the inner backend is never touched.
 
 ```mermaid
 flowchart TD
@@ -486,7 +486,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 ### Common Commands (same as CI)
 
 ```bash
-# The CI test matrix runs at minimal / core / full
+# The CI test matrix runs at minimal / redis-tier / full and more tiers
 cargo test --features full --workspace
 
 # Run by test binary
@@ -495,7 +495,7 @@ cargo test --features full --test integration
 cargo test --features full --test e2e
 
 # Narrow feature-combination checks (CI feature-core / feature-minimal jobs)
-cargo check -p oxcache --no-default-features --features core
+cargo check -p oxcache --no-default-features --features redis-tier
 cargo check -p oxcache --no-default-features --features minimal
 
 # Skip tests that require Redis

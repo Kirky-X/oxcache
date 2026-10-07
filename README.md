@@ -192,15 +192,15 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 ```toml
 oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.6", features = ["core"] }      # L1 + L2 Redis
-oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量：L1+L2+L3 磁盘 + 宏 + 压缩 + 批量 + Lua + 锁 + SWR/offload（不含 bloom / kit 等选择加入特性）
+oxcache = { version = "0.5.0-rc.6", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
 
 | 标志 | 说明 | 默认 |
 |------|------|:----:|
 | `minimal` | 预设：`memory` + `metrics` + `serialization` + `chrono`，仅 L1 | ✅ |
-| `core` | 预设：`minimal` + `redis`，L1 + L2 | ❌ |
-| `full` | 预设：`core` + `macros` / `compression` / `batch` / `lua` / `testing` / `dragonfly` / `aerospike` / `lock` / `offload` / `disk` / `stale` | ❌ |
+| `redis-tier` | 预设：`minimal` + `redis`，L1 + L2（旧名 `core` 为兼容别名） | ❌ |
+| `full` | 真全量：`redis-tier` + 全部具名能力特性（宏/压缩/批量/Lua/锁/RedLock/三后端/bloom/kit/encrypt/integrity/inklog/config-confers 等） | ❌ |
 | `memory` | L1 内存后端（Moka + DashMap） | ❌ |
 | `redis` | L2 分布式缓存（Redis / Valkey，Standalone / Sentinel / Cluster） | ❌ |
 | `dragonfly` | Dragonfly 后端（Redis 协议兼容） | ❌ |
@@ -236,7 +236,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 全量：L1+L2+
 | `inklog` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher` 直连 `LogSink`；依赖 `audit`） | ❌ |
 | `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
 
-> `bloom` 与 `trait-kit` 等选择加入特性**不在** `full` 中，需显式启用。
+> `bloom` 与 `trait-kit` 已并入 `full`；单开它们仍受支持（`--features bloom`）。
 
 ---
 
@@ -496,7 +496,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### 常用命令（与 CI 一致）
 
 ```bash
-# CI test 矩阵以 minimal / core / full 三档运行
+# CI test 矩阵以 minimal / redis-tier / full 等档位运行
 cargo test --features full --workspace
 
 # 按测试二进制运行
@@ -505,7 +505,7 @@ cargo test --features full --test integration
 cargo test --features full --test e2e
 
 # 窄特性组合检查（CI feature-core / feature-minimal job）
-cargo check -p oxcache --no-default-features --features core
+cargo check -p oxcache --no-default-features --features redis-tier
 cargo check -p oxcache --no-default-features --features minimal
 
 # 跳过需要 Redis 的测试

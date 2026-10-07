@@ -1,0 +1,39 @@
+# feature 组合矩阵（FEATURE_AUDIT §9.2-6 遗留项收口，模板沿用 trait-kit）。
+# 每周定时 + 手动触发：PR 每次全量跑成本过高，PR 门禁由既有 curated 组合矩阵兜底。
+# 本仓 44 个 feature（含 default/full）刻意只做 each-feature：
+# powerset depth-2 为 C(n,2) 量级（数百至上千次 check），成本/收益为负；
+# 两两组合面由 ci.yml 既有组合矩阵与 compile_error 守卫覆盖。
+name: feature-matrix
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feature-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  each-feature:
+    name: cargo hack --each-feature
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
+        with:
+          tool: cargo-hack
+      - name: Check each feature alone
+        run: cargo hack check --each-feature

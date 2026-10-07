@@ -61,7 +61,7 @@
 //!
 //! # Bloom Filter (0.3.0)
 //!
-//! Enable the `bloom` feature (not in `full`) for negative-query
+//! Enable the `bloom` feature for negative-query
 //! filtering. `BloomFilterBackend` wraps any `CacheBackend` and skips
 //! the inner backend on BF miss.
 //!
@@ -295,6 +295,7 @@ pub mod batch;
     feature = "redis",
     feature = "minimal",
     feature = "core",
+    feature = "redis-tier",
     feature = "full",
     feature = "batch"
 ))]

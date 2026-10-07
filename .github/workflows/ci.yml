@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ["minimal", "core", "full", "adaptive-ttl"]
+        features: ["minimal", "redis-tier", "full", "adaptive-ttl"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
@@ -67,8 +67,8 @@ jobs:
       - name: Check no default features
         run: cargo check --workspace --no-default-features
 
-  feature-core:
-    name: Feature Check (core only, no defaults)
+  feature-redis-tier:
+    name: Feature Check (redis-tier, no defaults)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -78,8 +78,10 @@ jobs:
           toolchain: 1.97.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: feature-core
-      - name: Run cargo check (core, no defaults)
+          key: feature-redis-tier
+      - name: Run cargo check (redis-tier, no defaults)
+        run: cargo check -p oxcache --no-default-features --features redis-tier
+      - name: Check legacy alias core resolves
         run: cargo check -p oxcache --no-default-features --features core
 
   feature-minimal:
@@ -104,7 +106,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        features: ["minimal", "core", "full", "adaptive-ttl"]
+        features: ["minimal", "redis-tier", "full", "adaptive-ttl"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
@@ -132,12 +134,12 @@ jobs:
           - features: "minimal,macros"
           - features: "minimal,bloom"
           - features: "minimal,compression"
-          - features: "core,macros"
-          - features: "core,bloom"
-          - features: "core,compression"
-          - features: "core,batch"
-          - features: "core,lua"
-          - features: "core,bloom,macros"
+          - features: "redis-tier,macros"
+          - features: "redis-tier,bloom"
+          - features: "redis-tier,compression"
+          - features: "redis-tier,batch"
+          - features: "redis-tier,lua"
+          - features: "redis-tier,bloom,macros"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
@@ -162,7 +164,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        features: ["minimal", "core", "full"]
+        features: ["minimal", "redis-tier", "full"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # 1.97.1
