@@ -438,6 +438,10 @@ pub use core::{BackendType, CacheLayer, RedisModeType, SerializationType};
 // Key generator export
 pub use crate::utils::KeyGenerator;
 
+// Canonical JSON normalization exports (`serialization` feature)
+#[cfg(feature = "serialization")]
+pub use crate::utils::canonical::{canonical_json, canonical_json_string};
+
 // Events module re-export
 pub use core::{CacheEvent, CacheEventType, EventPublisher};
 

@@ -5,8 +5,8 @@
 //! 提供标准化的缓存键生成、验证和管理功能：
 //! - 基于模板的键生成
 //! - 命名空间/前缀管理
-//! - 键验证和规范化
-//! - 长键的哈希指纹生成
+//! - 键验证（拒绝式校验：空键/超长/非法字符；不做改写式规范化）
+//! - 长键的哈希指纹生成（[`KeyGenerator::json_hash_key`]，`integrity` 门控）
 
 use crate::error::OxCacheError;
 use crate::utils::MAX_CACHE_KEY_LENGTH;
@@ -192,6 +192,53 @@ impl KeyGenerator {
         } else {
             format!("{}:{}", self.namespace, key)
         }
+    }
+
+    /// 基于规范化 JSON 体生成哈希指纹缓存键
+    ///
+    /// 组装顺序：`parts` 段（`:` 连接）→ body 经
+    /// [`canonical_json_string`](crate::canonical_json_string)
+    /// 归一化后的 sha256 hex 摘要段 → 前缀/命名空间包装 → 键验证。
+    /// 同一 JSON 语义（键序无关）恒得同一键；体变则键变。
+    ///
+    /// 长键场景以固定长度摘要段替换超长体，避免键超长。
+    ///
+    /// # Errors
+    ///
+    /// 返回 [`OxCacheError::InvalidInput`] 当 `parts` 含 `:`（段分隔符，
+    /// 会造成不同分组的别名碰撞）或组装出的键未通过
+    /// [`validate_key`](Self::validate_key) 时。
+    #[cfg(feature = "integrity")]
+    pub fn json_hash_key(
+        &self,
+        parts: &[&str],
+        body: &serde_json::Value,
+    ) -> Result<String, OxCacheError> {
+        use sha2::Digest;
+        use std::fmt::Write as _;
+
+        if let Some(part) = parts.iter().find(|p| p.contains(':')) {
+            return Err(OxCacheError::InvalidInput(format!(
+                "json_hash_key parts must not contain the ':' segment separator: '{part}'"
+            )));
+        }
+
+        let canonical = super::canonical::canonical_json_string(body);
+        let digest = sha2::Sha256::digest(canonical.as_bytes());
+        let mut hash = String::with_capacity(digest.len() * 2);
+        for byte in digest.iter() {
+            let _ = write!(hash, "{byte:02x}");
+        }
+
+        let mut segments = Vec::with_capacity(parts.len() + 1);
+        segments.extend_from_slice(parts);
+        segments.push(&hash);
+        let key = segments.join(":");
+
+        let prefixed = self.apply_prefix(&key);
+        let full = self.namespaced_key(&prefixed);
+        self.validate_key(&full)?;
+        Ok(full)
     }
 }
 
@@ -404,5 +451,90 @@ mod tests {
         let key_gen = KeyGenerator::new().with_max_key_length(10);
         let result = key_gen.try_generate_full("user:{id}", &[("id", "this_is_way_too_long")]);
         assert!(result.is_err());
+    }
+
+    // ============================================================================
+    // json_hash_key 测试（integrity 门控）
+    // ============================================================================
+
+    #[cfg(feature = "integrity")]
+    mod json_hash_key_tests {
+        use super::*;
+        use serde_json::json;
+
+        #[test]
+        fn deterministic_and_order_independent() {
+            let key_gen = KeyGenerator::new();
+            let a = key_gen
+                .json_hash_key(&["resp", "v1"], &json!({"b": 1, "a": [1, 2]}))
+                .unwrap();
+            let b = key_gen
+                .json_hash_key(&["resp", "v1"], &json!({"a": [1, 2], "b": 1}))
+                .unwrap();
+            assert_eq!(a, b);
+            assert!(a.starts_with("resp:v1:"));
+            // sha256 hex 摘要段固定 64 字符
+            assert_eq!(a.len(), "resp:v1:".len() + 64);
+        }
+
+        #[test]
+        fn body_change_changes_key() {
+            let key_gen = KeyGenerator::new();
+            let a = key_gen.json_hash_key(&["k"], &json!({"v": 1})).unwrap();
+            let b = key_gen.json_hash_key(&["k"], &json!({"v": 2})).unwrap();
+            assert_ne!(a, b);
+        }
+
+        #[test]
+        fn namespace_and_prefix_wrap_hash_key() {
+            let key_gen = KeyGenerator::new()
+                .with_prefix_str("cache:")
+                .with_namespace("app");
+            let key = key_gen.json_hash_key(&["resp"], &json!({"v": 1})).unwrap();
+            assert!(key.starts_with("app:cache:resp:"));
+        }
+
+        #[test]
+        fn long_body_yields_fixed_length_key() {
+            let key_gen = KeyGenerator::new();
+            let big = json!({"data": "x".repeat(10_000)});
+            let key = key_gen.json_hash_key(&["k"], &big).unwrap();
+            assert!(key.len() < 256);
+        }
+
+        #[test]
+        fn invalid_parts_char_rejected() {
+            let key_gen = KeyGenerator::new();
+            let result = key_gen.json_hash_key(&["bad part"], &json!({}));
+            match result {
+                Err(OxCacheError::InvalidInput(msg)) => {
+                    assert!(msg.contains("invalid character"))
+                }
+                other => panic!("Expected InvalidInput error, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn empty_parts_yields_hash_only_key() {
+            let key_gen = KeyGenerator::new();
+            let key = key_gen.json_hash_key(&[], &json!(null)).unwrap();
+            assert_eq!(key.len(), 64);
+        }
+
+        #[test]
+        fn parts_containing_segment_separator_rejected() {
+            let key_gen = KeyGenerator::new();
+            let body = json!({"v": 1});
+            // ["user:admin"] 与 ["user", "admin"] 若都放行会别名到同一键
+            let err = key_gen.json_hash_key(&["user:admin"], &body).unwrap_err();
+            match err {
+                OxCacheError::InvalidInput(msg) => {
+                    assert!(msg.contains("':'"))
+                }
+                other => panic!("Expected InvalidInput error, got {other:?}"),
+            }
+            // 等价拆分可以正常工作
+            assert!(key_gen.json_hash_key(&["user", "admin"], &body).is_ok());
+        }
     }
 }

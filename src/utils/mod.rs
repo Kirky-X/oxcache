@@ -7,6 +7,9 @@
 pub mod key_generator;
 pub use key_generator::KeyGenerator;
 
+#[cfg(feature = "serialization")]
+pub mod canonical;
+
 mod utils_impl;
 
 pub use utils_impl::MAX_CACHE_KEY_LENGTH;
