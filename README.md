@@ -512,7 +512,7 @@ cargo check -p oxcache --no-default-features --features minimal
 cargo test --features full -- --skip redis
 
 # 覆盖率（CI 与 pre-push 门禁：行覆盖 >= 80%）
-cargo llvm-cov --features full --workspace --fail-under-lines 80
+cargo llvm-cov --features full --workspace --fail-under-lines 90
 ```
 
 > Redis 相关测试经 testcontainers 自动拉起 `redis:7-alpine` 容器，需要本机 Docker；集成 / E2E 禁用 test double，使用进程内真实实现与混沌式故障注入替身（口径见 [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)）。
@@ -575,7 +575,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 欢迎提交 Pull Request 和 Issue！参与开发请先阅读 [贡献指南](docs/CONTRIBUTING.md)。
 
 - **工具链**：`rust-toolchain.toml` 固定 1.97.1（edition 2024）
-- **本地门禁**：pre-commit / lefthook hooks 覆盖 `cargo fmt --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo deny check`、私钥与密钥扫描；pre-push 追加 `cargo audit` 与行覆盖 ≥ 80% 门禁
+- **本地门禁**：pre-commit / lefthook hooks 覆盖 `cargo fmt --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo deny check`、私钥与密钥扫描；pre-push 追加 `cargo audit` 与行覆盖 ≥ 90% 门禁
 - **提交信息**：conventional commits（`feat` / `fix` / `refactor` / `docs` 等，commit-msg hook 校验）
 - **TDD 工作流**：定接口 → 写测试（red）→ 写实现（green）→ 提交 → 影响分析
 

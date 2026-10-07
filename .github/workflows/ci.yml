@@ -225,8 +225,8 @@ jobs:
         uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
         with:
           tool: cargo-llvm-cov
-      - name: Generate coverage (gate ≥80% lines)
-        run: cargo llvm-cov --features full --workspace --fail-under-lines 80 --lcov --output-path lcov.info
+      - name: Generate coverage (gate ≥90% lines)
+        run: cargo llvm-cov --features full --workspace --fail-under-lines 90 --lcov --output-path lcov.info
       - name: Upload coverage
         if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

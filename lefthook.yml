@@ -26,5 +26,5 @@ pre-push:
     cargo-audit:
       run: cargo audit
     coverage-80:
-      name: coverage ≥80% lines
-      run: cargo llvm-cov --fail-under-lines 80
+      name: coverage ≥90% lines
+      run: cargo llvm-cov --fail-under-lines 90

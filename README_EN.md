@@ -502,7 +502,7 @@ cargo check -p oxcache --no-default-features --features minimal
 cargo test --features full -- --skip redis
 
 # Coverage (CI and pre-push gate: line coverage >= 80%)
-cargo llvm-cov --features full --workspace --fail-under-lines 80
+cargo llvm-cov --features full --workspace --fail-under-lines 90
 ```
 
 > Redis-related tests start a `redis:7-alpine` container automatically via testcontainers and require a local Docker environment. Integration / E2E tests forbid test doubles and use real in-process implementations plus chaos-style fault-injection stubs (policy in [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)).
@@ -565,7 +565,7 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 Pull Requests and Issues are welcome! Before contributing, please read the [Contributing Guide](docs/CONTRIBUTING.md).
 
 - **Toolchain**: `rust-toolchain.toml` pins 1.97.1 (edition 2024)
-- **Local gates**: pre-commit / lefthook hooks cover `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo deny check`, and private-key / secret scans; pre-push adds `cargo audit` and a line-coverage ≥ 80% gate
+- **Local gates**: pre-commit / lefthook hooks cover `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo deny check`, and private-key / secret scans; pre-push adds `cargo audit` and a line-coverage ≥ 90% gate
 - **Commit messages**: conventional commits (`feat` / `fix` / `refactor` / `docs` etc., enforced by the commit-msg hook)
 - **TDD workflow**: define the interface → write tests (red) → implement (green) → commit → impact analysis
 

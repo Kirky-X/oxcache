@@ -48,7 +48,7 @@ pre-commit install
 |------|------|
 | pre-commit | `cargo fmt --all -- --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo deny check`、私钥模式扫描 |
 | commit-msg | conventional commits 格式校验（`feat` / `fix` / `refactor` / `docs` 等） |
-| pre-push | `cargo audit` 安全审计、`cargo llvm-cov --fail-under-lines 80` 行覆盖门禁 |
+| pre-push | `cargo audit` 安全审计、`cargo llvm-cov --fail-under-lines 90` 行覆盖门禁 |
 
 > **禁止使用 `--no-verify` 跳过 hooks。** 这是安全红线。
 
