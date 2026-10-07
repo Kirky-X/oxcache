@@ -94,11 +94,16 @@ pub fn setup_logging() {
 // 缓存设置工具
 // ============================================================================
 
+// Cache 仅在 backend 基线（memory/redis/disk 任一）下导出，而
+// setup_cache 构造的是内存后端实例；共享模块会参与所有组合的测试
+// 编译，故此助手随 memory 门控，非 memory 组合不再编译失败。
+#[cfg(feature = "memory")]
 use oxcache::Cache;
 
 /// 设置缓存 - 用于测试
 ///
 /// 创建默认的内存缓存实例，简化测试设置。
+#[cfg(feature = "memory")]
 #[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub async fn setup_cache() -> Cache<String, Vec<u8>> {
     setup_logging();
