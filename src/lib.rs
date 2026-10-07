@@ -172,48 +172,6 @@
 
 #![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.7")]
 #![deny(unsafe_code)]
-// Many constants/types in core::constants and core::command are reference
-// data only consumed by specific sub-features (lua, batch,
-// etc.). Only `full` enables all sub-features, so we allow dead_code in any
-// non-full feature combination rather than gating each constant individually.
-#![cfg_attr(not(feature = "full"), allow(dead_code))]
-
-// ============================================================================
-// Feature Flags and Macros
-// ============================================================================
-
-/// 编译时特性依赖检查（支持 full 特性）
-///
-/// 注意：$required 应为特性名称字符串，而非 cfg 表达式。
-///
-/// # Example
-///
-/// ```rust,ignore
-/// check_feature_dependence!("moka", "bloom");
-/// ```
-///
-/// 如果启用了 `bloom` 但没有启用 `moka` 或 `full`，编译时会报错。
-#[macro_export]
-macro_rules! check_feature_dependence {
-    ($required:expr, $dependent:expr) => {
-        #[cfg(all(feature = $dependent, not(feature = $required), not(feature = "full")))]
-        compile_error!(concat!(
-            "Feature '",
-            $dependent,
-            "' requires '",
-            $required,
-            "' or 'full' feature.\n",
-            "\nSolution 1: Enable required feature:\n",
-            "    oxcache = { version = \"0.3\", features = [\"",
-            $dependent,
-            "\", \"",
-            $required,
-            "\"] }\n",
-            "\nSolution 2: Enable all features:\n",
-            "    oxcache = { version = \"0.3\", features = [\"full\"] }"
-        ));
-    };
-}
 
 // ============================================================================
 // Core Modules (Always Available)
@@ -472,20 +430,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg(all(test, any(feature = "memory", feature = "full")))]
 mod tests {
     use crate::VERSION;
-
-    // 测试 check_feature_dependence! 宏
-    // 当 full feature 启用时，宏的 cfg 条件为 false，不会触发 compile_error
-    #[test]
-    fn test_check_feature_dependence_macro_no_error() {
-        // 调用宏，使用已启用的 feature，不应触发 compile_error
-        check_feature_dependence!("memory", "redis");
-    }
-
-    #[test]
-    fn test_check_feature_dependence_macro_same_feature() {
-        // 使用相同的 feature 名
-        check_feature_dependence!("memory", "memory");
-    }
 
     #[test]
     fn test_version_constant() {

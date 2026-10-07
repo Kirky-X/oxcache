@@ -11,9 +11,21 @@
 // ============================================================================
 
 /// 最大 JSON 反序列化大小（字节）
+///
+/// 消费方在 serialization（json/binary 序列化器）与 warmup 面，故随
+/// 该组 feature 门控，非对应组合不参与编译。
+#[cfg(any(feature = "serialization", feature = "warmup"))]
 pub const MAX_JSON_SIZE: usize = 5 * 1024 * 1024; // 5MB
 
 /// 最大 JSON 反序列化深度
+///
+/// 消费方在 serialization 序列化器与 cache 接口/命名空间面。
+#[cfg(any(
+    feature = "serialization",
+    feature = "memory",
+    feature = "redis",
+    feature = "disk"
+))]
 pub const MAX_JSON_DEPTH: usize = 64;
 
 // ============================================================================
@@ -22,6 +34,9 @@ pub const MAX_JSON_DEPTH: usize = 64;
 
 /// Null sentinel 值：当 fallback 返回 None 时写入缓存，阻止穿透
 /// 使用固定 magic bytes 避免与合法 JSON `null` 冲突
+///
+/// 仅 cache API 的 get_or_option 路径消费。
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
 
 // ============================================================================
@@ -33,16 +48,30 @@ pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
 /// 审计 F06：0.0 意味着开箱无雪崩防护——同批写入的 key 同时过期。
 /// 默认开启后 `set_with_ttl` 的实际 TTL = `ttl * (1 ± 0.1)`；需要精确 TTL
 /// 的调用方可经 `CacheBuilder::ttl_jitter(0.0)` 显式关闭。
+///
+/// 仅 cache builder/API 消费。
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub const DEFAULT_TTL_JITTER_FACTOR: f64 = 0.1;
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    any(feature = "serialization", feature = "memory", feature = "redis")
+))]
 mod tests {
     use super::*;
 
     #[test]
     fn test_constants_values() {
+        #[cfg(any(feature = "serialization", feature = "warmup"))]
         assert_eq!(MAX_JSON_SIZE, 5 * 1024 * 1024);
+        #[cfg(any(
+            feature = "serialization",
+            feature = "memory",
+            feature = "redis",
+            feature = "disk"
+        ))]
         assert_eq!(MAX_JSON_DEPTH, 64);
+        #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
         assert_eq!(NULL_SENTINEL, b"\x00OXNULL");
     }
 }

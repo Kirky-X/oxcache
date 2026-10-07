@@ -567,6 +567,7 @@ impl CacheConfig {
             Some(crate::cache::builder::cache_builder::BackendSlot::Sync(sync_backend)) => Some(
                 std::sync::Arc::new(crate::backend::SyncBackendAdapter::new(sync_backend)),
             ),
+            #[cfg(feature = "memory")]
             Some(crate::cache::builder::cache_builder::BackendSlot::Dual {
                 async_face, ..
             }) => Some(async_face),
@@ -1020,6 +1021,10 @@ pub(crate) fn parse_serialization_format(
 
 impl CacheConfig {
     /// 必填字符串字段非空检查
+    ///
+    /// 调用方在 validate 的 redis/dragonfly/disk 后端分支内（dragonfly 隐含
+    /// redis），故方法随两组 feature 门控。
+    #[cfg(any(feature = "redis", feature = "disk"))]
     fn require_non_empty(&self, field: &str, value: Option<&str>) -> OxCacheResult<()> {
         match value {
             Some(v) if !v.trim().is_empty() => Ok(()),

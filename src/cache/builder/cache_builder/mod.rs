@@ -37,6 +37,8 @@ pub(crate) enum BackendSlot {
     /// `sync_backend_arc()` 注入的原生同步后端（async 面经门面呈现）
     Sync(Arc<dyn SyncCacheBackend>),
     /// 同一具体后端的双面原生 coerce（配置通路对 Moka/DashMap 的零损耗注入）
+    /// 构造方仅在 memory 组合的配置通路 Moka/DashMap 臂
+    #[cfg(feature = "memory")]
     Dual {
         async_face: Arc<dyn CacheBackend>,
         sync_face: Arc<dyn SyncCacheBackend>,
@@ -528,6 +530,7 @@ where
                 };
                 (adapter, sync_surface)
             }
+            #[cfg(feature = "memory")]
             BackendSlot::Dual {
                 async_face,
                 sync_face,

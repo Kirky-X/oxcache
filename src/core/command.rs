@@ -18,7 +18,10 @@ pub enum RedisCommand {
     Dbsize,
     Info,
     Eval,
+    /// 脚本面变体仅由 lua feature 的 lua_executor 消费
+    #[cfg(feature = "lua")]
     EvalSha,
+    #[cfg(feature = "lua")]
     Script,
     Incr,
     IncrBy,
@@ -39,7 +42,9 @@ impl RedisCommand {
             Self::Dbsize => "DBSIZE",
             Self::Info => "INFO",
             Self::Eval => "EVAL",
+            #[cfg(feature = "lua")]
             Self::EvalSha => "EVALSHA",
+            #[cfg(feature = "lua")]
             Self::Script => "SCRIPT",
             Self::Incr => "INCR",
             Self::IncrBy => "INCRBY",
@@ -66,7 +71,9 @@ mod tests {
             RedisCommand::Dbsize,
             RedisCommand::Info,
             RedisCommand::Eval,
+            #[cfg(feature = "lua")]
             RedisCommand::EvalSha,
+            #[cfg(feature = "lua")]
             RedisCommand::Script,
             RedisCommand::Incr,
             RedisCommand::IncrBy,

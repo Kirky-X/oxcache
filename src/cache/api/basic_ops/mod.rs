@@ -51,7 +51,8 @@ fn get_or_shard_index(key: &str) -> usize {
     global_shard_index(key)
 }
 
-// SWR telemetry 双版本 inline 埋点（stale feature）
+// SWR telemetry 双版本 inline 埋点：仅 stale feature 下有调用方，
+// telemetry 开启为真实埋点、否则为 no-op 桩
 #[cfg(all(feature = "stale", feature = "telemetry"))]
 #[inline]
 fn telemetry_stale_downgrade(key: &str) {
@@ -63,7 +64,7 @@ fn telemetry_stale_downgrade(key: &str) {
     );
 }
 
-#[cfg(not(all(feature = "stale", feature = "telemetry")))]
+#[cfg(all(feature = "stale", not(feature = "telemetry")))]
 #[inline]
 fn telemetry_stale_downgrade(_key: &str) {}
 
@@ -79,7 +80,7 @@ fn telemetry_stale_refresh(key: &str, spawned: bool) {
     );
 }
 
-#[cfg(not(all(feature = "stale", feature = "telemetry")))]
+#[cfg(all(feature = "stale", not(feature = "telemetry")))]
 #[inline]
 fn telemetry_stale_refresh(_key: &str, _spawned: bool) {}
 
