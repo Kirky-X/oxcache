@@ -255,34 +255,22 @@ impl CacheConfig {
         let mut config = Self::default();
 
         if let Some(raw) = env_value(KEY_CAPACITY)? {
-            config.capacity = Some(
-                raw.parse::<u64>()
-                    .map_err(invalid_value(KEY_CAPACITY, &raw))?,
-            );
+            config.capacity = Some(env_parse(KEY_CAPACITY, &raw)?);
         }
         if let Some(raw) = env_value(KEY_TTL_MS)? {
-            let ms = raw
-                .parse::<u64>()
-                .map_err(invalid_value(KEY_TTL_MS, &raw))?;
-            config.ttl = Some(Duration::from_millis(ms));
+            config.ttl = Some(Duration::from_millis(env_parse(KEY_TTL_MS, &raw)?));
         }
         if let Some(raw) = env_value(KEY_TTI_MS)? {
-            let ms = raw
-                .parse::<u64>()
-                .map_err(invalid_value(KEY_TTI_MS, &raw))?;
-            config.tti = Some(Duration::from_millis(ms));
+            config.tti = Some(Duration::from_millis(env_parse(KEY_TTI_MS, &raw)?));
         }
         if let Some(raw) = env_value(KEY_NULL_CACHE_TTL_MS)? {
-            let ms = raw
-                .parse::<u64>()
-                .map_err(invalid_value(KEY_NULL_CACHE_TTL_MS, &raw))?;
-            config.null_cache_ttl = Some(Duration::from_millis(ms));
+            config.null_cache_ttl = Some(Duration::from_millis(env_parse(
+                KEY_NULL_CACHE_TTL_MS,
+                &raw,
+            )?));
         }
         if let Some(raw) = env_value(KEY_TTL_JITTER_FACTOR)? {
-            let factor = raw
-                .parse::<f64>()
-                .map_err(invalid_value(KEY_TTL_JITTER_FACTOR, &raw))?;
-            config.ttl_jitter_factor = Some(factor);
+            config.ttl_jitter_factor = Some(env_parse(KEY_TTL_JITTER_FACTOR, &raw)?);
         }
         if let Some(raw) = env_value(KEY_SYNC_MODE)? {
             config.sync_mode = Some(parse_bool_value(KEY_SYNC_MODE, &raw)?);
@@ -329,22 +317,17 @@ impl CacheConfig {
             config.disk_path = Some(raw);
         }
         if let Some(raw) = env_value(KEY_CONNECTION_POOL_SIZE)? {
-            let pool = raw
-                .parse::<usize>()
-                .map_err(invalid_value(KEY_CONNECTION_POOL_SIZE, &raw))?;
-            config.connection_pool_size = Some(pool);
+            config.connection_pool_size = Some(env_parse(KEY_CONNECTION_POOL_SIZE, &raw)?);
         }
         if let Some(raw) = env_value(KEY_CB_FAILURE_THRESHOLD)? {
-            let threshold = raw
-                .parse::<u32>()
-                .map_err(invalid_value(KEY_CB_FAILURE_THRESHOLD, &raw))?;
-            config.circuit_breaker_failure_threshold = Some(threshold);
+            config.circuit_breaker_failure_threshold =
+                Some(env_parse(KEY_CB_FAILURE_THRESHOLD, &raw)?);
         }
         if let Some(raw) = env_value(KEY_CB_RESET_TIMEOUT_MS)? {
-            let ms = raw
-                .parse::<u64>()
-                .map_err(invalid_value(KEY_CB_RESET_TIMEOUT_MS, &raw))?;
-            config.circuit_breaker_reset_timeout = Some(Duration::from_millis(ms));
+            config.circuit_breaker_reset_timeout = Some(Duration::from_millis(env_parse(
+                KEY_CB_RESET_TIMEOUT_MS,
+                &raw,
+            )?));
         }
         if let Some(raw) = env_value(KEY_SERVICE_NAME)? {
             config.service_name = Some(raw);
@@ -947,6 +930,14 @@ fn invalid_value<E: std::fmt::Display>(var: &'static str, raw: &str) -> impl Fn(
             ],
         ))
     }
+}
+
+/// 解析整型/浮点环境变量值，失败按所属键报 InvalidInput
+fn env_parse<T: std::str::FromStr>(var: &'static str, raw: &str) -> OxCacheResult<T>
+where
+    T::Err: std::fmt::Display,
+{
+    raw.parse::<T>().map_err(invalid_value(var, raw))
 }
 
 /// 解析布尔环境值：`true/1/yes/on` 与 `false/0/no/off`（大小写不敏感）
