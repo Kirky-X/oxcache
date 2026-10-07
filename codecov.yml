@@ -1,0 +1,9 @@
+# 覆盖率状态口径：项目与补丁目标统一 90%（与 CI / pre-push 门禁同口径）
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+    patch:
+      default:
+        target: 90%
