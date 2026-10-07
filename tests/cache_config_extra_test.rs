@@ -218,3 +218,48 @@ async fn jitter_factor_setting_roundtrip() {
         .unwrap();
     let _ = OxCacheError::L1Error("keep import".to_string());
 }
+
+/// backend 校验的剩余分支：mock（仅测试构建）/ 未知 kind / 不可构建 kind
+///
+/// 既有用例覆盖 valkey/chain/unknown/aerospike 的部分路径；本用例按 lcov
+/// 缺口补齐三类拒绝，要求全部显性报错（不得静默退化到默认后端）。
+#[test]
+fn validate_rejects_mock_unknown_and_unbuildable_backend_kinds() {
+    use oxcache::OxCacheError;
+
+    // mock 后端仅存在于测试构建（memory 模块 #[cfg(test)]）→ 集成测试构建下必须拒绝
+    let err = CacheConfig::builder()
+        .backend("mock")
+        .build()
+        .validate()
+        .expect_err("mock 后端在非测试构建必须拒绝");
+    assert!(
+        matches!(err, OxCacheError::InvalidInput(_)),
+        "mock 应为 InvalidInput，实际: {err:?}"
+    );
+
+    // 未知 kind 显性拒绝
+    let err = CacheConfig::builder()
+        .backend("definitely_not_a_backend")
+        .build()
+        .validate()
+        .expect_err("未知后端必须拒绝");
+    assert!(
+        matches!(err, OxCacheError::InvalidInput(_)),
+        "未知 kind 应为 InvalidInput，实际: {err:?}"
+    );
+
+    // 不可经配置构建的 kind（如 aerospike）显性 NotSupported
+    let err = CacheConfig::builder()
+        .backend("aerospike")
+        .build()
+        .validate()
+        .expect_err("不可构建后端必须显性拒绝");
+    assert!(
+        matches!(
+            err,
+            OxCacheError::NotSupported(_) | OxCacheError::InvalidInput(_)
+        ),
+        "不可构建 kind 应显性报错，实际: {err:?}"
+    );
+}

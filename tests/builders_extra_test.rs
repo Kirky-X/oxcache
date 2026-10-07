@@ -260,3 +260,38 @@ async fn serialization_format_and_dual_slot_sync_surface() {
         Some("sv")
     );
 }
+
+/// ChainBuilder 便捷入口：extra_backend（自定义分数层）与 enable_race_read
+///
+/// 既有用例走 l1+l2 与显式 read_strategy(...)；本用例覆盖 extra_backend
+/// 追加第三层与 enable_race_read 便捷设置，断言三层链可构建且读写贯通。
+#[tokio::test]
+async fn chain_builder_extra_backend_and_race_read() {
+    use oxcache::backend::{CacheBackend, CacheReader, CacheWriter, DashMapMemoryBackend};
+
+    let extra = Arc::new(DashMapMemoryBackend::default());
+    let chain = ChainBuilder::new()
+        .l1(L1Builder::new().capacity(100).dashmap())
+        .extra_backend(
+            Arc::clone(&extra) as Arc<dyn CacheBackend>,
+            90,
+            false,
+            "extra_layer",
+        )
+        .enable_race_read()
+        .build()
+        .await
+        .unwrap();
+
+    CacheWriter::set(
+        &chain,
+        Arc::from("k_extra"),
+        Arc::new(vec![1u8, 2, 3]),
+        None,
+    )
+    .await
+    .unwrap();
+    let got = CacheReader::get(&chain, "k_extra").await.unwrap();
+    assert_eq!(got, Some(vec![1u8, 2, 3]), "extra 层参与读写链路");
+    assert!(CacheReader::len(&chain).await.is_ok());
+}

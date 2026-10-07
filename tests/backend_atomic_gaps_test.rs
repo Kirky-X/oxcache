@@ -292,3 +292,62 @@ async fn sync_atomic_apis_work_over_moka_bridge() {
             .unwrap()
     );
 }
+
+/// incr 对非整数存量值必须显性报错（不得静默按 0 处理或覆盖）
+#[tokio::test]
+async fn incr_rejects_non_numeric_and_non_utf8_values() {
+    use oxcache::backend::CacheWriter;
+
+    let backend = MokaMemoryBackend::new();
+
+    // 非 UTF-8 载荷：UTF-8 解码失败 → Operation 错误
+    CacheWriter::set(
+        &backend,
+        Arc::from("k_bytes"),
+        Arc::new(vec![0xff, 0xfe]),
+        None,
+    )
+    .await
+    .unwrap();
+    let err = AtomicCacheWriter::incr(&backend, "k_bytes", 1, None)
+        .await
+        .expect_err("非 UTF-8 值必须拒绝 incr");
+    assert!(
+        matches!(err, OxCacheError::Operation(_)),
+        "非 UTF-8 应为 Operation，实际: {err:?}"
+    );
+
+    // UTF-8 但非整数：解析失败 → Operation 错误
+    CacheWriter::set(
+        &backend,
+        Arc::from("k_text"),
+        Arc::new(b"not-a-number".to_vec()),
+        None,
+    )
+    .await
+    .unwrap();
+    let err = AtomicCacheWriter::incr(&backend, "k_text", 1, None)
+        .await
+        .expect_err("非整数值必须拒绝 incr");
+    assert!(
+        matches!(err, OxCacheError::Operation(_)),
+        "非整数应为 Operation，实际: {err:?}"
+    );
+}
+
+/// 回填失败计数可观测（record_backfill_failed → get_counters）
+#[test]
+fn backfill_failed_counter_is_observable() {
+    use oxcache::infra::metrics::UnifiedMetrics;
+
+    let metrics = UnifiedMetrics::new();
+    let before = metrics.get_counters().backfill_failed;
+    metrics.record_backfill_failed();
+    metrics.record_backfill_failed();
+    let after = metrics.get_counters().backfill_failed;
+    assert_eq!(
+        after,
+        before + 2,
+        "两次失败必须精确计入计数器（before={before}, after={after}）"
+    );
+}

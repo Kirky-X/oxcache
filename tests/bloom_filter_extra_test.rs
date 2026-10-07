@@ -221,3 +221,12 @@ fn sync_trait_surface_with_bloom_semantics() {
     SyncCacheWriter::clear(&bf).unwrap();
     assert_eq!(SyncCacheReader::len(&bf).unwrap(), 0);
 }
+
+/// 哈希函数数不可达时构造期显性 panic（不得静默退化精度）
+#[test]
+#[should_panic]
+fn bloom_filter_unreachable_hash_count_panics() {
+    // 容量 1 与 64 个哈希函数在数学上不可达 → 构造期必须 panic 而非静默降级
+    let _: oxcache::features::BloomFilter<str> =
+        oxcache::features::BloomFilter::new_with_hash_count(1, 0.5, 64);
+}
