@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_redis_validate_key_valid() {
-        // redis::validate_key was removed; test the shared helpers directly
+        // 键校验已收敛到共享助手，此处直接测 validate_not_empty
         let result = validate_not_empty("my_key", "Redis key");
         assert!(result.is_ok());
     }

@@ -270,7 +270,7 @@ impl<B: CacheBackend + BackendScore> BackendScore for BloomFilterBackend<B> {
 }
 
 // ============================================================================
-// Synchronous trait hierarchy (任务组 14)
+// Synchronous trait hierarchy
 // ============================================================================
 //
 // Mirror of the async `CacheBackend` impl. Only available when the inner

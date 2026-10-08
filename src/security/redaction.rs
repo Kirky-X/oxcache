@@ -88,7 +88,6 @@ pub fn redact_connection_string(connection_string: &str) -> String {
 /// # 返回值
 /// 返回脱敏后的键，如果键看起来不敏感则返回原值
 pub fn redact_cache_key(key: &str) -> String {
-    // 检查键是否可能包含敏感信息
     let sensitive_patterns = [
         "token",
         "password",

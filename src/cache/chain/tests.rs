@@ -817,7 +817,7 @@ async fn test_chain_expire_all_missing_returns_false() {
 }
 
 // ========================================================================
-// Sync API tests (任务组 15)
+// Sync API tests
 // ========================================================================
 
 #[tokio::test(flavor = "multi_thread")]

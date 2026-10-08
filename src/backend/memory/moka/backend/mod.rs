@@ -242,7 +242,7 @@ impl CacheConnector for MokaMemoryBackend {
 }
 
 // ============================================================================
-// Synchronous trait implementations (任务组 6)
+// Synchronous trait implementations
 // ============================================================================
 //
 // Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/

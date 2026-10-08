@@ -225,7 +225,6 @@ fn check_command_injection(key: &str) -> OxCacheResult<()> {
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> {
-    // 检查脚本长度
     if script.len() > MAX_LUA_SCRIPT_LENGTH {
         return Err(OxCacheError::InvalidInput(format!(
             "Lua script exceeds maximum length of {} bytes (got {} bytes)",
@@ -234,7 +233,6 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
         )));
     }
 
-    // 检查键数量
     if key_count > MAX_LUA_SCRIPT_KEYS {
         return Err(OxCacheError::InvalidInput(format!(
             "Lua script exceeds maximum key count of {} (got {} keys)",
@@ -530,7 +528,6 @@ pub(super) fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Cha
 #[cfg(feature = "redis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
-    // 检查模式长度
     if pattern.len() > MAX_SCAN_PATTERN_LENGTH {
         return Err(OxCacheError::InvalidInput(format!(
             "SCAN pattern exceeds maximum length of {} characters (got {} characters)",
@@ -539,7 +536,6 @@ pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
         )));
     }
 
-    // 计算通配符数量
     let wildcard_count = pattern.chars().filter(|c| *c == '*').count();
 
     if wildcard_count > MAX_SCAN_WILDCARDS {

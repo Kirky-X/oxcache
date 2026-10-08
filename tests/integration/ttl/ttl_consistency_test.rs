@@ -1,16 +1,13 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// tests/ttl_consistency_regression.rs
 //
 // 跨后端 TTL 一致性回归测试 (spec: universal-per-entry-ttl)
 //
 // 验证 Moka / DashMap 真实内存后端在 set(ttl=Some) / ttl(key) / expire(key, ttl)
 // 行为上一致。DashMap 使用两个独立实例（默认构建 + builder 显式容量），
-// 覆盖构建参数差异下 TTL 语义不变。这是任务组 4 的跨后端回归套件，
-// 防止后续重构破坏 TTL 语义。
+// 覆盖构建参数差异下 TTL 语义不变。该回归防止后续重构破坏 TTL 语义。
 //
-// 变更记录：原本地 TtlMockBackend（mock）已移除，
-// 替换为真实 DashMapMemoryBackend；集成/e2e 禁止 mock。
+// 后端一律用真实实现（Moka / DashMapMemoryBackend），集成/e2e 禁止 mock。
 
 use std::sync::Arc;
 use std::time::Duration;

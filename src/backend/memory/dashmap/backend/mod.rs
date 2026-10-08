@@ -414,7 +414,7 @@ impl CacheConnector for DashMapMemoryBackend {
 }
 
 // ============================================================================
-// Synchronous trait implementations (任务组 7)
+// Synchronous trait implementations
 // ============================================================================
 //
 // DashMap 本身是同步的，sync impl 直接复用 async 方法逻辑（去掉 async/.await），

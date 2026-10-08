@@ -272,7 +272,7 @@ mod tests {
     }
 
     // ============================================================================
-    // SyncCacheBackend trait hierarchy 测试 (任务组 5)
+    // SyncCacheBackend trait hierarchy 测试
     // ============================================================================
 
     use std::collections::HashMap;

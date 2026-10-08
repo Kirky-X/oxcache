@@ -451,7 +451,7 @@ impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T
 // addition to the async traits. `Cache<K,V>::get_sync` dispatches through
 // `Arc<dyn SyncCacheBackend>`.
 //
-// Design rationale (see `openspec/changes/add-sync-api-and-ttl-fix/design.md`):
+// Design rationale:
 // Independent trait hierarchy — async and sync coexist; backends opt into sync
 // support explicitly. This avoids polluting the async hot path with
 // `block_in_place` overhead and keeps the async trait object-safe.

@@ -437,7 +437,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Synchronous trait hierarchy tests (任务组 7)
+    // Synchronous trait hierarchy tests
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
     // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生

@@ -316,7 +316,7 @@ mod tests {
     }
 
     // ========================================================================
-    // Synchronous trait hierarchy tests (任务组 14)
+    // Synchronous trait hierarchy tests
     // ========================================================================
     //
     // Isolated in a nested module so the sync trait methods (imported below)
