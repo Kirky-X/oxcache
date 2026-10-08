@@ -110,7 +110,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
