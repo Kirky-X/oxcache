@@ -29,7 +29,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.6"
+version = "0.5.0-rc.7"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -55,7 +55,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # ============================================================================
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.6", optional = true }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.7", optional = true }
 
 # Async Runtime
 tokio = { workspace = true, features = [
@@ -76,7 +76,7 @@ uuid = { version = "1.27", default-features = false, features = ["std", "v4"] }
 # integrations/kit 装饰/包装 CacheBackend（引用 crate::backend），单开须隐含
 # memory 基线方可编译（与 degradation/config-confers 同口径）
 [dependencies.trait-kit]
-version = "0.5.0-rc.7"
+version = "0.5.0-rc.8"
 optional = true
 default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
@@ -247,7 +247,7 @@ optional = true
 
 # Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
-version = "0.6.0-rc.6"
+version = "0.6.0-rc.7"
 default-features = false
 features = ["config-bus"]
 optional = true
