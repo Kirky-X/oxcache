@@ -96,8 +96,8 @@ pub use audit::{
 #[cfg(all(feature = "audit", feature = "telemetry"))]
 pub use audit::TracingAuditPublisher;
 
-// inklog 依赖精确钉 =0.3.0-rc.7（其自身 registry 依赖 oxcache 0.5.0-rc.6，与本仓根包
-// 同版本号而异 source）；升级 oxcache 时须同步确认对齐，且 examples 的精确钉须同改
+// InklogAuditPublisher 需 audit 与 inklog 同时启用：前者给事件端口，后者给 LogSink；
+// 桥接只消费 inklog 类型（钉版与同版本号异 source 的口径见根 Cargo.toml 与 CHANGELOG）
 #[cfg(all(feature = "audit", feature = "inklog"))]
 pub use audit::InklogAuditPublisher;
 
