@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 // 安全日志工具模块
 //
-// 提供安全的数据脱敏功能（日志输出已移除，由事件系统替代）
+// 提供安全的数据脱敏功能；日志输出由事件系统承担
 
 #![cfg_attr(doctest, allow(unused_imports))]
 
