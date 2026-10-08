@@ -86,7 +86,7 @@ features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 # （`=` 需求互斥，只改一处解析即失败）。本包与 inklog 所依赖的 oxcache 构成同版本号
 # 异 source 的合法 DAG——桥接只消费 inklog 类型，两个 oxcache 实例间无类型交换。
 [dependencies.inklog]
-version = "=0.3.0-rc.7"
+version = "=0.3.0-rc.8"
 optional = true
 default-features = false
 

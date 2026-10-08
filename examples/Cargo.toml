@@ -39,7 +39,7 @@ async-trait.workspace = true
 trait-kit = { version = "0.5.0-rc.8", default-features = false, features = ["async", "observer", "shutdown", "decorator"] }
 
 # inklog sink 面（inklog-bridge 示例专用；精确钉 `=` 与主仓同版本，约束见根 Cargo.toml）
-inklog = { version = "=0.3.0-rc.7", optional = true, default-features = false }
+inklog = { version = "=0.3.0-rc.8", optional = true, default-features = false }
 
 [dev-dependencies]
 criterion.workspace = true
