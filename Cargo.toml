@@ -82,11 +82,13 @@ default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 
 # inklog 结构化日志桥接（optional，feature-gated via `inklog`；精确钉已发布
-# 版本 =0.3.0-rc.5，禁止 caret 自动升级引入端口漂移。注意：inklog rc.5 自身
-# 以 registry 依赖引用 oxcache 0.5.0-rc.5，不同 package id 的合法 DAG 而非
-# 包级循环；桥接只消费 inklog 类型，两个 oxcache 实例无类型交换）
+# 版本 =0.3.0-rc.7，禁止 caret 自动升级引入端口漂移。注意：inklog rc.7 自身
+# 以 registry 依赖引用 oxcache 0.5.0-rc.6，与本仓根包同版本号而异 source，
+# 仍为合法 DAG 而非包级循环；桥接只消费 inklog 类型，两个 oxcache 实例无类型交换。
+# 副作用：开启 inklog 时 `-p oxcache` 包选择器会因 path/registry 同名同版本而歧义，
+# 须用 cwd 选包或 `path+file://…#oxcache@…` 显式 spec；CI 统一走 --workspace 不受影响）
 [dependencies.inklog]
-version = "=0.3.0-rc.5"
+version = "=0.3.0-rc.7"
 optional = true
 default-features = false
 

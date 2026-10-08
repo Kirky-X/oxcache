@@ -16,6 +16,7 @@
 
 - **第十五跑依赖升级（2026-10-04 入库）**：`redb` 3.1 → 4.3（磁盘 L3 后端 `RedbDiskBackend` 适配新版本 API，对外语义不变）；trait-kit 采纳 `0.5.0-rc.7`、confers 采纳 `0.6.0-rc.6`；可选依赖特性显式化（`default-features = false` 收口，如 uuid、hmac）；`bincode` 钉在 2.0 线并注释说明不升 3 的原因——bincode 项目已停止开发，crates.io 的 3.0.0 为官方刻意发布的 `compile_error` 占位（阻止 caret 误升级），最后正式版为 2.x 线 2.0.1
 - **i18n 61 键接入**与 29 处文档校准随检查点入库
+- **inklog 精确钉同步至 `=0.3.0-rc.7`（2026-10-08 入库，发布链口径）**：`Cargo.toml` 与 `examples/Cargo.toml` 两处 `=` 需求同改（只改一处会因 `=0.3.0-rc.5` 与 `=0.3.0-rc.7` 互斥使 workspace 直接解析失败）。桥接消费面 rc.5→rc.7 为纯增量：`domain/types/log_record.rs` 逐字节一致，`support/io/sink/mod.rs` 仅新增 `SamplingPolicy` 再导出，`error.rs` 仅新增 `secret-scan` 门控变体；被消费的 `LogRecord` / `LogRecord::new` / `sink::LogSink` / `InklogError::RuntimeError` / `tracing::Level` 五个符号位置未动。**结构性变化与副作用**：已发布 inklog rc.6/rc.7 均依赖 `oxcache = "0.5.0-rc.6"`（rc.5 实为 `0.5.0-rc.4`，旧注释写的「rc.5 引用 oxcache 0.5.0-rc.5」与发布清单不符），与本仓根包**同版本号而异 source**——仍是合法 DAG（桥接只消费 inklog 类型，两个 oxcache 实例无类型交换），但开启 `inklog` 后 `-p oxcache` 包选择器歧义（需改用 cwd 选包或 `path+file://…` 显式 spec），inklog Enabled 构建会额外编译一份 registry oxcache。待本仓发布 rc.7 后该同版本碰撞自然消失。验证：CI 形态门禁全绿——`cargo check --workspace --all-features`、`--workspace --no-default-features`、`-p oxcache --features redis-tier|core|minimal`、`cargo clippy --all-targets --features full --workspace -- -D warnings`；桥接面 `cargo test --no-default-features --features inklog --lib` 287 passed，其中 `features::audit::tests::inklog_bridge` 8 passed；`cargo check -p oxcache-examples --no-default-features --features inklog-bridge --example example_inklog_audit_bridge` 通过
 
 ### 修复
 
