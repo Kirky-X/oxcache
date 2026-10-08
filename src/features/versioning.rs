@@ -77,12 +77,6 @@ impl MemoryVersionedCache {
     pub fn new() -> Self {
         Self::default()
     }
-
-    // 仅供本模块测试断言失败路径不残留条目；生产路径经 VersionedStore trait。
-    #[cfg(test)]
-    fn entry_count(&self) -> usize {
-        self.entries.lock().map(|m| m.len()).unwrap_or(0)
-    }
 }
 
 #[async_trait]
@@ -391,7 +385,7 @@ mod tests {
                 .unwrap(),
             None
         );
-        assert_eq!(store.entry_count(), 0);
+        assert_eq!(store.entries.lock().unwrap().len(), 0);
     }
 
     /// Redis WATCH 路径（需真实 Redis；CI 跳过）

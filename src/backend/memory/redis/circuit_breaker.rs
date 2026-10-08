@@ -175,18 +175,6 @@ impl CircuitBreaker {
 
         false
     }
-
-    /// Get the current state for diagnostics.
-    #[cfg(test)]
-    fn state(&self) -> u8 {
-        self.state.load(Ordering::Relaxed)
-    }
-
-    /// Get the current failure count for diagnostics.
-    #[cfg(test)]
-    fn failures(&self) -> u32 {
-        self.failure_count.load(Ordering::Relaxed)
-    }
 }
 
 /// Current time in milliseconds since UNIX epoch.
@@ -204,7 +192,7 @@ mod tests {
     #[test]
     fn test_initial_state_is_closed() {
         let cb = CircuitBreaker::new(3, Duration::from_secs(10));
-        assert_eq!(cb.state(), STATE_CLOSED);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_CLOSED);
         assert!(!cb.is_open());
     }
 
@@ -216,7 +204,7 @@ mod tests {
         assert!(!cb.record_failure()); // count=2
         assert!(cb.record_failure()); // count=3 → Open
 
-        assert_eq!(cb.state(), STATE_OPEN);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_OPEN);
         assert!(cb.is_open());
     }
 
@@ -228,8 +216,8 @@ mod tests {
         cb.record_failure(); // count=2
         cb.record_success(); // reset to 0
 
-        assert_eq!(cb.failures(), 0);
-        assert_eq!(cb.state(), STATE_CLOSED);
+        assert_eq!(cb.failure_count.load(Ordering::Relaxed), 0);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_CLOSED);
 
         // Need 3 more failures to open
         assert!(!cb.record_failure());
@@ -250,7 +238,7 @@ mod tests {
 
         // Should transition to HalfOpen
         assert!(!cb.is_open());
-        assert_eq!(cb.state(), STATE_HALF_OPEN);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_HALF_OPEN);
     }
 
     #[test]
@@ -262,7 +250,7 @@ mod tests {
         assert!(!cb.is_open()); // → HalfOpen
 
         cb.record_success(); // HalfOpen → Closed
-        assert_eq!(cb.state(), STATE_CLOSED);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_CLOSED);
         assert!(!cb.is_open());
     }
 
@@ -275,7 +263,7 @@ mod tests {
         assert!(!cb.is_open()); // → HalfOpen
 
         assert!(cb.record_failure()); // HalfOpen → Open
-        assert_eq!(cb.state(), STATE_OPEN);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_OPEN);
         assert!(cb.is_open());
     }
 
@@ -354,7 +342,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(40));
         let _ = cb.is_open(); // maybe Open → HalfOpen
         cb.record_success();
-        assert_eq!(cb.state(), STATE_CLOSED);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_CLOSED);
         assert!(!cb.is_open());
     }
 
@@ -385,7 +373,7 @@ mod tests {
 
         // HalfOpen → Closed
         cb.record_success();
-        assert_eq!(cb.state(), STATE_CLOSED);
+        assert_eq!(cb.state.load(Ordering::Relaxed), STATE_CLOSED);
 
         // Closed → Open again
         cb.record_failure();

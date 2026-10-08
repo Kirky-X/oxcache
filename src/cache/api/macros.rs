@@ -138,8 +138,8 @@ mod tests {
 
         let registered = __internal_get_cache("cfg_preserve_svc")
             .expect("registered cache should be retrievable");
-        assert_eq!(registered.null_cache_ttl(), Some(Duration::from_secs(60)));
-        assert!((registered.ttl_jitter_factor() - 0.2).abs() < 1e-9);
+        assert_eq!(registered.null_cache_ttl, Some(Duration::from_secs(60)));
+        assert!((registered.ttl_jitter_factor - 0.2).abs() < 1e-9);
     }
 
     // ========================================================================

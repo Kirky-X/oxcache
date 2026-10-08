@@ -141,12 +141,6 @@ where
         self.null_cache_ttl = ttl;
     }
 
-    /// Get the null cache TTL (diagnostics/tests).
-    #[cfg(test)]
-    pub(crate) fn null_cache_ttl(&self) -> Option<Duration> {
-        self.null_cache_ttl
-    }
-
     /// Set the TTL jitter factor for stampede prevention.
     pub(crate) fn set_ttl_jitter_factor(&mut self, factor: f64) {
         self.ttl_jitter_factor = factor;
@@ -188,12 +182,6 @@ where
         publisher: Arc<dyn crate::features::audit::AuditEventPublisher>,
     ) {
         self.audit = Some(publisher);
-    }
-
-    /// Get the TTL jitter factor (diagnostics/tests).
-    #[cfg(test)]
-    pub(crate) fn ttl_jitter_factor(&self) -> f64 {
-        self.ttl_jitter_factor
     }
 
     /// 设置同步后端（供 CacheBuilder::sync_mode 在 build() 中调用）。
