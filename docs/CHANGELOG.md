@@ -6,7 +6,25 @@
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
 ## [Unreleased]
-## [0.5.0-rc.7] - 2026-10-08### Added- **canonical JSON 归一化与 `json_hash_key` 指纹键**（utils）：为缓存键提供稳定归一化序列化与指纹摘要。### Changed- **core 正名 redis-tier、full 补齐真全量**：`core` feature 更名 `redis-tier`（Redis 能力面语义化），`full` 聚合补齐为真全量特性集；同步新增 feature-matrix 工作流。### Removed- **死代码清理**：删除编译器证实的死宏与零调用特性探测模块、17 个零构造命令变体、仅测试使用的访问器方法，残留死代码按特性隔离收敛。### Fixed- **测试门控修复**：`setup_cache` 助手随 memory 门控，非 memory 组合测试可编译。
+
+## [0.5.0-rc.7] - 2026-10-08
+
+### Added
+
+- **canonical JSON 归一化与 `json_hash_key` 指纹键**（utils）：为缓存键提供稳定归一化序列化与指纹摘要。
+
+### Changed
+
+- **core 正名 redis-tier、full 补齐真全量**：`core` feature 更名 `redis-tier`（Redis 能力面语义化），`full` 聚合补齐为真全量特性集；同步新增 feature-matrix 工作流。
+
+### Removed
+
+- **死代码清理**：删除编译器证实的死宏与零调用特性探测模块、17 个零构造命令变体、仅测试使用的访问器方法，残留死代码按特性隔离收敛。
+
+### Fixed
+
+- **测试门控修复**：`setup_cache` 助手随 memory 门控，非 memory 组合测试可编译。
+
 ### 新增
 
 - **`BatchWriterBuilder::reject_when_full(bool)`（`batch` feature）**：缓冲打满时拒绝入队并返回 `Err(OxCacheError::BufferFull)`（错误码 `OXCACHE_019`，`is_recoverable() == true`，被拒条目不入缓冲）；默认 `false` 保持既有「打满即自动刷盘」语义。`docs/API_REFERENCE.md` 补「Redis Pub/Sub 广播通道（`pubsub` 特性）」节（`RedisPubSub` 构造期 fail-fast / 独占订阅连接 / publish 接收端计数 / panic 隔离 / 断线线性退避重连 / 任务回收契约与 API 一览），特性表 `batch` 行同步注明拒绝模式
