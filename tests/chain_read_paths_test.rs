@@ -363,9 +363,7 @@ fn _type_anchor() -> Option<Error> {
     None
 }
 
-// ============================================================================
-// 回填失败容忍与 Freshest 回填
-// ============================================================================
+// === 回填失败容忍与 Freshest 回填 ===
 
 #[tokio::test]
 async fn race_backfill_tolerates_higher_link_write_failure() {

@@ -44,6 +44,38 @@ pub async fn setup_redis_container() -> Result<(RedisContainer, String), String>
     Ok((redis, redis_url))
 }
 
+/// 在固定宿主端口启动 Redis 容器。
+///
+/// 与 [`setup_redis_container`] 的区别：宿主端口固定，容器 `stop`/`start`
+/// 后地址不变（Docker 对临时绑定端口在重启时会重新分配），供断连恢复
+/// 测试在同一地址上验证连接池自动重连。
+pub async fn setup_redis_container_on_port(
+    host_port: u16,
+) -> Result<(RedisContainer, String), String> {
+    use testcontainers::ImageExt;
+
+    let redis = GenericImage::new("redis", "7-alpine")
+        .with_exposed_port(6379.tcp())
+        .with_mapped_port(host_port, 6379.tcp())
+        .with_ready_conditions(vec![WaitFor::message_on_stdout(
+            "Ready to accept connections",
+        )])
+        .start()
+        .await
+        .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
+
+    Ok((redis, format!("redis://127.0.0.1:{}", host_port)))
+}
+
+/// 预分配一个空闲宿主端口（bind :0 取端口后立即释放，调用方随即使用）。
+pub fn free_local_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("bind ephemeral port")
+        .local_addr()
+        .expect("read local addr")
+        .port()
+}
+
 /// 等待 Redis 就绪
 pub async fn wait_for_redis(url: &str, timeout_secs: u64) -> bool {
     let client = match redis::Client::open(url) {

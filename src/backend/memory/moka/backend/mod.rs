@@ -241,9 +241,7 @@ impl CacheConnector for MokaMemoryBackend {
     }
 }
 
-// ============================================================================
-// Synchronous trait implementations
-// ============================================================================
+// === Synchronous trait implementations ===
 //
 // Moka 0.12 的 `future::Cache` 未暴露 `blocking_*` 方法，但 `get`/`insert`/
 // `invalidate` 的前台 future 不依赖 tokio runtime 驱动（无 `tokio::spawn`/
@@ -425,9 +423,7 @@ impl BackendScore for MokaMemoryBackend {
     }
 }
 
-// ============================================================================
-// AtomicCacheWriter Implementation
-// ============================================================================
+// === AtomicCacheWriter Implementation ===
 
 #[async_trait]
 impl AtomicCacheWriter for MokaMemoryBackend {

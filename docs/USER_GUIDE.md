@@ -113,13 +113,13 @@ oxcache = "0.5.0-rc.6"
 
 #### 特性分层与依赖
 
-分层预设（`minimal` / `core` / `full`）与完整特性清单见 [README 特性标志](../README.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`、`full` 不含 `bloom` / `kit` 等选择加入特性）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
+分层预设（`minimal` / `redis-tier` / `full`）与完整特性清单见 [README 特性标志](../README.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，也可单开）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
 
 如果需要最小依赖或自定义特性：
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.6", default-features = false, features = ["core"] }
+oxcache = { version = "0.5.0-rc.6", default-features = false, features = ["redis-tier"] }
 ```
 
 或者使用命令行：
@@ -465,7 +465,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 布隆过滤器
 
-启用 `bloom` 特性（不在 `full` 内）可进行负查询过滤。`BloomFilterBackend`
+启用 `bloom` 特性（已并入 `full`，也可单开）可进行负查询过滤。`BloomFilterBackend`
 装饰任意 `CacheBackend`，当布隆过滤器判定 key 不存在时直接跳过内部后端：
 
 ```rust

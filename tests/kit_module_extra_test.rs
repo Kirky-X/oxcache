@@ -5,7 +5,7 @@
 //! `apply_redis_config` 全 setter、lifecycle 关停钩子。健康/构建 happy path
 //! 由内联测试覆盖，此处补外部可驱动的分支。
 
-#![cfg(feature = "kit")]
+#![cfg(feature = "trait-kit")]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -109,6 +109,7 @@ async fn build_chain_default_mode_requires_redis_config() {
     assert!(err.to_string().contains("redis"));
 }
 
+#[cfg(feature = "redis")]
 #[tokio::test]
 async fn build_chain_with_memory_only_link() {
     let mut kit = AsyncKit::new();
@@ -153,6 +154,7 @@ async fn chain_link_redis_without_config_fails() {
     assert!(err.to_string().contains("redis"));
 }
 
+#[cfg(feature = "redis")]
 #[tokio::test]
 async fn chain_link_nested_chain_rejected() {
     let mut kit = AsyncKit::new();

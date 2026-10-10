@@ -196,6 +196,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delegates_full_surface_to_inner() {
+        let (decorated, inner_a, _inner_b) = setup().await;
+
+        // reader 面：读语义不因装饰而改变
+        assert!(!decorated.exists("k").await.unwrap());
+        assert_eq!(decorated.ttl("k").await.unwrap(), None);
+        assert_eq!(decorated.len().await.unwrap(), 0);
+        assert_eq!(decorated.capacity().await.unwrap(), 0);
+        assert!(!decorated.stats().await.unwrap().is_empty());
+        assert!(decorated.keys("*").await.unwrap().is_empty());
+
+        // writer 面
+        decorated
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        assert_eq!(decorated.get("k").await.unwrap(), Some(b"v".to_vec()));
+        assert_eq!(decorated.len().await.unwrap(), 1);
+        assert!(
+            decorated
+                .expire("k", Duration::from_secs(30))
+                .await
+                .unwrap()
+        );
+        decorated
+            .set_many(&[(Arc::from("a"), Arc::new(b"1".to_vec()), None)])
+            .await
+            .unwrap();
+        assert_eq!(decorated.get("a").await.unwrap(), Some(b"1".to_vec()));
+        decorated.delete_many(&["a".to_string()]).await.unwrap();
+        assert!(!decorated.exists("a").await.unwrap());
+        decorated.delete("k").await.unwrap();
+        assert!(!decorated.exists("k").await.unwrap());
+        decorated.clear().await.unwrap();
+        assert_eq!(decorated.len().await.unwrap(), 0);
+
+        // connector 面
+        decorated.health_check().await.unwrap();
+        assert_eq!(decorated.backend_kind(), BackendKind::Mock);
+        assert!(Arc::ptr_eq(decorated.inner(), &inner_a));
+        decorated.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn set_publishes_invalidation_to_other_instances() {
         let (decorated, _inner_a, inner_b) = setup().await;
 
@@ -278,9 +322,7 @@ mod tests {
         assert_eq!(inner.get("k").await.unwrap(), Some(b"v".to_vec()));
     }
 
-    // ========================================================================
-    // expire 广播开关（默认关）
-    // ========================================================================
+    // === expire 广播开关（默认关） ===
 
     /// 双实例总线：bus_b 监听并失效 remote 上的条目
     async fn setup_two_instances() -> (

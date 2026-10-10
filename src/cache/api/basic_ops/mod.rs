@@ -130,9 +130,7 @@ where
         }
     }
 
-    // ========================================================================
-    // 热路径借用查询（零分配）
-    // ========================================================================
+    // === 热路径借用查询（零分配） ===
 
     /// 借用键查询：跳过 `K::to_key_string()` 的 String 分配，直接以 `&str`
     /// 查询后端（get 热路径零堆分配）。
@@ -197,9 +195,7 @@ where
         result
     }
 
-    // ========================================================================
-    // Lifecycle and stats methods (delegating to backend)
-    // ========================================================================
+    // === Lifecycle and stats methods (delegating to backend) ===
 
     /// Clear all entries in the cache.
     pub async fn clear(&self) -> OxCacheResult<()> {
@@ -750,16 +746,13 @@ where
     }
 }
 
-// ============================================================================
-// Synchronous API — mirrors the async API but dispatches through
-// `backend_sync: Option<Arc<dyn SyncCacheBackend>>`.
-//
-// Returns `Err(OxCacheError::NotSupported)` when the cache was not built with
+// === Synchronous API — mirrors the async API but dispatches through
+// `backend_sync: Option<Arc<dyn SyncCacheBackend>>`. Returns
+// `Err(OxCacheError::NotSupported)` when the cache was not built with
 // `sync_mode` enabled (i.e., `backend_sync` is `None`).
 //
 // Single-flight for `get_or_sync` uses `std::sync::Condvar` (no async runtime
 // required), mirroring the async `get_or` which uses `tokio::sync::Notify`.
-// ============================================================================
 
 /// Single-flight state for `get_or_sync`. The `Mutex<bool>` flag is `false`
 /// while the leader is executing fallback, `true` once the leader has finished

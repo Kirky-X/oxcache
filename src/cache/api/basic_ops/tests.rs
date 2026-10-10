@@ -158,9 +158,7 @@ mod tests {
         assert!(stats.contains_key("type"));
     }
 
-    // ========================================================================
-    // get / set / delete scenarios
-    // ========================================================================
+    // === get / set / delete scenarios ===
 
     #[tokio::test]
     async fn test_cache_get_miss_returns_none() {
@@ -272,9 +270,7 @@ mod tests {
         assert_eq!(result, user);
     }
 
-    // ========================================================================
-    // get_or scenarios
-    // ========================================================================
+    // === get_or scenarios ===
 
     #[tokio::test]
     async fn test_cache_get_or_cache_hit_fast_path() {
@@ -331,9 +327,7 @@ mod tests {
         assert_eq!(cached, 99);
     }
 
-    // ========================================================================
-    // capacity / shutdown
-    // ========================================================================
+    // === capacity / shutdown ===
 
     #[tokio::test]
     async fn test_cache_capacity() {
@@ -352,9 +346,7 @@ mod tests {
         cache.shutdown().await;
     }
 
-    // ========================================================================
-    // deserialize_value internal functions
-    // ========================================================================
+    // === deserialize_value internal functions ===
 
     /// 热路径借用查询语义与吞吐对比（本机 debug 口径记录 docs/PERFORMANCE.md）
     #[tokio::test(flavor = "multi_thread")]
@@ -479,9 +471,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
-    // Async keys(), ttl(), expire() coverage
-    // ========================================================================
+    // === Async keys(), ttl(), expire() coverage ===
 
     #[tokio::test]
     async fn test_cache_keys_returns_matching() {

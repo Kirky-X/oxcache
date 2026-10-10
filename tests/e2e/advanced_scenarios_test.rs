@@ -12,7 +12,7 @@
 //! - Redis-specific tests are `#[ignore]`
 //! - Concurrent tests use `#[tokio::test(flavor = "multi_thread")]`
 //! - Error assertions use `match` + `panic!`, never `is_err()`
-//! - Each feature section is isolated with `#[cfg(feature = "xxx")]`
+//! - Each feature section is isolated with its own `#[cfg]` feature gate
 
 #![allow(clippy::too_many_lines)]
 
@@ -27,7 +27,6 @@ use std::time::Duration;
     feature = "memory",
     feature = "redis",
     feature = "minimal",
-    feature = "core",
     feature = "full"
 ))]
 use oxcache::Cache;
@@ -37,9 +36,7 @@ use oxcache::Cache;
 #[cfg(any(feature = "memory", feature = "redis"))]
 use oxcache::backend::{CacheReader, CacheWriter};
 
-// ============================================================================
-// Test data types
-// ============================================================================
+// === Test data types ===
 
 #[cfg(any(feature = "memory", feature = "serialization"))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,9 +55,7 @@ impl User {
     }
 }
 
-// ============================================================================
-// P0/P1 HIGH-RISK SCENARIOS
-// ============================================================================
+// === P0/P1 HIGH-RISK SCENARIOS ===
 
 /// P0 R-002: DashMap now has a FIFO O(1) eviction policy — writing beyond
 /// capacity evicts the oldest entries and `len()` is bounded at capacity.
@@ -167,9 +162,7 @@ async fn p1_sec002_lua_double_quote_bypass_known_limitation() {
     }
 }
 
-// ============================================================================
-// BACKEND COMBINATIONS (B-001 ~ B-012)
-// ============================================================================
+// === BACKEND COMBINATIONS (B-001 ~ B-012) ===
 
 /// B-001: Moka standalone with capacity=0 — builder defaults to 10000.
 #[cfg(feature = "memory")]
@@ -375,9 +368,7 @@ async fn b011_empty_chain_get_none_set_errors_delete_ok() {
     assert!(del_result.is_ok(), "delete on empty chain should be Ok");
 }
 
-// ============================================================================
-// OPERATION COMBINATIONS (O-001 ~ O-016)
-// ============================================================================
+// === OPERATION COMBINATIONS (O-001 ~ O-016) ===
 
 /// O-004: SET with TTL=0 — entry expires immediately (or is never visible).
 #[cfg(feature = "memory")]
@@ -514,9 +505,7 @@ async fn o016_shutdown_clears_cache_operations_safe() {
     assert_eq!(len, 0, "shutdown should clear entries");
 }
 
-// ============================================================================
-// TTL STRATEGIES (T-001 ~ T-007)
-// ============================================================================
+// === TTL STRATEGIES (T-001 ~ T-007) ===
 
 /// T-001: Global TTL via CacheBuilder — all entries expire after the
 /// configured duration.
@@ -659,9 +648,7 @@ async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
     assert_eq!(backend.len().await.unwrap(), 0);
 }
 
-// ============================================================================
-// CONCURRENCY (C-001 ~ C-008)
-// ============================================================================
+// === CONCURRENCY (C-001 ~ C-008) ===
 
 /// C-001: Concurrent get_or dedup — fallback is called exactly once even
 /// with multiple concurrent requests for the same key.
@@ -947,9 +934,7 @@ async fn c008_concurrent_backfill_idempotent() {
     );
 }
 
-// ============================================================================
-// DEGRADATION (D-001 ~ D-010)
-// ============================================================================
+// === DEGRADATION (D-001 ~ D-010) ===
 
 /// D-003: Serialization failure — corrupt data stored in the backend causes
 /// deserialization error on get.
@@ -1010,9 +995,7 @@ async fn d010_shutdown_then_operations_safe() {
     let _ = cache.len().await;
 }
 
-// ============================================================================
-// SECURITY (SEC-001 ~ SEC-010) — requires `redis` feature
-// ============================================================================
+// === SECURITY (SEC-001 ~ SEC-010) — requires `redis` feature ===
 
 /// SEC-001: validate_redis_key rejects CRLF (protocol injection).
 #[cfg(feature = "redis")]
@@ -1205,9 +1188,7 @@ async fn sec010_path_traversal_detected() {
     }
 }
 
-// ============================================================================
-// CONFIG / BUILDER (CFG-001 ~ CFG-010)
-// ============================================================================
+// === CONFIG / BUILDER (CFG-001 ~ CFG-010) ===
 
 /// CFG-001: Default build creates a working Moka cache with 10000 capacity.
 #[cfg(feature = "memory")]
@@ -1373,9 +1354,7 @@ async fn cfg007_chain_default_time_to_live_stored() {
     assert_eq!(chain.len(), 1);
 }
 
-// ============================================================================
-// SYNC API
-// ============================================================================
+// === SYNC API ===
 
 /// Sync GET/SET via sync_mode(true) on multi_thread runtime.
 #[cfg(feature = "memory")]
@@ -1443,9 +1422,7 @@ async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
     }
 }
 
-// ============================================================================
-// METRICS — requires `metrics` feature (in minimal)
-// ============================================================================
+// === METRICS — requires `metrics` feature (in minimal) ===
 
 /// JSON format export produces valid JSON with expected fields.
 #[cfg(feature = "metrics")]

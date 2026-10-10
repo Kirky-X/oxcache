@@ -172,9 +172,9 @@ assert!(!redacted.contains("secret_password"));
 
 ## 🏭 CI 供应链加固
 
-仓库 CI（`.github/workflows/`，共 6 个 workflow）从 0.5.0-rc.3 起对第三方 GitHub Actions 实施完整性固定：
+仓库 CI（`.github/workflows/`，共 7 个 workflow）从 0.5.0-rc.3 起对第三方 GitHub Actions 实施完整性固定：
 
-- **SHA 固定**：全部第三方 Action 引用采用 `uses: <owner>/<repo>@<40位commit SHA> # <原ref>` 形式（58 处），可变标签（`@v7`、`@stable` 等）不再被直接信任。标签被篡改时无法静默指向恶意代码，注释中的原 ref 便于人工审阅与自动更新。
+- **SHA 固定**：全部第三方 Action 引用采用 `uses: <owner>/<repo>@<40位commit SHA> # <原ref>` 形式（62 处，全部固定），可变标签（`@v7`、`@stable` 等）不再被直接信任。标签被篡改时无法静默指向恶意代码，注释中的原 ref 便于人工审阅与自动更新。
 - **最小权限**：每个 workflow 顶层声明 `permissions:`（默认降级为 `contents: read` 或按需最小化），杜绝默认宽授权的 GITHUB_TOKEN。
 
 **维护指引**：升级 Action 时用 `git ls-remote https://github.com/<owner>/<repo>.git <ref>` 解析新 commit SHA 后整体替换并同步更新注释中的 ref；`dtolnay/rust-toolchain@stable` 等移动分支同样冻结于解析时刻的 SHA。

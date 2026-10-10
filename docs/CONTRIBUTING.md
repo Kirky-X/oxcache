@@ -22,7 +22,7 @@ pre-commit install
 3. **写代码**：实现接口，使测试通过（green）
 4. **跑测试**：`cargo test --features <对应特性> --lib`，确保所有测试通过
 5. **commit**：`git commit -m "feat(<模块>): <描述>"`
-6. **gitnexus analyze**：用 gitnexus 工具分析本任务对其他模块的影响，识别需联动修改的代码
+6. **codenexus analyze**：用 codenexus 工具分析本任务对其他模块的影响，识别需联动修改的代码
 7. **继续下一个**：基于 analyze 结果调整后续任务，再开始下一轮循环
 
 ## 🪝 Git Hooks
@@ -39,7 +39,7 @@ pre-commit install
 | `check-merge-conflict` | 检测未解决的合并冲突标记 |
 | `detect-private-key` / `detect-secrets` | 检测私钥与密钥泄露 |
 | `typos` | 拼写检查 |
-| `no-commit-to-branch` | 禁止直接提交到 `main` / `master` |
+| `no-commit-to-branch` | 禁止直接提交到 `master`（本仓工作流在 `main` 上提交，配置仅保护 `master`） |
 | `cargo-fmt` / `cargo-check` / `cargo-clippy` | Rust 格式、编译与 lint（`-D warnings`）检查 |
 
 **lefthook**（各阶段门禁）：
@@ -68,9 +68,9 @@ pre-commit install
 
    ```bash
    cargo test --all-features
-   # 窄特性组合编译检查（与 CI feature-core / feature-minimal job 一致；
-   # 仓库无 feature_core / feature_minimal 测试目标）
-   cargo check -p oxcache --no-default-features --features core
+   # 窄特性组合编译检查（与 CI feature-redis-tier / feature-minimal job 一致；
+   # 仓库无 feature_redis_tier / feature_minimal 测试目标）
+   cargo check -p oxcache --no-default-features --features redis-tier
    cargo check -p oxcache --no-default-features --features minimal
    ```
 
@@ -95,8 +95,8 @@ cargo build --all-features
 # 测试（全特性）
 cargo test --all-features --lib
 
-# 窄特性组合编译检查（与 CI 一致）
-cargo check -p oxcache --no-default-features --features core
+# 窄特性组合编译检查（与 CI 一致；redis-tier 为正名，旧名 core 为兼容别名）
+cargo check -p oxcache --no-default-features --features redis-tier
 cargo check -p oxcache --no-default-features --features minimal
 
 # 格式化

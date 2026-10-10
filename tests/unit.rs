@@ -1,9 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// Unit Tests Module
-//
-// Contains all unit tests for the cache system.
-// These tests verify individual component functionality.
+// Unit tests verifying individual component functionality.
 
 #![allow(clippy::duplicate_mod)]
 // 目标内容依赖 memory 后端与 serde 序列化（memory 隐含 serialization）
@@ -55,3 +52,6 @@ mod penetration_guard_test;
 
 #[path = "unit/backend_interface_test.rs"]
 mod backend_interface_test;
+
+#[path = "unit/layer_test.rs"]
+mod layer_test;

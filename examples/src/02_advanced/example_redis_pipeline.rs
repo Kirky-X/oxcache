@@ -30,7 +30,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = RedisBackend::new(&redis_url).await?;
     println!("✓ Redis 连接成功\n");
 
-    // 1. 批量设置（带 TTL）
     println!("--- 1. 批量设置（set_many_pipeline） ---");
     // 先收集 String，再借用为 &str
     let owned_items: Vec<(String, Vec<u8>)> = (0..10)
@@ -53,7 +52,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let elapsed = start.elapsed();
     println!("  批量设置 {} 个键，耗时: {:?}", items.len(), elapsed);
 
-    // 2. 批量获取
     println!("\n--- 2. 批量获取（get_many_pipeline） ---");
     let owned_keys: Vec<String> = (0..10).map(|i| format!("pipeline:key:{}", i)).collect();
     let keys: Vec<&str> = owned_keys.iter().map(|s| s.as_str()).collect();
@@ -71,7 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 3. 对比：逐个设置 vs Pipeline
     println!("\n--- 3. 性能对比：逐个设置 vs Pipeline ---");
 
     // 逐个设置
@@ -108,7 +105,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001)
     );
 
-    // 4. 批量删除
     println!("\n--- 4. 批量删除（delete_many_pipeline） ---");
     let owned_perf_keys: Vec<String> = (0..10).map(|i| format!("pipeline:perf:{}", i)).collect();
     let owned_ind_keys: Vec<String> = (0..10).map(|i| format!("individual:key:{}", i)).collect();

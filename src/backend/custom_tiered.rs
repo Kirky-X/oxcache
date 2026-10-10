@@ -147,11 +147,9 @@ impl BackendType {
         }
 
         if let Some(custom_name) = s.strip_prefix("custom:") {
-            // 验证自定义名称
             let validated_name = ConfigValidation::validate_custom_name(custom_name)?;
             Ok(BackendType::Custom(validated_name))
         } else {
-            // 构建可用后端列表
             let mut available = vec![
                 #[cfg(feature = "memory")]
                 "moka",
@@ -175,9 +173,7 @@ impl BackendType {
 mod tests {
     use super::*;
 
-    // ----------------------------------------------------------------
-    // LayerRestriction tests
-    // ----------------------------------------------------------------
+    // === LayerRestriction tests ===
 
     #[test]
     fn test_layer_restriction_l1_only() {
@@ -213,9 +209,7 @@ mod tests {
         assert_eq!(LayerRestriction::Any.description(), "支持任意层级");
     }
 
-    // ----------------------------------------------------------------
-    // BackendType extension method tests
-    // ----------------------------------------------------------------
+    // === BackendType extension method tests ===
 
     #[test]
     #[cfg(feature = "memory")]

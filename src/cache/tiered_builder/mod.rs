@@ -30,12 +30,9 @@ use std::time::Duration;
 pub type BackendDecorator =
     Arc<dyn Fn(Arc<dyn CacheBackend>) -> Arc<dyn CacheBackend> + Send + Sync>;
 
-// ============================================================================
-// L1Builder
-// ============================================================================
+// === L1Builder ===
 
 /// L1 进程内内存后端构建器
-#[derive(Default)]
 pub struct L1Builder {
     capacity: Option<u64>,
     ttl: Option<Duration>,
@@ -43,6 +40,22 @@ pub struct L1Builder {
     kind: L1Kind,
     decorators: Vec<BackendDecorator>,
     score: u8,
+}
+
+impl Default for L1Builder {
+    fn default() -> Self {
+        Self {
+            capacity: None,
+            ttl: None,
+            tti: None,
+            kind: L1Kind::default(),
+            decorators: Vec::new(),
+            // L1 默认分数须高于 L2（50）：链按分数降序排列，若 L1 分数较低
+            // 则 L2 反排在链首——读路径先查 L2，且 index==0 永不触发回填，
+            // 分层语义倒置。
+            score: 100,
+        }
+    }
 }
 
 /// L1 内存后端类型
@@ -140,9 +153,7 @@ impl L1Builder {
     }
 }
 
-// ============================================================================
-// L2Builder
-// ============================================================================
+// === L2Builder ===
 
 /// L2 分布式后端构建器
 #[derive(Default)]
@@ -233,9 +244,7 @@ impl L2Builder {
     }
 }
 
-// ============================================================================
-// ChainBuilder
-// ============================================================================
+// === ChainBuilder ===
 
 /// 分层链构建器：L1 + L2 一站式组装为 [`ChainCache`]
 #[derive(Default)]

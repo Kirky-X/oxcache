@@ -28,7 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = RedisBackend::new(&redis_url).await?;
     println!("✓ Redis 连接成功\n");
 
-    // 1. 使用 eval_lua 执行原子计数器
     println!("--- 1. 原子计数器（eval_lua） ---");
     let counter_script = r#"
         local current = redis.call('GET', KEYS[1])
@@ -49,7 +48,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  第 {} 次调用，计数器值: {:?}", i, result);
     }
 
-    // 2. 使用 script_load 预加载脚本
     println!("\n--- 2. 预加载脚本（script_load） ---");
     let hash_script = r#"
         local value = redis.call('GET', KEYS[1])
@@ -62,7 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sha = backend.script_load(hash_script).await?;
     println!("  脚本 SHA1: {}", sha);
 
-    // 3. 使用 eval_sha 执行已加载的脚本
     println!("\n--- 3. 通过 SHA 执行脚本（eval_sha） ---");
 
     // 先设置一个值
@@ -82,7 +79,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = backend.eval_sha(&sha, &["test:lua:length"], &[]).await?;
     println!("  eval_sha 结果: {:?}", result);
 
-    // 4. 条件更新示例（CAS 操作）
     println!("\n--- 4. 条件更新（Compare-And-Swap） ---");
     let cas_script = r#"
         local current = redis.call('GET', KEYS[1])
@@ -114,7 +110,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  期望 v1 更新为 v2: {:?} (应为 1，表示成功)", result);
 
-    // 5. 清理
     backend
         .delete_many_pipeline(&["counter:1", "test:lua:length", "cas:key"])
         .await?;

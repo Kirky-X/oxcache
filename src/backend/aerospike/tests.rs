@@ -31,13 +31,16 @@ fn test_aerospike_config_custom() {
 
 #[test]
 fn test_is_key_not_found_error() {
-    let err = AsError::ServerError(ResultCode::KeyNotFoundError, false, "not found".into());
-    assert!(is_key_not_found(&err));
-
-    let err = AsError::ServerError(ResultCode::ServerError, false, "internal".into());
+    // 3.0 起服务端错误无公开构造器，KeyNotFound 正向分支仅由需真实
+    // 服务端的集成测试（test_aerospike_get_nonexistent_key 等）覆盖
+    let err = AsError::client_error("conn refused");
     assert!(!is_key_not_found(&err));
 
-    let err = AsError::Connection("conn refused".into());
+    let err = AsError::invalid_argument("bad ttl");
+    assert!(!is_key_not_found(&err));
+
+    // 客户端错误作为 cause 链入后仍不误判
+    let err = AsError::invalid_argument("bad key").chain_error("retry context");
     assert!(!is_key_not_found(&err));
 }
 
@@ -62,9 +65,7 @@ fn test_backend_score_values() {
     const { assert!(30u8 < Scores::REDIS) };
 }
 
-// ========================================================================
-// Integration tests (require Aerospike server on port 3001)
-// ========================================================================
+// === Integration tests (require Aerospike server on port 3001) ===
 
 /// Aerospike test seed — Docker mapped port 3001 → container 3000
 const AEROSPIKE_SEED: &str = "127.0.0.1:3001";

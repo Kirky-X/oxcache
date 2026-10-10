@@ -310,10 +310,8 @@ async fn test_sentinel_ttl() {
         .await
         .unwrap();
 
-    // 验证键存在
     assert!(backend.exists("sentinel_ttl_key").await.unwrap());
 
-    // 获取 TTL
     let ttl = backend.ttl("sentinel_ttl_key").await.unwrap();
     assert!(ttl.is_some());
 
@@ -471,7 +469,6 @@ async fn test_sentinel_many_keys() {
         }
     };
 
-    // 设置 50 个键
     for i in 0..50 {
         let key = format!("sentinel_many_{}", i);
         let value = format!("value_{}", i);

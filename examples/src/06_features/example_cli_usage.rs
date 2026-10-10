@@ -34,12 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== oxcache CLI 使用示例 ===\n");
 
-    // 1. 创建缓存实例
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(1000).build().await?;
 
     println!("缓存已创建: demo_cache");
 
-    // 2. 执行一些缓存操作
     println!("\n--- 执行缓存操作 ---");
 
     // 设置一些值
@@ -64,7 +62,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("尝试获取 5 个不存在的条目（未命中）");
 
-    // 3. 模拟 CLI status 命令输出
     println!("\n--- 模拟 `oxcache status` 输出 ---");
     println!("缓存名称: demo_cache");
     println!("缓存类型: L1 内存缓存");
@@ -72,7 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("当前条目数: {}", cache.len().await?);
     println!("状态: 运行中");
 
-    // 4. 模拟 CLI metrics 命令输出
     println!("\n--- 模拟 `oxcache metrics` 输出 ---");
     println!("# TYPE cache_entries counter");
     println!(
@@ -82,14 +78,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("# TYPE cache_capacity counter");
     println!("cache_capacity{{cache=\"demo_cache\"}} 1000");
 
-    // 5. 演示 CLI 命令格式
     println!("\n--- CLI 命令格式 ---");
     println!("查看状态: oxcache status --verbose");
     println!("查看指标: oxcache metrics --prometheus");
     println!("清理缓存: oxcache admin clean --cache demo_cache");
     println!("预热缓存: oxcache admin warmup --file warmup_data.json");
 
-    // 6. 清理资源
     println!("\n--- 清理资源 ---");
     cache.clear().await?;
     println!("缓存已清理");

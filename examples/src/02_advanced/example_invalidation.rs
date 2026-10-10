@@ -36,7 +36,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建分层缓存用于演示
     let cache: Arc<Cache<String, Order>> = Arc::new(Cache::builder().build().await?);
 
-    // 1. 准备测试数据
     println!("1. 准备测试数据");
     let orders = vec![
         Order {
@@ -71,7 +70,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         orders.len()
     );
 
-    // 2. 单个 key 失效
     println!("2. 单个 key 失效");
     println!("   删除 order:1");
     cache.delete(&"order:1".to_string()).await?;
@@ -82,7 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. 批量失效
     println!("3. 批量失效 (通过清空缓存)");
     // 清空整个缓存
     cache.clear().await?;
@@ -93,7 +90,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. 基于用户 ID 的失效模式
     println!("4. 基于用户 ID 的失效模式");
     let user_cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
@@ -145,7 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
 
-    // 5. TTL 失效
     println!("5. TTL 自动失效");
     let ttl_cache: Cache<String, String> = Cache::builder().build().await?;
 
@@ -172,7 +167,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ttl_cache.get(&"temp:data".to_string()).await?
     );
 
-    // 6. 更新时失效 (Write-Invalidation)
     println!("6. 更新时失效 (Write-Invalidation)");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 

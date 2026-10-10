@@ -141,9 +141,7 @@ async fn make_backend() -> Option<AerospikeBackend> {
     None
 }
 
-// ============================================================================
-// Aerospike 基础集成测试
-// ============================================================================
+// === Aerospike 基础集成测试 ===
 
 #[tokio::test]
 async fn test_aerospike_backend_kind() {
@@ -306,9 +304,7 @@ async fn test_aerospike_health_check_and_stats() {
     backend.shutdown().await;
 }
 
-// ============================================================================
-// ChainCache 集成测试
-// ============================================================================
+// === ChainCache 集成测试 ===
 
 #[tokio::test]
 async fn test_aerospike_chain_cache_basic() {

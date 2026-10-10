@@ -58,7 +58,6 @@ impl CacheKey for Product {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== CacheKey trait 示例 ===\n");
 
-    // 1. 内置类型演示
     println!("--- 1. 内置类型的 CacheKey 实现 ---");
 
     let string_key: String = "user:123".to_string();
@@ -84,7 +83,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  isize: {} -> '{}'", isize_key, isize_key.to_key_string());
     println!();
 
-    // 2. 自定义类型演示
     println!("--- 2. 自定义类型的 CacheKey 实现 ---");
 
     let user_id = UserId(12345);
@@ -105,7 +103,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Product -> '{}'", product.to_key_string());
     println!();
 
-    // 3. 在缓存中使用 CacheKey
     println!("--- 3. 在缓存中使用 CacheKey ---");
 
     let cache: Cache<String, Product> = Cache::builder().build().await?;
@@ -130,7 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  存储: key='{}', product={:?}", key2, another_product);
     println!();
 
-    // 4. 批量操作演示
     println!("--- 4. 批量操作演示 ---");
 
     let users = vec![UserId(1), UserId(2), UserId(3)];
@@ -152,7 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  批量读取: {} 个结果", results.len());
     println!();
 
-    // 5. 键格式一致性验证
     println!("--- 5. 键格式一致性验证 ---");
 
     let key_a = UserId(100).to_key_string();

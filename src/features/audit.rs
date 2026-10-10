@@ -225,12 +225,10 @@ impl AuditEventPublisher for TracingAuditPublisher {
     }
 }
 
-// ========================================================================
 // inklog 结构化日志桥接（`inklog` feature）：审计事件 → inklog LogRecord，
 // 经有界 channel 交由单一 writer task 顺序写入注入的 `LogSink`
 // （ConsoleSink/FileSink 等落盘端）。级别映射为显式常量表：状态变更
 // （Set/Delete/Clear）INFO，读探测与容量/过期清理 DEBUG。
-// ========================================================================
 
 /// 发布器内部事件通道容量（事件数）：publish 非阻塞 `try_send`，通道写满
 /// 即过载丢弃——过载以显性丢弃计数呈现，绝不反压缓存操作
@@ -437,16 +435,94 @@ mod tests {
     }
 
     #[test]
-    fn in_memory_publisher_ring_buffers() {
-        let publisher = InMemoryAuditPublisher::new(3);
-        for i in 0..5u32 {
-            publisher.publish(AuditEvent::new(AuditAction::Hit).with_key(format!("k{i}")));
+    fn in_memory_publisher_is_empty_tracks_buffer() {
+        let publisher = InMemoryAuditPublisher::new(1);
+        assert!(publisher.is_empty(), "新建缓冲应为空");
+        publisher.publish(AuditEvent::new(AuditAction::Set).with_key("k"));
+        assert!(!publisher.is_empty());
+    }
+
+    #[cfg(feature = "telemetry")]
+    #[test]
+    fn tracing_publisher_emits_one_structured_event_per_publish() {
+        use std::fmt;
+        use tracing::field::{Field, Visit};
+        use tracing::span::{Attributes, Id, Record};
+        use tracing::{Event, Metadata, Subscriber};
+
+        struct CountingSubscriber {
+            events: std::sync::Arc<Mutex<Vec<(tracing::Level, String, String)>>>,
         }
-        assert_eq!(publisher.len(), 3, "环形缓冲应保持容量上限");
-        let events = publisher.snapshot();
-        // 最旧的被挤掉
-        assert_eq!(events[0].key.as_deref(), Some("k2"));
-        assert_eq!(events[2].key.as_deref(), Some("k4"));
+
+        struct FieldVisitor {
+            action: String,
+            key: String,
+        }
+
+        impl Visit for FieldVisitor {
+            fn record_str(&mut self, field: &Field, value: &str) {
+                match field.name() {
+                    "action" => self.action = value.to_string(),
+                    "key" => self.key = value.to_string(),
+                    _ => {}
+                }
+            }
+
+            fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+                self.record_str(field, &format!("{value:?}"));
+            }
+        }
+
+        impl Subscriber for CountingSubscriber {
+            fn enabled(&self, _metadata: &Metadata<'_>) -> bool {
+                true
+            }
+
+            fn new_span(&self, _attrs: &Attributes<'_>) -> Id {
+                Id::from_u64(1)
+            }
+
+            fn record(&self, _span: &Id, _values: &Record<'_>) {}
+
+            fn record_follows_from(&self, _span: &Id, _follows: &Id) {}
+
+            fn event(&self, event: &Event<'_>) {
+                let mut visitor = FieldVisitor {
+                    action: String::new(),
+                    key: String::new(),
+                };
+                event.record(&mut visitor);
+                self.events.lock().unwrap().push((
+                    *event.metadata().level(),
+                    visitor.action,
+                    visitor.key,
+                ));
+            }
+
+            fn enter(&self, _span: &Id) {}
+
+            fn exit(&self, _span: &Id) {}
+        }
+
+        let captured = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink = captured.clone();
+        tracing::subscriber::with_default(
+            std::sync::Arc::new(CountingSubscriber { events: sink }),
+            || {
+                TracingAuditPublisher.publish(
+                    AuditEvent::new(AuditAction::Delete)
+                        .with_key("user:42")
+                        .with_namespace("users")
+                        .with_operator("svc"),
+                );
+            },
+        );
+
+        let events = captured.lock().unwrap();
+        assert_eq!(events.len(), 1, "一次 publish 应产生一条 tracing 事件");
+        assert_eq!(events[0].0, tracing::Level::INFO);
+        assert_eq!(events[0].1, "delete");
+        assert_eq!(events[0].2, "user:42");
     }
 
     #[test]
@@ -497,9 +573,7 @@ mod tests {
         assert_eq!(concrete.len(), 1);
     }
 
-    // ====================================================================
-    // inklog 结构化日志桥接（`inklog` feature）
-    // ====================================================================
+    // === inklog 结构化日志桥接（`inklog` feature） ===
     #[cfg(feature = "inklog")]
     mod inklog_bridge {
         use super::*;

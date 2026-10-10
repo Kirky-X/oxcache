@@ -26,8 +26,12 @@
 use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::Duration;
+
+// L2 Redis WATCH 实现（唯一使用点）按 feature 门控，单开 versioning 时不引入
+#[cfg(feature = "redis")]
+use std::sync::Arc;
 
 /// 版本化值快照
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,9 +67,7 @@ pub trait VersionedStore: Send + Sync {
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
 }
 
-// ============================================================================
-// L1 内存实现
-// ============================================================================
+// === L1 内存实现 ===
 
 /// L1 内存版本化缓存（Mutex 保护的版本表）
 #[derive(Default)]
@@ -147,9 +149,7 @@ impl VersionedStore for MemoryVersionedCache {
     }
 }
 
-// ============================================================================
-// L2 Redis WATCH 实现（MVP）
-// ============================================================================
+// === L2 Redis WATCH 实现（MVP） ===
 
 /// L2 Redis 版本化缓存（WATCH + MULTI/EXEC 事务 MVP）
 ///
@@ -388,35 +388,7 @@ mod tests {
         assert_eq!(store.entries.lock().unwrap().len(), 0);
     }
 
-    /// Redis WATCH 路径（需真实 Redis；CI 跳过）
-    #[cfg(feature = "redis")]
-    #[tokio::test]
-    #[ignore = "needs live Redis at 127.0.0.1:6379"]
-    async fn redis_watch_cas_roundtrip() {
-        use crate::backend::RedisBackend;
-        let backend = Arc::new(RedisBackend::new("redis://127.0.0.1:6379").await.unwrap());
-        let store = RedisVersionedCache::new(backend);
-        let key = format!("oxcache:versioned:{}", uuid::Uuid::new_v4());
-
-        let v1 = store
-            .compare_and_swap(&key, 0, b"a".to_vec(), None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(v1, 1);
-        let v2 = store
-            .compare_and_swap(&key, v1, b"b".to_vec(), None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(v2, 2);
-        assert_eq!(
-            store
-                .compare_and_swap(&key, v1, b"stale".to_vec(), None)
-                .await
-                .unwrap(),
-            None
-        );
-        store.delete(&key).await.unwrap();
-    }
+    // Redis WATCH/MULTI/EXEC 路径需真实 Redis 端点，由
+    // tests/integration/redis/versioning_real_redis_test.rs 以容器门控覆盖
+    // （CI 无外部服务，此处硬编码端点只会长期 #[ignore] 空转）。
 }

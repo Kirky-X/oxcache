@@ -147,9 +147,7 @@ async fn test_sync_stats() {
     assert!(stats.contains_key("memory_info"));
 }
 
-// ============================================================================
-// SyncAtomicCacheWriter integration tests
-// ============================================================================
+// === SyncAtomicCacheWriter integration tests ===
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "requires Redis server"]

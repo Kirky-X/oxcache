@@ -826,8 +826,7 @@ impl ChainCache {
         Ok(())
     }
 
-    // ========================================================================
-    // Sync API
+    // === Sync API ===
     //
     // 同步版链式访问。语义与 async 版一致：get_sync 按分数从高到低遍历，
     // set_sync 写入所有链接（透传 TTL），delete_sync 从所有链接删除。
@@ -835,7 +834,6 @@ impl ChainCache {
     // 契约：链中任一链接未实现 SyncCacheBackend（`try_as_sync_backend` 返回
     // None）时，所有 sync API 返回 `Err(NotSupported)`。这避免部分链接静默
     // 跳过导致的写丢失风险。
-    // ========================================================================
 
     /// 收集链中所有链接的 sync backend。
     ///
@@ -1122,9 +1120,7 @@ impl CacheConnector for ChainCache {
     }
 }
 
-// ============================================================================
-// AtomicCacheWriter for ChainCache
-// ============================================================================
+// === AtomicCacheWriter for ChainCache ===
 
 #[async_trait]
 impl AtomicCacheWriter for ChainCache {
@@ -1180,6 +1176,4 @@ impl AtomicCacheWriter for ChainCache {
     }
 }
 
-// ============================================================================
-// keys() override for ChainCache
-// ============================================================================
+// === keys() override for ChainCache ===

@@ -663,9 +663,99 @@ mod tests {
         assert_eq!(controller.state(), DegradationState::Active);
     }
 
-    // ========================================================================
-    // DegradationSnapshot 观测快照
-    // ========================================================================
+    /// Active 状态下装饰器对 CacheReader/CacheWriter/CacheConnector 全操作面
+    /// 透明转发：委托方法不得改写语义（返回值原样透出，健康调用不污染计数）。
+    #[tokio::test]
+    async fn degradable_backend_delegates_full_surface_when_active() {
+        let controller = Arc::new(DegradationController::new(2, Duration::from_secs(60)));
+        let inner = Arc::new(InnerCircuitBackend::new(Duration::from_millis(50)));
+        let inner_dyn: Arc<dyn CacheBackend> = inner.clone();
+        let backend = DegradableBackend::new(inner_dyn, controller.clone());
+
+        // reader 面
+        assert!(!backend.exists("k").await.unwrap());
+        assert_eq!(backend.ttl("k").await.unwrap(), None);
+        assert_eq!(backend.len().await.unwrap(), 0);
+        assert_eq!(backend.capacity().await.unwrap(), 0);
+        assert!(backend.stats().await.unwrap().is_empty());
+        assert!(backend.keys("*").await.unwrap().is_empty());
+
+        // writer 面
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend.delete("k").await.unwrap();
+        backend.clear().await.unwrap();
+        assert!(!backend.expire("k", Duration::from_secs(1)).await.unwrap());
+        backend
+            .set_many(&[(Arc::from("k"), Arc::new(b"v".to_vec()), None)])
+            .await
+            .unwrap();
+        backend.delete_many(&["k".to_string()]).await.unwrap();
+
+        // connector 面
+        backend.health_check().await.unwrap();
+        assert_eq!(backend.backend_kind(), BackendKind::Mock);
+        backend.shutdown().await;
+
+        assert!(Arc::ptr_eq(backend.controller(), &controller));
+        assert_eq!(
+            controller.state(),
+            DegradationState::Active,
+            "全操作面成功不应触发降级"
+        );
+    }
+
+    /// 委托方法在降级窗口内同样短路：exists/set/delete/clear/set_many/
+    /// delete_many 都不得触达内层。
+    #[tokio::test]
+    async fn degradable_backend_short_circuits_all_write_paths_when_degraded() {
+        let controller = Arc::new(DegradationController::new(1, Duration::from_secs(60)));
+        let inner = Arc::new(InnerCircuitBackend::new(Duration::from_secs(60)));
+        let inner_dyn: Arc<dyn CacheBackend> = inner.clone();
+        let backend = DegradableBackend::new(inner_dyn, controller.clone());
+
+        // 一次故障即达阈值（内层熔断同步打开）
+        let _ = backend.get("k").await;
+        assert_eq!(controller.state(), DegradationState::Degraded);
+
+        assert!(matches!(
+            backend.exists("k").await.expect_err("降级期 exists 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+        assert!(matches!(
+            backend
+                .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+                .await
+                .expect_err("降级期 set 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+        assert!(matches!(
+            backend.delete("k").await.expect_err("降级期 delete 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+        assert!(matches!(
+            backend.clear().await.expect_err("降级期 clear 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+        assert!(matches!(
+            backend
+                .set_many(&[(Arc::from("k"), Arc::new(b"v".to_vec()), None)])
+                .await
+                .expect_err("降级期 set_many 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+        assert!(matches!(
+            backend
+                .delete_many(&["k".to_string()])
+                .await
+                .expect_err("降级期 delete_many 应短路"),
+            OxCacheError::Degraded(_)
+        ));
+    }
+
+    // === DegradationSnapshot 观测快照 ===
 
     #[test]
     fn snapshot_reflects_lifecycle_without_mutating_state() {
@@ -720,9 +810,7 @@ mod tests {
         assert_eq!(snap.degraded_elapsed, None);
     }
 
-    // ========================================================================
-    // 双层熔断恢复时序叠加(外层 DegradationController × 内层后端内建熔断)
-    // ========================================================================
+    // === 双层熔断恢复时序叠加(外层 DegradationController × 内层后端内建熔断) ===
 
     /// 模拟后端内建熔断层的最小后端(与 RedisBackend 内建熔断同构)：
     /// 首次 get 视为真实故障并立即打开熔断(阈值 1)；打开期短路上抛
@@ -936,9 +1024,7 @@ mod tests {
         assert_eq!(inner.admitted(), 1);
     }
 
-    // ========================================================================
-    // DegradationTracing 观测桥(telemetry)
-    // ========================================================================
+    // === DegradationTracing 观测桥(telemetry) ===
 
     #[cfg(feature = "telemetry")]
     mod telemetry_bridge {

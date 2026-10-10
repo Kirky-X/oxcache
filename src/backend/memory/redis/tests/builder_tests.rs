@@ -173,9 +173,7 @@ async fn test_health_check_ok() {
     backend.health_check().await.expect("health check failed");
 }
 
-// ============================================================================
-// Builder validation and chain method tests (no Redis server required)
-// ============================================================================
+// === Builder validation and chain method tests (no Redis server required) ===
 
 #[tokio::test]
 async fn test_builder_pool_size_zero_rejected() {
@@ -243,7 +241,9 @@ fn test_builder_chain_all_methods() {
         .database(2)
         .circuit_breaker_threshold(10)
         .circuit_breaker_reset_timeout(Duration::from_secs(60))
-        .dangerous_clear_enabled(true);
+        .dangerous_clear_enabled(true)
+        .sentinel_master_name("mymaster")
+        .sentinel_addr_map([("172.26.0.2:6379".to_string(), "127.0.0.1:16380".to_string())]);
 
     // Builder should be constructable (build will fail at connection, but that's ok)
     let _ = builder;

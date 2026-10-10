@@ -28,7 +28,7 @@
 - [📈 可观测性](#-可观测性)
 - [🚨 错误处理](#-错误处理)
 - [🏷 类型别名](#-类型别名)
-- [🧬 trait-kit 集成](#-trait-kit-集成kit-feature)
+- [🧬 trait-kit 集成](#-trait-kit-集成trait-kit-feature)
 - [💻 示例](#-示例)
 
 </details>
@@ -40,12 +40,12 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 ### 分层特性集
 
 - **`minimal`**：仅 L1 缓存（memory + metrics + serialization + chrono），**默认启用**
-- **`core`**：L1 + L2 缓存（minimal + redis）
-- **`full`**：全量预设（core + macros + compression + batch + lua + testing + dragonfly + aerospike + lock + offload + disk + stale；不含 `bloom`、`kit` 等选择加入特性）
+- **`redis-tier`**：L1 + L2 缓存（minimal + redis；旧名 `core` 为兼容别名）
+- **`full`**：真全量（redis-tier + 全部具名能力特性，含 `bloom` / `trait-kit` / `encrypt` / `integrity` / 三种后端等；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列）
 
 ### 组件特性
 
-组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#-特性标志)；关键门控：`bloom`、`kit` 等选择加入特性**不包含**在 `full` 中，配置示例同见该章节。
+组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#-特性标志)；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，仍可单开（`features = ["bloom"]`），配置示例同见该章节。
 
 ### 特性依赖
 
@@ -54,8 +54,8 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 | 特性 | 所需特性 | 说明 |
 |------|----------|------|
 | `minimal` | `memory`, `metrics`, `serialization` | 最小预设（L1 memory + 指标） |
-| `core` | `minimal`, `redis` | 核心 L1 + L2 缓存 |
-| `full` | `core`, `macros`, `compression`, `batch`, `lua`, `testing`, `dragonfly`, `aerospike`, `lock`, `offload`, `disk`, `stale` | 全量预设（注意：`bloom`、`kit` 不在 `full` 中） |
+| `redis-tier` | `minimal`, `redis` | 核心 L1 + L2 缓存（旧名 `core` 为兼容别名） |
+| `full` | `redis-tier` + 全部具名能力特性（含 `bloom` / `trait-kit` / `encrypt` / `integrity` / `redlock` / `warmup` 等；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列） | 真全量预设，精确成员见 `Cargo.toml` `[features]` |
 | `memory` | `serialization` | backend 与 cache 核心 API 的编译基线 |
 | `redis` | `serialization` | L2 Redis 后端 |
 | `dragonfly` | `redis` | Dragonfly 兼容模式后端 |
@@ -69,12 +69,12 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 | `batch` | `memory` | BatchWriter（包装 `CacheBackend`；缓冲满默认自动刷盘，`reject_when_full(true)` 改为拒绝并返回 `BufferFull`/`OXCACHE_019`） |
 | `lua` | `redis` | Lua 脚本执行 |
 | `test-util` | — | 测试辅助（`#[cfg(feature)]` 专用桩） |
-| `testing` | `test-util` | 测试实现 |
-| `bloom` | — | 布隆过滤器（选择加入，不在 `full` 中） |
-| `trait-kit` / `kit` | `memory` | kit 集成（引用 `crate::backend`；`kit` 隐含 `trait-kit`，选择加入，不在 `full` 中） |
+| `testing` | `test-util` | 测试实现（已弃用别名，用正名 `test-util`） |
+| `bloom` | — | 布隆过滤器（已并入 `full`，可单开） |
+| `trait-kit` / `kit` | `memory` | kit 集成（引用 `crate::backend`；`kit` 为已弃用别名并隐含 `trait-kit`；已并入 `full`，可单开） |
 | `lock` | `redis` | 分布式锁 |
 | `redlock` | `lock` | RedLock 实现 |
-| `red-lock` | `redlock` | RedLock 多节点多数派锁（别名） |
+| `red-lock` | `redlock` | RedLock 多节点多数派锁（已弃用别名，用正名 `redlock`） |
 | `compression` | `memory` | 压缩装饰器（引用 backend 与序列化面） |
 | `offload` | `dashmap` | 进程内后台任务执行器 |
 | `disk` | `memory`, `serialization` | redb 嵌入式 L3 |
@@ -709,7 +709,7 @@ let cache: Cache<String, String> = Cache::builder()
 
 ## 🌸 布隆过滤器
 
-`bloom` 特性（**不包含**在 `full` 中）提供负查询过滤。
+`bloom` 特性（已并入 `full`，也可单开）提供负查询过滤。
 `BloomFilterBackend` 包装任意 `CacheBackend`，当布隆过滤器判定键不存在时跳过内部后端。
 
 ### `BloomFilter`
@@ -1110,9 +1110,9 @@ pub type OxCacheResult<T> = std::result::Result<T, OxCacheError>;
 pub type RedisMode = RedisModeType; // Standalone | Sentinel | Cluster | ValkeyStandalone
 ```
 
-## 🧬 trait-kit 集成（kit feature）
+## 🧬 trait-kit 集成（trait-kit feature）
 
-启用 `kit` feature 后，oxcache 提供 trait-kit `AsyncKit` 集成模块 `oxcache::integrations::kit`：
+启用 `trait-kit` feature 后，oxcache 提供 trait-kit `AsyncKit` 集成模块 `oxcache::integrations::kit`：
 
 | 类型 / 函数 | 说明 |
 |------------|------|

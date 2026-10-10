@@ -25,12 +25,10 @@ struct RedisUser {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Redis 原生客户端示例 ===\n");
 
-    // 创建 Redis 缓存
     println!("1. 连接 Redis");
     let cache: Cache<String, RedisUser> = Cache::redis("redis://127.0.0.1:6379").await?;
     println!("   ✓ Redis 连接成功\n");
 
-    // 2. 基本操作
     println!("2. 基本 CRUD 操作");
     let user = RedisUser {
         id: 1,
@@ -71,7 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. 批量操作
     println!("3. 批量操作");
     let users = vec![
         RedisUser {
@@ -106,7 +103,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("   ✓ 清空完成\n");
 
-    // 4. 统计信息
     println!("4. 缓存统计");
     println!("   缓存统计功能需要通过 metrics 接口获取");
     println!("   (详细统计信息请参考 metrics_test 示例)");

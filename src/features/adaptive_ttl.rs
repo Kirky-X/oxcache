@@ -722,4 +722,110 @@ mod tests {
             "hot key ttl must clamp down to max_ttl, got {ttl:?}"
         );
     }
+
+    /// 装饰器对 CacheReader/CacheWriter/CacheConnector 全操作面透明转发；
+    /// `stats()`（HashMap 面）附带自适应统计字段。
+    #[tokio::test]
+    async fn delegates_full_surface_and_reports_adaptive_stats() {
+        let backend =
+            AdaptiveTtlBackend::new(Arc::new(MockBackend::new("mock", 10, false)), hot_config())
+                .unwrap();
+        store(&backend, "k", Some(Duration::from_secs(60))).await;
+
+        assert!(backend.exists("k").await.unwrap());
+        assert!(backend.ttl("k").await.unwrap().is_some());
+        assert_eq!(backend.len().await.unwrap(), 1);
+        assert_eq!(backend.capacity().await.unwrap(), 0);
+        assert_eq!(backend.keys("*").await.unwrap(), vec!["k".to_string()]);
+        assert!(backend.expire("k", Duration::from_secs(30)).await.unwrap());
+
+        // CacheReader::stats 与自适应统计合并输出
+        let stats = CacheReader::stats(&backend).await.unwrap();
+        assert_eq!(stats.get("type").map(String::as_str), Some("mock"));
+        assert_eq!(
+            stats.get("adaptive_tracked_keys").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(
+            stats.get("adaptive_hot_extensions").map(String::as_str),
+            Some("0")
+        );
+        assert_eq!(
+            stats.get("adaptive_cold_shortenings").map(String::as_str),
+            Some("0")
+        );
+        assert_eq!(
+            stats.get("adaptive_failed_adjustments").map(String::as_str),
+            Some("0")
+        );
+
+        backend
+            .set_many(&[
+                (
+                    Arc::from("a"),
+                    Arc::new(b"1".to_vec()),
+                    Some(Duration::from_secs(60)),
+                ),
+                (Arc::from("b"), Arc::new(b"2".to_vec()), None),
+            ])
+            .await
+            .unwrap();
+        assert!(backend.exists("a").await.unwrap());
+        assert!(backend.exists("b").await.unwrap());
+        backend
+            .delete_many(&["a".to_string(), "b".to_string()])
+            .await
+            .unwrap();
+        assert!(!backend.exists("a").await.unwrap());
+
+        backend.delete("k").await.unwrap();
+        assert!(!backend.exists("k").await.unwrap());
+        backend.clear().await.unwrap();
+        assert_eq!(backend.stats().tracked_keys, 0, "clear 应清零追踪表");
+
+        backend.health_check().await.unwrap();
+        assert_eq!(backend.backend_kind(), crate::backend::BackendKind::Mock);
+        backend.shutdown().await;
+    }
+
+    /// TTL 缩放在 f64 精度不足以表示时饱和到 `Duration::MAX`（不 wrap 成小值）。
+    #[test]
+    fn scale_ttl_saturates_to_duration_max() {
+        let backend =
+            AdaptiveTtlBackend::new(Arc::new(MokaMemoryBackend::builder().build()), hot_config())
+                .unwrap();
+        let saturated = backend.scale_ttl(Duration::from_millis(u64::MAX), 2.0);
+        assert_eq!(saturated, Duration::MAX);
+    }
+
+    /// 未追踪键（追踪表满时的透传路径）不触发主动延长；未达 hot 阈值同理。
+    #[tokio::test]
+    async fn maybe_extend_hot_skips_untracked_and_sub_threshold_keys() {
+        let backend =
+            AdaptiveTtlBackend::new(Arc::new(MokaMemoryBackend::builder().build()), hot_config())
+                .unwrap();
+        store(&backend, "tracked", Some(Duration::from_secs(60))).await;
+        backend.maybe_extend_hot("tracked", 1).await;
+        assert_eq!(backend.stats().hot_extensions, 0, "未达阈值不应延长");
+
+        // 追踪表外的键：无 last_extend 记录，直接 no-op
+        backend.maybe_extend_hot("ghost", u64::MAX).await;
+        assert_eq!(backend.stats().hot_extensions, 0);
+        assert_eq!(backend.stats().tracked_keys, 1);
+    }
+
+    /// get 路径主动延长写失败必须显性计数（failed_adjustments），不阻断命中。
+    #[tokio::test]
+    async fn failed_extend_counts_as_failed_adjustment() {
+        let backend = AdaptiveTtlBackend::new(
+            Arc::new(MockBackend::new("mock", 10, false).with_fail_expire()),
+            hot_config(),
+        )
+        .unwrap();
+        store(&backend, "hot", Some(Duration::from_secs(60))).await;
+        // freq=1 → get 达阈值 2，延长写失败（expire 注入故障）
+        assert_eq!(backend.get("hot").await.unwrap(), Some(b"v".to_vec()));
+        assert_eq!(backend.stats().failed_adjustments, 1);
+        assert_eq!(backend.stats().hot_extensions, 0);
+    }
 }

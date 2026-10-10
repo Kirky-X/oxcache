@@ -37,7 +37,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cache: Arc<Cache<String, User>> = Arc::new(Cache::builder().capacity(100).build().await?);
 
-    // 1. 基本用法：缓存未命中时自动执行 fallback
     println!("--- 1. 基本用法 ---");
     let key = "user:1".to_string();
 
@@ -55,7 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  结果: {:?}\n", user2);
 
-    // 2. 并发场景：single-flight 去重
     println!("--- 2. 并发 single-flight 去重 ---");
     let key2 = "user:2".to_string();
 
@@ -81,7 +79,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n  注意：只有一次 [DB] 加载，其余请求等待结果");
 
-    // 3. 对比：无 get_or 的并发场景
     println!("\n--- 3. 对比：无 single-flight 的并发场景 ---");
     let key3 = "user:3".to_string();
 

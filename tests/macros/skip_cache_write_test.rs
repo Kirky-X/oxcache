@@ -3,12 +3,12 @@
 // Integration tests for the `#[cached(skip_cache_write)]` extension.
 //
 // These tests verify:
-//   1. `#[cached(skip_cache_write)]` compiles (smoke test)
-//   2. With `skip_cache_write` set, an `Ok` result does NOT write to the cache
-//      (second call re-executes the fn body — cache miss every time)
-//   3. Without `skip_cache_write` (default), an `Ok` result writes to the cache
-//      (second call hits the cache — fn body not re-executed)
-//   4. Both sync and async branches respect `skip_cache_write`
+// - `#[cached(skip_cache_write)]` compiles (smoke test)
+// - With `skip_cache_write` set, an `Ok` result does NOT write to the cache
+//   (second call re-executes the fn body — cache miss every time)
+// - Without `skip_cache_write` (default), an `Ok` result writes to the cache
+//   (second call hits the cache — fn body not re-executed)
+// - Both sync and async branches respect `skip_cache_write`
 //
 // The counter-based approach distinguishes "cached" from "re-executed":
 // each fn body bumps an `AtomicUsize`; if the counter stays at 1 after
@@ -27,9 +27,7 @@ static ASYNC_DEFAULT_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SYNC_SKIP_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SYNC_DEFAULT_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-// ============================================================================
-// Async branch — `#[cached(skip_cache_write)]` vs `#[cached]` (default)
-// ============================================================================
+// === Async branch — `#[cached(skip_cache_write)]` vs `#[cached]` (default) ===
 
 #[cached(service = "skip_cache_write_async_skip_svc", skip_cache_write)]
 async fn cached_async_skip(id: u64) -> Result<u64, String> {
@@ -119,9 +117,7 @@ async fn default_async_caches_ok_result() {
     );
 }
 
-// ============================================================================
-// Sync branch — `#[cached(sync, skip_cache_write)]` vs `#[cached(sync)]` (default)
-// ============================================================================
+// === Sync branch — `#[cached(sync, skip_cache_write)]` vs `#[cached(sync)]` (default) ===
 
 #[cached(service = "skip_cache_write_sync_skip_svc", sync, skip_cache_write)]
 fn cached_sync_skip(id: u64) -> Result<u64, String> {

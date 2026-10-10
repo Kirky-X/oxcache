@@ -394,4 +394,129 @@ mod tests {
         ));
         assert!(!SentinelConnection::is_recoverable(&noperm));
     }
+
+    /// 全部 sentinel 不可达：逐个尝试后返回 Connection 错误，错误信息必须
+    /// 携带 master 名与最后一个失败原因（不静默吞掉根因）。
+    #[tokio::test]
+    async fn resolve_master_reports_last_error_when_all_sentinels_unreachable() {
+        let discovery = SentinelDiscovery::new(
+            "redis://127.0.0.1:1,redis://127.0.0.1:2",
+            "mymaster",
+            vec![],
+        )
+        .unwrap();
+        let err = discovery
+            .resolve_master(Duration::from_millis(300), None)
+            .await
+            .expect_err("不可达 sentinel 必须返回 Err");
+        let msg = err.to_string();
+        assert!(msg.contains("mymaster"), "错误应点名 master: {msg}");
+        assert!(
+            msg.contains("127.0.0.1:2"),
+            "错误应携带最后一个失败原因（后一个 sentinel）: {msg}"
+        );
+    }
+
+    /// 首个 sentinel URL 在 client 解析期即失败时跳过并继续尝试下一个，
+    /// 全部失败后仍以统一错误形态收敛。
+    #[tokio::test]
+    async fn resolve_master_skips_unparsable_sentinel_url() {
+        let discovery =
+            SentinelDiscovery::new("redis://,redis://127.0.0.1:1", "mymaster", vec![]).unwrap();
+        let err = discovery
+            .resolve_master(Duration::from_millis(300), None)
+            .await
+            .expect_err("不可达 sentinel 必须返回 Err");
+        assert!(err.to_string().contains("mymaster"));
+    }
+
+    /// master 发现失败时 connect 不得伪造连接：直接透出发现错误。
+    #[tokio::test]
+    async fn connect_fails_when_master_unresolvable() {
+        let discovery = SentinelDiscovery::new("redis://127.0.0.1:1", "mymaster", vec![]).unwrap();
+        match SentinelConnection::connect(discovery, Duration::from_millis(300), None).await {
+            Ok(_) => panic!("发现失败不得返回连接"),
+            Err(OxCacheError::Connection(msg)) => {
+                assert!(msg.contains("mymaster"), "错误应点名 master: {msg}");
+            }
+            Err(other) => panic!("应返回 Connection 错误，got {other:?}"),
+        }
+    }
+
+    /// 假 sentinel 端点（进程内 RESP2 服务器，见 `crate::test_support`）上的
+    /// 完整发现 → 连接 → 命令执行：`resolve_master` 成功路径（含 addr_map 与
+    /// database 拼接）、`connect`/`connect_manager`、`db()`、`exec_cmd` 与
+    /// `exec_pipeline` 的稳态路径。
+    #[tokio::test]
+    async fn sentinel_discovers_and_executes_against_in_process_endpoint() {
+        const PORT: u16 = 26390;
+        assert!(
+            crate::test_support::ensure_server(PORT),
+            "假服务器应在 {PORT} 就绪"
+        );
+        let discovery = SentinelDiscovery::new(
+            &format!("redis://127.0.0.1:{PORT}"),
+            "mymaster",
+            // 发现地址经映射表改写为客户端可达地址（NAT 部署口径）
+            vec![(format!("127.0.0.1:{PORT}"), format!("localhost:{PORT}"))],
+        )
+        .unwrap();
+
+        let url = discovery
+            .resolve_master(Duration::from_secs(2), Some(3))
+            .await
+            .expect("假 sentinel 应解析出 master");
+        assert_eq!(url, format!("redis://localhost:{PORT}/3"));
+
+        let (conn, _client) =
+            SentinelConnection::connect(discovery, Duration::from_secs(2), Some(3))
+                .await
+                .expect("应连上假 master 端点");
+        assert_eq!(conn.db(), 3);
+
+        let pong = conn.exec_cmd(&redis::cmd("PING")).await.unwrap();
+        assert_eq!(pong, redis::Value::SimpleString("PONG".to_string()));
+
+        let mut pipeline = redis::Pipeline::new();
+        pipeline.cmd("SET").arg("sentinel:k").arg("v");
+        pipeline.cmd("GET").arg("sentinel:k");
+        let values = conn.exec_pipeline(&pipeline, 0, 2).await.unwrap();
+        assert_eq!(values.len(), 2);
+        assert_eq!(values[1], redis::Value::BulkString(b"v".to_vec()));
+    }
+
+    /// 假 sentinel 上的未知 master 名（nil 应答）与错误应答：分别走
+    /// `Ok(None)` 与 `Err` 分支，逐条记录失败原因后以统一错误收敛。
+    #[tokio::test]
+    async fn resolve_master_reports_unknown_master_and_error_reply() {
+        const PORT: u16 = 26391;
+        assert!(
+            crate::test_support::ensure_server(PORT),
+            "假服务器应在 {PORT} 就绪"
+        );
+        let sentinel_url = format!("redis://127.0.0.1:{PORT}");
+
+        // nil 应答：master 名未知
+        let unknown = SentinelDiscovery::new(&sentinel_url, "ghostmaster", vec![]).unwrap();
+        let err = unknown
+            .resolve_master(Duration::from_secs(2), None)
+            .await
+            .expect_err("未知 master 必须报错");
+        assert!(
+            err.to_string().contains("ghostmaster"),
+            "错误应点名 master: {err}"
+        );
+
+        // 错误应答：sentinel 拒绝服务，同样不得伪装成功
+        let failing = SentinelDiscovery::new(&sentinel_url, "errormaster", vec![]).unwrap();
+        let err = failing
+            .resolve_master(Duration::from_secs(2), None)
+            .await
+            .expect_err("sentinel 错误应答必须报错");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("errormaster") && msg.contains(&format!("127.0.0.1:{PORT}")),
+            "错误应同时点名 master 与失败 sentinel: {msg}"
+        );
+    }
 }

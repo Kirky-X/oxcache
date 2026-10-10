@@ -32,9 +32,7 @@ mod tests {
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
 
-    // ========================================================================
-    // 默认 unified 指标
-    // ========================================================================
+    // === 默认 unified 指标 ===
 
     /// 默认构建（未注入 recorder）即产生 unified 指标：set/get/delete 后
     /// 全局计数器递增。全局静态为跨测试共享，用单调 delta 断言保证并行安全；
@@ -108,9 +106,7 @@ mod tests {
         );
     }
 
-    // ============================================================================
-    // ttl() 方法测试 (lines 51-53)
-    // ============================================================================
+    // === ttl() 方法测试 (lines 51-53) ===
 
     #[test]
     fn test_builder_ttl() {
@@ -135,9 +131,7 @@ mod tests {
         assert_eq!(builder.capacity, Some(100));
     }
 
-    // ============================================================================
-    // tti() 方法测试 (lines 57-59)
-    // ============================================================================
+    // === tti() 方法测试 (lines 57-59) ===
 
     #[test]
     fn test_builder_tti() {
@@ -162,9 +156,7 @@ mod tests {
         assert_eq!(builder.ttl, Some(Duration::from_secs(300)));
     }
 
-    // ============================================================================
-    // capacity() 方法测试 (lines 63-65)
-    // ============================================================================
+    // === capacity() 方法测试 (lines 63-65) ===
 
     #[test]
     fn test_builder_capacity() {
@@ -189,9 +181,7 @@ mod tests {
         assert_eq!(builder.tti, Some(Duration::from_secs(30)));
     }
 
-    // ============================================================================
-    // backend_arc() 方法测试 (line 74, 77)
-    // ============================================================================
+    // === backend_arc() 方法测试 (line 74, 77) ===
 
     #[test]
     fn test_builder_backend_arc() {
@@ -231,9 +221,7 @@ mod tests {
         }
     }
 
-    // ============================================================================
-    // build() 方法测试 - 使用 ttl 和 tti (lines 74, 77)
-    // ============================================================================
+    // === build() 方法测试 - 使用 ttl 和 tti (lines 74, 77) ===
 
     #[tokio::test]
     async fn test_builder_build_with_ttl() {
@@ -277,9 +265,7 @@ mod tests {
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
 
-    // ============================================================================
-    // Default 和 builder 链式调用测试
-    // ============================================================================
+    // === Default 和 builder 链式调用测试 ===
 
     #[test]
     fn test_builder_default_capacity_none() {
@@ -314,9 +300,7 @@ mod tests {
         assert_eq!(builder.backends.len(), 1);
     }
 
-    // ============================================================================
-    // sync_mode() method tests (lines 85-87)
-    // ============================================================================
+    // === sync_mode() method tests (lines 85-87) ===
 
     #[test]
     fn test_builder_sync_mode_true() {
@@ -342,9 +326,7 @@ mod tests {
         assert!(!builder.sync_mode, "default sync_mode should be false");
     }
 
-    // ============================================================================
-    // build() with sync_mode — end-to-end sync API tests
-    // ============================================================================
+    // === build() with sync_mode — end-to-end sync API tests ===
 
     // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
     // uses `block_in_place` to safely drive the async moka future from sync
@@ -517,9 +499,7 @@ mod tests {
         );
     }
 
-    // ============================================================================
-    // 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
-    // ============================================================================
+    // === 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件 ===
 
     #[cfg(feature = "audit")]
     mod audit_injection {
@@ -611,9 +591,7 @@ mod tests {
         );
     }
 
-    // ============================================================================
-    // 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
-    // ============================================================================
+    // === 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本 ===
 
     #[cfg(feature = "metrics")]
     mod metrics_injection {
@@ -692,9 +670,7 @@ mod tests {
             crate::infra::convenience::reset();
         }
 
-        // ====================================================================
-        // R9 service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先
-        // ====================================================================
+        // === R9 service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先 ===
 
         #[tokio::test]
         #[serial_test::serial]
@@ -780,9 +756,7 @@ mod tests {
         }
     }
 
-    // ============================================================================
-    // 二进制序列化格式 —— Cache 级格式切换
-    // ============================================================================
+    // === 二进制序列化格式 —— Cache 级格式切换 ===
 
     #[cfg(all(feature = "serde-bincode", feature = "postcard"))]
     mod binary_serialization {
@@ -851,9 +825,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
-    // R5 自适应 TTL：builder 接线端到端与互斥
-    // ========================================================================
+    // === R5 自适应 TTL：builder 接线端到端与互斥 ===
 
     #[cfg(all(feature = "adaptive-ttl", feature = "memory"))]
     mod adaptive_ttl_builder {
@@ -985,10 +957,8 @@ mod tests {
         }
     }
 
-    // ========================================================================
-    // 显式 backend 构建路径（backends 非空分支）：stale 装饰器 / metrics /
-    // serialization 槽位与默认 Moka 路径各有一份平行装配
-    // ========================================================================
+    // === 显式 backend 构建路径（backends 非空分支） ===
+    // stale 装饰器 / metrics / serialization 槽位与默认 Moka 路径各有一份平行装配
 
     /// async 槽 + stale 装饰器（OffloadRevalidate）+ 事件发布器 + metrics
     /// 注入 + serialization 槽：一次构建覆盖该路径的全部装配分支
@@ -1057,6 +1027,130 @@ mod tests {
         assert!(
             matches!(result, Err(OxCacheError::NotSupported(_))),
             "stale_ttl + sync_mode must be rejected on the user-backend path"
+        );
+    }
+
+    /// adaptive-ttl 构建路径：默认 Moka 后端可正常装配；与 sync_mode /
+    /// stale_ttl 的互斥组合在构建期显性拒绝（而非运行期静默失效）。
+    #[cfg(feature = "adaptive-ttl")]
+    #[tokio::test]
+    async fn adaptive_ttl_builds_and_rejects_conflicting_modes() {
+        let config = crate::features::adaptive_ttl::AdaptiveTtlConfig::default();
+
+        let cache: Cache<String, String> = Cache::builder()
+            .adaptive_ttl(config.clone())
+            .build()
+            .await
+            .expect("adaptive_ttl 应可装配默认 Moka 后端");
+        cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().as_deref(),
+            Some("v")
+        );
+
+        let result: OxCacheResult<Cache<String, String>> = Cache::builder()
+            .sync_mode(true)
+            .adaptive_ttl(config.clone())
+            .build()
+            .await;
+        assert!(
+            matches!(result, Err(OxCacheError::NotSupported(_))),
+            "adaptive_ttl + sync_mode 必须在构建期拒绝"
+        );
+
+        #[cfg(feature = "stale")]
+        {
+            let result: OxCacheResult<Cache<String, String>> = Cache::builder()
+                .stale_ttl(Duration::from_secs(5))
+                .adaptive_ttl(config)
+                .build()
+                .await;
+            assert!(
+                matches!(result, Err(OxCacheError::NotSupported(_))),
+                "adaptive_ttl + stale_ttl 必须在构建期拒绝"
+            );
+        }
+    }
+
+    /// 注入审计发布器后：set/get 命中/get 未命中/delete 各发一条审计事件
+    /// （键经脱敏），发布器缺省（未注入）时不产生任何事件。
+    #[cfg(feature = "audit")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn audit_publisher_injection_emits_lifecycle_events() {
+        use crate::features::audit::{AuditAction, InMemoryAuditPublisher};
+
+        let publisher = Arc::new(InMemoryAuditPublisher::new(16));
+        let cache: Cache<String, String> = Cache::builder()
+            .audit_publisher(publisher.clone())
+            .build()
+            .await
+            .unwrap();
+
+        cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+        assert!(cache.get(&"absent".to_string()).await.unwrap().is_none());
+        assert_eq!(
+            cache.get(&"k".to_string()).await.unwrap().as_deref(),
+            Some("v")
+        );
+        assert_eq!(cache.get_by_str("k").await.unwrap().as_deref(), Some("v"));
+        cache.delete(&"k".to_string()).await.unwrap();
+
+        let actions: Vec<AuditAction> = publisher
+            .snapshot()
+            .iter()
+            .map(|event| event.action)
+            .collect();
+        for expected in [
+            AuditAction::Set,
+            AuditAction::Miss,
+            AuditAction::Hit,
+            AuditAction::Delete,
+        ] {
+            assert!(
+                actions.contains(&expected),
+                "缺少 {expected:?} 审计事件: {actions:?}"
+            );
+        }
+
+        // sync 面（sync_mode(true)）同样发布审计事件
+        let sync_publisher = Arc::new(InMemoryAuditPublisher::new(16));
+        let sync_cache: Cache<String, String> = Cache::builder()
+            .sync_mode(true)
+            .audit_publisher(sync_publisher.clone())
+            .build()
+            .await
+            .unwrap();
+        sync_cache
+            .set_with_ttl_sync(
+                &"k".to_string(),
+                &"v".to_string(),
+                Some(Duration::from_secs(30)),
+            )
+            .unwrap();
+        assert_eq!(
+            sync_cache.get_sync(&"k".to_string()).unwrap().as_deref(),
+            Some("v")
+        );
+        sync_cache.delete_sync(&"k".to_string()).unwrap();
+
+        let sync_actions: Vec<AuditAction> = sync_publisher
+            .snapshot()
+            .iter()
+            .map(|event| event.action)
+            .collect();
+        for expected in [AuditAction::Set, AuditAction::Hit, AuditAction::Delete] {
+            assert!(
+                sync_actions.contains(&expected),
+                "sync 面缺少 {expected:?} 审计事件: {sync_actions:?}"
+            );
+        }
+
+        let quiet: Cache<String, String> = Cache::builder().build().await.unwrap();
+        quiet.set(&"k".to_string(), &"v".to_string()).await.unwrap();
+        assert_eq!(
+            publisher.len(),
+            actions.len(),
+            "未注入发布器的缓存不得产生审计事件"
         );
     }
 }

@@ -347,4 +347,56 @@ mod tests {
         let cfg = cfg.with_channel("custom");
         assert_eq!(cfg.channel, "custom");
     }
+
+    /// Debug 与 instance_id 观测面：暴露通道与实例标识（不含传输层内部状态）。
+    #[test]
+    fn debug_and_instance_id_are_exposed() {
+        let bus = InvalidationBus::new(
+            Arc::new(InMemoryPubSubTransport::new()),
+            InvalidationConfig::new("instance-x").with_channel("obs-ch"),
+        );
+        assert_eq!(bus.instance_id(), "instance-x");
+        let rendered = format!("{bus:?}");
+        assert!(
+            rendered.contains("obs-ch") && rendered.contains("instance-x"),
+            "Debug 应含通道与实例标识, got {rendered}"
+        );
+    }
+
+    /// 通配命名空间失效：`*` 目标等价全量前缀，本地全部键失效。
+    #[tokio::test]
+    async fn namespace_wildcard_invalidates_every_key() {
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let bus_a = InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-a").with_channel("test-ch"),
+        );
+        let bus_b = InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-b").with_channel("test-ch"),
+        );
+
+        let l1_b = l1();
+        set_l1(&l1_b, "users:1", b"a").await;
+        set_l1(&l1_b, "orders:9", b"b").await;
+
+        let handle_b = bus_b.spawn_listener(l1_b.clone()).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        bus_a.invalidate_namespace("*").await.unwrap();
+
+        for _ in 0..50 {
+            if !l1_b.exists("users:1").await.unwrap() && !l1_b.exists("orders:9").await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            !l1_b.exists("users:1").await.unwrap() && !l1_b.exists("orders:9").await.unwrap(),
+            "通配命名空间失效应清空本地 L1"
+        );
+
+        handle_b.stop();
+        handle_b.join().await;
+    }
 }

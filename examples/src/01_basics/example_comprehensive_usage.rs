@@ -43,7 +43,6 @@ async fn main() -> OxCacheResult<()> {
 "
     );
 
-    // 1. 创建内存缓存 (L1 only)
     println!("1. 创建内存缓存 (L1)");
     let _memory_cache: Cache<String, User> = Cache::builder().build().await?;
     println!(
@@ -51,7 +50,6 @@ async fn main() -> OxCacheResult<()> {
 "
     );
 
-    // 2. 创建 Redis 缓存 (L2 only) — 带降级处理
     println!("2. 创建 Redis 缓存 (L2 only)");
     match Cache::<String, User>::redis("redis://127.0.0.1:6379").await {
         Ok(_redis_cache) => println!("   ✓ Redis 缓存创建成功"),
@@ -59,13 +57,11 @@ async fn main() -> OxCacheResult<()> {
     }
     println!();
 
-    // 3. 创建分层缓存 (L1 + L2)
     println!("3. 创建分层缓存 (L1 + L2)");
     let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 分层缓存创建成功");
     println!();
 
-    // 4. 基本 CRUD 操作
     println!("4. 基本 CRUD 操作演示");
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
@@ -118,7 +114,6 @@ async fn main() -> OxCacheResult<()> {
 
     println!();
 
-    // 5. 批量操作
     println!("5. 批量操作演示");
     let cache: Cache<String, Product> = Cache::builder().build().await?;
 
@@ -171,7 +166,6 @@ async fn main() -> OxCacheResult<()> {
 "
     );
 
-    // 6. TTL 控制
     println!("6. TTL 控制演示");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
@@ -193,7 +187,6 @@ async fn main() -> OxCacheResult<()> {
         cache.get(&"temp:1".to_string()).await?
     );
 
-    // 7. 性能测试
     println!("7. 性能测试");
     let cache: Arc<Cache<String, i32>> = Arc::new(Cache::builder().build().await?);
 
@@ -239,7 +232,6 @@ async fn main() -> OxCacheResult<()> {
     println!("   ✓ 读取耗时: {:?}", read_time);
     println!();
 
-    // 8. 统计信息
     println!("8. 统计信息");
     if let Ok(stats) = cache.stats().await {
         println!("   缓存统计:");

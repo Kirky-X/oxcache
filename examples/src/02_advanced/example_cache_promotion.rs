@@ -67,14 +67,12 @@ impl<K: std::hash::Hash + Eq + Clone, V: Clone> L1Cache<K, V> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 缓存提升策略示例 ===\n");
 
-    // 1. 模拟 L1 + L2 分层
     println!("--- 1. 模拟 L1 + L2 分层 ---");
     let l1 = L1Cache::<String, Session>::new(3); // L1 容量小
     let l2: Cache<String, Session> = Cache::builder().capacity(100).build().await?; // L2 容量大
     println!("  L1 (内存): 容量=3 (模拟快速缓存)");
     println!("  L2 (缓存): 容量=100 (模拟慢速/大容量缓存)");
 
-    // 2. 初始化数据到 L2（模拟从数据库或 Redis 加载）
     println!("\n--- 2. 初始化数据到 L2 ---");
     let sessions: Vec<Session> = (1..=10)
         .map(|i| Session {
@@ -90,7 +88,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("  ✓ 写入 {} 个会话到 L2", sessions.len());
 
-    // 3. 模拟带提升的读取
     println!("\n--- 3. 带提升的读取（promote_on_hit） ---");
 
     async fn get_with_promotion(
@@ -129,7 +126,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n  L1 最终状态: {} 条", l1.len());
 
-    // 4. 访问频率分析
     println!("\n--- 4. 访问频率分析 ---");
     let mut freq: HashMap<&str, u32> = HashMap::new();
     for key in &access_sequence {
@@ -145,7 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("  ✓ 热点数据 (sess_1) 自动留在 L1 中");
 
-    // 5. 生产环境配置建议
     println!("\n--- 5. 生产环境配置建议 ---");
     println!("  真正的分层缓存配置:");
     println!("  ```rust");
@@ -162,7 +157,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - 热点数据自然提升到 L1，冷数据仅在 L2");
     println!("  - 合理设置 L1 容量避免频繁淘汰");
 
-    // 6. TTL 对提升的影响
     println!("\n--- 6. TTL 对提升的影响 ---");
     let short_lived = Session {
         id: "short:1".into(),

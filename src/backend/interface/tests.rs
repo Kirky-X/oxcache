@@ -2,7 +2,7 @@
 #[allow(unused_imports)]
 pub use super::*;
 
-#[cfg(all(test, any(feature = "testing", feature = "memory")))]
+#[cfg(all(test, any(feature = "memory", feature = "redis", feature = "disk")))]
 mod tests {
     use super::*;
     use crate::testing::MockBackend;
@@ -11,7 +11,6 @@ mod tests {
     async fn test_mock_backend() {
         let backend = MockBackend::new("mock", 50, false);
 
-        // Test set and get
         backend
             .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
             .await
@@ -19,18 +18,14 @@ mod tests {
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
-        // Test exists
         assert!(backend.exists("key1").await.unwrap());
         assert!(!backend.exists("key2").await.unwrap());
 
-        // Test delete
         backend.delete("key1").await.unwrap();
         assert!(!backend.exists("key1").await.unwrap());
 
-        // Test health check
         backend.health_check().await.unwrap();
 
-        // Test stats
         let stats = backend.stats().await.unwrap();
         assert_eq!(stats.get("type"), Some(&"mock".to_string()));
     }
@@ -39,26 +34,21 @@ mod tests {
     async fn test_isp_traits() {
         let backend = MockBackend::new("mock", 50, false);
 
-        // Test CacheReader trait object
         let reader: &dyn CacheReader = &backend;
         assert!(reader.get("nonexistent").await.unwrap().is_none());
 
-        // Test CacheWriter trait object
         let writer: &dyn CacheWriter = &backend;
         writer
             .set(Arc::from("key"), Arc::new(b"value".to_vec()), None)
             .await
             .unwrap();
 
-        // Test CacheConnector trait object
         let connector: &dyn CacheConnector = &backend;
         connector.health_check().await.unwrap();
         assert_eq!(connector.backend_kind(), BackendKind::Mock);
     }
 
-    // ============================================================================
-    // BackendKind 方法测试 (lines 41-42, 46-47)
-    // ============================================================================
+    // === BackendKind 方法测试 (lines 41-42, 46-47) ===
 
     #[test]
     fn test_backend_kind_is_memory_moka() {
@@ -120,9 +110,7 @@ mod tests {
         assert!(!BackendKind::Unknown.is_distributed());
     }
 
-    // ============================================================================
-    // BackendKind Debug, Clone, PartialEq 测试
-    // ============================================================================
+    // === BackendKind Debug, Clone, PartialEq 测试 ===
 
     #[test]
     fn test_backend_kind_debug() {
@@ -144,9 +132,7 @@ mod tests {
         assert_ne!(BackendKind::Moka, BackendKind::Redis);
     }
 
-    // ============================================================================
-    // CacheReader is_empty 默认方法测试 (lines 82-83)
-    // ============================================================================
+    // === CacheReader is_empty 默认方法测试 (lines 82-83) ===
 
     #[tokio::test]
     async fn test_cache_reader_is_empty_default() {
@@ -163,9 +149,7 @@ mod tests {
         assert!(!reader.is_empty().await.unwrap());
     }
 
-    // ============================================================================
-    // CacheReader get_many 默认方法测试
-    // ============================================================================
+    // === CacheReader get_many 默认方法测试 ===
 
     #[tokio::test]
     async fn test_cache_reader_get_many_default() {
@@ -197,9 +181,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
-    // ============================================================================
-    // CacheWriter set_many 和 delete_many 默认方法测试
-    // ============================================================================
+    // === CacheWriter set_many 和 delete_many 默认方法测试 ===
 
     #[tokio::test]
     async fn test_cache_writer_set_many_default() {
@@ -235,9 +217,7 @@ mod tests {
         assert!(!backend.exists("key2").await.unwrap());
     }
 
-    // ============================================================================
-    // CacheConnector backend_kind 测试
-    // ============================================================================
+    // === CacheConnector backend_kind 测试 ===
 
     #[tokio::test]
     async fn test_cache_connector_backend_kind_mock() {
@@ -254,9 +234,7 @@ mod tests {
         connector.shutdown().await;
     }
 
-    // ============================================================================
-    // CacheBackend blanket impl 测试
-    // ============================================================================
+    // === CacheBackend blanket impl 测试 ===
 
     #[tokio::test]
     async fn test_cache_backend_trait_object() {
@@ -271,9 +249,7 @@ mod tests {
         assert_eq!(value, Some(b"value".to_vec()));
     }
 
-    // ============================================================================
-    // SyncCacheBackend trait hierarchy 测试
-    // ============================================================================
+    // === SyncCacheBackend trait hierarchy 测试 ===
 
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
@@ -394,7 +370,6 @@ mod tests {
         let backend = MockSyncBackend::new(50);
         let backend_dyn: &dyn SyncCacheBackend = &backend;
 
-        // 写入 + 读取
         backend_dyn
             .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
             .unwrap();
@@ -499,9 +474,7 @@ mod tests {
         assert!(!result);
     }
 
-    // ============================================================================
-    // BackendKind::is_composite 测试
-    // ============================================================================
+    // === BackendKind::is_composite 测试 ===
 
     #[test]
     fn test_backend_kind_is_composite_chain() {
@@ -521,9 +494,7 @@ mod tests {
         assert!(!BackendKind::Aerospike.is_composite());
     }
 
-    // ============================================================================
-    // BackendKind 新后端变体测试
-    // ============================================================================
+    // === BackendKind 新后端变体测试 ===
 
     #[test]
     fn test_backend_kind_is_distributed_valkey() {
@@ -584,9 +555,7 @@ mod tests {
         assert_ne!(BackendKind::Dragonfly, BackendKind::Valkey);
     }
 
-    // ============================================================================
-    // CacheReader::keys 默认实现测试
-    // ============================================================================
+    // === CacheReader::keys 默认实现测试 ===
 
     #[tokio::test]
     async fn test_cache_reader_keys_default_returns_empty() {
@@ -599,9 +568,7 @@ mod tests {
         assert!(keys.is_empty());
     }
 
-    // ============================================================================
-    // SyncCacheReader::keys 默认实现测试
-    // ============================================================================
+    // === SyncCacheReader::keys 默认实现测试 ===
 
     #[test]
     fn test_sync_reader_keys_default_returns_empty() {
@@ -612,9 +579,7 @@ mod tests {
         assert!(keys.is_empty());
     }
 
-    // ============================================================================
-    // CacheConnector 默认方法测试
-    // ============================================================================
+    // === CacheConnector 默认方法测试 ===
 
     #[tokio::test]
     async fn test_cache_connector_as_atomic_writer_default_none() {
@@ -624,6 +589,7 @@ mod tests {
         assert!(connector.as_atomic_writer().is_some());
     }
 
+    #[cfg(any(feature = "memory", feature = "offload"))]
     #[tokio::test]
     async fn test_cache_connector_as_atomic_writer_dashmap_none() {
         use crate::backend::DashMapMemoryBackend;
@@ -633,9 +599,7 @@ mod tests {
         assert!(connector.as_atomic_writer().is_none());
     }
 
-    // ============================================================================
-    // glob_match unit tests
-    // ============================================================================
+    // === glob_match unit tests ===
 
     #[test]
     fn test_glob_match_exact_match() {
@@ -698,9 +662,7 @@ mod tests {
         assert!(!glob_match("cache/*", "cache"));
     }
 
-    // ========================================================================
-    // AsyncToSyncBridge —— 诚实探测与原子桥接臂
-    // ========================================================================
+    // === AsyncToSyncBridge —— 诚实探测与原子桥接臂 ===
 
     /// current_thread runtime 内桥接 shutdown 无法嵌套驱动：跳过并计数
     /// `oxcache_bridge_shutdown_rejected_total`（默认预设可见的拒绝信号）。

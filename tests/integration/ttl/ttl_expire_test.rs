@@ -20,9 +20,7 @@ struct Token {
     value: String,
 }
 
-// ============================================================================
-// async API: ttl / expire
-// ============================================================================
+// === async API: ttl / expire ===
 
 #[tokio::test]
 async fn test_cache_ttl_returns_none_for_no_ttl_key() {
@@ -124,13 +122,10 @@ async fn test_cache_expire_returns_false_for_missing_key() {
 
 #[tokio::test]
 async fn test_cache_update_preserves_ttl_via_ttl_query() {
-    // 模拟下游 BulwarkDaoOxcache::update 场景：
-    // 1. set key with TTL
-    // 2. update value but preserve original TTL
+    // 模拟下游 BulwarkDaoOxcache::update 场景：set 带 TTL 后更新值并保留原 TTL
     let cache: Cache<String, Token> = Cache::builder().build().await.unwrap();
     let key = "token:abc".to_string();
 
-    // 1. 初始 set with 60s TTL
     cache
         .set_with_ttl(
             &key,
@@ -143,7 +138,6 @@ async fn test_cache_update_preserves_ttl_via_ttl_query() {
         .await
         .unwrap();
 
-    // 2. update：先查原 TTL，再 set_with_ttl 保留
     let original_ttl = cache.ttl(&key).await.unwrap();
     assert!(original_ttl.is_some(), "original ttl must be Some");
 
@@ -159,11 +153,9 @@ async fn test_cache_update_preserves_ttl_via_ttl_query() {
         .await
         .unwrap();
 
-    // 3. 验证值已更新
     let updated = cache.get(&key).await.unwrap().unwrap();
     assert_eq!(updated.value, "new");
 
-    // 4. 验证 TTL 仍然存在（未被清除）
     let ttl_after = cache.ttl(&key).await.unwrap();
     assert!(ttl_after.is_some(), "TTL must be preserved after update");
     let remaining = ttl_after.unwrap();
@@ -174,9 +166,7 @@ async fn test_cache_update_preserves_ttl_via_ttl_query() {
     );
 }
 
-// ============================================================================
-// sync API: ttl_sync / expire_sync
-// ============================================================================
+// === sync API: ttl_sync / expire_sync ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_cache_ttl_sync_returns_none_for_no_ttl_key() {

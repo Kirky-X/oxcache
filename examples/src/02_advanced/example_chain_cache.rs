@@ -28,7 +28,6 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("=== 链式缓存示例 ===\n");
 
-    // 示例 1: 使用 ChainCache::builder() 创建多级缓存
     println!("1. ChainCache::builder() 创建多级缓存");
 
     let redis_url =
@@ -62,7 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
 
-    // 示例 2: 仅内存缓存（适用于简单场景）
     println!("\n2. 仅内存缓存示例");
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
@@ -77,7 +75,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("   存储: {:?}", user);
     println!("   读取: {:?}\n", cached);
 
-    // 示例 3: 批量操作演示
     println!("3. 批量操作示例");
 
     let users = [

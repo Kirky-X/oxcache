@@ -37,7 +37,6 @@ mod tests {
         // Use tokio::time::sleep to ensure async operations complete
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-        // Get the value
         let result = backend.get("key1").await.unwrap();
         assert_eq!(result, Some(b"value1".to_vec()));
 
@@ -64,9 +63,7 @@ mod tests {
         assert_eq!(backend3.capacity(), 1000);
     }
 
-    // ========================================================================
-    // Per-entry TTL tests (spec: universal-per-entry-ttl)
-    // ========================================================================
+    // === Per-entry TTL tests (spec: universal-per-entry-ttl) ===
 
     #[tokio::test]
     async fn test_moka_set_with_ttl_expires_after_timeout() {
@@ -285,13 +282,11 @@ mod tests {
         assert!(!ok, "expire on missing key should return false");
     }
 
-    // ========================================================================
-    // Synchronous trait hierarchy tests
+    // === Synchronous trait hierarchy tests ===
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
     // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生
     // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
-    // ========================================================================
     mod sync_tests {
         use super::MokaMemoryBackend;
         use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
@@ -473,9 +468,7 @@ mod tests {
         }
     }
 
-    // ========================================================================
-    // keys_matching / keys() with patterns
-    // ========================================================================
+    // === keys_matching / keys() with patterns ===
 
     #[tokio::test]
     async fn test_moka_keys_matching_glob() {
@@ -522,9 +515,7 @@ mod tests {
         assert_eq!(keys.len(), 2);
     }
 
-    // ========================================================================
-    // Debug impl & entry_count
-    // ========================================================================
+    // === Debug impl & entry_count ===
 
     #[test]
     fn test_moka_backend_debug() {
@@ -557,9 +548,7 @@ mod tests {
         let _ = backend.entry_count();
     }
 
-    // ========================================================================
-    // SyncAtomicCacheWriter tests
-    // ========================================================================
+    // === SyncAtomicCacheWriter tests ===
 
     #[test]
     fn test_moka_sync_atomic_incr() {

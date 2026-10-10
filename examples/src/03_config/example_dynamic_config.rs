@@ -29,7 +29,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建配置缓存
     let cache: Cache<String, ConfigValue> = Cache::builder().build().await?;
 
-    // 1. 初始化配置
     println!("1. 初始化配置");
     let configs = vec![
         ConfigValue {
@@ -64,7 +63,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 2. 配置查询
     println!("2. 配置查询");
     let query_keys = ["app.mode", "app.theme", "database.timeout", "cache.size"];
 
@@ -80,7 +78,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. 配置更新
     println!("3. 配置更新演示");
     println!("   更新 app.theme...");
     let updated_config = ConfigValue {
@@ -98,7 +95,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. 批量配置导出
     println!("4. 配置导出");
     println!("   导出所有配置:");
     // 注意: Cache 结构体不支持直接迭代，需要手动跟踪已添加的键
@@ -110,7 +106,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 5. 配置类型分组
     println!("5. 配置类型分组");
     let mut app_configs = Vec::new();
     let mut db_configs = Vec::new();

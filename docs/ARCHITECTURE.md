@@ -315,12 +315,10 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 **ChainCache 写入路径**：
 
 ```
-1. 并发（tokio::spawn / JoinSet）写入所有分数
-   <= 写入者阈值的链接（通常所有非持久化 + 持久化写入者）
-2. 持久化后端接收写入以保证持久性
-3. 单链接失败仅记录日志并容忍；仅当所有后端都失败时
+1. 并发（JoinSet）写入所有链接（无阈值过滤，持久化后端亦在列）
+2. 单链接失败仅记录日志并容忍；仅当所有后端都失败时
    写入才报错
-4. 无 WAL（持久性委托给 Redis 后端本身）
+3. 无 WAL（持久性委托给 Redis 后端本身）
 ```
 
 **ChainCache 健康检查**：每个链接并发 ping，每个后端 5 秒超时；任一链接失败（含超时）`health_check()` 即返回错误，所有链接健康才返回 `Ok`。
@@ -464,7 +462,7 @@ let event = CacheEvent::new(CacheEventType::Hit)
 
 **位置**：`src/config/`、`src/registry.rs`、`src/backend/factory.rs`
 
-- **`config/`**：公开模块（`pub mod config`，rc.7 工作波次起转公开，随下次发布生效），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）与 `CacheConfig` 等配置入口；程序化构建仍推荐 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
+- **`config/`**：公开模块（`pub mod config` 在当前 0.5.0-rc.6 无条件编译，属公开面），承载分布式参数类型（`DistributedConfig`：重试策略、熔断阈值、健康检查间隔）与 `CacheConfig` 等配置入口；程序化构建仍推荐 `CacheBuilder` 与 `RedisBackendBuilder`；`config-confers` 特性另提供 confers 加载的 `OxcacheConfig`（容量/TTL/熔断参数）与 `ConfigBus` watch 热更新。
 - **`registry.rs`**：全局缓存注册表（`init` / `register` / `get` / `remove` / `clear`），供显式管理多个命名缓存实例。
 - **`backend::factory`**：`BackendRegistry` 后端工厂注册中心，按名注册/构建后端（内置 moka/dashmap/memory，feature 门控 redis），serde 友好的 `BackendSpec`，供 kit 等动态选择后端。
 
@@ -607,9 +605,9 @@ flowchart TD
 
 ### 单飞（缓存击穿保护）
 
-`get_or`（异步）和 `get_or_sync`（同步）都实现单飞：当多个并发调用未命中同一键时，仅第一个调用者（"领导者"）执行 fallback；跟随者在 `tokio::sync::Notify`（异步）或 `std::sync::Condvar`（同步）上阻塞，直到领导者写入结果。panic 安全守卫确保即使领导者 panic 跟随者也能被释放。
+`get_or`（异步）和 `get_or_sync`（同步）都实现单飞：当多个并发调用未命中同一键时，仅第一个调用者（"领导者"）执行 fallback；跟随者在 `tokio::sync::watch`（异步）或 `std::sync::Condvar`（同步）上阻塞，直到领导者写入结果。panic 安全守卫确保即使领导者 panic 跟随者也能被释放。
 
-飞行中注册表**分片**（64 个哈希桶通过 `DefaultHasher`）以减少并发下跨键锁竞争：`get_or_shard_index(key)` 将每个键路由到一个分片，每个分片拥有 `Mutex<HashMap<String, Arc<Notify>>>`（异步）/ `Mutex<HashMap<String, SyncFlight>>`（同步）。
+飞行中注册表**分片**（64 个哈希桶通过 `DefaultHasher`）以减少并发下跨键锁竞争：`get_or_shard_index(key)` 将每个键路由到一个分片，每个分片拥有 `Mutex<HashMap<String, Arc<watch::Sender<()>>>>`（异步）/ `Mutex<HashMap<String, SyncFlight>>`（同步）。
 
 ## 🧯 故障处理
 
@@ -769,7 +767,7 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 ## 🎨 特性标志
 
-分层特性集（`minimal` / `core` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`kit` 及其余选择加入特性**不包含**在 `full` 中，需通过 `features = ["bloom"]` 等显式启用；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
+分层特性集（`minimal` / `redis-tier` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`trait-kit` 等选择加入特性已并入 `full`（`full` 为真全量：全部具名能力特性；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列），仍可通过 `features = ["bloom"]` 等单开；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
 **隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端、`adaptive-ttl` 装饰任意后端，两者模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
 

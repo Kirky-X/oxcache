@@ -18,9 +18,7 @@ use std::time::Duration;
 use oxcache::Cache;
 use oxcache::features::stale::StalePolicy;
 
-// ============================================================================
-// sync 杂项面
-// ============================================================================
+// === sync 杂项面 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sync_misc_surface() {
@@ -43,9 +41,7 @@ async fn sync_misc_surface() {
     cache.shutdown_sync();
 }
 
-// ============================================================================
-// get_or_option_sync 全分支
-// ============================================================================
+// === get_or_option_sync 全分支 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_or_option_sync_value_none_and_error() {
@@ -161,9 +157,7 @@ async fn sync_api_without_sync_mode_fails_explicitly() {
     assert!(!err.to_string().is_empty());
 }
 
-// ============================================================================
-// get_or_sync 竞争路径（leader/follower）
-// ============================================================================
+// === get_or_sync 竞争路径（leader/follower） ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_or_sync_concurrent_leader_follower() {
@@ -201,9 +195,7 @@ async fn get_or_sync_concurrent_leader_follower() {
     assert_eq!(again, "computed");
 }
 
-// ============================================================================
-// stale 三策略（stale_ttl 启用 SWR 三态过期）
-// ============================================================================
+// === stale 三策略（stale_ttl 启用 SWR 三态过期） ===
 
 async fn build_stale_cache(policy: StalePolicy) -> Cache<String, String> {
     // stale 窗口拉宽到 2s：测试以短 sleep 越过 TTL 后落在 Stale 态，
@@ -358,9 +350,7 @@ async fn stale_miss_falls_through_to_normal_get_or() {
     assert_eq!(v, "plain");
 }
 
-// ============================================================================
-// get_or / get_or_option 并发与哨兵分支补测
-// ============================================================================
+// === get_or / get_or_option 并发与哨兵分支补测 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_or_async_concurrent_follower_and_double_check() {

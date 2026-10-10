@@ -13,7 +13,44 @@ fn store() -> Arc<Mutex<Store>> {
 fn run(argv: &[&str], st: &Arc<Mutex<Store>>) -> Vec<Vec<u8>> {
     let argv: Vec<Vec<u8>> = argv.iter().map(|s| s.as_bytes().to_vec()).collect();
     let scripts: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
-    execute(&argv, st, &scripts)
+    execute(&argv, st, &scripts, None)
+}
+
+/// SENTINEL 发现协议：mymaster 回本端点地址、未知 master 回 nil、
+/// 未知子命令回错（覆盖 sentinel 发现的三条应答分支）。
+#[test]
+fn sentinel_discovery_answers_three_shapes() {
+    let st = store();
+    let addr: std::net::SocketAddr = "127.0.0.1:26390".parse().unwrap();
+    let scripts: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
+    let argv: Vec<Vec<u8>> = ["SENTINEL", "get-master-addr-by-name", "mymaster"]
+        .iter()
+        .map(|s| s.as_bytes().to_vec())
+        .collect();
+    let reply = execute(&argv, &st, &scripts, Some(addr));
+    assert_eq!(
+        str_reply(&reply),
+        "*2\r\n$9\r\n127.0.0.1\r\n$5\r\n26390\r\n",
+        "mymaster 应回 [host, port] 数组"
+    );
+
+    let argv: Vec<Vec<u8>> = ["SENTINEL", "get-master-addr-by-name", "ghost"]
+        .iter()
+        .map(|s| s.as_bytes().to_vec())
+        .collect();
+    assert_eq!(
+        str_reply(&execute(&argv, &st, &scripts, Some(addr))),
+        "$-1\r\n"
+    );
+
+    let argv: Vec<Vec<u8>> = ["SENTINEL", "unknown-subcommand"]
+        .iter()
+        .map(|s| s.as_bytes().to_vec())
+        .collect();
+    assert!(
+        str_reply(&execute(&argv, &st, &scripts, Some(addr))).starts_with("-ERR"),
+        "未知子命令应回错"
+    );
 }
 
 fn str_reply(reply: &[Vec<u8>]) -> String {
@@ -253,9 +290,8 @@ fn live_reaps_expired_entries_and_keeps_fresh() {
     assert!(!kept.contains_key("old"));
 }
 
-// ============================================================================
-// `#[cached]` 宏参数解析分支驱动（cache_none / skip / ttl / sync 变体）
-//
+// `#[cached]` 宏参数解析分支驱动（cache_none / skip / ttl / sync 变体）。
+// 宏在编译期展开执行：这里的使用即覆盖 oxcache_macros 的解析逻辑。
 // 宏在编译期展开执行：这里的使用即覆盖 oxcache_macros 的解析逻辑。
 // 错误分支（skip 空参、skip+key 冲突、sync+async、service/ttl 类型错）
 // 是 compile_error 路径，由 tests/macros/compile_fail 的 trybuild 用例
@@ -263,7 +299,6 @@ fn live_reaps_expired_entries_and_keeps_fresh() {
 //
 // 用例门控在 `macros` feature 下：宏仅在开启该特性时 re-export 到
 // `::oxcache`（invalidation 等单开特性不隐含 macros）。
-// ============================================================================
 
 /// cache_none：None 结果也写入哨兵（默认不缓存 None）
 #[cfg(feature = "macros")]

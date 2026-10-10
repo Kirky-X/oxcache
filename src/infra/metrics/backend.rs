@@ -631,7 +631,6 @@ impl SlidingWindowMetrics {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         snapshots.push_back(snapshot);
 
-        // 清理过期的快照
         let now = Instant::now();
         snapshots
             .retain(|s| now.duration_since(s.timestamp) < Duration::from_secs(self.window_secs));
@@ -734,9 +733,7 @@ pub struct WindowMetricsSummary {
 mod tests {
     use super::*;
 
-    // ----------------------------------------------------------------
-    // OperationType tests
-    // ----------------------------------------------------------------
+    // === OperationType tests ===
 
     #[test]
     fn test_operation_type_name() {
@@ -748,9 +745,7 @@ mod tests {
         assert_eq!(OperationType::Other.name(), "other");
     }
 
-    // ----------------------------------------------------------------
-    // LatencyHistogram tests
-    // ----------------------------------------------------------------
+    // === LatencyHistogram tests ===
 
     #[test]
     fn test_latency_histogram_new() {
@@ -859,9 +854,7 @@ mod tests {
         assert_eq!(hist.summary().max_latency_us, 5000);
     }
 
-    // ----------------------------------------------------------------
-    // OperationCounter tests
-    // ----------------------------------------------------------------
+    // === OperationCounter tests ===
 
     #[test]
     fn test_operation_counter_record_success_and_failure() {
@@ -900,9 +893,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ----------------------------------------------------------------
-    // MetricsCollector tests
-    // ----------------------------------------------------------------
+    // === MetricsCollector tests ===
 
     #[test]
     fn test_metrics_collector_new() {
@@ -1026,9 +1017,7 @@ mod tests {
         assert!((get_stats.success_rate - 50.0).abs() < 0.01);
     }
 
-    // ----------------------------------------------------------------
-    // PerformanceSnapshot tests
-    // ----------------------------------------------------------------
+    // === PerformanceSnapshot tests ===
 
     #[test]
     fn test_performance_snapshot_new() {
@@ -1050,9 +1039,7 @@ mod tests {
         assert!((snapshot.interval_secs - 1.5).abs() < 0.001);
     }
 
-    // ----------------------------------------------------------------
-    // SlidingWindowMetrics tests
-    // ----------------------------------------------------------------
+    // === SlidingWindowMetrics tests ===
 
     #[test]
     fn test_sliding_window_metrics_new() {
@@ -1077,7 +1064,6 @@ mod tests {
     #[tokio::test]
     async fn test_sliding_window_metrics_capture_and_summary() {
         let collector = Arc::new(MetricsCollector::new().unwrap());
-        // Record some metrics before capture
         collector.record_l1_hit();
         collector.record_l1_hit();
         collector.record_l1_miss();

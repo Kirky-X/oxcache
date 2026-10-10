@@ -13,12 +13,10 @@ use std::time::Duration;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== DashMap 后端示例 ===\n");
 
-    // 1. 创建 DashMap 后端
     println!("--- 1. 创建 DashMap 后端 ---");
     let dashmap = DashMapMemoryBackend::new();
     println!("  ✓ 创建 DashMap 后端");
 
-    // 2. 基本操作
     println!("\n--- 2. 基本操作 ---");
 
     // 写入数据
@@ -42,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exists = dashmap.exists("key1").await?;
     println!("  存在: key1 = {}", exists);
 
-    // 3. 批量操作
     println!("\n--- 3. 批量操作 ---");
 
     let keys_values: Vec<(&str, Vec<u8>)> = vec![
@@ -79,7 +76,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 4. 对比 Moka 和 DashMap
     println!("\n--- 4. 对比 Moka 和 DashMap ---");
 
     let moka = MokaMemoryBackend::builder().capacity(1000).build();
@@ -101,7 +97,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Moka 后端: {} 个键", moka_count);
     println!("  DashMap 后端: {} 个键", dashmap_count);
 
-    // 5. 删除操作
     println!("\n--- 5. 删除操作 ---");
 
     dashmap.delete("key1").await?;
@@ -110,7 +105,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exists_after = dashmap.exists("key1").await?;
     println!("  存在检查: key1 = {}", exists_after);
 
-    // 6. 清空操作
     println!("\n--- 6. 清空操作 ---");
 
     let count_before = dashmap.len().await?;
@@ -120,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let count_after = dashmap.len().await?;
     println!("  清空后: {} 个键", count_after);
 
-    // 7. 特性对比
     println!("\n--- 7. 特性对比 ---");
     println!("  Moka 后端特点:");
     println!("    - 支持 LRU/TinyLFU 淘汰策略");

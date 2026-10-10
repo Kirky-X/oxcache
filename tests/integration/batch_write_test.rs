@@ -4,15 +4,15 @@
 
 use crate::common::{get_redis_url_insecure, is_redis_available, setup_logging};
 use oxcache::Cache;
-use std::time::Duration;
 
-/// 测试批量写入性能
+/// 测试批量写入（pipeline）
 ///
-/// 验证批量写入功能是否能正确工作并提高性能
+/// `Cache::set_many` 经 `RedisBackend::set_many`（单次 Pipeline，100 次 SET
+/// 合并为一次网络往返）写入 100 项，再用 `get_many` 逐项校验值，最后用
+/// `delete_many` 清理并确认全部删除。
 #[tokio::test]
 async fn test_batch_write_performance_writes_and_verifies_100_items() {
     if !is_redis_available().await {
-        println!("Skipping test: Redis not available");
         return;
     }
 
@@ -22,65 +22,52 @@ async fn test_batch_write_performance_writes_and_verifies_100_items() {
     let redis_url = get_redis_url_insecure();
 
     // 使用新API创建Redis缓存实例
-    let cache: Cache<String, i32> = match Cache::redis(&redis_url).await {
-        Ok(c) => c,
-        Err(e) => {
-            println!("Skipping test: Failed to create Redis cache: {}", e);
-            return;
-        }
-    };
+    let cache: Cache<String, i32> = Cache::redis(&redis_url).await.expect("create Redis cache");
 
-    // 清理可能存在的旧数据
-    let _ = cache.delete(&"batch_key_50".to_string()).await;
+    let keys: Vec<String> = (0..100).map(|i| format!("batch_key_{}", i)).collect();
+    let values: Vec<i32> = (0..100).collect();
 
-    // 1. 快速写入100个项目
-    let mut write_errors = 0;
-    for i in 0..100 {
-        match cache.set(&format!("batch_key_{}", i), &i).await {
-            Ok(_) => {}
-            Err(e) => {
-                write_errors += 1;
-                if write_errors > 10 {
-                    println!("Skipping test: Too many write errors: {}", e);
-                    return;
-                }
-            }
-        }
+    // 单次 pipeline 批量写入 100 项
+    cache
+        .set_many(keys.iter().zip(values.iter()))
+        .await
+        .expect("pipeline set_many should succeed");
+
+    // 逐项校验：100 项全部可读且值等于写入值
+    let fetched = cache.get_many(keys.iter()).await.expect("get_many");
+    assert_eq!(
+        fetched.len(),
+        100,
+        "all 100 pipeline keys should be present"
+    );
+    println!(
+        "pipeline set_many wrote {} items, get_many read {} items back",
+        keys.len(),
+        fetched.len()
+    );
+    for (i, key) in keys.iter().enumerate() {
+        assert_eq!(
+            fetched.get(key),
+            Some(&(i as i32)),
+            "key {key} should roundtrip after pipeline write"
+        );
     }
 
-    if write_errors > 0 {
-        println!("Warning: {} write errors occurred", write_errors);
-    }
+    // 单键读取交叉校验（与批量读同口径）
+    let single = cache.get(&"batch_key_50".to_string()).await.unwrap();
+    assert_eq!(single, Some(50), "single get should see pipeline write");
 
-    // 2. 等待写入完成（增加等待时间）
-    // ponytail: requires Docker, polling not feasible without container
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    // 3. 验证数据存在（带重试机制）
-    let mut value = None;
-    for attempt in 0..3 {
-        match cache.get(&"batch_key_50".to_string()).await {
-            Ok(v) => {
-                value = v;
-                break;
-            }
-            Err(_) if attempt < 2 => {
-                // ponytail: requires Docker, polling not feasible without container
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            Err(e) => {
-                println!("Failed to read value after 3 attempts: {}", e);
-            }
-        }
-    }
-
-    assert!(value.is_some(), "Value should exist after batch write");
-    assert_eq!(value.unwrap(), 50);
-
-    // 清理测试数据
-    for i in 0..100 {
-        let _ = cache.delete(&format!("batch_key_{}", i)).await;
-    }
+    // 清理测试数据（批量删除）并确认删除生效
+    cache
+        .delete_many(keys.iter())
+        .await
+        .expect("delete_many should succeed");
+    let after_delete = cache.get_many(keys.iter()).await.expect("get_many");
+    assert!(
+        after_delete.is_empty(),
+        "all keys should be gone after delete_many, got {}",
+        after_delete.len()
+    );
 
     // 关闭缓存
     let _ = cache.shutdown().await;

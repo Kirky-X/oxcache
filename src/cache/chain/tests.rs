@@ -114,9 +114,7 @@ async fn test_empty_chain() {
     assert!(!exists);
 }
 
-// ========================================================================
-// ChainLink tests
-// ========================================================================
+// === ChainLink tests ===
 
 #[test]
 fn test_chain_link_new_constructor() {
@@ -152,9 +150,7 @@ fn test_chain_link_debug() {
     assert!(debug_str.contains("dbg"));
 }
 
-// ========================================================================
-// ChainCache accessor tests
-// ========================================================================
+// === ChainCache accessor tests ===
 
 #[test]
 fn test_chain_cache_new_constructor() {
@@ -241,9 +237,7 @@ fn test_chain_cache_links_accessor() {
     assert_eq!(links[0].name(), "high");
 }
 
-// ========================================================================
-// Builder tests
-// ========================================================================
+// === Builder tests ===
 
 #[test]
 fn test_builder_link_method() {
@@ -289,9 +283,7 @@ fn test_builder_disable_backfill() {
     assert_eq!(chain.len(), 1);
 }
 
-// ========================================================================
-// UnifiedCache trait tests (get_bytes / set_bytes)
-// ========================================================================
+// === UnifiedCache trait tests (get_bytes / set_bytes) ===
 
 #[tokio::test]
 async fn test_chain_cache_get_bytes_set_bytes() {
@@ -319,9 +311,7 @@ async fn test_chain_cache_get_bytes_missing() {
     assert!(value.is_none());
 }
 
-// ========================================================================
-// CacheWriter tests
-// ========================================================================
+// === CacheWriter tests ===
 
 #[tokio::test]
 async fn test_chain_cache_clear() {
@@ -434,9 +424,7 @@ async fn test_chain_cache_delete_removes_from_all() {
     assert!(low_ref.get("key").await.unwrap().is_none());
 }
 
-// ========================================================================
-// Backfill behavior tests
-// ========================================================================
+// === Backfill behavior tests ===
 
 #[tokio::test]
 async fn test_chain_cache_backfill_populates_higher() {
@@ -510,9 +498,7 @@ async fn test_chain_cache_no_backfill_when_disabled() {
     assert!(high_ref.get("key").await.unwrap().is_none());
 }
 
-// ========================================================================
-// CacheReader trait tests
-// ========================================================================
+// === CacheReader trait tests ===
 
 #[tokio::test]
 async fn test_chain_cache_ttl_len_capacity() {
@@ -571,9 +557,7 @@ async fn test_chain_cache_stats_empty() {
     assert_eq!(stats.get("backend_count"), Some(&"0".to_string()));
 }
 
-// ========================================================================
-// CacheConnector trait tests
-// ========================================================================
+// === CacheConnector trait tests ===
 
 #[tokio::test]
 async fn test_chain_cache_health_check() {
@@ -590,9 +574,7 @@ async fn test_chain_cache_health_check_empty() {
     assert!(chain.health_check().await.is_ok());
 }
 
-// ========================================================================
-// 故障降级与错误可见性测试 (问题 5.1 / 5.2 / 7.3)
-// ========================================================================
+// === 故障降级与错误可见性测试 (问题 5.1 / 5.2 / 7.3) ===
 
 #[tokio::test]
 async fn test_chain_read_degrades_when_high_backend_fails() {
@@ -684,9 +666,7 @@ fn test_chain_cache_backend_kind() {
     assert_eq!(chain.backend_kind(), BackendKind::Chain);
 }
 
-// ========================================================================
-// TTL 透传契约测试 (spec: universal-per-entry-ttl / Decision 4c)
-// ========================================================================
+// === TTL 透传契约测试 (spec: universal-per-entry-ttl / Decision 4c) ===
 
 #[tokio::test]
 async fn test_chain_set_with_ttl_propagates_to_all_links() {
@@ -816,9 +796,7 @@ async fn test_chain_expire_all_missing_returns_false() {
     );
 }
 
-// ========================================================================
-// Sync API tests
-// ========================================================================
+// === Sync API tests ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_chain_sync_get_set() {
@@ -924,9 +902,7 @@ async fn test_chain_sync_set_propagates_ttl() {
     );
 }
 
-// ========================================================================
-// 竞速读测试 (问题 4.1)
-// ========================================================================
+// === 竞速读测试 (问题 4.1) ===
 
 #[tokio::test]
 async fn test_chain_race_read_returns_earliest_hit() {
@@ -1020,9 +996,7 @@ async fn test_chain_race_read_miss_returns_none() {
     assert_eq!(value, None, "race read with no hits should return None");
 }
 
-// ========================================================================
-// AtomicCacheWriter for ChainCache 补充测试
-// ========================================================================
+// === AtomicCacheWriter for ChainCache 补充测试 ===
 
 #[tokio::test]
 async fn test_chain_atomic_incr() {
@@ -1108,9 +1082,7 @@ async fn test_chain_atomic_no_atomic_backend_returns_not_supported() {
     assert!(matches!(result, Err(OxCacheError::NotSupported(_))));
 }
 
-// ========================================================================
-// keys() 合并去重测试
-// ========================================================================
+// === keys() 合并去重测试 ===
 
 #[tokio::test]
 async fn test_chain_keys_merges_and_deduplicates() {
@@ -1149,9 +1121,7 @@ async fn test_chain_keys_empty_chain() {
     assert!(keys.is_empty());
 }
 
-// ========================================================================
-// delete_sync 补充测试
-// ========================================================================
+// === delete_sync 补充测试 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_chain_sync_delete() {
@@ -1193,9 +1163,7 @@ async fn test_chain_sync_delete_with_unsupported_link() {
     );
 }
 
-// ========================================================================
-// ChainLink Debug 测试
-// ========================================================================
+// === ChainLink Debug 测试 ===
 
 #[test]
 fn test_chain_link_debug_format_detailed() {
@@ -1208,9 +1176,7 @@ fn test_chain_link_debug_format_detailed() {
     assert!(debug_str.contains("is_persistent"));
 }
 
-// ========================================================================
-// backfill with TTL 测试
-// ========================================================================
+// === backfill with TTL 测试 ===
 
 #[tokio::test]
 async fn test_chain_backfill_preserves_ttl() {
@@ -1237,9 +1203,7 @@ async fn test_chain_backfill_preserves_ttl() {
     assert_eq!(value, Some(b"val".to_vec()));
 }
 
-// ========================================================================
-// ChainCache stats / persistent / non_persistent 补充
-// ========================================================================
+// === ChainCache stats / persistent / non_persistent 补充 ===
 
 #[tokio::test]
 async fn test_chain_stats() {
@@ -1370,9 +1334,7 @@ async fn test_chain_expire_propagates_to_all() {
     );
 }
 
-// ============================================================================
-// 读策略枚举与 ParallelFreshest
-// ============================================================================
+// === 读策略枚举与 ParallelFreshest ===
 
 mod read_strategy_tests {
     use super::*;
@@ -1500,9 +1462,7 @@ mod read_strategy_tests {
     }
 }
 
-// ========================================================================
-// iter_entries 批量读取
-// ========================================================================
+// === iter_entries 批量读取 ===
 
 use crate::core::CacheEvent;
 
@@ -1914,9 +1874,7 @@ async fn iter_entries_empty_input_returns_empty_vec() {
     assert!(chain.iter_entries(&[]).await.is_empty());
 }
 
-// ========================================================================
-// 写路径失效集成(with_invalidation / tiered_with_invalidation)
-// ========================================================================
+// === 写路径失效集成(with_invalidation / tiered_with_invalidation) ===
 
 #[cfg(feature = "invalidation")]
 mod invalidation_integration {

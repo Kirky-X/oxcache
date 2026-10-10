@@ -14,9 +14,7 @@ pub mod redis_test_utils;
 #[cfg(feature = "redis")]
 pub mod test_containers;
 
-// ============================================================================
-// 重新导出常用函数
-// ============================================================================
+// === 重新导出常用函数 ===
 
 // Redis 测试工具
 #[cfg(feature = "redis")]
@@ -31,8 +29,9 @@ pub use redis_test_utils::{
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use docker_test_utils::{
-    RedisContainer, is_redis_available as docker_is_redis_available, setup_redis_cluster_nodes,
-    setup_redis_container, wait_for_redis as docker_wait_for_redis,
+    RedisContainer, free_local_port, is_redis_available as docker_is_redis_available,
+    setup_redis_cluster_nodes, setup_redis_container, setup_redis_container_on_port,
+    wait_for_redis as docker_wait_for_redis,
 };
 
 // Testcontainers 工具
@@ -48,9 +47,7 @@ pub use test_containers::{
 #[allow(unused_imports)]
 pub use mock_backend::MockBackend;
 
-// ============================================================================
-// 环境变量一次性初始化
-// ============================================================================
+// === 环境变量一次性初始化 ===
 
 // libtest 默认多线程并发运行测试，POSIX `environ` 非线程安全（std 将
 // `set_var` 标记 `unsafe` 即因此）；测试进程对该变量的取值恒为同一常量，
@@ -65,9 +62,7 @@ fn init_allow_insecure_redis_env() {
     }
 }
 
-// ============================================================================
-// 日志设置
-// ============================================================================
+// === 日志设置 ===
 
 use std::sync::Once;
 use tracing_subscriber::EnvFilter;
@@ -90,9 +85,7 @@ pub fn setup_logging() {
     });
 }
 
-// ============================================================================
-// 缓存设置工具
-// ============================================================================
+// === 缓存设置工具 ===
 
 // Cache 仅在 backend 基线（memory/redis/disk 任一）下导出，而
 // setup_cache 构造的是内存后端实例；共享模块会参与所有组合的测试

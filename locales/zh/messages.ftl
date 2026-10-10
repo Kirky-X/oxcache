@@ -81,6 +81,7 @@ panic-config-validate-mock-requires-test-with-memory = validate 拒绝测试构�
 panic-config-validate-redis-requires-redis-feature = validate 拒绝未启用 redis feature 的 Redis
 panic-config-validate-dragonfly-requires-dragonfly-feature = validate 拒绝未启用 dragonfly feature 的 Dragonfly
 panic-config-validate-disk-requires-disk-feature = validate 拒绝未启用 disk feature 的 Disk
+panic-canonical-serialize-value-cannot-fail = 对 Value 的序列化不会失败
 
 # -- 用户可见明细消息（插值进错误模板） --
 detail-disk-redb-open-failed = redb 打开失败：{ $err }
@@ -147,6 +148,7 @@ detail-not-supported-moka-sync-current-thread = Moka 同步面无法在 current-
 detail-redis-unexpected-info-reply = INFO { $section } 应答类型异常
 detail-chain-get-many-length-mismatch = get_many 对 { $expected } 个键返回了 { $returned } 个结果
 detail-chain-parallel-freshest-all-failed = 并行最新值读取期间所有后端均失败
+detail-key-generator-part-contains-segment-separator = json_hash_key 的 parts 不得包含 ':' 段分隔符：'{ $part }'
 
 # -- 示例二进制输出消息 --
 example-inklog-bridge-title = === inklog 审计日志桥接示例 ===

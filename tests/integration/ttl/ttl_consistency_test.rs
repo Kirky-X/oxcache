@@ -6,8 +6,10 @@
 // 验证 Moka / DashMap 真实内存后端在 set(ttl=Some) / ttl(key) / expire(key, ttl)
 // 行为上一致。DashMap 使用两个独立实例（默认构建 + builder 显式容量），
 // 覆盖构建参数差异下 TTL 语义不变。该回归防止后续重构破坏 TTL 语义。
+// 同口径另有真实 Redis 腿（下方 `redis_*` 测试，`redis` 特性开启且
+// Redis 可用时执行），三口径（Moka / DashMap / Redis）互相印证。
 //
-// 后端一律用真实实现（Moka / DashMapMemoryBackend），集成/e2e 禁止 mock。
+// 后端一律用真实实现（Moka / DashMapMemoryBackend / RedisBackend），集成/e2e 禁止 mock。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,9 +18,12 @@ use oxcache::backend::{
     CacheReader, CacheWriter, DashMapMemoryBackend, MokaMemoryBackend, dashmap_memory,
 };
 
-// ============================================================================
-// 跨后端 TTL 一致性回归测试
-// ============================================================================
+#[cfg(feature = "redis")]
+use crate::common::{get_redis_url_insecure, is_redis_available};
+#[cfg(feature = "redis")]
+use oxcache::backend::memory::RedisBackend;
+
+// === 跨后端 TTL 一致性回归测试 ===
 
 /// 构建三个真实后端：Moka（默认）+ 两个独立 DashMap 实例，返回 triple。
 fn build_three_backends() -> (
@@ -237,4 +242,118 @@ async fn test_all_backends_expire_returns_true_consistently() {
             d.as_secs_f64()
         );
     }
+}
+
+// === 真实 Redis 后端腿（三口径一致性） ===
+
+/// 连接真实 Redis（不可用时显性跳过并返回 None）。
+#[cfg(feature = "redis")]
+async fn redis_backend() -> Option<RedisBackend> {
+    if !is_redis_available().await {
+        return None;
+    }
+    let backend = RedisBackend::new(&get_redis_url_insecure())
+        .await
+        .expect("connect real Redis");
+    Some(backend)
+}
+
+#[cfg(feature = "redis")]
+#[tokio::test]
+async fn test_redis_backend_set_with_ttl_expires_consistently() {
+    let Some(redis) = redis_backend().await else {
+        return;
+    };
+    let key = "ttl_consistency:redis:expire";
+
+    redis
+        .set(
+            Arc::from(key),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_millis(50)),
+        )
+        .await
+        .unwrap();
+
+    // 立即查询应命中
+    assert_eq!(redis.get(key).await.unwrap(), Some(b"v".to_vec()));
+
+    // 等 100ms 让 TTL 过期
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    assert_eq!(
+        redis.get(key).await.unwrap(),
+        None,
+        "redis should expire after TTL"
+    );
+
+    let _ = redis.delete(key).await;
+}
+
+#[cfg(feature = "redis")]
+#[tokio::test]
+async fn test_redis_backend_ttl_and_expire_match_memory_consistently() {
+    let Some(redis) = redis_backend().await else {
+        return;
+    };
+    let (moka, _, _) = build_three_backends();
+    let key = "ttl_consistency:redis:parity";
+
+    moka.set(
+        Arc::from(key),
+        Arc::new(b"v".to_vec()),
+        Some(Duration::from_secs(60)),
+    )
+    .await
+    .unwrap();
+    redis
+        .set(
+            Arc::from(key),
+            Arc::new(b"v".to_vec()),
+            Some(Duration::from_secs(60)),
+        )
+        .await
+        .unwrap();
+
+    // ttl(key) 三口径同界：(58s, 60s]
+    let lower = Duration::from_secs(58);
+    let upper = Duration::from_secs(60);
+    for (name, backend_ttl) in [
+        ("moka", moka.ttl(key).await.unwrap()),
+        ("redis", redis.ttl(key).await.unwrap()),
+    ] {
+        let d = backend_ttl.expect("ttl should be Some after set with ttl");
+        assert!(
+            d > lower && d <= upper,
+            "{} ttl={} should be in (58s, 60s]",
+            name,
+            d.as_secs_f64()
+        );
+    }
+
+    // expire 延长到 120s：两口径都返回 true 且 ttl 反映新值（> 118s）
+    assert!(
+        moka.expire(key, Duration::from_secs(120)).await.unwrap(),
+        "moka expire should return true for existing key"
+    );
+    assert!(
+        redis.expire(key, Duration::from_secs(120)).await.unwrap(),
+        "redis expire should return true for existing key"
+    );
+
+    let threshold = Duration::from_secs(118);
+    for (name, backend_ttl) in [
+        ("moka", moka.ttl(key).await.unwrap()),
+        ("redis", redis.ttl(key).await.unwrap()),
+    ] {
+        let d = backend_ttl.expect("ttl should be Some after expire");
+        assert!(
+            d > threshold,
+            "{} ttl={} should be > 118s after expire(120s)",
+            name,
+            d.as_secs_f64()
+        );
+    }
+
+    let _ = redis.delete(key).await;
 }

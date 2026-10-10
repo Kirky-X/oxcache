@@ -6,7 +6,14 @@
 [advisories]
 db-urls = ["https://github.com/RustSec/advisory-db"]
 yanked = "warn"
-# 按仓库填:传递依赖 RUSTSEC 豁免(每项须注释原因)
+# 传递依赖 RUSTSEC 豁免（每项须注释原因）
+ignore = [
+    # RUSTSEC-2025-0141: bincode 全系（含 2.x）被作者标记 unmaintained。已升至
+    # 2.0.1（停维前的重写版本，无已知漏洞）；oxcache 仅在 serde-bincode feature
+    # 下用于本地缓存条目序列化，无网络输入面。crates.io 3.0.0 为官方 compile_error
+    # 占位不可升；迁移出路：postcard（已在依赖中）。与 .cargo/audit.toml 同口径。
+    "RUSTSEC-2025-0141",
+]
 
 [licenses]
 # 允许的宽松许可证;新增非宽松许可证需在此放行
@@ -46,24 +53,19 @@ license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
 
 # 传递依赖许可证例外
 [[licenses.exceptions]]
-# rhexdump 是 aerospike-core 的传递依赖，GPL-3.0-or-later 为 copyleft 许可证
-# 不能加入全局 allow，仅对此 crate 例外
-allow = ["GPL-3.0-or-later"]
-crate = "rhexdump"
+# option-ext（MPL-2.0 弱 copyleft，经自研 inklog → dirs → dirs-sys 链引入）
+# 不加入全局 allow，仅对此 crate 例外
+allow = ["MPL-2.0"]
+crate = "option-ext"
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
-# 传递依赖树版本分裂豁免(aerospike→pwhash 旧加密栈、trybuild→syn 2 等第三方内部分裂,
-# 无法在 manifest 层收敛;skip 旧版本条目,保留最新):
+# 传递依赖树版本分裂豁免（第三方 crate 内部固定旧版本，无法在 manifest 层收敛；
+# 豁免旧版本条目，保留最新）：
 skip = [
-    { name = "block-buffer", version = "0.9.0" },   # pwhash 旧栈 vs digest 0.11 链
-    { name = "digest", version = "0.9.0" },         # pwhash 旧栈 vs ripemd 链
-    { name = "cpufeatures", version = "0.2.17" },   # getrandom/sha 旧链
-    { name = "getrandom", version = "0.2.17" },     # rand 0.8 链(pwhash)
-    { name = "rand", version = "0.8.8" },           # pwhash 旧链 vs rand 0.10
-    { name = "rand_core", version = "0.6.4" },      # rand 0.8 链(pwhash)
-    { name = "syn", version = "2.0.119" },          # trybuild 旧链 vs oxcache_macros syn 3
+    { name = "getrandom", version = "0.2.17" },     # bloomfilter/ring 旧链 vs getrandom 0.4
+    { name = "syn", version = "2.0.119" },          # async-stream-impl/jiff-static/prost-derive 等旧链 vs oxcache_macros syn 3
 ]
 skip-tree = []
 

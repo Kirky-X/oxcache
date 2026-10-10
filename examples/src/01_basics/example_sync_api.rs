@@ -1,15 +1,9 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// 同步 API 示例
-//
-// 本示例演示 oxcache 的同步 API（sync_mode）：
-// - 使用 CacheBuilder::sync_mode(true) 启用 sync API
-// - get_sync / set_sync / delete_sync / exists_sync
-// - set_with_ttl_sync 设置 per-entry TTL
-// - get_or_sync 单飞（single-flight）避免重复计算
-//
-// 注意：sync API 仅在 multi_thread runtime 或无 runtime 上下文下可用。
-// current-thread runtime 会导致 Moka 的 sync_block_on panic。
+// 同步 API 示例：CacheBuilder::sync_mode(true) 启用后可调 get_sync / set_sync /
+// delete_sync / exists_sync / set_with_ttl_sync（per-entry TTL）/ get_or_sync（单飞）。
+// 注意：sync API 仅在 multi_thread runtime 或 runtime 外可用，
+// current-thread runtime 会触发 Moka sync_block_on panic。
 
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};

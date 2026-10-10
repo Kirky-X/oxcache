@@ -274,17 +274,14 @@ async fn test_mixed_operations_performance() {
 
     let total_start = Instant::now();
 
-    // 1. 批量初始化
     backend
         .set_many(&test_data)
         .await
         .expect("Batch init failed");
 
-    // 2. 批量读取
     let keys: Vec<String> = test_data.iter().map(|(k, _, _)| k.to_string()).collect();
     let _ = backend.get_many(&keys).await.expect("Batch read failed");
 
-    // 3. 批量更新（覆盖）
     let updated_data: Vec<TestItem> = test_data
         .iter()
         .map(|(k, _, ttl)| {
@@ -300,7 +297,6 @@ async fn test_mixed_operations_performance() {
         .await
         .expect("Batch update failed");
 
-    // 4. 批量删除一半
     let delete_keys: Vec<String> = keys.iter().take(250).cloned().collect();
     backend
         .delete_many(&delete_keys)

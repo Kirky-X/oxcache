@@ -3,9 +3,9 @@
 // Integration tests for #[cached(sync)] — the sync branch of the macro.
 //
 // These tests verify:
-//   1. `#[cached(sync)]` generates a sync fn callable without `.await`
-//   2. `#[cached]` (no sync) preserves async behavior
-//   3. `#[cached(sync)]` on `async fn` fails at compile time (trybuild)
+// - `#[cached(sync)]` generates a sync fn callable without `.await`
+// - `#[cached]` (no sync) preserves async behavior
+// - `#[cached(sync)]` on `async fn` fails at compile time (trybuild)
 //
 // NOTE: All runtime tests use `multi_thread` tokio flavor because
 // MokaMemoryBackend's sync_block_on relies on `block_in_place`, which
@@ -24,9 +24,7 @@ struct User {
     name: String,
 }
 
-// ============================================================================
-// Sync cached fn — generates a plain `fn` (no async)
-// ============================================================================
+// === Sync cached fn — generates a plain `fn` (no async) ===
 
 #[cached(service = "macros_sync_test_svc", sync)]
 fn get_user_sync(id: u64) -> Result<User, String> {
@@ -61,9 +59,7 @@ async fn sync_mode_generates_sync_fn() {
     assert_eq!(result1, result2, "second call should return cached value");
 }
 
-// ============================================================================
-// Async cached fn (no sync flag) — preserves original async behavior
-// ============================================================================
+// === Async cached fn (no sync flag) — preserves original async behavior ===
 
 #[cached(service = "macros_async_test_svc")]
 async fn get_user_async(id: u64) -> Result<User, String> {
@@ -93,9 +89,7 @@ async fn no_sync_keeps_async_behavior() {
     assert_eq!(result1, result2, "second call should return cached value");
 }
 
-// ============================================================================
-// Compile-fail test: #[cached(sync)] on async fn must be rejected
-// ============================================================================
+// === Compile-fail test: #[cached(sync)] on async fn must be rejected ===
 
 /// Verifies that `#[cached(sync)]` applied to an `async fn` produces a
 /// compile error. The macro emits a `compile_error!` with a

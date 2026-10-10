@@ -39,9 +39,8 @@ async fn test_redis_cluster_connection() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
@@ -67,17 +66,15 @@ async fn test_redis_cluster_explicit_mode_build() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
     }
 
-    // 显式 mode(Cluster)：builder 不经默认模式探测直接走集群连接
-    // （单机端点被服务端以 "cluster support disabled" 显性拒绝，由
-    // redis_client_comprehensive_test::test_builder_modes 覆盖该分支）
+    // 显式 mode(Cluster)：builder 不经模式探测直接走集群连接（单机端点被服务端以
+    // "cluster support disabled" 显性拒绝，由 redis_client_comprehensive_test 覆盖该分支）
     let backend = RedisBackendBuilder::default()
         .connection_string(&urls[0])
         .mode(RedisMode::Cluster)
@@ -115,9 +112,8 @@ async fn test_redis_cluster_basic_operations() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
@@ -156,9 +152,8 @@ async fn test_redis_cluster_data_distribution() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
@@ -210,9 +205,8 @@ async fn test_redis_cluster_ttl() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
@@ -233,7 +227,6 @@ async fn test_redis_cluster_ttl() {
     // 验证键存在
     assert!(backend.exists("cluster_ttl_key").await.unwrap());
 
-    // 获取 TTL
     let ttl = backend.ttl("cluster_ttl_key").await.unwrap();
     assert!(ttl.is_some());
 
@@ -260,9 +253,8 @@ async fn test_redis_cluster_health_check() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );
@@ -288,9 +280,8 @@ async fn test_redis_cluster_stats() {
     let url_refs: Vec<&str> = urls.iter().map(|s| s.as_str()).collect();
 
     if !wait_for_redis_cluster(&url_refs).await {
-        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时说明集群拓扑不可达
-        // （节点须以宿主可达地址宣告，见 tests/real_env/docker-compose.cluster.yml），
-        // 必须失败而非按跳过记账
+        // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
+        // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
             "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
         );

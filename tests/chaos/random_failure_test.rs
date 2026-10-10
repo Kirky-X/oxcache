@@ -1,8 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 // 随机故障混沌测试（已迁移到新版 API）
-//
-// 本测试演示缓存存在随机Redis故障情况下的稳定性和恢复能力
 
 use crate::common::is_redis_available;
 use oxcache::Cache;
@@ -33,7 +31,6 @@ struct TestData {
 async fn test_random_redis_failures() {
     setup_logging();
 
-    // 检查 Redis 是否可用
     if !is_redis_available().await {
         println!("[TEST-SKIP] Redis not available - test_random_redis_failures");
         return;
@@ -85,7 +82,6 @@ async fn test_random_redis_failures() {
 async fn test_distributed_lock_during_failures() {
     setup_logging();
 
-    // 检查 Redis 是否可用
     if !is_redis_available().await {
         println!("[TEST-SKIP] Redis not available - test_distributed_lock_during_failures");
         return;
@@ -132,7 +128,6 @@ async fn test_distributed_lock_during_failures() {
 async fn test_fault_recovery() {
     setup_logging();
 
-    // 检查 Redis 是否可用
     if !is_redis_available().await {
         println!("[TEST-SKIP] Redis not available - test_fault_recovery");
         return;

@@ -205,7 +205,6 @@ mod tests {
         // Should retrieve the latest registered backend without error
         assert!(get("test_overwrite_backend").is_some());
 
-        // Cleanup
         remove("test_overwrite_backend");
     }
 

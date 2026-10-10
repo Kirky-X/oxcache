@@ -26,7 +26,8 @@
 | 布隆 | `tests/bloom_filter_integration.rs` | 9 passed |
 | 性能 | `tests/performance.rs` | 19 passed + 5 --ignored 补盲全过 |
 
-examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例输出为
+examples：37/37 运行 rc=0（共 38 个示例文件，`example_inklog_audit_bridge` 由
+`inklog-bridge` feature 门控、未计入；`error_handling`/`custom_backend`/`events` 三例输出为
 设计性错误演示，符合预期设计口径）。
 
 ## 2. 功能域 → 落点矩阵
@@ -97,11 +98,13 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 
 ## 4. 真实行为核正与发现
 
-1. **容器生命周期发现（重要）**：testcontainers 0.28 的 `ContainerAsync` 在
+1. **容器生命周期发现（重要，已修复）**：testcontainers 0.28 的 `ContainerAsync` 在
    drop 时即删除容器。`dist_lock_test.rs` 既有模式把容器锁在 `setup()` 局部
    作用域内，返回后首个连接操作必报 `broken pipe`，被既有 `ok_or_skip!` 宏
-   静默吞掉，该文件断言在此环境下实际未执行（表现为"绿"）。新增
-   e2e 均返回容器句柄由测试体持有至结束，规避该问题（见
+   静默吞掉，该文件断言曾在此环境下实际未执行（表现为"绿"）。修复：`setup`
+   返回容器句柄由测试体持有至结束，`ok_or_skip!` 删除，容器门控改用
+   `container_or_skip`/`backend_skip`（`OXCACHE_TEST_STRICT` 下 fail-closed），
+   断言经 `expect` 显性失败；新增 e2e 同法（见
    `dist_lock_watchdog_e2e.rs::setup` 文档注释）。
 2. **`read_from_chain` 降级语义核正**：L1 明确 miss + L2 失败时返回
    `Ok(None)`（部分后端明确 miss 即不整体失败），而非 `Err`；`Err` 仅在
@@ -114,15 +117,22 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
    `fail_if_not_connected=true` 的组合在 lib 进程内无法稳定复现容器就绪，
    且 CI 从不跑 `--ignored`（`--lib` 默认范围 1132/0 达标）。记录为已知
    环境边界，非代码缺陷。
+5. **real_env 栈以仓库根为 project dir 启动时配置解析（已修复）**：compose 的
+   相对挂载 `./configs/*.conf` 按 project dir 解析；工作流脚本无法 `cd`，以
+   仓库根为 project dir 启动时挂载落到根 `configs/`——路径缺失被 docker 建成
+   空目录，sentinel 无模板可 copy（`cp: -r not specified` 退出）、从节点无
+   `replicaof` 而失联。修复：仓库根 `configs` 改为指向 `tests/real_env/configs`
+   的符号链接，从仓库根与从 `tests/real_env` 两种启动目录均可解析。
 
 ## 5. 分层特性组合矩阵（CI 口径复刻）
 
 组合集（`.github/workflows/ci.yml`「Test (critical combinations)」，当前 9 组合）：
-`minimal,macros` / `minimal,bloom` / `minimal,compression` / `core,macros` /
-`core,bloom` / `core,compression` / `core,batch` / `core,lua` /
-`core,bloom,macros`；三基础组 `minimal` / `core` / `full`（及 `adaptive-ttl`）
+`minimal,macros` / `minimal,bloom` / `minimal,compression` / `redis-tier,macros` /
+`redis-tier,bloom` / `redis-tier,compression` / `redis-tier,batch` / `redis-tier,lua` /
+`redis-tier,bloom,macros`；三基础组 `minimal` / `redis-tier` / `full`（及 `adaptive-ttl`）
 由独立 Test / Clippy job 覆盖。快照验收时为 10 组合（含 `core,cli`，`cli` 特性
-自 rc.4 移除后该组合随之撤销）。口径 `cargo test --features "<组合>" --workspace`
+自 rc.4 移除后该组合随之撤销；旧组合中的 `core` 即 `redis-tier` 的兼容别名，现按正名记）。
+口径 `cargo test --features "<组合>" --workspace`
 （叠加默认 minimal，与 CI 一致）。执行结果见 `reviews/acceptance-report.md` 台账。
 
 ## 6. 静态门槛

@@ -177,11 +177,9 @@ mod tests {
         assert_eq!(name_with_dots.len(), 5);
         assert!(ConfigValidation::validate_custom_name(name_with_dots).is_ok());
 
-        // 验证 256 字符的纯 ASCII 名称可以通过（边界测试）
         let max_name = "a".repeat(256);
         assert!(ConfigValidation::validate_custom_name(&max_name).is_ok());
 
-        // 验证 257 字符被拒绝
         let over_name = "a".repeat(257);
         assert!(ConfigValidation::validate_custom_name(&over_name).is_err());
     }

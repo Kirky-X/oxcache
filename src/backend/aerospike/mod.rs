@@ -77,7 +77,8 @@ pub struct AerospikeBackend {
 
 /// Check if an Aerospike error is a KEY_NOT_FOUND error.
 fn is_key_not_found(e: &AsError) -> bool {
-    matches!(e, AsError::ServerError(ResultCode::KeyNotFoundError, _, _))
+    // 3.0 起 Error 为不透明结构体，按 ResultCode 匹配（含 cause 链）
+    e.matches(&[ResultCode::KeyNotFoundError])
 }
 
 impl AerospikeBackend {
@@ -151,9 +152,7 @@ impl AerospikeBackend {
     }
 }
 
-// ============================================================================
-// Trait Implementations
-// ============================================================================
+// === Trait Implementations ===
 
 #[async_trait]
 impl CacheReader for AerospikeBackend {
@@ -368,9 +367,7 @@ impl BackendScore for AerospikeBackend {
     }
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
+// === Tests ===
 
 #[cfg(test)]
 mod tests;

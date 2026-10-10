@@ -41,7 +41,6 @@ async fn test_distributed_lock() {
     let lock_key = "test_lock";
     let _ttl = Duration::from_secs(5);
 
-    // 1. 测试基本缓存功能
     cache
         .set(&"key1".to_string(), &"value1".to_string())
         .await
@@ -49,7 +48,6 @@ async fn test_distributed_lock() {
     let val: Option<String> = cache.get(&"key1".to_string()).await.unwrap();
     assert_eq!(val, Some("value1".to_string()));
 
-    // 2. 测试锁功能（使用Redis直接实现）
     // 注意：新API暂不直接支持lock/unlock方法
     // 使用 Redis SETNX 命令实现简单的锁
     let mut conn = match redis::Client::open(redis_url.as_str()) {
@@ -92,7 +90,6 @@ async fn test_distributed_lock() {
         .expect("Failed to unlock");
     assert_eq!(unlocked, 1, "Should unlock successfully");
 
-    // 3. 测试锁过期
     // ponytail: requires Docker, polling not feasible without container
     sleep(Duration::from_secs(6)).await;
     let lock_after_expire: Option<String> = redis::cmd("SET")

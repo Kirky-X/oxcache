@@ -20,9 +20,7 @@ use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
 use oxcache::features::{BloomFilter, BloomFilterBackend};
 
-// ============================================================================
-// BloomFilter 独立类型
-// ============================================================================
+// === BloomFilter 独立类型 ===
 
 #[test]
 fn test_bloom_filter_basic_lifecycle() {
@@ -59,9 +57,7 @@ fn test_bloom_filter_no_false_negatives() {
     }
 }
 
-// ============================================================================
-// BloomFilterBackend 装饰器（async + Moka）
-// ============================================================================
+// === BloomFilterBackend 装饰器（async + Moka） ===
 
 #[tokio::test]
 async fn test_bf_backend_get_miss_skips_inner() {
@@ -196,9 +192,7 @@ async fn test_bf_backend_clear_clears_both() {
     assert_eq!(CacheReader::get(&inner_ref, "k2").await.unwrap(), None);
 }
 
-// ============================================================================
-// BloomFilterBackend sync API（TG14）
-// ============================================================================
+// === BloomFilterBackend sync API（TG14） ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_bf_backend_sync_get_set_basic() {

@@ -92,7 +92,7 @@ impl CacheConnector for CountingDecorator {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // === 1. 构建 AsyncKit + OxcacheModule ===
+    // === 构建 AsyncKit + OxcacheModule ===
     println!("=== 1. 构建 AsyncKit + OxcacheModule ===");
 
     let mut kit = AsyncKit::new();
@@ -125,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let built = kit.build().await?;
     println!("AsyncKit 构建完成\n");
 
-    // === 2. 使用缓存后端 ===
+    // === 使用缓存后端 ===
     println!("=== 2. 使用缓存后端 ===");
 
     let backend = built.require::<OxcacheModule>()?;
@@ -157,7 +157,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
 
-    // === 3. 三阶段关闭 ===
+    // === 三阶段关闭 ===
     println!("=== 3. 三阶段关闭 ===");
 
     let shutdown_coord = AsyncShutdownCoordinator::new();

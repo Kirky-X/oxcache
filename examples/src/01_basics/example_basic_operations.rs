@@ -1,11 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// 基本CRUD操作示例
-//
-// 本示例演示基本的缓存操作:
-// - Get: 获取缓存值
-// - Set: 在缓存中存储值
-// - Delete: 从缓存中删除值
+// 基本 CRUD 操作示例（get / set / delete）
 
 use oxcache::Cache;
 

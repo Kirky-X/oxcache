@@ -17,7 +17,6 @@ use oxcache::registry;
 async fn main() {
     println!("=== Explicit Cache Initialization Example ===\n");
 
-    // Step 1: Check registry is not initialized
     println!("Step 1: Check registry status");
     println!("  is_initialized() = {}", registry::is_initialized());
     assert!(
@@ -25,23 +24,20 @@ async fn main() {
         "Registry should not be initialized yet"
     );
 
-    // Step 2: Create cache instances
     println!("\nStep 2: Create cache instances");
     let default_cache = Arc::new(MokaMemoryBackend::new());
     let user_cache = Arc::new(MokaMemoryBackend::new());
 
-    // Step 3: Initialize registry (MUST be called before any cache operations)
+    // Initialize registry — MUST be called before any cache operations
     println!("\nStep 3: Initialize registry with default cache");
     registry::init(default_cache.clone());
     println!("  is_initialized() = {}", registry::is_initialized());
     assert!(registry::is_initialized(), "Registry should be initialized");
 
-    // Step 4: Register additional caches
     println!("\nStep 4: Register additional caches");
     registry::register("users", user_cache.clone());
     println!("  Registered 'users' cache");
 
-    // Step 5: Use the default cache
     println!("\nStep 5: Use the default cache");
     default_cache
         .set(
@@ -58,7 +54,6 @@ async fn main() {
         value.as_deref().map(String::from_utf8_lossy)
     );
 
-    // Step 6: Use the users cache
     println!("\nStep 6: Use the users cache");
     user_cache
         .set("user:1".into(), b"Alice".to_vec().into(), None)
@@ -71,7 +66,6 @@ async fn main() {
         user.as_deref().map(String::from_utf8_lossy)
     );
 
-    // Step 7: Retrieve cache from registry
     println!("\nStep 7: Retrieve cache from registry");
     if let Some(retrieved) = registry::get("users") {
         let val = retrieved.get("user:1").await.expect("get failed");
@@ -81,7 +75,6 @@ async fn main() {
         );
     }
 
-    // Step 8: Remove cache from registry
     println!("\nStep 8: Remove cache from registry");
     let removed = registry::remove("users");
     println!("  Removed 'users' cache: {}", removed.is_some());

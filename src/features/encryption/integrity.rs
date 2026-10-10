@@ -308,7 +308,11 @@ mod tests {
     }
 
     /// 篡改检测：payload/tag/ver 任意字节被改，读取视为 miss（None）
+    ///
+    /// 完整性失败会递增全局指标（miss / integrity_failures_total），
+    /// 与同模块的指标断言测试互斥执行，避免并发累加干扰读数。
     #[tokio::test]
+    #[serial_test::serial]
     async fn tampered_payload_reads_as_miss() {
         let backend = integrity(1);
         backend
@@ -329,6 +333,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn tampered_tag_reads_as_miss() {
         let backend = integrity(1);
         backend
@@ -348,6 +353,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn tampered_version_reads_as_miss() {
         let backend = integrity(1);
         backend
@@ -414,7 +420,11 @@ mod tests {
                 })
                 .unwrap_or(0);
 
-            assert_eq!(after, before + 1, "完整性失败应计 1 次 miss");
+            // l1_misses 为进程级共享计数器：并行测试同样会递增，
+            // 精确 +1 断言在并行执行下不成立；完整性失败路径必须至少计 1 次。
+            assert!(after > before, "完整性失败应计入 l1_misses");
+            // 完整性失败专用计数器：同模块的失败注入测试经 #[serial] 互斥，
+            // 本次失败必须精确递增 1。
             assert_eq!(after_failures, before_failures + 1, "完整性失败计数应递增");
         }
         #[cfg(not(feature = "metrics"))]
@@ -424,6 +434,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn wrong_key_reads_as_miss_not_error() {
         let backend = integrity(1);
         backend
@@ -472,5 +483,65 @@ mod tests {
         let err = IntegrityBackend::from_slice_key(inner, b"tiny")
             .expect_err("密钥长度错误必须在构造期报错");
         assert!(matches!(err, crate::error::OxCacheError::InvalidInput(_)));
+    }
+
+    /// Debug 输出不得泄露签名密钥材料。
+    #[test]
+    fn debug_output_redacts_signer_key_material() {
+        let signer = HmacSigner::new(key32(1));
+        let rendered = format!("{signer:?}");
+        assert!(
+            rendered.contains("<redacted 32-byte key>"),
+            "HmacSigner Debug 应标注脱敏, got {rendered}"
+        );
+
+        let backend = integrity(1);
+        let rendered = format!("{backend:?}");
+        assert!(
+            rendered.contains("Mock") && rendered.contains("<redacted>"),
+            "IntegrityBackend Debug 应含内层种类且脱敏, got {rendered}"
+        );
+
+        // 精确 32 字节密钥走 from_slice 成功路径
+        let from_slice = HmacSigner::from_slice(&key32(2)).expect("32 字节密钥应被接受");
+        assert_eq!(
+            from_slice.sign(b"msg"),
+            HmacSigner::new(key32(2)).sign(b"msg")
+        );
+    }
+
+    /// 装饰器对 CacheReader/CacheWriter/CacheConnector 全操作面透明转发。
+    #[tokio::test]
+    async fn integrity_backend_delegates_full_surface() {
+        let backend = integrity(1);
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+
+        assert!(backend.exists("k").await.unwrap());
+        assert_eq!(backend.ttl("k").await.unwrap(), None);
+        assert_eq!(backend.len().await.unwrap(), 1);
+        assert_eq!(backend.capacity().await.unwrap(), 0);
+        assert!(!backend.stats().await.unwrap().is_empty());
+        assert_eq!(backend.keys("*").await.unwrap().len(), 1);
+
+        assert!(backend.expire("k", Duration::from_secs(60)).await.unwrap());
+        backend
+            .set_many(&[(Arc::from("a"), Arc::new(b"1".to_vec()), None)])
+            .await
+            .unwrap();
+        assert_eq!(backend.get("a").await.unwrap(), Some(b"1".to_vec()));
+        backend.delete_many(&["a".to_string()]).await.unwrap();
+        assert!(!backend.exists("a").await.unwrap());
+
+        backend.delete("k").await.unwrap();
+        assert!(!backend.exists("k").await.unwrap());
+        backend.clear().await.unwrap();
+        assert_eq!(backend.len().await.unwrap(), 0);
+
+        backend.health_check().await.unwrap();
+        assert_eq!(backend.backend_kind(), BackendKind::Mock);
+        backend.shutdown().await;
     }
 }

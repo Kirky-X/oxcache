@@ -7,9 +7,7 @@
 use super::OxCacheConfigError;
 use super::OxCacheError;
 
-// ============================================================================
-// OxCacheConfigError Display tests
-// ============================================================================
+// === OxCacheConfigError Display tests ===
 
 #[cfg(feature = "redis")]
 #[test]
@@ -52,9 +50,7 @@ fn test_cache_config_error_connection_failed_display() {
     );
 }
 
-// ============================================================================
-// OxCacheError Display tests - all variants
-// ============================================================================
+// === OxCacheError Display tests - all variants ===
 
 #[test]
 #[serial_test::serial]
@@ -255,9 +251,7 @@ fn test_cache_error_internal_display() {
     assert_eq!(s, "Internal error: boom.");
 }
 
-// ============================================================================
-// From conversions
-// ============================================================================
+// === From conversions ===
 
 #[test]
 #[serial_test::serial]
@@ -276,9 +270,7 @@ fn test_from_serde_json_error() {
     assert!(matches!(cache_err, OxCacheError::Serialization(_)));
 }
 
-// ============================================================================
-// code() method tests
-// ============================================================================
+// === code() method tests ===
 
 #[test]
 #[serial_test::serial]
@@ -485,9 +477,7 @@ fn test_error_code_internal() {
     );
 }
 
-// ============================================================================
-// is_recoverable() tests
-// ============================================================================
+// === is_recoverable() tests ===
 
 #[test]
 #[serial_test::serial]
@@ -550,9 +540,7 @@ fn test_is_not_recoverable_serialization() {
     assert!(!OxCacheError::Serialization("s".to_string()).is_recoverable());
 }
 
-// ============================================================================
-// is_not_found() tests
-// ============================================================================
+// === is_not_found() tests ===
 
 #[test]
 #[serial_test::serial]
@@ -566,9 +554,7 @@ fn test_is_not_found_false() {
     assert!(!OxCacheError::Connection("c".to_string()).is_not_found());
 }
 
-// ============================================================================
-// is_connection_error() tests
-// ============================================================================
+// === is_connection_error() tests ===
 
 #[test]
 #[serial_test::serial]
@@ -606,9 +592,7 @@ fn test_is_connection_error_false() {
     assert!(!OxCacheError::NotFound("k".to_string()).is_connection_error());
 }
 
-// ============================================================================
-// is_degraded() tests
-// ============================================================================
+// === is_degraded() tests ===
 
 #[test]
 #[serial_test::serial]
@@ -622,9 +606,7 @@ fn test_is_degraded_false() {
     assert!(!OxCacheError::NotFound("k".to_string()).is_degraded());
 }
 
-// ============================================================================
-// Debug trait test
-// ============================================================================
+// === Debug trait test ===
 
 #[test]
 #[serial_test::serial]
@@ -643,9 +625,7 @@ fn test_cache_config_error_debug() {
     assert!(debug_str.contains("MissingField"));
 }
 
-// ============================================================================
-// std::error::Error trait test
-// ============================================================================
+// === std::error::Error trait test ===
 
 #[test]
 #[serial_test::serial]
@@ -662,9 +642,7 @@ fn test_cache_config_error_is_std_error() {
     let _: &dyn std::error::Error = &err;
 }
 
-// ============================================================================
-// message_id() tests
-// ============================================================================
+// === message_id() tests ===
 
 #[test]
 #[serial_test::serial]
@@ -711,9 +689,7 @@ fn test_error_message_id_internal() {
     );
 }
 
-// ============================================================================
-// localized_message() tests — English
-// ============================================================================
+// === localized_message() tests — English ===
 
 #[test]
 #[serial_test::serial]
@@ -781,9 +757,7 @@ fn test_localized_message_en_internal() {
     );
 }
 
-// ============================================================================
-// localized_message() tests — Simplified Chinese
-// ============================================================================
+// === localized_message() tests — Simplified Chinese ===
 
 #[test]
 #[serial_test::serial]
@@ -840,9 +814,7 @@ fn test_localized_message_zh_internal() {
     );
 }
 
-// ============================================================================
-// localized_message() — fallback behavior
-// ============================================================================
+// === localized_message() — fallback behavior ===
 
 #[test]
 #[serial_test::serial]
@@ -855,9 +827,7 @@ fn test_localized_message_unknown_locale_falls_back_to_en() {
     );
 }
 
-// ============================================================================
-// OxCacheConfigError localized_message tests
-// ============================================================================
+// === OxCacheConfigError localized_message tests ===
 
 #[cfg(feature = "redis")]
 #[test]
@@ -906,9 +876,7 @@ fn test_config_error_invalid_value_localized_zh() {
     );
 }
 
-// ============================================================================
-// Display with global default locale
-// ============================================================================
+// === Display with global default locale ===
 
 #[test]
 #[serial_test::serial]

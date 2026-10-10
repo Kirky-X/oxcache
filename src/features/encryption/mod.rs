@@ -407,4 +407,80 @@ mod tests {
         assert_eq!(backend.backend_kind(), BackendKind::Mock);
         backend.health_check().await.unwrap();
     }
+
+    /// 信封长度不足（版本字节之后无完整 nonce）必须报错而非越界读取。
+    #[test]
+    fn cipher_rejects_truncated_envelope() {
+        let cipher = ValueCipher::new(key32(1));
+        let err = cipher
+            .decrypt(&[ENVELOPE_VERSION], b"aad")
+            .expect_err("截断信封必须报错");
+        assert!(
+            err.to_string().contains("envelope too short"),
+            "应命中长度校验, got {err}"
+        );
+    }
+
+    #[test]
+    fn cipher_from_slice_accepts_exact_key() {
+        let cipher = ValueCipher::from_slice(&key32(7)).expect("32 字节密钥应被接受");
+        let envelope = cipher.encrypt(b"payload", b"k").unwrap();
+        assert_eq!(
+            cipher.decrypt(&envelope, b"k").unwrap(),
+            b"payload".to_vec()
+        );
+    }
+
+    /// Debug 输出不得泄露密钥材料。
+    #[test]
+    fn debug_output_redacts_key_material() {
+        let cipher = ValueCipher::new(key32(1));
+        let rendered = format!("{cipher:?}");
+        assert!(
+            rendered.contains("<redacted 32-byte key>"),
+            "ValueCipher Debug 应标注脱敏, got {rendered}"
+        );
+
+        let backend = encrypted(1);
+        let rendered = format!("{backend:?}");
+        assert!(
+            rendered.contains("Mock") && rendered.contains("<redacted>"),
+            "EncryptedBackend Debug 应含内层种类且脱敏, got {rendered}"
+        );
+        assert_eq!(
+            backend.cipher().encrypt(b"x", b"a").unwrap()[0],
+            ENVELOPE_VERSION
+        );
+    }
+
+    /// 装饰器对 CacheReader/CacheWriter/CacheConnector 全操作面透明转发。
+    #[tokio::test]
+    async fn encrypted_backend_delegates_full_surface() {
+        let backend = encrypted(1);
+        backend
+            .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+
+        assert!(backend.exists("k").await.unwrap());
+        assert_eq!(backend.ttl("k").await.unwrap(), None);
+        assert_eq!(backend.len().await.unwrap(), 1);
+        assert_eq!(backend.capacity().await.unwrap(), 0);
+        assert!(!backend.stats().await.unwrap().is_empty());
+        assert_eq!(backend.keys("*").await.unwrap().len(), 1);
+
+        assert!(backend.expire("k", Duration::from_secs(60)).await.unwrap());
+        backend
+            .set_many(&[(Arc::from("a"), Arc::new(b"1".to_vec()), None)])
+            .await
+            .unwrap();
+        assert_eq!(backend.get("a").await.unwrap(), Some(b"1".to_vec()));
+        backend.delete_many(&["a".to_string()]).await.unwrap();
+        assert!(!backend.exists("a").await.unwrap());
+
+        backend.delete("k").await.unwrap();
+        assert!(!backend.exists("k").await.unwrap());
+        backend.clear().await.unwrap();
+        backend.shutdown().await;
+    }
 }

@@ -53,9 +53,7 @@ async fn setup() -> Option<(DragonflyContainer, DragonflyBackend)> {
     Some((container, backend))
 }
 
-// ============================================================================
-// Dragonfly 基础集成测试
-// ============================================================================
+// === Dragonfly 基础集成测试 ===
 
 #[tokio::test]
 async fn test_dragonfly_backend_kind() {
@@ -208,9 +206,7 @@ async fn test_dragonfly_cache_connector_operations() {
     backend.shutdown().await;
 }
 
-// ============================================================================
-// ChainCache 集成测试
-// ============================================================================
+// === ChainCache 集成测试 ===
 
 #[tokio::test]
 async fn test_dragonfly_chain_cache_basic() {

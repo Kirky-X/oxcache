@@ -58,7 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Redis 多模式连接示例 ===\n");
 
-    // 1. Standalone 模式（最常用）
     println!("--- 1. Standalone 模式 ---");
     let standalone_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
@@ -104,7 +103,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     standalone.delete("mode:standalone").await?;
 
-    // 2. 使用 Builder 显式指定模式
     println!("\n--- 2. 使用 Builder 显式指定 Standalone 模式 ---");
     let backend = RedisBackend::builder()
         .connection_string(&standalone_url)
@@ -113,7 +111,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  ✓ Builder 创建成功，模式: {}", backend.mode());
 
-    // 3. Cluster 模式（需要 Redis Cluster 运行）
     println!("\n--- 3. Cluster 模式 ---");
     let cluster_available = std::env::var("REDIS_CLUSTER_AVAILABLE").is_ok();
 
@@ -151,7 +148,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 4. Sentinel 模式（需要 Redis Sentinel 运行）
     println!("\n--- 4. Sentinel 模式 ---");
     let sentinel_available = std::env::var("REDIS_SENTINEL_AVAILABLE").is_ok();
 
@@ -196,7 +192,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 5. RedisModeType 枚举展示
     print_mode_enum();
 
     println!("\n✓ 示例完成");

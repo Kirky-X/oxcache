@@ -31,7 +31,6 @@ mod tests {
         // Set a value
         cache.set(&key, &user).await?;
 
-        // Get the value
         let retrieved: Option<User> = cache.get(&key).await?;
 
         assert!(retrieved.is_some());

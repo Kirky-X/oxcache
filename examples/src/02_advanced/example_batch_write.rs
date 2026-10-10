@@ -35,7 +35,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建分层缓存
     let cache: Arc<Cache<String, Product>> = Arc::new(Cache::builder().build().await?);
 
-    // 1. 批量添加商品
     println!("1. 批量添加商品");
     let products = vec![
         Product {
@@ -104,7 +103,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ 批量添加完成，耗时: {:?}", elapsed);
     println!();
 
-    // 2. 批量更新价格
     println!("2. 批量更新价格 (模拟促销活动)");
     let updates = vec![
         (1, 5499.99), // 笔记本电脑降价
@@ -131,7 +129,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 3. 批量读取验证
     println!("3. 批量读取验证");
     println!("   读取所有商品信息:");
     for product in &products {
@@ -144,7 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 4. 使用 set_many / get_many / delete_many 批量操作
     println!("4. 使用 set_many / get_many / delete_many");
 
     // 批量写入
@@ -186,7 +182,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   删除后剩余 {} 条", remaining.len());
     println!();
 
-    // 5. 批量删除过期商品
     println!("5. 批量删除 (模拟下架商品)");
     let out_of_stock_ids = vec![6, 7, 8]; // 假设这些商品已下架
 
@@ -200,7 +195,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 "
     );
 
-    // 6. 统计信息
     println!("6. 缓存统计");
     let stats = cache.stats().await?;
     println!(

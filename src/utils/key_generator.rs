@@ -9,6 +9,8 @@
 //! - 长键的哈希指纹生成（[`KeyGenerator::json_hash_key`]，`integrity` 门控）
 
 use crate::error::OxCacheError;
+#[cfg(feature = "integrity")]
+use crate::i18n::messages::{MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR, t};
 use crate::utils::MAX_CACHE_KEY_LENGTH;
 
 /// 默认命名空间
@@ -218,8 +220,9 @@ impl KeyGenerator {
         use std::fmt::Write as _;
 
         if let Some(part) = parts.iter().find(|p| p.contains(':')) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "json_hash_key parts must not contain the ':' segment separator: '{part}'"
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR,
+                &[("part", (*part).to_string())],
             )));
         }
 
@@ -419,9 +422,7 @@ mod tests {
         assert_eq!(key_gen.apply_prefix("key"), "cache:key");
     }
 
-    // ============================================================================
-    // try_generate_full 测试
-    // ============================================================================
+    // === try_generate_full 测试 ===
 
     #[test]
     fn test_try_generate_full_valid_key() {
@@ -453,9 +454,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // ============================================================================
-    // json_hash_key 测试（integrity 门控）
-    // ============================================================================
+    // === json_hash_key 测试（integrity 门控） ===
 
     #[cfg(feature = "integrity")]
     mod json_hash_key_tests {

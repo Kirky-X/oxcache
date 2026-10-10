@@ -1,10 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// 序列化选项示例
-//
-// 本示例演示不同的序列化选项:
-// - JSON序列化 (人类可读)
-// - Bincode序列化 (二进制，更高效)
+// 序列化选项示例：JSON（人类可读）与 Bincode（二进制、更高效）
 
 use oxcache::Cache;
 

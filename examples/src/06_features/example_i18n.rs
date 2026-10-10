@@ -20,7 +20,6 @@ use oxcache::i18n::CacheI18nFormatter;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 国际化 (i18n) 示例 ===\n");
 
-    // 1. 创建不同 locale 的格式化器
     println!("--- 1. 创建格式化器 ---");
     let fmt_en = CacheI18nFormatter::new("en-US")?;
     let fmt_zh = CacheI18nFormatter::new("zh-CN")?;
@@ -35,7 +34,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✓ 无效 locale 正确报错: {}", e),
     }
 
-    // 2. 数字格式化
     println!("\n--- 2. 数字格式化 ---");
     let value = 1_234_567.89_f64;
     println!("  原始值:   {}", value);
@@ -49,7 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✓ NaN 正确报错: {}", e),
     }
 
-    // 3. 复数规则
     println!("\n--- 3. 复数规则 ---");
     let counts = [0, 1, 2, 5, 100, 1000];
     println!("  {:<8} {:<10} {:<10}", "count", "en-US", "zh-CN");
@@ -63,7 +60,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 4. 日期格式化（缓存过期时间）
     println!("\n--- 4. 日期格式化 ---");
     let (year, month, day) = (2026, 7, 15);
     println!("  过期日期: {}-{}-{}", year, month, day);
@@ -71,7 +67,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  zh-CN:    {}", fmt_zh.format_expiry(year, month, day)?);
     println!("  de-DE:    {}", fmt_de.format_expiry(year, month, day)?);
 
-    // 5. Cache key 生成
     println!("\n--- 5. Cache key 生成 ---");
     let user_counts: [u64; 4] = [1, 1000, 1_000_000, 1_000_000_000];
     println!(
@@ -88,7 +83,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 6. 键比较（locale 敏感排序）
     println!("\n--- 6. 键比较（排序） ---");
     let keys = vec!["banana", "apple", "cherry", "date"];
     let mut sorted_keys = keys.clone();
@@ -100,7 +94,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  原始顺序: {:?}", keys);
     println!("  en-US 排序: {:?}", sorted_keys);
 
-    // 7. 实际使用场景：多语言缓存统计
     println!("\n--- 7. 多语言缓存统计 ---");
     let cache_hit_count: u64 = 15_234;
     let cache_miss_count: u64 = 1;

@@ -9,9 +9,7 @@
 // 注意：所有涉及 Moka sync 的测试使用 `multi_thread` flavor，因为
 // Moka 的 sync_block_on 在 current-thread runtime 上会 panic。
 
-// ============================================================================
-// Memory 后端 sync API（Moka / DashMap / ChainCache）
-// ============================================================================
+// === Memory 后端 sync API（Moka / DashMap / ChainCache） ===
 
 #[cfg(feature = "memory")]
 mod memory_sync_tests {
@@ -21,9 +19,7 @@ mod memory_sync_tests {
     use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
     use oxcache::cache::{ChainCache, ChainLink};
 
-    // ------------------------------------------------------------------------
-    // Cache<K,V> sync API（sync_mode + Moka 后端）
-    // ------------------------------------------------------------------------
+    // === Cache<K,V> sync API（sync_mode + Moka 后端） ===
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_cache_sync_full_lifecycle() {
@@ -98,9 +94,7 @@ mod memory_sync_tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
-    // ------------------------------------------------------------------------
-    // ChainCache sync API（from_sync_backend + Moka / DashMap）
-    // ------------------------------------------------------------------------
+    // === ChainCache sync API（from_sync_backend + Moka / DashMap） ===
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_chain_sync_multi_backend_roundtrip() {
@@ -180,9 +174,7 @@ mod memory_sync_tests {
         assert_eq!(chain.get_sync("k").unwrap(), None);
     }
 
-    // ------------------------------------------------------------------------
-    // sync_mode 与 async API 混用
-    // ------------------------------------------------------------------------
+    // === sync_mode 与 async API 混用 ===
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sync_and_async_coexist() {
@@ -205,11 +197,9 @@ mod memory_sync_tests {
     }
 }
 
-// ============================================================================
-// Redis 后端 sync API（需 Redis server，默认 ignored）
+// === Redis 后端 sync API（需 Redis server，默认 ignored） ===
 //
 // 运行方式：cargo test --features redis --test integration -- --ignored
-// ============================================================================
 
 #[cfg(feature = "redis")]
 mod redis_sync_tests {

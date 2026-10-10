@@ -84,12 +84,14 @@
 //! ## Tiered Feature Sets
 //!
 //! - `minimal`: L1 memory cache only (memory + metrics + serialization + chrono)
-//! - `core`: L1 + L2 Redis (minimal + redis)
-//! - `full`: Layered preset = core + macros + compression + batch + lua +
-//!   testing + dragonfly + aerospike + lock + offload + disk + stale.
-//!   Deliberately excludes the opt-in features: audit, encrypt, integrity,
-//!   invalidation, versioning, telemetry, config-confers, serde-bincode,
-//!   postcard, bloom, kit.
+//! - `redis-tier` (deprecated alias: `core`): L1 + L2 Redis (minimal + redis)
+//! - `full`: true full = redis-tier + every named capability feature (macros,
+//!   byte-weight, compression, batch, lua, test-util, dragonfly, aerospike,
+//!   lock, redlock, offload, disk, stale, bloom, trait-kit, telemetry,
+//!   invalidation, pubsub, encrypt, integrity, serde-bincode, postcard,
+//!   config-confers, degradation, audit, inklog, versioning, hotkey,
+//!   adaptive-ttl, warmup). Deprecated aliases (core/kit/red-lock/testing)
+//!   are not listed.
 //!
 //! ## Core Component Features
 //!
@@ -102,9 +104,9 @@
 //! - `batch`: Buffered batch writer with capacity/time dual-threshold flush
 //! - `lua`: Lua script execution (requires redis)
 //! - `test-util` (deprecated alias: `testing`): Testing support (exposes internal functions)
-//! - `bloom`: Negative-query filtering (not in `full`)
+//! - `bloom`: Negative-query filtering (included in `full`, can also be enabled alone)
 //! - `trait-kit` (deprecated alias: `kit`): trait-kit AsyncKit integration
-//!   (OxcacheModule) (not in `full`)
+//!   (OxcacheModule) (included in `full`, can also be enabled alone)
 //! - `lock`: Distributed lock via Redis (TTL, reentrant, watchdog auto-renew)
 //! - `invalidation`: Cross-instance L1 invalidation bus via Redis Pub/Sub
 //!   (write-path broadcast + background listener with self-exemption) plus
@@ -170,12 +172,10 @@
 //! }).await?;
 //! ```
 
-#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.7")]
+#![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.6")]
 #![deny(unsafe_code)]
 
-// ============================================================================
-// Core Modules (Always Available)
-// ============================================================================
+// === Core Modules (Always Available) ===
 mod core;
 pub mod error;
 #[cfg(test)]
@@ -203,9 +203,7 @@ pub mod sync;
 #[doc(hidden)]
 pub mod internal;
 
-// ============================================================================
-// Primary Modules (Feature-Gated)
-// ============================================================================
+// === Primary Modules (Feature-Gated) ===
 
 // Cache module (modern Cache<K,V> API)
 // Gated behind backend-enabling features because cache depends on backend + infra modules.
@@ -252,7 +250,6 @@ pub mod batch;
     feature = "memory",
     feature = "redis",
     feature = "minimal",
-    feature = "core",
     feature = "redis-tier",
     feature = "full",
     feature = "batch"
@@ -289,9 +286,7 @@ pub mod i18n;
 // Security module: Redis security validation
 pub(crate) mod security;
 
-// ============================================================================
-// Public API Re-exports
-// ============================================================================
+// === Public API Re-exports ===
 
 // Re-export serde traits so consumers don't need to add serde to their own
 // Cargo.toml. Cache<K, V> requires V: Serialize + Deserialize, so these are
@@ -341,9 +336,7 @@ pub fn __telemetry_macro_passthrough(service: &str, reason: &str) {
 #[inline]
 pub fn __telemetry_macro_passthrough(_service: &str, _reason: &str) {}
 
-// ============================================================================
-// New API (Recommended)
-// ============================================================================
+// === New API (Recommended) ===
 
 // New API exports
 // cache 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
@@ -420,9 +413,7 @@ pub use backend::{MokaMemoryBackend, default_memory_backend, moka_memory};
 #[cfg(feature = "redis")]
 pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 
-// ============================================================================
-// Factory Functions (Brick Architecture Standard)
-// ============================================================================
+// === Factory Functions (Brick Architecture Standard) ===
 
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

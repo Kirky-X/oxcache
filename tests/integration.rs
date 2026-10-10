@@ -3,10 +3,7 @@
 
 // 目标内容依赖 backend/Cache 导出，无 memory/redis 时整目标置空
 #![cfg(any(feature = "memory", feature = "redis"))]
-// Integration Tests Module
-//
-// Contains all integration tests for the cache system.
-// These tests verify the interaction between different components.
+// Integration tests verifying interaction between components.
 
 // Common modules shared by integration tests - declared as pub so #[path] modules can access
 #[path = "common/mod.rs"]
@@ -35,7 +32,7 @@ mod recovery_test;
 mod stale_revalidate_test;
 #[path = "integration/sync_api_test.rs"]
 mod sync_api_test;
-#[cfg(feature = "redis")]
+#[cfg(all(feature = "redis", feature = "memory"))]
 #[path = "integration/two_level_test.rs"]
 mod two_level_test;
 #[cfg(feature = "redis")]
@@ -61,6 +58,13 @@ mod redis_sentinel_test;
 #[cfg(feature = "redis")]
 #[path = "integration/redis/redis_version_compatibility_test.rs"]
 mod redis_version_compatibility_test;
+// 真实 Redis 端点（testcontainers 门控）：假服务器不实现 PUBLISH/SUBSCRIBE
+#[cfg(all(feature = "redis", feature = "pubsub"))]
+#[path = "integration/redis/pubsub_real_redis_test.rs"]
+mod pubsub_real_redis_test;
+#[cfg(all(feature = "redis", feature = "versioning"))]
+#[path = "integration/redis/versioning_real_redis_test.rs"]
+mod versioning_real_redis_test;
 
 // --- TTL tests ---
 #[cfg(feature = "memory")]

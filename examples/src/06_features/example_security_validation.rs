@@ -29,12 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== oxcache 安全验证示例 ===\n");
 
-    // ========================================================================
-    // 1. Redis 键验证 - 防止命令注入和协议污染
-    // ========================================================================
+    // === Redis 键验证 - 防止命令注入和协议污染 ===
     println!("--- 1. Redis 键验证（validate_redis_key） ---\n");
 
-    // 1.1 合法键
+    // 合法键
     let valid_keys = ["user:123", "cache:data:value", "test_key", "api:v1:users"];
     for key in &valid_keys {
         match validate_redis_key(key) {
@@ -43,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 1.2 非法键 - 命令注入字符
+    // 非法键 - 命令注入字符
     println!("\n--- 命令注入字符检测 ---");
     let injection_keys = ["key;value", "key|cat", "key&whoami", "key`ls`"];
     for key in &injection_keys {
@@ -53,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 1.3 非法键 - SQL 注入模式
+    // 非法键 - SQL 注入模式
     println!("\n--- SQL 注入模式检测 ---");
     let sql_injection_keys = [
         "' OR '1'='1",
@@ -68,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 1.4 非法键 - 路径遍历
+    // 非法键 - 路径遍历
     println!("\n--- 路径遍历检测 ---");
     let traversal_keys = ["../etc/passwd", "..\\windows\\system32", "%2e%2e%2f"];
     for key in &traversal_keys {
@@ -78,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 1.5 非法键 - 控制字符（CR/LF/NULL）
+    // 非法键 - 控制字符（CR/LF/NULL）
     println!("\n--- 控制字符检测 ---");
     let control_keys = ["key\r\nvalue", "key\nvalue", "key\0value"];
     for key in &control_keys {
@@ -88,19 +86,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // ========================================================================
-    // 2. Lua 脚本验证 - 防止危险命令和阻塞脚本
-    // ========================================================================
+    // === Lua 脚本验证 - 防止危险命令和阻塞脚本 ===
     println!("\n--- 2. Lua 脚本验证（validate_lua_script） ---\n");
 
-    // 2.1 合法脚本
+    // 合法脚本
     let safe_script = "return redis.call('GET', KEYS[1])";
     match validate_lua_script(safe_script, 1) {
         Ok(()) => println!("  ✓ 合法脚本通过验证"),
         Err(e) => println!("  ✗ 错误: {}", e),
     }
 
-    // 2.2 危险命令 - FLUSHALL
+    // 危险命令 - FLUSHALL
     println!("\n--- 危险命令检测 ---");
     let dangerous_scripts = [
         ("return redis.call('FLUSHALL')", "FLUSHALL 清空所有数据"),
@@ -119,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 2.3 无限循环检测
+    // 无限循环检测
     println!("\n--- 无限循环检测 ---");
     let loop_scripts = ["while true do end", "while 1 do end", "repeat until false"];
     for script in &loop_scripts {
@@ -129,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 2.4 脚本长度和键数量限制
+    // 脚本长度和键数量限制
     println!("\n--- 长度和键数量限制 ---");
     // 超长脚本（>10KB）
     let too_long_script = "x".repeat(10 * 1024 + 1);
@@ -143,12 +139,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => println!("  ✗ 拦截键数量超限（>100）"),
     }
 
-    // ========================================================================
-    // 3. SCAN 模式验证 - 防止 ReDoS 攻击
-    // ========================================================================
+    // === SCAN 模式验证 - 防止 ReDoS 攻击 ===
     println!("\n--- 3. SCAN 模式验证（validate_scan_pattern） ---\n");
 
-    // 3.1 合法模式
+    // 合法模式
     let valid_patterns = ["user:*", "session:*:data", "cache?", "*"];
     for pattern in &valid_patterns {
         match validate_scan_pattern(pattern) {
@@ -157,7 +151,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 3.2 过多通配符（>10 个）
+    // 过多通配符（>10 个）
     println!("\n--- 过多通配符检测 ---");
     let excessive_wildcards = "*".repeat(11);
     match validate_scan_pattern(&excessive_wildcards) {
@@ -165,7 +159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => println!("  ✗ 拦截过多通配符（>10 个）"),
     }
 
-    // 3.3 过长模式（>256 字符）
+    // 过长模式（>256 字符）
     println!("\n--- 过长模式检测 ---");
     let too_long_pattern = "x".repeat(257);
     match validate_scan_pattern(&too_long_pattern) {
@@ -173,9 +167,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => println!("  ✗ 拦截过长模式（>256 字符）"),
     }
 
-    // ========================================================================
-    // 4. SCAN count 限制 - 防止 DoS
-    // ========================================================================
+    // === SCAN count 限制 - 防止 DoS ===
     println!("\n--- 4. SCAN count 限制（clamp_scan_count） ---\n");
 
     let test_counts = [0, 1, 100, 500, 1000, 1500, 5000, usize::MAX];
@@ -184,9 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  原始: {:>6} -> 限制后: {}", count, clamped);
     }
 
-    // ========================================================================
-    // 5. 安全日志记录 - 自动脱敏缓存键
-    // ========================================================================
+    // === 安全日志记录 - 自动脱敏缓存键 ===
     println!("\n--- 5. 安全日志记录（log_cache_key） ---\n");
 
     // log_cache_key 会自动调用 redact_cache_key 对敏感键脱敏
@@ -204,9 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  [{}] {} (键: {})", level, message, key);
     }
 
-    // ========================================================================
-    // 6. 实际应用场景：安全验证流程
-    // ========================================================================
+    // === 实际应用场景：安全验证流程 ===
     println!("\n--- 6. 实际应用场景：安全验证流程 ---\n");
 
     // 模拟用户输入的缓存键

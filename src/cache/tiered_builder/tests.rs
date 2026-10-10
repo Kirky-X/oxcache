@@ -152,6 +152,16 @@ mod tests {
         let value = chain.get("user:1").await.unwrap();
         assert_eq!(value, Some(b"from-l2".to_vec()));
         assert_eq!(chain.len(), 2);
+
+        // 链序：L1 默认分数 100 > L2 的 50，L1 必须排在链首；
+        // 命中来自 L2（index > 0）时必须回填 L1
+        assert_eq!(chain.links()[0].name(), "l1");
+        assert_eq!(chain.links()[1].name(), "l2");
+        assert_eq!(
+            chain.links()[0].backend().get("user:1").await.unwrap(),
+            Some(b"from-l2".to_vec()),
+            "L2 命中应回填 L1"
+        );
     }
 
     #[tokio::test]

@@ -21,7 +21,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 创建缓存
     let cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
-    // 1. 模拟从数据库加载配置
     println!("1. 模拟应用配置预热");
     let configs = vec![
         ("app:theme", "dark", "应用主题"),
@@ -40,7 +39,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     println!("   ✓ 配置预热完成 ({} 个配置项)\n", configs.len());
 
-    // 2. 模拟预加载热点用户数据
     println!("2. 模拟热点用户数据预热");
     let hot_users = vec![1, 2, 3, 4, 5, 10, 100, 101];
 
@@ -74,7 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         elapsed
     );
 
-    // 3. 验证预热数据
     println!("3. 验证预热数据");
     println!("   配置验证:");
     for (key, value, _) in &configs {
@@ -99,7 +96,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     println!();
 
-    // 4. 模拟缓存重建（故障恢复后）
     println!("4. 模拟缓存重建场景");
     println!("   清空缓存...");
     cache.clear().await?;
@@ -128,7 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("   ✓ 缓存重建完成，耗时: {:?}", elapsed);
     println!();
 
-    // 5. 统计信息
     println!("5. 预热后统计");
     let stats = cache.stats().await?;
     println!(

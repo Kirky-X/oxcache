@@ -1,25 +1,19 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-// 后端故障注入（FailingBackend）混沌测试
-//
-// 变更记录：本文件原为 tests/e2e/advanced_scenarios_test.rs
-// 中的 FailingBackend 故障注入用例（P0 D-007 / P1 D-001 / P1 N-004 / D-007 单后端失败），
-// 按"集成/e2e 禁止 mock（含故障注入替身）"原则下沉至 tests/chaos/——故障注入即混沌测试。
-//
-// 断言语义与原始版本保持一致：仅将用例中的"正常"后端由 MockBackend 替换为真实
-// 内存后端（DashMapMemoryBackend）。FailingBackend 本身是意图显式的错误注入替身，
-// 只出现在 chaos 测试中，不进入集成/e2e 面。
+// 后端故障注入（FailingBackend）混沌测试（原 tests/e2e/advanced_scenarios_test.rs
+// 用例：D-007 / D-001 / N-004）。按"集成/e2e 禁止 mock（含故障注入替身）"原则
+// 下沉至 tests/chaos/——故障注入即混沌测试。断言语义与原始版本一致：仅将
+// "正常"后端换成真实内存后端（DashMapMemoryBackend）；FailingBackend 只出现在
+// chaos 面，不进入集成/e2e。
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use oxcache::backend::{CacheReader, CacheWriter};
 
-// ============================================================================
 // FailingBackend — error-injecting backend for degradation / failure scenarios
 // (D-007, D-001, N-004).  All read/write operations return
 // `Err(Connection(...))`; health_check returns Err; shutdown is no-op.
-// ============================================================================
 
 struct FailingBackend {
     score_val: u8,

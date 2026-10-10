@@ -269,9 +269,7 @@ impl<B: CacheBackend + BackendScore> BackendScore for BloomFilterBackend<B> {
     }
 }
 
-// ============================================================================
-// Synchronous trait hierarchy
-// ============================================================================
+// === Synchronous trait hierarchy ===
 //
 // Mirror of the async `CacheBackend` impl. Only available when the inner
 // backend `B` also supports sync access (`B: SyncCacheBackend`). UFCS is used

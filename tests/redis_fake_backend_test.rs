@@ -46,9 +46,7 @@ fn init_allow_insecure_redis_env() {
     }
 }
 
-// ============================================================================
-// 假 Redis 服务器
-// ============================================================================
+// === 假 Redis 服务器 ===
 
 type Store = HashMap<String, (Vec<u8>, Option<Instant>)>;
 
@@ -592,9 +590,7 @@ fn eval_known_script(store: &Arc<Mutex<Store>>, argv: &[Vec<u8>]) -> Vec<u8> {
     }
 }
 
-// ============================================================================
-// 测试辅助
-// ============================================================================
+// === 测试辅助 ===
 
 fn arc_bytes(b: &[u8]) -> Arc<Vec<u8>> {
     Arc::new(b.to_vec())
@@ -610,9 +606,7 @@ fn item(k: &str, v: &[u8], ttl: Option<Duration>) -> CacheSetItem {
 
 const DUMMY_TTL: Option<Duration> = Some(Duration::from_secs(60));
 
-// ============================================================================
-// CacheReader / CacheWriter / CacheConnector 全操作
-// ============================================================================
+// === CacheReader / CacheWriter / CacheConnector 全操作 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn reader_writer_connector_full_roundtrip() {
@@ -929,9 +923,7 @@ async fn set_if_absent_nx_semantics() {
     );
 }
 
-// ============================================================================
-// pipeline 模块（pub 批量方法）
-// ============================================================================
+// === pipeline 模块（pub 批量方法） ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn pipeline_batch_methods() {
@@ -970,9 +962,7 @@ async fn pipeline_batch_methods() {
     );
 }
 
-// ============================================================================
-// namespace（SCAN + 批量 DEL）与 dangerous clear
-// ============================================================================
+// === namespace（SCAN + 批量 DEL）与 dangerous clear ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn clear_namespace_and_dangerous_clear() {
@@ -1020,9 +1010,7 @@ async fn clear_namespace_and_dangerous_clear() {
     assert!(!server2.contains_key("d:1") && !server2.contains_key("d:2"));
 }
 
-// ============================================================================
-// LuaExecutor（eval_lua / eval_sha / script_load）
-// ============================================================================
+// === LuaExecutor（eval_lua / eval_sha / script_load） ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn lua_executor_paths() {
@@ -1075,9 +1063,7 @@ async fn lua_executor_paths() {
     assert!(matches!(value, oxcache::redis::Value::Int(1)));
 }
 
-// ============================================================================
-// client 层：ping / with_pool / 断路器
-// ============================================================================
+// === client 层：ping / with_pool / 断路器 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn client_ping_and_with_pool() {
@@ -1117,9 +1103,7 @@ async fn circuit_breaker_opens_after_failures() {
     assert!(err.to_string().contains("circuit breaker is open"));
 }
 
-// ============================================================================
-// 同步面（block_in_place 桥接）
-// ============================================================================
+// === 同步面（block_in_place 桥接） ===
 
 #[test]
 fn sync_surface_full_roundtrip() {
@@ -1200,9 +1184,7 @@ fn sync_surface_full_roundtrip() {
     });
 }
 
-// ============================================================================
-// Dragonfly 后端（RedisBackend 委托层）
-// ============================================================================
+// === Dragonfly 后端（RedisBackend 委托层） ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn dragonfly_backend_delegates_full_surface() {
@@ -1268,9 +1250,7 @@ async fn dragonfly_backend_delegates_full_surface() {
     assert_eq!(BackendScore::backend_name(&backend), "dragonfly");
 }
 
-// ============================================================================
-// 分布式锁：生命周期 / 争用 / 偷锁 / provider 抽象 / watchdog
-// ============================================================================
+// === 分布式锁：生命周期 / 争用 / 偷锁 / provider 抽象 / watchdog ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn dist_lock_full_lifecycle() {
@@ -1436,9 +1416,7 @@ async fn watchdog_exits_when_lock_stolen() {
     );
 }
 
-// ============================================================================
-// builder 细节
-// ============================================================================
+// === builder 细节 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn builder_validation_and_database_suffix() {
@@ -1485,9 +1463,7 @@ async fn builder_validation_and_database_suffix() {
     assert!(dead.is_err());
 }
 
-// ============================================================================
-// Cache::redis 构造器（api_impl）：经进程内假服务器走完整构建
-// ============================================================================
+// === Cache::redis 构造器（api_impl）：经进程内假服务器走完整构建 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cache_redis_constructor_full_path() {

@@ -121,9 +121,7 @@ where
 mod tests {
     use crate::cache::Cache;
 
-    // ========================================================================
-    // get_bytes tests
-    // ========================================================================
+    // === get_bytes tests ===
 
     #[tokio::test]
     async fn test_get_bytes_returns_none_for_missing_key() {
@@ -144,9 +142,7 @@ mod tests {
         assert_eq!(result, Some(data));
     }
 
-    // ========================================================================
-    // set_bytes tests
-    // ========================================================================
+    // === set_bytes tests ===
 
     #[tokio::test]
     async fn test_set_bytes_without_ttl() {
@@ -201,9 +197,7 @@ mod tests {
         assert_eq!(deserialized, original);
     }
 
-    // ========================================================================
-    // serializer() feature-gated test
-    // ========================================================================
+    // === serializer() feature-gated test ===
 
     #[tokio::test]
     #[cfg(any(feature = "serialization", feature = "full"))]
@@ -217,9 +211,7 @@ mod tests {
         assert_eq!(deserialized, original);
     }
 
-    // ========================================================================
-    // Large data tests
-    // ========================================================================
+    // === Large data tests ===
 
     #[tokio::test]
     async fn test_set_bytes_large_data() {
@@ -233,9 +225,7 @@ mod tests {
         assert_eq!(result, Some(large_data));
     }
 
-    // ========================================================================
-    // get_bytes_sync / set_bytes_sync tests
-    // ========================================================================
+    // === get_bytes_sync / set_bytes_sync tests ===
 
     // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
     // uses block_in_place, which panics on current_thread runtimes.
@@ -291,9 +281,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // 字节 API 指标埋点
-    // ========================================================================
+    // === 字节 API 指标埋点 ===
 
     /// 字节 API 与泛型路径同口径：get_bytes hit/miss、set_bytes 计入 unified。
     /// 全局计数器与 metrics 重置类测试互斥执行（serial 组），避免 reset 竞态。

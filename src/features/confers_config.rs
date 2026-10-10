@@ -660,6 +660,31 @@ mod tests {
         assert!(matches!(err, OxCacheError::InvalidInput(m) if m.contains(key)));
     }
 
+    /// 三类取值器（u64 / f64 / string）遇到异类型值都必须点名键与期望类型，
+    /// 不做静默回落（数值族之间的合法拓宽不算异类型）。
+    #[tokio::test]
+    async fn load_from_typed_readers_name_expected_kinds_on_mismatch() {
+        for (key, wrong) in [
+            ("cache.capacity", ConfigValue::String("not-a-number".into())),
+            ("cache.ttl_jitter_factor", ConfigValue::Bool(true)),
+            ("cache.backend", ConfigValue::Bool(true)),
+        ] {
+            let conn = new_in_memory();
+            conn.set(
+                key,
+                confers::AnnotatedValue::new(wrong, SourceId::default(), key),
+            )
+            .await
+            .unwrap();
+            let err = OxcacheConfig::load_from(&conn).await.unwrap_err();
+            let msg = err.to_string();
+            assert!(
+                matches!(err, OxCacheError::InvalidInput(_)) && msg.contains(key),
+                "{key} 类型不符应点名键，got {msg}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn load_from_threshold_overflow_fails_loudly() {
         let conn = new_in_memory();

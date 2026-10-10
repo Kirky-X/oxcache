@@ -97,7 +97,6 @@ fn measure_serialization(serializer: &dyn Serializer, data: &[u8], label: &str) 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 数据压缩示例 ===\n");
 
-    // 1. 小数据对比
     println!("--- 1. 小数据 (< 100 bytes) ---");
     let small_data = create_small_data();
     let small_bytes = json_serialize(&small_data);
@@ -109,7 +108,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &small_bytes, "启用压缩");
     println!();
 
-    // 2. 中等数据对比 (100B - 1KB)
     println!("--- 2. 中等数据 (100B - 1KB) ---");
     let medium_data = create_medium_data();
     let medium_bytes = json_serialize(&medium_data);
@@ -118,7 +116,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &medium_bytes, "启用压缩");
     println!();
 
-    // 3. 大数据对比 (1KB - 100KB)
     println!("--- 3. 大数据 (1KB - 100KB) ---");
     let large_data = create_large_data();
     let large_bytes = json_serialize(&large_data);
@@ -127,7 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &large_bytes, "启用压缩");
     println!();
 
-    // 4. 重复数据对比
     println!("--- 4. 重复数据 (高压缩率场景) ---");
     let repeated_content = "This is a test string that will be repeated many times. ".repeat(500);
     let repeated_data = LargeData {
@@ -141,7 +137,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &repeated_bytes, "启用压缩");
     println!();
 
-    // 5. 在缓存中使用压缩
     println!("--- 5. 在缓存中使用压缩 ---");
     use oxcache::Cache;
 
@@ -170,7 +165,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 6. 智能压缩策略说明
     println!("--- 6. 智能压缩策略 ---");
     println!("  oxcache 根据数据大小自动选择压缩级别:");
     println!("  - < 100 bytes: 不压缩（压缩开销不划算）");

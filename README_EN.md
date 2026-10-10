@@ -249,7 +249,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # true full: ever
 
 ## 💻 Examples
 
-The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **38 runnable examples**:
+The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **38 examples** (37 runnable with default features; `example_inklog_audit_bridge` is gated behind the `inklog-bridge` feature):
 
 ```bash
 # Run a single example (from the examples/ directory)
@@ -393,7 +393,7 @@ Reads fall through starting from the highest-scored link, and a hit on a non-top
 - [x] ChainCache link fault tolerance (single-link failure never blocks overall reads or writes)
 - [x] Optional auto-degradation (`degradation` feature, half-open probes with automatic recovery)
 - [x] Health checks (ChainCache pings all links concurrently, 5s timeout each)
-- [x] Graceful shutdown (`shutdown`; `kit` feature maps it onto the three-phase shutdown coordinator)
+- [x] Graceful shutdown (`shutdown`; `trait-kit` feature maps it onto the three-phase shutdown coordinator)
 
 ### 🌸 Bloom Filter & Penetration Guard
 
@@ -439,7 +439,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | Mechanism | Entry point | Purpose |
 |-----------|-------------|---------|
-| Single-flight | `get_or` / `get_or_sync` / macro `single_flight` | Concurrent misses on one key trigger a single fallback; followers wait for the result (async `Notify` / sync `Condvar`, 64 shards) |
+| Single-flight | `get_or` / `get_or_sync` / macro `single_flight` | Concurrent misses on one key trigger a single fallback; followers wait for the result (async `watch` / sync `Condvar`, 64 shards) |
 | Null sentinel | `get_or_option` + `null_cache_ttl` | Caches a sentinel for `None` results so missing keys stop hitting storage repeatedly |
 | TTL jitter | builder `ttl_jitter(factor)` | Actual TTL randomized within `base * (1 ± factor)` to prevent mass simultaneous expiry |
 | Bloom filtering | `BloomFilterBackend` | O(1) short-circuit for negative queries, zero requests to the inner backend |
@@ -471,7 +471,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1585 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1595 |
 | Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 332 |
 | Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel (incl. failover re-discovery), distributed locks, etc. | 141 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
@@ -481,7 +481,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.6** (re-verified 2026-10-06); 2286 in total (`src/` 1587 + `tests/` 699). Per-layer rows are grep counts per test directory; the 12 top-level supplementary test files (`tests/*_extra_test.rs` etc., 68 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), as of **0.5.0-rc.6** (re-verified 2026-10-10); 2301 in total (`src/` 1595 + `tests/` 706). Per-layer rows are grep counts per test directory; the 14 top-level supplementary test files (`tests/*_extra_test.rs` etc., 75 in total), `tests/single_flight_flight_signal.rs` (4) and the `tests/common/` shared utilities (1) make up the remainder.
 
 ### Common Commands (same as CI)
 
@@ -494,7 +494,7 @@ cargo test --features full --lib
 cargo test --features full --test integration
 cargo test --features full --test e2e
 
-# Narrow feature-combination checks (CI feature-core / feature-minimal jobs)
+# Narrow feature-combination checks (CI feature-redis-tier / feature-minimal jobs)
 cargo check -p oxcache --no-default-features --features redis-tier
 cargo check -p oxcache --no-default-features --features minimal
 

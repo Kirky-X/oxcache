@@ -5,15 +5,23 @@
 #[path = "../common/mod.rs"]
 mod common;
 
-use common::{RedisContainer, setup_redis_container};
-use common::{get_redis_url, is_redis_available, wait_for_redis};
+use common::test_containers::container_or_skip;
+use common::{
+    docker_wait_for_redis, free_local_port, get_redis_url, is_redis_available,
+    setup_redis_container_on_port,
+};
 use oxcache::Cache;
 use oxcache::backend::memory::RedisBackend;
 use oxcache::backend::{CacheReader, CacheWriter};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+#[cfg(feature = "memory")]
+use oxcache::backend::MokaMemoryBackend;
+#[cfg(feature = "memory")]
+use oxcache::cache::{ChainCache, ChainLink};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct TestData {
@@ -21,17 +29,32 @@ struct TestData {
     value: String,
 }
 
+/// 真实断连注入：Redis 容器停机 → 操作显性报错；重启 → 同一后端自动恢复。
+///
+/// 使用 testcontainers 托管的独立 Redis（`stop_with_timeout` 注入断连，
+/// 不由共享栈承担故障注入），结束后容器随句柄 drop 自清。
 #[tokio::test]
 async fn test_connection_recovery_after_failure() {
-    println!("=== 连接故障恢复测试 ===");
+    println!("=== 连接故障恢复测试（真实停容器注入） ===");
 
-    if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+    let port = free_local_port();
+    let Some((container, redis_url)) = container_or_skip(
+        "chaos(connection-recovery)",
+        setup_redis_container_on_port(port),
+    )
+    .await
+    else {
         return;
-    }
+    };
 
-    let redis_url = get_redis_url();
-    let backend = RedisBackend::new(&redis_url).await.unwrap();
+    // 关闭外层重试（内层 ConnectionManager 重连仍保留）：断连错误在
+    // 数秒内显性返回，避免 3 级重试叠加把单次失败断言拖到 ~30s
+    let backend = RedisBackend::builder()
+        .connection_string(&redis_url)
+        .retry_count(0)
+        .build()
+        .await
+        .expect("connect redis container");
 
     // 正常操作
     backend
@@ -45,16 +68,155 @@ async fn test_connection_recovery_after_failure() {
     let value = backend.get("recovery_key").await.unwrap();
     assert_eq!(value, Some(b"initial_value".to_vec()));
 
-    // 模拟网络问题后的重连（通过创建新连接）
-    let backend2 = RedisBackend::new(&redis_url).await.unwrap();
+    // 故障注入：停止 Redis 容器（真实断连，非"再建一个连接"模拟）
+    container
+        .stop_with_timeout(Some(0))
+        .await
+        .expect("stop redis container");
 
-    // 验证数据仍然可访问
-    let value = backend2.get("recovery_key").await.unwrap();
-    assert_eq!(value, Some(b"initial_value".to_vec()));
+    // 断连期间操作必须显性失败（错误传播，不得静默冒充成功/miss）
+    let get_result = backend.get("recovery_key").await;
+    assert!(
+        get_result.is_err(),
+        "断连期间 get 应返回 Err，实际 {get_result:?}"
+    );
+    let set_result = backend
+        .set(Arc::from("after_stop"), Arc::new(b"x".to_vec()), None)
+        .await;
+    assert!(
+        set_result.is_err(),
+        "断连期间 set 应返回 Err，实际 {set_result:?}"
+    );
 
-    backend.delete("recovery_key").await.unwrap();
+    // 恢复：重启容器，同一后端连接池应自动恢复读写
+    container.start().await.expect("restart redis container");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        match backend.ping().await {
+            Ok(_) => break,
+            Err(e) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "重启后 30s 内同一后端未能恢复连接: {e}"
+                );
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
+    backend
+        .set(
+            Arc::from("recovery_key_after_restart"),
+            Arc::new(b"v2".to_vec()),
+            None,
+        )
+        .await
+        .expect("write after recovery");
+    assert_eq!(
+        backend.get("recovery_key_after_restart").await.unwrap(),
+        Some(b"v2".to_vec())
+    );
 
-    println!("✓ 连接故障恢复测试通过");
+    println!("✓ 连接故障恢复测试通过（真实停机 + 重启恢复）");
+}
+
+/// L1/L2 断连降级语义：L2（Redis）停机时 L1 命中不回落、L1 miss 降级为
+/// 部分 miss（Ok(None)）、写入部分成功（Ok），重启后 L2 写穿恢复。
+///
+/// 真实故障路径（testcontainers `stop_with_timeout` + `start`），非 mock。
+#[cfg(feature = "memory")]
+#[tokio::test]
+async fn test_two_level_degradation_and_recovery_on_disconnect() {
+    println!("=== 双层缓存断连降级与恢复测试（真实停容器注入） ===");
+
+    let port = free_local_port();
+    let Some((container, redis_url)) = container_or_skip(
+        "chaos(l1-l2-degradation)",
+        setup_redis_container_on_port(port),
+    )
+    .await
+    else {
+        return;
+    };
+
+    let build_chain = || async {
+        ChainCache::builder()
+            .link(ChainLink::from_backend(
+                MokaMemoryBackend::builder().capacity(128).build(),
+            ))
+            .link(ChainLink::from_backend(
+                RedisBackend::builder()
+                    .connection_string(&redis_url)
+                    .retry_count(0)
+                    .build()
+                    .await
+                    .expect("connect redis L2"),
+            ))
+            .build()
+    };
+    let chain = build_chain().await;
+
+    chain
+        .set("degrade:key", b"v1".to_vec(), None)
+        .await
+        .expect("bootstrap set");
+
+    // 故障注入：停止 L2
+    container
+        .stop_with_timeout(Some(0))
+        .await
+        .expect("stop redis container");
+
+    // L1 命中不回落：L2 断连不影响 L1 读取
+    assert_eq!(
+        chain.get("degrade:key").await.unwrap(),
+        Some(b"v1".to_vec()),
+        "L1 命中的读不应因 L2 断连失败"
+    );
+
+    // L1 miss + L2 失败 → 部分明确 miss，整体降级为 Ok(None)（不整体失败）
+    let ghost = chain
+        .get("degrade:ghost")
+        .await
+        .expect("部分后端失败时 get 不应整体失败");
+    assert_eq!(ghost, None, "L1 miss + L2 断连应降级为 miss");
+
+    // 写：L1 成功 + L2 失败 → 部分成功语义（Ok）
+    chain
+        .set("degrade:write", b"v2".to_vec(), None)
+        .await
+        .expect("部分后端失败时 set 应保持成功语义");
+    assert_eq!(
+        chain.get("degrade:write").await.unwrap(),
+        Some(b"v2".to_vec()),
+        "断连期间写入应保留在 L1"
+    );
+
+    // 恢复：重启容器并就绪；恢复后写入必须落 L2
+    container.start().await.expect("restart redis container");
+    assert!(
+        docker_wait_for_redis(&redis_url, 30).await,
+        "Redis 容器重启后未在 30s 内就绪"
+    );
+    chain
+        .set("degrade:recovered", b"v3".to_vec(), None)
+        .await
+        .expect("write after recovery");
+
+    // 新实例（空 L1、独立连接）必须经 L2 读穿 → 证明恢复后的写入已落 L2
+    let chain2 = build_chain().await;
+    assert_eq!(
+        chain2.get("degrade:recovered").await.unwrap(),
+        Some(b"v3".to_vec()),
+        "恢复后写入应写穿 L2 并可被新实例读穿"
+    );
+    // 断连期间只落 L1 的写入不应出现在 L2（部分成功语义的边界）
+    assert_eq!(
+        chain2.get("degrade:write").await.unwrap(),
+        None,
+        "断连期间的写入不应出现在 L2"
+    );
+
+    println!("✓ 双层缓存断连降级与恢复测试通过");
 }
 
 #[tokio::test]
@@ -270,46 +432,6 @@ async fn test_network_latency_simulation() {
     backend.delete("latency_key").await.unwrap();
 
     println!("✓ 网络延迟模拟测试通过");
-}
-
-#[tokio::test]
-async fn test_with_testcontainers_network_failure() {
-    println!("=== Testcontainers 网络故障测试 ===");
-
-    let result = setup_redis_container().await;
-    let (container, redis_url): (RedisContainer, String) = match result {
-        Ok(r) => r,
-        Err(e) => {
-            println!("跳过测试: 无法启动 Redis 容器 - {}", e);
-            return;
-        }
-    };
-
-    if !wait_for_redis(&redis_url).await {
-        println!("跳过测试: Redis 容器未就绪");
-        return;
-    }
-
-    // 设置环境变量以允许不安全连接（testcontainers 创建的 Redis）
-
-    let backend = RedisBackend::new(&redis_url).await.unwrap();
-
-    // 正常操作
-    backend
-        .set(
-            Arc::from("container_test_key"),
-            Arc::new(b"test_value".to_vec()),
-            None,
-        )
-        .await
-        .unwrap();
-    let value = backend.get("container_test_key").await.unwrap();
-    assert_eq!(value, Some(b"test_value".to_vec()));
-
-    // 容器将在函数结束时被清理
-    drop(container);
-
-    println!("✓ Testcontainers 网络故障测试通过");
 }
 
 #[tokio::test]

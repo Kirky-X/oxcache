@@ -10,10 +10,8 @@ mod tests {
     /// Shared mock data store: key → (value, optional TTL), guarded by a Mutex.
     type MockDataStore = Arc<Mutex<HashMap<String, (Vec<u8>, Option<Duration>)>>>;
 
-    // ========================================================================
     // SpyMock — test infrastructure recording all method calls.
     // Stores (value, ttl) pairs so TTL passthrough can be verified.
-    // ========================================================================
 
     #[derive(Default, Debug)]
     struct CallLog {
@@ -154,9 +152,7 @@ mod tests {
 
     // CacheBackend via blanket impl.
 
-    // ========================================================================
-    // Tests
-    // ========================================================================
+    // === Tests ===
 
     #[tokio::test]
     async fn test_bf_backend_get_miss_skips_inner() {
@@ -315,9 +311,7 @@ mod tests {
         assert!(stats.contains_key("bloom_estimated_count"));
     }
 
-    // ========================================================================
-    // Synchronous trait hierarchy tests
-    // ========================================================================
+    // === Synchronous trait hierarchy tests ===
     //
     // Isolated in a nested module so the sync trait methods (imported below)
     // don't conflict with the async trait methods in the outer `tests` module.

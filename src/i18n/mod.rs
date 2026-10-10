@@ -34,9 +34,7 @@ use std::sync::RwLock;
 mod i18n_impl;
 pub mod messages;
 
-// ============================================================================
-// Global default locale
-// ============================================================================
+// === Global default locale ===
 
 static DEFAULT_LOCALE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(detect_system_locale()));
 

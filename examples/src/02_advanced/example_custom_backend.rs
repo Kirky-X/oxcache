@@ -186,12 +186,10 @@ struct Item {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 自定义后端示例 ===\n");
 
-    // 1. 创建自定义后端实例
     println!("--- 1. 创建自定义后端 ---");
     let backend = Arc::new(HashMapBackend::new(100));
     println!("  ✓ HashMapBackend 创建成功 (capacity=100)");
 
-    // 2. 通过 CacheBuilder 注入自定义后端
     println!("\n--- 2. 通过 CacheBuilder 注入 ---");
     let cache: Cache<String, Item> = Cache::builder()
         .backend_arc(backend.clone())
@@ -199,7 +197,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  ✓ Cache 使用自定义后端构建成功");
 
-    // 3. 基本 CRUD 操作
     println!("\n--- 3. 基本 CRUD 操作 ---");
     let item = Item {
         id: 1,
@@ -220,7 +217,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let after_delete = cache.get(&"item:1".to_string()).await?;
     println!("  ✓ get after delete = {:?}", after_delete);
 
-    // 4. TTL 操作
     println!("\n--- 4. TTL 操作 ---");
     cache
         .set_with_ttl(
@@ -240,7 +236,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  ✓ expire 更新为 120s: {}", expired);
 
-    // 5. 批量操作
     println!("\n--- 5. 批量操作 ---");
     let items: Vec<(String, Item)> = (0..5)
         .map(|i| {
@@ -261,21 +256,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let count = cache.len().await?;
     println!("  ✓ 缓存条目数: {}", count);
 
-    // 6. 统计信息
     println!("\n--- 6. 统计信息 ---");
     let stats = cache.stats().await?;
     for (key, value) in &stats {
         println!("  {} = {}", key, value);
     }
 
-    // 7. 健康检查
     println!("\n--- 7. 健康检查 ---");
     match cache.health_check().await {
         Ok(()) => println!("  ✓ 后端健康"),
         Err(e) => println!("  ✗ 健康检查失败: {}", e),
     }
 
-    // 8. 容量限制演示
     println!("\n--- 8. 容量限制演示 ---");
     let small_backend = Arc::new(HashMapBackend::new(3));
     let small_cache: Cache<String, String> =
@@ -296,7 +288,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✓ 容量已满，写入失败: {}", e),
     }
 
-    // 9. 关闭
     println!("\n--- 9. 关闭 ---");
     cache.shutdown().await;
     println!("  ✓ 缓存已关闭");

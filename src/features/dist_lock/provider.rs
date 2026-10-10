@@ -52,9 +52,7 @@ pub trait LockProvider: Send + Sync {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Blanket impl for DistributedLock
-// ---------------------------------------------------------------------------
+// === Blanket impl for DistributedLock ===
 
 use super::lock::DistributedLock;
 

@@ -27,7 +27,6 @@ mod tests {
     async fn test_dashmap_basic_operations() {
         let backend = DashMapMemoryBackend::new();
 
-        // Test set and get
         backend
             .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
             .await
@@ -35,18 +34,14 @@ mod tests {
         let value = backend.get("key1").await.unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
-        // Test exists
         assert!(backend.exists("key1").await.unwrap());
         assert!(!backend.exists("key2").await.unwrap());
 
-        // Test delete
         backend.delete("key1").await.unwrap();
         assert!(!backend.exists("key1").await.unwrap());
 
-        // Test health check
         backend.health_check().await.unwrap();
 
-        // Test stats
         let stats = backend.stats().await.unwrap();
         assert_eq!(stats.get("type"), Some(&"dashmap".to_string()));
         assert_eq!(stats.get("capacity"), Some(&backend.capacity().to_string()));
@@ -87,9 +82,7 @@ mod tests {
         assert_eq!(backend3.capacity(), 1000);
     }
 
-    // ========================================================================
-    // Eviction tests (问题 2.1 / 7.2)
-    // ========================================================================
+    // === Eviction tests (问题 2.1 / 7.2) ===
 
     #[tokio::test]
     async fn test_eviction_fifo_oldest_evicted() {
@@ -239,9 +232,7 @@ mod tests {
         assert_eq!(backend.get("a").await.unwrap(), Some(b"v".to_vec()));
     }
 
-    // ========================================================================
-    // 过期条目清理测试 (修复验证)
-    // ========================================================================
+    // === 过期条目清理测试 (修复验证) ===
 
     #[tokio::test]
     async fn test_exists_removes_expired_entry() {
@@ -436,13 +427,11 @@ mod tests {
         assert_eq!(backend.entry_count(), 1000);
     }
 
-    // ========================================================================
-    // Synchronous trait hierarchy tests
+    // === Synchronous trait hierarchy tests ===
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
     // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生
     // 歧义。方法调用通过 trait object (`&dyn SyncCacheReader` 等) 消歧。
-    // ========================================================================
     mod sync_tests {
         use super::DashMapMemoryBackend;
         use crate::backend::{BackendKind, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};

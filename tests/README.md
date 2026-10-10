@@ -86,6 +86,7 @@ tests/
 ├── bloom_filter_integration.rs          # Bloom filter 集成测试 (feature = "bloom")
 │
 ├── backend_atomic_gaps_test.rs          # 后端原子写（AtomicCacheWriter）与故障注入长尾
+├── backend_fault_injection_test.rs      # 链式缓存故障注入（全失败传播 / get_many 长度不符 / 回填失败）
 ├── backend_interface_extra_test.rs      # backend::interface 面（SyncBackendAdapter 等）
 ├── bloom_filter_extra_test.rs           # BloomFilterBackend 面覆盖
 ├── builders_extra_test.rs               # 分层构建器与 Cache 构建路径覆盖
@@ -136,9 +137,9 @@ cargo test --features full
 
 ### By Test Binary
 ```bash
-cargo test --features full --lib                    # 库单元测试 (1564)
+cargo test --features full --lib                    # 库单元测试 (1595)
 cargo test --features full --test unit              # 单元测试 (332)
-cargo test --features full --test integration       # 集成测试 (140)
+cargo test --features full --test integration       # 集成测试 (141)
 cargo test --features full --test e2e               # 端到端测试 (65)
 cargo test --features full --test macros            # 宏测试 (21)
 cargo test --features full --test feature_test      # Feature 门控测试 (2)
@@ -146,7 +147,7 @@ cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filt
 ```
 
 > 括号内为 `#[test]` / `#[tokio::test]` 函数的 grep 文本计数（与
-> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.7，2026-10-04 复核）；
+> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.6，2026-10-10 复核）；
 > feature 门控与 `--ignored` 用例不计入运行数，实际以 `-- --list` 为准。
 
 ### Minimal Feature

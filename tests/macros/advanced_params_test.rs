@@ -13,9 +13,7 @@ use oxcache::cached;
 use serial_test::serial;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// ============================================================================
-// strict parameter
-// ============================================================================
+// === strict parameter ===
 
 /// `strict` parameter: when cache is not registered, panic instead of passthrough.
 #[cached(service = "strict_unregistered_svc", strict)]
@@ -59,9 +57,7 @@ async fn non_strict_passthrough_on_unregistered_cache() {
     assert_eq!(result, 20);
 }
 
-// ============================================================================
-// condition parameter
-// ============================================================================
+// === condition parameter ===
 
 static CONDITION_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -123,9 +119,7 @@ async fn condition_false_bypasses_cache() {
     );
 }
 
-// ============================================================================
-// single_flight parameter
-// ============================================================================
+// === single_flight parameter ===
 
 static SF_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -170,9 +164,7 @@ async fn single_flight_deduplicates_concurrent_misses() {
     );
 }
 
-// ============================================================================
-// single_flight panic recovery & sharding（审计 F04 回归）
-// ============================================================================
+// === single_flight panic recovery & sharding（审计 F04 回归） ===
 
 static SF_PANIC_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -257,9 +249,7 @@ async fn single_flight_concurrent_distinct_keys_all_complete() {
     );
 }
 
-// ============================================================================
-// skip(...) / cache_none — compile-fail validation
-// ============================================================================
+// === skip(...) / cache_none — compile-fail validation ===
 
 /// `skip` referencing a non-existent parameter must be a compile error
 /// naming the offending identifier.

@@ -39,9 +39,7 @@ use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 
-// ============================================================================
-// Message ID constants
-// ============================================================================
+// === Message ID constants ===
 
 // -- OxCacheError messages --
 pub const MSG_ERR_SERIALIZATION: &str = "error.serialization";
@@ -122,6 +120,8 @@ pub const MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE: &str =
     "panic.config.validate_dragonfly_requires_dragonfly_feature";
 pub const MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE: &str =
     "panic.config.validate_disk_requires_disk_feature";
+pub const MSG_PANIC_CANONICAL_SERIALIZE_VALUE_CANNOT_FAIL: &str =
+    "panic.canonical.serialize_value_cannot_fail";
 
 // -- User-visible detail messages (interpolated into the { $detail } slot of
 //    the error/config templates above) --
@@ -213,6 +213,8 @@ pub const MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY: &str = "detail.redis.unexpecte
 pub const MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH: &str = "detail.chain.get_many_length_mismatch";
 pub const MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED: &str =
     "detail.chain.parallel_freshest_all_failed";
+pub const MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR: &str =
+    "detail.key_generator.part_contains_segment_separator";
 
 // -- Example binary output messages --
 pub const MSG_EXAMPLE_INKLOG_BRIDGE_TITLE: &str = "example.inklog_bridge.title";
@@ -231,9 +233,7 @@ pub const MSG_EXAMPLE_REDIS_MODES_STANDALONE_ENV_REQUIRED: &str =
 pub const MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED: &str =
     "example.redis_modes.done_standalone_skipped";
 
-// ============================================================================
-// Catalog lookup
-// ============================================================================
+// === Catalog lookup ===
 
 /// Check whether a language code has a dedicated message catalog.
 ///
@@ -278,9 +278,7 @@ pub(crate) fn lookup(locale: &str, message_id: &str, params: &[(&str, &str)]) ->
     }
 }
 
-// ============================================================================
-// Fluent bundle management
-// ============================================================================
+// === Fluent bundle management ===
 
 const EN_FTL: &str = include_str!("../../locales/en/messages.ftl");
 const ZH_FTL: &str = include_str!("../../locales/zh/messages.ftl");
@@ -331,9 +329,7 @@ fn build_zh_bundle() -> FluentBundle<FluentResource> {
     bundle
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
+// === Tests ===
 
 #[cfg(test)]
 mod tests {
@@ -415,6 +411,7 @@ mod tests {
         MSG_PANIC_CONFIG_VALIDATE_REDIS_FEATURE,
         MSG_PANIC_CONFIG_VALIDATE_DRAGONFLY_FEATURE,
         MSG_PANIC_CONFIG_VALIDATE_DISK_FEATURE,
+        MSG_PANIC_CANONICAL_SERIALIZE_VALUE_CANNOT_FAIL,
         MSG_DETAIL_DISK_REDB_OPEN_FAILED,
         MSG_DETAIL_DISK_REDB_CREATE_FAILED,
         MSG_DETAIL_DISK_CORRUPT_ENVELOPE,
@@ -479,6 +476,7 @@ mod tests {
         MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
         MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH,
         MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+        MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR,
         MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
         MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
         MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,
@@ -491,9 +489,7 @@ mod tests {
         MSG_EXAMPLE_REDIS_MODES_DONE_STANDALONE_SKIPPED,
     ];
 
-    // --------------------------------------------------------------------
-    // Guard: EN/ZH key parity
-    // --------------------------------------------------------------------
+    // === Guard: EN/ZH key parity ===
 
     #[test]
     fn test_en_zh_key_parity() {
@@ -510,10 +506,8 @@ mod tests {
         assert_eq!(en, zh, "EN and ZH catalogs must define the same keys");
     }
 
-    // --------------------------------------------------------------------
     // Guard: every message ID resolves in both bundles (validates FTL
     // parsing of the dashed keys)
-    // --------------------------------------------------------------------
 
     #[test]
     fn test_all_message_ids_resolve_in_both_bundles() {
@@ -536,9 +530,7 @@ mod tests {
         }
     }
 
-    // --------------------------------------------------------------------
-    // Guard: embedded FTL covers the locales/ directory (sync guard)
-    // --------------------------------------------------------------------
+    // === Guard: embedded FTL covers the locales/ directory (sync guard) ===
 
     #[test]
     fn test_embedded_ftl_matches_locales_dir() {
@@ -563,9 +555,7 @@ mod tests {
         }
     }
 
-    // --------------------------------------------------------------------
-    // Guard: fallbacks (unknown lang → en; missing key → key/None, no panic)
-    // --------------------------------------------------------------------
+    // === Guard: fallbacks (unknown lang → en; missing key → key/None, no panic) ===
 
     #[test]
     fn test_unknown_lang_falls_back_to_en() {
@@ -588,9 +578,7 @@ mod tests {
         assert_eq!(t("no.such_key", &[]), "no.such_key");
     }
 
-    // --------------------------------------------------------------------
-    // Formatting behaviour (direct, per-language — no global locale state)
-    // --------------------------------------------------------------------
+    // === Formatting behaviour (direct, per-language — no global locale state) ===
 
     #[test]
     fn test_lookup_en_with_args() {

@@ -4,7 +4,9 @@
 
 #[path = "../../common/mod.rs"]
 mod common;
-use common::test_containers::RedisContainer;
+use common::test_containers::{
+    RedisContainer, backend_skip, container_or_skip, start_redis_container,
+};
 
 use oxcache::backend::CacheConnector;
 use oxcache::backend::RedisBackend;
@@ -12,28 +14,30 @@ use oxcache::features::dist_lock::DistLockBuilder;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Set up Redis container and backend; skip test if Docker unavailable.
-async fn setup() -> Option<Arc<RedisBackend>> {
-    let container = RedisContainer::start().await.ok()?;
-    container.wait_ready().await.ok()?;
-    let backend = RedisBackend::new(&container.url()).await.ok()?;
-    backend.health_check().await.ok()?;
-    Some(Arc::new(backend))
-}
-
-/// Helper: unwrap or skip test on connection errors (e.g., broken pipe).
-macro_rules! ok_or_skip {
-    ($expr:expr) => {
-        match $expr {
-            Ok(v) => v,
-            Err(_) => return, // Skip test on any error (connection issue, etc.)
-        }
+/// Set up Redis container and backend.
+///
+/// 容器句柄随返回值一起交给测试体持有：testcontainers 0.28 的
+/// `ContainerAsync` 在 drop 时删除容器，若锁在 setup 局部作用域内，
+/// 返回后全部锁操作连接失败。容器不可用/超时/backend 握手失败时经
+/// `container_or_skip`/`backend_skip` 显性跳过（`OXCACHE_TEST_STRICT`
+/// 置位时改为失败），不再静默 `return`。
+async fn setup(label: &str) -> Option<(RedisContainer, Arc<RedisBackend>)> {
+    let (container, url) = container_or_skip(label, start_redis_container()).await?;
+    let backend = match RedisBackend::new(&url).await {
+        Ok(b) => b,
+        Err(e) => return backend_skip(label, &e.to_string()),
     };
+    if let Err(e) = backend.health_check().await {
+        return backend_skip(label, &e.to_string());
+    }
+    Some((container, Arc::new(backend)))
 }
 
 #[tokio::test]
 async fn test_dist_lock_acquire_release() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup("dist_lock(acquire-release)").await else {
+        return;
+    };
 
     let mut lock = DistLockBuilder::new(backend, "test:acquire-release".into())
         .ttl(Duration::from_secs(5))
@@ -41,41 +45,45 @@ async fn test_dist_lock_acquire_release() {
         .build();
 
     // Acquire
-    let acquired = ok_or_skip!(lock.acquire().await);
+    let acquired = lock.acquire().await.expect("acquire");
     assert!(acquired, "first acquire should succeed");
 
     // is_held
-    assert!(ok_or_skip!(lock.is_held().await));
+    assert!(lock.is_held().await.expect("is_held"));
 
     // Release
-    ok_or_skip!(lock.release().await);
+    lock.release().await.expect("release");
 
     // After release, is_held should be false
-    assert!(!ok_or_skip!(lock.is_held().await));
+    assert!(!lock.is_held().await.expect("is_held"));
 }
 
 #[tokio::test]
 async fn test_dist_lock_ttl_expiry() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup("dist_lock(ttl-expiry)").await else {
+        return;
+    };
 
     let mut lock = DistLockBuilder::new(backend, "test:ttl-expiry".into())
         .ttl(Duration::from_millis(200))
         .watchdog_enabled(false)
         .build();
 
-    ok_or_skip!(lock.acquire().await);
-    assert!(ok_or_skip!(lock.is_held().await));
+    lock.acquire().await.expect("acquire");
+    assert!(lock.is_held().await.expect("is_held"));
 
     // Wait for TTL to expire
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Lock should have expired
-    assert!(!ok_or_skip!(lock.is_held().await));
+    assert!(!lock.is_held().await.expect("is_held"));
 }
 
 #[tokio::test]
 async fn test_dist_lock_reentrant() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup("dist_lock(reentrant)").await else {
+        return;
+    };
 
     let mut lock = DistLockBuilder::new(backend, "test:reentrant".into())
         .ttl(Duration::from_secs(5))
@@ -83,58 +91,62 @@ async fn test_dist_lock_reentrant() {
         .build();
 
     // First acquire
-    let first = ok_or_skip!(lock.acquire().await);
+    let first = lock.acquire().await.expect("acquire");
     assert!(first, "first acquire should return true");
 
     // Reentrant acquire
-    let second = ok_or_skip!(lock.acquire().await);
+    let second = lock.acquire().await.expect("acquire");
     assert!(!second, "reentrant acquire should return false");
 
     // First release (decrements count, doesn't actually release)
-    ok_or_skip!(lock.release().await);
+    lock.release().await.expect("release");
     // Lock should still be held (count = 1)
-    assert!(ok_or_skip!(lock.is_held().await));
+    assert!(lock.is_held().await.expect("is_held"));
 
     // Second release (actually releases)
-    ok_or_skip!(lock.release().await);
+    lock.release().await.expect("release");
     // Now lock should be gone
-    assert!(!ok_or_skip!(lock.is_held().await));
+    assert!(!lock.is_held().await.expect("is_held"));
 }
 
 #[tokio::test]
 async fn test_dist_lock_watchdog_renew() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup("dist_lock(watchdog)").await else {
+        return;
+    };
 
     let mut lock = DistLockBuilder::new(backend, "test:watchdog".into())
         .ttl(Duration::from_millis(300))
         .watchdog_enabled(true)
         .build();
 
-    ok_or_skip!(lock.acquire().await);
+    lock.acquire().await.expect("acquire");
 
     // Wait longer than TTL — watchdog should have renewed
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Lock should still be held thanks to watchdog
     assert!(
-        ok_or_skip!(lock.is_held().await),
+        lock.is_held().await.expect("is_held"),
         "watchdog should have renewed the lock"
     );
 
     // Clean up
-    ok_or_skip!(lock.release().await);
+    lock.release().await.expect("release");
 }
 
 #[tokio::test]
 async fn test_dist_lock_contention() {
-    let Some(backend) = setup().await else { return };
+    let Some((_container, backend)) = setup("dist_lock(contention)").await else {
+        return;
+    };
 
     // Lock 1 acquires
     let mut lock1 = DistLockBuilder::new(backend.clone(), "test:contention".into())
         .ttl(Duration::from_secs(5))
         .watchdog_enabled(false)
         .build();
-    ok_or_skip!(lock1.acquire().await);
+    lock1.acquire().await.expect("acquire");
 
     // Lock 2 tries to acquire same key — should fail
     let mut lock2 = DistLockBuilder::new(backend, "test:contention".into())
@@ -145,10 +157,10 @@ async fn test_dist_lock_contention() {
     assert!(result.is_err(), "second lock should fail to acquire");
 
     // Release lock 1
-    ok_or_skip!(lock1.release().await);
+    lock1.release().await.expect("release");
 
     // Now lock 2 should succeed
-    let acquired = ok_or_skip!(lock2.acquire().await);
+    let acquired = lock2.acquire().await.expect("acquire");
     assert!(acquired);
-    ok_or_skip!(lock2.release().await);
+    lock2.release().await.expect("release");
 }

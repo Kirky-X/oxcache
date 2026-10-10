@@ -32,9 +32,7 @@ fn value(v: &[u8]) -> Arc<Vec<u8>> {
     Arc::new(v.to_vec())
 }
 
-// ============================================================================
-// 构造面：new / with_capacity_and_rate / builder / 访问器
-// ============================================================================
+// === 构造面：new / with_capacity_and_rate / builder / 访问器 ===
 
 #[tokio::test]
 async fn constructors_and_accessors() {
@@ -72,9 +70,7 @@ async fn constructors_and_accessors() {
     assert!((b3.bloom().false_positive_rate() - 0.02).abs() < 1e-9);
 }
 
-// ============================================================================
-// prefill 预热：对共享后端已存在但不在过滤器内的 key 恢复可见
-// ============================================================================
+// === prefill 预热：对共享后端已存在但不在过滤器内的 key 恢复可见 ===
 
 #[tokio::test]
 async fn prefill_from_keys_and_backend() {
@@ -112,9 +108,7 @@ async fn prefill_from_keys_and_backend() {
     );
 }
 
-// ============================================================================
-// async trait 面：BF miss 短路 / 命中透传 / stats 指标注入
-// ============================================================================
+// === async trait 面：BF miss 短路 / 命中透传 / stats 指标注入 ===
 
 #[tokio::test]
 async fn async_trait_surface_with_bloom_semantics() {
@@ -173,9 +167,7 @@ async fn async_trait_surface_with_bloom_semantics() {
     assert_eq!(bf.bloom().len(), 0);
 }
 
-// ============================================================================
-// sync trait 面（B: CacheBackend + SyncCacheBackend）
-// ============================================================================
+// === sync trait 面（B: CacheBackend + SyncCacheBackend） ===
 
 #[test]
 fn sync_trait_surface_with_bloom_semantics() {

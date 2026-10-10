@@ -49,6 +49,8 @@ fn ping_port(port: u16) -> bool {
 
 fn spawn_on_listener(listener: TcpListener) {
     let _ = listener.set_nonblocking(true);
+    // 端点自身地址：SENTINEL 发现协议需以「本端点即 master」应答
+    let endpoint = listener.local_addr().ok();
     let store: Arc<Mutex<Store>> = Arc::new(Mutex::new(HashMap::new()));
     let scripts: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
     std::thread::spawn(move || {
@@ -57,7 +59,7 @@ fn spawn_on_listener(listener: TcpListener) {
                 Ok((stream, _)) => {
                     let store = Arc::clone(&store);
                     let scripts = Arc::clone(&scripts);
-                    std::thread::spawn(move || serve_connection(stream, store, scripts));
+                    std::thread::spawn(move || serve_connection(stream, store, scripts, endpoint));
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     std::thread::sleep(Duration::from_millis(2));
@@ -72,6 +74,7 @@ fn serve_connection(
     stream: TcpStream,
     store: Arc<Mutex<Store>>,
     scripts: Arc<Mutex<HashMap<String, String>>>,
+    endpoint: Option<std::net::SocketAddr>,
 ) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
     let _ = stream.set_nodelay(true);
@@ -85,7 +88,7 @@ fn serve_connection(
             continue;
         }
         let mut buf: Vec<u8> = Vec::new();
-        for reply in execute(&argv, &store, &scripts) {
+        for reply in execute(&argv, &store, &scripts, endpoint) {
             buf.extend_from_slice(&reply);
         }
         if out.write_all(&buf).is_err() {
@@ -190,6 +193,7 @@ fn execute(
     argv: &[Vec<u8>],
     store: &Arc<Mutex<Store>>,
     _scripts: &Arc<Mutex<HashMap<String, String>>>,
+    endpoint: Option<std::net::SocketAddr>,
 ) -> Vec<Vec<u8>> {
     let cmd = String::from_utf8_lossy(&argv[0]).to_uppercase();
     let args = &argv[1..];
@@ -202,6 +206,28 @@ fn execute(
     match cmd.as_str() {
         "PING" => vec![s_reply("PONG")],
         "AUTH" | "SELECT" | "CLIENT" => vec![s_reply("OK")],
+        // 最小 SENTINEL 发现协议：本端点即 master（`get-master-addr-by-name`
+        // 回本端点地址）。未知 master 名回 nil、保留名 `errormaster` 回错、
+        // 未知子命令回错——供 sentinel 发现的 Ok/Ok(None)/Err 三分支在无外部
+        // 服务下可测。
+        "SENTINEL" => {
+            if arg(0).eq_ignore_ascii_case("get-master-addr-by-name") {
+                match endpoint {
+                    Some(addr) if arg(1) == "mymaster" => vec![
+                        b"*2\r\n".to_vec(),
+                        bulk_reply(addr.ip().to_string().as_bytes()),
+                        bulk_reply(addr.port().to_string().as_bytes()),
+                    ],
+                    Some(_) if arg(1) == "errormaster" => {
+                        vec![err_reply("sentinel: master lookup failed")]
+                    }
+                    Some(_) => vec![nil_reply()],
+                    None => vec![err_reply("sentinel endpoint unknown")],
+                }
+            } else {
+                vec![err_reply("unsupported SENTINEL subcommand")]
+            }
+        }
         "FLUSHALL" | "FLUSHDB" => {
             store.lock().expect("store lock").clear();
             vec![s_reply("OK")]

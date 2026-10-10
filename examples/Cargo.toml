@@ -16,11 +16,10 @@ publish = false
 workspace = true
 
 [dependencies]
-# Path dependency to the main oxcache project
+# Path dependency to the main oxcache project（full 已含 bloom/trait-kit，
+# 本包自有 redis/kit/bloom feature 仅作示例源码的 cfg 判定面）
 oxcache = { path = "..", version = "0.5.0-rc.6", default-features = false, features = [
     "full",
-    "bloom",
-    "kit",
 ] }
 
 # Tracing for logging (minimal features)

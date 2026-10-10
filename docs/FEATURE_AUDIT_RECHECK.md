@@ -1,6 +1,6 @@
 # 🔎 ws-R14 治理复核 — oxcache（FEATURE_AUDIT_REPORT.md §9.2 第 2 项）
 
-> 复核日期：2026-09-30 ｜ 版本基线：0.5.0-rc.7 ｜ 复核人：实现工程师（复核中无预置结论，逐项实证后落判）
+> 复核日期：2026-09-30 ｜ 版本基线：0.5.0-rc.6（该波次原定名 0.5.0-rc.7，发布裁决并入 rc.6 号位；仓库内不存在 rc.7 版本与 tag）｜ 复核人：实现工程师（复核中无预置结论，逐项实证后落判）
 >
 > 上游条目：`base/FEATURE_AUDIT_REPORT.md` §9.2 遗留跟进清单第 2 项：
 > 「oxcache：redis-only / bare-kit 预存编译失败（backend 模块无条件导入
@@ -14,12 +14,12 @@
 |---|---|---|
 | redis-only 预存编译失败 | **过时**（已由后续 feature 口径整理修复） | 留证，无需改动 |
 | bare-kit 预存编译失败 | **成立**（本轮实证复现） | ✅ 已修：`trait-kit` 隐含 `memory` 基线 |
-| `core`/`full` 语义重整 | **不成立**（现状口径自洽且有文档） | 留证，维持现状 |
+| `core`/`full` 语义重整 | **不成立**（现状口径自洽且有文档） | 留证，维持现状（⚠️ 该结论已被后续修订推翻，见分句 3 顶部注记） |
 | basic_ops 序列化双分支 Noop 化 | **成立**（负分支不可达死码） | ✅ 已修：5 处负分支删除、正分支去恒真 cfg |
 
 ## 分句 1：redis-only 编译失败 — 过时
 
-**实证**：`cargo check --no-default-features --features redis`（0.5.0-rc.7，
+**实证**：`cargo check --no-default-features --features redis`（0.5.0-rc.6，
 rustc 1.97.1）**零 error 通过**。
 
 **归因**：审计所指「backend 模块无条件导入 moka/dashmap/serde」的形态
@@ -54,6 +54,12 @@ redis-only 组合不再触达缺失符号。
 check 均零 error。
 
 ## 分句 3：`core`/`full` 语义重整 — 不成立，维持现状
+
+> **⚠️ 后续修订（2026-10-10 补注）**：本分句为 2026-09-30 的状态快照，结论已被后续
+> `Cargo.toml` 变更推翻——`full` 现为「真全量」，已纳入 `bloom` 与 `trait-kit`（以及
+> `encrypt` / `integrity` / `telemetry` / `invalidation` / `audit` / `inklog` /
+> `config-confers` / `warmup` 等全部具名能力特性）；`redis-tier` 为正名、`core` 为
+> 兼容别名。`full` 的精确成员以 `Cargo.toml` `[features]` 为准，下文原文保留以存史。
 
 **论据**：
 

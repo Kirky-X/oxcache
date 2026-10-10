@@ -84,7 +84,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== oxcache 事件系统示例 ===\n");
 
-    // 1. 创建事件发布器
     let publisher = ConsoleEventPublisher;
 
     println!("--- 1. 创建和发布事件 ---");
@@ -112,7 +111,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish(set_event).await?;
     publisher.publish(error_event).await?;
 
-    // 2. 使用便捷方法发布事件
     println!("\n--- 2. 使用便捷方法 ---");
 
     publisher.publish_hit("cache:key:1".to_string(), 3)?;
@@ -121,7 +119,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish_delete("cache:key:4".to_string())?;
     publisher.publish_error(Some("cache:key:5".to_string()), "Key not found".to_string())?;
 
-    // 3. 实际缓存操作中的事件监控
     println!("\n--- 3. 缓存操作事件监控 ---");
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
@@ -158,7 +155,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         publisher.publish_miss(nonexistent_key, elapsed.as_millis() as u64)?;
     }
 
-    // 4. 批量操作事件
     println!("\n--- 4. 批量操作事件 ---");
 
     let batch_start = CacheEvent::new(CacheEventType::BatchStart).with_metadata("count", "5");
@@ -176,7 +172,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_latency(50);
     publisher.publish(batch_end).await?;
 
-    // 5. 自定义事件
     println!("\n--- 5. 自定义事件 ---");
 
     let custom_event = CacheEvent::new(CacheEventType::Custom("warmup_complete".to_string()))
@@ -185,7 +180,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     publisher.publish(custom_event).await?;
 
-    // 6. 所有事件类型展示
     println!("\n--- 6. 所有事件类型 ---");
 
     let all_types = [

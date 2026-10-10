@@ -46,9 +46,7 @@ async fn make_valkey_backend_transparent(url: &str) -> RedisBackend {
         .expect("Failed to connect to Valkey")
 }
 
-// ============================================================================
-// Valkey 基础集成测试
-// ============================================================================
+// === Valkey 基础集成测试 ===
 
 #[tokio::test]
 async fn test_valkey_backend_kind_is_valkey() {
@@ -238,9 +236,7 @@ async fn test_valkey_atomic_writer_operations() {
     assert_eq!(val, Some(b"swapped".to_vec()));
 }
 
-// ============================================================================
-// 集成验证: detect_valkey()
-// ============================================================================
+// === 集成验证: detect_valkey() ===
 
 #[tokio::test]
 async fn test_detect_valkey_returns_true_for_valkey() {
@@ -255,9 +251,7 @@ async fn test_detect_valkey_returns_true_for_valkey() {
     assert!(result, "detect_valkey should return true for Valkey server");
 }
 
-// ============================================================================
-// ChainCache 集成测试
-// ============================================================================
+// === ChainCache 集成测试 ===
 
 #[tokio::test]
 async fn test_valkey_chain_cache_basic() {

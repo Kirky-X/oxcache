@@ -180,9 +180,7 @@ fn env_capacity_boundary_is_parsed_and_validated() {
     assert!(err.to_string().contains("capacity"), "got: {err}");
 }
 
-// ============================================================================
-// validate 拒绝分支与枚举映射补全
-// ============================================================================
+// === validate 拒绝分支与枚举映射补全 ===
 
 #[test]
 fn validate_rejects_zero_threshold_pool_and_empty_service() {

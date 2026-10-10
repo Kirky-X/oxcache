@@ -24,6 +24,7 @@
 //! assert_eq!(a, b);
 //! ```
 
+use crate::i18n::messages::{MSG_PANIC_CANONICAL_SERIALIZE_VALUE_CANNOT_FAIL, t};
 use serde_json::Value;
 
 /// 递归归一化 JSON 值：对象键按字典序重排，数组保序，标量原样克隆。
@@ -50,7 +51,12 @@ pub fn canonical_json(value: &Value) -> Value {
 /// 对 `Value` 的序列化不存在失败路径（无 IO、数值已合法），故不返回
 /// `Result`。
 pub fn canonical_json_string(value: &Value) -> String {
-    serde_json::to_string(&canonical_json(value)).expect("serializing a Value cannot fail")
+    serde_json::to_string(&canonical_json(value)).unwrap_or_else(|e| {
+        panic!(
+            "{}: {e:?}",
+            t(MSG_PANIC_CANONICAL_SERIALIZE_VALUE_CANNOT_FAIL, &[])
+        )
+    })
 }
 
 #[cfg(test)]

@@ -81,6 +81,7 @@ panic-config-validate-mock-requires-test-with-memory = validate rejects Mock out
 panic-config-validate-redis-requires-redis-feature = validate rejects Redis without the redis feature
 panic-config-validate-dragonfly-requires-dragonfly-feature = validate rejects Dragonfly without the dragonfly feature
 panic-config-validate-disk-requires-disk-feature = validate rejects Disk without the disk feature
+panic-canonical-serialize-value-cannot-fail = serializing a Value cannot fail
 
 # -- User-visible detail messages (interpolated into error templates) --
 detail-disk-redb-open-failed = redb open failed: { $err }
@@ -147,6 +148,7 @@ detail-not-supported-moka-sync-current-thread = Moka sync surface cannot be driv
 detail-redis-unexpected-info-reply = Unexpected INFO { $section } reply type
 detail-chain-get-many-length-mismatch = get_many returned { $returned } results for { $expected } keys
 detail-chain-parallel-freshest-all-failed = All backends failed during parallel freshest read
+detail-key-generator-part-contains-segment-separator = json_hash_key parts must not contain the ':' segment separator: '{ $part }'
 
 # -- Example binary output messages --
 example-inklog-bridge-title = === inklog audit log bridge example ===

@@ -3,9 +3,7 @@
 
 // 目标内容依赖 backend/Cache 导出，无 memory/redis 时整目标置空
 #![cfg(any(feature = "memory", feature = "redis"))]
-// Chaos Tests Module
-//
-// Contains chaos and fault tolerance tests.
+// Chaos and fault tolerance tests.
 
 // Common modules shared by chaos tests
 #[path = "common/mod.rs"]

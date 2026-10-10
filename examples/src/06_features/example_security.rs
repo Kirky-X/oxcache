@@ -26,7 +26,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("=== oxcache 安全功能示例 ===\n");
 
-    // 1. 敏感数据脱敏
     println!("--- 1. 敏感数据脱敏 ---\n");
 
     // 脱敏密码
@@ -69,7 +68,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {} = {} -> {}", field_name, value, redacted);
     }
 
-    // 2. Redacted 包装器
     println!("\n--- 2. Redacted 包装器 ---\n");
 
     let secret = Redacted::new("my_api_key_12345");
@@ -78,7 +76,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let custom_redacted = Redacted::new("very_long_secret_value").with_visible_chars(6);
     println!("自定义可见字符: {}", custom_redacted);
 
-    // 3. 安全日志处理
     println!("\n--- 3. 安全日志处理 ---\n");
 
     let log_messages = [
@@ -94,7 +91,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!();
     }
 
-    // 4. 实际缓存操作中的安全考虑
     println!("--- 4. 缓存操作安全示例 ---\n");
 
     // 创建缓存
@@ -116,7 +112,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("获取到数据: {} 字节", data.len());
     }
 
-    // 5. 安全最佳实践
     println!("\n--- 5. 安全最佳实践 ---\n");
 
     println!("✓ 永远不要在日志中记录敏感信息");
@@ -126,7 +121,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ 定期轮换缓存中的敏感令牌");
     println!("✓ 限制缓存键的命名避免泄露信息");
 
-    // 6. 配置安全示例
     println!("\n--- 6. 配置安全示例 ---\n");
 
     // 展示安全和不安全的配置方式

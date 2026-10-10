@@ -67,9 +67,7 @@ where
         writer.set_if_absent(&key_str, bytes, ttl).await
     }
 
-    // ========================================================================
-    // Synchronous atomic operations (mirror of async API)
-    // ========================================================================
+    // === Synchronous atomic operations (mirror of async API) ===
 
     /// 同步原子递增。委托 `SyncAtomicCacheWriter::incr`。
     ///
@@ -215,9 +213,7 @@ mod tests {
         assert!(!ok);
     }
 
-    // ========================================================================
-    // NotSupported error path tests
-    // ========================================================================
+    // === NotSupported error path tests ===
 
     #[tokio::test]
     async fn test_incr_not_supported_for_dashmap_backend() {
@@ -273,9 +269,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // Synchronous atomic operation tests
-    // ========================================================================
+    // === Synchronous atomic operation tests ===
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_incr_sync_via_moka() {

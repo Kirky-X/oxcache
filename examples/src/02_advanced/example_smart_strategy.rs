@@ -77,7 +77,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, Article> = Cache::builder().capacity(100).build().await?;
     let store = Arc::new(ArticleStore::new());
 
-    // 1. Cache-Aside 策略
     println!("--- 1. Cache-Aside（缓存旁路）策略 ---");
     println!("  读时填充：缓存未命中时从数据源加载并写入缓存");
     println!("  写时失效：更新数据源后删除缓存条目\n");
@@ -142,7 +141,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store.query_count()
     );
 
-    // 2. Lazy Loading（懒加载）
     println!("\n--- 2. Lazy Loading（懒加载）策略 ---");
     println!("  使用 get_or 延迟计算：仅在缓存未命中时执行昂贵的计算\n");
 
@@ -179,7 +177,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_count.load(Ordering::SeqCst)
     );
 
-    // 3. TTL 生命周期管理
     println!("\n--- 3. TTL 生命周期管理 ---");
     println!("  不同数据类型使用不同的过期策略\n");
 
@@ -242,7 +239,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("  ✓ 服务条款: 无 TTL（永不过期）");
 
-    // 检查 TTL
     let session_ttl = cache.ttl(&"session:user1".to_string()).await?;
     let config_ttl = cache.ttl(&"config:app".to_string()).await?;
     let permanent_ttl = cache.ttl(&"permanent:terms".to_string()).await?;
@@ -251,7 +247,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("    配置:   {:?}", config_ttl);
     println!("    条款:   {:?}", permanent_ttl.unwrap_or(Duration::ZERO));
 
-    // 4. 容量规划与访问频率分层
     println!("\n--- 4. 容量规划与访问频率分层 ---");
 
     // 预热热点数据
@@ -291,7 +286,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         misses as f64 / total as f64 * 100.0
     );
 
-    // 5. 统计信息
     println!("\n--- 5. 缓存统计 ---");
     let stats = cache.stats().await?;
     println!(

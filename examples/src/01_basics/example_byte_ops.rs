@@ -13,7 +13,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
-    // 1. 基本字节操作
     println!("--- 1. 基本字节操作 ---");
 
     let key = "raw_data".to_string();
@@ -29,7 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         retrieved.map(|d| String::from_utf8_lossy(&d).to_string())
     );
 
-    // 2. 无 TTL 的字节操作
     println!("\n--- 2. 无 TTL 的字节操作 ---");
 
     let key2 = "persistent_data".to_string();
@@ -44,7 +42,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         retrieved2.as_ref().map(|d| d.len()).unwrap_or(0)
     );
 
-    // 3. 二进制数据
     println!("\n--- 3. 二进制数据 ---");
 
     let key3 = "binary_data".to_string();
@@ -68,7 +65,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // 4. 缓存元信息操作
     println!("\n--- 4. 缓存元信息操作 ---");
 
     let count = cache.len().await?;
@@ -80,13 +76,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cap = cache.capacity().await?;
     println!("  容量: {}", cap);
 
-    // 5. 序列化器访问
     println!("\n--- 5. 序列化器访问 ---");
 
     let _serializer = cache.serializer();
     println!("  ✓ 已获取序列化器实例（dyn Serializer 不实现 Debug，无法打印）");
 
-    // 6. 大数据操作
     println!("\n--- 6. 大数据操作 ---");
 
     let key4 = "large_data".to_string();

@@ -1159,7 +1159,6 @@ mod tests {
     fn test_atomic_counters() {
         let metrics = UnifiedMetrics::new();
 
-        // Record some operations
         metrics.record_operation(CacheOperation {
             layer: CacheLayer::L1,
             op_type: CacheOpType::Get,
@@ -1182,7 +1181,6 @@ mod tests {
     fn test_hit_rates() {
         let metrics = UnifiedMetrics::new();
 
-        // Record operations
         for _ in 0..7 {
             metrics.record_operation(CacheOperation {
                 layer: CacheLayer::L1,
@@ -1209,18 +1207,14 @@ mod tests {
     fn test_dynamic_metrics() {
         let metrics = UnifiedMetrics::new();
 
-        // Test counter
         metrics.increment_counter("test_counter", 5);
         metrics.increment_counter("test_counter", 3);
 
-        // Test gauge
         metrics.set_gauge("test_gauge", 42.5);
 
-        // Test histogram
         metrics.record_histogram("test_histogram", 1.5);
         metrics.record_histogram("test_histogram", 2.7);
 
-        // Test timer
         metrics.record_timer("test_timer", Duration::from_millis(100));
         metrics.record_timer("test_timer", Duration::from_millis(200));
 
@@ -1245,7 +1239,6 @@ mod tests {
     fn test_snapshot() {
         let metrics = UnifiedMetrics::new();
 
-        // Record some operations
         metrics.record_operation(CacheOperation {
             layer: CacheLayer::L1,
             op_type: CacheOpType::Set,
@@ -1259,7 +1252,6 @@ mod tests {
                 || !snapshot.dynamic_metrics.contains_key("detailed")
         );
 
-        // Test export
         let prometheus = snapshot.export_prometheus();
         assert!(prometheus.contains("cache_l1_sets_total 1"));
 
@@ -1621,9 +1613,7 @@ mod tests {
         assert_eq!(rates.overall_hit_rate, 0.0);
     }
 
-    // ========================================================================
-    // service 维度（R9）：显式记录才计数、双格式可见、基数上限
-    // ========================================================================
+    // === service 维度（R9）：显式记录才计数、双格式可见、基数上限 ===
 
     fn l1_hit() -> CacheOperation {
         CacheOperation {

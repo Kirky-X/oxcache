@@ -31,13 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 "
     );
 
-    // 1. 创建缓存实例
     println!("1. 创建缓存实例");
     let cache: Cache<String, User> = Cache::builder().build().await?;
     println!("   ✓ 内存缓存创建成功");
     println!();
 
-    // 2. 连接字符串示例
     println!("2. 连接字符串示例");
     println!("   oxcache 支持通过连接字符串创建 Redis 缓存:");
     println!("   Cache::redis(\"redis://127.0.0.1:6379\")  — 单机模式");
@@ -45,7 +43,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   详细示例请参考 example_redis_modes");
     println!();
 
-    // 3. 模拟数据库加载器
     println!("3. 模拟数据库加载器");
 
     // 创建一个模拟的数据库加载器
@@ -82,7 +79,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ 模拟数据库加载器创建成功");
     println!();
 
-    // 4. 缓存旁路模式实现
     println!("4. 缓存旁路模式实现");
 
     async fn get_user_with_cache_bypass(
@@ -121,7 +117,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 5. 测试缓存旁路模式
     println!("5. 测试缓存旁路模式");
 
     // 首次查询（未缓存）
@@ -149,7 +144,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 6. 批量加载示例
     println!("6. 批量加载示例");
 
     async fn batch_load_users_with_cache(
@@ -206,7 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 7. 缓存更新和失效
     println!("7. 缓存更新和失效");
 
     // 模拟用户信息更新
@@ -226,7 +219,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 8. 缓存失效示例
     println!("8. 缓存失效示例");
 
     println!("   使 'user:2' 缓存失效...");
@@ -241,7 +233,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 9. 统计信息
     println!("9. 缓存统计信息");
     match cache.stats().await {
         Ok(stats) => {
@@ -262,7 +253,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    // 10. 模拟分区策略
     println!("10. 模拟分区策略");
 
     // 简单的哈希分区策略

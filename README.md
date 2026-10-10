@@ -259,7 +259,7 @@ oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # 真全量：全
 
 ## 💻 示例
 
-`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **38 个可运行示例**：
+`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **38 个示例**（默认特性下 37 个可运行；`example_inklog_audit_bridge` 由 `inklog-bridge` feature 门控）：
 
 ```bash
 # 运行单个示例（在 examples/ 目录下）
@@ -403,11 +403,11 @@ Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面
 - [x] ChainCache 链路容错（单链接故障不阻塞整体读写）
 - [x] 可选自动降级（`degradation` 特性，半开探测自动恢复）
 - [x] 健康检查（ChainCache 并发 ping，每链接 5 秒超时）
-- [x] 优雅关闭（`shutdown`；`kit` 特性映射到三阶段关闭协调）
+- [x] 优雅关闭（`shutdown`；`trait-kit` 特性映射到三阶段关闭协调）
 
 ### 🌸 布隆过滤器与穿透防护
 
-`bloom` 特性（需显式启用，不在 `full` 中）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
+`bloom` 特性（已并入 `full`，也可单独启用）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
 
 ```mermaid
 flowchart TD
@@ -449,7 +449,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 机制 | 入口 | 作用 |
 |------|------|------|
-| 单飞去重 | `get_or` / `get_or_sync` / 宏 `single_flight` | 同 key 并发 miss 仅一个调用者回源，跟随者等待结果（异步 `Notify` / 同步 `Condvar`，64 分片） |
+| 单飞去重 | `get_or` / `get_or_sync` / 宏 `single_flight` | 同 key 并发 miss 仅一个调用者回源，跟随者等待结果（异步 `watch` / 同步 `Condvar`，64 分片） |
 | 空值哨兵 | `get_or_option` + `null_cache_ttl` | 对 `None` 结果缓存哨兵，避免不存在的键反复打到存储 |
 | TTL 抖动 | builder `ttl_jitter(factor)` | 实际 TTL 在 `base * (1 ± factor)` 内随机，防止批量同时过期 |
 | 布隆过滤 | `BloomFilterBackend` | 负查询 O(1) 短路，inner 后端零请求 |
@@ -481,7 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1587 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1595 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
 | 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 141 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
@@ -491,7 +491,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.6**（2026-10-06 复核）；合计 2286（`src/` 1587 + `tests/` 699）。分表按各测试目录 grep 计数，未入表的 12 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 68 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.6**（2026-10-10 复核）；合计 2301（`src/` 1595 + `tests/` 706）。分表按各测试目录 grep 计数，未入表的 14 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 75 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
 
 ### 常用命令（与 CI 一致）
 
@@ -504,7 +504,7 @@ cargo test --features full --lib
 cargo test --features full --test integration
 cargo test --features full --test e2e
 
-# 窄特性组合检查（CI feature-core / feature-minimal job）
+# 窄特性组合检查（CI feature-redis-tier / feature-minimal job）
 cargo check -p oxcache --no-default-features --features redis-tier
 cargo check -p oxcache --no-default-features --features minimal
 

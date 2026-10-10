@@ -27,31 +27,24 @@ struct Config {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== 错误处理示例 ===\n");
 
-    // 1. 错误类型分类
     println!("--- 1. 错误类型分类 ---");
     demonstrate_error_categories();
 
-    // 2. 可恢复性判断
     println!("\n--- 2. 可恢复性判断 ---");
     demonstrate_recoverability();
 
-    // 3. 错误码与日志
     println!("\n--- 3. 错误码与日志 ---");
     demonstrate_error_codes();
 
-    // 4. 带重试的弹性操作
     println!("\n--- 4. 带重试的弹性操作 ---");
     demonstrate_retry_pattern().await?;
 
-    // 5. 运行时错误触发
     println!("\n--- 5. 运行时错误触发 ---");
     demonstrate_runtime_errors().await?;
 
-    // 6. 错误传播与 ? 操作符
     println!("\n--- 6. 错误传播与 ? 操作符 ---");
     demonstrate_error_propagation().await?;
 
-    // 7. 配置阶段错误
     println!("\n--- 7. 配置阶段错误 ---");
     demonstrate_config_errors();
 

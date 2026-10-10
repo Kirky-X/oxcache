@@ -493,9 +493,7 @@ impl BackendScore for RedisBackend {
     }
 }
 
-// ============================================================================
-// AtomicCacheWriter Implementation
-// ============================================================================
+// === AtomicCacheWriter Implementation ===
 
 #[async_trait]
 impl AtomicCacheWriter for RedisBackend {

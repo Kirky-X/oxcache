@@ -72,7 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 "
     );
 
-    // 1. 基础缓存功能演示
     println!("1. 基础缓存功能演示");
     println!("   第一次调用 get_user(1) - 执行函数逻辑 + 缓存结果...");
     let user = get_user(1).await?;
@@ -83,7 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   第二次调用结果: {:?}", cached_user);
     println!();
 
-    // 2. 自定义键格式演示
     println!("2. 自定义键格式演示");
     println!("   调用 get_user_custom_key(2) - 使用 'user_' 前缀键格式...");
     let user_custom = get_user_custom_key(2).await?;
@@ -94,7 +92,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   缓存结果: {:?}", cached_custom);
     println!();
 
-    // 3. 短 TTL 缓存演示
     println!("3. 短 TTL 缓存演示");
     println!("   调用 get_hot_data(1) - 使用较短 TTL（300s）...");
     let hot_data = get_hot_data(1).await?;
@@ -105,7 +102,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   缓存结果: {}", cached_hot_data);
     println!();
 
-    // 4. 性能对比演示
     println!("4. 性能对比演示");
     println!("   缓存命中通常比原始函数执行快得多");
 
@@ -127,7 +123,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
 
-    // 5. 多参数函数缓存演示
     #[cached(service = "user_cache", ttl = 600)]
     async fn get_user_with_role(user_id: u64, role: String) -> Result<String, String> {
         println!("   执行原始函数逻辑 (多参数)...");

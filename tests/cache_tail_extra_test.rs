@@ -27,9 +27,7 @@ fn value(v: &[u8]) -> Arc<Vec<u8>> {
     Arc::new(v.to_vec())
 }
 
-// ============================================================================
-// 后端工厂注册表
-// ============================================================================
+// === 后端工厂注册表 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn registry_builtin_factories_and_unknown_kind() {
@@ -77,9 +75,7 @@ async fn registry_builtin_factories_and_unknown_kind() {
     assert!(err.to_string().contains("moka"));
 }
 
-// ============================================================================
-// redb 磁盘后端
-// ============================================================================
+// === redb 磁盘后端 ===
 
 #[tokio::test]
 async fn disk_open_missing_and_create_in_missing_dir_fail() {
@@ -176,9 +172,7 @@ async fn disk_backend_full_surface_with_lazy_expiry_and_sweep() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-// ============================================================================
-// 压缩装饰器
-// ============================================================================
+// === 压缩装饰器 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn compression_threshold_and_full_delegation() {
@@ -266,9 +260,7 @@ async fn compression_threshold_and_full_delegation() {
     assert_eq!(CacheReader::len(&compressed).await.unwrap(), 0);
 }
 
-// ============================================================================
-// Cache 批量读写面
-// ============================================================================
+// === Cache 批量读写面 ===
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cache_batch_set_many_and_get_many() {
@@ -313,9 +305,7 @@ async fn cache_batch_set_many_and_get_many() {
     );
 }
 
-// ============================================================================
-// sync 原子操作：适配器注入（happy）与无原子能力兜底（NotSupported）
-// ============================================================================
+// === sync 原子操作：适配器注入（happy）与无原子能力兜底（NotSupported） ===
 
 struct AtomicMock {
     data: std::sync::Mutex<std::collections::HashMap<String, i64>>,
@@ -461,9 +451,7 @@ async fn cache_sync_atomic_ops_via_adapter() {
     );
 }
 
-// ============================================================================
-// moka / dashmap 同步面 runtime 分支与 incr 异常值
-// ============================================================================
+// === moka / dashmap 同步面 runtime 分支与 incr 异常值 ===
 
 #[tokio::test]
 async fn moka_sync_surface_in_current_thread_runtime_is_rejected() {
@@ -515,9 +503,7 @@ async fn moka_incr_with_non_numeric_value_fails_explicitly() {
     );
 }
 
-// ============================================================================
-// 统一序列化器构造面
-// ============================================================================
+// === 统一序列化器构造面 ===
 
 #[test]
 fn unified_serializer_constructor_variants() {

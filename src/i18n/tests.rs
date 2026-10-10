@@ -120,9 +120,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // Message catalog tests
-    // ========================================================================
+    // === Message catalog tests ===
 
     #[test]
     fn test_format_message_en_not_found() {
@@ -325,9 +323,7 @@ mod tests {
         );
     }
 
-    // ========================================================================
-    // Global default locale tests
-    // ========================================================================
+    // === Global default locale tests ===
 
     #[test]
     fn test_i18n_error_display_en() {
@@ -364,9 +360,7 @@ mod tests {
         set_default_locale("en");
     }
 
-    // ========================================================================
-    // System locale detection tests
-    // ========================================================================
+    // === System locale detection tests ===
 
     #[test]
     fn test_parse_locale_tag_en() {
