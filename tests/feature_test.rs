@@ -23,11 +23,11 @@ mod minimal_tests {
 // === redis-tier feature 验证（L1 memory + L2 Redis，不含 macros/compression/cli） ===
 
 #[cfg(feature = "redis-tier")]
-mod core_tests {
+mod redis_tier_tests {
     use oxcache::Cache;
 
     #[tokio::test]
-    async fn core_feature_compiles() {
+    async fn redis_tier_feature_compiles() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
         cache.set(&"k".into(), &"v".into()).await.unwrap();
         assert_eq!(cache.get(&"k".into()).await.unwrap().unwrap(), "v");

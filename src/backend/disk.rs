@@ -532,6 +532,27 @@ mod tests {
         Arc::from(s)
     }
 
+    /// 墙钟阶跃容差：过期判定与 remaining 读数都基于墙钟（见 wait_expired），
+    /// 阶跃落在写入→读取间隙会让 remaining 偏离请求值，断言放行该量级偏差。
+    const CLOCK_STEP_TOLERANCE: Duration = Duration::from_secs(2);
+
+    /// 轮询等待条目过期（惰性删除以读触发）。过期时间戳是墙钟（epoch ms，
+    /// 为跨进程重启语义刻意选择），而测试等待是单调钟——系统时钟阶跃
+    /// （WSL2 宿主休眠恢复后常见，实测秒级回拨）会让固定 sleep 后条目尚未
+    /// 到期，须以单调钟为截止的轮询收敛判定过期。
+    async fn wait_expired(backend: &RedbDiskBackend, key: &str, ttl: Duration) -> bool {
+        let deadline = Instant::now() + ttl + Duration::from_secs(5);
+        loop {
+            if backend.get(key).await.unwrap().is_none() {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    }
+
     // === 基础 CRUD 与持久化（R-disk-001） ===
 
     #[tokio::test]
@@ -562,8 +583,11 @@ mod tests {
             .await
             .unwrap();
         let remaining = backend.ttl("ttl").await.unwrap().unwrap();
-        assert!(remaining <= Duration::from_millis(300));
-        tokio::time::sleep(Duration::from_millis(350)).await;
+        assert!(remaining <= Duration::from_millis(300) + CLOCK_STEP_TOLERANCE);
+        assert!(
+            wait_expired(&backend, "ttl", Duration::from_millis(300)).await,
+            "entry must expire after per-entry ttl"
+        );
         // 懒过期：读取触发物理删除
         assert_eq!(backend.get("ttl").await.unwrap(), None);
         assert!(!backend.exists("ttl").await.unwrap());
@@ -583,8 +607,10 @@ mod tests {
             .with_default_ttl(Duration::from_millis(500));
         backend.set(k("d"), Arc::new(vec![1]), None).await.unwrap();
         assert!(backend.ttl("d").await.unwrap().is_some());
-        tokio::time::sleep(Duration::from_millis(550)).await;
-        assert_eq!(backend.get("d").await.unwrap(), None);
+        assert!(
+            wait_expired(&backend, "d", Duration::from_millis(500)).await,
+            "entry must expire under the default ttl"
+        );
     }
 
     #[tokio::test]
@@ -606,16 +632,14 @@ mod tests {
                 .await
                 .unwrap();
         }
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let reopened = RedbDiskBackend::open(&path).unwrap();
         assert_eq!(
             reopened.get("keep").await.unwrap(),
             Some(vec![7, 7]),
             "fresh entry must survive reopen"
         );
-        assert_eq!(
-            reopened.get("gone").await.unwrap(),
-            None,
+        assert!(
+            wait_expired(&reopened, "gone", Duration::from_millis(30)).await,
             "expired entry must be treated as absent after reopen"
         );
     }
@@ -633,7 +657,14 @@ mod tests {
             "expire on absent key returns false"
         );
         assert!(backend.expire("e", Duration::from_secs(5)).await.unwrap());
-        assert!(backend.ttl("e").await.unwrap().unwrap() > Duration::from_secs(4));
+        assert!(
+            backend
+                .ttl("e")
+                .await
+                .unwrap()
+                .is_some_and(|d| d + CLOCK_STEP_TOLERANCE > Duration::from_secs(5)),
+            "expire must apply the requested ttl"
+        );
     }
 
     #[tokio::test]
