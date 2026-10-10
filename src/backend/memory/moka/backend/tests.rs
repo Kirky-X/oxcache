@@ -466,6 +466,23 @@ mod tests {
             writer.delete("mt").unwrap();
             assert!(!reader.exists("mt").unwrap());
         }
+
+        // 契约钉住：current-thread runtime 的异步上下文内，moka 后端同步读显性
+        // 返回 Err(NotSupported)（不 panic）——见 mod.rs sync_block_on 三分支。
+        // 断言口径镜像 Redis 集成测试 test_redis_sync_get_current_thread_fails
+        // （tests/integration/sync_api_test.rs），但 moka 无外部依赖，默认运行。
+        #[tokio::test]
+        async fn test_moka_sync_get_inside_current_thread_runtime_returns_not_supported() {
+            let backend = MokaMemoryBackend::new();
+
+            let reader: &dyn SyncCacheReader = &backend;
+            let result = reader.get("ct");
+            assert!(
+                matches!(result, Err(crate::error::OxCacheError::NotSupported(_))),
+                "expected Err(NotSupported) on current-thread runtime, got {:?}",
+                result
+            );
+        }
     }
 
     // === keys_matching / keys() with patterns ===

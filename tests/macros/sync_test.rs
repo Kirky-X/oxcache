@@ -9,8 +9,10 @@
 //
 // NOTE: All runtime tests use `multi_thread` tokio flavor because
 // MokaMemoryBackend's sync_block_on relies on `block_in_place`, which
-// panics on current_thread runtimes. The sync cached fns call moka
-// sync ops internally.
+// returns Err(NotSupported) (never panics) on current_thread runtimes.
+// The sync cached fns call moka sync ops internally. For runtime-
+// agnostic sync consumption, inject a native sync backend instead
+// (sync_backend_arc(DashMapMemoryBackend)).
 
 #![cfg(feature = "macros")]
 

@@ -330,10 +330,12 @@ mod tests {
 
     // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
     // uses `block_in_place` to safely drive the async moka future from sync
-    // context, but `block_in_place` panics on current_thread runtimes. The
-    // sync API is intended for use from multi_thread tokio runtimes (or from
-    // outside any async runtime); calling it from a current_thread runtime
-    // is an unsupported configuration.
+    // context; on current_thread runtimes it returns Err(NotSupported)
+    // (never panics). The sync API is intended for use from multi_thread
+    // tokio runtimes (or from outside any async runtime); calling it from a
+    // current_thread runtime is an unsupported configuration. For runtime-
+    // agnostic sync consumption, inject a native sync backend
+    // (sync_backend_arc(DashMapMemoryBackend)).
     #[tokio::test(flavor = "multi_thread")]
     async fn test_builder_sync_mode_true_enables_backend_sync() {
         let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await.unwrap();

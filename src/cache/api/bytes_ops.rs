@@ -228,7 +228,9 @@ mod tests {
     // === get_bytes_sync / set_bytes_sync tests ===
 
     // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
-    // uses block_in_place, which panics on current_thread runtimes.
+    // uses block_in_place, which returns Err(NotSupported) (never panics)
+    // on current_thread runtimes; inject sync_backend_arc(DashMapMemoryBackend)
+    // for runtime-agnostic sync consumption.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_bytes_sync_returns_none_for_missing_key() {
         let cache: Cache<String, Vec<u8>> = Cache::builder().sync_mode(true).build().await.unwrap();

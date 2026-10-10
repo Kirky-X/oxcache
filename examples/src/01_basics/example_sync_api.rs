@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 // 同步 API 示例：CacheBuilder::sync_mode(true) 启用后可调 get_sync / set_sync /
 // delete_sync / exists_sync / set_with_ttl_sync（per-entry TTL）/ get_or_sync（单飞）。
-// 注意：sync API 仅在 multi_thread runtime 或 runtime 外可用，
-// current-thread runtime 会触发 Moka sync_block_on panic。
+// 注意：sync API 仅在 multi_thread runtime 或 runtime 外可用；在
+// current-thread runtime 的异步上下文内调用会显性返回
+// Err(NotSupported)（不 panic）。需要运行时无关的同步消费请改用原生同步
+// 后端 sync_backend_arc(DashMapMemoryBackend)。
 
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
