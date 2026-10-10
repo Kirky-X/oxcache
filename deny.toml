@@ -38,11 +38,11 @@ unused-allowed-license = "warn"
 [[licenses.clarify]]
 name = "oxcache"
 expression = "MIT"
-license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
+license-files = [{ path = "LICENSE", hash = 0x9b327e03 }]
 [[licenses.clarify]]
 name = "oxcache_macros"
 expression = "MIT"
-license-files = [{ path = "LICENSE", hash = 0xfb13e7ad }]
+license-files = [{ path = "../LICENSE", hash = 0x9b327e03 }]
 [[licenses.clarify]]
 name = "trait-kit"
 expression = "MIT"
