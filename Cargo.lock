@@ -736,9 +736,9 @@ dependencies = [
 
 [[package]]
 name = "confers-macros"
-version = "0.6.0-rc.6"
+version = "0.6.0-rc.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97bb85c4b3e5d0f201bde1db3bb57a4f23422b2e1255ba5e13a30403f91197a5"
+checksum = "9b927fbe5fb3a58465ec616f6e68d8d16e7dd7ae7cfc5f2037cc15164024a4a5"
 dependencies = [
  "darling",
  "proc-macro2",
