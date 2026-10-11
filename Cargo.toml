@@ -5,7 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 description = "A production-grade multi-level cache library for Rust: L1 memory (Moka/DashMap) + L2 distributed (Redis/Valkey/Dragonfly/Aerospike) + optional L3 disk (redb)."
 authors.workspace = true
-license-file.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "README.md"
@@ -32,7 +31,6 @@ version = "0.5.0-rc.8"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
-license-file = "LICENSE"
 license = "MIT"
 repository = "https://github.com/Kirky-X/oxcache"
 

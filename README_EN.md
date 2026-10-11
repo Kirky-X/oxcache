@@ -585,7 +585,7 @@ See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent h
 
 ## 📄 License
 
-This project is licensed under the MIT + Commons Clause License. Commercial use requires separate authorization. See [LICENSE](LICENSE).
+This project is licensed under the [MIT](LICENSE) License.
 
 ---
 

@@ -595,7 +595,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ## 📄 许可证
 
-本项目基于 MIT + Commons Clause 许可证发布，商业使用需单独授权。详见 [LICENSE](LICENSE)。
+本项目基于 [MIT](LICENSE) 许可证发布。
 
 ---
 
