@@ -151,7 +151,7 @@ cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filt
 ```
 
 > 括号内为 `#[test]` / `#[tokio::test]` 函数的 grep 文本计数（与
-> [README](../README.md#-测试) 主表同口径，工作区计数，截至 0.5.0-rc.6，
+> [README](../README.md#-测试) 主表同口径，工作区计数，截至 0.5.0-rc.8，
 > 2026-10-11 复核）；feature 门控与 `--ignored` 用例不计入运行数，
 > 实际以 `-- --list` 为准。
 

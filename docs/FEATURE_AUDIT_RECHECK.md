@@ -1,6 +1,6 @@
 # 🔎 ws-R14 治理复核 — oxcache（FEATURE_AUDIT_REPORT.md §9.2 第 2 项）
 
-> 复核日期：2026-09-30 ｜ 版本基线：0.5.0-rc.6（该波次原定名 0.5.0-rc.7，发布裁决并入 rc.6 号位；仓库内不存在 rc.7 版本与 tag）｜ 复核人：实现工程师（复核中无预置结论，逐项实证后落判）
+> 复核日期：2026-09-30 ｜ 版本基线：0.5.0-rc.8（该波次原定名 0.5.0-rc.7，发布裁决并入 rc.6 号位；仓库内不存在 rc.7 版本与 tag）｜ 复核人：实现工程师（复核中无预置结论，逐项实证后落判）
 >
 > 上游条目：`base/FEATURE_AUDIT_REPORT.md` §9.2 遗留跟进清单第 2 项：
 > 「oxcache：redis-only / bare-kit 预存编译失败（backend 模块无条件导入
@@ -19,7 +19,7 @@
 
 ## 分句 1：redis-only 编译失败 — 过时
 
-**实证**：`cargo check --no-default-features --features redis`（0.5.0-rc.6，
+**实证**：`cargo check --no-default-features --features redis`（0.5.0-rc.8，
 rustc 1.97.1）**零 error 通过**。
 
 **归因**：审计所指「backend 模块无条件导入 moka/dashmap/serde」的形态

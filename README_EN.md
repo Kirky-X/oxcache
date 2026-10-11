@@ -69,7 +69,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 | 🗜️ **Adaptive compression** | `CompressingBackend` applies zstd above a size threshold; reads auto-detect by magic bytes and stay compatible with legacy gzip |
 | 🔑 **Distributed coordination** | Redis distributed lock (watchdog renewal / reentrant), RedLock multi-node majority lock, cross-instance invalidation bus |
 | 🧯 **Fault resilience** | ChainCache per-link fault tolerance, `degradation` three-state auto-degradation and recovery, health checks, graceful shutdown |
-| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.6), chaos and security tests, three-platform CI matrix, coverage gate |
+| 🧪 **Engineering quality** | 2000+ test functions (as of 0.5.0-rc.8), chaos and security tests, three-platform CI matrix, coverage gate |
 
 <details>
 <summary>🔎 Advanced capabilities at a glance</summary>
@@ -179,9 +179,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0-rc.6", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.6", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
-oxcache = { version = "0.5.0-rc.6", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
+oxcache = { version = "0.5.0-rc.8", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.8", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.0-rc.8", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
 ```
 
 | Flag | Description | Default |
@@ -481,7 +481,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.0-rc.6** (re-verified 2026-10-11); 2337 in total (`src/` 1616 + `tests/` 721). Per-layer rows are grep counts per test directory (638 in total); the remaining 83 come from 17 top-level test files not listed above: 14 supplementary files (`tests/*_extra_test.rs` etc., 75 in total), `tests/single_flight_flight_signal.rs` (4) and `tests/scenario_probe_172.rs` / `tests/scenario_probe_188.rs` (4).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.0-rc.8** (re-verified 2026-10-11); 2337 in total (`src/` 1616 + `tests/` 721). Per-layer rows are grep counts per test directory (638 in total); the remaining 83 come from 17 top-level test files not listed above: 14 supplementary files (`tests/*_extra_test.rs` etc., 75 in total), `tests/single_flight_flight_signal.rs` (4) and `tests/scenario_probe_172.rs` / `tests/scenario_probe_188.rs` (4).
 
 ### Common Commands (same as CI)
 
@@ -553,7 +553,7 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 
 | Status | Item | Notes |
 |:------:|------|-------|
-| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.6 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
+| 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.8 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
 | ✅ | **Valkey integration test environment gating** | 8 Valkey and 6 Dragonfly integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
 | ✅ | **Follow-up on archived review findings** | Archive in `docs/diting-review.md` (3 Medium + 2 Low): all 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
@@ -575,7 +575,7 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
 
-- **0.5.0-rc.6** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction (see `docs/allocation-baseline.md`); absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
+- **0.5.0-rc.8** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction (see `docs/allocation-baseline.md`); absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
 - **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature
 - **0.5.0-rc.3** (2026-09-08): fixed circuit-breaker state-transition races; hardened Lua-injection validation and Redis password redaction; CI supply-chain hardening (58 third-party Action references pinned to SHAs)

@@ -28,7 +28,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.6"
+version = "0.5.0-rc.8"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -53,7 +53,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # === DEPENDENCIES ===
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.6", optional = true, default-features = false }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.8", optional = true, default-features = false }
 
 # Async Runtime
 tokio = { workspace = true, features = [
@@ -83,7 +83,7 @@ features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 # （`=` 需求互斥，只改一处解析即失败）。本包与 inklog 所依赖的 oxcache 构成同版本号
 # 异 source 的合法 DAG——桥接只消费 inklog 类型，两个 oxcache 实例间无类型交换。
 [dependencies.inklog]
-version = "=0.3.0-rc.7"
+version = "=0.3.0-rc.9"
 optional = true
 default-features = false
 
@@ -390,7 +390,7 @@ config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 degradation = ["memory"]
 audit = []
 # 审计事件 → inklog 结构化日志发布器（TracingAuditPublisher 的落盘直连变体；
-# 隐含 audit 端口。inklog 依赖钉精确至已发布 rc.7（`=0.3.0-rc.7`），所需端口
+# 隐含 audit 端口。inklog 依赖钉精确至已发布 rc.9（`=0.3.0-rc.9`），所需端口
 # LogRecord/LogSink 均为该版本无条件编译面）
 inklog = ["audit", "dep:inklog", "dep:serde_json"]
 versioning = []
