@@ -20,6 +20,9 @@ ignore = [
 # 注:下列条目为本仓依赖树实际命中的集合(未命中项已按 unused-allowed-license 移除)
 allow = [
     "MIT",
+    # notify 8.x（confers → notify-debouncer-full → notify）随 confers 0.6.0-rc.8
+    # 进入依赖树；CC0-1.0 为 FSF 认可的公有领域贡献许可
+    "CC0-1.0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-3-Clause",
