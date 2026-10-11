@@ -40,7 +40,7 @@ async fn validate_rejects_unsupported_backend_kinds() {
         .unwrap_err();
     assert!(
         err.to_string().to_lowercase().contains("unknown"),
-        "实际错误: {err}"
+        "actual error: {err}"
     );
 
     // aerospike：须编程式组装
@@ -90,7 +90,10 @@ fn validate_rejects_invalid_capacity_and_ttl() {
             _ => b.null_cache_ttl(Duration::ZERO),
         };
         let err = b.build().validate().unwrap_err();
-        assert!(!err.to_string().is_empty(), "{name} zero TTL 必须被拒绝");
+        assert!(
+            !err.to_string().is_empty(),
+            "{name} zero TTL must be rejected"
+        );
     }
 }
 
@@ -232,10 +235,10 @@ fn validate_rejects_mock_unknown_and_unbuildable_backend_kinds() {
         .backend("mock")
         .build()
         .validate()
-        .expect_err("mock 后端在非测试构建必须拒绝");
+        .expect_err("the mock backend must be rejected in non-test builds");
     assert!(
         matches!(err, OxCacheError::InvalidInput(_)),
-        "mock 应为 InvalidInput，实际: {err:?}"
+        "mock should be InvalidInput, got {err:?}"
     );
 
     // 未知 kind 显性拒绝
@@ -243,10 +246,10 @@ fn validate_rejects_mock_unknown_and_unbuildable_backend_kinds() {
         .backend("definitely_not_a_backend")
         .build()
         .validate()
-        .expect_err("未知后端必须拒绝");
+        .expect_err("an unknown backend must be rejected");
     assert!(
         matches!(err, OxCacheError::InvalidInput(_)),
-        "未知 kind 应为 InvalidInput，实际: {err:?}"
+        "an unknown kind should be InvalidInput, got {err:?}"
     );
 
     // 不可经配置构建的 kind（如 aerospike）显性 NotSupported
@@ -254,12 +257,12 @@ fn validate_rejects_mock_unknown_and_unbuildable_backend_kinds() {
         .backend("aerospike")
         .build()
         .validate()
-        .expect_err("不可构建后端必须显性拒绝");
+        .expect_err("a non-constructible backend must be rejected explicitly");
     assert!(
         matches!(
             err,
             OxCacheError::NotSupported(_) | OxCacheError::InvalidInput(_)
         ),
-        "不可构建 kind 应显性报错，实际: {err:?}"
+        "a non-constructible kind should error explicitly, got {err:?}"
     );
 }

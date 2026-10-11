@@ -302,7 +302,7 @@ mod tests {
         assert_eq!(
             backend.get("user:1").await.unwrap(),
             Some(b"alice-secret".to_vec()),
-            "读路径应透明解密"
+            "the read path should decrypt transparently"
         );
     }
 
@@ -320,12 +320,19 @@ mod tests {
 
         // 直接读内层原始字节：必须是密文信封
         let raw = backend.inner.get("user:1").await.unwrap().unwrap();
-        assert_ne!(raw, b"plaintext-value".to_vec(), "存储层不得出现明文");
-        assert_eq!(raw[0], ENVELOPE_VERSION, "信封首字节应为版本号");
+        assert_ne!(
+            raw,
+            b"plaintext-value".to_vec(),
+            "plaintext must not appear at the storage layer"
+        );
+        assert_eq!(
+            raw[0], ENVELOPE_VERSION,
+            "the first envelope byte should be the version"
+        );
         assert_eq!(
             raw.len(),
             1 + NONCE_SIZE + 15 + 16,
-            "ver+nonce+明文长度+tag"
+            "ver+nonce+plaintext length+tag"
         );
     }
 
@@ -338,10 +345,13 @@ mod tests {
             .unwrap();
 
         let wrong = EncryptedBackend::new(backend.inner.clone(), key32(200)); // 不同密钥
-        let err = wrong.get("k").await.expect_err("错误密钥必须解密失败");
+        let err = wrong
+            .get("k")
+            .await
+            .expect_err("a wrong key must fail to decrypt");
         assert!(
             matches!(err, OxCacheError::Operation(_)),
-            "解密失败应映射为 Operation 错误，got {err:?}"
+            "a decryption failure should map to an Operation error, got {err:?}"
         );
     }
 
@@ -361,7 +371,10 @@ mod tests {
             .await
             .unwrap();
 
-        let err = backend.get("bbb").await.expect_err("移植密文必须解密失败");
+        let err = backend
+            .get("bbb")
+            .await
+            .expect_err("ported ciphertext must fail to decrypt");
         assert!(matches!(err, OxCacheError::Operation(_)));
     }
 
@@ -386,7 +399,7 @@ mod tests {
     async fn key_length_validated_at_construction() {
         let inner: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("mock", 100, false));
         let err = EncryptedBackend::from_slice_key(inner, b"short-key")
-            .expect_err("密钥长度错误必须在构造期报错");
+            .expect_err("a wrong key length must fail at construction");
         assert!(matches!(err, OxCacheError::InvalidInput(_)));
     }
 
@@ -395,7 +408,7 @@ mod tests {
         let cipher = ValueCipher::new(key32(1));
         let err = cipher
             .decrypt(&[0xFF, 0, 1, 2], b"aad")
-            .expect_err("未知版本必须报错");
+            .expect_err("unknown versions must error");
         assert!(err.to_string().contains("envelope version"));
     }
 
@@ -414,16 +427,16 @@ mod tests {
         let cipher = ValueCipher::new(key32(1));
         let err = cipher
             .decrypt(&[ENVELOPE_VERSION], b"aad")
-            .expect_err("截断信封必须报错");
+            .expect_err("truncated envelopes must error");
         assert!(
             err.to_string().contains("envelope too short"),
-            "应命中长度校验, got {err}"
+            "the length check should trigger, got {err}"
         );
     }
 
     #[test]
     fn cipher_from_slice_accepts_exact_key() {
-        let cipher = ValueCipher::from_slice(&key32(7)).expect("32 字节密钥应被接受");
+        let cipher = ValueCipher::from_slice(&key32(7)).expect("a 32-byte key should be accepted");
         let envelope = cipher.encrypt(b"payload", b"k").unwrap();
         assert_eq!(
             cipher.decrypt(&envelope, b"k").unwrap(),
@@ -438,14 +451,14 @@ mod tests {
         let rendered = format!("{cipher:?}");
         assert!(
             rendered.contains("<redacted 32-byte key>"),
-            "ValueCipher Debug 应标注脱敏, got {rendered}"
+            "ValueCipher Debug should mark redaction, got {rendered}"
         );
 
         let backend = encrypted(1);
         let rendered = format!("{backend:?}");
         assert!(
             rendered.contains("Mock") && rendered.contains("<redacted>"),
-            "EncryptedBackend Debug 应含内层种类且脱敏, got {rendered}"
+            "EncryptedBackend Debug should name the inner kind and redact, got {rendered}"
         );
         assert_eq!(
             backend.cipher().encrypt(b"x", b"a").unwrap()[0],

@@ -28,10 +28,12 @@ fn is_cluster_available() -> bool {
 
 #[tokio::test]
 async fn test_redis_cluster_connection() {
-    println!("测试 Redis Cluster 连接...");
+    println!("Testing Redis Cluster connection...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用 (设置 REDIS_CLUSTER_AVAILABLE=1 启用)");
+        println!(
+            "Skipping test: Redis Cluster unavailable (set REDIS_CLUSTER_AVAILABLE=1 to enable)"
+        );
         return;
     }
 
@@ -42,23 +44,26 @@ async fn test_redis_cluster_connection() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
     // 测试连接到第一个节点
     let backend = RedisBackend::new(&urls[0]).await;
-    assert!(backend.is_ok(), "应该能连接到 Cluster 节点");
+    assert!(
+        backend.is_ok(),
+        "should be able to connect to Cluster nodes"
+    );
 
-    println!("✓ Redis Cluster 连接测试成功");
+    println!("✓ Redis Cluster connection test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_explicit_mode_build() {
-    println!("测试显式 mode(Cluster) 构建...");
+    println!("Testing explicit mode(Cluster) build...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -69,7 +74,7 @@ async fn test_redis_cluster_explicit_mode_build() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -80,7 +85,7 @@ async fn test_redis_cluster_explicit_mode_build() {
         .mode(RedisMode::Cluster)
         .build()
         .await
-        .expect("显式 mode(Cluster) 对集群端点应构建成功");
+        .expect("explicit mode(Cluster) should build successfully for cluster endpoints");
     assert_eq!(backend.mode(), RedisMode::Cluster);
 
     // 集群连接正路径：跨分片键写入/读取/删除
@@ -96,15 +101,15 @@ async fn test_redis_cluster_explicit_mode_build() {
     assert_eq!(value, Some(b"explicit_value".to_vec()));
     backend.delete("cluster_explicit_mode_key").await.unwrap();
 
-    println!("✓ 显式 mode(Cluster) 构建测试成功");
+    println!("✓ explicit mode(Cluster) build test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_basic_operations() {
-    println!("测试 Redis Cluster 基本操作...");
+    println!("Testing Redis Cluster basic operations...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -115,7 +120,7 @@ async fn test_redis_cluster_basic_operations() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -136,15 +141,15 @@ async fn test_redis_cluster_basic_operations() {
 
     backend.delete("cluster_key_1").await.unwrap();
 
-    println!("✓ Redis Cluster 基本操作测试成功");
+    println!("✓ Redis Cluster basic operations test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_data_distribution() {
-    println!("测试 Redis Cluster 数据分布...");
+    println!("Testing Redis Cluster data distribution...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -155,7 +160,7 @@ async fn test_redis_cluster_data_distribution() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -189,15 +194,15 @@ async fn test_redis_cluster_data_distribution() {
         backend.delete(&key).await.unwrap();
     }
 
-    println!("✓ Redis Cluster 数据分布测试成功");
+    println!("✓ Redis Cluster data distribution test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_ttl() {
-    println!("测试 Redis Cluster TTL...");
+    println!("Testing Redis Cluster TTL...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -208,7 +213,7 @@ async fn test_redis_cluster_ttl() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -237,15 +242,15 @@ async fn test_redis_cluster_ttl() {
     // 验证键已过期
     assert!(!backend.exists("cluster_ttl_key").await.unwrap());
 
-    println!("✓ Redis Cluster TTL 测试成功");
+    println!("✓ Redis Cluster TTL test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_health_check() {
-    println!("测试 Redis Cluster 健康检查...");
+    println!("Testing Redis Cluster health check...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -256,7 +261,7 @@ async fn test_redis_cluster_health_check() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -264,15 +269,15 @@ async fn test_redis_cluster_health_check() {
 
     backend.health_check().await.unwrap();
 
-    println!("✓ Redis Cluster 健康检查测试成功");
+    println!("✓ Redis Cluster health check test passed");
 }
 
 #[tokio::test]
 async fn test_redis_cluster_stats() {
-    println!("测试 Redis Cluster 统计信息...");
+    println!("Testing Redis Cluster statistics...");
 
     if !is_cluster_available() {
-        println!("跳过测试: Redis Cluster 不可用");
+        println!("Skipping test: Redis Cluster unavailable");
         return;
     }
 
@@ -283,7 +288,7 @@ async fn test_redis_cluster_stats() {
         // REDIS_CLUSTER_AVAILABLE=1 是显式启用：等待超时即集群拓扑不可达
         // （节点须以宿主可达地址宣告，见 docker-compose.cluster.yml），必须失败而非按跳过记账
         panic!(
-            "REDIS_CLUSTER_AVAILABLE=1 已启用，但 Redis Cluster 未就绪（宿主机须可达 127.0.0.1:7000-7005）"
+            "REDIS_CLUSTER_AVAILABLE=1 is set, but Redis Cluster is not ready (the host must reach 127.0.0.1:7000-7005)"
         );
     }
 
@@ -303,5 +308,5 @@ async fn test_redis_cluster_stats() {
 
     backend.delete("stats_test_key").await.unwrap();
 
-    println!("✓ Redis Cluster 统计信息测试成功");
+    println!("✓ Redis Cluster statistics test passed");
 }

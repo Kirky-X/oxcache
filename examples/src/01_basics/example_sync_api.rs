@@ -22,16 +22,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
 
     // === 基本 sync 操作 ===
-    println!("=== 基本 sync 操作 ===");
+    println!("=== Basic sync operations ===");
     let alice = User {
         id: 1,
         name: "Alice".to_string(),
     };
     cache.set_sync(&"user:1".to_string(), &alice)?;
-    println!("设置 user:1 = {:?}", alice);
+    println!("Set user:1 = {:?}", alice);
 
     let cached = cache.get_sync(&"user:1".to_string())?;
-    println!("获取 user:1 = {:?}", cached);
+    println!("Get user:1 = {:?}", cached);
     assert_eq!(cached, Some(alice));
 
     println!(
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     cache.delete_sync(&"user:1".to_string())?;
-    println!("删除 user:1");
+    println!("Delete user:1");
     assert_eq!(cache.get_sync(&"user:1".to_string())?, None);
 
     // === sync + TTL ===
@@ -53,12 +53,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(std::time::Duration::from_secs(60)),
     )?;
-    println!("设置 temp（60s TTL）");
+    println!("Set temp (60s TTL)");
     let cached = cache.get_sync(&"temp".to_string())?;
-    println!("获取 temp = {:?}", cached);
+    println!("Get temp = {:?}", cached);
 
     // === get_or_sync（单飞） ===
-    println!("\n=== get_or_sync（单飞） ===");
+    println!("\n=== get_or_sync (single-flight) ===");
     let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let count_for_fallback = call_count.clone();
 
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: "Bob".to_string(),
         })
     })?;
-    println!("第一次 get_or_sync = {:?}（fallback 被调用）", user);
+    println!("First get_or_sync = {:?} (fallback was called)", user);
 
     // 第二次调用：cache hit，不触发 fallback
     let user = cache.get_or_sync(&"user:42".to_string(), || {
@@ -79,12 +79,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: "Should not be called".to_string(),
         })
     })?;
-    println!("第二次 get_or_sync = {:?}（cache hit）", user);
+    println!("Second get_or_sync = {:?} (cache hit)", user);
 
     assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
 
     // === sync 与 async 混用 ===
-    println!("\n=== sync 与 async 混用 ===");
+    println!("\n=== Mixing sync and async ===");
     cache
         .set(
             &"async_key".to_string(),
@@ -98,18 +98,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("async set → sync get = {:?}", sync_value);
 
     // === 缓存元信息 sync ===
-    println!("\n=== 缓存元信息 sync ===");
+    println!("\n=== Cache metadata (sync) ===");
     let len = cache.len_sync()?;
-    println!("条目数 (len_sync): {}", len);
+    println!("Entries (len_sync): {}", len);
 
     // === clear_sync ===
     println!("\n=== clear_sync ===");
     cache.clear_sync()?;
-    println!("✓ 缓存已清空");
+    println!("✓ cache cleared");
     let len_after = cache.len_sync()?;
-    println!("清空后条目数: {}", len_after);
+    println!("Entries after clear: {}", len_after);
     assert_eq!(len_after, 0);
 
-    println!("\n同步 API 示例完成！");
+    println!("\nSync API example complete!");
     Ok(())
 }

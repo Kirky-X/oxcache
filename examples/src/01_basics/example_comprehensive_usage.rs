@@ -39,103 +39,103 @@ struct Product {
 #[tokio::main]
 async fn main() -> OxCacheResult<()> {
     println!(
-        "=== Oxcache 综合使用示例 ===
+        "=== Oxcache comprehensive usage example ===
 "
     );
 
-    println!("1. 创建内存缓存 (L1)");
+    println!("1. Create an in-memory cache (L1)");
     let _memory_cache: Cache<String, User> = Cache::builder().build().await?;
     println!(
-        "   ✓ 内存缓存创建成功
+        "   ✓ in-memory cache created
 "
     );
 
-    println!("2. 创建 Redis 缓存 (L2 only)");
+    println!("2. Create a Redis cache (L2 only)");
     match Cache::<String, User>::redis("redis://127.0.0.1:6379").await {
-        Ok(_redis_cache) => println!("   ✓ Redis 缓存创建成功"),
-        Err(e) => println!("   ⚠ Redis 不可用，已降级: {}", e),
+        Ok(_redis_cache) => println!("   ✓ Redis cache created"),
+        Err(e) => println!("   ⚠ Redis unavailable, degraded: {}", e),
     }
     println!();
 
-    println!("3. 创建分层缓存 (L1 + L2)");
+    println!("3. Create a tiered cache (L1 + L2)");
     let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
-    println!("   ✓ 分层缓存创建成功");
+    println!("   ✓ tiered cache created");
     println!();
 
-    println!("4. 基本 CRUD 操作演示");
+    println!("4. Basic CRUD operations");
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
     let user = User {
         id: 1,
-        name: "张三".to_string(),
+        name: "Alice".to_string(),
         email: "zhangsan@example.com".to_string(),
         age: 28,
     };
 
     // Create
-    println!("   添加用户...");
+    println!("  adding user...");
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ 用户添加成功: {:?}", user.name);
+    println!("   ✓ user added: {:?}", user.name);
 
     // Read
-    println!("   获取用户...");
+    println!("  getting user...");
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ 用户获取成功: {:?}", u.name),
-        None => println!("   ✗ 用户未找到"),
+        Some(u) => println!("   ✓ user retrieved: {:?}", u.name),
+        None => println!("   ✗ user not found"),
     }
 
     // Update
-    println!("   更新用户...");
+    println!("  updating user...");
     let updated_user = User {
         id: 1,
-        name: "张三丰".to_string(),
+        name: "Bob".to_string(),
         email: "zhangsanfeng@example.com".to_string(),
         age: 30,
     };
     cache.set(&"user:1".to_string(), &updated_user).await?;
-    println!("   ✓ 用户更新成功");
+    println!("   ✓ user updated");
 
     // Read updated
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ 更新后用户: {:?}", u.name),
-        None => println!("   ✗ 用户未找到"),
+        Some(u) => println!("   ✓ user after the update: {:?}", u.name),
+        None => println!("   ✗ user not found"),
     }
 
     // Delete
-    println!("   删除用户...");
+    println!("  deleting user...");
     cache.delete(&"user:1".to_string()).await?;
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(_) => println!("   ✗ 用户删除失败"),
-        None => println!("   ✓ 用户删除成功"),
+        Some(_) => println!("   ✗ failed to delete the user"),
+        None => println!("   ✓ user deleted"),
     }
 
     println!();
 
-    println!("5. 批量操作演示");
+    println!("5. Batch operations");
     let cache: Cache<String, Product> = Cache::builder().build().await?;
 
-    println!("   批量添加商品...");
+    println!("  adding products in batch...");
     let products = vec![
         Product {
             id: 1,
-            name: "笔记本电脑".to_string(),
+            name: "laptop".to_string(),
             price: 5999.99,
-            description: "高性能轻薄本".to_string(),
+            description: "high-performance ultrabook".to_string(),
         },
         Product {
             id: 2,
-            name: "智能手机".to_string(),
+            name: "smartphone".to_string(),
             price: 3999.99,
-            description: "旗舰手机".to_string(),
+            description: "flagship phone".to_string(),
         },
         Product {
             id: 3,
-            name: "平板电脑".to_string(),
+            name: "tablet".to_string(),
             price: 2999.99,
-            description: "大屏平板".to_string(),
+            description: "large-screen tablet".to_string(),
         },
     ];
 
@@ -144,54 +144,57 @@ async fn main() -> OxCacheResult<()> {
             .set(&format!("product:{}", product.id), product)
             .await?;
     }
-    println!("   ✓ 批量添加成功 ({} 个商品)", products.len());
+    println!("   ✓ batch add succeeded ({} products)", products.len());
 
     // 批量获取
-    println!("   批量获取商品...");
+    println!("  fetching products in batch...");
     let mut fetched = Vec::new();
     for i in 1..=3 {
         if let Some(product) = cache.get(&format!("product:{}", i)).await? {
             fetched.push(product);
         }
     }
-    println!("   ✓ 批量获取成功 ({} 个商品)", fetched.len());
+    println!("   ✓ batch fetch succeeded ({} products)", fetched.len());
 
     // 批量删除
-    println!("   批量删除商品...");
+    println!("  deleting products in batch...");
     for i in 1..=3 {
         cache.delete(&format!("product:{}", i)).await?;
     }
     println!(
-        "   ✓ 批量删除成功
+        "   ✓ batch delete succeeded
 "
     );
 
-    println!("6. TTL 控制演示");
+    println!("6. TTL control");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
-    println!("   添加 3 秒过期的数据...");
+    println!("  adding data that expires in 3 seconds...");
     cache
         .set_with_ttl(
             &"temp:1".to_string(),
-            &"短期数据".to_string(),
+            &"short-term data".to_string(),
             Some(Duration::from_secs(3)),
         )
         .await?;
 
-    println!("   立即获取: {:?}", cache.get(&"temp:1".to_string()).await?);
-    println!("   等待 4 秒后获取...");
+    println!(
+        "  immediate get: {:?}",
+        cache.get(&"temp:1".to_string()).await?
+    );
+    println!("  waiting 4 seconds, then reading...");
     sleep(Duration::from_secs(4)).await;
     println!(
-        "   4 秒后获取: {:?}
+        "   get after 4 seconds: {:?}
 ",
         cache.get(&"temp:1".to_string()).await?
     );
 
-    println!("7. 性能测试");
+    println!("7. Performance test");
     let cache: Arc<Cache<String, i32>> = Arc::new(Cache::builder().build().await?);
 
     // 并发写入测试
-    println!("   并发写入 10000 条数据...");
+    println!("  writing 10000 entries concurrently...");
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
     for i in 0..100 {
@@ -210,10 +213,10 @@ async fn main() -> OxCacheResult<()> {
         handle.await.unwrap();
     }
     let write_time = start.elapsed();
-    println!("   ✓ 写入耗时: {:?}", write_time);
+    println!("   ✓ write took: {:?}", write_time);
 
     // 并发读取测试
-    println!("   并发读取 10000 条数据...");
+    println!("  reading 10000 entries concurrently...");
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
     for i in 0..100 {
@@ -229,18 +232,18 @@ async fn main() -> OxCacheResult<()> {
         handle.await.unwrap();
     }
     let read_time = start.elapsed();
-    println!("   ✓ 读取耗时: {:?}", read_time);
+    println!("   ✓ read took: {:?}", read_time);
     println!();
 
-    println!("8. 统计信息");
+    println!("8. Statistics");
     if let Ok(stats) = cache.stats().await {
-        println!("   缓存统计:");
+        println!("  cache stats:");
         for (key, value) in stats {
             println!("     - {}: {}", key, value);
         }
     }
     println!();
 
-    println!("=== 示例运行完成 ===");
+    println!("=== Example run complete ===");
     Ok(())
 }

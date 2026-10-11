@@ -329,7 +329,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(backend.get("k").await.unwrap(), None, "篡改后应视为 miss");
+        assert_eq!(
+            backend.get("k").await.unwrap(),
+            None,
+            "tampered entries should be treated as a miss"
+        );
     }
 
     #[tokio::test]
@@ -422,10 +426,17 @@ mod tests {
 
             // l1_misses 为进程级共享计数器：并行测试同样会递增，
             // 精确 +1 断言在并行执行下不成立；完整性失败路径必须至少计 1 次。
-            assert!(after > before, "完整性失败应计入 l1_misses");
+            assert!(
+                after > before,
+                "integrity failures should count toward l1_misses"
+            );
             // 完整性失败专用计数器：同模块的失败注入测试经 #[serial] 互斥，
             // 本次失败必须精确递增 1。
-            assert_eq!(after_failures, before_failures + 1, "完整性失败计数应递增");
+            assert_eq!(
+                after_failures,
+                before_failures + 1,
+                "the integrity failure counter should increment"
+            );
         }
         #[cfg(not(feature = "metrics"))]
         {
@@ -481,7 +492,7 @@ mod tests {
     fn hmac_key_length_validated_at_construction() {
         let inner: Arc<dyn CacheBackend> = Arc::new(MockBackend::new("mock", 100, false));
         let err = IntegrityBackend::from_slice_key(inner, b"tiny")
-            .expect_err("密钥长度错误必须在构造期报错");
+            .expect_err("a wrong key length must fail at construction");
         assert!(matches!(err, crate::error::OxCacheError::InvalidInput(_)));
     }
 
@@ -492,18 +503,19 @@ mod tests {
         let rendered = format!("{signer:?}");
         assert!(
             rendered.contains("<redacted 32-byte key>"),
-            "HmacSigner Debug 应标注脱敏, got {rendered}"
+            "HmacSigner Debug should mark redaction, got {rendered}"
         );
 
         let backend = integrity(1);
         let rendered = format!("{backend:?}");
         assert!(
             rendered.contains("Mock") && rendered.contains("<redacted>"),
-            "IntegrityBackend Debug 应含内层种类且脱敏, got {rendered}"
+            "IntegrityBackend Debug should name the inner kind and redact, got {rendered}"
         );
 
         // 精确 32 字节密钥走 from_slice 成功路径
-        let from_slice = HmacSigner::from_slice(&key32(2)).expect("32 字节密钥应被接受");
+        let from_slice =
+            HmacSigner::from_slice(&key32(2)).expect("a 32-byte key should be accepted");
         assert_eq!(
             from_slice.sign(b"msg"),
             HmacSigner::new(key32(2)).sign(b"msg")

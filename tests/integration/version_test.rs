@@ -27,7 +27,7 @@ async fn test_version_control_set_and_update_value() {
     let l2: Arc<dyn oxcache::backend::CacheBackend> = match RedisBackend::new(&redis_url).await {
         Ok(backend) => Arc::new(backend),
         Err(e) => {
-            println!("无法创建Redis后端: {:?}", e);
+            println!("failed to create the Redis backend: {:?}", e);
             return;
         }
     };

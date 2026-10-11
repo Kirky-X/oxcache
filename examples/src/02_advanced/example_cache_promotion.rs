@@ -65,20 +65,20 @@ impl<K: std::hash::Hash + Eq + Clone, V: Clone> L1Cache<K, V> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 缓存提升策略示例 ===\n");
+    println!("=== Cache promotion strategy example ===\n");
 
-    println!("--- 1. 模拟 L1 + L2 分层 ---");
+    println!("--- 1. Simulating L1 + L2 tiers ---");
     let l1 = L1Cache::<String, Session>::new(3); // L1 容量小
     let l2: Cache<String, Session> = Cache::builder().capacity(100).build().await?; // L2 容量大
-    println!("  L1 (内存): 容量=3 (模拟快速缓存)");
-    println!("  L2 (缓存): 容量=100 (模拟慢速/大容量缓存)");
+    println!("  L1 (memory): capacity=3 (simulating a fast cache)");
+    println!("  L2 (cache): capacity=100 (simulating a slow/large cache)");
 
-    println!("\n--- 2. 初始化数据到 L2 ---");
+    println!("\n--- 2. Initialize data into L2 ---");
     let sessions: Vec<Session> = (1..=10)
         .map(|i| Session {
             id: format!("sess_{}", i),
             user_id: i,
-            data: format!("会话数据 {}", i),
+            data: format!("session data {}", i),
             last_accessed: chrono::Utc::now(),
         })
         .collect();
@@ -86,9 +86,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for session in &sessions {
         l2.set(&session.id, session).await?;
     }
-    println!("  ✓ 写入 {} 个会话到 L2", sessions.len());
+    println!("  ✓ wrote {} sessions into L2", sessions.len());
 
-    println!("\n--- 3. 带提升的读取（promote_on_hit） ---");
+    println!("\n--- 3. Reads with promotion (promote_on_hit) ---");
 
     async fn get_with_promotion(
         l1: &L1Cache<String, Session>,
@@ -97,19 +97,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ) -> Result<Option<Session>, Box<dyn std::error::Error>> {
         // 先查 L1
         if let Some(session) = l1.get(&key.to_string()) {
-            println!("    [L1 命中] {}", key);
+            println!("    [L1 hit] {}", key);
             return Ok(Some(session));
         }
 
         // L1 未命中，查 L2
         if let Some(session) = l2.get(&key.to_string()).await? {
-            println!("    [L2 命中 → 提升到 L1] {}", key);
+            println!("    [L2 hit -> promoted to L1] {}", key);
             // 提升到 L1
             l1.put(key.to_string(), session.clone());
             return Ok(Some(session));
         }
 
-        println!("    [全部未命中] {}", key);
+        println!("    [all miss] {}", key);
         Ok(None)
     }
 
@@ -119,14 +119,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "sess_2", "sess_1", "sess_3",
     ];
 
-    println!("  访问序列 ({} 次):", access_sequence.len());
+    println!("  Access sequence ({} accesses):", access_sequence.len());
     for key in &access_sequence {
         get_with_promotion(&l1, &l2, key).await?;
     }
 
-    println!("\n  L1 最终状态: {} 条", l1.len());
+    println!("\n  L1 final state: {} entries", l1.len());
 
-    println!("\n--- 4. 访问频率分析 ---");
+    println!("\n--- 4. Access frequency analysis ---");
     let mut freq: HashMap<&str, u32> = HashMap::new();
     for key in &access_sequence {
         *freq.entry(key).or_default() += 1;
@@ -134,34 +134,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut freq_vec: Vec<_> = freq.into_iter().collect();
     freq_vec.sort_by_key(|b| std::cmp::Reverse(b.1));
 
-    println!("  访问频率排名:");
+    println!("  Access frequency ranking:");
     for (key, count) in &freq_vec {
         let bar = "█".repeat(*count as usize);
-        println!("    {} {} ({} 次)", key, bar, count);
+        println!("    {} {} ({} times)", key, bar, count);
     }
-    println!("  ✓ 热点数据 (sess_1) 自动留在 L1 中");
+    println!("  ✓ hot data (sess_1) stays in L1 automatically");
 
-    println!("\n--- 5. 生产环境配置建议 ---");
-    println!("  真正的分层缓存配置:");
+    println!("\n--- 5. Production configuration suggestions ---");
+    println!("  A real tiered-cache configuration:");
     println!("  ```rust");
-    println!("  // L1 (Moka) + L2 (Redis) 分层");
+    println!("  // L1 (Moka) + L2 (Redis) tiers");
     println!("  let cache: Cache<String, Session> = Cache::builder()");
-    println!("      .ttl(Duration::from_secs(3600))     // L1 默认 TTL");
-    println!("      .capacity(10_000)                    // L1 容量");
+    println!("      .ttl(Duration::from_secs(3600))     // L1 default TTL");
+    println!("      .capacity(10_000)                    // L1 capacity");
     println!("      .build().await?;");
     println!("  ```");
     println!();
-    println!("  提升策略要点:");
-    println!("  - L1 容量小但速度快，L2 容量大但较慢");
-    println!("  - L2 命中时自动回填 L1（promote_on_hit）");
-    println!("  - 热点数据自然提升到 L1，冷数据仅在 L2");
-    println!("  - 合理设置 L1 容量避免频繁淘汰");
+    println!("  Promotion strategy notes:");
+    println!("  - L1 is small but fast, L2 is large but slower");
+    println!("  - on an L2 hit, backfill into L1 automatically (promote_on_hit)");
+    println!("  - hot data is promoted to L1 naturally; cold data stays in L2");
+    println!("  - size L1 sensibly to avoid frequent eviction");
 
-    println!("\n--- 6. TTL 对提升的影响 ---");
+    println!("\n--- 6. TTL effects on promotion ---");
     let short_lived = Session {
         id: "short:1".into(),
         user_id: 99,
-        data: "短生命周期".into(),
+        data: "short-lived".into(),
         last_accessed: chrono::Utc::now(),
     };
     l2.set_with_ttl(
@@ -170,11 +170,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Duration::from_secs(5)),
     )
     .await?;
-    println!("  ✓ 设置短 TTL (5s) 会话");
+    println!("  ✓ set a session with a short TTL (5s)");
 
     let remaining = l2.ttl(&"short:1".into()).await?;
-    println!("  剩余 TTL: {:?}", remaining);
+    println!("  remaining TTL: {:?}", remaining);
 
-    println!("\n✓ 缓存提升示例完成");
+    println!("\n✓ Cache promotion example complete");
     Ok(())
 }

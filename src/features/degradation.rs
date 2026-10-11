@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(
             controller.record_failure(),
             DegradationState::Degraded,
-            "连续失败达阈值应降级"
+            "consecutive failures reaching the threshold should degrade"
         );
         assert!(controller.is_l1_only());
     }
@@ -545,11 +545,17 @@ mod tests {
     fn degraded_blocks_l2_until_timeout() {
         let controller = Arc::new(DegradationController::new(1, Duration::from_millis(80)));
         controller.record_failure();
-        assert!(!controller.allow_l2(), "降级窗口内应拦截 L2");
+        assert!(
+            !controller.allow_l2(),
+            "L2 should be blocked inside the degradation window"
+        );
 
         // 超时后半开放行探测
         std::thread::sleep(Duration::from_millis(100));
-        assert!(controller.allow_l2(), "超时后应放行半开探测");
+        assert!(
+            controller.allow_l2(),
+            "a half-open probe should be allowed after the timeout"
+        );
         assert_eq!(controller.state(), DegradationState::HalfOpen);
     }
 
@@ -564,7 +570,7 @@ mod tests {
         assert_eq!(
             controller.state(),
             DegradationState::Active,
-            "探测成功应恢复"
+            "a successful probe should recover"
         );
         assert!(controller.allow_l2());
     }
@@ -580,7 +586,7 @@ mod tests {
         assert_eq!(
             controller.record_failure(),
             DegradationState::Degraded,
-            "探测失败应重新降级"
+            "a failed probe should degrade again"
         );
     }
 
@@ -637,10 +643,13 @@ mod tests {
         assert_eq!(controller.state(), DegradationState::Degraded);
 
         // 降级后 get 直接短路返回 Degraded（不再触达内层）
-        let err = backend.get("k").await.expect_err("降级期应拒绝 L2");
+        let err = backend
+            .get("k")
+            .await
+            .expect_err("L2 should be refused during degradation");
         assert!(
             matches!(err, OxCacheError::Degraded(_)),
-            "应返回 Degraded 错误供上层回落 L1，got {err:?}"
+            "a Degraded error should be returned for the caller to fall back to L1, got {err:?}"
         );
 
         // 半开探测成功恢复
@@ -703,7 +712,7 @@ mod tests {
         assert_eq!(
             controller.state(),
             DegradationState::Active,
-            "全操作面成功不应触发降级"
+            "all operations succeeding should not trigger degradation"
         );
     }
 
@@ -721,36 +730,45 @@ mod tests {
         assert_eq!(controller.state(), DegradationState::Degraded);
 
         assert!(matches!(
-            backend.exists("k").await.expect_err("降级期 exists 应短路"),
+            backend
+                .exists("k")
+                .await
+                .expect_err("exists should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
         assert!(matches!(
             backend
                 .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
                 .await
-                .expect_err("降级期 set 应短路"),
+                .expect_err("set should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
         assert!(matches!(
-            backend.delete("k").await.expect_err("降级期 delete 应短路"),
+            backend
+                .delete("k")
+                .await
+                .expect_err("delete should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
         assert!(matches!(
-            backend.clear().await.expect_err("降级期 clear 应短路"),
+            backend
+                .clear()
+                .await
+                .expect_err("clear should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
         assert!(matches!(
             backend
                 .set_many(&[(Arc::from("k"), Arc::new(b"v".to_vec()), None)])
                 .await
-                .expect_err("降级期 set_many 应短路"),
+                .expect_err("set_many should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
         assert!(matches!(
             backend
                 .delete_many(&["k".to_string()])
                 .await
-                .expect_err("降级期 delete_many 应短路"),
+                .expect_err("delete_many should short-circuit during degradation"),
             OxCacheError::Degraded(_)
         ));
     }
@@ -767,11 +785,11 @@ mod tests {
         assert_eq!(snap.failure_threshold, 2);
         assert_eq!(snap.degraded_elapsed, None);
         assert!(!snap.is_l1_only());
-        assert!(snap.l2_probe_due(), "Active 应预测放行 L2");
+        assert!(snap.l2_probe_due(), "Active should predict allowing L2");
         assert_eq!(
             controller.state(),
             DegradationState::Active,
-            "snapshot 不得触发状态迁移"
+            "snapshot must not trigger a state transition"
         );
 
         controller.record_failure();
@@ -781,18 +799,27 @@ mod tests {
         assert_eq!(snap.consecutive_failures, 2);
         assert!(snap.degraded_elapsed.is_some());
         assert!(snap.is_l1_only());
-        assert!(!snap.l2_probe_due(), "降级窗口内应预测拦截");
+        assert!(
+            !snap.l2_probe_due(),
+            "interception should be predicted inside the degradation window"
+        );
         assert_eq!(
             controller.state(),
             DegradationState::Degraded,
-            "snapshot 不得把 Degraded 推进到 HalfOpen"
+            "snapshot must not push Degraded to HalfOpen"
         );
-        assert!(!controller.allow_l2(), "降级窗口内 allow_l2 应拦截");
+        assert!(
+            !controller.allow_l2(),
+            "allow_l2 should block inside the degradation window"
+        );
         assert_eq!(controller.state(), DegradationState::Degraded);
 
         std::thread::sleep(Duration::from_millis(80));
         let snap = controller.snapshot();
-        assert!(snap.l2_probe_due(), "超时后应预测放行,但不产生迁移");
+        assert!(
+            snap.l2_probe_due(),
+            "after the timeout, allowing should be predicted without a transition"
+        );
         assert_eq!(controller.state(), DegradationState::Degraded);
         assert!(controller.allow_l2());
         assert_eq!(controller.state(), DegradationState::HalfOpen);
@@ -800,7 +827,7 @@ mod tests {
         assert_eq!(snap.state, DegradationState::HalfOpen);
         assert_eq!(
             snap.degraded_elapsed, None,
-            "degraded_elapsed 仅在 Degraded 状态上报"
+            "degraded_elapsed is only reported in the Degraded state"
         );
 
         controller.record_success();
@@ -942,46 +969,66 @@ mod tests {
         let backend = DegradableBackend::new(inner_dyn, outer.clone());
 
         // 首次访问：内层真实故障 → 内层熔断打开，外层同步降级
-        let err = backend.get("k").await.expect_err("首次访问应失败");
+        let err = backend
+            .get("k")
+            .await
+            .expect_err("the first access should fail");
         assert!(
             matches!(err, OxCacheError::Operation(_)),
-            "首次应为真实故障而非熔断拒绝, got {err:?}"
+            "the first failure should be a real error, not a circuit-breaker rejection, got {err:?}"
         );
         assert_eq!(outer.state(), DegradationState::Degraded);
         assert_eq!(inner.admitted(), 0);
 
         // 降级窗口内：外层短路，不触达内层
-        let err = backend.get("k").await.expect_err("降级窗口内应短路");
+        let err = backend
+            .get("k")
+            .await
+            .expect_err("should short-circuit inside the degradation window");
         assert!(matches!(err, OxCacheError::Degraded(_)));
         assert_eq!(inner.admitted(), 0);
 
         // 外层恢复窗先到：转半开，看似恢复
         std::thread::sleep(Duration::from_millis(120));
         let snap = outer.snapshot();
-        assert!(snap.l2_probe_due(), "外层窗口已到应预测放行");
+        assert!(
+            snap.l2_probe_due(),
+            "the outer window expiring should predict allowing"
+        );
         assert!(outer.allow_l2());
-        assert_eq!(outer.state(), DegradationState::HalfOpen, "外层看似恢复");
+        assert_eq!(
+            outer.state(),
+            DegradationState::HalfOpen,
+            "the outer layer looks recovered"
+        );
 
         // 半开探测被内层 Open 拒绝 → 外层打回 Degraded(假恢复)
-        let err = backend.get("k").await.expect_err("探测应被内层熔断拒绝");
+        let err = backend
+            .get("k")
+            .await
+            .expect_err("the probe should be rejected by the inner circuit breaker");
         assert!(
             matches!(err, OxCacheError::Degraded(_)),
-            "内层 Open 拒绝应表现为 Degraded, got {err:?}"
+            "an inner Open rejection should surface as Degraded, got {err:?}"
         );
         assert_eq!(
             outer.state(),
             DegradationState::Degraded,
-            "探测失败应打回降级(假恢复)"
+            "a failed probe should fall back to degradation (false recovery)"
         );
-        assert_eq!(inner.admitted(), 0, "内层打开期探测不应触达内层");
+        assert_eq!(
+            inner.admitted(),
+            0,
+            "probes during the inner open window must not reach the inner layer"
+        );
         let snap = outer.snapshot();
         assert_eq!(
             snap.consecutive_failures, 2,
-            "初始失败计数仅 Active 归零,半开探测失败再计 1"
+            "the initial failure count resets only in Active; a failed half-open probe counts 1 more"
         );
         assert!(
             snap.degraded_elapsed.unwrap() < Duration::from_millis(80),
-            "重新降级后降级计时重启"
+            "the degradation timer restarts after re-degrading"
         );
 
         // 内层 reset 也到期后：再次半开，探测触达内层成功 → 真恢复
@@ -990,7 +1037,7 @@ mod tests {
         assert_eq!(
             outer.state(),
             DegradationState::Active,
-            "内层放行后应真恢复"
+            "a real recovery after the inner layer allows traffic"
         );
         assert_eq!(inner.admitted(), 1);
         let snap = outer.snapshot();
@@ -1013,9 +1060,16 @@ mod tests {
 
         // 内层 reset(50ms)已过、外层窗(200ms)未到：外层仍短路
         std::thread::sleep(Duration::from_millis(90));
-        let err = backend.get("k").await.expect_err("外层窗口内应继续短路");
+        let err = backend
+            .get("k")
+            .await
+            .expect_err("short-circuiting should continue inside the outer window");
         assert!(matches!(err, OxCacheError::Degraded(_)));
-        assert_eq!(inner.admitted(), 0, "内层先恢复也不得绕过外层窗口");
+        assert_eq!(
+            inner.admitted(),
+            0,
+            "the inner layer recovering first must not bypass the outer window"
+        );
 
         // 外层窗口也到：探测触达已恢复的内层 → 一次成功即恢复
         std::thread::sleep(Duration::from_millis(150));
@@ -1107,7 +1161,11 @@ mod tests {
             });
 
             let events = events.lock().unwrap();
-            assert_eq!(events.len(), 3, "三次迁移应各发一条事件");
+            assert_eq!(
+                events.len(),
+                3,
+                "each of the three transitions should emit one event"
+            );
             assert_eq!(events[0].state, "degraded");
             assert_eq!(events[0].level, tracing::Level::WARN);
             assert_eq!(events[1].state, "half_open");

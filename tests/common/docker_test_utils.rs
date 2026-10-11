@@ -32,12 +32,12 @@ pub async fn setup_redis_container() -> Result<(RedisContainer, String), String>
         .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
         .start()
         .await
-        .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
+        .map_err(|e| format!("failed to start the Redis container: {}", e))?;
 
     let port = redis
         .get_host_port_ipv4(6379)
         .await
-        .map_err(|e| format!("获取端口失败: {}", e))?;
+        .map_err(|e| format!("failed to get the port: {}", e))?;
 
     let redis_url = format!("redis://127.0.0.1:{}", port);
 
@@ -62,7 +62,7 @@ pub async fn setup_redis_container_on_port(
         )])
         .start()
         .await
-        .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
+        .map_err(|e| format!("failed to start the Redis container: {}", e))?;
 
     Ok((redis, format!("redis://127.0.0.1:{}", host_port)))
 }
@@ -127,7 +127,7 @@ pub async fn setup_redis_cluster_nodes(
     for i in 0..count {
         let (container, url) = setup_redis_container()
             .await
-            .map_err(|e| format!("创建第 {} 个 Redis 容器失败: {}", i + 1, e))?;
+            .map_err(|e| format!("failed to create Redis container #{}: {}", i + 1, e))?;
         containers.push((container, url));
     }
 

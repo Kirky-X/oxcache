@@ -22,7 +22,7 @@ struct User {
 
 /// 模拟从数据库加载用户（耗时操作）
 async fn load_user_from_db(id: u64) -> oxcache::OxCacheResult<User> {
-    println!("  [DB] 正在从数据库加载用户 {}...", id);
+    println!("  [DB] loading user {} from the database...", id);
     tokio::time::sleep(Duration::from_millis(100)).await;
     Ok(User {
         id,
@@ -33,28 +33,28 @@ async fn load_user_from_db(id: u64) -> oxcache::OxCacheResult<User> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== get_or 单飞模式示例 ===\n");
+    println!("=== get_or single-flight example ===\n");
 
     let cache: Arc<Cache<String, User>> = Arc::new(Cache::builder().capacity(100).build().await?);
 
-    println!("--- 1. 基本用法 ---");
+    println!("--- 1. Basic usage ---");
     let key = "user:1".to_string();
 
     // 第一次调用：缓存未命中，执行 fallback
-    println!("第一次调用 get_or:");
+    println!("First get_or call:");
     let user1 = cache
         .get_or(&key, || async { load_user_from_db(1).await })
         .await?;
-    println!("  结果: {:?}\n", user1);
+    println!("  result: {:?}\n", user1);
 
     // 第二次调用：缓存命中，不执行 fallback
-    println!("第二次调用 get_or:");
+    println!("Second get_or call:");
     let user2 = cache
         .get_or(&key, || async { load_user_from_db(1).await })
         .await?;
-    println!("  结果: {:?}\n", user2);
+    println!("  result: {:?}\n", user2);
 
-    println!("--- 2. 并发 single-flight 去重 ---");
+    println!("--- 2. Concurrent single-flight deduplication ---");
     let key2 = "user:2".to_string();
 
     // 同时发起 5 个并发请求查询同一个键
@@ -63,11 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let cache_clone = Arc::clone(&cache);
         let key_clone = key2.clone();
         handles.push(tokio::spawn(async move {
-            println!("  请求 {} 开始", i);
+            println!("  request {} started", i);
             let result = cache_clone
                 .get_or(&key_clone, || async { load_user_from_db(2).await })
                 .await;
-            println!("  请求 {} 完成", i);
+            println!("  request {} completed", i);
             result
         }));
     }
@@ -77,9 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = handle.await?;
     }
 
-    println!("\n  注意：只有一次 [DB] 加载，其余请求等待结果");
+    println!("\n  note: only one [DB] load runs; the other requests wait for the result");
 
-    println!("\n--- 3. 对比：无 single-flight 的并发场景 ---");
+    println!("\n--- 3. Comparison: concurrency without single-flight ---");
     let key3 = "user:3".to_string();
 
     // 先清除缓存
@@ -106,8 +106,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = handle.await?;
     }
 
-    println!("  注意：没有 single-flight 时，可能多次执行 [DB] 加载");
+    println!("  note: without single-flight, the [DB] load may run multiple times");
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

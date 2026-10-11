@@ -598,7 +598,7 @@ async fn test_chain_read_degrades_when_high_backend_fails() {
     assert_eq!(
         value,
         Some(b"low_value".to_vec()),
-        "L1 get 失败时应降级到 L2 读取"
+        "an L1 get failure should fall back to an L2 read"
     );
 }
 
@@ -614,7 +614,10 @@ async fn test_chain_read_returns_none_when_all_backends_fail() {
         .build();
 
     let result = chain.get("key").await;
-    assert!(result.is_err(), "所有后端 get 失败时应返回 Err");
+    assert!(
+        result.is_err(),
+        "all backends failing get should return Err"
+    );
 }
 
 #[tokio::test]
@@ -629,7 +632,10 @@ async fn test_chain_health_check_fails_when_backend_unhealthy() {
         .build();
 
     let result = chain.health_check().await;
-    assert!(result.is_err(), "含不健康后端时 health_check 应失败");
+    assert!(
+        result.is_err(),
+        "health_check should fail when an unhealthy backend is present"
+    );
 }
 
 #[tokio::test]
@@ -1825,7 +1831,11 @@ async fn iter_entries_layer_batch_failure_splits_per_key_and_falls_through() {
 
     // 整批失败按键拆分映射：每个失败键一条错误事件
     let errors = errors.lock().unwrap();
-    assert_eq!(errors.len(), 2, "L1 整批失败应拆分为每键一条错误");
+    assert_eq!(
+        errors.len(),
+        2,
+        "an L1 batch failure should split into one error per key"
+    );
     assert_eq!(errors[0].0.as_deref(), Some("k1"));
     assert_eq!(errors[1].0.as_deref(), Some("k2"));
     drop(errors);
@@ -1926,7 +1936,7 @@ mod invalidation_integration {
         for _ in 0..rounds {
             assert!(
                 backend.exists(key).await.unwrap(),
-                "条目不应被广播失效: {key}"
+                "the entry should not be broadcast-invalidated: {key}"
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -1962,7 +1972,7 @@ mod invalidation_integration {
 
         assert!(
             poll_until_gone(&remote, "user:1").await,
-            "持久层写入后远端旧值应被广播失效"
+            "a stale remote value should be broadcast-invalidated after a durable-layer write"
         );
     }
 
@@ -1998,7 +2008,7 @@ mod invalidation_integration {
             .unwrap_or_default();
         assert!(
             msg.contains("persistent link"),
-            "panic 应说明缺少持久层, got {msg}"
+            "the panic should mention the missing durable layer, got {msg}"
         );
     }
 
@@ -2055,7 +2065,7 @@ mod invalidation_integration {
 
         assert!(
             poll_until_gone(&remote, "user:3").await,
-            "一站式装配的持久层写入应广播失效"
+            "a one-stop assembly durable-layer write should broadcast invalidation"
         );
     }
 }

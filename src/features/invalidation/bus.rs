@@ -230,7 +230,7 @@ mod tests {
         }
         assert!(
             !l1_b.exists("user:1").await.unwrap(),
-            "B 的本地 L1 条目应被 A 的广播失效"
+            "B's local L1 entry should be invalidated by A's broadcast"
         );
 
         handle_b.stop();
@@ -262,7 +262,7 @@ mod tests {
 
         assert!(
             l1_a.exists("user:1").await.unwrap(),
-            "自身广播的失效消息应被豁免，A 的本地条目不应被删除"
+            "self-broadcast invalidation messages should be exempted; A's local entry must not be deleted"
         );
 
         handle_a.stop();
@@ -303,7 +303,7 @@ mod tests {
         assert!(!l1_b.exists("users:2").await.unwrap());
         assert!(
             l1_b.exists("orders:1").await.unwrap(),
-            "非匹配前缀的条目不应被失效"
+            "non-matching-prefix entries must not be invalidated"
         );
 
         handle_b.stop();
@@ -359,7 +359,7 @@ mod tests {
         let rendered = format!("{bus:?}");
         assert!(
             rendered.contains("obs-ch") && rendered.contains("instance-x"),
-            "Debug 应含通道与实例标识, got {rendered}"
+            "Debug should contain the channel and instance id, got {rendered}"
         );
     }
 
@@ -393,7 +393,7 @@ mod tests {
         }
         assert!(
             !l1_b.exists("users:1").await.unwrap() && !l1_b.exists("orders:9").await.unwrap(),
-            "通配命名空间失效应清空本地 L1"
+            "a wildcard namespace invalidation should clear the local L1"
         );
 
         handle_b.stop();

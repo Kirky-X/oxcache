@@ -323,11 +323,13 @@ pub use crate::internal::__internal_get_cache;
 #[cfg(feature = "telemetry")]
 #[inline]
 pub fn __telemetry_macro_passthrough(service: &str, reason: &str) {
+    use crate::i18n::messages::{MSG_LOG_MACRO_PASSTHROUGH, t};
     tracing::debug!(
         target = "oxcache::macro",
         service,
         reason,
-        "cache passthrough"
+        "{}",
+        t(MSG_LOG_MACRO_PASSTHROUGH, &[])
     );
 }
 

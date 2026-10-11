@@ -31,7 +31,7 @@ async fn pubsub_roundtrip_delivers_and_reports_receiver_count() {
     let Some((_container, url)) = setup().await else {
         return;
     };
-    let ps = RedisPubSub::new(&url).await.expect("构造 RedisPubSub");
+    let ps = RedisPubSub::new(&url).await.expect("construct RedisPubSub");
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     ps.subscribe(
@@ -41,22 +41,22 @@ async fn pubsub_roundtrip_delivers_and_reports_receiver_count() {
         }),
     )
     .await
-    .expect("subscribe 应成功");
+    .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let receivers = ps
         .publish("oxcache:it:pubsub:roundtrip", "hello-pubsub")
         .await
-        .expect("publish 应成功");
-    assert!(receivers >= 1, "至少 1 个订阅者，got {receivers}");
+        .expect("publish should succeed");
+    assert!(receivers >= 1, "at least 1 subscriber, got {receivers}");
 
     let received = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     assert_eq!(
         received.ok().flatten().as_deref(),
         Some("hello-pubsub"),
-        "订阅端应收到发布的消息"
+        "the subscriber should receive the published message"
     );
-    assert_eq!(ps.shutdown(), 1, "应回收 1 个订阅任务");
+    assert_eq!(ps.shutdown(), 1, "1 subscription task should be reclaimed");
 }
 
 /// handler panic 被隔离：panic 后续消息仍投递、订阅不中断。
@@ -65,7 +65,7 @@ async fn pubsub_handler_panic_is_isolated_and_delivery_resumes() {
     let Some((_container, url)) = setup().await else {
         return;
     };
-    let ps = RedisPubSub::new(&url).await.expect("构造 RedisPubSub");
+    let ps = RedisPubSub::new(&url).await.expect("construct RedisPubSub");
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let counter = Arc::new(AtomicUsize::new(0));
@@ -81,12 +81,12 @@ async fn pubsub_handler_panic_is_isolated_and_delivery_resumes() {
         }),
     )
     .await
-    .expect("subscribe 应成功");
+    .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     ps.publish("oxcache:it:pubsub:panic", "panic-trigger")
         .await
-        .expect("publish 应成功");
+        .expect("publish should succeed");
 
     // 重连窗口内发布的消息会丢失：循环重发钉住「panic 后订阅仍存活」语义
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
@@ -94,25 +94,27 @@ async fn pubsub_handler_panic_is_isolated_and_delivery_resumes() {
     while std::time::Instant::now() < deadline {
         ps.publish("oxcache:it:pubsub:panic", "after-panic")
             .await
-            .expect("publish 应成功");
+            .expect("publish should succeed");
         match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
             Ok(Some(msg)) => {
                 received = Some(msg);
                 break;
             }
             // 通道关闭 = 订阅任务提前退出，与静默超时是两种失败，须区分
-            Ok(None) => panic!("订阅任务提前退出（通道关闭），panic 隔离失效"),
+            Ok(None) => panic!(
+                "the subscription task exited early (channel closed); panic isolation failed"
+            ),
             Err(_) => {}
         }
     }
     assert_eq!(
         received.as_deref(),
         Some("after-panic"),
-        "panic 后续消息应继续投递"
+        "messages after the panic should still be delivered"
     );
     assert!(
         counter.load(Ordering::SeqCst) >= 2,
-        "panic 前后的消息都应到达 handler"
+        "messages before and after the panic should both reach the handler"
     );
     ps.shutdown();
 }
@@ -123,7 +125,7 @@ async fn pubsub_shutdown_stops_message_delivery() {
     let Some((_container, url)) = setup().await else {
         return;
     };
-    let ps = RedisPubSub::new(&url).await.expect("构造 RedisPubSub");
+    let ps = RedisPubSub::new(&url).await.expect("construct RedisPubSub");
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     ps.subscribe(
@@ -133,19 +135,19 @@ async fn pubsub_shutdown_stops_message_delivery() {
         }),
     )
     .await
-    .expect("subscribe 应成功");
+    .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    assert_eq!(ps.shutdown(), 1, "应停止 1 个订阅任务");
+    assert_eq!(ps.shutdown(), 1, "1 subscription task should be stopped");
     ps.publish("oxcache:it:pubsub:shutdown", "after-shutdown")
         .await
-        .expect("publish 应成功");
+        .expect("publish should succeed");
 
     // Ok(None)（通道关闭）与 Err(Elapsed)（超时无消息）都是"无泄漏"
     let leaked = tokio::time::timeout(Duration::from_millis(300), rx.recv()).await;
     assert!(
         !matches!(leaked, Ok(Some(_))),
-        "shutdown 后不应再收到消息，实际: {leaked:?}"
+        "no messages should arrive after shutdown, got {leaked:?}"
     );
 }
 
@@ -155,8 +157,12 @@ async fn pubsub_drop_stops_background_subscription() {
     let Some((_container, url)) = setup().await else {
         return;
     };
-    let subscriber = RedisPubSub::new(&url).await.expect("构造订阅端");
-    let publisher = RedisPubSub::new(&url).await.expect("构造发布端");
+    let subscriber = RedisPubSub::new(&url)
+        .await
+        .expect("construct the subscriber");
+    let publisher = RedisPubSub::new(&url)
+        .await
+        .expect("construct the publisher");
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     subscriber
@@ -167,18 +173,18 @@ async fn pubsub_drop_stops_background_subscription() {
             }),
         )
         .await
-        .expect("subscribe 应成功");
+        .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
     drop(subscriber);
 
     publisher
         .publish("oxcache:it:pubsub:drop", "after-drop")
         .await
-        .expect("publish 应成功");
+        .expect("publish should succeed");
     let leaked = tokio::time::timeout(Duration::from_millis(300), rx.recv()).await;
     assert!(
         !matches!(leaked, Ok(Some(_))),
-        "Drop 后订阅任务应被 abort，不再投递，实际: {leaked:?}"
+        "subscription tasks should be aborted after Drop and stop delivering, got {leaked:?}"
     );
 }
 
@@ -191,7 +197,7 @@ async fn pubsub_zero_reconnect_attempts_ends_subscription_on_disconnect() {
     };
     let ps = RedisPubSub::new(&url)
         .await
-        .expect("构造 RedisPubSub")
+        .expect("construct RedisPubSub")
         .with_reconnect_attempts(0);
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
@@ -202,7 +208,7 @@ async fn pubsub_zero_reconnect_attempts_ends_subscription_on_disconnect() {
         }),
     )
     .await
-    .expect("subscribe 应成功");
+    .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     kill_pubsub_connections(&url).await;
@@ -210,12 +216,12 @@ async fn pubsub_zero_reconnect_attempts_ends_subscription_on_disconnect() {
     tokio::time::sleep(Duration::from_millis(300)).await;
     ps.publish("oxcache:it:pubsub:no-reconnect", "after-kill")
         .await
-        .expect("publish 应成功");
+        .expect("publish should succeed");
 
     let leaked = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
     assert!(
         !matches!(leaked, Ok(Some(_))),
-        "一次性订阅在断连后不应再投递，实际: {leaked:?}"
+        "one-shot subscriptions should not deliver again after a disconnect, got {leaked:?}"
     );
 }
 
@@ -227,7 +233,7 @@ async fn pubsub_reconnects_and_resubscribes_after_disconnect() {
     };
     let ps = RedisPubSub::new(&url)
         .await
-        .expect("构造 RedisPubSub")
+        .expect("construct RedisPubSub")
         .with_reconnect_attempts(5);
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
@@ -238,7 +244,7 @@ async fn pubsub_reconnects_and_resubscribes_after_disconnect() {
         }),
     )
     .await
-    .expect("subscribe 应成功");
+    .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     kill_pubsub_connections(&url).await;
@@ -248,20 +254,20 @@ async fn pubsub_reconnects_and_resubscribes_after_disconnect() {
     while std::time::Instant::now() < deadline {
         ps.publish("oxcache:it:pubsub:reconnect", "after-reconnect")
             .await
-            .expect("publish 应成功");
+            .expect("publish should succeed");
         match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
             Ok(Some(msg)) => {
                 received = Some(msg);
                 break;
             }
-            Ok(None) => panic!("订阅任务提前退出（通道关闭）"),
+            Ok(None) => panic!("the subscription task exited early (channel closed)"),
             Err(_) => {}
         }
     }
     assert_eq!(
         received.as_deref(),
         Some("after-reconnect"),
-        "重连后应恢复投递"
+        "delivery should resume after reconnect"
     );
     ps.shutdown();
 }
@@ -280,7 +286,10 @@ async fn kill_pubsub_connections(url: &str) {
         .query_async(&mut conn)
         .await
         .expect("CLIENT KILL TYPE pubsub");
-    assert!(killed >= 1, "应至少切断 1 条订阅连接，got {killed}");
+    assert!(
+        killed >= 1,
+        "at least 1 subscription connection should be killed, got {killed}"
+    );
 }
 
 /// 失效总线协议层：Redis 传输的 publish/subscribe 端到端投递与连接串回读。
@@ -291,23 +300,23 @@ async fn redis_transport_publishes_and_subscribes() {
     };
     let transport = RedisPubSubTransport::new(&url)
         .await
-        .expect("构造 Redis 传输层");
+        .expect("construct the Redis transport layer");
     assert_eq!(transport.connection_string(), url);
 
     let mut rx = transport
         .subscribe("oxcache:it:transport")
         .await
-        .expect("subscribe 应成功");
+        .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
     transport
         .publish("oxcache:it:transport", "payload")
         .await
-        .expect("publish 应成功");
+        .expect("publish should succeed");
 
     let received = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     assert_eq!(
         received.ok().flatten().as_deref(),
         Some("payload"),
-        "协议层应投递原始载荷"
+        "the protocol layer should deliver the raw payload"
     );
 }

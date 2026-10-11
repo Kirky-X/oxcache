@@ -142,7 +142,7 @@ mod tests {
 
     /// Test set_many and get_many
     #[tokio::test]
-    async fn test_cache批量_operations() -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_cache_batch_operations() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
         let users = [

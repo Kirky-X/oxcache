@@ -27,23 +27,23 @@ struct User {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
-        "=== 数据库集成使用示例 ===
+        "=== Database integration usage example ===
 "
     );
 
-    println!("1. 创建缓存实例");
+    println!("1. Creating a cache instance");
     let cache: Cache<String, User> = Cache::builder().build().await?;
-    println!("   ✓ 内存缓存创建成功");
+    println!("   ✓ in-memory cache created");
     println!();
 
-    println!("2. 连接字符串示例");
-    println!("   oxcache 支持通过连接字符串创建 Redis 缓存:");
-    println!("   Cache::redis(\"redis://127.0.0.1:6379\")  — 单机模式");
-    println!("   Cache::redis(\"redis://host1:6379,host2:6379\")  — 集群模式");
-    println!("   详细示例请参考 example_redis_modes");
+    println!("2. Connection string examples");
+    println!("  oxcache can create a Redis cache from a connection string:");
+    println!("   Cache::redis(\"redis://127.0.0.1:6379\")  - standalone mode");
+    println!("   Cache::redis(\"redis://host1:6379,host2:6379\")  - cluster mode");
+    println!("  see the example_redis_modes example for more");
     println!();
 
-    println!("3. 模拟数据库加载器");
+    println!("3. Simulating a database loader");
 
     // 创建一个模拟的数据库加载器
     struct MockDbLoader;
@@ -76,10 +76,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let db_loader = MockDbLoader;
-    println!("   ✓ 模拟数据库加载器创建成功");
+    println!("   ✓ simulated database loader created");
     println!();
 
-    println!("4. 缓存旁路模式实现");
+    println!("4. Implementing the cache-aside pattern");
 
     async fn get_user_with_cache_bypass(
         cache: &Cache<String, User>,
@@ -87,64 +87,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         key: &str,
     ) -> Result<Option<User>, Box<dyn std::error::Error>> {
         // 首先尝试从缓存获取
-        println!("   尝试从缓存获取 '{}'", key);
+        println!("  trying to read '{}' from the cache", key);
         if let Some(user) = cache.get(&key.to_string()).await? {
-            println!("   ✓ 缓存命中: {:?}", user.name);
+            println!("   ✓ cache hit: {:?}", user.name);
             return Ok(Some(user));
         }
 
-        println!("   × 缓存未命中，查询数据库");
+        println!("   × cache miss, querying the database");
 
         // 缓存未命中，从数据库加载
         match db_loader.load_user_from_db(key).await {
             Ok(Some(user)) => {
-                println!("   ✓ 数据库查询成功: {:?}", user.name);
+                println!("   ✓ database query succeeded: {:?}", user.name);
 
                 // 将结果存入缓存
                 cache.set(&key.to_string(), &user).await?;
-                println!("   ✓ 结果已缓存");
+                println!("   ✓ result cached");
 
                 Ok(Some(user))
             }
             Ok(None) => {
-                println!("   × 数据库中未找到用户");
+                println!("   × user not found in the database");
                 Ok(None)
             }
             Err(e) => {
-                eprintln!("   × 数据库查询错误: {}", e);
+                eprintln!("   × database query error: {}", e);
                 Err(e.into())
             }
         }
     }
 
-    println!("5. 测试缓存旁路模式");
+    println!("5. Testing the cache-aside pattern");
 
     // 首次查询（未缓存）
-    println!("   首次查询 'user:1':");
+    println!("  first query for 'user:1':");
     let user1 = get_user_with_cache_bypass(&cache, &db_loader, "user:1").await?;
     if let Some(user) = user1 {
-        println!("   结果: {:?}", user);
+        println!("  result: {:?}", user);
     }
     println!();
 
     // 第二次查询（缓存命中）
-    println!("   第二次查询 'user:1':");
+    println!("  second query for 'user:1':");
     let user1_cached = get_user_with_cache_bypass(&cache, &db_loader, "user:1").await?;
     if let Some(user) = user1_cached {
-        println!("   结果: {:?}", user);
+        println!("  result: {:?}", user);
     }
     println!();
 
     // 查询不存在的用户
-    println!("   查询不存在的用户 'user:999':");
+    println!("  querying the nonexistent user 'user:999':");
     let user_missing = get_user_with_cache_bypass(&cache, &db_loader, "user:999").await?;
     match user_missing {
-        Some(user) => println!("   意外：找到了用户 {:?}", user),
-        None => println!("   ✓ 正确返回：用户不存在"),
+        Some(user) => println!("  unexpected: found the user {:?}", user),
+        None => println!("   ✓ correct: the user does not exist"),
     }
     println!();
 
-    println!("6. 批量加载示例");
+    println!("6. Batch loading example");
 
     async fn batch_load_users_with_cache(
         cache: &Cache<String, User>,
@@ -154,11 +154,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut results = Vec::new();
 
         for user_id in user_ids {
-            println!("   处理用户 '{}':", user_id);
+            println!("  processing user '{}':", user_id);
 
             // 尝试从缓存获取
             if let Some(user) = cache.get(&user_id.to_string()).await? {
-                println!("     ✓ 缓存命中");
+                println!("     ✓ cache hit");
                 results.push(Some(user));
                 continue;
             }
@@ -166,20 +166,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 缓存未命中，从数据库加载
             match db_loader.load_user_from_db(user_id).await {
                 Ok(Some(user)) => {
-                    println!("     ✓ 数据库加载成功");
+                    println!("     ✓ database load succeeded");
 
                     // 存入缓存
                     cache.set(&user_id.to_string(), &user).await?;
-                    println!("     ✓ 已缓存");
+                    println!("     ✓ cached");
 
                     results.push(Some(user));
                 }
                 Ok(None) => {
-                    println!("     × 数据库中不存在");
+                    println!("     × absent from the database");
                     results.push(None);
                 }
                 Err(e) => {
-                    eprintln!("     × 加载错误: {}", e);
+                    eprintln!("     × load error: {}", e);
                     results.push(None);
                 }
             }
@@ -191,16 +191,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_ids = vec!["user:1", "user:2", "user:3", "user:4"];
     let batch_results = batch_load_users_with_cache(&cache, &db_loader, &user_ids).await?;
 
-    println!("   批量加载结果:");
+    println!("  batch load results:");
     for (i, result) in batch_results.iter().enumerate() {
         match result {
             Some(user) => println!("     {}: {}", user_ids[i], user.name),
-            None => println!("     {}: 未找到", user_ids[i]),
+            None => println!("     {}: not found", user_ids[i]),
         }
     }
     println!();
 
-    println!("7. 缓存更新和失效");
+    println!("7. Cache updates and invalidation");
 
     // 模拟用户信息更新
     let updated_user = User {
@@ -209,51 +209,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         email: "alice.updated@example.com".to_string(),
     };
 
-    println!("   更新用户信息到缓存...");
+    println!("  updating the user record in the cache...");
     cache.set(&"user:1".to_string(), &updated_user).await?;
-    println!("   ✓ 用户信息已更新");
+    println!("   ✓ user record updated");
 
     // 验证更新
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
-        println!("   验证更新结果: {:?}", cached_user.name);
+        println!("  verifying the update: {:?}", cached_user.name);
     }
     println!();
 
-    println!("8. 缓存失效示例");
+    println!("8. Cache invalidation example");
 
-    println!("   使 'user:2' 缓存失效...");
+    println!("  invalidating the cache for 'user:2'...");
     cache.delete(&"user:2".to_string()).await?;
-    println!("   ✓ 缓存已失效");
+    println!("   ✓ cache invalidated");
 
     // 验证失效 - 应该重新从数据库加载
-    println!("   验证缓存失效...");
+    println!("  verifying invalidation...");
     let user2_after_invalidation = get_user_with_cache_bypass(&cache, &db_loader, "user:2").await?;
     if let Some(user) = user2_after_invalidation {
-        println!("   重新加载成功: {:?}", user.name);
+        println!("  reload succeeded: {:?}", user.name);
     }
     println!();
 
-    println!("9. 缓存统计信息");
+    println!("9. Cache statistics");
     match cache.stats().await {
         Ok(stats) => {
             println!(
-                "   缓存类型: {}",
+                "  cache type: {}",
                 stats.get("type").unwrap_or(&"N/A".to_string())
             );
             println!(
-                "   条目数: {}",
+                "  entries: {}",
                 stats.get("entry_count").unwrap_or(&"N/A".to_string())
             );
             println!(
-                "   容量: {}",
+                "  capacity: {}",
                 stats.get("capacity").unwrap_or(&"N/A".to_string())
             );
         }
-        Err(e) => println!("   获取统计信息失败: {}", e),
+        Err(e) => println!("  failed to get statistics: {}", e),
     }
     println!();
 
-    println!("10. 模拟分区策略");
+    println!("10. Simulating a partitioning strategy");
 
     // 简单的哈希分区策略
     fn simple_partition(key: &str, num_partitions: usize) -> usize {
@@ -266,22 +266,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let partitions = 4;
     let sample_keys = vec!["user:1", "user:2", "user:3", "user:4", "user:5", "user:6"];
 
-    println!("   分区数量: {}", partitions);
-    println!("   分区分配情况:");
+    println!("  partition count: {}", partitions);
+    println!("  partition assignment:");
 
     for key in &sample_keys {
         let partition = simple_partition(key, partitions);
-        println!("     {} -> 分区 {}", key, partition);
+        println!("     {} -> partition {}", key, partition);
     }
     println!();
 
-    println!("=== 数据库集成示例完成 ===");
-    println!("   数据库集成的主要优势:");
-    println!("   - 缓存旁路：自动处理缓存未命中");
-    println!("   - 减少数据库负载：提高缓存命中率");
-    println!("   - 数据一致性：及时更新和失效");
-    println!("   - 分区策略：支持大规模数据分布");
-    println!("   - 连接管理：统一的连接字符串处理");
+    println!("=== Database integration example complete ===");
+    println!("  key benefits of database integration:");
+    println!("  - cache-aside: cache misses handled automatically");
+    println!("  - less database load: higher cache hit rates");
+    println!("  - data consistency: prompt updates and invalidation");
+    println!("  - partitioning: supports large-scale data distribution");
+    println!("  - connection management: uniform connection-string handling");
 
     Ok(())
 }

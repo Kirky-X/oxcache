@@ -28,53 +28,53 @@ struct Product {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
-        "=== 批量写入优化示例 ===
+        "=== Batch write optimization example ===
 "
     );
 
     // 创建分层缓存
     let cache: Arc<Cache<String, Product>> = Arc::new(Cache::builder().build().await?);
 
-    println!("1. 批量添加商品");
+    println!("1. Batch add products");
     let products = vec![
         Product {
             id: 1,
-            name: "笔记本电脑".to_string(),
+            name: "laptop".to_string(),
             price: 5999.99,
-            category: "电子产品".to_string(),
+            category: "electronics".to_string(),
             stock: 100,
         },
         Product {
             id: 2,
-            name: "智能手机".to_string(),
+            name: "smartphone".to_string(),
             price: 3999.99,
-            category: "电子产品".to_string(),
+            category: "electronics".to_string(),
             stock: 200,
         },
         Product {
             id: 3,
-            name: "平板电脑".to_string(),
+            name: "tablet".to_string(),
             price: 2999.99,
-            category: "电子产品".to_string(),
+            category: "electronics".to_string(),
             stock: 150,
         },
         Product {
             id: 4,
-            name: "机械键盘".to_string(),
+            name: "mechanical keyboard".to_string(),
             price: 499.99,
-            category: "外设".to_string(),
+            category: "peripherals".to_string(),
             stock: 300,
         },
         Product {
             id: 5,
-            name: "鼠标".to_string(),
+            name: "mouse".to_string(),
             price: 99.99,
-            category: "外设".to_string(),
+            category: "peripherals".to_string(),
             stock: 500,
         },
     ];
 
-    println!("   开始批量添加 {} 个商品...", products.len());
+    println!("  batch adding {} products...", products.len());
     let start = std::time::Instant::now();
 
     // 批量写入 - 使用并发提高性能
@@ -100,17 +100,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let elapsed = start.elapsed();
-    println!("   ✓ 批量添加完成，耗时: {:?}", elapsed);
+    println!("   ✓ batch add complete, took: {:?}", elapsed);
     println!();
 
-    println!("2. 批量更新价格 (模拟促销活动)");
+    println!("2. Batch update prices (simulating a promotion)");
     let updates = vec![
         (1, 5499.99), // 笔记本电脑降价
         (2, 3499.99), // 手机降价
         (3, 2499.99), // 平板降价
     ];
 
-    println!("   更新商品价格:");
+    println!("  Updating product prices:");
     for (id, new_price) in &updates {
         if let Some(mut product) = cache.get(&format!("product:{}", id)).await? {
             product.price = *new_price;
@@ -122,26 +122,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .await?;
             println!(
-                "     产品 {}: {} 新价格: ¥{:.2}",
+                "     product {}: {} new price: ¥{:.2}",
                 id, product.name, product.price
             );
         }
     }
     println!();
 
-    println!("3. 批量读取验证");
-    println!("   读取所有商品信息:");
+    println!("3. Batch read verification");
+    println!("  Reading all product info:");
     for product in &products {
         if let Some(p) = cache.get(&format!("product:{}", product.id)).await? {
             println!(
-                "     [{}] {} - ¥{:.2} (库存: {})",
+                "     [{}] {} - ¥{:.2} (stock: {})",
                 p.id, p.name, p.price, p.stock
             );
         }
     }
     println!();
 
-    println!("4. 使用 set_many / get_many / delete_many");
+    println!("4. Using set_many / get_many / delete_many");
 
     // 批量写入
     let new_products: Vec<(String, Product)> = (10..15)
@@ -150,9 +150,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("product:{}", i),
                 Product {
                     id: i,
-                    name: format!("商品{}", i),
+                    name: format!("product {}", i),
                     price: (i as f64) * 10.0,
-                    category: "批量".to_string(),
+                    category: "batch".to_string(),
                     stock: 50,
                 },
             )
@@ -160,13 +160,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
     let items: Vec<(&String, &Product)> = new_products.iter().map(|(k, v)| (k, v)).collect();
     cache.set_many(items).await?;
-    println!("   ✓ set_many 写入 {} 条", new_products.len());
+    println!("   ✓ set_many wrote {} entries", new_products.len());
 
     // 批量读取
     let keys: Vec<String> = (10..15).map(|i| format!("product:{}", i)).collect();
     let key_refs: Vec<&String> = keys.iter().collect();
     let fetched = cache.get_many(key_refs).await?;
-    println!("   ✓ get_many 读取 {} 条", fetched.len());
+    println!("   ✓ get_many read {} entries", fetched.len());
     for (key, product) in &fetched {
         println!("     {} -> {} (¥{:.2})", key, product.name, product.price);
     }
@@ -175,42 +175,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let del_keys: Vec<String> = (10..13).map(|i| format!("product:{}", i)).collect();
     let del_refs: Vec<&String> = del_keys.iter().collect();
     cache.delete_many(del_refs).await?;
-    println!("   ✓ delete_many 删除 {} 条", del_keys.len());
+    println!("   ✓ delete_many deleted {} entries", del_keys.len());
 
     // 验证删除后剩余
     let remaining = cache.get_many(keys.iter().collect::<Vec<_>>()).await?;
-    println!("   删除后剩余 {} 条", remaining.len());
+    println!("  {} entries remain after delete", remaining.len());
     println!();
 
-    println!("5. 批量删除 (模拟下架商品)");
+    println!("5. Batch delete (simulating delisted products)");
     let out_of_stock_ids = vec![6, 7, 8]; // 假设这些商品已下架
 
-    println!("   下架商品 ID: {:?}", out_of_stock_ids);
+    println!("  Delisted product IDs: {:?}", out_of_stock_ids);
     for id in &out_of_stock_ids {
         // 删除不存在的 key 不会报错
         cache.delete(&format!("product:{}", id)).await?;
     }
     println!(
-        "   ✓ 商品下架完成
+        "   ✓ products delisted
 "
     );
 
-    println!("6. 缓存统计");
+    println!("6. Cache statistics");
     let stats = cache.stats().await?;
     println!(
-        "   - 缓存类型: {}",
+        "  - cache type: {}",
         stats.get("type").unwrap_or(&"N/A".to_string())
     );
     println!(
-        "   - 容量: {}",
+        "  - capacity: {}",
         stats.get("capacity").unwrap_or(&"N/A".to_string())
     );
     println!(
-        "   - 条目数: {}",
+        "  - entries: {}",
         stats.get("entry_count").unwrap_or(&"N/A".to_string())
     );
     println!();
 
-    println!("=== 批量写入优化示例完成 ===");
+    println!("=== Batch write optimization example complete ===");
     Ok(())
 }

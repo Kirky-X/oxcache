@@ -61,7 +61,10 @@ mod tests {
         // 不同 key 可能不同分片
         let c = get_or_shard_index("other-key");
         let d = get_or_shard_index("another-key");
-        assert_ne!(c, d, "不同 key 应路由到不同分片（本例期望）");
+        assert_ne!(
+            c, d,
+            "different keys should route to different shards (expected in this example)"
+        );
     }
 
     #[tokio::test]
@@ -414,7 +417,7 @@ mod tests {
         // 借用查询不应显著劣化（允许测量抖动）
         assert!(
             borrowed_total <= owned_total.saturating_mul(3),
-            "borrowed 路径不应慢于 owned 3 倍以上: {owned_us}us vs {borrowed_us}us"
+            "the borrowed path should not be 3x slower than owned: {owned_us}us vs {borrowed_us}us"
         );
     }
 
@@ -1035,7 +1038,7 @@ mod sentinel_race_tests {
         assert_eq!(
             got,
             Some("real-value".to_string()),
-            "真实值不得被 exists 判定误判为空值哨兵"
+            "a real value must not be mistaken for the empty-value sentinel by exists"
         );
     }
 }
@@ -1067,12 +1070,12 @@ mod jitter_tests {
             .collect();
         assert!(
             samples.iter().all(|&s| s >= low && s <= high),
-            "采样必须落在 ±factor 区间内 [{low}, {high}]"
+            "samples must fall within the +/-factor interval [{low}, {high}]"
         );
         samples.sort_unstable();
         assert!(
             samples[0] < samples[5_000] && samples[5_000] < samples[9_999],
-            "分布非退化：min < median < max，实际 {} / {} / {}",
+            "the distribution must be non-degenerate: min < median < max, got {} / {} / {}",
             samples[0],
             samples[5_000],
             samples[9_999]
@@ -1113,11 +1116,11 @@ mod get_or_with_ttl_tests {
             .ttl(&"ttl-or".to_string())
             .await
             .unwrap()
-            .expect("ttl 应存在");
+            .expect("the ttl should exist");
         // 默认抖动 ±10%：60s → [54s, 66s)
         assert!(
             ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
-            "ttl {ttl:?} 应在抖动区间 [54s, 66s)"
+            "the ttl {ttl:?} should be in the jitter band [54s, 66s)"
         );
 
         // 旧 get_or 语义不变：无 TTL
@@ -1129,7 +1132,7 @@ mod get_or_with_ttl_tests {
         assert_eq!(
             cache2.ttl(&"no-ttl-or".to_string()).await.unwrap(),
             None,
-            "get_or 旧路径必须保持无 TTL 语义"
+            "the legacy get_or path must keep its no-TTL semantics"
         );
     }
 
@@ -1153,10 +1156,10 @@ mod get_or_with_ttl_tests {
             .ttl(&"sentinel-ttl".to_string())
             .await
             .unwrap()
-            .expect("哨兵应存在");
+            .expect("the sentinel should exist");
         assert!(
             ttl >= Duration::from_secs(27) && ttl < Duration::from_secs(33),
-            "哨兵 ttl {ttl:?} 应在抖动区间 [27s, 33s)"
+            "the sentinel ttl {ttl:?} should be in the jitter band [27s, 33s)"
         );
 
         // 第二次调用命中哨兵直接返回 None（不执行 fallback）
@@ -1192,11 +1195,11 @@ mod get_or_with_ttl_tests {
         let ttl = cache
             .ttl_sync(&"ttl-sync".to_string())
             .unwrap()
-            .expect("ttl 应存在");
+            .expect("the ttl should exist");
         // 默认抖动 ±10%：60s → [54s, 66s)
         assert!(
             ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
-            "ttl {ttl:?} 应在抖动区间 [54s, 66s)"
+            "the ttl {ttl:?} should be in the jitter band [54s, 66s)"
         );
     }
 }
@@ -1221,7 +1224,7 @@ mod default_jitter_tests {
         let ttl = cache.ttl(&"dj-on".to_string()).await.unwrap().unwrap();
         assert!(
             ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
-            "默认抖动应使 ttl ∈ [54s, 66s)，实际 {ttl:?}"
+            "the default jitter should keep the ttl in [54s, 66s), got {ttl:?}"
         );
 
         // 显式关闭：60s → (58s, 60s]
@@ -1237,7 +1240,7 @@ mod default_jitter_tests {
         let ttl2 = cache2.ttl(&"dj-off".to_string()).await.unwrap().unwrap();
         assert!(
             ttl2 > Duration::from_secs(58),
-            "关闭抖动后 ttl 应 ≈ 60s，实际 {ttl2:?}"
+            "with jitter off the ttl should be ~60s, got {ttl2:?}"
         );
     }
 }

@@ -316,22 +316,29 @@ mod tests {
 
         bw.enqueue(Arc::from("full-k1"), Arc::new(b"v1".to_vec()), None)
             .await
-            .expect("第 1 条应入队");
+            .expect("the first entry should enqueue");
         bw.enqueue(Arc::from("full-k2"), Arc::new(b"v2".to_vec()), None)
             .await
-            .expect("第 2 条应入队");
+            .expect("the second entry should enqueue");
 
         let err = bw
             .enqueue(Arc::from("full-k3"), Arc::new(b"v3".to_vec()), None)
             .await
-            .expect_err("缓冲打满应拒绝入队");
+            .expect_err("a full buffer should reject enqueue");
         assert!(
             matches!(err, OxCacheError::BufferFull(_)),
-            "应为 BufferFull，实际: {err:?}"
+            "should be BufferFull, got {err:?}"
         );
         assert_eq!(err.code(), "OXCACHE_019");
-        assert!(err.is_recoverable(), "BufferFull 应是可恢复错误");
-        assert_eq!(bw.pending().await, 2, "被拒绝的条目不应入缓冲");
+        assert!(
+            err.is_recoverable(),
+            "BufferFull should be a recoverable error"
+        );
+        assert_eq!(
+            bw.pending().await,
+            2,
+            "rejected entries must not enter the buffer"
+        );
 
         // 可恢复路径：flush 腾出空间后恢复写入
         bw.flush().await.expect("flush");
@@ -341,6 +348,6 @@ mod tests {
         );
         bw.enqueue(Arc::from("full-k4"), Arc::new(b"v4".to_vec()), None)
             .await
-            .expect("flush 后应恢复入队");
+            .expect("enqueue should resume after flush");
     }
 }

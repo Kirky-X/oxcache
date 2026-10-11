@@ -31,7 +31,10 @@ async fn build_without_config_fails_explicitly() {
     kit.register::<OxcacheModule>().expect("register");
     // 未 set_config：AsyncKit::build 阶段模块构建显性失败
     let result = kit.build().await;
-    assert!(result.is_err(), "缺 config 的模块构建必须显性失败");
+    assert!(
+        result.is_err(),
+        "building a module without config must fail explicitly"
+    );
 }
 
 #[tokio::test]
@@ -66,7 +69,7 @@ async fn build_redis_without_redis_config_fails() {
     let result = kit.build().await;
     let err = match result {
         Err(e) => e,
-        Ok(_) => panic!("backend=Redis 缺 redis config 必须显性失败"),
+        Ok(_) => panic!("backend=Redis without redis config must fail explicitly"),
     };
     assert!(err.to_string().contains("redis"));
 }
@@ -90,7 +93,7 @@ async fn build_redis_with_unreachable_target_applies_full_config() {
     kit.register::<OxcacheModule>().expect("register");
     // apply_redis_config 全 setter 生效后连接不可达 → Connection 错误透传
     let result = kit.build().await;
-    assert!(result.is_err(), "不可达 Redis 必须构建失败");
+    assert!(result.is_err(), "an unreachable Redis must fail the build");
 }
 
 #[tokio::test]
@@ -104,7 +107,7 @@ async fn build_chain_default_mode_requires_redis_config() {
     let result = kit.build().await;
     let err = match result {
         Err(e) => e,
-        Ok(_) => panic!("backend=Chain 默认模式缺 redis config 必须显性失败"),
+        Ok(_) => panic!("backend=Chain in default mode without redis config must fail explicitly"),
     };
     assert!(err.to_string().contains("redis"));
 }
@@ -149,7 +152,7 @@ async fn chain_link_redis_without_config_fails() {
     let result = kit.build().await;
     let err = match result {
         Err(e) => e,
-        Ok(_) => panic!("chain link backend=Redis 缺 redis config 必须显性失败"),
+        Ok(_) => panic!("chain link backend=Redis without redis config must fail explicitly"),
     };
     assert!(err.to_string().contains("redis"));
 }
@@ -173,7 +176,7 @@ async fn chain_link_nested_chain_rejected() {
     let result = kit.build().await;
     let err = match result {
         Err(e) => e,
-        Ok(_) => panic!("chain 内嵌套 chain 必须显性失败"),
+        Ok(_) => panic!("a nested chain inside a chain must fail explicitly"),
     };
     assert!(err.to_string().contains("nested"));
 }

@@ -69,7 +69,7 @@ async fn registry_builtin_factories_and_unknown_kind() {
     let refused = registry.build(&spec).await;
     let err = match refused {
         Err(e) => e,
-        Ok(_) => panic!("未知 backend kind 必须显性报错"),
+        Ok(_) => panic!("an unknown backend kind must error explicitly"),
     };
     assert!(err.to_string().contains("unknown backend kind"));
     assert!(err.to_string().contains("moka"));
@@ -217,7 +217,10 @@ async fn compression_threshold_and_full_delegation() {
         .await
         .unwrap()
         .unwrap();
-    assert!(stored.len() < big.len(), "压缩后体积必须更小");
+    assert!(
+        stored.len() < big.len(),
+        "the compressed size must be smaller"
+    );
 
     // 阈值访问器
     assert_eq!(compressed.threshold(), 64);
@@ -499,7 +502,7 @@ async fn moka_incr_with_non_numeric_value_fails_explicitly() {
         .unwrap_err();
     assert!(
         err.to_string().contains("incr"),
-        "incr 对非数字值必须显性报错，实际: {err}"
+        "incr on a non-numeric value must error explicitly, got {err}"
     );
 }
 

@@ -31,7 +31,7 @@ fn sentinel_discovery_answers_three_shapes() {
     assert_eq!(
         str_reply(&reply),
         "*2\r\n$9\r\n127.0.0.1\r\n$5\r\n26390\r\n",
-        "mymaster 应回 [host, port] 数组"
+        "mymaster should return a [host, port] array"
     );
 
     let argv: Vec<Vec<u8>> = ["SENTINEL", "get-master-addr-by-name", "ghost"]
@@ -49,7 +49,7 @@ fn sentinel_discovery_answers_three_shapes() {
         .collect();
     assert!(
         str_reply(&execute(&argv, &st, &scripts, Some(addr))).starts_with("-ERR"),
-        "未知子命令应回错"
+        "an unknown subcommand should return an error"
     );
 }
 

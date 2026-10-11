@@ -13,7 +13,7 @@ async fn test_comprehensive_cache_api() {
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     // 测试基本操作
-    println!("1. 测试基本SET/GET操作");
+    println!("1. Testing basic SET/GET operations");
     for i in 0..10 {
         let key = format!("comprehensive_key_{}", i);
         let value = format!("comprehensive_value_{}", i);
@@ -21,7 +21,7 @@ async fn test_comprehensive_cache_api() {
         assert!(result.is_ok(), "SET should succeed for key {}", i);
     }
 
-    println!("2. 验证所有数据");
+    println!("2. Verifying all data");
     for i in 0..10 {
         let key = format!("comprehensive_key_{}", i);
         let result = cache.get(&key).await;
@@ -33,14 +33,14 @@ async fn test_comprehensive_cache_api() {
         );
     }
 
-    println!("3. 测试批量删除");
+    println!("3. Testing batch delete");
     for i in 0..5 {
         let key = format!("comprehensive_key_{}", i);
         let result = cache.delete(&key).await;
         assert!(result.is_ok(), "DELETE should succeed for key {}", i);
     }
 
-    println!("4. 验证删除结果");
+    println!("4. Verifying the deletion result");
     for i in 0..5 {
         let key = format!("comprehensive_key_{}", i);
         let result = cache.get(&key).await;
@@ -51,10 +51,10 @@ async fn test_comprehensive_cache_api() {
         );
     }
 
-    println!("5. 清理所有数据");
+    println!("5. Cleaning up all data");
     cache.clear().await.unwrap();
 
-    println!("综合测试完成");
+    println!("Comprehensive test complete");
 }
 
 /// 测试不同类型的Cache

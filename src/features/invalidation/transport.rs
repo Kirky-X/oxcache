@@ -257,7 +257,11 @@ mod tests {
 
         drop(rx);
         transport.publish("ch", "after-drop").await.unwrap();
-        assert_eq!(transport.subscriber_count("ch"), 0, "死 sender 应被剔除");
+        assert_eq!(
+            transport.subscriber_count("ch"),
+            0,
+            "dead senders should be pruned"
+        );
     }
 
     #[tokio::test]

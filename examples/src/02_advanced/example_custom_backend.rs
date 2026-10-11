@@ -117,7 +117,7 @@ impl CacheWriter for HashMapBackend {
         if data.len() >= self.capacity && !data.contains_key(key.as_ref()) {
             data.retain(|_, entry| !entry.is_expired());
             if data.len() >= self.capacity {
-                return Err(OxCacheError::BackendError("容量已满".into()));
+                return Err(OxCacheError::BackendError("capacity full".into()));
             }
         }
 
@@ -165,7 +165,7 @@ impl CacheConnector for HashMapBackend {
     async fn shutdown(&self) {
         let mut data = self.data.lock().expect("lock poisoned");
         data.clear();
-        println!("  [HashMapBackend] 已关闭，数据已清理");
+        println!("  [HashMapBackend] shut down, data cleared");
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -184,23 +184,23 @@ struct Item {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 自定义后端示例 ===\n");
+    println!("=== Custom backend example ===\n");
 
-    println!("--- 1. 创建自定义后端 ---");
+    println!("--- 1. Create a custom backend ---");
     let backend = Arc::new(HashMapBackend::new(100));
-    println!("  ✓ HashMapBackend 创建成功 (capacity=100)");
+    println!("  ✓ HashMapBackend created (capacity=100)");
 
-    println!("\n--- 2. 通过 CacheBuilder 注入 ---");
+    println!("\n--- 2. Inject it via CacheBuilder ---");
     let cache: Cache<String, Item> = Cache::builder()
         .backend_arc(backend.clone())
         .build()
         .await?;
-    println!("  ✓ Cache 使用自定义后端构建成功");
+    println!("  ✓ Cache built with the custom backend");
 
-    println!("\n--- 3. 基本 CRUD 操作 ---");
+    println!("\n--- 3. Basic CRUD operations ---");
     let item = Item {
         id: 1,
-        name: "测试项目".into(),
+        name: "test item".into(),
     };
     cache.set(&"item:1".to_string(), &item).await?;
     println!("  ✓ set item:1");
@@ -217,33 +217,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let after_delete = cache.get(&"item:1".to_string()).await?;
     println!("  ✓ get after delete = {:?}", after_delete);
 
-    println!("\n--- 4. TTL 操作 ---");
+    println!("\n--- 4. TTL operations ---");
     cache
         .set_with_ttl(
             &"temp".to_string(),
             &Item {
                 id: 2,
-                name: "临时".into(),
+                name: "temp".into(),
             },
             Some(Duration::from_secs(60)),
         )
         .await?;
     let remaining = cache.ttl(&"temp".to_string()).await?;
-    println!("  ✓ set_with_ttl 60s, 剩余 TTL: {:?}", remaining);
+    println!("  ✓ set_with_ttl 60s, remaining TTL: {:?}", remaining);
 
     let expired = cache
         .expire(&"temp".to_string(), Duration::from_secs(120))
         .await?;
-    println!("  ✓ expire 更新为 120s: {}", expired);
+    println!("  ✓ expire updated to 120s: {}", expired);
 
-    println!("\n--- 5. 批量操作 ---");
+    println!("\n--- 5. Batch operations ---");
     let items: Vec<(String, Item)> = (0..5)
         .map(|i| {
             (
                 format!("batch:{}", i),
                 Item {
                     id: i,
-                    name: format!("项目{}", i),
+                    name: format!("item {}", i),
                 },
             )
         })
@@ -251,24 +251,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (key, item) in &items {
         cache.set(key, item).await?;
     }
-    println!("  ✓ 批量写入 {} 条", items.len());
+    println!("  ✓ batch wrote {} entries", items.len());
 
     let count = cache.len().await?;
-    println!("  ✓ 缓存条目数: {}", count);
+    println!("  ✓ cache entries: {}", count);
 
-    println!("\n--- 6. 统计信息 ---");
+    println!("\n--- 6. Statistics ---");
     let stats = cache.stats().await?;
     for (key, value) in &stats {
         println!("  {} = {}", key, value);
     }
 
-    println!("\n--- 7. 健康检查 ---");
+    println!("\n--- 7. Health check ---");
     match cache.health_check().await {
-        Ok(()) => println!("  ✓ 后端健康"),
-        Err(e) => println!("  ✗ 健康检查失败: {}", e),
+        Ok(()) => println!("  ✓ backend healthy"),
+        Err(e) => println!("  ✗ health check failed: {}", e),
     }
 
-    println!("\n--- 8. 容量限制演示 ---");
+    println!("\n--- 8. Capacity limit demonstration ---");
     let small_backend = Arc::new(HashMapBackend::new(3));
     let small_cache: Cache<String, String> =
         Cache::builder().backend_arc(small_backend).build().await?;
@@ -278,20 +278,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .set(&format!("k{}", i), &format!("v{}", i))
             .await?;
     }
-    println!("  ✓ 写入 3 条（容量=3）");
+    println!("  ✓ wrote 3 entries (capacity=3)");
 
     match small_cache
         .set(&"k_overflow".to_string(), &"overflow".to_string())
         .await
     {
-        Ok(()) => println!("  意外：写入成功"),
-        Err(e) => println!("  ✓ 容量已满，写入失败: {}", e),
+        Ok(()) => println!("  unexpected: the write succeeded"),
+        Err(e) => println!("  ✓ capacity full, the write failed: {}", e),
     }
 
-    println!("\n--- 9. 关闭 ---");
+    println!("\n--- 9. Shutdown ---");
     cache.shutdown().await;
-    println!("  ✓ 缓存已关闭");
+    println!("  ✓ cache closed");
 
-    println!("\n✓ 自定义后端示例完成");
+    println!("\n✓ Custom backend example complete");
     Ok(())
 }

@@ -264,7 +264,7 @@ mod tests {
         }
         assert!(
             !inner_b.exists("user:1").await.unwrap(),
-            "装饰器 set 后 B 实例的旧条目应被失效"
+            "the stale entry on instance B should be invalidated after a decorator set"
         );
     }
 
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(
             decorated.backend_kind(),
             inner_a.backend_kind(),
-            "装饰器透传 backend_kind"
+            "the decorator passes backend_kind through"
         );
     }
 
@@ -378,7 +378,7 @@ mod tests {
         for _ in 0..15 {
             assert!(
                 remote.exists("user:1").await.unwrap(),
-                "默认关闭时 expire 不得广播失效(与既有行为一致)"
+                "expire must not broadcast invalidation when disabled by default (matches existing behavior)"
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -413,6 +413,6 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        panic!("开关开启后 expire 应广播失效远端条目");
+        panic!("expire should broadcast-invalidate remote entries when enabled");
     }
 }

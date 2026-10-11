@@ -45,7 +45,7 @@ pub fn services_ready(rt: &Runtime, services: &[(&str, &str)]) -> bool {
     }
     if !all_ready {
         eprintln!(
-            "[bench-skip] 依赖服务不可达: {} — 按 bench 模块文档启动服务后重跑（例如 docker run -d -p 6379:6379 redis:7-alpine）",
+            "[bench-skip] required service unreachable: {} — start it as the bench module docs describe and rerun (e.g. docker run -d -p 6379:6379 redis:7-alpine)",
             missing.join(", ")
         );
     }

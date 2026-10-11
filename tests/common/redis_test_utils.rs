@@ -67,7 +67,7 @@ pub async fn create_l2_backend_with_real_redis()
     let redis_url = get_redis_url();
     match RedisBackend::new(&redis_url).await {
         Ok(backend) => Ok(Arc::new(backend)),
-        Err(e) => Err(format!("无法创建Redis连接: {}", e)),
+        Err(e) => Err(format!("failed to create the Redis connection: {}", e)),
     }
 }
 

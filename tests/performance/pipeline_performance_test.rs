@@ -33,7 +33,7 @@ fn generate_test_data(count: usize) -> Vec<TestItem> {
 /// 测试 Pipeline SET 性能
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
+#[ignore = "performance tests need a Redis environment; run with cargo test -- --ignored"]
 async fn test_pipeline_set_performance() {
     let redis_url = get_redis_url();
     let backend = RedisBackend::new(&redis_url)
@@ -87,7 +87,7 @@ async fn test_pipeline_set_performance() {
 /// 测试 Pipeline GET 性能
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
+#[ignore = "performance tests need a Redis environment; run with cargo test -- --ignored"]
 async fn test_pipeline_get_performance() {
     let redis_url = get_redis_url();
     let backend = RedisBackend::new(&redis_url)
@@ -140,7 +140,7 @@ async fn test_pipeline_get_performance() {
 /// 测试 Pipeline DELETE 性能
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
+#[ignore = "performance tests need a Redis environment; run with cargo test -- --ignored"]
 async fn test_pipeline_delete_performance() {
     let redis_url = get_redis_url();
     let backend = RedisBackend::new(&redis_url)
@@ -197,7 +197,7 @@ async fn test_pipeline_delete_performance() {
 /// 测试大规模数据 Pipeline 性能
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
+#[ignore = "performance tests need a Redis environment; run with cargo test -- --ignored"]
 async fn test_large_scale_pipeline_performance() {
     let redis_url = get_redis_url();
     let backend = RedisBackend::new(&redis_url)
@@ -259,7 +259,7 @@ async fn test_large_scale_pipeline_performance() {
 /// 测试混合操作性能
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
-#[ignore = "性能测试需要 Redis 环境，使用 cargo test -- --ignored 运行"]
+#[ignore = "performance tests need a Redis environment; run with cargo test -- --ignored"]
 async fn test_mixed_operations_performance() {
     let redis_url = get_redis_url();
     let backend = RedisBackend::new(&redis_url)

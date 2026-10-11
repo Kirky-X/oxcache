@@ -31,7 +31,7 @@ mod tests {
             .await
             .unwrap();
         let ttl = backend.ttl("k").await.unwrap();
-        assert!(ttl.is_some(), "DashMap default_ttl 应生效");
+        assert!(ttl.is_some(), "DashMap default_ttl should take effect");
     }
 
     /// 装饰器按追加顺序由内向外包装
@@ -124,7 +124,7 @@ mod tests {
     async fn l2_builder_without_backend_is_error() {
         let err = match L2Builder::new().build().await {
             Err(e) => e,
-            Ok(_) => panic!("无后端必须报错"),
+            Ok(_) => panic!("a missing backend must error"),
         };
         assert!(matches!(err, OxCacheError::InvalidInput(_)));
     }
@@ -160,7 +160,7 @@ mod tests {
         assert_eq!(
             chain.links()[0].backend().get("user:1").await.unwrap(),
             Some(b"from-l2".to_vec()),
-            "L2 命中应回填 L1"
+            "an L2 hit should backfill L1"
         );
     }
 
@@ -168,7 +168,7 @@ mod tests {
     async fn chain_builder_requires_at_least_one_layer() {
         let err = match ChainBuilder::new().build().await {
             Err(e) => e,
-            Ok(_) => panic!("空链必须报错"),
+            Ok(_) => panic!("an empty chain must error"),
         };
         assert!(matches!(err, OxCacheError::InvalidInput(_)));
         assert!(err.to_string().contains(".l1("));

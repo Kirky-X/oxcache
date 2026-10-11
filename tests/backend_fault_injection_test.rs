@@ -122,11 +122,11 @@ async fn chain_all_backends_failed_propagates_error() {
 
     let err = CacheReader::get(&chain, "k_fail")
         .await
-        .expect_err("全后端失败必须传播错误");
+        .expect_err("all-backends failure must propagate the error");
     assert!(
         format!("{err:?}").contains("injected get failure")
             || format!("{err:?}").contains("All backends failed"),
-        "错误应可辨识，实际: {err:?}"
+        "the error should be identifiable, got {err:?}"
     );
 }
 
@@ -150,10 +150,14 @@ async fn chain_get_many_length_mismatch_never_misaligns_values() {
     let keys = vec!["a".to_string(), "b".to_string(), "c".to_string()];
     let values = CacheReader::get_many(&chain, &keys)
         .await
-        .expect("长度不符按整批失败降级（不 panic）");
-    assert_eq!(values.len(), keys.len(), "返回长度必须与请求键数一致");
+        .expect("a length mismatch degrades to a whole-batch failure (no panic)");
+    assert_eq!(
+        values.len(),
+        keys.len(),
+        "the returned length must match the number of requested keys"
+    );
     assert!(
         values.iter().all(|v| v.is_none()),
-        "长度不符时不得错位取值：全部键按 miss 降级，实际 {values:?}"
+        "on a length mismatch values must not be misaligned: all keys degrade to miss, got {values:?}"
     );
 }

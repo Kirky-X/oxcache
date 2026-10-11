@@ -263,11 +263,14 @@ mod tests {
         let registry = BackendRegistry::global();
         let err = match registry.build(&BackendSpec::new("nosuch-backend")).await {
             Err(e) => e,
-            Ok(_) => panic!("未知 kind 必须报错"),
+            Ok(_) => panic!("unknown kind must error"),
         };
         let msg = err.to_string();
         assert!(msg.contains("nosuch-backend"), "msg: {msg}");
-        assert!(msg.contains("available:"), "错误应附带可用列表: {msg}");
+        assert!(
+            msg.contains("available:"),
+            "the error should carry the available list: {msg}"
+        );
     }
 
     #[tokio::test]
@@ -317,7 +320,7 @@ mod tests {
         let registry = BackendRegistry::new();
         let err = match registry.build(&BackendSpec::new("anything")).await {
             Err(e) => e,
-            Ok(_) => panic!("空注册中心必须报错"),
+            Ok(_) => panic!("an empty registry must error"),
         };
         assert!(err.to_string().contains("available: "), "got {err}");
     }

@@ -19,11 +19,13 @@ const STATE_HALF_OPEN: u8 = 2;
 #[cfg(feature = "telemetry")]
 #[inline]
 fn trace_transition(from: &str, to: &str) {
+    use crate::i18n::messages::{MSG_LOG_CIRCUIT_BREAKER_TRANSITION, t};
     tracing::info!(
         target = "oxcache::circuit_breaker",
         from,
         to,
-        "circuit breaker state transition"
+        "{}",
+        t(MSG_LOG_CIRCUIT_BREAKER_TRANSITION, &[])
     );
 }
 

@@ -408,12 +408,15 @@ mod tests {
         let err = discovery
             .resolve_master(Duration::from_millis(300), None)
             .await
-            .expect_err("不可达 sentinel 必须返回 Err");
+            .expect_err("an unreachable sentinel must return Err");
         let msg = err.to_string();
-        assert!(msg.contains("mymaster"), "错误应点名 master: {msg}");
+        assert!(
+            msg.contains("mymaster"),
+            "the error should name the master: {msg}"
+        );
         assert!(
             msg.contains("127.0.0.1:2"),
-            "错误应携带最后一个失败原因（后一个 sentinel）: {msg}"
+            "the error should carry the last failure cause (the later sentinel): {msg}"
         );
     }
 
@@ -426,7 +429,7 @@ mod tests {
         let err = discovery
             .resolve_master(Duration::from_millis(300), None)
             .await
-            .expect_err("不可达 sentinel 必须返回 Err");
+            .expect_err("an unreachable sentinel must return Err");
         assert!(err.to_string().contains("mymaster"));
     }
 
@@ -435,11 +438,14 @@ mod tests {
     async fn connect_fails_when_master_unresolvable() {
         let discovery = SentinelDiscovery::new("redis://127.0.0.1:1", "mymaster", vec![]).unwrap();
         match SentinelConnection::connect(discovery, Duration::from_millis(300), None).await {
-            Ok(_) => panic!("发现失败不得返回连接"),
+            Ok(_) => panic!("a discovery failure must not return a connection"),
             Err(OxCacheError::Connection(msg)) => {
-                assert!(msg.contains("mymaster"), "错误应点名 master: {msg}");
+                assert!(
+                    msg.contains("mymaster"),
+                    "the error should name the master: {msg}"
+                );
             }
-            Err(other) => panic!("应返回 Connection 错误，got {other:?}"),
+            Err(other) => panic!("should return a Connection error, got {other:?}"),
         }
     }
 
@@ -452,7 +458,7 @@ mod tests {
         const PORT: u16 = 26390;
         assert!(
             crate::test_support::ensure_server(PORT),
-            "假服务器应在 {PORT} 就绪"
+            "the fake server should be ready on {PORT}"
         );
         let discovery = SentinelDiscovery::new(
             &format!("redis://127.0.0.1:{PORT}"),
@@ -465,13 +471,13 @@ mod tests {
         let url = discovery
             .resolve_master(Duration::from_secs(2), Some(3))
             .await
-            .expect("假 sentinel 应解析出 master");
+            .expect("the fake sentinel should resolve the master");
         assert_eq!(url, format!("redis://localhost:{PORT}/3"));
 
         let (conn, _client) =
             SentinelConnection::connect(discovery, Duration::from_secs(2), Some(3))
                 .await
-                .expect("应连上假 master 端点");
+                .expect("should connect to the fake master endpoint");
         assert_eq!(conn.db(), 3);
 
         let pong = conn.exec_cmd(&redis::cmd("PING")).await.unwrap();
@@ -492,7 +498,7 @@ mod tests {
         const PORT: u16 = 26391;
         assert!(
             crate::test_support::ensure_server(PORT),
-            "假服务器应在 {PORT} 就绪"
+            "the fake server should be ready on {PORT}"
         );
         let sentinel_url = format!("redis://127.0.0.1:{PORT}");
 
@@ -501,10 +507,10 @@ mod tests {
         let err = unknown
             .resolve_master(Duration::from_secs(2), None)
             .await
-            .expect_err("未知 master 必须报错");
+            .expect_err("an unknown master must error");
         assert!(
             err.to_string().contains("ghostmaster"),
-            "错误应点名 master: {err}"
+            "the error should name the master: {err}"
         );
 
         // 错误应答：sentinel 拒绝服务，同样不得伪装成功
@@ -512,11 +518,11 @@ mod tests {
         let err = failing
             .resolve_master(Duration::from_secs(2), None)
             .await
-            .expect_err("sentinel 错误应答必须报错");
+            .expect_err("a sentinel error reply must error");
         let msg = err.to_string();
         assert!(
             msg.contains("errormaster") && msg.contains(&format!("127.0.0.1:{PORT}")),
-            "错误应同时点名 master 与失败 sentinel: {msg}"
+            "the error should name both the master and the failed sentinel: {msg}"
         );
     }
 }

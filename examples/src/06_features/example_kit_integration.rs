@@ -93,7 +93,7 @@ impl CacheConnector for CountingDecorator {
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === 构建 AsyncKit + OxcacheModule ===
-    println!("=== 1. 构建 AsyncKit + OxcacheModule ===");
+    println!("=== 1. Building AsyncKit + OxcacheModule ===");
 
     let mut kit = AsyncKit::new();
     kit.set_config(OxcacheConfig {
@@ -104,11 +104,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 注册 observer：监听模块构建事件
     kit.with_observer(Arc::new(OxcacheBuildObserver));
-    println!("已注册 OxcacheBuildObserver");
+    println!("Registered OxcacheBuildObserver");
 
     // 注册 OxcacheModule
     kit.register::<OxcacheModule>()?;
-    println!("已注册 OxcacheModule");
+    println!("Registered OxcacheModule");
 
     // 注册装饰器：计数代理
     let ops_count = Arc::new(AtomicUsize::new(0));
@@ -119,14 +119,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ops: Arc::clone(&ops_clone),
         })
     });
-    println!("已注册 CountingDecorator 装饰器");
+    println!("Registered the CountingDecorator decorator");
 
     // 构建 kit
     let built = kit.build().await?;
-    println!("AsyncKit 构建完成\n");
+    println!("AsyncKit build complete\n");
 
     // === 使用缓存后端 ===
-    println!("=== 2. 使用缓存后端 ===");
+    println!("=== 2. Using the cache backend ===");
 
     let backend = built.require::<OxcacheModule>()?;
 
@@ -149,29 +149,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 不存在的 key
     let miss = backend.get("user:999").await?;
-    println!("get 'user:999' = {:?} (应为 None)", miss);
+    println!("get 'user:999' = {:?} (should be None)", miss);
 
     println!(
-        "操作计数: {} (应为 3: set + get + get)",
+        "operation count: {} (should be 3: set + get + get)",
         ops_count.load(Ordering::SeqCst)
     );
     println!();
 
     // === 三阶段关闭 ===
-    println!("=== 3. 三阶段关闭 ===");
+    println!("=== 3. Three-phase shutdown ===");
 
     let shutdown_coord = AsyncShutdownCoordinator::new();
     register_cache_shutdown(&shutdown_coord, backend)?;
-    println!("已注册三阶段关闭钩子:");
+    println!("Registered three-phase shutdown hooks:");
     println!("  - StopRequests: no-op");
-    println!("  - DrainQueue: health_check 探活");
+    println!("  - DrainQueue: health_check liveness probing");
     println!("  - CloseConnections: backend.shutdown()");
 
     let result = shutdown_coord.shutdown().await;
-    println!("关闭结果: {:?}\n", result);
+    println!("shutdown result: {:?}\n", result);
 
-    println!("=== 完成 ===");
-    println!("trait-kit 集成演示结束。observer/decorator/shutdown 三个特性均已展示。");
+    println!("=== Done ===");
+    println!(
+        "trait-kit integration demo finished. All three features (observer/decorator/shutdown) have been demonstrated."
+    );
 
     Ok(())
 }

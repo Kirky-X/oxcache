@@ -35,7 +35,7 @@ struct TestData {
 /// 不由共享栈承担故障注入），结束后容器随句柄 drop 自清。
 #[tokio::test]
 async fn test_connection_recovery_after_failure() {
-    println!("=== 连接故障恢复测试（真实停容器注入） ===");
+    println!("=== Connection failure recovery test (real container-stop injection) ===");
 
     let port = free_local_port();
     let Some((container, redis_url)) = container_or_skip(
@@ -78,14 +78,14 @@ async fn test_connection_recovery_after_failure() {
     let get_result = backend.get("recovery_key").await;
     assert!(
         get_result.is_err(),
-        "断连期间 get 应返回 Err，实际 {get_result:?}"
+        "get should return Err during the disconnect, got {get_result:?}"
     );
     let set_result = backend
         .set(Arc::from("after_stop"), Arc::new(b"x".to_vec()), None)
         .await;
     assert!(
         set_result.is_err(),
-        "断连期间 set 应返回 Err，实际 {set_result:?}"
+        "set should return Err during the disconnect, got {set_result:?}"
     );
 
     // 恢复：重启容器，同一后端连接池应自动恢复读写
@@ -97,7 +97,7 @@ async fn test_connection_recovery_after_failure() {
             Err(e) => {
                 assert!(
                     Instant::now() < deadline,
-                    "重启后 30s 内同一后端未能恢复连接: {e}"
+                    "the same backend failed to reconnect within 30s after restart: {e}"
                 );
                 tokio::time::sleep(Duration::from_millis(200)).await;
             }
@@ -116,7 +116,7 @@ async fn test_connection_recovery_after_failure() {
         Some(b"v2".to_vec())
     );
 
-    println!("✓ 连接故障恢复测试通过（真实停机 + 重启恢复）");
+    println!("✓ Connection failure recovery test passed (real stop + restart recovery)");
 }
 
 /// L1/L2 断连降级语义：L2（Redis）停机时 L1 命中不回落、L1 miss 降级为
@@ -126,7 +126,9 @@ async fn test_connection_recovery_after_failure() {
 #[cfg(feature = "memory")]
 #[tokio::test]
 async fn test_two_level_degradation_and_recovery_on_disconnect() {
-    println!("=== 双层缓存断连降级与恢复测试（真实停容器注入） ===");
+    println!(
+        "=== Two-tier cache disconnect degradation and recovery test (real container-stop injection) ==="
+    );
 
     let port = free_local_port();
     let Some((container, redis_url)) = container_or_skip(
@@ -170,32 +172,35 @@ async fn test_two_level_degradation_and_recovery_on_disconnect() {
     assert_eq!(
         chain.get("degrade:key").await.unwrap(),
         Some(b"v1".to_vec()),
-        "L1 命中的读不应因 L2 断连失败"
+        "an L1-hitting read must not fail because L2 is disconnected"
     );
 
     // L1 miss + L2 失败 → 部分明确 miss，整体降级为 Ok(None)（不整体失败）
     let ghost = chain
         .get("degrade:ghost")
         .await
-        .expect("部分后端失败时 get 不应整体失败");
-    assert_eq!(ghost, None, "L1 miss + L2 断连应降级为 miss");
+        .expect("get should not fail wholesale when some backends fail");
+    assert_eq!(
+        ghost, None,
+        "an L1 miss plus an L2 disconnect should degrade to a miss"
+    );
 
     // 写：L1 成功 + L2 失败 → 部分成功语义（Ok）
     chain
         .set("degrade:write", b"v2".to_vec(), None)
         .await
-        .expect("部分后端失败时 set 应保持成功语义");
+        .expect("set should keep success semantics when some backends fail");
     assert_eq!(
         chain.get("degrade:write").await.unwrap(),
         Some(b"v2".to_vec()),
-        "断连期间写入应保留在 L1"
+        "writes during the disconnect should remain in L1"
     );
 
     // 恢复：重启容器并就绪；恢复后写入必须落 L2
     container.start().await.expect("restart redis container");
     assert!(
         docker_wait_for_redis(&redis_url, 30).await,
-        "Redis 容器重启后未在 30s 内就绪"
+        "Redis was not ready within 30s after the container restart"
     );
     chain
         .set("degrade:recovered", b"v3".to_vec(), None)
@@ -207,24 +212,24 @@ async fn test_two_level_degradation_and_recovery_on_disconnect() {
     assert_eq!(
         chain2.get("degrade:recovered").await.unwrap(),
         Some(b"v3".to_vec()),
-        "恢复后写入应写穿 L2 并可被新实例读穿"
+        "after recovery, writes should write through L2 and be readable by new instances"
     );
     // 断连期间只落 L1 的写入不应出现在 L2（部分成功语义的边界）
     assert_eq!(
         chain2.get("degrade:write").await.unwrap(),
         None,
-        "断连期间的写入不应出现在 L2"
+        "writes during the disconnect must not appear in L2"
     );
 
-    println!("✓ 双层缓存断连降级与恢复测试通过");
+    println!("✓ Two-tier cache disconnect degradation and recovery test passed");
 }
 
 #[tokio::test]
 async fn test_timeout_handling() {
-    println!("=== 超时处理测试 ===");
+    println!("=== Timeout handling test ===");
 
     if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -242,22 +247,22 @@ async fn test_timeout_handling() {
 
     // 验证操作完成（无论成功还是超时）
     match result {
-        Ok(Ok(())) => println!("大值写入成功"),
-        Ok(Err(e)) => println!("写入错误: {}", e),
-        Err(_) => println!("操作超时"),
+        Ok(Ok(())) => println!("large value write succeeded"),
+        Ok(Err(e)) => println!("write error: {}", e),
+        Err(_) => println!("operation timed out"),
     }
 
     backend.delete("timeout_key").await.ok();
 
-    println!("✓ 超时处理测试通过");
+    println!("✓ Timeout handling test passed");
 }
 
 #[tokio::test]
 async fn test_retry_logic() {
-    println!("=== 重试逻辑测试 ===");
+    println!("=== Retry logic test ===");
 
     if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -271,22 +276,22 @@ async fn test_retry_logic() {
         match RedisBackend::new(&redis_url).await {
             Ok(b) => break b,
             Err(e) if attempts < max_attempts => {
-                println!("连接尝试 {} 失败: {}, 重试中...", attempts, e);
+                println!("connection attempt {} failed: {}, retrying...", attempts, e);
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            Err(e) => panic!("达到最大重试次数: {}", e),
+            Err(e) => panic!("reached the maximum retry count: {}", e),
         }
     };
 
     // 验证连接成功
     backend.ping().await.unwrap();
 
-    println!("✓ 重试逻辑测试通过 ({} 次尝试)", attempts);
+    println!("✓ Retry logic test passed ({} attempts)", attempts);
 }
 
 #[tokio::test]
 async fn test_graceful_degradation() {
-    println!("=== 优雅降级测试 ===");
+    println!("=== Graceful degradation test ===");
 
     let cache: Cache<String, TestData> = Cache::memory().await.unwrap();
 
@@ -307,15 +312,15 @@ async fn test_graceful_degradation() {
     assert_eq!(result.id, 999);
     assert_eq!(result.value, "fallback_value");
 
-    println!("✓ 优雅降级测试通过");
+    println!("✓ Graceful degradation test passed");
 }
 
 #[tokio::test]
 async fn test_partial_failure_handling() {
-    println!("=== 部分失败处理测试 ===");
+    println!("=== Partial failure handling test ===");
 
     if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -343,7 +348,7 @@ async fn test_partial_failure_handling() {
         }
     }
 
-    println!("成功: {}, 失败: {}", success_count, failure_count);
+    println!("success: {}, failed: {}", success_count, failure_count);
 
     // 清理
     for i in 0..100 {
@@ -351,15 +356,15 @@ async fn test_partial_failure_handling() {
         backend.delete(&key).await.ok();
     }
 
-    println!("✓ 部分失败处理测试通过");
+    println!("✓ Partial failure handling test passed");
 }
 
 #[tokio::test]
 async fn test_connection_pool_exhaustion() {
-    println!("=== 连接池耗尽测试 ===");
+    println!("=== Connection pool exhaustion test ===");
 
     if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -371,13 +376,13 @@ async fn test_connection_pool_exhaustion() {
         match RedisBackend::new(&redis_url).await {
             Ok(backend) => backends.push(backend),
             Err(e) => {
-                println!("连接 {} 创建失败: {}", i, e);
+                println!("connection {} creation failed: {}", i, e);
                 break;
             }
         }
     }
 
-    println!("创建了 {} 个连接", backends.len());
+    println!("created {} connections", backends.len());
 
     // 所有连接执行操作
     for (i, backend) in backends.iter().enumerate() {
@@ -394,15 +399,15 @@ async fn test_connection_pool_exhaustion() {
         backend.delete(&key).await.ok();
     }
 
-    println!("✓ 连接池耗尽测试通过");
+    println!("✓ Connection pool exhaustion test passed");
 }
 
 #[tokio::test]
 async fn test_network_latency_simulation() {
-    println!("=== 网络延迟模拟测试 ===");
+    println!("=== Network latency simulation test ===");
 
     if !is_redis_available().await {
-        println!("跳过测试: Redis 不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -427,16 +432,19 @@ async fn test_network_latency_simulation() {
     let elapsed = start.elapsed();
     let avg_latency = elapsed.as_millis() / 200;
 
-    println!("总耗时: {:?}, 平均延迟: {}ms", elapsed, avg_latency);
+    println!(
+        "total time: {:?}, average latency: {}ms",
+        elapsed, avg_latency
+    );
 
     backend.delete("latency_key").await.unwrap();
 
-    println!("✓ 网络延迟模拟测试通过");
+    println!("✓ Network latency simulation test passed");
 }
 
 #[tokio::test]
 async fn test_memory_cache_under_stress() {
-    println!("=== 内存缓存压力测试 ===");
+    println!("=== In-memory cache stress test ===");
 
     let cache: Cache<String, TestData> = Cache::memory().await.unwrap();
     let cache = Arc::new(Mutex::new(cache));
@@ -466,5 +474,5 @@ async fn test_memory_cache_under_stress() {
         handle.await.unwrap();
     }
 
-    println!("✓ 内存缓存压力测试通过");
+    println!("✓ In-memory cache stress test passed");
 }

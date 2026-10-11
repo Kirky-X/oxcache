@@ -440,7 +440,7 @@ mod tests {
             assert_eq!(
                 cache.get(&"k".to_string()).await.unwrap().unwrap(),
                 7,
-                "sync 写入必须经同一后端对 async 面可见"
+                "a sync write must be visible to the async face through the same backend"
             );
         });
 
@@ -523,7 +523,7 @@ mod tests {
             cache.delete(&"user:1".to_string()).await.unwrap(); // delete
 
             let events = publisher.snapshot();
-            assert_eq!(events.len(), 4, "应发布 4 条审计事件");
+            assert_eq!(events.len(), 4, "4 audit events should be published");
             assert_eq!(events[0].action, AuditAction::Miss);
             assert_eq!(events[1].action, AuditAction::Set);
             assert_eq!(events[2].action, AuditAction::Hit);
@@ -551,7 +551,10 @@ mod tests {
             let events = publisher.snapshot();
             assert_eq!(events.len(), 1);
             let key = events[0].key.as_deref().unwrap_or("");
-            assert!(key.starts_with("<sensitive>"), "敏感键应被掩码，got {key}");
+            assert!(
+                key.starts_with("<sensitive>"),
+                "the sensitive key should be masked, got {key}"
+            );
             assert!(!key.contains("hunter2"));
         }
 
@@ -619,11 +622,14 @@ mod tests {
             cache.delete(&"k".to_string()).await.unwrap();
 
             let counters = recorder.metrics().get_counters();
-            assert_eq!(counters.l1_misses, 1, "未命中应计数 1");
-            assert_eq!(counters.l1_hits, 1, "命中应计数 1");
-            assert_eq!(counters.l1_sets, 1, "写入应计数 1");
-            assert_eq!(counters.l1_deletes, 1, "删除应计数 1");
-            assert!(counters.total_operations >= 4, "总操作数应覆盖纯 L1 路径");
+            assert_eq!(counters.l1_misses, 1, "a miss should count 1");
+            assert_eq!(counters.l1_hits, 1, "a hit should count 1");
+            assert_eq!(counters.l1_sets, 1, "a write should count 1");
+            assert_eq!(counters.l1_deletes, 1, "a delete should count 1");
+            assert!(
+                counters.total_operations >= 4,
+                "the total operation count should cover the pure-L1 path"
+            );
 
             // 延迟直方图样本已记录（标准 Prometheus 命名）
             let prom = recorder.metrics().export_prometheus_standard();
@@ -664,7 +670,7 @@ mod tests {
 
             assert!(
                 GLOBAL_UNIFIED_METRICS.get_counters().evictions > 0,
-                "DashMap 容量淘汰应计入 evictions 指标"
+                "DashMap capacity evictions should count toward the evictions metric"
             );
         }
 
@@ -779,8 +785,11 @@ mod tests {
             // 原始字节应为 bincode 二进制而非 JSON 文本
             // （bincode 1.x 默认 varint 编码，整数变长）
             let raw = cache.backend.get("k").await.unwrap().unwrap();
-            assert_ne!(raw, b"12345".to_vec(), "不应存 JSON 文本");
-            assert!(raw.len() <= 8, "bincode i64 应不超过 8 字节，got {raw:?}");
+            assert_ne!(raw, b"12345".to_vec(), "no JSON text should be stored");
+            assert!(
+                raw.len() <= 8,
+                "a bincode i64 should not exceed 8 bytes, got {raw:?}"
+            );
         }
 
         #[tokio::test]
@@ -1043,7 +1052,7 @@ mod tests {
             .adaptive_ttl(config.clone())
             .build()
             .await
-            .expect("adaptive_ttl 应可装配默认 Moka 后端");
+            .expect("adaptive_ttl should assemble with the default Moka backend");
         cache.set(&"k".to_string(), &"v".to_string()).await.unwrap();
         assert_eq!(
             cache.get(&"k".to_string()).await.unwrap().as_deref(),
@@ -1057,7 +1066,7 @@ mod tests {
             .await;
         assert!(
             matches!(result, Err(OxCacheError::NotSupported(_))),
-            "adaptive_ttl + sync_mode 必须在构建期拒绝"
+            "adaptive_ttl + sync_mode must be rejected at build time"
         );
 
         #[cfg(feature = "stale")]
@@ -1069,7 +1078,7 @@ mod tests {
                 .await;
             assert!(
                 matches!(result, Err(OxCacheError::NotSupported(_))),
-                "adaptive_ttl + stale_ttl 必须在构建期拒绝"
+                "adaptive_ttl + stale_ttl must be rejected at build time"
             );
         }
     }
@@ -1110,7 +1119,7 @@ mod tests {
         ] {
             assert!(
                 actions.contains(&expected),
-                "缺少 {expected:?} 审计事件: {actions:?}"
+                "missing {expected:?} audit events: {actions:?}"
             );
         }
 
@@ -1143,7 +1152,7 @@ mod tests {
         for expected in [AuditAction::Set, AuditAction::Hit, AuditAction::Delete] {
             assert!(
                 sync_actions.contains(&expected),
-                "sync 面缺少 {expected:?} 审计事件: {sync_actions:?}"
+                "missing {expected:?} audit events on the sync face: {sync_actions:?}"
             );
         }
 
@@ -1152,7 +1161,7 @@ mod tests {
         assert_eq!(
             publisher.len(),
             actions.len(),
-            "未注入发布器的缓存不得产生审计事件"
+            "a cache without an injected publisher must not produce audit events"
         );
     }
 }

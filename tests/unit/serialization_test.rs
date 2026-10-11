@@ -76,7 +76,7 @@ fn test_json_serializer_large_payload_round_trip() {
 
     assert_eq!(
         deserialized, original_data,
-        "大对象 round-trip 数据必须逐字节一致"
+        "large-object round-trip data must be byte-identical"
     );
 }
 
@@ -92,7 +92,10 @@ fn test_json_serializer_special_keys_and_corrupt_data() {
     for name in special_keys {
         let serialized = serializer.serialize(name, payload).unwrap();
         let deserialized = serializer.deserialize(name, &serialized).unwrap();
-        assert_eq!(deserialized, payload, "type_name={name:?} round-trip 失败");
+        assert_eq!(
+            deserialized, payload,
+            "round-trip failed for type_name={name:?}"
+        );
     }
 
     // 空 payload round-trip
@@ -112,6 +115,6 @@ fn test_json_serializer_special_keys_and_corrupt_data() {
             .unwrap()
             .as_slice(),
         passthrough.as_slice(),
-        "非压缩模式须为字节直通"
+        "uncompressed mode must be a byte pass-through"
     );
 }

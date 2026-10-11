@@ -22,14 +22,14 @@ struct ConfigValue {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
-        "=== 动态配置示例 ===
+        "=== Dynamic config example ===
 "
     );
 
     // 创建配置缓存
     let cache: Cache<String, ConfigValue> = Cache::builder().build().await?;
 
-    println!("1. 初始化配置");
+    println!("1. Initializing config");
     let configs = vec![
         ConfigValue {
             key: "app.mode".to_string(),
@@ -63,23 +63,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    println!("2. 配置查询");
+    println!("2. Config queries");
     let query_keys = ["app.mode", "app.theme", "database.timeout", "cache.size"];
 
     for key in &query_keys {
         if let Some(config) = cache.get(&key.to_string()).await? {
             println!(
-                "   ✓ {} = {} (类型: {})",
+                "   ✓ {} = {} (type: {})",
                 config.key, config.value, config.config_type
             );
         } else {
-            println!("   ✗ {} 未找到", key);
+            println!("   ✗ {} not found", key);
         }
     }
     println!();
 
-    println!("3. 配置更新演示");
-    println!("   更新 app.theme...");
+    println!("3. Config update demonstration");
+    println!("  updating app.theme...");
     let updated_config = ConfigValue {
         key: "app.theme".to_string(),
         value: "light".to_string(),
@@ -87,16 +87,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         updated_at: chrono::Local::now().to_rfc3339(),
     };
     cache.set(&updated_config.key, &updated_config).await?;
-    println!("   ✓ app.theme 更新为 light");
+    println!("   ✓ app.theme updated to light");
 
     // 验证更新
     if let Some(config) = cache.get(&"app.theme".to_string()).await? {
-        println!("   ✓ 当前 app.theme = {}", config.value);
+        println!("   ✓ current app.theme = {}", config.value);
     }
     println!();
 
-    println!("4. 配置导出");
-    println!("   导出所有配置:");
+    println!("4. Config export");
+    println!("  exporting all config:");
     // 注意: Cache 结构体不支持直接迭代，需要手动跟踪已添加的键
     for config in &configs {
         println!(
@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
 
-    println!("5. 配置类型分组");
+    println!("5. Config groups by type");
     let mut app_configs = Vec::new();
     let mut db_configs = Vec::new();
 
@@ -118,24 +118,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("   应用配置 ({} 个):", app_configs.len());
+    println!("  application config ({} items):", app_configs.len());
     for config in &app_configs {
         println!("     {} = {}", config.key, config.value);
     }
-    println!("   数据库配置 ({} 个):", db_configs.len());
+    println!("  database config ({} items):", db_configs.len());
     for config in &db_configs {
         println!("     {} = {}", config.key, config.value);
     }
     println!();
 
     // 清理
-    println!("6. 清理测试数据");
+    println!("6. Cleaning up test data");
     cache.clear().await?;
     println!(
-        "   ✓ 测试数据已清理
+        "   ✓ test data cleaned up
 "
     );
 
-    println!("=== 动态配置示例完成 ===");
+    println!("=== Dynamic config example complete ===");
     Ok(())
 }

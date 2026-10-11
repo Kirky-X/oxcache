@@ -562,7 +562,10 @@ mod prefill_tests {
         let backend = BloomFilterBackend::new(inner);
         // 未预热：bloom miss 短路 → None（假阴性，连后端都不查）
         let cold = CacheReader::get(&backend, "warm-key").await.unwrap();
-        assert_eq!(cold, None, "未预热时假阴性短路应返回 None");
+        assert_eq!(
+            cold, None,
+            "the false-negative short-circuit should return None before warmup"
+        );
 
         // 回灌后：命中真实值
         let count = backend.prefill_from_backend("*").await.unwrap();
@@ -579,7 +582,7 @@ mod prefill_tests {
         let ghost = CacheReader::get(&backend, "ghost-key").await.unwrap();
         assert_eq!(
             ghost, None,
-            "假阳性应退化为后端 miss，不得 panic 或错误命中"
+            "false positives should degrade to a backend miss, never panic or a false hit"
         );
     }
 }

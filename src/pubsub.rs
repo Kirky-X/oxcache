@@ -36,6 +36,14 @@ use futures::stream::StreamExt;
 use tokio::task::JoinHandle;
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED, MSG_DETAIL_PUBSUB_CONNECT_FAILED,
+    MSG_DETAIL_PUBSUB_CONNECTION_FAILED, MSG_DETAIL_PUBSUB_PUBLISH_FAILED,
+    MSG_DETAIL_PUBSUB_SUBSCRIBE_FAILED, MSG_DETAIL_PUBSUB_SUBSCRIBE_TASK_ENDED,
+    MSG_LOG_PUBSUB_HANDLER_PANICKED, MSG_LOG_PUBSUB_MAX_RECONNECT_ATTEMPTS_REACHED,
+    MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED, MSG_LOG_PUBSUB_RECONNECT_FAILED,
+    MSG_LOG_PUBSUB_RECONNECTING, MSG_LOG_PUBSUB_RESUBSCRIBE_FAILED, t,
+};
 
 /// 断线后最大重连尝试次数（默认 5；0 = 不重连，断连即结束订阅）。
 const DEFAULT_RECONNECT_ATTEMPTS: usize = 5;
@@ -63,12 +71,21 @@ pub struct RedisPubSub {
 impl RedisPubSub {
     /// 从 Redis URL 创建发布/订阅通道。
     pub async fn new(url: &str) -> OxCacheResult<Self> {
-        let client = redis::Client::open(url)
-            .map_err(|e| OxCacheError::BackendError(format!("pubsub client open: {e}")))?;
+        let client = redis::Client::open(url).map_err(|e| {
+            OxCacheError::BackendError(t(
+                MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         // 预热发布连接：URL 无效/不可达时在构造期显性失败（fail-fast）
         let publish_conn = redis::aio::ConnectionManager::new(client.clone())
             .await
-            .map_err(|e| OxCacheError::BackendError(format!("pubsub connection: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::BackendError(t(
+                    MSG_DETAIL_PUBSUB_CONNECTION_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         Ok(Self {
             client,
             publish_conn,
@@ -92,7 +109,12 @@ impl RedisPubSub {
             .arg(message)
             .query_async::<i64>(&mut conn)
             .await
-            .map_err(|e| OxCacheError::BackendError(format!("pubsub publish: {e}")))
+            .map_err(|e| {
+                OxCacheError::BackendError(t(
+                    MSG_DETAIL_PUBSUB_PUBLISH_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })
     }
 
     /// 订阅频道（独占连接 + 后台消息循环 + 断线重连）。
@@ -115,15 +137,17 @@ impl RedisPubSub {
             let mut pubsub = match client.get_async_pubsub().await {
                 Ok(p) => p,
                 Err(e) => {
-                    let _ = ready_tx.send(Err(OxCacheError::BackendError(format!(
-                        "pubsub connect: {e}"
+                    let _ = ready_tx.send(Err(OxCacheError::BackendError(t(
+                        MSG_DETAIL_PUBSUB_CONNECT_FAILED,
+                        &[("err", e.to_string())],
                     ))));
                     return;
                 }
             };
             if let Err(e) = pubsub.subscribe(&channel).await {
-                let _ = ready_tx.send(Err(OxCacheError::BackendError(format!(
-                    "pubsub subscribe: {e}"
+                let _ = ready_tx.send(Err(OxCacheError::BackendError(t(
+                    MSG_DETAIL_PUBSUB_SUBSCRIBE_FAILED,
+                    &[("err", e.to_string())],
                 ))));
                 return;
             }
@@ -148,13 +172,18 @@ impl RedisPubSub {
                                 );
                                 if result.is_err() {
                                     tracing::warn!(
-                                        "pubsub handler panicked: channel={channel}, continue"
+                                        channel = %channel,
+                                        "{}",
+                                        t(MSG_LOG_PUBSUB_HANDLER_PANICKED, &[])
                                     );
                                 }
                             }
                             Err(e) => {
                                 tracing::warn!(
-                                    "pubsub payload parse failed: channel={channel}, err={e}"
+                                    channel = %channel,
+                                    err = %e,
+                                    "{}",
+                                    t(MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED, &[])
                                 );
                             }
                         }
@@ -163,7 +192,10 @@ impl RedisPubSub {
                 // 消息流结束 = 连接断开：按可配置次数线性退避重连并重新 SUBSCRIBE
                 if attempt >= max_attempts {
                     tracing::error!(
-                        "pubsub stream ended, max reconnect attempts ({max_attempts}) reached: channel={channel}"
+                        channel = %channel,
+                        attempts = max_attempts,
+                        "{}",
+                        t(MSG_LOG_PUBSUB_MAX_RECONNECT_ATTEMPTS_REACHED, &[])
                     );
                     return;
                 }
@@ -172,14 +204,22 @@ impl RedisPubSub {
                     (RECONNECT_BACKOFF_BASE_MS * attempt as u64).min(RECONNECT_BACKOFF_MAX_MS),
                 );
                 tracing::warn!(
-                    "pubsub stream ended (connection lost): channel={channel}, reconnect {attempt}/{max_attempts} in {backoff:?}"
+                    channel = %channel,
+                    attempt,
+                    max_attempts,
+                    backoff = ?backoff,
+                    "{}",
+                    t(MSG_LOG_PUBSUB_RECONNECTING, &[])
                 );
                 tokio::time::sleep(backoff).await;
                 match client.get_async_pubsub().await {
                     Ok(mut p) => {
                         if let Err(e) = p.subscribe(&channel).await {
                             tracing::error!(
-                                "pubsub resubscribe failed: channel={channel}, err={e}"
+                                channel = %channel,
+                                err = %e,
+                                "{}",
+                                t(MSG_LOG_PUBSUB_RESUBSCRIBE_FAILED, &[])
                             );
                             return;
                         }
@@ -188,7 +228,12 @@ impl RedisPubSub {
                         attempt = 0;
                     }
                     Err(e) => {
-                        tracing::error!("pubsub reconnect failed: channel={channel}, err={e}");
+                        tracing::error!(
+                            channel = %channel,
+                            err = %e,
+                            "{}",
+                            t(MSG_LOG_PUBSUB_RECONNECT_FAILED, &[])
+                        );
                         return;
                     }
                 }
@@ -197,9 +242,10 @@ impl RedisPubSub {
 
         let result = match ready_rx.await {
             Ok(r) => r,
-            Err(_) => Err(OxCacheError::BackendError(
-                "pubsub subscribe task ended before ready".to_string(),
-            )),
+            Err(_) => Err(OxCacheError::BackendError(t(
+                MSG_DETAIL_PUBSUB_SUBSCRIBE_TASK_ENDED,
+                &[],
+            ))),
         };
         // 订阅任务交给结构体登记（成功路径）；失败路径任务已自行退出
         if result.is_ok() {
@@ -238,7 +284,10 @@ mod tests {
     #[tokio::test]
     async fn new_with_unreachable_port_fails_fast() {
         let result = RedisPubSub::new("redis://127.0.0.1:1").await;
-        assert!(result.is_err(), "不可达端口构造应 fail-fast 返回 Err");
+        assert!(
+            result.is_err(),
+            "unreachable port construction must fail-fast with Err"
+        );
     }
 
     /// 非法 URL 在构造期被 redis client 拒绝。

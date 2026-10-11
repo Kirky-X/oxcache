@@ -198,15 +198,15 @@ mod tests {
         recorder.record_miss(CacheLayer::L1, Duration::from_micros(200));
 
         let counters = recorder.metrics().get_counters();
-        assert_eq!(counters.l1_hits, 2, "命中计数应被记录");
-        assert_eq!(counters.l1_misses, 1, "未命中计数应被记录");
+        assert_eq!(counters.l1_hits, 2, "hit counts should be recorded");
+        assert_eq!(counters.l1_misses, 1, "miss counts should be recorded");
         assert_eq!(counters.l1_sets, 0);
 
         // 延迟直方图样本（标准命名 key）
         let dynamic = recorder.metrics().get_dynamic_metrics();
         assert!(
             dynamic.contains_key(super::super::unified::OPERATION_LATENCY_HISTOGRAM),
-            "延迟直方图样本应被记录"
+            "latency histogram samples should be recorded"
         );
     }
 
@@ -220,7 +220,7 @@ mod tests {
         let counters = recorder.metrics().get_counters();
         assert_eq!(counters.l1_sets, 1);
         assert_eq!(counters.l1_deletes, 1);
-        assert_eq!(counters.evictions, 4, "淘汰计数应被记录");
+        assert_eq!(counters.evictions, 4, "eviction counts should be recorded");
     }
 
     #[test]

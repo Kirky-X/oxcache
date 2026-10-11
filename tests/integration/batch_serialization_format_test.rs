@@ -71,10 +71,10 @@ async fn set_many_with_ttl_applies_jittered_ttl() {
         .ttl(&"ttl-key".to_string())
         .await
         .unwrap()
-        .expect("ttl 应存在");
+        .expect("the ttl should exist");
     // 默认抖动 ±10%：60s → [54s, 66s)
     assert!(
         ttl >= Duration::from_secs(54) && ttl < Duration::from_secs(66),
-        "ttl {ttl:?} 应在抖动区间 [54s, 66s)"
+        "the ttl {ttl:?} should be in the jitter band [54s, 66s)"
     );
 }

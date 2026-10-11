@@ -17,9 +17,9 @@ use oxcache::{Cache, export_json_format, export_prometheus_format, get_enhanced_
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 指标与可观测性示例 ===\n");
+    println!("=== Metrics and observability example ===\n");
 
-    println!("--- 1. 创建缓存并执行操作 ---");
+    println!("--- 1. Creating a cache and running operations ---");
     let cache: Cache<String, String> = Cache::builder().capacity(1000).build().await?;
 
     // 执行一些操作以产生指标
@@ -41,51 +41,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = cache.get(&key).await?;
     }
 
-    println!("  执行了 20 次写入，20 次读取（15 命中 + 5 未命中）");
+    println!("  performed 20 writes and 20 reads (15 hits + 5 misses)");
 
-    println!("\n--- 2. 后端统计信息 ---");
+    println!("\n--- 2. Backend statistics ---");
     let stats = cache.stats().await?;
-    println!("  后端统计:");
+    println!("  backend statistics:");
     for (key, value) in &stats {
         println!("    {}: {}", key, value);
     }
 
-    println!("\n--- 3. 增强统计（CacheStats） ---");
+    println!("\n--- 3. Enhanced statistics (CacheStats) ---");
     let enhanced = get_enhanced_stats();
-    println!("  L1 命中: {}", enhanced.l1_hits);
-    println!("  L1 未命中: {}", enhanced.l1_misses);
-    println!("  L2 命中: {}", enhanced.l2_hits);
-    println!("  L2 未命中: {}", enhanced.l2_misses);
-    println!("  L1 写入: {}", enhanced.l1_sets);
-    println!("  L2 写入: {}", enhanced.l2_sets);
-    println!("  总操作数: {}", enhanced.total_operations);
-    println!("  L1 条目数: {}", enhanced.l1_item_count);
+    println!("  L1 hits: {}", enhanced.l1_hits);
+    println!("  L1 misses: {}", enhanced.l1_misses);
+    println!("  L2 hits: {}", enhanced.l2_hits);
+    println!("  L2 misses: {}", enhanced.l2_misses);
+    println!("  L1 writes: {}", enhanced.l1_sets);
+    println!("  L2 writes: {}", enhanced.l2_sets);
+    println!("  total operations: {}", enhanced.total_operations);
+    println!("  L1 entries: {}", enhanced.l1_item_count);
 
-    println!("\n--- 4. 命中率 ---");
-    println!("  L1 命中率: {}", enhanced.l1_hit_rate_percent());
-    println!("  L2 命中率: {}", enhanced.l2_hit_rate_percent());
-    println!("  总体命中率: {}", enhanced.overall_hit_rate_percent());
+    println!("\n--- 4. Hit rate ---");
+    println!("  L1 hit rate: {}", enhanced.l1_hit_rate_percent());
+    println!("  L2 hit rate: {}", enhanced.l2_hit_rate_percent());
+    println!(
+        "  overall hit rate: {}",
+        enhanced.overall_hit_rate_percent()
+    );
 
-    println!("\n--- 5. Prometheus 格式导出 ---");
+    println!("\n--- 5. Prometheus format export ---");
     let prometheus = export_prometheus_format();
     println!("{}", prometheus);
 
-    println!("\n--- 6. JSON 格式导出 ---");
+    println!("\n--- 6. JSON format export ---");
     let json = export_json_format()?;
     println!("{}", json);
 
-    println!("\n--- 7. CacheStats 实例方法导出 ---");
+    println!("\n--- 7. CacheStats instance-method exports ---");
     let stats = get_enhanced_stats();
     let prom = stats.export_prometheus();
-    println!("  CacheStats.export_prometheus() (前 200 字符):");
+    println!("  CacheStats.export_prometheus() (first 200 characters):");
     println!("    {}", &prom[..prom.len().min(200)]);
 
     let json = stats.export_json()?;
-    println!("  CacheStats.export_json() (前 200 字符):");
+    println!("  CacheStats.export_json() (first 200 characters):");
     println!("    {}", &json[..json.len().min(200)]);
 
     cache.clear().await?;
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

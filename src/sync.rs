@@ -249,7 +249,7 @@ mod tests {
         }
         assert!(
             cache.entry_count() <= 2,
-            "字节预算应限制条目数，实际 {}",
+            "the byte budget should cap entry count, got {}",
             cache.entry_count()
         );
     }
@@ -261,7 +261,11 @@ mod tests {
             .get_or_compute("k".to_string(), || Err("boom".to_string()))
             .unwrap_err();
         assert_eq!(err, "boom");
-        assert_eq!(cache.get(&"k".to_string()), None, "错误结果不写入缓存");
+        assert_eq!(
+            cache.get(&"k".to_string()),
+            None,
+            "error results are not cached"
+        );
     }
 
     #[test]
@@ -293,7 +297,7 @@ mod tests {
         assert_eq!(
             count.load(Ordering::SeqCst),
             1,
-            "single-flight：compute 应恰执行 1 次"
+            "single-flight: compute should run exactly once"
         );
         // leader 计 miss、7 个 follower 计 hit
         let stats = cache.stats();
@@ -336,20 +340,20 @@ mod tests {
             let _ = cache.weighted_size();
             let recorded = evicted.lock().unwrap();
             if !recorded.is_empty() {
-                assert_eq!(recorded.len(), 1, "只应逐出一条");
+                assert_eq!(recorded.len(), 1, "only one entry should be evicted");
                 let (key, value, cause) = &recorded[0];
                 assert!(
                     key == "k1" || key == "k2",
-                    "逐出的应是超预算的键, got {key}"
+                    "the evicted key should be the over-budget one, got {key}"
                 );
                 assert_eq!(value.len(), 64);
                 assert!(
                     *cause == RemovalCause::Size,
-                    "容量逐出原因应为 Size, got {cause:?}"
+                    "the capacity eviction reason should be Size, got {cause:?}"
                 );
                 assert!(
                     cache.weighted_size() <= 100,
-                    "逐出后权重总量应回到预算内, got {}",
+                    "total weight should return within budget after eviction, got {}",
                     cache.weighted_size()
                 );
                 return;
@@ -357,7 +361,7 @@ mod tests {
             drop(recorded);
             thread::sleep(Duration::from_millis(20));
         }
-        panic!("容量逐出应触发监听器");
+        panic!("capacity eviction must trigger the listener");
     }
 
     #[test]
@@ -379,34 +383,38 @@ mod tests {
             if !recorded.is_empty() {
                 let (key, value, cause) = &recorded[0];
                 assert_eq!(key, "k");
-                assert_eq!(value, "old", "替换时应携带旧值");
+                assert_eq!(value, "old", "the old value must be carried on replacement");
                 assert!(
                     *cause == RemovalCause::Replaced,
-                    "替换逐出原因应为 Replaced, got {cause:?}"
+                    "the replacement eviction reason should be Replaced, got {cause:?}"
                 );
                 return;
             }
             drop(recorded);
             thread::sleep(Duration::from_millis(20));
         }
-        panic!("替换应触发监听器");
+        panic!("replacement must trigger the listener");
     }
 
     #[test]
     fn test_weighted_size_sums_entry_weights() {
         let cache = ByteWeightCache::new(1024, |v: &String| v.len() as u64);
-        assert_eq!(cache.weighted_size(), 0, "空缓存权重为 0");
+        assert_eq!(cache.weighted_size(), 0, "an empty cache has weight 0");
 
         cache.insert("a".to_string(), "abcd".to_string()); // 4
         cache.insert("b".to_string(), "ef".to_string()); // 2
-        assert_eq!(cache.weighted_size(), 6, "权重应等于各条目权重之和");
+        assert_eq!(
+            cache.weighted_size(),
+            6,
+            "weight should equal the sum of entry weights"
+        );
         assert_eq!(cache.entry_count(), 2);
 
         // 超预算后权重总量应回落到预算内
         cache.insert("c".to_string(), "x".repeat(2000));
         assert!(
             cache.weighted_size() <= 1024,
-            "超预算后应回落到预算内, got {}",
+            "total weight should fall back within budget after overflow, got {}",
             cache.weighted_size()
         );
     }

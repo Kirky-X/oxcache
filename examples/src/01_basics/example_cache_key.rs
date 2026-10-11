@@ -56,9 +56,9 @@ impl CacheKey for Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== CacheKey trait 示例 ===\n");
+    println!("=== CacheKey trait example ===\n");
 
-    println!("--- 1. 内置类型的 CacheKey 实现 ---");
+    println!("--- 1. CacheKey for built-in types ---");
 
     let string_key: String = "user:123".to_string();
     let str_key: &str = "user:456";
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  isize: {} -> '{}'", isize_key, isize_key.to_key_string());
     println!();
 
-    println!("--- 2. 自定义类型的 CacheKey 实现 ---");
+    println!("--- 2. CacheKey for custom types ---");
 
     let user_id = UserId(12345);
     println!("  UserId(12345) -> '{}'", user_id.to_key_string());
@@ -103,18 +103,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Product -> '{}'", product.to_key_string());
     println!();
 
-    println!("--- 3. 在缓存中使用 CacheKey ---");
+    println!("--- 3. Using CacheKey in the cache ---");
 
     let cache: Cache<String, Product> = Cache::builder().build().await?;
 
     // 使用 CacheKey 生成缓存键
     let key1 = product.to_key_string();
     cache.set(&key1, &product).await?;
-    println!("  存储: key='{}', product={:?}", key1, product);
+    println!("  store: key='{}', product={:?}", key1, product);
 
     // 从缓存读取
     let cached: Option<Product> = cache.get(&key1).await?;
-    println!("  读取: {:?}", cached);
+    println!("  read: {:?}", cached);
 
     // 使用不同的键格式
     let key2 = UserId(100).to_key_string();
@@ -124,10 +124,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         category: "electronics".to_string(),
     };
     cache.set(&key2, &another_product).await?;
-    println!("  存储: key='{}', product={:?}", key2, another_product);
+    println!("  store: key='{}', product={:?}", key2, another_product);
     println!();
 
-    println!("--- 4. 批量操作演示 ---");
+    println!("--- 4. Batch operations ---");
 
     let users = vec![UserId(1), UserId(2), UserId(3)];
 
@@ -139,31 +139,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             category: "general".to_string(),
         };
         cache.set(&key, &product).await?;
-        println!("  存储: key='{}'", key);
+        println!("  store: key='{}'", key);
     }
 
     // 批量读取
     let keys: Vec<String> = users.iter().map(|u| u.to_key_string()).collect();
     let results = cache.get_many(keys.iter()).await?;
-    println!("  批量读取: {} 个结果", results.len());
+    println!("  batch read: {} results", results.len());
     println!();
 
-    println!("--- 5. 键格式一致性验证 ---");
+    println!("--- 5. Key format consistency check ---");
 
     let key_a = UserId(100).to_key_string();
     let key_b = UserId(100).to_key_string();
     let key_c = UserId(200).to_key_string();
 
     println!(
-        "  UserId(100) == UserId(100): {} (应该为 true)",
+        "  UserId(100) == UserId(100): {} (should be true)",
         key_a == key_b
     );
     println!(
-        "  UserId(100) == UserId(200): {} (应该为 false)",
+        "  UserId(100) == UserId(200): {} (should be false)",
         key_a == key_c
     );
     println!(
-        "  相同值产生相同键: {}",
+        "  same value produces same key: {}",
         UserId(100).to_key_string() == UserId(100).to_key_string()
     );
     println!();
@@ -171,12 +171,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 清理
     cache.clear().await?;
 
-    println!("=== CacheKey trait 示例完成 ===");
-    println!("  关键点:");
-    println!("  - 内置类型 (String, u64, i64 等) 已有 CacheKey 实现");
-    println!("  - 自定义类型可以通过实现 CacheKey trait 生成缓存键");
-    println!("  - to_key_string() 应该返回确定性的、唯一的字符串表示");
-    println!("  - CacheKey 可以在 set/get/delete 等操作中使用");
+    println!("=== CacheKey trait example complete ===");
+    println!("  key points:");
+    println!("  - built-in types (String, u64, i64, etc.) already implement CacheKey");
+    println!("  - custom types can generate cache keys by implementing the CacheKey trait");
+    println!("  - to_key_string() should return a deterministic, unique string representation");
+    println!("  - CacheKey can be used with set/get/delete operations");
 
     Ok(())
 }

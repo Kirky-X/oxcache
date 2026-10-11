@@ -255,7 +255,7 @@ mod tests {
         let cleaned = preprocess_lua_script(script);
         assert!(
             cleaned.contains("FLUSHALL"),
-            "裸 [[..]] 字符串内容应保留（用于模式检测）: {cleaned:?}"
+            "bare [[..]] string content must be kept (for pattern detection): {cleaned:?}"
         );
     }
 
@@ -881,7 +881,10 @@ mod tests {
         // 应被 forbidden_patterns 检查拒绝
         let script = "redis.call(\"FLUSHALL\")";
         let result = validate_lua_script(script, 0);
-        assert!(result.is_err(), "双引号内的危险命令应被检测并拒绝");
+        assert!(
+            result.is_err(),
+            "dangerous commands inside double quotes must be detected and rejected"
+        );
     }
 
     // === 方括号索引绕过测试 ===

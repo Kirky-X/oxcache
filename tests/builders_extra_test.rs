@@ -95,7 +95,7 @@ async fn l2_builder_custom_backend_and_defaults() {
     let refused = L2Builder::new().build().await;
     let err = match refused {
         Err(e) => e,
-        Ok(_) => panic!("L2Builder 无后端必须显性报错"),
+        Ok(_) => panic!("L2Builder without a backend must error explicitly"),
     };
     assert!(err.to_string().contains("requires"));
 }
@@ -167,7 +167,7 @@ async fn stale_ttl_with_sync_mode_rejected_at_build() {
         .await;
     let err = match result {
         Err(e) => e,
-        Ok(_) => panic!("stale_ttl + sync_mode 必须构建期拒绝"),
+        Ok(_) => panic!("stale_ttl + sync_mode must be rejected at build time"),
     };
     assert!(err.to_string().contains("stale_ttl cannot be combined"));
 }
@@ -205,7 +205,10 @@ async fn stale_build_with_event_publisher_and_offload() {
         })
         .await
         .unwrap();
-    assert_eq!(v, "v1", "OffloadRevalidate：stale 命中返回旧值");
+    assert_eq!(
+        v, "v1",
+        "OffloadRevalidate: a stale hit returns the old value"
+    );
     // 事件发布器至少收到 stale 命中/过期事件
     for _ in 0..20 {
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -215,7 +218,7 @@ async fn stale_build_with_event_publisher_and_offload() {
     }
     assert!(
         publisher.events.load(Ordering::SeqCst) > 0,
-        "event_publisher 必须收到过期事件"
+        "the event_publisher must receive the expiry event"
     );
 }
 
@@ -284,6 +287,10 @@ async fn chain_builder_extra_backend_and_race_read() {
     .await
     .unwrap();
     let got = CacheReader::get(&chain, "k_extra").await.unwrap();
-    assert_eq!(got, Some(vec![1u8, 2, 3]), "extra 层参与读写链路");
+    assert_eq!(
+        got,
+        Some(vec![1u8, 2, 3]),
+        "the extra layer participates in the read/write chain"
+    );
     assert!(CacheReader::len(&chain).await.is_ok());
 }

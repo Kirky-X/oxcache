@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn in_memory_publisher_is_empty_tracks_buffer() {
         let publisher = InMemoryAuditPublisher::new(1);
-        assert!(publisher.is_empty(), "新建缓冲应为空");
+        assert!(publisher.is_empty(), "a fresh buffer should be empty");
         publisher.publish(AuditEvent::new(AuditAction::Set).with_key("k"));
         assert!(!publisher.is_empty());
     }
@@ -519,7 +519,11 @@ mod tests {
         );
 
         let events = captured.lock().unwrap();
-        assert_eq!(events.len(), 1, "一次 publish 应产生一条 tracing 事件");
+        assert_eq!(
+            events.len(),
+            1,
+            "one publish should produce one tracing event"
+        );
         assert_eq!(events[0].0, tracing::Level::INFO);
         assert_eq!(events[0].1, "delete");
         assert_eq!(events[0].2, "user:42");
@@ -552,11 +556,17 @@ mod tests {
     fn sensitive_keys_are_masked() {
         let redacted = redact_key_for_audit("user:api_key:abcdef");
         assert!(redacted.starts_with("<sensitive>"), "got {redacted}");
-        assert!(!redacted.contains("abcdef"), "敏感值不得完整出现");
+        assert!(
+            !redacted.contains("abcdef"),
+            "sensitive values must not appear in full"
+        );
 
         let long = "k".repeat(100);
         let redacted = redact_key_for_audit(&long);
-        assert!(redacted.contains("len=100"), "长键应截断并带长度标注");
+        assert!(
+            redacted.contains("len=100"),
+            "long keys should be truncated with a length marker"
+        );
         assert!(redacted.len() < 50);
 
         let normal = redact_key_for_audit("user:1");
@@ -655,12 +665,12 @@ mod tests {
             );
 
             rx.recv_timeout(std::time::Duration::from_secs(5))
-                .expect("写入完成信号");
+                .expect("the write-done signal");
             let snapshot = captured.lock().unwrap();
             assert_eq!(snapshot.len(), 1);
             let record = &snapshot[0];
             assert_eq!(record.target, "oxcache::audit");
-            assert_eq!(record.level, "INFO", "写操作(Set)应映射 INFO");
+            assert_eq!(record.level, "INFO", "a write op (Set) should map to INFO");
             assert_eq!(
                 record.fields.get("action").and_then(|v| v.as_str()),
                 Some("set")
@@ -697,12 +707,15 @@ mod tests {
 
             for _ in 0..3 {
                 rx.recv_timeout(std::time::Duration::from_secs(5))
-                    .expect("写入完成信号");
+                    .expect("the write-done signal");
             }
             let snapshot = captured.lock().unwrap();
             assert_eq!(snapshot.len(), 3);
             for record in snapshot.iter() {
-                assert_eq!(record.level, "DEBUG", "读探测/容量清理应映射 DEBUG");
+                assert_eq!(
+                    record.level, "DEBUG",
+                    "read probe / capacity cleanup should map to DEBUG"
+                );
             }
         }
 
@@ -713,7 +726,7 @@ mod tests {
             publisher.publish(AuditEvent::new(AuditAction::Set).with_key("k"));
 
             rx.recv_timeout(std::time::Duration::from_secs(5))
-                .expect("写入尝试完成信号");
+                .expect("the write-attempt done signal");
             // 失败计数由 writer task 在 sink 返回 Err 之后累加，与完成信号
             // 存在先后：限时轮询等待计数落地（上限 1s）
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
@@ -722,9 +735,13 @@ mod tests {
             }
             assert!(
                 captured.lock().unwrap().is_empty(),
-                "失败写入不得留下半条记录"
+                "a failed write must not leave a half record"
             );
-            assert_eq!(publisher.write_failure_count(), 1, "sink 写失败应显性计数");
+            assert_eq!(
+                publisher.write_failure_count(),
+                1,
+                "sink write failures should be counted explicitly"
+            );
         }
 
         #[test]
@@ -737,11 +754,11 @@ mod tests {
                 moved.publish(AuditEvent::new(AuditAction::Set).with_key("no-runtime"));
             })
             .join()
-            .expect("无 runtime publish 不得 panic");
+            .expect("publish without a runtime must not panic");
             assert_eq!(
                 publisher.dropped_count(),
                 1,
-                "无 runtime 上下文的事件应计入 dropped"
+                "events with no runtime context should count as dropped"
             );
             assert!(captured.lock().unwrap().is_empty());
         }
@@ -797,7 +814,7 @@ mod tests {
             publisher.publish(AuditEvent::new(AuditAction::Set).with_key("first"));
             started_rx
                 .recv_timeout(std::time::Duration::from_secs(5))
-                .expect("writer 应已消费首条事件并被闸门挂起");
+                .expect("the writer should have consumed the first event and be gated");
 
             for _ in 0..BRIDGE_CHANNEL_CAPACITY {
                 publisher.publish(AuditEvent::new(AuditAction::Miss).with_key("fill"));
@@ -810,7 +827,7 @@ mod tests {
             assert_eq!(
                 publisher.dropped_count(),
                 overflow,
-                "通道满后的 publish 应显性丢弃计数而非阻塞"
+                "publish after a full channel should count as dropped, not block"
             );
             assert_eq!(publisher.write_failure_count(), 0);
 
@@ -834,7 +851,7 @@ mod tests {
             // 这一条随 task 取消丢失，守卫无法清算——文档化的边界）
             started_rx
                 .recv_timeout(std::time::Duration::from_secs(5))
-                .expect("writer 应已被钉在闸门写入内");
+                .expect("the writer should be pinned inside the gate write");
             rt1.block_on(async {
                 publisher.publish(AuditEvent::new(AuditAction::Set).with_key("buffered-1"));
                 publisher.publish(AuditEvent::new(AuditAction::Set).with_key("buffered-2"));
@@ -854,7 +871,7 @@ mod tests {
             assert_eq!(
                 publisher.dropped_count(),
                 3,
-                "滞留事件 2 条 + 通道关闭后 1 条均应显性计数"
+                "2 lingering events + 1 after channel close should all count explicitly"
             );
             assert_eq!(publisher.write_failure_count(), 0);
         }
@@ -873,7 +890,7 @@ mod tests {
             ];
             for (action, expected) in cases {
                 let record = audit_event_to_log_record(&AuditEvent::new(action).with_key("k"));
-                assert_eq!(record.level, expected, "{action:?} 级别映射");
+                assert_eq!(record.level, expected, "{action:?} level mapping");
                 assert_eq!(record.target, "oxcache::audit");
             }
         }

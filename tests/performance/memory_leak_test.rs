@@ -38,7 +38,7 @@ async fn test_l1_cache_memory_leak() {
 #[tokio::test]
 async fn test_l2_cache_memory_leak() {
     if !is_redis_available().await {
-        println!("跳过test_l2_cache_memory_leak：Redis不可用");
+        println!("Skipping test_l2_cache_memory_leak: Redis unavailable");
         return;
     }
 

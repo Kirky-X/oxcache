@@ -9,40 +9,40 @@ use oxcache::Cache;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 字节级操作示例 ===\n");
+    println!("=== Byte-level operations example ===\n");
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
-    println!("--- 1. 基本字节操作 ---");
+    println!("--- 1. Basic byte operations ---");
 
     let key = "raw_data".to_string();
     let data = b"Hello, oxcache!".to_vec();
 
     // set_bytes 接受 TTL 参数（秒），None 表示无过期
     cache.set_bytes(&key, data.clone(), Some(60)).await?;
-    println!("  写入: {} 字节", data.len());
+    println!("  write: {} bytes", data.len());
 
     let retrieved = cache.get_bytes(&key).await?;
     println!(
-        "  读取: {:?}",
+        "  read: {:?}",
         retrieved.map(|d| String::from_utf8_lossy(&d).to_string())
     );
 
-    println!("\n--- 2. 无 TTL 的字节操作 ---");
+    println!("\n--- 2. Byte operations without TTL ---");
 
     let key2 = "persistent_data".to_string();
     let data2 = b"Persistent data without TTL".to_vec();
 
     cache.set_bytes(&key2, data2.clone(), None).await?;
-    println!("  写入: {} 字节（无 TTL）", data2.len());
+    println!("  write: {} bytes (no TTL)", data2.len());
 
     let retrieved2 = cache.get_bytes(&key2).await?;
     println!(
-        "  读取: {} 字节",
+        "  read: {} bytes",
         retrieved2.as_ref().map(|d| d.len()).unwrap_or(0)
     );
 
-    println!("\n--- 3. 二进制数据 ---");
+    println!("\n--- 3. Binary data ---");
 
     let key3 = "binary_data".to_string();
     let binary_data: Vec<u8> = (0..=255).collect();
@@ -50,48 +50,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cache
         .set_bytes(&key3, binary_data.clone(), Some(300))
         .await?;
-    println!("  写入: {} 字节二进制数据", binary_data.len());
+    println!("  write: {} bytes of binary data", binary_data.len());
 
     let retrieved3 = cache.get_bytes(&key3).await?;
     if let Some(data) = retrieved3 {
-        println!("  读取: {} 字节", data.len());
+        println!("  read: {} bytes", data.len());
         println!(
-            "  校验: {}",
+            "  checksum: {}",
             if data == binary_data {
-                "✓ 一致"
+                "✓ match"
             } else {
-                "✗ 不一致"
+                "✗ mismatch"
             }
         );
     }
 
-    println!("\n--- 4. 缓存元信息操作 ---");
+    println!("\n--- 4. Cache metadata operations ---");
 
     let count = cache.len().await?;
-    println!("  条目数: {}", count);
+    println!("  entries: {}", count);
 
     let empty = cache.is_empty().await?;
-    println!("  是否为空: {}", empty);
+    println!("  is empty: {}", empty);
 
     let cap = cache.capacity().await?;
-    println!("  容量: {}", cap);
+    println!("  capacity: {}", cap);
 
-    println!("\n--- 5. 序列化器访问 ---");
+    println!("\n--- 5. Serializer access ---");
 
     let _serializer = cache.serializer();
-    println!("  ✓ 已获取序列化器实例（dyn Serializer 不实现 Debug，无法打印）");
+    println!(
+        "  ✓ serializer instance obtained (dyn Serializer does not implement Debug, cannot print)"
+    );
 
-    println!("\n--- 6. 大数据操作 ---");
+    println!("\n--- 6. Large data operations ---");
 
     let key4 = "large_data".to_string();
     let large_data = vec![0xABu8; 1024]; // 1KB
 
     cache.set_bytes(&key4, large_data.clone(), Some(60)).await?;
-    println!("  写入: {} 字节", large_data.len());
+    println!("  write: {} bytes", large_data.len());
 
     let retrieved4 = cache.get_bytes(&key4).await?;
     println!(
-        "  读取: {} 字节",
+        "  read: {} bytes",
         retrieved4.as_ref().map(|d| d.len()).unwrap_or(0)
     );
 
@@ -101,12 +103,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 验证清理后状态
     let count_after = cache.len().await?;
     let empty_after = cache.is_empty().await?;
-    println!("\n  清理后: 条目数={}, 为空={}", count_after, empty_after);
+    println!(
+        "\n  after cleanup: entries={}, is_empty={}",
+        count_after, empty_after
+    );
 
     // 关闭缓存，释放资源
     cache.shutdown().await;
-    println!("  ✓ 缓存已关闭");
+    println!("  ✓ cache closed");
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

@@ -176,7 +176,11 @@ mod tests {
     #[tokio::test]
     async fn accessors_report_normalized_limit_and_policy() {
         let mgr = OffloadManager::with_policy(0, TimeoutPolicy::None);
-        assert_eq!(mgr.max_concurrent_tasks(), 1, "0 并发归一为 1");
+        assert_eq!(
+            mgr.max_concurrent_tasks(),
+            1,
+            "zero concurrency normalizes to 1"
+        );
         assert!(matches!(mgr.timeout_policy(), TimeoutPolicy::None));
         let mgr = OffloadManager::with_policy(3, TimeoutPolicy::Warn(Duration::from_millis(10)));
         assert_eq!(mgr.max_concurrent_tasks(), 3);
@@ -197,6 +201,9 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(40)).await;
         }));
         let completed = mgr.wait_all(Duration::from_secs(2)).await;
-        assert_eq!(completed, 1, "warn 策略不打断任务，任务自然跑完");
+        assert_eq!(
+            completed, 1,
+            "the warn policy does not interrupt tasks; they run to completion"
+        );
     }
 }

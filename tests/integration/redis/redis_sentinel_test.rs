@@ -82,7 +82,7 @@ async fn trigger_failover() {
         .await;
     if let Err(e) = result {
         // 已有 failover 进行中等场景下受理被拒不算失败，交给等待地址切换兜底
-        println!("SENTINEL FAILOVER 未受理（继续等待地址切换）: {e}");
+        println!("SENTINEL FAILOVER not accepted (waiting for address switch): {e}");
     }
 }
 
@@ -209,15 +209,17 @@ async fn restore_master_topology(original: &(String, u16), addr_map: &[(String, 
 
 #[tokio::test]
 async fn test_sentinel_connection() {
-    println!("测试 Redis Sentinel 连接...");
+    println!("Testing Redis Sentinel connection...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用 (设置 REDIS_SENTINEL_AVAILABLE=1 启用)");
+        println!(
+            "Skipping test: Redis Sentinel unavailable (set REDIS_SENTINEL_AVAILABLE=1 to enable)"
+        );
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -226,25 +228,25 @@ async fn test_sentinel_connection() {
     for url in &urls {
         let backend = RedisBackend::new(url).await;
         if backend.is_ok() {
-            println!("✓ 成功连接到 Sentinel 节点: {}", url);
+            println!("✓ Connected to Sentinel node: {}", url);
             return;
         }
     }
 
-    panic!("无法连接到任何 Sentinel 节点");
+    panic!("cannot connect to any Sentinel node");
 }
 
 #[tokio::test]
 async fn test_sentinel_master_operations() {
-    println!("测试 Redis Sentinel 主节点操作...");
+    println!("Testing Redis Sentinel master operations...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -253,7 +255,7 @@ async fn test_sentinel_master_operations() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -273,20 +275,20 @@ async fn test_sentinel_master_operations() {
 
     backend.delete("sentinel_key_1").await.unwrap();
 
-    println!("✓ Redis Sentinel 主节点操作测试成功");
+    println!("✓ Redis Sentinel master operations test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_ttl() {
-    println!("测试 Redis Sentinel TTL...");
+    println!("Testing Redis Sentinel TTL...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -295,7 +297,7 @@ async fn test_sentinel_ttl() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -322,20 +324,20 @@ async fn test_sentinel_ttl() {
     // 验证键已过期
     assert!(!backend.exists("sentinel_ttl_key").await.unwrap());
 
-    println!("✓ Redis Sentinel TTL 测试成功");
+    println!("✓ Redis Sentinel TTL test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_expire() {
-    println!("测试 Redis Sentinel EXPIRE...");
+    println!("Testing Redis Sentinel EXPIRE...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -344,7 +346,7 @@ async fn test_sentinel_expire() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -372,20 +374,20 @@ async fn test_sentinel_expire() {
 
     backend.delete("sentinel_expire_key").await.unwrap();
 
-    println!("✓ Redis Sentinel EXPIRE 测试成功");
+    println!("✓ Redis Sentinel EXPIRE test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_health_check() {
-    println!("测试 Redis Sentinel 健康检查...");
+    println!("Testing Redis Sentinel health check...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -394,27 +396,27 @@ async fn test_sentinel_health_check() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
 
     backend.health_check().await.unwrap();
 
-    println!("✓ Redis Sentinel 健康检查测试成功");
+    println!("✓ Redis Sentinel health check test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_stats() {
-    println!("测试 Redis Sentinel 统计信息...");
+    println!("Testing Redis Sentinel statistics...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -423,7 +425,7 @@ async fn test_sentinel_stats() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -442,20 +444,20 @@ async fn test_sentinel_stats() {
 
     backend.delete("sentinel_stats_key").await.unwrap();
 
-    println!("✓ Redis Sentinel 统计信息测试成功");
+    println!("✓ Redis Sentinel statistics test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_many_keys() {
-    println!("测试 Redis Sentinel 多键操作...");
+    println!("Testing Redis Sentinel multi-key operations...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -464,7 +466,7 @@ async fn test_sentinel_many_keys() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -496,20 +498,20 @@ async fn test_sentinel_many_keys() {
         backend.delete(&key).await.unwrap();
     }
 
-    println!("✓ Redis Sentinel 多键操作测试成功");
+    println!("✓ Redis Sentinel multi-key operations test passed");
 }
 
 #[tokio::test]
 async fn test_sentinel_large_value() {
-    println!("测试 Redis Sentinel 大值...");
+    println!("Testing Redis Sentinel large values...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -518,7 +520,7 @@ async fn test_sentinel_large_value() {
     let backend = match RedisBackend::new(&master_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试: 无法连接到主节点 - {}", e);
+            println!("Skipping test: cannot connect to master - {}", e);
             return;
         }
     };
@@ -539,7 +541,7 @@ async fn test_sentinel_large_value() {
 
     backend.delete("sentinel_large_key").await.unwrap();
 
-    println!("✓ Redis Sentinel 大值测试成功");
+    println!("✓ Redis Sentinel large values test passed");
 }
 
 /// 场景：Sentinel 模式构建 → 写入 → 触发 failover → 同一客户端重新发现
@@ -549,15 +551,15 @@ async fn test_sentinel_large_value() {
 /// 上面直连 master 的测试，测试结束后再把 master 恢复为拓扑定值节点。
 #[tokio::test]
 async fn test_sentinel_failover_rediscovery() {
-    println!("测试 Redis Sentinel 主从故障转移（同一客户端重新发现新 master）...");
+    println!("Testing Redis Sentinel failover (same client rediscovers the new master)...");
 
     if !is_sentinel_available() {
-        println!("跳过测试: Redis Sentinel 不可用");
+        println!("Skipping test: Redis Sentinel unavailable");
         return;
     }
 
     if !wait_for_sentinel().await {
-        println!("跳过测试: Redis Sentinel 未就绪");
+        println!("Skipping test: Redis Sentinel not ready");
         return;
     }
 
@@ -571,7 +573,7 @@ async fn test_sentinel_failover_rediscovery() {
         .sentinel_addr_map(addr_map.clone())
         .build()
         .await
-        .expect("Sentinel 模式构建失败");
+        .expect("Sentinel mode build failed");
     assert_eq!(backend.mode(), RedisMode::Sentinel);
 
     // 清理上次运行遗留
@@ -595,7 +597,7 @@ async fn test_sentinel_failover_rediscovery() {
     // 触发 failover：等待 master 地址切换、旧 master 降级为从
     let old_master = sentinel_master_addr().await;
     println!(
-        "failover 前 master: {}:{}（宿主端口 {}）",
+        "master before failover: {}:{} (host port {})",
         old_master.0,
         old_master.1,
         translate_to_host(&old_master, &addr_map)
@@ -603,7 +605,7 @@ async fn test_sentinel_failover_rediscovery() {
     trigger_failover().await;
     let new_master = wait_master_addr_changes(&old_master, Duration::from_secs(90)).await;
     println!(
-        "failover 后 master: {}:{}（宿主端口 {}）",
+        "master after failover: {}:{} (host port {})",
         new_master.0,
         new_master.1,
         translate_to_host(&new_master, &addr_map)
@@ -638,5 +640,5 @@ async fn test_sentinel_failover_rediscovery() {
     let original = original_master_addr(&addr_map);
     restore_master_topology(&original, &addr_map).await;
 
-    println!("✓ Redis Sentinel 主从故障转移测试成功");
+    println!("✓ Redis Sentinel failover test passed");
 }

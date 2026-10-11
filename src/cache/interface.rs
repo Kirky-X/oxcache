@@ -402,7 +402,7 @@ mod tests {
                 .await
                 .unwrap();
             let raw = cache.get_bytes("user:1").await.unwrap().unwrap();
-            assert!(raw.starts_with(b"{"), "JSON 序列化的对象字节");
+            assert!(raw.starts_with(b"{"), "JSON-serialized object bytes");
 
             let dyn_ref: &DynUnifiedCache = cache.as_ref();
             dyn_ref.health_check().await.unwrap();

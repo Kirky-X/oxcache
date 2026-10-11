@@ -16,12 +16,12 @@ async fn test_redis_backend_connection_modes() {
     common::setup_logging();
 
     if !common::is_redis_available().await {
-        println!("跳过测试: Redis不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
     if let Err(e) = test_redis_connection().await {
-        println!("跳过测试: Redis连接失败 - {}", e);
+        println!("Skipping test: Redis connection failed - {}", e);
         return;
     }
 

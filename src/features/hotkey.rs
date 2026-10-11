@@ -150,7 +150,10 @@ mod tests {
         // 两个 key 各 ~400 次（半衰前快照），排序稳定即可
         assert!(top[0].1 >= top[1].1);
         let total: u64 = top.iter().map(|(_, c)| c).sum();
-        assert!(total >= 800, "并发采样不应大量丢失，实际 {total}");
+        assert!(
+            total >= 800,
+            "concurrent sampling must not drop many samples, got {total}"
+        );
     }
 
     /// 验收：半衰后旧计数下降，新热点可顶替
@@ -170,7 +173,10 @@ mod tests {
             tracker.record("new-hot");
         }
         let top = tracker.snapshot_top(10);
-        assert_eq!(top[0].0, "new-hot", "半衰应允许新热点顶替旧热点");
+        assert_eq!(
+            top[0].0, "new-hot",
+            "the half-life should let new hot keys displace old ones"
+        );
     }
 
     /// 验收：reset 后快照为空

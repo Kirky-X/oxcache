@@ -110,7 +110,7 @@ mod tests {
         assert_eq!(
             backend.get("key1").await.unwrap(),
             None,
-            "最旧的 key1 应被淘汰"
+            "the oldest key, key1, should be evicted"
         );
         assert_eq!(backend.get("key4").await.unwrap(), Some(b"v4".to_vec()));
     }
@@ -170,7 +170,11 @@ mod tests {
             .set(Arc::from("k4"), Arc::new(b"v4".to_vec()), None)
             .await
             .unwrap();
-        assert_eq!(backend.get("k2").await.unwrap(), None, "应淘汰最早的 k2");
+        assert_eq!(
+            backend.get("k2").await.unwrap(),
+            None,
+            "the earliest k2 should be evicted"
+        );
         assert_eq!(backend.get("k1").await.unwrap(), Some(b"v1b".to_vec()));
         assert_eq!(backend.entry_count(), 3);
     }
@@ -227,7 +231,11 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(60)).await;
 
-        assert_eq!(backend.get("short").await.unwrap(), None, "过期条目不可读");
+        assert_eq!(
+            backend.get("short").await.unwrap(),
+            None,
+            "expired entries are not readable"
+        );
         assert_eq!(backend.entry_count(), 3);
         assert_eq!(backend.get("a").await.unwrap(), Some(b"v".to_vec()));
     }
@@ -253,7 +261,11 @@ mod tests {
         // exists 应返回 false 并从 cache 中移除条目
         assert!(!backend.exists("expire_me").await.unwrap());
         // 验证条目已从底层 DashMap 中删除
-        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+        assert_eq!(
+            backend.cache.len(),
+            0,
+            "expired entries should be physically removed from the cache"
+        );
     }
 
     #[tokio::test]
@@ -274,7 +286,11 @@ mod tests {
 
         // ttl 应返回 None 并从 cache 中移除条目
         assert_eq!(backend.ttl("expire_me").await.unwrap(), None);
-        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+        assert_eq!(
+            backend.cache.len(),
+            0,
+            "expired entries should be physically removed from the cache"
+        );
     }
 
     #[tokio::test]
@@ -294,7 +310,11 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(60)).await;
 
         assert_eq!(backend.get("expire_me").await.unwrap(), None);
-        assert_eq!(backend.cache.len(), 0, "过期条目应从 cache 中物理删除");
+        assert_eq!(
+            backend.cache.len(),
+            0,
+            "expired entries should be physically removed from the cache"
+        );
     }
 
     #[tokio::test]
@@ -343,11 +363,11 @@ mod tests {
         assert_eq!(cache_len, 100);
         assert!(
             fifo_len < 1500,
-            "删除后 FIFO 陈旧条目应被紧缩: fifo_len={fifo_len}"
+            "stale FIFO entries should be compacted after deletion: fifo_len={fifo_len}"
         );
         assert!(
             fifo_len <= 1024.max(cache_len * 4),
-            "FIFO 应满足紧缩不变量: fifo_len={fifo_len}, cache_len={cache_len}"
+            "the FIFO should satisfy the compaction invariant: fifo_len={fifo_len}, cache_len={cache_len}"
         );
     }
 
@@ -391,7 +411,7 @@ mod tests {
         assert_eq!(
             backend.get("ttl_key").await.unwrap(),
             None,
-            "过期条目应被淘汰"
+            "expired entries should be evicted"
         );
         assert_eq!(backend.get("other").await.unwrap(), Some(b"v2".to_vec()));
     }
@@ -591,9 +611,15 @@ mod byte_budget_tests {
                 .unwrap();
         }
         let count = backend.entry_count();
-        assert!(count <= 10, "64KB 预算 + 8KB 值应 ≤ ~9 条，实际 {count}");
+        assert!(
+            count <= 10,
+            "a 64KB budget + 8KB values should fit ~9 entries, got {count}"
+        );
         let used = backend.bytes_used.load(Ordering::Relaxed);
-        assert!(used <= 72 * 1024, "bytes_used {used} 不得超过预算+单批余量");
+        assert!(
+            used <= 72 * 1024,
+            "bytes_used {used} must not exceed the budget plus one batch of slack"
+        );
     }
 
     /// delete 精确递减字节记账；clear 归零
@@ -630,7 +656,7 @@ mod byte_budget_tests {
         }
         assert!(
             backend.entry_count() <= 12,
-            "条目数口径 10 条预算应 ≤ ~12 条"
+            "a 10-entry count budget should allow <= ~12 entries"
         );
     }
 

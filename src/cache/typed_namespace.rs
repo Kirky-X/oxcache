@@ -219,7 +219,10 @@ mod tests {
 
         // 同形 key 不同命名空间互不可见
         let missing: Option<Order> = orders.get(&"1".to_string()).await.unwrap();
-        assert!(missing.is_none(), "跨命名空间同形键不得互相可见");
+        assert!(
+            missing.is_none(),
+            "same-shaped keys must not be visible across namespaces"
+        );
         assert_eq!(users.len().await.unwrap(), 1);
         assert_eq!(orders.len().await.unwrap(), 0);
 
@@ -262,9 +265,16 @@ mod tests {
             .unwrap();
 
         let removed = users.invalidate_all().await.unwrap();
-        assert_eq!(removed, 2, "应只清除 Users 前缀的 2 条");
+        assert_eq!(
+            removed, 2,
+            "only the 2 entries with the Users prefix should be cleared"
+        );
         assert!(users.is_empty().await.unwrap());
-        assert_eq!(orders.len().await.unwrap(), 1, "Orders 命名空间不受影响");
+        assert_eq!(
+            orders.len().await.unwrap(),
+            1,
+            "the Orders namespace is unaffected"
+        );
 
         // 原始键确认：Users 已被清除，Orders 保留
         assert!(!backend.exists("Users:1").await.unwrap());

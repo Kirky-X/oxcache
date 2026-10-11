@@ -96,7 +96,7 @@ async fn test_multi_instance_invalidation() {
     assert_eq!(
         instance_a.l1.get(key).await.unwrap(),
         Some(b"v1".to_vec()),
-        "A 自己广播的失效消息必须豁免，A 的 L1 应保留"
+        "self-broadcast invalidation messages must be exempted; A's L1 should remain"
     );
     assert_eq!(instance_b.l1.get(key).await.unwrap(), None);
 
@@ -104,12 +104,12 @@ async fn test_multi_instance_invalidation() {
     assert_eq!(
         instance_b.chain.get(key).await.unwrap(),
         Some(b"v1".to_vec()),
-        "B 应经 L2 读到 A 写入的值"
+        "B should read A's written value through L2"
     );
     assert_eq!(
         instance_b.l1.get(key).await.unwrap(),
         Some(b"v1".to_vec()),
-        "B 读穿后 L1 应有条目（供后续失效验证）"
+        "B's L1 should have the entry after a read-through (for the later invalidation check)"
     );
 
     // 3. A 删除 → 经 Pub/Sub 使 B 的 L1 失效
@@ -118,14 +118,14 @@ async fn test_multi_instance_invalidation() {
     while instance_b.l1.get(key).await.unwrap().is_some() {
         assert!(
             Instant::now() < deadline,
-            "B 的 L1 未在 5s 内被 Pub/Sub 失效"
+            "B's L1 was not invalidated by Pub/Sub within 5s"
         );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
     assert_eq!(
         instance_b.chain.get(key).await.unwrap(),
         None,
-        "B 应 L1 miss（已被失效）且 L2 已删除"
+        "B should miss in L1 (already invalidated) and L2 should be deleted"
     );
 
     drop(listener_b);

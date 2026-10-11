@@ -160,7 +160,7 @@ mod tests {
         let msg = sanitize_message("connect redis://host:6379?password=secret now");
         assert!(msg.contains("redis://host:6379?**"), "got: {msg}");
         assert!(!msg.contains("secret"), "got: {msg}");
-        assert!(msg.contains(" now"), "尾随文本应保留: {msg}");
+        assert!(msg.contains(" now"), "trailing text should be kept: {msg}");
     }
 
     #[test]

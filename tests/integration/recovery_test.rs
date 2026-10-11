@@ -18,7 +18,7 @@ async fn test_degradation_logic() {
 
     // 跳过测试如果Redis不可用
     if !is_redis_available().await {
-        println!("跳过测试: Redis不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 

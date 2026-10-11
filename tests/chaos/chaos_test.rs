@@ -9,35 +9,35 @@ use tokio::sync::Mutex;
 /// 简化的chaos测试 - 测试基本故障恢复
 #[tokio::test]
 async fn test_basic_fault_recovery() {
-    println!("=== 开始基本的 chaos 测试 ===");
+    println!("=== Starting basic chaos test ===");
 
     // 使用新的Cache API创建缓存
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-    println!("1. 初始设置 - 设置测试数据");
+    println!("1. Initial setup - seeding test data");
     let key = "chaos_test_key".to_string();
     let value = "chaos_test_value".to_string();
 
     let set_result = cache.set(&key, &value).await;
-    println!("   SET 结果: {:?}", set_result);
+    println!("   SET result: {:?}", set_result);
 
-    println!("2. 验证数据存在");
+    println!("2. Verify data exists");
     let get_result = cache.get(&key).await;
-    println!("   GET 结果: {:?}", get_result);
+    println!("   GET result: {:?}", get_result);
 
     if let Ok(Some(retrieved)) = get_result {
-        println!("   数据匹配: {}", retrieved == value);
+        println!("   data matches: {}", retrieved == value);
     }
 
-    println!("3. 删除测试数据");
+    println!("3. Delete test data");
     let delete_result = cache.delete(&key).await;
-    println!("   DELETE 结果: {:?}", delete_result);
+    println!("   DELETE result: {:?}", delete_result);
 
-    println!("4. 验证删除成功");
+    println!("4. Verify deletion succeeded");
     let get_after_delete = cache.get(&key).await;
     println!("   GET after delete: {:?}", get_after_delete);
 
-    println!("=== Chaos 测试完成 ===");
+    println!("=== Chaos test complete ===");
 }
 
 /// 测试并发访问
@@ -65,7 +65,7 @@ async fn test_concurrent_access() {
         handle.await.unwrap();
     }
 
-    println!("并发测试完成");
+    println!("Concurrency test complete");
 }
 
 /// 测试快速连续操作
@@ -85,5 +85,5 @@ async fn test_rapid_operations() {
     }
 
     cache.clear().await.unwrap();
-    println!("快速操作测试完成");
+    println!("Fast operations test complete");
 }

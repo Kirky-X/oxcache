@@ -653,9 +653,9 @@ mod byte_budget_tests {
         let count = backend.entry_count();
         assert!(
             count <= 110,
-            "1MB 预算 + 10KB 值应 ≤ ~105 条，实际 {count}（条目数口径会到 200 → 内存超卖）"
+            "a 1MB budget + 10KB values should fit ~105 entries, got {count} (the entry-count caliber goes to 200 -> memory oversold)"
         );
-        assert!(count > 0, "预算缓存不应为空");
+        assert!(count > 0, "the budget cache should not be empty");
     }
 
     /// 未设置字节预算时保持条目数口径（行为不变）
@@ -671,6 +671,9 @@ mod byte_budget_tests {
         }
         backend.cache.run_pending_tasks().await;
         let count = backend.entry_count();
-        assert!(count <= 12, "条目数口径 10 条预算应 ≤ ~12 条，实际 {count}");
+        assert!(
+            count <= 12,
+            "a 10-entry count budget should allow <= ~12 entries, got {count}"
+        );
     }
 }

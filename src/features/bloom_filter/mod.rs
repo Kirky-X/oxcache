@@ -157,20 +157,20 @@ mod tests {
         assert_eq!(
             expected.as_slice(),
             after.as_slice(),
-            "K=str 应走 crate 原生 set 逐位路径"
+            "K=str should take the crate-native per-bit set path"
         );
     }
 
     #[test]
     fn set_bits_reflects_inserts() {
         let bf = BloomFilter::new(64, 0.05);
-        assert_eq!(bf.set_bits(), 0, "空过滤器置位数为 0");
+        assert_eq!(bf.set_bits(), 0, "an empty filter has 0 bits set");
         bf.insert("k1");
         let after_one = bf.set_bits();
         let k = u64::from(bf.hash_count());
         assert!(
             (1..=k).contains(&after_one),
-            "单键置位数应在 [1, k], got {after_one} (k={k})"
+            "single-key bits should be within [1, k], got {after_one} (k={k})"
         );
     }
 
@@ -178,7 +178,11 @@ mod tests {
     fn new_with_hash_count_back_solves_hash_count() {
         for k in [1u32, 2, 3, 4, 7, 16] {
             let bf = BloomFilter::<str>::new_with_hash_count(10_000, 0.01, k);
-            assert_eq!(bf.hash_count(), k, "二分反解应精确命中 k={k}");
+            assert_eq!(
+                bf.hash_count(),
+                k,
+                "binary inversion should hit k={k} exactly"
+            );
             assert_eq!(bf.capacity(), 10_000);
             assert_eq!(bf.false_positive_rate(), 0.01);
         }
@@ -193,7 +197,7 @@ mod tests {
         }
         assert_eq!(bf.len(), 500);
         for i in 0..500u64 {
-            assert!(bf.contains(&i), "无假阴性 {i}");
+            assert!(bf.contains(&i), "no false negatives {i}");
         }
         // 单键真阴性是概率事件：bloomfilter 的 random 特性经 getrandom
         // 随进程播种，50% 负载下单键误判率约 1%，断言单键必为 false 会使
@@ -202,7 +206,7 @@ mod tests {
         let false_positives = (500u64..10_500).filter(|k| bf.contains(k)).count();
         assert!(
             false_positives < 200,
-            "未插入键误判 {false_positives}/10000 超过统计上限 200"
+            "false positives for uninserted keys {false_positives}/10000 exceed the statistical bound of 200"
         );
     }
 
@@ -212,7 +216,10 @@ mod tests {
         let bf = BloomFilter::<u64>::new_with_hash_count(100, 0.01, 3);
         let snapshot = bf.clone();
         bf.insert(&7u64);
-        assert!(snapshot.contains(&7u64), "clone 应共享底层状态");
+        assert!(
+            snapshot.contains(&7u64),
+            "clone should share the underlying state"
+        );
         assert_eq!(snapshot.set_bits(), bf.set_bits());
     }
 

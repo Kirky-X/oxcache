@@ -303,7 +303,9 @@ mod tests {
 
         assert!(lock.try_acquire().await.unwrap());
         assert!(lock.is_held().await);
-        let token = lock.fencing_token().expect("多数派获取应有 fencing token");
+        let token = lock
+            .fencing_token()
+            .expect("a majority acquisition should yield a fencing token");
         assert!(token > 0);
         lock.release().await.unwrap();
         assert!(!lock.is_held().await);
@@ -315,7 +317,10 @@ mod tests {
         let nodes = cluster(5, 3);
         let mut lock = RedLock::with_ttl(nodes, "job:singleton", Duration::from_secs(5));
 
-        assert!(!lock.try_acquire().await.unwrap(), "不足多数派必须失败");
+        assert!(
+            !lock.try_acquire().await.unwrap(),
+            "without a majority, acquisition must fail"
+        );
         assert!(!lock.is_held().await);
         assert!(lock.fencing_token().is_none());
     }
@@ -328,13 +333,19 @@ mod tests {
         let mut a = RedLock::with_ttl(nodes.clone(), "shared", Duration::from_secs(5));
         let mut b = RedLock::with_ttl(nodes, "shared", Duration::from_secs(5));
 
-        assert!(a.try_acquire().await.unwrap(), "A 应获取成功");
+        assert!(
+            a.try_acquire().await.unwrap(),
+            "A should acquire successfully"
+        );
         assert!(
             !b.try_acquire().await.unwrap(),
-            "A 持有期间 B 在同一节点集上必须获取失败（多数派互斥）"
+            "B must fail to acquire on the same node set while A holds it (majority mutual exclusion)"
         );
         a.release().await.unwrap();
-        assert!(b.try_acquire().await.unwrap(), "A 释放后 B 应能获取");
+        assert!(
+            b.try_acquire().await.unwrap(),
+            "B should acquire after A releases"
+        );
     }
 
     #[tokio::test]
@@ -350,7 +361,10 @@ mod tests {
 
         lock.try_acquire().await.unwrap();
         let t2 = lock.fencing_token().unwrap();
-        assert!(t2 > t1, "fencing token 必须单调递增 ({t1} -> {t2})");
+        assert!(
+            t2 > t1,
+            "fencing tokens must increase monotonically ({t1} -> {t2})"
+        );
     }
 
     #[tokio::test]

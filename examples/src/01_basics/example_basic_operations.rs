@@ -24,19 +24,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // 在缓存中设置值
-    println!("设置用户: {}", user.name);
+    println!("Set user: {}", user.name);
     cache.set(&"user:1".to_string(), &user).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_some());
 
     // 从缓存中获取值
-    println!("获取用户...");
+    println!("Getting user...");
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
-        println!("获取的用户: {} ({})", cached_user.name, cached_user.email);
+        println!("Got user: {} ({})", cached_user.name, cached_user.email);
         assert_eq!(cached_user.id, 1);
     }
 
     // 从缓存中删除值
-    println!("删除用户...");
+    println!("Deleting user...");
     cache.delete(&"user:1".to_string()).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_none());
 
@@ -47,16 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         email: "alice.updated@example.com".to_string(),
     };
 
-    println!("更新用户...");
+    println!("Updating user...");
     cache.set(&"user:1".to_string(), &updated_user).await?;
     if let Some(cached) = cache.get(&"user:1".to_string()).await? {
-        println!("更新的用户: {} ({})", cached.name, cached.email);
+        println!("Updated user: {} ({})", cached.name, cached.email);
     }
 
-    println!("\n✓ 基本操作示例完成!");
-    println!("  - Set: 在缓存中存储值");
-    println!("  - Get: 从缓存中获取值");
-    println!("  - Delete: 从缓存中删除值");
-    println!("  - Update: 覆盖现有值");
+    println!("\n✓ Basic operations example complete!");
+    println!("  - Set: store a value in the cache");
+    println!("  - Get: read a value from the cache");
+    println!("  - Delete: remove a value from the cache");
+    println!("  - Update: overwrite the existing value");
     Ok(())
 }

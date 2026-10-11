@@ -23,91 +23,91 @@ struct RedisUser {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Redis 原生客户端示例 ===\n");
+    println!("=== Redis native client example ===\n");
 
-    println!("1. 连接 Redis");
+    println!("1. Connect to Redis");
     let cache: Cache<String, RedisUser> = Cache::redis("redis://127.0.0.1:6379").await?;
-    println!("   ✓ Redis 连接成功\n");
+    println!("   ✓ Redis connected\n");
 
-    println!("2. 基本 CRUD 操作");
+    println!("2. Basic CRUD operations");
     let user = RedisUser {
         id: 1,
-        name: "张三".to_string(),
+        name: "Alice".to_string(),
         email: "zhangsan@example.com".to_string(),
     };
 
     // 创建
-    println!("   添加用户...");
+    println!("  adding user...");
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ 用户添加成功");
+    println!("   ✓ user added");
 
     // 读取
-    println!("   获取用户...");
+    println!("  getting user...");
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ 用户获取成功: {} ({})", u.name, u.email),
-        None => println!("   ✗ 用户未找到"),
+        Some(u) => println!("   ✓ user retrieved: {} ({})", u.name, u.email),
+        None => println!("   ✗ user not found"),
     }
 
     // 更新
-    println!("   更新用户...");
+    println!("  updating user...");
     let updated_user = RedisUser {
         id: 1,
-        name: "张三丰".to_string(),
+        name: "Bob".to_string(),
         email: "zhangsanfeng@example.com".to_string(),
     };
     cache.set(&"user:1".to_string(), &updated_user).await?;
-    println!("   ✓ 用户更新成功");
+    println!("   ✓ user updated");
 
     // 删除
-    println!("   删除用户...");
+    println!("  deleting user...");
     cache.delete(&"user:1".to_string()).await?;
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(_) => println!("   ✗ 用户删除失败"),
-        None => println!("   ✓ 用户删除成功"),
+        Some(_) => println!("   ✗ failed to delete the user"),
+        None => println!("   ✓ user deleted"),
     }
     println!();
 
-    println!("3. 批量操作");
+    println!("3. Batch operations");
     let users = vec![
         RedisUser {
             id: 2,
-            name: "李四".to_string(),
+            name: "Charlie".to_string(),
             email: "lisi@example.com".to_string(),
         },
         RedisUser {
             id: 3,
-            name: "王五".to_string(),
+            name: "David".to_string(),
             email: "wangwu@example.com".to_string(),
         },
     ];
 
-    println!("   批量添加用户...");
+    println!("  adding users in batch...");
     for user in &users {
         cache.set(&format!("user:{}", user.id), user).await?;
     }
-    println!("   ✓ 批量添加成功");
+    println!("   ✓ batch add succeeded");
 
-    println!("   批量获取用户...");
+    println!("  fetching users in batch...");
     for user in &users {
         if let Some(u) = cache.get(&format!("user:{}", user.id)).await? {
-            println!("   ✓ 用户 {}: {}", u.id, u.name);
+            println!("   ✓ user {}: {}", u.id, u.name);
         }
     }
 
     // 清空（安全方式：仅删除本示例写入的测试键，避免全库 clear）
-    println!("   清空测试数据...");
+    println!("  clearing test data...");
     for key in ["user:1", "user:2", "user:3"] {
         cache.delete(&key.to_string()).await?;
     }
-    println!("   ✓ 清空完成\n");
+    println!("   ✓ cleared\n");
 
-    println!("4. 缓存统计");
-    println!("   缓存统计功能需要通过 metrics 接口获取");
-    println!("   (详细统计信息请参考 metrics_test 示例)");
+    println!("4. Cache statistics");
+    println!("  cache statistics are available through the metrics interface");
+    println!("  (see the metrics_test example for detailed statistics)");
     println!();
 
-    println!("=== Redis 原生客户端示例完成 ===");
+    println!("=== Redis native client example complete ===");
     Ok(())
 }

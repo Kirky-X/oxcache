@@ -58,12 +58,12 @@ async fn test_two_level_cache_flow() {
     assert_eq!(
         l1.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "set 应写穿 L1"
+        "set should write through to L1"
     );
     assert_eq!(
         l2.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "set 应写穿 L2(Redis)"
+        "set should write through to L2 (Redis)"
     );
 
     // 2. 立即读取应命中 L1，且不应改变层级内容
@@ -71,36 +71,40 @@ async fn test_two_level_cache_flow() {
 
     // 3. 清空 L1（模拟本实例 L1 失效/新执行实例）：L2 回源 + 回填 L1
     l1.delete(key).await.unwrap();
-    assert_eq!(l1.get(key).await.unwrap(), None, "L1 已清空");
+    assert_eq!(l1.get(key).await.unwrap(), None, "L1 is now empty");
     assert_eq!(
         chain.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "L1 miss 应回源 L2"
+        "an L1 miss should read through to L2"
     );
     assert_eq!(
         l1.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "回源后应回填 L1"
+        "L1 should be backfilled after a read-through"
     );
 
     // 4. 第二个链实例（独立 L1、共享 L2）：L1 miss → L2 读穿并回填新 L1
     let chain2 = build_chain(l2.clone()).await;
     let l1_2 = chain2.links()[0].backend().clone();
-    assert_eq!(l1_2.get(key).await.unwrap(), None, "新实例 L1 初始为空");
+    assert_eq!(
+        l1_2.get(key).await.unwrap(),
+        None,
+        "a new instance's L1 starts empty"
+    );
     assert_eq!(
         chain2.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "新实例应经 L2 读穿"
+        "a new instance should read through L2"
     );
     assert_eq!(
         l1_2.get(key).await.unwrap(),
         Some(b"value1".to_vec()),
-        "读穿后应回填新实例 L1"
+        "the new instance's L1 should be backfilled after a read-through"
     );
 
     // 5. delete 两级失效
     chain.delete(key).await.unwrap();
-    assert_eq!(l1.get(key).await.unwrap(), None, "delete 应清 L1");
-    assert_eq!(l2.get(key).await.unwrap(), None, "delete 应清 L2");
+    assert_eq!(l1.get(key).await.unwrap(), None, "delete should clear L1");
+    assert_eq!(l2.get(key).await.unwrap(), None, "delete should clear L2");
     assert_eq!(chain.get(key).await.unwrap(), None);
 }

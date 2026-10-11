@@ -4,6 +4,19 @@
 
 #[cfg(feature = "redis")]
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "redis")]
+use crate::i18n::messages::{
+    MSG_DETAIL_LUA_INFINITE_LOOP_PATTERNS, MSG_DETAIL_LUA_NESTED_EVAL,
+    MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN, MSG_DETAIL_LUA_SCRIPT_TOO_LONG,
+    MSG_DETAIL_LUA_SCRIPT_TOO_MANY_KEYS, MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER,
+    MSG_DETAIL_REDIS_KEY_CONTROL_CHARACTER, MSG_DETAIL_REDIS_KEY_PATH_TRAVERSAL_PATTERN,
+    MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN, MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG,
+    MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS, MSG_DETAIL_REDIS_SQL_INJECTION_AUTH_BYPASS,
+    MSG_DETAIL_REDIS_SQL_INJECTION_COMMENT, MSG_DETAIL_REDIS_SQL_INJECTION_DELETE,
+    MSG_DETAIL_REDIS_SQL_INJECTION_DROP, MSG_DETAIL_REDIS_SQL_INJECTION_INSERT,
+    MSG_DETAIL_REDIS_SQL_INJECTION_QUOTE_OR, MSG_DETAIL_REDIS_SQL_INJECTION_TAUTOLOGY,
+    MSG_DETAIL_REDIS_SQL_INJECTION_UNION_SELECT, MSG_DETAIL_REDIS_SQL_INJECTION_XP_CMDSHELL, t,
+};
 
 /// Lua 脚本最大长度 (10KB)
 #[cfg(feature = "redis")]
@@ -32,10 +45,10 @@ pub(super) const SCAN_COUNT_MAX: usize = 1000;
 /// Lua 无限循环检测正则模式
 #[cfg(feature = "redis")]
 pub(super) static LUA_LOOP_PATTERNS: &[(&str, &str)] = &[
-    (r"WHILE\s+TRUE", "WHILE TRUE 循环"),
-    (r"WHILE\s+1", "WHILE 1 循环"),
-    (r"REPEAT", "REPEAT 循环"),
-    (r"GOTO", "GOTO 语句"),
+    (r"WHILE\s+TRUE", "WHILE TRUE loop"),
+    (r"WHILE\s+1", "WHILE 1 loop"),
+    (r"REPEAT", "REPEAT loop"),
+    (r"GOTO", "GOTO statement"),
 ];
 
 /// 预编译的 Lua 循环检测正则
@@ -78,18 +91,18 @@ static BRACKET_INDEX_DOUBLE: ::once_cell::sync::Lazy<::regex::Regex> =
             .expect("Invalid bracket-index double-quote regex")
     });
 
-/// SQL 注入检测模式表（模式, 描述）
+/// SQL 注入检测模式表（模式, 描述消息 ID）
 #[cfg(feature = "redis")]
 const SQL_INJECTION_PATTERNS: &[(&str, &str)] = &[
-    ("' OR '", "单引号后跟 OR 模式"),
-    ("'--", "SQL 注释模式"),
-    ("'; DROP", "SQL DROP 语句"),
-    ("'; DELETE", "SQL DELETE 语句"),
-    ("'; INSERT", "SQL INSERT 语句"),
-    ("UNION SELECT", "SQL UNION 查询"),
-    ("xp_cmdshell", "SQL Server 命令执行"),
-    ("' OR '1'='1", "经典 SQL 注入永真条件"),
-    ("admin'--", "SQL 认证绕过"),
+    ("' OR '", MSG_DETAIL_REDIS_SQL_INJECTION_QUOTE_OR),
+    ("'--", MSG_DETAIL_REDIS_SQL_INJECTION_COMMENT),
+    ("'; DROP", MSG_DETAIL_REDIS_SQL_INJECTION_DROP),
+    ("'; DELETE", MSG_DETAIL_REDIS_SQL_INJECTION_DELETE),
+    ("'; INSERT", MSG_DETAIL_REDIS_SQL_INJECTION_INSERT),
+    ("UNION SELECT", MSG_DETAIL_REDIS_SQL_INJECTION_UNION_SELECT),
+    ("xp_cmdshell", MSG_DETAIL_REDIS_SQL_INJECTION_XP_CMDSHELL),
+    ("' OR '1'='1", MSG_DETAIL_REDIS_SQL_INJECTION_TAUTOLOGY),
+    ("admin'--", MSG_DETAIL_REDIS_SQL_INJECTION_AUTH_BYPASS),
 ];
 
 /// 路径遍历检测模式表
@@ -150,9 +163,9 @@ pub fn validate_redis_key(key: &str) -> OxCacheResult<()> {
 fn check_control_characters(key: &str, dangerous_chars: &[char]) -> OxCacheResult<()> {
     for c in key.chars() {
         if c.is_control() && !dangerous_chars.contains(&c) && c != '\t' {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Redis key contains control character: U+{:04X}",
-                c as u32
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_KEY_CONTROL_CHARACTER,
+                &[("code", format!("{:04X}", c as u32))],
             )));
         }
     }
@@ -165,9 +178,9 @@ fn check_sql_injection(key: &str) -> OxCacheResult<()> {
     let key_upper = key.to_uppercase();
     for (pattern, description) in SQL_INJECTION_PATTERNS {
         if key_upper.contains(&pattern.to_uppercase()) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Redis key contains suspicious SQL injection pattern: {}",
-                description
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN,
+                &[("detail", t(description, &[]))],
             )));
         }
     }
@@ -180,9 +193,9 @@ fn check_path_traversal(key: &str) -> OxCacheResult<()> {
     let key_lower = key.to_lowercase();
     for pattern in PATH_TRAVERSAL_PATTERNS {
         if key_lower.contains(&pattern.to_lowercase()) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Redis key contains path traversal pattern: {}",
-                pattern
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_KEY_PATH_TRAVERSAL_PATTERN,
+                &[("detail", pattern.to_string())],
             )));
         }
     }
@@ -194,9 +207,9 @@ fn check_path_traversal(key: &str) -> OxCacheResult<()> {
 fn check_command_injection(key: &str) -> OxCacheResult<()> {
     for c in key.chars() {
         if COMMAND_INJECTION_CHARS.contains(&c) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Redis key contains potential command injection character: {:?}",
-                c
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER,
+                &[("detail", format!("{c:?}"))],
             )));
         }
     }
@@ -226,17 +239,22 @@ fn check_command_injection(key: &str) -> OxCacheResult<()> {
 #[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> {
     if script.len() > MAX_LUA_SCRIPT_LENGTH {
-        return Err(OxCacheError::InvalidInput(format!(
-            "Lua script exceeds maximum length of {} bytes (got {} bytes)",
-            MAX_LUA_SCRIPT_LENGTH,
-            script.len()
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_LUA_SCRIPT_TOO_LONG,
+            &[
+                ("max", MAX_LUA_SCRIPT_LENGTH.to_string()),
+                ("actual", script.len().to_string()),
+            ],
         )));
     }
 
     if key_count > MAX_LUA_SCRIPT_KEYS {
-        return Err(OxCacheError::InvalidInput(format!(
-            "Lua script exceeds maximum key count of {} (got {} keys)",
-            MAX_LUA_SCRIPT_KEYS, key_count
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_LUA_SCRIPT_TOO_MANY_KEYS,
+            &[
+                ("max", MAX_LUA_SCRIPT_KEYS.to_string()),
+                ("actual", key_count.to_string()),
+            ],
         )));
     }
 
@@ -296,26 +314,28 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
     // 检查每种危险模式
     for (pattern, description) in &forbidden_patterns {
         if cleaned_upper.contains(pattern) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Lua script contains forbidden pattern: {}",
-                description
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN,
+                &[("detail", description.to_string())],
             )));
         }
     }
 
     // 检查嵌套 eval
     if cleaned_upper.contains("REDIS.EVAL") || cleaned_upper.contains("REDIS.EVALSHA") {
-        return Err(OxCacheError::InvalidInput(
-            "Lua script contains nested redis.eval/evalsha".to_string(),
-        ));
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_LUA_NESTED_EVAL,
+            &[],
+        )));
     }
 
     // 检查无限循环模式（使用预编译的正则表达式）
     for re in LUA_LOOP_REGEXES.iter() {
         if re.is_match(&cleaned_upper) {
-            return Err(OxCacheError::InvalidInput(
-                "Lua script contains potential infinite loop patterns".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_LUA_INFINITE_LOOP_PATTERNS,
+                &[],
+            )));
         }
     }
 
@@ -529,19 +549,24 @@ pub(super) fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Cha
 #[cfg_attr(docsrs, doc(cfg(feature = "redis")))]
 pub fn validate_scan_pattern(pattern: &str) -> OxCacheResult<()> {
     if pattern.len() > MAX_SCAN_PATTERN_LENGTH {
-        return Err(OxCacheError::InvalidInput(format!(
-            "SCAN pattern exceeds maximum length of {} characters (got {} characters)",
-            MAX_SCAN_PATTERN_LENGTH,
-            pattern.len()
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG,
+            &[
+                ("max", MAX_SCAN_PATTERN_LENGTH.to_string()),
+                ("actual", pattern.len().to_string()),
+            ],
         )));
     }
 
     let wildcard_count = pattern.chars().filter(|c| *c == '*').count();
 
     if wildcard_count > MAX_SCAN_WILDCARDS {
-        return Err(OxCacheError::InvalidInput(format!(
-            "SCAN pattern contains too many wildcards (max {}, got {})",
-            MAX_SCAN_WILDCARDS, wildcard_count
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS,
+            &[
+                ("max", MAX_SCAN_WILDCARDS.to_string()),
+                ("actual", wildcard_count.to_string()),
+            ],
         )));
     }
 

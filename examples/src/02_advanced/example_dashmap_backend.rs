@@ -11,13 +11,13 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== DashMap 后端示例 ===\n");
+    println!("=== DashMap backend example ===\n");
 
-    println!("--- 1. 创建 DashMap 后端 ---");
+    println!("--- 1. Create a DashMap backend ---");
     let dashmap = DashMapMemoryBackend::new();
-    println!("  ✓ 创建 DashMap 后端");
+    println!("  ✓ DashMap backend created");
 
-    println!("\n--- 2. 基本操作 ---");
+    println!("\n--- 2. Basic operations ---");
 
     // 写入数据
     dashmap
@@ -27,20 +27,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(60)),
         )
         .await?;
-    println!("  写入: key1 = value1");
+    println!("  write: key1 = value1");
 
     // 读取数据
     let value = dashmap.get("key1").await?;
     println!(
-        "  读取: key1 = {:?}",
+        "  read: key1 = {:?}",
         value.map(|v| String::from_utf8_lossy(&v).to_string())
     );
 
     // 检查存在
     let exists = dashmap.exists("key1").await?;
-    println!("  存在: key1 = {}", exists);
+    println!("  exists: key1 = {}", exists);
 
-    println!("\n--- 3. 批量操作 ---");
+    println!("\n--- 3. Batch operations ---");
 
     let keys_values: Vec<(&str, Vec<u8>)> = vec![
         ("item:1", b"apple".to_vec()),
@@ -57,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?;
     }
-    println!("  批量写入: {} 个键值对", keys_values.len());
+    println!("  batch write: {} key-value pairs", keys_values.len());
 
     let keys: Vec<String> = vec![
         "item:1".to_string(),
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "item:3".to_string(),
     ];
     let results = dashmap.get_many(&keys).await?;
-    println!("  批量读取: {} 个结果", results.len());
+    println!("  batch read: {} results", results.len());
     for (key, value) in keys.iter().zip(results.iter()) {
         println!(
             "    {} = {:?}",
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("\n--- 4. 对比 Moka 和 DashMap ---");
+    println!("\n--- 4. Comparing Moka and DashMap ---");
 
     let moka = MokaMemoryBackend::builder().capacity(1000).build();
     let dashmap2 = DashMapMemoryBackend::new();
@@ -94,39 +94,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let moka_count = moka.len().await?;
     let dashmap_count = dashmap2.len().await?;
-    println!("  Moka 后端: {} 个键", moka_count);
-    println!("  DashMap 后端: {} 个键", dashmap_count);
+    println!("  Moka backend: {} keys", moka_count);
+    println!("  DashMap backend: {} keys", dashmap_count);
 
-    println!("\n--- 5. 删除操作 ---");
+    println!("\n--- 5. Delete operations ---");
 
     dashmap.delete("key1").await?;
-    println!("  删除: key1");
+    println!("  delete: key1");
 
     let exists_after = dashmap.exists("key1").await?;
-    println!("  存在检查: key1 = {}", exists_after);
+    println!("  exists check: key1 = {}", exists_after);
 
-    println!("\n--- 6. 清空操作 ---");
+    println!("\n--- 6. Clear operations ---");
 
     let count_before = dashmap.len().await?;
-    println!("  清空前: {} 个键", count_before);
+    println!("  before clear: {} keys", count_before);
 
     dashmap.clear().await?;
     let count_after = dashmap.len().await?;
-    println!("  清空后: {} 个键", count_after);
+    println!("  after clear: {} keys", count_after);
 
-    println!("\n--- 7. 特性对比 ---");
-    println!("  Moka 后端特点:");
-    println!("    - 支持 LRU/TinyLFU 淘汰策略");
-    println!("    - 支持容量限制");
-    println!("    - 支持自动过期");
-    println!("    - 适合生产环境");
+    println!("\n--- 7. Feature comparison ---");
+    println!("  Moka backend traits:");
+    println!("    - LRU/TinyLFU eviction policies");
+    println!("    - capacity limits");
+    println!("    - automatic expiry");
+    println!("    - suitable for production");
     println!();
-    println!("  DashMap 后端特点:");
-    println!("    - 纯并发 HashMap");
-    println!("    - 无淘汰策略");
-    println!("    - 手动 TTL 管理");
-    println!("    - 适合简单场景或测试");
+    println!("  DashMap backend traits:");
+    println!("    - plain concurrent HashMap");
+    println!("    - no eviction policy");
+    println!("    - manual TTL management");
+    println!("    - suited to simple scenarios or tests");
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

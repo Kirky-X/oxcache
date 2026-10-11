@@ -116,7 +116,10 @@ mod mock_tests {
         let backend = MockBackend::new("failing", 50, false).with_fail_get();
         assert!(backend.fails_get());
         let result = CacheReader::get(&backend, "key").await;
-        assert!(result.is_err(), "fail_get 注入后 get 应返回错误");
+        assert!(
+            result.is_err(),
+            "get should return an error after a fail_get injection"
+        );
     }
 
     #[tokio::test]
@@ -124,7 +127,10 @@ mod mock_tests {
         let backend = MockBackend::new("failing", 50, false).with_fail_set();
         let result =
             CacheWriter::set(&backend, Arc::from("key"), Arc::new(b"v".to_vec()), None).await;
-        assert!(result.is_err(), "fail_set 注入后 set 应返回错误");
+        assert!(
+            result.is_err(),
+            "set should return an error after a fail_set injection"
+        );
     }
 
     #[tokio::test]
@@ -133,7 +139,7 @@ mod mock_tests {
         let result = CacheConnector::health_check(&backend).await;
         assert!(
             result.is_err(),
-            "fail_health 注入后 health_check 应返回错误"
+            "health_check should return an error after a fail_health injection"
         );
     }
 

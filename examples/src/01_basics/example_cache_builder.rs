@@ -19,40 +19,40 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== CacheBuilder 完整用法示例 ===\n");
+    println!("=== CacheBuilder full usage example ===\n");
 
-    println!("--- 1. 基本构建 ---");
+    println!("--- 1. Basic construction ---");
     let _cache1: Cache<String, Product> = CacheBuilder::default().build().await?;
-    println!("  ✓ 创建基本缓存");
+    println!("  ✓ basic cache created");
 
-    println!("\n--- 2. 设置容量 ---");
+    println!("\n--- 2. Set capacity ---");
     let _cache2: Cache<String, Product> = CacheBuilder::default().capacity(10000).build().await?;
-    println!("  ✓ 创建容量为 10000 的缓存");
+    println!("  ✓ cache created with capacity 10000");
 
-    println!("\n--- 3. 设置 TTL ---");
+    println!("\n--- 3. Set TTL ---");
     let _cache3: Cache<String, Product> = CacheBuilder::default()
         .ttl(Duration::from_secs(3600))
         .build()
         .await?;
-    println!("  ✓ 创建 TTL 为 1 小时的缓存");
+    println!("  ✓ cache created with 1 hour TTL");
 
-    println!("\n--- 4. 设置 TTI ---");
+    println!("\n--- 4. Set TTI ---");
     let _cache4: Cache<String, Product> = CacheBuilder::default()
         .tti(Duration::from_secs(300))
         .build()
         .await?;
-    println!("  ✓ 创建 TTI 为 5 分钟的缓存");
+    println!("  ✓ cache created with 5 minute TTI");
 
-    println!("\n--- 5. 组合配置 ---");
+    println!("\n--- 5. Combined configuration ---");
     let cache5: Cache<String, Product> = CacheBuilder::default()
         .capacity(5000)
         .ttl(Duration::from_secs(1800))
         .tti(Duration::from_secs(600))
         .build()
         .await?;
-    println!("  ✓ 创建组合配置缓存（容量=5000, TTL=30min, TTI=10min）");
+    println!("  ✓ combined cache created (capacity=5000, TTL=30min, TTI=10min)");
 
-    println!("\n--- 6. 使用自定义后端 ---");
+    println!("\n--- 6. Use a custom backend ---");
     let backend = MokaMemoryBackend::builder().capacity(2000).build();
     let _cache6: Cache<String, Product> = CacheBuilder::default()
         .backend_arc(
@@ -61,9 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ttl(Duration::from_secs(120))
         .build()
         .await?;
-    println!("  ✓ 创建使用自定义 Moka 后端的缓存");
+    println!("  ✓ cache created with a custom Moka backend");
 
-    println!("\n--- 7. 实际使用 ---");
+    println!("\n--- 7. Real usage ---");
     let cache = cache5;
 
     let product = Product {
@@ -73,12 +73,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     cache.set(&"product:1".to_string(), &product).await?;
-    println!("  写入: {:?}", product);
+    println!("  write: {:?}", product);
 
     let cached = cache.get(&"product:1".to_string()).await?;
-    println!("  读取: {:?}", cached);
+    println!("  read: {:?}", cached);
 
-    println!("\n--- 8. 带 TTL 的设置 ---");
+    println!("\n--- 8. Set with TTL ---");
     cache
         .set_with_ttl(
             &"product:2".to_string(),
@@ -90,25 +90,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(60)),
         )
         .await?;
-    println!("  写入带 60s TTL 的产品");
+    println!("  storing a product with 60s TTL");
 
     let exists = cache.exists(&"product:2".to_string()).await?;
-    println!("  存在检查: {}", exists);
+    println!("  exists check: {}", exists);
 
-    println!("\n--- 9. 统计信息 ---");
+    println!("\n--- 9. Statistics ---");
     let stats = cache.stats().await?;
-    println!("  缓存统计:");
+    println!("  cache stats:");
     for (key, value) in &stats {
         println!("    {}: {}", key, value);
     }
 
-    println!("\n--- 10. 健康检查 ---");
+    println!("\n--- 10. Health check ---");
     cache.health_check().await?;
-    println!("  健康状态: ✓ 正常");
+    println!("  health status: ✓ OK");
 
     // 清理
     cache.clear().await?;
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

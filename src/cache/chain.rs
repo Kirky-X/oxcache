@@ -13,7 +13,14 @@ use crate::backend::{
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
-    MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH, MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+    MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_CLEAR, MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_DELETE,
+    MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_RACE_READ, MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_READ,
+    MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_WRITE, MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER,
+    MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH, MSG_DETAIL_CHAIN_HEALTH_CHECK_FAILED,
+    MSG_DETAIL_CHAIN_HEALTH_CHECK_TIMED_OUT, MSG_DETAIL_CHAIN_INCR_NO_ATOMIC_WRITER,
+    MSG_DETAIL_CHAIN_NO_BACKENDS, MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+    MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER, MSG_DETAIL_CHAIN_SYNC_REQUIRES_SYNC_BACKEND,
+    MSG_LOG_CHAIN_BACKFILL_FAILED, MSG_LOG_CHAIN_BACKFILL_SUCCEEDED,
     MSG_PANIC_CHAIN_FRESHNESS_INVARIANT, t,
 };
 #[cfg(feature = "telemetry")]
@@ -38,14 +45,22 @@ fn oxcache_telemetry_backfill_ok(key: &str, backend: &str) {
         target = "oxcache::chain",
         key,
         backend,
-        "backfill succeeded"
+        "{}",
+        t(MSG_LOG_CHAIN_BACKFILL_SUCCEEDED, &[])
     );
 }
 
 #[cfg(feature = "telemetry")]
 #[inline]
 fn oxcache_telemetry_backfill_failed(key: &str, backend: &str, err: &OxCacheError) {
-    tracing::warn!(target = "oxcache::chain", key, backend, %err, "backfill failed");
+    tracing::warn!(
+        target = "oxcache::chain",
+        key,
+        backend,
+        %err,
+        "{}",
+        t(MSG_LOG_CHAIN_BACKFILL_FAILED, &[])
+    );
 }
 
 #[cfg(not(feature = "telemetry"))]
@@ -544,7 +559,7 @@ impl ChainCache {
         }
         if all_failed {
             return Err(last_err.unwrap_or_else(|| {
-                OxCacheError::Operation("All backends failed during sequential read".to_string())
+                OxCacheError::Operation(t(MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_READ, &[]))
             }));
         }
         Ok(None)
@@ -600,9 +615,10 @@ impl ChainCache {
         }
 
         if errs.len() == self.links.len() {
-            return Err(OxCacheError::Operation(
-                "All backends failed during race read".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_RACE_READ,
+                &[],
+            )));
         }
 
         Ok(None)
@@ -776,9 +792,10 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
-            return Err(OxCacheError::Operation(
-                "All backends failed to write".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_WRITE,
+                &[],
+            )));
         }
 
         Ok(())
@@ -817,9 +834,9 @@ impl ChainCache {
         }
 
         if errors.len() == self.links.len() {
-            return Err(OxCacheError::Operation(format!(
-                "All backends failed to delete: {:?}",
-                errors
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_DELETE,
+                &[("errors", format!("{errors:?}"))],
             )));
         }
 
@@ -848,9 +865,7 @@ impl ChainCache {
                 .collect::<Option<Vec<_>>>()
         });
         cached.as_deref().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "chain sync API requires all links to support SyncCacheBackend".to_string(),
-            )
+            OxCacheError::NotSupported(t(MSG_DETAIL_CHAIN_SYNC_REQUIRES_SYNC_BACKEND, &[]))
         })
     }
 
@@ -872,7 +887,10 @@ impl ChainCache {
         let sync_backends = self.collect_sync_backends()?;
 
         if sync_backends.is_empty() {
-            return Err(OxCacheError::Operation("Chain has no backends".to_string()));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_NO_BACKENDS,
+                &[],
+            )));
         }
 
         let effective_ttl = ttl.or(self.default_ttl);
@@ -888,9 +906,10 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() {
-            return Err(OxCacheError::Operation(
-                "All backends failed to write".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_WRITE,
+                &[],
+            )));
         }
 
         Ok(())
@@ -909,9 +928,9 @@ impl ChainCache {
         }
 
         if errors.len() == sync_backends.len() && !sync_backends.is_empty() {
-            return Err(OxCacheError::Operation(format!(
-                "All backends failed to delete: {:?}",
-                errors
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_DELETE,
+                &[("errors", format!("{errors:?}"))],
             )));
         }
 
@@ -1012,7 +1031,10 @@ impl CacheWriter for ChainCache {
         ttl: Option<Duration>,
     ) -> OxCacheResult<()> {
         if self.links.is_empty() {
-            return Err(OxCacheError::Operation("Chain has no backends".to_string()));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_NO_BACKENDS,
+                &[],
+            )));
         }
         self.write_to_all_backends(&key, &value, ttl).await
     }
@@ -1034,9 +1056,9 @@ impl CacheWriter for ChainCache {
         }
 
         if errors.len() == self.links.len() && !self.links.is_empty() {
-            return Err(OxCacheError::Operation(format!(
-                "All backends failed to clear: {:?}",
-                errors
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_CLEAR,
+                &[("errors", format!("{errors:?}"))],
             )));
         }
 
@@ -1092,7 +1114,7 @@ impl CacheConnector for ChainCache {
                 Ok((name, Ok(Err(e)))) => failures.push((name, e)),
                 Ok((name, Err(_))) => failures.push((
                     name,
-                    OxCacheError::Timeout("health_check timed out after 5s".to_string()),
+                    OxCacheError::Timeout(t(MSG_DETAIL_CHAIN_HEALTH_CHECK_TIMED_OUT, &[])),
                 )),
                 Err(e) => failures.push(("unknown", OxCacheError::Operation(e.to_string()))),
             }
@@ -1101,10 +1123,12 @@ impl CacheConnector for ChainCache {
         if failures.is_empty() {
             Ok(())
         } else {
-            Err(OxCacheError::Operation(format!(
-                "health_check failed for {} backend(s): {:?}",
-                failures.len(),
-                failures
+            Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CHAIN_HEALTH_CHECK_FAILED,
+                &[
+                    ("count", failures.len().to_string()),
+                    ("failures", format!("{failures:?}")),
+                ],
             )))
         }
     }
@@ -1131,9 +1155,7 @@ impl AtomicCacheWriter for ChainCache {
             .first()
             .and_then(|link| link.backend().as_atomic_writer())
             .ok_or_else(|| {
-                OxCacheError::NotSupported(
-                    "incr: no link in chain implements AtomicCacheWriter".to_string(),
-                )
+                OxCacheError::NotSupported(t(MSG_DETAIL_CHAIN_INCR_NO_ATOMIC_WRITER, &[]))
             })?;
         writer.incr(key, delta, ttl).await
     }
@@ -1150,9 +1172,7 @@ impl AtomicCacheWriter for ChainCache {
             .first()
             .and_then(|link| link.backend().as_atomic_writer())
             .ok_or_else(|| {
-                OxCacheError::NotSupported(
-                    "compare_and_swap: no link in chain implements AtomicCacheWriter".to_string(),
-                )
+                OxCacheError::NotSupported(t(MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER, &[]))
             })?;
         writer.compare_and_swap(key, expected, new, ttl).await
     }
@@ -1168,9 +1188,7 @@ impl AtomicCacheWriter for ChainCache {
             .first()
             .and_then(|link| link.backend().as_atomic_writer())
             .ok_or_else(|| {
-                OxCacheError::NotSupported(
-                    "set_if_absent: no link in chain implements AtomicCacheWriter".to_string(),
-                )
+                OxCacheError::NotSupported(t(MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER, &[]))
             })?;
         writer.set_if_absent(key, value, ttl).await
     }

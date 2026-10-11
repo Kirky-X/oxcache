@@ -781,7 +781,11 @@ mod tests {
         backend.delete("k").await.unwrap();
         assert!(!backend.exists("k").await.unwrap());
         backend.clear().await.unwrap();
-        assert_eq!(backend.stats().tracked_keys, 0, "clear 应清零追踪表");
+        assert_eq!(
+            backend.stats().tracked_keys,
+            0,
+            "clear should reset the tracking table"
+        );
 
         backend.health_check().await.unwrap();
         assert_eq!(backend.backend_kind(), crate::backend::BackendKind::Mock);
@@ -806,7 +810,11 @@ mod tests {
                 .unwrap();
         store(&backend, "tracked", Some(Duration::from_secs(60))).await;
         backend.maybe_extend_hot("tracked", 1).await;
-        assert_eq!(backend.stats().hot_extensions, 0, "未达阈值不应延长");
+        assert_eq!(
+            backend.stats().hot_extensions,
+            0,
+            "below-threshold entries should not be extended"
+        );
 
         // 追踪表外的键：无 last_extend 记录，直接 no-op
         backend.maybe_extend_hot("ghost", u64::MAX).await;

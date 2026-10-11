@@ -73,7 +73,7 @@ async fn test_dist_lock_watchdog_exclusive_then_handover() {
         .build();
     assert!(
         lock_a.acquire().await.expect("A acquire"),
-        "A 首次获取应成功"
+        "A's first acquire should succeed"
     );
 
     // 跨多个 TTL 等待（2.5s > 2×TTL），期间看门狗持续续期
@@ -87,17 +87,17 @@ async fn test_dist_lock_watchdog_exclusive_then_handover() {
     let err = lock_b
         .acquire()
         .await
-        .expect_err("watchdog 续期期间 B 应被互斥");
+        .expect_err("B should be excluded while the watchdog renews");
     assert!(
         err.to_string().contains("already held"),
-        "互斥错误应表明锁被他人持有: {err}"
+        "the mutual-exclusion error should state the lock is held by others: {err}"
     );
 
     // release 停止 A 的看门狗并删键，B 立即可转手
     lock_a.release().await.expect("A release");
     assert!(
-        lock_b.acquire().await.expect("B 转手获取"),
-        "release 后 B 应立即获取成功"
+        lock_b.acquire().await.expect("B acquires after handover"),
+        "B should acquire immediately after release"
     );
     lock_b.release().await.expect("B release");
 }
@@ -127,10 +127,10 @@ async fn test_dist_lock_no_renewal_after_release() {
 
     assert!(
         !lock.is_held().await.expect("is_held after ttl"),
-        "release 后键不应被看门狗续期复活"
+        "the key must not be revived by watchdog renewal after release"
     );
     assert!(
         !backend.exists(&key).await.expect("exists"),
-        "release 并过期后 Redis 中键应不存在"
+        "the key should be absent from Redis after release and expiry"
     );
 }

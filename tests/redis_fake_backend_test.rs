@@ -1053,7 +1053,7 @@ async fn lua_executor_paths() {
         .unwrap_err();
     assert!(
         err.to_string().to_lowercase().contains("noscript"),
-        "NOSCRIPT 错误必须透传，实际: {err}"
+        "NOSCRIPT errors must pass through, got {err}"
     );
 
     // script_load 后 eval_sha 成功
@@ -1260,11 +1260,14 @@ async fn dist_lock_full_lifecycle() {
         .ttl(Duration::from_secs(30))
         .watchdog_enabled(false)
         .build();
-    assert_eq!(lock.token(), 0, "未获取时 fencing token 为 0");
+    assert_eq!(lock.token(), 0, "the fencing token is 0 before acquisition");
 
     // 首次获取
     assert!(lock.acquire().await.unwrap());
-    assert!(lock.token() > 0, "获取成功后 fencing token 单调递增");
+    assert!(
+        lock.token() > 0,
+        "the fencing token increases monotonically after acquisition"
+    );
     assert!(lock.is_held().await.unwrap());
     assert!(lock.extend().await.unwrap());
 
@@ -1358,7 +1361,10 @@ async fn lock_provider_trait_surface() {
     });
     // 退避序列 50→100→200ms 内锁过期，竞争者接管
     let (contender, acquired) = waiter.await.unwrap();
-    assert!(acquired.is_ok(), "lock() 应在锁过期后接管");
+    assert!(
+        acquired.is_ok(),
+        "lock() should take over after the lock expires"
+    );
     assert!(contender.is_held().await.unwrap());
 }
 
@@ -1375,7 +1381,10 @@ async fn watchdog_renews_and_backs_off_on_errors() {
 
     // 续期周期 ≈ ttl/3 = 1s；t≈1s 已续期（存活至 ≈4s），锁必须仍在手
     tokio::time::sleep(Duration::from_millis(1400)).await;
-    assert!(lock.is_held().await.unwrap(), "watchdog 必须在 TTL 内续期");
+    assert!(
+        lock.is_held().await.unwrap(),
+        "the watchdog must renew within the TTL"
+    );
 
     // 注入 Redis 错误：t≈2s 的续期尝试失败 → watchdog 进入指数退避而不弃锁
     //（错误窗口内不得调用任何 API）
@@ -1386,7 +1395,7 @@ async fn watchdog_renews_and_backs_off_on_errors() {
     tokio::time::sleep(Duration::from_millis(600)).await;
     assert!(
         lock.is_held().await.unwrap(),
-        "错误退避后 watchdog 恢复续期"
+        "the watchdog resumes renewal after an error backoff"
     );
 
     // 释放终止 watchdog
@@ -1412,7 +1421,7 @@ async fn watchdog_exits_when_lock_stolen() {
     tokio::time::sleep(Duration::from_millis(700)).await;
     assert!(
         !lock.is_held().await.unwrap(),
-        "锁被偷后 watchdog 退出且锁不在手"
+        "after the lock is stolen, the watchdog exits and the lock is not held"
     );
 }
 
@@ -1430,7 +1439,7 @@ async fn builder_validation_and_database_suffix() {
         .await;
     let err = match refused {
         Err(e) => e,
-        Ok(_) => panic!("pool_size=0 必须被拒绝"),
+        Ok(_) => panic!("pool_size=0 must be rejected"),
     };
     assert!(err.to_string().contains("pool size"));
 

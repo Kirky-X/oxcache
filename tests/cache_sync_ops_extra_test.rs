@@ -231,8 +231,15 @@ async fn stale_return_policy_serves_old_value() {
         })
         .await
         .unwrap();
-    assert_eq!(v2, "fresh1", "Return 策略：stale 命中返回旧值");
-    assert_eq!(calls.load(Ordering::SeqCst), 1, "stale 命中不执行 fallback");
+    assert_eq!(
+        v2, "fresh1",
+        "Return policy: a stale hit returns the old value"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a stale hit does not run the fallback"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -258,7 +265,10 @@ async fn stale_revalidate_policy_treats_as_miss() {
         })
         .await
         .unwrap();
-    assert_eq!(v2, "v2", "Revalidate 策略：stale 视同 miss 并刷新");
+    assert_eq!(
+        v2, "v2",
+        "Revalidate policy: stale counts as a miss and refreshes"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 }
 
@@ -291,7 +301,10 @@ async fn stale_offload_policy_returns_old_and_refreshes_background() {
         })
         .await
         .unwrap();
-    assert_eq!(v2, "gen1", "OffloadRevalidate：立即返回旧值");
+    assert_eq!(
+        v2, "gen1",
+        "OffloadRevalidate: return the old value immediately"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
     // 等待后台刷新落盘后，再次 get 应得到新值
@@ -303,7 +316,7 @@ async fn stale_offload_policy_returns_old_and_refreshes_background() {
             return;
         }
     }
-    panic!("offload 后台刷新未落盘");
+    panic!("the offload background refresh did not land");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -523,7 +536,10 @@ async fn stale_sentinel_payload_treated_as_miss() {
         })
         .await
         .unwrap();
-    assert_eq!(v, "recomputed", "哨兵 stale 命中按 miss 重新回源");
+    assert_eq!(
+        v, "recomputed",
+        "a sentinel stale hit re-reads the source as a miss"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 

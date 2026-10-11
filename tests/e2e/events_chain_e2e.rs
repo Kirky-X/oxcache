@@ -101,7 +101,7 @@ async fn test_chain_publishes_error_events_on_backend_failure() {
         .expect("bootstrap set");
     assert!(
         recorder.errors().is_empty(),
-        "全链成功不应产生错误事件: {:?}",
+        "a fully successful chain should not produce error events: {:?}",
         recorder.errors()
     );
 
@@ -115,23 +115,30 @@ async fn test_chain_publishes_error_events_on_backend_failure() {
     chain
         .set("evt:set-path", b"v2".to_vec(), None)
         .await
-        .expect("部分后端失败时 set 仍应成功（部分成功语义）");
+        .expect("set should still succeed when some backends fail (partial-success semantics)");
 
     // get——L1 命中不触发 L2（无新事件）；L1 miss → L2 失败时
     // 降级为 Ok(None)（部分明确 miss 即不整体失败），事件仍然到达
-    let cached = chain.get("evt:set-path").await.expect("L1 命中读取");
-    assert_eq!(cached, Some(b"v2".to_vec()), "L1 数据应仍可读");
+    let cached = chain.get("evt:set-path").await.expect("L1 hit read");
+    assert_eq!(
+        cached,
+        Some(b"v2".to_vec()),
+        "L1 data should still be readable"
+    );
     let ghost = chain
         .get("evt:ghost")
         .await
-        .expect("部分后端失败时 get 不应整体失败");
-    assert_eq!(ghost, None, "L1 miss 且 L2 失败时应降级为 miss");
+        .expect("get should not fail wholesale when some backends fail");
+    assert_eq!(
+        ghost, None,
+        "an L1 miss with an L2 failure should degrade to a miss"
+    );
 
     // delete——L1 成功 L2 失败 → 部分成功语义，事件到达
     chain
         .delete("evt:bootstrap")
         .await
-        .expect("部分后端失败时 delete 仍应成功（部分成功语义）");
+        .expect("delete should still succeed when some backends fail (partial-success semantics)");
 
     // 事件断言：三条失败路径各产生一条 publish_error，格式
     // "backend {name}: {error}"，key 均为 Some(原始键)
@@ -139,14 +146,14 @@ async fn test_chain_publishes_error_events_on_backend_failure() {
     assert_eq!(
         errors.len(),
         3,
-        "set/get(ghost)/delete 三条失败路径各应产生一条错误事件: {errors:?}"
+        "each of the set/get(ghost)/delete failure paths should produce one error event: {errors:?}"
     );
     for key in ["evt:set-path", "evt:ghost", "evt:bootstrap"] {
         assert!(
             errors
                 .iter()
                 .any(|(k, e)| k.as_deref() == Some(key) && e.contains("backend redis")),
-            "应包含键 {key} 的 'backend redis' 错误事件: {errors:?}"
+            "should contain the 'backend redis' error event for key {key}: {errors:?}"
         );
     }
 }

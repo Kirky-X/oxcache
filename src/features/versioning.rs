@@ -324,7 +324,7 @@ mod tests {
                 .await
                 .unwrap(),
             None,
-            "过期版本必须被拒绝"
+            "expired versions must be rejected"
         );
         // 值未被脏写
         assert_eq!(
@@ -351,7 +351,10 @@ mod tests {
         );
 
         let wins = [ra.unwrap(), rb.unwrap()].into_iter().flatten().count();
-        assert_eq!(wins, 1, "同版本并发写只能有一方成功");
+        assert_eq!(
+            wins, 1,
+            "only one concurrent write of the same version may win"
+        );
         assert_eq!(store.version("counter").await.unwrap(), Some(2));
     }
 

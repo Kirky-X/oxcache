@@ -25,55 +25,55 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 错误处理示例 ===\n");
+    println!("=== Error handling example ===\n");
 
-    println!("--- 1. 错误类型分类 ---");
+    println!("--- 1. Error type classification ---");
     demonstrate_error_categories();
 
-    println!("\n--- 2. 可恢复性判断 ---");
+    println!("\n--- 2. Recoverability ---");
     demonstrate_recoverability();
 
-    println!("\n--- 3. 错误码与日志 ---");
+    println!("\n--- 3. Error codes and logging ---");
     demonstrate_error_codes();
 
-    println!("\n--- 4. 带重试的弹性操作 ---");
+    println!("\n--- 4. Resilient operations with retry ---");
     demonstrate_retry_pattern().await?;
 
-    println!("\n--- 5. 运行时错误触发 ---");
+    println!("\n--- 5. Triggering runtime errors ---");
     demonstrate_runtime_errors().await?;
 
-    println!("\n--- 6. 错误传播与 ? 操作符 ---");
+    println!("\n--- 6. Error propagation with the ? operator ---");
     demonstrate_error_propagation().await?;
 
-    println!("\n--- 7. 配置阶段错误 ---");
+    println!("\n--- 7. Configuration-time errors ---");
     demonstrate_config_errors();
 
-    println!("\n✓ 错误处理示例完成");
+    println!("\n✓ Error handling example complete");
     Ok(())
 }
 
 /// 演示 OxCacheError 各变体的分类
 fn demonstrate_error_categories() {
     // 连接类错误 — 通常是暂时性的
-    let conn_err = OxCacheError::Connection("Redis 连接被拒绝".into());
+    let conn_err = OxCacheError::Connection("Redis connection refused".into());
     println!(
-        "  连接错误: {} (可恢复: {})",
+        "  connection error: {} (recoverable: {})",
         conn_err,
         conn_err.is_recoverable()
     );
 
     // 超时类错误 — 可重试
-    let timeout_err = OxCacheError::Timeout("5s 内未响应".into());
+    let timeout_err = OxCacheError::Timeout("no response within 5s".into());
     println!(
-        "  超时错误: {} (可恢复: {})",
+        "  timeout error: {} (recoverable: {})",
         timeout_err,
         timeout_err.is_recoverable()
     );
 
     // 后端错误 — 可能是暂时性的
-    let backend_err = OxCacheError::BackendError("Moka 内存不足".into());
+    let backend_err = OxCacheError::BackendError("Moka out of memory".into());
     println!(
-        "  后端错误: {} (可恢复: {})",
+        "  backend error: {} (recoverable: {})",
         backend_err,
         backend_err.is_recoverable()
     );
@@ -81,7 +81,7 @@ fn demonstrate_error_categories() {
     // 未找到 — 不可恢复（需要回源）
     let not_found = OxCacheError::NotFound("user:42".into());
     println!(
-        "  未找到:   {} (可恢复: {})",
+        "  not found:   {} (recoverable: {})",
         not_found,
         not_found.is_recoverable()
     );
@@ -89,23 +89,23 @@ fn demonstrate_error_categories() {
     // 序列化错误 — 通常不可恢复
     let ser_err = OxCacheError::Serialization("invalid UTF-8".into());
     println!(
-        "  序列化:   {} (可恢复: {})",
+        "  serialization:   {} (recoverable: {})",
         ser_err,
         ser_err.is_recoverable()
     );
 
     // 降级模式
-    let degraded = OxCacheError::Degraded("L2 Redis 不可用，仅 L1 可用".into());
+    let degraded = OxCacheError::Degraded("L2 Redis unavailable, L1 only".into());
     println!(
-        "  降级:     {} (降级模式: {})",
+        "  degraded:     {} (degraded mode: {})",
         degraded,
         degraded.is_degraded()
     );
 
     // 内部错误 — 不可恢复，不应重试
-    let internal = OxCacheError::Internal("锁中毒".into());
+    let internal = OxCacheError::Internal("lock poisoned".into());
     println!(
-        "  内部错误: {} (可恢复: {})",
+        "  internal error: {} (recoverable: {})",
         internal,
         internal.is_recoverable()
     );
@@ -134,8 +134,8 @@ fn demonstrate_recoverability() {
     ];
 
     println!(
-        "  {:<16} {:<10} {:<12} 错误码",
-        "错误类型", "可恢复?", "连接错误?"
+        "  {:<16} {:<10} {:<12} error code",
+        "error type", "recoverable?", "connection error?"
     );
     println!("  {}", "-".repeat(50));
     for (name, err) in &errors {
@@ -151,10 +151,10 @@ fn demonstrate_recoverability() {
 
 /// 演示错误码获取
 fn demonstrate_error_codes() {
-    let err = OxCacheError::Connection("redis://localhost:6379 连接失败".into());
-    println!("  错误消息: {}", err);
-    println!("  错误码:   {}", err.code());
-    println!("  可重试:   {}", err.is_recoverable());
+    let err = OxCacheError::Connection("failed to connect to redis://localhost:6379".into());
+    println!("  error message: {}", err);
+    println!("  error code:   {}", err.code());
+    println!("  retryable:   {}", err.is_recoverable());
 
     // 模拟结构化日志
     println!("\n  [LOG] code={} level=ERROR msg=\"{}\"", err.code(), err);
@@ -178,19 +178,19 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
             match operation().await {
                 Ok(val) => {
                     if attempt > 0 {
-                        println!("  ✓ {} 第 {} 次重试成功", operation_name, attempt);
+                        println!("  ✓ {} succeeded on retry {}", operation_name, attempt);
                     }
                     return Ok(val);
                 }
                 Err(e) => {
                     if !e.is_recoverable() {
-                        println!("  ✗ {} 遇到不可恢复错误: {}", operation_name, e);
+                        println!("  ✗ {} hit an unrecoverable error: {}", operation_name, e);
                         return Err(e);
                     }
                     if attempt < max_retries {
                         let delay = std::time::Duration::from_millis(10 * 2u64.pow(attempt));
                         println!(
-                            "  ⚠ {} 第 {} 次失败 ({}), {}ms 后重试...",
+                            "  ⚠ {} failed on attempt {} ({}), retrying in {}ms...",
                             operation_name,
                             attempt + 1,
                             e.code(),
@@ -198,7 +198,10 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
                         );
                         tokio::time::sleep(delay).await;
                     } else {
-                        println!("  ✗ {} 已达最大重试次数 {}", operation_name, max_retries);
+                        println!(
+                            "  ✗ {} reached the maximum retry count {}",
+                            operation_name, max_retries
+                        );
                         return Err(e);
                     }
                 }
@@ -211,32 +214,34 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
     let attempt_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let counter = attempt_count.clone();
 
-    let result = with_retry("读取配置", 3, || {
+    let result = with_retry("read config", 3, || {
         let counter = counter.clone();
         async move {
             let n = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if n < 2 {
                 // 前两次模拟暂时性失败
-                Err(OxCacheError::Connection("模拟连接不稳定".into()))
+                Err(OxCacheError::Connection(
+                    "simulate an unstable connection".into(),
+                ))
             } else {
-                Ok("配置数据".to_string())
+                Ok("config data".to_string())
             }
         }
     })
     .await?;
-    println!("  最终结果: {}", result);
+    println!("  final result: {}", result);
 
     // 演示不可恢复错误不会重试
-    let not_found_result = with_retry("查找缓存", 3, || async {
-        Err::<String, _>(OxCacheError::NotFound("不存在的键".into()))
+    let not_found_result = with_retry("lookup cache", 3, || async {
+        Err::<String, _>(OxCacheError::NotFound("nonexistent key".into()))
     })
     .await;
     println!(
-        "  不可恢复错误结果: {}",
+        "  unrecoverable error result: {}",
         if not_found_result.is_err() {
-            "正确跳过重试"
+            "correctly skipped the retry"
         } else {
-            "意外"
+            "unexpected"
         }
     );
 
@@ -252,7 +257,7 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
         )
         .await?;
     let cached = cache.get(&key).await?;
-    println!("  缓存操作成功: {:?}", cached.map(|c| c.name));
+    println!("  cache operation succeeded: {:?}", cached.map(|c| c.name));
 
     Ok(())
 }
@@ -264,24 +269,24 @@ async fn demonstrate_runtime_errors() -> OxCacheResult<()> {
     // 正常操作
     cache.set(&"k1".to_string(), &"v1".to_string()).await?;
     let val = cache.get(&"k1".to_string()).await?;
-    println!("  正常读取: {:?}", val);
+    println!("  normal read: {:?}", val);
 
     // 读取不存在的键 — 返回 None 而非错误
     let missing = cache.get(&"nonexistent".to_string()).await?;
-    println!("  不存在的键返回: {:?} (非错误)", missing);
+    println!("  a missing key returns: {:?} (not an error)", missing);
 
     // 使用 get_or 处理缓存未命中
     let value = cache
         .get_or(&"computed".to_string(), || async {
-            Ok("计算结果".to_string())
+            Ok("computed result".to_string())
         })
         .await?;
-    println!("  get_or 计算结果: {}", value);
+    println!("  get_or computed result: {}", value);
 
     // 演示 health_check
     match cache.health_check().await {
-        Ok(()) => println!("  健康检查: ✓ 通过"),
-        Err(e) => println!("  健康检查: ✗ {} ({})", e, e.code()),
+        Ok(()) => println!("  health check: ✓ passed"),
+        Err(e) => println!("  health check: ✗ {} ({})", e, e.code()),
     }
 
     Ok(())
@@ -294,10 +299,9 @@ async fn demonstrate_error_propagation() -> OxCacheResult<()> {
     /// 业务函数：将错误向上传播
     async fn load_user_score(cache: &Cache<String, i32>, user_id: u64) -> OxCacheResult<i32> {
         let key = format!("score:{}", user_id);
-        cache
-            .get(&key)
-            .await?
-            .ok_or_else(|| OxCacheError::NotFound(format!("用户 {} 的分数不存在", user_id)))
+        cache.get(&key).await?.ok_or_else(|| {
+            OxCacheError::NotFound(format!("the score for user {} does not exist", user_id))
+        })
     }
 
     // 先设置数据
@@ -305,14 +309,14 @@ async fn demonstrate_error_propagation() -> OxCacheResult<()> {
 
     // 存在的用户
     match load_user_score(&cache, 1).await {
-        Ok(score) => println!("  用户 1 分数: {}", score),
-        Err(e) => println!("  加载失败: {}", e),
+        Ok(score) => println!("  user 1 score: {}", score),
+        Err(e) => println!("  load failed: {}", e),
     }
 
     // 不存在的用户
     match load_user_score(&cache, 999).await {
-        Ok(score) => println!("  用户 999 分数: {}", score),
-        Err(e) => println!("  用户 999 加载失败: {} (code={})", e, e.code()),
+        Ok(score) => println!("  user 999 score: {}", score),
+        Err(e) => println!("  user 999 load failed: {} (code={})", e, e.code()),
     }
 
     Ok(())
@@ -322,13 +326,13 @@ async fn demonstrate_error_propagation() -> OxCacheResult<()> {
 fn demonstrate_config_errors() {
     // 配置错误示例（使用 OxCacheError 模拟，因为 OxCacheConfigError 需要 redis feature）
     let errors = vec![
-        OxCacheError::InvalidInput("capacity 不能为 0".into()),
-        OxCacheError::InvalidKey("键包含禁止字符 \\0".into()),
+        OxCacheError::InvalidInput("capacity must not be 0".into()),
+        OxCacheError::InvalidKey("key must not contain forbidden character \\0".into()),
         OxCacheError::KeyTooLong(1024, 512),
         OxCacheError::ValueTooLarge(2048, 1024),
     ];
 
     for err in &errors {
-        println!("  配置错误: {} [code={}]", err, err.code());
+        println!("  config error: {} [code={}]", err, err.code());
     }
 }

@@ -29,33 +29,33 @@ struct Order {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(
-        "=== 缓存失效策略示例 ===
+        "=== Cache invalidation strategy example ===
 "
     );
 
     // 创建分层缓存用于演示
     let cache: Arc<Cache<String, Order>> = Arc::new(Cache::builder().build().await?);
 
-    println!("1. 准备测试数据");
+    println!("1. Prepare test data");
     let orders = vec![
         Order {
             id: 1,
             user_id: 100,
-            product: "笔记本电脑".to_string(),
+            product: "laptop".to_string(),
             quantity: 1,
             total: 5999.99,
         },
         Order {
             id: 2,
             user_id: 100,
-            product: "鼠标".to_string(),
+            product: "mouse".to_string(),
             quantity: 2,
             total: 199.98,
         },
         Order {
             id: 3,
             user_id: 200,
-            product: "键盘".to_string(),
+            product: "keyboard".to_string(),
             quantity: 1,
             total: 299.99,
         },
@@ -65,46 +65,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cache.set(&format!("order:{}", order.id), order).await?;
     }
     println!(
-        "   ✓ 添加了 {} 个订单
+        "   ✓ added {} orders
 ",
         orders.len()
     );
 
-    println!("2. 单个 key 失效");
-    println!("   删除 order:1");
+    println!("2. Single-key invalidation");
+    println!("  Deleting order:1");
     cache.delete(&"order:1".to_string()).await?;
     let result = cache.get(&"order:1".to_string()).await?;
     match result {
-        Some(_) => println!("   ✗ 订单仍然存在"),
-        None => println!("   ✓ 订单已删除"),
+        Some(_) => println!("   ✗ the order still exists"),
+        None => println!("   ✓ the order was deleted"),
     }
     println!();
 
-    println!("3. 批量失效 (通过清空缓存)");
+    println!("3. Bulk invalidation (by clearing the cache)");
     // 清空整个缓存
     cache.clear().await?;
     let remaining = cache.get(&"order:2".to_string()).await?;
     match remaining {
-        Some(_) => println!("   ✗ order:2 仍然存在"),
-        None => println!("   ✓ 所有订单已清空"),
+        Some(_) => println!("   ✗ order:2 still exists"),
+        None => println!("   ✓ all orders cleared"),
     }
     println!();
 
-    println!("4. 基于用户 ID 的失效模式");
+    println!("4. User-ID-based invalidation patterns");
     let user_cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
     // 添加用户 100 的多个购物车项目
     user_cache
-        .set(&"cart:100:item1".to_string(), &"笔记本电脑".to_string())
+        .set(&"cart:100:item1".to_string(), &"laptop".to_string())
         .await?;
     user_cache
-        .set(&"cart:100:item2".to_string(), &"鼠标".to_string())
+        .set(&"cart:100:item2".to_string(), &"mouse".to_string())
         .await?;
     user_cache
-        .set(&"cart:200:item1".to_string(), &"键盘".to_string())
+        .set(&"cart:200:item1".to_string(), &"keyboard".to_string())
         .await?;
 
-    println!("   原始购物车:");
+    println!("  Original cart:");
     println!(
         "     cart:100:item1 = {:?}",
         user_cache.get(&"cart:100:item1".to_string()).await?
@@ -122,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 注意：Oxcache 没有直接的模式匹配删除，需要手动遍历
     println!(
         "
-   用户 100 结账，清空其购物车..."
+   user 100 checks out, clearing their cart..."
     );
 
     // 实际应用中应该维护 key 的索引列表
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     user_cache.delete(&"cart:100:item1".to_string()).await?;
     user_cache.delete(&"cart:100:item2".to_string()).await?;
 
-    println!("   清空后:");
+    println!("  After clear:");
     println!(
         "     cart:100:item1 = {:?}",
         user_cache.get(&"cart:100:item1".to_string()).await?
@@ -141,40 +141,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
 
-    println!("5. TTL 自动失效");
+    println!("5. TTL-based automatic invalidation");
     let ttl_cache: Cache<String, String> = Cache::builder().build().await?;
 
-    println!("   添加 2 秒过期的数据");
+    println!("  Adding data that expires in 2 seconds");
     ttl_cache
         .set_with_ttl(
             &"temp:data".to_string(),
-            &"临时数据".to_string(),
+            &"temporary data".to_string(),
             Some(Duration::from_secs(2)),
         )
         .await?;
 
     println!(
-        "   立即获取: {:?}",
+        "  immediate get: {:?}",
         ttl_cache.get(&"temp:data".to_string()).await?
     );
 
-    println!("   等待 3 秒...");
+    println!("  Waiting 3 seconds...");
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     println!(
-        "   3 秒后获取: {:?}
+        "   get after 3 seconds: {:?}
 ",
         ttl_cache.get(&"temp:data".to_string()).await?
     );
 
-    println!("6. 更新时失效 (Write-Invalidation)");
+    println!("6. Write-time invalidation (write-invalidation)");
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
     cache
         .set(&"config:theme".to_string(), &"dark".to_string())
         .await?;
     println!(
-        "   初始主题: {:?}",
+        "  Initial theme: {:?}",
         cache.get(&"config:theme".to_string()).await?
     );
 
@@ -183,11 +183,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .set(&"config:theme".to_string(), &"light".to_string())
         .await?;
     println!(
-        "   更新后主题: {:?}",
+        "  Updated theme: {:?}",
         cache.get(&"config:theme".to_string()).await?
     );
 
     println!();
-    println!("=== 失效策略示例完成 ===");
+    println!("=== Invalidation strategy example complete ===");
     Ok(())
 }

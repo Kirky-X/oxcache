@@ -21,16 +21,16 @@ use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Redis Pipeline 批量操作示例 ===\n");
+    println!("=== Redis Pipeline batch operations example ===\n");
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    println!("连接 Redis: {}", redis_url);
+    println!("Connecting to Redis: {}", redis_url);
 
     let backend = RedisBackend::new(&redis_url).await?;
-    println!("✓ Redis 连接成功\n");
+    println!("✓ Redis connected\n");
 
-    println!("--- 1. 批量设置（set_many_pipeline） ---");
+    println!("--- 1. Batch set (set_many_pipeline) ---");
     // 先收集 String，再借用为 &str
     let owned_items: Vec<(String, Vec<u8>)> = (0..10)
         .map(|i| {
@@ -50,9 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .set_many_pipeline(&items, Some(Duration::from_secs(60)))
         .await?;
     let elapsed = start.elapsed();
-    println!("  批量设置 {} 个键，耗时: {:?}", items.len(), elapsed);
+    println!("  batch set {} keys, took: {:?}", items.len(), elapsed);
 
-    println!("\n--- 2. 批量获取（get_many_pipeline） ---");
+    println!("\n--- 2. Batch get (get_many_pipeline) ---");
     let owned_keys: Vec<String> = (0..10).map(|i| format!("pipeline:key:{}", i)).collect();
     let keys: Vec<&str> = owned_keys.iter().map(|s| s.as_str()).collect();
 
@@ -60,8 +60,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let results = backend.get_many_pipeline(&keys).await?;
     let elapsed = start.elapsed();
 
-    println!("  批量获取 {} 个键，耗时: {:?}", keys.len(), elapsed);
-    println!("  结果:");
+    println!("  batch get {} keys, took: {:?}", keys.len(), elapsed);
+    println!("  results:");
     for (i, result) in results.iter().enumerate() {
         match result {
             Some(data) => println!("    key[{}] = {:?}", i, String::from_utf8_lossy(data)),
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("\n--- 3. 性能对比：逐个设置 vs Pipeline ---");
+    println!("\n--- 3. Performance comparison: one-by-one vs Pipeline ---");
 
     // 逐个设置
     let start = Instant::now();
@@ -98,14 +98,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     backend.set_many_pipeline(&perf_items, None).await?;
     let pipeline_elapsed = start.elapsed();
 
-    println!("  逐个设置 10 个键: {:?}", individual_elapsed);
-    println!("  Pipeline 设置 10 个键: {:?}", pipeline_elapsed);
+    println!("  setting 10 keys one by one: {:?}", individual_elapsed);
+    println!("  setting 10 keys via Pipeline: {:?}", pipeline_elapsed);
     println!(
-        "  Pipeline 快 {:.1}x",
+        "  Pipeline is {:.1}x faster",
         individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001)
     );
 
-    println!("\n--- 4. 批量删除（delete_many_pipeline） ---");
+    println!("\n--- 4. Batch delete (delete_many_pipeline) ---");
     let owned_perf_keys: Vec<String> = (0..10).map(|i| format!("pipeline:perf:{}", i)).collect();
     let owned_ind_keys: Vec<String> = (0..10).map(|i| format!("individual:key:{}", i)).collect();
 
@@ -116,13 +116,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let all_keys: Vec<&str> = all_owned.iter().map(|s| s.as_str()).collect();
 
     backend.delete_many_pipeline(&all_keys).await?;
-    println!("  批量删除 {} 个键", all_keys.len());
+    println!("  batch deleted {} keys", all_keys.len());
 
     // 验证删除
     let results = backend.get_many_pipeline(&all_keys).await?;
     let remaining = results.iter().filter(|r| r.is_some()).count();
-    println!("  剩余键数: {} (应为 0)", remaining);
+    println!("  remaining keys: {} (should be 0)", remaining);
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }

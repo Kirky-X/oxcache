@@ -22,7 +22,11 @@ use common::test_containers::{RedisContainer, container_or_skip, start_redis_con
 /// 就绪的 Redis 容器与后端；不可用时返回 None（调用方跳过测试）
 async fn setup() -> Option<(RedisContainer, Arc<RedisBackend>)> {
     let (container, url) = container_or_skip("Redis(versioning)", start_redis_container()).await?;
-    let backend = Arc::new(RedisBackend::new(&url).await.expect("连接 Redis 后端"));
+    let backend = Arc::new(
+        RedisBackend::new(&url)
+            .await
+            .expect("connect the Redis backend"),
+    );
     Some((container, backend))
 }
 
@@ -61,12 +65,12 @@ async fn versioned_cas_roundtrip_rejects_stale_writes() {
             .await
             .unwrap(),
         Some(2),
-        "带 TTL 的写入应成功"
+        "a write with a TTL should succeed"
     );
     let ttl = backend.ttl("cas:key").await.unwrap();
     assert!(
         ttl.is_some_and(|d| d <= Duration::from_secs(30)),
-        "TTL 分支应写入过期时间，got {ttl:?}"
+        "the TTL branch should write an expiry, got {ttl:?}"
     );
 
     // 过期版本（含更早版本与「期望不存在」）必须被拒绝，且不得脏写
@@ -76,7 +80,7 @@ async fn versioned_cas_roundtrip_rejects_stale_writes() {
             .await
             .unwrap(),
         None,
-        "过期版本必须被拒绝"
+        "expired versions must be rejected"
     );
     assert_eq!(
         store
@@ -84,12 +88,12 @@ async fn versioned_cas_roundtrip_rejects_stale_writes() {
             .await
             .unwrap(),
         None,
-        "已存在键不得以版本 0 重建"
+        "an existing key must not be recreated with version 0"
     );
     assert_eq!(
         store.get_versioned("cas:key").await.unwrap().unwrap().data,
         b"second".to_vec(),
-        "被拒绝的写入不得落地"
+        "a rejected write must not land"
     );
 
     store.delete("cas:key").await.unwrap();
@@ -100,7 +104,7 @@ async fn versioned_cas_roundtrip_rejects_stale_writes() {
             .await
             .unwrap(),
         Some(1),
-        "删除后应可以版本 0 重建"
+        "after deletion, version 0 may recreate the key"
     );
 }
 
@@ -133,10 +137,10 @@ async fn versioned_decode_rejects_short_envelope() {
     let err = store
         .version("raw:key")
         .await
-        .expect_err("截断信封必须报错");
+        .expect_err("truncated envelopes must error");
     assert!(
         err.to_string().contains("envelope too short"),
-        "应命中长度校验, got {err}"
+        "the length check should trigger, got {err}"
     );
     assert!(store.get_versioned("raw:key").await.is_err());
 }

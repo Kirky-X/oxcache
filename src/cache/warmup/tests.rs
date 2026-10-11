@@ -66,7 +66,7 @@ async fn warmup_backfills_loader_values_into_all_links() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(
         (report.loader_entries, report.deduped, report.warmed),
@@ -77,14 +77,24 @@ async fn warmup_backfills_loader_values_into_all_links() {
 
     // 全链可读（set 落全部后端）
     for (key, value) in [("hot:1", "v1"), ("hot:2", "v2"), ("hot:3", "v3")] {
-        let got = chain.get(key).await.expect("get 不应失败");
-        assert_eq!(got, Some(value.as_bytes().to_vec()), "{key} 应回填命中");
+        let got = chain.get(key).await.expect("get should not fail");
+        assert_eq!(
+            got,
+            Some(value.as_bytes().to_vec()),
+            "{key} should hit via backfill"
+        );
     }
     // 直供 TTL 透传（hot:3 带 60s TTL，链上应可读到剩余 TTL）
-    let ttl = chain.ttl("hot:3").await.expect("ttl 不应失败");
-    assert!(ttl.is_some(), "带 TTL 条目应保留过期语义");
-    let no_ttl = chain.ttl("hot:1").await.expect("ttl 不应失败");
-    assert!(no_ttl.is_none(), "未带 TTL 条目不应凭空获得过期时间");
+    let ttl = chain.ttl("hot:3").await.expect("ttl should not fail");
+    assert!(
+        ttl.is_some(),
+        "entries with a TTL should keep expiry semantics"
+    );
+    let no_ttl = chain.ttl("hot:1").await.expect("ttl should not fail");
+    assert!(
+        no_ttl.is_none(),
+        "entries without a TTL must not gain expiry out of thin air"
+    );
 }
 
 #[tokio::test]
@@ -102,29 +112,37 @@ async fn warmup_dedupes_duplicate_keys_first_wins() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.loader_entries, 3);
-    assert_eq!(report.deduped, 2, "重复 key 应收敛");
+    assert_eq!(report.deduped, 2, "duplicate keys should be deduplicated");
     assert_eq!(report.warmed, 2);
 
-    let got = chain.get("dup").await.expect("get 不应失败");
-    assert_eq!(got, Some(b"first".to_vec()), "重复 key 以首次出现为准");
+    let got = chain.get("dup").await.expect("get should not fail");
+    assert_eq!(
+        got,
+        Some(b"first".to_vec()),
+        "the first occurrence wins for duplicate keys"
+    );
 }
 
 #[tokio::test]
 async fn warmup_promotes_key_only_entries_via_batch_read() {
     let chain = two_layer_chain();
     // 值仅存在于低层（L2）：模拟冷启动后低层有历史数据、高层为空的场景
-    let low = chain.links().last().expect("两层链必有低层").clone();
+    let low = chain
+        .links()
+        .last()
+        .expect("a two-layer chain must have a lower layer")
+        .clone();
     low.backend()
         .set(Arc::from("cold:1"), Arc::new(b"lv1".to_vec()), None)
         .await
-        .expect("直塞低层");
+        .expect("insert directly into the lower layer");
     low.backend()
         .set(Arc::from("cold:2"), Arc::new(b"lv2".to_vec()), None)
         .await
-        .expect("直塞低层");
+        .expect("insert directly into the lower layer");
 
     let loader = Arc::new(VecLoader {
         entries: vec![
@@ -150,16 +168,31 @@ async fn warmup_promotes_key_only_entries_via_batch_read() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
-    assert_eq!(report.promoted, 2, "低层命中条目应晋升");
-    assert_eq!(report.missing, 1, "链上无值条目应计 missing");
+    assert_eq!(report.promoted, 2, "lower-layer hits should be promoted");
+    assert_eq!(
+        report.missing, 1,
+        "entries with no value on the chain should count as missing"
+    );
     assert_eq!(report.failed, 0);
 
     // 高层（L1）现可直接命中
-    let high = chain.links().first().expect("两层链必有高层").clone();
-    let got = high.backend().get("cold:1").await.expect("get 不应失败");
-    assert_eq!(got, Some(b"lv1".to_vec()), "晋升后高层应有值");
+    let high = chain
+        .links()
+        .first()
+        .expect("a two-layer chain must have an upper layer")
+        .clone();
+    let got = high
+        .backend()
+        .get("cold:1")
+        .await
+        .expect("get should not fail");
+    assert_eq!(
+        got,
+        Some(b"lv1".to_vec()),
+        "the upper layer should hold the value after promotion"
+    );
 }
 
 #[tokio::test]
@@ -171,17 +204,17 @@ async fn warmup_loader_failure_is_explicit_and_cache_unaffected() {
         .run(Arc::new(FailingLoader))
         .await;
 
-    let err = result.expect_err("loader 端口失败必须显性返回 Err");
+    let err = result.expect_err("loader failure must surface as Err");
     assert!(
         err.to_string().contains("loader source unavailable"),
-        "错误应保留 loader 根因: {err}"
+        "the error should preserve the loader root cause: {err}"
     );
 
     // 预热失败不影响缓存本体可用性
     chain
         .set("after-failure", b"ok".to_vec(), None)
         .await
-        .expect("缓存仍可写");
+        .expect("the cache remains writable");
 }
 
 #[tokio::test]
@@ -199,17 +232,24 @@ async fn warmup_write_failures_are_counted_not_fatal() {
         .build()
         .run(loader)
         .await
-        .expect("写入失败应计入报告而非返回 Err");
+        .expect("write failures should be counted in the report instead of returning Err");
 
     assert_eq!(report.warmed, 0);
-    assert_eq!(report.failed, 3, "逐条失败应显性计数");
-    assert_eq!(report.failures.len(), 3, "失败明细与计数一一对应");
+    assert_eq!(
+        report.failed, 3,
+        "per-entry failures should be counted explicitly"
+    );
+    assert_eq!(
+        report.failures.len(),
+        3,
+        "failure details should match the count one-to-one"
+    );
     assert!(
         report
             .failures
             .iter()
             .all(|(k, _)| ["k1", "k2", "k3"].contains(&k.as_str())),
-        "失败明细应携带键名"
+        "failure details should carry the key name"
     );
 }
 
@@ -224,15 +264,18 @@ async fn warmup_respects_concurrency_bound() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.warmed, 32);
     assert!(
         report.peak_concurrency <= 4,
-        "实测并发峰值不得超过配置上界: {}",
+        "the observed peak concurrency must not exceed the configured bound: {}",
         report.peak_concurrency
     );
-    assert!(report.peak_concurrency >= 1, "峰值应至少为 1");
+    assert!(
+        report.peak_concurrency >= 1,
+        "peak concurrency should be at least 1"
+    );
 }
 
 #[tokio::test]
@@ -247,10 +290,13 @@ async fn warmup_zero_concurrency_clamps_to_one() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.warmed, 1);
-    assert_eq!(report.peak_concurrency, 1, "0 并发应收敛为串行");
+    assert_eq!(
+        report.peak_concurrency, 1,
+        "zero concurrency should degenerate to serial"
+    );
 }
 
 #[tokio::test]
@@ -273,19 +319,25 @@ async fn warmup_drops_entries_over_value_size_limit() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.deduped, 3);
-    assert_eq!(report.warmed, 2, "限额内条目正常回填");
+    assert_eq!(
+        report.warmed, 2,
+        "entries within the budget are backfilled normally"
+    );
     assert_eq!(
         report.dropped_value_too_large, 1,
-        "超单值上限条目应显性丢弃计数"
+        "entries over the single-value limit should be counted as dropped"
     );
     assert_eq!(report.failed, 0);
     assert!(report.failures.is_empty());
 
-    let dropped = chain.get("too:big").await.expect("get 不应失败");
-    assert!(dropped.is_none(), "超限条目不得写入链");
+    let dropped = chain.get("too:big").await.expect("get should not fail");
+    assert!(
+        dropped.is_none(),
+        "oversized entries must not be written to the chain"
+    );
 }
 
 #[tokio::test]
@@ -299,19 +351,29 @@ async fn warmup_drops_entries_over_entry_cap() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.deduped, 5);
-    assert_eq!(report.warmed, 2, "条目数上限内按 loader 顺序保留");
+    assert_eq!(
+        report.warmed, 2,
+        "entries up to the count limit are kept in loader order"
+    );
     assert_eq!(
         report.dropped_over_entry_cap, 3,
-        "超出条目数上限部分应显性丢弃计数"
+        "entries beyond the count limit should be counted as dropped"
     );
 
     // 顺序即优先级：保留的是前 2 条（cap0/cap1），后 3 条未入链
     for i in 0..5u32 {
-        let got = chain.get(&format!("cap{i}")).await.expect("get 不应失败");
-        assert_eq!(got.is_some(), i < 2, "cap{i} 入链状态应符合保留顺序");
+        let got = chain
+            .get(&format!("cap{i}"))
+            .await
+            .expect("get should not fail");
+        assert_eq!(
+            got.is_some(),
+            i < 2,
+            "the cap{i} chain presence should follow the retention order"
+        );
     }
 }
 
@@ -319,7 +381,11 @@ async fn warmup_drops_entries_over_entry_cap() {
 async fn warmup_promotion_preserves_source_ttl() {
     let chain = two_layer_chain();
     // 值仅存在于低层：带 TTL 与不带 TTL 各一条，晋升后源过期语义应保留
-    let low = chain.links().last().expect("两层链必有低层").clone();
+    let low = chain
+        .links()
+        .last()
+        .expect("a two-layer chain must have a lower layer")
+        .clone();
     low.backend()
         .set(
             Arc::from("src:ttl"),
@@ -327,11 +393,11 @@ async fn warmup_promotion_preserves_source_ttl() {
             Some(Duration::from_secs(60)),
         )
         .await
-        .expect("直塞低层（带 TTL）");
+        .expect("insert directly into the lower layer (with TTL)");
     low.backend()
         .set(Arc::from("src:no-ttl"), Arc::new(b"nv".to_vec()), None)
         .await
-        .expect("直塞低层（无 TTL）");
+        .expect("insert directly into the lower layer (no TTL)");
 
     let loader = Arc::new(VecLoader {
         entries: vec![
@@ -352,17 +418,20 @@ async fn warmup_promotion_preserves_source_ttl() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
     assert_eq!(report.promoted, 2);
 
-    let promoted_ttl = chain.ttl("src:ttl").await.expect("ttl 不应失败");
+    let promoted_ttl = chain.ttl("src:ttl").await.expect("ttl should not fail");
     assert!(
         promoted_ttl.is_some_and(|t| t > Duration::ZERO && t <= Duration::from_secs(60)),
-        "晋升应透传源条目的剩余 TTL，不得重置为链默认/永不过期: {promoted_ttl:?}"
+        "promotion must pass through the source entry's remaining TTL, not reset to the chain default/never-expire: {promoted_ttl:?}"
     );
-    let no_ttl = chain.ttl("src:no-ttl").await.expect("ttl 不应失败");
-    assert!(no_ttl.is_none(), "源条目无 TTL 时晋升不应凭空获得过期时间");
+    let no_ttl = chain.ttl("src:no-ttl").await.expect("ttl should not fail");
+    assert!(
+        no_ttl.is_none(),
+        "promotion must not invent expiry when the source entry has no TTL"
+    );
 }
 
 #[tokio::test]
@@ -376,7 +445,11 @@ async fn warmup_empty_loader_is_zero_report() {
         .build()
         .run(loader)
         .await
-        .expect("预热应成功");
+        .expect("warmup should succeed");
 
-    assert_eq!(report, WarmupReport::default(), "空 loader 应产出全零报告");
+    assert_eq!(
+        report,
+        WarmupReport::default(),
+        "an empty loader should produce an all-zero report"
+    );
 }

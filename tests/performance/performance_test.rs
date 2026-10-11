@@ -19,7 +19,7 @@ use std::time::Instant;
 #[tokio::test]
 async fn test_backfill_latency() {
     if !is_redis_available().await {
-        println!("跳过 test_backfill_latency: Redis不可用");
+        println!("Skipping test_backfill_latency: Redis unavailable");
         return;
     }
 

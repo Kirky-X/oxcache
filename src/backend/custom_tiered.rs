@@ -69,11 +69,14 @@ impl LayerRestriction {
     }
 
     /// 获取友好的描述文本
+    ///
+    /// 受 `&'static str` 返回类型约束，此处只能返回英文规范串；
+    /// locale 译文登记在消息目录（`detail.backend.layer_restriction_*`）。
     pub fn description(&self) -> &'static str {
         match self {
-            LayerRestriction::L1Only => "仅支持 L1 层级",
-            LayerRestriction::L2AndL3Only => "仅支持 L2/L3 层级",
-            LayerRestriction::Any => "支持任意层级",
+            LayerRestriction::L1Only => "L1 only",
+            LayerRestriction::L2AndL3Only => "L2/L3 only",
+            LayerRestriction::Any => "Any layer",
         }
     }
 }
@@ -201,12 +204,9 @@ mod tests {
 
     #[test]
     fn test_layer_restriction_description() {
-        assert_eq!(LayerRestriction::L1Only.description(), "仅支持 L1 层级");
-        assert_eq!(
-            LayerRestriction::L2AndL3Only.description(),
-            "仅支持 L2/L3 层级"
-        );
-        assert_eq!(LayerRestriction::Any.description(), "支持任意层级");
+        assert_eq!(LayerRestriction::L1Only.description(), "L1 only");
+        assert_eq!(LayerRestriction::L2AndL3Only.description(), "L2/L3 only");
+        assert_eq!(LayerRestriction::Any.description(), "Any layer");
     }
 
     // === BackendType extension method tests ===

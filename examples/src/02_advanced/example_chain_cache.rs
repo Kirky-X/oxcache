@@ -26,14 +26,14 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== 链式缓存示例 ===\n");
+    println!("=== Chain cache example ===\n");
 
-    println!("1. ChainCache::builder() 创建多级缓存");
+    println!("1. ChainCache::builder() creates a multi-tier cache");
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
-    println!("   连接 Redis: {}", redis_url);
+    println!("  Connecting to Redis: {}", redis_url);
 
     match RedisBackend::new(&redis_url).await {
         Ok(l2) => {
@@ -46,22 +46,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .default_time_to_live(Duration::from_secs(3600))
                 .build();
 
-            println!("   ✓ 创建了2级缓存链：L1(Moka) -> L2(Redis)\n");
+            println!("   ✓ created a 2-tier cache chain: L1(Moka) -> L2(Redis)\n");
 
             demo_chain_cache_operations(&chain).await?;
 
             chain.clear().await?;
         }
         Err(e) => {
-            println!("   ✗ 无法连接到 Redis: {}", e);
-            println!("   跳过 Redis 示例，使用仅内存缓存\n");
+            println!("   ✗ cannot connect to Redis: {}", e);
+            println!("   skipping the Redis example, using an in-memory cache only\n");
 
             let cache: Cache<String, User> = Cache::builder().build().await?;
             demo_simple_cache_operations(&cache).await?;
         }
     }
 
-    println!("\n2. 仅内存缓存示例");
+    println!("\n2. In-memory-only cache example");
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
     let user = User {
@@ -72,10 +72,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     cache.set(&"user:42".to_string(), &user).await?;
     let cached = cache.get(&"user:42".to_string()).await?;
-    println!("   存储: {:?}", user);
-    println!("   读取: {:?}\n", cached);
+    println!("  store: {:?}", user);
+    println!("  read: {:?}\n", cached);
 
-    println!("3. 批量操作示例");
+    println!("3. Batch operations example");
 
     let users = [
         User {
@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     cache.set(&"user:2".to_string(), &users[1]).await?;
     cache.set(&"user:3".to_string(), &users[2]).await?;
 
-    println!("   批量存储了 {} 个用户", users.len());
+    println!("  batch stored {} users", users.len());
 
     let keys = [
         "user:1".to_string(),
@@ -107,9 +107,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "user:3".to_string(),
     ];
     let results = cache.get_many(keys.iter()).await?;
-    println!("   批量读取: {} 个用户\n", results.len());
+    println!("  batch read: {} users\n", results.len());
 
-    println!("✓ 示例完成");
+    println!("✓ Example complete");
 
     Ok(())
 }
@@ -123,25 +123,25 @@ async fn demo_chain_cache_operations(
         email: "alice@example.com".to_string(),
     };
 
-    println!("   测试数据: {:?}\n", user);
+    println!("  test data: {:?}\n", user);
 
-    println!("   写入数据...");
+    println!("  writing data...");
     let user_bytes: Vec<u8> = serde_json::to_vec(&user)?;
     chain.set_bytes("user:1", user_bytes, None).await?;
-    println!("   ✓ 数据已写入缓存链\n");
+    println!("   ✓ data written to the cache chain\n");
 
-    println!("   读取数据：");
+    println!("  reading data:");
     let cached = chain.get_bytes("user:1").await?;
     match cached {
         Some(data) => match serde_json::from_slice::<User>(&data) {
-            Ok(u) => println!("   ✓ 命中: {:?}\n", u),
-            Err(_) => println!("   ✗ 数据解析失败\n"),
+            Ok(u) => println!("   ✓ hit: {:?}\n", u),
+            Err(_) => println!("   ✗ failed to parse the data\n"),
         },
-        None => println!("   ✗ 未找到\n"),
+        None => println!("   ✗ not found\n"),
     }
 
     let stats = chain.stats().await?;
-    println!("   缓存统计:");
+    println!("  cache stats:");
     for (key, value) in &stats {
         println!("     {}: {}", key, value);
     }
@@ -160,21 +160,21 @@ async fn demo_simple_cache_operations(
         email: "alice@example.com".to_string(),
     };
 
-    println!("   测试数据: {:?}\n", user);
+    println!("  test data: {:?}\n", user);
 
-    println!("   写入数据...");
+    println!("  writing data...");
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ 数据已写入缓存\n");
+    println!("   ✓ data written to the cache\n");
 
-    println!("   读取数据：");
+    println!("  reading data:");
     let cached = cache.get(&"user:1".to_string()).await?;
     match cached {
-        Some(u) => println!("   ✓ 命中: {:?}\n", u),
-        None => println!("   ✗ 未找到\n"),
+        Some(u) => println!("   ✓ hit: {:?}\n", u),
+        None => println!("   ✗ not found\n"),
     }
 
     let stats = cache.stats().await?;
-    println!("   缓存统计:");
+    println!("  cache stats:");
     for (key, value) in &stats {
         println!("     {}: {}", key, value);
     }

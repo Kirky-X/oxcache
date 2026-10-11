@@ -24,25 +24,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    println!("=== oxcache 安全功能示例 ===\n");
+    println!("=== oxcache security features example ===\n");
 
-    println!("--- 1. 敏感数据脱敏 ---\n");
+    println!("--- 1. Sensitive data redaction ---\n");
 
     // 脱敏密码
     let password = "super_secret_password_123"; // pragma: allowlist secret
     let redacted = redact_value(password, 4);
-    println!("原始密码: {}", password);
-    println!("脱敏后:   {}", redacted);
+    println!("raw password: {}", password);
+    println!("redacted:   {}", redacted);
 
     // 脱敏连接字符串
-    println!("\n--- 连接字符串脱敏 ---");
+    println!("\n--- Connection string redaction ---");
     let redis_url = "redis://admin:my_password@localhost:6379"; // pragma: allowlist secret
     let safe_url = redact_connection_string(redis_url);
-    println!("原始URL: {}", redis_url);
-    println!("脱敏后:  {}", safe_url);
+    println!("raw URL: {}", redis_url);
+    println!("redacted:  {}", safe_url);
 
     // 脱敏缓存键
-    println!("\n--- 敏感缓存键脱敏 ---");
+    println!("\n--- Sensitive cache key redaction ---");
     let sensitive_keys = [
         "user_token_abc123",
         "api_key_secret",
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 脱敏字段
-    println!("\n--- 字段值脱敏 ---");
+    println!("\n--- Field value redaction ---");
     let fields = [
         ("password", "user_password"),
         ("api_key", "sk-1234567890abcdef"),
@@ -68,15 +68,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {} = {} -> {}", field_name, value, redacted);
     }
 
-    println!("\n--- 2. Redacted 包装器 ---\n");
+    println!("\n--- 2. The Redacted wrapper ---\n");
 
     let secret = Redacted::new("my_api_key_12345");
-    println!("Redacted 包装: {}", secret);
+    println!("Redacted wrapper: {}", secret);
 
     let custom_redacted = Redacted::new("very_long_secret_value").with_visible_chars(6);
-    println!("自定义可见字符: {}", custom_redacted);
+    println!("custom visible characters: {}", custom_redacted);
 
-    println!("\n--- 3. 安全日志处理 ---\n");
+    println!("\n--- 3. Safe log handling ---\n");
 
     let log_messages = [
         "Connection established to redis://user:password123@redis.example.com:6379", // pragma: allowlist secret
@@ -86,12 +86,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for msg in log_messages {
         let sanitized = sanitize_message(msg);
-        println!("原始: {}", msg);
-        println!("安全: {}", sanitized);
+        println!("raw: {}", msg);
+        println!("safe: {}", sanitized);
         println!();
     }
 
-    println!("--- 4. 缓存操作安全示例 ---\n");
+    println!("--- 4. Cache operation safety ---\n");
 
     // 创建缓存
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
@@ -102,41 +102,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session_data = b"encrypted_session_data".to_vec();
 
     // 使用脱敏后的键记录日志
-    println!("存储用户会话: {}", redact_cache_key(&user_token));
+    println!(
+        "storing the user session: {}",
+        redact_cache_key(&user_token)
+    );
 
     // 存储数据
     cache.set(&user_token, &session_data).await?;
 
     // 获取数据
     if let Some(data) = cache.get(&user_token).await? {
-        println!("获取到数据: {} 字节", data.len());
+        println!("data read back: {} bytes", data.len());
     }
 
-    println!("\n--- 5. 安全最佳实践 ---\n");
+    println!("\n--- 5. Security best practices ---\n");
 
-    println!("✓ 永远不要在日志中记录敏感信息");
-    println!("✓ 使用 redaction 模块脱敏敏感数据");
-    println!("✓ 缓存中的敏感数据应先加密");
-    println!("✓ 使用安全的连接字符串格式");
-    println!("✓ 定期轮换缓存中的敏感令牌");
-    println!("✓ 限制缓存键的命名避免泄露信息");
+    println!("✓ never log sensitive information");
+    println!("✓ use the redaction module to mask sensitive data");
+    println!("✓ encrypt sensitive data before caching it");
+    println!("✓ use secure connection string formats");
+    println!("✓ rotate sensitive tokens in the cache regularly");
+    println!("✓ keep cache key names from leaking information");
 
-    println!("\n--- 6. 配置安全示例 ---\n");
+    println!("\n--- 6. Configuration safety ---\n");
 
     // 展示安全和不安全的配置方式
-    println!("❌ 不安全: 在配置中明文存储密码");
+    println!("❌ unsafe: storing passwords in plaintext in config");
     println!("   config.password = \"my_password\"");
 
-    println!("\n✓ 安全: 使用环境变量或密钥管理服务");
+    println!("\n✓ safe: use environment variables or a secret management service");
     println!("   config.password = std::env::var(\"CACHE_PASSWORD\")?");
 
-    println!("\n✓ 安全: 日志中隐藏连接字符串密码");
+    println!("\n✓ safe: hide connection string passwords in logs");
     let safe_conn_str = redact_connection_string("redis://user:secret@localhost:6379");
-    println!("   日志: 连接到 {}", safe_conn_str);
+    println!("   log: connecting to {}", safe_conn_str);
 
     // 清理
     cache.clear().await?;
 
-    println!("\n示例完成！");
+    println!("\nExample complete!");
     Ok(())
 }

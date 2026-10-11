@@ -109,7 +109,11 @@ mod tests {
         let data = vec![0, 1, 2, 255, 254, 253];
 
         let serialized = serializer.serialize("test", &data).unwrap();
-        assert_eq!(serialized.len(), data.len(), "不应有 base64 膨胀 (4/3)");
+        assert_eq!(
+            serialized.len(),
+            data.len(),
+            "there should be no base64 expansion (4/3)"
+        );
     }
 
     #[test]

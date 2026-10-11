@@ -18,25 +18,25 @@
 use oxcache::i18n::CacheI18nFormatter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 国际化 (i18n) 示例 ===\n");
+    println!("=== Internationalization (i18n) example ===\n");
 
-    println!("--- 1. 创建格式化器 ---");
+    println!("--- 1. Creating formatters ---");
     let fmt_en = CacheI18nFormatter::new("en-US")?;
     let fmt_zh = CacheI18nFormatter::new("zh-CN")?;
     let fmt_de = CacheI18nFormatter::new("de-DE")?;
-    println!("  ✓ en-US 格式化器创建成功");
-    println!("  ✓ zh-CN 格式化器创建成功");
-    println!("  ✓ de-DE 格式化器创建成功");
+    println!("  ✓ en-US formatter created");
+    println!("  ✓ zh-CN formatter created");
+    println!("  ✓ de-DE formatter created");
 
     // 无效 locale 处理
     match CacheI18nFormatter::new("not-a-locale!!!") {
-        Ok(_) => println!("  意外：无效 locale 创建成功"),
-        Err(e) => println!("  ✓ 无效 locale 正确报错: {}", e),
+        Ok(_) => println!("  unexpected: an invalid locale was created successfully"),
+        Err(e) => println!("  ✓ invalid locale correctly errored: {}", e),
     }
 
-    println!("\n--- 2. 数字格式化 ---");
+    println!("\n--- 2. Number formatting ---");
     let value = 1_234_567.89_f64;
-    println!("  原始值:   {}", value);
+    println!("  raw value:   {}", value);
     println!("  en-US:    {}", fmt_en.format_number(value)?);
     println!("  zh-CN:    {}", fmt_zh.format_number(value)?);
     println!("  de-DE:    {}", fmt_de.format_number(value)?);
@@ -44,10 +44,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // NaN / Infinity 处理
     match fmt_en.format_number(f64::NAN) {
         Ok(_) => {}
-        Err(e) => println!("  ✓ NaN 正确报错: {}", e),
+        Err(e) => println!("  ✓ NaN correctly errored: {}", e),
     }
 
-    println!("\n--- 3. 复数规则 ---");
+    println!("\n--- 3. Plural rules ---");
     let counts = [0, 1, 2, 5, 100, 1000];
     println!("  {:<8} {:<10} {:<10}", "count", "en-US", "zh-CN");
     println!("  {}", "-".repeat(30));
@@ -60,14 +60,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("\n--- 4. 日期格式化 ---");
+    println!("\n--- 4. Date formatting ---");
     let (year, month, day) = (2026, 7, 15);
-    println!("  过期日期: {}-{}-{}", year, month, day);
+    println!("  expiry date: {}-{}-{}", year, month, day);
     println!("  en-US:    {}", fmt_en.format_expiry(year, month, day)?);
     println!("  zh-CN:    {}", fmt_zh.format_expiry(year, month, day)?);
     println!("  de-DE:    {}", fmt_de.format_expiry(year, month, day)?);
 
-    println!("\n--- 5. Cache key 生成 ---");
+    println!("\n--- 5. Cache key generation ---");
     let user_counts: [u64; 4] = [1, 1000, 1_000_000, 1_000_000_000];
     println!(
         "  {:<15} {:<20} {:<20}",
@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("\n--- 6. 键比较（排序） ---");
+    println!("\n--- 6. Key comparison (collation) ---");
     let keys = vec!["banana", "apple", "cherry", "date"];
     let mut sorted_keys = keys.clone();
     sorted_keys.sort_by(|a, b| {
@@ -91,13 +91,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .compare_keys(a, b)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    println!("  原始顺序: {:?}", keys);
-    println!("  en-US 排序: {:?}", sorted_keys);
+    println!("  original order: {:?}", keys);
+    println!("  en-US collation: {:?}", sorted_keys);
 
-    println!("\n--- 7. 多语言缓存统计 ---");
+    println!("\n--- 7. Multilingual cache statistics ---");
     let cache_hit_count: u64 = 15_234;
     let cache_miss_count: u64 = 1;
-    println!("  缓存命中: {} 次", cache_hit_count);
+    println!("  cache hits: {}", cache_hit_count);
     println!(
         "  en-US: {} hits ({})",
         fmt_en.format_number(cache_hit_count as f64)?,
@@ -114,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fmt_de.format_count(cache_hit_count)?
     );
 
-    println!("\n  缓存未命中: {} 次", cache_miss_count);
+    println!("\n  cache misses: {}", cache_miss_count);
     println!(
         "  en-US: {} miss ({})",
         fmt_en.format_number(cache_miss_count as f64)?,
@@ -126,6 +126,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fmt_zh.format_count(cache_miss_count)?
     );
 
-    println!("\n✓ i18n 示例完成");
+    println!("\n✓ i18n example complete");
     Ok(())
 }

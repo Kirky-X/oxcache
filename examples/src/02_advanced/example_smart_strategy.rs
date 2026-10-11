@@ -42,8 +42,8 @@ impl ArticleStore {
                 i,
                 Article {
                     id: i,
-                    title: format!("文章 #{}", i),
-                    content: format!("这是第 {} 篇文章的内容...", i),
+                    title: format!("article #{}", i),
+                    content: format!("content of article {}...", i),
                     view_count: 0,
                 },
             );
@@ -72,14 +72,14 @@ impl ArticleStore {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 缓存策略模式示例 ===\n");
+    println!("=== Cache strategy patterns example ===\n");
 
     let cache: Cache<String, Article> = Cache::builder().capacity(100).build().await?;
     let store = Arc::new(ArticleStore::new());
 
-    println!("--- 1. Cache-Aside（缓存旁路）策略 ---");
-    println!("  读时填充：缓存未命中时从数据源加载并写入缓存");
-    println!("  写时失效：更新数据源后删除缓存条目\n");
+    println!("--- 1. The Cache-Aside strategy ---");
+    println!("  Read-fill on miss: load from the data source and write into the cache");
+    println!("  Write-invalidate: after updating the data source, delete the cache entry\n");
 
     async fn cache_aside_get(
         cache: &Cache<String, Article>,
@@ -112,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 首次读取（缓存未命中 → 数据源加载）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  首次读取 #1: {:?} (数据源查询次数: {})",
+        "  first read of #1: {:?} (data source queries: {})",
         article.map(|a| a.title),
         store.query_count()
     );
@@ -120,29 +120,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 再次读取（缓存命中）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  再次读取 #1: {:?} (数据源查询次数: {})",
+        "  second read of #1: {:?} (data source queries: {})",
         article.map(|a| a.title),
         store.query_count()
     );
 
     // 更新后失效缓存
     if let Some(mut a) = store.get(1) {
-        a.title = "文章 #1 (已更新)".into();
+        a.title = "article #1 (updated)".into();
         store.update(&a);
         cache_aside_invalidate(&cache, 1).await?;
-        println!("  更新 #1 并失效缓存");
+        println!("  updating #1 and invalidating the cache");
     }
 
     // 再次读取（缓存未命中 → 加载更新后的数据）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  读取更新后 #1: {:?} (数据源查询次数: {})",
+        "  read of #1 after the update: {:?} (data source queries: {})",
         article.map(|a| a.title),
         store.query_count()
     );
 
-    println!("\n--- 2. Lazy Loading（懒加载）策略 ---");
-    println!("  使用 get_or 延迟计算：仅在缓存未命中时执行昂贵的计算\n");
+    println!("\n--- 2. The Lazy Loading strategy ---");
+    println!(
+        "  lazy computation with get_or: run the expensive computation only on a cache miss\n"
+    );
 
     let compute_count = Arc::new(AtomicU32::new(0));
 
@@ -153,8 +155,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             counter.fetch_add(1, Ordering::SeqCst);
             Ok(Article {
                 id,
-                title: format!("计算生成的文章 #{}", id),
-                content: "动态生成内容...".into(),
+                title: format!("computing article #{}", id),
+                content: "generating content dynamically...".into(),
                 view_count: 0,
             })
         }
@@ -164,7 +166,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 第一次：缓存未命中 → 执行计算
     let a1 = cache.get_or(&key, || expensive_compute(42)).await?;
     println!(
-        "  第一次 get_or #42: {} (计算次数: {})",
+        "  first get_or on #42: {} (computations: {})",
         a1.title,
         compute_count.load(Ordering::SeqCst)
     );
@@ -172,13 +174,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 第二次：缓存命中 → 不执行计算
     let a2 = cache.get_or(&key, || expensive_compute(42)).await?;
     println!(
-        "  第二次 get_or #42: {} (计算次数: {})",
+        "  second get_or on #42: {} (computations: {})",
         a2.title,
         compute_count.load(Ordering::SeqCst)
     );
 
-    println!("\n--- 3. TTL 生命周期管理 ---");
-    println!("  不同数据类型使用不同的过期策略\n");
+    println!("\n--- 3. TTL lifecycle management ---");
+    println!("  different data types use different expiry policies\n");
 
     // 会话数据：短 TTL（30 秒）
     cache
@@ -186,14 +188,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &"session:user1".to_string(),
             &Article {
                 id: 100,
-                title: "会话".into(),
-                content: "短生命周期".into(),
+                title: "session".into(),
+                content: "short-lived".into(),
                 view_count: 0,
             },
             Some(Duration::from_secs(30)),
         )
         .await?;
-    println!("  ✓ 会话数据: TTL=30s");
+    println!("  ✓ session data: TTL=30s");
 
     // 热点文章：中等 TTL（1 小时）
     cache
@@ -201,14 +203,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &"hot:article:1".to_string(),
             &Article {
                 id: 1,
-                title: "热门文章".into(),
-                content: "中等生命周期".into(),
+                title: "popular articles".into(),
+                content: "medium-lived".into(),
                 view_count: 1000,
             },
             Some(Duration::from_secs(3600)),
         )
         .await?;
-    println!("  ✓ 热门文章: TTL=1h");
+    println!("  ✓ popular articles: TTL=1h");
 
     // 系统配置：长 TTL（24 小时）
     cache
@@ -216,14 +218,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &"config:app".to_string(),
             &Article {
                 id: 0,
-                title: "系统配置".into(),
-                content: "长生命周期".into(),
+                title: "system config".into(),
+                content: "long-lived".into(),
                 view_count: 0,
             },
             Some(Duration::from_secs(86400)),
         )
         .await?;
-    println!("  ✓ 系统配置: TTL=24h");
+    println!("  ✓ system config: TTL=24h");
 
     // 无 TTL（永不过期）
     cache
@@ -231,23 +233,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &"permanent:terms".to_string(),
             &Article {
                 id: 0,
-                title: "服务条款".into(),
-                content: "永不过期".into(),
+                title: "terms of service".into(),
+                content: "never expires".into(),
                 view_count: 0,
             },
         )
         .await?;
-    println!("  ✓ 服务条款: 无 TTL（永不过期）");
+    println!("  ✓ terms of service: no TTL (never expires)");
 
     let session_ttl = cache.ttl(&"session:user1".to_string()).await?;
     let config_ttl = cache.ttl(&"config:app".to_string()).await?;
     let permanent_ttl = cache.ttl(&"permanent:terms".to_string()).await?;
-    println!("\n  剩余 TTL:");
-    println!("    会话:   {:?}", session_ttl);
-    println!("    配置:   {:?}", config_ttl);
-    println!("    条款:   {:?}", permanent_ttl.unwrap_or(Duration::ZERO));
+    println!("\n  remaining TTL:");
+    println!("    sessions:   {:?}", session_ttl);
+    println!("    config:   {:?}", config_ttl);
+    println!("    terms:   {:?}", permanent_ttl.unwrap_or(Duration::ZERO));
 
-    println!("\n--- 4. 容量规划与访问频率分层 ---");
+    println!("\n--- 4. Capacity planning and access-frequency tiers ---");
 
     // 预热热点数据
     let hot_ids = [1, 2, 3, 4, 5];
@@ -259,7 +261,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
         }
     }
-    println!("  ✓ 预热 {} 篇热门文章", hot_ids.len());
+    println!("  ✓ prewarmed {} popular articles", hot_ids.len());
 
     // 模拟访问模式
     let access_pattern = [1, 1, 1, 2, 2, 3, 1, 2, 4, 5, 1, 3, 6, 7, 8];
@@ -274,31 +276,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let total = access_pattern.len() as u32;
-    println!("  模拟 {} 次访问:", total);
+    println!("  simulating {} accesses:", total);
     println!(
-        "    命中: {} ({:.1}%)",
+        "    hits: {} ({:.1}%)",
         hits,
         hits as f64 / total as f64 * 100.0
     );
     println!(
-        "    未中: {} ({:.1}%)",
+        "    misses: {} ({:.1}%)",
         misses,
         misses as f64 / total as f64 * 100.0
     );
 
-    println!("\n--- 5. 缓存统计 ---");
+    println!("\n--- 5. Cache statistics ---");
     let stats = cache.stats().await?;
     println!(
-        "  条目数: {}",
+        "  entries: {}",
         stats.get("entry_count").unwrap_or(&"N/A".to_string())
     );
     println!(
-        "  容量:   {}",
+        "  capacity:   {}",
         stats.get("capacity").unwrap_or(&"N/A".to_string())
     );
 
     // 清理
     cache.clear().await?;
-    println!("\n✓ 缓存策略示例完成");
+    println!("\n✓ Cache strategy example complete");
     Ok(())
 }

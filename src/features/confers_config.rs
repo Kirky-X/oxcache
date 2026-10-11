@@ -680,7 +680,7 @@ mod tests {
             let msg = err.to_string();
             assert!(
                 matches!(err, OxCacheError::InvalidInput(_)) && msg.contains(key),
-                "{key} 类型不符应点名键，got {msg}"
+                "a type mismatch for {key} should name the key, got {msg}"
             );
         }
     }
@@ -895,7 +895,10 @@ mod tests {
         let source = Arc::new(ConfersConfigSource::new(connector));
 
         let initial = source.load().await.unwrap();
-        assert_eq!(initial.capacity, 9999, "重载前应读到新值");
+        assert_eq!(
+            initial.capacity, 9999,
+            "the new value should be read before reload"
+        );
 
         let listener = Arc::new(RecordingListener::new());
         let watcher = Arc::new(
@@ -931,12 +934,12 @@ mod tests {
         assert_eq!(
             watcher.snapshot().get().capacity,
             9999,
-            "热更新后快照应换装"
+            "the snapshot should be replaced after a hot update"
         );
         assert_eq!(
             listener.calls.load(Ordering::SeqCst),
             1,
-            "监听器应被回调 1 次"
+            "the listener should be called once"
         );
         assert_eq!(listener.last_capacity.load(Ordering::SeqCst), 9999);
 
@@ -967,7 +970,11 @@ mod tests {
         .unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        assert_eq!(watcher.snapshot().get().capacity, 100, "无关事件不应换装");
+        assert_eq!(
+            watcher.snapshot().get().capacity,
+            100,
+            "unrelated events must not replace the snapshot"
+        );
         handle.abort();
     }
 
@@ -1064,9 +1071,12 @@ mod tests {
         assert_eq!(
             watcher.snapshot().get().capacity,
             4321,
-            "重载失败应保留旧快照"
+            "a failed reload should keep the old snapshot"
         );
-        assert!(!handle.is_finished(), "watch 任务在重载失败后必须存活");
+        assert!(
+            !handle.is_finished(),
+            "the watch task must survive a failed reload"
+        );
         handle.abort();
     }
 }

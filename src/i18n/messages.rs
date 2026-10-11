@@ -82,6 +82,8 @@ pub const MSG_I18N_FORMAT_ERROR: &str = "i18n.format_error";
 pub const MSG_LOG_CHAIN_READ_COMPLETED: &str = "log.chain.read_completed";
 pub const MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED: &str = "log.chain.expire_backend_failed";
 pub const MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED: &str = "log.chain.iter_entries_key_failed";
+pub const MSG_LOG_CHAIN_BACKFILL_SUCCEEDED: &str = "log.chain.backfill_succeeded";
+pub const MSG_LOG_CHAIN_BACKFILL_FAILED: &str = "log.chain.backfill_failed";
 pub const MSG_LOG_OFFLOAD_LIFECYCLE_EVENT: &str = "log.offload.lifecycle_event";
 pub const MSG_LOG_OFFLOAD_TIMEOUT_POLICY_EXCEEDED: &str = "log.offload.timeout_policy_exceeded";
 pub const MSG_LOG_DEGRADATION_ENTERED: &str = "log.degradation.entered";
@@ -94,6 +96,15 @@ pub const MSG_LOG_AUDIT_EVENT: &str = "log.audit.event";
 pub const MSG_LOG_STALE_HIT_VIA_GET_OR: &str = "log.stale.hit_via_get_or";
 pub const MSG_LOG_STALE_REVALIDATION_SCHEDULED: &str = "log.stale.revalidation_scheduled";
 pub const MSG_LOG_STALE_HIT_SERVED: &str = "log.stale.hit_served";
+pub const MSG_LOG_PUBSUB_RECONNECT_FAILED: &str = "log.pubsub.reconnect_failed";
+pub const MSG_LOG_PUBSUB_HANDLER_PANICKED: &str = "log.pubsub.handler_panicked";
+pub const MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED: &str = "log.pubsub.payload_parse_failed";
+pub const MSG_LOG_PUBSUB_MAX_RECONNECT_ATTEMPTS_REACHED: &str =
+    "log.pubsub.max_reconnect_attempts_reached";
+pub const MSG_LOG_PUBSUB_RECONNECTING: &str = "log.pubsub.reconnecting";
+pub const MSG_LOG_PUBSUB_RESUBSCRIBE_FAILED: &str = "log.pubsub.resubscribe_failed";
+pub const MSG_LOG_MACRO_PASSTHROUGH: &str = "log.macro.passthrough";
+pub const MSG_LOG_CIRCUIT_BREAKER_TRANSITION: &str = "log.circuit_breaker.transition";
 
 // -- Panic / invariant messages (assert!/expect-equivalent texts) --
 pub const MSG_PANIC_CHAIN_FRESHNESS_INVARIANT: &str = "panic.chain.parallel_freshest_invariant";
@@ -175,6 +186,20 @@ pub const MSG_DETAIL_REDIS_TTL_MIN_MILLIS: &str = "detail.redis.ttl_min_millis";
 pub const MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX: &str = "detail.redis.ttl_exceeds_max";
 pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED: &str = "detail.redis.cluster_connect_failed";
 pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT: &str = "detail.redis.cluster_connect_timeout";
+pub const MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN: &str =
+    "detail.redis.key_sql_injection_pattern";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_AUTH_BYPASS: &str =
+    "detail.redis.sql_injection_auth_bypass";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_COMMENT: &str = "detail.redis.sql_injection_comment";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_DELETE: &str = "detail.redis.sql_injection_delete";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_DROP: &str = "detail.redis.sql_injection_drop";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_INSERT: &str = "detail.redis.sql_injection_insert";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_QUOTE_OR: &str = "detail.redis.sql_injection_quote_or";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_TAUTOLOGY: &str = "detail.redis.sql_injection_tautology";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_UNION_SELECT: &str =
+    "detail.redis.sql_injection_union_select";
+pub const MSG_DETAIL_REDIS_SQL_INJECTION_XP_CMDSHELL: &str =
+    "detail.redis.sql_injection_xp_cmdshell";
 pub const MSG_DETAIL_CONFERS_EXPECTS_U64: &str = "detail.confers.expects_u64";
 pub const MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE: &str = "detail.confers.value_exceeds_range";
 pub const MSG_DETAIL_CONFERS_EXPECTS_BOOL: &str = "detail.confers.expects_bool";
@@ -210,9 +235,51 @@ pub const MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE: &str = "detail.cache.memory_
 pub const MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD: &str =
     "detail.not_supported.moka_sync_current_thread";
 pub const MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY: &str = "detail.redis.unexpected_info_reply";
+pub const MSG_DETAIL_REDIS_KEY_CONTROL_CHARACTER: &str = "detail.redis.key_control_character";
+pub const MSG_DETAIL_REDIS_KEY_PATH_TRAVERSAL_PATTERN: &str =
+    "detail.redis.key_path_traversal_pattern";
+pub const MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER: &str =
+    "detail.redis.key_command_injection_character";
+pub const MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG: &str = "detail.redis.scan_pattern_too_long";
+pub const MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS: &str =
+    "detail.redis.scan_pattern_too_many_wildcards";
+pub const MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED: &str = "detail.pubsub.client_open_failed";
+pub const MSG_DETAIL_PUBSUB_CONNECTION_FAILED: &str = "detail.pubsub.connection_failed";
+pub const MSG_DETAIL_PUBSUB_PUBLISH_FAILED: &str = "detail.pubsub.publish_failed";
+pub const MSG_DETAIL_PUBSUB_CONNECT_FAILED: &str = "detail.pubsub.connect_failed";
+pub const MSG_DETAIL_PUBSUB_SUBSCRIBE_FAILED: &str = "detail.pubsub.subscribe_failed";
+pub const MSG_DETAIL_PUBSUB_SUBSCRIBE_TASK_ENDED: &str = "detail.pubsub.subscribe_task_ended";
+pub const MSG_DETAIL_LUA_SCRIPT_TOO_LONG: &str = "detail.lua.script_exceeds_max_length";
+pub const MSG_DETAIL_LUA_SCRIPT_TOO_MANY_KEYS: &str = "detail.lua.script_exceeds_max_key_count";
+pub const MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN: &str = "detail.lua.script_forbidden_pattern";
+pub const MSG_DETAIL_LUA_NESTED_EVAL: &str = "detail.lua.nested_eval";
+pub const MSG_DETAIL_LUA_INFINITE_LOOP_PATTERNS: &str = "detail.lua.infinite_loop_patterns";
+pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY: &str =
+    "detail.backend.layer_restriction_l1_only";
+pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY: &str =
+    "detail.backend.layer_restriction_l2_and_l3_only";
+pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY: &str = "detail.backend.layer_restriction_any";
 pub const MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH: &str = "detail.chain.get_many_length_mismatch";
 pub const MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED: &str =
     "detail.chain.parallel_freshest_all_failed";
+pub const MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_READ: &str = "detail.chain.all_backends_failed_read";
+pub const MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_RACE_READ: &str =
+    "detail.chain.all_backends_failed_race_read";
+pub const MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_WRITE: &str =
+    "detail.chain.all_backends_failed_write";
+pub const MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_DELETE: &str =
+    "detail.chain.all_backends_failed_delete";
+pub const MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_CLEAR: &str =
+    "detail.chain.all_backends_failed_clear";
+pub const MSG_DETAIL_CHAIN_SYNC_REQUIRES_SYNC_BACKEND: &str =
+    "detail.chain.sync_requires_sync_backend";
+pub const MSG_DETAIL_CHAIN_NO_BACKENDS: &str = "detail.chain.no_backends";
+pub const MSG_DETAIL_CHAIN_HEALTH_CHECK_TIMED_OUT: &str = "detail.chain.health_check_timed_out";
+pub const MSG_DETAIL_CHAIN_HEALTH_CHECK_FAILED: &str = "detail.chain.health_check_failed";
+pub const MSG_DETAIL_CHAIN_INCR_NO_ATOMIC_WRITER: &str = "detail.chain.incr_no_atomic_writer";
+pub const MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER: &str = "detail.chain.cas_no_atomic_writer";
+pub const MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER: &str =
+    "detail.chain.set_if_absent_no_atomic_writer";
 pub const MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR: &str =
     "detail.key_generator.part_contains_segment_separator";
 
@@ -381,6 +448,8 @@ mod tests {
         MSG_LOG_CHAIN_READ_COMPLETED,
         MSG_LOG_CHAIN_EXPIRE_BACKEND_FAILED,
         MSG_LOG_CHAIN_ITER_ENTRIES_KEY_FAILED,
+        MSG_LOG_CHAIN_BACKFILL_SUCCEEDED,
+        MSG_LOG_CHAIN_BACKFILL_FAILED,
         MSG_LOG_OFFLOAD_LIFECYCLE_EVENT,
         MSG_LOG_OFFLOAD_TIMEOUT_POLICY_EXCEEDED,
         MSG_LOG_DEGRADATION_ENTERED,
@@ -393,6 +462,14 @@ mod tests {
         MSG_LOG_STALE_HIT_VIA_GET_OR,
         MSG_LOG_STALE_REVALIDATION_SCHEDULED,
         MSG_LOG_STALE_HIT_SERVED,
+        MSG_LOG_PUBSUB_RECONNECT_FAILED,
+        MSG_LOG_PUBSUB_HANDLER_PANICKED,
+        MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED,
+        MSG_LOG_PUBSUB_MAX_RECONNECT_ATTEMPTS_REACHED,
+        MSG_LOG_PUBSUB_RECONNECTING,
+        MSG_LOG_PUBSUB_RESUBSCRIBE_FAILED,
+        MSG_LOG_MACRO_PASSTHROUGH,
+        MSG_LOG_CIRCUIT_BREAKER_TRANSITION,
         MSG_PANIC_CHAIN_FRESHNESS_INVARIANT,
         MSG_PANIC_BRIDGE_TEMP_RUNTIME,
         MSG_PANIC_WARMUP_SEMAPHORE,
@@ -449,6 +526,16 @@ mod tests {
         MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX,
         MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED,
         MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
+        MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN,
+        MSG_DETAIL_REDIS_SQL_INJECTION_AUTH_BYPASS,
+        MSG_DETAIL_REDIS_SQL_INJECTION_COMMENT,
+        MSG_DETAIL_REDIS_SQL_INJECTION_DELETE,
+        MSG_DETAIL_REDIS_SQL_INJECTION_DROP,
+        MSG_DETAIL_REDIS_SQL_INJECTION_INSERT,
+        MSG_DETAIL_REDIS_SQL_INJECTION_QUOTE_OR,
+        MSG_DETAIL_REDIS_SQL_INJECTION_TAUTOLOGY,
+        MSG_DETAIL_REDIS_SQL_INJECTION_UNION_SELECT,
+        MSG_DETAIL_REDIS_SQL_INJECTION_XP_CMDSHELL,
         MSG_DETAIL_CONFERS_EXPECTS_U64,
         MSG_DETAIL_CONFERS_VALUE_EXCEEDS_RANGE,
         MSG_DETAIL_CONFERS_EXPECTS_BOOL,
@@ -474,8 +561,39 @@ mod tests {
         MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE,
         MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD,
         MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
+        MSG_DETAIL_REDIS_KEY_CONTROL_CHARACTER,
+        MSG_DETAIL_REDIS_KEY_PATH_TRAVERSAL_PATTERN,
+        MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER,
+        MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG,
+        MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS,
+        MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED,
+        MSG_DETAIL_PUBSUB_CONNECTION_FAILED,
+        MSG_DETAIL_PUBSUB_PUBLISH_FAILED,
+        MSG_DETAIL_PUBSUB_CONNECT_FAILED,
+        MSG_DETAIL_PUBSUB_SUBSCRIBE_FAILED,
+        MSG_DETAIL_PUBSUB_SUBSCRIBE_TASK_ENDED,
+        MSG_DETAIL_LUA_SCRIPT_TOO_LONG,
+        MSG_DETAIL_LUA_SCRIPT_TOO_MANY_KEYS,
+        MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN,
+        MSG_DETAIL_LUA_NESTED_EVAL,
+        MSG_DETAIL_LUA_INFINITE_LOOP_PATTERNS,
+        MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
+        MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY,
+        MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY,
         MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH,
         MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
+        MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_READ,
+        MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_RACE_READ,
+        MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_WRITE,
+        MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_DELETE,
+        MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_CLEAR,
+        MSG_DETAIL_CHAIN_SYNC_REQUIRES_SYNC_BACKEND,
+        MSG_DETAIL_CHAIN_NO_BACKENDS,
+        MSG_DETAIL_CHAIN_HEALTH_CHECK_TIMED_OUT,
+        MSG_DETAIL_CHAIN_HEALTH_CHECK_FAILED,
+        MSG_DETAIL_CHAIN_INCR_NO_ATOMIC_WRITER,
+        MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER,
+        MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER,
         MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR,
         MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
         MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,

@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,
             MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE, t,
         };
-        println!("=== Redis 多模式连接示例 ===\n");
+        println!("=== Redis multi-mode connection example ===\n");
         println!("  {}", t(MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED, &[]));
         println!(
             "  {}",
@@ -56,12 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(feature = "redis")]
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Redis 多模式连接示例 ===\n");
+    println!("=== Redis multi-mode connection example ===\n");
 
-    println!("--- 1. Standalone 模式 ---");
+    println!("--- 1. Standalone mode ---");
     let standalone_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    println!("  连接: {}", standalone_url);
+    println!("  connected: {}", standalone_url);
 
     let standalone = match RedisBackend::new(&standalone_url).await {
         Ok(backend) => backend,
@@ -90,7 +90,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
     };
-    println!("  ✓ 连接成功，模式: {}", standalone.mode());
+    println!("  ✓ connected, mode: {}", standalone.mode());
 
     // 基本操作测试
     standalone
@@ -98,29 +98,29 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let value = standalone.get("mode:standalone").await?;
     println!(
-        "  写入/读取: {:?}",
+        "  write/read: {:?}",
         value.map(|v| String::from_utf8_lossy(&v).to_string())
     );
     standalone.delete("mode:standalone").await?;
 
-    println!("\n--- 2. 使用 Builder 显式指定 Standalone 模式 ---");
+    println!("\n--- 2. Explicitly selecting Standalone mode with the Builder ---");
     let backend = RedisBackend::builder()
         .connection_string(&standalone_url)
         .mode(RedisMode::Standalone)
         .build()
         .await?;
-    println!("  ✓ Builder 创建成功，模式: {}", backend.mode());
+    println!("  ✓ Builder created, mode: {}", backend.mode());
 
-    println!("\n--- 3. Cluster 模式 ---");
+    println!("\n--- 3. Cluster mode ---");
     let cluster_available = std::env::var("REDIS_CLUSTER_AVAILABLE").is_ok();
 
     if cluster_available {
         let cluster_url = "redis://127.0.0.1:7000";
-        println!("  连接: {}", cluster_url);
+        println!("  connected: {}", cluster_url);
 
         match RedisBackend::new(cluster_url).await {
             Ok(cluster) => {
-                println!("  ✓ Cluster 连接成功，模式: {}", cluster.mode());
+                println!("  ✓ Cluster connected, mode: {}", cluster.mode());
 
                 // Cluster 下的基本操作
                 cluster
@@ -132,28 +132,28 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
                 let value = cluster.get("mode:cluster").await?;
                 println!(
-                    "  写入/读取: {:?}",
+                    "  write/read: {:?}",
                     value.map(|v| String::from_utf8_lossy(&v).to_string())
                 );
                 cluster.delete("mode:cluster").await?;
             }
             Err(e) => {
-                println!("  ✗ Cluster 连接失败: {}", e);
+                println!("  ✗ Cluster connection failed: {}", e);
             }
         }
     } else {
-        println!("  ⚠ REDIS_CLUSTER_AVAILABLE 未设置，跳过 Cluster 测试");
+        println!("  ⚠ REDIS_CLUSTER_AVAILABLE is not set, skipping the Cluster test");
         println!(
-            "    启动 Cluster: cd tests/real_env && docker compose -f docker-compose.cluster.yml up -d"
+            "    Start Cluster: cd tests/real_env && docker compose -f docker-compose.cluster.yml up -d"
         );
     }
 
-    println!("\n--- 4. Sentinel 模式 ---");
+    println!("\n--- 4. Sentinel mode ---");
     let sentinel_available = std::env::var("REDIS_SENTINEL_AVAILABLE").is_ok();
 
     if sentinel_available {
         let sentinel_url = "redis://127.0.0.1:26382";
-        println!("  连接 Sentinel: {}", sentinel_url);
+        println!("  Sentinel connection: {}", sentinel_url);
 
         // Sentinel 必须用显式模式构建：RedisBackend::new 默认 Standalone，
         // 直连哨兵端口会把哨兵进程当数据节点（SET 被哨兵拒绝）。
@@ -164,7 +164,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             .await
         {
             Ok(sentinel) => {
-                println!("  ✓ Sentinel 连接成功，模式: {}", sentinel.mode());
+                println!("  ✓ Sentinel connected, mode: {}", sentinel.mode());
 
                 // Sentinel 下的基本操作
                 sentinel
@@ -176,38 +176,38 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
                 let value = sentinel.get("mode:sentinel").await?;
                 println!(
-                    "  写入/读取: {:?}",
+                    "  write/read: {:?}",
                     value.map(|v| String::from_utf8_lossy(&v).to_string())
                 );
                 sentinel.delete("mode:sentinel").await?;
             }
             Err(e) => {
-                println!("  ✗ Sentinel 连接失败: {}", e);
+                println!("  ✗ Sentinel connection failed: {}", e);
             }
         }
     } else {
-        println!("  ⚠ REDIS_SENTINEL_AVAILABLE 未设置，跳过 Sentinel 测试");
+        println!("  ⚠ REDIS_SENTINEL_AVAILABLE is not set, skipping the Sentinel test");
         println!(
-            "    启动 Sentinel: cd tests/real_env && docker compose -f docker-compose.sentinel.yml up -d"
+            "    Start Sentinel: cd tests/real_env && docker compose -f docker-compose.sentinel.yml up -d"
         );
     }
 
     print_mode_enum();
 
-    println!("\n✓ 示例完成");
+    println!("\n✓ Example complete");
     Ok(())
 }
 
 /// 枚举展示段（Standalone 连接失败时作为独立降级出口复用）。
 #[cfg(feature = "redis")]
 fn print_mode_enum() {
-    println!("\n--- 5. RedisModeType 枚举 ---");
+    println!("\n--- 5. The RedisModeType enum ---");
     let modes = [
         RedisMode::Standalone,
         RedisMode::Sentinel,
         RedisMode::Cluster,
     ];
     for mode in &modes {
-        println!("  模式: {} (Display: {})", mode, mode);
+        println!("  mode: {} (Display: {})", mode, mode);
     }
 }

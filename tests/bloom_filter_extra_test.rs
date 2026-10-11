@@ -55,7 +55,7 @@ async fn constructors_and_accessors() {
         .build();
     let err = match refused {
         Err(e) => e,
-        Ok(_) => panic!("缺 inner backend 的 builder 必须被拒绝"),
+        Ok(_) => panic!("a builder without an inner backend must be rejected"),
     };
     assert!(err.to_string().contains("inner backend is required"));
 

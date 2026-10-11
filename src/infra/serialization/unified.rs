@@ -242,7 +242,10 @@ mod tests {
 
         let plain = UnifiedSerializer::json().serialize(&data).unwrap();
         let compressed = serializer.serialize(&data).unwrap();
-        assert!(compressed.len() < plain.len(), "压缩后应更小");
+        assert!(
+            compressed.len() < plain.len(),
+            "should be smaller after compression"
+        );
     }
 
     #[test]
@@ -253,7 +256,7 @@ mod tests {
         let serialized = serializer.serialize(&data).unwrap();
         assert_eq!(
             serialized[0], b'{',
-            "应直接序列化为 JSON 对象而非 base64 字符串"
+            "should serialize directly to a JSON object, not a base64 string"
         );
     }
 }

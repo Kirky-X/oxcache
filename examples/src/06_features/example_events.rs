@@ -82,11 +82,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    println!("=== oxcache 事件系统示例 ===\n");
+    println!("=== oxcache event system example ===\n");
 
     let publisher = ConsoleEventPublisher;
 
-    println!("--- 1. 创建和发布事件 ---");
+    println!("--- 1. Creating and publishing events ---");
 
     // 创建不同类型的事件
     let hit_event = CacheEvent::new(CacheEventType::Hit)
@@ -111,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish(set_event).await?;
     publisher.publish(error_event).await?;
 
-    println!("\n--- 2. 使用便捷方法 ---");
+    println!("\n--- 2. Convenience methods ---");
 
     publisher.publish_hit("cache:key:1".to_string(), 3)?;
     publisher.publish_miss("cache:key:2".to_string(), 15)?;
@@ -119,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish_delete("cache:key:4".to_string())?;
     publisher.publish_error(Some("cache:key:5".to_string()), "Key not found".to_string())?;
 
-    println!("\n--- 3. 缓存操作事件监控 ---");
+    println!("\n--- 3. Monitoring cache-operation events ---");
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cache.set(&test_key, &test_value).await?;
     let elapsed = start.elapsed();
     publisher.publish_set(test_key.clone())?;
-    println!("设置操作耗时: {:?}", elapsed);
+    println!("set operation took: {:?}", elapsed);
 
     // 获取值并记录事件
     let start = Instant::now();
@@ -155,7 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         publisher.publish_miss(nonexistent_key, elapsed.as_millis() as u64)?;
     }
 
-    println!("\n--- 4. 批量操作事件 ---");
+    println!("\n--- 4. Batch-operation events ---");
 
     let batch_start = CacheEvent::new(CacheEventType::BatchStart).with_metadata("count", "5");
     publisher.publish(batch_start).await?;
@@ -172,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_latency(50);
     publisher.publish(batch_end).await?;
 
-    println!("\n--- 5. 自定义事件 ---");
+    println!("\n--- 5. Custom events ---");
 
     let custom_event = CacheEvent::new(CacheEventType::Custom("warmup_complete".to_string()))
         .with_metadata("loaded_keys", "100")
@@ -180,7 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     publisher.publish(custom_event).await?;
 
-    println!("\n--- 6. 所有事件类型 ---");
+    println!("\n--- 6. All event types ---");
 
     let all_types = [
         CacheEventType::Hit,
@@ -199,9 +199,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for event_type in all_types {
-        println!("事件类型: {}", event_type);
+        println!("event type: {}", event_type);
     }
 
-    println!("\n示例完成！");
+    println!("\nExample complete!");
     Ok(())
 }

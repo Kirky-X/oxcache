@@ -307,10 +307,10 @@ async fn incr_rejects_non_numeric_and_non_utf8_values() {
     .unwrap();
     let err = AtomicCacheWriter::incr(&backend, "k_bytes", 1, None)
         .await
-        .expect_err("非 UTF-8 值必须拒绝 incr");
+        .expect_err("incr must reject non-UTF-8 values");
     assert!(
         matches!(err, OxCacheError::Operation(_)),
-        "非 UTF-8 应为 Operation，实际: {err:?}"
+        "non-UTF-8 should be an Operation error, got {err:?}"
     );
 
     // UTF-8 但非整数：解析失败 → Operation 错误
@@ -324,10 +324,10 @@ async fn incr_rejects_non_numeric_and_non_utf8_values() {
     .unwrap();
     let err = AtomicCacheWriter::incr(&backend, "k_text", 1, None)
         .await
-        .expect_err("非整数值必须拒绝 incr");
+        .expect_err("incr must reject non-integer values");
     assert!(
         matches!(err, OxCacheError::Operation(_)),
-        "非整数应为 Operation，实际: {err:?}"
+        "a non-integer should be an Operation error, got {err:?}"
     );
 }
 
@@ -344,6 +344,6 @@ fn backfill_failed_counter_is_observable() {
     assert_eq!(
         after,
         before + 2,
-        "两次失败必须精确计入计数器（before={before}, after={after}）"
+        "two failures must be counted exactly (before={before}, after={after})"
     );
 }

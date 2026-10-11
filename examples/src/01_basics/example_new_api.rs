@@ -24,12 +24,12 @@ impl CacheKey for UserId {
 
 #[tokio::main]
 async fn main() -> OxCacheResult<()> {
-    println!("新API使用示例");
+    println!("New API usage example");
     println!("======================\n");
 
     // === Memory Cache ===
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("1. 内存缓存 (仅L1)");
+    println!("1. In-memory cache (L1 only)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let memory_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -45,11 +45,14 @@ async fn main() -> OxCacheResult<()> {
     // 获取一个值
     let cached_user: Option<User> = memory_cache.get(&"user:1".to_string()).await?;
     assert!(cached_user.is_some());
-    println!("✓ 从内存缓存检索用户: {:?}", cached_user.unwrap().name);
+    println!(
+        "✓ user retrieved from memory cache: {:?}",
+        cached_user.unwrap().name
+    );
 
     // === Redis Cache ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("2. Redis缓存 (仅L2)");
+    println!("2. Redis cache (L2 only)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // 注意: 需要先启动 Redis 服务
@@ -61,16 +64,19 @@ async fn main() -> OxCacheResult<()> {
                 .await?;
             let cached_user: Option<User> = redis_cache.get(&"user:3".to_string()).await?;
             assert!(cached_user.is_some());
-            println!("✓ 从Redis缓存检索用户: {:?}", cached_user.unwrap().name);
+            println!(
+                "✓ user retrieved from Redis cache: {:?}",
+                cached_user.unwrap().name
+            );
         }
         Err(e) => {
-            println!("⚠ Redis不可用，跳过Redis测试: {:?}", e);
+            println!("⚠ Redis unavailable, skipping Redis test: {:?}", e);
         }
     }
 
     // === Custom Key Type ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("3. 自定义键类型");
+    println!("3. Custom key type");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let custom_cache: Cache<UserId, User> = Cache::builder().build().await?;
@@ -80,11 +86,14 @@ async fn main() -> OxCacheResult<()> {
 
     let cached_user: Option<User> = custom_cache.get(&user_id).await?;
     assert!(cached_user.is_some());
-    println!("✓ 使用自定义键检索用户: {:?}", cached_user.unwrap().name);
+    println!(
+        "✓ user retrieved with custom key: {:?}",
+        cached_user.unwrap().name
+    );
 
     // === Advanced Configuration with Builder ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("4. 高级配置 (使用 Builder)");
+    println!("4. Advanced configuration (using Builder)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     use std::time::Duration;
@@ -98,11 +107,14 @@ async fn main() -> OxCacheResult<()> {
     advanced_cache.set(&"user:6".to_string(), &user).await?;
     let cached_user: Option<User> = advanced_cache.get(&"user:6".to_string()).await?;
     assert!(cached_user.is_some());
-    println!("✓ 从高级配置缓存检索用户: {:?}", cached_user.unwrap().name);
+    println!(
+        "✓ user retrieved from the advanced-config cache: {:?}",
+        cached_user.unwrap().name
+    );
 
     // === TTL Operations (using set_with_ttl) ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("5. TTL操作 (使用 set_with_ttl)");
+    println!("5. TTL operations (using set_with_ttl)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let ttl_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -115,17 +127,17 @@ async fn main() -> OxCacheResult<()> {
     // 获取并验证 - 值存在
     let cached_user = ttl_cache.get(&"user:7".to_string()).await?;
     assert!(cached_user.is_some());
-    println!("✓ 设置带60秒TTL的用户:7");
+    println!("✓ set user:7 with a 60 second TTL");
 
     // 重新设置带新的TTL (120秒)
     ttl_cache
         .set_with_ttl(&"user:7".to_string(), &user, Some(Duration::from_secs(120)))
         .await?;
-    println!("✓ 更新用户:7的TTL为120秒");
+    println!("✓ updated the TTL of user:7 to 120 seconds");
 
     // === Batch Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("6. 批量操作");
+    println!("6. Batch operations");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let batch_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -145,7 +157,7 @@ async fn main() -> OxCacheResult<()> {
         batch_cache.set(key, value).await?;
     }
 
-    println!("✓ 批量设置 {} 个用户", batch.len());
+    println!("✓ batch set {} users", batch.len());
 
     // 获取多个值
     let mut retrieved_count = 0;
@@ -155,11 +167,11 @@ async fn main() -> OxCacheResult<()> {
         }
     }
 
-    println!("✓ 从缓存检索 {} 个用户", retrieved_count);
+    println!("✓ retrieved {} users from the cache", retrieved_count);
 
     // === Delete Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("7. 删除操作");
+    println!("7. Delete operations");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let delete_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -168,18 +180,18 @@ async fn main() -> OxCacheResult<()> {
 
     // Check exists
     let exists = delete_cache.exists(&"user:8".to_string()).await?;
-    println!("✓ 用户:8存在: {}", exists);
+    println!("✓ user:8 exists: {}", exists);
 
     // 删除
     delete_cache.delete(&"user:8".to_string()).await?;
 
     // 删除后检查是否存在
     let exists = delete_cache.exists(&"user:8".to_string()).await?;
-    println!("✓ 删除后用户:8存在: {}", exists);
+    println!("✓ user:8 exists after delete: {}", exists);
 
     // === Clear Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("8. 清空操作");
+    println!("8. Clear operations");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let clear_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -189,19 +201,19 @@ async fn main() -> OxCacheResult<()> {
         clear_cache.set(&format!("user:{}", i), &user).await?;
     }
 
-    println!("✓ 在缓存中设置3个用户");
+    println!("✓ set 3 users in the cache");
 
     // 清空所有
     clear_cache.clear().await?;
-    println!("✓ 已清除所有缓存条目");
+    println!("✓ cleared all cache entries");
 
     // 验证为空
     let exists = clear_cache.exists(&"user:1".to_string()).await?;
-    println!("✓ 清空后用户:1存在: {}", exists);
+    println!("✓ user:1 exists after clear: {}", exists);
 
     // === Get-or-Fallback Pattern ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("9. 带回退的缓存旁路模式 (get_or)");
+    println!("9. Cache-aside mode with fallback (get_or)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let fallback_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -212,25 +224,28 @@ async fn main() -> OxCacheResult<()> {
             Ok::<User, oxcache::OxCacheError>(fetch_user_from_db(10).await)
         })
         .await?;
-    println!("✓ 通过回退函数检索用户: {:?}", user.name);
+    println!(
+        "✓ user retrieved via the fallback function: {:?}",
+        user.name
+    );
 
     // === Summary ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("10. 总结");
+    println!("10. Summary");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("\n新API特性:");
-    println!("  ✓ 类型安全的缓存接口");
-    println!("  ✓ 内存缓存 (Cache::memory())");
-    println!("  ✓ Redis缓存 (Cache::redis())");
-    println!("  ✓ 自定义键类型 (CacheKey trait)");
-    println!("  ✓ 用于配置的构建器模式 (Cache::builder())");
-    println!("  ✓ TTL操作 (set_with_ttl)");
-    println!("  ✓ 批量操作 (set_many, get_many)");
-    println!("  ✓ 删除和清空操作 (delete, clear)");
-    println!("  ✓ 存在检查 (exists)");
-    println!("  ✓ 带回退的缓存旁路模式 (get_or)");
+    println!("\nNew API features:");
+    println!("  ✓ type-safe cache interface");
+    println!("  ✓ in-memory cache (Cache::memory())");
+    println!("  ✓ Redis cache (Cache::redis())");
+    println!("  ✓ custom key types (CacheKey trait)");
+    println!("  ✓ builder pattern for configuration (Cache::builder())");
+    println!("  ✓ TTL operations (set_with_ttl)");
+    println!("  ✓ batch operations (set_many, get_many)");
+    println!("  ✓ delete and clear operations (delete, clear)");
+    println!("  ✓ existence check (exists)");
+    println!("  ✓ cache-aside mode with fallback (get_or)");
 
-    println!("\n✅ 新API示例完成!");
+    println!("\n✅ New API example complete!");
     Ok(())
 }
 
@@ -241,7 +256,7 @@ async fn fetch_user_from_db(id: u64) -> User {
 
     User {
         id,
-        name: format!("用户 {}", id),
-        email: format!("用户{}@example.com", id),
+        name: format!("user {}", id),
+        email: format!("user{}@example.com", id),
     }
 }

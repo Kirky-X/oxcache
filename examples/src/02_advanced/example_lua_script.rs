@@ -19,16 +19,16 @@ use oxcache::backend::{CacheWriter, LuaExecutor};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Lua 脚本执行示例 ===\n");
+    println!("=== Lua script execution example ===\n");
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    println!("连接 Redis: {}", redis_url);
+    println!("Connecting to Redis: {}", redis_url);
 
     let backend = RedisBackend::new(&redis_url).await?;
-    println!("✓ Redis 连接成功\n");
+    println!("✓ Redis connected\n");
 
-    println!("--- 1. 原子计数器（eval_lua） ---");
+    println!("--- 1. Atomic counter (eval_lua) ---");
     let counter_script = r#"
         local current = redis.call('GET', KEYS[1])
         if current == false then
@@ -45,10 +45,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = backend
             .eval_lua(counter_script, &["counter:1"], &[])
             .await?;
-        println!("  第 {} 次调用，计数器值: {:?}", i, result);
+        println!("  call {}: counter value: {:?}", i, result);
     }
 
-    println!("\n--- 2. 预加载脚本（script_load） ---");
+    println!("\n--- 2. Preloading scripts (script_load) ---");
     let hash_script = r#"
         local value = redis.call('GET', KEYS[1])
         if value == false then
@@ -58,9 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     let sha = backend.script_load(hash_script).await?;
-    println!("  脚本 SHA1: {}", sha);
+    println!("  script SHA1: {}", sha);
 
-    println!("\n--- 3. 通过 SHA 执行脚本（eval_sha） ---");
+    println!("\n--- 3. Executing scripts by SHA (eval_sha) ---");
 
     // 先设置一个值
     backend
@@ -74,12 +74,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = backend
         .eval_lua(hash_script, &["test:lua:length"], &[])
         .await?;
-    println!("  eval_lua 结果: {:?}", result);
+    println!("  eval_lua result: {:?}", result);
 
     let result = backend.eval_sha(&sha, &["test:lua:length"], &[]).await?;
-    println!("  eval_sha 结果: {:?}", result);
+    println!("  eval_sha result: {:?}", result);
 
-    println!("\n--- 4. 条件更新（Compare-And-Swap） ---");
+    println!("\n--- 4. Conditional updates (compare-and-swap) ---");
     let cas_script = r#"
         local current = redis.call('GET', KEYS[1])
         if current == false then
@@ -96,24 +96,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     backend
         .set("cas:key".into(), b"v1".to_vec().into(), None)
         .await?;
-    println!("  初始值: v1");
+    println!("  Initial value: v1");
 
     // 尝试用错误的期望值更新
     let result = backend
         .eval_lua(cas_script, &["cas:key"], &["v2", "v3"])
         .await?;
-    println!("  期望 v2 更新为 v3: {:?} (应为 0，表示失败)", result);
+    println!(
+        "  expecting v2, updating to v3: {:?} (should be 0, meaning failure)",
+        result
+    );
 
     // 用正确的期望值更新
     let result = backend
         .eval_lua(cas_script, &["cas:key"], &["v1", "v2"])
         .await?;
-    println!("  期望 v1 更新为 v2: {:?} (应为 1，表示成功)", result);
+    println!(
+        "  expecting v1, updating to v2: {:?} (should be 1, meaning success)",
+        result
+    );
 
     backend
         .delete_many_pipeline(&["counter:1", "test:lua:length", "cas:key"])
         .await?;
-    println!("\n✓ 示例完成，已清理测试数据");
+    println!("\n✓ Example complete, test data cleaned up");
 
     Ok(())
 }

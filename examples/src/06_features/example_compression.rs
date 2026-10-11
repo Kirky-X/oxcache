@@ -81,50 +81,50 @@ fn measure_serialization(serializer: &dyn Serializer, data: &[u8], label: &str) 
     let deserialize_time = start.elapsed();
 
     println!("  {}:", label);
-    println!("    原始大小: {} bytes", data.len());
-    println!("    序列化后: {} bytes", serialized.len());
+    println!("    original size: {} bytes", data.len());
+    println!("    serialized: {} bytes", serialized.len());
     if !data.is_empty() {
         let ratio = serialized.len() as f64 / data.len() as f64;
-        println!("    压缩率: {:.2}x", ratio);
+        println!("    compression ratio: {:.2}x", ratio);
     }
-    println!("    序列化耗时: {:?}", serialize_time);
-    println!("    反序列化耗时: {:?}", deserialize_time);
+    println!("    serialization took: {:?}", serialize_time);
+    println!("    deserialization took: {:?}", deserialize_time);
 
     serialized
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== 数据压缩示例 ===\n");
+    println!("=== Data compression example ===\n");
 
-    println!("--- 1. 小数据 (< 100 bytes) ---");
+    println!("--- 1. Small data (< 100 bytes) ---");
     let small_data = create_small_data();
     let small_bytes = json_serialize(&small_data);
 
     let normal_serializer = JsonSerializer::new();
     let compress_serializer = JsonSerializer::with_compression();
 
-    measure_serialization(&normal_serializer, &small_bytes, "不压缩");
-    measure_serialization(&compress_serializer, &small_bytes, "启用压缩");
+    measure_serialization(&normal_serializer, &small_bytes, "no compression");
+    measure_serialization(&compress_serializer, &small_bytes, "compression enabled");
     println!();
 
-    println!("--- 2. 中等数据 (100B - 1KB) ---");
+    println!("--- 2. Medium data (100B - 1KB) ---");
     let medium_data = create_medium_data();
     let medium_bytes = json_serialize(&medium_data);
 
-    measure_serialization(&normal_serializer, &medium_bytes, "不压缩");
-    measure_serialization(&compress_serializer, &medium_bytes, "启用压缩");
+    measure_serialization(&normal_serializer, &medium_bytes, "no compression");
+    measure_serialization(&compress_serializer, &medium_bytes, "compression enabled");
     println!();
 
-    println!("--- 3. 大数据 (1KB - 100KB) ---");
+    println!("--- 3. Large data (1KB - 100KB) ---");
     let large_data = create_large_data();
     let large_bytes = json_serialize(&large_data);
 
-    measure_serialization(&normal_serializer, &large_bytes, "不压缩");
-    measure_serialization(&compress_serializer, &large_bytes, "启用压缩");
+    measure_serialization(&normal_serializer, &large_bytes, "no compression");
+    measure_serialization(&compress_serializer, &large_bytes, "compression enabled");
     println!();
 
-    println!("--- 4. 重复数据 (高压缩率场景) ---");
+    println!("--- 4. Repeated data (high compression ratio) ---");
     let repeated_content = "This is a test string that will be repeated many times. ".repeat(500);
     let repeated_data = LargeData {
         id: 3,
@@ -133,11 +133,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let repeated_bytes = json_serialize(&repeated_data);
 
-    measure_serialization(&normal_serializer, &repeated_bytes, "不压缩");
-    measure_serialization(&compress_serializer, &repeated_bytes, "启用压缩");
+    measure_serialization(&normal_serializer, &repeated_bytes, "no compression");
+    measure_serialization(&compress_serializer, &repeated_bytes, "compression enabled");
     println!();
 
-    println!("--- 5. 在缓存中使用压缩 ---");
+    println!("--- 5. Using compression in the cache ---");
     use oxcache::Cache;
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
@@ -147,7 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compressed = compress_serializer.serialize("LargeData", &large_bytes)?;
     cache.set(&key, &compressed).await?;
     println!(
-        "  存储压缩数据: {} bytes -> {} bytes",
+        "  storing compressed data: {} bytes -> {} bytes",
         large_bytes.len(),
         compressed.len()
     );
@@ -156,32 +156,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(stored) = cache.get(&key).await? {
         let decompressed = compress_serializer.deserialize("LargeData", &stored)?;
         println!(
-            "  读取并解压: {} bytes -> {} bytes",
+            "  reading and decompressing: {} bytes -> {} bytes",
             stored.len(),
             decompressed.len()
         );
         assert_eq!(decompressed, large_bytes);
-        println!("  ✓ 数据完整性验证通过");
+        println!("  ✓ data integrity verified");
     }
     println!();
 
-    println!("--- 6. 智能压缩策略 ---");
-    println!("  oxcache 根据数据大小自动选择压缩级别:");
-    println!("  - < 100 bytes: 不压缩（压缩开销不划算）");
-    println!("  - 100B - 1KB: 快速压缩 (Compression::fast())");
-    println!("  - 1KB - 100KB: 中等压缩 (Compression::new(6))");
-    println!("  - > 100KB: 高压缩率 (Compression::best())");
+    println!("--- 6. Smart compression strategy ---");
+    println!("  oxcache picks the compression level automatically by data size:");
+    println!("  - < 100 bytes: no compression (the overhead outweighs the gain)");
+    println!("  - 100B - 1KB: fast compression (Compression::fast())");
+    println!("  - 1KB - 100KB: medium compression (Compression::new(6))");
+    println!("  - > 100KB: high compression ratio (Compression::best())");
     println!();
 
     // 清理
     cache.clear().await?;
 
-    println!("=== 数据压缩示例完成 ===");
-    println!("  关键点:");
-    println!("  - 使用 JsonSerializer::with_compression() 启用压缩");
-    println!("  - 小数据不压缩，避免压缩开销");
-    println!("  - 重复数据压缩率高");
-    println!("  - 压缩/解压对用户透明，自动处理");
+    println!("=== Data compression example complete ===");
+    println!("  key points:");
+    println!("  - enable compression with JsonSerializer::with_compression()");
+    println!("  - small data is left uncompressed, avoiding compression overhead");
+    println!("  - repeated data compresses well");
+    println!("  - compression/decompression is transparent and automatic");
 
     Ok(())
 }

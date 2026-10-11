@@ -203,7 +203,7 @@ mod tests {
         // postcard（varint 编码）显著小于 JSON
         assert!(
             card.len() < json.len(),
-            "postcard 应比 JSON 更紧凑 (card={}, json={})",
+            "postcard should be more compact than JSON (card={}, json={})",
             card.len(),
             json.len()
         );
@@ -236,7 +236,7 @@ mod tests {
         );
         assert!(
             h_bin.len() < h_json.len(),
-            "数值密集场景 bincode 应更紧凑 (bin={}, json={})",
+            "in number-dense scenarios bincode should be more compact (bin={}, json={})",
             h_bin.len(),
             h_json.len()
         );
@@ -276,7 +276,7 @@ mod tests {
         // 超限数据必须被拒（纵深防御对二进制格式同样生效）
         let oversized = vec![0u8; crate::core::constants::MAX_JSON_SIZE + 1];
         let err = serialize_with_format(SerializationFormat::Json, &oversized)
-            .expect_err("超限序列化必须报错");
+            .expect_err("oversized serialization must error");
         assert!(matches!(err, OxCacheError::Serialization(_)));
     }
 }

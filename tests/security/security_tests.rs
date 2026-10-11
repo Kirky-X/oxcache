@@ -47,14 +47,14 @@ impl Default for SecurityTestConfig {
 #[tokio::test]
 async fn test_redis_connection_security() {
     if !common::is_redis_available().await {
-        println!("跳过测试：Redis不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
     let redis_url = "redis://127.0.0.1:6379";
     let backend = RedisBackend::new(redis_url).await;
     if backend.is_err() {
-        println!("跳过测试：Redis连接失败（可能需要认证或TLS）");
+        println!("Skipping test: Redis connection failed (may need auth or TLS)");
         return;
     }
 }
@@ -65,7 +65,7 @@ async fn test_redis_authentication() {
     let no_password_url = "redis://127.0.0.1:6379";
     let result = RedisBackend::new(no_password_url).await;
     if result.is_err() {
-        println!("认证测试：连接失败（可能需要认证）");
+        println!("Auth test: connection failed (may need auth)");
     }
 }
 
@@ -73,7 +73,7 @@ async fn test_redis_authentication() {
 #[tokio::test]
 async fn test_redis_command_security() {
     if !common::is_redis_available().await {
-        println!("跳过测试：Redis不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -81,7 +81,7 @@ async fn test_redis_command_security() {
     let backend = match RedisBackend::new(redis_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试：Redis连接失败 - {}", e);
+            println!("Skipping test: Redis connection failed - {}", e);
             return;
         }
     };
@@ -123,7 +123,7 @@ async fn test_connection_string_security() {
     let standard_url = "redis://127.0.0.1:6379";
     let result = RedisBackend::new(standard_url).await;
     if result.is_err() {
-        println!("连接字符串测试：连接失败（可能需要认证或TLS）");
+        println!("Connection string test: connection failed (may need auth or TLS)");
     }
 }
 
@@ -144,7 +144,7 @@ async fn test_error_handling_security() {
 #[tokio::test]
 async fn test_data_encryption() {
     if !common::is_redis_available().await {
-        println!("跳过测试：Redis不可用");
+        println!("Skipping test: Redis unavailable");
         return;
     }
 
@@ -152,7 +152,7 @@ async fn test_data_encryption() {
     let backend = match RedisBackend::new(redis_url).await {
         Ok(b) => b,
         Err(e) => {
-            println!("跳过测试：Redis连接失败 - {}", e);
+            println!("Skipping test: Redis connection failed - {}", e);
             return;
         }
     };

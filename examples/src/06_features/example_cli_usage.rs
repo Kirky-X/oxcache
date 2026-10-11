@@ -32,13 +32,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    println!("=== oxcache CLI 使用示例 ===\n");
+    println!("=== oxcache CLI usage example ===\n");
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(1000).build().await?;
 
-    println!("缓存已创建: demo_cache");
+    println!("Cache created: demo_cache");
 
-    println!("\n--- 执行缓存操作 ---");
+    println!("\n--- Performing cache operations ---");
 
     // 设置一些值
     for i in 0..10 {
@@ -46,30 +46,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let value = format!("value_{}", i).into_bytes();
         cache.set(&key, &value).await?;
     }
-    println!("已设置 10 个缓存条目");
+    println!("Set 10 cache entries");
 
     // 获取一些值（命中）
     for i in 0..5 {
         let key = format!("key_{}", i);
         let _ = cache.get(&key).await?;
     }
-    println!("已获取 5 个缓存条目（命中）");
+    println!("Retrieved 5 cache entries (hits)");
 
     // 尝试获取不存在的值（未命中）
     for i in 10..15 {
         let key = format!("key_{}", i);
         let _ = cache.get(&key).await?;
     }
-    println!("尝试获取 5 个不存在的条目（未命中）");
+    println!("Attempting to retrieve 5 nonexistent entries (misses)");
 
-    println!("\n--- 模拟 `oxcache status` 输出 ---");
-    println!("缓存名称: demo_cache");
-    println!("缓存类型: L1 内存缓存");
-    println!("最大容量: 1000");
-    println!("当前条目数: {}", cache.len().await?);
-    println!("状态: 运行中");
+    println!("\n--- Simulated `oxcache status` output ---");
+    println!("Cache name: demo_cache");
+    println!("Cache type: L1 in-memory cache");
+    println!("Max capacity: 1000");
+    println!("Current entries: {}", cache.len().await?);
+    println!("Status: running");
 
-    println!("\n--- 模拟 `oxcache metrics` 输出 ---");
+    println!("\n--- Simulated `oxcache metrics` output ---");
     println!("# TYPE cache_entries counter");
     println!(
         "cache_entries{{cache=\"demo_cache\"}} {}",
@@ -78,16 +78,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("# TYPE cache_capacity counter");
     println!("cache_capacity{{cache=\"demo_cache\"}} 1000");
 
-    println!("\n--- CLI 命令格式 ---");
-    println!("查看状态: oxcache status --verbose");
-    println!("查看指标: oxcache metrics --prometheus");
-    println!("清理缓存: oxcache admin clean --cache demo_cache");
-    println!("预热缓存: oxcache admin warmup --file warmup_data.json");
+    println!("\n--- CLI command format ---");
+    println!("Check status: oxcache status --verbose");
+    println!("Check metrics: oxcache metrics --prometheus");
+    println!("Clean cache: oxcache admin clean --cache demo_cache");
+    println!("Warm up cache: oxcache admin warmup --file warmup_data.json");
 
-    println!("\n--- 清理资源 ---");
+    println!("\n--- Cleaning up ---");
     cache.clear().await?;
-    println!("缓存已清理");
+    println!("Cache cleared");
 
-    println!("\n示例完成！");
+    println!("\nExample complete!");
     Ok(())
 }

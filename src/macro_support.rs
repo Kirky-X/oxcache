@@ -153,7 +153,7 @@ mod tests {
                 .is_none()
         );
         let waited = tokio::time::timeout(Duration::from_secs(1), wait_flight(rx)).await;
-        assert!(waited.is_ok(), "finish 后等待者必须被放行");
+        assert!(waited.is_ok(), "waiters must be released after finish");
     }
 
     #[tokio::test]
@@ -171,7 +171,7 @@ mod tests {
                 .is_none()
         );
         let waited = tokio::time::timeout(Duration::from_secs(1), wait_flight(rx)).await;
-        assert!(waited.is_ok(), "Drop 兜底必须放行等待者");
+        assert!(waited.is_ok(), "the Drop fallback must release waiters");
     }
 
     #[tokio::test]
@@ -181,6 +181,6 @@ mod tests {
         let rx2 = tx.subscribe();
         drop(tx);
         let waited = tokio::time::timeout(Duration::from_secs(1), wait_flight(rx2)).await;
-        assert!(waited.is_ok(), "通道关闭必须放行等待者");
+        assert!(waited.is_ok(), "channel close must release waiters");
     }
 }

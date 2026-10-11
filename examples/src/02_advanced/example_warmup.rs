@@ -16,33 +16,33 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== 缓存预热示例 ===\n");
+    println!("=== Cache warmup example ===\n");
 
     // 创建缓存
     let cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
-    println!("1. 模拟应用配置预热");
+    println!("1. Simulating application config warmup");
     let configs = vec![
-        ("app:theme", "dark", "应用主题"),
-        ("app:language", "zh-CN", "默认语言"),
-        ("app:timezone", "Asia/Shanghai", "时区"),
-        ("app:max_connections", "100", "最大连接数"),
-        ("app:session_timeout", "3600", "会话超时时间"),
+        ("app:theme", "dark", "app theme"),
+        ("app:language", "zh-CN", "default language"),
+        ("app:timezone", "Asia/Shanghai", "time zone"),
+        ("app:max_connections", "100", "max connections"),
+        ("app:session_timeout", "3600", "session timeout"),
     ];
 
-    println!("   从数据库加载配置...");
+    println!("  loading config from the database...");
     for (key, value, desc) in &configs {
         let k = key.to_string();
         let v = value.to_string();
         cache.set(&k, &v).await?;
-        println!("     加载配置: {} = {} ({})", k, v, desc);
+        println!("    loading config: {} = {} ({})", k, v, desc);
     }
-    println!("   ✓ 配置预热完成 ({} 个配置项)\n", configs.len());
+    println!("   ✓ config warmup complete ({} items)\n", configs.len());
 
-    println!("2. 模拟热点用户数据预热");
+    println!("2. Simulating hot-user data warmup");
     let hot_users = vec![1, 2, 3, 4, 5, 10, 100, 101];
 
-    println!("   预加载热点用户...");
+    println!("  preloading hot users...");
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
 
@@ -67,40 +67,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let elapsed = start.elapsed();
     println!(
-        "   ✓ 热点用户预热完成 ({} 个用户, 耗时: {:?})\n",
+        "   ✓ hot-user warmup complete ({} users, took: {:?})\n",
         hot_users.len(),
         elapsed
     );
 
-    println!("3. 验证预热数据");
-    println!("   配置验证:");
+    println!("3. Verifying the warmed data");
+    println!("  Config verification:");
     for (key, value, _) in &configs {
         let k = key.to_string();
         let v = value.to_string();
         let retrieved = cache.get(&k).await?;
         match retrieved {
             Some(val) if val == v => println!("     ✓ {} = {}", k, val),
-            Some(val) => println!("     ✗ {} = {} (期望: {})", k, val, v),
-            None => println!("     ✗ {} 未找到", k),
+            Some(val) => println!("     ✗ {} = {} (expected: {})", k, val, v),
+            None => println!("     ✗ {} not found", k),
         }
     }
 
-    println!("   \n   用户验证:");
+    println!("   \n  User verification:");
     for user_id in &hot_users {
         let key = format!("user:{}", user_id);
         let retrieved = cache.get(&key).await?;
         match retrieved {
             Some(v) => println!("     ✓ {} = {}", key, v),
-            None => println!("     ✗ {} 未找到", key),
+            None => println!("     ✗ {} not found", key),
         }
     }
     println!();
 
-    println!("4. 模拟缓存重建场景");
-    println!("   清空缓存...");
+    println!("4. Simulating a cache rebuild");
+    println!("  clearing the cache...");
     cache.clear().await?;
 
-    println!("   重新预热...");
+    println!("  rewarming...");
     let start = std::time::Instant::now();
 
     // 并发重新加载所有配置
@@ -121,21 +121,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let elapsed = start.elapsed();
-    println!("   ✓ 缓存重建完成，耗时: {:?}", elapsed);
+    println!("   ✓ cache rebuild complete, took: {:?}", elapsed);
     println!();
 
-    println!("5. 预热后统计");
+    println!("5. Post-warmup statistics");
     let stats = cache.stats().await?;
     println!(
-        "   - 总条目数: {}",
+        "  - total entries: {}",
         stats.get("item_count").map(String::as_str).unwrap_or("0")
     );
     println!(
-        "   - 命中次数: {}",
+        "  - hits: {}",
         stats.get("hit_count").map(String::as_str).unwrap_or("0")
     );
     println!();
 
-    println!("=== 缓存预热示例完成 ===");
+    println!("=== Cache warmup example complete ===");
     Ok(())
 }

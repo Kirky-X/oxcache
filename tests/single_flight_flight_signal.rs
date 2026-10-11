@@ -27,7 +27,10 @@ async fn flight_signal_subscribe_before_send_wakes_waiter() {
     let _ = tx.send(()); // leader 后完成
 
     let waited = tokio::time::timeout(Duration::from_secs(1), wait_flight(rx)).await;
-    assert!(waited.is_ok(), "订阅先于 send 时 follower 必须立即返回");
+    assert!(
+        waited.is_ok(),
+        "the follower must return immediately when it subscribes before send"
+    );
 }
 
 #[tokio::test]
@@ -40,7 +43,10 @@ async fn flight_signal_closed_channel_wakes_waiter() {
     drop(tx); // 模拟 leader 终止并释放 Sender
 
     let waited = tokio::time::timeout(Duration::from_secs(1), wait_flight(rx)).await;
-    assert!(waited.is_ok(), "通道关闭时 follower 必须立即返回");
+    assert!(
+        waited.is_ok(),
+        "the follower must return immediately when the channel closes"
+    );
 }
 
 #[test]
@@ -55,7 +61,11 @@ fn shard_index_stable_and_in_range() {
     ] {
         let idx = shard_index(key);
         assert!(idx < SF_SHARDS, "key={key} shard={idx} out of range");
-        assert_eq!(idx, shard_index(key), "同 key 分片必须稳定");
+        assert_eq!(
+            idx,
+            shard_index(key),
+            "the shard for the same key must be stable"
+        );
     }
 }
 
@@ -89,7 +99,7 @@ async fn get_or_follower_wakes_when_leader_completes_first() {
         let fut = cache_follower.get_or(&key, || async { Ok("follower-value".to_string()) });
         tokio::time::timeout(Duration::from_secs(2), fut)
             .await
-            .expect("follower 不得永久挂起（丢失唤醒竞态）")
+            .expect("the follower must not hang forever (lost-wakeup race)")
             .unwrap()
     });
 
@@ -98,13 +108,13 @@ async fn get_or_follower_wakes_when_leader_completes_first() {
 
     let leader_val = tokio::time::timeout(Duration::from_secs(2), leader)
         .await
-        .expect("leader 不得挂起")
+        .expect("the leader must not hang")
         .unwrap();
     let follower_val = follower.await.unwrap();
 
     assert_eq!(leader_val, "leader-value");
     assert_eq!(
         follower_val, "leader-value",
-        "follower 应共享 leader 写入缓存的结果"
+        "the follower should share the result cached by the leader"
     );
 }

@@ -75,7 +75,7 @@ async fn test_random_redis_failures() {
     let exists_after = cache.exists(&key).await;
     println!("✓ Exists after delete: {:?}", exists_after);
 
-    println!("\n✓ 混沌测试通过（新版 API）");
+    println!("\n✓ Chaos test passed (new API)");
 }
 
 #[tokio::test]
@@ -121,7 +121,7 @@ async fn test_distributed_lock_during_failures() {
         let _ = handle.await;
     }
 
-    println!("✓ 并发测试通过（新版 API）");
+    println!("✓ Concurrency test passed (new API)");
 }
 
 #[tokio::test]
@@ -164,5 +164,5 @@ async fn test_fault_recovery() {
     // 验证所有操作都成功
     assert_eq!(operations.len(), 20);
 
-    println!("✓ 故障恢复测试通过（新版 API）");
+    println!("✓ Failure recovery test passed (new API)");
 }

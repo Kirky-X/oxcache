@@ -20,33 +20,33 @@ use oxcache::features::{BloomFilter, BloomFilterBackend};
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === BloomFilter 独立类型 ===
-    println!("=== BloomFilter 独立类型 ===");
+    println!("=== BloomFilter standalone type ===");
     let bf = BloomFilter::new(10_000, 0.01);
-    println!("创建 BloomFilter（capacity=10000, fpr=0.01）");
+    println!("Creating BloomFilter (capacity=10000, fpr=0.01)");
 
     bf.insert("existing_key");
-    println!("插入 'existing_key'");
+    println!("inserting 'existing_key'");
 
     println!(
-        "contains 'existing_key' = {}（应为 true）",
+        "contains 'existing_key' = {} (should be true)",
         bf.contains("existing_key")
     );
     println!(
-        "contains 'missing_key'  = {}（应为 false）",
+        "contains 'missing_key'  = {} (should be false)",
         bf.contains("missing_key")
     );
 
     bf.clear();
     println!(
-        "clear 后 contains 'existing_key' = {}（应为 false）",
+        "contains 'existing_key' after clear = {} (should be false)",
         bf.contains("existing_key")
     );
 
     // === BloomFilterBackend 装饰器 ===
-    println!("\n=== BloomFilterBackend 装饰器 ===");
+    println!("\n=== BloomFilterBackend decorator ===");
     let inner = MokaMemoryBackend::new();
     println!(
-        "inner backend: {}（score={}）",
+        "inner backend: {} (score={})",
         inner.backend_name(),
         inner.score()
     );
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .false_positive_rate(0.01)
         .inner(inner)
         .build()?;
-    println!("创建 BloomFilterBackend（装饰 Moka）");
+    println!("Creating BloomFilterBackend (wrapping Moka)");
 
     // set 更新 BF 和 inner
     backend
@@ -70,10 +70,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // get 未命中：BF 未命中 → 跳过 inner → 返回 None
     let value = backend.get("user:999").await?;
-    println!("get 'user:999' = {:?}（BF 过滤，不查询 inner）", value);
+    println!(
+        "get 'user:999' = {:?} (filtered by the BF, inner not queried)",
+        value
+    );
 
     // === TTL 透传 ===
-    println!("\n=== TTL 透传 ===");
+    println!("\n=== TTL passthrough ===");
     backend
         .set(
             "temp".into(),
@@ -81,10 +84,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(60)),
         )
         .await?;
-    println!("set 'temp'（60s TTL）");
+    println!("set 'temp' (60s TTL)");
 
     let ttl: Option<Duration> = backend.ttl("temp").await?;
-    println!("ttl('temp') = {:?}（应约为 60s）", ttl.map(|d| d.as_secs()));
+    println!(
+        "ttl('temp') = {:?} (should be about 60s)",
+        ttl.map(|d| d.as_secs())
+    );
 
     // === stats ===
     println!("\n=== stats ===");
@@ -94,6 +100,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {} = {}", key, value);
     }
 
-    println!("\nBloom Filter 示例完成！");
+    println!("\nBloom Filter example complete!");
     Ok(())
 }

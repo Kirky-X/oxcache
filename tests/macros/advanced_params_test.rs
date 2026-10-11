@@ -191,19 +191,22 @@ async fn single_flight_recovers_after_leader_panic() {
 
     // First call: leader panics inside the spawned task (JoinError expected)
     let first = tokio::spawn(async { sf_panic_fn(7).await });
-    assert!(first.await.is_err(), "首次调用应因 leader panic 失败");
+    assert!(
+        first.await.is_err(),
+        "the first call should fail because the leader panicked"
+    );
 
     // Second call must re-execute and succeed within timeout
     let second = tokio::time::timeout(tokio::time::Duration::from_secs(2), sf_panic_fn(7)).await;
     assert!(
         second.is_ok(),
-        "leader panic 后同 key 不得永久死锁（follower 丢失唤醒/条目残留）"
+        "the same key must not deadlock forever after a leader panic (lost follower wakeup / leftover entry)"
     );
     assert_eq!(second.unwrap().unwrap(), 700);
     assert_eq!(
         SF_PANIC_CALLS.load(Ordering::SeqCst),
         2,
-        "panic 后应重新执行底层函数"
+        "the underlying function should run again after the panic"
     );
 }
 
@@ -234,7 +237,7 @@ async fn single_flight_concurrent_distinct_keys_all_complete() {
             let fut = sf_multi_fn(i);
             tokio::time::timeout(tokio::time::Duration::from_secs(5), fut)
                 .await
-                .expect("key 任务不得挂起")
+                .expect("the key task must not hang")
                 .unwrap()
         }));
     }
@@ -245,7 +248,7 @@ async fn single_flight_concurrent_distinct_keys_all_complete() {
     let calls = SF_MULTI_CALLS.load(Ordering::SeqCst);
     assert!(
         (16..=32).contains(&calls),
-        "distinct-key 并发应分散执行（分片生效），got {calls}/32"
+        "distinct-key concurrency should spread out (sharding works), got {calls}/32"
     );
 }
 

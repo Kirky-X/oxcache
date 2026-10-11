@@ -176,7 +176,7 @@ mod tests {
         }
         assert!(
             !l1.exists("user:1").await.unwrap(),
-            "外部 DEL 库失效本地条目"
+            "external DEL keyspace events invalidate local entries"
         );
 
         handle.stop();
@@ -243,7 +243,10 @@ mod tests {
             .unwrap();
         tokio::time::sleep(Duration::from_millis(150)).await;
 
-        assert!(l1.exists("keep:1").await.unwrap(), "未订阅频道不得失效");
+        assert!(
+            l1.exists("keep:1").await.unwrap(),
+            "unsubscribed channels must not be invalidated"
+        );
 
         handle.stop();
         handle.join().await;

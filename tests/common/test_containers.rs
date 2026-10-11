@@ -101,8 +101,8 @@ pub async fn container_or_skip<T>(
 
 /// Generic poll-until-ready helper for Redis-protocol containers.
 async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
-    let client =
-        redis::Client::open(url).map_err(|e| format!("创建 {} 客户端失败: {}", label, e))?;
+    let client = redis::Client::open(url)
+        .map_err(|e| format!("failed to create the {} client: {}", label, e))?;
 
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
@@ -114,7 +114,7 @@ async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
         }
     }
 
-    Err(format!("等待 {} 就绪超时", label))
+    Err(format!("timed out waiting for {} to be ready", label))
 }
 
 /// Redis 容器包装器（使用 GenericImage）
@@ -133,12 +133,12 @@ impl RedisContainer {
             .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
             .start()
             .await
-            .map_err(|e| format!("启动 Redis 容器失败: {}", e))?;
+            .map_err(|e| format!("failed to start the Redis container: {}", e))?;
 
         let port = redis
             .get_host_port_ipv4(6379)
             .await
-            .map_err(|e| format!("获取端口失败: {}", e))?;
+            .map_err(|e| format!("failed to get the port: {}", e))?;
 
         Ok(Self {
             container: redis,
@@ -182,12 +182,12 @@ impl RedisClusterManager {
                 .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
                 .start()
                 .await
-                .map_err(|e| format!("启动 Redis Cluster 节点 {} 失败: {}", i, e))?;
+                .map_err(|e| format!("failed to start Redis Cluster node {}: {}", i, e))?;
 
             let port = redis
                 .get_host_port_ipv4(6379)
                 .await
-                .map_err(|e| format!("获取端口失败: {}", e))?;
+                .map_err(|e| format!("failed to get the port: {}", e))?;
 
             nodes.push(redis);
             ports.push(port);
@@ -295,12 +295,12 @@ impl ValkeyContainer {
             .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
             .start()
             .await
-            .map_err(|e| format!("启动 Valkey 容器失败: {}", e))?;
+            .map_err(|e| format!("failed to start the Valkey container: {}", e))?;
 
         let port = container
             .get_host_port_ipv4(6379)
             .await
-            .map_err(|e| format!("获取端口失败: {}", e))?;
+            .map_err(|e| format!("failed to get the port: {}", e))?;
 
         Ok(Self { container, port })
     }
@@ -337,12 +337,12 @@ impl DragonflyContainer {
             .with_wait_for(WaitFor::message_on_stderr("listening on port 6379"))
             .start()
             .await
-            .map_err(|e| format!("启动 Dragonfly 容器失败: {}", e))?;
+            .map_err(|e| format!("failed to start the Dragonfly container: {}", e))?;
 
         let port = container
             .get_host_port_ipv4(6379)
             .await
-            .map_err(|e| format!("获取端口失败: {}", e))?;
+            .map_err(|e| format!("failed to get the port: {}", e))?;
 
         Ok(Self { container, port })
     }

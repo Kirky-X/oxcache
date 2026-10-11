@@ -33,7 +33,7 @@ struct ApiResponse {
 
 #[tokio::test]
 async fn test_web_application_cache_scenario() {
-    println!("=== Web 应用缓存场景测试 ===");
+    println!("=== Web application caching scenario test ===");
 
     let cache: Cache<String, User> = Cache::memory().await.unwrap();
 
@@ -69,12 +69,12 @@ async fn test_web_application_cache_scenario() {
     cache.delete(&key).await.unwrap();
     assert!(!cache.exists(&key).await.unwrap());
 
-    println!("✓ Web 应用缓存场景测试通过");
+    println!("✓ Web application caching scenario test passed");
 }
 
 #[tokio::test]
 async fn test_session_storage_scenario() {
-    println!("=== 会话存储场景测试 ===");
+    println!("=== Session storage scenario test ===");
 
     let cache: Cache<String, Session> = Cache::memory().await.unwrap();
 
@@ -121,12 +121,12 @@ async fn test_session_storage_scenario() {
     cache.delete(&key).await.unwrap();
     assert!(!cache.exists(&key).await.unwrap());
 
-    println!("✓ 会话存储场景测试通过");
+    println!("✓ Session storage scenario test passed");
 }
 
 #[tokio::test]
 async fn test_api_response_cache_scenario() {
-    println!("=== API 响应缓存场景测试 ===");
+    println!("=== API response caching scenario test ===");
 
     let cache: Cache<String, ApiResponse> = Cache::memory().await.unwrap();
 
@@ -168,12 +168,12 @@ async fn test_api_response_cache_scenario() {
     let cached: Option<ApiResponse> = cache.get(&products_key).await.unwrap();
     assert!(cached.is_some());
 
-    println!("✓ API 响应缓存场景测试通过");
+    println!("✓ API response caching scenario test passed");
 }
 
 #[tokio::test]
 async fn test_distributed_lock_scenario() {
-    println!("=== 分布式锁场景测试 ===");
+    println!("=== Distributed lock scenario test ===");
 
     let cache: Cache<String, String> = Cache::memory().await.unwrap();
 
@@ -192,25 +192,25 @@ async fn test_distributed_lock_scenario() {
             .unwrap();
 
         // 执行临界区操作
-        println!("执行临界区操作...");
+        println!("Executing critical section operation...");
 
         // 释放锁（验证锁值）
         let current_lock: Option<String> = cache.get(&lock_key).await.unwrap();
         if current_lock == Some(lock_value.clone()) {
             cache.delete(&lock_key).await.unwrap();
-            println!("锁已释放");
+            println!("Lock released");
         }
     }
 
     // 验证锁已释放
     assert!(!cache.exists(&lock_key).await.unwrap());
 
-    println!("✓ 分布式锁场景测试通过");
+    println!("✓ Distributed lock scenario test passed");
 }
 
 #[tokio::test]
 async fn test_rate_limiting_scenario() {
-    println!("=== 限流场景测试 ===");
+    println!("=== Rate limiting scenario test ===");
 
     let cache: Cache<String, u64> = Cache::memory().await.unwrap();
 
@@ -234,9 +234,9 @@ async fn test_rate_limiting_scenario() {
                 )
                 .await
                 .unwrap();
-            println!("请求 {} 允许，当前计数: {}", i, count + 1);
+            println!("request {} allowed, current count: {}", i, count + 1);
         } else {
-            println!("请求 {} 被限流，当前计数: {}", i, count);
+            println!("request {} rate-limited, current count: {}", i, count);
         }
     }
 
@@ -244,12 +244,12 @@ async fn test_rate_limiting_scenario() {
     let final_count: Option<u64> = cache.get(&rate_limit_key).await.unwrap();
     assert_eq!(final_count, Some(max_requests));
 
-    println!("✓ 限流场景测试通过");
+    println!("✓ Rate limiting scenario test passed");
 }
 
 #[tokio::test]
 async fn test_bulk_operations_scenario() {
-    println!("=== 批量操作场景测试 ===");
+    println!("=== Batch operations scenario test ===");
 
     let cache: Cache<String, User> = Cache::memory().await.unwrap();
 
@@ -273,13 +273,13 @@ async fn test_bulk_operations_scenario() {
         .set_many(users.iter().map(|(k, v)| (k, v)))
         .await
         .unwrap();
-    println!("批量写入 {} 个用户", users.len());
+    println!("batch-wrote {} users", users.len());
 
     // 批量读取
     let keys: Vec<String> = (1..=100).map(|i| format!("user:{}", i)).collect();
     let results: std::collections::HashMap<String, User> =
         cache.get_many(keys.iter()).await.unwrap();
-    println!("批量读取 {} 个用户", results.len());
+    println!("batch-read {} users", results.len());
 
     assert_eq!(results.len(), 100);
 
@@ -290,12 +290,12 @@ async fn test_bulk_operations_scenario() {
         assert_eq!(cached.unwrap().id, user.id);
     }
 
-    println!("✓ 批量操作场景测试通过");
+    println!("✓ Batch operations scenario test passed");
 }
 
 #[tokio::test]
 async fn test_concurrent_access_scenario() {
-    println!("=== 并发访问场景测试 ===");
+    println!("=== Concurrent access scenario test ===");
 
     let cache = Arc::new(Mutex::new(Cache::<String, User>::memory().await.unwrap()));
     let mut handles = Vec::new();
@@ -332,12 +332,12 @@ async fn test_concurrent_access_scenario() {
         handle.await.unwrap();
     }
 
-    println!("✓ 并发访问场景测试通过");
+    println!("✓ Concurrent access scenario test passed");
 }
 
 #[tokio::test]
 async fn test_cache_warming_scenario() {
-    println!("=== 缓存预热场景测试 ===");
+    println!("=== Cache warmup scenario test ===");
 
     let cache: Cache<String, User> = Cache::memory().await.unwrap();
 
@@ -368,7 +368,10 @@ async fn test_cache_warming_scenario() {
         .set_many(hot_users.iter().map(|(k, v)| (k, v)))
         .await
         .unwrap();
-    println!("缓存预热完成，预热 {} 个热点用户", hot_users.len());
+    println!(
+        "cache warmup complete, warmed {} hot users",
+        hot_users.len()
+    );
 
     // 验证预热数据
     for (key, user) in &hot_users {
@@ -376,12 +379,12 @@ async fn test_cache_warming_scenario() {
         assert_eq!(cached.unwrap().id, user.id);
     }
 
-    println!("✓ 缓存预热场景测试通过");
+    println!("✓ Cache warmup scenario test passed");
 }
 
 #[tokio::test]
 async fn test_cache_invalidation_scenario() {
-    println!("=== 缓存失效场景测试 ===");
+    println!("=== Cache invalidation scenario test ===");
 
     let cache: Cache<String, ApiResponse> = Cache::memory().await.unwrap();
 
@@ -424,12 +427,12 @@ async fn test_cache_invalidation_scenario() {
         assert!(!cache.exists(key).await.unwrap());
     }
 
-    println!("✓ 缓存失效场景测试通过");
+    println!("✓ Cache invalidation scenario test passed");
 }
 
 #[tokio::test]
 async fn test_long_running_stability() {
-    println!("=== 长时间运行稳定性测试 ===");
+    println!("=== Long-run stability test ===");
 
     let cache: Cache<String, User> = Cache::memory().await.unwrap();
     let iterations = 1000;
@@ -455,5 +458,8 @@ async fn test_long_running_stability() {
         }
     }
 
-    println!("✓ 长时间运行稳定性测试通过 ({} 次迭代)", iterations);
+    println!(
+        "✓ Long-run stability test passed ({} iterations)",
+        iterations
+    );
 }

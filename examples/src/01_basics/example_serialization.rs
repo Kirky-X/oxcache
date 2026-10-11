@@ -16,7 +16,7 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
-    println!("序列化选项示例");
+    println!("Serialization options example");
     println!("========================\n");
 
     // 使用JSON创建测试数据
@@ -31,26 +31,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     };
 
-    println!("1. JSON序列化 (默认):");
-    println!("   - 人类可读格式");
-    println!("   - 适合调试");
-    println!("   - 略微更大的尺寸\n");
+    println!("1. JSON serialization (default):");
+    println!("  - human-readable format");
+    println!("  - good for debugging");
+    println!("  - slightly larger size\n");
 
     // 使用JSON存储
     cache.set(&"user:json:1".to_string(), &user).await?;
-    println!("   存储的用户: {} - {}", user.name, user.email);
+    println!("  stored user: {} - {}", user.name, user.email);
 
     // 检索
     if let Some(cached) = cache.get(&"user:json:1".to_string()).await? {
-        println!("   检索到: {} - {}", cached.name, cached.email);
-        println!("   配置文件: {:?}\n", cached.profile);
+        println!("  retrieved: {} - {}", cached.name, cached.email);
+        println!("  config: {:?}\n", cached.profile);
     }
 
-    println!("2. 序列化特性:");
-    println!("   - JSON: 标准格式，可读");
-    println!("   - Bincode: 二进制格式，高效 (启用时)");
-    println!("   - 支持自定义序列化器\n");
+    println!("2. Serialization features:");
+    println!("  - JSON: standard, readable format");
+    println!("  - Bincode: compact binary format, efficient (when enabled)");
+    println!("  - supports custom serializers\n");
 
-    println!("✓ 序列化示例完成!");
+    println!("✓ Serialization example complete!");
     Ok(())
 }

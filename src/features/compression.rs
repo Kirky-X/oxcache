@@ -237,12 +237,15 @@ mod tests {
         // 1 MiB 高可压缩数据用小上限解码 → 必须报错而非无界分配
         let bomb = vec![0u8; 1024 * 1024];
         let compressed = zstd::stream::encode_all(bomb.as_slice(), 19).unwrap();
-        assert!(compressed.len() < 64 * 1024, "测试前提：压缩后应很小");
+        assert!(
+            compressed.len() < 64 * 1024,
+            "test precondition: the compressed payload should be small"
+        );
 
         let err = CompressingBackend::decode_zstd_with_limit(&compressed, 64 * 1024).unwrap_err();
         assert!(
             err.to_string().contains("too large"),
-            "超限解压必须被拒绝: {err}"
+            "oversized decompression must be rejected: {err}"
         );
 
         // 上限内正常解压不受影响
@@ -261,7 +264,10 @@ mod tests {
 
         // 阈值以下：原始字节原样存储（无压缩开销）
         let raw = backend.inner.get("k").await.unwrap().unwrap();
-        assert_eq!(raw, small, "阈值以下不得压缩");
+        assert_eq!(
+            raw, small,
+            "payloads below the threshold must not be compressed"
+        );
         assert_eq!(backend.get("k").await.unwrap(), Some(small));
     }
 
@@ -275,10 +281,14 @@ mod tests {
             .unwrap();
 
         let raw = backend.inner.get("big").await.unwrap().unwrap();
-        assert_eq!(raw[..4], ZSTD_MAGIC, "阈值以上应为 zstd 帧");
+        assert_eq!(
+            raw[..4],
+            ZSTD_MAGIC,
+            "payloads above the threshold should be zstd frames"
+        );
         assert!(
             raw.len() < large.len() / 4,
-            "可压缩负载应显著缩小 (raw={} original={})",
+            "compressible payloads should shrink notably (raw={} original={})",
             raw.len(),
             large.len()
         );
@@ -317,7 +327,7 @@ mod tests {
                 raw.len(),
                 raw.len() as f64 / size as f64 * 100.0
             );
-            assert!(raw.len() < size, "可压缩负载必须缩小");
+            assert!(raw.len() < size, "compressible payloads must shrink");
             assert_eq!(backend.get("m").await.unwrap(), Some(payload));
         }
     }
@@ -333,7 +343,7 @@ mod tests {
         assert_eq!(
             backend.get("a").await.unwrap(),
             Some(compressible(512)),
-            "set_many 大值也应压缩并透明解压"
+            "set_many large values should also compress and decompress transparently"
         );
         assert_eq!(backend.get("b").await.unwrap(), Some(b"small".to_vec()));
         assert!(backend.exists("a").await.unwrap());
