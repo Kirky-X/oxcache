@@ -84,17 +84,38 @@ async fn pubsub_handler_panic_is_isolated_and_delivery_resumes() {
     .expect("subscribe should succeed");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    ps.publish("oxcache:it:pubsub:panic", "panic-trigger")
-        .await
-        .expect("publish should succeed");
+    // CI 高负载下 PUBLISH 命令响应可能超 5s（消息实际已送达——22s 处 handler
+    // panic 被隔离的 WARN 即证据），publish expect 零容忍会造成假失败；
+    // 与下方"重连窗口内发布的消息会丢失：循环重发"同一容忍口径。
+    // 重发幂等：handler 对 panic-trigger 每次都 panic，被隔离不影响断言（counter ≥ 2）。
+    let mut published_trigger = false;
+    for _ in 0..5 {
+        match ps.publish("oxcache:it:pubsub:panic", "panic-trigger").await {
+            Ok(_) => {
+                published_trigger = true;
+                break;
+            }
+            Err(_) => tokio::time::sleep(Duration::from_millis(200)).await,
+        }
+    }
+    assert!(
+        published_trigger,
+        "panic-trigger should be published within retries"
+    );
 
-    // 重连窗口内发布的消息会丢失：循环重发钉住「panic 后订阅仍存活」语义
+    // 重连窗口内发布的消息会丢失：循环重发钉住「panic 后订阅仍存活」语义；
+    // publish 超时同理容忍（重发幂等），不因单次命令超时炸掉测试
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     let mut received: Option<String> = None;
     while std::time::Instant::now() < deadline {
-        ps.publish("oxcache:it:pubsub:panic", "after-panic")
+        if ps
+            .publish("oxcache:it:pubsub:panic", "after-panic")
             .await
-            .expect("publish should succeed");
+            .is_err()
+        {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            continue;
+        }
         match tokio::time::timeout(Duration::from_millis(500), rx.recv()).await {
             Ok(Some(msg)) => {
                 received = Some(msg);
