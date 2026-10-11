@@ -122,7 +122,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```

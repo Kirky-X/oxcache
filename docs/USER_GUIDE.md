@@ -104,7 +104,7 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.6"
+oxcache = "0.5.0-rc.7"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
