@@ -16,6 +16,20 @@ use oxcache::Cache;
 use oxcache::traits::CacheKey;
 use serde::{Deserialize, Serialize};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_CACHE_KEY_1_CACHEKEY_FOR_BUILT, MSG_EXAMPLE_CACHE_KEY_2_CACHEKEY_FOR_CUSTOM,
+    MSG_EXAMPLE_CACHE_KEY_3_USING_CACHEKEY_IN, MSG_EXAMPLE_CACHE_KEY_4_BATCH_OPERATIONS,
+    MSG_EXAMPLE_CACHE_KEY_5_KEY_FORMAT_CONSISTENCY, MSG_EXAMPLE_CACHE_KEY_BATCH_READ_RESULTS,
+    MSG_EXAMPLE_CACHE_KEY_BUILT_IN_TYPES_STRING, MSG_EXAMPLE_CACHE_KEY_CACHEKEY_CAN_BE_USED,
+    MSG_EXAMPLE_CACHE_KEY_CACHEKEY_TRAIT_EXAMPLE,
+    MSG_EXAMPLE_CACHE_KEY_CACHEKEY_TRAIT_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_CACHE_KEY_CUSTOM_TYPES_CAN_GENERATE, MSG_EXAMPLE_CACHE_KEY_KEY_POINTS,
+    MSG_EXAMPLE_CACHE_KEY_READ, MSG_EXAMPLE_CACHE_KEY_SAME_VALUE_PRODUCES_SAME,
+    MSG_EXAMPLE_CACHE_KEY_STORE_KEY, MSG_EXAMPLE_CACHE_KEY_STORE_KEY_PRODUCT,
+    MSG_EXAMPLE_CACHE_KEY_STORE_KEY_PRODUCT_2, MSG_EXAMPLE_CACHE_KEY_TO_KEY_STRING_SHOULD,
+    MSG_EXAMPLE_CACHE_KEY_USERID_100_USERID_100, MSG_EXAMPLE_CACHE_KEY_USERID_100_USERID_200, t,
+};
+
 // 自定义类型：用户 ID
 #[derive(Debug, Clone)]
 struct UserId(u64);
@@ -56,9 +70,9 @@ impl CacheKey for Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== CacheKey trait example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_CACHE_KEY_CACHEKEY_TRAIT_EXAMPLE, &[]));
 
-    println!("--- 1. CacheKey for built-in types ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_KEY_1_CACHEKEY_FOR_BUILT, &[]));
 
     let string_key: String = "user:123".to_string();
     let str_key: &str = "user:456";
@@ -83,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  isize: {} -> '{}'", isize_key, isize_key.to_key_string());
     println!();
 
-    println!("--- 2. CacheKey for custom types ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_KEY_2_CACHEKEY_FOR_CUSTOM, &[]));
 
     let user_id = UserId(12345);
     println!("  UserId(12345) -> '{}'", user_id.to_key_string());
@@ -103,18 +117,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Product -> '{}'", product.to_key_string());
     println!();
 
-    println!("--- 3. Using CacheKey in the cache ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_KEY_3_USING_CACHEKEY_IN, &[]));
 
     let cache: Cache<String, Product> = Cache::builder().build().await?;
 
     // 使用 CacheKey 生成缓存键
     let key1 = product.to_key_string();
     cache.set(&key1, &product).await?;
-    println!("  store: key='{}', product={:?}", key1, product);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_STORE_KEY_PRODUCT,
+            &[
+                ("key1", key1.to_string()),
+                ("product", format!("{:?}", product))
+            ]
+        )
+    );
 
-    // 从缓存读取
     let cached: Option<Product> = cache.get(&key1).await?;
-    println!("  read: {:?}", cached);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_READ,
+            &[("cached", format!("{:?}", cached))]
+        )
+    );
 
     // 使用不同的键格式
     let key2 = UserId(100).to_key_string();
@@ -124,10 +152,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         category: "electronics".to_string(),
     };
     cache.set(&key2, &another_product).await?;
-    println!("  store: key='{}', product={:?}", key2, another_product);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_STORE_KEY_PRODUCT_2,
+            &[
+                ("key2", key2.to_string()),
+                ("another_product", format!("{:?}", another_product))
+            ]
+        )
+    );
     println!();
 
-    println!("--- 4. Batch operations ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_KEY_4_BATCH_OPERATIONS, &[]));
 
     let users = vec![UserId(1), UserId(2), UserId(3)];
 
@@ -139,44 +176,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             category: "general".to_string(),
         };
         cache.set(&key, &product).await?;
-        println!("  store: key='{}'", key);
+        println!(
+            "  {}",
+            t(MSG_EXAMPLE_CACHE_KEY_STORE_KEY, &[("key", key.to_string())])
+        );
     }
 
     // 批量读取
     let keys: Vec<String> = users.iter().map(|u| u.to_key_string()).collect();
     let results = cache.get_many(keys.iter()).await?;
-    println!("  batch read: {} results", results.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_BATCH_READ_RESULTS,
+            &[("results", results.len().to_string())]
+        )
+    );
     println!();
 
-    println!("--- 5. Key format consistency check ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_KEY_5_KEY_FORMAT_CONSISTENCY, &[]));
 
     let key_a = UserId(100).to_key_string();
     let key_b = UserId(100).to_key_string();
     let key_c = UserId(200).to_key_string();
 
     println!(
-        "  UserId(100) == UserId(100): {} (should be true)",
-        key_a == key_b
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_USERID_100_USERID_100,
+            &[("key_b", (key_a == key_b).to_string())]
+        )
     );
     println!(
-        "  UserId(100) == UserId(200): {} (should be false)",
-        key_a == key_c
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_USERID_100_USERID_200,
+            &[("key_c", (key_a == key_c).to_string())]
+        )
     );
     println!(
-        "  same value produces same key: {}",
-        UserId(100).to_key_string() == UserId(100).to_key_string()
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_KEY_SAME_VALUE_PRODUCES_SAME,
+            &[(
+                "to_key_string",
+                (UserId(100).to_key_string() == UserId(100).to_key_string()).to_string()
+            )]
+        )
     );
     println!();
 
-    // 清理
     cache.clear().await?;
 
-    println!("=== CacheKey trait example complete ===");
-    println!("  key points:");
-    println!("  - built-in types (String, u64, i64, etc.) already implement CacheKey");
-    println!("  - custom types can generate cache keys by implementing the CacheKey trait");
-    println!("  - to_key_string() should return a deterministic, unique string representation");
-    println!("  - CacheKey can be used with set/get/delete operations");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_CACHE_KEY_CACHEKEY_TRAIT_EXAMPLE_COMPLETE, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_CACHE_KEY_KEY_POINTS, &[]));
+    println!("  {}", t(MSG_EXAMPLE_CACHE_KEY_BUILT_IN_TYPES_STRING, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_KEY_CUSTOM_TYPES_CAN_GENERATE, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_CACHE_KEY_TO_KEY_STRING_SHOULD, &[]));
+    println!("  {}", t(MSG_EXAMPLE_CACHE_KEY_CACHEKEY_CAN_BE_USED, &[]));
 
     Ok(())
 }

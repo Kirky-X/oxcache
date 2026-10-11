@@ -18,31 +18,88 @@ use oxcache::Cache;
 use oxcache::sanitize_message;
 use oxcache::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_SECURITY_1_SENSITIVE_DATA_REDACTION, MSG_EXAMPLE_SECURITY_2_THE_REDACTED_WRAPPER,
+    MSG_EXAMPLE_SECURITY_3_SAFE_LOG_HANDLING, MSG_EXAMPLE_SECURITY_4_CACHE_OPERATION_SAFETY,
+    MSG_EXAMPLE_SECURITY_5_SECURITY_BEST_PRACTICES, MSG_EXAMPLE_SECURITY_6_CONFIGURATION_SAFETY,
+    MSG_EXAMPLE_SECURITY_CONNECTION_STRING_REDACTION,
+    MSG_EXAMPLE_SECURITY_CUSTOM_VISIBLE_CHARACTERS, MSG_EXAMPLE_SECURITY_DATA_READ_BACK_BYTES,
+    MSG_EXAMPLE_SECURITY_ENCRYPT_SENSITIVE_DATA_BEFORE, MSG_EXAMPLE_SECURITY_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_SECURITY_FIELD_VALUE_REDACTION, MSG_EXAMPLE_SECURITY_KEEP_CACHE_KEY_NAMES,
+    MSG_EXAMPLE_SECURITY_LOG_CONNECTING_TO, MSG_EXAMPLE_SECURITY_NEVER_LOG_SENSITIVE_INFORMATION,
+    MSG_EXAMPLE_SECURITY_OXCACHE_SECURITY_FEATURES_EXAMPLE, MSG_EXAMPLE_SECURITY_RAW,
+    MSG_EXAMPLE_SECURITY_RAW_PASSWORD, MSG_EXAMPLE_SECURITY_RAW_URL, MSG_EXAMPLE_SECURITY_REDACTED,
+    MSG_EXAMPLE_SECURITY_REDACTED_2, MSG_EXAMPLE_SECURITY_REDACTED_WRAPPER,
+    MSG_EXAMPLE_SECURITY_ROTATE_SENSITIVE_TOKENS_IN, MSG_EXAMPLE_SECURITY_SAFE,
+    MSG_EXAMPLE_SECURITY_SAFE_HIDE_CONNECTION_STRING,
+    MSG_EXAMPLE_SECURITY_SAFE_USE_ENVIRONMENT_VARIABLES,
+    MSG_EXAMPLE_SECURITY_SENSITIVE_CACHE_KEY_REDACTION,
+    MSG_EXAMPLE_SECURITY_STORING_THE_USER_SESSION,
+    MSG_EXAMPLE_SECURITY_UNSAFE_STORING_PASSWORDS_IN,
+    MSG_EXAMPLE_SECURITY_USE_SECURE_CONNECTION_STRING,
+    MSG_EXAMPLE_SECURITY_USE_THE_REDACTION_MODULE, t,
+};
+
 /// 演示安全功能的使用方法
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化日志
     tracing_subscriber::fmt::init();
 
-    println!("=== oxcache security features example ===\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_SECURITY_OXCACHE_SECURITY_FEATURES_EXAMPLE, &[])
+    );
 
-    println!("--- 1. Sensitive data redaction ---\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_SECURITY_1_SENSITIVE_DATA_REDACTION, &[])
+    );
 
     // 脱敏密码
     let password = "super_secret_password_123"; // pragma: allowlist secret
     let redacted = redact_value(password, 4);
-    println!("raw password: {}", password);
-    println!("redacted:   {}", redacted);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_RAW_PASSWORD,
+            &[("password", password.to_string())]
+        )
+    );
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_REDACTED,
+            &[("redacted", redacted.to_string())]
+        )
+    );
 
     // 脱敏连接字符串
-    println!("\n--- Connection string redaction ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SECURITY_CONNECTION_STRING_REDACTION, &[])
+    );
     let redis_url = "redis://admin:my_password@localhost:6379"; // pragma: allowlist secret
     let safe_url = redact_connection_string(redis_url);
-    println!("raw URL: {}", redis_url);
-    println!("redacted:  {}", safe_url);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_RAW_URL,
+            &[("redis_url", redis_url.to_string())]
+        )
+    );
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_REDACTED_2,
+            &[("safe_url", safe_url.to_string())]
+        )
+    );
 
     // 脱敏缓存键
-    println!("\n--- Sensitive cache key redaction ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SECURITY_SENSITIVE_CACHE_KEY_REDACTION, &[])
+    );
     let sensitive_keys = [
         "user_token_abc123",
         "api_key_secret",
@@ -56,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 脱敏字段
-    println!("\n--- Field value redaction ---");
+    println!("\n{}", t(MSG_EXAMPLE_SECURITY_FIELD_VALUE_REDACTION, &[]));
     let fields = [
         ("password", "user_password"),
         ("api_key", "sk-1234567890abcdef"),
@@ -68,15 +125,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  {} = {} -> {}", field_name, value, redacted);
     }
 
-    println!("\n--- 2. The Redacted wrapper ---\n");
+    println!(
+        "\n{}\n",
+        t(MSG_EXAMPLE_SECURITY_2_THE_REDACTED_WRAPPER, &[])
+    );
 
     let secret = Redacted::new("my_api_key_12345");
-    println!("Redacted wrapper: {}", secret);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_REDACTED_WRAPPER,
+            &[("secret", secret.to_string())]
+        )
+    );
 
     let custom_redacted = Redacted::new("very_long_secret_value").with_visible_chars(6);
-    println!("custom visible characters: {}", custom_redacted);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_CUSTOM_VISIBLE_CHARACTERS,
+            &[("custom_redacted", custom_redacted.to_string())]
+        )
+    );
 
-    println!("\n--- 3. Safe log handling ---\n");
+    println!("\n{}\n", t(MSG_EXAMPLE_SECURITY_3_SAFE_LOG_HANDLING, &[]));
 
     let log_messages = [
         "Connection established to redis://user:password123@redis.example.com:6379", // pragma: allowlist secret
@@ -86,14 +158,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for msg in log_messages {
         let sanitized = sanitize_message(msg);
-        println!("raw: {}", msg);
-        println!("safe: {}", sanitized);
+        println!(
+            "{}",
+            t(MSG_EXAMPLE_SECURITY_RAW, &[("msg", msg.to_string())])
+        );
+        println!(
+            "{}",
+            t(
+                MSG_EXAMPLE_SECURITY_SAFE,
+                &[("sanitized", sanitized.to_string())]
+            )
+        );
         println!();
     }
 
-    println!("--- 4. Cache operation safety ---\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_SECURITY_4_CACHE_OPERATION_SAFETY, &[])
+    );
 
-    // 创建缓存
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
     // 安全地存储敏感数据（应该先加密）
@@ -103,43 +186,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 使用脱敏后的键记录日志
     println!(
-        "storing the user session: {}",
-        redact_cache_key(&user_token)
+        "{}",
+        t(
+            MSG_EXAMPLE_SECURITY_STORING_THE_USER_SESSION,
+            &[("user_token", redact_cache_key(&user_token).to_string())]
+        )
     );
 
-    // 存储数据
     cache.set(&user_token, &session_data).await?;
 
-    // 获取数据
     if let Some(data) = cache.get(&user_token).await? {
-        println!("data read back: {} bytes", data.len());
+        println!(
+            "{}",
+            t(
+                MSG_EXAMPLE_SECURITY_DATA_READ_BACK_BYTES,
+                &[("data", data.len().to_string())]
+            )
+        );
     }
 
-    println!("\n--- 5. Security best practices ---\n");
+    println!(
+        "\n{}\n",
+        t(MSG_EXAMPLE_SECURITY_5_SECURITY_BEST_PRACTICES, &[])
+    );
 
-    println!("✓ never log sensitive information");
-    println!("✓ use the redaction module to mask sensitive data");
-    println!("✓ encrypt sensitive data before caching it");
-    println!("✓ use secure connection string formats");
-    println!("✓ rotate sensitive tokens in the cache regularly");
-    println!("✓ keep cache key names from leaking information");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SECURITY_NEVER_LOG_SENSITIVE_INFORMATION, &[])
+    );
+    println!("{}", t(MSG_EXAMPLE_SECURITY_USE_THE_REDACTION_MODULE, &[]));
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SECURITY_ENCRYPT_SENSITIVE_DATA_BEFORE, &[])
+    );
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SECURITY_USE_SECURE_CONNECTION_STRING, &[])
+    );
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SECURITY_ROTATE_SENSITIVE_TOKENS_IN, &[])
+    );
+    println!("{}", t(MSG_EXAMPLE_SECURITY_KEEP_CACHE_KEY_NAMES, &[]));
 
-    println!("\n--- 6. Configuration safety ---\n");
+    println!(
+        "\n{}\n",
+        t(MSG_EXAMPLE_SECURITY_6_CONFIGURATION_SAFETY, &[])
+    );
 
     // 展示安全和不安全的配置方式
-    println!("❌ unsafe: storing passwords in plaintext in config");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SECURITY_UNSAFE_STORING_PASSWORDS_IN, &[])
+    );
     println!("   config.password = \"my_password\"");
 
-    println!("\n✓ safe: use environment variables or a secret management service");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SECURITY_SAFE_USE_ENVIRONMENT_VARIABLES, &[])
+    );
     println!("   config.password = std::env::var(\"CACHE_PASSWORD\")?");
 
-    println!("\n✓ safe: hide connection string passwords in logs");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SECURITY_SAFE_HIDE_CONNECTION_STRING, &[])
+    );
     let safe_conn_str = redact_connection_string("redis://user:secret@localhost:6379");
-    println!("   log: connecting to {}", safe_conn_str);
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_SECURITY_LOG_CONNECTING_TO,
+            &[("safe_conn_str", safe_conn_str.to_string())]
+        )
+    );
 
-    // 清理
     cache.clear().await?;
 
-    println!("\nExample complete!");
+    println!("\n{}", t(MSG_EXAMPLE_SECURITY_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

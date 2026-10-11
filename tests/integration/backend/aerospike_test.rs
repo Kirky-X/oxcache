@@ -157,20 +157,16 @@ async fn test_aerospike_set_get_delete() {
         return;
     };
 
-    // set
     backend
         .set(Arc::from("as:key1"), Arc::new(b"value1".to_vec()), None)
         .await
         .expect("set failed");
 
-    // get
     let val = backend.get("as:key1").await.unwrap();
     assert_eq!(val, Some(b"value1".to_vec()));
 
-    // exists
     assert!(backend.exists("as:key1").await.unwrap());
 
-    // delete
     backend.delete("as:key1").await.expect("delete failed");
 
     // get after delete
@@ -187,7 +183,6 @@ async fn test_aerospike_set_with_ttl() {
         return;
     };
 
-    // set with TTL
     backend
         .set(
             Arc::from("as:ttl_key"),
@@ -197,7 +192,6 @@ async fn test_aerospike_set_with_ttl() {
         .await
         .expect("set with TTL failed");
 
-    // get
     let val = backend.get("as:ttl_key").await.unwrap();
     assert_eq!(val, Some(b"ttl_value".to_vec()));
 

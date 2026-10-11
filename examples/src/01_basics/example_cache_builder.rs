@@ -10,6 +10,22 @@ use oxcache::{Cache, CacheBuilder};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_CACHE_BUILDER_1_BASIC_CONSTRUCTION, MSG_EXAMPLE_CACHE_BUILDER_2_SET_CAPACITY,
+    MSG_EXAMPLE_CACHE_BUILDER_3_SET_TTL, MSG_EXAMPLE_CACHE_BUILDER_4_SET_TTI,
+    MSG_EXAMPLE_CACHE_BUILDER_5_COMBINED_CONFIGURATION, MSG_EXAMPLE_CACHE_BUILDER_6_USE_A_CUSTOM,
+    MSG_EXAMPLE_CACHE_BUILDER_7_REAL_USAGE, MSG_EXAMPLE_CACHE_BUILDER_8_SET_WITH_TTL,
+    MSG_EXAMPLE_CACHE_BUILDER_9_STATISTICS, MSG_EXAMPLE_CACHE_BUILDER_10_HEALTH_CHECK,
+    MSG_EXAMPLE_CACHE_BUILDER_BASIC_CACHE_CREATED, MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_1,
+    MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_5, MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_A,
+    MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_CAPACITY, MSG_EXAMPLE_CACHE_BUILDER_CACHE_STATS,
+    MSG_EXAMPLE_CACHE_BUILDER_CACHEBUILDER_FULL_USAGE_EXAMPLE,
+    MSG_EXAMPLE_CACHE_BUILDER_COMBINED_CACHE_CREATED_CAPACITY,
+    MSG_EXAMPLE_CACHE_BUILDER_EXAMPLE_COMPLETE, MSG_EXAMPLE_CACHE_BUILDER_EXISTS_CHECK,
+    MSG_EXAMPLE_CACHE_BUILDER_HEALTH_STATUS_OK, MSG_EXAMPLE_CACHE_BUILDER_READ,
+    MSG_EXAMPLE_CACHE_BUILDER_STORING_A_PRODUCT_WITH, MSG_EXAMPLE_CACHE_BUILDER_WRITE, t,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Product {
     id: u64,
@@ -19,40 +35,67 @@ struct Product {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== CacheBuilder full usage example ===\n");
+    println!(
+        "{}\n",
+        t(
+            MSG_EXAMPLE_CACHE_BUILDER_CACHEBUILDER_FULL_USAGE_EXAMPLE,
+            &[]
+        )
+    );
 
-    println!("--- 1. Basic construction ---");
+    println!("{}", t(MSG_EXAMPLE_CACHE_BUILDER_1_BASIC_CONSTRUCTION, &[]));
     let _cache1: Cache<String, Product> = CacheBuilder::default().build().await?;
-    println!("  ✓ basic cache created");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_BASIC_CACHE_CREATED, &[])
+    );
 
-    println!("\n--- 2. Set capacity ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_2_SET_CAPACITY, &[]));
     let _cache2: Cache<String, Product> = CacheBuilder::default().capacity(10000).build().await?;
-    println!("  ✓ cache created with capacity 10000");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_CAPACITY, &[])
+    );
 
-    println!("\n--- 3. Set TTL ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_3_SET_TTL, &[]));
     let _cache3: Cache<String, Product> = CacheBuilder::default()
         .ttl(Duration::from_secs(3600))
         .build()
         .await?;
-    println!("  ✓ cache created with 1 hour TTL");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_1, &[])
+    );
 
-    println!("\n--- 4. Set TTI ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_4_SET_TTI, &[]));
     let _cache4: Cache<String, Product> = CacheBuilder::default()
         .tti(Duration::from_secs(300))
         .build()
         .await?;
-    println!("  ✓ cache created with 5 minute TTI");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_5, &[])
+    );
 
-    println!("\n--- 5. Combined configuration ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_5_COMBINED_CONFIGURATION, &[])
+    );
     let cache5: Cache<String, Product> = CacheBuilder::default()
         .capacity(5000)
         .ttl(Duration::from_secs(1800))
         .tti(Duration::from_secs(600))
         .build()
         .await?;
-    println!("  ✓ combined cache created (capacity=5000, TTL=30min, TTI=10min)");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_BUILDER_COMBINED_CACHE_CREATED_CAPACITY,
+            &[]
+        )
+    );
 
-    println!("\n--- 6. Use a custom backend ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_6_USE_A_CUSTOM, &[]));
     let backend = MokaMemoryBackend::builder().capacity(2000).build();
     let _cache6: Cache<String, Product> = CacheBuilder::default()
         .backend_arc(
@@ -61,9 +104,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ttl(Duration::from_secs(120))
         .build()
         .await?;
-    println!("  ✓ cache created with a custom Moka backend");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_CACHE_CREATED_WITH_A, &[])
+    );
 
-    println!("\n--- 7. Real usage ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_7_REAL_USAGE, &[]));
     let cache = cache5;
 
     let product = Product {
@@ -73,12 +119,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     cache.set(&"product:1".to_string(), &product).await?;
-    println!("  write: {:?}", product);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_BUILDER_WRITE,
+            &[("product", format!("{:?}", product))]
+        )
+    );
 
     let cached = cache.get(&"product:1".to_string()).await?;
-    println!("  read: {:?}", cached);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_BUILDER_READ,
+            &[("cached", format!("{:?}", cached))]
+        )
+    );
 
-    println!("\n--- 8. Set with TTL ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_8_SET_WITH_TTL, &[]));
     cache
         .set_with_ttl(
             &"product:2".to_string(),
@@ -90,25 +148,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(60)),
         )
         .await?;
-    println!("  storing a product with 60s TTL");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CACHE_BUILDER_STORING_A_PRODUCT_WITH, &[])
+    );
 
     let exists = cache.exists(&"product:2".to_string()).await?;
-    println!("  exists check: {}", exists);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CACHE_BUILDER_EXISTS_CHECK,
+            &[("exists", exists.to_string())]
+        )
+    );
 
-    println!("\n--- 9. Statistics ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_9_STATISTICS, &[]));
     let stats = cache.stats().await?;
-    println!("  cache stats:");
+    println!("  {}", t(MSG_EXAMPLE_CACHE_BUILDER_CACHE_STATS, &[]));
     for (key, value) in &stats {
         println!("    {}: {}", key, value);
     }
 
-    println!("\n--- 10. Health check ---");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_10_HEALTH_CHECK, &[]));
     cache.health_check().await?;
-    println!("  health status: ✓ OK");
+    println!("  {}", t(MSG_EXAMPLE_CACHE_BUILDER_HEALTH_STATUS_OK, &[]));
 
-    // 清理
     cache.clear().await?;
 
-    println!("\n✓ Example complete");
+    println!("\n{}", t(MSG_EXAMPLE_CACHE_BUILDER_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

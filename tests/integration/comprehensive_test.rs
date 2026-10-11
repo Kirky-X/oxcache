@@ -138,6 +138,5 @@ async fn test_edge_cases() {
     let long_key = "k".repeat(256);
     assert!(cache.set(&long_key, &"long_key".to_string()).await.is_ok());
 
-    // 清理
     cache.clear().await.unwrap();
 }

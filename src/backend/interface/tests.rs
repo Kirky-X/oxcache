@@ -376,11 +376,9 @@ mod tests {
         let value = backend_dyn.get("key1").unwrap();
         assert_eq!(value, Some(b"value1".to_vec()));
 
-        // exists
         assert!(backend_dyn.exists("key1").unwrap());
         assert!(!backend_dyn.exists("missing").unwrap());
 
-        // delete
         backend_dyn.delete("key1").unwrap();
         assert!(!backend_dyn.exists("key1").unwrap());
 

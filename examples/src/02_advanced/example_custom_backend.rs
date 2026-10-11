@@ -21,6 +21,25 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_CUSTOM_BACKEND_1_CREATE_A_CUSTOM, MSG_EXAMPLE_CUSTOM_BACKEND_2_INJECT_IT_VIA,
+    MSG_EXAMPLE_CUSTOM_BACKEND_3_BASIC_CRUD_OPERATIONS,
+    MSG_EXAMPLE_CUSTOM_BACKEND_4_TTL_OPERATIONS, MSG_EXAMPLE_CUSTOM_BACKEND_5_BATCH_OPERATIONS,
+    MSG_EXAMPLE_CUSTOM_BACKEND_6_STATISTICS, MSG_EXAMPLE_CUSTOM_BACKEND_7_HEALTH_CHECK,
+    MSG_EXAMPLE_CUSTOM_BACKEND_8_CAPACITY_LIMIT_DEMONSTRATION,
+    MSG_EXAMPLE_CUSTOM_BACKEND_9_SHUTDOWN, MSG_EXAMPLE_CUSTOM_BACKEND_BACKEND_HEALTHY,
+    MSG_EXAMPLE_CUSTOM_BACKEND_BATCH_WROTE_ENTRIES,
+    MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_BUILT_WITH_THE, MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_CLOSED,
+    MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_ENTRIES, MSG_EXAMPLE_CUSTOM_BACKEND_CAPACITY_FULL_THE_WRITE,
+    MSG_EXAMPLE_CUSTOM_BACKEND_EXAMPLE, MSG_EXAMPLE_CUSTOM_BACKEND_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_CUSTOM_BACKEND_EXPIRE_UPDATED_TO_120S,
+    MSG_EXAMPLE_CUSTOM_BACKEND_HASHMAPBACKEND_CREATED_CAPACITY_100,
+    MSG_EXAMPLE_CUSTOM_BACKEND_HASHMAPBACKEND_SHUT_DOWN_DATA,
+    MSG_EXAMPLE_CUSTOM_BACKEND_HEALTH_CHECK_FAILED, MSG_EXAMPLE_CUSTOM_BACKEND_SET_WITH_TTL_60S,
+    MSG_EXAMPLE_CUSTOM_BACKEND_UNEXPECTED_THE_WRITE_SUCCEEDED,
+    MSG_EXAMPLE_CUSTOM_BACKEND_WROTE_3_ENTRIES_CAPACITY, t,
+};
+
 /// 带 TTL 信息的缓存条目
 struct Entry {
     value: Vec<u8>,
@@ -165,7 +184,13 @@ impl CacheConnector for HashMapBackend {
     async fn shutdown(&self) {
         let mut data = self.data.lock().expect("lock poisoned");
         data.clear();
-        println!("  [HashMapBackend] shut down, data cleared");
+        println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_CUSTOM_BACKEND_HASHMAPBACKEND_SHUT_DOWN_DATA,
+                &[]
+            )
+        );
     }
 
     fn backend_kind(&self) -> BackendKind {
@@ -184,20 +209,32 @@ struct Item {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Custom backend example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_CUSTOM_BACKEND_EXAMPLE, &[]));
 
-    println!("--- 1. Create a custom backend ---");
+    println!("{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_1_CREATE_A_CUSTOM, &[]));
     let backend = Arc::new(HashMapBackend::new(100));
-    println!("  ✓ HashMapBackend created (capacity=100)");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_HASHMAPBACKEND_CREATED_CAPACITY_100,
+            &[]
+        )
+    );
 
-    println!("\n--- 2. Inject it via CacheBuilder ---");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_2_INJECT_IT_VIA, &[]));
     let cache: Cache<String, Item> = Cache::builder()
         .backend_arc(backend.clone())
         .build()
         .await?;
-    println!("  ✓ Cache built with the custom backend");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_BUILT_WITH_THE, &[])
+    );
 
-    println!("\n--- 3. Basic CRUD operations ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_CUSTOM_BACKEND_3_BASIC_CRUD_OPERATIONS, &[])
+    );
     let item = Item {
         id: 1,
         name: "test item".into(),
@@ -217,7 +254,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let after_delete = cache.get(&"item:1".to_string()).await?;
     println!("  ✓ get after delete = {:?}", after_delete);
 
-    println!("\n--- 4. TTL operations ---");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_4_TTL_OPERATIONS, &[]));
     cache
         .set_with_ttl(
             &"temp".to_string(),
@@ -229,14 +266,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
     let remaining = cache.ttl(&"temp".to_string()).await?;
-    println!("  ✓ set_with_ttl 60s, remaining TTL: {:?}", remaining);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_SET_WITH_TTL_60S,
+            &[("remaining", format!("{:?}", remaining))]
+        )
+    );
 
     let expired = cache
         .expire(&"temp".to_string(), Duration::from_secs(120))
         .await?;
-    println!("  ✓ expire updated to 120s: {}", expired);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_EXPIRE_UPDATED_TO_120S,
+            &[("expired", expired.to_string())]
+        )
+    );
 
-    println!("\n--- 5. Batch operations ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_CUSTOM_BACKEND_5_BATCH_OPERATIONS, &[])
+    );
     let items: Vec<(String, Item)> = (0..5)
         .map(|i| {
             (
@@ -251,24 +303,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (key, item) in &items {
         cache.set(key, item).await?;
     }
-    println!("  ✓ batch wrote {} entries", items.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_BATCH_WROTE_ENTRIES,
+            &[("items", items.len().to_string())]
+        )
+    );
 
     let count = cache.len().await?;
-    println!("  ✓ cache entries: {}", count);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_ENTRIES,
+            &[("count", count.to_string())]
+        )
+    );
 
-    println!("\n--- 6. Statistics ---");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_6_STATISTICS, &[]));
     let stats = cache.stats().await?;
     for (key, value) in &stats {
         println!("  {} = {}", key, value);
     }
 
-    println!("\n--- 7. Health check ---");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_7_HEALTH_CHECK, &[]));
     match cache.health_check().await {
-        Ok(()) => println!("  ✓ backend healthy"),
-        Err(e) => println!("  ✗ health check failed: {}", e),
+        Ok(()) => println!("  {}", t(MSG_EXAMPLE_CUSTOM_BACKEND_BACKEND_HEALTHY, &[])),
+        Err(e) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_CUSTOM_BACKEND_HEALTH_CHECK_FAILED,
+                &[("e", e.to_string())]
+            )
+        ),
     }
 
-    println!("\n--- 8. Capacity limit demonstration ---");
+    println!(
+        "\n{}",
+        t(
+            MSG_EXAMPLE_CUSTOM_BACKEND_8_CAPACITY_LIMIT_DEMONSTRATION,
+            &[]
+        )
+    );
     let small_backend = Arc::new(HashMapBackend::new(3));
     let small_cache: Cache<String, String> =
         Cache::builder().backend_arc(small_backend).build().await?;
@@ -278,20 +354,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .set(&format!("k{}", i), &format!("v{}", i))
             .await?;
     }
-    println!("  ✓ wrote 3 entries (capacity=3)");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_CUSTOM_BACKEND_WROTE_3_ENTRIES_CAPACITY, &[])
+    );
 
     match small_cache
         .set(&"k_overflow".to_string(), &"overflow".to_string())
         .await
     {
-        Ok(()) => println!("  unexpected: the write succeeded"),
-        Err(e) => println!("  ✓ capacity full, the write failed: {}", e),
+        Ok(()) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_CUSTOM_BACKEND_UNEXPECTED_THE_WRITE_SUCCEEDED,
+                &[]
+            )
+        ),
+        Err(e) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_CUSTOM_BACKEND_CAPACITY_FULL_THE_WRITE,
+                &[("e", e.to_string())]
+            )
+        ),
     }
 
-    println!("\n--- 9. Shutdown ---");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_9_SHUTDOWN, &[]));
     cache.shutdown().await;
-    println!("  ✓ cache closed");
+    println!("  {}", t(MSG_EXAMPLE_CUSTOM_BACKEND_CACHE_CLOSED, &[]));
 
-    println!("\n✓ Custom backend example complete");
+    println!("\n{}", t(MSG_EXAMPLE_CUSTOM_BACKEND_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

@@ -40,6 +40,8 @@ tests/
 │   │   ├── redis_cluster_test.rs        # Redis Cluster
 │   │   ├── redis_sentinel_test.rs       # Redis Sentinel
 │   │   ├── redis_version_compatibility_test.rs # Redis 版本兼容
+│   │   ├── pubsub_real_redis_test.rs    # RedisPubSub 真实 Redis 端点（订阅/panic 隔离/重连/任务回收，容器门控）
+│   │   ├── versioning_real_redis_test.rs # RedisVersionedCache WATCH/MULTI 真实端点（容器门控）
 │   │   ├── dist_lock_test.rs            # 分布式锁
 │   │   └── lock_warmup_test.rs          # 锁与预热
 │   ├── ttl/                             # TTL 测试
@@ -98,6 +100,8 @@ tests/
 ├── disk_backend_extra_test.rs           # RedbDiskBackend 长尾面
 ├── kit_module_extra_test.rs             # trait-kit OxcacheModule 构建面
 ├── redis_fake_backend_test.rs           # 内嵌 RESP2 假 Redis 服务器的 Redis 族覆盖
+├── scenario_probe_172.rs                # 临时执行探针（E2E 场景 172）：ttl_jitter 参数边界（NaN 视为 0、越界钳制）
+├── scenario_probe_188.rs                # 临时执行探针（E2E 场景 188）：#[cached] 返回 Err 不回写、Ok 正常写回
 ├── single_flight_flight_signal.rs       # single-flight 信号（Cache::get_or 驱动）
 ├── stale_extra_test.rs                  # StaleWhileRevalidate 透传面与双时间戳重算
 │
@@ -137,9 +141,9 @@ cargo test --features full
 
 ### By Test Binary
 ```bash
-cargo test --features full --lib                    # 库单元测试 (1595)
+cargo test --features full --lib                    # 库单元测试 (1616)
 cargo test --features full --test unit              # 单元测试 (332)
-cargo test --features full --test integration       # 集成测试 (141)
+cargo test --features full --test integration       # 集成测试 (153)
 cargo test --features full --test e2e               # 端到端测试 (65)
 cargo test --features full --test macros            # 宏测试 (21)
 cargo test --features full --test feature_test      # Feature 门控测试 (2)
@@ -147,8 +151,9 @@ cargo test --features "full,bloom" --test bloom_filter_integration  # Bloom filt
 ```
 
 > 括号内为 `#[test]` / `#[tokio::test]` 函数的 grep 文本计数（与
-> [README](../README.md#-测试) 主表同口径，截至 0.5.0-rc.6，2026-10-10 复核）；
-> feature 门控与 `--ignored` 用例不计入运行数，实际以 `-- --list` 为准。
+> [README](../README.md#-测试) 主表同口径，工作区计数，截至 0.5.0-rc.6，
+> 2026-10-11 复核）；feature 门控与 `--ignored` 用例不计入运行数，
+> 实际以 `-- --list` 为准。
 
 ### Minimal Feature
 ```bash

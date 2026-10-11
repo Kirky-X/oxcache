@@ -349,7 +349,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 如果需要更精细的控制，可以直接构造并操作底层后端：
 
 ```rust
-use oxcache::backend::{MokaMemoryBackend, RedisBackend};
+use oxcache::backend::{CacheWriter, MokaMemoryBackend, RedisBackend};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[tokio::main]

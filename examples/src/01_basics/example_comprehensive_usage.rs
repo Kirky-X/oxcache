@@ -18,6 +18,46 @@ use oxcache::error::OxCacheResult;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_1_CREATE_AN_IN,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_2_CREATE_A_REDIS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_3_CREATE_A_TIERED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_4_BASIC_CRUD_OPERATIONS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_5_BATCH_OPERATIONS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_6_TTL_CONTROL,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_7_PERFORMANCE_TEST,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_8_STATISTICS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_DATA_THAT_EXPIRES,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_PRODUCTS_IN_BATCH,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_USER,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_ADD_SUCCEEDED_PRODUCTS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_DELETE_SUCCEEDED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_FETCH_SUCCEEDED_PRODUCTS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_CACHE_STATS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_DELETING_PRODUCTS_IN_BATCH,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_DELETING_USER,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_EXAMPLE_RUN_COMPLETE,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_FAILED_TO_DELETE_THE,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_FETCHING_PRODUCTS_IN_BATCH,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_GET_AFTER_4_SECONDS,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_GETTING_USER, MSG_EXAMPLE_COMPREHENSIVE_USAGE_IMMEDIATE_GET,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_IN_MEMORY_CACHE_CREATED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_OXCACHE_COMPREHENSIVE_USAGE_EXAMPLE,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_READ_TOOK,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_READING_10000_ENTRIES_CONCURRENTLY,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_REDIS_CACHE_CREATED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_REDIS_UNAVAILABLE_DEGRADED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_TIERED_CACHE_CREATED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_UPDATING_USER, MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_ADDED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_AFTER_THE_UPDATE,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_DELETED, MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_NOT_FOUND,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_NOT_FOUND_2,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_RETRIEVED, MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_UPDATED,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_WAITING_4_SECONDS_THEN,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_WRITE_TOOK,
+    MSG_EXAMPLE_COMPREHENSIVE_USAGE_WRITING_10000_ENTRIES_CONCURRENTLY, t,
+};
+
 // 简单的用户结构体
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct User {
@@ -39,30 +79,54 @@ struct Product {
 #[tokio::main]
 async fn main() -> OxCacheResult<()> {
     println!(
-        "=== Oxcache comprehensive usage example ===
-"
+        "{}\n",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_OXCACHE_COMPREHENSIVE_USAGE_EXAMPLE,
+            &[]
+        )
     );
 
-    println!("1. Create an in-memory cache (L1)");
+    println!("{}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_1_CREATE_AN_IN, &[]));
     let _memory_cache: Cache<String, User> = Cache::builder().build().await?;
     println!(
-        "   ✓ in-memory cache created
-"
+        "   {}\n",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_IN_MEMORY_CACHE_CREATED, &[])
     );
 
-    println!("2. Create a Redis cache (L2 only)");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_2_CREATE_A_REDIS, &[])
+    );
     match Cache::<String, User>::redis("redis://127.0.0.1:6379").await {
-        Ok(_redis_cache) => println!("   ✓ Redis cache created"),
-        Err(e) => println!("   ⚠ Redis unavailable, degraded: {}", e),
+        Ok(_redis_cache) => println!(
+            "   {}",
+            t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_REDIS_CACHE_CREATED, &[])
+        ),
+        Err(e) => println!(
+            "   {}",
+            t(
+                MSG_EXAMPLE_COMPREHENSIVE_USAGE_REDIS_UNAVAILABLE_DEGRADED,
+                &[("e", e.to_string())]
+            )
+        ),
     }
     println!();
 
-    println!("3. Create a tiered cache (L1 + L2)");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_3_CREATE_A_TIERED, &[])
+    );
     let _tiered_cache: Cache<String, User> = Cache::builder().build().await?;
-    println!("   ✓ tiered cache created");
+    println!(
+        "   {}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_TIERED_CACHE_CREATED, &[])
+    );
     println!();
 
-    println!("4. Basic CRUD operations");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_4_BASIC_CRUD_OPERATIONS, &[])
+    );
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
     let user = User {
@@ -73,20 +137,38 @@ async fn main() -> OxCacheResult<()> {
     };
 
     // Create
-    println!("  adding user...");
+    println!("  {}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_USER, &[]));
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ user added: {:?}", user.name);
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_ADDED,
+            &[("name", format!("{:?}", user.name))]
+        )
+    );
 
     // Read
-    println!("  getting user...");
+    println!("  {}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_GETTING_USER, &[]));
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ user retrieved: {:?}", u.name),
-        None => println!("   ✗ user not found"),
+        Some(u) => println!(
+            "   {}",
+            t(
+                MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_RETRIEVED,
+                &[("name", format!("{:?}", u.name))]
+            )
+        ),
+        None => println!(
+            "   {}",
+            t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_NOT_FOUND, &[])
+        ),
     }
 
     // Update
-    println!("  updating user...");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_UPDATING_USER, &[])
+    );
     let updated_user = User {
         id: 1,
         name: "Bob".to_string(),
@@ -94,30 +176,59 @@ async fn main() -> OxCacheResult<()> {
         age: 30,
     };
     cache.set(&"user:1".to_string(), &updated_user).await?;
-    println!("   ✓ user updated");
+    println!(
+        "   {}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_UPDATED, &[])
+    );
 
     // Read updated
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ user after the update: {:?}", u.name),
-        None => println!("   ✗ user not found"),
+        Some(u) => println!(
+            "   {}",
+            t(
+                MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_AFTER_THE_UPDATE,
+                &[("name", format!("{:?}", u.name))]
+            )
+        ),
+        None => println!(
+            "   {}",
+            t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_NOT_FOUND_2, &[])
+        ),
     }
 
-    // Delete
-    println!("  deleting user...");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_DELETING_USER, &[])
+    );
     cache.delete(&"user:1".to_string()).await?;
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(_) => println!("   ✗ failed to delete the user"),
-        None => println!("   ✓ user deleted"),
+        Some(_) => println!(
+            "   {}",
+            t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_FAILED_TO_DELETE_THE, &[])
+        ),
+        None => println!(
+            "   {}",
+            t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_DELETED, &[])
+        ),
     }
 
     println!();
 
-    println!("5. Batch operations");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_5_BATCH_OPERATIONS, &[])
+    );
     let cache: Cache<String, Product> = Cache::builder().build().await?;
 
-    println!("  adding products in batch...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_PRODUCTS_IN_BATCH,
+            &[]
+        )
+    );
     let products = vec![
         Product {
             id: 1,
@@ -144,32 +255,62 @@ async fn main() -> OxCacheResult<()> {
             .set(&format!("product:{}", product.id), product)
             .await?;
     }
-    println!("   ✓ batch add succeeded ({} products)", products.len());
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_ADD_SUCCEEDED_PRODUCTS,
+            &[("products", products.len().to_string())]
+        )
+    );
 
     // 批量获取
-    println!("  fetching products in batch...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_FETCHING_PRODUCTS_IN_BATCH,
+            &[]
+        )
+    );
     let mut fetched = Vec::new();
     for i in 1..=3 {
         if let Some(product) = cache.get(&format!("product:{}", i)).await? {
             fetched.push(product);
         }
     }
-    println!("   ✓ batch fetch succeeded ({} products)", fetched.len());
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_FETCH_SUCCEEDED_PRODUCTS,
+            &[("fetched", fetched.len().to_string())]
+        )
+    );
 
     // 批量删除
-    println!("  deleting products in batch...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_DELETING_PRODUCTS_IN_BATCH,
+            &[]
+        )
+    );
     for i in 1..=3 {
         cache.delete(&format!("product:{}", i)).await?;
     }
     println!(
-        "   ✓ batch delete succeeded
-"
+        "   {}\n",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_BATCH_DELETE_SUCCEEDED, &[])
     );
 
-    println!("6. TTL control");
+    println!("{}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_6_TTL_CONTROL, &[]));
     let cache: Cache<String, String> = Cache::builder().build().await?;
 
-    println!("  adding data that expires in 3 seconds...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_DATA_THAT_EXPIRES,
+            &[]
+        )
+    );
     cache
         .set_with_ttl(
             &"temp:1".to_string(),
@@ -179,22 +320,45 @@ async fn main() -> OxCacheResult<()> {
         .await?;
 
     println!(
-        "  immediate get: {:?}",
-        cache.get(&"temp:1".to_string()).await?
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_IMMEDIATE_GET,
+            &[(
+                "await",
+                format!("{:?}", cache.get(&"temp:1".to_string()).await?)
+            )]
+        )
     );
-    println!("  waiting 4 seconds, then reading...");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_WAITING_4_SECONDS_THEN, &[])
+    );
     sleep(Duration::from_secs(4)).await;
     println!(
-        "   get after 4 seconds: {:?}
-",
-        cache.get(&"temp:1".to_string()).await?
+        "   {}\n",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_GET_AFTER_4_SECONDS,
+            &[(
+                "await",
+                format!("{:?}", cache.get(&"temp:1".to_string()).await?)
+            )]
+        )
     );
 
-    println!("7. Performance test");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_7_PERFORMANCE_TEST, &[])
+    );
     let cache: Arc<Cache<String, i32>> = Arc::new(Cache::builder().build().await?);
 
     // 并发写入测试
-    println!("  writing 10000 entries concurrently...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_WRITING_10000_ENTRIES_CONCURRENTLY,
+            &[]
+        )
+    );
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
     for i in 0..100 {
@@ -213,10 +377,22 @@ async fn main() -> OxCacheResult<()> {
         handle.await.unwrap();
     }
     let write_time = start.elapsed();
-    println!("   ✓ write took: {:?}", write_time);
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_WRITE_TOOK,
+            &[("write_time", format!("{:?}", write_time))]
+        )
+    );
 
     // 并发读取测试
-    println!("  reading 10000 entries concurrently...");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_READING_10000_ENTRIES_CONCURRENTLY,
+            &[]
+        )
+    );
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
     for i in 0..100 {
@@ -232,18 +408,27 @@ async fn main() -> OxCacheResult<()> {
         handle.await.unwrap();
     }
     let read_time = start.elapsed();
-    println!("   ✓ read took: {:?}", read_time);
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_COMPREHENSIVE_USAGE_READ_TOOK,
+            &[("read_time", format!("{:?}", read_time))]
+        )
+    );
     println!();
 
-    println!("8. Statistics");
+    println!("{}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_8_STATISTICS, &[]));
     if let Ok(stats) = cache.stats().await {
-        println!("  cache stats:");
+        println!("  {}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_CACHE_STATS, &[]));
         for (key, value) in stats {
             println!("     - {}: {}", key, value);
         }
     }
     println!();
 
-    println!("=== Example run complete ===");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_EXAMPLE_RUN_COMPLETE, &[])
+    );
     Ok(())
 }

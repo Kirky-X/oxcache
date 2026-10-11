@@ -117,7 +117,6 @@ async fn test_aerospike_set_get_delete() {
     let backend = make_backend().await;
     let key = unique_key("as_sg");
 
-    // set
     backend
         .set(
             Arc::from(key.as_str()),
@@ -127,14 +126,11 @@ async fn test_aerospike_set_get_delete() {
         .await
         .expect("set failed");
 
-    // get
     let val = backend.get(&key).await.expect("get failed");
     assert_eq!(val, Some(b"aerospike_value".to_vec()));
 
-    // exists
     assert!(backend.exists(&key).await.expect("exists failed"));
 
-    // delete
     backend.delete(&key).await.expect("delete failed");
     assert!(!backend.exists(&key).await.expect("exists after delete"));
 

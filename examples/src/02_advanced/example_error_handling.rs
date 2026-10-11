@@ -17,6 +17,37 @@
 use oxcache::Cache;
 use oxcache::error::{OxCacheError, OxCacheResult};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_ERROR_HANDLING_1_ERROR_TYPE_CLASSIFICATION,
+    MSG_EXAMPLE_ERROR_HANDLING_2_RECOVERABILITY, MSG_EXAMPLE_ERROR_HANDLING_3_ERROR_CODES_AND,
+    MSG_EXAMPLE_ERROR_HANDLING_4_RESILIENT_OPERATIONS_WITH,
+    MSG_EXAMPLE_ERROR_HANDLING_5_TRIGGERING_RUNTIME_ERRORS,
+    MSG_EXAMPLE_ERROR_HANDLING_6_ERROR_PROPAGATION_WITH,
+    MSG_EXAMPLE_ERROR_HANDLING_7_CONFIGURATION_TIME_ERRORS,
+    MSG_EXAMPLE_ERROR_HANDLING_A_MISSING_KEY_RETURNS,
+    MSG_EXAMPLE_ERROR_HANDLING_BACKEND_ERROR_RECOVERABLE,
+    MSG_EXAMPLE_ERROR_HANDLING_CACHE_OPERATION_SUCCEEDED,
+    MSG_EXAMPLE_ERROR_HANDLING_COL_CONNECTION_ERROR, MSG_EXAMPLE_ERROR_HANDLING_COL_ERROR_TYPE,
+    MSG_EXAMPLE_ERROR_HANDLING_COL_RECOVERABLE, MSG_EXAMPLE_ERROR_HANDLING_CONFIG_ERROR_CODE,
+    MSG_EXAMPLE_ERROR_HANDLING_CONNECTION_ERROR_RECOVERABLE,
+    MSG_EXAMPLE_ERROR_HANDLING_DEGRADED_DEGRADED_MODE, MSG_EXAMPLE_ERROR_HANDLING_ERROR_CODE,
+    MSG_EXAMPLE_ERROR_HANDLING_ERROR_CODE_2, MSG_EXAMPLE_ERROR_HANDLING_ERROR_MESSAGE,
+    MSG_EXAMPLE_ERROR_HANDLING_EXAMPLE, MSG_EXAMPLE_ERROR_HANDLING_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_ERROR_HANDLING_FAILED_ON_ATTEMPT_RETRYING, MSG_EXAMPLE_ERROR_HANDLING_FINAL_RESULT,
+    MSG_EXAMPLE_ERROR_HANDLING_GET_OR_COMPUTED_RESULT, MSG_EXAMPLE_ERROR_HANDLING_HEALTH_CHECK,
+    MSG_EXAMPLE_ERROR_HANDLING_HEALTH_CHECK_PASSED,
+    MSG_EXAMPLE_ERROR_HANDLING_HIT_AN_UNRECOVERABLE_ERROR,
+    MSG_EXAMPLE_ERROR_HANDLING_INTERNAL_ERROR_RECOVERABLE, MSG_EXAMPLE_ERROR_HANDLING_LOAD_FAILED,
+    MSG_EXAMPLE_ERROR_HANDLING_NORMAL_READ, MSG_EXAMPLE_ERROR_HANDLING_NOT_FOUND_RECOVERABLE,
+    MSG_EXAMPLE_ERROR_HANDLING_REACHED_THE_MAXIMUM_RETRY,
+    MSG_EXAMPLE_ERROR_HANDLING_RESULT_RETRY_SKIPPED, MSG_EXAMPLE_ERROR_HANDLING_RESULT_UNEXPECTED,
+    MSG_EXAMPLE_ERROR_HANDLING_RETRYABLE, MSG_EXAMPLE_ERROR_HANDLING_SERIALIZATION_RECOVERABLE,
+    MSG_EXAMPLE_ERROR_HANDLING_SUCCEEDED_ON_RETRY,
+    MSG_EXAMPLE_ERROR_HANDLING_TIMEOUT_ERROR_RECOVERABLE,
+    MSG_EXAMPLE_ERROR_HANDLING_UNRECOVERABLE_ERROR_RESULT, MSG_EXAMPLE_ERROR_HANDLING_USER_1_SCORE,
+    MSG_EXAMPLE_ERROR_HANDLING_USER_999_LOAD_FAILED, MSG_EXAMPLE_ERROR_HANDLING_USER_999_SCORE, t,
+};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct Config {
     name: String,
@@ -25,30 +56,45 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Error handling example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_ERROR_HANDLING_EXAMPLE, &[]));
 
-    println!("--- 1. Error type classification ---");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_ERROR_HANDLING_1_ERROR_TYPE_CLASSIFICATION, &[])
+    );
     demonstrate_error_categories();
 
-    println!("\n--- 2. Recoverability ---");
+    println!("\n{}", t(MSG_EXAMPLE_ERROR_HANDLING_2_RECOVERABILITY, &[]));
     demonstrate_recoverability();
 
-    println!("\n--- 3. Error codes and logging ---");
+    println!("\n{}", t(MSG_EXAMPLE_ERROR_HANDLING_3_ERROR_CODES_AND, &[]));
     demonstrate_error_codes();
 
-    println!("\n--- 4. Resilient operations with retry ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_ERROR_HANDLING_4_RESILIENT_OPERATIONS_WITH, &[])
+    );
     demonstrate_retry_pattern().await?;
 
-    println!("\n--- 5. Triggering runtime errors ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_ERROR_HANDLING_5_TRIGGERING_RUNTIME_ERRORS, &[])
+    );
     demonstrate_runtime_errors().await?;
 
-    println!("\n--- 6. Error propagation with the ? operator ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_ERROR_HANDLING_6_ERROR_PROPAGATION_WITH, &[])
+    );
     demonstrate_error_propagation().await?;
 
-    println!("\n--- 7. Configuration-time errors ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_ERROR_HANDLING_7_CONFIGURATION_TIME_ERRORS, &[])
+    );
     demonstrate_config_errors();
 
-    println!("\n✓ Error handling example complete");
+    println!("\n{}", t(MSG_EXAMPLE_ERROR_HANDLING_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }
 
@@ -57,57 +103,92 @@ fn demonstrate_error_categories() {
     // 连接类错误 — 通常是暂时性的
     let conn_err = OxCacheError::Connection("Redis connection refused".into());
     println!(
-        "  connection error: {} (recoverable: {})",
-        conn_err,
-        conn_err.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_CONNECTION_ERROR_RECOVERABLE,
+            &[
+                ("conn_err", conn_err.to_string()),
+                ("is_recoverable", conn_err.is_recoverable().to_string())
+            ]
+        )
     );
 
     // 超时类错误 — 可重试
     let timeout_err = OxCacheError::Timeout("no response within 5s".into());
     println!(
-        "  timeout error: {} (recoverable: {})",
-        timeout_err,
-        timeout_err.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_TIMEOUT_ERROR_RECOVERABLE,
+            &[
+                ("timeout_err", timeout_err.to_string()),
+                ("is_recoverable", timeout_err.is_recoverable().to_string())
+            ]
+        )
     );
 
     // 后端错误 — 可能是暂时性的
     let backend_err = OxCacheError::BackendError("Moka out of memory".into());
     println!(
-        "  backend error: {} (recoverable: {})",
-        backend_err,
-        backend_err.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_BACKEND_ERROR_RECOVERABLE,
+            &[
+                ("backend_err", backend_err.to_string()),
+                ("is_recoverable", backend_err.is_recoverable().to_string())
+            ]
+        )
     );
 
     // 未找到 — 不可恢复（需要回源）
     let not_found = OxCacheError::NotFound("user:42".into());
     println!(
-        "  not found:   {} (recoverable: {})",
-        not_found,
-        not_found.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_NOT_FOUND_RECOVERABLE,
+            &[
+                ("not_found", not_found.to_string()),
+                ("is_recoverable", not_found.is_recoverable().to_string())
+            ]
+        )
     );
 
     // 序列化错误 — 通常不可恢复
     let ser_err = OxCacheError::Serialization("invalid UTF-8".into());
     println!(
-        "  serialization:   {} (recoverable: {})",
-        ser_err,
-        ser_err.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_SERIALIZATION_RECOVERABLE,
+            &[
+                ("ser_err", ser_err.to_string()),
+                ("is_recoverable", ser_err.is_recoverable().to_string())
+            ]
+        )
     );
 
     // 降级模式
     let degraded = OxCacheError::Degraded("L2 Redis unavailable, L1 only".into());
     println!(
-        "  degraded:     {} (degraded mode: {})",
-        degraded,
-        degraded.is_degraded()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_DEGRADED_DEGRADED_MODE,
+            &[
+                ("degraded", degraded.to_string()),
+                ("is_degraded", degraded.is_degraded().to_string())
+            ]
+        )
     );
 
     // 内部错误 — 不可恢复，不应重试
     let internal = OxCacheError::Internal("lock poisoned".into());
     println!(
-        "  internal error: {} (recoverable: {})",
-        internal,
-        internal.is_recoverable()
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_INTERNAL_ERROR_RECOVERABLE,
+            &[
+                ("internal", internal.to_string()),
+                ("is_recoverable", internal.is_recoverable().to_string())
+            ]
+        )
     );
 }
 
@@ -134,8 +215,27 @@ fn demonstrate_recoverability() {
     ];
 
     println!(
-        "  {:<16} {:<10} {:<12} error code",
-        "error type", "recoverable?", "connection error?"
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_ERROR_CODE,
+            &[
+                (
+                    "type",
+                    format!("{:<16}", t(MSG_EXAMPLE_ERROR_HANDLING_COL_ERROR_TYPE, &[]))
+                ),
+                (
+                    "recoverable",
+                    format!("{:<10}", t(MSG_EXAMPLE_ERROR_HANDLING_COL_RECOVERABLE, &[]))
+                ),
+                (
+                    "error",
+                    format!(
+                        "{:<12}",
+                        t(MSG_EXAMPLE_ERROR_HANDLING_COL_CONNECTION_ERROR, &[])
+                    )
+                ),
+            ]
+        )
     );
     println!("  {}", "-".repeat(50));
     for (name, err) in &errors {
@@ -152,9 +252,27 @@ fn demonstrate_recoverability() {
 /// 演示错误码获取
 fn demonstrate_error_codes() {
     let err = OxCacheError::Connection("failed to connect to redis://localhost:6379".into());
-    println!("  error message: {}", err);
-    println!("  error code:   {}", err.code());
-    println!("  retryable:   {}", err.is_recoverable());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_ERROR_MESSAGE,
+            &[("err", err.to_string())]
+        )
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_ERROR_CODE_2,
+            &[("code", err.code().to_string())]
+        )
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_RETRYABLE,
+            &[("is_recoverable", err.is_recoverable().to_string())]
+        )
+    );
 
     // 模拟结构化日志
     println!("\n  [LOG] code={} level=ERROR msg=\"{}\"", err.code(), err);
@@ -178,29 +296,58 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
             match operation().await {
                 Ok(val) => {
                     if attempt > 0 {
-                        println!("  ✓ {} succeeded on retry {}", operation_name, attempt);
+                        println!(
+                            "  {}",
+                            t(
+                                MSG_EXAMPLE_ERROR_HANDLING_SUCCEEDED_ON_RETRY,
+                                &[
+                                    ("operation_name", operation_name.to_string()),
+                                    ("attempt", attempt.to_string())
+                                ]
+                            )
+                        );
                     }
                     return Ok(val);
                 }
                 Err(e) => {
                     if !e.is_recoverable() {
-                        println!("  ✗ {} hit an unrecoverable error: {}", operation_name, e);
+                        println!(
+                            "  {}",
+                            t(
+                                MSG_EXAMPLE_ERROR_HANDLING_HIT_AN_UNRECOVERABLE_ERROR,
+                                &[
+                                    ("operation_name", operation_name.to_string()),
+                                    ("e", e.to_string())
+                                ]
+                            )
+                        );
                         return Err(e);
                     }
                     if attempt < max_retries {
                         let delay = std::time::Duration::from_millis(10 * 2u64.pow(attempt));
                         println!(
-                            "  ⚠ {} failed on attempt {} ({}), retrying in {}ms...",
-                            operation_name,
-                            attempt + 1,
-                            e.code(),
-                            delay.as_millis(),
+                            "  {}",
+                            t(
+                                MSG_EXAMPLE_ERROR_HANDLING_FAILED_ON_ATTEMPT_RETRYING,
+                                &[
+                                    ("operation_name", operation_name.to_string()),
+                                    ("attempt", (attempt + 1).to_string()),
+                                    ("code", e.code().to_string()),
+                                    ("as_millis", delay.as_millis().to_string())
+                                ]
+                            )
                         );
                         tokio::time::sleep(delay).await;
                     } else {
                         println!(
-                            "  ✗ {} reached the maximum retry count {}",
-                            operation_name, max_retries
+                            "  {}",
+                            t(
+                                MSG_EXAMPLE_ERROR_HANDLING_REACHED_THE_MAXIMUM_RETRY,
+                                &[
+                                    ("operation_name", operation_name.to_string()),
+                                    ("max_retries", max_retries.to_string())
+                                ]
+                            )
                         );
                         return Err(e);
                     }
@@ -229,7 +376,13 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
         }
     })
     .await?;
-    println!("  final result: {}", result);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_FINAL_RESULT,
+            &[("result", result.to_string())]
+        )
+    );
 
     // 演示不可恢复错误不会重试
     let not_found_result = with_retry("lookup cache", 3, || async {
@@ -237,12 +390,18 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
     })
     .await;
     println!(
-        "  unrecoverable error result: {}",
-        if not_found_result.is_err() {
-            "correctly skipped the retry"
-        } else {
-            "unexpected"
-        }
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_UNRECOVERABLE_ERROR_RESULT,
+            &[(
+                "result",
+                if not_found_result.is_err() {
+                    t(MSG_EXAMPLE_ERROR_HANDLING_RESULT_RETRY_SKIPPED, &[])
+                } else {
+                    t(MSG_EXAMPLE_ERROR_HANDLING_RESULT_UNEXPECTED, &[])
+                }
+            )]
+        )
     );
 
     // 实际缓存操作
@@ -257,7 +416,13 @@ async fn demonstrate_retry_pattern() -> OxCacheResult<()> {
         )
         .await?;
     let cached = cache.get(&key).await?;
-    println!("  cache operation succeeded: {:?}", cached.map(|c| c.name));
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_CACHE_OPERATION_SUCCEEDED,
+            &[("name", format!("{:?}", cached.map(|c| c.name)))]
+        )
+    );
 
     Ok(())
 }
@@ -269,11 +434,23 @@ async fn demonstrate_runtime_errors() -> OxCacheResult<()> {
     // 正常操作
     cache.set(&"k1".to_string(), &"v1".to_string()).await?;
     let val = cache.get(&"k1".to_string()).await?;
-    println!("  normal read: {:?}", val);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_NORMAL_READ,
+            &[("val", format!("{:?}", val))]
+        )
+    );
 
     // 读取不存在的键 — 返回 None 而非错误
     let missing = cache.get(&"nonexistent".to_string()).await?;
-    println!("  a missing key returns: {:?} (not an error)", missing);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_A_MISSING_KEY_RETURNS,
+            &[("missing", format!("{:?}", missing))]
+        )
+    );
 
     // 使用 get_or 处理缓存未命中
     let value = cache
@@ -281,12 +458,27 @@ async fn demonstrate_runtime_errors() -> OxCacheResult<()> {
             Ok("computed result".to_string())
         })
         .await?;
-    println!("  get_or computed result: {}", value);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_ERROR_HANDLING_GET_OR_COMPUTED_RESULT,
+            &[("value", value.to_string())]
+        )
+    );
 
     // 演示 health_check
     match cache.health_check().await {
-        Ok(()) => println!("  health check: ✓ passed"),
-        Err(e) => println!("  health check: ✗ {} ({})", e, e.code()),
+        Ok(()) => println!(
+            "  {}",
+            t(MSG_EXAMPLE_ERROR_HANDLING_HEALTH_CHECK_PASSED, &[])
+        ),
+        Err(e) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_HEALTH_CHECK,
+                &[("e", e.to_string()), ("code", e.code().to_string())]
+            )
+        ),
     }
 
     Ok(())
@@ -304,19 +496,42 @@ async fn demonstrate_error_propagation() -> OxCacheResult<()> {
         })
     }
 
-    // 先设置数据
     cache.set(&"score:1".to_string(), &100).await?;
 
     // 存在的用户
     match load_user_score(&cache, 1).await {
-        Ok(score) => println!("  user 1 score: {}", score),
-        Err(e) => println!("  load failed: {}", e),
+        Ok(score) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_USER_1_SCORE,
+                &[("score", score.to_string())]
+            )
+        ),
+        Err(e) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_LOAD_FAILED,
+                &[("e", e.to_string())]
+            )
+        ),
     }
 
     // 不存在的用户
     match load_user_score(&cache, 999).await {
-        Ok(score) => println!("  user 999 score: {}", score),
-        Err(e) => println!("  user 999 load failed: {} (code={})", e, e.code()),
+        Ok(score) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_USER_999_SCORE,
+                &[("score", score.to_string())]
+            )
+        ),
+        Err(e) => println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_USER_999_LOAD_FAILED,
+                &[("e", e.to_string()), ("code", e.code().to_string())]
+            )
+        ),
     }
 
     Ok(())
@@ -333,6 +548,12 @@ fn demonstrate_config_errors() {
     ];
 
     for err in &errors {
-        println!("  config error: {} [code={}]", err, err.code());
+        println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_ERROR_HANDLING_CONFIG_ERROR_CODE,
+                &[("err", err.to_string()), ("code", err.code().to_string())]
+            )
+        );
     }
 }

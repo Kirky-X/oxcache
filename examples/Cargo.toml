@@ -22,11 +22,9 @@ oxcache = { path = "..", version = "0.5.0-rc.6", default-features = false, featu
     "full",
 ] }
 
-# Tracing for logging (minimal features)
-# `tracing` is required directly because the `#[cached]` macro expands to
-# `::tracing::warn!(...)` calls in user code (examples crate), not just inside
-# the oxcache crate itself.
-tracing = { workspace = true, features = ["std"] }
+# 示例仅直接使用 tracing-subscriber（fmt::init）；tracing facade 由 oxcache
+# 内部（telemetry 特性）持有，示例源码无 ::tracing 引用，#[cached] 生成码
+# 只调用 ::oxcache::__telemetry_macro_passthrough，故不单独引入
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 
 # Utilities needed by examples

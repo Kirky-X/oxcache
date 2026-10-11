@@ -65,7 +65,6 @@ async fn test_web_application_cache_scenario() {
     let cached: Option<User> = cache.get(&key).await.unwrap();
     assert_eq!(cached.unwrap().name, "Alice Updated");
 
-    // 删除用户
     cache.delete(&key).await.unwrap();
     assert!(!cache.exists(&key).await.unwrap());
 
@@ -313,14 +312,11 @@ async fn test_concurrent_access_scenario() {
                     created_at: chrono::Utc::now().timestamp(),
                 };
 
-                // 写入
                 cache.lock().await.set(&key, &user).await.unwrap();
 
-                // 读取
                 let cached: Option<User> = cache.lock().await.get(&key).await.unwrap();
                 assert_eq!(cached.unwrap().id, user.id);
 
-                // 删除
                 cache.lock().await.delete(&key).await.unwrap();
             }
         });
@@ -446,10 +442,8 @@ async fn test_long_running_stability() {
             created_at: chrono::Utc::now().timestamp(),
         };
 
-        // 写入
         cache.set(&key, &user).await.unwrap();
 
-        // 读取
         let _: Option<User> = cache.get(&key).await.unwrap();
 
         // 每 100 次清理一次

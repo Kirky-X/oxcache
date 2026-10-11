@@ -46,6 +46,10 @@ use crate::backend::ConfigValidation;
 use crate::core::BackendType;
 use crate::core::CacheLayer as Layer;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY, MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
+    MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY, t,
+};
 
 /// 后端支持的层级限制
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,14 +74,19 @@ impl LayerRestriction {
 
     /// 获取友好的描述文本
     ///
-    /// 受 `&'static str` 返回类型约束，此处只能返回英文规范串；
-    /// locale 译文登记在消息目录（`detail.backend.layer_restriction_*`）。
-    pub fn description(&self) -> &'static str {
-        match self {
-            LayerRestriction::L1Only => "L1 only",
-            LayerRestriction::L2AndL3Only => "L2/L3 only",
-            LayerRestriction::Any => "Any layer",
-        }
+    /// 按当前默认 locale 渲染消息目录条目
+    /// （`detail.backend.layer_restriction_*`），未设置或未支持时回退英文。
+    pub fn description(&self) -> String {
+        t(
+            match self {
+                LayerRestriction::L1Only => MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
+                LayerRestriction::L2AndL3Only => {
+                    MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY
+                }
+                LayerRestriction::Any => MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY,
+            },
+            &[],
+        )
     }
 }
 
@@ -204,9 +213,29 @@ mod tests {
 
     #[test]
     fn test_layer_restriction_description() {
-        assert_eq!(LayerRestriction::L1Only.description(), "L1 only");
-        assert_eq!(LayerRestriction::L2AndL3Only.description(), "L2/L3 only");
-        assert_eq!(LayerRestriction::Any.description(), "Any layer");
+        // 描述按当前默认 locale 渲染目录条目；L1/L2/L3 各映射到自己的键
+        assert_eq!(
+            LayerRestriction::L1Only.description(),
+            t(MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY, &[])
+        );
+        assert_eq!(
+            LayerRestriction::L2AndL3Only.description(),
+            t(MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY, &[])
+        );
+        assert_eq!(
+            LayerRestriction::Any.description(),
+            t(MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY, &[])
+        );
+        assert_eq!(
+            crate::i18n::messages::lookup("en", MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY, &[])
+                .as_deref(),
+            Some("L1 only")
+        );
+        assert_eq!(
+            crate::i18n::messages::lookup("zh", MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY, &[])
+                .as_deref(),
+            Some("仅支持 L1 层级")
+        );
     }
 
     // === BackendType extension method tests ===

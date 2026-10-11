@@ -77,13 +77,11 @@ async fn test_valkey_cache_writer_operations() {
     };
     let backend = make_valkey_backend(&container.url()).await;
 
-    // set
     backend
         .set(Arc::from("valkey:key1"), Arc::new(b"value1".to_vec()), None)
         .await
         .expect("set failed");
 
-    // set with TTL
     backend
         .set(
             Arc::from("valkey:key2"),
@@ -100,7 +98,6 @@ async fn test_valkey_cache_writer_operations() {
     ];
     backend.set_many(&items).await.expect("set_many failed");
 
-    // delete
     backend.delete("valkey:key1").await.expect("delete failed");
 
     // delete_many
@@ -132,7 +129,6 @@ async fn test_valkey_cache_reader_operations() {
         .await
         .unwrap();
 
-    // get
     let val = backend.get("valkey:read1").await.unwrap();
     assert_eq!(val, Some(b"hello".to_vec()));
 
@@ -140,7 +136,6 @@ async fn test_valkey_cache_reader_operations() {
     let val = backend.get("valkey:nonexistent").await.unwrap();
     assert_eq!(val, None);
 
-    // exists
     assert!(backend.exists("valkey:read1").await.unwrap());
     assert!(!backend.exists("valkey:nonexistent").await.unwrap());
 

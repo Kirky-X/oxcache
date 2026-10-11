@@ -117,12 +117,6 @@ pub async fn test_redis_connection() -> Result<(), String> {
     Ok(())
 }
 
-/// 创建独立 Redis URL
-#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
-pub fn create_standalone_redis_url() -> String {
-    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string())
-}
-
 /// 创建集群 Redis URLs
 #[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
 pub fn create_cluster_redis_urls() -> Vec<String> {
@@ -131,12 +125,6 @@ pub fn create_cluster_redis_urls() -> Vec<String> {
         "redis://127.0.0.1:7001".to_string(),
         "redis://127.0.0.1:7002".to_string(),
     ]
-}
-
-/// 清理测试键（简化版）
-#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
-pub async fn cleanup_test_keys(_pattern: &str) -> Result<(), String> {
-    Ok(())
 }
 
 /// 检查 Redis 服务是否可达（实际网络检查）
@@ -164,23 +152,6 @@ pub async fn is_redis_available_url(url: &str) -> bool {
         }
         _ => false,
     }
-}
-
-/// 等待 Redis 可用
-///
-/// 循环检查 Redis 是否可用，直到超时（30 秒）。
-#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
-pub async fn wait_for_redis(url: &str) -> bool {
-    let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(30);
-
-    while start.elapsed() < timeout {
-        if is_redis_available_url(url).await {
-            return true;
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
-    false
 }
 
 /// 等待 Redis 集群可用
@@ -293,13 +264,6 @@ pub async fn wait_for_sentinel() -> bool {
 
     println!("Timeout waiting for Redis Sentinel to be ready.");
     false
-}
-
-/// 检查默认 Redis 是否可用
-#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
-pub async fn is_redis_available_default() -> bool {
-    let redis_url = get_redis_url();
-    is_redis_available_url(&redis_url).await
 }
 
 /// Sentinel 节点 URL 列表（`tests/real_env/docker-compose.sentinel.yml` 栈：

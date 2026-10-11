@@ -69,6 +69,5 @@ async fn test_batch_write_performance_writes_and_verifies_100_items() {
         after_delete.len()
     );
 
-    // 关闭缓存
     let _ = cache.shutdown().await;
 }

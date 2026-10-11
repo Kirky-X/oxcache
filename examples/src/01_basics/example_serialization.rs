@@ -4,6 +4,18 @@
 
 use oxcache::Cache;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_SERIALIZATION_1_JSON_SERIALIZATION_DEFAULT,
+    MSG_EXAMPLE_SERIALIZATION_2_SERIALIZATION_FEATURES,
+    MSG_EXAMPLE_SERIALIZATION_BINCODE_COMPACT_BINARY_FORMAT, MSG_EXAMPLE_SERIALIZATION_CONFIG,
+    MSG_EXAMPLE_SERIALIZATION_EXAMPLE_COMPLETE, MSG_EXAMPLE_SERIALIZATION_GOOD_FOR_DEBUGGING,
+    MSG_EXAMPLE_SERIALIZATION_HUMAN_READABLE_FORMAT,
+    MSG_EXAMPLE_SERIALIZATION_JSON_STANDARD_READABLE_FORMAT,
+    MSG_EXAMPLE_SERIALIZATION_OPTIONS_EXAMPLE, MSG_EXAMPLE_SERIALIZATION_RETRIEVED,
+    MSG_EXAMPLE_SERIALIZATION_SLIGHTLY_LARGER_SIZE, MSG_EXAMPLE_SERIALIZATION_STORED_USER,
+    MSG_EXAMPLE_SERIALIZATION_SUPPORTS_CUSTOM_SERIALIZERS, t,
+};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct User {
     id: u64,
@@ -16,7 +28,7 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
-    println!("Serialization options example");
+    println!("{}", t(MSG_EXAMPLE_SERIALIZATION_OPTIONS_EXAMPLE, &[]));
     println!("========================\n");
 
     // 使用JSON创建测试数据
@@ -31,26 +43,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     };
 
-    println!("1. JSON serialization (default):");
-    println!("  - human-readable format");
-    println!("  - good for debugging");
-    println!("  - slightly larger size\n");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SERIALIZATION_1_JSON_SERIALIZATION_DEFAULT, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SERIALIZATION_HUMAN_READABLE_FORMAT, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_SERIALIZATION_GOOD_FOR_DEBUGGING, &[]));
+    println!(
+        "  {}\n",
+        t(MSG_EXAMPLE_SERIALIZATION_SLIGHTLY_LARGER_SIZE, &[])
+    );
 
     // 使用JSON存储
     cache.set(&"user:json:1".to_string(), &user).await?;
-    println!("  stored user: {} - {}", user.name, user.email);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_SERIALIZATION_STORED_USER,
+            &[
+                ("name", user.name.to_string()),
+                ("email", user.email.to_string())
+            ]
+        )
+    );
 
     // 检索
     if let Some(cached) = cache.get(&"user:json:1".to_string()).await? {
-        println!("  retrieved: {} - {}", cached.name, cached.email);
-        println!("  config: {:?}\n", cached.profile);
+        println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_SERIALIZATION_RETRIEVED,
+                &[
+                    ("name", cached.name.to_string()),
+                    ("email", cached.email.to_string())
+                ]
+            )
+        );
+        println!(
+            "  {}\n",
+            t(
+                MSG_EXAMPLE_SERIALIZATION_CONFIG,
+                &[("profile", format!("{:?}", cached.profile))]
+            )
+        );
     }
 
-    println!("2. Serialization features:");
-    println!("  - JSON: standard, readable format");
-    println!("  - Bincode: compact binary format, efficient (when enabled)");
-    println!("  - supports custom serializers\n");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_SERIALIZATION_2_SERIALIZATION_FEATURES, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SERIALIZATION_JSON_STANDARD_READABLE_FORMAT, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SERIALIZATION_BINCODE_COMPACT_BINARY_FORMAT, &[])
+    );
+    println!(
+        "  {}\n",
+        t(MSG_EXAMPLE_SERIALIZATION_SUPPORTS_CUSTOM_SERIALIZERS, &[])
+    );
 
-    println!("✓ Serialization example complete!");
+    println!("{}", t(MSG_EXAMPLE_SERIALIZATION_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

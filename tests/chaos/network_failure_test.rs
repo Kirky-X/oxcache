@@ -370,7 +370,6 @@ async fn test_connection_pool_exhaustion() {
 
     let redis_url = get_redis_url();
 
-    // 创建多个连接
     let mut backends = Vec::new();
     for i in 0..10 {
         match RedisBackend::new(&redis_url).await {

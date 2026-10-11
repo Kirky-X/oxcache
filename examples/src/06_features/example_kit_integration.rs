@@ -20,6 +20,22 @@ use oxcache::integrations::kit::{
 };
 use trait_kit::prelude::*;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_KIT_INTEGRATION_1_BUILDING_ASYNCKIT_OXCACHEMODULE,
+    MSG_EXAMPLE_KIT_INTEGRATION_2_USING_THE_CACHE,
+    MSG_EXAMPLE_KIT_INTEGRATION_3_THREE_PHASE_SHUTDOWN,
+    MSG_EXAMPLE_KIT_INTEGRATION_ASYNCKIT_BUILD_COMPLETE, MSG_EXAMPLE_KIT_INTEGRATION_DONE,
+    MSG_EXAMPLE_KIT_INTEGRATION_DRAINQUEUE_HEALTH_CHECK_LIVENESS,
+    MSG_EXAMPLE_KIT_INTEGRATION_GET_USER_999_SHOULD,
+    MSG_EXAMPLE_KIT_INTEGRATION_OPERATION_COUNT_SHOULD_BE,
+    MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_OXCACHEBUILDOBSERVER,
+    MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_OXCACHEMODULE,
+    MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_THE_COUNTINGDECORATOR_DECORAT,
+    MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_THREE_PHASE_SHUTDOWN,
+    MSG_EXAMPLE_KIT_INTEGRATION_SHUTDOWN_RESULT,
+    MSG_EXAMPLE_KIT_INTEGRATION_TRAIT_KIT_INTEGRATION_DEMO, t,
+};
+
 /// 计数装饰器：包装 CacheBackend，记录操作次数。
 struct CountingDecorator {
     inner: Arc<dyn oxcache::backend::CacheBackend + Send + Sync>,
@@ -93,7 +109,13 @@ impl CacheConnector for CountingDecorator {
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // === 构建 AsyncKit + OxcacheModule ===
-    println!("=== 1. Building AsyncKit + OxcacheModule ===");
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_1_BUILDING_ASYNCKIT_OXCACHEMODULE,
+            &[]
+        )
+    );
 
     let mut kit = AsyncKit::new();
     kit.set_config(OxcacheConfig {
@@ -104,11 +126,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 注册 observer：监听模块构建事件
     kit.with_observer(Arc::new(OxcacheBuildObserver));
-    println!("Registered OxcacheBuildObserver");
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_OXCACHEBUILDOBSERVER,
+            &[]
+        )
+    );
 
     // 注册 OxcacheModule
     kit.register::<OxcacheModule>()?;
-    println!("Registered OxcacheModule");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_OXCACHEMODULE, &[])
+    );
 
     // 注册装饰器：计数代理
     let ops_count = Arc::new(AtomicUsize::new(0));
@@ -119,18 +150,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ops: Arc::clone(&ops_clone),
         })
     });
-    println!("Registered the CountingDecorator decorator");
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_THE_COUNTINGDECORATOR_DECORAT,
+            &[]
+        )
+    );
 
     // 构建 kit
     let built = kit.build().await?;
-    println!("AsyncKit build complete\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_KIT_INTEGRATION_ASYNCKIT_BUILD_COMPLETE, &[])
+    );
 
     // === 使用缓存后端 ===
-    println!("=== 2. Using the cache backend ===");
+    println!("{}", t(MSG_EXAMPLE_KIT_INTEGRATION_2_USING_THE_CACHE, &[]));
 
     let backend = built.require::<OxcacheModule>()?;
 
-    // 写入
     backend
         .set(
             Arc::from("user:1"),
@@ -140,7 +179,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     println!("set 'user:1' = 'Alice' (TTL=60s)");
 
-    // 读取
     let value = backend.get("user:1").await?;
     println!(
         "get 'user:1' = {:?}",
@@ -149,30 +187,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 不存在的 key
     let miss = backend.get("user:999").await?;
-    println!("get 'user:999' = {:?} (should be None)", miss);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_GET_USER_999_SHOULD,
+            &[("miss", format!("{:?}", miss))]
+        )
+    );
 
     println!(
-        "operation count: {} (should be 3: set + get + get)",
-        ops_count.load(Ordering::SeqCst)
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_OPERATION_COUNT_SHOULD_BE,
+            &[("seqcst", ops_count.load(Ordering::SeqCst).to_string())]
+        )
     );
     println!();
 
     // === 三阶段关闭 ===
-    println!("=== 3. Three-phase shutdown ===");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_KIT_INTEGRATION_3_THREE_PHASE_SHUTDOWN, &[])
+    );
 
     let shutdown_coord = AsyncShutdownCoordinator::new();
     register_cache_shutdown(&shutdown_coord, backend)?;
-    println!("Registered three-phase shutdown hooks:");
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_REGISTERED_THREE_PHASE_SHUTDOWN,
+            &[]
+        )
+    );
     println!("  - StopRequests: no-op");
-    println!("  - DrainQueue: health_check liveness probing");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_DRAINQUEUE_HEALTH_CHECK_LIVENESS,
+            &[]
+        )
+    );
     println!("  - CloseConnections: backend.shutdown()");
 
     let result = shutdown_coord.shutdown().await;
-    println!("shutdown result: {:?}\n", result);
-
-    println!("=== Done ===");
     println!(
-        "trait-kit integration demo finished. All three features (observer/decorator/shutdown) have been demonstrated."
+        "{}\n",
+        t(
+            MSG_EXAMPLE_KIT_INTEGRATION_SHUTDOWN_RESULT,
+            &[("result", format!("{:?}", result))]
+        )
+    );
+
+    println!("{}", t(MSG_EXAMPLE_KIT_INTEGRATION_DONE, &[]));
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_KIT_INTEGRATION_TRAIT_KIT_INTEGRATION_DEMO, &[])
     );
 
     Ok(())

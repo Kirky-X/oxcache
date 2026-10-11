@@ -298,12 +298,13 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
 3. 未命中（None 或 Err）→ 记录警告并继续下一个链接
    （L1 读取失败优雅降级而非使请求失败）
 4. 在非最高分链接命中后，如启用回填，
-   异步填充更高分（更靠近 L1）的链接
-   （fire-and-forget tokio::spawn，失败仅警告不传播）
+   顺序 await 写入更高分（更靠近 L1）的链接
+   （读路径等待回填完成后才返回；单链失败仅警告不传播）
 ```
 
 启用 `enable_race_read()`（选择加入）后，读取路径改为**并发**查询**所有**
-后端（`JoinSet`）并返回首个命中；非最高分命中时仍执行回填，
+后端（`JoinSet`），待全部查询结束后取分数最高（链接序最靠前）的命中返回；
+非最高分命中时同样顺序 await 回填，
 仅当所有后端都失败时读取才报错。
 
 读取行为现已枚举化为 `ChainReadStrategy`（`ChainCacheBuilder::read_strategy()`）：

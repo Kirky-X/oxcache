@@ -13,6 +13,16 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_GET_OR_1_BASIC_USAGE, MSG_EXAMPLE_GET_OR_2_CONCURRENT_SINGLE_FLIGHT,
+    MSG_EXAMPLE_GET_OR_3_COMPARISON_CONCURRENCY_WITHOUT, MSG_EXAMPLE_GET_OR_DB_LOADING_USER_FROM,
+    MSG_EXAMPLE_GET_OR_EXAMPLE_COMPLETE, MSG_EXAMPLE_GET_OR_FIRST_GET_OR_CALL,
+    MSG_EXAMPLE_GET_OR_NOTE_ONLY_ONE_DB, MSG_EXAMPLE_GET_OR_NOTE_WITHOUT_SINGLE_FLIGHT,
+    MSG_EXAMPLE_GET_OR_REQUEST_COMPLETED, MSG_EXAMPLE_GET_OR_REQUEST_STARTED,
+    MSG_EXAMPLE_GET_OR_RESULT, MSG_EXAMPLE_GET_OR_RESULT_2, MSG_EXAMPLE_GET_OR_SECOND_GET_OR_CALL,
+    MSG_EXAMPLE_GET_OR_SINGLE_FLIGHT, t,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct User {
     id: u64,
@@ -22,7 +32,13 @@ struct User {
 
 /// 模拟从数据库加载用户（耗时操作）
 async fn load_user_from_db(id: u64) -> oxcache::OxCacheResult<User> {
-    println!("  [DB] loading user {} from the database...", id);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_GET_OR_DB_LOADING_USER_FROM,
+            &[("id", id.to_string())]
+        )
+    );
     tokio::time::sleep(Duration::from_millis(100)).await;
     Ok(User {
         id,
@@ -33,28 +49,40 @@ async fn load_user_from_db(id: u64) -> oxcache::OxCacheResult<User> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== get_or single-flight example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_GET_OR_SINGLE_FLIGHT, &[]));
 
     let cache: Arc<Cache<String, User>> = Arc::new(Cache::builder().capacity(100).build().await?);
 
-    println!("--- 1. Basic usage ---");
+    println!("{}", t(MSG_EXAMPLE_GET_OR_1_BASIC_USAGE, &[]));
     let key = "user:1".to_string();
 
     // 第一次调用：缓存未命中，执行 fallback
-    println!("First get_or call:");
+    println!("{}", t(MSG_EXAMPLE_GET_OR_FIRST_GET_OR_CALL, &[]));
     let user1 = cache
         .get_or(&key, || async { load_user_from_db(1).await })
         .await?;
-    println!("  result: {:?}\n", user1);
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_GET_OR_RESULT,
+            &[("user1", format!("{:?}", user1))]
+        )
+    );
 
     // 第二次调用：缓存命中，不执行 fallback
-    println!("Second get_or call:");
+    println!("{}", t(MSG_EXAMPLE_GET_OR_SECOND_GET_OR_CALL, &[]));
     let user2 = cache
         .get_or(&key, || async { load_user_from_db(1).await })
         .await?;
-    println!("  result: {:?}\n", user2);
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_GET_OR_RESULT_2,
+            &[("user2", format!("{:?}", user2))]
+        )
+    );
 
-    println!("--- 2. Concurrent single-flight deduplication ---");
+    println!("{}", t(MSG_EXAMPLE_GET_OR_2_CONCURRENT_SINGLE_FLIGHT, &[]));
     let key2 = "user:2".to_string();
 
     // 同时发起 5 个并发请求查询同一个键
@@ -63,11 +91,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let cache_clone = Arc::clone(&cache);
         let key_clone = key2.clone();
         handles.push(tokio::spawn(async move {
-            println!("  request {} started", i);
+            println!(
+                "  {}",
+                t(MSG_EXAMPLE_GET_OR_REQUEST_STARTED, &[("i", i.to_string())])
+            );
             let result = cache_clone
                 .get_or(&key_clone, || async { load_user_from_db(2).await })
                 .await;
-            println!("  request {} completed", i);
+            println!(
+                "  {}",
+                t(
+                    MSG_EXAMPLE_GET_OR_REQUEST_COMPLETED,
+                    &[("i", i.to_string())]
+                )
+            );
             result
         }));
     }
@@ -77,9 +114,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = handle.await?;
     }
 
-    println!("\n  note: only one [DB] load runs; the other requests wait for the result");
+    println!("\n  {}", t(MSG_EXAMPLE_GET_OR_NOTE_ONLY_ONE_DB, &[]));
 
-    println!("\n--- 3. Comparison: concurrency without single-flight ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_GET_OR_3_COMPARISON_CONCURRENCY_WITHOUT, &[])
+    );
     let key3 = "user:3".to_string();
 
     // 先清除缓存
@@ -106,8 +146,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = handle.await?;
     }
 
-    println!("  note: without single-flight, the [DB] load may run multiple times");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_GET_OR_NOTE_WITHOUT_SINGLE_FLIGHT, &[])
+    );
 
-    println!("\n✓ Example complete");
+    println!("\n{}", t(MSG_EXAMPLE_GET_OR_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

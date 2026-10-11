@@ -9,6 +9,11 @@
 
 ## [0.5.0-rc.7] - 2026-10-08
 
+> 号位说明：`0.5.0-rc.7` 号位曾于 2026-10-08 发布至 crates.io 并于当日撤回
+> （yanked）；仓库未打对应 tag，workspace 版本已回归发布前基线 `0.5.0-rc.6`
+> （2026-10-10 检查点）。本节记录该号位下的实际工作内容，代码保留在仓库中随
+> 后续发布交付。
+
 ### Added
 
 - **canonical JSON 归一化与 `json_hash_key` 指纹键**（utils）：为缓存键提供稳定归一化序列化与指纹摘要。
@@ -45,7 +50,7 @@
 
 ## [0.5.0-rc.6] — 2026-10-05
 
-> 号位说明：本节涵盖原定名 `0.5.0-rc.7` 的工作波次（自适应 TTL、指标 per-service 维度、`sync_backend_arc` / `AsyncToSyncBridge`、统一配置中枢 `CacheConfig`、智能预热、inklog 审计桥、分配基线）——发布裁决将其并入 `0.5.0-rc.6` 号位（workspace 版本与 macros 钉版同步调回 rc.6），仓库内**不存在 rc.7 版本与 tag**；下方「hitbox 能力吸收批次」为同版本内的前一批内容。
+> 号位说明：本节涵盖原定名 `0.5.0-rc.7` 的工作波次（自适应 TTL、指标 per-service 维度、`sync_backend_arc` / `AsyncToSyncBridge`、统一配置中枢 `CacheConfig`、智能预热、inklog 审计桥、分配基线）——发布裁决将其并入 `0.5.0-rc.6` 号位（workspace 版本与 macros 钉版同步调回 rc.6），仓库内**不存在 rc.7 版本与 tag**（rc.7 号位后于 2026-10-08 用于一次发布并当日撤回，见顶部号位说明）；下方「hitbox 能力吸收批次」为同版本内的前一批内容。
 
 ### 新增
 
@@ -84,7 +89,7 @@
 - **`#[cached]` 宏 `skip(...)` 参数**：被点名参数不进入默认缓存 key（如 `skip(password)` 排除敏感参数）；与显式 `key` 模板互斥（编译期报错）、未知参数名编译期报错（对标 hitbox `skip` 语义）
 - **`stale` feature SWR 三态过期**：`StaleWhileRevalidateBackend` 装饰器以双时间戳 envelope（`expire_at`/`stale_at`）实现 Actual/Stale/Expired 三态判定；`CacheBuilder::stale_ttl()` / `stale_policy()` 接线；`StalePolicy::Return`（旧值兜底，默认）/ `Revalidate`（同步回源刷新）/ `OffloadRevalidate`（立即回旧值 + 后台刷新）；非 envelope 旧数据按新鲜透传，零迁移成本；物理 TTL = `ttl + stale_ttl`；stale 命中发布 `CacheEventType::Expire` 事件并计入 `oxcache_stale_hits_total`
 - **`offload` feature 后台任务子系统**：`OffloadManager` 同 key 去重 + 信号量并发上限 + 超时策略（`None`/`Cancel`/`Warn`，默认 `Warn(30s)`）；`Cache::get_or_refresh()` 触发后台重验证（fallback 需 `Send + 'static`）；`oxcache_offload_*` 指标全集与 `oxcache::offload` 遥测
-- **`disk` feature 磁盘持久化 L3 后端**：`RedbDiskBackend`（redb 3.x 纯安全 Rust，ACID + WAL）；value envelope（seq + epoch 毫秒过期）+ 读路径懒过期物理删除（与 DashMap 同口径）；`max_entries` 超限清扫（先删过期、按 seq 升序删最旧，摊销触发，`spawn_blocking` 执行）；`BackendKind::Disk`、`Scores::REDB = 85`；`ChainLink::from_arc` / `ChainBuilder::extra_backend` 挂链为 L3（读穿透 + 回填）；`full` 预设包含 `disk`/`stale`/`offload`
+- **`disk` feature 磁盘持久化 L3 后端**：`RedbDiskBackend`（redb 4.3 纯安全 Rust，ACID + WAL）；value envelope（seq + epoch 毫秒过期）+ 读路径懒过期物理删除（与 DashMap 同口径）；`max_entries` 超限清扫（先删过期、按 seq 升序删最旧，摊销触发，`spawn_blocking` 执行）；`BackendKind::Disk`、`Scores::REDB = 85`；`ChainLink::from_arc` / `ChainBuilder::extra_backend` 挂链为 L3（读穿透 + 回填）；`full` 预设包含 `disk`/`stale`/`offload`
 - **ChainCache 读策略枚举**：`ChainReadStrategy`（`Sequential`/`Race`/`ParallelFreshest`）+ `ChainCacheBuilder::read_strategy()`；`ParallelFreshest` 并发全读后按剩余 TTL 择新（None 最低优先，并列取最高分）；`enable_race_read()`/`disable_race_read()` 保留为兼容别名；三策略读结果遥测埋点
 - **缓存审计加固配套 API**：新增 `hotkey` feature（`HotKeyTracker` 分片计数 + 快照半衰 Top-K）；`max_capacity_bytes` 容量上限（Moka weigher / DashMap 字节记账，防大值内存超卖）；`get_or_with_ttl` / `get_or_option_with_ttl`（含 sync 变体）与 `set_many_with_ttl`；布隆过滤器 `prefill` 预热 API
 - **ChainCache 批量读取 `iter_entries`**：命中层单层批量读与整批错误按键拆分；长度契约显性化、命中值移动语义修正
@@ -316,7 +321,7 @@
 - `try_generate_full` 键生成验证方法。
 - 6 个新 DashMap 淘汰测试、4 个新分片单飞测试、5 个新 ChainCache 降级测试、3 个新 MockBackend 故障注入测试，更新了 DashMap e2e 测试。
 - 新基准测试：`serialization_benchmark`（JSON 纯/压缩 序列化+反序列化）和 `dashmap_benchmark`（满容量 set/get 及 FIFO 淘汰）。
-- `ChainCacheBuilder::enable_race_read()` / `disable_race_read()`（并发首次命中读取）。
+- `ChainCacheBuilder::enable_race_read()` / `disable_race_read()`（并发全读取分数最高命中）。
 - `BytesCache` 类型别名，重导出在 `oxcache::BytesCache`。
 - 回归测试：`current_thread` tokio 运行时内的同步操作（P2 3.2）。
 - `CacheBuilder::build_sync()`：同步构建路径（完全同步，无需运行时）。`build()` 现在为 `async` 但不包含 `.await`；两者委托到相同的非异步构建逻辑。
@@ -331,13 +336,13 @@
 - **配置验证优化**：配置验证逻辑增强，类型序列化 feature gate 修复。
 - **[P0 R-002]** `DashMapMemoryBackend` 现在具有 FIFO O(1) 淘汰策略。此前后端在超过容量后无限增长；现在超容量写入批量淘汰最旧条目（`capacity / 10`，至少 1 条），使用 `seq` 检查的原子 `remove_if` 防止并发重设竞争，且 FIFO 队列在过期条目累积时自压缩（4 倍增长阈值）。无 TTL 的条目现在可被淘汰。
 - **[P1 3.1]** `get_or` / `get_or_sync` 单飞注册表现在分片为 64 个哈希桶（`DefaultHasher`），消除并发下的跨键 `Mutex` 竞争。
-- **[P1 4.3/5.1, P2 4.2/5.2]** `ChainCache` 现在并发写入所有链接（`JoinSet`），容忍单链接写入失败（仅在*所有*后端都失败时报错），在后端错误时读取降级穿透到下一链接，异步执行回填（fire-and-forget `tokio::spawn`），并发健康检查每个后端 5 秒超时。
+- **[P1 4.3/5.1, P2 4.2/5.2]** `ChainCache` 现在并发写入所有链接（`JoinSet`），容忍单链接写入失败（仅在*所有*后端都失败时报错），在后端错误时读取降级穿透到下一链接，命中非最高分链接时顺序 await 回填更高分链接（读路径等待回填完成；单链失败仅警告不传播），并发健康检查每个后端 5 秒超时。
 - **[P3 8.x]** 移除 `src/cache/api/api_impl.rs` 中的死代码（`#[cfg(all(feature = "dashmap-backend", ...))]` 引用了不存在的特性，从未编译）。
 - **[P3 8.1/8.2]** 移除 `base64` 和 `lazy_static` 依赖；用 `once_cell::sync::Lazy` 替代 `lazy_static!`。
 - **序列化加固**：`deserialize_safe` 禁用 `serde_json` 递归限制（`unbounded_depth` 特性）并通过 `serde_stacker` 将递归委托到堆，关闭深层嵌套 JSON 栈溢出 DoS。压缩输出现在经过 gzip 魔数头检查和 64 MiB 解压大小上限。
 - **特性门控 bug**：`compression` 特性引用了 `dep:flate2` 但不存在 `flate2` 特性，因此所有 `#[cfg(feature = "flate2")]` 代码（包括压缩）从未编译。添加 `flate2 = ["dep:flate2"]` 并将其折叠到 `compression` 中。
 - **[P2 3.2]** `MokaMemoryBackend` 同步桥接不再持有全局 `OnceLock<Runtime>`：从 `current_thread` tokio 运行时内调用同步方法此前会 panic（"Cannot block the current thread from within a runtime"）。非多线程路径现在通过 `Waker::noop()` + 手动轮询驱动 future（moka future 无运行时依赖）。添加了回归测试。
-- **[P3 4.1]** `ChainCache` 新增选择加入的 `race_read` 模式：构建器上的 `enable_race_read()` 使 `get` 并发查询所有后端并返回首个命中（保留命中时回填和所有后端失败错误语义）。默认关闭；串行降级读取仍为默认。
+- **[P3 4.1]** `ChainCache` 新增选择加入的 `race_read` 模式：构建器上的 `enable_race_read()` 使 `get` 并发查询所有后端，待全部查询结束后取分数最高（链接序最靠前）的命中返回（保留命中时回填和所有后端失败错误语义）。默认关闭；串行降级读取仍为默认。
 - 压缩测试（`test_compression_round_trip`、`test_compression_shrinks_repetitive_data`）现在门控在 `flate2` 特性后；没有它 `compress_data` 为 no-op，缩小断言永远不成立。
 
 ### 变更

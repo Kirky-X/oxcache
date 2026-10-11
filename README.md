@@ -395,7 +395,7 @@ Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面
 
 ### 链式缓存读取路径
 
-读取自最高分链接起穿透，非最高分链接命中时可异步回填（流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接并返回首个命中。
+读取自最高分链接起穿透；非最高分链接命中且启用回填时，顺序 await 写入更高分链接（读路径等待回填完成后才返回，流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接，待全部查询结束后取分数最高（链接序最靠前）的命中返回。
 
 **可靠性要点**：
 
@@ -481,9 +481,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1595 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1616 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
-| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 141 |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 153 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
 | 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 21 |
 | 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
@@ -491,7 +491,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），截至 **0.5.0-rc.6**（2026-10-10 复核）；合计 2301（`src/` 1595 + `tests/` 706）。分表按各测试目录 grep 计数，未入表的 14 个顶层补齐测试文件（`tests/*_extra_test.rs` 等，共 75 例）与 `tests/single_flight_flight_signal.rs`（4 例）、`tests/common/` 共享工具（1 例）补足差额。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0-rc.6**（2026-10-11 复核）；合计 2337（`src/` 1616 + `tests/` 721）。分表按各测试目录 grep 计数（合计 638），差额 83 例来自未入表的 17 个顶层测试文件：14 个补齐测试文件（`tests/*_extra_test.rs` 等）共 75 例、`tests/single_flight_flight_signal.rs` 4 例、`tests/scenario_probe_172.rs` 与 `tests/scenario_probe_188.rs` 共 4 例。
 
 ### 常用命令（与 CI 一致）
 
@@ -585,7 +585,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近要点：
 
-- **0.5.0-rc.6**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减（见 `docs/allocation-baseline.md`）；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.6`，发布裁决并入 rc.6 号位（无 rc.7 版本与 tag）
+- **0.5.0-rc.6**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减（见 `docs/allocation-baseline.md`）；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
 - **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
 - **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性
 - **0.5.0-rc.3**（2026-09-08）：熔断器状态转换竞态修复；Lua 注入校验与 Redis 密码脱敏加固；CI 供应链加固（58 处第三方 Action 引用 SHA 固定）

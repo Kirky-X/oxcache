@@ -14,6 +14,14 @@ use std::time::Instant;
 
 use oxcache::{Cache, CacheEvent, CacheEventType, EventPublisher, OxCacheError};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_EVENTS_1_CREATING_AND_PUBLISHING, MSG_EXAMPLE_EVENTS_2_CONVENIENCE_METHODS,
+    MSG_EXAMPLE_EVENTS_3_MONITORING_CACHE_OPERATION, MSG_EXAMPLE_EVENTS_4_BATCH_OPERATION_EVENTS,
+    MSG_EXAMPLE_EVENTS_5_CUSTOM_EVENTS, MSG_EXAMPLE_EVENTS_6_ALL_EVENT_TYPES,
+    MSG_EXAMPLE_EVENTS_EVENT_TYPE, MSG_EXAMPLE_EVENTS_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_EVENTS_OXCACHE_EVENT_SYSTEM_EXAMPLE, MSG_EXAMPLE_EVENTS_SET_OPERATION_TOOK, t,
+};
+
 /// 自定义事件发布器示例
 ///
 /// 实现一个简单的事件发布器，将事件打印到控制台。
@@ -79,14 +87,16 @@ impl EventPublisher for ConsoleEventPublisher {
 /// 演示事件系统的基本用法
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化日志
     tracing_subscriber::fmt::init();
 
-    println!("=== oxcache event system example ===\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_EVENTS_OXCACHE_EVENT_SYSTEM_EXAMPLE, &[])
+    );
 
     let publisher = ConsoleEventPublisher;
 
-    println!("--- 1. Creating and publishing events ---");
+    println!("{}", t(MSG_EXAMPLE_EVENTS_1_CREATING_AND_PUBLISHING, &[]));
 
     // 创建不同类型的事件
     let hit_event = CacheEvent::new(CacheEventType::Hit)
@@ -111,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish(set_event).await?;
     publisher.publish(error_event).await?;
 
-    println!("\n--- 2. Convenience methods ---");
+    println!("\n{}", t(MSG_EXAMPLE_EVENTS_2_CONVENIENCE_METHODS, &[]));
 
     publisher.publish_hit("cache:key:1".to_string(), 3)?;
     publisher.publish_miss("cache:key:2".to_string(), 15)?;
@@ -119,7 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     publisher.publish_delete("cache:key:4".to_string())?;
     publisher.publish_error(Some("cache:key:5".to_string()), "Key not found".to_string())?;
 
-    println!("\n--- 3. Monitoring cache-operation events ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_EVENTS_3_MONITORING_CACHE_OPERATION, &[])
+    );
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
@@ -130,7 +143,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cache.set(&test_key, &test_value).await?;
     let elapsed = start.elapsed();
     publisher.publish_set(test_key.clone())?;
-    println!("set operation took: {:?}", elapsed);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_EVENTS_SET_OPERATION_TOOK,
+            &[("elapsed", format!("{:?}", elapsed))]
+        )
+    );
 
     // 获取值并记录事件
     let start = Instant::now();
@@ -155,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         publisher.publish_miss(nonexistent_key, elapsed.as_millis() as u64)?;
     }
 
-    println!("\n--- 4. Batch-operation events ---");
+    println!("\n{}", t(MSG_EXAMPLE_EVENTS_4_BATCH_OPERATION_EVENTS, &[]));
 
     let batch_start = CacheEvent::new(CacheEventType::BatchStart).with_metadata("count", "5");
     publisher.publish(batch_start).await?;
@@ -172,7 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_latency(50);
     publisher.publish(batch_end).await?;
 
-    println!("\n--- 5. Custom events ---");
+    println!("\n{}", t(MSG_EXAMPLE_EVENTS_5_CUSTOM_EVENTS, &[]));
 
     let custom_event = CacheEvent::new(CacheEventType::Custom("warmup_complete".to_string()))
         .with_metadata("loaded_keys", "100")
@@ -180,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     publisher.publish(custom_event).await?;
 
-    println!("\n--- 6. All event types ---");
+    println!("\n{}", t(MSG_EXAMPLE_EVENTS_6_ALL_EVENT_TYPES, &[]));
 
     let all_types = [
         CacheEventType::Hit,
@@ -199,9 +218,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for event_type in all_types {
-        println!("event type: {}", event_type);
+        println!(
+            "{}",
+            t(
+                MSG_EXAMPLE_EVENTS_EVENT_TYPE,
+                &[("event_type", event_type.to_string())]
+            )
+        );
     }
 
-    println!("\nExample complete!");
+    println!("\n{}", t(MSG_EXAMPLE_EVENTS_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

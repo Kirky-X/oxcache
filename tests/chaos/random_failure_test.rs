@@ -62,11 +62,9 @@ async fn test_random_redis_failures() {
         Err(e) => eprintln!("Get failed: {}", e),
     }
 
-    // 测试存在性
     let exists = cache.exists(&key).await;
     println!("✓ Exists check: {:?}", exists);
 
-    // 测试删除
     if let Err(e) = cache.delete(&key).await {
         eprintln!("Delete failed: {}", e);
     }
@@ -150,12 +148,10 @@ async fn test_fault_recovery() {
         };
 
         let key = format!("recovery_key_{}", i);
-        // 写入数据
         if cache.set(&key, &test_data).await.is_ok() {
             operations.push("write");
         }
 
-        // 读取数据
         if let Ok(Some(_)) = cache.get(&key).await {
             operations.push("read");
         }

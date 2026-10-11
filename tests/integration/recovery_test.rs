@@ -45,7 +45,6 @@ async fn test_degradation_logic() {
             assert_eq!(value, Some("test_value".to_string()));
             println!("✓ Basic cache operations work correctly");
 
-            // 测试删除操作
             cache.delete(&test_key).await.unwrap();
             let deleted_value = cache.get(&test_key).await.unwrap();
             assert_eq!(deleted_value, None);

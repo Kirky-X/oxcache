@@ -35,7 +35,6 @@ fn test_bloom_filter_basic_lifecycle() {
     assert!(bf.contains("key1"));
     assert!(bf.contains("key2"));
 
-    // clear 重置
     bf.clear();
     assert!(!bf.contains("key1"));
     assert!(!bf.contains("key2"));

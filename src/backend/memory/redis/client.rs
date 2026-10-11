@@ -213,9 +213,7 @@ impl RedisBackend {
 
     /// Execute an operation with circuit breaker protection and retry.
     ///
-    /// 1. Checks circuit breaker — if Open, returns `Degraded` immediately
-    /// 2. Wraps the operation in `retry_with_backoff`
-    /// 3. Records success/failure on the circuit breaker
+    /// 熔断器 Open 时立即返回 `Degraded`；否则经 `retry_with_backoff` 执行并记录成功/失败。
     pub(crate) async fn execute_with_retry<F, Fut, T>(&self, operation: F) -> OxCacheResult<T>
     where
         F: Fn() -> Fut + Send + Sync,

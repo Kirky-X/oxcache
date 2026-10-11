@@ -80,7 +80,6 @@ async fn test_dragonfly_cache_writer_operations() {
         return;
     };
 
-    // set
     if backend
         .set(Arc::from("df:key1"), Arc::new(b"value1".to_vec()), None)
         .await
@@ -89,7 +88,6 @@ async fn test_dragonfly_cache_writer_operations() {
         return;
     }
 
-    // set with TTL
     if backend
         .set(
             Arc::from("df:key2"),
@@ -111,7 +109,6 @@ async fn test_dragonfly_cache_writer_operations() {
         return;
     }
 
-    // delete
     if backend.delete("df:key1").await.is_err() {
         return;
     }
@@ -149,7 +146,6 @@ async fn test_dragonfly_cache_reader_operations() {
         return;
     }
 
-    // get
     let Ok(Some(val)) = backend.get("df:read1").await else {
         return;
     };
@@ -161,7 +157,6 @@ async fn test_dragonfly_cache_reader_operations() {
     };
     assert_eq!(val, None);
 
-    // exists
     let Ok(exists) = backend.exists("df:read1").await else {
         return;
     };

@@ -4,6 +4,15 @@
 
 use oxcache::Cache;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_BASIC_OPERATIONS_DELETE_REMOVE_A_VALUE, MSG_EXAMPLE_BASIC_OPERATIONS_DELETING_USER,
+    MSG_EXAMPLE_BASIC_OPERATIONS_EXAMPLE_COMPLETE, MSG_EXAMPLE_BASIC_OPERATIONS_GET_READ_A_VALUE,
+    MSG_EXAMPLE_BASIC_OPERATIONS_GETTING_USER, MSG_EXAMPLE_BASIC_OPERATIONS_GOT_USER,
+    MSG_EXAMPLE_BASIC_OPERATIONS_SET_STORE_A_VALUE, MSG_EXAMPLE_BASIC_OPERATIONS_SET_USER,
+    MSG_EXAMPLE_BASIC_OPERATIONS_UPDATE_OVERWRITE_THE_EXISTING,
+    MSG_EXAMPLE_BASIC_OPERATIONS_UPDATED_USER, MSG_EXAMPLE_BASIC_OPERATIONS_UPDATING_USER, t,
+};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct User {
     id: u64,
@@ -13,50 +22,86 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建一个简单的内存缓存
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
-    // 创建测试用户
     let user = User {
         id: 1,
         name: "Alice".to_string(),
         email: "alice@example.com".to_string(),
     };
 
-    // 在缓存中设置值
-    println!("Set user: {}", user.name);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_BASIC_OPERATIONS_SET_USER,
+            &[("name", user.name.to_string())]
+        )
+    );
     cache.set(&"user:1".to_string(), &user).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_some());
 
-    // 从缓存中获取值
-    println!("Getting user...");
+    println!("{}", t(MSG_EXAMPLE_BASIC_OPERATIONS_GETTING_USER, &[]));
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
-        println!("Got user: {} ({})", cached_user.name, cached_user.email);
+        println!(
+            "{}",
+            t(
+                MSG_EXAMPLE_BASIC_OPERATIONS_GOT_USER,
+                &[
+                    ("name", cached_user.name.to_string()),
+                    ("email", cached_user.email.to_string())
+                ]
+            )
+        );
         assert_eq!(cached_user.id, 1);
     }
 
-    // 从缓存中删除值
-    println!("Deleting user...");
+    println!("{}", t(MSG_EXAMPLE_BASIC_OPERATIONS_DELETING_USER, &[]));
     cache.delete(&"user:1".to_string()).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_none());
 
-    // 更新值
     let updated_user = User {
         id: 1,
         name: "Alice Updated".to_string(),
         email: "alice.updated@example.com".to_string(),
     };
 
-    println!("Updating user...");
+    println!("{}", t(MSG_EXAMPLE_BASIC_OPERATIONS_UPDATING_USER, &[]));
     cache.set(&"user:1".to_string(), &updated_user).await?;
     if let Some(cached) = cache.get(&"user:1".to_string()).await? {
-        println!("Updated user: {} ({})", cached.name, cached.email);
+        println!(
+            "{}",
+            t(
+                MSG_EXAMPLE_BASIC_OPERATIONS_UPDATED_USER,
+                &[
+                    ("name", cached.name.to_string()),
+                    ("email", cached.email.to_string())
+                ]
+            )
+        );
     }
 
-    println!("\n✓ Basic operations example complete!");
-    println!("  - Set: store a value in the cache");
-    println!("  - Get: read a value from the cache");
-    println!("  - Delete: remove a value from the cache");
-    println!("  - Update: overwrite the existing value");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_BASIC_OPERATIONS_EXAMPLE_COMPLETE, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_BASIC_OPERATIONS_SET_STORE_A_VALUE, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_BASIC_OPERATIONS_GET_READ_A_VALUE, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_BASIC_OPERATIONS_DELETE_REMOVE_A_VALUE, &[])
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_BASIC_OPERATIONS_UPDATE_OVERWRITE_THE_EXISTING,
+            &[]
+        )
+    );
     Ok(())
 }

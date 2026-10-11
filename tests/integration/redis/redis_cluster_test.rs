@@ -229,7 +229,6 @@ async fn test_redis_cluster_ttl() {
         .await
         .unwrap();
 
-    // 验证键存在
     assert!(backend.exists("cluster_ttl_key").await.unwrap());
 
     let ttl = backend.ttl("cluster_ttl_key").await.unwrap();

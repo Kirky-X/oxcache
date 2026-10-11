@@ -15,6 +15,29 @@
 use oxcache::infra::serialization::JsonSerializer;
 use oxcache::infra::serialization::Serializer;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_COMPRESSION_1_SMALL_DATA_100, MSG_EXAMPLE_COMPRESSION_1KB_100KB_MEDIUM_COMPRESSION,
+    MSG_EXAMPLE_COMPRESSION_2_MEDIUM_DATA_100B, MSG_EXAMPLE_COMPRESSION_3_LARGE_DATA_1KB,
+    MSG_EXAMPLE_COMPRESSION_4_REPEATED_DATA_HIGH, MSG_EXAMPLE_COMPRESSION_5_USING_COMPRESSION_IN,
+    MSG_EXAMPLE_COMPRESSION_6_SMART_COMPRESSION_STRATEGY,
+    MSG_EXAMPLE_COMPRESSION_100_BYTES_NO_COMPRESSION,
+    MSG_EXAMPLE_COMPRESSION_100B_1KB_FAST_COMPRESSION,
+    MSG_EXAMPLE_COMPRESSION_100KB_HIGH_COMPRESSION_RATIO,
+    MSG_EXAMPLE_COMPRESSION_DATA_COMPRESSION_EXAMPLE,
+    MSG_EXAMPLE_COMPRESSION_DATA_COMPRESSION_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_COMPRESSION_DATA_INTEGRITY_VERIFIED,
+    MSG_EXAMPLE_COMPRESSION_DECOMPRESSION_IS_TRANSPARENT,
+    MSG_EXAMPLE_COMPRESSION_DESERIALIZATION_TOOK,
+    MSG_EXAMPLE_COMPRESSION_ENABLE_COMPRESSION_WITH_JSONSERIALIZER,
+    MSG_EXAMPLE_COMPRESSION_KEY_POINTS, MSG_EXAMPLE_COMPRESSION_ORIGINAL_SIZE_BYTES,
+    MSG_EXAMPLE_COMPRESSION_OXCACHE_PICKS_THE_COMPRESSION, MSG_EXAMPLE_COMPRESSION_RATIO_X,
+    MSG_EXAMPLE_COMPRESSION_READING_AND_DECOMPRESSING_BYTES,
+    MSG_EXAMPLE_COMPRESSION_REPEATED_DATA_COMPRESSES_WELL,
+    MSG_EXAMPLE_COMPRESSION_SERIALIZATION_TOOK, MSG_EXAMPLE_COMPRESSION_SERIALIZED_BYTES,
+    MSG_EXAMPLE_COMPRESSION_SMALL_DATA_IS_LEFT,
+    MSG_EXAMPLE_COMPRESSION_STORING_COMPRESSED_DATA_BYTES, t,
+};
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct User {
     id: u64,
@@ -81,23 +104,56 @@ fn measure_serialization(serializer: &dyn Serializer, data: &[u8], label: &str) 
     let deserialize_time = start.elapsed();
 
     println!("  {}:", label);
-    println!("    original size: {} bytes", data.len());
-    println!("    serialized: {} bytes", serialized.len());
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_ORIGINAL_SIZE_BYTES,
+            &[("data", data.len().to_string())]
+        )
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_SERIALIZED_BYTES,
+            &[("serialized", serialized.len().to_string())]
+        )
+    );
     if !data.is_empty() {
         let ratio = serialized.len() as f64 / data.len() as f64;
-        println!("    compression ratio: {:.2}x", ratio);
+        println!(
+            "    {}",
+            t(
+                MSG_EXAMPLE_COMPRESSION_RATIO_X,
+                &[("ratio", format!("{:.2}", ratio))]
+            )
+        );
     }
-    println!("    serialization took: {:?}", serialize_time);
-    println!("    deserialization took: {:?}", deserialize_time);
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_SERIALIZATION_TOOK,
+            &[("serialize_time", format!("{:?}", serialize_time))]
+        )
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_DESERIALIZATION_TOOK,
+            &[("deserialize_time", format!("{:?}", deserialize_time))]
+        )
+    );
 
     serialized
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Data compression example ===\n");
+    println!(
+        "{}\n",
+        t(MSG_EXAMPLE_COMPRESSION_DATA_COMPRESSION_EXAMPLE, &[])
+    );
 
-    println!("--- 1. Small data (< 100 bytes) ---");
+    println!("{}", t(MSG_EXAMPLE_COMPRESSION_1_SMALL_DATA_100, &[]));
     let small_data = create_small_data();
     let small_bytes = json_serialize(&small_data);
 
@@ -108,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &small_bytes, "compression enabled");
     println!();
 
-    println!("--- 2. Medium data (100B - 1KB) ---");
+    println!("{}", t(MSG_EXAMPLE_COMPRESSION_2_MEDIUM_DATA_100B, &[]));
     let medium_data = create_medium_data();
     let medium_bytes = json_serialize(&medium_data);
 
@@ -116,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &medium_bytes, "compression enabled");
     println!();
 
-    println!("--- 3. Large data (1KB - 100KB) ---");
+    println!("{}", t(MSG_EXAMPLE_COMPRESSION_3_LARGE_DATA_1KB, &[]));
     let large_data = create_large_data();
     let large_bytes = json_serialize(&large_data);
 
@@ -124,7 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &large_bytes, "compression enabled");
     println!();
 
-    println!("--- 4. Repeated data (high compression ratio) ---");
+    println!("{}", t(MSG_EXAMPLE_COMPRESSION_4_REPEATED_DATA_HIGH, &[]));
     let repeated_content = "This is a test string that will be repeated many times. ".repeat(500);
     let repeated_data = LargeData {
         id: 3,
@@ -137,7 +193,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     measure_serialization(&compress_serializer, &repeated_bytes, "compression enabled");
     println!();
 
-    println!("--- 5. Using compression in the cache ---");
+    println!("{}", t(MSG_EXAMPLE_COMPRESSION_5_USING_COMPRESSION_IN, &[]));
     use oxcache::Cache;
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
@@ -147,41 +203,88 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compressed = compress_serializer.serialize("LargeData", &large_bytes)?;
     cache.set(&key, &compressed).await?;
     println!(
-        "  storing compressed data: {} bytes -> {} bytes",
-        large_bytes.len(),
-        compressed.len()
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_STORING_COMPRESSED_DATA_BYTES,
+            &[
+                ("large_bytes", large_bytes.len().to_string()),
+                ("compressed", compressed.len().to_string())
+            ]
+        )
     );
 
-    // 读取并解压
     if let Some(stored) = cache.get(&key).await? {
         let decompressed = compress_serializer.deserialize("LargeData", &stored)?;
         println!(
-            "  reading and decompressing: {} bytes -> {} bytes",
-            stored.len(),
-            decompressed.len()
+            "  {}",
+            t(
+                MSG_EXAMPLE_COMPRESSION_READING_AND_DECOMPRESSING_BYTES,
+                &[
+                    ("stored", stored.len().to_string()),
+                    ("decompressed", decompressed.len().to_string())
+                ]
+            )
         );
         assert_eq!(decompressed, large_bytes);
-        println!("  ✓ data integrity verified");
+        println!(
+            "  {}",
+            t(MSG_EXAMPLE_COMPRESSION_DATA_INTEGRITY_VERIFIED, &[])
+        );
     }
     println!();
 
-    println!("--- 6. Smart compression strategy ---");
-    println!("  oxcache picks the compression level automatically by data size:");
-    println!("  - < 100 bytes: no compression (the overhead outweighs the gain)");
-    println!("  - 100B - 1KB: fast compression (Compression::fast())");
-    println!("  - 1KB - 100KB: medium compression (Compression::new(6))");
-    println!("  - > 100KB: high compression ratio (Compression::best())");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_COMPRESSION_6_SMART_COMPRESSION_STRATEGY, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_OXCACHE_PICKS_THE_COMPRESSION, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_100_BYTES_NO_COMPRESSION, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_100B_1KB_FAST_COMPRESSION, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_1KB_100KB_MEDIUM_COMPRESSION, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_100KB_HIGH_COMPRESSION_RATIO, &[])
+    );
     println!();
 
-    // 清理
     cache.clear().await?;
 
-    println!("=== Data compression example complete ===");
-    println!("  key points:");
-    println!("  - enable compression with JsonSerializer::with_compression()");
-    println!("  - small data is left uncompressed, avoiding compression overhead");
-    println!("  - repeated data compresses well");
-    println!("  - compression/decompression is transparent and automatic");
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_DATA_COMPRESSION_EXAMPLE_COMPLETE,
+            &[]
+        )
+    );
+    println!("  {}", t(MSG_EXAMPLE_COMPRESSION_KEY_POINTS, &[]));
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_COMPRESSION_ENABLE_COMPRESSION_WITH_JSONSERIALIZER,
+            &[]
+        )
+    );
+    println!("  {}", t(MSG_EXAMPLE_COMPRESSION_SMALL_DATA_IS_LEFT, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_REPEATED_DATA_COMPRESSES_WELL, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_COMPRESSION_DECOMPRESSION_IS_TRANSPARENT, &[])
+    );
 
     Ok(())
 }

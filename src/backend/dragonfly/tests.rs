@@ -116,7 +116,6 @@ mod tests {
         };
         let key = unique_key("df_sg");
 
-        // set
         backend
             .set(
                 Arc::from(key.as_str()),
@@ -126,14 +125,11 @@ mod tests {
             .await
             .expect("set failed");
 
-        // get
         let val = backend.get(&key).await.expect("get failed");
         assert_eq!(val, Some(b"dragonfly_value".to_vec()));
 
-        // exists
         assert!(backend.exists(&key).await.expect("exists failed"));
 
-        // delete
         backend.delete(&key).await.expect("delete failed");
         assert!(
             !backend

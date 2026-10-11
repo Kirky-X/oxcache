@@ -51,7 +51,6 @@ mod tests {
     async fn test_dashmap_ttl() {
         let backend = DashMapMemoryBackend::new();
 
-        // Set with TTL
         backend
             .set(
                 Arc::from("key1"),

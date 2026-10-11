@@ -10,6 +10,8 @@
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
+use oxcache::i18n::messages::{MSG_BENCH_SKIP_SERVICE_UNREACHABLE, t};
+
 /// 从 `redis://[user:pass@]host:port[/db]` 提取 `host:port`。
 fn endpoint_of(url: &str) -> String {
     let rest = url.strip_prefix("redis://").unwrap_or(url);
@@ -45,8 +47,11 @@ pub fn services_ready(rt: &Runtime, services: &[(&str, &str)]) -> bool {
     }
     if !all_ready {
         eprintln!(
-            "[bench-skip] required service unreachable: {} — start it as the bench module docs describe and rerun (e.g. docker run -d -p 6379:6379 redis:7-alpine)",
-            missing.join(", ")
+            "{}",
+            t(
+                MSG_BENCH_SKIP_SERVICE_UNREACHABLE,
+                &[("services", missing.join(", "))]
+            )
         );
     }
     all_ready

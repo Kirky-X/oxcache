@@ -43,13 +43,11 @@ async fn test_backfill_latency() {
     let key = "perf_key".to_string();
     let val = "perf_value".to_string();
 
-    // 写入数据
     cache.set(&key, &val).await.unwrap();
 
     // 删除特定 key 以模拟缓存未命中（不使用 clear()，因为默认禁用）
     cache.delete(&key).await.unwrap();
 
-    // 重新写入数据
     cache.set(&key, &val).await.unwrap();
 
     // 现在测量获取延迟

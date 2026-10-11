@@ -17,18 +17,37 @@
 use oxcache::backend::RedisBackend;
 use oxcache::backend::{CacheWriter, LuaExecutor};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_LUA_SCRIPT_1_ATOMIC_COUNTER_EVAL,
+    MSG_EXAMPLE_LUA_SCRIPT_2_PRELOADING_SCRIPTS_SCRIPT,
+    MSG_EXAMPLE_LUA_SCRIPT_3_EXECUTING_SCRIPTS_BY,
+    MSG_EXAMPLE_LUA_SCRIPT_4_CONDITIONAL_UPDATES_COMPARE,
+    MSG_EXAMPLE_LUA_SCRIPT_CALL_COUNTER_VALUE, MSG_EXAMPLE_LUA_SCRIPT_CONNECTING_TO_REDIS,
+    MSG_EXAMPLE_LUA_SCRIPT_EVAL_LUA_RESULT, MSG_EXAMPLE_LUA_SCRIPT_EVAL_SHA_RESULT,
+    MSG_EXAMPLE_LUA_SCRIPT_EXAMPLE_COMPLETE_TEST_DATA, MSG_EXAMPLE_LUA_SCRIPT_EXECUTION_EXAMPLE,
+    MSG_EXAMPLE_LUA_SCRIPT_EXPECTING_V1_UPDATING_TO,
+    MSG_EXAMPLE_LUA_SCRIPT_EXPECTING_V2_UPDATING_TO, MSG_EXAMPLE_LUA_SCRIPT_INITIAL_VALUE_V1,
+    MSG_EXAMPLE_LUA_SCRIPT_REDIS_CONNECTED, MSG_EXAMPLE_LUA_SCRIPT_SCRIPT_SHA1, t,
+};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Lua script execution example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_LUA_SCRIPT_EXECUTION_EXAMPLE, &[]));
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    println!("Connecting to Redis: {}", redis_url);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_CONNECTING_TO_REDIS,
+            &[("redis_url", redis_url.to_string())]
+        )
+    );
 
     let backend = RedisBackend::new(&redis_url).await?;
-    println!("✓ Redis connected\n");
+    println!("{}\n", t(MSG_EXAMPLE_LUA_SCRIPT_REDIS_CONNECTED, &[]));
 
-    println!("--- 1. Atomic counter (eval_lua) ---");
+    println!("{}", t(MSG_EXAMPLE_LUA_SCRIPT_1_ATOMIC_COUNTER_EVAL, &[]));
     let counter_script = r#"
         local current = redis.call('GET', KEYS[1])
         if current == false then
@@ -45,10 +64,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = backend
             .eval_lua(counter_script, &["counter:1"], &[])
             .await?;
-        println!("  call {}: counter value: {:?}", i, result);
+        println!(
+            "  {}",
+            t(
+                MSG_EXAMPLE_LUA_SCRIPT_CALL_COUNTER_VALUE,
+                &[("i", i.to_string()), ("result", format!("{:?}", result))]
+            )
+        );
     }
 
-    println!("\n--- 2. Preloading scripts (script_load) ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_LUA_SCRIPT_2_PRELOADING_SCRIPTS_SCRIPT, &[])
+    );
     let hash_script = r#"
         local value = redis.call('GET', KEYS[1])
         if value == false then
@@ -58,9 +86,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     "#;
 
     let sha = backend.script_load(hash_script).await?;
-    println!("  script SHA1: {}", sha);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_SCRIPT_SHA1,
+            &[("sha", sha.to_string())]
+        )
+    );
 
-    println!("\n--- 3. Executing scripts by SHA (eval_sha) ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_LUA_SCRIPT_3_EXECUTING_SCRIPTS_BY, &[])
+    );
 
     // 先设置一个值
     backend
@@ -74,12 +111,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = backend
         .eval_lua(hash_script, &["test:lua:length"], &[])
         .await?;
-    println!("  eval_lua result: {:?}", result);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_EVAL_LUA_RESULT,
+            &[("result", format!("{:?}", result))]
+        )
+    );
 
     let result = backend.eval_sha(&sha, &["test:lua:length"], &[]).await?;
-    println!("  eval_sha result: {:?}", result);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_EVAL_SHA_RESULT,
+            &[("result", format!("{:?}", result))]
+        )
+    );
 
-    println!("\n--- 4. Conditional updates (compare-and-swap) ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_LUA_SCRIPT_4_CONDITIONAL_UPDATES_COMPARE, &[])
+    );
     let cas_script = r#"
         local current = redis.call('GET', KEYS[1])
         if current == false then
@@ -96,15 +148,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     backend
         .set("cas:key".into(), b"v1".to_vec().into(), None)
         .await?;
-    println!("  Initial value: v1");
+    println!("  {}", t(MSG_EXAMPLE_LUA_SCRIPT_INITIAL_VALUE_V1, &[]));
 
     // 尝试用错误的期望值更新
     let result = backend
         .eval_lua(cas_script, &["cas:key"], &["v2", "v3"])
         .await?;
     println!(
-        "  expecting v2, updating to v3: {:?} (should be 0, meaning failure)",
-        result
+        "  {}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_EXPECTING_V2_UPDATING_TO,
+            &[("result", format!("{:?}", result))]
+        )
     );
 
     // 用正确的期望值更新
@@ -112,14 +167,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .eval_lua(cas_script, &["cas:key"], &["v1", "v2"])
         .await?;
     println!(
-        "  expecting v1, updating to v2: {:?} (should be 1, meaning success)",
-        result
+        "  {}",
+        t(
+            MSG_EXAMPLE_LUA_SCRIPT_EXPECTING_V1_UPDATING_TO,
+            &[("result", format!("{:?}", result))]
+        )
     );
 
     backend
         .delete_many_pipeline(&["counter:1", "test:lua:length", "cas:key"])
         .await?;
-    println!("\n✓ Example complete, test data cleaned up");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_LUA_SCRIPT_EXAMPLE_COMPLETE_TEST_DATA, &[])
+    );
 
     Ok(())
 }

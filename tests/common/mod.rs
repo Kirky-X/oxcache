@@ -20,27 +20,23 @@ pub mod test_containers;
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use redis_test_utils::{
-    create_cluster_redis_urls, create_standalone_redis_url, get_redis_url, get_redis_url_insecure,
-    get_sentinel_addr_map, get_sentinel_urls, is_redis_available, is_redis_available_url,
-    test_redis_connection, wait_for_redis, wait_for_redis_cluster, wait_for_sentinel,
+    create_cluster_redis_urls, get_redis_url, get_redis_url_insecure, get_sentinel_addr_map,
+    get_sentinel_urls, is_redis_available, is_redis_available_url, test_redis_connection,
+    wait_for_redis_cluster, wait_for_sentinel,
 };
 
 // Docker 测试工具
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
 pub use docker_test_utils::{
-    RedisContainer, free_local_port, is_redis_available as docker_is_redis_available,
-    setup_redis_cluster_nodes, setup_redis_container, setup_redis_container_on_port,
+    RedisContainer, free_local_port, setup_redis_container_on_port,
     wait_for_redis as docker_wait_for_redis,
 };
 
 // Testcontainers 工具
 #[cfg(feature = "redis")]
 #[allow(unused_imports)]
-pub use test_containers::{
-    RedisClusterManager, RedisContainer as AsyncRedisContainer, TestEnvironment,
-    is_redis_available as tc_is_redis_available, start_redis_container,
-};
+pub use test_containers::{RedisContainer as AsyncRedisContainer, start_redis_container};
 
 // Mock 后端（unit 专用测试替身，见 mock_backend.rs 头注释；
 // 仅 tests/unit/ 引用，e2e/集成/chaos 不得使用）
@@ -85,27 +81,7 @@ pub fn setup_logging() {
     });
 }
 
-// === 缓存设置工具 ===
-
-// Cache 仅在 backend 基线（memory/redis/disk 任一）下导出，而
-// setup_cache 构造的是内存后端实例；共享模块会参与所有组合的测试
-// 编译，故此助手随 memory 门控，非 memory 组合不再编译失败。
-#[cfg(feature = "memory")]
-use oxcache::Cache;
-
-/// 设置缓存 - 用于测试
-///
-/// 创建默认的内存缓存实例，简化测试设置。
-#[cfg(feature = "memory")]
-#[allow(dead_code)] // tests/common 为多个测试二进制共享，仅部分二进制引用此助手
-pub async fn setup_cache() -> Cache<String, Vec<u8>> {
-    setup_logging();
-
-    Cache::builder()
-        .build()
-        .await
-        .unwrap_or_else(|e| panic!("Failed to create memory cache: {}", e))
-}
+// === 测试服务命名与清理工具 ===
 
 /// 生成唯一的服务器名称
 ///

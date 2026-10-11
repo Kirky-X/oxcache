@@ -20,18 +20,14 @@ async fn test_chain_cache_basic_operations() {
         .link(ChainLink::from_backend(moka2))
         .build();
 
-    // 测试设置值
     chain.set("key1", b"value1".to_vec(), None).await.unwrap();
 
-    // 测试获取值
     let value = chain.get("key1").await.unwrap();
     assert_eq!(value, Some(b"value1".to_vec()));
 
-    // 测试存在性检查
     let exists = chain.exists("key1").await.unwrap();
     assert!(exists);
 
-    // 测试删除
     chain.delete("key1").await.unwrap();
     let exists = chain.exists("key1").await.unwrap();
     assert!(!exists);
@@ -52,7 +48,6 @@ async fn test_chain_cache_auto_sort() {
         .link(ChainLink::from_backend(high))
         .build();
 
-    // 验证后端数量
     assert_eq!(chain.links().len(), 2);
 }
 
@@ -160,7 +155,6 @@ async fn test_chain_cache_clear() {
             .unwrap();
     }
 
-    // 清理
     chain.clear().await.unwrap();
 
     // 验证所有键都被删除

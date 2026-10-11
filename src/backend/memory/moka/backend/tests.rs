@@ -40,11 +40,9 @@ mod tests {
         let result = backend.get("key1").await.unwrap();
         assert_eq!(result, Some(b"value1".to_vec()));
 
-        // Check exists
         let exists = backend.exists("key1").await.unwrap();
         assert!(exists);
 
-        // Delete
         backend.delete("key1").await.unwrap();
 
         // Verify deletion
@@ -429,12 +427,10 @@ mod tests {
             assert!(reader.exists("k1").unwrap());
             assert!(reader.exists("k2").unwrap());
 
-            // delete 单个 key
             writer.delete("k1").unwrap();
             assert!(!reader.exists("k1").unwrap());
             assert!(reader.exists("k2").unwrap());
 
-            // clear 清空全部
             writer.clear().unwrap();
             assert!(!reader.exists("k2").unwrap());
             assert_eq!(reader.len().unwrap(), 0);

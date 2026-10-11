@@ -14,14 +14,30 @@
 use oxcache::Cache;
 use std::sync::Arc;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_WARMUP_1_SIMULATING_APPLICATION_CONFIG, MSG_EXAMPLE_WARMUP_2_SIMULATING_HOT_USER,
+    MSG_EXAMPLE_WARMUP_3_VERIFYING_THE_WARMED, MSG_EXAMPLE_WARMUP_4_SIMULATING_A_CACHE,
+    MSG_EXAMPLE_WARMUP_5_POST_WARMUP_STATISTICS, MSG_EXAMPLE_WARMUP_CACHE_REBUILD_COMPLETE_TOOK,
+    MSG_EXAMPLE_WARMUP_CACHE_WARMUP_EXAMPLE, MSG_EXAMPLE_WARMUP_CACHE_WARMUP_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_WARMUP_CLEARING_THE_CACHE, MSG_EXAMPLE_WARMUP_CONFIG_VERIFICATION,
+    MSG_EXAMPLE_WARMUP_CONFIG_WARMUP_COMPLETE_ITEMS, MSG_EXAMPLE_WARMUP_EXPECTED,
+    MSG_EXAMPLE_WARMUP_HITS, MSG_EXAMPLE_WARMUP_HOT_USER_WARMUP_COMPLETE,
+    MSG_EXAMPLE_WARMUP_LOADING_CONFIG, MSG_EXAMPLE_WARMUP_LOADING_CONFIG_FROM_THE,
+    MSG_EXAMPLE_WARMUP_NOT_FOUND, MSG_EXAMPLE_WARMUP_NOT_FOUND_2,
+    MSG_EXAMPLE_WARMUP_PRELOADING_HOT_USERS, MSG_EXAMPLE_WARMUP_REWARMING,
+    MSG_EXAMPLE_WARMUP_TOTAL_ENTRIES, MSG_EXAMPLE_WARMUP_USER_VERIFICATION, t,
+};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== Cache warmup example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_WARMUP_CACHE_WARMUP_EXAMPLE, &[]));
 
-    // 创建缓存
     let cache: Arc<Cache<String, String>> = Arc::new(Cache::builder().build().await?);
 
-    println!("1. Simulating application config warmup");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_WARMUP_1_SIMULATING_APPLICATION_CONFIG, &[])
+    );
     let configs = vec![
         ("app:theme", "dark", "app theme"),
         ("app:language", "zh-CN", "default language"),
@@ -30,19 +46,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ("app:session_timeout", "3600", "session timeout"),
     ];
 
-    println!("  loading config from the database...");
+    println!("  {}", t(MSG_EXAMPLE_WARMUP_LOADING_CONFIG_FROM_THE, &[]));
     for (key, value, desc) in &configs {
         let k = key.to_string();
         let v = value.to_string();
         cache.set(&k, &v).await?;
-        println!("    loading config: {} = {} ({})", k, v, desc);
+        println!(
+            "    {}",
+            t(
+                MSG_EXAMPLE_WARMUP_LOADING_CONFIG,
+                &[
+                    ("k", k.to_string()),
+                    ("v", v.to_string()),
+                    ("desc", desc.to_string())
+                ]
+            )
+        );
     }
-    println!("   ✓ config warmup complete ({} items)\n", configs.len());
+    println!(
+        "   {}\n",
+        t(
+            MSG_EXAMPLE_WARMUP_CONFIG_WARMUP_COMPLETE_ITEMS,
+            &[("configs", configs.len().to_string())]
+        )
+    );
 
-    println!("2. Simulating hot-user data warmup");
+    println!("{}", t(MSG_EXAMPLE_WARMUP_2_SIMULATING_HOT_USER, &[]));
     let hot_users = vec![1, 2, 3, 4, 5, 10, 100, 101];
 
-    println!("  preloading hot users...");
+    println!("  {}", t(MSG_EXAMPLE_WARMUP_PRELOADING_HOT_USERS, &[]));
     let start = std::time::Instant::now();
     let mut handles = Vec::new();
 
@@ -67,40 +99,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let elapsed = start.elapsed();
     println!(
-        "   ✓ hot-user warmup complete ({} users, took: {:?})\n",
-        hot_users.len(),
-        elapsed
+        "   {}\n",
+        t(
+            MSG_EXAMPLE_WARMUP_HOT_USER_WARMUP_COMPLETE,
+            &[
+                ("hot_users", hot_users.len().to_string()),
+                ("elapsed", format!("{:?}", elapsed))
+            ]
+        )
     );
 
-    println!("3. Verifying the warmed data");
-    println!("  Config verification:");
+    println!("{}", t(MSG_EXAMPLE_WARMUP_3_VERIFYING_THE_WARMED, &[]));
+    println!("  {}", t(MSG_EXAMPLE_WARMUP_CONFIG_VERIFICATION, &[]));
     for (key, value, _) in &configs {
         let k = key.to_string();
         let v = value.to_string();
         let retrieved = cache.get(&k).await?;
         match retrieved {
             Some(val) if val == v => println!("     ✓ {} = {}", k, val),
-            Some(val) => println!("     ✗ {} = {} (expected: {})", k, val, v),
-            None => println!("     ✗ {} not found", k),
+            Some(val) => println!(
+                "     {}",
+                t(
+                    MSG_EXAMPLE_WARMUP_EXPECTED,
+                    &[
+                        ("k", k.to_string()),
+                        ("val", val.to_string()),
+                        ("v", v.to_string())
+                    ]
+                )
+            ),
+            None => println!(
+                "     {}",
+                t(MSG_EXAMPLE_WARMUP_NOT_FOUND, &[("k", k.to_string())])
+            ),
         }
     }
 
-    println!("   \n  User verification:");
+    println!("   \n  {}", t(MSG_EXAMPLE_WARMUP_USER_VERIFICATION, &[]));
     for user_id in &hot_users {
         let key = format!("user:{}", user_id);
         let retrieved = cache.get(&key).await?;
         match retrieved {
             Some(v) => println!("     ✓ {} = {}", key, v),
-            None => println!("     ✗ {} not found", key),
+            None => println!(
+                "     {}",
+                t(MSG_EXAMPLE_WARMUP_NOT_FOUND_2, &[("key", key.to_string())])
+            ),
         }
     }
     println!();
 
-    println!("4. Simulating a cache rebuild");
-    println!("  clearing the cache...");
+    println!("{}", t(MSG_EXAMPLE_WARMUP_4_SIMULATING_A_CACHE, &[]));
+    println!("  {}", t(MSG_EXAMPLE_WARMUP_CLEARING_THE_CACHE, &[]));
     cache.clear().await?;
 
-    println!("  rewarming...");
+    println!("  {}", t(MSG_EXAMPLE_WARMUP_REWARMING, &[]));
     let start = std::time::Instant::now();
 
     // 并发重新加载所有配置
@@ -121,21 +174,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let elapsed = start.elapsed();
-    println!("   ✓ cache rebuild complete, took: {:?}", elapsed);
+    println!(
+        "   {}",
+        t(
+            MSG_EXAMPLE_WARMUP_CACHE_REBUILD_COMPLETE_TOOK,
+            &[("elapsed", format!("{:?}", elapsed))]
+        )
+    );
     println!();
 
-    println!("5. Post-warmup statistics");
+    println!("{}", t(MSG_EXAMPLE_WARMUP_5_POST_WARMUP_STATISTICS, &[]));
     let stats = cache.stats().await?;
     println!(
-        "  - total entries: {}",
-        stats.get("item_count").map(String::as_str).unwrap_or("0")
+        "  {}",
+        t(
+            MSG_EXAMPLE_WARMUP_TOTAL_ENTRIES,
+            &[(
+                "stats",
+                stats
+                    .get("item_count")
+                    .map(String::as_str)
+                    .unwrap_or("0")
+                    .to_string()
+            )]
+        )
     );
     println!(
-        "  - hits: {}",
-        stats.get("hit_count").map(String::as_str).unwrap_or("0")
+        "  {}",
+        t(
+            MSG_EXAMPLE_WARMUP_HITS,
+            &[(
+                "stats",
+                stats
+                    .get("hit_count")
+                    .map(String::as_str)
+                    .unwrap_or("0")
+                    .to_string()
+            )]
+        )
     );
     println!();
 
-    println!("=== Cache warmup example complete ===");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_WARMUP_CACHE_WARMUP_EXAMPLE_COMPLETE, &[])
+    );
     Ok(())
 }

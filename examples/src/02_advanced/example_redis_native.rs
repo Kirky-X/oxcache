@@ -14,6 +14,23 @@
 
 use oxcache::Cache;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_REDIS_NATIVE_1_CONNECT_TO_REDIS, MSG_EXAMPLE_REDIS_NATIVE_2_BASIC_CRUD_OPERATIONS,
+    MSG_EXAMPLE_REDIS_NATIVE_3_BATCH_OPERATIONS, MSG_EXAMPLE_REDIS_NATIVE_4_CACHE_STATISTICS,
+    MSG_EXAMPLE_REDIS_NATIVE_ADDING_USER, MSG_EXAMPLE_REDIS_NATIVE_ADDING_USERS_IN_BATCH,
+    MSG_EXAMPLE_REDIS_NATIVE_BATCH_ADD_SUCCEEDED,
+    MSG_EXAMPLE_REDIS_NATIVE_CACHE_STATISTICS_ARE_AVAILABLE, MSG_EXAMPLE_REDIS_NATIVE_CLEARED,
+    MSG_EXAMPLE_REDIS_NATIVE_CLEARING_TEST_DATA, MSG_EXAMPLE_REDIS_NATIVE_CLIENT_EXAMPLE,
+    MSG_EXAMPLE_REDIS_NATIVE_CLIENT_EXAMPLE_2, MSG_EXAMPLE_REDIS_NATIVE_DELETING_USER,
+    MSG_EXAMPLE_REDIS_NATIVE_FAILED_TO_DELETE_THE,
+    MSG_EXAMPLE_REDIS_NATIVE_FETCHING_USERS_IN_BATCH, MSG_EXAMPLE_REDIS_NATIVE_GETTING_USER,
+    MSG_EXAMPLE_REDIS_NATIVE_REDIS_CONNECTED, MSG_EXAMPLE_REDIS_NATIVE_SEE_THE_METRICS_TEST,
+    MSG_EXAMPLE_REDIS_NATIVE_UPDATING_USER, MSG_EXAMPLE_REDIS_NATIVE_USER,
+    MSG_EXAMPLE_REDIS_NATIVE_USER_ADDED, MSG_EXAMPLE_REDIS_NATIVE_USER_DELETED,
+    MSG_EXAMPLE_REDIS_NATIVE_USER_NOT_FOUND, MSG_EXAMPLE_REDIS_NATIVE_USER_RETRIEVED,
+    MSG_EXAMPLE_REDIS_NATIVE_USER_UPDATED, t,
+};
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 struct RedisUser {
     id: u64,
@@ -23,53 +40,61 @@ struct RedisUser {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Redis native client example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_REDIS_NATIVE_CLIENT_EXAMPLE, &[]));
 
-    println!("1. Connect to Redis");
+    println!("{}", t(MSG_EXAMPLE_REDIS_NATIVE_1_CONNECT_TO_REDIS, &[]));
     let cache: Cache<String, RedisUser> = Cache::redis("redis://127.0.0.1:6379").await?;
-    println!("   ✓ Redis connected\n");
+    println!("   {}\n", t(MSG_EXAMPLE_REDIS_NATIVE_REDIS_CONNECTED, &[]));
 
-    println!("2. Basic CRUD operations");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_2_BASIC_CRUD_OPERATIONS, &[])
+    );
     let user = RedisUser {
         id: 1,
         name: "Alice".to_string(),
         email: "zhangsan@example.com".to_string(),
     };
 
-    // 创建
-    println!("  adding user...");
+    println!("  {}", t(MSG_EXAMPLE_REDIS_NATIVE_ADDING_USER, &[]));
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ user added");
+    println!("   {}", t(MSG_EXAMPLE_REDIS_NATIVE_USER_ADDED, &[]));
 
-    // 读取
-    println!("  getting user...");
+    println!("  {}", t(MSG_EXAMPLE_REDIS_NATIVE_GETTING_USER, &[]));
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(u) => println!("   ✓ user retrieved: {} ({})", u.name, u.email),
-        None => println!("   ✗ user not found"),
+        Some(u) => println!(
+            "   {}",
+            t(
+                MSG_EXAMPLE_REDIS_NATIVE_USER_RETRIEVED,
+                &[("name", u.name.to_string()), ("email", u.email.to_string())]
+            )
+        ),
+        None => println!("   {}", t(MSG_EXAMPLE_REDIS_NATIVE_USER_NOT_FOUND, &[])),
     }
 
-    // 更新
-    println!("  updating user...");
+    println!("  {}", t(MSG_EXAMPLE_REDIS_NATIVE_UPDATING_USER, &[]));
     let updated_user = RedisUser {
         id: 1,
         name: "Bob".to_string(),
         email: "zhangsanfeng@example.com".to_string(),
     };
     cache.set(&"user:1".to_string(), &updated_user).await?;
-    println!("   ✓ user updated");
+    println!("   {}", t(MSG_EXAMPLE_REDIS_NATIVE_USER_UPDATED, &[]));
 
-    // 删除
-    println!("  deleting user...");
+    println!("  {}", t(MSG_EXAMPLE_REDIS_NATIVE_DELETING_USER, &[]));
     cache.delete(&"user:1".to_string()).await?;
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
-        Some(_) => println!("   ✗ failed to delete the user"),
-        None => println!("   ✓ user deleted"),
+        Some(_) => println!(
+            "   {}",
+            t(MSG_EXAMPLE_REDIS_NATIVE_FAILED_TO_DELETE_THE, &[])
+        ),
+        None => println!("   {}", t(MSG_EXAMPLE_REDIS_NATIVE_USER_DELETED, &[])),
     }
     println!();
 
-    println!("3. Batch operations");
+    println!("{}", t(MSG_EXAMPLE_REDIS_NATIVE_3_BATCH_OPERATIONS, &[]));
     let users = vec![
         RedisUser {
             id: 2,
@@ -83,31 +108,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ];
 
-    println!("  adding users in batch...");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_ADDING_USERS_IN_BATCH, &[])
+    );
     for user in &users {
         cache.set(&format!("user:{}", user.id), user).await?;
     }
-    println!("   ✓ batch add succeeded");
+    println!(
+        "   {}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_BATCH_ADD_SUCCEEDED, &[])
+    );
 
-    println!("  fetching users in batch...");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_FETCHING_USERS_IN_BATCH, &[])
+    );
     for user in &users {
         if let Some(u) = cache.get(&format!("user:{}", user.id)).await? {
-            println!("   ✓ user {}: {}", u.id, u.name);
+            println!(
+                "   {}",
+                t(
+                    MSG_EXAMPLE_REDIS_NATIVE_USER,
+                    &[("id", u.id.to_string()), ("name", u.name.to_string())]
+                )
+            );
         }
     }
 
     // 清空（安全方式：仅删除本示例写入的测试键，避免全库 clear）
-    println!("  clearing test data...");
+    println!("  {}", t(MSG_EXAMPLE_REDIS_NATIVE_CLEARING_TEST_DATA, &[]));
     for key in ["user:1", "user:2", "user:3"] {
         cache.delete(&key.to_string()).await?;
     }
-    println!("   ✓ cleared\n");
+    println!("   {}\n", t(MSG_EXAMPLE_REDIS_NATIVE_CLEARED, &[]));
 
-    println!("4. Cache statistics");
-    println!("  cache statistics are available through the metrics interface");
-    println!("  (see the metrics_test example for detailed statistics)");
+    println!("{}", t(MSG_EXAMPLE_REDIS_NATIVE_4_CACHE_STATISTICS, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_CACHE_STATISTICS_ARE_AVAILABLE, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_REDIS_NATIVE_SEE_THE_METRICS_TEST, &[])
+    );
     println!();
 
-    println!("=== Redis native client example complete ===");
+    println!("{}", t(MSG_EXAMPLE_REDIS_NATIVE_CLIENT_EXAMPLE_2, &[]));
     Ok(())
 }

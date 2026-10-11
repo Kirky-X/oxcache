@@ -53,7 +53,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # === DEPENDENCIES ===
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.6", optional = true }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.6", optional = true, default-features = false }
 
 # Async Runtime
 tokio = { workspace = true, features = [
@@ -62,7 +62,6 @@ tokio = { workspace = true, features = [
     "sync",
     "time",
     "macros",
-    "bytes",
 ] }
 async-trait = { version = "0.1", default-features = false }
 once_cell = { version = "1.21", default-features = false, features = ["std"] }
@@ -140,10 +139,14 @@ features = ["std"]
 optional = true
 
 # L2 Cache (Redis)
+# 裁 script/sentinel：Lua 走显式 EVAL/EVALSHA 命令面，未用 redis::Script
+# （script 特性仅为此类型与 sha1_smol 依赖）；sentinel 发现由 backend 内
+# sentinel.rs 自实现，未用 redis::sentinel::SentinelClient。
+# 另裁 default 面（acl/streams/geospatial/num-bigint 均未用）
 [dependencies.redis]
 version = "1.7"
 default-features = false
-features = ["aio", "tokio-comp", "connection-manager", "cluster-async", "sentinel", "script"]
+features = ["aio", "tokio-comp", "connection-manager", "cluster-async"]
 optional = true
 
 # Aerospike (independent protocol, feature-gated)

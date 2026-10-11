@@ -8,8 +8,8 @@
 # 运行单个示例
 cd examples && cargo run --example example_basic_operations
 
-# 列出所有可用示例（与 examples/Cargo.toml 的 [[example]] 清单一致）
-ls examples/src/*/*.rs
+# 列出所有可用示例（在 examples/ 目录下；与 examples/Cargo.toml 的 [[example]] 清单一致）
+ls src/*/*.rs
 
 # 运行所有示例测试
 cargo test --examples
@@ -76,22 +76,22 @@ cargo test --examples
 | `example_security_validation` | 安全验证 | `validate_redis_key`/`validate_lua_script` |
 | `example_bloom_filter` | 布隆过滤器 | `BloomFilter`/`BloomFilterBackend` |
 | `example_i18n` | 国际化 | `CacheI18nFormatter` |
-| `example_cli_usage` | CLI 使用 | 命令行工具 |
+| `example_cli_usage` | CLI 场景（以代码方式获取缓存状态与指标） | `Cache` 状态与指标读取 |
 | `example_database_integration` | 数据库集成 | Cache-Aside 模式 |
 | `example_kit_integration` | trait-kit 集成 | `OxcacheModule`/`OxcacheBuildObserver`/`register_cache_shutdown`/`register_cache_decorator` |
 | `example_comprehensive_usage` | 综合使用 | 全部功能概览 |
 
 ## 特性依赖
 
-示例 crate 启用了以下 oxcache 特性：
+示例 crate（`oxcache-examples`）对 oxcache 的依赖只声明 `full`（`default-features = false`）：
 
 ```toml
-oxcache = { path = "..", features = ["full", "bloom", "kit"] }
+oxcache = { path = "..", default-features = false, features = ["full"] }
 ```
 
-- `full` — 包含所有核心功能（Redis、序列化、压缩、指标、Lua 脚本等）
-- `bloom` — 布隆过滤器支持
-- `kit` — trait-kit 集成（模块注册、构建观察者、三阶段优雅关闭、装饰器）
+- `full` — 完整能力集（Redis 后端、序列化、压缩、指标、Lua、布隆过滤器、trait-kit 集成等均已被其覆盖，`bloom` / `kit` 不再单列）
+
+> `oxcache-examples` 包自身的 default feature（`redis` / `kit` / `bloom`）仅作为示例源码内 `cfg(feature = "...")` 的判定面，不改变 oxcache 的能力面——能力面由上面的依赖行固定。
 
 ## 先决条件
 

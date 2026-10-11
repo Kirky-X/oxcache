@@ -89,7 +89,6 @@ async fn test_cache_clear() {
         "Key should exist before clear"
     );
 
-    // 清空缓存
     let clear_result = cache.clear().await;
     assert!(clear_result.is_ok(), "CLEAR should succeed");
 

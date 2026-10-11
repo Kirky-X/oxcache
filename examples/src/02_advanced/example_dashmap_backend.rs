@@ -9,17 +9,42 @@ use oxcache::backend::{CacheReader, CacheWriter};
 use oxcache::backend::{DashMapMemoryBackend, MokaMemoryBackend};
 use std::time::Duration;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_DASHMAP_BACKEND_1_CREATE_A_DASHMAP, MSG_EXAMPLE_DASHMAP_BACKEND_2_BASIC_OPERATIONS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_3_BATCH_OPERATIONS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_4_COMPARING_MOKA_AND,
+    MSG_EXAMPLE_DASHMAP_BACKEND_5_DELETE_OPERATIONS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_6_CLEAR_OPERATIONS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_7_FEATURE_COMPARISON, MSG_EXAMPLE_DASHMAP_BACKEND_AFTER_CLEAR_KEYS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_AUTOMATIC_EXPIRY, MSG_EXAMPLE_DASHMAP_BACKEND_BATCH_READ_RESULTS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_BATCH_WRITE_KEY_VALUE,
+    MSG_EXAMPLE_DASHMAP_BACKEND_BEFORE_CLEAR_KEYS, MSG_EXAMPLE_DASHMAP_BACKEND_CAPACITY_LIMITS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_CREATED, MSG_EXAMPLE_DASHMAP_BACKEND_DELETE_KEY1,
+    MSG_EXAMPLE_DASHMAP_BACKEND_EXAMPLE, MSG_EXAMPLE_DASHMAP_BACKEND_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_DASHMAP_BACKEND_EXISTS_CHECK_KEY1, MSG_EXAMPLE_DASHMAP_BACKEND_EXISTS_KEY1,
+    MSG_EXAMPLE_DASHMAP_BACKEND_KEYS, MSG_EXAMPLE_DASHMAP_BACKEND_LRU_TINYLFU_EVICTION_POLICIES,
+    MSG_EXAMPLE_DASHMAP_BACKEND_MANUAL_TTL_MANAGEMENT,
+    MSG_EXAMPLE_DASHMAP_BACKEND_MOKA_BACKEND_KEYS, MSG_EXAMPLE_DASHMAP_BACKEND_MOKA_BACKEND_TRAITS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_NO_EVICTION_POLICY,
+    MSG_EXAMPLE_DASHMAP_BACKEND_PLAIN_CONCURRENT_HASHMAP, MSG_EXAMPLE_DASHMAP_BACKEND_READ_KEY1,
+    MSG_EXAMPLE_DASHMAP_BACKEND_SUITABLE_FOR_PRODUCTION,
+    MSG_EXAMPLE_DASHMAP_BACKEND_SUITED_TO_SIMPLE_SCENARIOS, MSG_EXAMPLE_DASHMAP_BACKEND_TRAITS,
+    MSG_EXAMPLE_DASHMAP_BACKEND_WRITE_KEY1_VALUE1, t,
+};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== DashMap backend example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_DASHMAP_BACKEND_EXAMPLE, &[]));
 
-    println!("--- 1. Create a DashMap backend ---");
+    println!("{}", t(MSG_EXAMPLE_DASHMAP_BACKEND_1_CREATE_A_DASHMAP, &[]));
     let dashmap = DashMapMemoryBackend::new();
-    println!("  ✓ DashMap backend created");
+    println!("  {}", t(MSG_EXAMPLE_DASHMAP_BACKEND_CREATED, &[]));
 
-    println!("\n--- 2. Basic operations ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_2_BASIC_OPERATIONS, &[])
+    );
 
-    // 写入数据
     dashmap
         .set(
             "key1".into(),
@@ -27,20 +52,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(60)),
         )
         .await?;
-    println!("  write: key1 = value1");
-
-    // 读取数据
-    let value = dashmap.get("key1").await?;
     println!(
-        "  read: key1 = {:?}",
-        value.map(|v| String::from_utf8_lossy(&v).to_string())
+        "  {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_WRITE_KEY1_VALUE1, &[])
     );
 
-    // 检查存在
-    let exists = dashmap.exists("key1").await?;
-    println!("  exists: key1 = {}", exists);
+    let value = dashmap.get("key1").await?;
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_READ_KEY1,
+            &[(
+                "value",
+                format!(
+                    "{:?}",
+                    value.map(|v| String::from_utf8_lossy(&v).to_string())
+                )
+            )]
+        )
+    );
 
-    println!("\n--- 3. Batch operations ---");
+    let exists = dashmap.exists("key1").await?;
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_EXISTS_KEY1,
+            &[("exists", exists.to_string())]
+        )
+    );
+
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_3_BATCH_OPERATIONS, &[])
+    );
 
     let keys_values: Vec<(&str, Vec<u8>)> = vec![
         ("item:1", b"apple".to_vec()),
@@ -57,7 +101,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await?;
     }
-    println!("  batch write: {} key-value pairs", keys_values.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_BATCH_WRITE_KEY_VALUE,
+            &[("keys_values", keys_values.len().to_string())]
+        )
+    );
 
     let keys: Vec<String> = vec![
         "item:1".to_string(),
@@ -65,7 +115,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "item:3".to_string(),
     ];
     let results = dashmap.get_many(&keys).await?;
-    println!("  batch read: {} results", results.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_BATCH_READ_RESULTS,
+            &[("results", results.len().to_string())]
+        )
+    );
     for (key, value) in keys.iter().zip(results.iter()) {
         println!(
             "    {} = {:?}",
@@ -76,7 +132,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    println!("\n--- 4. Comparing Moka and DashMap ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_4_COMPARING_MOKA_AND, &[])
+    );
 
     let moka = MokaMemoryBackend::builder().capacity(1000).build();
     let dashmap2 = DashMapMemoryBackend::new();
@@ -94,39 +153,108 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let moka_count = moka.len().await?;
     let dashmap_count = dashmap2.len().await?;
-    println!("  Moka backend: {} keys", moka_count);
-    println!("  DashMap backend: {} keys", dashmap_count);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_MOKA_BACKEND_KEYS,
+            &[("moka_count", moka_count.to_string())]
+        )
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_KEYS,
+            &[("dashmap_count", dashmap_count.to_string())]
+        )
+    );
 
-    println!("\n--- 5. Delete operations ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_5_DELETE_OPERATIONS, &[])
+    );
 
     dashmap.delete("key1").await?;
-    println!("  delete: key1");
+    println!("  {}", t(MSG_EXAMPLE_DASHMAP_BACKEND_DELETE_KEY1, &[]));
 
     let exists_after = dashmap.exists("key1").await?;
-    println!("  exists check: key1 = {}", exists_after);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_EXISTS_CHECK_KEY1,
+            &[("exists_after", exists_after.to_string())]
+        )
+    );
 
-    println!("\n--- 6. Clear operations ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_6_CLEAR_OPERATIONS, &[])
+    );
 
     let count_before = dashmap.len().await?;
-    println!("  before clear: {} keys", count_before);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_BEFORE_CLEAR_KEYS,
+            &[("count_before", count_before.to_string())]
+        )
+    );
 
     dashmap.clear().await?;
     let count_after = dashmap.len().await?;
-    println!("  after clear: {} keys", count_after);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_AFTER_CLEAR_KEYS,
+            &[("count_after", count_after.to_string())]
+        )
+    );
 
-    println!("\n--- 7. Feature comparison ---");
-    println!("  Moka backend traits:");
-    println!("    - LRU/TinyLFU eviction policies");
-    println!("    - capacity limits");
-    println!("    - automatic expiry");
-    println!("    - suitable for production");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_7_FEATURE_COMPARISON, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_MOKA_BACKEND_TRAITS, &[])
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_DASHMAP_BACKEND_LRU_TINYLFU_EVICTION_POLICIES,
+            &[]
+        )
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_CAPACITY_LIMITS, &[])
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_AUTOMATIC_EXPIRY, &[])
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_SUITABLE_FOR_PRODUCTION, &[])
+    );
     println!();
-    println!("  DashMap backend traits:");
-    println!("    - plain concurrent HashMap");
-    println!("    - no eviction policy");
-    println!("    - manual TTL management");
-    println!("    - suited to simple scenarios or tests");
+    println!("  {}", t(MSG_EXAMPLE_DASHMAP_BACKEND_TRAITS, &[]));
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_PLAIN_CONCURRENT_HASHMAP, &[])
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_NO_EVICTION_POLICY, &[])
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_MANUAL_TTL_MANAGEMENT, &[])
+    );
+    println!(
+        "    {}",
+        t(MSG_EXAMPLE_DASHMAP_BACKEND_SUITED_TO_SIMPLE_SCENARIOS, &[])
+    );
 
-    println!("\n✓ Example complete");
+    println!("\n{}", t(MSG_EXAMPLE_DASHMAP_BACKEND_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

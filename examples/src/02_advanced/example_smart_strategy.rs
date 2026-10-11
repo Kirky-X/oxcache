@@ -20,6 +20,29 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_SMART_STRATEGY_1_THE_CACHE_ASIDE, MSG_EXAMPLE_SMART_STRATEGY_2_THE_LAZY_LOADING,
+    MSG_EXAMPLE_SMART_STRATEGY_3_TTL_LIFECYCLE_MANAGEMENT,
+    MSG_EXAMPLE_SMART_STRATEGY_4_CAPACITY_PLANNING_AND,
+    MSG_EXAMPLE_SMART_STRATEGY_5_CACHE_STATISTICS,
+    MSG_EXAMPLE_SMART_STRATEGY_CACHE_STRATEGY_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_SMART_STRATEGY_CACHE_STRATEGY_PATTERNS_EXAMPLE,
+    MSG_EXAMPLE_SMART_STRATEGY_CAPACITY, MSG_EXAMPLE_SMART_STRATEGY_CONFIG,
+    MSG_EXAMPLE_SMART_STRATEGY_DIFFERENT_DATA_TYPES_USE, MSG_EXAMPLE_SMART_STRATEGY_ENTRIES,
+    MSG_EXAMPLE_SMART_STRATEGY_FIRST_GET_OR_ON, MSG_EXAMPLE_SMART_STRATEGY_FIRST_READ_OF_1,
+    MSG_EXAMPLE_SMART_STRATEGY_HITS, MSG_EXAMPLE_SMART_STRATEGY_LAZY_COMPUTATION_WITH_GET,
+    MSG_EXAMPLE_SMART_STRATEGY_MISSES, MSG_EXAMPLE_SMART_STRATEGY_POPULAR_ARTICLES_TTL_1H,
+    MSG_EXAMPLE_SMART_STRATEGY_PREWARMED_POPULAR_ARTICLES,
+    MSG_EXAMPLE_SMART_STRATEGY_READ_FILL_ON_MISS, MSG_EXAMPLE_SMART_STRATEGY_READ_OF_1_AFTER,
+    MSG_EXAMPLE_SMART_STRATEGY_REMAINING_TTL, MSG_EXAMPLE_SMART_STRATEGY_SECOND_GET_OR_ON,
+    MSG_EXAMPLE_SMART_STRATEGY_SECOND_READ_OF_1, MSG_EXAMPLE_SMART_STRATEGY_SESSION_DATA_TTL_30S,
+    MSG_EXAMPLE_SMART_STRATEGY_SESSIONS, MSG_EXAMPLE_SMART_STRATEGY_SIMULATING_ACCESSES,
+    MSG_EXAMPLE_SMART_STRATEGY_SYSTEM_CONFIG_TTL_24H, MSG_EXAMPLE_SMART_STRATEGY_TERMS,
+    MSG_EXAMPLE_SMART_STRATEGY_TERMS_OF_SERVICE_NO,
+    MSG_EXAMPLE_SMART_STRATEGY_UPDATING_1_AND_INVALIDATING,
+    MSG_EXAMPLE_SMART_STRATEGY_WRITE_INVALIDATE_AFTER_UPDATING, t,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Article {
     id: u64,
@@ -72,14 +95,26 @@ impl ArticleStore {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Cache strategy patterns example ===\n");
+    println!(
+        "{}\n",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_CACHE_STRATEGY_PATTERNS_EXAMPLE,
+            &[]
+        )
+    );
 
     let cache: Cache<String, Article> = Cache::builder().capacity(100).build().await?;
     let store = Arc::new(ArticleStore::new());
 
-    println!("--- 1. The Cache-Aside strategy ---");
-    println!("  Read-fill on miss: load from the data source and write into the cache");
-    println!("  Write-invalidate: after updating the data source, delete the cache entry\n");
+    println!("{}", t(MSG_EXAMPLE_SMART_STRATEGY_1_THE_CACHE_ASIDE, &[]));
+    println!("  {}", t(MSG_EXAMPLE_SMART_STRATEGY_READ_FILL_ON_MISS, &[]));
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_WRITE_INVALIDATE_AFTER_UPDATING,
+            &[]
+        )
+    );
 
     async fn cache_aside_get(
         cache: &Cache<String, Article>,
@@ -112,17 +147,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 首次读取（缓存未命中 → 数据源加载）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  first read of #1: {:?} (data source queries: {})",
-        article.map(|a| a.title),
-        store.query_count()
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_FIRST_READ_OF_1,
+            &[
+                ("title", format!("{:?}", article.map(|a| a.title))),
+                ("query_count", store.query_count().to_string())
+            ]
+        )
     );
 
     // 再次读取（缓存命中）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  second read of #1: {:?} (data source queries: {})",
-        article.map(|a| a.title),
-        store.query_count()
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_SECOND_READ_OF_1,
+            &[
+                ("title", format!("{:?}", article.map(|a| a.title))),
+                ("query_count", store.query_count().to_string())
+            ]
+        )
     );
 
     // 更新后失效缓存
@@ -130,20 +175,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         a.title = "article #1 (updated)".into();
         store.update(&a);
         cache_aside_invalidate(&cache, 1).await?;
-        println!("  updating #1 and invalidating the cache");
+        println!(
+            "  {}",
+            t(MSG_EXAMPLE_SMART_STRATEGY_UPDATING_1_AND_INVALIDATING, &[])
+        );
     }
 
     // 再次读取（缓存未命中 → 加载更新后的数据）
     let article = cache_aside_get(&cache, &store, 1).await?;
     println!(
-        "  read of #1 after the update: {:?} (data source queries: {})",
-        article.map(|a| a.title),
-        store.query_count()
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_READ_OF_1_AFTER,
+            &[
+                ("title", format!("{:?}", article.map(|a| a.title))),
+                ("query_count", store.query_count().to_string())
+            ]
+        )
     );
 
-    println!("\n--- 2. The Lazy Loading strategy ---");
     println!(
-        "  lazy computation with get_or: run the expensive computation only on a cache miss\n"
+        "\n{}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_2_THE_LAZY_LOADING, &[])
+    );
+    println!(
+        "  {}\n",
+        t(MSG_EXAMPLE_SMART_STRATEGY_LAZY_COMPUTATION_WITH_GET, &[])
     );
 
     let compute_count = Arc::new(AtomicU32::new(0));
@@ -166,21 +223,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 第一次：缓存未命中 → 执行计算
     let a1 = cache.get_or(&key, || expensive_compute(42)).await?;
     println!(
-        "  first get_or on #42: {} (computations: {})",
-        a1.title,
-        compute_count.load(Ordering::SeqCst)
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_FIRST_GET_OR_ON,
+            &[
+                ("title", a1.title.to_string()),
+                ("seqcst", compute_count.load(Ordering::SeqCst).to_string())
+            ]
+        )
     );
 
     // 第二次：缓存命中 → 不执行计算
     let a2 = cache.get_or(&key, || expensive_compute(42)).await?;
     println!(
-        "  second get_or on #42: {} (computations: {})",
-        a2.title,
-        compute_count.load(Ordering::SeqCst)
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_SECOND_GET_OR_ON,
+            &[
+                ("title", a2.title.to_string()),
+                ("seqcst", compute_count.load(Ordering::SeqCst).to_string())
+            ]
+        )
     );
 
-    println!("\n--- 3. TTL lifecycle management ---");
-    println!("  different data types use different expiry policies\n");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_3_TTL_LIFECYCLE_MANAGEMENT, &[])
+    );
+    println!(
+        "  {}\n",
+        t(MSG_EXAMPLE_SMART_STRATEGY_DIFFERENT_DATA_TYPES_USE, &[])
+    );
 
     // 会话数据：短 TTL（30 秒）
     cache
@@ -195,7 +268,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(30)),
         )
         .await?;
-    println!("  ✓ session data: TTL=30s");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_SESSION_DATA_TTL_30S, &[])
+    );
 
     // 热点文章：中等 TTL（1 小时）
     cache
@@ -210,7 +286,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(3600)),
         )
         .await?;
-    println!("  ✓ popular articles: TTL=1h");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_POPULAR_ARTICLES_TTL_1H, &[])
+    );
 
     // 系统配置：长 TTL（24 小时）
     cache
@@ -225,7 +304,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Duration::from_secs(86400)),
         )
         .await?;
-    println!("  ✓ system config: TTL=24h");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_SYSTEM_CONFIG_TTL_24H, &[])
+    );
 
     // 无 TTL（永不过期）
     cache
@@ -239,17 +321,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         )
         .await?;
-    println!("  ✓ terms of service: no TTL (never expires)");
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_TERMS_OF_SERVICE_NO, &[])
+    );
 
     let session_ttl = cache.ttl(&"session:user1".to_string()).await?;
     let config_ttl = cache.ttl(&"config:app".to_string()).await?;
     let permanent_ttl = cache.ttl(&"permanent:terms".to_string()).await?;
-    println!("\n  remaining TTL:");
-    println!("    sessions:   {:?}", session_ttl);
-    println!("    config:   {:?}", config_ttl);
-    println!("    terms:   {:?}", permanent_ttl.unwrap_or(Duration::ZERO));
+    println!("\n  {}", t(MSG_EXAMPLE_SMART_STRATEGY_REMAINING_TTL, &[]));
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_SESSIONS,
+            &[("session_ttl", format!("{:?}", session_ttl))]
+        )
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_CONFIG,
+            &[("config_ttl", format!("{:?}", config_ttl))]
+        )
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_TERMS,
+            &[(
+                "zero",
+                format!("{:?}", permanent_ttl.unwrap_or(Duration::ZERO))
+            )]
+        )
+    );
 
-    println!("\n--- 4. Capacity planning and access-frequency tiers ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_4_CAPACITY_PLANNING_AND, &[])
+    );
 
     // 预热热点数据
     let hot_ids = [1, 2, 3, 4, 5];
@@ -261,7 +370,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
         }
     }
-    println!("  ✓ prewarmed {} popular articles", hot_ids.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_PREWARMED_POPULAR_ARTICLES,
+            &[("hot_ids", hot_ids.len().to_string())]
+        )
+    );
 
     // 模拟访问模式
     let access_pattern = [1, 1, 1, 2, 2, 3, 1, 2, 4, 5, 1, 3, 6, 7, 8];
@@ -276,31 +391,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let total = access_pattern.len() as u32;
-    println!("  simulating {} accesses:", total);
     println!(
-        "    hits: {} ({:.1}%)",
-        hits,
-        hits as f64 / total as f64 * 100.0
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_SIMULATING_ACCESSES,
+            &[("total", total.to_string())]
+        )
     );
     println!(
-        "    misses: {} ({:.1}%)",
-        misses,
-        misses as f64 / total as f64 * 100.0
+        "    {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_HITS,
+            &[
+                ("hits", hits.to_string()),
+                ("f64", format!("{:.1}", hits as f64 / total as f64 * 100.0))
+            ]
+        )
+    );
+    println!(
+        "    {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_MISSES,
+            &[
+                ("misses", misses.to_string()),
+                (
+                    "f64",
+                    format!("{:.1}", misses as f64 / total as f64 * 100.0)
+                )
+            ]
+        )
     );
 
-    println!("\n--- 5. Cache statistics ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_SMART_STRATEGY_5_CACHE_STATISTICS, &[])
+    );
     let stats = cache.stats().await?;
     println!(
-        "  entries: {}",
-        stats.get("entry_count").unwrap_or(&"N/A".to_string())
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_ENTRIES,
+            &[(
+                "stats",
+                (stats.get("entry_count").unwrap_or(&"N/A".to_string())).to_string()
+            )]
+        )
     );
     println!(
-        "  capacity:   {}",
-        stats.get("capacity").unwrap_or(&"N/A".to_string())
+        "  {}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_CAPACITY,
+            &[(
+                "stats",
+                (stats.get("capacity").unwrap_or(&"N/A".to_string())).to_string()
+            )]
+        )
     );
 
-    // 清理
     cache.clear().await?;
-    println!("\n✓ Cache strategy example complete");
+    println!(
+        "\n{}",
+        t(
+            MSG_EXAMPLE_SMART_STRATEGY_CACHE_STRATEGY_EXAMPLE_COMPLETE,
+            &[]
+        )
+    );
     Ok(())
 }

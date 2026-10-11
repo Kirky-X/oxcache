@@ -292,7 +292,6 @@ fn live_reaps_expired_entries_and_keeps_fresh() {
 
 // `#[cached]` 宏参数解析分支驱动（cache_none / skip / ttl / sync 变体）。
 // 宏在编译期展开执行：这里的使用即覆盖 oxcache_macros 的解析逻辑。
-// 宏在编译期展开执行：这里的使用即覆盖 oxcache_macros 的解析逻辑。
 // 错误分支（skip 空参、skip+key 冲突、sync+async、service/ttl 类型错）
 // 是 compile_error 路径，由 tests/macros/compile_fail 的 trybuild 用例
 // 在独立进程中验证，不进覆盖率。

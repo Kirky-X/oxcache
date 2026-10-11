@@ -5,6 +5,30 @@
 use oxcache::{Cache, CacheKey, OxCacheResult};
 use serde::{Deserialize, Serialize};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_NEW_API_1_IN_MEMORY_CACHE, MSG_EXAMPLE_NEW_API_2_REDIS_CACHE_L2,
+    MSG_EXAMPLE_NEW_API_3_CUSTOM_KEY_TYPE, MSG_EXAMPLE_NEW_API_4_ADVANCED_CONFIGURATION_USING,
+    MSG_EXAMPLE_NEW_API_5_TTL_OPERATIONS_USING, MSG_EXAMPLE_NEW_API_6_BATCH_OPERATIONS,
+    MSG_EXAMPLE_NEW_API_7_DELETE_OPERATIONS, MSG_EXAMPLE_NEW_API_8_CLEAR_OPERATIONS,
+    MSG_EXAMPLE_NEW_API_9_CACHE_ASIDE_MODE, MSG_EXAMPLE_NEW_API_10_SUMMARY,
+    MSG_EXAMPLE_NEW_API_BATCH_OPERATIONS_SET_MANY, MSG_EXAMPLE_NEW_API_BATCH_SET_USERS,
+    MSG_EXAMPLE_NEW_API_BUILDER_PATTERN_FOR_CONFIGURATION,
+    MSG_EXAMPLE_NEW_API_CACHE_ASIDE_MODE_WITH, MSG_EXAMPLE_NEW_API_CLEARED_ALL_CACHE_ENTRIES,
+    MSG_EXAMPLE_NEW_API_CUSTOM_KEY_TYPES_CACHEKEY, MSG_EXAMPLE_NEW_API_DELETE_AND_CLEAR_OPERATIONS,
+    MSG_EXAMPLE_NEW_API_EXAMPLE_COMPLETE, MSG_EXAMPLE_NEW_API_EXISTENCE_CHECK_EXISTS,
+    MSG_EXAMPLE_NEW_API_FEATURES, MSG_EXAMPLE_NEW_API_IN_MEMORY_CACHE_CACHE,
+    MSG_EXAMPLE_NEW_API_REDIS_CACHE_CACHE_REDIS,
+    MSG_EXAMPLE_NEW_API_REDIS_UNAVAILABLE_SKIPPING_REDIS,
+    MSG_EXAMPLE_NEW_API_RETRIEVED_USERS_FROM_THE, MSG_EXAMPLE_NEW_API_SET_3_USERS_IN,
+    MSG_EXAMPLE_NEW_API_SET_USER_7_WITH, MSG_EXAMPLE_NEW_API_TTL_OPERATIONS_SET_WITH,
+    MSG_EXAMPLE_NEW_API_TYPE_SAFE_CACHE_INTERFACE, MSG_EXAMPLE_NEW_API_UPDATED_THE_TTL_OF,
+    MSG_EXAMPLE_NEW_API_USAGE_EXAMPLE, MSG_EXAMPLE_NEW_API_USER_1_EXISTS_AFTER,
+    MSG_EXAMPLE_NEW_API_USER_8_EXISTS, MSG_EXAMPLE_NEW_API_USER_8_EXISTS_AFTER,
+    MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_MEMORY, MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_REDIS,
+    MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_THE, MSG_EXAMPLE_NEW_API_USER_RETRIEVED_VIA_THE,
+    MSG_EXAMPLE_NEW_API_USER_RETRIEVED_WITH_CUSTOM, t,
+};
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct User {
     id: u64,
@@ -24,12 +48,12 @@ impl CacheKey for UserId {
 
 #[tokio::main]
 async fn main() -> OxCacheResult<()> {
-    println!("New API usage example");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_USAGE_EXAMPLE, &[]));
     println!("======================\n");
 
     // === Memory Cache ===
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("1. In-memory cache (L1 only)");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_1_IN_MEMORY_CACHE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let memory_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -42,17 +66,19 @@ async fn main() -> OxCacheResult<()> {
     };
     memory_cache.set(&"user:1".to_string(), &user).await?;
 
-    // 获取一个值
     let cached_user: Option<User> = memory_cache.get(&"user:1".to_string()).await?;
     assert!(cached_user.is_some());
     println!(
-        "✓ user retrieved from memory cache: {:?}",
-        cached_user.unwrap().name
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_MEMORY,
+            &[("name", format!("{:?}", cached_user.unwrap().name))]
+        )
     );
 
     // === Redis Cache ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("2. Redis cache (L2 only)");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_2_REDIS_CACHE_L2, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // 注意: 需要先启动 Redis 服务
@@ -65,18 +91,27 @@ async fn main() -> OxCacheResult<()> {
             let cached_user: Option<User> = redis_cache.get(&"user:3".to_string()).await?;
             assert!(cached_user.is_some());
             println!(
-                "✓ user retrieved from Redis cache: {:?}",
-                cached_user.unwrap().name
+                "{}",
+                t(
+                    MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_REDIS,
+                    &[("name", format!("{:?}", cached_user.unwrap().name))]
+                )
             );
         }
         Err(e) => {
-            println!("⚠ Redis unavailable, skipping Redis test: {:?}", e);
+            println!(
+                "{}",
+                t(
+                    MSG_EXAMPLE_NEW_API_REDIS_UNAVAILABLE_SKIPPING_REDIS,
+                    &[("e", format!("{:?}", e))]
+                )
+            );
         }
     }
 
     // === Custom Key Type ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("3. Custom key type");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_3_CUSTOM_KEY_TYPE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let custom_cache: Cache<UserId, User> = Cache::builder().build().await?;
@@ -87,13 +122,19 @@ async fn main() -> OxCacheResult<()> {
     let cached_user: Option<User> = custom_cache.get(&user_id).await?;
     assert!(cached_user.is_some());
     println!(
-        "✓ user retrieved with custom key: {:?}",
-        cached_user.unwrap().name
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_RETRIEVED_WITH_CUSTOM,
+            &[("name", format!("{:?}", cached_user.unwrap().name))]
+        )
     );
 
     // === Advanced Configuration with Builder ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("4. Advanced configuration (using Builder)");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_NEW_API_4_ADVANCED_CONFIGURATION_USING, &[])
+    );
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     use std::time::Duration;
@@ -108,13 +149,16 @@ async fn main() -> OxCacheResult<()> {
     let cached_user: Option<User> = advanced_cache.get(&"user:6".to_string()).await?;
     assert!(cached_user.is_some());
     println!(
-        "✓ user retrieved from the advanced-config cache: {:?}",
-        cached_user.unwrap().name
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_RETRIEVED_FROM_THE,
+            &[("name", format!("{:?}", cached_user.unwrap().name))]
+        )
     );
 
     // === TTL Operations (using set_with_ttl) ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("5. TTL operations (using set_with_ttl)");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_5_TTL_OPERATIONS_USING, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let ttl_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -127,17 +171,17 @@ async fn main() -> OxCacheResult<()> {
     // 获取并验证 - 值存在
     let cached_user = ttl_cache.get(&"user:7".to_string()).await?;
     assert!(cached_user.is_some());
-    println!("✓ set user:7 with a 60 second TTL");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_SET_USER_7_WITH, &[]));
 
     // 重新设置带新的TTL (120秒)
     ttl_cache
         .set_with_ttl(&"user:7".to_string(), &user, Some(Duration::from_secs(120)))
         .await?;
-    println!("✓ updated the TTL of user:7 to 120 seconds");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_UPDATED_THE_TTL_OF, &[]));
 
     // === Batch Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("6. Batch operations");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_6_BATCH_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let batch_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -157,7 +201,13 @@ async fn main() -> OxCacheResult<()> {
         batch_cache.set(key, value).await?;
     }
 
-    println!("✓ batch set {} users", batch.len());
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_BATCH_SET_USERS,
+            &[("batch", batch.len().to_string())]
+        )
+    );
 
     // 获取多个值
     let mut retrieved_count = 0;
@@ -167,11 +217,17 @@ async fn main() -> OxCacheResult<()> {
         }
     }
 
-    println!("✓ retrieved {} users from the cache", retrieved_count);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_RETRIEVED_USERS_FROM_THE,
+            &[("retrieved_count", retrieved_count.to_string())]
+        )
+    );
 
     // === Delete Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("7. Delete operations");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_7_DELETE_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let delete_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -180,18 +236,28 @@ async fn main() -> OxCacheResult<()> {
 
     // Check exists
     let exists = delete_cache.exists(&"user:8".to_string()).await?;
-    println!("✓ user:8 exists: {}", exists);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_8_EXISTS,
+            &[("exists", exists.to_string())]
+        )
+    );
 
-    // 删除
     delete_cache.delete(&"user:8".to_string()).await?;
 
-    // 删除后检查是否存在
     let exists = delete_cache.exists(&"user:8".to_string()).await?;
-    println!("✓ user:8 exists after delete: {}", exists);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_8_EXISTS_AFTER,
+            &[("exists", exists.to_string())]
+        )
+    );
 
     // === Clear Operations ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("8. Clear operations");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_8_CLEAR_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let clear_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -201,19 +267,24 @@ async fn main() -> OxCacheResult<()> {
         clear_cache.set(&format!("user:{}", i), &user).await?;
     }
 
-    println!("✓ set 3 users in the cache");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_SET_3_USERS_IN, &[]));
 
-    // 清空所有
     clear_cache.clear().await?;
-    println!("✓ cleared all cache entries");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_CLEARED_ALL_CACHE_ENTRIES, &[]));
 
     // 验证为空
     let exists = clear_cache.exists(&"user:1".to_string()).await?;
-    println!("✓ user:1 exists after clear: {}", exists);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_1_EXISTS_AFTER,
+            &[("exists", exists.to_string())]
+        )
+    );
 
     // === Get-or-Fallback Pattern ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("9. Cache-aside mode with fallback (get_or)");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_9_CACHE_ASIDE_MODE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let fallback_cache: Cache<String, User> = Cache::builder().build().await?;
@@ -225,27 +296,45 @@ async fn main() -> OxCacheResult<()> {
         })
         .await?;
     println!(
-        "✓ user retrieved via the fallback function: {:?}",
-        user.name
+        "{}",
+        t(
+            MSG_EXAMPLE_NEW_API_USER_RETRIEVED_VIA_THE,
+            &[("name", format!("{:?}", user.name))]
+        )
     );
 
     // === Summary ===
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("10. Summary");
+    println!("{}", t(MSG_EXAMPLE_NEW_API_10_SUMMARY, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("\nNew API features:");
-    println!("  ✓ type-safe cache interface");
-    println!("  ✓ in-memory cache (Cache::memory())");
-    println!("  ✓ Redis cache (Cache::redis())");
-    println!("  ✓ custom key types (CacheKey trait)");
-    println!("  ✓ builder pattern for configuration (Cache::builder())");
-    println!("  ✓ TTL operations (set_with_ttl)");
-    println!("  ✓ batch operations (set_many, get_many)");
-    println!("  ✓ delete and clear operations (delete, clear)");
-    println!("  ✓ existence check (exists)");
-    println!("  ✓ cache-aside mode with fallback (get_or)");
+    println!("\n{}", t(MSG_EXAMPLE_NEW_API_FEATURES, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_NEW_API_TYPE_SAFE_CACHE_INTERFACE, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_NEW_API_IN_MEMORY_CACHE_CACHE, &[]));
+    println!("  {}", t(MSG_EXAMPLE_NEW_API_REDIS_CACHE_CACHE_REDIS, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_NEW_API_CUSTOM_KEY_TYPES_CACHEKEY, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_NEW_API_BUILDER_PATTERN_FOR_CONFIGURATION, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_NEW_API_TTL_OPERATIONS_SET_WITH, &[]));
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_NEW_API_BATCH_OPERATIONS_SET_MANY, &[])
+    );
+    println!(
+        "  {}",
+        t(MSG_EXAMPLE_NEW_API_DELETE_AND_CLEAR_OPERATIONS, &[])
+    );
+    println!("  {}", t(MSG_EXAMPLE_NEW_API_EXISTENCE_CHECK_EXISTS, &[]));
+    println!("  {}", t(MSG_EXAMPLE_NEW_API_CACHE_ASIDE_MODE_WITH, &[]));
 
-    println!("\n✅ New API example complete!");
+    println!("\n{}", t(MSG_EXAMPLE_NEW_API_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }
 

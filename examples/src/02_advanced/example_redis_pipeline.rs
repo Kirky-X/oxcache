@@ -19,18 +19,37 @@
 use oxcache::backend::{CacheWriter, RedisBackend};
 use std::time::{Duration, Instant};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_REDIS_PIPELINE_1_BATCH_SET_SET, MSG_EXAMPLE_REDIS_PIPELINE_2_BATCH_GET_GET,
+    MSG_EXAMPLE_REDIS_PIPELINE_3_PERFORMANCE_COMPARISON_ONE,
+    MSG_EXAMPLE_REDIS_PIPELINE_4_BATCH_DELETE_DELETE,
+    MSG_EXAMPLE_REDIS_PIPELINE_BATCH_DELETED_KEYS, MSG_EXAMPLE_REDIS_PIPELINE_BATCH_GET_KEYS_TOOK,
+    MSG_EXAMPLE_REDIS_PIPELINE_BATCH_OPERATIONS, MSG_EXAMPLE_REDIS_PIPELINE_BATCH_SET_KEYS_TOOK,
+    MSG_EXAMPLE_REDIS_PIPELINE_CONNECTING_TO_REDIS, MSG_EXAMPLE_REDIS_PIPELINE_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_REDIS_PIPELINE_PIPELINE_IS_X_FASTER, MSG_EXAMPLE_REDIS_PIPELINE_REDIS_CONNECTED,
+    MSG_EXAMPLE_REDIS_PIPELINE_REMAINING_KEYS_SHOULD_BE, MSG_EXAMPLE_REDIS_PIPELINE_RESULTS,
+    MSG_EXAMPLE_REDIS_PIPELINE_SETTING_10_KEYS_ONE, MSG_EXAMPLE_REDIS_PIPELINE_SETTING_10_KEYS_VIA,
+    t,
+};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== Redis Pipeline batch operations example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_REDIS_PIPELINE_BATCH_OPERATIONS, &[]));
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-    println!("Connecting to Redis: {}", redis_url);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_CONNECTING_TO_REDIS,
+            &[("redis_url", redis_url.to_string())]
+        )
+    );
 
     let backend = RedisBackend::new(&redis_url).await?;
-    println!("✓ Redis connected\n");
+    println!("{}\n", t(MSG_EXAMPLE_REDIS_PIPELINE_REDIS_CONNECTED, &[]));
 
-    println!("--- 1. Batch set (set_many_pipeline) ---");
+    println!("{}", t(MSG_EXAMPLE_REDIS_PIPELINE_1_BATCH_SET_SET, &[]));
     // 先收集 String，再借用为 &str
     let owned_items: Vec<(String, Vec<u8>)> = (0..10)
         .map(|i| {
@@ -50,9 +69,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .set_many_pipeline(&items, Some(Duration::from_secs(60)))
         .await?;
     let elapsed = start.elapsed();
-    println!("  batch set {} keys, took: {:?}", items.len(), elapsed);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_BATCH_SET_KEYS_TOOK,
+            &[
+                ("items", items.len().to_string()),
+                ("elapsed", format!("{:?}", elapsed))
+            ]
+        )
+    );
 
-    println!("\n--- 2. Batch get (get_many_pipeline) ---");
+    println!("\n{}", t(MSG_EXAMPLE_REDIS_PIPELINE_2_BATCH_GET_GET, &[]));
     let owned_keys: Vec<String> = (0..10).map(|i| format!("pipeline:key:{}", i)).collect();
     let keys: Vec<&str> = owned_keys.iter().map(|s| s.as_str()).collect();
 
@@ -60,8 +88,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let results = backend.get_many_pipeline(&keys).await?;
     let elapsed = start.elapsed();
 
-    println!("  batch get {} keys, took: {:?}", keys.len(), elapsed);
-    println!("  results:");
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_BATCH_GET_KEYS_TOOK,
+            &[
+                ("keys", keys.len().to_string()),
+                ("elapsed", format!("{:?}", elapsed))
+            ]
+        )
+    );
+    println!("  {}", t(MSG_EXAMPLE_REDIS_PIPELINE_RESULTS, &[]));
     for (i, result) in results.iter().enumerate() {
         match result {
             Some(data) => println!("    key[{}] = {:?}", i, String::from_utf8_lossy(data)),
@@ -69,7 +106,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("\n--- 3. Performance comparison: one-by-one vs Pipeline ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_REDIS_PIPELINE_3_PERFORMANCE_COMPARISON_ONE, &[])
+    );
 
     // 逐个设置
     let start = Instant::now();
@@ -98,14 +138,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     backend.set_many_pipeline(&perf_items, None).await?;
     let pipeline_elapsed = start.elapsed();
 
-    println!("  setting 10 keys one by one: {:?}", individual_elapsed);
-    println!("  setting 10 keys via Pipeline: {:?}", pipeline_elapsed);
     println!(
-        "  Pipeline is {:.1}x faster",
-        individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001)
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_SETTING_10_KEYS_ONE,
+            &[("individual_elapsed", format!("{:?}", individual_elapsed))]
+        )
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_SETTING_10_KEYS_VIA,
+            &[("pipeline_elapsed", format!("{:?}", pipeline_elapsed))]
+        )
+    );
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_PIPELINE_IS_X_FASTER,
+            &[(
+                "max",
+                format!(
+                    "{:.1}",
+                    individual_elapsed.as_secs_f64() / pipeline_elapsed.as_secs_f64().max(0.000001)
+                )
+            )]
+        )
     );
 
-    println!("\n--- 4. Batch delete (delete_many_pipeline) ---");
+    println!(
+        "\n{}",
+        t(MSG_EXAMPLE_REDIS_PIPELINE_4_BATCH_DELETE_DELETE, &[])
+    );
     let owned_perf_keys: Vec<String> = (0..10).map(|i| format!("pipeline:perf:{}", i)).collect();
     let owned_ind_keys: Vec<String> = (0..10).map(|i| format!("individual:key:{}", i)).collect();
 
@@ -116,13 +180,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let all_keys: Vec<&str> = all_owned.iter().map(|s| s.as_str()).collect();
 
     backend.delete_many_pipeline(&all_keys).await?;
-    println!("  batch deleted {} keys", all_keys.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_BATCH_DELETED_KEYS,
+            &[("all_keys", all_keys.len().to_string())]
+        )
+    );
 
     // 验证删除
     let results = backend.get_many_pipeline(&all_keys).await?;
     let remaining = results.iter().filter(|r| r.is_some()).count();
-    println!("  remaining keys: {} (should be 0)", remaining);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_REDIS_PIPELINE_REMAINING_KEYS_SHOULD_BE,
+            &[("remaining", remaining.to_string())]
+        )
+    );
 
-    println!("\n✓ Example complete");
+    println!("\n{}", t(MSG_EXAMPLE_REDIS_PIPELINE_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }

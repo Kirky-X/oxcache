@@ -17,6 +17,23 @@ use oxcache::cache::{ChainCache, ChainLink};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_CHAIN_CACHE_1_CHAINCACHE_BUILDER_CREATES, MSG_EXAMPLE_CHAIN_CACHE_2_IN_MEMORY_ONLY,
+    MSG_EXAMPLE_CHAIN_CACHE_3_BATCH_OPERATIONS_EXAMPLE, MSG_EXAMPLE_CHAIN_CACHE_BATCH_READ_USERS,
+    MSG_EXAMPLE_CHAIN_CACHE_BATCH_STORED_USERS, MSG_EXAMPLE_CHAIN_CACHE_CACHE_STATS,
+    MSG_EXAMPLE_CHAIN_CACHE_CACHE_STATS_2, MSG_EXAMPLE_CHAIN_CACHE_CANNOT_CONNECT_TO_REDIS,
+    MSG_EXAMPLE_CHAIN_CACHE_CONNECTING_TO_REDIS, MSG_EXAMPLE_CHAIN_CACHE_CREATED_A_2_TIER,
+    MSG_EXAMPLE_CHAIN_CACHE_DATA_WRITTEN_TO_THE, MSG_EXAMPLE_CHAIN_CACHE_DATA_WRITTEN_TO_THE_2,
+    MSG_EXAMPLE_CHAIN_CACHE_EXAMPLE, MSG_EXAMPLE_CHAIN_CACHE_EXAMPLE_COMPLETE,
+    MSG_EXAMPLE_CHAIN_CACHE_FAILED_TO_PARSE_THE, MSG_EXAMPLE_CHAIN_CACHE_HIT,
+    MSG_EXAMPLE_CHAIN_CACHE_HIT_2, MSG_EXAMPLE_CHAIN_CACHE_NOT_FOUND,
+    MSG_EXAMPLE_CHAIN_CACHE_NOT_FOUND_2, MSG_EXAMPLE_CHAIN_CACHE_READ,
+    MSG_EXAMPLE_CHAIN_CACHE_READING_DATA, MSG_EXAMPLE_CHAIN_CACHE_READING_DATA_2,
+    MSG_EXAMPLE_CHAIN_CACHE_SKIPPING_THE_REDIS_EXAMPLE, MSG_EXAMPLE_CHAIN_CACHE_STORE,
+    MSG_EXAMPLE_CHAIN_CACHE_TEST_DATA, MSG_EXAMPLE_CHAIN_CACHE_TEST_DATA_2,
+    MSG_EXAMPLE_CHAIN_CACHE_WRITING_DATA, MSG_EXAMPLE_CHAIN_CACHE_WRITING_DATA_2, t,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct User {
     id: u64,
@@ -26,14 +43,23 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("=== Chain cache example ===\n");
+    println!("{}\n", t(MSG_EXAMPLE_CHAIN_CACHE_EXAMPLE, &[]));
 
-    println!("1. ChainCache::builder() creates a multi-tier cache");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_CHAIN_CACHE_1_CHAINCACHE_BUILDER_CREATES, &[])
+    );
 
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
-    println!("  Connecting to Redis: {}", redis_url);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_CONNECTING_TO_REDIS,
+            &[("redis_url", redis_url.to_string())]
+        )
+    );
 
     match RedisBackend::new(&redis_url).await {
         Ok(l2) => {
@@ -46,22 +72,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .default_time_to_live(Duration::from_secs(3600))
                 .build();
 
-            println!("   ✓ created a 2-tier cache chain: L1(Moka) -> L2(Redis)\n");
+            println!("   {}\n", t(MSG_EXAMPLE_CHAIN_CACHE_CREATED_A_2_TIER, &[]));
 
             demo_chain_cache_operations(&chain).await?;
 
             chain.clear().await?;
         }
         Err(e) => {
-            println!("   ✗ cannot connect to Redis: {}", e);
-            println!("   skipping the Redis example, using an in-memory cache only\n");
+            println!(
+                "   {}",
+                t(
+                    MSG_EXAMPLE_CHAIN_CACHE_CANNOT_CONNECT_TO_REDIS,
+                    &[("e", e.to_string())]
+                )
+            );
+            println!(
+                "   {}\n",
+                t(MSG_EXAMPLE_CHAIN_CACHE_SKIPPING_THE_REDIS_EXAMPLE, &[])
+            );
 
             let cache: Cache<String, User> = Cache::builder().build().await?;
             demo_simple_cache_operations(&cache).await?;
         }
     }
 
-    println!("\n2. In-memory-only cache example");
+    println!("\n{}", t(MSG_EXAMPLE_CHAIN_CACHE_2_IN_MEMORY_ONLY, &[]));
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
     let user = User {
@@ -72,10 +107,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     cache.set(&"user:42".to_string(), &user).await?;
     let cached = cache.get(&"user:42".to_string()).await?;
-    println!("  store: {:?}", user);
-    println!("  read: {:?}\n", cached);
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_STORE,
+            &[("user", format!("{:?}", user))]
+        )
+    );
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_READ,
+            &[("cached", format!("{:?}", cached))]
+        )
+    );
 
-    println!("3. Batch operations example");
+    println!(
+        "{}",
+        t(MSG_EXAMPLE_CHAIN_CACHE_3_BATCH_OPERATIONS_EXAMPLE, &[])
+    );
 
     let users = [
         User {
@@ -99,7 +149,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     cache.set(&"user:2".to_string(), &users[1]).await?;
     cache.set(&"user:3".to_string(), &users[2]).await?;
 
-    println!("  batch stored {} users", users.len());
+    println!(
+        "  {}",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_BATCH_STORED_USERS,
+            &[("users", users.len().to_string())]
+        )
+    );
 
     let keys = [
         "user:1".to_string(),
@@ -107,9 +163,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "user:3".to_string(),
     ];
     let results = cache.get_many(keys.iter()).await?;
-    println!("  batch read: {} users\n", results.len());
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_BATCH_READ_USERS,
+            &[("results", results.len().to_string())]
+        )
+    );
 
-    println!("✓ Example complete");
+    println!("{}", t(MSG_EXAMPLE_CHAIN_CACHE_EXAMPLE_COMPLETE, &[]));
 
     Ok(())
 }
@@ -123,25 +185,40 @@ async fn demo_chain_cache_operations(
         email: "alice@example.com".to_string(),
     };
 
-    println!("  test data: {:?}\n", user);
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_TEST_DATA,
+            &[("user", format!("{:?}", user))]
+        )
+    );
 
-    println!("  writing data...");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_WRITING_DATA, &[]));
     let user_bytes: Vec<u8> = serde_json::to_vec(&user)?;
     chain.set_bytes("user:1", user_bytes, None).await?;
-    println!("   ✓ data written to the cache chain\n");
+    println!(
+        "   {}\n",
+        t(MSG_EXAMPLE_CHAIN_CACHE_DATA_WRITTEN_TO_THE, &[])
+    );
 
-    println!("  reading data:");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_READING_DATA, &[]));
     let cached = chain.get_bytes("user:1").await?;
     match cached {
         Some(data) => match serde_json::from_slice::<User>(&data) {
-            Ok(u) => println!("   ✓ hit: {:?}\n", u),
-            Err(_) => println!("   ✗ failed to parse the data\n"),
+            Ok(u) => println!(
+                "   {}\n",
+                t(MSG_EXAMPLE_CHAIN_CACHE_HIT, &[("u", format!("{:?}", u))])
+            ),
+            Err(_) => println!(
+                "   {}\n",
+                t(MSG_EXAMPLE_CHAIN_CACHE_FAILED_TO_PARSE_THE, &[])
+            ),
         },
-        None => println!("   ✗ not found\n"),
+        None => println!("   {}\n", t(MSG_EXAMPLE_CHAIN_CACHE_NOT_FOUND, &[])),
     }
 
     let stats = chain.stats().await?;
-    println!("  cache stats:");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_CACHE_STATS, &[]));
     for (key, value) in &stats {
         println!("     {}: {}", key, value);
     }
@@ -160,21 +237,33 @@ async fn demo_simple_cache_operations(
         email: "alice@example.com".to_string(),
     };
 
-    println!("  test data: {:?}\n", user);
+    println!(
+        "  {}\n",
+        t(
+            MSG_EXAMPLE_CHAIN_CACHE_TEST_DATA_2,
+            &[("user", format!("{:?}", user))]
+        )
+    );
 
-    println!("  writing data...");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_WRITING_DATA_2, &[]));
     cache.set(&"user:1".to_string(), &user).await?;
-    println!("   ✓ data written to the cache\n");
+    println!(
+        "   {}\n",
+        t(MSG_EXAMPLE_CHAIN_CACHE_DATA_WRITTEN_TO_THE_2, &[])
+    );
 
-    println!("  reading data:");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_READING_DATA_2, &[]));
     let cached = cache.get(&"user:1".to_string()).await?;
     match cached {
-        Some(u) => println!("   ✓ hit: {:?}\n", u),
-        None => println!("   ✗ not found\n"),
+        Some(u) => println!(
+            "   {}\n",
+            t(MSG_EXAMPLE_CHAIN_CACHE_HIT_2, &[("u", format!("{:?}", u))])
+        ),
+        None => println!("   {}\n", t(MSG_EXAMPLE_CHAIN_CACHE_NOT_FOUND_2, &[])),
     }
 
     let stats = cache.stats().await?;
-    println!("  cache stats:");
+    println!("  {}", t(MSG_EXAMPLE_CHAIN_CACHE_CACHE_STATS_2, &[]));
     for (key, value) in &stats {
         println!("     {}: {}", key, value);
     }

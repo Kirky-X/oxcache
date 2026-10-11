@@ -48,11 +48,7 @@ fn test_json_serializer_with_compression() {
     let deserialized_data: TestData = serde_json::from_slice(&deserialized).unwrap();
     assert_eq!(test_data, deserialized_data);
 
-    // Note: Compression effectiveness depends on data patterns and JSON encoding.
-    // Base64-encoded bytes don't compress well. The key is that compression/decompression
-    // cycle works correctly, not that output is smaller.
-    // For better compression results, use serialization formats that preserve data structure
-    // (like bincode) or compress before JSON encoding.
+    // 压缩率取决于数据模式（Base64 编码字节难压缩）；本测试只验证压缩/解压往返正确，不要求输出更小。
 }
 
 /// 大对象 round-trip：验证 5MB 随机字节经 JSON base64 编码往返无截断

@@ -40,7 +40,6 @@ async fn test_pipeline_set_performance() {
         .await
         .expect("Failed to create Redis backend");
 
-    // 清理之前的测试数据
     backend.clear().await.ok();
 
     let test_data = generate_test_data(100);
@@ -53,7 +52,6 @@ async fn test_pipeline_set_performance() {
         .expect("Pipeline SET failed");
     let pipeline_duration = start.elapsed();
 
-    // 清理
     backend.clear().await.ok();
 
     // 测试逐个 SET（对比）
@@ -66,7 +64,6 @@ async fn test_pipeline_set_performance() {
     }
     let individual_duration = start.elapsed();
 
-    // 清理测试数据
     backend.clear().await.ok();
 
     println!("Pipeline SET Performance:");
@@ -119,7 +116,6 @@ async fn test_pipeline_get_performance() {
     // 验证结果一致性
     assert_eq!(pipeline_results.len(), individual_results.len());
 
-    // 清理测试数据
     backend.clear().await.ok();
 
     println!("Pipeline GET Performance:");
@@ -176,7 +172,6 @@ async fn test_pipeline_delete_performance() {
     }
     let individual_duration = start.elapsed();
 
-    // 清理测试数据
     backend.clear().await.ok();
 
     println!("Pipeline DELETE Performance:");
@@ -204,7 +199,6 @@ async fn test_large_scale_pipeline_performance() {
         .await
         .expect("Failed to create Redis backend");
 
-    // 清理之前的测试数据
     backend.clear().await.ok();
 
     // 测试 1000 个键的批量操作
@@ -252,7 +246,6 @@ async fn test_large_scale_pipeline_performance() {
         set_duration + get_duration + delete_duration
     );
 
-    // 清理测试数据
     backend.clear().await.ok();
 }
 
@@ -266,7 +259,6 @@ async fn test_mixed_operations_performance() {
         .await
         .expect("Failed to create Redis backend");
 
-    // 清理之前的测试数据
     backend.clear().await.ok();
 
     // 模拟真实场景：批量设置、读取、更新、删除
@@ -308,6 +300,5 @@ async fn test_mixed_operations_performance() {
     println!("Mixed Operations Performance (500 keys):");
     println!("  Total time: {:?}", total_duration);
 
-    // 清理测试数据
     backend.clear().await.ok();
 }

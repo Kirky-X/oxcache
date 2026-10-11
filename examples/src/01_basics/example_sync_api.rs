@@ -10,6 +10,17 @@
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 
+use oxcache::i18n::messages::{
+    MSG_EXAMPLE_SYNC_API_BASIC_SYNC_OPERATIONS, MSG_EXAMPLE_SYNC_API_CACHE_CLEARED,
+    MSG_EXAMPLE_SYNC_API_CACHE_METADATA_SYNC, MSG_EXAMPLE_SYNC_API_DELETE_USER_1,
+    MSG_EXAMPLE_SYNC_API_ENTRIES_AFTER_CLEAR, MSG_EXAMPLE_SYNC_API_ENTRIES_LEN_SYNC,
+    MSG_EXAMPLE_SYNC_API_EXAMPLE_COMPLETE, MSG_EXAMPLE_SYNC_API_FIRST_GET_OR_SYNC,
+    MSG_EXAMPLE_SYNC_API_GET_OR_SYNC_SINGLE, MSG_EXAMPLE_SYNC_API_GET_TEMP,
+    MSG_EXAMPLE_SYNC_API_GET_USER_1, MSG_EXAMPLE_SYNC_API_MIXING_SYNC_AND_ASYNC,
+    MSG_EXAMPLE_SYNC_API_SECOND_GET_OR_SYNC, MSG_EXAMPLE_SYNC_API_SET_TEMP_60S_TTL,
+    MSG_EXAMPLE_SYNC_API_SET_USER_1, t,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct User {
     id: u64,
@@ -22,16 +33,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
 
     // === 基本 sync 操作 ===
-    println!("=== Basic sync operations ===");
+    println!("{}", t(MSG_EXAMPLE_SYNC_API_BASIC_SYNC_OPERATIONS, &[]));
     let alice = User {
         id: 1,
         name: "Alice".to_string(),
     };
     cache.set_sync(&"user:1".to_string(), &alice)?;
-    println!("Set user:1 = {:?}", alice);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_SET_USER_1,
+            &[("alice", format!("{:?}", alice))]
+        )
+    );
 
     let cached = cache.get_sync(&"user:1".to_string())?;
-    println!("Get user:1 = {:?}", cached);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_GET_USER_1,
+            &[("cached", format!("{:?}", cached))]
+        )
+    );
     assert_eq!(cached, Some(alice));
 
     println!(
@@ -40,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     cache.delete_sync(&"user:1".to_string())?;
-    println!("Delete user:1");
+    println!("{}", t(MSG_EXAMPLE_SYNC_API_DELETE_USER_1, &[]));
     assert_eq!(cache.get_sync(&"user:1".to_string())?, None);
 
     // === sync + TTL ===
@@ -53,12 +76,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(std::time::Duration::from_secs(60)),
     )?;
-    println!("Set temp (60s TTL)");
+    println!("{}", t(MSG_EXAMPLE_SYNC_API_SET_TEMP_60S_TTL, &[]));
     let cached = cache.get_sync(&"temp".to_string())?;
-    println!("Get temp = {:?}", cached);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_GET_TEMP,
+            &[("cached", format!("{:?}", cached))]
+        )
+    );
 
     // === get_or_sync（单飞） ===
-    println!("\n=== get_or_sync (single-flight) ===");
+    println!("\n{}", t(MSG_EXAMPLE_SYNC_API_GET_OR_SYNC_SINGLE, &[]));
     let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let count_for_fallback = call_count.clone();
 
@@ -70,7 +99,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: "Bob".to_string(),
         })
     })?;
-    println!("First get_or_sync = {:?} (fallback was called)", user);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_FIRST_GET_OR_SYNC,
+            &[("user", format!("{:?}", user))]
+        )
+    );
 
     // 第二次调用：cache hit，不触发 fallback
     let user = cache.get_or_sync(&"user:42".to_string(), || {
@@ -79,12 +114,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             name: "Should not be called".to_string(),
         })
     })?;
-    println!("Second get_or_sync = {:?} (cache hit)", user);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_SECOND_GET_OR_SYNC,
+            &[("user", format!("{:?}", user))]
+        )
+    );
 
     assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
 
     // === sync 与 async 混用 ===
-    println!("\n=== Mixing sync and async ===");
+    println!("\n{}", t(MSG_EXAMPLE_SYNC_API_MIXING_SYNC_AND_ASYNC, &[]));
     cache
         .set(
             &"async_key".to_string(),
@@ -98,18 +139,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("async set → sync get = {:?}", sync_value);
 
     // === 缓存元信息 sync ===
-    println!("\n=== Cache metadata (sync) ===");
+    println!("\n{}", t(MSG_EXAMPLE_SYNC_API_CACHE_METADATA_SYNC, &[]));
     let len = cache.len_sync()?;
-    println!("Entries (len_sync): {}", len);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_ENTRIES_LEN_SYNC,
+            &[("len", len.to_string())]
+        )
+    );
 
     // === clear_sync ===
     println!("\n=== clear_sync ===");
     cache.clear_sync()?;
-    println!("✓ cache cleared");
+    println!("{}", t(MSG_EXAMPLE_SYNC_API_CACHE_CLEARED, &[]));
     let len_after = cache.len_sync()?;
-    println!("Entries after clear: {}", len_after);
+    println!(
+        "{}",
+        t(
+            MSG_EXAMPLE_SYNC_API_ENTRIES_AFTER_CLEAR,
+            &[("len_after", len_after.to_string())]
+        )
+    );
     assert_eq!(len_after, 0);
 
-    println!("\nSync API example complete!");
+    println!("\n{}", t(MSG_EXAMPLE_SYNC_API_EXAMPLE_COMPLETE, &[]));
     Ok(())
 }
