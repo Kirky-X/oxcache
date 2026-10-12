@@ -6,4 +6,8 @@ ignore = [
     # serde-bincode feature 下用于本地缓存条目序列化，无网络输入面。
     # 迁移出路：postcard（已在依赖中，见 serialization/binary.rs）。
     "RUSTSEC-2025-0141",
+    # RUSTSEC-2024-0449（2026-10-12 入库）：unsafe-libyaml unmaintained，经测试
+    # 依赖 limiteron/inklog/confers 的 serde_yaml_ng 传递入图；源头豁免与
+    # serde-saphyr 迁移裁决在 limiteron 仓。与 deny.toml 同口径。
+    "RUSTSEC-2024-0449",
 ]
