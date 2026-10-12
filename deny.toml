@@ -13,6 +13,10 @@ ignore = [
     # 下用于本地缓存条目序列化，无网络输入面。crates.io 3.0.0 为官方 compile_error
     # 占位不可升；迁移出路：postcard（已在依赖中）。与 .cargo/audit.toml 同口径。
     "RUSTSEC-2025-0141",
+    # RUSTSEC-2024-0449（2026-10-12 入库）：unsafe-libyaml unmaintained，经测试
+    # 依赖 limiteron/inklog/confers 的 serde_yaml_ng 传递入图；源头豁免与
+    # serde-saphyr 迁移裁决在 limiteron 仓，此处随行豁免直至上游迁移完成。
+    "RUSTSEC-2024-0449",
 ]
 
 [licenses]

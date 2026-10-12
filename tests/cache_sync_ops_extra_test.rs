@@ -305,10 +305,12 @@ async fn stale_offload_policy_returns_old_and_refreshes_background() {
         v2, "gen1",
         "OffloadRevalidate: return the old value immediately"
     );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    // offload 可能在本断言前已抢先执行回源（calls 变 2），精确计数并发下不可断言；
+    // 回源确由后台执行由下方轮询 gen2 落盘覆盖
 
     // 等待后台刷新落盘后，再次 get 应得到新值
-    for _ in 0..20 {
+    // CI 高负载下 offload 调度可能远超 2s，窗口放宽到 10s
+    for _ in 0..100 {
         tokio::time::sleep(Duration::from_millis(100)).await;
         if let Ok(Some(v)) = cache.get(&"s:3".to_string()).await
             && v == "gen2"
