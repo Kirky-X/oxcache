@@ -136,12 +136,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     println!("   \n  {}", t(MSG_EXAMPLE_WARMUP_USER_VERIFICATION, &[]));
-    for user_id in &hot_users {
+    for (idx, user_id) in hot_users.iter().enumerate() {
         let key = format!("user:{}", user_id);
         let retrieved = cache.get(&key).await?;
         match retrieved {
-            // CodeQL cleartext-logging：命中展示只报长度，不回显缓存明文
-            Some(v) => println!("     ✓ {} = <{} chars>", key, v.len()),
+            // CodeQL cleartext-logging：命中展示只报序号与长度，不回显 key/缓存明文
+            Some(v) => println!("     ✓ [warm entry {}] = <{} chars>", idx, v.len()),
             None => println!(
                 "     {}",
                 t(MSG_EXAMPLE_WARMUP_NOT_FOUND_2, &[("key", key.to_string())])
