@@ -140,7 +140,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let key = format!("user:{}", user_id);
         let retrieved = cache.get(&key).await?;
         match retrieved {
-            Some(v) => println!("     ✓ {} = {}", key, v),
+            // CodeQL cleartext-logging：命中展示只报长度，不回显缓存明文
+            Some(v) => println!("     ✓ {} = <{} chars>", key, v.len()),
             None => println!(
                 "     {}",
                 t(MSG_EXAMPLE_WARMUP_NOT_FOUND_2, &[("key", key.to_string())])

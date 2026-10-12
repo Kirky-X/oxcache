@@ -407,7 +407,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     for (i, result) in batch_results.iter().enumerate() {
         match result {
-            Some(user) => println!("     {}: {}", user_ids[i], user.name),
+            // CodeQL cleartext-logging：示例输出不去展示命中与否，但不回显明文数据
+            Some(user) => println!("     {}: <cached, {} chars>", user_ids[i], user.name.len()),
             None => println!(
                 "     {}",
                 t(
