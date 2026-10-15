@@ -60,6 +60,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify release uniqueness (idempotency guard)
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          COUNT=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate --jq "[.[] | select(.tag_name == \"${TAG}\")] | length")
+          echo "release objects for ${TAG}: ${COUNT}"
+          if [ "${COUNT}" != "1" ]; then
+            echo "::error::expected exactly 1 release for ${TAG}, found ${COUNT}; release state is not idempotent"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   publish-crates:
     name: Publish to crates.io (conditional)
     needs: github-release
