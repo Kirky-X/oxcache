@@ -106,8 +106,19 @@ strix_runs
 .gitnexus
 
 # --- Reviews / security scan artifacts (never tracked) ---
-reviews/
+/reviews/
 .mimosa/
+
+# --- Design documents & review notes (never tracked) ---
+docs/PRD*
+docs/ADD*
+docs/TRD*
+docs/DDD*
+docs/HUB_PROTOCOL*
+docs/diting-review.md
+docs/allocation-baseline.md
+docs/FEATURE_AUDIT_RECHECK.md
+docs/SECURITY.md
 
 # --- WorkBuddy AI local notes ---
 .workbuddy-ai/
