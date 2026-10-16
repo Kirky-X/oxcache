@@ -4,11 +4,11 @@
 
 [![CI Status](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Version](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Docs.rs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](LICENSE) [![Rust](https://img.shields.io/badge/rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org/) [![Coverage](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
 
-**[中文](README.md)** | English
+**[Chinese](README.md)** | English
 
 **Multi-tier caching for Rust: L1 in-memory + L2 distributed + optional L3 disk (redb)**
 
-[✨ Features](#-features) • [🚀 Quick Start](#-quick-start) • [📚 Documentation](#-documentation) • [💻 Examples](#-examples) • [🤝 Contributing](#-contributing)
+[✨ Features](#features) • [🚀 Quick Start](#quick-start) • [📚 Documentation](#documentation) • [💻 Examples](#examples) • [🤝 Contributing](#contributing)
 
 </div>
 
@@ -31,24 +31,24 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 ## 📋 Table of Contents
 
 <details open>
-<summary>📑 目录</summary>
+<summary>📑 Table of Contents</summary>
 
-- [✨ Features](#-features)
-- [🚀 Quick Start](#-quick-start)
-- [🎨 Feature Flags](#-feature-flags)
-- [📚 Documentation](#-documentation)
-- [💻 Examples](#-examples)
-- [🏗️ Architecture](#️-architecture)
-- [🧪 Testing](#-testing)
-- [📊 Performance](#-performance)
-- [🔒 Security](#-security)
-- [🗺️ Roadmap](#️-roadmap)
-- [🤝 Contributing](#-contributing)
-- [📋 Changelog](#-changelog)
-- [📄 License](#-license)
-- [🙏 Acknowledgments](#-acknowledgments)
-- [📞 Contact & Support](#-contact--support)
-- [⭐ Star History](#-star-history)
+- [✨ Features](#features)
+- [🚀 Quick Start](#quick-start)
+- [🎨 Feature Flags](#feature-flags)
+- [📚 Documentation](#documentation)
+- [💻 Examples](#examples)
+- [🏗️ Architecture](#️architecture)
+- [🧪 Testing](#testing)
+- [📊 Performance](#performance)
+- [🔒 Security](#security)
+- [🗺️ Roadmap](#️roadmap)
+- [🤝 Contributing](#contributing)
+- [📋 Changelog](#changelog)
+- [📄 License](#license)
+- [🙏 Acknowledgments](#acknowledgments)
+- [📞 Contact & Support](#contact--support)
+- [⭐ Star History](#star-history)
 
 </details>
 
@@ -236,7 +236,6 @@ oxcache = { version = "0.5.0-rc.8", features = ["full"] }      # true full: ever
 | [📘 API Reference](docs/API_REFERENCE.md) | Detailed description of all public APIs and the error-code table |
 | [🏗️ Architecture](docs/ARCHITECTURE.md) | Design philosophy, module responsibilities, data flow and failure handling |
 | [📊 Performance Baseline](docs/PERFORMANCE.md) | Serialization sizes, compression ratios, hot-path benchmarks and reproduction commands |
-| [🔒 Security](docs/SECURITY.md) | Security design, threat model and best practices |
 | [🧪 Test Scenario Matrix](docs/TEST_SCENARIOS.md) | Mapping from feature domains to test targets, with execution policy |
 | [🤝 Contributing Guide](docs/CONTRIBUTING.md) | Development environment, TDD workflow and PR process |
 | [📋 Changelog](docs/CHANGELOG.md) | Change log for every release |
@@ -371,7 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `sync_mode(true)` composes with `backend_arc(...)`: the sync API is bridged via `AsyncToSyncBridge` (blocking semantics), requiring a `multi_thread` runtime at call time (I/O-backed backends need ≥2 workers); outside any runtime or on a `current_thread` runtime every call returns `Err(OxCacheError::NotSupported)`; for runtime-independent injection use `sync_backend_arc(...)` instead
 - Without `sync_mode(true)`, any `*_sync` method returns `Err(OxCacheError::NotSupported)`
 
-**`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#-缓存宏); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
+**`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#cache-macro); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
 
 ---
 
@@ -381,11 +380,11 @@ Oxcache follows a layered design of unified interface plus pluggable backends: a
 
 ### Macro Execution Path
 
-After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-宏执行路径).
+After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-macro-execution-path).
 
 ### Chained Cache Read Path
 
-Reads fall through starting from the highest-scored link; when a non-top link hits and backfill is enabled, higher-scored links are written sequentially with `.await` before the value is returned (the read path waits for backfill to finish; flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-读取路径)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and, once every query has completed, the highest-scored hit (lowest link index) is returned.
+Reads fall through starting from the highest-scored link; when a non-top link hits and backfill is enabled, higher-scored links are written sequentially with `.await` before the value is returned (the read path waits for backfill to finish; flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-read-path)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and, once every query has completed, the highest-scored hit (lowest link index) is returned.
 
 **Reliability highlights**:
 
@@ -511,7 +510,7 @@ cargo llvm-cov --features full --workspace --fail-under-lines 90
 
 ## 📊 Performance
 
-> Order-of-magnitude reference (L1/L2 throughput and P99 latency; M1 Pro / 16GB RAM / macOS / Redis 7.0 benchmark environment; performance varies with hardware, network conditions and data size) lives in the [benchmark chapter of the Architecture documentation](docs/ARCHITECTURE.md#基准测试结果). Reproducible measured data (serialization sizes, compression ratios, hot-path benchmarks and reproduction commands) lives in the [Performance Baseline](docs/PERFORMANCE.md).
+> Order-of-magnitude reference (L1/L2 throughput and P99 latency; M1 Pro / 16GB RAM / macOS / Redis 7.0 benchmark environment; performance varies with hardware, network conditions and data size) lives in the [benchmark chapter of the Architecture documentation](docs/ARCHITECTURE.md#benchmark-results). Reproducible measured data (serialization sizes, compression ratios, hot-path benchmarks and reproduction commands) lives in the [Performance Baseline](docs/PERFORMANCE.md).
 
 Highlights: the borrowed-key hot-path APIs (`get_by_str` / `set_by_str`) measure **-6.7%** for get and **-12.7%** for set; with serialization-format switching (`serde-bincode` / `postcard`), postcard's mixed-payload transfer size is about **46%** of JSON.
 
@@ -521,7 +520,7 @@ Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_pat
 
 ## 🔒 Security
 
-Oxcache ships multiple layers of defense inside the library. For the full security design, threat model and fix history, see the [Security documentation](docs/SECURITY.md).
+Oxcache ships multiple layers of defense inside the library.
 
 **Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues. Use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) disclosure channel, or email Kirky-X@outlook.com (acknowledgement within 48 hours, initial assessment within 7 days, and reporters get a chance to verify the patch before release).
 
@@ -555,8 +554,8 @@ validate_scan_pattern("user:*").expect("invalid pattern");
 |:------:|------|-------|
 | 📋 | **0.5.0 stable release** | Current version is 0.5.0-rc.8 (`Cargo.toml`); once the release process is verified, push the tag to trigger automatic publishing to crates.io via `release.yml` |
 | 📋 | **Downstream version propagation** | dbnexus, inklog, limiteron, and sdforge sync their oxcache dependency requirement to 0.5 (path + version dual declaration) |
-| ✅ | **Valkey integration test environment gating** | 8 Valkey and 6 Dragonfly integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" |
-| ✅ | **Follow-up on archived review findings** | Archive in `docs/diting-review.md` (3 Medium + 2 Low): all 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
+| ✅ | **Valkey integration test environment gating** | 8 Valkey and 6 Dragonfly integration tests gated via `container_or_skip`: skipped with a reason when Docker is absent, and CI sets `OXCACHE_TEST_STRICT=1` to fail closed; semantics in tests/README.md "Container availability gating" section |
+| ✅ | **Follow-up on archived review findings** | All 5 items closed (2 Medium + 1 Low fixed in the original round; MED-001 and LOW-002 closed in the 2026-09-30 backlog-fix round) |
 
 ---
 
@@ -575,7 +574,7 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
 
-- **0.5.0-rc.8** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction (see `docs/allocation-baseline.md`); absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
+- **0.5.0-rc.8** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction; absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
 - **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature
 - **0.5.0-rc.3** (2026-09-08): fixed circuit-breaker state-transition races; hardened Lua-injection validation and Redis password redaction; CI supply-chain hardening (58 third-party Action references pinned to SHAs)
@@ -605,7 +604,7 @@ Oxcache is built on top of many great open-source projects:
 ## 📞 Contact & Support
 
 - **Issue tracker**: [GitHub Issues](https://github.com/Kirky-X/oxcache/issues) (templates available for bug reports / feature requests / questions)
-- **Security vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues; see the vulnerability reporting process in the [Security documentation](docs/SECURITY.md)
+- **Security vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues; use the private GitHub Security Advisories disclosure channel
 - **Maintainer**: Kirky.X
 
 ---

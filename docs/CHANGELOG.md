@@ -67,19 +67,19 @@
 
 ### 性能
 
-- **热路径分配削减（R12）**：分配剖析基线入库 `docs/allocation-baseline.md`（口径与环境说明 + 复测 harness），两个削减点——`UnifiedSerializer::deserialize` 非压缩分支去除 `to_vec()` 全量中间拷贝（三种格式的解析入口均以 `&[u8]` 借用工作，拷贝纯属浪费；每次反序列化省 1 次堆分配 + memcpy，get/get_many/get_or 逐键生效）；`batch_ops::get_many` 结果容器预分配 `HashMap::with_capacity(values.len())`（消除逐条 insert 的多轮 grow + rehash）。`get_many`（100 键全命中）每调用堆分配 **517 → 412（−20.3%）**（`#[global_allocator]` 计数法，确定性主指标；criterion 时间项在噪声内不可分辨，已在文档诚实披露）；基线文档同时给出评估后未削减候选点的 ROI 结论
+- **热路径分配削减（R12）**：两个削减点——`UnifiedSerializer::deserialize` 非压缩分支去除 `to_vec()` 全量中间拷贝（三种格式的解析入口均以 `&[u8]` 借用工作，拷贝纯属浪费；每次反序列化省 1 次堆分配 + memcpy，get/get_many/get_or 逐键生效）；`batch_ops::get_many` 结果容器预分配 `HashMap::with_capacity(values.len())`（消除逐条 insert 的多轮 grow + rehash）。`get_many`（100 键全命中）每调用堆分配 **517 → 412（−20.3%）**（`#[global_allocator]` 计数法，确定性主指标；criterion 时间项在噪声内不可分辨，已在文档诚实披露）
 
 ### 变更
 
-- **治理复核收口（HK2，§9.2 第 2 项）**：复核记录入库 `docs/FEATURE_AUDIT_RECHECK.md`——「redis-only 编译失败」经实证过时（`--no-default-features --features redis` 通过）；「bare-kit 编译失败」成立已修（`trait-kit`/`kit` 隐含 `memory` 基线）；「`core`/`full` 语义重整」论据不足维持现状（三处文档口径一致，选择加入特性不在 `full` 为既定设计）；「basic_ops 序列化双分支」成立已修（cache 模块编译必然隐含 `serialization`，5 处不可达负分支删除、正分支去恒真 cfg，无可达行为变化）。cargo-hack 单特性全矩阵（30+ 特性）另暴露并修复 4 个同类单开编译裂缝：`batch`/`compression`/`encrypt` 隐含 `memory` 基线、`integrity` 隐含 `encrypt`（模块寄生在 encryption 内）；修复后单特性矩阵与 14 组主要组合抽查全绿；`docs/API_REFERENCE.md`「特性依赖」表补全
+- **治理复核收口（HK2，§9.2 第 2 项）**：「redis-only 编译失败」经实证过时（`--no-default-features --features redis` 通过）；「bare-kit 编译失败」成立已修（`trait-kit`/`kit` 隐含 `memory` 基线）；「`core`/`full` 语义重整」论据不足维持现状（三处文档口径一致，选择加入特性不在 `full` 为既定设计）；「basic_ops 序列化双分支」成立已修（cache 模块编译必然隐含 `serialization`，5 处不可达负分支删除、正分支去恒真 cfg，无可达行为变化）。cargo-hack 单特性全矩阵（30+ 特性）另暴露并修复 4 个同类单开编译裂缝：`batch`/`compression`/`encrypt` 隐含 `memory` 基线、`integrity` 隐含 `encrypt`（模块寄生在 encryption 内）；修复后单特性矩阵与 14 组主要组合抽查全绿；`docs/API_REFERENCE.md`「特性依赖」表补全
 
 ### 测试
 
-- **diting-review 登记待办收口**：MED-001（测试线程内 `unsafe set_var` 与 libtest 并发构成形式数据竞争）已修——`tests/common/mod.rs` 增 `#[ctor::ctor(unsafe)]` 进程加载期一次性写入 `OXCACHE_ALLOW_INSECURE_REDIS`，删除 11 个测试文件共 31 处测试体内环境变量写点与 2 个空壳 helper；LOW-002 部分修复——`start_redis/valkey/dragonfly_container` 三胞胎以 `container_start_fn!` 宏收敛，骨架残余经实证评估不收敛（理由留档 `docs/diting-review.md`「待办修复轮」）
+- **diting-review 登记待办收口**：MED-001（测试线程内 `unsafe set_var` 与 libtest 并发构成形式数据竞争）已修——`tests/common/mod.rs` 增 `#[ctor::ctor(unsafe)]` 进程加载期一次性写入 `OXCACHE_ALLOW_INSECURE_REDIS`，删除 11 个测试文件共 31 处测试体内环境变量写点与 2 个空壳 helper；LOW-002 部分修复——`start_redis/valkey/dragonfly_container` 三胞胎以 `container_start_fn!` 宏收敛，骨架残余经实证评估不收敛
 
 ### 文档
 
-- `docs/allocation-baseline.md`（新增，热路径分配基线与削减对账；放 `docs/` 而非任务指定的 `reviews/`——该目录被 `.gitignore` 排除，入库必丢文件，循 `diting-review.md` 重建先例）；`docs/FEATURE_AUDIT_RECHECK.md`（新增，治理复核记录）；`docs/diting-review.md` 待办收口与状态同步；`docs/ARCHITECTURE.md` 未来增强节落地注记（智能预热）；`docs/API_REFERENCE.md` 智能预热节与 `audit_publisher` 发布器清单、特性依赖表补全；README 特性表增 `warmup` 行、`audit` 行补 inklog 发布器、版本历史与测试计数刷新
+- `docs/ARCHITECTURE.md` 未来增强节落地注记（智能预热）；`docs/API_REFERENCE.md` 智能预热节与 `audit_publisher` 发布器清单、特性依赖表补全；README 特性表增 `warmup` 行、`audit` 行补 inklog 发布器、版本历史与测试计数刷新
 
 
 ### hitbox 能力吸收批次（2026-09-28 起草，随 v0.5.0-rc.6 一并发版）
@@ -519,7 +519,7 @@
 - `lib.rs` 中的幻影 `init_config` 宏文档（第 125-145 行）：无实现、无 `pub use`、无 `macro_export` — 为误导性死文档。
 
 ### 新增
-- `docs/SECURITY.md`：全面的安全文档，涵盖 Redis TLS 强制、键校验、Lua 脚本沙箱、SCAN 模式限制、连接字符串脱敏、日志安全、威胁模型和漏洞报告流程。
+- 安全文档（已移除）：曾涵盖 Redis TLS 强制、键校验、Lua 脚本沙箱、SCAN 模式限制、连接字符串脱敏、日志安全、威胁模型和漏洞报告流程。
 - `.editorconfig`、`.github/CODEOWNERS`、`.github/ISSUE_TEMPLATE/`（bug/feature/question）、`.github/PULL_REQUEST_TEMPLATE.md`、`.github/dependabot.yml`、`.github/workflows/codeql.yml`、`clippy.toml`、`lefthook.yml`：来自环境初始化的工业级项目工具链。
 
 ### 变更

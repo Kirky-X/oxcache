@@ -7,9 +7,9 @@
 <details open>
 <summary>📑 目录</summary>
 
-- [🧭 概述](#-概述)
-- [🧱 总体架构](#-总体架构)
-- [🧩 组件](#-组件)
+- [🧭 概述](#🧭-概述)
+- [🧱 总体架构](#🧱-总体架构)
+- [🧩 组件](#🧩-组件)
   - [1. 内部缓存注册表](#1-内部缓存注册表)
   - [2. 缓存接口](#2-缓存接口)
   - [3. 后端层](#3-后端层)
@@ -19,15 +19,15 @@
   - [7. 键生成器](#7-键生成器)
   - [8. 事件模块](#8-事件模块)
   - [9. 配置与注册模块](#9-配置与注册模块)
-- [🔀 数据流](#-数据流)
-- [📐 一致性模型](#-一致性模型)
-- [🧯 故障处理](#-故障处理)
-- [⚡ 性能优化](#-性能优化)
-- [🔒 安全](#-安全)
-- [📈 可扩展性](#-可扩展性)
-- [🎨 特性标志](#-特性标志)
-- [🔮 未来增强](#-未来增强)
-- [📚 参考资料](#-参考资料)
+- [🔀 数据流](#🔀-数据流)
+- [📐 一致性模型](#📐-一致性模型)
+- [🧯 故障处理](#🧯-故障处理)
+- [⚡ 性能优化](#⚡-性能优化)
+- [🔒 安全](#🔒-安全)
+- [📈 可扩展性](#📈-可扩展性)
+- [🎨 特性标志](#🎨-特性标志)
+- [🔮 未来增强](#🔮-未来增强)
+- [📚 参考资料](#📚-参考资料)
 
 </details>
 
@@ -144,9 +144,9 @@ async fn get_user(id: u64) -> User { /* ... */ }
 - `ChainCache` / `ChainLink` / `ChainCacheBuilder`：多级缓存链（按分数排序）
 - `L1Builder` / `L2Builder` / `ChainBuilder`：分层构建器 API（与 `CacheBuilder`/`ChainCacheBuilder` 并存）
 
-`Cache<K, V>` 的构造方法（`builder` / `new` / `memory` / `redis` / `with_dependencies`）、`CacheBuilder` 全部方法与「`CacheBuilder` 不暴露 `.redis(...)` / `.tiered(...)` 等方法，组合多后端用 `ChainCache` + `.backend_arc(...)`」的说明见 [API 参考](API_REFERENCE.md#-cachebuilder)。要点：`sync_mode(true)` 三路支持——默认 Moka 后端（原生同步，运行时无关）、`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连、异步 API 经 `SyncBackendAdapter` 门面桥出）、`backend_arc(Arc<dyn CacheBackend>)`（具体类型同步实现已擦除，sync API 经通用 `AsyncToSyncBridge` 桥出：`block_in_place` + `block_on`，要求调用时处于多线程 runtime，否则逐调用显性 `Err(NotSupported)`）。
+`Cache<K, V>` 的构造方法（`builder` / `new` / `memory` / `redis` / `with_dependencies`）、`CacheBuilder` 全部方法与「`CacheBuilder` 不暴露 `.redis(...)` / `.tiered(...)` 等方法，组合多后端用 `ChainCache` + `.backend_arc(...)`」的说明见 [API 参考](API_REFERENCE.md#🧰-cachebuilder)。要点：`sync_mode(true)` 三路支持——默认 Moka 后端（原生同步，运行时无关）、`sync_backend_arc(Arc<dyn SyncCacheBackend>)` 注入的原生同步后端（同步 API 直连、异步 API 经 `SyncBackendAdapter` 门面桥出）、`backend_arc(Arc<dyn CacheBackend>)`（具体类型同步实现已擦除，sync API 经通用 `AsyncToSyncBridge` 桥出：`block_in_place` + `block_on`，要求调用时处于多线程 runtime，否则逐调用显性 `Err(NotSupported)`）。
 
-关键异步方法（`get` / `set` / `set_with_ttl` / `get_by_str` / `set_by_str` / `delete` / `exists` / `clear` / `get_or` / `ttl` / `expire` / `get_bytes` / `set_bytes` / 生命周期与统计 / `register_for_macro`）与同步方法（`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `clear_sync` / `ttl_sync` / `expire_sync` / `get_or_sync`）的逐项签名见 [API 参考](API_REFERENCE.md#-cachek-v) 与 [API 参考的同步 API 章节](API_REFERENCE.md#-同步-api)。
+关键异步方法（`get` / `set` / `set_with_ttl` / `get_by_str` / `set_by_str` / `delete` / `exists` / `clear` / `get_or` / `ttl` / `expire` / `get_bytes` / `set_bytes` / 生命周期与统计 / `register_for_macro`）与同步方法（`get_sync` / `set_sync` / `set_with_ttl_sync` / `delete_sync` / `exists_sync` / `clear_sync` / `ttl_sync` / `expire_sync` / `get_or_sync`）的逐项签名见 [API 参考](API_REFERENCE.md#🧩-cachek-v) 与 [API 参考的同步 API 章节](API_REFERENCE.md#🔄-同步-api)。
 
 **线程安全**：所有操作通过 `Arc<dyn CacheBackend>`（同步路径为 `Option<Arc<dyn SyncCacheBackend>>`）保证线程安全。
 
@@ -401,7 +401,7 @@ pub use crate::security::{
 };
 ```
 
-> **导入路径说明**：`oxcache::security::*` 是**无效**路径（模块为 `pub(crate)`）。直接使用 `oxcache::validate_redis_key(...)` 等。函数名为 `validate_redis_key`（非 `validate_key`）。安全设计的完整说明见[安全文档](SECURITY.md)。
+> **导入路径说明**：`oxcache::security::*` 是**无效**路径（模块为 `pub(crate)`）。直接使用 `oxcache::validate_redis_key(...)` 等。函数名为 `validate_redis_key`（非 `validate_key`）。安全设计的完整说明见安全文档。
 
 ### 7. 键生成器
 
@@ -637,7 +637,7 @@ flowchart TD
 
 ### 后端 Trait 错误
 
-所有后端错误通过 `OxCacheError` 传递（参见 `src/error.rs`）。完整错误码表（OXCACHE_001–OXCACHE_024）见 [API 参考](API_REFERENCE.md#-错误处理)。关键变体：
+所有后端错误通过 `OxCacheError` 传递（参见 `src/error.rs`）。完整错误码表（OXCACHE_001–OXCACHE_024）见 [API 参考](API_REFERENCE.md#🚨-错误处理)。关键变体：
 
 | 错误码 | 变体 | 含义 |
 |--------|------|------|
@@ -712,17 +712,17 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 
 ### 防御措施
 
-上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见[安全文档](SECURITY.md)，README 安全章节提供防线速览。
+上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见安全文档，README 安全章节提供防线速览。
 
 > **注意**：oxcache **无内置限流**。限流由应用或上游代理负责。
 
 ### 布隆过滤器穿透防护
 
-`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回；机制图解、示例与穿透防护组合表见 [README 布隆过滤器章节](../README.md#-布隆过滤器与穿透防护)。
+`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回；机制图解、示例与穿透防护组合表见 [README 布隆过滤器章节](../README.md#🌸-布隆过滤器与穿透防护)。
 
 ### 输入校验
 
-`security` 模块（私有；通过 crate 根重导出消费，见 [API 参考](API_REFERENCE.md#-安全特性)）提供 `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count`，逐条校验规则与常量见[安全文档](SECURITY.md)。
+`security` 模块（私有；通过 crate 根重导出消费，见 [API 参考](API_REFERENCE.md#🔒-安全特性)）提供 `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count`，逐条校验规则与常量见安全文档。
 
 ### 最佳实践
 
@@ -753,7 +753,7 @@ flowchart TD
     I3 --> R
 ```
 
-每个实例维护自己的 L1（Moka）并共享 L2（Redis）。跨实例 L1 失效默认不自动，启用 `invalidation` 特性后经 Redis Pub/Sub 广播失效（参见[一致性模型](#-一致性模型)）。
+每个实例维护自己的 L1（Moka）并共享 L2（Redis）。跨实例 L1 失效默认不自动，启用 `invalidation` 特性后经 Redis Pub/Sub 广播失效（参见[一致性模型](#📐-一致性模型)）。
 
 ### 垂直扩展
 
@@ -768,7 +768,7 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 ## 🎨 特性标志
 
-分层特性集（`minimal` / `redis-tier` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`trait-kit` 等选择加入特性已并入 `full`（`full` 为真全量：全部具名能力特性；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列），仍可通过 `features = ["bloom"]` 等单开；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
+分层特性集（`minimal` / `redis-tier` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#🎨-特性要求) 与 [README 特性标志](../README.md#🎨-特性标志)。`bloom`、`trait-kit` 等选择加入特性已并入 `full`（`full` 为真全量：全部具名能力特性；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列），仍可通过 `features = ["bloom"]` 等单开；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
 **隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端、`adaptive-ttl` 装饰任意后端，两者模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
 
@@ -782,13 +782,13 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 > 集合，异步回填 `ChainCache`——直供值经链式写入落全部后端，仅 key 条目经
 > `iter_entries` 批量读从低层晋升；key 去重（首次出现生效）、写入并发上界
 > 可配，结果以 `WarmupReport` 全量显性计数（含逐条失败明细与实测并发峰值）。
-> 见 [API 参考](API_REFERENCE.md#-智能预热warmup)。loader 的热 key 来源与
+> 见 [API 参考](API_REFERENCE.md#🔥-智能预热warmup)。loader 的热 key 来源与
 > 刷新调度由调用方编排，库内不做周期性自动预热。
 
 > 「自适应 TTL」已按访问模式度量方案落地：`adaptive-ttl` 特性（默认关闭）的
 > `AdaptiveTtlBackend` 装饰器按命中计数延长 hot 键 TTL、按闲置时长缩短 cold 键
 > TTL，全部阈值为显式常量（无黑盒启发式），经 `CacheBuilder::adaptive_ttl()`
-> 接线，见 [API 参考](API_REFERENCE.md#-自适应-ttladaptive-ttl)。追踪表饱和具粘性：
+> 接线，见 [API 参考](API_REFERENCE.md#🔁-自适应-ttladaptive-ttl)。追踪表饱和具粘性：
 > 达 `max_tracked_keys` 后存量条目不淘汰、新键不再被追踪（直至 `reset_stats()`），
 > 容量应按工作集唯一键基数预留。
 
@@ -797,7 +797,7 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 > （sync→async 方向），`AsyncToSyncBridge` 通用桥接随后补齐 async→sync 方向
 > （`sync_mode(true)` + `backend_arc` 经其桥出 sync API，调用期要求多线程
 > runtime；两套 trait 层次无 supertrait 关系，上转方案本身不适用），见
-> [CacheBuilder](API_REFERENCE.md#-cachebuilder)。
+> [CacheBuilder](API_REFERENCE.md#🧰-cachebuilder)。
 
 ## 📚 参考资料
 

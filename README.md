@@ -8,7 +8,7 @@
 
 **Rust 多级缓存库：L1 内存 + L2 分布式 + 可选 L3 磁盘（redb）**
 
-[✨ 功能特性](#-功能特性) • [🚀 快速开始](#-快速开始) • [📚 文档](#-文档) • [💻 示例](#-示例) • [🤝 参与贡献](#-参与贡献)
+[✨ 功能特性](#功能特性) • [🚀 快速开始](#快速开始) • [📚 文档](#文档) • [💻 示例](#示例) • [🤝 参与贡献](#参与贡献)
 
 </div>
 
@@ -33,22 +33,22 @@
 <details open>
 <summary>📑 目录</summary>
 
-- [✨ 功能特性](#-功能特性)
-- [🚀 快速开始](#-快速开始)
-- [🎨 特性标志](#-特性标志)
-- [📚 文档](#-文档)
-- [💻 示例](#-示例)
-- [🏗️ 架构](#️-架构)
-- [🧪 测试](#-测试)
-- [📊 性能](#-性能)
-- [🔒 安全](#-安全)
-- [🗺️ 开发路线图](#️-开发路线图)
-- [🤝 参与贡献](#-参与贡献)
-- [📋 更新日志](#-更新日志)
-- [📄 许可证](#-许可证)
-- [🙏 致谢](#-致谢)
-- [📞 联系与支持](#-联系与支持)
-- [⭐ Star 历史](#-star-历史)
+- [✨ 功能特性](#功能特性)
+- [🚀 快速开始](#快速开始)
+- [🎨 特性标志](#特性标志)
+- [📚 文档](#文档)
+- [💻 示例](#示例)
+- [🏗️ 架构](#️架构)
+- [🧪 测试](#测试)
+- [📊 性能](#性能)
+- [🔒 安全](#安全)
+- [🗺️ 开发路线图](#️开发路线图)
+- [🤝 参与贡献](#参与贡献)
+- [📋 更新日志](#更新日志)
+- [📄 许可证](#许可证)
+- [🙏 致谢](#致谢)
+- [📞 联系与支持](#联系与支持)
+- [⭐ Star 历史](#star-历史)
 
 </details>
 
@@ -248,7 +248,6 @@ oxcache = { version = "0.5.0-rc.8", features = ["full"] }      # 真全量：全
 | [📘 API 参考](docs/API_REFERENCE.md) | 全部公开 API 的详细说明与错误码表 |
 | [🏗️ 架构文档](docs/ARCHITECTURE.md) | 设计理念、模块职责、数据流与故障处理 |
 | [📊 性能基线](docs/PERFORMANCE.md) | 序列化体积、压缩率、热路径基准与复现命令 |
-| [🔒 安全文档](docs/SECURITY.md) | 安全设计、威胁模型与最佳实践 |
 | [🧪 测试场景矩阵](docs/TEST_SCENARIOS.md) | 功能域到测试落点的映射与执行口径 |
 | [🤝 贡献指南](docs/CONTRIBUTING.md) | 开发环境、TDD 工作流与 PR 流程 |
 | [📋 更新日志](docs/CHANGELOG.md) | 每个版本的变更记录 |
@@ -381,7 +380,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `sync_mode(true)` 与 `backend_arc(...)` 可组合：sync API 经 `AsyncToSyncBridge` 桥出（阻塞语义），要求调用时处于 `multi_thread` runtime（I/O 型后端需 ≥2 worker），runtime 之外或 `current_thread` runtime 上逐调用返回 `Err(OxCacheError::NotSupported)`；运行时无关的注入请改用 `sync_backend_arc(...)`
 - 未启用 `sync_mode(true)` 时调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`
 
-**`#[cached]` 宏参数**：完整参数表（含默认值与 `cache_none`）见 [API 参考的缓存宏章节](docs/API_REFERENCE.md#-缓存宏)；与同步路径相关的参数为 `sync`（生成同步函数，无需 async 运行时）。
+**`#[cached]` 宏参数**：完整参数表（含默认值与 `cache_none`）见 [API 参考的缓存宏章节](docs/API_REFERENCE.md#缓存宏)；与同步路径相关的参数为 `sync`（生成同步函数，无需 async 运行时）。
 
 ---
 
@@ -531,7 +530,7 @@ Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_ben
 
 ## 🔒 安全
 
-Oxcache 在库层面内建多层防御，完整安全设计、威胁模型与安全修复记录见 [安全文档](docs/SECURITY.md)。
+Oxcache 在库层面内建多层防御。
 
 **漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) 私密披露通道提交，或发送邮件至 Kirky-X@outlook.com（48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。
 
@@ -566,7 +565,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 | 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.8（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
 | ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey 与 6 个 Dragonfly 集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
-| ✅ | **质量审查留档项跟进** | 留档见 `docs/diting-review.md`（3 Medium + 2 Low）：5 项全部收口（2 Medium + 1 Low 当轮修复，MED-001 与 LOW-002 于 2026-09-30 待办修复轮收口） |
+| ✅ | **质量审查留档项跟进** | 5 项全部收口（2 Medium + 1 Low 当轮修复，MED-001 与 LOW-002 于 2026-09-30 待办修复轮收口） |
 
 ---
 
@@ -585,7 +584,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近要点：
 
-- **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减（见 `docs/allocation-baseline.md`）；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
+- **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
 - **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
 - **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性
 - **0.5.0-rc.3**（2026-09-08）：熔断器状态转换竞态修复；Lua 注入校验与 Redis 密码脱敏加固；CI 供应链加固（58 处第三方 Action 引用 SHA 固定）
@@ -615,7 +614,7 @@ Oxcache 构建在众多优秀的开源项目之上：
 ## 📞 联系与支持
 
 - **Issue 反馈**：[GitHub Issues](https://github.com/Kirky-X/oxcache/issues)（提供 Bug 报告 / 功能建议 / 问题咨询三类模板）
-- **安全漏洞**：请勿通过公开 Issue 报告安全漏洞，参见 [安全文档](docs/SECURITY.md) 中的漏洞报告流程
+- **安全漏洞**：请勿通过公开 Issue 报告安全漏洞，请使用 GitHub Security Advisories 私密披露通道
 - **维护者**：Kirky.X
 
 ---

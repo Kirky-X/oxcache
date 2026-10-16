@@ -111,6 +111,6 @@ cargo clippy --all-features -- -D warnings
 - [📖 用户指南](USER_GUIDE.md)：用户视角的功能说明与上手教程
 - [📘 API 参考](API_REFERENCE.md)：公开 API 的签名与错误码表
 - [🏗️ 架构文档](ARCHITECTURE.md)：模块职责、数据流与设计决策
-- [🔒 安全文档](SECURITY.md)：改动键校验、Lua 沙箱或脱敏逻辑前先阅读
+- 🔒 安全文档：改动键校验、Lua 沙箱或脱敏逻辑前先阅读
 - [🧪 测试场景矩阵](TEST_SCENARIOS.md)：功能域到测试落点的映射与执行口径
 - [📋 更新日志](CHANGELOG.md)：新增用户可见能力时补充条目
