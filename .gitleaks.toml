@@ -1,0 +1,29 @@
+# gitleaks 配置 —— 安全扫描误报降噪（非关闭检测）
+# 用法：gitleaks detect --source . --config .gitleaks.toml
+# 说明：[extend] useDefault=true 仅继承内置检测“规则”，不继承内置默认 allowlist，
+# 故此处显式枚举“永不存放真实凭据”的目录级噪声路径（检测器基线自报 / vendored crate
+# 缓存 / 历史扫描产物 / 测试 / 示例 / 基准 / 文档 / testdata/fixtures 夹具 / 构建产物）。
+# 生产源文件(src/)内联测试夹具的零星命中，改由 .gitleaksignore 逐行指纹精确忽略，
+# 保留这些文件对真实密钥的持续检出能力。
+
+title = "base/oxcache gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "目录级噪声放行：基线自报/vendored/扫描产物/测试/示例/基准/文档/testdata/fixtures/构建产物"
+paths = [
+    '''(^|/)\.secrets\.baseline$''',
+    '''(^|/)\.cargo/registry/''',
+    '''(^|/)reviews/''',
+    '''(^|/)tests?/''',
+    '''(^|/)examples?/''',
+    '''(^|/)benches?/''',
+    '''(^|/)docs?/''',
+    '''(^|/)testdata/''',
+    '''(^|/)fixtures?/''',
+    '''_tests?\.rs$''',
+    '''\.md$''',
+    '''(^|/)target/''',
+]
