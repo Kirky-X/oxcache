@@ -13,6 +13,8 @@ use testcontainers::GenericImage;
 use testcontainers::core::{IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 
+use super::test_containers::start_with_watchdog_gate;
+
 /// Redis 容器类型别名
 pub type RedisContainer = testcontainers::ContainerAsync<GenericImage>;
 
@@ -25,15 +27,17 @@ pub async fn setup_redis_container_on_port(
 ) -> Result<(RedisContainer, String), String> {
     use testcontainers::ImageExt;
 
-    let redis = GenericImage::new("redis", "7-alpine")
-        .with_exposed_port(6379.tcp())
-        .with_mapped_port(host_port, 6379.tcp())
-        .with_ready_conditions(vec![WaitFor::message_on_stdout(
-            "Ready to accept connections",
-        )])
-        .start()
-        .await
-        .map_err(|e| format!("failed to start the Redis container: {}", e))?;
+    let redis = start_with_watchdog_gate(
+        GenericImage::new("redis", "7-alpine")
+            .with_exposed_port(6379.tcp())
+            .with_mapped_port(host_port, 6379.tcp())
+            .with_ready_conditions(vec![WaitFor::message_on_stdout(
+                "Ready to accept connections",
+            )])
+            .start(),
+    )
+    .await
+    .map_err(|e| format!("failed to start the Redis container: {}", e))?;
 
     Ok((redis, format!("redis://127.0.0.1:{}", host_port)))
 }

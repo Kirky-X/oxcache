@@ -99,6 +99,52 @@ pub async fn container_or_skip<T>(
     }
 }
 
+/// testcontainers watchdog 首个注册的串行化门（进程级单例，见下方静态量说明）。
+///
+/// testcontainers 0.28 的 watchdog 注册表由 conquer-once 0.4 `Lazy` 承载，
+/// `AsyncRunner::start` 成功创建容器后经 `watchdog::register` 触发其
+/// `get_or_init`；该 Lazy 的并发初始化在上游存在竞态（testcontainers-rs#995）：
+/// 初始化落地瞬间，后到线程的 `try_block` 命中 `AlreadyInit` 分支的
+/// `unreachable!()`（conquer-once cell.rs:586），测试进程直接 panic。
+/// Lazy 就绪后 `get_or_init` 直接读值、不再触达竞态分支，故只需把「首个成功
+/// 启动落地」之前的启动串行化，代价至多一次启动的等待。
+///
+/// 所有 `AsyncRunner::start` 调用点（本文件三个容器包装器、docker_test_utils、
+/// e2e 直连 setup）必须经本守卫启动——绕过即重新暴露竞态。
+pub async fn start_with_watchdog_gate<T, E>(
+    start: impl Future<Output = Result<T, E>>,
+) -> Result<T, E> {
+    use std::sync::atomic::Ordering::{Acquire, Release};
+
+    let ready = &crate::common::test_containers::WATCHDOG_FIRST_START_DONE;
+    if ready.load(Acquire) {
+        return start.await;
+    }
+    let _guard = crate::common::test_containers::WATCHDOG_FIRST_START_GATE
+        .lock()
+        .await;
+    if ready.load(Acquire) {
+        return start.await;
+    }
+    let result = start.await;
+    // 仅成功置位：失败路径可能尚未走到 register，Lazy 仍未初始化（继续串行）
+    if result.is_ok() {
+        ready.store(true, Release);
+    }
+    result
+}
+
+/// 首个容器启动是否已成功落地（[`start_with_watchdog_gate`] 的快路径判据）。
+///
+/// 门控状态必须跨本模块副本共享：`#[path] mod common` 按测试文件复制本模块
+/// （见文件顶部注释），模块内静态量随副本各存一份、挡不住跨副本并发首启；
+/// 故静态量经 `crate::common::test_containers` 绝对路径取「根副本」实例
+/// （测试入口文件的 `mod common` 提供），各副本共用同一份。
+pub(crate) static WATCHDOG_FIRST_START_DONE: AtomicBool = AtomicBool::new(false);
+/// 首个成功启动前的启动互斥（[`start_with_watchdog_gate`]）
+pub(crate) static WATCHDOG_FIRST_START_GATE: tokio::sync::Mutex<()> =
+    tokio::sync::Mutex::const_new(());
+
 /// Generic poll-until-ready helper for Redis-protocol containers.
 async fn wait_for_redis_ready(url: &str, label: &str) -> Result<(), String> {
     let client = redis::Client::open(url)
@@ -128,12 +174,14 @@ impl RedisContainer {
     pub async fn start() -> Result<Self, String> {
         use testcontainers::core::IntoContainerPort;
 
-        let redis = GenericImage::new("redis", "7-alpine")
-            .with_exposed_port(6379.tcp())
-            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
-            .start()
-            .await
-            .map_err(|e| format!("failed to start the Redis container: {}", e))?;
+        let redis = start_with_watchdog_gate(
+            GenericImage::new("redis", "7-alpine")
+                .with_exposed_port(6379.tcp())
+                .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+                .start(),
+        )
+        .await
+        .map_err(|e| format!("failed to start the Redis container: {}", e))?;
 
         let port = redis
             .get_host_port_ipv4(6379)
@@ -187,12 +235,14 @@ impl ValkeyContainer {
     pub async fn start() -> Result<Self, String> {
         use testcontainers::core::IntoContainerPort;
 
-        let container = GenericImage::new("valkey/valkey", "7.2")
-            .with_exposed_port(6379.tcp())
-            .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
-            .start()
-            .await
-            .map_err(|e| format!("failed to start the Valkey container: {}", e))?;
+        let container = start_with_watchdog_gate(
+            GenericImage::new("valkey/valkey", "7.2")
+                .with_exposed_port(6379.tcp())
+                .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+                .start(),
+        )
+        .await
+        .map_err(|e| format!("failed to start the Valkey container: {}", e))?;
 
         let port = container
             .get_host_port_ipv4(6379)
@@ -224,12 +274,14 @@ impl DragonflyContainer {
     pub async fn start() -> Result<Self, String> {
         use testcontainers::core::IntoContainerPort;
 
-        let container = GenericImage::new("dragonflydb/dragonfly", "v1.27.1")
-            .with_exposed_port(6379.tcp())
-            .with_wait_for(WaitFor::message_on_stderr("listening on port 6379"))
-            .start()
-            .await
-            .map_err(|e| format!("failed to start the Dragonfly container: {}", e))?;
+        let container = start_with_watchdog_gate(
+            GenericImage::new("dragonflydb/dragonfly", "v1.27.1")
+                .with_exposed_port(6379.tcp())
+                .with_wait_for(WaitFor::message_on_stderr("listening on port 6379"))
+                .start(),
+        )
+        .await
+        .map_err(|e| format!("failed to start the Dragonfly container: {}", e))?;
 
         let port = container
             .get_host_port_ipv4(6379)

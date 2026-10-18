@@ -19,6 +19,7 @@
 //! 环境依赖：Docker（testcontainers 自起 redis:7-alpine，`stop_with_timeout`
 //! 注入故障，测毕自清）；Docker 不可用时静默跳过。
 
+use crate::common::test_containers::start_with_watchdog_gate;
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use testcontainers::core::{IntoContainerPort, WaitFor};
@@ -67,7 +68,7 @@ async fn setup() -> Option<(ContainerAsync<GenericImage>, RedisBackend)> {
     let image = GenericImage::new("redis", "7-alpine")
         .with_exposed_port(6379.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"));
-    let container = image.start().await.ok()?;
+    let container = start_with_watchdog_gate(image.start()).await.ok()?;
     let port = container.get_host_port_ipv4(6379).await.ok()?;
     let backend = RedisBackend::new(&format!("redis://127.0.0.1:{port}"))
         .await
