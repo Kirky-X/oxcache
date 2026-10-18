@@ -22,7 +22,7 @@ use common::test_containers::{RedisContainer, container_or_skip, start_redis_con
 
 /// 就绪的 Redis 容器与连接 URL；不可用时返回 None（调用方跳过测试）
 async fn setup() -> Option<(RedisContainer, String)> {
-    container_or_skip("Redis(pubsub)", start_redis_container()).await
+    container_or_skip("Redis(pubsub)", start_redis_container).await
 }
 
 /// 订阅后发布：消息到达 handler，`publish` 返回接收端数量（≥1）。

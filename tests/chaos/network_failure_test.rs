@@ -38,10 +38,9 @@ async fn test_connection_recovery_after_failure() {
     println!("=== Connection failure recovery test (real container-stop injection) ===");
 
     let port = free_local_port();
-    let Some((container, redis_url)) = container_or_skip(
-        "chaos(connection-recovery)",
-        setup_redis_container_on_port(port),
-    )
+    let Some((container, redis_url)) = container_or_skip("chaos(connection-recovery)", || {
+        setup_redis_container_on_port(port)
+    })
     .await
     else {
         return;
@@ -131,10 +130,9 @@ async fn test_two_level_degradation_and_recovery_on_disconnect() {
     );
 
     let port = free_local_port();
-    let Some((container, redis_url)) = container_or_skip(
-        "chaos(l1-l2-degradation)",
-        setup_redis_container_on_port(port),
-    )
+    let Some((container, redis_url)) = container_or_skip("chaos(l1-l2-degradation)", || {
+        setup_redis_container_on_port(port)
+    })
     .await
     else {
         return;

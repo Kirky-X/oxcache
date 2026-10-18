@@ -33,7 +33,7 @@ async fn make_dragonfly_backend(url: &str) -> oxcache::OxCacheResult<DragonflyBa
 /// 后端创建/健康检查失败路由 backend_skip（可见、计数，但不置短路闩）：
 /// 与基础设施不可用分档，避免一次握手抖动放大为整组覆盖丢失。
 async fn setup() -> Option<(DragonflyContainer, DragonflyBackend)> {
-    let (container, url) = container_or_skip("Dragonfly", start_dragonfly_container()).await?;
+    let (container, url) = container_or_skip("Dragonfly", start_dragonfly_container).await?;
     let backend = match make_dragonfly_backend(&url).await {
         Ok(backend) => backend,
         Err(e) => {

@@ -21,7 +21,7 @@ use common::test_containers::{RedisContainer, container_or_skip, start_redis_con
 
 /// 就绪的 Redis 容器与后端；不可用时返回 None（调用方跳过测试）
 async fn setup() -> Option<(RedisContainer, Arc<RedisBackend>)> {
-    let (container, url) = container_or_skip("Redis(versioning)", start_redis_container()).await?;
+    let (container, url) = container_or_skip("Redis(versioning)", start_redis_container).await?;
     let backend = Arc::new(
         RedisBackend::new(&url)
             .await

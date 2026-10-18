@@ -32,8 +32,12 @@ fn container_gate_strict() -> bool {
     std::env::var("OXCACHE_TEST_STRICT").is_ok()
 }
 
-/// 门控预算（秒）：覆盖镜像拉取与容器创建；超时消息内插同一常量防失真
+/// 门控预算（秒）：单次尝试覆盖镜像拉取与容器创建；超时消息内插同一常量防失真
 const CONTAINER_GATE_TIMEOUT_SECS: u64 = 90;
+/// 门控尝试次数：拉取类瞬时故障（registry 抖动/限流）在置短路闩前先重试
+const CONTAINER_GATE_ATTEMPTS: u32 = 3;
+/// 重试间隔（秒）：给 registry 恢复留窗口
+const CONTAINER_GATE_RETRY_DELAY_SECS: u64 = 2;
 /// 首次失败的真实原因，短路跳过时随消息透出，避免 CI 红灯只见短路占位符
 static CONTAINER_GATE_FIRST_REASON: OnceLock<String> = OnceLock::new();
 
@@ -69,34 +73,44 @@ fn emit_skip<T>(label: &str, kind: &str, reason: &str, first: Option<&str>) -> O
 /// 容器可用性门控：`setup` 产出就绪容器则原样返回；不可用、超时或同模块副本内
 /// 此前已失败时跳过。
 ///
-/// - 预算：`setup` 整体 90 秒（覆盖镜像拉取与容器创建；`wait_ready` 内部另有
+/// - 预算：`setup` 单次 90 秒（覆盖镜像拉取与容器创建；`wait_ready` 内部另有
 ///   [`wait_for_redis_ready`] 的 30 秒就绪预算），避免 registry 慢拉取把「不可用即跳过」
 ///   退化成挂起；
-/// - 失败短路：首次失败后同模块副本内后续探测直接跳过；
+/// - 拉取重试：registry 瞬时故障（如 bollard 拉流中断的 `bytes remaining on
+///   stream`）单次失败不应升级为整组不可用，[`CONTAINER_GATE_ATTEMPTS`] 次内
+///   以 [`CONTAINER_GATE_RETRY_DELAY_SECS`] 间隔重试，仍失败才置短路闩；
+/// - 失败短路：预算耗尽后同模块副本内后续探测直接跳过；
 /// - `OXCACHE_TEST_STRICT` 置位时跳过改为 panic（CI 置位实现 fail-closed；
 ///   本地默认跳过，跳过原因需 `--nocapture` 查看）；
 /// - 残留边界：90 秒超时取消 `setup` 时，若取消点落在容器已创建、
 ///   [`ContainerAsync`] 句柄未 construct 的窗口，daemon 侧容器无管理者清理
 ///   （watchdog feature 兜底信号退出，此窗口仍可能残留），长寿命开发机可偶发
 ///   `docker system prune`。
-pub async fn container_or_skip<T>(
-    label: &str,
-    setup: impl Future<Output = Result<T, String>>,
-) -> Option<T> {
+pub async fn container_or_skip<T, F>(label: &str, setup: impl Fn() -> F) -> Option<T>
+where
+    F: Future<Output = Result<T, String>>,
+{
     if CONTAINER_GATE_DEAD.load(Ordering::Relaxed) {
         return gate_skip(label, "earlier startup failure short-circuited this probe");
     }
-    match tokio::time::timeout(Duration::from_secs(CONTAINER_GATE_TIMEOUT_SECS), setup).await {
-        Ok(Ok(ready)) => Some(ready),
-        Ok(Err(e)) => gate_skip(label, &e),
-        Err(_) => gate_skip(
-            label,
-            &format!(
-                "timed out after {CONTAINER_GATE_TIMEOUT_SECS}s \
-                 (image pull or container start stalled)"
-            ),
-        ),
+    let mut last_err = String::new();
+    for attempt in 1..=CONTAINER_GATE_ATTEMPTS {
+        match tokio::time::timeout(Duration::from_secs(CONTAINER_GATE_TIMEOUT_SECS), setup()).await
+        {
+            Ok(Ok(ready)) => return Some(ready),
+            Ok(Err(e)) => last_err = e,
+            Err(_) => {
+                last_err = format!(
+                    "timed out after {CONTAINER_GATE_TIMEOUT_SECS}s \
+                     (image pull or container start stalled)"
+                );
+            }
+        }
+        if attempt < CONTAINER_GATE_ATTEMPTS {
+            tokio::time::sleep(Duration::from_secs(CONTAINER_GATE_RETRY_DELAY_SECS)).await;
+        }
     }
+    gate_skip(label, &last_err)
 }
 
 /// testcontainers watchdog 首个注册的串行化门（进程级单例，见下方静态量说明）。

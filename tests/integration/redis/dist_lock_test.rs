@@ -22,7 +22,7 @@ use std::time::Duration;
 /// `container_or_skip`/`backend_skip` 显性跳过（`OXCACHE_TEST_STRICT`
 /// 置位时改为失败），不再静默 `return`。
 async fn setup(label: &str) -> Option<(RedisContainer, Arc<RedisBackend>)> {
-    let (container, url) = container_or_skip(label, start_redis_container()).await?;
+    let (container, url) = container_or_skip(label, start_redis_container).await?;
     let backend = match RedisBackend::new(&url).await {
         Ok(b) => b,
         Err(e) => return backend_skip(label, &e.to_string()),

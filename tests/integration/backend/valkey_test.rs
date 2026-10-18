@@ -25,7 +25,7 @@ use common::test_containers::{ValkeyContainer, container_or_skip, start_valkey_c
 /// 获取就绪的 Valkey 容器；Docker 不可用、启动超时或容器无法就绪时跳过测试
 /// （OXCACHE_TEST_STRICT 置位时改为失败，语义见 container_or_skip）
 async fn setup_container() -> Option<ValkeyContainer> {
-    let (container, _) = container_or_skip("Valkey", start_valkey_container()).await?;
+    let (container, _) = container_or_skip("Valkey", start_valkey_container).await?;
     Some(container)
 }
 
