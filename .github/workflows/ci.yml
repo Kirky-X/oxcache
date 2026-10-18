@@ -132,14 +132,23 @@ jobs:
       matrix:
         include:
           - features: "minimal,macros"
+            cache-key: minimal-macros
           - features: "minimal,bloom"
+            cache-key: minimal-bloom
           - features: "minimal,compression"
+            cache-key: minimal-compression
           - features: "redis-tier,macros"
+            cache-key: redis-tier-macros
           - features: "redis-tier,bloom"
+            cache-key: redis-tier-bloom
           - features: "redis-tier,compression"
+            cache-key: redis-tier-compression
           - features: "redis-tier,batch"
+            cache-key: redis-tier-batch
           - features: "redis-tier,lua"
+            cache-key: redis-tier-lua
           - features: "redis-tier,bloom,macros"
+            cache-key: redis-tier-bloom-macros
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # 1.97.1
@@ -147,7 +156,9 @@ jobs:
           toolchain: 1.97.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: test-${{ matrix.features }}
+          # 缓存键不允许逗号：features 含逗号会使 cache 服务拒绝存取（ValidationError），
+          # 故用无逗号的 cache-key 派生键
+          key: test-${{ matrix.cache-key }}
       - name: Run tests
         run: cargo test --features "${{ matrix.features }}" --workspace
         env:

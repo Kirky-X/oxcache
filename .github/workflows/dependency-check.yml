@@ -85,7 +85,9 @@ jobs:
       - name: Check for outdated dependencies
         run: |
           echo "🔍 Checking for outdated dependencies..."
-          cargo outdated --root-deps-only --exit-code 1
+          # bincode 3.0.0 是上游刻意发布的 compile_error 占位（见 Cargo.toml），
+          # 永久不可升；--ignore 豁免后本步只对真正可升级的过期依赖报 exit 1
+          cargo outdated --root-deps-only --ignore bincode --exit-code 1
         continue-on-error: true
 
   security-report:
