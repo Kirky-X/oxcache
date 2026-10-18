@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [Unreleased]
+
+### 变更
+
+- **第十七跑依赖升级（2026-10-18 入库）**：`rustls` 0.23.45 → 0.23.46，修复 4 项当日公布的 RUSTSEC 公告——RUSTSEC-2026-0346（`Debug` 实现泄露 TLS 1.2 主密钥 / TLS 1.3 恢复 PSK）、RUSTSEC-2026-0347（ECH 被拒后缓冲的应用数据仍发往外层服务器）、RUSTSEC-2026-0348（Brotli 证书解压可在认证前分配至多 1 GiB）、RUSTSEC-2026-0349（未认证 ServerHello 可把后续连接降级为经典密钥交换）。rustls 经测试依赖链 bollard → hyper-rustls 传递入图（仅 Docker 测试容器面，不进库依赖面）。同批补丁级更新：`redb` 4.3.0 → 4.4.0、`sha2` 0.11.0 → 0.11.1、`tokio` 1.53.2 → 1.53.3、`zstd` 0.14.2 → 0.14.3（连带 zstd-safe 8.2.0 / zstd-sys 2.1.2）。`deny.toml` / `.cargo/audit.toml` 未新增豁免（4 项公告均为升级即修，非忽略）
+
 ## [0.5.0-rc.8] - 2026-10-10
 
 ## [0.5.0-rc.7] - 2026-10-08
