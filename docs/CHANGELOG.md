@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### 修复
+
+- **容器测试首启竞态（2026-10-19 入库）**：`testcontainers` 0.28 的 watchdog 注册表由 conquer-once 0.4 `Lazy` 承载，并发首个容器启动可在初始化落地瞬间命中 `unreachable!()`（conquer-once cell.rs:586，上游 testcontainers-rs#995 未修）；CI 的 `minimal,compression` 组合 job 因此偶发 panic。测试助手新增 `start_with_watchdog_gate`——首个成功启动落地前串行化启动，Lazy 就绪后快路径直通；门控状态经 `crate::common` 根副本静态量跨 `#[path] mod common` 的按文件副本共享（模块内 static 各存一份，挡不住跨副本并发）。`RedisContainer`/`ValkeyContainer`/`DragonflyContainer` 包装器、`docker_test_utils` 与 e2e 直连 setup 全部改经守卫
+
 ### 变更
 
 - **第十七跑依赖升级（2026-10-18 入库）**：`rustls` 0.23.45 → 0.23.46，修复 4 项当日公布的 RUSTSEC 公告——RUSTSEC-2026-0346（`Debug` 实现泄露 TLS 1.2 主密钥 / TLS 1.3 恢复 PSK）、RUSTSEC-2026-0347（ECH 被拒后缓冲的应用数据仍发往外层服务器）、RUSTSEC-2026-0348（Brotli 证书解压可在认证前分配至多 1 GiB）、RUSTSEC-2026-0349（未认证 ServerHello 可把后续连接降级为经典密钥交换）。rustls 经测试依赖链 bollard → hyper-rustls 传递入图（仅 Docker 测试容器面，不进库依赖面）。同批补丁级更新：`redb` 4.3.0 → 4.4.0、`sha2` 0.11.0 → 0.11.1、`tokio` 1.53.2 → 1.53.3、`zstd` 0.14.2 → 0.14.3（连带 zstd-safe 8.2.0 / zstd-sys 2.1.2）。`deny.toml` / `.cargo/audit.toml` 未新增豁免（4 项公告均为升级即修，非忽略）
