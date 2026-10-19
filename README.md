@@ -2,7 +2,7 @@
 
 <img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="240">
 
-[![CI Status](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml/badge.svg)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![Version](https://img.shields.io/crates/v/oxcache.svg)](https://crates.io/crates/oxcache) [![Docs.rs](https://docs.rs/oxcache/badge.svg)](https://docs.rs/oxcache) [![Downloads](https://img.shields.io/crates/d/oxcache.svg)](https://crates.io/crates/oxcache) [![License](https://img.shields.io/crates/l/oxcache.svg)](LICENSE) [![Rust](https://img.shields.io/badge/rust-1.97.1%2B-orange.svg)](https://www.rust-lang.org/) [![Coverage](https://codecov.io/gh/Kirky-X/oxcache/branch/main/graph/badge.svg)](https://codecov.io/gh/Kirky-X/oxcache)
+[![Rust 2024](https://img.shields.io/badge/Rust-2024-edded?logo=rust&style=for-the-badge)](https://www.rust-lang.org/) [![Rustc 1.97.1+](https://img.shields.io/badge/Rustc-1.97.1+-orange.svg?style=for-the-badge)](https://www.rust-lang.org/) [![crates.io](https://img.shields.io/crates/v/oxcache?style=for-the-badge)](https://crates.io/crates/oxcache) [![docs.rs](https://img.shields.io/docsrs/oxcache?style=for-the-badge)](https://docs.rs/oxcache) [![downloads](https://img.shields.io/crates/d/oxcache?style=for-the-badge)](https://crates.io/crates/oxcache) [![CI](https://img.shields.io/github/actions/workflow/status/Kirky-X/oxcache/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![coverage](https://img.shields.io/codecov/c/github/Kirky-X/oxcache?style=for-the-badge)](https://codecov.io/gh/Kirky-X/oxcache) [![license](https://img.shields.io/crates/l/oxcache?style=for-the-badge)](LICENSE)
 
 **中文** | [English](README_EN.md)
 
@@ -38,11 +38,11 @@
 - [🎨 特性标志](#-特性标志)
 - [📚 文档](#-文档)
 - [💻 示例](#-示例)
-- [🏗️ 架构](#-架构)
+- [🏗️ 架构](#️-架构)
 - [🧪 测试](#-测试)
 - [📊 性能](#-性能)
 - [🔒 安全](#-安全)
-- [🗺️ 开发路线图](#-开发路线图)
+- [🗺️ 开发路线图](#️-开发路线图)
 - [🤝 参与贡献](#-参与贡献)
 - [📋 更新日志](#-更新日志)
 - [📄 许可证](#-许可证)
@@ -113,12 +113,20 @@
 
 ### 📦 安装
 
+<details>
+<summary>📄 代码 · bash</summary>
+
 ```bash
 cargo add oxcache            # 默认 minimal：L1 内存缓存
 cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 + Lua + 锁
 ```
 
+</details>
+
 或在 `Cargo.toml` 中手动添加：
+
+<details>
+<summary>📄 代码 · toml</summary>
 
 ```toml
 [dependencies]
@@ -127,11 +135,16 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
 
+</details>
+
 **最低要求**：Rust 1.97.1+（edition 2024）。默认 `minimal` 特性仅启用 L1 内存缓存；使用 L2（Redis / Valkey / Dragonfly / Aerospike）需本地可达的对应服务，Redis 相关测试依赖 Docker（testcontainers 自动拉起容器）。
 
 ### 💡 最小可运行示例
 
 以下示例精简自 [`examples/src/01_basics/example_basic_operations.rs`](examples/src/01_basics/example_basic_operations.rs)：
+
+<details>
+<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::Cache;
@@ -165,7 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+</details>
+
 函数级缓存只需一行宏（完整版见 [`examples/src/01_basics/example_cached_macro.rs`](examples/src/01_basics/example_cached_macro.rs)）：
+
+<details>
+<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::macros::cached;
@@ -175,6 +193,8 @@ async fn get_user(id: u64) -> Result<User, String> {
     Ok(User { id, name: format!("User {id}") })   // 首次执行后结果被缓存
 }
 ```
+
+</details>
 
 ### 🧭 核心概念
 
@@ -186,15 +206,40 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 ---
 
+### 🧩 wasm32 支持（实验性）
+
+wasm32-unknown-unknown 下仅支持 `byte-weight` + `serialization` 的最小组合（无 async/memory 后端）：
+
+<details>
+<summary>📄 代码 · bash</summary>
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --no-default-features --features byte-weight,serialization
+```
+
+</details>
+
+限制：`minimal`/`memory`/async/redis/batch 后端依赖多线程 Runtime 语义（`block_in_place`），不在 wasm 支持范围；CI 仅对上述最小组合执行构建与 clippy 门禁，不包含运行时行为测试。
+
+---
+
 ## 🎨 特性标志
 
 层级预设（`default = ["minimal"]`，仅 L1）：
+
+<details>
+<summary>📄 代码 · toml</summary>
 
 ```toml
 oxcache = { version = "0.5.0-rc.9", features = ["minimal"] }   # 仅 L1（默认）
 oxcache = { version = "0.5.0-rc.9", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
 oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
+
+</details>
+
+<details>
+<summary>📋 表格</summary>
 
 | 标志 | 说明 | 默认 |
 |------|------|:----:|
@@ -236,11 +281,16 @@ oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # 真全量：全
 | `inklog` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher` 直连 `LogSink`；依赖 `audit`） | ❌ |
 | `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
 
+</details>
+
 > `bloom` 与 `trait-kit` 已并入 `full`；单开它们仍受支持（`--features bloom`）。
 
 ---
 
 ## 📚 文档
+
+<details>
+<summary>📋 表格</summary>
 
 | 文档 | 说明 |
 |------|------|
@@ -254,11 +304,16 @@ oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # 真全量：全
 | [📦 在线 API 文档](https://docs.rs/oxcache) | docs.rs 自动生成的最新文档 |
 | [📦 crates.io](https://crates.io/crates/oxcache) | 发布页面 |
 
+</details>
+
 ---
 
 ## 💻 示例
 
 `examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **38 个示例**（默认特性下 37 个可运行；`example_inklog_audit_bridge` 由 `inklog-bridge` feature 门控）：
+
+<details>
+<summary>📄 代码 · bash</summary>
 
 ```bash
 # 运行单个示例（在 examples/ 目录下）
@@ -268,7 +323,12 @@ cd examples && cargo run --example example_basic_operations
 cd examples && ls src/*/*.rs
 ```
 
+</details>
+
 **入门（`examples/src/01_basics`）**
+
+<details>
+<summary>📋 表格</summary>
 
 | 示例 | 说明 |
 |------|------|
@@ -284,7 +344,12 @@ cd examples && ls src/*/*.rs
 | `example_byte_ops` | 字节级操作（`get_bytes` / `set_bytes` / `len` / `capacity` / `shutdown`） |
 | `example_comprehensive_usage` | 综合使用（全部功能概览） |
 
+</details>
+
 **进阶（`examples/src/02_advanced`）**
+
+<details>
+<summary>📋 表格</summary>
 
 | 示例 | 说明 |
 |------|------|
@@ -303,6 +368,8 @@ cd examples && ls src/*/*.rs
 | `example_redis_pipeline` | Pipeline 批量（`set_many_pipeline` / `get_many_pipeline`，需 Redis） |
 | `example_lua_script` | Lua 脚本执行（`eval_lua` / `script_load` / `eval_sha`，需 Redis） |
 
+</details>
+
 **配置（`examples/src/03_config`）**
 
 | 示例 | 说明 |
@@ -318,6 +385,9 @@ cd examples && ls src/*/*.rs
 
 **特性展示（`examples/src/06_features`）**
 
+<details>
+<summary>📋 表格</summary>
+
 | 示例 | 说明 |
 |------|------|
 | `example_metrics` | 指标导出（`export_json_format` / `export_prometheus_format`） |
@@ -331,11 +401,16 @@ cd examples && ls src/*/*.rs
 | `example_kit_integration` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 三阶段关闭 / 装饰器） |
 | `example_inklog_audit_bridge` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher`，需 `inklog-bridge` examples feature） |
 
+</details>
+
 > 标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
 
 ### 🔄 同步 API
 
 入门示例 `example_sync_api` 即同步 API 的完整可运行版本。在 builder 上启用 `sync_mode(true)` 后，异步 API 之外获得完整同步镜像（无需 `.await`）：
+
+<details>
+<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::Cache;
@@ -371,6 +446,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+</details>
 
 **何时使用**：阻塞调用点（遗留代码、FFI、同步处理器）；调用方本身是同步的，避免运行时开销。
 
@@ -408,6 +485,9 @@ Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面
 
 `bloom` 特性（已并入 `full`，也可单独启用）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
 
+<details>
+<summary>📄 代码 · mermaid</summary>
+
 ```mermaid
 flowchart TD
     A["backend.get key"] --> B{"布隆过滤器包含 key？"}
@@ -415,6 +495,11 @@ flowchart TD
     B -->|可能存在| D["查询 inner 后端"]
     D --> E["返回结果"]
 ```
+
+</details>
+
+<details>
+<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::backend::MokaMemoryBackend;
@@ -442,6 +527,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+</details>
+
 **语义**：无假阴性；`set` 同时更新 BF 与 inner，`delete` 只更新 inner（BF 不支持删除），`clear` 两者皆清，TTL 原样透传；inner 实现 `SyncCacheBackend` 时装饰器同样实现。
 
 **穿透与击穿防护组合**：
@@ -457,6 +544,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 所有后端统一遵守 per-entry `set(key, value, Some(ttl))`。行为汇总：
 
+<details>
+<summary>📋 表格</summary>
+
 | 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
 |---------|-----------------|------------|------------------------|-------|
 | **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
@@ -470,6 +560,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
 | **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
 
+</details>
+
 **全局与 per-entry 的关系**：`builder.ttl(Duration)` 设置作用于每个条目的全局 TTL；`set(key, value, Some(ttl))` 覆盖该条目；`set(key, value, None)` 沿用全局 TTL（未设置则永不过期）。
 
 ---
@@ -477,6 +569,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## 🧪 测试
 
 测试套件按 [`tests/README.md`](tests/README.md) 组织，场景矩阵见 [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)。
+
+<details>
+<summary>📋 表格</summary>
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
@@ -490,9 +585,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
+</details>
+
 > ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0-rc.8**（2026-10-11 复核）；合计 2337（`src/` 1616 + `tests/` 721）。分表按各测试目录 grep 计数（合计 638），差额 83 例来自未入表的 17 个顶层测试文件：14 个补齐测试文件（`tests/*_extra_test.rs` 等）共 75 例、`tests/single_flight_flight_signal.rs` 4 例、`tests/scenario_probe_172.rs` 与 `tests/scenario_probe_188.rs` 共 4 例。
 
 ### 常用命令（与 CI 一致）
+
+<details>
+<summary>📄 代码 · bash</summary>
 
 ```bash
 # CI test 矩阵以 minimal / redis-tier / full 等档位运行
@@ -514,6 +614,8 @@ cargo test --features full -- --skip redis
 cargo llvm-cov --features full --workspace --fail-under-lines 90
 ```
 
+</details>
+
 > Redis 相关测试经 testcontainers 自动拉起 `redis:7-alpine` 容器，需要本机 Docker；集成 / E2E 禁用 test double，使用进程内真实实现与混沌式故障注入替身（口径见 [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)）。
 
 ---
@@ -534,6 +636,9 @@ Oxcache 在库层面内建多层防御。
 
 **漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请优先使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道提交（仅当该通道不可用时再发送邮件至 Kirky-X@outlook.com，受理人 Kirky.X；48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。完整政策见 [🔒 安全文档](docs/SECURITY.md)。
 
+<details>
+<summary>📋 表格</summary>
+
 | 防线 | 机制 |
 |------|------|
 | 键校验 | `validate_redis_key`：拒绝空键、超过 512 KB、含 `\r` / `\n` / `\0` 的键，扫描 SQL 注入与路径遍历模式 |
@@ -546,7 +651,12 @@ Oxcache 在库层面内建多层防御。
 | 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
 | 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
 
+</details>
+
 **安全 API（公共验证函数）**（需启用 `redis` 或 `full` 特性；默认 `minimal` 特性下这些函数不导出）：
+
+<details>
+<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::{validate_lua_script, validate_redis_key, validate_scan_pattern};
@@ -555,6 +665,8 @@ validate_redis_key("user:123").expect("无效的键");
 validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚本");
 validate_scan_pattern("user:*").expect("无效的模式");
 ```
+
+</details>
 
 ---
 
@@ -603,7 +715,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 Oxcache 构建在众多优秀的开源项目之上：
 
 - [Moka](https://github.com/moka-rs/moka) 与 [DashMap](https://github.com/xacrimon/dashmap) ，L1 内存缓存后端
-- [redis-rs](https://github.com/redis-rs/redis) ，Redis / Valkey / Dragonfly / Sentinel / Cluster 客户端
+- [redis-rs](https://github.com/redis-rs/redis-rs) ，Redis / Valkey / Dragonfly / Sentinel / Cluster 客户端
 - [aerospike-client-rust](https://github.com/aerospike/aerospike-client-rust) ，Aerospike 后端
 - [Tokio](https://github.com/tokio-rs/tokio) 与 [Serde](https://github.com/serde-rs/serde) ，异步运行时与序列化生态
 - [trait-kit](https://github.com/Kirky-X/trait-kit) ，AsyncKit 集成（生命周期 / 健康检查 / 关闭协调）
