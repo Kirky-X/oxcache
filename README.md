@@ -532,7 +532,7 @@ Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_ben
 
 Oxcache 在库层面内建多层防御。
 
-**漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) 私密披露通道提交，或发送邮件至 Kirky-X@outlook.com（48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。
+**漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请优先使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道提交（仅当该通道不可用时再发送邮件至 Kirky-X@outlook.com，受理人 Kirky.X；48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。完整政策见 [🔒 安全文档](docs/SECURITY.md)。
 
 | 防线 | 机制 |
 |------|------|

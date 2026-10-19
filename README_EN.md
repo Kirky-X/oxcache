@@ -522,7 +522,7 @@ Criterion benchmark sources live in `benches/`: `modern_api_benchmark`, `hot_pat
 
 Oxcache ships multiple layers of defense inside the library.
 
-**Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues. Use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/advisories/new) disclosure channel, or email Kirky-X@outlook.com (acknowledgement within 48 hours, initial assessment within 7 days, and reporters get a chance to verify the patch before release).
+**Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues. Use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) disclosure channel as the primary route (email Kirky-X@outlook.com, handler Kirky.X, only if that channel is unavailable; acknowledgement within 48 hours, initial assessment within 7 days, and reporters get a chance to verify the patch before release). Full policy: [🔒 Security document](docs/SECURITY.md).
 
 | Defense layer | Mechanism |
 |---------------|-----------|

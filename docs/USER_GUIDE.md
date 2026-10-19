@@ -770,7 +770,7 @@ oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安
 
 **[📖 API 文档](https://docs.rs/oxcache)** • **[❓ 常见问题](https://github.com/Kirky-X/oxcache/wiki)** • **[🐛 报告问题](https://github.com/Kirky-X/oxcache/issues)**
 
-由 oxcache Team 用 ❤️ 制作
+由 Kirky.X 用 ❤️ 制作
 
 [⬆ 回到顶部](#📖-oxcache-用户指南)
 
