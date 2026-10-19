@@ -4,7 +4,7 @@
 
 ### 高性能 Rust 多级缓存库（L1+L2+可选 L3）完整使用指南
 
-[🏠 首页](../README.md) • [📚 文档中心](../README.md#📚-文档) • [🎯 示例](../examples/) • [📘 API 参考](API_REFERENCE.md)
+[🏠 首页](../README.md) • [📚 文档中心](../README.md#-文档) • [🎯 示例](../examples/) • [📘 API 参考](API_REFERENCE.md)
 
 ---
 
@@ -17,17 +17,17 @@
 <details open>
 <summary>📑 目录</summary>
 
-- [🧭 简介](#🧭-简介)
-- [🚀 快速入门](#🚀-快速入门)
+- [🧭 简介](#-简介)
+- [🚀 快速入门](#-快速入门)
   - [先决条件](#先决条件)
   - [安装](#安装)
   - [第一步](#第一步)
-- [🧱 核心概念](#🧱-核心概念)
-- [📖 基础用法](#📖-基础用法)
+- [🧱 核心概念](#-核心概念)
+- [📖 基础用法](#-基础用法)
   - [使用缓存宏](#使用缓存宏)
   - [手动控制缓存](#手动控制缓存)
   - [序列化](#序列化)
-- [⚡ 高级用法](#⚡-高级用法)
+- [⚡ 高级用法](#-高级用法)
   - [链式多层缓存（ChainCache）](#链式多层缓存chaincache)
   - [启用同步 API](#启用同步-api)
   - [布隆过滤器](#布隆过滤器)
@@ -39,9 +39,9 @@
   - [Valkey 后端](#valkey-后端)
   - [Dragonfly 后端](#dragonfly-后端)
   - [Aerospike 后端](#aerospike-后端)
-- [🌟 最佳实践](#🌟-最佳实践)
-- [🔧 故障排除](#🔧-故障排除)
-- [🎯 后续步骤](#🎯-后续步骤)
+- [🌟 最佳实践](#-最佳实践)
+- [🔧 故障排除](#-故障排除)
+- [🎯 后续步骤](#-后续步骤)
 
 </details>
 
@@ -113,7 +113,7 @@ oxcache = "0.5.0-rc.7"
 
 #### 特性分层与依赖
 
-分层预设（`minimal` / `redis-tier` / `full`）与完整特性清单见 [README 特性标志](../README.md#🎨-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，也可单开）见 [API 参考的特性要求](API_REFERENCE.md#🎨-特性要求)。
+分层预设（`minimal` / `redis-tier` / `full`）与完整特性清单见 [README 特性标志](../README.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，也可单开）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
 
 如果需要最小依赖或自定义特性：
 
@@ -262,7 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 同步 API
 
-通过 `Cache::builder().sync_mode(true)` 启用异步 API 的同步镜像。三路语义与运行时要求（默认 Moka 原生同步、`sync_backend_arc(...)` 原生同步面、`backend_arc(...)` 经 `AsyncToSyncBridge` 桥出——桥接面要求 multi_thread 运行时）见[启用同步 API](#启用同步-api) 与 [API 参考](API_REFERENCE.md#🔄-同步-api)。
+通过 `Cache::builder().sync_mode(true)` 启用异步 API 的同步镜像。三路语义与运行时要求（默认 Moka 原生同步、`sync_backend_arc(...)` 原生同步面、`backend_arc(...)` 经 `AsyncToSyncBridge` 桥出——桥接面要求 multi_thread 运行时）见[启用同步 API](#启用同步-api) 与 [API 参考](API_REFERENCE.md#-同步-api)。
 
 ### 容错与单飞
 
@@ -302,7 +302,7 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
 
-宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#🪄-缓存宏)。
+宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
 
 ### 手动控制缓存
 
@@ -460,7 +460,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-完整同步方法表与未启用 `sync_mode` 时的 `NotSupported` 行为见 [API 参考](API_REFERENCE.md#🔄-同步-api)。
+完整同步方法表与未启用 `sync_mode` 时的 `NotSupported` 行为见 [API 参考](API_REFERENCE.md#-同步-api)。
 
 审计行为：同步路径与异步路径同语义发布审计事件（`audit` 特性）；依赖 tokio runtime 的发布器（`inklog` 桥接）在 runtime 之外调用时逐条丢弃并计数（`dropped_count`），runtime 外场景应选运行时无关发布器。
 
@@ -478,7 +478,7 @@ let inner = MokaMemoryBackend::new();
 let backend = BloomFilterBackend::new(inner);  // 可作为 CacheBackend 使用
 ```
 
-`BloomFilter` 与 `BloomFilterBackend` 的完整方法列表、builder 用法与语义见 [API 参考](API_REFERENCE.md#🌸-布隆过滤器)。
+`BloomFilter` 与 `BloomFilterBackend` 的完整方法列表、builder 用法与语义见 [API 参考](API_REFERENCE.md#-布隆过滤器)。
 
 ### TTL 管理
 
@@ -499,7 +499,7 @@ let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
-各后端 TTL 行为对照表见 [README](../README.md#-ttl-行为对照表)。
+各后端 TTL 行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 
 ### Redis 模式配置
 
@@ -530,11 +530,11 @@ let backend = RedisBackend::builder()
 
 ### 监控指标
 
-启用 `metrics` 特性后，可使用 crate 根重导出的 `get_enhanced_stats` / `export_prometheus_format` / `export_json_format` 读取 `CacheStats`（命中率等）并导出 Prometheus / JSON 文本；更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。用法示例见 [API 参考的可观测性章节](API_REFERENCE.md#📈-可观测性)。
+启用 `metrics` 特性后，可使用 crate 根重导出的 `get_enhanced_stats` / `export_prometheus_format` / `export_json_format` 读取 `CacheStats`（命中率等）并导出 Prometheus / JSON 文本；更底层的 `MetricsCollector`（位于 `oxcache::infra::metrics::backend`）提供 L1/L2 命中/未命中计数和每操作延迟直方图。用法示例见 [API 参考的可观测性章节](API_REFERENCE.md#-可观测性)。
 
 ### 事件发射（EventPublisher）
 
-oxcache 通过 `EventPublisher` trait（crate 根重导出，`core` 模块为私有）提供结构化事件发射机制：`ChainCache` 后端操作失败时通过配置的 `EventPublisher` 抛出事件，用户可自行决定处理方式（日志、metrics、告警或忽略）。实现与配置示例见 [API 参考的可观测性章节](API_REFERENCE.md#📈-可观测性)。
+oxcache 通过 `EventPublisher` trait（crate 根重导出，`core` 模块为私有）提供结构化事件发射机制：`ChainCache` 后端操作失败时通过配置的 `EventPublisher` 抛出事件，用户可自行决定处理方式（日志、metrics、告警或忽略）。实现与配置示例见 [API 参考的可观测性章节](API_REFERENCE.md#-可观测性)。
 
 启用 `metrics` 特性会引入内置 metrics 实现（`serialization` + `chrono` + `dashmap`），
 不依赖外部 OpenTelemetry crate。如需 OTLP 导出，由应用层统一处理。
@@ -601,7 +601,7 @@ use oxcache::backend::DragonflyBackend;
 let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 ```
 
-推荐与 Moka 组合为 ChainCache（组合示例与限制说明见 [API 参考](API_REFERENCE.md#🐉-dragonflybackend)）。
+推荐与 Moka 组合为 ChainCache（组合示例与限制说明见 [API 参考](API_REFERENCE.md#-dragonflybackend)）。
 
 ### Aerospike 后端
 
@@ -614,7 +614,7 @@ let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 oxcache = { version = "0.5.0-rc.8", features = ["aerospike"] }
 ```
 
-后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#🌌-aerospikebackend)。
+后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#-aerospikebackend)。
 
 > **Docker 环境注意**：Aerospike 容器内部 IP 与主机不同，需通过 `ip_map` 配置
 > IP 地址转换表，或使用 `access-address` 配置服务器广播地址。
@@ -772,6 +772,6 @@ oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安
 
 由 Kirky.X 用 ❤️ 制作
 
-[⬆ 回到顶部](#📖-oxcache-用户指南)
+[⬆ 回到顶部](#-oxcache-用户指南)
 
 </div>

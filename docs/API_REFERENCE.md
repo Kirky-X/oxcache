@@ -11,25 +11,25 @@
 <details open>
 <summary>📑 目录</summary>
 
-- [🎨 特性要求](#🎨-特性要求)
-- [🪄 缓存宏](#🪄-缓存宏)
-- [🧩 `Cache<K, V>`](#🧩-cachek-v)
-- [🧰 CacheBuilder](#🧰-cachebuilder)
-- [🔌 后端层](#🔌-后端层)
-- [📡 RedisBackend](#📡-redisbackend)
-- [🐉 DragonflyBackend](#🐉-dragonflybackend)
-- [🌌 AerospikeBackend](#🌌-aerospikebackend)
-- [🔗 ChainCache](#🔗-chaincache)
-- [📢 Redis Pub/Sub 广播通道](#📢-redis-pubsub-广播通道pubsub-特性)
-- [🔄 同步 API](#🔄-同步-api)
-- [🌸 布隆过滤器](#🌸-布隆过滤器)
-- [🕒 TTL 管理](#🕒-ttl-管理)
-- [🔒 安全特性](#🔒-安全特性)
-- [📈 可观测性](#📈-可观测性)
-- [🚨 错误处理](#🚨-错误处理)
-- [🏷 类型别名](#🏷-类型别名)
-- [🧬 trait-kit 集成](#🧬-trait-kit-集成trait-kit-feature)
-- [💻 示例](#💻-示例)
+- [🎨 特性要求](#-特性要求)
+- [🪄 缓存宏](#-缓存宏)
+- [🧩 `Cache<K, V>`](#-cachek-v)
+- [🧰 CacheBuilder](#-cachebuilder)
+- [🔌 后端层](#-后端层)
+- [📡 RedisBackend](#-redisbackend)
+- [🐉 DragonflyBackend](#-dragonflybackend)
+- [🌌 AerospikeBackend](#-aerospikebackend)
+- [🔗 ChainCache](#-chaincache)
+- [📢 Redis Pub/Sub 广播通道](#-redis-pubsub-广播通道pubsub-特性)
+- [🔄 同步 API](#-同步-api)
+- [🌸 布隆过滤器](#-布隆过滤器)
+- [🕒 TTL 管理](#-ttl-管理)
+- [🔒 安全特性](#-安全特性)
+- [📈 可观测性](#-可观测性)
+- [🚨 错误处理](#-错误处理)
+- [🏷 类型别名](#-类型别名)
+- [🧬 trait-kit 集成](#-trait-kit-集成trait-kit-feature)
+- [💻 示例](#-示例)
 
 </details>
 
@@ -45,7 +45,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 ### 组件特性
 
-组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#🎨-特性标志)；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，仍可单开（`features = ["bloom"]`），配置示例同见该章节。
+组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#-特性标志)；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，仍可单开（`features = ["bloom"]`），配置示例同见该章节。
 
 ### 特性依赖
 
@@ -287,7 +287,7 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 | `ttl` | `(ttl: Duration) -> Self` | 缓存条目的默认 TTL |
 | `tti` | `(tti: Duration) -> Self` | 内存后端的默认 TTI（time-to-idle） |
 | `capacity` | `(capacity: u64) -> Self` | 内存后端的容量（默认 10000） |
-| `sync_mode` | `(enabled: bool) -> Self` | 启用同步 API（参见[同步 API](#🔄-同步-api)） |
+| `sync_mode` | `(enabled: bool) -> Self` | 启用同步 API（参见[同步 API](#-同步-api)） |
 | `serialization_format` | `(format: SerializationFormat) -> Self` | 切换序列化格式（JSON/Bincode/Postcard，需 `serde-bincode`/`postcard`） |
 | `null_cache_ttl` | `(ttl: Duration) -> Self` | 空值哨兵 TTL（穿透防护） |
 | `ttl_jitter` | `(factor: f64) -> Self` | TTL 抖动系数（防批量同时过期） |
@@ -764,7 +764,7 @@ let backend = BloomFilterBackend::builder()
 - **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
 - **Disk（RedbDiskBackend）** 使用懒过期（读路径惰性判定 + 物理删除）；`with_default_ttl` 提供后端默认 TTL，`set(ttl=None)` 沿用之。
 
-各后端的完整行为对照表见 [README](../README.md#-ttl-行为对照表)。
+各后端的完整行为对照表见 [README](../README.md#️-ttl-行为对照表)。
 
 ### TTL 方法
 
