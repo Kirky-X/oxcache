@@ -708,6 +708,8 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 本项目基于 [MIT](LICENSE) 许可证发布。
 
+Copyright (c) 2025-2026 Kirky.X🌠
+
 ---
 
 ## 🙏 致谢

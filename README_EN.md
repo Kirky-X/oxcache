@@ -710,6 +710,8 @@ See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent h
 
 This project is licensed under the [MIT](LICENSE) License.
 
+Copyright (c) 2025-2026 Kirky.X🌠
+
 ---
 
 ## 🙏 Acknowledgments

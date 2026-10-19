@@ -19,3 +19,6 @@ hellow = "hellow"
 # ba —— docs/CHANGELOG.md 中 commit 短哈希 `26987ba` 被切出的片段
 # （`e4197af`、`26987ba`）。把 `ba` 判成 `by`/`be` 是纯误报。
 ba = "ba"
+# writeable —— ICU4X 组件 crate 的真实名字（无 r）。src/i18n/i18n_impl.rs 的
+# `use writeable::Writeable;` 是真实标识符，不是 `writable` 的拼写错误。
+writeable = "writeable"

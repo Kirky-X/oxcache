@@ -1,4 +1,4 @@
-# pre-commit 配置 — 7 仓库统一基线(见 base/CONFIG_BASELINE.md)
+# pre-commit 配置 — 7 仓库统一基线（与 lefthook.yml 功能等价，二选一启用）
 # 安装: pip install pre-commit && pre-commit install --install-hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -14,21 +14,20 @@ repos:
       - id: detect-private-key
       - id: check-merge-conflict
         args: ['--assume-in-merge']
-      # 本仓工作流在 main 上提交,故仅保护 master
-      - id: no-commit-to-branch
-        args: ['--branch', 'master']
+      # 不设 no-commit-to-branch：本仓工作流为 main 直提，钩子保护的是 master，
+      # 保留该钩子不会生效，只会造成「有护栏」的误解
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        # --baseline: .secrets.baseline 记录已人工核实的误报(测试夹具/文档占位符)。
+        # --baseline: .secrets.baseline 记录已人工核实的误报（测试夹具/文档占位符）。
         # 基线由 `detect-secrets scan --exclude-files tests/ --exclude-files examples/`
         # 生成，本仓初次扫描结果为空——即非 tests/examples 文件当前无任何疑似凭证；
         # 之后新增发现须先人工核实确为误报，再以同一条 scan 命令
-        # (`--baseline .secrets.baseline` 合并)并入基线，否则一律阻断提交。
+        # （`--baseline .secrets.baseline` 合并）并入基线，否则一律阻断提交。
         args: [--baseline, .secrets.baseline, --exclude-files, tests/, --exclude-files, examples/]
-        # 自排除: 基线文件本身(内含凭证哈希)与锁文件不参与扫描
+        # 自排除: 基线文件本身（内含凭证哈希）与锁文件不参与扫描
         exclude: '^(Cargo\.lock|\.secrets\.baseline)$'
 
   - repo: https://github.com/crate-ci/typos
@@ -48,6 +47,7 @@ repos:
 
       - id: cargo-check
         name: cargo check
+        # 零告警门槛 feature 组合（本仓全 feature 组合为合法组合；与 CI check job 一致）
         entry: cargo check --all-features
         language: system
         types: [rust]
@@ -55,10 +55,30 @@ repos:
 
       - id: cargo-clippy
         name: cargo clippy
+        # 零告警门槛 feature 组合（与 CI clippy job 一致）
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
+
+  # === 推送前门禁（与 lefthook 的 pre-push 等价；启用: pre-commit install -t pre-push） ===
+  - repo: local
+    hooks:
+      - id: cargo-deny
+        name: cargo deny
+        description: Check advisories, licenses, bans and sources
+        entry: cargo deny check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-audit
+        name: cargo audit
+        description: Scan the dependency tree against the RustSec advisory database
+        entry: cargo audit
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
 
   # === 提交完成后清理本地编译产物（post-commit 阶段；启用: pre-commit install -t post-commit） ===
   - repo: local

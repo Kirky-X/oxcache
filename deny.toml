@@ -38,7 +38,7 @@ allow = [
 confidence-threshold = 0.8
 unused-allowed-license = "warn"
 # 许可证口径（2026-10-12 用户裁决）：统一纯 MIT——manifest license = "MIT"，
-# LICENSE 文件已删除 Commons Clause 段，deny 直接读 manifest SPDX，无需 clarify。
+# LICENSE 文件为标准 MIT 全文，deny 直接读 manifest SPDX，无需 clarify。
 
 
 # 传递依赖许可证例外

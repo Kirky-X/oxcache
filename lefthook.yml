@@ -1,6 +1,7 @@
-# lefthook 配置 — 7 仓库统一基线(见 base/CONFIG_BASELINE.md)
-# 启用: lefthook install(或 bash scripts/install-pre-commit.sh)
-# 与 .pre-commit-config.yaml 功能等价,二选一即可。
+# lefthook 配置 — 7 仓库统一基线（与 .pre-commit-config.yaml 二选一启用）
+# 启用: lefthook install
+# 分工: 本文件负责提交期编译门禁（fmt/clippy/deny/私钥）与推送期 audit/覆盖率；
+# 空白字符/YAML/TOML/typos/基线密钥扫描由 .pre-commit-config.yaml 覆盖
 pre-commit:
   parallel: true
   commands:
@@ -9,7 +10,7 @@ pre-commit:
       run: cargo fmt --all -- --check
     clippy:
       glob: "*.rs"
-      # 零告警门槛 feature 组合:--all-features(全 feature 组合为合法组合)
+      # 零告警门槛 feature 组合：全 feature 组合为合法组合（与 CI clippy job 一致）
       run: cargo clippy --all-targets --all-features -- -D warnings
     cargo-deny:
       run: cargo deny check

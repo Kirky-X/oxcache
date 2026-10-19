@@ -27,7 +27,7 @@ MSRV 为 **Rust 1.97.1**（根 `Cargo.toml` 的 `[workspace.package] rust-versio
 - 影响评估（CWE 分类如可判断）
 - 可行的临时缓解措施
 
-### 响应承诺
+### ⏱️ 响应承诺
 
 | 阶段 | 时间线 |
 |------|--------|
