@@ -27,7 +27,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.8"
+version = "0.5.0-rc.9"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -51,7 +51,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # === DEPENDENCIES ===
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.8", optional = true, default-features = false }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.9", optional = true, default-features = false }
 
 # Async Runtime
 tokio = { workspace = true, features = [
@@ -71,7 +71,7 @@ uuid = { version = "1.28", default-features = false, features = ["std", "v4"] }
 # integrations/kit 装饰/包装 CacheBackend（引用 crate::backend），单开须隐含
 # memory 基线方可编译（与 degradation/config-confers 同口径）
 [dependencies.trait-kit]
-version = "0.5.0-rc.9"
+version = "0.5.0-rc.10"
 optional = true
 default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
@@ -81,7 +81,7 @@ features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 # （`=` 需求互斥，只改一处解析即失败）。本包与 inklog 所依赖的 oxcache 构成同版本号
 # 异 source 的合法 DAG——桥接只消费 inklog 类型，两个 oxcache 实例间无类型交换。
 [dependencies.inklog]
-version = "=0.3.0-rc.9"
+version = "=0.3.0-rc.10"
 optional = true
 default-features = false
 
@@ -248,7 +248,7 @@ optional = true
 
 # Config-driven build (optional, confers watch hot-reload)
 [dependencies.confers]
-version = "0.6.0-rc.6"
+version = "0.6.0-rc.11"
 default-features = false
 features = ["config-bus"]
 optional = true

@@ -191,9 +191,9 @@ async fn get_user(id: u64) -> Result<User, String> {
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0-rc.8", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.8", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0-rc.8", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.0-rc.9", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0-rc.9", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
 
 | 标志 | 说明 | 默认 |

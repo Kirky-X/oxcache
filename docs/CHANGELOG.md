@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+## [0.5.0-rc.9] - 2026-10-19
+
+### Changed
+
+- **发布依赖传播**：`trait-kit` rc.9 → rc.10、`inklog` `=rc.9` → `=rc.10`、`confers` `rc.6` → `rc.11`（陈旧钉对齐至刚发布版本）；子 crate `oxcache_macros` 自钉同步 rc.9
+
 ### 修复
 
 - **Lua 脚本路径熔断与超时收口（2026-10-19 入库）**：`LuaExecutor` 三方法（`eval_lua`/`eval_sha`/`script_load`）原直接裸调 `query_async`——无响应超时（Redis 挂起时无限阻塞）、不经熔断器（故障不计数不跳闸，与 16 处普通命令的 `execute_with_retry` 路径不一致）。现统一经 `execute_once_with_breaker` 执行：熔断器 Open 即拒绝（`Degraded`）、成功/失败记账；新增 builder 选项 `lua_timeout`（默认 5 秒，`Duration::ZERO` 不限时），超时返回 `OxCacheError::Timeout` 并计入熔断失败。EVAL 具副作用语义，失败**不重试**——熔断器原语自 `execute_with_retry` 下沉（`check_circuit`/`record_outcome`），重试语义仅保留在普通命令路径
