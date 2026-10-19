@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **wasm32 最小构建支持（实验性）**：`byte-weight` + `serialization` 组合可在 wasm32-unknown-unknown 编译（`cargo build --lib --target wasm32-unknown-unknown --no-default-features --features byte-weight,serialization`），CI 新增 `wasm32` job 执行构建与 clippy。依赖调整：包级 `tokio` 移除 `rt-multi-thread`（`memory` feature 显式启用）、`moka` 增加 `atomic64`、wasm 目标 `uuid` 启用 `js` 随机源。`minimal`/`memory`/async/redis/batch 后端仍不在 wasm 支持范围（依赖 `block_in_place` 多线程语义）
+
 ## [0.5.0-rc.9] - 2026-10-19
 
 ### Changed

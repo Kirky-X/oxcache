@@ -54,9 +54,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 oxcache_macros = { path = "macros", version = "0.5.0-rc.9", optional = true, default-features = false }
 
 # Async Runtime
+# 包级不启用 rt-multi-thread：wasm32 仅支持 sync/macros/io-util/rt/time；
+# 需要 block_in_place 的 memory/async 路径由 `memory` feature 显式启用。
 tokio = { workspace = true, features = [
     "rt",
-    "rt-multi-thread",
     "sync",
     "time",
     "macros",
@@ -121,7 +122,8 @@ default-features = false
 [dependencies.moka]
 version = "0.12"
 default-features = false
-features = ["future"]
+# atomic64：无 64 位原子操作的目标（wasm32）需要 moka 的替代实现
+features = ["future", "atomic64"]
 optional = true
 
 [dependencies.dashmap]
@@ -260,6 +262,10 @@ version = "0.14"
 default-features = false
 optional = true
 
+# wasm32 目标：uuid v4 需要显式随机源（js 特性仅对 wasm 生效，避免非 wasm 拉入 wasm-bindgen）
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1.28", default-features = false, features = ["js", "v4", "std"] }
+
 # === DEV DEPENDENCIES ===
 [dev-dependencies]
 # 测试实现 EventPublisher（#[async_trait] trait）所需，与主依赖版本一致
@@ -338,7 +344,7 @@ full = [
 # memory/redis 开启即编译 backend 与 cache 核心 API，而 Cache<K,V> 的 serde
 # 约束与 UnifiedSerializer 是核心面事实依赖，故隐含 serialization
 # （与 minimal/disk 预置既有口径一致）
-memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization"]
+memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization", "tokio/rt-multi-thread"]
 # 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
 byte-weight = ["dep:moka", "moka/sync"]
 redis = ["dep:redis", "dep:regex", "serialization"]
