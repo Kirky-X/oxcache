@@ -499,7 +499,7 @@ let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
-各后端 TTL 行为对照表见 [README](../README.md#️ttl-行为对照表)。
+各后端 TTL 行为对照表见 [README](../README.md#-ttl-行为对照表)。
 
 ### Redis 模式配置
 

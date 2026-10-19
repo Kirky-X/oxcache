@@ -8,7 +8,7 @@
 > 文档推测与实现不符时修正并注明依据。
 >
 > **快照口径**：本文数据为该轮验收时的实测快照；当前版本的测试函数数以
-> [README](../README.md#测试) 与 CI 为准（快照之后移除的特性，如 `cli`，
+> [README](../README.md#-测试) 与 CI 为准（快照之后移除的特性，如 `cli`，
 > 对应行仅保留快照记录）。
 
 ## 1. 测试金字塔基线（all-features 实测）
@@ -150,4 +150,4 @@ examples：37/37 运行 rc=0（共 38 个示例文件，`example_inklog_audit_br
 - [📖 用户指南](USER_GUIDE.md)：功能行为的使用视角说明
 - [🤝 贡献指南](CONTRIBUTING.md)：TDD 工作流与静态门槛的日常执行方式
 - 🔒 安全文档：`tests/security.rs` 覆盖的安全机制说明
-- [README 测试章节](../README.md#测试)：当前版本的测试函数数与常用命令
+- [README 测试章节](../README.md#-测试)：当前版本的测试函数数与常用命令

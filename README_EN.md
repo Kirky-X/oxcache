@@ -8,7 +8,7 @@
 
 **Multi-tier caching for Rust: L1 in-memory + L2 distributed + optional L3 disk (redb)**
 
-[✨ Features](#features) • [🚀 Quick Start](#quick-start) • [📚 Documentation](#documentation) • [💻 Examples](#examples) • [🤝 Contributing](#contributing)
+[✨ Features](#-features) • [🚀 Quick Start](#-quick-start) • [📚 Documentation](#-documentation) • [💻 Examples](#-examples) • [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -33,22 +33,22 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 <details open>
 <summary>📑 Table of Contents</summary>
 
-- [✨ Features](#features)
-- [🚀 Quick Start](#quick-start)
-- [🎨 Feature Flags](#feature-flags)
-- [📚 Documentation](#documentation)
-- [💻 Examples](#examples)
-- [🏗️ Architecture](#️architecture)
-- [🧪 Testing](#testing)
-- [📊 Performance](#performance)
-- [🔒 Security](#security)
-- [🗺️ Roadmap](#️roadmap)
-- [🤝 Contributing](#contributing)
-- [📋 Changelog](#changelog)
-- [📄 License](#license)
-- [🙏 Acknowledgments](#acknowledgments)
-- [📞 Contact & Support](#contact--support)
-- [⭐ Star History](#star-history)
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+- [🎨 Feature Flags](#-feature-flags)
+- [📚 Documentation](#-documentation)
+- [💻 Examples](#-examples)
+- [🏗️ Architecture](#-architecture)
+- [🧪 Testing](#-testing)
+- [📊 Performance](#-performance)
+- [🔒 Security](#-security)
+- [🗺️ Roadmap](#-roadmap)
+- [🤝 Contributing](#-contributing)
+- [📋 Changelog](#-changelog)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+- [📞 Contact & Support](#-contact--support)
+- [⭐ Star History](#-star-history)
 
 </details>
 
@@ -370,7 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `sync_mode(true)` composes with `backend_arc(...)`: the sync API is bridged via `AsyncToSyncBridge` (blocking semantics), requiring a `multi_thread` runtime at call time (I/O-backed backends need ≥2 workers); outside any runtime or on a `current_thread` runtime every call returns `Err(OxCacheError::NotSupported)`; for runtime-independent injection use `sync_backend_arc(...)` instead
 - Without `sync_mode(true)`, any `*_sync` method returns `Err(OxCacheError::NotSupported)`
 
-**`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#cache-macro); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
+**`#[cached]` macro parameters**: for the full parameter table (including defaults and `cache_none`), see the [cache-macro chapter of the API Reference](docs/API_REFERENCE.md#-缓存宏); the sync-path-relevant parameter is `sync` (generates a synchronous function, no async runtime needed).
 
 ---
 
@@ -380,11 +380,11 @@ Oxcache follows a layered design of unified interface plus pluggable backends: a
 
 ### Macro Execution Path
 
-After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-macro-execution-path).
+After expansion, the `#[cached]` macro looks up the cache by service name, deserializes and returns on hit; on miss it executes the original function and serializes the `Ok` result back. Unregistered services silently pass through by default; `strict` mode panics instead. For the full sequence diagram and expanded code, see the [data-flow chapter of the Architecture documentation](docs/ARCHITECTURE.md#cached-宏执行路径).
 
 ### Chained Cache Read Path
 
-Reads fall through starting from the highest-scored link; when a non-top link hits and backfill is enabled, higher-scored links are written sequentially with `.await` before the value is returned (the read path waits for backfill to finish; flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-read-path)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and, once every query has completed, the highest-scored hit (lowest link index) is returned.
+Reads fall through starting from the highest-scored link; when a non-top link hits and backfill is enabled, higher-scored links are written sequentially with `.await` before the value is returned (the read path waits for backfill to finish; flow diagram in the [Architecture documentation](docs/ARCHITECTURE.md#chaincache-读取路径)). A single failing link only logs a warning and the walk continues; reads fail only when every link fails. Writes fan out concurrently to all writer links, and a single link's write failure is tolerated. With `enable_race_read()` enabled, all links are queried concurrently and, once every query has completed, the highest-scored hit (lowest link index) is returned.
 
 **Reliability highlights**:
 
@@ -510,7 +510,7 @@ cargo llvm-cov --features full --workspace --fail-under-lines 90
 
 ## 📊 Performance
 
-> Order-of-magnitude reference (L1/L2 throughput and P99 latency; M1 Pro / 16GB RAM / macOS / Redis 7.0 benchmark environment; performance varies with hardware, network conditions and data size) lives in the [benchmark chapter of the Architecture documentation](docs/ARCHITECTURE.md#benchmark-results). Reproducible measured data (serialization sizes, compression ratios, hot-path benchmarks and reproduction commands) lives in the [Performance Baseline](docs/PERFORMANCE.md).
+> Order-of-magnitude reference (L1/L2 throughput and P99 latency; M1 Pro / 16GB RAM / macOS / Redis 7.0 benchmark environment; performance varies with hardware, network conditions and data size) lives in the [benchmark chapter of the Architecture documentation](docs/ARCHITECTURE.md#基准测试结果). Reproducible measured data (serialization sizes, compression ratios, hot-path benchmarks and reproduction commands) lives in the [Performance Baseline](docs/PERFORMANCE.md).
 
 Highlights: the borrowed-key hot-path APIs (`get_by_str` / `set_by_str`) measure **-6.7%** for get and **-12.7%** for set; with serialization-format switching (`serde-bincode` / `postcard`), postcard's mixed-payload transfer size is about **46%** of JSON.
 

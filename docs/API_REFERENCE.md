@@ -764,7 +764,7 @@ let backend = BloomFilterBackend::builder()
 - **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
 - **Disk（RedbDiskBackend）** 使用懒过期（读路径惰性判定 + 物理删除）；`with_default_ttl` 提供后端默认 TTL，`set(ttl=None)` 沿用之。
 
-各后端的完整行为对照表见 [README](../README.md#️ttl-行为对照表)。
+各后端的完整行为对照表见 [README](../README.md#-ttl-行为对照表)。
 
 ### TTL 方法
 
