@@ -3,6 +3,7 @@
 //! Redis backend builder with extended configuration.
 
 use super::circuit_breaker::CircuitBreaker;
+use super::client::DEFAULT_LUA_TIMEOUT;
 use super::client::RedisBackend;
 use super::client::RedisConnection;
 use super::error::map_redis_error;
@@ -43,6 +44,8 @@ pub struct RedisBackendBuilder {
     connection_timeout: Duration,
     retry_count: u32,
     retry_delay: Duration,
+    /// Lua 脚本命令响应超时（默认 5s，`Duration::ZERO` 不限时）。
+    lua_timeout: Duration,
     circuit_breaker_threshold: u32,
     circuit_breaker_reset_timeout: Duration,
     database: Option<u16>,
@@ -65,6 +68,7 @@ impl Default for RedisBackendBuilder {
             connection_timeout: Duration::from_secs(2),
             retry_count: 3,
             retry_delay: Duration::from_millis(100),
+            lua_timeout: DEFAULT_LUA_TIMEOUT,
             circuit_breaker_threshold: 5,
             circuit_breaker_reset_timeout: Duration::from_secs(30),
             database: None,
@@ -110,6 +114,15 @@ impl RedisBackendBuilder {
     /// Set the retry delay between reconnection attempts (default: 100ms).
     pub fn retry_delay(mut self, delay: Duration) -> Self {
         self.retry_delay = delay;
+        self
+    }
+
+    /// Set the response timeout for Lua script commands (default: 5s).
+    ///
+    /// 覆盖 `eval_lua` / `eval_sha` / `script_load`；`Duration::ZERO`
+    /// 表示不限时。超时计入熔断器失败。
+    pub fn lua_timeout(mut self, timeout: Duration) -> Self {
+        self.lua_timeout = timeout;
         self
     }
 
@@ -316,6 +329,7 @@ impl RedisBackendBuilder {
                 self.circuit_breaker_threshold,
                 self.circuit_breaker_reset_timeout,
             )),
+            self.lua_timeout,
         ))
     }
 
@@ -353,4 +367,27 @@ impl RedisBackendBuilder {
 
 fn open_client(connection_string: &str) -> OxCacheResult<Client> {
     redis::Client::open(connection_string).map_err(map_redis_error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// lua_timeout 默认 5s（对齐 limiteron EVAL_TIMEOUT 口径）
+    #[test]
+    fn test_default_lua_timeout_is_five_seconds() {
+        assert_eq!(DEFAULT_LUA_TIMEOUT, Duration::from_secs(5));
+        let builder = RedisBackendBuilder::default();
+        assert_eq!(builder.lua_timeout, DEFAULT_LUA_TIMEOUT);
+    }
+
+    /// builder 链式赋值生效；ZERO（不限时）是合法值
+    #[test]
+    fn test_lua_timeout_builder_assignment() {
+        let builder = RedisBackendBuilder::default().lua_timeout(Duration::from_millis(250));
+        assert_eq!(builder.lua_timeout, Duration::from_millis(250));
+
+        let builder = RedisBackendBuilder::default().lua_timeout(Duration::ZERO);
+        assert_eq!(builder.lua_timeout, Duration::ZERO);
+    }
 }

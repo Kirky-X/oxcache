@@ -101,12 +101,25 @@ pub struct RedisBackend {
     retry_delay: Duration,
     /// Circuit breaker for cascading failure protection.
     circuit_breaker: Arc<CircuitBreaker>,
+    /// Lua 脚本命令响应超时（EVAL/EVALSHA/SCRIPT LOAD）。
+    ///
+    /// 历史教训：Lua 路径曾无任何超时——Redis 挂起时调用被无限期拖住，
+    /// 且 oxcache 的 connection_timeout 只覆盖建连。`Duration::ZERO` =
+    /// 不限时（对齐 limiteron `with_timeout(ZERO)` 惯用法）。
+    /// lua feature 关闭时字段随 builder/from_parts 通路存在但无读取方。
+    #[cfg_attr(not(feature = "lua"), allow(dead_code))]
+    lua_timeout: Duration,
 }
+
+/// Lua 脚本命令默认响应超时（对齐 limiteron `EVAL_TIMEOUT` 口径）。
+pub(crate) const DEFAULT_LUA_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl RedisBackend {
     /// Construct a `RedisBackend` from its constituent parts.
     ///
-    /// Called by `RedisBackendBuilder::build()`.
+    /// Called by `RedisBackendBuilder::build()`; all fields are builder-fed,
+    /// a params struct would just re-pack them one-to-one.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         client: Arc<Client>,
         mode: RedisMode,
@@ -115,6 +128,7 @@ impl RedisBackend {
         retry_count: u32,
         retry_delay: Duration,
         circuit_breaker: Arc<CircuitBreaker>,
+        lua_timeout: Duration,
     ) -> Self {
         Self {
             client,
@@ -124,6 +138,7 @@ impl RedisBackend {
             retry_count,
             retry_delay,
             circuit_breaker,
+            lua_timeout,
         }
     }
 
@@ -206,9 +221,54 @@ impl RedisBackend {
         self.connection.clone()
     }
 
-    /// Get a reference to the circuit breaker.
-    pub(crate) fn circuit_breaker(&self) -> &CircuitBreaker {
-        &self.circuit_breaker
+    /// Lua 脚本命令响应超时。
+    #[cfg_attr(not(feature = "lua"), allow(dead_code))]
+    pub(crate) fn lua_timeout(&self) -> Duration {
+        self.lua_timeout
+    }
+
+    /// 熔断器预检：Open 时返回 `Degraded`，Closed 放行。
+    fn check_circuit(breaker: &CircuitBreaker) -> OxCacheResult<()> {
+        if breaker.is_open() {
+            return Err(OxCacheError::Degraded(
+                "Redis circuit breaker is open".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 执行结果记账：成功重置、失败计数，跳闸瞬间记录降级 metrics。
+    fn record_outcome<T>(breaker: &CircuitBreaker, result: &OxCacheResult<T>) {
+        match result {
+            Ok(_) => breaker.record_success(),
+            Err(_) => {
+                if breaker.record_failure() {
+                    // Circuit breaker just transitioned to Open
+                    #[cfg(feature = "metrics")]
+                    GLOBAL_UNIFIED_METRICS.record_l2_degraded();
+                }
+            }
+        }
+    }
+
+    /// 单次执行 + 熔断器记账（**无重试**）。
+    ///
+    /// 供 Lua 脚本路径使用：脚本可有副作用，失败重试存在双应用风险，
+    /// 故只取「Open 拒绝 + 成功/失败记账」，与 `execute_with_retry` 的
+    /// 重试语义解耦。
+    #[cfg_attr(not(feature = "lua"), allow(dead_code))]
+    pub(crate) async fn execute_once_with_breaker<F, Fut, T>(
+        &self,
+        operation: F,
+    ) -> OxCacheResult<T>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = OxCacheResult<T>>,
+    {
+        Self::check_circuit(&self.circuit_breaker)?;
+        let result = operation().await;
+        Self::record_outcome(&self.circuit_breaker, &result);
+        result
     }
 
     /// Execute an operation with circuit breaker protection and retry.
@@ -219,24 +279,11 @@ impl RedisBackend {
         F: Fn() -> Fut + Send + Sync,
         Fut: Future<Output = OxCacheResult<T>> + Send,
     {
-        if self.circuit_breaker().is_open() {
-            return Err(OxCacheError::Degraded(
-                "Redis circuit breaker is open".to_string(),
-            ));
-        }
+        Self::check_circuit(&self.circuit_breaker)?;
 
         let result = retry_with_backoff(operation, self.retry_count, self.retry_delay).await;
 
-        match &result {
-            Ok(_) => self.circuit_breaker.record_success(),
-            Err(_) => {
-                if self.circuit_breaker.record_failure() {
-                    // Circuit breaker just transitioned to Open
-                    #[cfg(feature = "metrics")]
-                    GLOBAL_UNIFIED_METRICS.record_l2_degraded();
-                }
-            }
-        }
+        Self::record_outcome(&self.circuit_breaker, &result);
 
         result
     }
@@ -269,5 +316,38 @@ mod tests {
     fn test_redact_connection_string_no_userinfo_unchanged() {
         let redacted = RedisBackend::redact_connection_string("redis://localhost:6379/0");
         assert_eq!(redacted, "redis://localhost:6379/0");
+    }
+
+    /// check_circuit：Closed 放行、Open 拒绝（Degraded）
+    #[test]
+    fn test_check_circuit_rejects_when_open() {
+        let breaker = CircuitBreaker::new(1, Duration::from_secs(60));
+        assert!(RedisBackend::check_circuit(&breaker).is_ok());
+
+        breaker.record_failure(); // threshold=1，一次失败即跳闸
+        assert!(breaker.is_open());
+        let err = RedisBackend::check_circuit(&breaker).unwrap_err();
+        assert!(matches!(err, OxCacheError::Degraded(_)));
+    }
+
+    /// record_outcome：成功/失败记账并按阈值联动跳闸
+    #[test]
+    fn test_record_outcome_counts_toward_trip() {
+        let breaker = CircuitBreaker::new(2, Duration::from_secs(60));
+
+        RedisBackend::record_outcome::<u8>(&breaker, &Ok(1));
+        assert!(!breaker.is_open());
+
+        RedisBackend::record_outcome::<u8>(
+            &breaker,
+            &Err(OxCacheError::Connection("x".to_string())),
+        );
+        assert!(!breaker.is_open());
+
+        RedisBackend::record_outcome::<u8>(
+            &breaker,
+            &Err(OxCacheError::Connection("y".to_string())),
+        );
+        assert!(breaker.is_open());
     }
 }

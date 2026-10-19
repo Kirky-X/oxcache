@@ -33,7 +33,7 @@ use oxcache::backend::{
     AtomicCacheWriter, BackendKind, BackendScore, CacheConnector, CacheReader, CacheSetItem,
     CacheWriter, LuaExecutor, Scores,
 };
-use oxcache::error::OxCacheResult;
+use oxcache::error::{OxCacheError, OxCacheResult};
 use oxcache::features::dist_lock::{DistLockBuilder, LockProvider};
 
 // libtest 默认多线程并发运行测试，POSIX `environ` 非线程安全；进程加载期
@@ -54,6 +54,8 @@ struct FakeServer {
     store: Arc<Mutex<Store>>,
     /// 置位后所有命令返回 -ERR（断路器 / watchdog 错误分支驱动用）。
     fail_all: Arc<AtomicBool>,
+    /// 置位后 EVAL/EVALSHA 挂起不应答（Lua 响应超时分支驱动用）。
+    hang_eval: Arc<AtomicBool>,
 }
 
 impl FakeServer {
@@ -67,10 +69,12 @@ impl FakeServer {
         let store: Arc<Mutex<Store>> = Arc::new(Mutex::new(HashMap::new()));
         let scripts: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(HashMap::new()));
         let fail_all = Arc::new(AtomicBool::new(false));
+        let hang_eval = Arc::new(AtomicBool::new(false));
 
         let accept_store = Arc::clone(&store);
         let accept_scripts = Arc::clone(&scripts);
         let accept_fail = Arc::clone(&fail_all);
+        let accept_hang = Arc::clone(&hang_eval);
         std::thread::spawn(move || {
             loop {
                 match listener.accept() {
@@ -78,8 +82,9 @@ impl FakeServer {
                         let conn_store = Arc::clone(&accept_store);
                         let conn_scripts = Arc::clone(&accept_scripts);
                         let conn_fail = Arc::clone(&accept_fail);
+                        let conn_hang = Arc::clone(&accept_hang);
                         std::thread::spawn(move || {
-                            serve_connection(stream, conn_store, conn_scripts, conn_fail)
+                            serve_connection(stream, conn_store, conn_scripts, conn_fail, conn_hang)
                         });
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -90,12 +95,20 @@ impl FakeServer {
             }
         });
 
-        let server = Arc::new(Self { store, fail_all });
+        let server = Arc::new(Self {
+            store,
+            fail_all,
+            hang_eval,
+        });
         (server, format!("redis://127.0.0.1:{port}"))
     }
 
     fn set_fail_all(&self, on: bool) {
         self.fail_all.store(on, Ordering::SeqCst);
+    }
+
+    fn set_hang_eval(&self, on: bool) {
+        self.hang_eval.store(on, Ordering::SeqCst);
     }
 
     fn contains_key(&self, key: &str) -> bool {
@@ -173,6 +186,7 @@ fn serve_connection(
     store: Arc<Mutex<Store>>,
     scripts: Arc<Mutex<HashMap<String, String>>>,
     fail_all: Arc<AtomicBool>,
+    hang_eval: Arc<AtomicBool>,
 ) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
     let _ = stream.set_nodelay(true);
@@ -192,6 +206,14 @@ fn serve_connection(
             }
             let _ = out.flush();
             continue;
+        }
+        // EVAL/EVALSHA 挂起不应答：驱动 Lua 响应超时分支（服务端线程睡眠
+        // 后自然结束，测试侧超时早于此返回）
+        if hang_eval.load(Ordering::SeqCst)
+            && (argv[0].as_slice().eq_ignore_ascii_case(b"EVAL")
+                || argv[0].as_slice().eq_ignore_ascii_case(b"EVALSHA"))
+        {
+            std::thread::sleep(Duration::from_secs(5));
         }
         let replies = execute(&argv, &store, &scripts);
         let mut buf: Vec<u8> = Vec::new();
@@ -1061,6 +1083,63 @@ async fn lua_executor_paths() {
     assert_eq!(sha.len(), 40);
     let value = backend.eval_sha(&sha, &["lua:k"], &[]).await.unwrap();
     assert!(matches!(value, oxcache::redis::Value::Int(1)));
+}
+
+/// 熔断器 Open：eval_lua 直接被 check_circuit 拒绝（Degraded 仅出自该检查），
+/// 脚本不触达服务端——服务端恢复健康后仍拒绝，证明拒绝来自熔断器。
+#[tokio::test(flavor = "multi_thread")]
+async fn lua_eval_rejected_when_breaker_open() {
+    let (server, url) = FakeServer::spawn();
+    let backend = RedisBackend::builder()
+        .connection_string(&url)
+        .retry_count(0)
+        .circuit_breaker_threshold(1)
+        .build()
+        .await
+        .expect("connect to fake redis");
+
+    // 一次失败即跳闸（threshold=1）：fail_all 下 Lua 调用收 -ERR 并计入熔断
+    server.set_fail_all(true);
+    assert!(
+        backend
+            .eval_lua("return 1", &["lua:trip"], &["1"])
+            .await
+            .is_err()
+    );
+
+    // 服务端恢复健康后，Lua 调用仍被熔断拒绝；若熔断未生效，健康服务端
+    // 会正常回 :1——Degraded 错误类型本身即证明闭包未执行
+    server.set_fail_all(false);
+    let r = backend.eval_lua("return 1", &["lua:open"], &["1"]).await;
+    assert!(matches!(r, Err(OxCacheError::Degraded(_))), "got {r:?}");
+}
+
+/// Lua 响应超时计入熔断失败：threshold=1 下一次超时即跳闸，后续 Lua 调用
+/// 直接 Degraded（超时→记账→跳闸的组合行为）。
+#[tokio::test(flavor = "multi_thread")]
+async fn lua_timeout_counts_toward_breaker_trip() {
+    let (server, url) = FakeServer::spawn();
+    let backend = RedisBackend::builder()
+        .connection_string(&url)
+        .retry_count(0)
+        .circuit_breaker_threshold(1)
+        .lua_timeout(Duration::from_millis(50))
+        .build()
+        .await
+        .expect("connect to fake redis");
+
+    server.set_hang_eval(true);
+    let r = backend.eval_lua("return 1", &["lua:hang"], &["1"]).await;
+    match r {
+        Err(OxCacheError::Timeout(msg)) => {
+            assert!(msg.contains("50ms"), "unexpected message: {msg}")
+        }
+        other => panic!("expected Timeout, got {other:?}"),
+    }
+
+    // 超时已记账跳闸：后续调用不再触达挂起的服务端，直接 Degraded
+    let r = backend.eval_lua("return 1", &["lua:hang"], &["1"]).await;
+    assert!(matches!(r, Err(OxCacheError::Degraded(_))), "got {r:?}");
 }
 
 // === client 层：ping / with_pool / 断路器 ===

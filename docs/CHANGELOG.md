@@ -9,6 +9,7 @@
 
 ### 修复
 
+- **Lua 脚本路径熔断与超时收口（2026-10-19 入库）**：`LuaExecutor` 三方法（`eval_lua`/`eval_sha`/`script_load`）原直接裸调 `query_async`——无响应超时（Redis 挂起时无限阻塞）、不经熔断器（故障不计数不跳闸，与 16 处普通命令的 `execute_with_retry` 路径不一致）。现统一经 `execute_once_with_breaker` 执行：熔断器 Open 即拒绝（`Degraded`）、成功/失败记账；新增 builder 选项 `lua_timeout`（默认 5 秒，`Duration::ZERO` 不限时），超时返回 `OxCacheError::Timeout` 并计入熔断失败。EVAL 具副作用语义，失败**不重试**——熔断器原语自 `execute_with_retry` 下沉（`check_circuit`/`record_outcome`），重试语义仅保留在普通命令路径
 - **容器门控拉取重试（2026-10-19 入库）**：registry 瞬时故障（bollard 拉流中断的 `bytes remaining on stream`）单次失败即置失败短路闩，strict 模式下放大为整组测试失败（CI `redis-tier,lua` job 实测 5 例）。`container_or_skip` 改工厂参数并在置闩前重试至多 3 次（间隔 2 秒），重试耗尽仍失败才 fail-closed
 - **容器测试首启竞态（2026-10-19 入库）**：`testcontainers` 0.28 的 watchdog 注册表由 conquer-once 0.4 `Lazy` 承载，并发首个容器启动可在初始化落地瞬间命中 `unreachable!()`（conquer-once cell.rs:586，上游 testcontainers-rs#995 未修）；CI 的 `minimal,compression` 组合 job 因此偶发 panic。测试助手新增 `start_with_watchdog_gate`——首个成功启动落地前串行化启动，Lazy 就绪后快路径直通；门控状态经 `crate::common` 根副本静态量跨 `#[path] mod common` 的按文件副本共享（模块内 static 各存一份，挡不住跨副本并发）。`RedisContainer`/`ValkeyContainer`/`DragonflyContainer` 包装器、`docker_test_utils` 与 e2e 直连 setup 全部改经守卫
 

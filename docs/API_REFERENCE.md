@@ -418,6 +418,7 @@ let backend = RedisBackend::builder()
 | `mode(RedisMode)` | 设置 Redis 模式（`Standalone`/`Sentinel`/`Cluster`/`ValkeyStandalone`） |
 | `sentinel_master_name(impl Into<String>)` | Sentinel 模式监控的 master 名（默认 `"mymaster"`） |
 | `sentinel_addr_map(impl IntoIterator<Item=(String,String)>)` | Sentinel 模式 NAT 地址映射（`ip:port` → 客户端可达 `host:port`），未命中原样使用 |
+| `lua_timeout(Duration)` | Lua 脚本命令响应超时（默认 5 秒；`Duration::ZERO` 不限时），覆盖 `eval_lua`/`eval_sha`/`script_load` |
 | `build().await` | 构建 `RedisBackend`（2 秒连接超时） |
 
 **Sentinel 模式行为：** 连接串指向 sentinel 节点列表，master 经
@@ -465,6 +466,8 @@ let val = backend.eval_sha(&sha, &[], &[]).await?;
 ```
 
 `eval_lua` 与 `script_load` 在执行/缓存前通过 `validate_lua_script` 校验脚本；`eval_sha` 仅校验 SHA1 格式与键名，不重复校验脚本内容——脚本在 `script_load` 时已校验。`eval_sha` 遇 NOSCRIPT（脚本未缓存）不回退，显性返回错误，需调用方重新 `script_load` 或改用 `eval_lua`。
+
+三个方法均经熔断器执行：熔断器 Open 时立即返回 `Degraded`（不执行脚本），成功/失败计入熔断计数。EVAL 具有副作用语义，失败**不重试**（与普通命令的重试行为不同）。响应超时由 builder 选项 `lua_timeout` 控制（默认 5 秒，`Duration::ZERO` 不限时），超时返回 `OxCacheError::Timeout` 并计入熔断失败。
 
 ## 🐉 DragonflyBackend
 
