@@ -130,7 +130,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.7"
+oxcache = "0.5.0-rc.9"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -674,7 +674,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 | 状态 | 事项 | 说明 |
 |:----:|------|------|
-| 📋 | **0.5.0 正式发布** | 当前版本 0.5.0-rc.8（`Cargo.toml`）；完成发布流程验证后推送 tag 触发 `release.yml` 自动发布到 crates.io |
+| 📋 | **0.5.0 正式发布** | 版本随 `0.5.x` 发布线推进（以 `Cargo.toml` 为准）；完成发布流程后推送 tag 触发 `release.yml` 自动发布到 crates.io |
 | 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
 | ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey 与 6 个 Dragonfly 集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
 | ✅ | **质量审查留档项跟进** | 5 项全部收口（2 Medium + 1 Low 当轮修复，MED-001 与 LOW-002 于 2026-09-30 待办修复轮收口） |
