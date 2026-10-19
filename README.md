@@ -130,7 +130,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.9"
+oxcache = "0.5.0-rc.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -231,9 +231,9 @@ cargo build --lib --target wasm32-unknown-unknown --no-default-features --featur
 <summary>📄 代码 · toml</summary>
 
 ```toml
-oxcache = { version = "0.5.0-rc.9", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.9", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.0-rc.10", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0-rc.10", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
 
 </details>

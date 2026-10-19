@@ -130,7 +130,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.9"
+oxcache = "0.5.0-rc.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -231,9 +231,9 @@ Tier presets (`default = ["minimal"]`, L1 only):
 <summary>📄 Code · toml</summary>
 
 ```toml
-oxcache = { version = "0.5.0-rc.9", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.9", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
-oxcache = { version = "0.5.0-rc.9", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
+oxcache = { version = "0.5.0-rc.10", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0-rc.10", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
 ```
 
 </details>

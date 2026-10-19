@@ -27,7 +27,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.9"
+version = "0.5.0-rc.10"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -51,7 +51,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # === DEPENDENCIES ===
 [dependencies]
 # Internal macros
-oxcache_macros = { path = "macros", version = "0.5.0-rc.9", optional = true, default-features = false }
+oxcache_macros = { path = "macros", version = "0.5.0-rc.10", optional = true, default-features = false }
 
 # Async Runtime
 # 包级不启用 rt-multi-thread：wasm32 仅支持 sync/macros/io-util/rt/time；
