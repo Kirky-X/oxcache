@@ -84,7 +84,7 @@ pre-commit install
 - 依赖必须通过 feature 门控，禁止使用默认特性引入不必要的依赖
 - 中文注释（与现有代码库一致）
 - 错误必须显性化：抛出、返回或上报，严禁吞掉或藏在默认值背后
-- 文档（`docs/` 与 README）改动后运行文档结构校验：脚本位于 base 工作区根的 `scripts/check_docs.py`（**不在本仓库内**），需在 base 工作区根目录执行 `python3 scripts/check_docs.py oxcache`；仓库外贡献者可跳过（CI 的 Documentation job 兜底 `cargo doc` 构建）
+- 文档（`docs/` 与 README）改动后运行文档结构校验：脚本位于 base 工作区根的 `scripts/base.py`（**不在本仓库内**），需在 base 工作区根目录执行 `python3 scripts/base.py docs check oxcache`；仓库外贡献者可跳过（CI 的 Documentation job 兜底 `cargo doc` 构建）
 
 ## ⌨️ 常用命令
 

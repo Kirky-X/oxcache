@@ -76,7 +76,6 @@ temp/
 *.crt
 *.secret
 *.credentials
-.pre-commit-check.log
 
 # --- Local config / AI assistant files (kept local only) ---
 .local-registry/
