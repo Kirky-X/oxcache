@@ -125,7 +125,7 @@ impl DragonflyBackend {
     }
 }
 
-// === Trait Implementations — all delegate to inner RedisBackend ===
+// Trait Implementations — all delegate to inner RedisBackend
 
 #[async_trait]
 impl CacheReader for DragonflyBackend {
@@ -228,7 +228,7 @@ impl CacheConnector for DragonflyBackend {
     }
 }
 
-// === Tests ===
+// Tests
 
 #[cfg(test)]
 mod tests;

@@ -313,7 +313,6 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
         ("LOAD(", "load()"),
     ];
 
-    // 检查每种危险模式
     for (pattern, description) in &forbidden_patterns {
         if cleaned_upper.contains(pattern) {
             return Err(OxCacheError::InvalidInput(t(
@@ -323,7 +322,6 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
         }
     }
 
-    // 检查嵌套 eval
     if cleaned_upper.contains("REDIS.EVAL") || cleaned_upper.contains("REDIS.EVALSHA") {
         return Err(OxCacheError::InvalidInput(t(
             MSG_DETAIL_LUA_NESTED_EVAL,
@@ -498,7 +496,6 @@ pub(super) fn skip_lua_long_string(chars: &mut std::iter::Peekable<std::str::Cha
 
     while let Some(c) = chars.next() {
         if c == ']' {
-            // 检查是否是闭合括号
             let mut check_pos = 1;
             let mut is_match = true;
             while check_pos < closing_len {

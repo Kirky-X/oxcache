@@ -533,7 +533,7 @@ mod tests {
         kit.shutdown_async().await;
     }
 
-    // ---- multi-backend tests ----
+    // multi-backend tests
 
     /// `BackendType::default()` is `Memory`.
     #[test]

@@ -15,7 +15,6 @@ async fn test_l1_only_mode() {
     // 使用新的Cache API创建L1缓存
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
-    // 验证缓存可以正常工作
     let test_key = "l1_test_key".to_string();
     let test_value = "l1_test_value".to_string();
 
@@ -29,7 +28,6 @@ async fn test_l1_only_mode() {
         assert_eq!(retrieved, test_value, "Retrieved value should match");
     }
 
-    // 清理
     let _ = cache.delete(&test_key).await;
 }
 
@@ -58,7 +56,6 @@ async fn test_cache_basic_operations() {
     let delete_result = cache.delete(&key).await;
     assert!(delete_result.is_ok(), "DELETE should succeed");
 
-    // 验证删除
     let get_after_delete = cache.get(&key).await;
     assert!(get_after_delete.is_ok(), "GET after delete should succeed");
     assert!(
@@ -81,7 +78,6 @@ async fn test_cache_clear() {
         let _ = cache.set(&key, &value).await;
     }
 
-    // 验证数据存在
     let get_result = cache.get(&"clear_test_5".to_string()).await;
     assert!(get_result.is_ok(), "GET should succeed");
     assert!(
@@ -92,7 +88,6 @@ async fn test_cache_clear() {
     let clear_result = cache.clear().await;
     assert!(clear_result.is_ok(), "CLEAR should succeed");
 
-    // 验证数据已被清空
     let get_after_clear = cache.get(&"clear_test_5".to_string()).await;
     assert!(get_after_clear.is_ok(), "GET after clear should succeed");
     assert!(

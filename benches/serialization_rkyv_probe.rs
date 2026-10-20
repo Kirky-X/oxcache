@@ -89,7 +89,7 @@ fn bench_probe(c: &mut Criterion) {
             rkyv_bytes.len()
         );
 
-        // ---- 序列化 ----
+        // 序列化
         group.bench_with_input(
             BenchmarkId::new("serialize_json", label),
             &records,
@@ -113,7 +113,7 @@ fn bench_probe(c: &mut Criterion) {
             },
         );
 
-        // ---- 反序列化为自有值（当前 Cache::get 的语义：必须重建 V）----
+        // 反序列化为自有值（当前 Cache::get 的语义：必须重建 V）
         let j = json.clone();
         group.bench_with_input(BenchmarkId::new("deserialize_json", label), &j, |b, d| {
             b.iter(|| {
@@ -146,7 +146,7 @@ fn bench_probe(c: &mut Criterion) {
             },
         );
 
-        // ---- rkyv 零拷贝访问（含校验）：只有 archived 视图 API 才能兑现 ----
+        // rkyv 零拷贝访问（含校验）：只有 archived 视图 API 才能兑现
         group.bench_with_input(
             BenchmarkId::new("access_rkyv_zero_copy", label),
             &rkyv_bytes,

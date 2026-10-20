@@ -9,7 +9,7 @@
 #[path = "common/mod.rs"]
 pub mod common;
 
-// --- Core integration tests ---
+// Core integration tests
 #[cfg(feature = "redis")]
 #[path = "integration/batch_write_test.rs"]
 mod batch_write_test;
@@ -39,7 +39,7 @@ mod two_level_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
 
-// --- Redis & lock tests ---
+// Redis & lock tests
 #[cfg(feature = "lock")]
 #[path = "integration/redis/dist_lock_test.rs"]
 mod dist_lock_test;
@@ -66,14 +66,14 @@ mod pubsub_real_redis_test;
 #[path = "integration/redis/versioning_real_redis_test.rs"]
 mod versioning_real_redis_test;
 
-// --- TTL tests ---
+// TTL tests
 #[cfg(feature = "memory")]
 #[path = "integration/ttl/ttl_consistency_test.rs"]
 mod ttl_consistency_test;
 #[path = "integration/ttl/ttl_expire_test.rs"]
 mod ttl_expire_test;
 
-// --- Alternative backend tests ---
+// Alternative backend tests
 #[cfg(feature = "aerospike")]
 #[path = "integration/backend/aerospike_test.rs"]
 mod aerospike_test;

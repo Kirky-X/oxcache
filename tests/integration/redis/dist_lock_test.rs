@@ -72,7 +72,6 @@ async fn test_dist_lock_ttl_expiry() {
     lock.acquire().await.expect("acquire");
     assert!(lock.is_held().await.expect("is_held"));
 
-    // Wait for TTL to expire
     tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Lock should have expired
@@ -131,7 +130,6 @@ async fn test_dist_lock_watchdog_renew() {
         "watchdog should have renewed the lock"
     );
 
-    // Clean up
     lock.release().await.expect("release");
 }
 

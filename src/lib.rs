@@ -175,7 +175,7 @@
 #![doc(html_root_url = "https://docs.rs/oxcache/0.5.0-rc.6")]
 #![deny(unsafe_code)]
 
-// === Core Modules (Always Available) ===
+// Core Modules (Always Available)
 mod core;
 pub mod error;
 #[cfg(test)]
@@ -203,7 +203,7 @@ pub mod sync;
 #[doc(hidden)]
 pub mod internal;
 
-// === Primary Modules (Feature-Gated) ===
+// Primary Modules (Feature-Gated)
 
 // Cache module (modern Cache<K,V> API)
 // Gated behind backend-enabling features because cache depends on backend + infra modules.
@@ -286,7 +286,7 @@ pub mod i18n;
 // Security module: Redis security validation
 pub(crate) mod security;
 
-// === Public API Re-exports ===
+// Public API Re-exports
 
 // Re-export serde traits so consumers don't need to add serde to their own
 // Cargo.toml. Cache<K, V> requires V: Serialize + Deserialize, so these are
@@ -314,7 +314,7 @@ pub use error::{OxCacheError, OxCacheResult};
 #[doc(hidden)]
 pub use crate::internal::__internal_get_cache;
 
-// ---- telemetry helpers for macro-generated code ----
+// telemetry helpers for macro-generated code
 // These are called from #[cached] macro expansions. When `telemetry` is
 // off they compile to empty functions (zero overhead).
 
@@ -338,7 +338,7 @@ pub fn __telemetry_macro_passthrough(service: &str, reason: &str) {
 #[inline]
 pub fn __telemetry_macro_passthrough(_service: &str, _reason: &str) {}
 
-// === New API (Recommended) ===
+// New API (Recommended)
 
 // New API exports
 // cache 模块仅在 memory/redis/minimal/core/full feature 下编译，re-export 须同步门控
@@ -415,7 +415,7 @@ pub use backend::{MokaMemoryBackend, default_memory_backend, moka_memory};
 #[cfg(feature = "redis")]
 pub use backend::{RedisBackend, RedisBackendBuilder, RedisMode};
 
-// === Factory Functions (Brick Architecture Standard) ===
+// Factory Functions (Brick Architecture Standard)
 
 /// oxcache 版本号
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

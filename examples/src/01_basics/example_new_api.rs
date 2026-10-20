@@ -51,14 +51,13 @@ async fn main() -> OxCacheResult<()> {
     println!("{}", t(MSG_EXAMPLE_NEW_API_USAGE_EXAMPLE, &[]));
     println!("======================\n");
 
-    // === Memory Cache ===
+    // Memory Cache
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_1_IN_MEMORY_CACHE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let memory_cache: Cache<String, User> = Cache::builder().build().await?;
 
-    // 设置一个值
     let user = User {
         id: 1,
         name: "Alice".to_string(),
@@ -76,7 +75,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Redis Cache ===
+    // Redis Cache
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_2_REDIS_CACHE_L2, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -109,7 +108,7 @@ async fn main() -> OxCacheResult<()> {
         }
     }
 
-    // === Custom Key Type ===
+    // Custom Key Type
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_3_CUSTOM_KEY_TYPE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -129,7 +128,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Advanced Configuration with Builder ===
+    // Advanced Configuration with Builder
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "{}",
@@ -156,7 +155,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === TTL Operations (using set_with_ttl) ===
+    // TTL Operations (using set_with_ttl)
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_5_TTL_OPERATIONS_USING, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -168,7 +167,6 @@ async fn main() -> OxCacheResult<()> {
         .set_with_ttl(&"user:7".to_string(), &user, Some(Duration::from_secs(60)))
         .await?;
 
-    // 获取并验证 - 值存在
     let cached_user = ttl_cache.get(&"user:7".to_string()).await?;
     assert!(cached_user.is_some());
     println!("{}", t(MSG_EXAMPLE_NEW_API_SET_USER_7_WITH, &[]));
@@ -179,14 +177,13 @@ async fn main() -> OxCacheResult<()> {
         .await?;
     println!("{}", t(MSG_EXAMPLE_NEW_API_UPDATED_THE_TTL_OF, &[]));
 
-    // === Batch Operations ===
+    // Batch Operations
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_6_BATCH_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let batch_cache: Cache<String, User> = Cache::builder().build().await?;
 
-    // Set multiple values
     let mut batch = Vec::new();
     for i in 1..=5 {
         let user = User {
@@ -209,7 +206,6 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // 获取多个值
     let mut retrieved_count = 0;
     for (key, _) in &batch {
         if batch_cache.get(key).await?.is_some() {
@@ -225,7 +221,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Delete Operations ===
+    // Delete Operations
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_7_DELETE_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -234,7 +230,6 @@ async fn main() -> OxCacheResult<()> {
 
     delete_cache.set(&"user:8".to_string(), &user).await?;
 
-    // Check exists
     let exists = delete_cache.exists(&"user:8".to_string()).await?;
     println!(
         "{}",
@@ -255,14 +250,13 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Clear Operations ===
+    // Clear Operations
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_8_CLEAR_OPERATIONS, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     let clear_cache: Cache<String, User> = Cache::builder().build().await?;
 
-    // Set multiple values
     for i in 1..=3 {
         clear_cache.set(&format!("user:{}", i), &user).await?;
     }
@@ -272,7 +266,6 @@ async fn main() -> OxCacheResult<()> {
     clear_cache.clear().await?;
     println!("{}", t(MSG_EXAMPLE_NEW_API_CLEARED_ALL_CACHE_ENTRIES, &[]));
 
-    // 验证为空
     let exists = clear_cache.exists(&"user:1".to_string()).await?;
     println!(
         "{}",
@@ -282,7 +275,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Get-or-Fallback Pattern ===
+    // Get-or-Fallback Pattern
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_9_CACHE_ASIDE_MODE, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -303,7 +296,7 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // === Summary ===
+    // Summary
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{}", t(MSG_EXAMPLE_NEW_API_10_SUMMARY, &[]));
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

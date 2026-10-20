@@ -20,7 +20,7 @@ use oxcache::backend::MokaMemoryBackend;
 use oxcache::backend::{CacheReader, CacheWriter, SyncCacheReader, SyncCacheWriter};
 use oxcache::features::{BloomFilter, BloomFilterBackend};
 
-// === BloomFilter 独立类型 ===
+// BloomFilter 独立类型
 
 #[test]
 fn test_bloom_filter_basic_lifecycle() {
@@ -56,7 +56,7 @@ fn test_bloom_filter_no_false_negatives() {
     }
 }
 
-// === BloomFilterBackend 装饰器（async + Moka） ===
+// BloomFilterBackend 装饰器（async + Moka）
 
 #[tokio::test]
 async fn test_bf_backend_get_miss_skips_inner() {
@@ -191,7 +191,7 @@ async fn test_bf_backend_clear_clears_both() {
     assert_eq!(CacheReader::get(&inner_ref, "k2").await.unwrap(), None);
 }
 
-// === BloomFilterBackend sync API（TG14） ===
+// BloomFilterBackend sync API（TG14）
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_bf_backend_sync_get_set_basic() {
@@ -232,7 +232,6 @@ async fn test_bf_backend_sync_set_with_ttl_passes_through() {
     // 等 100ms 让 TTL 过期
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // 循环等待 Moka 清理
     let mut expired = false;
     for _ in 0..10 {
         if SyncCacheReader::get(&backend, "k").unwrap().is_none() {

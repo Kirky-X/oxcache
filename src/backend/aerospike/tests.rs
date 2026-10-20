@@ -65,7 +65,7 @@ fn test_backend_score_values() {
     const { assert!(30u8 < Scores::REDIS) };
 }
 
-// === Integration tests (require Aerospike server on port 3001) ===
+// Integration tests (require Aerospike server on port 3001)
 
 /// Aerospike test seed — Docker mapped port 3001 → container 3000
 const AEROSPIKE_SEED: &str = "127.0.0.1:3001";

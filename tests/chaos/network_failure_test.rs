@@ -281,7 +281,6 @@ async fn test_retry_logic() {
         }
     };
 
-    // 验证连接成功
     backend.ping().await.unwrap();
 
     println!("✓ Retry logic test passed ({} attempts)", attempts);
@@ -348,7 +347,6 @@ async fn test_partial_failure_handling() {
 
     println!("success: {}, failed: {}", success_count, failure_count);
 
-    // 清理
     for i in 0..100 {
         let key = format!("partial_key_{}", i);
         backend.delete(&key).await.ok();
@@ -390,7 +388,6 @@ async fn test_connection_pool_exhaustion() {
             .ok();
     }
 
-    // 清理
     for (i, backend) in backends.iter().enumerate() {
         let key = format!("pool_key_{}", i);
         backend.delete(&key).await.ok();

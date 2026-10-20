@@ -49,7 +49,7 @@ pub fn redact_connection_string(connection_string: &str) -> String {
     //
     // - 用最后一个 '@' 切分：密码本身可能含 '@'，host 部分的残留即泄露。
     // - 用 userinfo 段内第一个 ':' 切分：用户名不含冒号，密码可能含冒号，
-    //   按最后一个冒号切会把密码片段留在明文里。
+    // 按最后一个冒号切会把密码片段留在明文里。
     // - 无密码时没有可脱敏内容，原样返回（不附加 ":****"）。
 
     if let Some(at_idx) = connection_string.rfind('@') {
@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(redacted.to_string(), "****_value");
     }
 
-    // === redact_connection_string 边界测试 (line 58) ===
+    // redact_connection_string 边界测试 (line 58)
 
     #[test]
     fn test_redact_connection_string_no_protocol() {
@@ -290,7 +290,7 @@ mod tests {
         assert_eq!(result, "redis://user@host:6379");
     }
 
-    // === redact_cache_key 长键截断测试 (line 111) ===
+    // redact_cache_key 长键截断测试 (line 111)
 
     #[test]
     fn test_redact_cache_key_long_key_truncation() {
@@ -317,7 +317,7 @@ mod tests {
         assert!(result.ends_with("..."));
     }
 
-    // === redact_field 测试 (lines 125-126, 141-144, 148) ===
+    // redact_field 测试 (lines 125-126, 141-144, 148)
 
     #[test]
     fn test_redact_field_password() {
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(result, "****t123");
     }
 
-    // === redact_value 边界测试 ===
+    // redact_value 边界测试
 
     #[test]
     fn test_redact_value_empty() {
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(redact_value("test", 0), "****");
     }
 
-    // === Redacted 包装器测试 (lines 183-184) ===
+    // Redacted 包装器测试 (lines 183-184)
 
     #[test]
     fn test_redacted_debug() {
@@ -462,7 +462,7 @@ mod tests {
         assert!(s.starts_with("****"));
     }
 
-    // === redact_cache_key 敏感模式测试 ===
+    // redact_cache_key 敏感模式测试
 
     #[test]
     fn test_redact_cache_key_session() {
@@ -506,7 +506,7 @@ mod tests {
         assert_eq!(result, "user_profile_123");
     }
 
-    // === UTF-8 安全切片测试 (S2/S3 修复验证) ===
+    // UTF-8 安全切片测试 (S2/S3 修复验证)
 
     #[test]
     fn test_redact_value_multibyte_utf8_no_panic() {

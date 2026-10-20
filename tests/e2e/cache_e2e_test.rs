@@ -28,7 +28,6 @@ mod tests {
 
         let key = "user:1".to_string();
 
-        // Set a value
         cache.set(&key, &user).await?;
 
         let retrieved: Option<User> = cache.get(&key).await?;
@@ -51,14 +50,12 @@ mod tests {
 
         let key = "user:1".to_string();
 
-        // Set a value
         cache.set(&key, &user).await?;
 
         // Verify it exists
         let exists = cache.exists(&key).await?;
         assert!(exists);
 
-        // Delete the value
         cache.delete(&key).await?;
 
         // Verify it's gone
@@ -89,7 +86,6 @@ mod tests {
         let exists = cache.exists(&key).await?;
         assert!(exists);
 
-        // Wait for TTL to expire
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         // Verify it's gone
@@ -169,10 +165,8 @@ mod tests {
             ),
         ];
 
-        // Set many
         cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
-        // Get many
         let keys: Vec<String> = vec!["user:1", "user:2", "user:3"]
             .into_iter()
             .map(String::from)
@@ -192,7 +186,6 @@ mod tests {
     async fn test_cache_clear() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
-        // Add some values
         let users = [
             (
                 "user:1".to_string(),
@@ -226,7 +219,6 @@ mod tests {
     async fn test_cache_stats() -> Result<(), Box<dyn std::error::Error>> {
         let cache: Cache<String, User> = Cache::memory().await?;
 
-        // Add some values
         let users = [
             (
                 "user:1".to_string(),
@@ -245,7 +237,6 @@ mod tests {
         ];
         cache.set_many(users.iter().map(|(k, v)| (k, v))).await?;
 
-        // Get stats
         let stats = cache.stats().await?;
 
         // Stats should contain some information

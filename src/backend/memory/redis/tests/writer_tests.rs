@@ -383,7 +383,7 @@ async fn test_redis_backend_implements_all_traits() {
     let _: &dyn CacheConnector = &backend;
 }
 
-// === AtomicCacheWriter integration tests ===
+// AtomicCacheWriter integration tests
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
@@ -572,7 +572,7 @@ async fn test_atomic_compare_and_swap_subsecond_ttl_direct_redis_check() {
     );
 }
 
-// === keys() SCAN integration tests ===
+// keys SCAN integration tests
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
@@ -608,7 +608,7 @@ async fn test_keys_scan_no_match_returns_empty() {
     assert!(keys.is_empty());
 }
 
-// === clear() with dangerous_clear_enabled ===
+// clear with dangerous_clear_enabled
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
@@ -685,7 +685,7 @@ async fn test_clear_namespace_prefix() {
     cleanup(&backend, &other).await;
 }
 
-// === stats() with INFO clients ===
+// stats with INFO clients
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
@@ -697,7 +697,7 @@ async fn test_stats_includes_clients_info() {
     assert!(stats.contains_key("connected_clients"));
 }
 
-// === TTL validation ===
+// TTL validation
 
 #[tokio::test]
 #[ignore = "requires Redis server"]

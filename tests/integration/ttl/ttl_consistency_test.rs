@@ -23,7 +23,7 @@ use crate::common::{get_redis_url_insecure, is_redis_available};
 #[cfg(feature = "redis")]
 use oxcache::backend::memory::RedisBackend;
 
-// === 跨后端 TTL 一致性回归测试 ===
+// 跨后端 TTL 一致性回归测试
 
 /// 构建三个真实后端：Moka（默认）+ 两个独立 DashMap 实例，返回 triple。
 fn build_three_backends() -> (
@@ -244,7 +244,7 @@ async fn test_all_backends_expire_returns_true_consistently() {
     }
 }
 
-// === 真实 Redis 后端腿（三口径一致性） ===
+// 真实 Redis 后端腿（三口径一致性）
 
 /// 连接真实 Redis（不可用时显性跳过并返回 None）。
 #[cfg(feature = "redis")]

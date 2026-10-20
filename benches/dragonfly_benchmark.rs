@@ -38,7 +38,7 @@ mod common;
 
 use common::services_ready;
 
-// ============================= 辅助函数 =============================
+// 辅助函数
 
 /// Shared runtime for all benchmarks — avoids per-function runtime creation.
 fn shared_runtime() -> Runtime {
@@ -63,7 +63,7 @@ fn services_up(rt: &Runtime, redis_url: &str, dragonfly_url: &str) -> bool {
     services_ready(rt, &[("Redis", redis_url), ("Dragonfly", dragonfly_url)])
 }
 
-// ============================= SET 对比 =============================
+// SET 对比
 
 fn bench_set_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
@@ -119,7 +119,7 @@ fn bench_set_comparison(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================= GET 对比 =============================
+// GET 对比
 
 fn bench_get_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
@@ -181,7 +181,7 @@ fn bench_get_comparison(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================= MGET 对比 =============================
+// MGET 对比
 
 fn bench_mget_comparison(c: &mut Criterion) {
     let rt = shared_runtime();
@@ -250,7 +250,7 @@ fn bench_mget_comparison(c: &mut Criterion) {
     group.finish();
 }
 
-// ============================= 不同数据大小 SET 对比 =============================
+// 不同数据大小 SET 对比
 
 fn bench_set_size_comparison(c: &mut Criterion) {
     let rt = shared_runtime();

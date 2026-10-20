@@ -17,7 +17,7 @@ mod common;
 
 use common::services_ready;
 
-// ============================= Redis L2 缓存基准测试 =============================
+// Redis L2 缓存基准测试
 
 /// 获取 Redis URL（优先使用环境变量）
 fn get_redis_url() -> String {

@@ -39,7 +39,7 @@ fn test_log_cache_key_unknown_level() {
     log_cache_key("unknown", "Test", "normal_key");
 }
 
-// === sanitize_message 函数测试 ===
+// sanitize_message 函数测试
 
 /// 测试包含连接字符串的消息脱敏
 #[test]
@@ -47,9 +47,7 @@ fn test_sanitize_message_with_connection_string() {
     let msg = "Connection: redis://user:secret123@localhost:6379";
     let sanitized = sanitize_message(msg);
 
-    // 验证密码被移除
     assert!(!sanitized.contains("secret123"));
-    // 验证脱敏标记存在
     assert!(sanitized.contains("**"));
 }
 
@@ -75,7 +73,6 @@ fn test_sanitize_message_multiple_connections() {
     let msg = "Primary: redis://admin:pass1@host1:6379, Secondary: redis://admin:pass2@host2:6379";
     let sanitized = sanitize_message(msg);
 
-    // 验证第一个密码被移除
     assert!(!sanitized.contains("pass1"));
     // 注意：当前实现只处理第一个连接字符串
 }
@@ -107,7 +104,7 @@ fn test_sanitize_message_protocol_only() {
     assert_eq!(sanitized, msg);
 }
 
-// === 辅助函数测试（使用 redaction 模块） ===
+// 辅助函数测试（使用 redaction 模块）
 
 /// 测试 redact_cache_key 与敏感关键词的匹配
 #[test]
@@ -163,7 +160,7 @@ fn test_redact_connection_string_edge_cases() {
     assert!(result.contains("****"));
 }
 
-// === 宏测试（编译时验证） ===
+// 宏测试（编译时验证）
 
 /// 测试 secure_info! 宏可以编译
 #[test]
@@ -180,7 +177,7 @@ fn test_secure_debug_macro_compiles() {
     let _msg = "Test message for secure_debug";
 }
 
-// === 边界条件和异常输入测试 ===
+// 边界条件和异常输入测试
 
 /// 测试超长消息处理
 #[test]
@@ -210,6 +207,5 @@ fn test_sanitize_message_special_chars() {
     let msg = "Conn: redis://user:p@ss!w0rd#@host:6379";
     let sanitized = sanitize_message(msg);
 
-    // 验证处理特殊字符不会崩溃
     assert!(!sanitized.is_empty());
 }

@@ -11,7 +11,7 @@ mod tests {
     };
     use std::sync::atomic::Ordering;
 
-    // === Basic operation tests ===
+    // Basic operation tests
 
     #[test]
     fn test_record_l1_get_hit() {
@@ -113,7 +113,7 @@ mod tests {
         assert!(after > initial);
     }
 
-    // === UnifiedMetrics instance tests ===
+    // UnifiedMetrics instance tests
 
     #[test]
     fn test_metrics_default() {
@@ -170,7 +170,7 @@ mod tests {
         assert_eq!(after_reset.counters.total_operations, 0);
     }
 
-    // === Hit rate tests ===
+    // Hit rate tests
 
     #[test]
     fn test_hit_rate_empty() {
@@ -238,7 +238,7 @@ mod tests {
         assert!((rates.l1_hit_rate - 0.7).abs() < 0.001);
     }
 
-    // === CacheStats tests ===
+    // CacheStats tests
 
     #[test]
     fn test_cache_stats_l1_hit_rate() {
@@ -321,7 +321,7 @@ mod tests {
         assert!(stats.overall_hit_rate_percent().contains("62.5"));
     }
 
-    // === Prometheus export tests ===
+    // Prometheus export tests
 
     #[test]
     fn test_cache_stats_export_prometheus() {
@@ -384,7 +384,7 @@ mod tests {
         assert!(output.contains("cache_"));
     }
 
-    // === JSON export tests ===
+    // JSON export tests
 
     #[test]
     fn test_cache_stats_export_json() {
@@ -438,7 +438,7 @@ mod tests {
         assert!(json.contains("l1_hits"));
     }
 
-    // === get_enhanced_stats test ===
+    // get_enhanced_stats test
 
     #[test]
     fn test_get_enhanced_stats() {
@@ -446,7 +446,7 @@ mod tests {
         assert!(stats.timestamp <= chrono::Utc::now());
     }
 
-    // === AtomicCounters Default test ===
+    // AtomicCounters Default test
 
     #[test]
     fn test_atomic_counters_default() {
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(counters.compression_bytes_saved.load(Ordering::Relaxed), 0);
     }
 
-    // === Clone and thread safety tests ===
+    // Clone and thread safety tests
 
     #[test]
     fn test_metrics_clone() {

@@ -122,9 +122,9 @@ impl AerospikeBackend {
         let mut wp = self.write_policy.clone();
         // Aerospike expiration 为 u32 秒：
         // - 先钳制到 u32::MAX 再转换，避免超大 TTL 截断出任意值
-        //   （截断为 0 会被当作永不过期）；
+        // （截断为 0 会被当作永不过期）；
         // - 非零的亚秒 TTL 上取整到 1 秒，避免 500ms 之类输入被截断为
-        //   0 后意外变成永不过期（显式 Duration::ZERO 仍保持 Never 语义）。
+        // 0 后意外变成永不过期（显式 Duration::ZERO 仍保持 Never 语义）。
         let ttl_secs: u64 = ttl
             .map(|d| {
                 if d.is_zero() {
@@ -152,7 +152,7 @@ impl AerospikeBackend {
     }
 }
 
-// === Trait Implementations ===
+// Trait Implementations
 
 #[async_trait]
 impl CacheReader for AerospikeBackend {
@@ -367,7 +367,7 @@ impl BackendScore for AerospikeBackend {
     }
 }
 
-// === Tests ===
+// Tests
 
 #[cfg(test)]
 mod tests;

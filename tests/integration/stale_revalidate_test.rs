@@ -25,7 +25,7 @@ async fn wait_until_stale() {
     tokio::time::sleep(Duration::from_millis(120)).await;
 }
 
-// === Return 策略 ===
+// Return 策略
 
 static RETURN_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -65,7 +65,7 @@ async fn return_policy_serves_old_value_without_fallback() {
     assert_eq!(plain, Some("old".to_string()));
 }
 
-// === Revalidate 策略 ===
+// Revalidate 策略
 
 static REVAL_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -112,7 +112,7 @@ async fn revalidate_policy_refreshes_synchronously() {
     );
 }
 
-// === OffloadRevalidate 策略（get_or_refresh） ===
+// OffloadRevalidate 策略（get_or_refresh）
 
 static OFFLOAD_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -210,7 +210,7 @@ async fn offload_policy_deduplicates_concurrent_refreshes() {
     );
 }
 
-// === 未配置 stale → 行为不变（回归保护） ===
+// 未配置 stale → 行为不变（回归保护）
 
 #[tokio::test]
 #[serial]

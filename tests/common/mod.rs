@@ -14,7 +14,7 @@ pub mod redis_test_utils;
 #[cfg(feature = "redis")]
 pub mod test_containers;
 
-// === 重新导出常用函数 ===
+// 重新导出常用函数
 
 // Redis 测试工具
 #[cfg(feature = "redis")]
@@ -43,7 +43,7 @@ pub use test_containers::{RedisContainer as AsyncRedisContainer, start_redis_con
 #[allow(unused_imports)]
 pub use mock_backend::MockBackend;
 
-// === 环境变量一次性初始化 ===
+// 环境变量一次性初始化
 
 // libtest 默认多线程并发运行测试，POSIX `environ` 非线程安全（std 将
 // `set_var` 标记 `unsafe` 即因此）；测试进程对该变量的取值恒为同一常量，
@@ -58,7 +58,7 @@ fn init_allow_insecure_redis_env() {
     }
 }
 
-// === 日志设置 ===
+// 日志设置
 
 use std::sync::Once;
 use tracing_subscriber::EnvFilter;
@@ -81,7 +81,7 @@ pub fn setup_logging() {
     });
 }
 
-// === 测试服务命名与清理工具 ===
+// 测试服务命名与清理工具
 
 /// 生成唯一的服务器名称
 ///

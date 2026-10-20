@@ -27,7 +27,7 @@ use std::time::Duration;
 /// 点兼容），关闭 kit 模块记录的 dyn-safety 设计分歧（H1）。
 #[async_trait]
 pub trait UnifiedCache: Send + Sync + 'static {
-    // === Core byte-level operations (from CacheBackend) ===
+    // Core byte-level operations (from CacheBackend)
 
     /// Get raw bytes from cache
     async fn get_bytes(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>>;
@@ -64,7 +64,7 @@ pub trait UnifiedCache: Send + Sync + 'static {
     /// Get cache statistics
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
 
-    // === Required methods for implementation ===
+    // Required methods for implementation
 
     /// Get the serializer used by this cache
     // Serializer trait 仅在 serialization/full feature 下可用
@@ -377,7 +377,7 @@ mod tests {
         assert_eq!(kind, crate::backend::interface::BackendKind::Moka);
     }
 
-    // === 对象安全拆分 —— Arc<dyn UnifiedCache> 可用，typed 走 TypedCacheExt ===
+    // 对象安全拆分 —— Arc<dyn UnifiedCache> 可用，typed 走 TypedCacheExt
 
     #[cfg(any(feature = "serialization", feature = "full"))]
     mod object_safety {

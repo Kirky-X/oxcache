@@ -94,7 +94,6 @@ async fn start_container() -> Option<AerospikeConfig> {
         .args(["start", CONTAINER_NAME])
         .output();
 
-    // 等待再次就绪
     tokio::time::sleep(Duration::from_secs(5)).await;
     let start = std::time::Instant::now();
     let mut ready = false;
@@ -141,7 +140,7 @@ async fn make_backend() -> Option<AerospikeBackend> {
     None
 }
 
-// === Aerospike 基础集成测试 ===
+// Aerospike 基础集成测试
 
 #[tokio::test]
 async fn test_aerospike_backend_kind() {
@@ -298,7 +297,7 @@ async fn test_aerospike_health_check_and_stats() {
     backend.shutdown().await;
 }
 
-// === ChainCache 集成测试 ===
+// ChainCache 集成测试
 
 #[tokio::test]
 async fn test_aerospike_chain_cache_basic() {
@@ -316,13 +315,11 @@ async fn test_aerospike_chain_cache_basic() {
         .link(ChainLink::new(aerospike, 30, true, "aerospike"))
         .build();
 
-    // Write through chain
     chain
         .set("chain:as_key1", b"chain_value".to_vec(), None)
         .await
         .expect("chain set failed");
 
-    // Read from chain
     let val = chain.get("chain:as_key1").await.unwrap();
     assert_eq!(val, Some(b"chain_value".to_vec()));
 

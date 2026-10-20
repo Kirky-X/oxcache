@@ -17,7 +17,7 @@ fn make_general_error(kind: ErrorKind, msg: &'static str) -> RedisError {
     RedisError::from((kind, msg))
 }
 
-// === map_redis_error ===
+// map_redis_error
 
 #[test]
 fn test_map_timeout_error() {
@@ -99,7 +99,7 @@ fn test_map_parse_error() {
     assert!(matches!(mapped, OxCacheError::Operation(_)));
 }
 
-// === is_connection_error ===
+// is_connection_error
 
 #[test]
 fn test_is_connection_error_timeout() {
@@ -139,7 +139,7 @@ fn test_is_not_connection_error_for_auth_failure() {
     assert!(!is_connection_error(&e));
 }
 
-// === Priority: timeout > connection_dropped > io_error > operation ===
+// Priority: timeout > connection_dropped > io_error > operation
 
 #[test]
 fn test_timeout_takes_priority_over_io_error() {

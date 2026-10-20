@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(SerializationType::default(), SerializationType::Json);
     }
 
-    // === BackendType Display 测试 (lines 78-87) ===
+    // BackendType Display 测试 (lines 78-87)
 
     #[test]
     #[cfg(feature = "memory")]
@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(BackendType::default(), BackendType::None);
     }
 
-    // === BackendType 序列化/反序列化测试 ===
+    // BackendType 序列化/反序列化测试
 
     #[test]
     #[cfg(any(feature = "serialization", feature = "full"))]
@@ -372,7 +372,7 @@ mod tests {
         assert_eq!(backend, BackendType::Custom("test".to_string()));
     }
 
-    // === BackendType Debug 和 PartialEq 测试 ===
+    // BackendType Debug 和 PartialEq 测试
 
     #[test]
     fn test_backend_type_debug() {
@@ -394,7 +394,7 @@ mod tests {
         );
     }
 
-    // === CacheLayer Display 测试 ===
+    // CacheLayer Display 测试
 
     #[test]
     fn test_cache_layer_display() {
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(CacheLayer::default(), CacheLayer::L1);
     }
 
-    // === SerializationType 测试 ===
+    // SerializationType 测试
 
     #[test]
     fn test_serialization_type_debug() {

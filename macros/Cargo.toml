@@ -15,10 +15,7 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-# 精简 syn 特性，避免引入不必要的依赖；显式关闭 default。
-# full=ItemFn 解析；parsing/printing/proc-macro=属性宏展开所需；
-# extra-traits（AST Debug/PartialEq）与 clone-impls（AST clone，代码内
-# .clone() 仅出现在 quote! 生成码）均未使用已裁，derive 无派生宏已裁
+# 精简 syn 特性，避免引入不必要的依赖；显式关闭 default
 syn = { version = "3.0", default-features = false, features = ["full", "parsing", "printing", "proc-macro"] }
 quote = { version = "1.0", default-features = false }
 proc-macro2 = { version = "1.0", default-features = false }

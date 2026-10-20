@@ -173,7 +173,7 @@ async fn test_health_check_ok() {
     backend.health_check().await.expect("health check failed");
 }
 
-// === Builder validation and chain method tests (no Redis server required) ===
+// Builder validation and chain method tests (no Redis server required)
 
 #[tokio::test]
 async fn test_builder_pool_size_zero_rejected() {

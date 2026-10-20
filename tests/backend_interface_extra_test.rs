@@ -21,7 +21,7 @@ use oxcache::backend::{
 };
 use oxcache::error::{OxCacheError, OxCacheResult};
 
-// === 测试替身一：全覆写 mock（sync + async 双面实现） ===
+// 测试替身一：全覆写 mock（sync + async 双面实现）
 
 #[derive(Default)]
 struct FullState {
@@ -192,7 +192,7 @@ impl oxcache::backend::SyncAtomicCacheWriter for FullMock {
     }
 }
 
-// === 测试替身二：零可选覆写 mock——trait 默认方法全覆盖 ===
+// 测试替身二：零可选覆写 mock——trait 默认方法全覆盖
 
 struct BareMock {
     data: Mutex<HashMap<String, Vec<u8>>>,
@@ -379,7 +379,7 @@ impl AtomicCacheWriter for BareMock {
     }
 }
 
-// === SyncBackendAdapter：同步后端 → async 门面（全覆写替身） ===
+// SyncBackendAdapter：同步后端 → async 门面（全覆写替身）
 
 #[tokio::test]
 async fn sync_backend_adapter_async_surface() {
@@ -508,7 +508,7 @@ fn sync_backend_adapter_sync_surface_and_atomic_probe() {
     SyncCacheConnector::shutdown(&adapter);
 }
 
-// === trait 默认方法（零覆写替身） ===
+// trait 默认方法（零覆写替身）
 
 #[tokio::test]
 async fn reader_defaults_loop_gets_and_empty_keys() {
@@ -592,7 +592,7 @@ fn bare_mock_via_sync_backend_trait_object() {
     SyncCacheConnector::shutdown(object.as_ref());
 }
 
-// === glob_match ===
+// glob_match
 
 #[test]
 fn glob_match_patterns() {
@@ -627,7 +627,7 @@ fn glob_match_patterns() {
     assert!(!glob_match("a*?d", "ad"));
 }
 
-// === BackendKind 判别面 ===
+// BackendKind 判别面
 
 #[test]
 fn backend_kind_classification_and_names() {
@@ -677,7 +677,7 @@ fn sync_connector_error_propagation() {
     assert!(err.to_string().contains("sick"));
 }
 
-// === AsyncToSyncBridge：async 后端 → 同步门面（多线程 runtime 内 block_in_place） ===
+// AsyncToSyncBridge：async 后端 → 同步门面（多线程 runtime 内 block_in_place）
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bridge_sync_surface_over_async_backend() {
@@ -785,7 +785,7 @@ async fn bridge_shutdown_inside_current_thread_runtime_is_rejected_observably() 
     SyncCacheConnector::shutdown(&bridge);
 }
 
-// === SyncBackendAdapter 同步面补全（exists/ttl/capacity/stats/set_many/delete_many） ===
+// SyncBackendAdapter 同步面补全（exists/ttl/capacity/stats/set_many/delete_many）
 
 #[test]
 fn sync_backend_adapter_sync_face_rest_methods() {

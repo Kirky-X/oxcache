@@ -152,7 +152,7 @@ mod tests {
 
     // CacheBackend via blanket impl.
 
-    // === Tests ===
+    // Tests
 
     #[tokio::test]
     async fn test_bf_backend_get_miss_skips_inner() {
@@ -311,7 +311,7 @@ mod tests {
         assert!(stats.contains_key("bloom_estimated_count"));
     }
 
-    // === Synchronous trait hierarchy tests ===
+    // Synchronous trait hierarchy tests
     //
     // Isolated in a nested module so the sync trait methods (imported below)
     // don't conflict with the async trait methods in the outer `tests` module.
@@ -414,7 +414,7 @@ mod tests {
 
         // CacheBackend via blanket impl.
 
-        // --- Sync trait impls ---
+        // Sync trait impls
 
         impl SyncCacheReader for MockSyncInner {
             fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
@@ -494,7 +494,7 @@ mod tests {
 
         // SyncCacheBackend via blanket impl.
 
-        // --- Tests for BloomFilterBackend sync cache behavior ---
+        // Tests for BloomFilterBackend sync cache behavior
 
         #[test]
         fn test_bf_backend_sync_get_miss_skips_inner() {

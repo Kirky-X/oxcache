@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建启用了 sync API 的缓存（默认 Moka 后端）
     let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
 
-    // === 基本 sync 操作 ===
+    // 基本 sync 操作
     println!("{}", t(MSG_EXAMPLE_SYNC_API_BASIC_SYNC_OPERATIONS, &[]));
     let alice = User {
         id: 1,
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", t(MSG_EXAMPLE_SYNC_API_DELETE_USER_1, &[]));
     assert_eq!(cache.get_sync(&"user:1".to_string())?, None);
 
-    // === sync + TTL ===
+    // sync + TTL
     println!("\n=== sync + TTL ===");
     cache.set_with_ttl_sync(
         &"temp".to_string(),
@@ -86,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === get_or_sync（单飞） ===
+    // get_or_sync（单飞）
     println!("\n{}", t(MSG_EXAMPLE_SYNC_API_GET_OR_SYNC_SINGLE, &[]));
     let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
     let count_for_fallback = call_count.clone();
@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
 
-    // === sync 与 async 混用 ===
+    // sync 与 async 混用
     println!("\n{}", t(MSG_EXAMPLE_SYNC_API_MIXING_SYNC_AND_ASYNC, &[]));
     cache
         .set(
@@ -138,7 +138,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sync_value = cache.get_sync(&"async_key".to_string())?;
     println!("async set → sync get = {:?}", sync_value);
 
-    // === 缓存元信息 sync ===
+    // 缓存元信息 sync
     println!("\n{}", t(MSG_EXAMPLE_SYNC_API_CACHE_METADATA_SYNC, &[]));
     let len = cache.len_sync()?;
     println!(
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === clear_sync ===
+    // clear_sync
     println!("\n=== clear_sync ===");
     cache.clear_sync()?;
     println!("{}", t(MSG_EXAMPLE_SYNC_API_CACHE_CLEARED, &[]));

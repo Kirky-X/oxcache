@@ -302,7 +302,6 @@ async fn test_sentinel_ttl() {
         }
     };
 
-    // 设置带 TTL 的键
     backend
         .set(
             Arc::from("sentinel_ttl_key"),
@@ -321,7 +320,6 @@ async fn test_sentinel_ttl() {
     // ponytail: requires Docker, polling not feasible without container
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    // 验证键已过期
     assert!(!backend.exists("sentinel_ttl_key").await.unwrap());
 
     println!("✓ Redis Sentinel TTL test passed");
@@ -351,7 +349,6 @@ async fn test_sentinel_expire() {
         }
     };
 
-    // 设置不带 TTL 的键
     backend
         .set(
             Arc::from("sentinel_expire_key"),
@@ -361,14 +358,12 @@ async fn test_sentinel_expire() {
         .await
         .unwrap();
 
-    // 设置过期时间
     let result = backend
         .expire("sentinel_expire_key", Duration::from_secs(60))
         .await
         .unwrap();
     assert!(result);
 
-    // 验证 TTL 已设置
     let ttl = backend.ttl("sentinel_expire_key").await.unwrap();
     assert!(ttl.is_some());
 
@@ -484,7 +479,6 @@ async fn test_sentinel_many_keys() {
             .unwrap();
     }
 
-    // 验证所有键
     for i in 0..50 {
         let key = format!("sentinel_many_{}", i);
         let expected = format!("value_{}", i);
@@ -492,7 +486,6 @@ async fn test_sentinel_many_keys() {
         assert_eq!(value, Some(expected.as_bytes().to_vec()));
     }
 
-    // 清理
     for i in 0..50 {
         let key = format!("sentinel_many_{}", i);
         backend.delete(&key).await.unwrap();
@@ -576,7 +569,6 @@ async fn test_sentinel_failover_rediscovery() {
         .expect("Sentinel mode build failed");
     assert_eq!(backend.mode(), RedisMode::Sentinel);
 
-    // 清理上次运行遗留
     let _ = backend.delete("sentinel_failover_key").await;
     let _ = backend.delete("sentinel_failover_post_key").await;
 

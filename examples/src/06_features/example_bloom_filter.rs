@@ -33,7 +33,7 @@ use oxcache::i18n::messages::{
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // === BloomFilter 独立类型 ===
+    // BloomFilter 独立类型
     println!(
         "{}",
         t(MSG_EXAMPLE_BLOOM_FILTER_BLOOMFILTER_STANDALONE_TYPE, &[])
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === BloomFilterBackend 装饰器 ===
+    // BloomFilterBackend 装饰器
     println!(
         "\n{}",
         t(MSG_EXAMPLE_BLOOM_FILTER_BLOOMFILTERBACKEND_DECORATOR, &[])
@@ -127,7 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === TTL 透传 ===
+    // TTL 透传
     println!("\n{}", t(MSG_EXAMPLE_BLOOM_FILTER_TTL_PASSTHROUGH, &[]));
     backend
         .set(
@@ -147,7 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === stats ===
+    // stats
     println!("\n=== stats ===");
     let stats = backend.stats().await?;
     println!("Backend stats:");

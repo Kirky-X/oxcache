@@ -113,7 +113,6 @@ async fn test_pipeline_get_performance() {
     }
     let individual_duration = start.elapsed();
 
-    // 验证结果一致性
     assert_eq!(pipeline_results.len(), individual_results.len());
 
     backend.clear().await.ok();
@@ -218,7 +217,6 @@ async fn test_large_scale_pipeline_performance() {
     let results = backend.get_many(&keys).await.expect("Pipeline GET failed");
     let get_duration = start.elapsed();
 
-    // 验证所有键都存在
     assert_eq!(results.len(), 1000);
     assert!(results.iter().all(|r| r.is_some()));
 
@@ -230,7 +228,6 @@ async fn test_large_scale_pipeline_performance() {
         .expect("Pipeline DELETE failed");
     let delete_duration = start.elapsed();
 
-    // 验证所有键都已删除
     let results = backend
         .get_many(&keys)
         .await

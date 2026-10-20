@@ -209,7 +209,6 @@ impl RedisBackendBuilder {
 
     /// Build the Redis backend.
     pub async fn build(self) -> OxCacheResult<RedisBackend> {
-        // Validate pool_size
         if self.pool_size == 0 {
             return Err(OxCacheError::InvalidInput(
                 "Connection pool size must be at least 1".to_string(),

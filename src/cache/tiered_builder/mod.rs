@@ -30,8 +30,6 @@ use std::time::Duration;
 pub type BackendDecorator =
     Arc<dyn Fn(Arc<dyn CacheBackend>) -> Arc<dyn CacheBackend> + Send + Sync>;
 
-// === L1Builder ===
-
 /// L1 进程内内存后端构建器
 pub struct L1Builder {
     capacity: Option<u64>,
@@ -153,7 +151,7 @@ impl L1Builder {
     }
 }
 
-// === L2Builder ===
+// L2Builder
 
 /// L2 分布式后端构建器
 #[derive(Default)]
@@ -244,7 +242,7 @@ impl L2Builder {
     }
 }
 
-// === ChainBuilder ===
+// ChainBuilder
 
 /// 分层链构建器：L1 + L2 一站式组装为 [`ChainCache`]
 #[derive(Default)]

@@ -413,7 +413,7 @@ impl CacheConnector for DashMapMemoryBackend {
     }
 }
 
-// === Synchronous trait implementations ===
+// Synchronous trait implementations
 //
 // DashMap 本身是同步的，sync impl 直接复用 async 方法逻辑（去掉 async/.await），
 // 无需像 moka 那样通过 `block_on` 桥接。实现使用全限定路径

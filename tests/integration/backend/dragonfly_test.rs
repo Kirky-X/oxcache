@@ -53,7 +53,7 @@ async fn setup() -> Option<(DragonflyContainer, DragonflyBackend)> {
     Some((container, backend))
 }
 
-// === Dragonfly 基础集成测试 ===
+// Dragonfly 基础集成测试
 
 #[tokio::test]
 async fn test_dragonfly_backend_kind() {
@@ -201,7 +201,7 @@ async fn test_dragonfly_cache_connector_operations() {
     backend.shutdown().await;
 }
 
-// === ChainCache 集成测试 ===
+// ChainCache 集成测试
 
 #[tokio::test]
 async fn test_dragonfly_chain_cache_basic() {
@@ -220,7 +220,6 @@ async fn test_dragonfly_chain_cache_basic() {
         .link(ChainLink::new(dragonfly, 50, true, "dragonfly"))
         .build();
 
-    // Write through chain
     if chain
         .set("chain:df_key1", b"chain_value".to_vec(), None)
         .await
@@ -229,7 +228,6 @@ async fn test_dragonfly_chain_cache_basic() {
         return;
     }
 
-    // Read from chain
     let Ok(Some(val)) = chain.get("chain:df_key1").await else {
         return;
     };

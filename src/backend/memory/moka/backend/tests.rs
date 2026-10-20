@@ -28,7 +28,6 @@ mod tests {
     async fn test_moka_basic_operations() {
         let backend = MokaMemoryBackend::new();
 
-        // Set a value
         backend
             .set(Arc::from("key1"), Arc::new(b"value1".to_vec()), None)
             .await
@@ -61,7 +60,7 @@ mod tests {
         assert_eq!(backend3.capacity(), 1000);
     }
 
-    // === Per-entry TTL tests (spec: universal-per-entry-ttl) ===
+    // Per-entry TTL tests (spec: universal-per-entry-ttl)
 
     #[tokio::test]
     async fn test_moka_set_with_ttl_expires_after_timeout() {
@@ -280,7 +279,7 @@ mod tests {
         assert!(!ok, "expire on missing key should return false");
     }
 
-    // === Synchronous trait hierarchy tests ===
+    // Synchronous trait hierarchy tests
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
     // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生
@@ -481,7 +480,7 @@ mod tests {
         }
     }
 
-    // === keys_matching / keys() with patterns ===
+    // keys_matching / keys with patterns
 
     #[tokio::test]
     async fn test_moka_keys_matching_glob() {
@@ -528,7 +527,7 @@ mod tests {
         assert_eq!(keys.len(), 2);
     }
 
-    // === Debug impl & entry_count ===
+    // Debug impl & entry_count
 
     #[test]
     fn test_moka_backend_debug() {
@@ -561,7 +560,7 @@ mod tests {
         let _ = backend.entry_count();
     }
 
-    // === SyncAtomicCacheWriter tests ===
+    // SyncAtomicCacheWriter tests
 
     #[test]
     fn test_moka_sync_atomic_incr() {

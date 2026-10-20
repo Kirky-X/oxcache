@@ -39,7 +39,6 @@ async fn test_chain_cache_auto_sort() {
     let high = MokaMemoryBackend::builder().capacity(100).build();
     let low = MokaMemoryBackend::builder().capacity(100).build();
 
-    // 验证 Moka 后端分数
     assert_eq!(high.score(), Scores::MOKA);
 
     // 构建链式缓存（后端会被自动排序）
@@ -62,7 +61,6 @@ async fn test_chain_cache_backfill() {
         .await
         .unwrap();
 
-    // 构建启用回填的链式缓存
     let chain = ChainCache::builder()
         .link(ChainLink::from_backend(high))
         .link(ChainLink::from_backend(low))
@@ -106,7 +104,6 @@ async fn test_chain_cache_ttl() {
     // 设置值，backend 使用自己的默认 TTL（3600秒）
     chain.set("key", b"value".to_vec(), None).await.unwrap();
 
-    // 验证值存在
     let value = chain.get("key").await.unwrap();
     assert_eq!(value, Some(b"value".to_vec()));
 }
@@ -147,7 +144,6 @@ async fn test_chain_cache_clear() {
         .link(ChainLink::from_backend(moka))
         .build();
 
-    // 设置多个值
     for i in 0..10 {
         chain
             .set(&format!("key{}", i), b"value".to_vec(), None)
@@ -157,7 +153,6 @@ async fn test_chain_cache_clear() {
 
     chain.clear().await.unwrap();
 
-    // 验证所有键都被删除
     for i in 0..10 {
         let exists = chain.exists(&format!("key{}", i)).await.unwrap();
         assert!(!exists, "key{} should not exist after clear", i);

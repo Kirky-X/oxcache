@@ -221,7 +221,6 @@ impl RedbDiskBackend {
                 {
                     let mut table = write_txn.open_table(CACHE_TABLE)?;
                     let now = now_epoch_ms();
-                    // 1) 删除全部过期条目
                     let mut expired_keys: Vec<String> = Vec::new();
                     for item in table.iter()? {
                         let (k, v) = item?;
@@ -553,7 +552,7 @@ mod tests {
         }
     }
 
-    // === 基础 CRUD 与持久化（R-disk-001） ===
+    // 基础 CRUD 与持久化（R-disk-001）
 
     #[tokio::test]
     async fn set_get_delete_roundtrip() {
@@ -689,7 +688,7 @@ mod tests {
         assert!(matches!(backend.backend_kind(), BackendKind::Disk));
     }
 
-    // === 有界性清扫（R-disk-003） ===
+    // 有界性清扫（R-disk-003）
 
     #[tokio::test]
     async fn max_entries_sweep_keeps_newest() {
@@ -770,7 +769,7 @@ mod tests {
         assert_eq!(backend.get("fresh-099").await.unwrap(), Some(vec![1]));
     }
 
-    // === 分层接线与 BackendScore（R-disk-004） ===
+    // 分层接线与 BackendScore（R-disk-004）
 
     #[test]
     fn backend_score_is_l3_persistent() {

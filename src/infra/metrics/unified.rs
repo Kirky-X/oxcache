@@ -208,7 +208,6 @@ impl UnifiedMetrics {
 
     /// Record a cache operation
     pub fn record_operation(&self, operation: CacheOperation) {
-        // Update atomic counters
         match (&operation.layer, &operation.op_type, &operation.result) {
             (CacheLayer::L1, CacheOpType::Get, CacheOpResult::Hit) => {
                 self.inner.counters.l1_hits.fetch_add(1, Ordering::Relaxed);
@@ -447,7 +446,6 @@ impl UnifiedMetrics {
                     hist.min = hist.min.min(value);
                     hist.max = hist.max.max(value);
 
-                    // Update buckets
                     for (boundary, count) in &mut hist.buckets {
                         if value <= *boundary {
                             *count += 1;
@@ -555,7 +553,6 @@ impl UnifiedMetrics {
 
     /// Reset all metrics
     pub fn reset(&self) {
-        // Reset atomic counters
         self.inner.counters.l1_hits.store(0, Ordering::Relaxed);
         self.inner.counters.l1_misses.store(0, Ordering::Relaxed);
         self.inner.counters.l2_hits.store(0, Ordering::Relaxed);
@@ -1263,7 +1260,6 @@ mod tests {
     // 重置全局单例，必须与其它读写全局指标的测试互斥（并行竞态曾致 offload delta 断言偶败）
     #[serial_test::serial]
     fn test_global_metrics() {
-        // Reset global metrics
         convenience::reset();
 
         // Record operation using global metrics
@@ -1613,7 +1609,7 @@ mod tests {
         assert_eq!(rates.overall_hit_rate, 0.0);
     }
 
-    // === service 维度（R9）：显式记录才计数、双格式可见、基数上限 ===
+    // service 维度（R9）：显式记录才计数、双格式可见、基数上限
 
     fn l1_hit() -> CacheOperation {
         CacheOperation {

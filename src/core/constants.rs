@@ -6,7 +6,7 @@
 //! "参考值" 常量不在此保留（`mod core` 为私有模块，这些常量从 crate 根
 //! 不可达，删除无 semver 影响）。
 
-// === 序列化相关常量 ===
+// 序列化相关常量
 
 /// 最大 JSON 反序列化大小（字节）
 ///
@@ -26,7 +26,7 @@ pub const MAX_JSON_SIZE: usize = 5 * 1024 * 1024; // 5MB
 ))]
 pub const MAX_JSON_DEPTH: usize = 64;
 
-// === 缓存穿透防护常量 ===
+// 缓存穿透防护常量
 
 /// Null sentinel 值：当 fallback 返回 None 时写入缓存，阻止穿透
 /// 使用固定 magic bytes 避免与合法 JSON `null` 冲突
@@ -35,7 +35,7 @@ pub const MAX_JSON_DEPTH: usize = 64;
 #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
 
-// === 缓存雪崩防护常量 ===
+// 缓存雪崩防护常量
 
 /// 运行时默认 TTL 抖动因子（±10% 均匀抖动）。
 ///

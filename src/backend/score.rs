@@ -120,7 +120,7 @@ impl Scores {
 mod tests {
     use super::*;
 
-    // === Scores 常量测试 ===
+    // Scores 常量测试
 
     #[test]
     fn test_scores_moka() {
@@ -164,7 +164,7 @@ mod tests {
         }
     }
 
-    // === BackendScore trait 测试 ===
+    // BackendScore trait 测试
 
     struct TestMemoryBackend;
 

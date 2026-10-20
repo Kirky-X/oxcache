@@ -61,7 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         t(MSG_EXAMPLE_CLI_USAGE_PERFORMING_CACHE_OPERATIONS, &[])
     );
 
-    // 设置一些值
     for i in 0..10 {
         let key = format!("key_{}", i);
         let value = format!("value_{}", i).into_bytes();

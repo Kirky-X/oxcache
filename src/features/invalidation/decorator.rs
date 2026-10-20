@@ -322,7 +322,7 @@ mod tests {
         assert_eq!(inner.get("k").await.unwrap(), Some(b"v".to_vec()));
     }
 
-    // === expire 广播开关（默认关） ===
+    // expire 广播开关（默认关）
 
     /// 双实例总线：bus_b 监听并失效 remote 上的条目
     async fn setup_two_instances() -> (

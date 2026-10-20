@@ -146,7 +146,7 @@ pub fn glob_match(pattern: &str, text: &str) -> bool {
     pi == m
 }
 
-// === ISP-Compliant Trait Hierarchy ===
+// ISP-Compliant Trait Hierarchy
 
 /// Read-only cache operations.
 ///
@@ -324,7 +324,7 @@ pub trait CacheConnector: Send + Sync + 'static {
     }
 }
 
-// === Lua Executor Trait (Optional, Redis-only) ===
+// Lua Executor Trait (Optional, Redis-only)
 
 #[cfg(feature = "lua")]
 #[async_trait]
@@ -344,7 +344,7 @@ pub trait LuaExecutor: Send + Sync {
     async fn script_load(&self, script: &str) -> OxCacheResult<String>;
 }
 
-// === Atomic Cache Writer Trait (Optional capability) ===
+// Atomic Cache Writer Trait (Optional capability)
 
 /// Atomic cache operations for backends that support them.
 ///
@@ -390,7 +390,7 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
     ) -> OxCacheResult<bool>;
 }
 
-// === Combined CacheBackend Trait ===
+// Combined CacheBackend Trait
 
 /// Full cache backend interface combining all ISP traits.
 ///
@@ -433,7 +433,7 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
 #[async_trait]
 impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T {}
 
-// === Synchronous Trait Hierarchy (Mirror of Async Traits) ===
+// Synchronous Trait Hierarchy (Mirror of Async Traits)
 //
 // Sync counterparts of `CacheReader`/`CacheWriter`/`CacheConnector`/`CacheBackend`.
 // Backends that natively support synchronous access (Moka sync, DashMap) or
@@ -576,7 +576,7 @@ pub trait SyncCacheBackend:
 
 impl<T: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static> SyncCacheBackend for T {}
 
-// === Synchronous Atomic Cache Writer Trait (Mirror of AtomicCacheWriter) ===
+// Synchronous Atomic Cache Writer Trait (Mirror of AtomicCacheWriter)
 
 /// Synchronous atomic cache operations.
 ///
@@ -604,7 +604,7 @@ pub trait SyncAtomicCacheWriter: Send + Sync + 'static {
     ) -> OxCacheResult<bool>;
 }
 
-// === Sync → Async Facade Adapter ===
+// Sync → Async Facade Adapter
 
 /// Bridge a native synchronous backend into the async [`CacheBackend`] surface.
 ///
@@ -857,7 +857,7 @@ impl AtomicCacheWriter for SyncBackendAdapter {
 // async 面三子 trait 齐备，CacheBackend 由 blanket 自动提供：
 // SyncBackendAdapter 同时是完整的 async 与 sync 后端
 
-// === Async → Sync Bridge Adapter ===
+// Async → Sync Bridge Adapter
 
 /// async→sync 桥接共用的运行时句柄守卫
 ///

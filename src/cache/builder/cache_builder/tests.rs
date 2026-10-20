@@ -32,7 +32,7 @@ mod tests {
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
 
-    // === 默认 unified 指标 ===
+    // 默认 unified 指标
 
     /// 默认构建（未注入 recorder）即产生 unified 指标：set/get/delete 后
     /// 全局计数器递增。全局静态为跨测试共享，用单调 delta 断言保证并行安全；
@@ -106,7 +106,7 @@ mod tests {
         );
     }
 
-    // === ttl() 方法测试 (lines 51-53) ===
+    // ttl 方法测试 (lines 51-53)
 
     #[test]
     fn test_builder_ttl() {
@@ -131,7 +131,7 @@ mod tests {
         assert_eq!(builder.capacity, Some(100));
     }
 
-    // === tti() 方法测试 (lines 57-59) ===
+    // tti 方法测试 (lines 57-59)
 
     #[test]
     fn test_builder_tti() {
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(builder.ttl, Some(Duration::from_secs(300)));
     }
 
-    // === capacity() 方法测试 (lines 63-65) ===
+    // capacity 方法测试 (lines 63-65)
 
     #[test]
     fn test_builder_capacity() {
@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(builder.tti, Some(Duration::from_secs(30)));
     }
 
-    // === backend_arc() 方法测试 (line 74, 77) ===
+    // backend_arc 方法测试 (line 74, 77)
 
     #[test]
     fn test_builder_backend_arc() {
@@ -221,7 +221,7 @@ mod tests {
         }
     }
 
-    // === build() 方法测试 - 使用 ttl 和 tti (lines 74, 77) ===
+    // build 方法测试 - 使用 ttl 和 tti (lines 74, 77)
 
     #[tokio::test]
     async fn test_builder_build_with_ttl() {
@@ -265,7 +265,7 @@ mod tests {
         assert_eq!(cache.get(&"key".to_string()).await.unwrap().unwrap(), 42);
     }
 
-    // === Default 和 builder 链式调用测试 ===
+    // Default 和 builder 链式调用测试
 
     #[test]
     fn test_builder_default_capacity_none() {
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(builder.backends.len(), 1);
     }
 
-    // === sync_mode() method tests (lines 85-87) ===
+    // sync_mode method tests (lines 85-87)
 
     #[test]
     fn test_builder_sync_mode_true() {
@@ -326,7 +326,7 @@ mod tests {
         assert!(!builder.sync_mode, "default sync_mode should be false");
     }
 
-    // === build() with sync_mode — end-to-end sync API tests ===
+    // build with sync_mode — end-to-end sync API tests
 
     // NOTE: multi_thread flavor required — MokaMemoryBackend's sync_block_on
     // uses `block_in_place` to safely drive the async moka future from sync
@@ -501,7 +501,7 @@ mod tests {
         );
     }
 
-    // === 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件 ===
+    // 审计事件流 —— 注入 publisher 后 get/set/delete 发布结构化事件
 
     #[cfg(feature = "audit")]
     mod audit_injection {
@@ -596,7 +596,7 @@ mod tests {
         );
     }
 
-    // === 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本 ===
+    // 指标注入 —— 注入指标后端可观察到 L1 get/set/evict 计数与延迟样本
 
     #[cfg(feature = "metrics")]
     mod metrics_injection {
@@ -678,7 +678,7 @@ mod tests {
             crate::infra::convenience::reset();
         }
 
-        // === R9 service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先 ===
+        // R9 service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先
 
         #[tokio::test]
         #[serial_test::serial]
@@ -764,7 +764,7 @@ mod tests {
         }
     }
 
-    // === 二进制序列化格式 —— Cache 级格式切换 ===
+    // 二进制序列化格式 —— Cache 级格式切换
 
     #[cfg(all(feature = "serde-bincode", feature = "postcard"))]
     mod binary_serialization {
@@ -836,7 +836,7 @@ mod tests {
         }
     }
 
-    // === R5 自适应 TTL：builder 接线端到端与互斥 ===
+    // R5 自适应 TTL：builder 接线端到端与互斥
 
     #[cfg(all(feature = "adaptive-ttl", feature = "memory"))]
     mod adaptive_ttl_builder {
@@ -968,7 +968,7 @@ mod tests {
         }
     }
 
-    // === 显式 backend 构建路径（backends 非空分支） ===
+    // 显式 backend 构建路径（backends 非空分支）
     // stale 装饰器 / metrics / serialization 槽位与默认 Moka 路径各有一份平行装配
 
     /// async 槽 + stale 装饰器（OffloadRevalidate）+ 事件发布器 + metrics

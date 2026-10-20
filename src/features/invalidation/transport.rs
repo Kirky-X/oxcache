@@ -49,7 +49,7 @@ pub trait PubSubTransport: Send + Sync + 'static {
     async fn subscribe(&self, channel: &str) -> OxCacheResult<SubscriptionReceiver>;
 }
 
-// === InMemory mock transport（协议层，供单测与进程内组合使用） ===
+// InMemory mock transport（协议层，供单测与进程内组合使用）
 
 /// 进程内 Pub/Sub 协议层 mock。
 ///
@@ -106,7 +106,7 @@ impl PubSubTransport for InMemoryPubSubTransport {
     }
 }
 
-// === Redis transport（真实 Pub/Sub） ===
+// Redis transport（真实 Pub/Sub）
 
 /// Redis Pub/Sub 传输实现。
 ///

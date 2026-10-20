@@ -501,7 +501,7 @@ impl ConfersConfigWatcher {
     }
 }
 
-// ---- 重载拒绝上报（计数器为默认信号，tracing warn 为 telemetry 增强信号）----
+// 重载拒绝上报（计数器为默认信号，tracing warn 为 telemetry 增强信号）
 
 /// 拒绝计数（`metrics` feature：unified 动态计数器；metrics 在全部预设组合中在场，
 /// 保证默认/全量构建下重载被拒可观测，不再仅依赖不在任何预设中的 telemetry feature）

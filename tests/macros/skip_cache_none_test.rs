@@ -13,7 +13,7 @@ use oxcache::cached;
 use serial_test::serial;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// === skip(...) — parameter excluded from the default cache key ===
+// skip(...) — parameter excluded from the default cache key
 
 static SKIP_CALLS: AtomicUsize = AtomicUsize::new(0);
 
@@ -96,7 +96,7 @@ async fn skip_works_on_sync_branch() {
     assert_eq!(SKIP_SYNC_CALLS.load(Ordering::SeqCst), 1);
 }
 
-// === cache_none — Option-valued results ===
+// cache_none — Option-valued results
 
 static NONE_OFF_CALLS: AtomicUsize = AtomicUsize::new(0);
 

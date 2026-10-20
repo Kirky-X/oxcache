@@ -16,7 +16,6 @@ async fn test_degradation_logic() {
     setup_logging();
     let redis_url = common::get_redis_url();
 
-    // 跳过测试如果Redis不可用
     if !is_redis_available().await {
         println!("Skipping test: Redis unavailable");
         return;

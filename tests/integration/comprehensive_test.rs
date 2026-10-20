@@ -66,7 +66,6 @@ async fn test_different_cache_types() {
     let i64_cache: Cache<String, i64> = Cache::builder().build().await.unwrap();
     let bool_cache: Cache<String, bool> = Cache::builder().build().await.unwrap();
 
-    // 验证每种类型都可以正常工作
     assert!(
         string_cache
             .set(&"k1".to_string(), &"v1".to_string())
@@ -88,7 +87,6 @@ async fn test_different_cache_types() {
     );
     assert!(bool_cache.set(&"k5".to_string(), &true).await.is_ok());
 
-    // 验证读取
     assert_eq!(
         string_cache.get(&"k1".to_string()).await.unwrap().unwrap(),
         "v1"

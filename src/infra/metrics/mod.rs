@@ -12,7 +12,7 @@ pub use export::{export_json_format, export_prometheus_format, get_enhanced_stat
 pub use snapshot::CacheStats;
 pub use unified::{AtomicCounters, UnifiedMetrics};
 
-// === Unified Metrics Exports ===
+// Unified Metrics Exports
 
 // Re-export unified metrics
 pub use unified::{

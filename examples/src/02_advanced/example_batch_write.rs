@@ -112,7 +112,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         handles.push(handle);
     }
 
-    // 等待所有写入完成
     for handle in handles {
         handle.await??;
     }
@@ -243,7 +242,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 验证删除后剩余
     let remaining = cache.get_many(keys.iter().collect::<Vec<_>>()).await?;
     println!(
         "  {}",

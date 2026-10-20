@@ -125,12 +125,10 @@ impl LatencyHistogram {
     pub fn record(&self, latency: Duration) {
         let latency_us = latency.as_micros() as u64;
 
-        // 更新统计
         self.total_count.fetch_add(1, Ordering::Relaxed);
         self.total_latency_us
             .fetch_add(latency_us, Ordering::Relaxed);
 
-        // 更新最小/最大
         loop {
             let current_min = self.min_latency_us.load(Ordering::Relaxed);
             // 仅当 min 已设置（非 u64::MAX）且新延迟不小于当前最小值时才跳过更新
@@ -170,7 +168,6 @@ impl LatencyHistogram {
             }
         }
 
-        // 更新桶计数
         for (i, bound) in self.buckets.iter().enumerate() {
             if latency_us <= *bound {
                 self.bucket_counts[i].fetch_add(1, Ordering::Relaxed);
@@ -371,7 +368,6 @@ pub struct MetricsCollector {
 impl MetricsCollector {
     /// 创建新的指标收集器
     pub fn new() -> Result<Self, crate::error::OxCacheError> {
-        // 初始化操作计数器
         let op_types = vec![
             OperationType::Get,
             OperationType::Set,
@@ -733,7 +729,7 @@ pub struct WindowMetricsSummary {
 mod tests {
     use super::*;
 
-    // === OperationType tests ===
+    // OperationType tests
 
     #[test]
     fn test_operation_type_name() {
@@ -745,7 +741,7 @@ mod tests {
         assert_eq!(OperationType::Other.name(), "other");
     }
 
-    // === LatencyHistogram tests ===
+    // LatencyHistogram tests
 
     #[test]
     fn test_latency_histogram_new() {
@@ -854,7 +850,7 @@ mod tests {
         assert_eq!(hist.summary().max_latency_us, 5000);
     }
 
-    // === OperationCounter tests ===
+    // OperationCounter tests
 
     #[test]
     fn test_operation_counter_record_success_and_failure() {
@@ -893,7 +889,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // === MetricsCollector tests ===
+    // MetricsCollector tests
 
     #[test]
     fn test_metrics_collector_new() {
@@ -1017,7 +1013,7 @@ mod tests {
         assert!((get_stats.success_rate - 50.0).abs() < 0.01);
     }
 
-    // === PerformanceSnapshot tests ===
+    // PerformanceSnapshot tests
 
     #[test]
     fn test_performance_snapshot_new() {
@@ -1039,7 +1035,7 @@ mod tests {
         assert!((snapshot.interval_secs - 1.5).abs() < 0.001);
     }
 
-    // === SlidingWindowMetrics tests ===
+    // SlidingWindowMetrics tests
 
     #[test]
     fn test_sliding_window_metrics_new() {

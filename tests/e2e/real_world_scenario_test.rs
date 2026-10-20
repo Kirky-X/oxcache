@@ -55,7 +55,6 @@ async fn test_web_application_cache_scenario() {
         assert_eq!(cached, Some(user.clone()));
     }
 
-    // 更新用户
     let updated_user = User {
         name: "Alice Updated".to_string(),
         ..user.clone()
@@ -77,7 +76,6 @@ async fn test_session_storage_scenario() {
 
     let cache: Cache<String, Session> = Cache::memory().await.unwrap();
 
-    // 创建会话
     let session = Session {
         session_id: "sess_123456".to_string(),
         user_id: 1,
@@ -95,21 +93,18 @@ async fn test_session_storage_scenario() {
         .await
         .unwrap();
 
-    // 验证会话
     let cached: Option<Session> = cache.get(&key).await.unwrap();
     assert!(cached.is_some());
     let cached_session = cached.unwrap();
     assert_eq!(cached_session.session_id, "sess_123456");
     assert_eq!(cached_session.user_id, 1);
 
-    // 更新会话数据
     let mut updated_session = cached_session;
     updated_session
         .data
         .insert("last_page".to_string(), "/dashboard".to_string());
     cache.set(&key, &updated_session).await.unwrap();
 
-    // 验证更新
     let cached: Option<Session> = cache.get(&key).await.unwrap();
     assert_eq!(
         cached.unwrap().data.get("last_page"),
@@ -163,7 +158,6 @@ async fn test_api_response_cache_scenario() {
 
     assert_eq!(result.status, 200);
 
-    // 验证已缓存
     let cached: Option<ApiResponse> = cache.get(&products_key).await.unwrap();
     assert!(cached.is_some());
 
@@ -190,7 +184,6 @@ async fn test_distributed_lock_scenario() {
             .await
             .unwrap();
 
-        // 执行临界区操作
         println!("Executing critical section operation...");
 
         // 释放锁（验证锁值）
@@ -239,7 +232,6 @@ async fn test_rate_limiting_scenario() {
         }
     }
 
-    // 验证最终计数
     let final_count: Option<u64> = cache.get(&rate_limit_key).await.unwrap();
     assert_eq!(final_count, Some(max_requests));
 
@@ -282,7 +274,6 @@ async fn test_bulk_operations_scenario() {
 
     assert_eq!(results.len(), 100);
 
-    // 验证数据完整性
     for (key, user) in &users {
         let cached = results.get(key);
         assert!(cached.is_some());
@@ -323,7 +314,6 @@ async fn test_concurrent_access_scenario() {
         handles.push(handle);
     }
 
-    // 等待所有任务完成
     for handle in handles {
         handle.await.unwrap();
     }
@@ -369,7 +359,6 @@ async fn test_cache_warming_scenario() {
         hot_users.len()
     );
 
-    // 验证预热数据
     for (key, user) in &hot_users {
         let cached: Option<User> = cache.get(key).await.unwrap();
         assert_eq!(cached.unwrap().id, user.id);
@@ -384,7 +373,6 @@ async fn test_cache_invalidation_scenario() {
 
     let cache: Cache<String, ApiResponse> = Cache::memory().await.unwrap();
 
-    // 设置多个相关缓存
     let key1 = "api:/users:1".to_string();
     cache
         .set(
@@ -418,7 +406,6 @@ async fn test_cache_invalidation_scenario() {
         cache.delete(key).await.unwrap();
     }
 
-    // 验证缓存已失效
     for key in &keys_to_invalidate {
         assert!(!cache.exists(key).await.unwrap());
     }

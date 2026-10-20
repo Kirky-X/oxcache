@@ -138,7 +138,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 创建一个模拟的数据库加载器
     struct MockDbLoader;
 
     impl MockDbLoader {
@@ -345,7 +344,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
             );
 
-            // 尝试从缓存获取
             if let Some(user) = cache.get(&user_id.to_string()).await? {
                 println!(
                     "     {}",
@@ -449,7 +447,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         t(MSG_EXAMPLE_DATABASE_INTEGRATION_USER_RECORD_UPDATED, &[])
     );
 
-    // 验证更新
     if let Some(cached_user) = cache.get(&"user:1".to_string()).await? {
         println!(
             "  {}",

@@ -40,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", t(MSG_EXAMPLE_METRICS_1_CREATING_A_CACHE, &[]));
     let cache: Cache<String, String> = Cache::builder().capacity(1000).build().await?;
 
-    // 执行一些操作以产生指标
     for i in 0..20 {
         let key = format!("user:{}", i);
         let value = format!("value_{}", i);

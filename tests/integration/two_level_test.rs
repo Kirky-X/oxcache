@@ -50,7 +50,6 @@ async fn test_two_level_cache_flow() {
     let l1 = chain.links()[0].backend().clone();
     let l2 = chain.links()[1].backend().clone();
 
-    // 清理上次运行遗留
     chain.delete(key).await.unwrap();
 
     // 1. 写入：两级都写穿

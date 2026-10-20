@@ -98,7 +98,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{}", t(MSG_EXAMPLE_EVENTS_1_CREATING_AND_PUBLISHING, &[]));
 
-    // 创建不同类型的事件
     let hit_event = CacheEvent::new(CacheEventType::Hit)
         .with_key("user:123")
         .with_latency(5);
@@ -136,7 +135,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cache: Cache<String, Vec<u8>> = Cache::builder().capacity(100).build().await?;
 
-    // 设置值并记录事件
     let start = Instant::now();
     let test_key = String::from("test_key");
     let test_value = b"test_value".to_vec();
@@ -151,7 +149,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 获取值并记录事件
     let start = Instant::now();
     let result = cache.get(&test_key).await?;
     let elapsed = start.elapsed();
@@ -162,7 +159,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         publisher.publish_miss(test_key.clone(), elapsed.as_millis() as u64)?;
     }
 
-    // 获取不存在的值
     let start = Instant::now();
     let nonexistent_key = String::from("nonexistent");
     let result = cache.get(&nonexistent_key).await?;

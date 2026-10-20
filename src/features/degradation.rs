@@ -773,7 +773,7 @@ mod tests {
         ));
     }
 
-    // === DegradationSnapshot 观测快照 ===
+    // DegradationSnapshot 观测快照
 
     #[test]
     fn snapshot_reflects_lifecycle_without_mutating_state() {
@@ -837,7 +837,7 @@ mod tests {
         assert_eq!(snap.degraded_elapsed, None);
     }
 
-    // === 双层熔断恢复时序叠加(外层 DegradationController × 内层后端内建熔断) ===
+    // 双层熔断恢复时序叠加(外层 DegradationController × 内层后端内建熔断)
 
     /// 模拟后端内建熔断层的最小后端(与 RedisBackend 内建熔断同构)：
     /// 首次 get 视为真实故障并立即打开熔断(阈值 1)；打开期短路上抛
@@ -1078,7 +1078,7 @@ mod tests {
         assert_eq!(inner.admitted(), 1);
     }
 
-    // === DegradationTracing 观测桥(telemetry) ===
+    // DegradationTracing 观测桥(telemetry)
 
     #[cfg(feature = "telemetry")]
     mod telemetry_bridge {

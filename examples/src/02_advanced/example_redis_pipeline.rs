@@ -188,7 +188,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 验证删除
     let results = backend.get_many_pipeline(&all_keys).await?;
     let remaining = results.iter().filter(|r| r.is_some()).count();
     println!(

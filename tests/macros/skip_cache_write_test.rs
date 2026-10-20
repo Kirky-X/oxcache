@@ -27,7 +27,7 @@ static ASYNC_DEFAULT_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SYNC_SKIP_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SYNC_DEFAULT_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-// === Async branch — `#[cached(skip_cache_write)]` vs `#[cached]` (default) ===
+// Async branch — `#[cached(skip_cache_write)]` vs `#[cached]` (default)
 
 #[cached(service = "skip_cache_write_async_skip_svc", skip_cache_write)]
 async fn cached_async_skip(id: u64) -> Result<u64, String> {
@@ -117,7 +117,7 @@ async fn default_async_caches_ok_result() {
     );
 }
 
-// === Sync branch — `#[cached(sync, skip_cache_write)]` vs `#[cached(sync)]` (default) ===
+// Sync branch — `#[cached(sync, skip_cache_write)]` vs `#[cached(sync)]` (default)
 
 #[cached(service = "skip_cache_write_sync_skip_svc", sync, skip_cache_write)]
 fn cached_sync_skip(id: u64) -> Result<u64, String> {

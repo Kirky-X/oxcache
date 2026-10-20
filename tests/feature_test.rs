@@ -3,7 +3,7 @@
 // 窄特性验证：确保各 tier 预设（minimal / redis-tier）可正常编译运行。
 // 迁移自 examples/feature_matrix/，防止回归。
 
-// === minimal feature 验证（L1 memory cache + metrics + serialization） ===
+// minimal feature 验证（L1 memory cache + metrics + serialization）
 
 #[cfg(feature = "minimal")]
 mod minimal_tests {
@@ -20,7 +20,7 @@ mod minimal_tests {
     }
 }
 
-// === redis-tier feature 验证（L1 memory + L2 Redis，不含 macros/compression/cli） ===
+// redis-tier feature 验证（L1 memory + L2 Redis，不含 macros/compression/cli）
 
 #[cfg(feature = "redis-tier")]
 mod redis_tier_tests {

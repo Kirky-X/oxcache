@@ -40,7 +40,7 @@ mod tests {
         assert!(debug.contains("DragonflyRestrictions"));
     }
 
-    // === DragonflyBackend integration tests (require Dragonfly server on port 6380) ===
+    // DragonflyBackend integration tests (require Dragonfly server on port 6380)
 
     /// Dragonfly test URL — Dragonfly on port 6380 (Docker mapped from 6379)
     const DRAGONFLY_URL: &str = "redis://127.0.0.1:6380";

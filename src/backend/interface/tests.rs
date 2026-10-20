@@ -48,7 +48,7 @@ mod tests {
         assert_eq!(connector.backend_kind(), BackendKind::Mock);
     }
 
-    // === BackendKind 方法测试 (lines 41-42, 46-47) ===
+    // BackendKind 方法测试 (lines 41-42, 46-47)
 
     #[test]
     fn test_backend_kind_is_memory_moka() {
@@ -110,7 +110,7 @@ mod tests {
         assert!(!BackendKind::Unknown.is_distributed());
     }
 
-    // === BackendKind Debug, Clone, PartialEq 测试 ===
+    // BackendKind Debug, Clone, PartialEq 测试
 
     #[test]
     fn test_backend_kind_debug() {
@@ -132,7 +132,7 @@ mod tests {
         assert_ne!(BackendKind::Moka, BackendKind::Redis);
     }
 
-    // === CacheReader is_empty 默认方法测试 (lines 82-83) ===
+    // CacheReader is_empty 默认方法测试 (lines 82-83)
 
     #[tokio::test]
     async fn test_cache_reader_is_empty_default() {
@@ -149,7 +149,7 @@ mod tests {
         assert!(!reader.is_empty().await.unwrap());
     }
 
-    // === CacheReader get_many 默认方法测试 ===
+    // CacheReader get_many 默认方法测试
 
     #[tokio::test]
     async fn test_cache_reader_get_many_default() {
@@ -181,7 +181,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
-    // === CacheWriter set_many 和 delete_many 默认方法测试 ===
+    // CacheWriter set_many 和 delete_many 默认方法测试
 
     #[tokio::test]
     async fn test_cache_writer_set_many_default() {
@@ -217,7 +217,7 @@ mod tests {
         assert!(!backend.exists("key2").await.unwrap());
     }
 
-    // === CacheConnector backend_kind 测试 ===
+    // CacheConnector backend_kind 测试
 
     #[tokio::test]
     async fn test_cache_connector_backend_kind_mock() {
@@ -234,7 +234,7 @@ mod tests {
         connector.shutdown().await;
     }
 
-    // === CacheBackend blanket impl 测试 ===
+    // CacheBackend blanket impl 测试
 
     #[tokio::test]
     async fn test_cache_backend_trait_object() {
@@ -249,7 +249,7 @@ mod tests {
         assert_eq!(value, Some(b"value".to_vec()));
     }
 
-    // === SyncCacheBackend trait hierarchy 测试 ===
+    // SyncCacheBackend trait hierarchy 测试
 
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
@@ -393,7 +393,6 @@ mod tests {
         let reader: &dyn SyncCacheReader = &backend;
         // 空缓存
         assert!(reader.is_empty().unwrap());
-        // 添加数据后
         backend
             .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
             .unwrap();
@@ -472,7 +471,7 @@ mod tests {
         assert!(!result);
     }
 
-    // === BackendKind::is_composite 测试 ===
+    // BackendKind::is_composite 测试
 
     #[test]
     fn test_backend_kind_is_composite_chain() {
@@ -492,7 +491,7 @@ mod tests {
         assert!(!BackendKind::Aerospike.is_composite());
     }
 
-    // === BackendKind 新后端变体测试 ===
+    // BackendKind 新后端变体测试
 
     #[test]
     fn test_backend_kind_is_distributed_valkey() {
@@ -553,7 +552,7 @@ mod tests {
         assert_ne!(BackendKind::Dragonfly, BackendKind::Valkey);
     }
 
-    // === CacheReader::keys 默认实现测试 ===
+    // CacheReader::keys 默认实现测试
 
     #[tokio::test]
     async fn test_cache_reader_keys_default_returns_empty() {
@@ -566,7 +565,7 @@ mod tests {
         assert!(keys.is_empty());
     }
 
-    // === SyncCacheReader::keys 默认实现测试 ===
+    // SyncCacheReader::keys 默认实现测试
 
     #[test]
     fn test_sync_reader_keys_default_returns_empty() {
@@ -577,7 +576,7 @@ mod tests {
         assert!(keys.is_empty());
     }
 
-    // === CacheConnector 默认方法测试 ===
+    // CacheConnector 默认方法测试
 
     #[tokio::test]
     async fn test_cache_connector_as_atomic_writer_default_none() {
@@ -597,7 +596,7 @@ mod tests {
         assert!(connector.as_atomic_writer().is_none());
     }
 
-    // === glob_match unit tests ===
+    // glob_match unit tests
 
     #[test]
     fn test_glob_match_exact_match() {
@@ -660,7 +659,7 @@ mod tests {
         assert!(!glob_match("cache/*", "cache"));
     }
 
-    // === AsyncToSyncBridge —— 诚实探测与原子桥接臂 ===
+    // AsyncToSyncBridge —— 诚实探测与原子桥接臂
 
     /// current_thread runtime 内桥接 shutdown 无法嵌套驱动：跳过并计数
     /// `oxcache_bridge_shutdown_rejected_total`（默认预设可见的拒绝信号）。

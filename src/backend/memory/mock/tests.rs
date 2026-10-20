@@ -109,7 +109,7 @@ mod mock_tests {
         );
     }
 
-    // === 故障注入测试 (问题 5.1 / 7.3) ===
+    // 故障注入测试 (问题 5.1 / 7.3)
 
     #[tokio::test]
     async fn test_mock_backend_fault_injected_get_returns_err() {
@@ -149,7 +149,7 @@ mod mock_tests {
         assert!(BackendScore::is_persistent(&backend));
     }
 
-    // === Per-entry TTL tests (spec: universal-per-entry-ttl) ===
+    // Per-entry TTL tests (spec: universal-per-entry-ttl)
 
     #[tokio::test]
     async fn test_mock_set_with_ttl_expires_after_timeout() {
@@ -278,7 +278,7 @@ mod mock_tests {
         );
     }
 
-    // === keys() with glob patterns ===
+    // keys with glob patterns
 
     #[tokio::test]
     async fn test_mock_keys_returns_matching_keys() {
@@ -331,7 +331,7 @@ mod mock_tests {
         assert_eq!(keys[0], "alive");
     }
 
-    // === capacity() and as_atomic_writer() ===
+    // capacity and as_atomic_writer
 
     #[tokio::test]
     async fn test_mock_capacity_returns_zero() {
@@ -349,7 +349,7 @@ mod mock_tests {
         );
     }
 
-    // === AtomicCacheWriter direct tests (async) ===
+    // AtomicCacheWriter direct tests (async)
 
     #[tokio::test]
     async fn test_mock_atomic_incr_from_zero() {
@@ -447,7 +447,7 @@ mod mock_tests {
         assert!(!ok);
     }
 
-    // === SyncAtomicCacheWriter direct tests ===
+    // SyncAtomicCacheWriter direct tests
 
     #[test]
     fn test_mock_sync_atomic_incr() {
@@ -542,7 +542,7 @@ mod mock_tests {
         assert!(!ok);
     }
 
-    // === exists() with expired entry ===
+    // exists with expired entry
 
     #[tokio::test]
     async fn test_mock_exists_lazy_expires() {
@@ -564,7 +564,7 @@ mod mock_tests {
     }
 }
 
-// === 原子写（AtomicCacheWriter / SyncAtomicCacheWriter）语义驱动 ===
+// 原子写（AtomicCacheWriter / SyncAtomicCacheWriter）语义驱动
 
 #[tokio::test]
 async fn mock_async_incr_counts_overflow_and_bad_payload() {

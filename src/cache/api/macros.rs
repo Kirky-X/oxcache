@@ -96,7 +96,7 @@ mod tests {
     #[cfg(feature = "lua")]
     use crate::error::OxCacheError;
 
-    // === register_for_macro tests ===
+    // register_for_macro tests
 
     #[tokio::test]
     async fn test_register_for_macro_string_vec_u8() {
@@ -140,7 +140,7 @@ mod tests {
         assert!((registered.ttl_jitter_factor - 0.2).abs() < 1e-9);
     }
 
-    // === Lua script feature-gated tests ===
+    // Lua script feature-gated tests
 
     #[tokio::test]
     #[cfg(feature = "lua")]

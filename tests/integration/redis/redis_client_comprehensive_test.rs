@@ -18,7 +18,7 @@ mod redis_client_tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    // === 测试辅助函数 ===
+    // 测试辅助函数
 
     async fn create_backend() -> RedisBackend {
         let url = get_redis_url();
@@ -35,7 +35,7 @@ mod redis_client_tests {
         }
     }
 
-    // === Builder 测试 ===
+    // Builder 测试
 
     mod builder_tests {
         use super::*;
@@ -116,7 +116,7 @@ mod redis_client_tests {
         }
     }
 
-    // === 基本操作测试 ===
+    // 基本操作测试
 
     mod basic_operations {
         use super::*;
@@ -314,7 +314,7 @@ mod redis_client_tests {
         }
     }
 
-    // === Pipeline 批量操作测试 ===
+    // Pipeline 批量操作测试
 
     mod pipeline_tests {
         use super::*;
@@ -453,7 +453,7 @@ mod redis_client_tests {
         }
     }
 
-    // === CacheBackend 批量操作测试 ===
+    // CacheBackend 批量操作测试
 
     mod batch_operations {
         use super::*;
@@ -526,7 +526,7 @@ mod redis_client_tests {
         }
     }
 
-    // === BackendScore 和 Redis 特有方法测试 ===
+    // BackendScore 和 Redis 特有方法测试
 
     mod backend_methods {
         use super::*;
@@ -579,7 +579,7 @@ mod redis_client_tests {
         }
     }
 
-    // === Lua脚本测试 ===
+    // Lua脚本测试
 
     #[cfg(feature = "lua")]
     mod lua_scripts {
@@ -713,7 +713,7 @@ mod redis_client_tests {
         }
     }
 
-    // === 错误处理和边缘情况测试 ===
+    // 错误处理和边缘情况测试
 
     mod error_handling {
         use super::*;
@@ -855,7 +855,7 @@ mod redis_client_tests {
         }
     }
 
-    // === 连接管理和清理测试 ===
+    // 连接管理和清理测试
 
     mod connection_management {
         use super::*;
@@ -928,7 +928,7 @@ mod redis_client_tests {
         }
     }
 
-    // === 并发测试 ===
+    // 并发测试
 
     mod concurrency {
         use super::*;

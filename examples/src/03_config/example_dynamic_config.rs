@@ -126,7 +126,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         t(MSG_EXAMPLE_DYNAMIC_CONFIG_APP_THEME_UPDATED_TO, &[])
     );
 
-    // 验证更新
     if let Some(config) = cache.get(&"app.theme".to_string()).await? {
         println!(
             "   {}",

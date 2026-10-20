@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-// === Null sentinel behavior tests (via get_or_option public API) ===
+// Null sentinel behavior tests (via get_or_option public API)
 
 #[tokio::test]
 async fn test_null_sentinel_get_returns_none() {
@@ -146,7 +146,6 @@ async fn test_null_sentinel_expires_after_ttl() {
         "sentinel should block fallback immediately"
     );
 
-    // Wait for TTL to expire
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // After TTL: fallback should be called again (sentinel expired)
@@ -201,7 +200,7 @@ async fn test_get_or_option_error_propagates() {
     );
 }
 
-// === Builder integration tests ===
+// Builder integration tests
 
 #[tokio::test]
 async fn test_builder_null_cache_ttl_chained() {
@@ -265,7 +264,7 @@ async fn test_get_or_option_concurrent_single_flight() {
     );
 }
 
-// === TTL Jitter tests ===
+// TTL Jitter tests
 
 #[tokio::test]
 async fn test_ttl_jitter_applied() {

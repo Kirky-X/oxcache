@@ -583,7 +583,7 @@ mod tests {
         assert_eq!(concrete.len(), 1);
     }
 
-    // === inklog 结构化日志桥接（`inklog` feature） ===
+    // inklog 结构化日志桥接（`inklog` feature）
     #[cfg(feature = "inklog")]
     mod inklog_bridge {
         use super::*;

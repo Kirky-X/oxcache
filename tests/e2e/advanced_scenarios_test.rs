@@ -36,7 +36,7 @@ use oxcache::Cache;
 #[cfg(any(feature = "memory", feature = "redis"))]
 use oxcache::backend::{CacheReader, CacheWriter};
 
-// === Test data types ===
+// Test data types
 
 #[cfg(any(feature = "memory", feature = "serialization"))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -55,7 +55,7 @@ impl User {
     }
 }
 
-// === P0/P1 HIGH-RISK SCENARIOS ===
+// P0/P1 HIGH-RISK SCENARIOS
 
 /// P0 R-002: DashMap now has a FIFO O(1) eviction policy — writing beyond
 /// capacity evicts the oldest entries and `len()` is bounded at capacity.
@@ -135,7 +135,7 @@ async fn p0_c004_get_or_leader_panic_cleans_lock() {
     }
 }
 
-/// P1 SEC-002: Lua script validation correctly blocks both single-quoted
+/// P1 : Lua script validation correctly blocks both single-quoted
 /// and double-quoted FLUSHALL commands. The preprocessor preserves string
 /// contents for both quote styles, so neither can bypass detection.
 #[cfg(feature = "redis")]
@@ -162,7 +162,7 @@ async fn p1_sec002_lua_double_quote_bypass_known_limitation() {
     }
 }
 
-// === BACKEND COMBINATIONS (B-001 ~ B-012) ===
+// BACKEND COMBINATIONS (B-001 ~ B-012)
 
 /// B-001: Moka standalone with capacity=0 — builder defaults to 10000.
 #[cfg(feature = "memory")]
@@ -368,7 +368,7 @@ async fn b011_empty_chain_get_none_set_errors_delete_ok() {
     assert!(del_result.is_ok(), "delete on empty chain should be Ok");
 }
 
-// === OPERATION COMBINATIONS (O-001 ~ O-016) ===
+// OPERATION COMBINATIONS (O-001 ~ O-016)
 
 /// O-004: SET with TTL=0 — entry expires immediately (or is never visible).
 #[cfg(feature = "memory")]
@@ -505,7 +505,7 @@ async fn o016_shutdown_clears_cache_operations_safe() {
     assert_eq!(len, 0, "shutdown should clear entries");
 }
 
-// === TTL STRATEGIES (T-001 ~ T-007) ===
+// TTL STRATEGIES (T-001 ~ T-007)
 
 /// T-001: Global TTL via CacheBuilder — all entries expire after the
 /// configured duration.
@@ -648,7 +648,7 @@ async fn t006_dashmap_lazy_expiration_get_and_exists_check() {
     assert_eq!(backend.len().await.unwrap(), 0);
 }
 
-// === CONCURRENCY (C-001 ~ C-008) ===
+// CONCURRENCY (C-001 ~ C-008)
 
 /// C-001: Concurrent get_or dedup — fallback is called exactly once even
 /// with multiple concurrent requests for the same key.
@@ -934,7 +934,7 @@ async fn c008_concurrent_backfill_idempotent() {
     );
 }
 
-// === DEGRADATION (D-001 ~ D-010) ===
+// DEGRADATION (D-001 ~ D-010)
 
 /// D-003: Serialization failure — corrupt data stored in the backend causes
 /// deserialization error on get.
@@ -995,9 +995,9 @@ async fn d010_shutdown_then_operations_safe() {
     let _ = cache.len().await;
 }
 
-// === SECURITY (SEC-001 ~ SEC-010) — requires `redis` feature ===
+// SECURITY  — requires `redis` feature
 
-/// SEC-001: validate_redis_key rejects CRLF (protocol injection).
+/// : validate_redis_key rejects CRLF (protocol injection).
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec001_validate_redis_key_rejects_crlf() {
@@ -1010,7 +1010,7 @@ async fn sec001_validate_redis_key_rejects_crlf() {
     }
 }
 
-/// SEC-002: validate_lua_script rejects FLUSHALL via single-quoted string.
+/// : validate_lua_script rejects FLUSHALL via single-quoted string.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec002_lua_rejects_single_quoted_flushall() {
@@ -1025,7 +1025,7 @@ async fn sec002_lua_rejects_single_quoted_flushall() {
     }
 }
 
-/// SEC-003: validate_scan_pattern rejects too many wildcards.
+/// : validate_scan_pattern rejects too many wildcards.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec003_scan_pattern_too_many_wildcards() {
@@ -1055,7 +1055,7 @@ async fn sec003b_clamp_scan_count_bounds() {
     assert_eq!(clamp_scan_count(5000), 1000);
 }
 
-/// SEC-004: redact_cache_key masks keys containing sensitive patterns.
+/// : redact_cache_key masks keys containing sensitive patterns.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec004_redact_cache_key_masks_sensitive() {
@@ -1073,7 +1073,7 @@ async fn sec004_redact_cache_key_masks_sensitive() {
     assert_eq!(normal, "user:profile:123");
 }
 
-/// SEC-005: redact_connection_string hides the password.
+/// : redact_connection_string hides the password.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec005_redact_connection_string_hides_password() {
@@ -1095,7 +1095,7 @@ async fn sec005_redact_connection_string_hides_password() {
     );
 }
 
-/// SEC-007: KeyGenerator validate_key rejects empty and over-length keys.
+/// : KeyGenerator validate_key rejects empty and over-length keys.
 #[cfg(any(feature = "memory", feature = "minimal"))]
 #[tokio::test]
 async fn sec007_key_generator_validates_invalid_keys() {
@@ -1134,7 +1134,7 @@ async fn sec007b_key_generator_generate_full_namespaced() {
     assert_eq!(key, "ns:app:v1:user:42");
 }
 
-/// SEC-008: validate_redis_key detects SQL injection patterns.
+/// : validate_redis_key detects SQL injection patterns.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec008_sql_injection_detected() {
@@ -1147,7 +1147,7 @@ async fn sec008_sql_injection_detected() {
     }
 }
 
-/// SEC-009: validate_redis_key detects command injection characters.
+/// : validate_redis_key detects command injection characters.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec009_command_injection_detected() {
@@ -1168,7 +1168,7 @@ async fn sec009_command_injection_detected() {
     }
 }
 
-/// SEC-010: validate_redis_key detects path traversal patterns.
+/// : validate_redis_key detects path traversal patterns.
 #[cfg(feature = "redis")]
 #[tokio::test]
 async fn sec010_path_traversal_detected() {
@@ -1188,7 +1188,7 @@ async fn sec010_path_traversal_detected() {
     }
 }
 
-// === CONFIG / BUILDER (CFG-001 ~ CFG-010) ===
+// CONFIG / BUILDER (CFG-001 ~ CFG-010)
 
 /// CFG-001: Default build creates a working Moka cache with 10000 capacity.
 #[cfg(feature = "memory")]
@@ -1354,7 +1354,7 @@ async fn cfg007_chain_default_time_to_live_stored() {
     assert_eq!(chain.len(), 1);
 }
 
-// === SYNC API ===
+// SYNC API
 
 /// Sync GET/SET via sync_mode(true) on multi_thread runtime.
 #[cfg(feature = "memory")]
@@ -1422,7 +1422,7 @@ async fn s004_chain_sync_with_non_sync_link_returns_not_supported() {
     }
 }
 
-// === METRICS — requires `metrics` feature (in minimal) ===
+// METRICS — requires `metrics` feature (in minimal)
 
 /// JSON format export produces valid JSON with expected fields.
 #[cfg(feature = "metrics")]

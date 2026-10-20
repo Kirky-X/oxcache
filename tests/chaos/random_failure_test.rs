@@ -114,7 +114,6 @@ async fn test_distributed_lock_during_failures() {
         handles.push(handle);
     }
 
-    // 等待所有线程完成
     for handle in handles {
         let _ = handle.await;
     }
@@ -157,7 +156,6 @@ async fn test_fault_recovery() {
         }
     }
 
-    // 验证所有操作都成功
     assert_eq!(operations.len(), 20);
 
     println!("✓ Failure recovery test passed (new API)");

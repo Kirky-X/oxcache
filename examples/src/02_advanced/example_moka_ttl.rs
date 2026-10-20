@@ -7,7 +7,7 @@
 // - ttl(key)：只上报 per-entry TTL（未设置时返回 None，即使该条目按全局 TTL 过期）
 // - expire(key, new_ttl)：更新已有 key 的 TTL
 // - 全局 TTL vs per-entry TTL：set(None) 沿用全局 TTL；set(Some) 覆盖全局，
-//   且可长于全局 TTL（全局 TTL 不是封顶）
+// 且可长于全局 TTL（全局 TTL 不是封顶）
 
 use std::time::Duration;
 
@@ -32,7 +32,7 @@ use oxcache::i18n::messages::{
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // === per-entry TTL ===
+    // per-entry TTL
     println!("=== per-entry TTL ===");
     let backend = MokaMemoryBackend::new();
     println!(
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === expire 更新 TTL ===
+    // expire 更新 TTL
     println!("\n{}", t(MSG_EXAMPLE_MOKA_TTL_EXPIRE_UPDATES_TTL, &[]));
     let result = backend.expire("k1", Duration::from_secs(120)).await?;
     println!(
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === 无 TTL 的 key ===
+    // 无 TTL 的 key
     println!("\n{}", t(MSG_EXAMPLE_MOKA_TTL_KEYS_WITHOUT_TTL, &[]));
     backend
         .set("k2".into(), b"value2".to_vec().into(), None)
@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === TTL 过期验证 ===
+    // TTL 过期验证
     println!("\n{}", t(MSG_EXAMPLE_MOKA_TTL_TTL_EXPIRY_VERIFICATION, &[]));
     backend
         .set(
@@ -139,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === 全局 TTL vs per-entry TTL ===
+    // 全局 TTL vs per-entry TTL
     println!("\n{}", t(MSG_EXAMPLE_MOKA_TTL_GLOBAL_TTL_VS_PER, &[]));
     let backend_with_global_ttl = MokaMemoryBackend::builder()
         .capacity(10_000)

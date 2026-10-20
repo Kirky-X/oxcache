@@ -25,7 +25,7 @@ mod degradation_tests_inner {
     use std::sync::Arc;
     use std::time::Duration;
 
-    // === 测试辅助 ===
+    // 测试辅助
 
     /// Standalone Redis URL（Docker 端口 6379）
     fn standalone_url() -> String {
@@ -59,7 +59,7 @@ mod degradation_tests_inner {
         let _ = backend.delete(key).await;
     }
 
-    // === Standalone — 基本操作 + 重试透明性 ===
+    // Standalone — 基本操作 + 重试透明性
 
     mod standalone_retry {
         use super::*;
@@ -163,7 +163,6 @@ mod degradation_tests_inner {
                 .await
                 .expect("delete_many should succeed");
 
-            // 验证删除成功
             let after = backend
                 .get_many(&keys)
                 .await
@@ -217,7 +216,7 @@ mod degradation_tests_inner {
         }
     }
 
-    // === Standalone — 熔断器行为 ===
+    // Standalone — 熔断器行为
 
     mod standalone_circuit_breaker {
         use super::*;
@@ -277,7 +276,6 @@ mod degradation_tests_inner {
                 .await
                 .expect("Should build with distributed config");
 
-            // 验证操作正常
             let key = "oxcache:test:config:injection";
             backend
                 .set(Arc::from(key), Arc::new(b"configured".to_vec()), None)
@@ -291,7 +289,7 @@ mod degradation_tests_inner {
         }
     }
 
-    // === Standalone — Stats 增强（连接池监控） ===
+    // Standalone — Stats 增强（连接池监控）
 
     mod standalone_stats {
         use super::*;
@@ -339,7 +337,7 @@ mod degradation_tests_inner {
         }
     }
 
-    // === Standalone — 分布式指标验证 ===
+    // Standalone — 分布式指标验证
 
     mod standalone_metrics {
         use super::*;
@@ -395,7 +393,7 @@ mod degradation_tests_inner {
         }
     }
 
-    // === ChainCache — 并行删除 + 回填指标 ===
+    // ChainCache — 并行删除 + 回填指标
 
     mod chain_cache_distributed {
         use super::*;
@@ -435,7 +433,6 @@ mod degradation_tests_inner {
                 .await
                 .expect("ChainCache SET should succeed");
 
-            // 验证 L2 有值
             let l2_val = l2_check.get(key).await.unwrap();
             assert!(l2_val.is_some(), "L2 should have the value after SET");
 
@@ -445,14 +442,12 @@ mod degradation_tests_inner {
                 .await
                 .expect("ChainCache DELETE should succeed");
 
-            // 验证 L2 已删除
             let l2_val_after = l2_check.get(key).await.unwrap();
             assert!(
                 l2_val_after.is_none(),
                 "L2 should be empty after ChainCache DELETE"
             );
 
-            // 验证 L1 也已删除
             let l1_val_after = l1_check.get(key).await.unwrap();
             assert!(
                 l1_val_after.is_none(),
@@ -503,7 +498,6 @@ mod degradation_tests_inner {
             // 等待回填完成（fire-and-forget tokio::spawn）
             tokio::time::sleep(Duration::from_millis(200)).await;
 
-            // 验证 L1 已被回填
             let l1_val = l1_check.get(key).await.unwrap();
             assert!(l1_val.is_some(), "L1 should have been backfilled from L2");
 
@@ -516,12 +510,11 @@ mod degradation_tests_inner {
                 after_success
             );
 
-            // 清理
             let _ = l2_check.delete(key).await;
         }
     }
 
-    // === Redis Cluster 模式验证（需 Docker Cluster 环境） ===
+    // Redis Cluster 模式验证（需 Docker Cluster 环境）
 
     mod cluster_mode {
         use super::*;
@@ -579,7 +572,7 @@ mod degradation_tests_inner {
         }
     }
 
-    // === Redis Sentinel 模式验证（需 Docker Sentinel 环境） ===
+    // Redis Sentinel 模式验证（需 Docker Sentinel 环境）
 
     mod sentinel_mode {
         use super::*;

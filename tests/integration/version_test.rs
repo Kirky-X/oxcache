@@ -32,7 +32,6 @@ async fn test_version_control_set_and_update_value() {
         }
     };
 
-    // Ensure key is clean
     let _ = l2.delete("version_key").await;
 
     // First set should initialize
@@ -40,7 +39,6 @@ async fn test_version_control_set_and_update_value() {
         .await
         .expect("Set failed");
 
-    // Get value
     let val1 = l2.get("version_key").await.expect("Get failed");
     assert_eq!(val1, Some(b"v1".to_vec()));
 
@@ -53,6 +51,5 @@ async fn test_version_control_set_and_update_value() {
     let val2 = l2.get("version_key").await.expect("Get failed");
     assert_eq!(val2, Some(b"v2".to_vec()));
 
-    // Clean up
     let _ = l2.delete("version_key").await;
 }

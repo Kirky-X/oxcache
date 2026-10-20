@@ -39,7 +39,7 @@ use fluent_bundle::concurrent::FluentBundle;
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 
-// === Message ID constants ===
+// Message ID constants
 
 // -- OxCacheError messages --
 pub const MSG_ERR_SERIALIZATION: &str = "error.serialization";
@@ -1875,7 +1875,7 @@ pub const MSG_EXAMPLE_SECURITY_VALIDATION_5_USE_LOG_CACHE: &str =
 // -- Bench diagnostics --
 pub const MSG_BENCH_SKIP_SERVICE_UNREACHABLE: &str = "bench.skip_service_unreachable";
 
-// === Catalog lookup ===
+// Catalog lookup
 
 /// Check whether a language code has a dedicated message catalog.
 ///
@@ -1920,7 +1920,7 @@ pub(crate) fn lookup(locale: &str, message_id: &str, params: &[(&str, &str)]) ->
     }
 }
 
-// === Fluent bundle management ===
+// Fluent bundle management
 
 const EN_FTL: &str = include_str!("../../locales/en/messages.ftl");
 const ZH_FTL: &str = include_str!("../../locales/zh/messages.ftl");
@@ -1971,7 +1971,7 @@ fn build_zh_bundle() -> FluentBundle<FluentResource> {
     bundle
 }
 
-// === Tests ===
+// Tests
 
 #[cfg(test)]
 mod tests {
@@ -3107,7 +3107,7 @@ mod tests {
         MSG_BENCH_SKIP_SERVICE_UNREACHABLE,
     ];
 
-    // === Guard: EN/ZH key parity ===
+    // Guard: EN/ZH key parity
 
     #[test]
     fn test_en_zh_key_parity() {
@@ -3148,7 +3148,7 @@ mod tests {
         }
     }
 
-    // === Guard: embedded FTL covers the locales/ directory (sync guard) ===
+    // Guard: embedded FTL covers the locales/ directory (sync guard)
 
     #[test]
     fn test_embedded_ftl_matches_locales_dir() {
@@ -3173,7 +3173,7 @@ mod tests {
         }
     }
 
-    // === Guard: fallbacks (unknown lang → en; missing key → key/None, no panic) ===
+    // Guard: fallbacks (unknown lang → en; missing key → key/None, no panic)
 
     #[test]
     fn test_unknown_lang_falls_back_to_en() {
@@ -3196,7 +3196,7 @@ mod tests {
         assert_eq!(t("no.such_key", &[]), "no.such_key");
     }
 
-    // === Formatting behaviour (direct, per-language — no global locale state) ===
+    // Formatting behaviour (direct, per-language — no global locale state)
 
     #[test]
     fn test_lookup_en_with_args() {

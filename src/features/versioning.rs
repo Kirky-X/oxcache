@@ -67,7 +67,7 @@ pub trait VersionedStore: Send + Sync {
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
 }
 
-// === L1 内存实现 ===
+// L1 内存实现
 
 /// L1 内存版本化缓存（Mutex 保护的版本表）
 #[derive(Default)]
@@ -149,7 +149,7 @@ impl VersionedStore for MemoryVersionedCache {
     }
 }
 
-// === L2 Redis WATCH 实现（MVP） ===
+// L2 Redis WATCH 实现（MVP）
 
 /// L2 Redis 版本化缓存（WATCH + MULTI/EXEC 事务 MVP）
 ///
@@ -368,7 +368,6 @@ mod tests {
             .unwrap();
         store.delete("k").await.unwrap();
         assert_eq!(store.version("k").await.unwrap(), None);
-        // 删除后可重新以版本 0 创建
         assert_eq!(
             store
                 .compare_and_swap("k", 0, b"new".to_vec(), None)

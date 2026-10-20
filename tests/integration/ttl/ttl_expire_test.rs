@@ -20,7 +20,7 @@ struct Token {
     value: String,
 }
 
-// === async API: ttl / expire ===
+// async API: ttl / expire
 
 #[tokio::test]
 async fn test_cache_ttl_returns_none_for_no_ttl_key() {
@@ -99,7 +99,6 @@ async fn test_cache_expire_sets_ttl_on_existing_key() {
         .unwrap();
     assert!(ok, "expire should return true for existing key");
 
-    // 验证 TTL 已设置
     let ttl = cache.ttl(&"k".to_string()).await.unwrap();
     assert!(ttl.is_some());
     let remaining = ttl.unwrap();
@@ -123,7 +122,11 @@ async fn test_cache_expire_returns_false_for_missing_key() {
 #[tokio::test]
 async fn test_cache_update_preserves_ttl_via_ttl_query() {
     // 模拟下游 BulwarkDaoOxcache::update 场景：set 带 TTL 后更新值并保留原 TTL
-    let cache: Cache<String, Token> = Cache::builder().build().await.unwrap();
+    // 本用例断言的是「TTL 被保留」，不是「TTL 的抖动区间」——抖动因子默认
+    // 0.1（base_ttl * (1 ± factor)），且每次写入都会重算，复合后剩余量可
+    // 偏离基准 ±21%，用固定阈值断言会偶发红。此处显式关闭抖动，让断言
+    // 精确可判：更新后的剩余量必须与更新前读到的剩余量一致（仅允许流逝）。
+    let cache: Cache<String, Token> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
     let key = "token:abc".to_string();
 
     cache
@@ -140,6 +143,7 @@ async fn test_cache_update_preserves_ttl_via_ttl_query() {
 
     let original_ttl = cache.ttl(&key).await.unwrap();
     assert!(original_ttl.is_some(), "original ttl must be Some");
+    let original_remaining = original_ttl.unwrap();
 
     cache
         .set_with_ttl(
@@ -159,14 +163,18 @@ async fn test_cache_update_preserves_ttl_via_ttl_query() {
     let ttl_after = cache.ttl(&key).await.unwrap();
     assert!(ttl_after.is_some(), "TTL must be preserved after update");
     let remaining = ttl_after.unwrap();
+    // TTL 必须被原样保留：既不能被重置为完整 TTL，也不能被丢弃。
+    let drift = original_remaining.abs_diff(remaining);
     assert!(
-        remaining > Duration::from_secs(50),
-        "remaining ttl should still be > 50s after quick update, got {:?}",
-        remaining
+        drift < Duration::from_millis(500),
+        "ttl must be preserved across update: before={:?} after={:?} drift={:?}",
+        original_remaining,
+        remaining,
+        drift
     );
 }
 
-// === sync API: ttl_sync / expire_sync ===
+// sync API: ttl_sync / expire_sync
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_cache_ttl_sync_returns_none_for_no_ttl_key() {

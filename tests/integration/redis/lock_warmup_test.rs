@@ -102,7 +102,6 @@ async fn test_distributed_lock() {
         "Should acquire lock after expiration"
     );
 
-    // 清理
     cache.shutdown().await;
     cleanup_service(&service_name).await;
 }
@@ -154,13 +153,11 @@ async fn test_cache_preheating() {
         cache.set(key, value).await.unwrap();
     }
 
-    // 验证数据已预热
     for key in keys {
         let val: Option<String> = cache.get(&key).await.unwrap();
         assert!(val.is_some(), "Key {} should be preheated", key);
     }
 
-    // 清理
     cache.shutdown().await;
     cleanup_service(&service_name).await;
 }

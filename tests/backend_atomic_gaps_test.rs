@@ -22,7 +22,7 @@ use oxcache::backend::{
 };
 use oxcache::error::OxCacheResult;
 
-// === Moka：AtomicCacheWriter 全分支 ===
+// Moka：AtomicCacheWriter 全分支
 
 #[tokio::test]
 async fn moka_incr_creates_counts_and_overflows() {
@@ -156,7 +156,7 @@ async fn moka_cas_and_setnx_branches() {
     );
 }
 
-// === Cache sync 原子面：后端无 SyncAtomicCacheWriter → 显性 NotSupported ===
+// Cache sync 原子面：后端无 SyncAtomicCacheWriter → 显性 NotSupported
 
 /// 只实现同步三 trait、不实现 SyncAtomicCacheWriter 的最小后端，
 /// 用于验证 sync 原子 API 的能力探测失败路径。

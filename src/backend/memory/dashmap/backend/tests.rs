@@ -63,7 +63,6 @@ mod tests {
         // Should exist immediately
         assert!(backend.exists("key1").await.unwrap());
 
-        // Wait for expiration
         tokio::time::sleep(Duration::from_millis(150)).await;
 
         // Should be expired
@@ -81,7 +80,7 @@ mod tests {
         assert_eq!(backend3.capacity(), 1000);
     }
 
-    // === Eviction tests (问题 2.1 / 7.2) ===
+    // Eviction tests (问题 2.1 / 7.2)
 
     #[tokio::test]
     async fn test_eviction_fifo_oldest_evicted() {
@@ -239,7 +238,7 @@ mod tests {
         assert_eq!(backend.get("a").await.unwrap(), Some(b"v".to_vec()));
     }
 
-    // === 过期条目清理测试 (修复验证) ===
+    // 过期条目清理测试 (修复验证)
 
     #[tokio::test]
     async fn test_exists_removes_expired_entry() {
@@ -446,7 +445,7 @@ mod tests {
         assert_eq!(backend.entry_count(), 1000);
     }
 
-    // === Synchronous trait hierarchy tests ===
+    // Synchronous trait hierarchy tests
     //
     // 隔离在嵌套 `mod sync_tests` 内：sync trait 的 import 仅在此模块可见，
     // 避免与父模块 `mod tests` 中 async `CacheReader::get` 等同名方法产生

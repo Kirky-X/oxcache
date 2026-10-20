@@ -17,7 +17,7 @@ use oxcache::cache::{CacheBuilder, ChainBuilder, L1Builder, L2Builder};
 use oxcache::features::stale::StalePolicy;
 use oxcache::{CacheEvent, EventPublisher};
 
-// === 测试替身：事件发布计数器 ===
+// 测试替身：事件发布计数器
 
 #[derive(Default)]
 struct CountingPublisher {
@@ -32,7 +32,7 @@ impl EventPublisher for CountingPublisher {
     }
 }
 
-// === L1Builder：全 setter + 装饰器包装 ===
+// L1Builder：全 setter + 装饰器包装
 
 #[tokio::test]
 async fn l1_builder_full_surface() {
@@ -107,7 +107,7 @@ async fn l2_builder_redis_unreachable_fails_explicitly() {
     assert!(l2.build().await.is_err());
 }
 
-// === ChainBuilder 串联（l1 + l2 完整构建路径） ===
+// ChainBuilder 串联（l1 + l2 完整构建路径）
 
 #[tokio::test]
 async fn chain_builder_with_tiered_builders() {
@@ -131,7 +131,7 @@ async fn chain_builder_with_tiered_builders() {
     let _ = CacheReader::len(&chain).await.unwrap();
 }
 
-// === Cache 构建路径 ===
+// Cache 构建路径
 // ttl_jitter 钳制 / stale+sync 冲突 / event_publisher / serialization_format / Dual 槽 sync 面
 
 #[tokio::test(flavor = "multi_thread")]

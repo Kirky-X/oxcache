@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(event.latency_ms, cloned.latency_ms);
     }
 
-    // === Display 测试 - Set 和 Delete (lines 49-50) ===
+    // Display 测试 - Set 和 Delete (lines 49-50)
 
     #[test]
     fn test_cache_event_type_set_display() {
@@ -268,7 +268,7 @@ mod tests {
         assert_eq!(CacheEventType::Delete.to_string(), "delete");
     }
 
-    // === EventPublisher 默认方法测试 (lines 136-163) ===
+    // EventPublisher 默认方法测试 (lines 136-163)
 
     struct NoopPublisher;
 
@@ -335,7 +335,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // === CacheEvent 额外测试 ===
+    // CacheEvent 额外测试
 
     #[test]
     fn test_cache_event_new_default_fields() {

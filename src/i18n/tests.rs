@@ -120,7 +120,7 @@ mod tests {
         );
     }
 
-    // === Message catalog tests ===
+    // Message catalog tests
 
     #[test]
     fn test_format_message_en_not_found() {
@@ -323,7 +323,7 @@ mod tests {
         );
     }
 
-    // === Global default locale tests ===
+    // Global default locale tests
 
     #[test]
     fn test_i18n_error_display_en() {
@@ -360,7 +360,7 @@ mod tests {
         set_default_locale("en");
     }
 
-    // === System locale detection tests ===
+    // System locale detection tests
 
     #[test]
     fn test_parse_locale_tag_en() {
@@ -396,7 +396,6 @@ mod tests {
     #[allow(unsafe_code)]
     fn test_detect_system_locale_with_lang_zh() {
         let _locale_guard = LOCALE_ENV_LOCK.lock().unwrap();
-        // Save original
         let orig_lang = std::env::var("LANG").ok();
         let orig_lc_all = std::env::var("LC_ALL").ok();
         let orig_lc_messages = std::env::var("LC_MESSAGES").ok();

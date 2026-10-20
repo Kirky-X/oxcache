@@ -140,7 +140,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let moka = MokaMemoryBackend::builder().capacity(1000).build();
     let dashmap2 = DashMapMemoryBackend::new();
 
-    // 写入相同数据
     for i in 0..10 {
         let key = format!("key:{}", i);
         let value = format!("value:{}", i).into_bytes();

@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // === Redis 键验证 - 防止命令注入和协议污染 ===
+    // Redis 键验证 - 防止命令注入和协议污染
     println!(
         "{}\n",
         t(MSG_EXAMPLE_SECURITY_VALIDATION_1_REDIS_KEY_VALIDATION, &[])
@@ -226,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // === Lua 脚本验证 - 防止危险命令和阻塞脚本 ===
+    // Lua 脚本验证 - 防止危险命令和阻塞脚本
     println!(
         "\n{}\n",
         t(MSG_EXAMPLE_SECURITY_VALIDATION_2_LUA_SCRIPT_VALIDATION, &[])
@@ -354,7 +354,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     }
 
-    // === SCAN 模式验证 - 防止 ReDoS 攻击 ===
+    // SCAN 模式验证 - 防止 ReDoS 攻击
     println!(
         "\n{}\n",
         t(
@@ -424,7 +424,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     }
 
-    // === SCAN count 限制 - 防止 DoS ===
+    // SCAN count 限制 - 防止 DoS
     println!(
         "\n{}\n",
         t(MSG_EXAMPLE_SECURITY_VALIDATION_4_SCAN_COUNT_LIMITS, &[])
@@ -445,7 +445,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // === 安全日志记录 - 自动脱敏缓存键 ===
+    // 安全日志记录 - 自动脱敏缓存键
     println!(
         "\n{}\n",
         t(MSG_EXAMPLE_SECURITY_VALIDATION_5_SAFE_LOGGING_LOG, &[])
@@ -476,7 +476,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // === 实际应用场景：安全验证流程 ===
+    // 实际应用场景：安全验证流程
     println!(
         "\n{}\n",
         t(MSG_EXAMPLE_SECURITY_VALIDATION_6_IN_PRACTICE_A, &[])

@@ -44,7 +44,6 @@ fn test_memory_release_on_delete() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        // 创建大量数据
         for i in 0..100 {
             let key = format!("key_{}", i);
             let value = vec![i as u8; 1024]; // 1KB数据
@@ -58,13 +57,11 @@ fn test_memory_release_on_delete() {
                 .unwrap();
         }
 
-        // 删除所有数据
         for i in 0..100 {
             let key = format!("key_{}", i);
             cache.delete(&key).await.unwrap();
         }
 
-        // 验证所有数据都被删除
         for i in 0..100 {
             let key = format!("key_{}", i);
             let result = cache.get(&key).await.unwrap();
@@ -89,7 +86,6 @@ fn test_no_circular_reference_leak() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        // 创建循环引用
         let node1 = Rc::new(RefCell::new(Node {
             value: vec![1; 100],
             next: None,
@@ -194,7 +190,6 @@ fn test_concurrent_memory_safety() {
         handles.push(handle);
     }
 
-    // 等待所有线程完成
     for handle in handles {
         handle.join().unwrap();
     }
@@ -241,13 +236,11 @@ fn test_uninitialized_memory_prevention() {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
-        // 创建不同大小的数据
         let sizes = vec![0, 1, 10, 100, 1000];
 
         for size in sizes {
             let key = format!("uninit_{}", size);
 
-            // 创建明确初始化的数据
             let mut value = vec![0u8; size];
 
             // 确保所有字节都被初始化
@@ -264,7 +257,6 @@ fn test_uninitialized_memory_prevention() {
                 .await
                 .unwrap();
 
-            // 验证数据完整性
             let retrieved = cache.get(&key).await.unwrap();
             assert_eq!(retrieved, Some(value));
 

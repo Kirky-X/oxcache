@@ -130,7 +130,7 @@ where
         }
     }
 
-    // === 热路径借用查询（零分配） ===
+    // 热路径借用查询（零分配）
 
     /// 借用键查询：跳过 `K::to_key_string()` 的 String 分配，直接以 `&str`
     /// 查询后端（get 热路径零堆分配）。
@@ -195,7 +195,7 @@ where
         result
     }
 
-    // === Lifecycle and stats methods (delegating to backend) ===
+    // Lifecycle and stats methods (delegating to backend)
 
     /// Clear all entries in the cache.
     pub async fn clear(&self) -> OxCacheResult<()> {
@@ -286,7 +286,6 @@ where
 
     pub async fn delete(&self, key: &K) -> OxCacheResult<()> {
         let key_str = key.to_key_string();
-        // 删除路径指标埋点
         #[cfg(feature = "metrics")]
         let __start = std::time::Instant::now();
         let result = self.backend.delete(&key_str).await;

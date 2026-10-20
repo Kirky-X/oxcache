@@ -4,10 +4,10 @@
 //
 // 版本矩阵只能对"真实存在的对应版本端点"给出结论：
 // - `test_redis_6_compatibility` 仅在显式设置 `REDIS_6_URL` 且端点自报
-//   redis_version 6.x 时执行断言，否则显性跳过（不再把本机 6379 当作 6.x
-//   错标通过）；
+// redis_version 6.x 时执行断言，否则显性跳过（不再把本机 6379 当作 6.x
+// 错标通过）；
 // - `test_redis_7_compatibility` 用 `REDIS_7_URL`，未设置时回落到
-//   `REDIS_URL`/默认端点，并以 `INFO server` 的 redis_version 校验 7.x；
+// `REDIS_URL`/默认端点，并以 `INFO server` 的 redis_version 校验 7.x；
 // - 综合用例仅跑显式配置的端点，摘要按 passed/failed/skipped 如实输出。
 
 #![cfg(feature = "redis")]

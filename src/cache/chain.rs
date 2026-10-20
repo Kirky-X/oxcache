@@ -36,7 +36,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
+// telemetry helpers (zero overhead when `telemetry` feature off)
 
 #[cfg(feature = "telemetry")]
 #[inline]
@@ -843,7 +843,7 @@ impl ChainCache {
         Ok(())
     }
 
-    // === Sync API ===
+    // Sync API
     //
     // 同步版链式访问。语义与 async 版一致：get_sync 按分数从高到低遍历，
     // set_sync 写入所有链接（透传 TTL），delete_sync 从所有链接删除。
@@ -1144,7 +1144,7 @@ impl CacheConnector for ChainCache {
     }
 }
 
-// === AtomicCacheWriter for ChainCache ===
+// AtomicCacheWriter for ChainCache
 
 #[async_trait]
 impl AtomicCacheWriter for ChainCache {
@@ -1194,4 +1194,4 @@ impl AtomicCacheWriter for ChainCache {
     }
 }
 
-// === keys() override for ChainCache ===
+// keys override for ChainCache

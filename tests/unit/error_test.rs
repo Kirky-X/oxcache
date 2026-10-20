@@ -188,7 +188,7 @@ fn test_cache_error_connection_display_with_url() {
     assert!(display.contains("redis://localhost:6379"));
 }
 
-// === code() 方法测试 - 所有错误码 ===
+// code 方法测试 - 所有错误码
 
 #[test]
 fn test_error_code_not_found_returns_code() {
@@ -330,7 +330,7 @@ fn test_error_code_service_not_found_returns_code() {
     assert_eq!(err.code(), "OXCACHE_023");
 }
 
-// === is_recoverable() 方法测试 ===
+// is_recoverable 方法测试
 
 #[test]
 fn test_is_recoverable_connection_true() {
@@ -380,7 +380,7 @@ fn test_is_recoverable_invalid_input_false() {
     assert!(!err.is_recoverable());
 }
 
-// === Debug trait 测试 ===
+// Debug trait 测试
 
 #[test]
 fn test_error_debug_output_includes_variant() {
@@ -399,7 +399,7 @@ fn test_error_debug_tuple_variants_includes_fields() {
     assert!(debug.contains("256"));
 }
 
-// === 错误消息完整性测试 ===
+// 错误消息完整性测试
 
 #[test]
 fn test_all_error_messages_are_helpful() {
@@ -423,7 +423,7 @@ fn test_all_error_messages_are_helpful() {
     assert!(err.to_string().contains("increasing the timeout"));
 }
 
-// === OxCacheConfigError tests (merged from error_display_test.rs) ===
+// OxCacheConfigError tests (merged from error_display_test.rs)
 
 #[cfg(feature = "redis")]
 #[test]

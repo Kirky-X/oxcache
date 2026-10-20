@@ -185,7 +185,7 @@ impl BackendType {
 mod tests {
     use super::*;
 
-    // === LayerRestriction tests ===
+    // LayerRestriction tests
 
     #[test]
     fn test_layer_restriction_l1_only() {
@@ -238,7 +238,7 @@ mod tests {
         );
     }
 
-    // === BackendType extension method tests ===
+    // BackendType extension method tests
 
     #[test]
     #[cfg(feature = "memory")]

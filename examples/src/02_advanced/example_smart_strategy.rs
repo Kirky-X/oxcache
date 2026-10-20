@@ -170,7 +170,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 更新后失效缓存
     if let Some(mut a) = store.get(1) {
         a.title = "article #1 (updated)".into();
         store.update(&a);

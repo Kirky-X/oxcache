@@ -124,7 +124,6 @@ impl DistributedLock {
                     }
                 }
 
-                // Start watchdog if enabled
                 if self.watchdog_enabled {
                     let handle = self.spawn_watchdog();
                     *self.watchdog.lock().await = Some(handle);

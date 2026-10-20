@@ -136,7 +136,6 @@ async fn main() -> OxCacheResult<()> {
         age: 28,
     };
 
-    // Create
     println!("  {}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_ADDING_USER, &[]));
     cache.set(&"user:1".to_string(), &user).await?;
     println!(
@@ -147,7 +146,6 @@ async fn main() -> OxCacheResult<()> {
         )
     );
 
-    // Read
     println!("  {}", t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_GETTING_USER, &[]));
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
@@ -164,7 +162,6 @@ async fn main() -> OxCacheResult<()> {
         ),
     }
 
-    // Update
     println!(
         "  {}",
         t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_UPDATING_USER, &[])
@@ -181,7 +178,6 @@ async fn main() -> OxCacheResult<()> {
         t(MSG_EXAMPLE_COMPREHENSIVE_USAGE_USER_UPDATED, &[])
     );
 
-    // Read updated
     let retrieved = cache.get(&"user:1".to_string()).await?;
     match retrieved {
         Some(u) => println!(

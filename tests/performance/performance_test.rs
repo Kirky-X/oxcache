@@ -68,7 +68,6 @@ async fn test_backfill_latency() {
         assert!(duration.as_millis() < 5, "Backfill latency too high");
     }
 
-    // 清理
     cache.shutdown().await;
     cleanup_service(&service_name).await;
 }

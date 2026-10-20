@@ -14,7 +14,7 @@ const STATE_CLOSED: u8 = 0;
 const STATE_OPEN: u8 = 1;
 const STATE_HALF_OPEN: u8 = 2;
 
-// ---- telemetry helpers (zero overhead when `telemetry` feature off) ----
+// telemetry helpers (zero overhead when `telemetry` feature off)
 
 #[cfg(feature = "telemetry")]
 #[inline]
@@ -235,7 +235,6 @@ mod tests {
         cb.record_failure(); // threshold=1 → Open immediately
         assert!(cb.is_open());
 
-        // Wait for reset timeout
         std::thread::sleep(Duration::from_millis(60));
 
         // Should transition to HalfOpen
@@ -369,7 +368,6 @@ mod tests {
         assert!(cb.record_failure()); // → Open
         assert!(cb.is_open());
 
-        // Wait for HalfOpen
         std::thread::sleep(Duration::from_millis(40));
         assert!(!cb.is_open()); // → HalfOpen
 

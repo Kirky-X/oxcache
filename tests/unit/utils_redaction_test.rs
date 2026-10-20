@@ -6,7 +6,7 @@
 
 use oxcache::{Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value};
 
-// === redact_value 函数测试 ===
+// redact_value 函数测试
 
 /// 测试正常长字符串的部分显示
 #[test]
@@ -66,7 +66,7 @@ fn test_redact_value_long_string() {
     assert_eq!(result.len(), 8); // "****" + 4 chars
 }
 
-// === redact_connection_string 函数测试 ===
+// redact_connection_string 函数测试
 
 /// 测试带密码的 Redis 连接字符串
 #[test]
@@ -128,7 +128,6 @@ fn test_redact_connection_string_complex_password() {
     let result = redact_connection_string("redis://user:p@ss:w0rd@localhost:6379");
     // 验证 @ 符号之后的部分被保留
     assert!(result.contains("@localhost:6379"));
-    // 验证 **** 脱敏标记存在
     assert!(result.contains("****"));
 }
 
@@ -138,7 +137,7 @@ fn test_redact_connection_string_empty() {
     assert_eq!(redact_connection_string(""), "");
 }
 
-// === redact_cache_key 函数测试 ===
+// redact_cache_key 函数测试
 
 /// 测试包含敏感关键词的缓存键
 #[test]
@@ -200,7 +199,7 @@ fn test_redact_cache_key_case_insensitive() {
     assert!(result3.starts_with("****"));
 }
 
-// === redact_field 函数测试 ===
+// redact_field 函数测试
 
 /// 测试敏感字段脱敏
 #[test]
@@ -238,7 +237,7 @@ fn test_redact_field_partial_match() {
     assert_eq!(redact_field("auth_token_value", "xyz"), "***");
 }
 
-// === Redacted 包装器测试 ===
+// Redacted 包装器测试
 
 /// 测试 Redacted 包装器基本功能
 #[test]

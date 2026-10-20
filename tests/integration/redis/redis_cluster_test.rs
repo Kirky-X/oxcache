@@ -180,7 +180,6 @@ async fn test_redis_cluster_data_distribution() {
             .unwrap();
     }
 
-    // 验证所有键都能正确读取
     for i in 0..50 {
         let key = format!("distributed_key_{}", i);
         let expected = format!("value_{}", i);
@@ -188,7 +187,6 @@ async fn test_redis_cluster_data_distribution() {
         assert_eq!(value, Some(expected.as_bytes().to_vec()));
     }
 
-    // 清理
     for i in 0..50 {
         let key = format!("distributed_key_{}", i);
         backend.delete(&key).await.unwrap();
@@ -219,7 +217,6 @@ async fn test_redis_cluster_ttl() {
 
     let backend = RedisBackend::new(&urls[0]).await.unwrap();
 
-    // 设置带 TTL 的键
     backend
         .set(
             Arc::from("cluster_ttl_key"),
@@ -238,7 +235,6 @@ async fn test_redis_cluster_ttl() {
     // ponytail: requires Docker, polling not feasible without container
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    // 验证键已过期
     assert!(!backend.exists("cluster_ttl_key").await.unwrap());
 
     println!("✓ Redis Cluster TTL test passed");

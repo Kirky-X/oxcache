@@ -283,7 +283,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // === into_inner() 方法测试 (lines 121-122) ===
+    // into_inner 方法测试 (lines 121-122)
 
     #[test]
     fn test_depth_limited_into_inner() {
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(value, serde_json::json!("hello"));
     }
 
-    // === max_depth() 方法测试 (lines 126-127) ===
+    // max_depth 方法测试 (lines 126-127)
 
     #[test]
     fn test_depth_limited_max_depth() {
@@ -325,7 +325,7 @@ mod tests {
         assert_eq!(limited.max_depth(), 5);
     }
 
-    // === Deserialize trait 测试 (lines 136-146) ===
+    // Deserialize trait 测试 (lines 136-146)
 
     #[test]
     fn test_depth_limited_deserialize_valid() {
@@ -374,7 +374,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // === calculate_depth 边界测试 ===
+    // calculate_depth 边界测试
 
     #[test]
     fn test_calculate_depth_deeply_nested_object() {
@@ -406,7 +406,7 @@ mod tests {
         assert_eq!(calculate_depth(&value), 2);
     }
 
-    // === would_exceed_depth_limit 边界测试 ===
+    // would_exceed_depth_limit 边界测试
 
     #[test]
     fn test_would_exceed_depth_limit_invalid_json() {
@@ -441,7 +441,7 @@ mod tests {
         assert!(result.unwrap());
     }
 
-    // === DepthLimited from_slice 边界测试 ===
+    // DepthLimited from_slice 边界测试
 
     #[test]
     fn test_depth_limited_from_slice_invalid_json() {
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(limited.max_depth, cloned.max_depth);
     }
 
-    // === DepthLimitExceededError 测试 ===
+    // DepthLimitExceededError 测试
 
     #[test]
     fn test_depth_limit_exceeded_error_equality() {
@@ -532,7 +532,7 @@ mod tests {
         let _: &dyn std::error::Error = &err;
     }
 
-    // === deserialize_safe (serde_stacker 单次解析) 测试 ===
+    // deserialize_safe (serde_stacker 单次解析) 测试
 
     #[test]
     fn test_deserialize_safe_basic() {

@@ -144,13 +144,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return 0
     "#;
 
-    // 设置初始值
     backend
         .set("cas:key".into(), b"v1".to_vec().into(), None)
         .await?;
     println!("  {}", t(MSG_EXAMPLE_LUA_SCRIPT_INITIAL_VALUE_V1, &[]));
 
-    // 尝试用错误的期望值更新
     let result = backend
         .eval_lua(cas_script, &["cas:key"], &["v2", "v3"])
         .await?;

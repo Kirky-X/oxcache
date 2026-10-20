@@ -109,7 +109,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
     }
 
-    // 等待所有请求完成
     for handle in handles {
         let _ = handle.await?;
     }

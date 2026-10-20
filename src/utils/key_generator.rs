@@ -422,7 +422,7 @@ mod tests {
         assert_eq!(key_gen.apply_prefix("key"), "cache:key");
     }
 
-    // === try_generate_full 测试 ===
+    // try_generate_full 测试
 
     #[test]
     fn test_try_generate_full_valid_key() {
@@ -454,7 +454,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // === json_hash_key 测试（integrity 门控） ===
+    // json_hash_key 测试（integrity 门控）
 
     #[cfg(feature = "integrity")]
     mod json_hash_key_tests {

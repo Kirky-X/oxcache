@@ -239,7 +239,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     );
 
-    // 更新配置时直接覆盖旧值
     cache
         .set(&"config:theme".to_string(), &"light".to_string())
         .await?;
