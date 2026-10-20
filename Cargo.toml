@@ -27,7 +27,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.10"
+version = "0.5.0-rc.11"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -75,7 +75,7 @@ features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 
 # inklog 桥接：精确钉 `=`（反向依赖 oxcache，caret 升级会引入端口漂移）
 [dependencies.inklog]
-version = "=0.3.0-rc.10"
+version = "=0.3.0-rc.11"
 optional = true
 default-features = false
 

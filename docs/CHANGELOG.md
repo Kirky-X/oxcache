@@ -5,6 +5,16 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [0.5.0-rc.11] - 2026-10-21
+
+### Added
+
+- **inklog 桥接**：新增可选 `inklog` feature（`inklog = ["audit", "dep:inklog", "dep:serde_json"]`），缓存审计事件经 inklog 发布；examples 侧 `inklog-bridge` 示例按 feature 隔离，默认示例构建不引入 inklog。
+
+### Changed
+
+- **依赖**：`inklog` 精确钉 `=0.3.0-rc.10` → `=0.3.0-rc.11`（inklog rc.11 已发布，解除其对 oxcache 的精确 pin 冲突）；examples 子 crate 同步升钉。
+
 ## [0.5.0-rc.10] - 2026-10-20
 
 ### Added
