@@ -22,9 +22,7 @@ oxcache = { path = "..", version = "0.5.0-rc.10", default-features = false, feat
     "full",
 ] }
 
-# 示例仅直接使用 tracing-subscriber（fmt::init）；tracing facade 由 oxcache
-# 内部（telemetry 特性）持有，示例源码无 ::tracing 引用，#[cached] 生成码
-# 只调用 ::oxcache::__telemetry_macro_passthrough，故不单独引入
+# 示例只用 tracing-subscriber；tracing facade 由 oxcache telemetry 持有
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 
 # Utilities needed by examples
@@ -44,9 +42,7 @@ criterion.workspace = true
 # inklog 审计桥接示例：oxcache audit/inklog 特性 + inklog sink 面，
 # 经包内 feature 隔离，默认示例构建不引入 inklog
 [features]
-# 本包 default 仅作为 example 源码内 `cfg(feature = "...")` 的判定面
-#（oxcache 的实际能力面由依赖行固定 features 决定，二者独立）；
-# 与主包共享的 example 源文件据此在两包下都走完整演示分支
+# 本包 default 仅作示例 cfg 判定面；实际能力由依赖行 features 固定
 default = ["redis", "kit", "bloom"]
 redis = ["oxcache/redis"]
 kit = ["oxcache/kit"]
