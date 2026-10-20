@@ -53,9 +53,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 # Internal macros
 oxcache_macros = { path = "macros", version = "0.5.0-rc.10", optional = true, default-features = false }
 
-# Async Runtime
-# 包级不启用 rt-multi-thread：wasm32 仅支持 sync/macros/io-util/rt/time；
-# 需要 block_in_place 的 memory/async 路径由 `memory` feature 显式启用。
+# 包级不启用 rt-multi-thread（wasm32 仅支持 sync/macros/io-util/rt/time）；block_in_place 由 memory 启用
 tokio = { workspace = true, features = [
     "rt",
     "sync",
@@ -68,19 +66,14 @@ once_cell = { version = "1.21", default-features = false, features = ["std"] }
 # Utilities
 uuid = { version = "1.28", default-features = false, features = ["std", "v4"] }
 
-# trait-kit integration (optional, feature-gated via `trait-kit`)
-# integrations/kit 装饰/包装 CacheBackend（引用 crate::backend），单开须隐含
-# memory 基线方可编译（与 degradation/config-confers 同口径）
+# trait-kit 集成：包装 CacheBackend，单开须隐含 memory 基线
 [dependencies.trait-kit]
 version = "0.5.0-rc.10"
 optional = true
 default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 
-# inklog 结构化日志桥接（optional，feature-gated via `inklog`）。精确钉 `=` 而非 caret：
-# inklog 反向依赖 oxcache，caret 自动升级会引入端口漂移；examples 的精确钉须同版本
-# （`=` 需求互斥，只改一处解析即失败）。本包与 inklog 所依赖的 oxcache 构成同版本号
-# 异 source 的合法 DAG——桥接只消费 inklog 类型，两个 oxcache 实例间无类型交换。
+# inklog 桥接：精确钉 `=`（反向依赖 oxcache，caret 升级会引入端口漂移）
 [dependencies.inklog]
 version = "=0.3.0-rc.10"
 optional = true
@@ -93,12 +86,7 @@ optional = true
 default-features = false
 features = ["executor"]
 
-# ICU4X internationalization (always enabled)
-# icu 元包将全部子组件声明为非 optional 依赖（组件本体无法裁），但组件级
-# 推荐面（datetime/calendar/time 的 ixdtf ISO 串解析、segmenter 的 auto、
-# normalizer 的 utf8/utf16 迭代器）经核与 oxcache 用法无关：i18n 面仅做
-# 格式化（Date::try_new_iso 直接构造，无字符串解析入口），故关闭 default
-# 只留 compiled_data，裁掉这些未用 API 的编译面
+# ICU4X 常开：关闭 default 只留 compiled_data，裁掉未用的解析/迭代面
 [dependencies.icu]
 version = "2.3"
 default-features = false
@@ -138,21 +126,14 @@ default-features = false
 features = ["std"]
 optional = true
 
-# L2 Cache (Redis)
-# 裁 script/sentinel：Lua 走显式 EVAL/EVALSHA 命令面，未用 redis::Script
-# （script 特性仅为此类型与 sha1_smol 依赖）；sentinel 发现由 backend 内
-# sentinel.rs 自实现，未用 redis::sentinel::SentinelClient。
-# 另裁 default 面（acl/streams/geospatial/num-bigint 均未用）
+# Redis L2：裁 script/sentinel 与 default 面（Lua 走显式 EVAL）
 [dependencies.redis]
 version = "1.7"
 default-features = false
 features = ["aio", "tokio-comp", "connection-manager", "cluster-async"]
 optional = true
 
-# Aerospike (independent protocol, feature-gated)
-# 裁 tls/dynamic-config/serialization：backend 仅 TCP 直连（ClientPolicy 未
-# 配置 TLS 栈）、不读 YAML 动态配置（3.0 起 default 新增），且只消费
-# Value::Blob/Value::from 核心 API，无需 3.0 的 serde 转换面
+# Aerospike：仅 TCP 直连，裁 tls/dynamic-config/serialization
 [dependencies.aerospike]
 version = "3.0"
 default-features = false
@@ -233,9 +214,7 @@ default-features = false
 features = ["alloc"]
 optional = true
 
-# Binary serialization formats (optional)
-# 不升 3：bincode 项目已停止开发，crates.io 的 3.0.0 为官方刻意发布的
-# compile_error 占位（阻止 caret 误升级），最后正式版为 2.x 线 2.0.1
+# bincode 钉 2.x：3.0.0 是 compile_error 占位，项目已停止开发
 [dependencies.bincode]
 version = "2.0"
 default-features = false
@@ -284,9 +263,7 @@ postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 [dev-dependencies.testcontainers]
 version = "0.28"
 default-features = false
-# watchdog：信号退出时回收 managed 容器，兜底门控超时取消 start future 的
-# 窄窗口孤儿（容器已创建、ContainerAsync 句柄未 construct 即被 drop）
-# 裁 default（ring）：bollard TLS 栈，本地 docker socket 直连不需要
+# watchdog：信号退出时回收 managed 容器；裁 default（本地 socket 无需 TLS）
 features = ["watchdog"]
 
 # === FEATURES ===
@@ -340,10 +317,7 @@ full = [
     "warmup",
 ]
 
-# Component features
-# memory/redis 开启即编译 backend 与 cache 核心 API，而 Cache<K,V> 的 serde
-# 约束与 UnifiedSerializer 是核心面事实依赖，故隐含 serialization
-# （与 minimal/disk 预置既有口径一致）
+# memory/redis 隐含 serialization（Cache<K,V> 与 UnifiedSerializer 的核心依赖）
 memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization", "tokio/rt-multi-thread"]
 # 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
 byte-weight = ["dep:moka", "moka/sync"]
@@ -380,10 +354,7 @@ disk = ["memory", "serialization", "dep:redb"]
 stale = ["memory", "offload", "serialization"]
 invalidation = ["redis", "serialization", "dep:futures"]
 pubsub = ["redis", "dep:futures", "dep:tracing"]
-# EncryptedBackend/IntegrityBackend 装饰任意 CacheBackend（引用
-# crate::backend；integrity 观测另及 crate::infra metrics），单开须隐含
-# memory 基线方可编译（与 degradation 同口径）；integrity 模块寄生在
-# encryption 模块内（envelope 签名族），须隐含 encrypt
+# encrypt：加密/完整性装饰器，单开须隐含 memory；integrity 寄生 encryption
 encrypt = ["dep:chacha20poly1305", "dep:getrandom", "memory"]
 integrity = ["encrypt", "serialization", "dep:hmac", "dep:sha2"]
 serde-bincode = ["serialization", "dep:bincode"]
@@ -393,22 +364,16 @@ config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 # any(memory,redis,disk)),单开须隐含最小 backend 基线方可编译
 degradation = ["memory"]
 audit = []
-# 审计事件 → inklog 结构化日志发布器（TracingAuditPublisher 的落盘直连变体；
-# 隐含 audit 端口。inklog 依赖钉精确至已发布 rc.9（`=0.3.0-rc.9`），所需端口
-# LogRecord/LogSink 均为该版本无条件编译面）
+# inklog：审计事件落盘发布器，隐含 audit；依赖精确钉版
 inklog = ["audit", "dep:inklog", "dep:serde_json"]
 versioning = []
 
 # 热 key 采样观测（审计 F11）
 hotkey = ["dep:dashmap"]
-# 自适应 TTL（R5）：hot 延长 / cold 缩短装饰器，显式常量配置，默认关闭；
-# 装饰 crate::backend(backend 模块门控 any(memory,redis,disk)),单开须隐含
-# memory 基线方可编译（与 degradation 同口径）
+# adaptive-ttl：hot 延长 / cold 缩短装饰器，默认关闭，须隐含 memory
 adaptive-ttl = ["dep:dashmap", "memory"]
 
-# 智能预热：WarmupLoader 端口拉热 key 集合异步回填 ChainCache，默认关闭；
-# 回填经链式批量读/写 API（操作对象为 crate::cache::ChainCache），单开须
-# 隐含 memory 基线方可编译（与 adaptive-ttl 同口径）
+# warmup：WarmupLoader 异步回填 ChainCache，默认关闭，须隐含 memory
 warmup = ["memory"]
 
 # === PROFILES ===
@@ -468,9 +433,7 @@ name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
 
-# Redis 多模式示例（与 oxcache-examples 包共享同一源文件，单源双注册）：
-# 主包默认 features 不含 redis，源码内 cfg 据此降级为指引输出，保证
-# workspace 根 `cargo run --example example_redis_modes` 可解析运行（rc=0）
+# Redis 多模式示例：与 oxcache-examples 单源双注册，无 redis 时降级为指引输出
 [[example]]
 name = "example_redis_modes"
 path = "examples/src/02_advanced/example_redis_modes.rs"
