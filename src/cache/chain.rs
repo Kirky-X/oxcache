@@ -7,8 +7,8 @@
 
 use crate::backend::BackendScore;
 use crate::backend::{
-    AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CacheReader, CacheWriter,
-    SyncCacheBackend,
+    AtomicCacheWriter, BackendKind, CacheBackend, CacheConnector, CachePatternOps, CacheReader,
+    CacheWriter, SyncCacheBackend,
 };
 use crate::core::EventPublisher;
 use crate::error::{OxCacheError, OxCacheResult};
@@ -43,7 +43,7 @@ use std::time::Duration;
 fn oxcache_telemetry_backfill_ok(key: &str, backend: &str) {
     tracing::debug!(
         target = "oxcache::chain",
-        key,
+        key = %crate::security::redact_cache_key(key),
         backend,
         "{}",
         t(MSG_LOG_CHAIN_BACKFILL_SUCCEEDED, &[])
@@ -55,7 +55,7 @@ fn oxcache_telemetry_backfill_ok(key: &str, backend: &str) {
 fn oxcache_telemetry_backfill_failed(key: &str, backend: &str, err: &OxCacheError) {
     tracing::warn!(
         target = "oxcache::chain",
-        key,
+        key = %crate::security::redact_cache_key(key),
         backend,
         %err,
         "{}",
@@ -72,7 +72,7 @@ fn oxcache_telemetry_backfill_ok(_key: &str, _backend: &str) {}
 fn telemetry_read_strategy(key: &str, strategy: &str, backend: &str, hit: bool) {
     tracing::debug!(
         target = "oxcache::chain",
-        key,
+        key = %crate::security::redact_cache_key(key),
         strategy,
         backend,
         hit,
@@ -86,7 +86,7 @@ fn telemetry_read_strategy(key: &str, strategy: &str, backend: &str, hit: bool) 
 fn telemetry_expire_backend_failed(key: &str, backend: &str, err: &OxCacheError) {
     tracing::warn!(
         target = "oxcache::chain",
-        key,
+        key = %crate::security::redact_cache_key(key),
         backend,
         %err,
         "{}",
@@ -111,7 +111,7 @@ fn oxcache_telemetry_backfill_failed(_key: &str, _backend: &str, _err: &OxCacheE
 fn telemetry_iter_entries_key_failed(key: &str, backend: &str, err: &OxCacheError) {
     tracing::warn!(
         target = "oxcache::chain",
-        key,
+        key = %crate::security::redact_cache_key(key),
         backend,
         %err,
         "{}",
@@ -388,7 +388,7 @@ impl ChainCache {
     fn emit_backend_error(&self, key: &str, backend: &str, error: &OxCacheError) {
         if let Some(publisher) = &self.event_publisher {
             let _ = publisher.publish_error(
-                Some(key.to_string()),
+                Some(crate::security::redact_cache_key(key)),
                 format!("backend {}: {}", backend, error),
             );
         }
@@ -1010,11 +1010,12 @@ impl CacheReader for ChainCache {
         let mut seen = std::collections::HashSet::new();
         let mut result = Vec::new();
         for link in &self.links {
-            if let Ok(keys) = link.backend().keys(pattern).await {
-                for k in keys {
-                    if seen.insert(k.clone()) {
-                        result.push(k);
-                    }
+            // 枚举失败不得静默吞掉：静默截断会让调用方拿到不完整的键列表
+            // 而无从判断（键枚举超限时后端返回 Err）
+            let keys = link.backend().keys(pattern).await?;
+            for k in keys {
+                if seen.insert(k.clone()) {
+                    result.push(k);
                 }
             }
         }
@@ -1141,6 +1142,31 @@ impl CacheConnector for ChainCache {
 
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Chain
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        Some(self)
+    }
+}
+
+/// 链式后端的模式级操作：逐链接下发。计数为各层条目数之和（同一键在多层
+/// 各计一次；`keys()` 返回的是去重后的键列表）。
+#[async_trait]
+impl CachePatternOps for ChainCache {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut total = 0u64;
+        for link in &self.links {
+            total += link.backend().count_by_pattern(pattern).await?;
+        }
+        Ok(total)
+    }
+
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut deleted = 0u64;
+        for link in &self.links {
+            deleted += link.backend().delete_by_pattern(pattern).await?;
+        }
+        Ok(deleted)
     }
 }
 

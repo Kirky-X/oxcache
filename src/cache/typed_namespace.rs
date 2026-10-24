@@ -136,9 +136,13 @@ where
     }
 
     /// 本命名空间条目数（按前缀匹配）
+    ///
+    /// 走后端的模式计数能力：命名空间条目数超过单次键枚举上限时仍可
+    /// 正确计数（枚举面物化全量键会打满调用方内存）。
     pub async fn len(&self) -> OxCacheResult<u64> {
-        let keys = self.backend.keys(&format!("{}*", self.prefix)).await?;
-        Ok(keys.len() as u64)
+        self.backend
+            .count_by_pattern(&format!("{}*", self.prefix))
+            .await
     }
 
     /// 是否为空
@@ -147,14 +151,13 @@ where
     }
 
     /// 失效本命名空间全部条目（前缀匹配删除）
+    ///
+    /// 走后端的模式删除能力：命名空间条目数超过单次键枚举上限时仍能
+    /// 整段失效（枚举面既物化不了全量键，也无法在超限时删掉任何一条）。
     pub async fn invalidate_all(&self) -> OxCacheResult<u64> {
-        let pattern = format!("{}*", self.prefix);
-        let keys = self.backend.keys(&pattern).await?;
-        let count = keys.len() as u64;
-        for key in keys {
-            self.backend.delete(&key).await?;
-        }
-        Ok(count)
+        self.backend
+            .delete_by_pattern(&format!("{}*", self.prefix))
+            .await
     }
 }
 
@@ -313,5 +316,45 @@ mod tests {
             .await
             .unwrap();
         assert!(ns.get(&"bad".to_string()).await.is_err());
+    }
+
+    /// 命名空间失效不受单次键枚举上限约束：条目数超过上限时仍能整段失效
+    /// （枚举面超限会报错且一条都删不掉）。
+    #[cfg(feature = "memory")]
+    #[tokio::test]
+    async fn invalidate_all_works_beyond_key_enumeration_limit() {
+        use crate::backend::MokaMemoryBackend;
+
+        const ENTRIES: u64 = 10_050;
+        let backend = Arc::new(
+            MokaMemoryBackend::builder()
+                .capacity(ENTRIES + 1_000)
+                .build(),
+        );
+        let ns: TypedNamespace<String, User, Users> = TypedNamespace::scoped(backend.clone());
+        for i in 0..ENTRIES {
+            ns.set(
+                &format!("k{i}"),
+                &User {
+                    id: i,
+                    name: "a".into(),
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        }
+
+        assert_eq!(
+            ns.len().await.unwrap(),
+            ENTRIES,
+            "namespace size must be countable beyond the enumeration limit"
+        );
+        let removed = ns.invalidate_all().await.unwrap();
+        assert_eq!(
+            removed, ENTRIES,
+            "namespace invalidation must delete every entry beyond the enumeration limit"
+        );
+        assert!(ns.is_empty().await.unwrap());
     }
 }

@@ -148,7 +148,11 @@ impl InvalidationBus {
                 if msg.is_from(&instance_id) {
                     continue;
                 }
-                apply_to_l1(l1.as_ref(), &msg).await;
+                // 失效失败不得静默：跨实例缓存会因此长期不一致
+                if let Err(err) = apply_to_l1(l1.as_ref(), &msg).await {
+                    record_apply_failure();
+                    telemetry_apply_failed(&msg, &err);
+                }
             }
         });
 
@@ -157,26 +161,57 @@ impl InvalidationBus {
 }
 
 /// 将失效事件应用到本地 L1 后端
-async fn apply_to_l1(l1: &dyn CacheBackend, msg: &InvalidationMessage) {
+///
+/// 命名空间失效走后端的模式删除能力：键枚举面在匹配键数超过上限时无法
+/// 承载整段失效（枚举报错且一条都删不掉），模式删除不受该上限约束。
+async fn apply_to_l1(l1: &dyn CacheBackend, msg: &InvalidationMessage) -> OxCacheResult<()> {
     match msg.kind {
         InvalidationKind::Key => {
-            let _ = l1.delete(&msg.target).await;
+            l1.delete(&msg.target).await?;
         }
         InvalidationKind::Namespace => {
-            // 命名空间失效：前缀 glob 匹配后逐 key 删除
+            // 命名空间失效：前缀 glob 匹配后删除
             let pattern = if msg.target == "*" {
                 "*".to_string()
             } else {
                 format!("{}*", msg.target)
             };
-            if let Ok(keys) = l1.keys(&pattern).await {
-                for key in keys {
-                    let _ = l1.delete(&key).await;
-                }
-            }
+            l1.delete_by_pattern(&pattern).await?;
         }
     }
+    Ok(())
 }
+
+/// 失效应用失败的计数（metrics feature：默认预设可见）
+#[cfg(feature = "metrics")]
+#[inline]
+fn record_apply_failure() {
+    crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS
+        .increment_counter("oxcache_invalidation_apply_failed_total", 1);
+}
+
+#[cfg(not(feature = "metrics"))]
+#[inline]
+fn record_apply_failure() {}
+
+/// 失效应用失败的日志（telemetry feature）
+#[cfg(feature = "telemetry")]
+#[inline]
+fn telemetry_apply_failed(msg: &InvalidationMessage, err: &crate::error::OxCacheError) {
+    use crate::i18n::messages::{MSG_LOG_INVALIDATION_APPLY_FAILED, t};
+    tracing::warn!(
+        target = "oxcache::invalidation",
+        kind = ?msg.kind,
+        target_key = %crate::security::redact_cache_key(&msg.target),
+        err = %err,
+        "{}",
+        t(MSG_LOG_INVALIDATION_APPLY_FAILED, &[])
+    );
+}
+
+#[cfg(not(feature = "telemetry"))]
+#[inline]
+fn telemetry_apply_failed(_msg: &InvalidationMessage, _err: &crate::error::OxCacheError) {}
 
 #[cfg(test)]
 mod tests {
@@ -304,6 +339,55 @@ mod tests {
         assert!(
             l1_b.exists("orders:1").await.unwrap(),
             "non-matching-prefix entries must not be invalidated"
+        );
+
+        handle_b.stop();
+        handle_b.join().await;
+    }
+
+    /// 命名空间失效在键数超过单次枚举上限时仍生效：枚举面超限时
+    /// 「枚举 + 逐条删除」会整段失败（一条都删不掉），跨实例缓存因此不一致。
+    #[cfg(feature = "memory")]
+    #[tokio::test]
+    async fn namespace_invalidation_applies_beyond_enumeration_limit() {
+        use crate::backend::MokaMemoryBackend;
+
+        const ENTRIES: u64 = 10_050;
+        let transport = Arc::new(InMemoryPubSubTransport::new());
+        let bus_a = InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-a").with_channel("test-ch"),
+        );
+        let bus_b = InvalidationBus::new(
+            transport.clone(),
+            InvalidationConfig::new("instance-b").with_channel("test-ch"),
+        );
+
+        let l1_b: Arc<dyn CacheBackend> = Arc::new(
+            MokaMemoryBackend::builder()
+                .capacity(ENTRIES + 1_000)
+                .build(),
+        );
+        for i in 0..ENTRIES {
+            l1_b.set(Arc::from(format!("users:{i}")), Arc::new(vec![1u8]), None)
+                .await
+                .unwrap();
+        }
+
+        let handle_b = bus_b.spawn_listener(l1_b.clone()).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        bus_a.invalidate_namespace("users:").await.unwrap();
+
+        for _ in 0..100 {
+            if !l1_b.exists("users:0").await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert!(
+            !l1_b.exists("users:0").await.unwrap(),
+            "namespace invalidation must apply beyond the key enumeration limit"
         );
 
         handle_b.stop();
