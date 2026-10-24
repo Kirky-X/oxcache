@@ -96,11 +96,6 @@ pub use audit::{
 #[cfg(all(feature = "audit", feature = "telemetry"))]
 pub use audit::TracingAuditPublisher;
 
-// InklogAuditPublisher 需 audit 与 inklog 同时启用：前者给事件端口，后者给 LogSink；
-// 桥接只消费 inklog 类型（钉版与同版本号异 source 的口径见根 Cargo.toml 与 CHANGELOG）
-#[cfg(all(feature = "audit", feature = "inklog"))]
-pub use audit::InklogAuditPublisher;
-
 #[cfg(feature = "compression")]
 pub use compression::{
     CompressingBackend, DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_ZSTD_LEVEL, ZSTD_MAGIC,

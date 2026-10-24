@@ -268,6 +268,10 @@ impl CacheConnector for EncryptedBackend {
     fn backend_kind(&self) -> BackendKind {
         self.inner.backend_kind()
     }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        self.inner.as_pattern_ops()
+    }
 }
 
 #[cfg(test)]

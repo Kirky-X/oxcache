@@ -1068,9 +1068,13 @@ async fn sec004_redact_cache_key_masks_sensitive() {
         "sensitive key should be redacted, got: {masked}"
     );
 
-    let normal = redact_cache_key("user:profile:123");
-    // No sensitive pattern → returned as-is (under 100 chars).
-    assert_eq!(normal, "user:profile:123");
+    let normal = redact_cache_key("user:profile");
+    // No sensitive pattern and no identifier-shaped segment → returned as-is.
+    assert_eq!(normal, "user:profile");
+
+    // Identifier-shaped segments (pure numeric ID) are masked even without a
+    // sensitive word, so user IDs never reach logs verbatim.
+    assert_eq!(redact_cache_key("user:profile:123"), "user:profile:<id>");
 }
 
 /// : redact_connection_string hides the password.

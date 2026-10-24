@@ -533,13 +533,12 @@ mod redis_client_tests {
 
         #[serial(redis)]
         #[tokio::test]
-        async fn test_mode_client_ping() {
+        async fn test_mode_and_ping() {
             if !skip_if_redis_unavailable().await {
                 return;
             }
             let backend = create_backend().await;
             assert_eq!(backend.mode(), RedisMode::Standalone);
-            let _client = backend.client();
             assert_eq!(backend.ping().await.unwrap(), "PONG");
         }
 

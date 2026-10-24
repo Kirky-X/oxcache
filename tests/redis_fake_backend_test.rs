@@ -79,6 +79,10 @@ impl FakeServer {
             loop {
                 match listener.accept() {
                     Ok((stream, _)) => {
+                        // Windows 上 accept() 返回的套接字继承监听套接字的非阻塞
+                        // 标志，读命令会立刻返回 WouldBlock 并断开连接；显式
+                        // 恢复阻塞语义（Unix 上 accept 不继承，无需此处理）。
+                        let _ = stream.set_nonblocking(false);
                         let conn_store = Arc::clone(&accept_store);
                         let conn_scripts = Arc::clone(&accept_scripts);
                         let conn_fail = Arc::clone(&accept_fail);
@@ -612,6 +616,36 @@ fn eval_known_script(store: &Arc<Mutex<Store>>, argv: &[Vec<u8>]) -> Vec<u8> {
     }
 }
 
+/// 回归：假服务器必须在同一连接上跨命令保持可用。
+///
+/// 连接套接字若残留非阻塞标志，读命令会立刻返回 WouldBlock，服务端随即
+/// 断开连接——客户端表现为 "broken pipe"，所有依赖连接的后端用例全红。
+#[test]
+fn fake_server_keeps_connection_open_across_commands() {
+    let (_server, url) = FakeServer::spawn();
+    let port: u16 = url
+        .rsplit(':')
+        .next()
+        .expect("url carries port")
+        .parse()
+        .expect("port number");
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+    stream
+        .write_all(b"*1\r\n$4\r\nPING\r\n")
+        .expect("write ping");
+    let mut reply = [0u8; 7];
+    stream.read_exact(&mut reply).expect("read ping");
+    assert_eq!(&reply, b"+PONG\r\n");
+    // 空闲间隙（远小于服务端 30s 读超时）后同一连接仍须可用
+    std::thread::sleep(Duration::from_millis(100));
+    stream
+        .write_all(b"*1\r\n$4\r\nPING\r\n")
+        .expect("write ping again");
+    let mut reply = [0u8; 7];
+    stream.read_exact(&mut reply).expect("read ping again");
+    assert_eq!(&reply, b"+PONG\r\n");
+}
+
 // 测试辅助
 
 fn arc_bytes(b: &[u8]) -> Arc<Vec<u8>> {
@@ -1013,6 +1047,22 @@ async fn clear_namespace_and_dangerous_clear() {
     assert!(!server.contains_key("ns:b"));
     assert!(server.contains_key("other:c"));
 
+    // 命名空间边界：相邻前缀不得被连带删除
+    for k in ["tenant1:a", "tenant10:b", "tenant1abc:c"] {
+        CacheWriter::set(backend.as_ref(), arc_key(k), arc_bytes(b"x"), None)
+            .await
+            .unwrap();
+    }
+    backend.clear_namespace("tenant1").await.unwrap();
+    assert!(!server.contains_key("tenant1:a"));
+    assert!(server.contains_key("tenant10:b"));
+    assert!(server.contains_key("tenant1abc:c"));
+
+    // 裸前缀语义保留在 clear_prefix：明确不做命名空间边界
+    backend.clear_prefix("tenant1").await.unwrap();
+    assert!(!server.contains_key("tenant10:b"));
+    assert!(!server.contains_key("tenant1abc:c"));
+
     // dangerous_clear_enabled(true) → SCAN + 批量 DEL 清库
     let (server2, url2) = FakeServer::spawn();
     let backend2 = RedisBackend::builder()
@@ -1153,7 +1203,6 @@ async fn client_ping_and_with_pool() {
         backend.mode(),
         oxcache::backend::memory::RedisMode::Standalone
     );
-    let _ = backend.client();
 }
 
 #[tokio::test(flavor = "multi_thread")]
