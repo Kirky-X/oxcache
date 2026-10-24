@@ -95,6 +95,61 @@ impl BackendKind {
     }
 }
 
+/// 键枚举结果超过上限时返回的错误
+///
+/// 键空间可达千万级，一次性物化全部匹配键会把调用方进程内存打满；
+/// 超过 `MAX_KEYS_RETURN`（`crate::core::constants`）即拒绝，调用方应改用
+/// 更窄的模式或自行分页。
+pub(crate) fn keys_limit_exceeded(limit: usize) -> OxCacheError {
+    OxCacheError::Operation(format!(
+        "Key enumeration exceeded the limit of {limit} matching keys; use a narrower pattern or paginate with SCAN"
+    ))
+}
+
+/// 模式级操作：按 glob 模式计数 / 删除匹配键
+///
+/// 与 [`CacheReader::keys`] 的区别：本 trait 的实现**不得**一次性物化
+/// 全部匹配键——命名空间失效（`prefix*` 命中上万条）在枚举面上必然触顶，
+/// 逐条枚举再删除的路径会因枚举上限而整段失败（一条都删不掉）。
+/// 支持的后端在此原生完成计数与删除，键空间大小不受枚举上限约束。
+///
+/// # 方法命名
+///
+/// 本 trait 的方法名区别于 [`CacheBackend::count_by_pattern`] /
+/// [`CacheBackend::delete_by_pattern`]：后端类型经 blanket 实现同时是
+/// `CacheBackend`，两个 trait 若用同名方法，具体类型上的方法调用语法会因
+/// 「多个候选同时适用」报 E0034。对外统一入口是 [`CacheBackend`] 上的
+/// `count_by_pattern` / `delete_by_pattern`——后端暴露本能力时它们走原生路径。
+///
+/// # Example
+///
+/// 具体后端类型同时实现本 trait 与 [`CacheBackend`]（blanket 实现），两个
+/// trait 的方法名不同，故方法调用语法各自唯一解析：
+///
+/// ```rust
+/// use oxcache::backend::{CacheBackend, CachePatternOps};
+/// use oxcache::cache::ChainCache;
+///
+/// async fn count_user_entries(chain: &ChainCache) -> oxcache::OxCacheResult<u64> {
+///     let native = chain.pattern_count("user:*").await?;
+///     let unified = chain.count_by_pattern("user:*").await?;
+///     assert_eq!(native, unified);
+///     Ok(native)
+/// }
+/// ```
+#[async_trait]
+pub trait CachePatternOps: Send + Sync + 'static {
+    /// 统计匹配模式的键数（不受单次枚举上限约束）。
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64>;
+
+    /// 删除匹配模式的全部键，返回实际删除条数。
+    ///
+    /// 删除条数以删除操作的实际结果为准：键可能已被并发删除（惰性过期物理
+    /// 删除 / 其它删除方）。能观测删除结果的后端（磁盘 / Redis / DashMap）
+    /// 按实际删除数计数；只能枚举后逐条失效的后端按枚举到的键数计数。
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64>;
+}
+
 /// Simple glob pattern matching: `*` matches any characters (including `/`),
 /// `?` matches a single character.
 ///
@@ -211,6 +266,12 @@ pub trait CacheReader: Send + Sync + 'static {
     ///
     /// Default implementation returns an empty vector. Backends should override
     /// this to provide actual key iteration (e.g. Redis SCAN, Moka iter).
+    ///
+    /// 单次枚举的条数上限为 `MAX_KEYS_RETURN`（`crate::core::constants`）：
+    /// 匹配键数超过上限时后端返回错误（避免一次性物化全量键打满调用方
+    /// 内存）。需要按模式计数 / 删除且不受该上限约束的调用方改用
+    /// [`CacheBackend::count_by_pattern`] / [`CacheBackend::delete_by_pattern`]
+    /// （后端提供 [`CachePatternOps`] 能力时原生执行）。
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
         let _ = pattern;
         Ok(vec![])
@@ -322,6 +383,15 @@ pub trait CacheConnector: Send + Sync + 'static {
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
         None
     }
+
+    /// 模式级操作能力（按 glob 模式计数 / 删除）。
+    ///
+    /// 默认 `None`：调用方退回「枚举 + 逐条删除」路径，该路径受单次枚举
+    /// 上限约束（见 [`CacheReader::keys`]）。支持流式模式操作的后端在此
+    /// 返回自身实现，使命名空间失效不受枚举上限约束。
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        None
+    }
 }
 
 // Lua Executor Trait (Optional, Redis-only)
@@ -397,6 +467,14 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
 /// Combines `CacheReader`, `CacheWriter`, and `CacheConnector` for consumers
 /// that need full cache functionality. Single trait object type for backends.
 ///
+/// # Method naming
+///
+/// `count_by_pattern` / `delete_by_pattern` are deliberately named apart from
+/// [`CachePatternOps::pattern_count`] / [`CachePatternOps::pattern_delete`]:
+/// a backend type is a `CacheBackend` through the blanket impl, so two traits
+/// carrying the same method name make method-call syntax on the concrete type
+/// fail with E0034 (multiple applicable items in scope).
+///
 /// # Design Pattern
 ///
 /// Strategy pattern: allows different backend implementations to be swapped
@@ -428,7 +506,37 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
 /// // CacheBackend is automatically provided via blanket impl
 /// ```
 #[async_trait]
-pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
+pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {
+    /// 按 glob 模式删除全部匹配键，返回删除条数。
+    ///
+    /// 后端提供 [`CachePatternOps`] 能力时走原生路径（不受单次枚举上限
+    /// 约束），返回实际删除条数；否则退回「枚举 + 逐条删除」，该路径在匹配
+    /// 键数超过 `MAX_KEYS_RETURN` 时**报错且一条都不删**（枚举面无法承载
+    /// 整段失效），且只能按枚举到的键数计数（删除接口不回报键是否原本存在）。
+    async fn delete_by_pattern(&self, pattern: &str) -> OxCacheResult<u64> {
+        if let Some(ops) = self.as_pattern_ops() {
+            return ops.pattern_delete(pattern).await;
+        }
+        let keys = self.keys(pattern).await?;
+        let mut deleted = 0u64;
+        for key in &keys {
+            self.delete(key).await?;
+            deleted += 1;
+        }
+        Ok(deleted)
+    }
+
+    /// 统计匹配 glob 模式的键数。
+    ///
+    /// 后端提供 [`CachePatternOps`] 能力时走原生路径（不受单次枚举上限
+    /// 约束）；否则退回枚举计数，超限时同样报错。
+    async fn count_by_pattern(&self, pattern: &str) -> OxCacheResult<u64> {
+        if let Some(ops) = self.as_pattern_ops() {
+            return ops.pattern_count(pattern).await;
+        }
+        Ok(self.keys(pattern).await?.len() as u64)
+    }
+}
 
 #[async_trait]
 impl<T: CacheReader + CacheWriter + CacheConnector + 'static> CacheBackend for T {}

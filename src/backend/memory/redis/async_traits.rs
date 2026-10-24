@@ -4,11 +4,12 @@
 
 use super::builder::RedisMode;
 use super::client::RedisBackend;
-use crate::backend::interface::AtomicCacheWriter;
+use crate::backend::interface::{AtomicCacheWriter, CachePatternOps, keys_limit_exceeded};
 use crate::backend::memory::redis::error;
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
 use crate::core::RedisCommand;
+use crate::core::constants::MAX_KEYS_RETURN;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX, MSG_DETAIL_REDIS_TTL_MIN_MILLIS,
@@ -237,6 +238,10 @@ impl CacheReader for RedisBackend {
                             .await
                             .map_err(error::map_redis_error)?;
                     all_keys.extend(batch);
+                    // 键空间可达千万级：一次性物化全部匹配键会打满调用方内存
+                    if all_keys.len() > MAX_KEYS_RETURN {
+                        return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
+                    }
                     cursor = new_cursor;
                     if cursor == 0 {
                         break;
@@ -319,7 +324,7 @@ impl CacheWriter for RedisBackend {
             return Err(OxCacheError::NotSupported(
                 "Full-database clear() is disabled by default. \
                  Use RedisBackend::builder().dangerous_clear_enabled(true) to enable, \
-                 or use clear_namespace(prefix) for safe prefix-based deletion."
+                 or use clear_namespace(namespace) to delete a single namespace."
                     .to_string(),
             ));
         }
@@ -474,8 +479,105 @@ impl CacheConnector for RedisBackend {
         Some(self)
     }
 
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        Some(self)
+    }
+
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
         Some(self)
+    }
+}
+
+/// SCAN 单批拉取条数（与既有 `keys` / `clear_by_pattern` 口径一致）。
+const PATTERN_SCAN_COUNT: usize = 100;
+
+/// SCAN+DEL 的重复扫描轮数上限：删除会改变哈希表布局，单轮 SCAN 可能漏掉
+/// 部分键；重复扫描直到某一轮无删除为止，轮数上限防止并发写入下的死循环。
+const PATTERN_SCAN_MAX_PASSES: usize = 8;
+
+#[async_trait]
+impl CachePatternOps for RedisBackend {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        security::validate_scan_pattern(pattern)?;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let mut count = 0u64;
+                let mut cursor = 0i64;
+                loop {
+                    let (new_cursor, batch): (i64, Vec<String>) =
+                        redis::cmd(RedisCommand::Scan.as_str())
+                            .arg(cursor)
+                            .arg("MATCH")
+                            .arg(pattern)
+                            .arg("COUNT")
+                            .arg(PATTERN_SCAN_COUNT)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(error::map_redis_error)?;
+                    count += batch.len() as u64;
+                    cursor = new_cursor;
+                    if cursor == 0 {
+                        break;
+                    }
+                }
+                Ok(count)
+            }
+        })
+        .await
+    }
+
+    /// 按模式删除：SCAN 增量遍历 + pipeline 批量 DEL，不物化全量键。
+    ///
+    /// SCAN + DEL 非原子：并发写入的键可能落在扫描间隙之外（同
+    /// [`clear_namespace`](super::client::RedisBackend::clear_namespace) 口径）。
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        security::validate_scan_pattern(pattern)?;
+        self.execute_with_retry(|| {
+            let mut conn = self.conn();
+            async move {
+                let mut deleted = 0u64;
+                for _ in 0..PATTERN_SCAN_MAX_PASSES {
+                    let mut pass_deleted = 0u64;
+                    let mut cursor = 0i64;
+                    loop {
+                        let (new_cursor, batch): (i64, Vec<String>) =
+                            redis::cmd(RedisCommand::Scan.as_str())
+                                .arg(cursor)
+                                .arg("MATCH")
+                                .arg(pattern)
+                                .arg("COUNT")
+                                .arg(PATTERN_SCAN_COUNT)
+                                .query_async(&mut conn)
+                                .await
+                                .map_err(error::map_redis_error)?;
+                        if !batch.is_empty() {
+                            let mut pipe = redis::pipe();
+                            for key in &batch {
+                                pipe.cmd(RedisCommand::Del.as_str()).arg(key);
+                            }
+                            // DEL 回执即该键是否真被删除：键可能已被并发删除，
+                            // 按回执计数而非按批长度盲计
+                            let replies: Vec<u64> = pipe
+                                .query_async(&mut conn)
+                                .await
+                                .map_err(error::map_redis_error)?;
+                            pass_deleted += replies.iter().sum::<u64>();
+                        }
+                        cursor = new_cursor;
+                        if cursor == 0 {
+                            break;
+                        }
+                    }
+                    deleted += pass_deleted;
+                    if pass_deleted == 0 {
+                        break;
+                    }
+                }
+                Ok(deleted)
+            }
+        })
+        .await
     }
 }
 

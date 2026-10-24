@@ -47,6 +47,17 @@ pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
 #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub const DEFAULT_TTL_JITTER_FACTOR: f64 = 0.1;
 
+// 键枚举防护常量
+
+/// 单次键枚举（`keys` / `keys_matching`）的最大返回条数
+///
+/// 键空间可达千万级，一次性物化全部匹配键会把调用方进程内存打满。
+/// 超过上限时后端返回错误，调用方应改用更窄的模式或自行分页。
+///
+/// 消费方：redis / moka / dashmap / disk 后端的 `keys` 实现。
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+pub const MAX_KEYS_RETURN: usize = 10_000;
+
 #[cfg(all(
     test,
     any(feature = "serialization", feature = "memory", feature = "redis")
@@ -67,5 +78,7 @@ mod tests {
         assert_eq!(MAX_JSON_DEPTH, 64);
         #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
         assert_eq!(NULL_SENTINEL, b"\x00OXNULL");
+        #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+        assert_eq!(MAX_KEYS_RETURN, 10_000);
     }
 }

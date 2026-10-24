@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: MIT
 //! DashMap backend implementation for high-performance concurrent in-memory caching
 
+use crate::backend::interface::{CachePatternOps, keys_limit_exceeded};
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
 use crate::backend::{BackendScore, Scores};
+use crate::core::constants::MAX_KEYS_RETURN;
 use crate::error::OxCacheResult;
 use crate::impl_backend_builder;
 use async_trait::async_trait;
@@ -314,12 +316,18 @@ impl CacheReader for DashMapMemoryBackend {
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
         // glob 匹配口径与 MokaMemoryBackend::keys_matching 一致
-        Ok(self
-            .cache
-            .iter()
-            .filter(|entry| crate::backend::interface::glob_match(pattern, entry.key()))
-            .map(|entry| entry.key().to_string())
-            .collect())
+        let mut keys = Vec::new();
+        for entry in self.cache.iter() {
+            if crate::backend::interface::glob_match(pattern, entry.key()) {
+                // 键空间可达百万级：一次性物化全部匹配键会打满调用方内存
+                // 上限只计匹配键（不匹配条目不占额度）；恰好等于上限允许返回
+                if keys.len() >= MAX_KEYS_RETURN {
+                    return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
+                }
+                keys.push(entry.key().to_string());
+            }
+        }
+        Ok(keys)
     }
 }
 
@@ -410,6 +418,38 @@ impl CacheConnector for DashMapMemoryBackend {
 
     fn backend_kind(&self) -> BackendKind {
         BackendKind::DashMap
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        Some(self)
+    }
+}
+
+#[async_trait]
+impl CachePatternOps for DashMapMemoryBackend {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut count = 0u64;
+        for entry in self.cache.iter() {
+            if crate::backend::interface::glob_match(pattern, entry.key()) {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    /// 删除匹配键：经 `retain` 在分片级写锁内完成，避免迭代期间持锁删除
+    /// 造成的自锁（DashMap 的 `iter` 持读锁，`remove` 需要写锁）。
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut deleted = 0u64;
+        self.cache.retain(|key, _entry| {
+            if crate::backend::interface::glob_match(pattern, key) {
+                deleted += 1;
+                false
+            } else {
+                true
+            }
+        });
+        Ok(deleted)
     }
 }
 

@@ -275,15 +275,6 @@ async fn test_mode_accessor() {
 
 #[tokio::test]
 #[ignore = "requires Redis server"]
-async fn test_client_accessor() {
-    let backend = make_backend().await;
-    let client: &redis::Client = backend.client();
-    // Verify the client reference is valid by checking its connection string
-    let _ = format!("{:?}", client);
-}
-
-#[tokio::test]
-#[ignore = "requires Redis server"]
 async fn test_backend_kind_is_redis() {
     let backend = make_backend().await;
     assert_eq!(backend.backend_kind(), BackendKind::Redis);
@@ -678,11 +669,35 @@ async fn test_clear_namespace_prefix() {
         .set(Arc::from(other.as_str()), Arc::new(b"v3".to_vec()), None)
         .await
         .unwrap();
-    backend.clear_namespace(&prefix).await.unwrap();
+    backend.clear_prefix(&prefix).await.unwrap();
     assert!(!backend.exists(&k1).await.unwrap());
     assert!(!backend.exists(&k2).await.unwrap());
     assert!(backend.exists(&other).await.unwrap());
     cleanup(&backend, &other).await;
+}
+
+/// 命名空间清理只覆盖同一命名空间段：相邻前缀不得被连带删除
+#[tokio::test]
+#[ignore = "requires Redis server"]
+async fn test_clear_namespace_respects_segment_boundary() {
+    let backend = make_backend().await;
+    let ns = unique_key("tenant");
+    let own = format!("{ns}:a");
+    let sibling = format!("{ns}0:x");
+    let glued = format!("{ns}abc:y");
+    for k in [&own, &sibling, &glued] {
+        backend
+            .set(Arc::from(k.as_str()), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+    }
+    // 未带结尾分隔符时按命名空间段补齐：只删 ns:*
+    backend.clear_namespace(&ns).await.unwrap();
+    assert!(!backend.exists(&own).await.unwrap());
+    assert!(backend.exists(&sibling).await.unwrap());
+    assert!(backend.exists(&glued).await.unwrap());
+    cleanup(&backend, &sibling).await;
+    cleanup(&backend, &glued).await;
 }
 
 // stats with INFO clients

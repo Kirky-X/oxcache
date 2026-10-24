@@ -45,6 +45,8 @@ pub use interface::CacheSetItem;
 pub use interface::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 // Re-export atomic operation traits
 pub use interface::{AtomicCacheWriter, SyncAtomicCacheWriter};
+// 模式级操作（按 glob 模式计数 / 删除）
+pub use interface::CachePatternOps;
 // Re-exports for synchronous API
 pub use interface::{SyncCacheBackend, SyncCacheConnector, SyncCacheReader, SyncCacheWriter};
 // 同步后端 → async 面门面（sync 一等构建入口的后端承载）

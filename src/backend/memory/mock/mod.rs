@@ -264,6 +264,42 @@ impl crate::backend::CacheConnector for MockBackend {
     fn as_atomic_writer(&self) -> Option<&dyn crate::backend::AtomicCacheWriter> {
         Some(self)
     }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        Some(self)
+    }
+}
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl crate::backend::CachePatternOps for MockBackend {
+    async fn pattern_count(&self, pattern: &str) -> crate::error::OxCacheResult<u64> {
+        let now = Instant::now();
+        let data = self.data.read().await;
+        let mut count = 0u64;
+        for (k, (_v, exp)) in data.iter() {
+            if exp.is_none_or(|e| e > now) && crate::backend::interface::glob_match(pattern, k) {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    async fn pattern_delete(&self, pattern: &str) -> crate::error::OxCacheResult<u64> {
+        let mut data = self.data.write().await;
+        let matched: Vec<String> = data
+            .keys()
+            .filter(|k| crate::backend::interface::glob_match(pattern, k))
+            .cloned()
+            .collect();
+        let mut deleted = 0u64;
+        for k in matched {
+            if data.remove(&k).is_some() {
+                deleted += 1;
+            }
+        }
+        Ok(deleted)
+    }
 }
 
 // CacheBackend is automatically implemented via blanket implementation

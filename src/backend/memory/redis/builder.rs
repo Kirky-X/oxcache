@@ -245,25 +245,21 @@ impl RedisBackendBuilder {
             }
         }
 
-        let (client, mode, connection) = if self.mode == RedisMode::Cluster {
-            let client = Arc::new(open_client(&connection_string)?);
+        let (mode, connection) = if self.mode == RedisMode::Cluster {
+            let _client = Arc::new(open_client(&connection_string)?);
             let connection =
                 Self::connect_cluster(&connection_string, self.connection_timeout).await?;
-            (client, self.mode, connection)
+            (self.mode, connection)
         } else if self.mode == RedisMode::Sentinel {
             let discovery = SentinelDiscovery::new(
                 &connection_string,
                 &self.sentinel_master_name,
                 self.sentinel_addr_map.clone(),
             )?;
-            let (connection, master_client) =
+            let (connection, _master_client) =
                 SentinelConnection::connect(discovery, self.connection_timeout, self.database)
                     .await?;
-            (
-                Arc::new(master_client),
-                self.mode,
-                RedisConnection::Sentinel(connection),
-            )
+            (self.mode, RedisConnection::Sentinel(connection))
         } else {
             let client = Arc::new(open_client(&connection_string)?);
             let connection_result =
@@ -300,25 +296,16 @@ impl RedisBackendBuilder {
                 {
                     let connection =
                         Self::connect_cluster(&connection_string, self.connection_timeout).await?;
-                    (client, RedisMode::Cluster, connection)
+                    (RedisMode::Cluster, connection)
                 } else {
-                    (
-                        client,
-                        self.mode,
-                        RedisConnection::Single(connection_manager),
-                    )
+                    (self.mode, RedisConnection::Single(connection_manager))
                 }
             } else {
-                (
-                    client,
-                    self.mode,
-                    RedisConnection::Single(connection_manager),
-                )
+                (self.mode, RedisConnection::Single(connection_manager))
             }
         };
 
         Ok(RedisBackend::from_parts(
-            client,
             mode,
             connection,
             self.dangerous_clear_enabled,

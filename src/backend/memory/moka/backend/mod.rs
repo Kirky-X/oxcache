@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 //! Moka-based memory backend implementation
 
-use crate::backend::interface::AtomicCacheWriter;
+use crate::backend::interface::{AtomicCacheWriter, CachePatternOps, keys_limit_exceeded};
 use crate::backend::{BackendKind, CacheConnector, CacheReader, CacheWriter};
+use crate::core::constants::MAX_KEYS_RETURN;
 // Sync trait 实现使用全限定路径（`crate::backend::SyncCacheReader`），
 // 避免将 sync trait 名导入本模块作用域后，经 `mod tests` 的 `use super::*`
 // 与同名 async trait 方法（如 `get`）产生歧义。
@@ -164,7 +165,14 @@ impl CacheReader for MokaMemoryBackend {
     }
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
-        Ok(self.keys_matching(pattern).await)
+        // 多采一条用于判定是否超限：恰好 MAX_KEYS_RETURN 条匹配是允许的，
+        // 超过才拒绝（与 redis / disk 后端的判定口径一致）
+        let keys = self.collect_matching(pattern, MAX_KEYS_RETURN + 1).await;
+        // 键空间可达百万级：一次性物化全部匹配键会打满调用方内存
+        if keys.len() > MAX_KEYS_RETURN {
+            return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
+        }
+        Ok(keys)
     }
 }
 
@@ -238,6 +246,50 @@ impl CacheConnector for MokaMemoryBackend {
 
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
         Some(self)
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        Some(self)
+    }
+}
+
+/// 模式级操作的批量删除粒度：逐条 `invalidate` 会放大 moka 内部锁竞争，
+/// 按批删除把锁持有次数降到批数次。
+const PATTERN_DELETE_BATCH: usize = 512;
+
+#[async_trait]
+impl CachePatternOps for MokaMemoryBackend {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut count = 0u64;
+        for (key, _entry) in self.cache.iter() {
+            if crate::backend::interface::glob_match(pattern, key.as_ref()) {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        let mut deleted = 0u64;
+        let mut batch: Vec<String> = Vec::new();
+        for (key, _entry) in self.cache.iter() {
+            if !crate::backend::interface::glob_match(pattern, key.as_ref()) {
+                continue;
+            }
+            batch.push(key.as_ref().to_string());
+            if batch.len() >= PATTERN_DELETE_BATCH {
+                for pending in batch.drain(..) {
+                    self.cache.invalidate(pending.as_str()).await;
+                }
+                deleted += PATTERN_DELETE_BATCH as u64;
+            }
+        }
+        let remaining = batch.len();
+        for pending in batch.drain(..) {
+            self.cache.invalidate(pending.as_str()).await;
+        }
+        deleted += remaining as u64;
+        Ok(deleted)
     }
 }
 
@@ -575,9 +627,35 @@ impl AtomicCacheWriter for MokaMemoryBackend {
 // Override keys() for CacheReader
 impl MokaMemoryBackend {
     /// List keys matching a glob pattern.
+    ///
+    /// 结果条数上限为 [`MAX_KEYS_RETURN`]：超过上限后停止收集，
+    /// 避免一次性物化全量键拖垮调用方内存。**截断是静默的**——本方法
+    /// 不返回错误，无法告知调用方结果是否被截断；需要判定截断的调用方
+    /// 改用 [`try_keys_matching`](Self::try_keys_matching)。
     pub async fn keys_matching(&self, pattern: &str) -> Vec<String> {
+        self.collect_matching(pattern, MAX_KEYS_RETURN).await
+    }
+
+    /// List keys matching a glob pattern，超出上限时报错。
+    ///
+    /// 与 [`keys_matching`](Self::keys_matching) 的差别：本方法在匹配键数
+    /// 超过 [`MAX_KEYS_RETURN`] 时返回错误（恰好等于上限时正常返回），
+    /// 调用方据此判断结果是否完整。
+    pub async fn try_keys_matching(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        let keys = self.collect_matching(pattern, MAX_KEYS_RETURN + 1).await;
+        if keys.len() > MAX_KEYS_RETURN {
+            return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
+        }
+        Ok(keys)
+    }
+
+    /// 收集至多 `cap` 条匹配键（`cap` 用于多采一条判定超限）。
+    async fn collect_matching(&self, pattern: &str, cap: usize) -> Vec<String> {
         let mut keys = Vec::new();
         for (key_arc, _entry) in self.cache.iter() {
+            if keys.len() >= cap {
+                break;
+            }
             let key_str: &str = key_arc.as_ref();
             if crate::backend::interface::glob_match(pattern, key_str) {
                 keys.push(key_str.to_string());

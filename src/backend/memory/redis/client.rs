@@ -18,7 +18,6 @@ use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "metrics")]
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
-use redis::Client;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -91,7 +90,6 @@ impl redis::aio::ConnectionLike for RedisConnection {
 /// 下探测到 `cluster_enabled`）。
 #[derive(Clone)]
 pub struct RedisBackend {
-    client: Arc<Client>,
     mode: RedisMode,
     connection: RedisConnection,
     dangerous_clear_enabled: bool,
@@ -121,7 +119,6 @@ impl RedisBackend {
     /// a params struct would just re-pack them one-to-one.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
-        client: Arc<Client>,
         mode: RedisMode,
         connection: RedisConnection,
         dangerous_clear_enabled: bool,
@@ -131,7 +128,6 @@ impl RedisBackend {
         lua_timeout: Duration,
     ) -> Self {
         Self {
-            client,
             mode,
             connection,
             dangerous_clear_enabled,
@@ -207,11 +203,6 @@ impl RedisBackend {
     /// Get the Redis mode.
     pub fn mode(&self) -> RedisMode {
         self.mode
-    }
-
-    /// Get the Redis client.
-    pub fn client(&self) -> &Client {
-        &self.client
     }
 
     /// Get a cloned connection handle.

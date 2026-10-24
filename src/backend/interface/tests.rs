@@ -249,6 +249,45 @@ mod tests {
         assert_eq!(value, Some(b"value".to_vec()));
     }
 
+    // CachePatternOps 与 CacheBackend 的方法名必须互不相同：具体后端类型同时
+    // 实现两个 trait（CacheBackend 来自 blanket 实现），同名方法会让方法调用
+    // 语法报 E0034（多个候选同时适用）。此用例锁定「两个 trait 同时在作用域
+    // 内 + 具体类型」场景：两条路径各自唯一解析，且计数 / 删除结果一致。
+
+    #[tokio::test]
+    async fn test_pattern_ops_and_cache_backend_methods_are_disjoint() {
+        let backend = MockBackend::new("mock", 50, false);
+        backend
+            .set(Arc::from("ns:1"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("ns:2"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        backend
+            .set(Arc::from("other"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+
+        // 能力 trait 的原语与统一入口在同一具体类型上各自唯一解析
+        assert_eq!(backend.pattern_count("ns:*").await.unwrap(), 2);
+        assert_eq!(backend.count_by_pattern("ns:*").await.unwrap(), 2);
+
+        // 能力探测路径（as_pattern_ops）给出同一计数
+        let ops = backend
+            .as_pattern_ops()
+            .expect("mock backend exposes pattern ops");
+        assert_eq!(ops.pattern_count("ns:*").await.unwrap(), 2);
+
+        // 删除走能力 trait 原语：只删匹配键，非匹配键保留
+        assert_eq!(backend.pattern_delete("ns:*").await.unwrap(), 2);
+        assert_eq!(backend.count_by_pattern("ns:*").await.unwrap(), 0);
+        assert!(!backend.exists("ns:1").await.unwrap());
+        assert!(!backend.exists("ns:2").await.unwrap());
+        assert!(backend.exists("other").await.unwrap());
+    }
+
     // SyncCacheBackend trait hierarchy 测试
 
     use std::collections::HashMap;
