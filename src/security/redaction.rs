@@ -80,13 +80,20 @@ pub fn redact_connection_string(connection_string: &str) -> String {
 
 /// 脱敏缓存键
 ///
-/// 如果键可能包含敏感信息（如用户ID、令牌等），则进行脱敏
+/// 统一口径（审计事件、缓存事件、日志共用同一格式）：
+///
+/// 1. 键文本命中敏感词表（token / password / secret / session / …）→
+///    整键掩码（[`redact_value`]）；
+/// 2. 否则逐段（以 `:` 分段）掩码**标识符形态**的段：邮箱、纯数字 ID、
+///    UUID、长十六进制摘要 → `<id>`。用户标识、邮箱、订单号这类载荷
+///    不再原样落日志（仅靠敏感词表命中会漏掉它们）；
+/// 3. 超长键截断。
 ///
 /// # 参数
 /// * `key` - 缓存键
 ///
 /// # 返回值
-/// 返回脱敏后的键，如果键看起来不敏感则返回原值
+/// 返回脱敏后的键
 pub fn redact_cache_key(key: &str) -> String {
     let sensitive_patterns = [
         "token",
@@ -110,14 +117,59 @@ pub fn redact_cache_key(key: &str) -> String {
         }
     }
 
-    // 如果键看起来不敏感，返回原值
-    // 但仍然限制长度，防止日志过大
-    if key.chars().count() > 100 {
-        let truncated: String = key.chars().take(97).collect();
+    // 逐段掩码标识符形态的段（用户标识 / 邮箱 / 订单号等）
+    let mut masked = String::with_capacity(key.len());
+    for (index, segment) in key.split(':').enumerate() {
+        if index > 0 {
+            masked.push(':');
+        }
+        if is_identifier_like(segment) {
+            masked.push_str("<id>");
+        } else {
+            masked.push_str(segment);
+        }
+    }
+
+    // 限制长度，防止日志过大
+    if masked.chars().count() > 100 {
+        let truncated: String = masked.chars().take(97).collect();
         format!("{}...", truncated)
     } else {
-        key.to_string()
+        masked
     }
+}
+
+/// 段是否呈标识符形态（邮箱 / 纯数字 ID / UUID / 长十六进制摘要）
+///
+/// 纯字母的长键（如 `"aaaaaaaaaaaaaaaaaaaa"`）不判为标识符：十六进制摘要
+/// 须同时含数字与字母，避免把普通单词键误判成摘要而整段掩码。
+fn is_identifier_like(segment: &str) -> bool {
+    if segment.is_empty() {
+        return false;
+    }
+    // 邮箱：local@domain
+    if let Some(at) = segment.find('@') {
+        return segment[at + 1..].contains('.');
+    }
+    // 纯数字 ID / 订单号
+    if segment.chars().all(|c| c.is_ascii_digit()) {
+        return true;
+    }
+    // UUID：8-4-4-4-12
+    let groups: Vec<&str> = segment.split('-').collect();
+    if groups.len() == 5
+        && [8usize, 4, 4, 4, 12]
+            .iter()
+            .zip(groups.iter())
+            .all(|(len, group)| group.len() == *len && group.chars().all(|c| c.is_ascii_hexdigit()))
+    {
+        return true;
+    }
+    // 长十六进制摘要（须同时含数字与字母）
+    segment.len() >= 16
+        && segment.chars().all(|c| c.is_ascii_hexdigit())
+        && segment.chars().any(|c| c.is_ascii_digit())
+        && segment.chars().any(|c| c.is_ascii_alphabetic())
 }
 
 /// 脱敏敏感字段
@@ -232,6 +284,21 @@ mod tests {
             redact_cache_key("very_long_cache_key_that_exceeds_normal_length_limit"),
             "very_long_cache_key_that_exceeds_normal_length_limit"
         );
+    }
+
+    /// 标识符形态的段必须掩码：用户标识、邮箱、订单号不再原样落日志
+    #[test]
+    fn test_redact_cache_key_masks_identifier_segments() {
+        assert_eq!(redact_cache_key("user:42"), "user:<id>");
+        assert_eq!(redact_cache_key("order:98765"), "order:<id>");
+        assert_eq!(redact_cache_key("alice@example.com"), "<id>");
+        assert_eq!(redact_cache_key("cache:user:42"), "cache:user:<id>");
+        assert_eq!(
+            redact_cache_key("id:550e8400-e29b-41d4-a716-446655440000"),
+            "id:<id>"
+        );
+        // 非标识符形态的段保持原样
+        assert_eq!(redact_cache_key("app:v1:profile"), "app:v1:profile");
     }
 
     #[test]

@@ -60,7 +60,7 @@ impl fmt::Display for CacheEventType {
 }
 
 /// 缓存事件
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CacheEvent {
     /// 事件类型
     pub event_type: CacheEventType,
@@ -74,6 +74,36 @@ pub struct CacheEvent {
     pub error: Option<String>,
     /// 额外数据
     pub metadata: Vec<(String, String)>,
+}
+
+/// 错误信息在 Debug 中的最大保留字符数
+const ERROR_DEBUG_MAX_CHARS: usize = 256;
+
+impl fmt::Debug for CacheEvent {
+    /// 手工实现而非派生：`{:?}` 是消费方最省事的日志写法，
+    /// 派生实现会把原始缓存键与完整错误文本原样写进日志。
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let error = self.error.as_deref().map(|e| {
+            let mut chars = e.chars();
+            let head: String = chars.by_ref().take(ERROR_DEBUG_MAX_CHARS).collect();
+            if chars.next().is_some() {
+                format!("{head}…")
+            } else {
+                head
+            }
+        });
+        f.debug_struct("CacheEvent")
+            .field("event_type", &self.event_type)
+            .field(
+                "key",
+                &self.key.as_deref().map(crate::security::redact_cache_key),
+            )
+            .field("timestamp", &self.timestamp)
+            .field("latency_ms", &self.latency_ms)
+            .field("error", &error)
+            .field("metadata", &self.metadata)
+            .finish()
+    }
 }
 
 impl CacheEvent {
@@ -388,5 +418,27 @@ mod tests {
         let debug_str = format!("{:?}", event);
         assert!(debug_str.contains("CacheEvent"));
         assert!(debug_str.contains("Hit"));
+    }
+
+    /// Debug 不得原样打印承载凭据的缓存键
+    #[test]
+    fn test_cache_event_debug_redacts_sensitive_key() {
+        let event = CacheEvent::new(CacheEventType::Expire).with_key("user_session_token_abcdef");
+        let debug_str = format!("{:?}", event);
+        assert!(
+            !debug_str.contains("abcdef"),
+            "sensitive key material must not reach Debug output: {debug_str}"
+        );
+    }
+
+    /// 过长的错误文本在 Debug 中被截断
+    #[test]
+    fn test_cache_event_debug_truncates_error() {
+        let event = CacheEvent::new(CacheEventType::Error)
+            .with_key("k")
+            .with_error("e".repeat(ERROR_DEBUG_MAX_CHARS + 50));
+        let debug_str = format!("{:?}", event);
+        assert!(!debug_str.contains(&"e".repeat(ERROR_DEBUG_MAX_CHARS + 1)));
+        assert!(debug_str.contains('…'));
     }
 }

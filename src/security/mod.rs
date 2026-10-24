@@ -28,7 +28,8 @@
 // Submodules
 #[cfg(feature = "redis")]
 pub mod log;
-#[cfg(feature = "redis")]
+// 脱敏模块不依赖 redis：telemetry / stale / offload 等特性也需要键脱敏，
+// 与 redis 后端解耦才能在无 redis 的构建中生效
 pub mod redaction;
 #[cfg(feature = "redis")]
 pub mod validation;
@@ -38,7 +39,6 @@ mod security_impl;
 // Re-exports for convenience (used by external tests via lib.rs re-exports)
 #[cfg(feature = "redis")]
 pub use log::{log_cache_key, sanitize_message};
-#[cfg(feature = "redis")]
 pub use redaction::{
     Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value,
 };
@@ -185,6 +185,42 @@ mod tests {
             return val
         "#;
         assert!(validate_lua_script(script, 2).is_ok());
+    }
+
+    /// 函数引用别名不得绕过命令级判定：`local f = redis.call` 后
+    /// `f('FLUSHALL')` 与 `redis.call('FLUSHALL')` 等价。
+    #[test]
+    fn test_validate_lua_script_rejects_call_function_alias() {
+        for script in [
+            "local f = redis.call return f('FLUSHALL')",
+            "local f = redis.pcall return f('FLUSHALL')",
+            "local f = redis.call return f('KEYS','*')",
+            "local f = redis['call'] return f('FLUSHALL')",
+            // 别名派生：表别名 → 函数引用 → 再派生
+            "local r = redis local f = r.call local g = f return g('FLUSHALL')",
+            // Lua 字符串调用语法
+            "local f = redis.call return f 'FLUSHALL'",
+        ] {
+            let result = validate_lua_script(script, 0);
+            assert!(
+                result.is_err(),
+                "function-reference alias must not bypass the command check: {script}"
+            );
+        }
+    }
+
+    /// 函数引用别名指向安全命令时不得误杀。
+    #[test]
+    fn test_validate_lua_script_allows_safe_call_function_alias() {
+        let script = "local f = redis.call return f('GET', KEYS[1])";
+        assert!(validate_lua_script(script, 1).is_ok());
+    }
+
+    /// 表别名（`local r = redis`）经函数引用派生仍受判定。
+    #[test]
+    fn test_validate_lua_script_rejects_derived_table_alias_call() {
+        let script = "local r = redis return r.call('FLUSHALL')";
+        assert!(validate_lua_script(script, 0).is_err());
     }
 
     // preprocess_lua_script 扫描等价性测试（重构回归保障）
@@ -923,6 +959,115 @@ mod tests {
             "legal script with non-ident bracket index must pass: {:?}",
             result.err()
         );
+    }
+
+    // 命令级判定：空白 / 字符串拼接 / 变量命令名均不得绕过
+
+    #[test]
+    fn test_lua_command_whitespace_bypass_rejected() {
+        for script in [
+            "return redis.call ( 'FLUSHALL' )",
+            "return redis.call('FLUSHALL' )",
+            "return redis.call ( 'FLUSHDB' )",
+            "return redis.pcall ( 'FLUSHALL' )",
+            "return redis['call'] ( 'FLUSHALL' )",
+            "return redis . call ( 'FLUSHALL' )",
+        ] {
+            assert!(
+                validate_lua_script(script, 0).is_err(),
+                "whitespace variant must be rejected: {script}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lua_command_concat_bypass_rejected() {
+        for script in [
+            "return redis.call('FLUSH'..'ALL')",
+            "return redis.call('FLUSH' .. 'ALL')",
+            "return redis.call(\"FLUSH\"..\"ALL\")",
+            "return redis.call('FLUSH'..'AL'..'L')",
+        ] {
+            assert!(
+                validate_lua_script(script, 0).is_err(),
+                "string-concat variant must be rejected: {script}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lua_escaped_command_name_rejected() {
+        // '\070' 在 Lua 中等于 'F'：转义必须被还原后再判定
+        let script = r"return redis.call('\070LUSHALL')";
+        assert!(
+            validate_lua_script(script, 0).is_err(),
+            "escaped command name must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_lua_dangerous_commands_with_args_rejected() {
+        for script in [
+            "return redis.call ( 'KEYS', '*' )",
+            "return redis.call ( 'CONFIG', 'SET', 'dir', '/tmp' )",
+            "return redis.call ( 'SHUTDOWN' )",
+            "return redis.call ( 'SCRIPT', 'FLUSH' )",
+        ] {
+            assert!(
+                validate_lua_script(script, 0).is_err(),
+                "dangerous command must be rejected: {script}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lua_non_literal_command_name_rejected() {
+        // 命令名不可静态确定 → fail closed
+        for script in [
+            "local c = 'FLUSHALL' return redis.call(c)",
+            "return redis.call(unpack(ARGV))",
+            "return redis.call(cmd, KEYS[1])",
+        ] {
+            assert!(
+                validate_lua_script(script, 0).is_err(),
+                "non-literal command name must be rejected: {script}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_lua_redis_alias_rejected() {
+        let script = "local r = redis return r.call('FLUSHALL')";
+        assert!(
+            validate_lua_script(script, 0).is_err(),
+            "aliased redis table must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_lua_nested_call_inside_args_rejected() {
+        let script = "return redis.call('GET', redis.call('FLUSHALL'))";
+        assert!(
+            validate_lua_script(script, 0).is_err(),
+            "nested redis.call must be rejected"
+        );
+    }
+
+    #[test]
+    fn test_lua_safe_commands_still_allowed() {
+        for script in [
+            "return redis.call('GET', KEYS[1])",
+            "return redis.call('SETEX', KEYS[2], 60, 'v')",
+            "return redis.call('INCR', KEYS[1])",
+            "return redis.pcall('GET', KEYS[1])",
+            "return redis.call('SET', KEYS[1], ARGV[1])",
+            "return 1",
+        ] {
+            assert!(
+                validate_lua_script(script, 1).is_ok(),
+                "safe script must pass: {script}"
+            );
+        }
     }
 }
 

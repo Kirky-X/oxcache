@@ -270,41 +270,9 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
     let cleaned_upper = cleaned.to_uppercase();
 
     // 使用简单字符串检查代替正则表达式（避免原始字符串语法问题）
-    // 预处理会保留 redis.call('X') 的格式: REDIS.CALL('X')
+    // Redis 命令调用（redis.call / redis.pcall）由命令级解析单独判定，
+    // 此处只覆盖无法解析为调用的宿主语言逃逸构造
     let forbidden_patterns = [
-        // FLUSHALL patterns
-        ("REDIS.CALL('FLUSHALL')", "FLUSHALL"),
-        ("REDIS.CALL(\"FLUSHALL\")", "FLUSHALL"),
-        ("REDIS.PCALL('FLUSHALL')", "FLUSHALL via PCALL"),
-        ("REDIS.PCALL(\"FLUSHALL\")", "FLUSHALL via PCALL"),
-        // FLUSHDB patterns
-        ("REDIS.CALL('FLUSHDB')", "FLUSHDB"),
-        ("REDIS.CALL(\"FLUSHDB\")", "FLUSHDB"),
-        ("REDIS.PCALL('FLUSHDB')", "FLUSHDB via PCALL"),
-        ("REDIS.PCALL(\"FLUSHDB\")", "FLUSHDB via PCALL"),
-        // KEYS patterns - with and without comma (for different argument styles)
-        ("REDIS.CALL('KEYS'", "KEYS"),
-        ("REDIS.CALL(\"KEYS\"", "KEYS"),
-        ("REDIS.PCALL('KEYS'", "KEYS via PCALL"),
-        ("REDIS.PCALL(\"KEYS\"", "KEYS via PCALL"),
-        // SHUTDOWN patterns
-        ("REDIS.CALL('SHUTDOWN')", "SHUTDOWN"),
-        ("REDIS.CALL(\"SHUTDOWN\")", "SHUTDOWN"),
-        // CONFIG patterns
-        ("REDIS.CALL('CONFIG'", "CONFIG"),
-        ("REDIS.CALL(\"CONFIG\"", "CONFIG"),
-        // DEBUG patterns
-        ("REDIS.CALL('DEBUG'", "DEBUG"),
-        ("REDIS.CALL(\"DEBUG\"", "DEBUG"),
-        // SAVE patterns
-        ("REDIS.CALL('SAVE')", "SAVE"),
-        ("REDIS.CALL(\"SAVE\")", "SAVE"),
-        // BGSAVE patterns
-        ("REDIS.CALL('BGSAVE')", "BGSAVE"),
-        ("REDIS.CALL(\"BGSAVE\")", "BGSAVE"),
-        // MONITOR patterns
-        ("REDIS.CALL('MONITOR')", "MONITOR"),
-        ("REDIS.CALL(\"MONITOR\")", "MONITOR"),
         // OS commands
         ("OS.EXECUTE", "os.execute"),
         ("OS.EXEC", "os.exec"),
@@ -321,6 +289,11 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
             )));
         }
     }
+
+    // 命令级判定：按「被调用命令名」而非字面子串匹配，
+    // 空白与字符串拼接变体（redis.call ( 'FLUSHALL' )、
+    // redis.call('FLUSH'..'ALL')）与直写形式等价
+    check_lua_redis_commands(script)?;
 
     if cleaned_upper.contains("REDIS.EVAL") || cleaned_upper.contains("REDIS.EVALSHA") {
         return Err(OxCacheError::InvalidInput(t(
@@ -340,6 +313,520 @@ pub fn validate_lua_script(script: &str, key_count: usize) -> OxCacheResult<()> 
     }
 
     Ok(())
+}
+
+/// 禁止经 `redis.call` / `redis.pcall` 执行的 Redis 命令
+///
+/// 按命令名判定（而非字面子串），空白与字符串拼接变体一律等价。
+#[cfg(feature = "redis")]
+const FORBIDDEN_REDIS_COMMANDS: &[&str] = &[
+    "FLUSHALL", "FLUSHDB", "KEYS", "SHUTDOWN", "CONFIG", "DEBUG", "SAVE", "BGSAVE", "MONITOR",
+    "SCRIPT", "EVAL", "EVALSHA",
+];
+
+/// Lua 词法单元
+#[cfg(feature = "redis")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LuaTok {
+    /// 标识符 / 关键字
+    Ident(String),
+    /// 字符串字面量（引号或长字符串，已解转义）
+    Str(String),
+    /// 单字符标点
+    Punct(char),
+}
+
+/// 校验 Lua 脚本中的 Redis 命令调用
+///
+/// 按「被调用命令名」判定：`redis.call ( 'FLUSHALL' )`、
+/// `redis.call('FLUSH'..'ALL')`、`redis["call"]('FLUSHALL')` 与
+/// `redis.call('FLUSHALL')` 等价，一律拒绝。函数引用别名
+/// （`local f = redis.call` 后 `f('FLUSHALL')`）同样按命令名判定。
+/// 命令名无法静态确定（变量、函数返回值、`unpack(ARGV)` 等）时按拒绝处理。
+#[cfg(feature = "redis")]
+fn check_lua_redis_commands(script: &str) -> OxCacheResult<()> {
+    let toks = lex_lua(script);
+    let aliases = collect_lua_aliases(&toks);
+    for i in 0..toks.len() {
+        if let Some(err) = check_lua_call_at(&toks, &aliases, i) {
+            return Err(err);
+        }
+    }
+    Ok(())
+}
+
+/// Lua 中的 redis 别名集合
+///
+/// - `tables`：`local r = redis` 形态的**表**别名（后续 `r.call(...)`）；
+/// - `calls`：`local f = redis.call` 形态的**函数引用**别名（后续
+///   `f('FLUSHALL')`）。函数引用不落在表别名里：它没有成员访问，凭
+///   `redis.` 形态无法识别，漏掉即等于放开危险命令的别名通道。
+#[cfg(feature = "redis")]
+#[derive(Debug, Default)]
+struct LuaAliases {
+    tables: Vec<String>,
+    calls: Vec<String>,
+}
+
+/// 检查位于 `idx` 的标识符是否为 redis 别名，且其后为受控调用
+#[cfg(feature = "redis")]
+fn check_lua_call_at(toks: &[LuaTok], aliases: &LuaAliases, idx: usize) -> Option<OxCacheError> {
+    let LuaTok::Ident(name) = &toks[idx] else {
+        return None;
+    };
+
+    // 函数引用别名：`local f = redis.call` 后 `f('FLUSHALL')` / `f 'FLUSHALL'`
+    if aliases.calls.iter().any(|a| a.eq_ignore_ascii_case(name)) {
+        return check_lua_alias_call(toks, idx + 1);
+    }
+
+    if !aliases.tables.iter().any(|a| a.eq_ignore_ascii_case(name)) {
+        return None;
+    }
+    let (member, after_member) = parse_lua_member(toks, idx + 1)?;
+    let member = member.to_ascii_lowercase();
+    if member == "eval" || member == "evalsha" {
+        return Some(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_LUA_NESTED_EVAL,
+            &[],
+        )));
+    }
+    if member != "call" && member != "pcall" {
+        return None;
+    }
+    if !matches!(toks.get(after_member), Some(LuaTok::Punct('('))) {
+        return None;
+    }
+    let (args, _) = parse_lua_args(toks, after_member);
+    check_lua_command_args(&args)
+}
+
+/// 判定函数引用别名的调用点
+///
+/// 支持两种调用形态：`f(...)` 与 Lua 的字符串调用语法 `f 'CMD'`。
+#[cfg(feature = "redis")]
+fn check_lua_alias_call(toks: &[LuaTok], idx: usize) -> Option<OxCacheError> {
+    match toks.get(idx) {
+        Some(LuaTok::Punct('(')) => {
+            let (args, _) = parse_lua_args(toks, idx);
+            check_lua_command_args(&args)
+        }
+        Some(LuaTok::Str(cmd)) => {
+            let upper = cmd.trim().to_ascii_uppercase();
+            if FORBIDDEN_REDIS_COMMANDS.contains(&upper.as_str()) {
+                return Some(forbidden_command_error(upper));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// 判定调用实参中的 Redis 命令名是否属于禁止清单
+///
+/// 命令名无法静态确定时按拒绝处理（fail closed）。
+#[cfg(feature = "redis")]
+fn check_lua_command_args(args: &[Vec<LuaTok>]) -> Option<OxCacheError> {
+    let command = args
+        .first()
+        .and_then(|arg| fold_lua_strings(strip_outer_parens(arg)));
+    match command {
+        Some(cmd) => {
+            let upper = cmd.trim().to_ascii_uppercase();
+            if FORBIDDEN_REDIS_COMMANDS.contains(&upper.as_str()) {
+                return Some(forbidden_command_error(upper));
+            }
+            None
+        }
+        None => Some(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN,
+            &[(
+                "detail",
+                "non-literal Redis command name (fail closed)".to_string(),
+            )],
+        ))),
+    }
+}
+
+/// 构造「禁止的 Redis 命令」错误
+#[cfg(feature = "redis")]
+fn forbidden_command_error(command: String) -> OxCacheError {
+    OxCacheError::InvalidInput(t(
+        MSG_DETAIL_LUA_SCRIPT_FORBIDDEN_PATTERN,
+        &[("detail", command)],
+    ))
+}
+
+/// 解析 `.member` 或 `['member']` 形式的成员访问
+///
+/// 返回 (成员名, 成员名之后的第一个 token 下标)。
+#[cfg(feature = "redis")]
+fn parse_lua_member(toks: &[LuaTok], idx: usize) -> Option<(String, usize)> {
+    match toks.get(idx) {
+        Some(LuaTok::Punct('.')) => match toks.get(idx + 1) {
+            Some(LuaTok::Ident(name)) => Some((name.clone(), idx + 2)),
+            _ => None,
+        },
+        Some(LuaTok::Punct('[')) => {
+            // 找到匹配的 ']'，折叠其中的字符串拼接（['cal'..'l']）
+            let mut depth = 1usize;
+            let mut j = idx + 1;
+            while j < toks.len() {
+                match &toks[j] {
+                    LuaTok::Punct('[') => depth += 1,
+                    LuaTok::Punct(']') => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            if j >= toks.len() {
+                return None;
+            }
+            let name = fold_lua_strings(&toks[idx + 1..j])?;
+            Some((name, j + 1))
+        }
+        _ => None,
+    }
+}
+
+/// 解析调用实参列表
+///
+/// 返回 (各实参的 token 序列, 调用结束后的 token 下标)。实参按顶层逗号切分，
+/// 嵌套的括号 / 方括号 / 花括号内的逗号不切分。
+#[cfg(feature = "redis")]
+fn parse_lua_args(toks: &[LuaTok], open_idx: usize) -> (Vec<Vec<LuaTok>>, usize) {
+    let mut args: Vec<Vec<LuaTok>> = Vec::new();
+    let mut current: Vec<LuaTok> = Vec::new();
+    let mut depth = 0usize;
+    let mut i = open_idx + 1;
+    while i < toks.len() {
+        match &toks[i] {
+            LuaTok::Punct('(') | LuaTok::Punct('[') | LuaTok::Punct('{') => {
+                depth += 1;
+                current.push(toks[i].clone());
+            }
+            LuaTok::Punct(')') => {
+                if depth == 0 {
+                    if !current.is_empty() {
+                        args.push(std::mem::take(&mut current));
+                    }
+                    return (args, i + 1);
+                }
+                depth -= 1;
+                current.push(toks[i].clone());
+            }
+            LuaTok::Punct(']') | LuaTok::Punct('}') => {
+                depth = depth.saturating_sub(1);
+                current.push(toks[i].clone());
+            }
+            LuaTok::Punct(',') if depth == 0 => {
+                args.push(std::mem::take(&mut current));
+            }
+            other => current.push(other.clone()),
+        }
+        i += 1;
+    }
+    // 未闭合的实参列表：命令名无法静态确定，交由调用方按拒绝处理
+    if !current.is_empty() {
+        args.push(current);
+    }
+    (args, toks.len())
+}
+
+/// 折叠字符串字面量拼接：`'a' .. 'b'` → `ab`
+///
+/// token 序列不是「字符串字面量（'..' 字符串字面量）*」形态时返回 None。
+#[cfg(feature = "redis")]
+fn fold_lua_strings(toks: &[LuaTok]) -> Option<String> {
+    let mut out = String::new();
+    let mut parts = 0usize;
+    let mut i = 0usize;
+    while let Some(LuaTok::Str(s)) = toks.get(i) {
+        out.push_str(s);
+        parts += 1;
+        i += 1;
+        match (toks.get(i), toks.get(i + 1)) {
+            (Some(LuaTok::Punct('.')), Some(LuaTok::Punct('.'))) => {
+                i += 2;
+            }
+            _ => break,
+        }
+    }
+    if parts == 0 || i != toks.len() {
+        return None;
+    }
+    Some(out)
+}
+
+/// 剥去 token 序列最外层成对的括号
+#[cfg(feature = "redis")]
+fn strip_outer_parens(toks: &[LuaTok]) -> &[LuaTok] {
+    let mut current = toks;
+    while current.len() >= 2
+        && matches!(current.first(), Some(LuaTok::Punct('(')))
+        && matches!(current.last(), Some(LuaTok::Punct(')')))
+    {
+        let mut depth = 0i32;
+        let mut wraps_all = true;
+        for (idx, tok) in current.iter().enumerate() {
+            if let LuaTok::Punct(c) = tok {
+                if *c == '(' {
+                    depth += 1;
+                } else if *c == ')' {
+                    depth -= 1;
+                    if depth == 0 && idx + 1 != current.len() {
+                        wraps_all = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if !wraps_all {
+            break;
+        }
+        current = &current[1..current.len() - 1];
+    }
+    current
+}
+
+/// 收集 redis 的表别名与函数引用别名
+///
+/// - 表别名：`local r = redis`（赋值右侧紧跟成员访问时不是别名）；
+/// - 函数引用别名：`local f = redis.call` / `local f = redis['call']`，
+///   以及别名派生（`local g = f`）。函数引用必须单独收集：它没有成员
+///   访问形态，按 `redis.` 识别不到，漏掉即等于放开危险命令的别名通道。
+#[cfg(feature = "redis")]
+fn collect_lua_aliases(toks: &[LuaTok]) -> LuaAliases {
+    let mut aliases = LuaAliases {
+        tables: vec!["redis".to_string()],
+        calls: Vec::new(),
+    };
+    // 别名可层层派生（r = redis → f = r.call → g = f），迭代到不动点
+    loop {
+        let mut changed = false;
+        for i in 0..toks.len().saturating_sub(2) {
+            let LuaTok::Ident(name) = &toks[i] else {
+                continue;
+            };
+            if !matches!(toks[i + 1], LuaTok::Punct('=')) {
+                continue;
+            }
+            let LuaTok::Ident(rhs) = &toks[i + 2] else {
+                continue;
+            };
+
+            // `X = <表别名>.<call|pcall>`：函数引用别名
+            if aliases
+                .tables
+                .iter()
+                .any(|table| table.eq_ignore_ascii_case(rhs))
+                && let Some((member, after_member)) = parse_lua_member(toks, i + 3)
+                && !matches!(toks.get(after_member), Some(LuaTok::Punct('(')))
+            {
+                let member = member.to_ascii_lowercase();
+                if (member == "call" || member == "pcall")
+                    && !aliases.calls.iter().any(|c| c.eq_ignore_ascii_case(name))
+                {
+                    aliases.calls.push(name.clone());
+                    changed = true;
+                }
+                continue;
+            }
+
+            // `X = <函数引用别名>`：别名再派生
+            if aliases.calls.iter().any(|c| c.eq_ignore_ascii_case(rhs))
+                && !aliases.calls.iter().any(|c| c.eq_ignore_ascii_case(name))
+            {
+                aliases.calls.push(name.clone());
+                changed = true;
+                continue;
+            }
+
+            // `X = redis`：表别名（右侧紧跟成员访问时不是别名）
+            if rhs.eq_ignore_ascii_case("redis")
+                && !matches!(
+                    toks.get(i + 3),
+                    Some(LuaTok::Punct('.')) | Some(LuaTok::Punct('['))
+                )
+                && !aliases.tables.iter().any(|t| t.eq_ignore_ascii_case(name))
+            {
+                aliases.tables.push(name.clone());
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    aliases
+}
+
+/// Lua 词法分析
+///
+/// 注释被整段丢弃；引号字符串与长字符串产出内容（已解转义）；
+/// 其余产出标识符与单字符标点。
+#[cfg(feature = "redis")]
+fn lex_lua(script: &str) -> Vec<LuaTok> {
+    let mut toks: Vec<LuaTok> = Vec::new();
+    let mut chars = script.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_whitespace() {
+            continue;
+        }
+        // 注释：行注释与长注释整段丢弃
+        if c == '-' && chars.peek() == Some(&'-') {
+            chars.next();
+            skip_lua_comment(&mut chars);
+            continue;
+        }
+        // 长字符串 [[...]] / [==[...]==]
+        if c == '[' {
+            if let Some(content) = lex_lua_long_string(&mut chars) {
+                toks.push(LuaTok::Str(content));
+            } else {
+                toks.push(LuaTok::Punct('['));
+            }
+            continue;
+        }
+        // 引号字符串
+        if c == '\'' || c == '"' {
+            toks.push(LuaTok::Str(lex_lua_quoted_string(&mut chars, c)));
+            continue;
+        }
+        // 标识符 / 关键字
+        if c.is_alphabetic() || c == '_' {
+            let mut name = String::new();
+            name.push(c);
+            while let Some(&n) = chars.peek() {
+                if n.is_alphanumeric() || n == '_' {
+                    name.push(n);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            toks.push(LuaTok::Ident(name));
+            continue;
+        }
+        toks.push(LuaTok::Punct(c));
+    }
+    toks
+}
+
+/// 读取长字符串内容（`[` 已消费）
+///
+/// 非长字符串时返回 None 且不消费任何输入。
+#[cfg(feature = "redis")]
+fn lex_lua_long_string(chars: &mut std::iter::Peekable<std::str::Chars>) -> Option<String> {
+    let mut probe = chars.clone();
+    let mut level = 0usize;
+    while probe.peek() == Some(&'=') {
+        probe.next();
+        level += 1;
+    }
+    if probe.peek() != Some(&'[') {
+        return None;
+    }
+    for _ in 0..level {
+        chars.next();
+    }
+    chars.next(); // '['
+    let closing = format!("]{}]", "=".repeat(level));
+    let mut content = String::new();
+    loop {
+        match chars.next() {
+            None => break,
+            Some(ch) => {
+                content.push(ch);
+                if content.ends_with(&closing) {
+                    let cut = content.len() - closing.len();
+                    content.truncate(cut);
+                    break;
+                }
+            }
+        }
+    }
+    Some(content)
+}
+
+/// 读取引号字符串内容（起始引号已消费）
+#[cfg(feature = "redis")]
+fn lex_lua_quoted_string(chars: &mut std::iter::Peekable<std::str::Chars>, quote: char) -> String {
+    let mut content = String::new();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => lex_lua_escape(chars, &mut content),
+            c if c == quote => break,
+            '\n' => {
+                content.push('\n');
+                break;
+            }
+            c => content.push(c),
+        }
+    }
+    content
+}
+
+/// 解析 Lua 字符串转义并写入输出
+///
+/// 转义必须被还原：`'\070LUSHALL'` 在 Lua 中等于 `'FLUSHALL'`，
+/// 不还原会让危险命令名绕过命令级判定。
+#[cfg(feature = "redis")]
+fn lex_lua_escape(chars: &mut std::iter::Peekable<std::str::Chars>, out: &mut String) {
+    let Some(escaped) = chars.next() else {
+        return;
+    };
+    match escaped {
+        'n' => out.push('\n'),
+        't' => out.push('\t'),
+        'r' => out.push('\r'),
+        'a' => out.push('\x07'),
+        'b' => out.push('\x08'),
+        'f' => out.push('\x0c'),
+        'v' => out.push('\x0b'),
+        'x' => {
+            let mut hex = String::new();
+            for _ in 0..2 {
+                match chars.peek() {
+                    Some(c) if c.is_ascii_hexdigit() => {
+                        hex.push(*c);
+                        chars.next();
+                    }
+                    _ => break,
+                }
+            }
+            match u8::from_str_radix(&hex, 16) {
+                Ok(v) => out.push(v as char),
+                Err(_) => {
+                    out.push('x');
+                    out.push_str(&hex);
+                }
+            }
+        }
+        d if d.is_ascii_digit() => {
+            let mut num = String::new();
+            num.push(d);
+            for _ in 0..2 {
+                match chars.peek() {
+                    Some(c) if c.is_ascii_digit() => {
+                        num.push(*c);
+                        chars.next();
+                    }
+                    _ => break,
+                }
+            }
+            match num.parse::<u8>() {
+                Ok(v) => out.push(v as char),
+                Err(_) => out.push_str(&num),
+            }
+        }
+        other => out.push(other),
+    }
 }
 
 /// 预处理 Lua 脚本，移除注释和字符串内容
