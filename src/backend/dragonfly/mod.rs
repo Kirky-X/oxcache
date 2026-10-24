@@ -22,7 +22,7 @@
 //! 3. User-customizable extension via `with_disabled_commands()`
 
 use crate::backend::interface::{
-    AtomicCacheWriter, BackendKind, CacheConnector, CacheReader, CacheWriter,
+    AtomicCacheWriter, BackendKind, CacheConnector, CachePatternOps, CacheReader, CacheWriter,
 };
 use crate::backend::memory::redis::RedisBackend;
 use crate::backend::score::{BackendScore, Scores};
@@ -225,6 +225,10 @@ impl CacheConnector for DragonflyBackend {
     /// Returns `None` to disable atomic operations by default.
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> {
         None
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        self.inner.as_pattern_ops()
     }
 }
 

@@ -73,12 +73,6 @@ optional = true
 default-features = false
 features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"]
 
-# inklog 桥接：精确钉 `=`（反向依赖 oxcache，caret 升级会引入端口漂移）
-[dependencies.inklog]
-version = "=0.3.0-rc.11"
-optional = true
-default-features = false
-
 # futures executor for sync health check in async context (trait-kit feature only)
 [dependencies.futures]
 version = "0.3"
@@ -263,6 +257,15 @@ postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 [dev-dependencies.testcontainers]
 version = "0.28"
 default-features = false
+features = []
+
+# testcontainers 的 watchdog 特性依赖 signal-hook 0.4，而 signal-hook 0.4 把
+# `consts` 与 `iterator` 模块放在 `not(windows)` 门后：Windows 上开启 watchdog
+# 会让 testcontainers 自身编译失败（unresolved import signal_hook::consts::SIGQUIT）。
+# Windows 无 POSIX 信号，信号退出兜底无意义，该平台不启用 watchdog 特性。
+[target.'cfg(unix)'.dev-dependencies.testcontainers]
+version = "0.28"
+default-features = false
 # watchdog：信号退出时回收 managed 容器；裁 default（本地 socket 无需 TLS）
 features = ["watchdog"]
 
@@ -310,7 +313,6 @@ full = [
     "config-confers",
     "degradation",
     "audit",
-    "inklog",
     "versioning",
     "hotkey",
     "adaptive-ttl",
@@ -324,7 +326,7 @@ byte-weight = ["dep:moka", "moka/sync"]
 redis = ["dep:redis", "dep:regex", "serialization"]
 dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
-macros = ["dep:oxcache_macros", "minimal"]
+macros = ["dep:oxcache_macros", "minimal", "dep:sha2"]
 serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
 metrics = ["serialization", "dep:chrono", "dep:dashmap"]
 # BatchWriter 缓冲写（包装 Arc<dyn CacheBackend>，引用 crate::backend），
@@ -364,8 +366,6 @@ config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 # any(memory,redis,disk)),单开须隐含最小 backend 基线方可编译
 degradation = ["memory"]
 audit = []
-# inklog：审计事件落盘发布器，隐含 audit；依赖精确钉版
-inklog = ["audit", "dep:inklog", "dep:serde_json"]
 versioning = []
 
 # 热 key 采样观测（审计 F11）
@@ -433,7 +433,3 @@ name = "dragonfly_benchmark"
 harness = false
 required-features = ["dragonfly"]
 
-# Redis 多模式示例：与 oxcache-examples 单源双注册，无 redis 时降级为指引输出
-[[example]]
-name = "example_redis_modes"
-path = "examples/src/02_advanced/example_redis_modes.rs"

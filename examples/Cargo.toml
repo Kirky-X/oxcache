@@ -33,26 +33,15 @@ chrono = { workspace = true, features = ["serde"] }
 async-trait.workspace = true
 trait-kit = { version = "0.5.0-rc.10", default-features = false, features = ["async", "observer", "shutdown", "decorator"] }
 
-# inklog sink 面（inklog-bridge 示例专用；精确钉 `=` 与主仓同版本，约束见根 Cargo.toml）
-inklog = { version = "=0.3.0-rc.11", optional = true, default-features = false }
-
 [dev-dependencies]
 criterion.workspace = true
 
-# inklog 审计桥接示例：oxcache audit/inklog 特性 + inklog sink 面，
-# 经包内 feature 隔离，默认示例构建不引入 inklog
 [features]
 # 本包 default 仅作示例 cfg 判定面；实际能力由依赖行 features 固定
 default = ["redis", "kit", "bloom"]
 redis = ["oxcache/redis"]
 kit = ["oxcache/kit"]
 bloom = ["oxcache/bloom"]
-inklog-bridge = ["oxcache/audit", "oxcache/inklog", "dep:inklog"]
-
-[[example]]
-name = "example_inklog_audit_bridge"
-path = "src/06_features/example_inklog_audit_bridge.rs"
-required-features = ["inklog-bridge"]
 
 [[example]]
 name = "example_basic_operations"

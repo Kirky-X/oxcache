@@ -10,19 +10,19 @@
 //! 运行方式：
 //! ```bash
 //! # 本地开发需允许非 TLS 连接（生产请使用 rediss://）：
-//! # workspace 根（默认 features 未启用 redis 时仅打印指引后正常退出）：
-//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
-//!   cargo run --example example_redis_modes
-//! # 完整演示（二选一）：
-//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
-//!   cargo run --features redis --example example_redis_modes
+//! # 完整演示：
 //! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
 //!   cargo run -p oxcache-examples --example example_redis_modes
+//! # 未启用 redis feature 时仅打印指引后正常退出：
+//! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
+//!   cargo run -p oxcache-examples --no-default-features --example example_redis_modes
 //! ```
 
-// 本文件由主包与 oxcache-examples 包共享（单源双注册）：cfg(feature) 判定的
-// 是编译方包自身的 features——主包默认不含 redis，降级为指引输出保证
-// `cargo run --example` 可解析运行；examples 包 default 含 redis，走完整演示。
+// 本文件只由 oxcache-examples 包注册：cfg(feature) 判定的是编译方包自身的
+// features——examples 包 default 含 redis，走完整演示。同名 example 目标在
+// 同一 workspace 内共享 target 目录的输出文件名（cargo 报 "output filename
+// collision"），Windows 上两个目标并行链接时后写者抢不到输出文件而构建失败，
+// 故一个示例源文件只登记在一个包里。
 #[cfg(feature = "redis")]
 use oxcache::backend::{CacheReader, CacheWriter};
 #[cfg(feature = "redis")]

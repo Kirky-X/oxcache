@@ -13,10 +13,6 @@ ignore = [
     # 下用于本地缓存条目序列化，无网络输入面。crates.io 3.0.0 为官方 compile_error
     # 占位不可升；迁移出路：postcard（已在依赖中）。与 .cargo/audit.toml 同口径。
     "RUSTSEC-2025-0141",
-    # RUSTSEC-2024-0449（2026-10-12 入库）：unsafe-libyaml unmaintained，经测试
-    # 依赖 limiteron/inklog/confers 的 serde_yaml_ng 传递入图；源头豁免与
-    # serde-saphyr 迁移裁决在 limiteron 仓，此处随行豁免直至上游迁移完成。
-    "RUSTSEC-2024-0449",
 ]
 
 [licenses]
@@ -24,9 +20,6 @@ ignore = [
 # 注:下列条目为本仓依赖树实际命中的集合(未命中项已按 unused-allowed-license 移除)
 allow = [
     "MIT",
-    # notify 8.x（confers → notify-debouncer-full → notify）随 confers 0.6.0-rc.8
-    # 进入依赖树；CC0-1.0 为 FSF 认可的公有领域贡献许可
-    "CC0-1.0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-3-Clause",
@@ -39,14 +32,6 @@ confidence-threshold = 0.8
 unused-allowed-license = "warn"
 # 许可证口径（2026-10-12 用户裁决）：统一纯 MIT——manifest license = "MIT"，
 # LICENSE 文件为标准 MIT 全文，deny 直接读 manifest SPDX，无需 clarify。
-
-
-# 传递依赖许可证例外
-[[licenses.exceptions]]
-# option-ext（MPL-2.0 弱 copyleft，经自研 inklog → dirs → dirs-sys 链引入）
-# 不加入全局 allow，仅对此 crate 例外
-allow = ["MPL-2.0"]
-crate = "option-ext"
 
 [bans]
 multiple-versions = "warn"
