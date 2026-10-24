@@ -278,6 +278,40 @@ fn ensure_server_serves_ping_over_tcp() {
 }
 
 #[test]
+fn fake_server_keeps_connection_open_across_commands() {
+    // 同一连接上连续下发多条命令：服务端必须在两次应答之间保持连接可用
+    // （真实 Redis 在客户端空闲期不主动断开，客户端握手后还要复用连接）。
+    let probe = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind");
+    let port = probe.local_addr().unwrap().port();
+    drop(probe);
+    assert!(ensure_server(port));
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connect");
+    stream
+        .write_all(b"*1\r\n$4\r\nPING\r\n")
+        .expect("write ping");
+    let mut reply = [0u8; 7];
+    stream.read_exact(&mut reply).expect("read ping");
+    assert_eq!(&reply, b"+PONG\r\n");
+    // 空闲间隙（远小于服务端 30s 读超时）后连接仍须可用
+    std::thread::sleep(Duration::from_millis(100));
+    stream
+        .write_all(b"*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$1\r\nv\r\n")
+        .expect("write set");
+    let mut reply = [0u8; 5];
+    stream.read_exact(&mut reply).expect("read set");
+    assert_eq!(&reply, b"+OK\r\n");
+    stream
+        .write_all(b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n")
+        .expect("write get");
+    let mut reply = [0u8; 4];
+    stream.read_exact(&mut reply).expect("read get");
+    assert_eq!(&reply, b"$1\r\n");
+    let mut value = [0u8; 1];
+    stream.read_exact(&mut value).expect("read value");
+    assert_eq!(&value, b"v");
+}
+
+#[test]
 fn live_reaps_expired_entries_and_keeps_fresh() {
     let mut st: Store = HashMap::new();
     st.insert(

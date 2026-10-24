@@ -65,10 +65,9 @@ mod tests {
 
     #[test]
     fn test_validate_cache_key_with_special_chars() {
-        // 包含无效字符的键应该返回错误（@ 是有效字符）
+        // 包含无效字符的键应该返回错误（@ 与 % 是有效字符）
         assert!(validate_cache_key("key#hash").is_err());
         assert!(validate_cache_key("key$dollar").is_err());
-        assert!(validate_cache_key("key%percent").is_err());
         assert!(validate_cache_key("key!exclaim").is_err());
     }
 
@@ -78,6 +77,8 @@ mod tests {
         assert!(validate_cache_key("key:123").is_ok());
         assert!(validate_cache_key("key-123").is_ok());
         assert!(validate_cache_key("key_123").is_ok());
+        // `%` 是段转义的编码标记（`:` → `%3A`），属合法键字符
+        assert!(validate_cache_key("key%3A123").is_ok());
         assert!(validate_cache_key("Key123").is_ok());
         assert!(validate_cache_key("KEY123").is_ok());
         assert!(validate_cache_key("12345").is_ok());

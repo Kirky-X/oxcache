@@ -528,8 +528,8 @@ mod tests {
             assert_eq!(events[1].action, AuditAction::Set);
             assert_eq!(events[2].action, AuditAction::Hit);
             assert_eq!(events[3].action, AuditAction::Delete);
-            // 键已脱敏透传（普通键原样）
-            assert_eq!(events[1].key.as_deref(), Some("user:1"));
+            // 键已脱敏透传（标识符形态的段掩码为 <id>）
+            assert_eq!(events[1].key.as_deref(), Some("user:<id>"));
             // 事件带时间戳
             assert!(events.iter().all(|e| e.timestamp_ms > 0));
         }
@@ -552,7 +552,7 @@ mod tests {
             assert_eq!(events.len(), 1);
             let key = events[0].key.as_deref().unwrap_or("");
             assert!(
-                key.starts_with("<sensitive>"),
+                !key.contains("password"),
                 "the sensitive key should be masked, got {key}"
             );
             assert!(!key.contains("hunter2"));

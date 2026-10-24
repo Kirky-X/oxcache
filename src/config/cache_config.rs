@@ -81,6 +81,8 @@ use crate::i18n::messages::MSG_DETAIL_CONFIG_SERIALIZATION_POSTCARD_REQUIRES_FEA
     feature = "disk"
 ))]
 use crate::i18n::messages::MSG_DETAIL_DISK_OPEN_CREATE_FAILED;
+#[cfg(all(feature = "disk", feature = "telemetry"))]
+use crate::i18n::messages::MSG_LOG_DISK_OPEN_CREATE_FAILED;
 #[cfg(all(
     any(feature = "memory", feature = "redis", feature = "disk"),
     not(feature = "disk")
@@ -695,12 +697,21 @@ impl CacheConfig {
                         Ok(disk) => disk,
                         Err(open_err) => crate::backend::disk::RedbDiskBackend::create(path)
                             .map_err(|create_err| {
+                                // 绝对路径只进运维日志，不进对外错误消息
+                                #[cfg(feature = "telemetry")]
+                                tracing::debug!(
+                                    target: "oxcache::config",
+                                    path,
+                                    open_err = %open_err,
+                                    create_err = %create_err,
+                                    "{}",
+                                    t(MSG_LOG_DISK_OPEN_CREATE_FAILED, &[])
+                                );
                                 OxCacheError::Operation(t(
                                     MSG_DETAIL_DISK_OPEN_CREATE_FAILED,
                                     &[
                                         ("open_err", open_err.to_string()),
                                         ("create_err", create_err.to_string()),
-                                        ("path", path.to_string()),
                                     ],
                                 ))
                             })?,
@@ -1114,6 +1125,10 @@ mod tests {
         if !crate::test_support::ensure_server(6380) {
             return;
         }
+        // 非 TLS 端点须显式放行（builder 的 TLS 闸门默认拒绝 redis://）；
+        // 放行标记由本用例自备，不依赖其它用例遗留的进程级环境变量。
+        // 同值写入幂等，故不回收——回收会与并行（非 #[serial]）Redis 用例的建连窗口竞争
+        set_env("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS");
         let config = CacheConfig::builder()
             .backend("dragonfly")
             .redis_url("redis://127.0.0.1:6380")

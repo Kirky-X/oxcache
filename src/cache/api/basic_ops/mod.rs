@@ -58,7 +58,7 @@ fn get_or_shard_index(key: &str) -> usize {
 fn telemetry_stale_downgrade(key: &str) {
     tracing::debug!(
         target: "oxcache::stale",
-        key,
+        key = %crate::security::redact_cache_key(key),
         "{}",
         t(MSG_LOG_STALE_HIT_VIA_GET_OR, &[])
     );
@@ -73,7 +73,7 @@ fn telemetry_stale_downgrade(_key: &str) {}
 fn telemetry_stale_refresh(key: &str, spawned: bool) {
     tracing::debug!(
         target: "oxcache::stale",
-        key,
+        key = %crate::security::redact_cache_key(key),
         spawned,
         "{}",
         t(MSG_LOG_STALE_REVALIDATION_SCHEDULED, &[])

@@ -89,7 +89,7 @@
 //!   byte-weight, compression, batch, lua, test-util, dragonfly, aerospike,
 //!   lock, redlock, offload, disk, stale, bloom, trait-kit, telemetry,
 //!   invalidation, pubsub, encrypt, integrity, serde-bincode, postcard,
-//!   config-confers, degradation, audit, inklog, versioning, hotkey,
+//!   config-confers, degradation, audit, versioning, hotkey,
 //!   adaptive-ttl, warmup). Deprecated aliases (core/kit/red-lock/testing)
 //!   are not listed.
 //!
@@ -359,10 +359,13 @@ pub use infra::{
 pub use infra::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder};
 
 // Re-exports from security module (new brick architecture)
+// 脱敏助手不依赖 redis 后端，任何构建均可用（telemetry/stale/offload 埋点需要）
+pub use crate::security::{
+    Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value,
+};
 #[cfg(any(feature = "redis", feature = "full"))]
 pub use crate::security::{
-    Redacted, clamp_scan_count, log_cache_key, redact_cache_key, redact_connection_string,
-    redact_field, redact_value, sanitize_message, validate_lua_script, validate_redis_key,
+    clamp_scan_count, log_cache_key, sanitize_message, validate_lua_script, validate_redis_key,
     validate_scan_pattern,
 };
 
@@ -391,6 +394,10 @@ pub use core::{BackendType, CacheLayer, RedisModeType, SerializationType};
 
 // Key generator export
 pub use crate::utils::KeyGenerator;
+
+// 键枚举上限：下游按自己的阈值判断键枚举结果时无需复制魔数
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+pub use crate::core::constants::MAX_KEYS_RETURN;
 
 // Canonical JSON normalization exports (`serialization` feature)
 #[cfg(feature = "serialization")]

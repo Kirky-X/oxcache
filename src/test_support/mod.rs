@@ -57,6 +57,10 @@ fn spawn_on_listener(listener: TcpListener) {
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
+                    // Windows 上 accept() 返回的套接字继承监听套接字的非阻塞
+                    // 标志，读命令会立刻返回 WouldBlock 并断开连接；显式
+                    // 恢复阻塞语义（Unix 上 accept 不继承，无需此处理）。
+                    let _ = stream.set_nonblocking(false);
                     let store = Arc::clone(&store);
                     let scripts = Arc::clone(&scripts);
                     std::thread::spawn(move || serve_connection(stream, store, scripts, endpoint));

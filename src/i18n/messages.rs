@@ -92,10 +92,12 @@ pub const MSG_LOG_DEGRADATION_RECOVERED: &str = "log.degradation.recovered";
 pub const MSG_LOG_CONFERS_RELOAD_REJECTED: &str = "log.confers_config.reload_rejected";
 pub const MSG_LOG_BRIDGE_SHUTDOWN_SKIPPED: &str = "log.backend.bridge_shutdown_skipped";
 pub const MSG_LOG_DISK_SWEEP_FAILED: &str = "log.disk.sweep_failed";
+pub const MSG_LOG_DISK_OPEN_CREATE_FAILED: &str = "log.disk.open_create_failed";
 pub const MSG_LOG_AUDIT_EVENT: &str = "log.audit.event";
 pub const MSG_LOG_STALE_HIT_VIA_GET_OR: &str = "log.stale.hit_via_get_or";
 pub const MSG_LOG_STALE_REVALIDATION_SCHEDULED: &str = "log.stale.revalidation_scheduled";
 pub const MSG_LOG_STALE_HIT_SERVED: &str = "log.stale.hit_served";
+pub const MSG_LOG_INVALIDATION_APPLY_FAILED: &str = "log.invalidation.apply_failed";
 pub const MSG_LOG_PUBSUB_RECONNECT_FAILED: &str = "log.pubsub.reconnect_failed";
 pub const MSG_LOG_PUBSUB_HANDLER_PANICKED: &str = "log.pubsub.handler_panicked";
 pub const MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED: &str = "log.pubsub.payload_parse_failed";
@@ -288,10 +290,6 @@ pub const MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR: &str =
     "detail.key_generator.part_contains_segment_separator";
 
 // -- Example binary output messages --
-pub const MSG_EXAMPLE_INKLOG_BRIDGE_TITLE: &str = "example.inklog_bridge.title";
-pub const MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY: &str = "example.inklog_bridge.observability";
-pub const MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED: &str = "example.inklog_bridge.dropped";
-pub const MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES: &str = "example.inklog_bridge.write_failures";
 pub const MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED: &str = "example.redis_modes.feature_disabled";
 pub const MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE: &str =
     "example.redis_modes.run_with_redis_feature";
@@ -2037,6 +2035,7 @@ mod tests {
         MSG_LOG_STALE_HIT_VIA_GET_OR,
         MSG_LOG_STALE_REVALIDATION_SCHEDULED,
         MSG_LOG_STALE_HIT_SERVED,
+        MSG_LOG_INVALIDATION_APPLY_FAILED,
         MSG_LOG_PUBSUB_RECONNECT_FAILED,
         MSG_LOG_PUBSUB_HANDLER_PANICKED,
         MSG_LOG_PUBSUB_PAYLOAD_PARSE_FAILED,
@@ -2174,10 +2173,6 @@ mod tests {
         MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER,
         MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER,
         MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR,
-        MSG_EXAMPLE_INKLOG_BRIDGE_TITLE,
-        MSG_EXAMPLE_INKLOG_BRIDGE_OBSERVABILITY,
-        MSG_EXAMPLE_INKLOG_BRIDGE_DROPPED,
-        MSG_EXAMPLE_INKLOG_BRIDGE_WRITE_FAILURES,
         MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,

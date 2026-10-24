@@ -145,7 +145,7 @@ impl StaleWhileRevalidateBackend {
             .increment_counter("oxcache_stale_hits_total", 1);
         if let Some(publisher) = &self.event_publisher {
             let event = CacheEvent::new(CacheEventType::Expire)
-                .with_key(key.to_string())
+                .with_key(crate::security::redact_cache_key(key))
                 .with_metadata("state", "stale");
             // 事件失败不影响读路径
             let _ = publisher.publish(event).await;
@@ -181,7 +181,7 @@ impl StaleWhileRevalidateBackend {
 fn telemetry_stale_hit(key: &str) {
     tracing::debug!(
         target: "oxcache::stale",
-        key,
+        key = %crate::security::redact_cache_key(key),
         "{}",
         t(MSG_LOG_STALE_HIT_SERVED, &[])
     );
@@ -327,6 +327,10 @@ impl CacheConnector for StaleWhileRevalidateBackend {
 
     fn backend_kind(&self) -> BackendKind {
         self.inner.backend_kind()
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        self.inner.as_pattern_ops()
     }
 }
 

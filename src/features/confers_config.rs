@@ -101,7 +101,8 @@ pub struct OxcacheConfig {
     /// Redis 兼容后端连接串（`None` = 未设置）
     ///
     /// 可含 `user:password@` 凭证：[`Debug`] 实现脱敏为 `"***"`，
-    /// 禁止以其他方式明文落日志。
+    /// 序列化（`Serialize`）整字段跳过，同样不得明文落日志。
+    #[serde(skip_serializing)]
     pub redis_url: Option<String>,
     /// 磁盘后端数据文件路径（`None` = 未设置）
     pub disk_path: Option<String>,
@@ -734,6 +735,29 @@ mod tests {
         assert!(
             debug.contains("\"***\""),
             "redaction marker missing: {debug}"
+        );
+    }
+
+    /// 序列化同样不得输出凭证：Debug 脱敏会被 Serialize 旁路
+    #[test]
+    fn serialize_does_not_leak_redis_url() {
+        let cfg = OxcacheConfig {
+            redis_url: Some("redis://admin:s3cret@host:6379".into()),
+            ..OxcacheConfig::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(!json.contains("s3cret"), "credentials leaked: {json}");
+        let value = serde_json::to_value(&cfg).unwrap();
+        assert!(
+            value.get("redis_url").is_none(),
+            "redis_url must not be serialized: {value}"
+        );
+        // 反序列化不受影响：凭证仍能从配置源读入
+        let back: OxcacheConfig =
+            serde_json::from_str(r#"{"redis_url":"redis://admin:s3cret@host:6379"}"#).unwrap();
+        assert_eq!(
+            back.redis_url.as_deref(),
+            Some("redis://admin:s3cret@host:6379")
         );
     }
 

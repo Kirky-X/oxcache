@@ -49,7 +49,7 @@ fn set_active_gauge(_value: usize) {}
 fn telemetry_event(key: &str, event: &str) {
     tracing::debug!(
         target: "oxcache::offload",
-        key,
+        key = %crate::security::redact_cache_key(key),
         event,
         "{}",
         t(MSG_LOG_OFFLOAD_LIFECYCLE_EVENT, &[])
@@ -65,7 +65,7 @@ fn telemetry_event(_key: &str, _event: &str) {}
 fn telemetry_timeout(key: &str, elapsed: Duration, policy: &str) {
     tracing::warn!(
         target: "oxcache::offload",
-        key,
+        key = %crate::security::redact_cache_key(key),
         elapsed = ?elapsed,
         policy,
         "{}",

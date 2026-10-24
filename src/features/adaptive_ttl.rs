@@ -428,6 +428,10 @@ impl CacheConnector for AdaptiveTtlBackend {
     fn backend_kind(&self) -> crate::backend::BackendKind {
         self.inner.backend_kind()
     }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        self.inner.as_pattern_ops()
+    }
 }
 
 // CacheBackend 由 blanket impl 自动提供

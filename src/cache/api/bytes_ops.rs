@@ -31,6 +31,19 @@ where
             }
             self.record_backend_op();
         }
+        // 审计事件（hit/miss）：与 typed 路径同一管线，宏展开的读写同样留痕
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if matches!(&result, Ok(Some(_))) {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(key)),
+            );
+        }
         result
     }
 
@@ -52,6 +65,16 @@ where
             self.metrics
                 .record_set(self.metrics_layer(), __start.elapsed());
             self.record_backend_op();
+        }
+        // 审计事件（set）
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(crate::features::audit::AuditAction::Set)
+                    .with_key(crate::features::audit::redact_key_for_audit(key)),
+            );
         }
         result
     }
@@ -79,6 +102,18 @@ where
             }
             self.record_backend_op();
         }
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = self.audit.as_ref() {
+            let action = if matches!(&result, Ok(Some(_))) {
+                crate::features::audit::AuditAction::Hit
+            } else {
+                crate::features::audit::AuditAction::Miss
+            };
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(action)
+                    .with_key(crate::features::audit::redact_key_for_audit(key)),
+            );
+        }
         result
     }
 
@@ -101,6 +136,15 @@ where
             self.metrics
                 .record_set(self.metrics_layer(), __start.elapsed());
             self.record_backend_op();
+        }
+        #[cfg(feature = "audit")]
+        if result.is_ok()
+            && let Some(publisher) = self.audit.as_ref()
+        {
+            publisher.publish(
+                crate::features::audit::AuditEvent::new(crate::features::audit::AuditAction::Set)
+                    .with_key(crate::features::audit::redact_key_for_audit(key)),
+            );
         }
         result
     }
