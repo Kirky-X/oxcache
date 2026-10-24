@@ -16,12 +16,28 @@ use crate::utils::MAX_CACHE_KEY_LENGTH;
 /// 默认命名空间
 const DEFAULT_NAMESPACE: &str = "default";
 
+/// 键段转义：结构字符百分号编码
+///
+/// 值中的 `:` 会伪造段边界：模板 `user:{id}:profile` + "42" 与模板
+/// `user:{id}` + "42:profile" 原本落到同一个键 "user:42:profile"。
+/// `:` 改写为 `%3A`。
+///
+/// `%` 是转义标记自身，必须**先于** `:` 转义：否则值里的字面量 `%3A`
+/// 与转义结果同形（编码非单射），攻击者构造 `_len_`/`%3A` 前缀即可让
+/// 不同实参别名到同一个键。不含 `:` 与 `%` 的值原样入键（键形态不变）。
+pub fn escape_key_segment(value: &str) -> String {
+    if !value.contains(':') && !value.contains('%') {
+        return value.to_string();
+    }
+    value.replace('%', "%25").replace(':', "%3A")
+}
+
 /// 有效的键字符集
 const VALID_KEY_CHARS: &[char] = &[
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
     't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
     'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4',
-    '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@',
+    '5', '6', '7', '8', '9', '-', '_', '.', ':', '/', '@', '%',
 ];
 
 /// 缓存键生成器
@@ -104,7 +120,14 @@ impl KeyGenerator {
 
     /// 生成缓存键
     ///
-    /// 支持模板语法 {placeholder}，可以从参数中替换值
+    /// 支持模板语法 {placeholder}，可以从参数中替换值。
+    ///
+    /// 实参值按 [`escape_key_segment`](crate::macro_support::escape_key_segment)
+    /// 转义（结构字符百分号编码）：
+    /// 值中的 `:` 不得伪造段边界，否则 `user:{id}:profile` 与
+    /// `user:{id}` + `"42:profile"` 会落到同一个键；`%` 作为转义标记
+    /// 自身先行转义，保证编码单射（不同实参不别名到同一个键）。
+    /// 占位符单遍替换：值中的 `{name}` 不被后续替换再次展开。
     ///
     /// # 示例
     ///
@@ -116,12 +139,30 @@ impl KeyGenerator {
     /// assert_eq!(key, "user:123");
     /// ```
     pub fn generate(&self, template: &str, params: &[(&str, &str)]) -> String {
-        let mut result = template.to_string();
-        for (key, value) in params {
-            let placeholder = format!("{{{}}}", key);
-            result = result.replace(&placeholder, value);
+        let mut out = String::with_capacity(template.len());
+        let mut rest = template;
+        while let Some(open) = rest.find('{') {
+            out.push_str(&rest[..open]);
+            let after = &rest[open + 1..];
+            let Some(close) = after.find('}') else {
+                // 未闭合的 `{`：按字面保留
+                out.push_str(&rest[open..]);
+                return out;
+            };
+            let name = &after[..close];
+            match params.iter().find(|(key, _)| *key == name) {
+                Some((_, value)) => out.push_str(&escape_key_segment(value)),
+                // 未提供对应参数：占位符原样保留
+                None => {
+                    out.push('{');
+                    out.push_str(name);
+                    out.push('}');
+                }
+            }
+            rest = &after[close + 1..];
         }
-        result
+        out.push_str(rest);
+        out
     }
 
     /// 生成带有命名空间和前缀的完整缓存键
@@ -317,6 +358,56 @@ mod tests {
         let key_gen = KeyGenerator::new();
         let key = key_gen.generate("user:{id}", &[]);
         assert_eq!(key, "user:{id}");
+    }
+
+    /// 分隔符转义：不同实体不得别名到同一个键
+    #[test]
+    fn test_generate_escapes_segment_separator() {
+        let key_gen = KeyGenerator::new();
+        let a = key_gen.generate("user:{id}:profile", &[("id", "42")]);
+        let b = key_gen.generate("user:{id}", &[("id", "42:profile")]);
+        assert_ne!(
+            a, b,
+            "values carrying the segment separator must not alias to the same key"
+        );
+        assert_eq!(a, "user:42:profile");
+        assert_eq!(b, "user:42%3Aprofile");
+    }
+
+    /// 转义标记自身不得可伪造：值里的字面量 `%3A` 与转义结果必须不同
+    #[test]
+    fn test_generate_escaping_is_injective() {
+        let key_gen = KeyGenerator::new();
+        let escaped = key_gen.generate("user:{id}", &[("id", "42:profile")]);
+        let forged = key_gen.generate("user:{a}:{b}", &[("a", "_10_42"), ("b", "profile")]);
+        assert_ne!(
+            escaped, forged,
+            "forged escape prefixes must not alias to the same key"
+        );
+        let literal = key_gen.generate("user:{id}", &[("id", "42%3Aprofile")]);
+        assert_ne!(
+            escaped, literal,
+            "a literal percent-encoded sequence must not alias to an escaped value"
+        );
+        assert_eq!(literal, "user:42%253Aprofile");
+    }
+
+    /// 占位符二次替换：值中的 {name} 不得被后续替换展开
+    #[test]
+    fn test_generate_blocks_placeholder_injection() {
+        let key_gen = KeyGenerator::new();
+        let key = key_gen.generate("u:{x}:{y}", &[("x", "{y}"), ("y", "Z")]);
+        assert_eq!(key, "u:{y}:Z");
+    }
+
+    /// 转义后的键仍能通过键校验（转义只用合法键字符）
+    #[test]
+    fn test_try_generate_full_accepts_escaped_separator() {
+        let key_gen = KeyGenerator::new();
+        let key = key_gen
+            .try_generate_full("user:{id}", &[("id", "42:profile")])
+            .expect("escaped separator must stay a valid key");
+        assert_eq!(key, "user:42%3Aprofile");
     }
 
     #[test]

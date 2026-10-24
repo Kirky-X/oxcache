@@ -11,6 +11,10 @@
 //!
 //! `[ver: u8][tag: 32B][payload]`
 //!
+//! 标签覆盖 **cache key + value**（键以长度前缀接入 MAC 输入），
+//! 与 [`EncryptedBackend`](super::EncryptedBackend) 的 AAD 绑定同构：
+//! 不可信 L2 无法把 A 键的合法信封搬到 B 键下通过校验。
+//!
 //! # 失败语义
 //!
 //! 读取校验失败（篡改 payload/tag/ver、密钥不匹配）**视为 miss**：
@@ -75,21 +79,35 @@ impl HmacSigner {
         Ok(Self::new(arr))
     }
 
-    /// 计算消息标签
-    pub fn sign(&self, message: &[u8]) -> [u8; TAG_SIZE] {
+    /// 计算消息标签（绑定 cache key）
+    ///
+    /// key 参与 MAC 计算：同一 value 放在不同键下得到不同标签，
+    /// 防止不可信 L2 把 A 键的合法信封原样搬到 B 键下仍通过校验。
+    /// 与 [`EncryptedBackend`](super::EncryptedBackend) 的 AAD 绑定同构。
+    pub fn sign(&self, key: &str, message: &[u8]) -> [u8; TAG_SIZE] {
         let mut mac = HmacSha256::new_from_slice(self.key.as_ref())
             .expect("HMAC accepts any key length; 32-byte key is valid");
-        mac.update(message);
+        update_with_key(&mut mac, key, message);
         mac.finalize().into_bytes().into()
     }
 
-    /// 常量时间校验
-    pub fn verify(&self, message: &[u8], tag: &[u8]) -> bool {
+    /// 常量时间校验（绑定 cache key）
+    pub fn verify(&self, key: &str, message: &[u8], tag: &[u8]) -> bool {
         let mut mac = HmacSha256::new_from_slice(self.key.as_ref())
             .expect("HMAC accepts any key length; 32-byte key is valid");
-        mac.update(message);
+        update_with_key(&mut mac, key, message);
         mac.verify_slice(tag).is_ok()
     }
+}
+
+/// 把 cache key 与消息一起喂入 MAC
+///
+/// key 以长度前缀（u64 LE）接入，避免 key 与 message 的拼接歧义：
+/// ("ab", "c") 与 ("a", "bc") 必须得到不同标签。
+fn update_with_key(mac: &mut HmacSha256, key: &str, message: &[u8]) {
+    mac.update(&(key.len() as u64).to_le_bytes());
+    mac.update(key.as_bytes());
+    mac.update(message);
 }
 
 /// 值完整性装饰器：value + HMAC-SHA256 标签，读校验失败视为 miss 并计数
@@ -163,7 +181,7 @@ impl CacheReader for IntegrityBackend {
                 }
                 let tag = &envelope[1..1 + TAG_SIZE];
                 let payload = &envelope[1 + TAG_SIZE..];
-                if self.signer.verify(payload, tag) {
+                if self.signer.verify(key, payload, tag) {
                     Ok(Some(payload.to_vec()))
                 } else {
                     Ok(self.record_integrity_failure())
@@ -206,7 +224,7 @@ impl CacheWriter for IntegrityBackend {
         value: Arc<Vec<u8>>,
         ttl: Option<Duration>,
     ) -> OxCacheResult<()> {
-        let tag = self.signer.sign(value.as_slice());
+        let tag = self.signer.sign(&key, value.as_slice());
         let mut envelope = Vec::with_capacity(1 + TAG_SIZE + value.len());
         envelope.push(HMAC_ENVELOPE_VERSION);
         envelope.extend_from_slice(&tag);
@@ -229,7 +247,7 @@ impl CacheWriter for IntegrityBackend {
     async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
         let mut signed = Vec::with_capacity(items.len());
         for (key, value, ttl) in items {
-            let tag = self.signer.sign(value.as_slice());
+            let tag = self.signer.sign(key, value.as_slice());
             let mut envelope = Vec::with_capacity(1 + TAG_SIZE + value.len());
             envelope.push(HMAC_ENVELOPE_VERSION);
             envelope.extend_from_slice(&tag);
@@ -256,6 +274,10 @@ impl CacheConnector for IntegrityBackend {
 
     fn backend_kind(&self) -> BackendKind {
         self.inner.backend_kind()
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        self.inner.as_pattern_ops()
     }
 }
 
@@ -302,9 +324,9 @@ mod tests {
         assert_eq!(raw[0], HMAC_ENVELOPE_VERSION);
         let tag = &raw[1..1 + TAG_SIZE];
         assert_eq!(raw.len(), 1 + TAG_SIZE + 8);
-        // 标签可用密钥独立复算验证
-        assert!(backend.signer().verify(b"payload!", tag));
-        assert!(!backend.signer().verify(b"tampered!", tag));
+        // 标签可用密钥独立复算验证（键参与 MAC）
+        assert!(backend.signer().verify("k", b"payload!", tag));
+        assert!(!backend.signer().verify("k", b"tampered!", tag));
     }
 
     /// 篡改检测：payload/tag/ver 任意字节被改，读取视为 miss（None）
@@ -517,8 +539,8 @@ mod tests {
         let from_slice =
             HmacSigner::from_slice(&key32(2)).expect("a 32-byte key should be accepted");
         assert_eq!(
-            from_slice.sign(b"msg"),
-            HmacSigner::new(key32(2)).sign(b"msg")
+            from_slice.sign("k", b"msg"),
+            HmacSigner::new(key32(2)).sign("k", b"msg")
         );
     }
 
@@ -555,5 +577,49 @@ mod tests {
         backend.health_check().await.unwrap();
         assert_eq!(backend.backend_kind(), BackendKind::Mock);
         backend.shutdown().await;
+    }
+
+    /// 跨键重放必须校验失败：A 键的合法信封搬到 B 键下不得通过 HMAC 校验
+    ///
+    /// 与 `EncryptedBackend` 的 `aad_binds_ciphertext_to_key_name` 同构：
+    /// 键名参与 MAC 计算即杜绝跨键搬运。
+    #[tokio::test]
+    async fn hmac_binds_envelope_to_cache_key() {
+        let backend = integrity(1);
+        backend
+            .set(
+                Arc::from("tenantA:user:1"),
+                Arc::new(b"alice-secret".to_vec()),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // 不可信 L2 把 A 键的信封原样搬到 B 键
+        let envelope = backend.inner.get("tenantA:user:1").await.unwrap().unwrap();
+        backend
+            .inner
+            .set(Arc::from("tenantB:user:2"), Arc::new(envelope), None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            backend.get("tenantB:user:2").await.unwrap(),
+            None,
+            "cross-key replay must be rejected as a miss"
+        );
+        // 原键仍可正常读取
+        assert_eq!(
+            backend.get("tenantA:user:1").await.unwrap(),
+            Some(b"alice-secret".to_vec())
+        );
+    }
+
+    /// 键名与消息的拼接不得产生歧义
+    #[test]
+    fn hmac_key_message_boundary_is_unambiguous() {
+        let signer = HmacSigner::new(key32(3));
+        assert_ne!(signer.sign("ab", b"c"), signer.sign("a", b"bc"));
+        assert_ne!(signer.sign("k1", b"v"), signer.sign("k2", b"v"));
     }
 }
