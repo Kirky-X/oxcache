@@ -99,10 +99,11 @@ impl BackendKind {
 ///
 /// 键空间可达千万级，一次性物化全部匹配键会把调用方进程内存打满；
 /// 超过 `MAX_KEYS_RETURN`（`crate::core::constants`）即拒绝，调用方应改用
-/// 更窄的模式或自行分页。
+/// 更窄的模式，或以不受该上限约束的 [`CacheBackend::count_by_pattern`] /
+/// [`CacheBackend::delete_by_pattern`] 满足计数/删除需求。
 pub(crate) fn keys_limit_exceeded(limit: usize) -> OxCacheError {
     OxCacheError::Operation(format!(
-        "Key enumeration exceeded the limit of {limit} matching keys; use a narrower pattern or paginate with SCAN"
+        "Key enumeration exceeded the limit of {limit} matching keys; use a narrower pattern, or count_by_pattern/delete_by_pattern which are not subject to this limit"
     ))
 }
 
