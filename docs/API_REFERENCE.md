@@ -86,7 +86,6 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 | `config-confers` | `memory`, `serialization` | 配置中枢 |
 | `degradation` | `memory` | 降级装饰器（引用 `crate::backend`） |
 | `audit` | — | 审计事件流 |
-| `inklog` | `audit` | 审计事件 → inklog 结构化日志发布器 |
 | `versioning` | — | 值版本化 |
 | `hotkey` | `dashmap` | 热 key 采样观测 |
 | `byte-weight` | `moka` | 按 byte 权重容量（moka 同步面） |
@@ -109,8 +108,9 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 |------|------|------|--------|------|
 | `service` | `&str` | 否 | `"default"` | 缓存服务名（用于查找已注册的 `Cache` 实例） |
 | `ttl` | `u64` | 否 | `None` | 生存时间（秒），设置时为 `Some(n)` |
-| `key` | `&str` | 否 | 自动生成 | 自定义缓存键格式 |
-| `key_prefix` | `&str` | 否 | `""` | 自动生成缓存键的前缀 |
+| `key` | `&str` | 否 | 自动生成 | 自定义缓存键模板：占位符引用函数参数 / `self` / `self.<字段路径>`（如 `key = "user_{self.tenant_id}_{id}"`），占位符值按段分隔符转义后入键。带 `self` 接收者的方法必须用带占位符的模板承载归属维度（常量模板编译期报错） |
+| `key_prefix` | `&str` | 否 | `""` | 自动生成缓存键的前缀（静态字面量，不承载作用域） |
+| `scope` | 表达式 | 否 | — | 作用域表达式（键的归属维度，如 `scope = self.tenant_id`）；与 `key` 模板互斥（编译期报错）。带 `self` 接收者的函数必须给出 `scope` 或 `key`，否则编译期报错 |
 | `sync` | （标志） | 否 | async | 使用同步代码路径（`get_bytes_sync`/`set_bytes_sync`）；不能与 `async fn` 组合使用 |
 | `skip_cache_write` | （标志） | 否 | `false` | 跳过 Ok 结果的缓存写入（Err 结果本就不缓存） |
 | `single_flight` | （标志） | 否 | `false` | 同 key 并发 miss 仅回源一次 |
@@ -147,7 +147,16 @@ async fn fetch_user(user_id: &str) -> Result<User, String> {
 ```
 
 **默认键生成**：未设置 `key` 和 `key_prefix` 时：
-`{service}:{fn_name}:{arg1:arg2:...}`。
+`{service}[:{scope}]:{fn_name}[:{args_digest}]`。
+
+- 实参段是 **sha256 摘要**（`{args_digest}`），不是实参的 `Debug` 明文：
+  实参常含口令 / 会话令牌，明文进入持久化键空间（KEYS/SCAN、快照、
+  MONITOR 可见）等于凭据落盘。`skip(...)` 的参数不参与摘要。
+- `scope` 段是作用域表达式的取值（`:` 百分号编码为 `%3A`，转义标记 `%`
+  自身先行编码为 `%25`，保证编码单射）。带 `self` 接收者的方法若既无
+  `scope` 又无 `key`，编译期报错：默认键不含任何归属维度，不同租户 /
+  用户会共享同一条缓存条目。方法上的 `key` 模板若不含占位符，同样编译期
+  报错（常量模板与 `self` 无关，所有租户共用一个常量键）。
 
 ## 🧩 `Cache<K, V>`
 
@@ -273,6 +282,7 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 | `capacity().await` | `OxCacheResult<u64>` | 配置的容量（Redis 为 0） |
 | `shutdown().await` | `()` | 关闭并释放资源 |
 | `register_for_macro(service).await` | `OxCacheResult<()>` | 注册供 `#[cached]` 宏使用 |
+| `keys(pattern).await` | `OxCacheResult<Vec<String>>` | 匹配模式的键列表；命中条数超过 `MAX_KEYS_RETURN`（`oxcache::MAX_KEYS_RETURN`，10 000）时返回 `Err(Operation)`（避免一次性物化全量键打满内存），请改用更窄的模式。恰好 10 000 条正常返回 |
 
 ## 🧰 CacheBuilder
 
@@ -292,7 +302,7 @@ cache.set_with_ttl(&"user:1".to_string(), &new_user, original_ttl).await?;
 | `null_cache_ttl` | `(ttl: Duration) -> Self` | 空值哨兵 TTL（穿透防护） |
 | `ttl_jitter` | `(factor: f64) -> Self` | TTL 抖动系数（防批量同时过期） |
 | `metrics` | `(recorder: Arc<dyn MetricsRecorder>) -> Self` | 注入 `MetricsRecorder`（覆盖纯 L1 路径指标） |
-| `audit_publisher` | `(publisher: Arc<dyn AuditEventPublisher>) -> Self` | 注入审计事件发布器（`audit` 特性，hit/miss/set/delete 结构化事件、键脱敏）；内置实现：`NoOpAuditPublisher` / `InMemoryAuditPublisher`（有界环形）/ `TracingAuditPublisher`（`telemetry`）/ `InklogAuditPublisher`（`inklog`，事件→`LogRecord` 经有界通道（1024）由单一 writer task 保序写 `LogSink`，写操作 INFO/读探测 DEBUG；无 runtime/通道过载/通道关闭/关停滞留均计入 `dropped_count`，写失败计入 `write_failure_count`） |
+| `audit_publisher` | `(publisher: Arc<dyn AuditEventPublisher>) -> Self` | 注入审计事件发布器（`audit` 特性，hit/miss/set/delete 结构化事件、键脱敏）；内置实现：`NoOpAuditPublisher` / `InMemoryAuditPublisher`（有界环形）/ `TracingAuditPublisher`（`telemetry`）。`get_bytes` / `set_bytes`（`#[cached]` 宏路径）同样发布审计事件 |
 | `build` | `async (self) -> Result<Cache<K, V>>` | 构建缓存实例（异步包装，内部无 await） |
 | `build_sync` | `(self) -> Result<Cache<K, V>>` | 同步构建缓存实例（无需运行时） |
 
@@ -352,6 +362,18 @@ Tokio runtime**，runtime 之外或 current_thread runtime 上逐调用返回
 ### 后端 Trait
 
 后端 trait 层级（`CacheReader` / `CacheWriter` / `CacheConnector`，blanket impl 自动组合为 `CacheBackend`；批量条目类型 `CacheSetItem`；同步镜像 trait 与 `AtomicCacheWriter`）的完整定义见[架构文档的后端层章节](ARCHITECTURE.md#3-后端层)。
+
+`CacheBackend` 另提供两个模式级方法（供命名空间失效等场景使用）：
+
+| 方法 | 返回值 | 说明 |
+|------|--------|------|
+| `delete_by_pattern(pattern).await` | `OxCacheResult<u64>` | 删除全部匹配键并返回删除条数。后端提供 `CachePatternOps` 能力时原生执行，**不受单次键枚举上限约束**（命名空间失效可跨万级条目）；否则退回「枚举 + 逐条删除」，超限时返回 `Err(Operation)` |
+| `count_by_pattern(pattern).await` | `OxCacheResult<u64>` | 统计匹配键数，同样不受枚举上限约束 |
+
+后端原生能力经 `CacheConnector::as_pattern_ops()` 暴露，能力 trait 上的原语名为
+`CachePatternOps::pattern_delete` / `CachePatternOps::pattern_count`（与上表方法
+刻意不同名：后端类型同时是两个 trait 的实现，同名方法会让具体类型上的方法调用
+语法报 E0034）。
 
 ### 后端类型
 
@@ -434,6 +456,8 @@ failover 后数据连接遇可恢复错误（断连/`READONLY`/`MASTERDOWN` 等�
 | `mode()` | `RedisMode` | 配置的 Redis 模式 |
 | `client()` | `&Client` | 底层 `redis::Client` |
 | `redact_connection_string(s)` | `String`（关联方法） | 脱敏连接字符串中的密码 |
+| `clear_namespace(ns).await` | `OxCacheResult<()>` | 删除单个命名空间的键（`ns:*`）：未以 `:` 结尾的命名空间自动补齐分隔符，`tenant1` 只删 `tenant1:*`，不碰 `tenant10:*` |
+| `clear_prefix(prefix).await` | `OxCacheResult<()>` | 按裸前缀删除（`prefix*`）：**无命名空间边界**，`tenant1` 连 `tenant10:*` 一并删除；仅在确需裸前缀语义时使用 |
 
 ### Pipeline 批量操作
 
@@ -708,7 +732,7 @@ let cache: Cache<String, String> = Cache::builder()
 当 `sync_mode` 为 `false`（默认）时，所有 `*_sync` 方法返回
 `Err(OxCacheError::NotSupported)`。
 
-审计事件：`*_sync` 路径与异步路径同语义发布（`audit` 特性）；发布器若依赖 tokio runtime（如 `InklogAuditPublisher`），在 runtime 之外的同步调用中事件无法落盘、逐条计入 `dropped_count()`（空转无留痕）——runtime 外的同步场景请选运行时无关发布器（`InMemoryAuditPublisher` / `TracingAuditPublisher`）。
+审计事件：`*_sync` 路径与异步路径同语义发布（`audit` 特性）；运行时无关发布器（`InMemoryAuditPublisher` / `TracingAuditPublisher`）可在 runtime 之外的同步调用中使用。
 
 ## 🌸 布隆过滤器
 
@@ -794,6 +818,7 @@ let backend = BloomFilterBackend::builder()
 - `RedbDiskBackend`（`oxcache::backend::disk`）— redb 4.3 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
 - 懒过期：读路径惰性判定 + 物理删除（与 DashMap 同口径）；`max_entries` 超限清扫先删过期、按 seq 升序删最旧
 - `BackendKind::Disk`；`BackendScore`：score 85（`Scores::REDB`）/ persistent / name `"disk"`；经 `ChainLink::from_arc` 或 `ChainBuilder::extra_backend` 挂链为 L3
+- `stats()` 只返回数据库**文件名**，不返回绝对路径（完整路径经 `RedbDiskBackend::path()` 取）
 
 ## 🔗 链路读策略（`ChainReadStrategy`）
 
@@ -816,16 +841,22 @@ let backend = BloomFilterBackend::builder()
 
 ## 🔒 安全特性
 
-安全函数在 **crate 根**重导出（启用 `redis` 或 `full` 特性时），不在 `oxcache::security` 下：
+安全函数在 **crate 根**重导出，不在 `oxcache::security` 下：
 
 ```rust
 use oxcache::{
     validate_redis_key, validate_lua_script, validate_scan_pattern, clamp_scan_count,
     redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted,
-    // 安全日志辅助：
+    // 安全日志辅助（需 `redis` 或 `full` 特性）：
     // log_cache_key, sanitize_message,
 };
 ```
+
+脱敏助手（`redact_cache_key` / `redact_connection_string` / `redact_field` /
+`redact_value` / `Redacted`）不依赖 redis 后端，任何特性组合均可用——telemetry
+埋点、审计事件与 `CacheEvent` 的键脱敏在无 redis 的构建中同样生效。
+`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` /
+`clamp_scan_count` / `log_cache_key` / `sanitize_message` 需 `redis` 或 `full`。
 
 > **导入路径说明：** 使用 `use oxcache::validate_redis_key`（crate 根重导出），
 > 而非 `use oxcache::security::validate_redis_key`。`security` 模块本身是
@@ -855,6 +886,11 @@ validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("合法的脚
 ```
 
 校验规则（10 KB 脚本与 100 键上限、危险命令黑名单、沙箱逃逸调用拦截、注释预处理防绕过）见安全文档。
+
+危险命令按**被调用命令名**判定（不是字面子串匹配）：`redis.call ( 'FLUSHALL' )`、
+`redis.call('FLUSH'..'ALL')`、`redis["call"]('FLUSHALL')` 与
+`redis.call('FLUSHALL')` 等价，一律拒绝；命令名无法静态确定（变量、
+`unpack(ARGV)` 等）时按拒绝处理。
 
 ### SCAN 校验（validate_scan_pattern 与 clamp_scan_count）
 
@@ -938,6 +974,9 @@ let chain = ChainCache::builder()
 OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serialization`、
 `chrono` 和 `dashmap` 用于内部统计收集和 JSON 导出。
 
+`CacheEvent` 的键在发布前已脱敏（`redact_cache_key`），`Debug` 输出同样
+走脱敏并截断错误文本——消费方直接 `{:?}` 打印事件不会把原始键写进日志。
+
 ### `MetricsConfig`（`metrics` 特性）
 
 `UnifiedMetrics` / `UnifiedMetricsRecorder` 的采集面配置（`with_config` 注入）：
@@ -996,7 +1035,8 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 
 未设置的键回落底层构建器默认（零行为漂移）；解析失败与「键已设置但对应 feature
 未启用」均显性报错（附变量名与原始值），布尔值接受 `true/1/yes/on` 与
-`false/0/no/off`。`redis_url` 可能携带凭证，`Debug` 输出脱敏为 `"***"`。
+`false/0/no/off`。`redis_url` 可能携带凭证，`Debug` 输出脱敏为 `"***"`，
+序列化（`Serialize`）整字段跳过——不得明文落盘。
 
 ### `OxcacheConfig`（confers 快照，`config-confers` feature）
 
@@ -1010,7 +1050,7 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 | `sync_mode` | `Option<bool>` | `None` | 同步 API 模式 |
 | `backend` | `Option<String>` | `None` | 后端原始串（moka/dashmap/redis/…） |
 | `metrics_enabled` | `Option<bool>` | `None` | 指标开关（需 `metrics`） |
-| `redis_url` | `Option<String>` | `None` | Redis 兼容后端连接串（`Debug` 脱敏） |
+| `redis_url` | `Option<String>` | `None` | Redis 兼容后端连接串（`Debug` 脱敏；`Serialize` 跳过该字段） |
 | `circuit_breaker` | `Option<CircuitBreakerSettings>` | `None` | 熔断参数：`failure_threshold` / `recovery_timeout_ms` |
 
 超界熔断阈值与连接池大小在 confers 通路**显性报错**（不钳制/不丢弃）；热更新重载被拒时保留旧快照并可观测（`oxcache_config_reload_rejected_total`）。

@@ -26,8 +26,7 @@
 | 布隆 | `tests/bloom_filter_integration.rs` | 9 passed |
 | 性能 | `tests/performance.rs` | 19 passed + 5 --ignored 补盲全过 |
 
-examples：37/37 运行 rc=0（共 38 个示例文件，`example_inklog_audit_bridge` 由
-`inklog-bridge` feature 门控、未计入；`error_handling`/`custom_backend`/`events` 三例输出为
+examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例输出为
 设计性错误演示，符合预期设计口径）。
 
 ## 2. 功能域 → 落点矩阵

@@ -59,10 +59,12 @@ log-degradation-recovered = L2 degradation recovered
 log-confers-config-reload-rejected = confers config reload rejected; keeping previous snapshot
 log-backend-bridge-shutdown-skipped = async→sync bridge shutdown skipped: cannot nest a blocking driver inside a current_thread runtime
 log-disk-sweep-failed = disk cache sweep failed
+log-disk-open-create-failed = disk backend open/create failed
 log-audit-event = cache audit event
 log-stale-hit-via-get-or = stale hit served via get_or (Return downgrade; use get_or_refresh for background revalidation)
 log-stale-revalidation-scheduled = stale hit; background revalidation scheduled
 log-stale-hit-served = stale hit served
+log-invalidation-apply-failed = cross-instance invalidation could not be applied to the local cache
 log-pubsub-reconnect-failed = pubsub reconnect failed
 log-pubsub-handler-panicked = pubsub handler panicked; continuing
 log-pubsub-payload-parse-failed = pubsub payload parse failed
@@ -162,7 +164,7 @@ detail-config-backend-not-config-buildable = backend `{ $kind }` cannot be built
 detail-config-env-not-unicode = environment variable { $key } is not valid unicode: { $raw }
 detail-config-env-invalid-bool = invalid bool value for { $key }: { $raw } (expected true/1/yes/on or false/0/no/off)
 detail-config-backend-invalid-value = invalid value for { $key }: { $raw } (expected one of moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk)
-detail-disk-open-create-failed = disk backend open failed ({ $open_err }) and create failed ({ $create_err }): { $path }
+detail-disk-open-create-failed = disk backend open failed ({ $open_err }) and create failed ({ $create_err })
 detail-cache-memory-requires-feature = Cache::memory() requires the `memory` feature; construct via Cache::new_with_backend instead.
 detail-not-supported-moka-sync-current-thread = Moka sync surface cannot be driven from within a current-thread runtime async context (tokio forbids nested blocking drivers). Call the sync API outside a runtime, or use a multi_thread runtime (block_in_place handles it).
 detail-redis-unexpected-info-reply = Unexpected INFO { $section } reply type
@@ -209,12 +211,8 @@ detail-key-generator-part-contains-segment-separator = json_hash_key parts must 
 bench-skip-service-unreachable = [bench-skip] required service unreachable: { $services } — start it as the bench module docs describe and rerun (e.g. docker run -d -p 6379:6379 redis:7-alpine)
 
 # -- Example binary output messages --
-example-inklog-bridge-title = === inklog audit log bridge example ===
-example-inklog-bridge-observability = === bridge observability ===
-example-inklog-bridge-dropped = dropped (no runtime context, dropped): { $count }
-example-inklog-bridge-write-failures = write_failures (sink write failures): { $count }
 example-redis-modes-feature-disabled = redis feature is not enabled in this build; nothing to demonstrate.
-example-redis-modes-run-with-redis-feature = full run: cargo run --features redis --example example_redis_modes
+example-redis-modes-run-with-redis-feature = full run: cargo run -p oxcache-examples --features redis --example example_redis_modes
 example-redis-modes-run-with-examples-package = or: cargo run -p oxcache-examples --example example_redis_modes
 example-redis-modes-standalone-connect-failed = ✗ Standalone connection failed: { $err }
 example-redis-modes-standalone-env-required = a running Redis is required (override with REDIS_URL, default redis://127.0.0.1:6379); skipping the Standalone/Builder demos

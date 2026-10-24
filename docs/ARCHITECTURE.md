@@ -196,7 +196,7 @@ cache.register_for_macro("my_service").await?;
 **模块结构**：
 
 - `backend/mod.rs` — 模块根和重导出
-- `backend/interface.rs` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作
+- `backend/interface.rs` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作；`CachePatternOps` 用于模式级计数 / 删除
 - `backend/memory/` — 内存后端实现（Moka、DashMap）及 Redis/Valkey 客户端
 - `backend/dragonfly/` — Dragonfly 后端（基于 Redis 协议包装）
 - `backend/aerospike/` — Aerospike 后端（独立协议，feature-gated）
@@ -255,12 +255,38 @@ pub trait CacheConnector: Send + Sync + 'static {
     #[cfg(feature = "lua")]
     fn as_lua_executor(&self) -> Option<&dyn LuaExecutor> { None }
     fn as_atomic_writer(&self) -> Option<&dyn AtomicCacheWriter> { None }
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> { None }
 }
 
 #[async_trait]
-pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {}
+pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {
+    async fn delete_by_pattern(&self, pattern: &str) -> OxCacheResult<u64>;
+    async fn count_by_pattern(&self, pattern: &str) -> OxCacheResult<u64>;
+}
 // blanket 实现：满足三个超级 trait 的任意 T 自动成为 CacheBackend。
 ```
+
+**CachePatternOps**（模式级操作能力，独立 trait）：按 glob 模式计数 / 删除匹配键。
+
+```rust
+#[async_trait]
+pub trait CachePatternOps: Send + Sync + 'static {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64>;
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64>;
+}
+```
+
+单次键枚举（`CacheReader::keys`）有条数上限（`MAX_KEYS_RETURN`）：命名空间失效
+（`prefix*` 命中上万条）在枚举面上必然触顶，逐条枚举再删除的路径会整段失败
+（一条都删不掉）。后端通过 `CacheConnector::as_pattern_ops()` 暴露模式级能力，
+`CacheBackend::delete_by_pattern` / `count_by_pattern` 据此走原生路径（不受枚举
+上限约束），无能力的后端退回「枚举 + 逐条删除」。
+
+两个 trait 的方法名刻意不同（`pattern_count` / `pattern_delete` 对
+`count_by_pattern` / `delete_by_pattern`）：后端类型经 blanket 实现同时是
+`CacheBackend`，同名方法会让具体类型上的方法调用语法报 E0034（多个候选同时
+适用）。对外统一入口是 `CacheBackend` 上的 `count_by_pattern` /
+`delete_by_pattern`。
 
 **同步 Trait 层级**（镜像异步版本，无 `async`/`#[async_trait]`）：
 

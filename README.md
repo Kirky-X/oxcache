@@ -59,7 +59,7 @@
 <table style="width:100%; border-collapse: collapse">
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🚀 <b>多级缓存</b><br><span style="color:#64748B">L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）经 <code>ChainCache</code> 按分数组链，非最高分命中可异步回填</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>零侵入宏</b><br><span style="color:#64748B"><code>#[cached]</code> 一行接入，支持 <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code> / <code>skip</code></span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>零侵入宏</b><br><span style="color:#64748B"><code>#[cached]</code> 一行接入，支持 <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>scope</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code> / <code>skip</code></span></td>
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🔄 <b>同步 API</b><br><span style="color:#64748B"><code>sync_mode(true)</code> 后 <code>get_sync</code> / <code>set_sync</code> / <code>get_or_sync</code> 与异步 API 在同一 <code>Cache&lt;K, V&gt;</code> 上共存</span></td>
@@ -245,7 +245,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # 真全量：�
 |------|------|:----:|
 | `minimal` | 预设：`memory` + `metrics` + `serialization` + `chrono`，仅 L1 | ✅ |
 | `redis-tier` | 预设：`minimal` + `redis`，L1 + L2（旧名 `core` 为兼容别名） | ❌ |
-| `full` | 真全量：`redis-tier` + 全部具名能力特性（宏/压缩/批量/Lua/锁/RedLock/三后端/bloom/kit/encrypt/integrity/inklog/config-confers 等） | ❌ |
+| `full` | 真全量：`redis-tier` + 全部具名能力特性（宏/压缩/批量/Lua/锁/RedLock/三后端/bloom/kit/encrypt/integrity/config-confers 等） | ❌ |
 | `memory` | L1 内存后端（Moka + DashMap） | ❌ |
 | `redis` | L2 分布式缓存（Redis / Valkey，Standalone / Sentinel / Cluster） | ❌ |
 | `dragonfly` | Dragonfly 后端（Redis 协议兼容） | ❌ |
@@ -268,7 +268,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # 真全量：�
 | `postcard` | postcard 二进制序列化格式 | ❌ |
 | `config-confers` | confers 配置驱动构建 + `ConfigBus` watch 热更新 | ❌ |
 | `degradation` | 自动降级与恢复（Active / Degraded / HalfOpen 三态状态机） | ❌ |
-| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing / inklog 结构化日志发布器） | ❌ |
+| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing） | ❌ |
 | `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
 | `trait-kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器）；`kit` 为已弃用别名 | ❌ |
 | `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
@@ -278,7 +278,6 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # 真全量：�
 | `warmup` | 智能预热：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`（批量晋升 + 直供回填，去重/并发可控，报告显性计数） | ❌ |
 | `byte-weight` | 字节权重同步缓存（`ByteWeightCache`，tokio-free 直连 `moka::sync`） | ❌ |
 | `pubsub` | Redis Pub/Sub 广播组件 | ❌ |
-| `inklog` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher` 直连 `LogSink`；依赖 `audit`） | ❌ |
 | `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
 
 </details>
@@ -310,7 +309,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # 真全量：�
 
 ## 💻 示例
 
-`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **38 个示例**（默认特性下 37 个可运行；`example_inklog_audit_bridge` 由 `inklog-bridge` feature 门控）：
+`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **37 个示例**（默认特性下全部可运行）：
 
 <details>
 <summary>📄 代码 · bash</summary>
@@ -399,7 +398,6 @@ cd examples && ls src/*/*.rs
 | `example_events` | 事件系统（`CacheEvent` / `CacheEventType`） |
 | `example_cli_usage` | CLI 场景（以代码方式获取缓存状态与指标） |
 | `example_kit_integration` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 三阶段关闭 / 装饰器） |
-| `example_inklog_audit_bridge` | 审计事件 → inklog 结构化日志桥接（`InklogAuditPublisher`，需 `inklog-bridge` examples feature） |
 
 </details>
 
@@ -642,12 +640,12 @@ Oxcache 在库层面内建多层防御。
 | 防线 | 机制 |
 |------|------|
 | 键校验 | `validate_redis_key`：拒绝空键、超过 512 KB、含 `\r` / `\n` / `\0` 的键，扫描 SQL 注入与路径遍历模式 |
-| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令黑名单（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等）、注释与字符串预处理防绕过 |
+| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令按**被调用命令名**判定（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等，空白与字符串拼接变体等价）、命令名不可静态确定时拒绝、注释与字符串预处理防绕过 |
 | SCAN 限制 | `validate_scan_pattern`（256 字符、10 个通配符上限）+ `clamp_scan_count`（钳制到 1-1000） |
 | TLS 强制 | `RedisBackend` 默认要求 `rediss://`，除非显式设置 `OXCACHE_ALLOW_INSECURE_REDIS` 开发豁免 |
-| 脱敏 | `redact_connection_string` / `redact_value` / `Redacted` 包装器，日志与审计事件中的键与凭据默认脱敏 |
+| 脱敏 | `redact_connection_string` / `redact_value` / `redact_cache_key` / `Redacted` 包装器，telemetry 埋点、审计事件与 `CacheEvent` 的键默认脱敏（键文本命中敏感词表时整键掩码；标识符形态的段——邮箱、纯数字 ID、UUID、长十六进制摘要——掩码为 `<id>`；审计事件与缓存事件共用同一格式） |
 | 内存安全 | crate 根 `#![deny(unsafe_code)]` |
-| 值保护 | `encrypt`（XChaCha20-Poly1305，AAD 绑定键名）与 `integrity`（HMAC-SHA256）装饰器 |
+| 值保护 | `encrypt`（XChaCha20-Poly1305，AAD 绑定键名）与 `integrity`（HMAC-SHA256，标签绑定键名 + 值）装饰器 |
 | 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
 | 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
 
@@ -694,9 +692,9 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ## 📋 更新日志
 
-完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)。最近要点：
+完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)，未发布变更见 [CHANGELOG.md](CHANGELOG.md)。最近要点：
 
-- **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；审计事件 → inklog 结构化日志桥接（`inklog` 特性，`InklogAuditPublisher` 直连 `LogSink`，示例 `example_inklog_audit_bridge`）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
+- **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
 - **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
 - **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性
 - **0.5.0-rc.3**（2026-09-08）：熔断器状态转换竞态修复；Lua 注入校验与 Redis 密码脱敏加固；CI 供应链加固（58 处第三方 Action 引用 SHA 固定）

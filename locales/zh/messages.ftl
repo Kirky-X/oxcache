@@ -59,10 +59,12 @@ log-degradation-recovered = L2 降级已恢复
 log-confers-config-reload-rejected = confers 配置重载被拒；保留先前快照
 log-backend-bridge-shutdown-skipped = async→sync 桥接关闭已跳过：无法在 current_thread runtime 内嵌套阻塞驱动
 log-disk-sweep-failed = 磁盘缓存清扫失败
+log-disk-open-create-failed = 磁盘后端打开/创建失败
 log-audit-event = 缓存审计事件
 log-stale-hit-via-get-or = 经 get_or 返回 stale 命中（Return 降级；后台再验证请使用 get_or_refresh）
 log-stale-revalidation-scheduled = stale 命中；已调度后台再验证
 log-stale-hit-served = 已按 stale 命中返回
+log-invalidation-apply-failed = 跨实例失效事件未能应用到本地缓存
 log-pubsub-reconnect-failed = pubsub 重连失败
 log-pubsub-handler-panicked = pubsub 回调 panic，继续订阅
 log-pubsub-payload-parse-failed = pubsub 消息体解析失败
@@ -162,7 +164,7 @@ detail-config-backend-not-config-buildable = backend `{ $kind }` 无法经由 Ca
 detail-config-env-not-unicode = 环境变量 { $key } 的值不是有效的 Unicode：{ $raw }
 detail-config-env-invalid-bool = { $key } 的 bool 值无效：{ $raw }（应为 true/1/yes/on 或 false/0/no/off）
 detail-config-backend-invalid-value = { $key } 的值无效：{ $raw }（应为 moka/dashmap/redis/valkey/dragonfly/aerospike/chain/mock/disk 之一）
-detail-disk-open-create-failed = 磁盘后端打开失败（{ $open_err }）且创建失败（{ $create_err }）：{ $path }
+detail-disk-open-create-failed = 磁盘后端打开失败（{ $open_err }）且创建失败（{ $create_err }）
 detail-cache-memory-requires-feature = Cache::memory() 需要 `memory` feature；请改用 Cache::new_with_backend 构建。
 detail-not-supported-moka-sync-current-thread = Moka 同步面无法在 current-thread runtime 的异步上下文中驱动（tokio 禁止嵌套阻塞驱动）。请在 runtime 之外调用同步 API，或改用 multi_thread runtime（block_in_place 可自动处理）。
 detail-redis-unexpected-info-reply = INFO { $section } 应答类型异常
@@ -209,12 +211,8 @@ detail-key-generator-part-contains-segment-separator = json_hash_key 的 parts �
 bench-skip-service-unreachable = [bench-skip] 所需服务不可达：{ $services }；请按 bench 模块文档启动服务后重跑（例如 docker run -d -p 6379:6379 redis:7-alpine）
 
 # -- 示例二进制输出消息 --
-example-inklog-bridge-title = === inklog 审计日志桥接示例 ===
-example-inklog-bridge-observability = === 桥接可观测面 ===
-example-inklog-bridge-dropped = dropped（无 runtime 上下文丢弃）: { $count }
-example-inklog-bridge-write-failures = write_failures（sink 写失败）: { $count }
 example-redis-modes-feature-disabled = 当前编译未启用 redis feature，无演示内容。
-example-redis-modes-run-with-redis-feature = 完整运行：cargo run --features redis --example example_redis_modes
+example-redis-modes-run-with-redis-feature = 完整运行：cargo run -p oxcache-examples --features redis --example example_redis_modes
 example-redis-modes-run-with-examples-package = 或：cargo run -p oxcache-examples --example example_redis_modes
 example-redis-modes-standalone-connect-failed = ✗ Standalone 连接失败：{ $err }
 example-redis-modes-standalone-env-required = 需要运行中的 Redis（可用 REDIS_URL 覆盖，默认 redis://127.0.0.1:6379），跳过 Standalone/Builder 演示

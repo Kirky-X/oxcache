@@ -302,7 +302,14 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 宏通过 `service` 名从内部注册表查找 `Cache` 实例。若未注册，原函数照常执行（不缓存）。
 
-宏参数（`service` / `ttl` / `key` / `key_prefix` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
+宏参数（`service` / `ttl` / `key` / `key_prefix` / `scope` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`）的完整说明见 [API 参考](API_REFERENCE.md#-缓存宏)。
+
+带 `self` 接收者的方法（`&self` / `&mut self`）必须给出归属维度，否则编译期报错：
+
+- `scope = self.tenant_id`（推荐）：作用域表达式作为键的一段；
+- `key = "user_{self.tenant_id}_{id}"`：键模板引用参数或 `self` 字段路径。
+  常量模板（`key = "user_profile"`）在方法上编译期报错——它与 `self` 无关，
+  所有租户会共用同一条缓存条目。
 
 ### 手动控制缓存
 
@@ -462,7 +469,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 完整同步方法表与未启用 `sync_mode` 时的 `NotSupported` 行为见 [API 参考](API_REFERENCE.md#-同步-api)。
 
-审计行为：同步路径与异步路径同语义发布审计事件（`audit` 特性）；依赖 tokio runtime 的发布器（`inklog` 桥接）在 runtime 之外调用时逐条丢弃并计数（`dropped_count`），runtime 外场景应选运行时无关发布器。
+审计行为：同步路径与异步路径同语义发布审计事件（`audit` 特性）。
 
 ### 布隆过滤器
 

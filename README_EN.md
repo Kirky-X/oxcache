@@ -59,7 +59,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 <table style="width:100%; border-collapse: collapse">
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🚀 <b>Multi-tier caching</b><br><span style="color:#64748B">L1 (Moka / DashMap) and L2 (Redis / Valkey / Dragonfly / Aerospike) chained by score via <code>ChainCache</code>, with async backfill on non-top hits</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>Zero-boilerplate macro</b><br><span style="color:#64748B">One-line <code>#[cached]</code> integration supporting <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code> / <code>skip</code></span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">⚡ <b>Zero-boilerplate macro</b><br><span style="color:#64748B">One-line <code>#[cached]</code> integration supporting <code>service</code> / <code>ttl</code> / <code>key</code> / <code>key_prefix</code> / <code>scope</code> / <code>sync</code> / <code>single_flight</code> / <code>strict</code> / <code>condition</code> / <code>skip</code></span></td>
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🔄 <b>Sync API</b><br><span style="color:#64748B">With <code>sync_mode(true)</code>, <code>get_sync</code> / <code>set_sync</code> / <code>get_or_sync</code> coexist with the async API on the same <code>Cache&lt;K, V&gt;</code></span></td>
@@ -95,7 +95,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 - **Config-driven build** (`config-confers`): capacity / TTL / circuit params loaded via confers with `ConfigBus` watch hot-reload
 - **Auto-degradation** (`degradation`): Active / Degraded / HalfOpen state machine with automatic recovery on successful probes
 - **Audit event stream** (`audit`): structured hit / miss / set / delete / evict / expired events with key redaction
-- **Advanced macro args**: `single_flight` concurrent-miss dedup, `strict` panic on unregistered cache, `condition` predicate bypass, `skip` named params excluded from the default cache key
+- **Advanced macro args**: `single_flight` concurrent-miss dedup, `strict` panic on unregistered cache, `condition` predicate bypass, `skip` named params excluded from the default cache key, `scope` ownership dimension (required on methods with a `self` receiver)
 - **SWR tri-state expiry** (`stale`): expired entries may still serve stale values within the stale window via `Return` / `Revalidate` / `OffloadRevalidate` policies (`CacheBuilder::stale_ttl()` + `stale_policy()`; background refresh via `Cache::get_or_refresh()`)
 - **Background task subsystem** (`offload`): `OffloadManager` per-key dedup, concurrency cap, Cancel/Warn timeout policies
 - **Disk-persistent L3** (`disk`): `RedbDiskBackend` (embedded redb) survives restarts, auto-sweeps beyond `max_entries`, chains as L3
@@ -245,7 +245,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # true full: eve
 |------|-------------|:-------:|
 | `minimal` | Preset: `memory` + `metrics` + `serialization` + `chrono`, L1 only | ✅ |
 | `redis-tier` | Preset: `minimal` + `redis`, L1 + L2 (legacy `core` remains as a compat alias) | ❌ |
-| `full` | True full: `redis-tier` + every named capability feature (macros/compression/batch/Lua/locks/RedLock/three backends/bloom/kit/encrypt/integrity/inklog/config-confers etc.) | ❌ |
+| `full` | True full: `redis-tier` + every named capability feature (macros/compression/batch/Lua/locks/RedLock/three backends/bloom/kit/encrypt/integrity/config-confers etc.) | ❌ |
 | `memory` | L1 in-memory backends (Moka + DashMap) | ❌ |
 | `redis` | L2 distributed cache (Redis / Valkey, Standalone / Sentinel / Cluster) | ❌ |
 | `dragonfly` | Dragonfly backend (Redis protocol compatible) | ❌ |
@@ -268,7 +268,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # true full: eve
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | Config-driven build via confers + `ConfigBus` watch hot-reload | ❌ |
 | `degradation` | Auto-degradation and recovery (Active / Degraded / HalfOpen state machine) | ❌ |
-| `audit` | Structured audit event stream (NoOp / bounded in-memory ring / tracing / inklog structured-log publishers) | ❌ |
+| `audit` | Structured audit event stream (NoOp / bounded in-memory ring / tracing publishers) | ❌ |
 | `versioning` | Versioned CAS (in-memory + Redis WATCH/MULTI/EXEC implementations) | ❌ |
 | `trait-kit` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / shutdown / decorators); `kit` is a deprecated alias | ❌ |
 | `disk` | Disk-persistent L3 backend (embedded redb, lazy expiry + `max_entries` sweep, `Scores::REDB = 85`) | ❌ |
@@ -278,7 +278,6 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # true full: eve
 | `warmup` | Smart warm-up: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously (batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts) | ❌ |
 | `byte-weight` | Byte-weighted sync cache (`ByteWeightCache`, tokio-free direct `moka::sync`) | ❌ |
 | `pubsub` | Redis Pub/Sub broadcast component | ❌ |
-| `inklog` | Audit event → inklog structured-log bridging (`InklogAuditPublisher` wired to `LogSink`; requires `audit`) | ❌ |
 | `hotkey` | Hot-key sampling observability (`HotKeyTracker` sharded counting + snapshot decayed Top-K) | ❌ |
 
 </details>
@@ -312,7 +311,7 @@ oxcache = { version = "0.5.0-rc.10", features = ["full"] }      # true full: eve
 
 ## 💻 Examples
 
-The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **38 examples** (37 runnable with default features; `example_inklog_audit_bridge` is gated behind the `inklog-bridge` feature):
+The `examples/` directory (workspace member `oxcache-examples`, set as `publish = false`) contains **37 examples** (all runnable with default features):
 
 <details>
 <summary>📄 Code · bash</summary>
@@ -401,7 +400,6 @@ cd examples && ls src/*/*.rs
 | `example_events` | Event system (`CacheEvent` / `CacheEventType`) |
 | `example_cli_usage` | CLI scenarios (obtaining cache status and metrics from code) |
 | `example_kit_integration` | trait-kit AsyncKit integration (`OxcacheModule` / health check / lifecycle / three-phase shutdown / decorators) |
-| `example_inklog_audit_bridge` | Audit event → inklog structured-log bridging (`InklogAuditPublisher`, requires the `inklog-bridge` examples feature) |
 
 </details>
 
@@ -644,12 +642,12 @@ Oxcache ships multiple layers of defense inside the library.
 | Defense layer | Mechanism |
 |---------------|-----------|
 | Key validation | `validate_redis_key`: rejects empty keys, keys over 512 KB, and keys containing `\r` / `\n` / `\0`; scans for SQL-injection and path-traversal patterns |
-| Lua sandbox | `validate_lua_script`: 10 KB limit, 100-key limit, dangerous-command blacklist (`FLUSHALL` / `CONFIG` / `SHUTDOWN` etc.), comment and string preprocessing against bypass |
+| Lua sandbox | `validate_lua_script`: 10 KB limit, 100-key limit, dangerous commands judged by the **invoked command name** (`FLUSHALL` / `CONFIG` / `SHUTDOWN` etc.; whitespace and string-concat variants are equivalent), commands whose name is not statically determinable are rejected, comment and string preprocessing against bypass |
 | SCAN limits | `validate_scan_pattern` (256 chars, max 10 wildcards) + `clamp_scan_count` (clamped to 1-1000) |
 | TLS enforcement | `RedisBackend` requires `rediss://` by default unless the `OXCACHE_ALLOW_INSECURE_REDIS` development escape hatch is set explicitly |
-| Redaction | `redact_connection_string` / `redact_value` / `Redacted` wrapper; keys and credentials are redacted in logs and audit events by default |
+| Redaction | `redact_connection_string` / `redact_value` / `redact_cache_key` / `Redacted` wrapper; keys in telemetry spans, audit events and `CacheEvent` are redacted by default (whole key masked when the key text matches the sensitive-word list; identifier-shaped segments — e-mail, numeric IDs, UUIDs, long hex digests — masked as `<id>`; audit events and cache events share one format) |
 | Memory safety | Crate-root `#![deny(unsafe_code)]` |
-| Value protection | `encrypt` (XChaCha20-Poly1305 with the key bound as AAD) and `integrity` (HMAC-SHA256) decorators |
+| Value protection | `encrypt` (XChaCha20-Poly1305 with the key bound as AAD) and `integrity` (HMAC-SHA256 with the tag bound to key name + value) decorators |
 | Deserialization DoS guard | `MAX_JSON_DEPTH` (64 levels) depth limit + `MAX_JSON_SIZE` (5 MB) deserialization size cap + 64 MiB decompressed-output cap (decompression-bomb guard) + stack-based recursion (`serde_stacker`) |
 | Supply chain | Every third-party GitHub Action pinned by commit SHA in CI; `cargo deny check` (advisories / licenses / duplicate deps, see `deny.toml`) and `cargo audit` run in CI |
 
@@ -696,9 +694,9 @@ Pull Requests and Issues are welcome! Before contributing, please read the [Cont
 
 ## 📋 Changelog
 
-See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history. Recent highlights:
+See [CHANGELOG.md](docs/CHANGELOG.md) for the complete version history and [CHANGELOG.md](CHANGELOG.md) for unreleased changes. Recent highlights:
 
-- **0.5.0-rc.8** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); audit event → inklog structured-log bridging (`inklog` feature, `InklogAuditPublisher` wired to `LogSink`, example `example_inklog_audit_bridge`); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction; absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
+- **0.5.0-rc.8** (2026-10-05): smart warm-up (`warmup` feature: `WarmupLoader` port pulls the hot-key set and backfills `ChainCache` asynchronously — batch promotion + direct-supply backfill, controllable dedup/concurrency, explicit report counts); adaptive TTL (`adaptive-ttl`) and per-service metric dimension; unified configuration hub `CacheConfig` (programmatic / `OXCACHE_*` environment variables / confers sources sharing one validation) plus the `sync_backend_arc` / `AsyncToSyncBridge` first-class builder entries; hot-path allocation baseline and reduction; absorbed six hitbox capabilities (macro `skip` / SWR tri-state expiry / `offload` background tasks / `disk` persistent L3 / chain read strategies / default metrics); cache audit hardening (`hotkey` tracking, byte-capacity accounting, single-flight & penetration fixes); `BloomFilter` generics, `iter_entries` batch reads, invalidation write-path integration, degradation observability bridge; Valkey/Dragonfly container gating with STRICT fail-closed; governance recheck and review-archive fixes. This wave was originally numbered `0.5.0-rc.7` and was folded into the rc.6 number at release — the repository has no rc.7 version or tag; the `0.5.0-rc.7` number was published to crates.io on 2026-10-08 and yanked the same day, and its content ships with this wave (see the number note in the [CHANGELOG](docs/CHANGELOG.md)).
 - **0.5.0-rc.5** (2026-09-21): Redis Pub/Sub broadcast component; `ByteWeightCache` byte-weighted cache (`byte-weight` feature); audit events for sync paths; i18n overhaul; Lua block-comment bypass fix and log redaction hardening; CI/supply-chain hardening
 - **0.5.0-rc.4** (2026-09-10): advanced `#[cached]` macro args (`single_flight` / `strict` / `condition`); landed `telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` features; borrowed-key hot-path APIs (get -6.7%, set -12.7%); removed the empty `cli` feature
 - **0.5.0-rc.3** (2026-09-08): fixed circuit-breaker state-transition races; hardened Lua-injection validation and Redis password redaction; CI supply-chain hardening (58 third-party Action references pinned to SHAs)

@@ -5,6 +5,8 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 且本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+> 本文件记录已发布版本；未发布变更见仓库根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
 ## [0.5.0-rc.11] - 2026-10-21
 
 ### Added

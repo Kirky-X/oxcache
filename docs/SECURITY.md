@@ -62,10 +62,9 @@ MSRV 为 **Rust 1.97.1**（根 `Cargo.toml` 的 `[workspace.package] rust-versio
 
 ### 已知豁免（透明披露）
 
-`.cargo/audit.toml` 与 `deny.toml` 同口径记录以下两条 RustSec 豁免，均为**依赖树可达但不可利用/无升级路径**的形态：
+`.cargo/audit.toml` 与 `deny.toml` 同口径记录以下一条 RustSec 豁免，为**依赖树可达但不可利用/无升级路径**的形态：
 
 - `RUSTSEC-2025-0141`（bincode 被作者标记 unmaintained）：已升级至 2.0.1，仅在 `serde-bincode` 特性下用于本地缓存条目序列化，无网络输入面；出路为 `postcard`（已在依赖中）。
-- `RUSTSEC-2024-0449`（unsafe-libyaml unmaintained）：经测试依赖 `limiteron`/`inklog`/`confers` 的 `serde_yaml_ng` 传递入图；源头豁免与 `serde-saphyr` 迁移裁决在 `limiteron` 仓库跟踪。
 
 豁免不构成安全行为变更；依赖故障与降级语义见 [🏗️ 架构文档](ARCHITECTURE.md)。
 
