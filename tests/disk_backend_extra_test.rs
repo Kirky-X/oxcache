@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use oxcache::backend::disk::RedbDiskBackend;
-use oxcache::backend::{CacheConnector, CacheReader, CacheWriter};
+use oxcache::backend::{CacheBackend, CacheConnector, CacheReader, CacheSetItem, CacheWriter};
 use std::sync::Arc;
 
 fn temp_path(tag: &str) -> std::path::PathBuf {
@@ -87,9 +87,10 @@ async fn lazy_expiry_physically_removes_on_read() {
     assert!(CacheReader::get(&backend, "gone").await.unwrap().is_none());
 
     let stats = CacheReader::stats(&backend).await.unwrap();
+    // stats 只暴露文件名，绝对路径不进入对外统计
     assert_eq!(
         stats.get("path").map(String::as_str),
-        Some(path.to_str().unwrap())
+        path.file_name().map(|n| n.to_str().unwrap())
     );
     assert_eq!(stats.get("len").map(String::as_str), Some("0"));
     CacheConnector::shutdown(&backend).await;
@@ -126,6 +127,34 @@ async fn delete_expire_exists_len_surface() {
     assert!(CacheReader::get(&backend, "a").await.unwrap().is_none());
 
     CacheWriter::clear(&backend).await.unwrap();
+    assert_eq!(CacheReader::len(&backend).await.unwrap(), 0);
+    CacheConnector::shutdown(&backend).await;
+    let _ = std::fs::remove_file(&path);
+}
+
+/// 模式删除不受单次键枚举上限约束：条目数超过 `MAX_KEYS_RETURN` 时整段
+/// 失效不报错（枚举面在超限时一条都删不掉）。
+#[tokio::test]
+async fn pattern_delete_handles_more_than_enumeration_limit() {
+    let path = temp_path("pattern-limit");
+    let backend = RedbDiskBackend::create(&path).unwrap();
+    let total = oxcache::MAX_KEYS_RETURN + 1;
+    let items: Vec<CacheSetItem> = (0..total)
+        .map(|i| {
+            (
+                Arc::from(format!("ns:{i:06}").as_str()),
+                Arc::new(vec![1u8]),
+                None,
+            )
+        })
+        .collect();
+    CacheWriter::set_many(&backend, &items).await.unwrap();
+    assert_eq!(CacheReader::len(&backend).await.unwrap(), total as u64);
+
+    let deleted = CacheBackend::delete_by_pattern(&backend, "ns:*")
+        .await
+        .unwrap();
+    assert_eq!(deleted, total as u64, "every matched key must be deleted");
     assert_eq!(CacheReader::len(&backend).await.unwrap(), 0);
     CacheConnector::shutdown(&backend).await;
     let _ = std::fs::remove_file(&path);

@@ -5,7 +5,8 @@
 //! - 纯安全 Rust 引擎（redb，ACID + WAL），与 crate 根 `#![deny(unsafe_code)]` 一致
 //! - 无原生 TTL：value envelope 携带过期时间戳，读路径惰性判定 + 物理删除
 //!   （与 DashMap 后端同口径）；时间戳为 epoch 毫秒，跨进程重启语义正确
-//! - 写路径经 `spawn_blocking` 提交，避免 fsync 阻塞异步执行器；读为 mmap 直接返回
+//! - 写路径与全表扫描（`keys` / 模式计数 / 模式删除）经 `spawn_blocking`
+//!   提交，避免阻塞异步执行器；点查为 mmap 直接返回
 //! - `max_entries` 超限清扫：先删过期条目，仍超限按 seq 升序删最旧（清扫每
 //!   `max(1, max_entries/10)` 次 set 至多触发一次，fire-and-forget 不阻塞写返回）
 //! - `Database` 为 Clone（内含 Arc），克隆共享同一存储
@@ -17,6 +18,7 @@
 //! ```
 
 use std::collections::HashMap;
+use std::ops::Bound;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -25,8 +27,11 @@ use async_trait::async_trait;
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 
 use crate::backend::BackendKind;
-use crate::backend::interface::{CacheConnector, CacheReader, CacheSetItem, CacheWriter};
+use crate::backend::interface::{
+    CacheConnector, CachePatternOps, CacheReader, CacheSetItem, CacheWriter, keys_limit_exceeded,
+};
 use crate::backend::score::Scores;
+use crate::core::constants::MAX_KEYS_RETURN;
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "telemetry")]
 use crate::i18n::messages::MSG_LOG_DISK_SWEEP_FAILED;
@@ -36,6 +41,15 @@ use crate::i18n::messages::{
 };
 
 const CACHE_TABLE: TableDefinition<'static, &str, &[u8]> = TableDefinition::new("oxcache");
+
+/// 模式删除的单批键数：redb 的删除只能在写事务内进行，键需先收集后批量
+/// 删除；分批收集把内存占用压到单批量级。
+const PATTERN_DELETE_BATCH: usize = 512;
+
+/// 模式删除的扫描轮数上限（与 Redis 的 `PATTERN_SCAN_MAX_PASSES` 同口径）：
+/// 一轮 = 对全表的一次完整扫描，扫完再扫一轮以捡起并发写入的键；轮数上限
+/// 保证并发写入下删除必然返回（不保证穷尽）。
+const PATTERN_DELETE_MAX_PASSES: usize = 8;
 
 const ENV_HEADER_NO_EXPIRY: usize = 9; // seq(8) + flag(1)
 const ENV_HEADER_EXPIRY: usize = 17; // seq(8) + flag(1) + expires_at_ms(8)
@@ -268,6 +282,148 @@ fn map_err<E: std::fmt::Display>(e: E) -> OxCacheError {
     OxCacheError::DatabaseError(e.to_string())
 }
 
+/// 本轮扫描的边界：表中的最大键（扫描上界）与键数（访问预算）。
+///
+/// 两者取自本轮开始时的快照：并发写入的键既不计入访问预算，也可能落在
+/// 键序上界之下（扫描仍会经过它们，但不因此无限延长）。
+fn table_scan_bound(db: &Database) -> OxCacheResult<(Option<String>, u64)> {
+    let read_txn = db.begin_read().map_err(map_err)?;
+    let table = match read_txn.open_table(CACHE_TABLE) {
+        Ok(table) => table,
+        // 新库尚无任何写入：表不存在视为空
+        Err(redb::TableError::TableDoesNotExist(_)) => return Ok((None, 0)),
+        Err(e) => return Err(map_err(e)),
+    };
+    let bounds: (Bound<&str>, Bound<&str>) = (Bound::Unbounded, Bound::Unbounded);
+    let mut range = table.range::<&str>(bounds).map_err(map_err)?;
+    let max_key = match range.next_back() {
+        Some(Ok((k, _))) => Some(k.value().to_string()),
+        Some(Err(e)) => return Err(map_err(e)),
+        None => None,
+    };
+    let len = table.len().map_err(map_err)?;
+    Ok((max_key, len))
+}
+
+/// 收集一批匹配键（至多 `PATTERN_DELETE_BATCH` 个）、续扫游标与已访问键数。
+///
+/// 游标取本次扫描访问到的最后一个键（键序单调递增），下一批从它之后继续，
+/// 全表只需扫描一遍而非每批从头重扫。`from` 为 `None` 时从表头开始；
+/// `upper` 为本轮扫描的键序上界（到达即止）；`max_visits` 为本轮剩余的
+/// 访问预算，用尽即止（并发写入持续补键时靠它保证扫描收敛）。
+fn collect_pattern_batch(
+    db: &Database,
+    pattern: &str,
+    from: Option<&str>,
+    upper: Option<&str>,
+    max_visits: usize,
+) -> OxCacheResult<(Vec<String>, Option<String>, usize)> {
+    let read_txn = db.begin_read().map_err(map_err)?;
+    let table = match read_txn.open_table(CACHE_TABLE) {
+        Ok(table) => table,
+        // 新库尚无任何写入：表不存在视为空
+        Err(redb::TableError::TableDoesNotExist(_)) => return Ok((Vec::new(), None, 0)),
+        Err(e) => return Err(map_err(e)),
+    };
+    let now = now_epoch_ms();
+    let mut batch: Vec<String> = Vec::new();
+    let mut last_key: Option<String> = None;
+    let mut visited = 0usize;
+    let lower: Bound<&str> = match from {
+        Some(last) => Bound::Excluded(last),
+        None => Bound::Unbounded,
+    };
+    for item in table
+        .range::<&str>((lower, Bound::Unbounded))
+        .map_err(map_err)?
+    {
+        if visited >= max_visits {
+            break;
+        }
+        let (k, v) = item.map_err(map_err)?;
+        let key = k.value();
+        visited += 1;
+        last_key = Some(key.to_string());
+        if let Some((_, expiry, _)) = decode_value(v.value())
+            && !is_expired(expiry, now)
+            && crate::backend::interface::glob_match(pattern, key)
+        {
+            batch.push(key.to_string());
+            if batch.len() >= PATTERN_DELETE_BATCH {
+                break;
+            }
+        }
+        // 到达本轮键序上界：本轮扫描到此为止，之后写入的键留给下一轮
+        if let Some(max) = upper
+            && key >= max
+        {
+            break;
+        }
+    }
+    Ok((batch, last_key, visited))
+}
+
+/// 批量删除匹配键（单写事务），返回实际删除条数。
+///
+/// 键可能已被并发删除（懒过期物理删除 / 并发 delete），故以 `remove` 的
+/// 返回值为准，不按批长度计数。
+fn remove_pattern_keys(db: &Database, keys: &[String]) -> OxCacheResult<u64> {
+    let write_txn = db.begin_write().map_err(map_err)?;
+    let mut removed = 0u64;
+    {
+        let mut table = write_txn.open_table(CACHE_TABLE).map_err(map_err)?;
+        for k in keys {
+            if table.remove(k.as_str()).map_err(map_err)?.is_some() {
+                removed += 1;
+            }
+        }
+    }
+    write_txn.commit().map_err(map_err)?;
+    Ok(removed)
+}
+
+/// 模式删除（阻塞实现）：游标续扫 + 分批写事务删除。
+///
+/// 一轮 = 对全表的一次完整扫描（键序游标续扫，表只扫一遍）：本轮的访问
+/// 预算取自轮开始时的键数，扫描最多访问该数量的键，故并发写入持续补键
+/// 也拉不长本轮；轮内无删除即结束，轮数达 `PATTERN_DELETE_MAX_PASSES`
+/// 时提前返回，故并发写入下必然返回（不保证穷尽）。
+fn delete_by_pattern_blocking(db: &Database, pattern: &str) -> OxCacheResult<u64> {
+    let mut deleted = 0u64;
+    for _ in 0..PATTERN_DELETE_MAX_PASSES {
+        let (upper, key_count) = table_scan_bound(db)?;
+        let budget = key_count as usize;
+        let mut cursor: Option<String> = None;
+        let mut visited = 0usize;
+        let mut pass_deleted = 0u64;
+        loop {
+            if visited >= budget {
+                break;
+            }
+            let (batch, next_cursor, visits) = collect_pattern_batch(
+                db,
+                pattern,
+                cursor.as_deref(),
+                upper.as_deref(),
+                budget - visited,
+            )?;
+            visited += visits;
+            if batch.is_empty() {
+                break;
+            }
+            let removed = remove_pattern_keys(db, &batch)?;
+            pass_deleted += removed;
+            deleted += removed;
+            cursor = next_cursor;
+        }
+        // 本轮无删除：并发写入方未再补匹配键，提前结束
+        if pass_deleted == 0 {
+            break;
+        }
+    }
+    Ok(deleted)
+}
+
 #[async_trait]
 impl CacheReader for RedbDiskBackend {
     async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
@@ -326,7 +482,14 @@ impl CacheReader for RedbDiskBackend {
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
         stats.insert("backend".to_string(), "disk".to_string());
-        stats.insert("path".to_string(), self.path.display().to_string());
+        // 只暴露文件名：绝对路径会随 stats() 进入 health/metrics 响应体，
+        // 泄露部署目录布局。需要完整路径时用诊断接口 path()。
+        let file_name = self
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "disk".to_string());
+        stats.insert("path".to_string(), file_name);
         stats.insert("len".to_string(), self.len().await?.to_string());
         stats.insert(
             "max_entries".to_string(),
@@ -338,24 +501,83 @@ impl CacheReader for RedbDiskBackend {
     }
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
-        let read_txn = self.db.begin_read().map_err(map_err)?;
-        let table = match read_txn.open_table(CACHE_TABLE) {
-            Ok(table) => table,
-            Err(redb::TableError::TableDoesNotExist(_)) => return Ok(Vec::new()),
-            Err(e) => return Err(map_err(e)),
-        };
-        let now = now_epoch_ms();
-        let mut out = Vec::new();
-        for item in table.iter().map_err(map_err)? {
-            let (k, v) = item.map_err(map_err)?;
-            if let Some((_, expiry, _)) = decode_value(v.value())
-                && !is_expired(expiry, now)
-                && crate::backend::interface::glob_match(pattern, k.value())
-            {
-                out.push(k.value().to_string());
+        let db = self.db.clone();
+        let pattern = pattern.to_string();
+        // 全表扫描是 O(表大小) 的 CPU + 页错误开销，放进 spawn_blocking
+        // 以免占住异步执行器的 worker 线程
+        tokio::task::spawn_blocking(move || -> OxCacheResult<Vec<String>> {
+            let read_txn = db.begin_read().map_err(map_err)?;
+            let table = match read_txn.open_table(CACHE_TABLE) {
+                Ok(table) => table,
+                Err(redb::TableError::TableDoesNotExist(_)) => return Ok(Vec::new()),
+                Err(e) => return Err(map_err(e)),
+            };
+            let now = now_epoch_ms();
+            let mut out = Vec::new();
+            for item in table.iter().map_err(map_err)? {
+                let (k, v) = item.map_err(map_err)?;
+                if let Some((_, expiry, _)) = decode_value(v.value())
+                    && !is_expired(expiry, now)
+                    && crate::backend::interface::glob_match(&pattern, k.value())
+                {
+                    // 键空间可达百万级：一次性物化全部匹配键会打满调用方内存
+                    // 上限只计匹配键；恰好等于上限允许返回，超过才拒绝
+                    if out.len() >= MAX_KEYS_RETURN {
+                        return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
+                    }
+                    out.push(k.value().to_string());
+                }
             }
-        }
-        Ok(out)
+            Ok(out)
+        })
+        .await
+        .map_err(|e| OxCacheError::DatabaseError(e.to_string()))?
+    }
+}
+
+#[async_trait]
+impl CachePatternOps for RedbDiskBackend {
+    async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        let db = self.db.clone();
+        let pattern = pattern.to_string();
+        // 全表扫描是 O(表大小) 的 CPU + 页错误开销，放进 spawn_blocking
+        // 以免占住异步执行器的 worker 线程
+        tokio::task::spawn_blocking(move || -> OxCacheResult<u64> {
+            let read_txn = db.begin_read().map_err(map_err)?;
+            let table = match read_txn.open_table(CACHE_TABLE) {
+                Ok(table) => table,
+                Err(redb::TableError::TableDoesNotExist(_)) => return Ok(0),
+                Err(e) => return Err(map_err(e)),
+            };
+            let now = now_epoch_ms();
+            let mut count = 0u64;
+            for item in table.iter().map_err(map_err)? {
+                let (k, v) = item.map_err(map_err)?;
+                if let Some((_, expiry, _)) = decode_value(v.value())
+                    && !is_expired(expiry, now)
+                    && crate::backend::interface::glob_match(&pattern, k.value())
+                {
+                    count += 1;
+                }
+            }
+            Ok(count)
+        })
+        .await
+        .map_err(|e| OxCacheError::DatabaseError(e.to_string()))?
+    }
+
+    /// 按模式删除：键在 redb 中只能经写事务删除，故先收集匹配键再批量删除。
+    /// 收集与删除分批进行，内存占用与单批键数同阶而非全量键数。
+    ///
+    /// 扫描以键序游标续扫（每批从上一批末尾之后继续），一轮内全表只扫
+    /// 一遍；删除不保证覆盖并发新增键（同 Redis SCAN 的既有限次语义）：
+    /// 扫描轮数达 `PATTERN_DELETE_MAX_PASSES` 时提前返回已删除条数。
+    async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        let db = self.db.clone();
+        let pattern = pattern.to_string();
+        tokio::task::spawn_blocking(move || delete_by_pattern_blocking(&db, &pattern))
+            .await
+            .map_err(|e| OxCacheError::DatabaseError(e.to_string()))?
     }
 }
 
@@ -499,6 +721,10 @@ impl CacheConnector for RedbDiskBackend {
 
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Disk
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn CachePatternOps> {
+        Some(self)
     }
 }
 
@@ -824,5 +1050,202 @@ mod tests {
             Some(vec![42]),
             "disk hit must backfill into L1"
         );
+    }
+
+    // 模式级操作（计数 / 删除）
+
+    #[tokio::test]
+    async fn count_by_pattern_matches_subset() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        let items: Vec<CacheSetItem> = vec![
+            (k("user:1"), Arc::new(vec![1]), None),
+            (k("user:2"), Arc::new(vec![2]), None),
+            (k("order:1"), Arc::new(vec![3]), None),
+        ];
+        backend.set_many(&items).await.unwrap();
+        assert_eq!(backend.count_by_pattern("user:*").await.unwrap(), 2);
+        assert_eq!(backend.count_by_pattern("order:*").await.unwrap(), 1);
+        assert_eq!(backend.count_by_pattern("*").await.unwrap(), 3);
+        assert_eq!(backend.count_by_pattern("none:*").await.unwrap(), 0);
+    }
+
+    /// 过期键既不计入模式计数，也不被模式删除物理删除（惰性过期口径：
+    /// 读到才删）；删除返回条数只计实际删掉的非过期键。
+    #[tokio::test]
+    async fn count_and_delete_skip_expired() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        backend
+            .set(
+                k("user:exp"),
+                Arc::new(vec![1]),
+                Some(Duration::from_millis(50)),
+            )
+            .await
+            .unwrap();
+        backend
+            .set(k("user:live"), Arc::new(vec![2]), None)
+            .await
+            .unwrap();
+        // 等待到期但不读值：读会触发懒过期物理删除，改变被测语义
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while backend.ttl("user:exp").await.unwrap().is_some() && Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(
+            backend.ttl("user:exp").await.unwrap().is_none(),
+            "entry must be expired"
+        );
+        assert_eq!(backend.count_by_pattern("user:*").await.unwrap(), 1);
+        assert_eq!(backend.delete_by_pattern("user:*").await.unwrap(), 1);
+        // 过期键仍在表内（未被模式删除物理删除），非过期键已删
+        assert_eq!(backend.len().await.unwrap(), 1);
+        assert!(backend.get("user:live").await.unwrap().is_none());
+    }
+
+    /// 删除条数 = 实际被删的键数：匹配键全消失、非匹配键保留，重复删除
+    /// 返回 0（键已不存在不重复计入）。
+    #[tokio::test]
+    async fn delete_by_pattern_returns_actual_count() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        let items: Vec<CacheSetItem> = vec![
+            (k("user:1"), Arc::new(vec![1]), None),
+            (k("user:2"), Arc::new(vec![2]), None),
+            (k("order:1"), Arc::new(vec![3]), None),
+        ];
+        backend.set_many(&items).await.unwrap();
+        assert_eq!(backend.delete_by_pattern("user:*").await.unwrap(), 2);
+        assert_eq!(
+            backend.len().await.unwrap(),
+            1,
+            "only matched keys must be removed"
+        );
+        assert_eq!(backend.get("order:1").await.unwrap(), Some(vec![3]));
+        assert_eq!(
+            backend.delete_by_pattern("user:*").await.unwrap(),
+            0,
+            "already deleted keys must not be counted again"
+        );
+    }
+
+    /// 匹配键超过单批上限时，游标续扫须跨批删净全部命中键（游标跳过或
+    /// 重扫都会让返回条数对不上）。
+    #[tokio::test]
+    async fn delete_by_pattern_deletes_across_batches() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        let total = PATTERN_DELETE_BATCH + 88;
+        let items: Vec<CacheSetItem> = (0..total)
+            .map(|i| (k(&format!("user:{i:06}")), Arc::new(vec![1]), None))
+            .collect();
+        backend.set_many(&items).await.unwrap();
+        assert_eq!(
+            backend.delete_by_pattern("user:*").await.unwrap(),
+            total as u64,
+            "every matched key must be deleted across batches"
+        );
+        assert_eq!(backend.len().await.unwrap(), 0);
+    }
+
+    /// 删除计数以 `remove` 的返回值为准：键不存在时实际删除数为 0（按批
+    /// 长度盲计会把已被并发删除的键计入返回值）。
+    #[tokio::test]
+    async fn remove_pattern_keys_counts_actual_removals() {
+        let (_dir, backend) = temp_db();
+        assert_eq!(
+            remove_pattern_keys(&backend.db, &["ghost".to_string()]).unwrap(),
+            0,
+            "a missing key must not be counted as deleted"
+        );
+        backend
+            .set(k("live"), Arc::new(vec![1]), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            remove_pattern_keys(&backend.db, &["live".to_string()]).unwrap(),
+            1,
+            "an existing key must be counted once"
+        );
+        assert_eq!(
+            remove_pattern_keys(&backend.db, &["live".to_string()]).unwrap(),
+            0,
+            "a key removed earlier must not be counted again"
+        );
+    }
+
+    /// 键枚举上限：恰好等于上限允许返回，超过才报错。
+    #[tokio::test]
+    async fn keys_over_limit_errors() {
+        let (_dir, over) = temp_db();
+        let items: Vec<CacheSetItem> = (0..=MAX_KEYS_RETURN)
+            .map(|i| (k(&format!("k:{i:06}")), Arc::new(vec![1]), None))
+            .collect();
+        over.set_many(&items).await.unwrap();
+        let err = over.keys("*").await.unwrap_err();
+        assert!(
+            err.to_string().contains(&MAX_KEYS_RETURN.to_string()),
+            "error must mention the limit, got {err}"
+        );
+
+        let (_dir, exact) = temp_db();
+        let items: Vec<CacheSetItem> = (0..MAX_KEYS_RETURN)
+            .map(|i| (k(&format!("k:{i:06}")), Arc::new(vec![1]), None))
+            .collect();
+        exact.set_many(&items).await.unwrap();
+        assert_eq!(exact.keys("*").await.unwrap().len(), MAX_KEYS_RETURN);
+    }
+
+    /// 并发写入下模式删除必须收敛：删除不保证穷尽，但必须在有限时间内返回。
+    ///
+    /// 旧实现每轮从头重扫并以「本轮无命中」为退出条件；redb 单写者串行化，
+    /// 多个写入方的提交落在删除方的读快照之后，下一轮必然还有命中，循环
+    /// 永不退出（占用 blocking 线程，该 future 永不 resolve）。
+    #[tokio::test]
+    async fn delete_by_pattern_terminates_under_concurrent_writes() {
+        use crate::backend::CacheBackend;
+        use std::sync::atomic::AtomicBool;
+
+        let (_dir, backend) = temp_db();
+        // 种子键：保证删除方无论并发写入时序如何都有命中
+        backend
+            .set(k("user:seed"), Arc::new(vec![0]), None)
+            .await
+            .unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let writers: Vec<_> = (0..4)
+            .map(|w| {
+                let backend = backend.clone();
+                let stop = stop.clone();
+                tokio::spawn(async move {
+                    let mut n = 0u64;
+                    while !stop.load(Ordering::Relaxed) {
+                        let _ = backend
+                            .set(
+                                Arc::from(format!("user:{w}-{n:08}").as_str()),
+                                Arc::new(vec![1]),
+                                None,
+                            )
+                            .await;
+                        n += 1;
+                    }
+                })
+            })
+            .collect();
+        let deleted =
+            tokio::time::timeout(Duration::from_secs(10), backend.delete_by_pattern("user:*"))
+                .await
+                .expect("pattern delete must return under concurrent writes")
+                .unwrap();
+        stop.store(true, Ordering::Relaxed);
+        for w in writers {
+            let _ = w.await;
+        }
+        assert!(deleted > 0, "concurrent writer's keys must be deleted");
     }
 }
