@@ -16,3 +16,6 @@ mod advanced_params_test;
 
 #[path = "macros/skip_cache_none_test.rs"]
 mod skip_cache_none_test;
+
+#[path = "macros/key_template_test.rs"]
+mod key_template_test;

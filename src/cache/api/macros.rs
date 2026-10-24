@@ -39,6 +39,12 @@ impl Cache<String, Vec<u8>> {
         // defaults, which would silently downgrade the registered clone.
         cache.set_null_cache_ttl(self.null_cache_ttl);
         cache.set_ttl_jitter_factor(self.ttl_jitter_factor);
+        // 审计发布器同样必须转发：new_with_backend 置 audit=None，
+        // 不转发会让宏路径的读写完全不产生审计事件。
+        #[cfg(feature = "audit")]
+        if let Some(publisher) = &self.audit {
+            cache.set_audit_publisher(publisher.clone());
+        }
         __internal_register_cache(service_name, Arc::new(cache));
         Ok(())
     }

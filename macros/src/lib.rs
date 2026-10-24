@@ -8,9 +8,159 @@ use syn::{
     Expr, ItemFn, Lit, Meta, Token, parse::Parser, punctuated::Punctuated, spanned::Spanned,
 };
 
+/// 为函数启用缓存装饰。
+///
+/// # 缓存键
+///
+/// 默认键为 `service:fn_name:<实参摘要>`：实参以 `Debug` 串参与 sha256
+/// 摘要，**明文实参不进入键**（实参常含口令 / 会话令牌，明文进入持久化
+/// 键空间即等于凭据落盘）。`skip(param)` 的参数不参与摘要。
+///
+/// 显式 `key = "..."` 模板时按键模板生成：占位符可引用函数参数、
+/// `self` 或 `self.<字段路径>`（如 `key = "user_{id}"`、
+/// `key = "user_{self.tenant_id}"`），占位符值按段分隔符转义后入键。
+///
+/// # 作用域（租户 / 用户维度）
+///
+/// 方法（带 `self` 接收者）的默认键不含任何归属维度，不同租户会共享
+/// 同一条缓存条目。因此带 `self` 的函数**必须**给出作用域：
+///
+/// - `scope = <expr>`：任意表达式，在函数体内求值并作为键的一段
+///   （方法可用 `scope = self.tenant_id`）；或
+/// - `key = "..."`：显式键模板，且模板必须引用归属维度（占位符指向
+///   参数或 `self` 字段路径）。
+///
+/// 两者都缺失、或方法上的键模板是常量时，编译期报错，不做静默放行。
+///
+/// # 参数
+///
+/// - `service = "..."`：缓存服务名（默认 `"default"`）；
+/// - `ttl = N`：缓存 TTL 秒数；
+/// - `key = "..."`：显式键模板（占位符引用参数 / `self` 字段路径）；
+/// - `key_prefix = "..."`：键前缀（静态字面量，不承载作用域）；
+/// - `scope = <expr>`：作用域表达式（键的归属维度）；
+/// - `condition = path`：命中前的前置谓词；
+/// - `skip(param, ...)`：不参与键摘要的参数；
+/// - `sync`：生成同步版本（不可与 `async fn` 同用）；
+/// - `single_flight`：并发未命中去重；
+/// - `strict`：服务未注册时 panic；
+/// - `cache_none`：`Ok(None)` 也写回缓存；
+/// - `skip_cache_write`：只读缓存，不写回。
 #[proc_macro_attribute]
 pub fn cached(args: TokenStream, item: TokenStream) -> TokenStream {
     cached_impl(args.into(), item.into()).into()
+}
+
+/// 显式键模板的解析结果
+///
+/// 占位符按「参数名 / `self` / `self.<字段路径>`」解析，值在运行期经
+/// `oxcache::macro_support::escape_key_segment` 转义后按模板产出。
+struct KeyTemplate {
+    /// 重写后的模板：占位符统一改写为 `__oxcache_key_arg_N`
+    pattern: String,
+    /// 占位符绑定：(绑定名, 取值表达式)
+    bindings: Vec<(syn::Ident, proc_macro2::TokenStream)>,
+    /// 模板是否含占位符（常量模板不承载归属维度）
+    has_placeholder: bool,
+}
+
+/// 解析 `key = "..."` 模板中的占位符
+///
+/// 未闭合的 `{` 按字面保留；`{{` / `}}` 为花括号转义，原样透传。
+fn parse_key_template(pattern: &str, arg_names: &[&syn::Ident]) -> syn::Result<KeyTemplate> {
+    let span = proc_macro2::Span::call_site();
+    let mut out = String::with_capacity(pattern.len());
+    let mut bindings: Vec<(syn::Ident, proc_macro2::TokenStream)> = Vec::new();
+    let mut has_placeholder = false;
+    let mut rest = pattern;
+    while let Some(open) = rest.find('{') {
+        if rest[open..].starts_with("{{") {
+            out.push_str(&rest[..open]);
+            out.push('{');
+            rest = &rest[open + 2..];
+            continue;
+        }
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('}') else {
+            // 未闭合的 `{`：按字面保留
+            out.push_str(&rest[open..]);
+            return Ok(KeyTemplate {
+                pattern: out,
+                bindings,
+                has_placeholder,
+            });
+        };
+        let inner = &after[..close];
+        let (name, spec) = match inner.find(':') {
+            Some(idx) => (&inner[..idx], Some(&inner[idx + 1..])),
+            None => (inner, None),
+        };
+        let expr = resolve_key_placeholder(name, arg_names, span)?;
+        let ident = syn::Ident::new(&format!("__oxcache_key_arg_{}", bindings.len()), span);
+        let value = match spec {
+            // `?` 是 Debug 简写：取值用 Debug 形态，转义后按普通占位符产出
+            Some("?") => quote! { ::std::format!("{:?}", #expr) },
+            _ => quote! { ::std::format!("{}", #expr) },
+        };
+        bindings.push((ident.clone(), value));
+        has_placeholder = true;
+        out.push('{');
+        out.push_str(&ident.to_string());
+        if let Some(spec) = spec
+            && spec != "?"
+        {
+            out.push(':');
+            out.push_str(spec);
+        }
+        out.push('}');
+        rest = &after[close + 1..];
+    }
+    out.push_str(rest);
+    Ok(KeyTemplate {
+        pattern: out,
+        bindings,
+        has_placeholder,
+    })
+}
+
+/// 解析占位符名：函数参数 / `self` / `self.<字段路径>`
+fn resolve_key_placeholder(
+    name: &str,
+    arg_names: &[&syn::Ident],
+    span: proc_macro2::Span,
+) -> syn::Result<proc_macro2::TokenStream> {
+    if name == "self" {
+        return Ok(quote! { self });
+    }
+    if let Some(path) = name.strip_prefix("self.") {
+        let mut expr = quote! { self };
+        for segment in path.split('.') {
+            if segment.is_empty()
+                || !segment.chars().all(|c| c.is_alphanumeric() || c == '_')
+                || segment.chars().next().is_some_and(|c| c.is_numeric())
+            {
+                return Err(syn::Error::new(
+                    span,
+                    format!(
+                        "`#[cached]` key template placeholder `{{{name}}}` is not a valid `self.<field>` path"
+                    ),
+                ));
+            }
+            let ident = syn::Ident::new(segment, span);
+            expr = quote! { #expr.#ident };
+        }
+        return Ok(expr);
+    }
+    if let Some(arg) = arg_names.iter().find(|arg| arg.to_string() == name) {
+        return Ok(quote! { #arg });
+    }
+    Err(syn::Error::new(
+        span,
+        format!(
+            "`#[cached]` key template placeholder `{{{name}}}` matches no parameter; use a parameter name, `self`, or a `self.<field>` path"
+        ),
+    ))
 }
 
 /// `cached` 的实现体（proc_macro2 输入输出）：与 proc-macro 入口分离，使
@@ -35,6 +185,7 @@ fn cached_impl(
     let mut ttl = quote! { None };
     let mut key_pattern = None;
     let mut key_prefix = None;
+    let mut scope_expr = None;
     let mut sync_mode = false;
     let mut skip_cache_write = false;
     // new parameters
@@ -198,6 +349,10 @@ fn cached_impl(
                             .to_compile_error()
                         }
                     }
+                } else if nv.path.is_ident("scope") {
+                    // scope = <expr>：任意表达式，在函数体内求值；
+                    // 方法可用 `scope = self.tenant_id` 承载租户 / 用户维度
+                    scope_expr = Some(nv.value);
                 } else {
                     // Rule 12: unknown NameValue argument — surface as
                     // compile_error instead of silent ignore.
@@ -209,7 +364,7 @@ fn cached_impl(
                     return syn::Error::new(
                         nv_span,
                         format!(
-                            "unknown `#[cached]` argument `{}`; supported: service, ttl, key, key_prefix, condition",
+                            "unknown `#[cached]` argument `{}`; supported: service, ttl, key, key_prefix, scope, condition",
                             unknown
                         ),
                     )
@@ -221,7 +376,7 @@ fn cached_impl(
             _ => {
                 return syn::Error::new(
                     arg_span,
-                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, skip(param, ...), service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", condition = path",
+                    "unsupported `#[cached]` argument; supported: sync, skip_cache_write, single_flight, strict, cache_none, skip(param, ...), service = \"...\", ttl = N, key = \"...\", key_prefix = \"...\", scope = expr, condition = path",
                 )
                 .to_compile_error()
             }
@@ -314,6 +469,7 @@ fn cached_impl(
     // compile_error! instead of silently skipping — a skipped parameter
     // would silently weaken cache key uniqueness.
     let mut arg_names: Vec<&syn::Ident> = Vec::new();
+    let mut receiver_span = None;
     for arg in fn_args.iter() {
         if let syn::FnArg::Typed(pat_type) = arg {
             match &*pat_type.pat {
@@ -327,7 +483,47 @@ fn cached_impl(
                 }
             }
         }
-        // FnArg::Receiver (self) is silently skipped — not part of cache key.
+        // FnArg::Receiver (self) 不参与键：归属维度必须由 scope / key 显式承载
+        if let syn::FnArg::Receiver(receiver) = arg {
+            receiver_span = Some(receiver.span());
+        }
+    }
+
+    // 带 self 接收者的函数：默认键不含任何归属维度，不同租户 / 用户会
+    // 共享同一条缓存条目（跨租户串号）。因此作用域必须显式给出：
+    // `scope = <expr>` 或显式 `key` 模板；缺失时编译期报错而非静默放行。
+    if let Some(span) = receiver_span
+        && scope_expr.is_none()
+        && key_pattern.is_none()
+    {
+        return syn::Error::new(
+            span,
+            "`#[cached]` on a method with a `self` receiver requires `scope = <expr>` (e.g. `scope = self.tenant_id`) or an explicit `key = \"...\"` template; the default key carries no ownership dimension and would be shared across tenants/users",
+        )
+        .to_compile_error();
+    }
+
+    // 显式键模板：占位符绑定到函数参数或 `self` 字段路径。模板值逐段
+    // 转义（与 KeyGenerator 同一口径），不同实参不别名到同一个键。
+    let key_template = match key_pattern.as_deref() {
+        Some(pattern) => match parse_key_template(pattern, &arg_names) {
+            Ok(template) => Some(template),
+            Err(err) => return err.to_compile_error(),
+        },
+        None => None,
+    };
+
+    // 带 self 接收者 + 常量键模板：模板逐字产出、与 self 无关，所有租户
+    // 共用同一条缓存条目（跨租户串号）。模板必须承载归属维度——引用参数
+    // 或 `self` 字段路径；否则编译期报错而非静默放行。
+    if let (Some(span), Some(template)) = (receiver_span, key_template.as_ref())
+        && !template.has_placeholder
+    {
+        return syn::Error::new(
+            span,
+            "`#[cached]` on a method with a `self` receiver requires the `key` template to reference the ownership dimension (e.g. `key = \"user_{self.tenant_id}\"`) or `scope = <expr>`; a constant template shares one cache entry across tenants/users",
+        )
+        .to_compile_error();
     }
 
     // Validate `skip` references (Rule 12): every skipped identifier must be
@@ -338,6 +534,14 @@ fn cached_impl(
         return syn::Error::new(
             proc_macro2::Span::call_site(),
             "`#[cached]` `skip` cannot be combined with `key`; an explicit key template already determines the cache key, remove one of them",
+        )
+        .to_compile_error();
+    }
+    // 同理：`scope` 与显式键模板互斥（模板已完全决定键）
+    if scope_expr.is_some() && key_pattern.is_some() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`#[cached]` `scope` cannot be combined with `key`; an explicit key template already determines the cache key, remove one of them",
         )
         .to_compile_error();
     }
@@ -374,30 +578,81 @@ fn cached_impl(
         })
         .collect();
 
-    // Generate key logic with cloned args
-    let key_gen_with_cloned_args = if let Some(pattern) = key_pattern {
-        // Custom format string pattern: "user_{id}"
+    // 默认键的实参段：摘要而非 Debug 明文。
+    // 实参常含口令 / 会话令牌，明文进入持久化键空间等于凭据落盘
+    // （KEYS/SCAN、快照、MONITOR 可见）。
+    let args_hash = if key_arg_names.is_empty() {
+        None
+    } else {
+        Some(quote! {
+            ::oxcache::macro_support::hash_key_args(&[&format!("{:?}", (#(#arg_names_cloned),*))])
+        })
+    };
+
+    // 作用域段：表达式在函数体内求值（方法可用 self.tenant_id）。
+    // 分隔符转义防作用域值伪造段边界（与 KeyGenerator 同一口径）
+    let scope_value = scope_expr.as_ref().map(|expr| {
         quote! {
-            format!(#pattern)
+            {
+                let __oxcache_scope = ::oxcache::macro_support::escape_key_segment(
+                    &::std::string::ToString::to_string(&(#expr)),
+                );
+                __oxcache_scope
+            }
+        }
+    });
+
+    // Generate key logic with cloned args
+    let key_gen_with_cloned_args = if let Some(template) = key_template.as_ref() {
+        // 显式键模板：占位符值经段转义后按模板产出
+        let pattern = syn::LitStr::new(&template.pattern, proc_macro2::Span::call_site());
+        let bindings = template.bindings.iter().map(|(ident, value)| {
+            quote! {
+                let #ident = ::oxcache::macro_support::escape_key_segment(&#value);
+            }
+        });
+        let args = template
+            .bindings
+            .iter()
+            .map(|(ident, _)| quote! { #ident = #ident });
+        quote! {
+            {
+                #(#bindings)*
+                ::std::format!(#pattern, #(#args),*)
+            }
         }
     } else if let Some(prefix) = key_prefix {
         // Use key_prefix with default generation
-        if key_arg_names.is_empty() {
-            quote! { format!("{}:{}:{}", #service_name, #prefix, stringify!(#fn_name)) }
-        } else {
-            quote! {
-                format!("{}:{}:{}:{:?}", #service_name, #prefix, stringify!(#fn_name), (#(#arg_names_cloned),*))
-            }
+        match (&scope_value, &args_hash) {
+            (Some(scope), Some(hash)) => quote! {
+                format!("{}:{}:{}:{}:{}", #service_name, #prefix, #scope, stringify!(#fn_name), #hash)
+            },
+            (Some(scope), None) => quote! {
+                format!("{}:{}:{}:{}", #service_name, #prefix, #scope, stringify!(#fn_name))
+            },
+            (None, Some(hash)) => quote! {
+                format!("{}:{}:{}:{}", #service_name, #prefix, stringify!(#fn_name), #hash)
+            },
+            (None, None) => quote! {
+                format!("{}:{}:{}", #service_name, #prefix, stringify!(#fn_name))
+            },
         }
     } else {
-        // Default key generation: service:fn_name:arg1:arg2... (skipped
-        // parameters excluded)
-        if key_arg_names.is_empty() {
-            quote! { format!("{}:{}", #service_name, stringify!(#fn_name)) }
-        } else {
-            quote! {
-                format!("{}:{}:{:?}", #service_name, stringify!(#fn_name), (#(#arg_names_cloned),*))
-            }
+        // Default key generation: service[:scope]:fn_name[:args-hash]
+        // (skipped parameters excluded)
+        match (&scope_value, &args_hash) {
+            (Some(scope), Some(hash)) => quote! {
+                format!("{}:{}:{}:{}", #service_name, #scope, stringify!(#fn_name), #hash)
+            },
+            (Some(scope), None) => quote! {
+                format!("{}:{}:{}", #service_name, #scope, stringify!(#fn_name))
+            },
+            (None, Some(hash)) => quote! {
+                format!("{}:{}:{}", #service_name, stringify!(#fn_name), #hash)
+            },
+            (None, None) => quote! {
+                format!("{}:{}", #service_name, stringify!(#fn_name))
+            },
         }
     };
 
@@ -765,20 +1020,92 @@ mod tests {
     }
 
     #[test]
-    fn receiver_parameter_is_skipped_from_key() {
+    fn receiver_parameter_requires_scope_or_key() {
+        // 带 self 接收者且无作用域 → 编译期报错（默认键不含归属维度）
         let expanded = expand("", "fn m(&self, k: u32) -> u32 { k }");
-        assert!(!expanded.contains("compile_error"), "{expanded}");
-        assert!(expanded.contains("get_bytes"), "{expanded}");
+        assert_compile_error(&expanded, "requires `scope = <expr>`");
     }
 
     #[test]
-    fn key_template_is_used_verbatim() {
+    fn receiver_with_scope_is_accepted() {
+        let expanded = expand("scope = self.tenant_id", "fn m(&self, k: u32) -> u32 { k }");
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(expanded.contains("get_bytes"), "{expanded}");
+        // 作用域表达式进入键
+        assert!(expanded.contains("self . tenant_id"), "{expanded}");
+    }
+
+    #[test]
+    fn receiver_with_explicit_key_is_accepted() {
+        let expanded = expand("key = \"{self:?}:{k}\"", "fn m(&self, k: u32) -> u32 { k }");
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+    }
+
+    #[test]
+    fn scope_conflicts_with_key_template() {
+        let expanded = expand(
+            "scope = self.tenant_id, key = \"{k}\"",
+            "fn m(&self, k: u32) -> u32 { k }",
+        );
+        assert_compile_error(&expanded, "`scope` cannot be combined with `key`");
+    }
+
+    /// 默认键的实参段必须是摘要，不得把 Debug 明文写进键
+    #[test]
+    fn default_key_hashes_arguments_instead_of_debug_text() {
+        let expanded = compact(&expand("", "fn f(a: u64, b: u64) -> u64 { a + b }"));
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(
+            expanded.contains("hash_key_args"),
+            "default key must hash arguments: {expanded}"
+        );
+        // 旧的明文键格式（把 Debug 串直接拼进键）不得再出现
+        assert!(
+            !expanded.contains("\"{}:{}:{:?}\"") && !expanded.contains("\"{}:{}:{}:{:?}\""),
+            "default key must not embed Debug-formatted arguments: {expanded}"
+        );
+    }
+
+    #[test]
+    fn key_template_binds_parameter_placeholder() {
         let expanded = compact(&expand(
             "key = \"user_{id}\"",
             "fn load(id: u64) -> String { String::new() }",
         ));
         assert!(!expanded.contains("compile_error"), "{expanded}");
-        assert!(expanded.contains("format!(\"user_{id}\")"), "{expanded}");
+        // 占位符改写为绑定名，绑定值经段转义后入键
+        assert!(expanded.contains("__oxcache_key_arg_0"), "{expanded}");
+        assert!(expanded.contains("escape_key_segment"), "{expanded}");
+    }
+
+    #[test]
+    fn key_template_binds_self_field_path() {
+        let expanded = compact(&expand(
+            "key = \"user_{self.tenant_id}\"",
+            "fn load(&self) -> String { String::new() }",
+        ));
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+        assert!(expanded.contains("self.tenant_id"), "{expanded}");
+    }
+
+    /// 常量键模板在方法上不承载归属维度：编译期报错（跨租户串号）
+    #[test]
+    fn constant_key_template_on_method_rejected() {
+        let expanded = expand("key = \"user_profile\"", "fn m(&self) -> u32 { 1 }");
+        assert_compile_error(&expanded, "reference the ownership dimension");
+    }
+
+    /// 常量键模板在自由函数上允许（无租户维度）
+    #[test]
+    fn constant_key_template_on_free_function_allowed() {
+        let expanded = expand("key = \"user_profile\"", "fn f() -> u32 { 1 }");
+        assert!(!expanded.contains("compile_error"), "{expanded}");
+    }
+
+    #[test]
+    fn unknown_key_placeholder_rejected() {
+        let expanded = expand("key = \"user_{nope}\"", "fn f(id: u64) -> u64 { id }");
+        assert_compile_error(&expanded, "matches no parameter");
     }
 
     #[test]

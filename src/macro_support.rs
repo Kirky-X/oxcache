@@ -35,6 +35,39 @@ pub fn shard_index(key: &str) -> usize {
     (hasher.finish() as usize) & (SF_SHARDS - 1)
 }
 
+/// 缓存键实参段摘要（sha256 十六进制）。
+///
+/// `#[cached]` 默认键用它取代实参的 Debug 明文：实参常含口令 / 会话令牌，
+/// 明文进入持久化键空间（KEYS/SCAN、快照、MONITOR 可见）等于凭据落盘。
+/// 各段以长度前缀接入摘要，`("ab", "c")` 与 `("a", "bc")` 不得同摘要。
+#[cfg(any(feature = "macros", feature = "integrity"))]
+pub fn hash_key_args(parts: &[&str]) -> String {
+    use sha2::Digest;
+    use std::fmt::Write as _;
+
+    let mut hasher = sha2::Sha256::new();
+    for part in parts {
+        hasher.update((part.len() as u64).to_le_bytes());
+        hasher.update(part.as_bytes());
+    }
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(digest.len() * 2);
+    for byte in digest.iter() {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+/// 缓存键段转义（与 [`KeyGenerator`](crate::KeyGenerator) 同一口径）
+///
+/// 结构字符 `:` 百分号编码为 `%3A`，转义标记 `%` 自身先行编码为 `%25`：
+/// 编码单射，不同实参不会别名到同一个键（`%3A` 这类字面量也无法
+/// 冒充转义结果）。`#[cached]` 宏的 `scope` 值与 `key` 模板占位符值
+/// 都经此函数转义。
+pub fn escape_key_segment(value: &str) -> String {
+    crate::utils::key_generator::escape_key_segment(value)
+}
+
 /// leader 侧 panic 安全守卫。
 ///
 /// `finish()`（幂等）：从分片注册表移除条目并向 flight 信号发送完成。
