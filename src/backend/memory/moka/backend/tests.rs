@@ -671,4 +671,35 @@ mod byte_budget_tests {
             "a 10-entry count budget should allow <= ~12 entries, got {count}"
         );
     }
+
+    /// 模式长度超限的入口（枚举 / 计数 / 删除）一律拒绝
+    #[tokio::test]
+    async fn pattern_ops_reject_overlong_pattern() {
+        use crate::backend::CacheBackend;
+
+        let backend = MokaMemoryBackend::new();
+        let overlong = "x".repeat(crate::security::MAX_GLOB_PATTERN_LENGTH + 1);
+
+        assert!(backend.keys(&overlong).await.is_err());
+        assert!(backend.count_by_pattern(&overlong).await.is_err());
+        assert!(backend.delete_by_pattern(&overlong).await.is_err());
+        // 静默枚举面（无错误通道）：非法模式返回空列表
+        assert!(backend.keys_matching(&overlong).await.is_empty());
+    }
+
+    /// 模式长度恰好等于上限时正常放行
+    #[tokio::test]
+    async fn pattern_at_limit_is_accepted() {
+        use crate::backend::CacheBackend;
+
+        let backend = MokaMemoryBackend::new();
+        backend
+            .set(Arc::from("user:1"), Arc::new(vec![1u8]), None)
+            .await
+            .unwrap();
+        let at_limit = "x".repeat(crate::security::MAX_GLOB_PATTERN_LENGTH);
+
+        assert_eq!(backend.count_by_pattern(&at_limit).await.unwrap(), 0);
+        assert_eq!(backend.try_keys_matching(&at_limit).await.unwrap().len(), 0);
+    }
 }

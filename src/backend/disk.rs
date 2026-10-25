@@ -501,6 +501,9 @@ impl CacheReader for RedbDiskBackend {
     }
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        // 模式长度上限：全表扫描逐键匹配，超长模式会把单次操作的开销放大到
+        // 与模式长度成正比（本地 glob 匹配逐键比较 + 逐键展开模式）
+        crate::security::validate_glob_pattern(pattern)?;
         let db = self.db.clone();
         let pattern = pattern.to_string();
         // 全表扫描是 O(表大小) 的 CPU + 页错误开销，放进 spawn_blocking
@@ -538,6 +541,7 @@ impl CacheReader for RedbDiskBackend {
 #[async_trait]
 impl CachePatternOps for RedbDiskBackend {
     async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let db = self.db.clone();
         let pattern = pattern.to_string();
         // 全表扫描是 O(表大小) 的 CPU + 页错误开销，放进 spawn_blocking
@@ -573,6 +577,7 @@ impl CachePatternOps for RedbDiskBackend {
     /// 一遍；删除不保证覆盖并发新增键（同 Redis SCAN 的既有限次语义）：
     /// 扫描轮数达 `PATTERN_DELETE_MAX_PASSES` 时提前返回已删除条数。
     async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let db = self.db.clone();
         let pattern = pattern.to_string();
         tokio::task::spawn_blocking(move || delete_by_pattern_blocking(&db, &pattern))
@@ -1069,6 +1074,43 @@ mod tests {
         assert_eq!(backend.count_by_pattern("order:*").await.unwrap(), 1);
         assert_eq!(backend.count_by_pattern("*").await.unwrap(), 3);
         assert_eq!(backend.count_by_pattern("none:*").await.unwrap(), 0);
+    }
+
+    /// 模式长度超限的三个入口（枚举 / 计数 / 删除）一律拒绝：本地 glob
+    /// 匹配逐键比较且逐键展开模式，超长模式会把单次全表扫描的开销放大到
+    /// 与模式长度成正比。
+    #[tokio::test]
+    async fn pattern_ops_reject_overlong_pattern() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        backend
+            .set(k("user:1"), Arc::new(vec![1]), None)
+            .await
+            .unwrap();
+        let overlong = "x".repeat(crate::security::MAX_GLOB_PATTERN_LENGTH + 1);
+
+        assert!(backend.keys(&overlong).await.is_err());
+        assert!(backend.count_by_pattern(&overlong).await.is_err());
+        assert!(backend.delete_by_pattern(&overlong).await.is_err());
+        // 拒绝发生在扫描前：数据未被触碰
+        assert_eq!(backend.count_by_pattern("user:*").await.unwrap(), 1);
+    }
+
+    /// 模式长度恰好等于上限时正常放行（边界口径：超限才拒）
+    #[tokio::test]
+    async fn pattern_at_limit_is_accepted() {
+        use crate::backend::CacheBackend;
+
+        let (_dir, backend) = temp_db();
+        backend
+            .set(k("user:1"), Arc::new(vec![1]), None)
+            .await
+            .unwrap();
+        let at_limit = "x".repeat(crate::security::MAX_GLOB_PATTERN_LENGTH);
+
+        assert_eq!(backend.count_by_pattern(&at_limit).await.unwrap(), 0);
+        assert_eq!(backend.keys(&at_limit).await.unwrap().len(), 0);
     }
 
     /// 过期键既不计入模式计数，也不被模式删除物理删除（惰性过期口径：

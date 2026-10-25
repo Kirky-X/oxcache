@@ -399,6 +399,10 @@ pub use crate::utils::KeyGenerator;
 #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
 pub use crate::core::constants::MAX_KEYS_RETURN;
 
+// glob 模式守卫：下游在把外部输入拼成模式前可先行校验
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+pub use crate::security::{MAX_GLOB_PATTERN_LENGTH, validate_glob_pattern};
+
 // Canonical JSON normalization exports (`serialization` feature)
 #[cfg(feature = "serialization")]
 pub use crate::utils::canonical::{canonical_json, canonical_json_string};

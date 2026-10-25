@@ -170,6 +170,7 @@ impl crate::backend::CacheReader for MockBackend {
     }
 
     async fn keys(&self, pattern: &str) -> crate::error::OxCacheResult<Vec<String>> {
+        crate::security::validate_glob_pattern(pattern)?;
         let now = Instant::now();
         let mut data = self.data.write().await;
 
@@ -274,6 +275,7 @@ impl crate::backend::CacheConnector for MockBackend {
 #[async_trait::async_trait]
 impl crate::backend::CachePatternOps for MockBackend {
     async fn pattern_count(&self, pattern: &str) -> crate::error::OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let now = Instant::now();
         let data = self.data.read().await;
         let mut count = 0u64;
@@ -286,6 +288,7 @@ impl crate::backend::CachePatternOps for MockBackend {
     }
 
     async fn pattern_delete(&self, pattern: &str) -> crate::error::OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut data = self.data.write().await;
         let matched: Vec<String> = data
             .keys()

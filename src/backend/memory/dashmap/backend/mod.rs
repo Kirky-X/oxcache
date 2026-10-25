@@ -316,6 +316,7 @@ impl CacheReader for DashMapMemoryBackend {
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
         // glob 匹配口径与 MokaMemoryBackend::keys_matching 一致
+        crate::security::validate_glob_pattern(pattern)?;
         let mut keys = Vec::new();
         for entry in self.cache.iter() {
             if crate::backend::interface::glob_match(pattern, entry.key()) {
@@ -428,6 +429,7 @@ impl CacheConnector for DashMapMemoryBackend {
 #[async_trait]
 impl CachePatternOps for DashMapMemoryBackend {
     async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut count = 0u64;
         for entry in self.cache.iter() {
             if crate::backend::interface::glob_match(pattern, entry.key()) {
@@ -440,6 +442,7 @@ impl CachePatternOps for DashMapMemoryBackend {
     /// 删除匹配键：经 `retain` 在分片级写锁内完成，避免迭代期间持锁删除
     /// 造成的自锁（DashMap 的 `iter` 持读锁，`remove` 需要写锁）。
     async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut deleted = 0u64;
         self.cache.retain(|key, _entry| {
             if crate::backend::interface::glob_match(pattern, key) {

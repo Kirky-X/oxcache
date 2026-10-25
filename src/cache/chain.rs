@@ -1007,6 +1007,8 @@ impl CacheReader for ChainCache {
     }
 
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        // 各链接后端各自校验模式；此处先行校验以给出单一明确的错误
+        crate::security::validate_glob_pattern(pattern)?;
         let mut seen = std::collections::HashSet::new();
         let mut result = Vec::new();
         for link in &self.links {
@@ -1154,6 +1156,7 @@ impl CacheConnector for ChainCache {
 #[async_trait]
 impl CachePatternOps for ChainCache {
     async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut total = 0u64;
         for link in &self.links {
             total += link.backend().count_by_pattern(pattern).await?;
@@ -1162,6 +1165,7 @@ impl CachePatternOps for ChainCache {
     }
 
     async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut deleted = 0u64;
         for link in &self.links {
             deleted += link.backend().delete_by_pattern(pattern).await?;

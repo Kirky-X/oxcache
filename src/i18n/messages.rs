@@ -245,6 +245,9 @@ pub const MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER: &str =
 pub const MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG: &str = "detail.redis.scan_pattern_too_long";
 pub const MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS: &str =
     "detail.redis.scan_pattern_too_many_wildcards";
+pub const MSG_DETAIL_PATTERN_TOO_LONG: &str = "detail.pattern.too_long";
+pub const MSG_DETAIL_INVALIDATION_NAMESPACE_TARGET_TOO_LONG: &str =
+    "detail.invalidation.namespace_target_too_long";
 pub const MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED: &str = "detail.pubsub.client_open_failed";
 pub const MSG_DETAIL_PUBSUB_CONNECTION_FAILED: &str = "detail.pubsub.connection_failed";
 pub const MSG_DETAIL_PUBSUB_PUBLISH_FAILED: &str = "detail.pubsub.publish_failed";
@@ -2140,6 +2143,8 @@ mod tests {
         MSG_DETAIL_REDIS_KEY_COMMAND_INJECTION_CHARACTER,
         MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_LONG,
         MSG_DETAIL_REDIS_SCAN_PATTERN_TOO_MANY_WILDCARDS,
+        MSG_DETAIL_PATTERN_TOO_LONG,
+        MSG_DETAIL_INVALIDATION_NAMESPACE_TARGET_TOO_LONG,
         MSG_DETAIL_PUBSUB_CLIENT_OPEN_FAILED,
         MSG_DETAIL_PUBSUB_CONNECTION_FAILED,
         MSG_DETAIL_PUBSUB_PUBLISH_FAILED,

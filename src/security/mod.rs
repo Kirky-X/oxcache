@@ -9,6 +9,7 @@
 //! - Redis 键验证 - 防止命令注入和协议污染
 //! - Lua 脚本验证 - 防止危险命令和阻塞脚本
 //! - SCAN 模式验证 - 防止恶意通配符导致性能问题
+//! - glob 模式验证 - 限制本地匹配模式长度，防止模式操作放大扫描开销
 //!
 //! # 注意
 //!
@@ -31,6 +32,10 @@ pub mod log;
 // 脱敏模块不依赖 redis：telemetry / stale / offload 等特性也需要键脱敏，
 // 与 redis 后端解耦才能在无 redis 的构建中生效
 pub mod redaction;
+// glob 模式守卫同样与 redis 解耦：本地 glob 匹配后端（内存 / 磁盘）共用，
+// 门控与 backend / cache 模块保持一致（无后端时不存在 glob 匹配面）
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+pub mod pattern;
 #[cfg(feature = "redis")]
 pub mod validation;
 
@@ -39,6 +44,8 @@ mod security_impl;
 // Re-exports for convenience (used by external tests via lib.rs re-exports)
 #[cfg(feature = "redis")]
 pub use log::{log_cache_key, sanitize_message};
+#[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
+pub use pattern::{MAX_GLOB_PATTERN_LENGTH, validate_glob_pattern};
 pub use redaction::{
     Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value,
 };

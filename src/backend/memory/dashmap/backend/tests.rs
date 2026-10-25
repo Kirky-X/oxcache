@@ -674,4 +674,17 @@ mod byte_budget_tests {
         SyncCacheWriter::delete(&backend, "sync-acc-k").unwrap();
         assert_eq!(backend.bytes_used.load(Ordering::Relaxed), 0);
     }
+
+    /// 模式长度超限的入口（枚举 / 计数 / 删除）一律拒绝
+    #[tokio::test]
+    async fn pattern_ops_reject_overlong_pattern() {
+        use crate::backend::CacheBackend;
+
+        let backend = DashMapMemoryBackend::new();
+        let overlong = "x".repeat(crate::security::MAX_GLOB_PATTERN_LENGTH + 1);
+
+        assert!(backend.keys(&overlong).await.is_err());
+        assert!(backend.count_by_pattern(&overlong).await.is_err());
+        assert!(backend.delete_by_pattern(&overlong).await.is_err());
+    }
 }

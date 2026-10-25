@@ -167,6 +167,7 @@ impl CacheReader for MokaMemoryBackend {
     async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
         // 多采一条用于判定是否超限：恰好 MAX_KEYS_RETURN 条匹配是允许的，
         // 超过才拒绝（与 redis / disk 后端的判定口径一致）
+        crate::security::validate_glob_pattern(pattern)?;
         let keys = self.collect_matching(pattern, MAX_KEYS_RETURN + 1).await;
         // 键空间可达百万级：一次性物化全部匹配键会打满调用方内存
         if keys.len() > MAX_KEYS_RETURN {
@@ -260,6 +261,7 @@ const PATTERN_DELETE_BATCH: usize = 512;
 #[async_trait]
 impl CachePatternOps for MokaMemoryBackend {
     async fn pattern_count(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut count = 0u64;
         for (key, _entry) in self.cache.iter() {
             if crate::backend::interface::glob_match(pattern, key.as_ref()) {
@@ -270,6 +272,7 @@ impl CachePatternOps for MokaMemoryBackend {
     }
 
     async fn pattern_delete(&self, pattern: &str) -> OxCacheResult<u64> {
+        crate::security::validate_glob_pattern(pattern)?;
         let mut deleted = 0u64;
         let mut batch: Vec<String> = Vec::new();
         for (key, _entry) in self.cache.iter() {
@@ -632,7 +635,14 @@ impl MokaMemoryBackend {
     /// 避免一次性物化全量键拖垮调用方内存。**截断是静默的**——本方法
     /// 不返回错误，无法告知调用方结果是否被截断；需要判定截断的调用方
     /// 改用 [`try_keys_matching`](Self::try_keys_matching)。
+    ///
+    /// 模式长度超限时返回空列表（本方法无错误通道，静默语义与截断一致）；
+    /// 需要区分「无匹配」与「模式非法」的调用方改用
+    /// [`try_keys_matching`](Self::try_keys_matching)。
     pub async fn keys_matching(&self, pattern: &str) -> Vec<String> {
+        if crate::security::validate_glob_pattern(pattern).is_err() {
+            return Vec::new();
+        }
         self.collect_matching(pattern, MAX_KEYS_RETURN).await
     }
 
@@ -640,8 +650,9 @@ impl MokaMemoryBackend {
     ///
     /// 与 [`keys_matching`](Self::keys_matching) 的差别：本方法在匹配键数
     /// 超过 [`MAX_KEYS_RETURN`] 时返回错误（恰好等于上限时正常返回），
-    /// 调用方据此判断结果是否完整。
+    /// 调用方据此判断结果是否完整。模式长度超限时同样返回错误。
     pub async fn try_keys_matching(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        crate::security::validate_glob_pattern(pattern)?;
         let keys = self.collect_matching(pattern, MAX_KEYS_RETURN + 1).await;
         if keys.len() > MAX_KEYS_RETURN {
             return Err(keys_limit_exceeded(MAX_KEYS_RETURN));
