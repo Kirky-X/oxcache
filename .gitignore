@@ -37,6 +37,7 @@ tarpaulin-report.html
 *.code-workspace
 *.sublime-*
 .nvimrc
+.wezterm.lua
 *.swp
 *.swo
 *~
