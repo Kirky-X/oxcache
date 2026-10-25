@@ -692,7 +692,7 @@ validate_scan_pattern("user:*").expect("无效的模式");
 
 ## 📋 更新日志
 
-完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)，未发布变更见 [CHANGELOG.md](CHANGELOG.md)。最近要点：
+完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)，未发布变更见 [UNRELEASED.md](docs/UNRELEASED.md)。最近要点：
 
 - **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
 - **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
