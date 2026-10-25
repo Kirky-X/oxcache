@@ -39,7 +39,7 @@ pub const NULL_SENTINEL: &[u8] = b"\x00OXNULL";
 
 /// 运行时默认 TTL 抖动因子（±10% 均匀抖动）。
 ///
-/// 审计 F06：0.0 意味着开箱无雪崩防护——同批写入的 key 同时过期。
+/// 0.0 意味着开箱无雪崩防护——同批写入的 key 同时过期。
 /// 默认开启后 `set_with_ttl` 的实际 TTL = `ttl * (1 ± 0.1)`；需要精确 TTL
 /// 的调用方可经 `CacheBuilder::ttl_jitter(0.0)` 显式关闭。
 ///

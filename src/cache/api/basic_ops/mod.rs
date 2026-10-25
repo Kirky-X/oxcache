@@ -352,7 +352,7 @@ where
     ///
     /// 与 [`Self::get_or`] 语义一致，区别仅在于 fallback 成功后经
     /// [`Self::set_with_ttl`] 写入（TTL 经 `apply_jitter` 抖动）。避免
-    /// `get_or` 主值永不过期（审计 F09：Redis 后端将产生永久键）。
+    /// `get_or` 主值永不过期（Redis 后端将产生永久键）。
     pub async fn get_or_with_ttl<F, Fut>(
         &self,
         key: &K,
@@ -496,7 +496,7 @@ where
         //
         // follower 侧 `subscribe()` 返回 owned Receiver，watch 的版本比对
         // 语义保证"leader 先完成、follower 后 changed()"仍立即返回——不存在
-        // `Notify::notify_waiters` 在注册与首次 poll 之间丢失唤醒的窗口（审计 F03）。
+        // `Notify::notify_waiters` 在注册与首次 poll 之间丢失唤醒的窗口。
         enum FlightReg {
             Leader(Arc<watch::Sender<()>>),
             Follower(watch::Receiver<()>),
@@ -564,7 +564,7 @@ where
     /// When `ttl_jitter_factor` is 0.0, returns the original TTL unchanged.
     /// Otherwise, returns `base_ttl * (1.0 + uniform(-factor, factor))`.
     ///
-    /// 随机源为静态原子状态 + `Instant` 单调纳秒混合的 xorshift（审计 F07）：
+    /// 随机源为静态原子状态 + `Instant` 单调纳秒混合的 xorshift：
     /// 弃用 SystemTime——NTP 回拨时其 seed 恒为 0，所有 key 同时取得最小 TTL，
     /// 反而制造相关性雪崩。单调时钟不可回拨，且无锁开销。
     pub(super) fn apply_jitter(&self, ttl: Duration) -> Duration {
@@ -604,7 +604,7 @@ where
     ///
     /// 与 [`Self::get_or_option`] 语义一致，区别在于：真实值经
     /// [`Self::set_with_ttl`] 写入（抖动），空值哨兵 TTL 同样过 `apply_jitter`
-    /// ——攻击突发产生的同批哨兵不会同时过期（审计 F09）。
+    /// ——攻击突发产生的同批哨兵不会同时过期。
     pub async fn get_or_option_with_ttl<F, Fut>(
         &self,
         key: &K,
@@ -636,7 +636,7 @@ where
         }
 
         // Check if this is a null sentinel hit (key exists but value is sentinel).
-        // 哨兵判定用 get + 字节比对而非 exists（审计 F02）：exists 无法区分
+        // 哨兵判定用 get + 字节比对而非 exists：exists 无法区分
         // 哨兵与真实值——get miss 后并发写入真实值会被 exists 误判为"哨兵有效"
         // 而返回 Ok(None)；get + 比对在竞态命中时直接返回真实值。
         let key_str = key.to_key_string();
@@ -652,7 +652,7 @@ where
         let shard_index = get_or_shard_index(&key_str);
 
         // Single-flight: register as leader or become follower.
-        // watch 订阅语义保证 follower 不丢失唤醒（审计 F03），锁不跨 await。
+        // watch 订阅语义保证 follower 不丢失唤醒，锁不跨 await。
         enum FlightReg {
             Leader(Arc<watch::Sender<()>>),
             Follower(watch::Receiver<()>),
@@ -682,7 +682,7 @@ where
                 if let Some(value) = self.get(key).await? {
                     return Ok(Some(value));
                 }
-                // Leader cached a null sentinel or fallback failed（get + 字节比对，审计 F02）
+                // Leader cached a null sentinel or fallback failed（get + 字节比对）
                 if self.null_cache_ttl.is_some()
                     && let Some(bytes) = self.backend.get(&key_str).await?
                     && bytes.as_slice() == NULL_SENTINEL
@@ -944,7 +944,7 @@ where
     /// Synchronously get-or-compute with a per-entry TTL for the cached value.
     ///
     /// 与 [`Self::get_or_sync`] 语义一致，缓存写入经 `apply_jitter` 抖动
-    /// （审计 F09：避免主值永不过期）。
+    /// （避免主值永不过期）。
     pub fn get_or_with_ttl_sync<F>(
         &self,
         key: &K,
@@ -1147,7 +1147,7 @@ where
 
         let key_str = key.to_key_string();
 
-        // Check null sentinel（get + 字节比对，审计 F02——exists 无法区分哨兵与真实值）
+        // Check null sentinel（get + 字节比对——exists 无法区分哨兵与真实值）
         if self.null_cache_ttl.is_some() {
             let backend = self.sync_backend()?;
             if let Some(bytes) = backend.get(&key_str)? {
@@ -1189,7 +1189,7 @@ where
             if let Some(value) = self.get_sync(key)? {
                 return Ok(Some(value));
             }
-            // Leader cached a null sentinel or fallback failed（get + 字节比对，审计 F02）
+            // Leader cached a null sentinel or fallback failed（get + 字节比对）
             if self.null_cache_ttl.is_some() {
                 let backend = self.sync_backend()?;
                 if let Some(bytes) = backend.get(&key_str)?

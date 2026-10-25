@@ -3,7 +3,7 @@
 //! 同步面三路对照基准：原生（`sync_backend_arc`）vs 桥接（`backend_arc` +
 //! `sync_mode`，`block_in_place` + `block_on`）vs async API 基线
 //!
-//! 量化 R8 解锁的桥接面的每操作开销（桥接税），并按 `worker_threads`
+//! 量化解锁的桥接面的每操作开销（桥接税），并按 `worker_threads`
 //! 1/4 两档体现桥接对 runtime worker 的侵蚀曲线——桥接在单 worker
 //! multi_thread runtime 上会把唯一 worker 转为阻塞线程，I/O 型后端有
 //! 挂起风险（见 `AsyncToSyncBridge` 文档），内存型后端仅表现吞吐衰减。

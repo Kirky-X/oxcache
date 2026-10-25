@@ -941,7 +941,7 @@ let json_text = export_json_format()?;
 计数器（L1/L2 命中/未命中、操作计数器）；标准 exposition 格式导出经
 `export_prometheus_standard()`。
 
-**per-service 维度（R9，默认关闭）**：builder 上显式 `.service_name("orders")`
+**per-service 维度（默认关闭）**：builder 上显式 `.service_name("orders")`
 后，该缓存的操作计数附加 `service` 标签——`export_prometheus_standard()`
 出现 `oxcache_service_operations_total{service="orders"}` 行，JSON 导出
 （`export_json_format` / `snapshot()`）出现 `service_operations` 段；标签
@@ -986,7 +986,7 @@ OTLP 导出如需要应由应用层处理）。`metrics` 特性引入 `serializa
 | `detailed` | `bool` | `true` | 是否采集明细维度（含直方图与耗时分布） |
 | `histogram_buckets` | `Vec<f64>` | `0.1, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000` | 直方图分桶边界（毫秒） |
 | `max_dynamic_metrics` | `usize` | 1000 | 动态指标名上限，超限不再新建序列 |
-| `max_service_labels` | `usize` | 64 | `service` 维度标签基数上限（R9）：超限的新归因丢弃并计入 `oxcache_service_labels_overflow_total`，防标签爆炸 |
+| `max_service_labels` | `usize` | 64 | `service` 维度标签基数上限：超限的新归因丢弃并计入 `oxcache_service_labels_overflow_total`，防标签爆炸 |
 | `retention_period` | `Option<Duration>` | `Some(3600 秒)` | **当前未被淘汰逻辑消费**（字段保留给快照生命周期管理，设定不产生行为） |
 
 ## ⚙️ 统一配置中枢（CacheConfig）
@@ -1031,7 +1031,7 @@ let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, Stri
 | `OXCACHE_CONNECTION_POOL_SIZE` | usize | `connection_pool_size` | `redis`/`dragonfly` 构建时消费（缺省 8） |
 | `OXCACHE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | u64 | `circuit_breaker_failure_threshold` | `redis` 构建时消费 |
 | `OXCACHE_CIRCUIT_BREAKER_RESET_TIMEOUT_MS` | u64（毫秒） | `circuit_breaker_reset_timeout` | `redis` 构建时消费 |
-| `OXCACHE_SERVICE_NAME` | 字符串 | `service_name` | metrics 构建时消费（R9 service 维度；空串显性拒绝） |
+| `OXCACHE_SERVICE_NAME` | 字符串 | `service_name` | metrics 构建时消费（service 维度；空串显性拒绝） |
 
 未设置的键回落底层构建器默认（零行为漂移）；解析失败与「键已设置但对应 feature
 未启用」均显性报错（附变量名与原始值），布尔值接受 `true/1/yes/on` 与

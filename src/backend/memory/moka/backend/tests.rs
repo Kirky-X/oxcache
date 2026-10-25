@@ -629,7 +629,7 @@ mod tests {
 mod byte_budget_tests {
     use super::*;
 
-    /// 审计 F10：字节预算下内存不得超卖（1MB 预算 × 10KB 值 → 上界 ~105 条）
+    /// 字节预算下内存不得超卖（1MB 预算 × 10KB 值 → 上界 ~105 条）
     #[tokio::test]
     async fn byte_budget_bounds_entry_count() {
         let backend = MokaMemoryBackend::builder()

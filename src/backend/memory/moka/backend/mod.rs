@@ -694,7 +694,7 @@ impl MokaMemoryBackendBuilder {
 
     /// Set the byte budget for the cache.
     ///
-    /// 审计 F10：条目数上限在大值场景下会内存超卖（单值上限 5MB × 10k 条目
+    /// 条目数上限在大值场景下会内存超卖（单值上限 5MB × 10k 条目
     /// 理论可达 50GB）。设置后 moka `max_capacity` 单位切换为字节（weigher 按
     /// value 字节长计权），条目数隐式受"每条至少 1 字节"约束；`capacity`
     /// 被忽略。未设置（默认）时行为与现状一致。
@@ -720,7 +720,7 @@ impl MokaMemoryBackendBuilder {
 
     /// Build the Moka backend
     pub fn build(self) -> MokaMemoryBackend {
-        // 字节预算优先（审计 F10）：weigher 按 value 字节长计权，容量单位切换为字节；
+        // 字节预算优先：weigher 按 value 字节长计权，容量单位切换为字节；
         // 未设置时按条目数（默认 10_000）
         let (capacity, weigher) = match self.max_capacity_bytes {
             Some(bytes) => (bytes, true),

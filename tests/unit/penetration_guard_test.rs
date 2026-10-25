@@ -308,7 +308,7 @@ async fn test_ttl_jitter_applied() {
 #[tokio::test]
 async fn test_ttl_jitter_zero_no_change() {
     // 显式关闭抖动（ttl_jitter(0.0)）— TTL should not be modified.
-    // 默认因子已是 0.1（审计 F06），默认行为见 test_ttl_jitter_default_on。
+    // 默认因子已是 0.1，默认行为见 test_ttl_jitter_default_on。
     let cache: Cache<String, String> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
 
     let base_ttl = Duration::from_secs(60);
@@ -332,7 +332,7 @@ async fn test_ttl_jitter_zero_no_change() {
 
 #[tokio::test]
 async fn test_ttl_jitter_default_on() {
-    // 审计 F06：默认因子 0.1 → 60s 的实际 TTL 落在 [54s, 66s)
+    // 默认因子 0.1 → 60s 的实际 TTL 落在 [54s, 66s)
     let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
 
     let base_ttl = Duration::from_secs(60);

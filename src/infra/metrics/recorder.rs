@@ -48,7 +48,7 @@ impl MetricsRecorder for NoOpMetricsRecorder {}
 #[derive(Clone, Debug)]
 pub struct UnifiedMetricsRecorder {
     metrics: UnifiedMetrics,
-    /// R9 service 维度：`Some` 时每次 op 记录附加 service 归因；
+    /// service 维度：`Some` 时每次 op 记录附加 service 归因；
     /// `None`（默认）= 维度关闭，行为与既有导出格式逐字节兼容
     service: Option<Arc<str>>,
 }
@@ -72,7 +72,7 @@ impl UnifiedMetricsRecorder {
 
     /// 适配到全局统一指标收集器并为所有 op 记录附加 service 标签
     ///
-    /// R9 service 维度的显式启用入口：标签基数受
+    /// service 维度的显式启用入口：标签基数受
     /// `MetricsConfig::max_service_labels` 上限约束，超出部分计入
     /// `oxcache_service_labels_overflow_total`。
     pub fn global_tagged(service: impl Into<Arc<str>>) -> Self {

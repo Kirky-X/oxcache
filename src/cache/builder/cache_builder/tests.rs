@@ -678,7 +678,7 @@ mod tests {
             crate::infra::convenience::reset();
         }
 
-        // R9 service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先
+        // service 维度：service_name 装配标签视图 / 默认关闭 / 显式优先
 
         #[tokio::test]
         #[serial_test::serial]
@@ -836,7 +836,7 @@ mod tests {
         }
     }
 
-    // R5 自适应 TTL：builder 接线端到端与互斥
+    // 自适应 TTL：builder 接线端到端与互斥
 
     #[cfg(all(feature = "adaptive-ttl", feature = "memory"))]
     mod adaptive_ttl_builder {

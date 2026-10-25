@@ -20,13 +20,18 @@ impl BloomFilter {
     /// `false_positive_rate` must be in `(0.0, 1.0)` and `capacity` must be
     /// greater than `0`.
     pub fn new(capacity: usize, false_positive_rate: f64) -> Self {
-        assert!(capacity > 0, "capacity must be greater than 0");
+        assert!(
+            capacity > 0,
+            "{}",
+            t(MSG_PANIC_BLOOM_CAPACITY_POSITIVE, &[])
+        );
         assert!(
             false_positive_rate > 0.0 && false_positive_rate < 1.0,
-            "false_positive_rate must be in (0.0, 1.0)"
+            "{}",
+            t(MSG_PANIC_BLOOM_FPR_RANGE, &[])
         );
         let bloom = Bloom::<str>::new_for_fp_rate(capacity, false_positive_rate)
-            .expect("failed to create bloom filter: random seed generation failed");
+            .unwrap_or_else(|e| panic!("{}: {e:?}", t(MSG_PANIC_BLOOM_SEED_FAILED, &[])));
         Self {
             state: Arc::new(RwLock::new(BloomState {
                 bloom,
@@ -40,10 +45,14 @@ impl BloomFilter {
     /// Rebuild the filter with `new_capacity`, preserving the configured
     /// false positive rate. All recorded keys are cleared.
     pub fn rebuild(&self, new_capacity: usize) {
-        assert!(new_capacity > 0, "new_capacity must be greater than 0");
+        assert!(
+            new_capacity > 0,
+            "{}",
+            t(MSG_PANIC_BLOOM_CAPACITY_POSITIVE, &[])
+        );
         let fpr = self.false_positive_rate();
         let new_bloom = Bloom::<str>::new_for_fp_rate(new_capacity, fpr)
-            .expect("failed to rebuild bloom filter: random seed generation failed");
+            .unwrap_or_else(|e| panic!("{}: {e:?}", t(MSG_PANIC_BLOOM_SEED_FAILED, &[])));
         let mut state = self.state.write().unwrap();
         state.bloom = new_bloom;
         state.capacity = new_capacity;

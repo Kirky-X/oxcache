@@ -164,7 +164,7 @@ async fn single_flight_deduplicates_concurrent_misses() {
     );
 }
 
-// single_flight panic recovery & sharding（审计 F04 回归）
+// single_flight panic recovery & sharding
 
 static SF_PANIC_CALLS: AtomicUsize = AtomicUsize::new(0);
 

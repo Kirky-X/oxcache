@@ -24,7 +24,7 @@ struct UnifiedMetricsInner {
     counters: AtomicCounters,
     /// Low-frequency dynamic metrics
     dynamic_metrics: DashMap<String, MetricValue>,
-    /// Per-service operation totals（R9 service 维度，显式记录才存在）
+    /// Per-service operation totals（service 维度，显式记录才存在）
     service_operation_counters: DashMap<String, AtomicU64>,
     /// 超出 `max_service_labels` 后被丢弃归因的操作次数
     service_label_overflow: AtomicU64,
@@ -137,7 +137,7 @@ pub struct MetricsConfig {
     pub histogram_buckets: Vec<f64>,
     /// Maximum number of dynamic metrics
     pub max_dynamic_metrics: usize,
-    /// service 维度标签基数上限（R9）：不同 service 名超过该数量后，新标签的
+    /// service 维度标签基数上限：不同 service 名超过该数量后，新标签的
     /// 归因被丢弃并计入 `oxcache_service_labels_overflow_total`，防标签爆炸
     pub max_service_labels: usize,
     /// Metrics retention period for time-based eviction of stale snapshots.
@@ -340,7 +340,7 @@ impl UnifiedMetrics {
             .or_insert(MetricValue::Counter(value));
     }
 
-    /// Record a cache operation attributed to a service label（R9 service 维度）
+    /// Record a cache operation attributed to a service label（service 维度）
     ///
     /// 原子总账与无标签路径完全一致；service 归因记入独立
     /// `service_operation_counters`（稳态为分片读锁 + `fetch_add`，写锁仅
@@ -408,7 +408,7 @@ impl UnifiedMetrics {
         out
     }
 
-    /// Snapshot of per-service operation counters（R9），sorted by name for
+    /// Snapshot of per-service operation counters, sorted by name for
     /// deterministic export output. Only contains services explicitly
     /// recorded via [`Self::record_operation_with_service`].
     pub fn service_operation_counters(&self) -> Vec<(String, u64)> {
@@ -601,7 +601,7 @@ impl UnifiedMetrics {
         // Clear dynamic metrics
         self.inner.dynamic_metrics.clear();
 
-        // Clear service dimension（R9）
+        // Clear service dimension
         self.inner.service_operation_counters.clear();
         self.inner
             .service_label_overflow
@@ -826,7 +826,7 @@ impl UnifiedMetrics {
             ));
         }
 
-        // Service-labeled operation counters (R9, sorted deterministically).
+        // Service-labeled operation counters (sorted deterministically).
         // 默认关闭：无显式 service 归因时本节整体缺席（导出与既有格式兼容）
         let service_counters = self.service_operation_counters();
         if !service_counters.is_empty() {
@@ -898,7 +898,7 @@ pub const OPERATION_LATENCY_HISTOGRAM: &str = "oxcache_operation_duration_second
 
 /// Escape a label value for the Prometheus text exposition format
 ///（`\\` → `\\\\`、`"` → `\"`、`\n` → `\n`）——标签值是自由表单字符串
-///（如 R9 service 名），不转义会静默破坏格式或伪造额外序列
+///（如 service 名），不转义会静默破坏格式或伪造额外序列
 pub(crate) fn escape_prometheus_label_value(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {
@@ -1005,7 +1005,7 @@ pub struct MetricsSnapshot {
     pub timestamp: u64,
     pub counters: CounterSnapshot,
     pub dynamic_metrics: std::collections::HashMap<String, MetricValue>,
-    /// Per-service operation totals（R9；无显式 service 归因时为空 map）
+    /// Per-service operation totals（无显式 service 归因时为空 map）
     #[serde(skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub service_operations: std::collections::HashMap<String, u64>,
 }
@@ -1609,7 +1609,7 @@ mod tests {
         assert_eq!(rates.overall_hit_rate, 0.0);
     }
 
-    // service 维度（R9）：显式记录才计数、双格式可见、基数上限
+    // service 维度：显式记录才计数、双格式可见、基数上限
 
     fn l1_hit() -> CacheOperation {
         CacheOperation {

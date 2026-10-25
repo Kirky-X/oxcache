@@ -77,7 +77,7 @@ pub struct DashMapMemoryBackend {
     capacity: usize,
     /// Default TTL for new entries
     default_ttl: Option<Duration>,
-    /// 字节预算上限（审计 F10：None = 不启用，条目数口径不变）
+    /// 字节预算上限（None = 不启用，条目数口径不变）
     max_capacity_bytes: Option<u64>,
     /// 当前字节占用近似值（Σ value.len()，最终一致）
     bytes_used: Arc<AtomicU64>,
@@ -92,7 +92,7 @@ impl DashMapMemoryBackend {
     /// FIFO 中的条目带 `seq`：若 key 已被重新 set（seq 不匹配）或已删除，
     /// 该队列条目视为陈旧直接跳过。过期条目同样可以被淘汰。
     ///
-    /// 触发条件（审计 F10）：条目数超 `capacity` **或**字节占用超
+    /// 触发条件：条目数超 `capacity` **或**字节占用超
     /// `max_capacity_bytes` 任一超标即持续淘汰，直到达标或达单次上限。
     fn evict_if_full(&self) {
         let batch = (self.capacity / EVICT_BATCH_RATIO).max(1);
@@ -356,7 +356,7 @@ impl CacheWriter for DashMapMemoryBackend {
         self.fifo.lock().unwrap().push_back((key, seq));
         self.bytes_used.fetch_add(value_len, Ordering::Relaxed);
 
-        // Evict if at entry capacity or over byte budget (审计 F10)
+        // Evict if at entry capacity or over byte budget
         if self.cache.len() > self.capacity
             || self
                 .max_capacity_bytes
@@ -586,7 +586,7 @@ impl crate::backend::interface::SyncCacheWriter for DashMapMemoryBackend {
         self.fifo.lock().unwrap().push_back((key, seq));
         self.bytes_used.fetch_add(value_len, Ordering::Relaxed);
 
-        // Evict if at entry capacity or over byte budget (审计 F10)
+        // Evict if at entry capacity or over byte budget
         if self.cache.len() > self.capacity
             || self
                 .max_capacity_bytes
@@ -690,7 +690,7 @@ impl DashMapBackendBuilder {
 
     /// Set the byte budget for the cache.
     ///
-    /// 审计 F10：条目数上限按条计不按字节，大值场景会内存超卖。设置后写入
+    /// 条目数上限按条计不按字节，大值场景会内存超卖。设置后写入
     /// 路径记账 Σvalue 字节数，条目数**或**字节任一超标即触发 FIFO 淘汰。
     /// 未设置（默认）时行为与现状一致。
     pub fn max_capacity_bytes(mut self, max_capacity_bytes: u64) -> Self {

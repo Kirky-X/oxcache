@@ -186,6 +186,7 @@ pub const MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED: &str =
 pub const MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED: &str = "detail.warmup.ttl_lookup_failed";
 pub const MSG_DETAIL_REDIS_TTL_MIN_MILLIS: &str = "detail.redis.ttl_min_millis";
 pub const MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX: &str = "detail.redis.ttl_exceeds_max";
+pub const MSG_DETAIL_REDIS_POOL_SIZE_ZERO: &str = "detail.redis.pool_size_zero";
 pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED: &str = "detail.redis.cluster_connect_failed";
 pub const MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT: &str = "detail.redis.cluster_connect_timeout";
 pub const MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN: &str =
@@ -234,6 +235,7 @@ pub const MSG_DETAIL_CONFIG_ENV_INVALID_BOOL: &str = "detail.config.env_invalid_
 pub const MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE: &str = "detail.config.backend_invalid_value";
 pub const MSG_DETAIL_DISK_OPEN_CREATE_FAILED: &str = "detail.disk.open_create_failed";
 pub const MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE: &str = "detail.cache.memory_requires_feature";
+pub const MSG_DETAIL_CACHE_L2_DEGRADED: &str = "detail.cache.l2_degraded";
 pub const MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD: &str =
     "detail.not_supported.moka_sync_current_thread";
 pub const MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY: &str = "detail.redis.unexpected_info_reply";
@@ -268,6 +270,8 @@ pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY: &str =
 pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY: &str =
     "detail.backend.layer_restriction_l2_and_l3_only";
 pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY: &str = "detail.backend.layer_restriction_any";
+pub const MSG_DETAIL_BACKEND_UNKNOWN_TYPE: &str = "detail.backend.unknown_type";
+pub const MSG_DETAIL_BACKEND_KEYS_LIMIT_EXCEEDED: &str = "detail.backend.keys_limit_exceeded";
 pub const MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH: &str = "detail.chain.get_many_length_mismatch";
 pub const MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED: &str =
     "detail.chain.parallel_freshest_all_failed";
@@ -291,6 +295,10 @@ pub const MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER: &str =
     "detail.chain.set_if_absent_no_atomic_writer";
 pub const MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR: &str =
     "detail.key_generator.part_contains_segment_separator";
+pub const MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY: &str = "detail.key_generator.key_empty";
+pub const MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG: &str = "detail.key_generator.key_too_long";
+pub const MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER: &str =
+    "detail.key_generator.key_invalid_character";
 
 // -- Example binary output messages --
 pub const MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED: &str = "example.redis_modes.feature_disabled";
@@ -2101,6 +2109,7 @@ mod tests {
         MSG_DETAIL_WARMUP_TTL_LOOKUP_FAILED,
         MSG_DETAIL_REDIS_TTL_MIN_MILLIS,
         MSG_DETAIL_REDIS_TTL_EXCEEDS_MAX,
+        MSG_DETAIL_REDIS_POOL_SIZE_ZERO,
         MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED,
         MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
         MSG_DETAIL_REDIS_KEY_SQL_INJECTION_PATTERN,
@@ -2136,6 +2145,7 @@ mod tests {
         MSG_DETAIL_CONFIG_BACKEND_INVALID_VALUE,
         MSG_DETAIL_DISK_OPEN_CREATE_FAILED,
         MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE,
+        MSG_DETAIL_CACHE_L2_DEGRADED,
         MSG_DETAIL_NOT_SUPPORTED_MOKA_SYNC_CURRENT_THREAD,
         MSG_DETAIL_REDIS_UNEXPECTED_INFO_REPLY,
         MSG_DETAIL_REDIS_KEY_CONTROL_CHARACTER,
@@ -2163,6 +2173,8 @@ mod tests {
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY,
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY,
+        MSG_DETAIL_BACKEND_UNKNOWN_TYPE,
+        MSG_DETAIL_BACKEND_KEYS_LIMIT_EXCEEDED,
         MSG_DETAIL_CHAIN_GET_MANY_LENGTH_MISMATCH,
         MSG_DETAIL_CHAIN_PARALLEL_FRESHEST_ALL_FAILED,
         MSG_DETAIL_CHAIN_ALL_BACKENDS_FAILED_READ,
@@ -2178,6 +2190,9 @@ mod tests {
         MSG_DETAIL_CHAIN_CAS_NO_ATOMIC_WRITER,
         MSG_DETAIL_CHAIN_SET_IF_ABSENT_NO_ATOMIC_WRITER,
         MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR,
+        MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY,
+        MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG,
+        MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER,
         MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,

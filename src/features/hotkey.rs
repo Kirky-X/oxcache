@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! 热 key 采样观测（审计 F11：库内此前无任何热 key 检测能力）。
+//! 热 key 采样观测（库内此前无任何热 key 检测能力）。
 //!
 //! [`HotKeyTracker`] 为**独立观测组件**，不接入读路径、不影响任何既有 API
 //! 的行为与性能；调用方可在 audit 事件流 / metrics 钩子 / 业务层调用

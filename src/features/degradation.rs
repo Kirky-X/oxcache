@@ -45,6 +45,7 @@
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_CACHE_L2_DEGRADED, t};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -295,9 +296,7 @@ impl DegradableBackend {
     }
 
     fn degraded_err() -> OxCacheError {
-        OxCacheError::Degraded(
-            "L2 degraded: serving L1-only until half-open probe succeeds".to_string(),
-        )
+        OxCacheError::Degraded(t(MSG_DETAIL_CACHE_L2_DEGRADED, &[]))
     }
 }
 

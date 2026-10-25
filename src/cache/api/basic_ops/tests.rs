@@ -504,7 +504,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_ttl_returns_remaining() {
-        // 断言精确 TTL 窗口：显式关闭默认抖动（审计 F06）
+        // 断言精确 TTL 窗口：显式关闭默认抖动
         let cache: Cache<String, String> = Cache::builder().ttl_jitter(0.0).build().await.unwrap();
         cache
             .set_with_ttl(
@@ -621,7 +621,7 @@ mod sync_tests {
         let moka = Arc::new(MokaMemoryBackend::new());
         let mut cache: Cache<String, String> = Cache::new_with_backend(moka.clone());
         cache.set_sync_backend(moka);
-        // 既有 sync 测试断言精确 TTL 窗口：显式关闭默认抖动（审计 F06）
+        // 既有 sync 测试断言精确 TTL 窗口：显式关闭默认抖动
         cache.set_ttl_jitter_factor(0.0);
         cache
     }
@@ -1008,7 +1008,7 @@ mod sentinel_race_tests {
         }
     }
 
-    /// 审计 F02 确定性回归：快速路径 get miss 后、哨兵判定前该 key 被并发写入
+    /// 确定性回归：快速路径 get miss 后、哨兵判定前该 key 被并发写入
     /// 真实值。旧 `exists()` 判定无法区分哨兵与真实值，会把真实值误判为
     /// "哨兵有效" 返回 Ok(None)；get + 字节比对必须返回 Ok(Some(真实值))。
     #[tokio::test]
@@ -1058,7 +1058,7 @@ mod jitter_tests {
         cache
     }
 
-    /// 审计 F07 验收：10000 次采样全部落在 [ttl*(1-f), ttl*(1+f)] 且分布非退化
+    /// 验收：10000 次采样全部落在 [ttl*(1-f), ttl*(1+f)] 且分布非退化
     #[test]
     fn jitter_samples_within_bounds_and_non_degenerate() {
         let cache = jitter_cache(0.1);
@@ -1099,7 +1099,7 @@ mod get_or_with_ttl_tests {
     use crate::backend::memory::MokaMemoryBackend;
     use std::sync::Arc as StdArc;
 
-    /// 审计 F09 验收：get_or_with_ttl 写入带 TTL（≤ 传入值，抖动上界）
+    /// 验收：get_or_with_ttl 写入带 TTL（≤ 传入值，抖动上界）
     #[tokio::test]
     async fn get_or_with_ttl_caches_with_ttl() {
         let cache: Cache<String, String> = Cache::builder().build().await.unwrap();
@@ -1208,7 +1208,7 @@ mod get_or_with_ttl_tests {
 mod default_jitter_tests {
     use super::*;
 
-    /// 审计 F06 验收：默认构建抖动 0.1 生效（±10%），显式 0.0 关闭后恒等
+    /// 验收：默认构建抖动 0.1 生效（±10%），显式 0.0 关闭后恒等
     #[tokio::test]
     async fn default_jitter_is_on_and_can_be_disabled() {
         // 默认构建：60s → [54s, 66s)

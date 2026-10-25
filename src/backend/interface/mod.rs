@@ -13,10 +13,10 @@ use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::MSG_LOG_BRIDGE_SHUTDOWN_SKIPPED;
 use crate::i18n::messages::{
     MSG_DETAIL_ASYNC_ATOMIC_CAS, MSG_DETAIL_ASYNC_ATOMIC_INCREMENT,
-    MSG_DETAIL_ASYNC_ATOMIC_SET_IF_ABSENT, MSG_DETAIL_SYNC_ATOMIC_CAS,
-    MSG_DETAIL_SYNC_ATOMIC_INCREMENT, MSG_DETAIL_SYNC_ATOMIC_SET_IF_ABSENT,
-    MSG_DETAIL_SYNC_REQUIRES_MULTI_THREAD, MSG_DETAIL_SYNC_REQUIRES_RUNTIME,
-    MSG_PANIC_BRIDGE_TEMP_RUNTIME, t,
+    MSG_DETAIL_ASYNC_ATOMIC_SET_IF_ABSENT, MSG_DETAIL_BACKEND_KEYS_LIMIT_EXCEEDED,
+    MSG_DETAIL_SYNC_ATOMIC_CAS, MSG_DETAIL_SYNC_ATOMIC_INCREMENT,
+    MSG_DETAIL_SYNC_ATOMIC_SET_IF_ABSENT, MSG_DETAIL_SYNC_REQUIRES_MULTI_THREAD,
+    MSG_DETAIL_SYNC_REQUIRES_RUNTIME, MSG_PANIC_BRIDGE_TEMP_RUNTIME, t,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -102,8 +102,9 @@ impl BackendKind {
 /// 更窄的模式，或以不受该上限约束的 [`CacheBackend::count_by_pattern`] /
 /// [`CacheBackend::delete_by_pattern`] 满足计数/删除需求。
 pub(crate) fn keys_limit_exceeded(limit: usize) -> OxCacheError {
-    OxCacheError::Operation(format!(
-        "Key enumeration exceeded the limit of {limit} matching keys; use a narrower pattern, or count_by_pattern/delete_by_pattern which are not subject to this limit"
+    OxCacheError::Operation(t(
+        MSG_DETAIL_BACKEND_KEYS_LIMIT_EXCEEDED,
+        &[("limit", limit.to_string())],
     ))
 }
 

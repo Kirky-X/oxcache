@@ -7,6 +7,10 @@ description = "Procedural macros for oxcache"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords = ["cache", "redis", "memory", "async", "performance"]
+categories = ["caching", "asynchronous", "database"]
 
 [lints]
 workspace = true
@@ -15,7 +19,7 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-# 精简 syn 特性，避免引入不必要的依赖；显式关闭 default
+# 精简 syn 特性；显式关闭 default
 syn = { version = "3.0", default-features = false, features = ["full", "parsing", "printing", "proc-macro"] }
 quote = { version = "1.0", default-features = false }
 proc-macro2 = { version = "1.0", default-features = false }

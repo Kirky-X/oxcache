@@ -34,7 +34,7 @@ pub mod offload;
 #[cfg(feature = "stale")]
 pub mod stale;
 
-/// 热 key 采样观测（审计 F11）：独立组件，不入读路径
+/// 热 key 采样观测：独立组件，不入读路径
 #[cfg(feature = "hotkey")]
 pub mod hotkey;
 

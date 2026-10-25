@@ -743,7 +743,7 @@ fn cached_impl(
 
     let sf_logic_async = if single_flight {
         quote! {
-            // Single-flight（审计 F03/F04 修复）：64 路分片 + watch flight 信号
+            // Single-flight：64 路分片 + watch flight 信号
             // + panic 守卫。follower 在分片锁内 subscribe（owned Receiver 可带出
             // 锁），watch 版本比对语义使 "leader 先完成、follower 后等待" 仍立即
             // 返回，不存在 Notify::notify_waiters 的丢失唤醒窗口。

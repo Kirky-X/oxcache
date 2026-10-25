@@ -9,7 +9,7 @@
 //! - [`NoOpAuditPublisher`]：默认实现，零开销；
 //! - [`InMemoryAuditPublisher`]：有界环形缓冲，测试/调试用；
 //! - [`TracingAuditPublisher`]（`telemetry` feature）：桥接到 `tracing`
-//!   结构化事件（供日志库等订阅端承接，M3 方向）。
+//!   结构化事件（供日志库等订阅端承接）。
 //!
 //! # Example
 //!

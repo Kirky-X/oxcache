@@ -58,7 +58,7 @@ async fn test_backfill_latency() {
     assert_eq!(res, Some(val));
 
     println!("Backfill latency: {:?}", duration);
-    // 验证延迟 < 5ms (NF2)
+    // 验证延迟 < 5ms
     if duration.as_millis() >= 5 {
         println!(
             "WARNING: Backfill latency {}ms exceeds 5ms target",

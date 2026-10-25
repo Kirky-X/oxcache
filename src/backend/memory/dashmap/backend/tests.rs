@@ -596,7 +596,7 @@ mod byte_budget_tests {
             .build()
     }
 
-    /// 审计 F10：字节预算下 16 × 8KB 写入 64KB 预算必须触发淘汰（≤ 10 条）
+    /// 字节预算下 16 × 8KB 写入 64KB 预算必须触发淘汰（≤ 10 条）
     #[tokio::test]
     async fn byte_budget_bounds_entry_count() {
         let backend = budget_backend(64 * 1024);

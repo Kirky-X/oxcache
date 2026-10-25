@@ -191,7 +191,7 @@ async fn test_bf_backend_clear_clears_both() {
     assert_eq!(CacheReader::get(&inner_ref, "k2").await.unwrap(), None);
 }
 
-// BloomFilterBackend sync API（TG14）
+// BloomFilterBackend sync API
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_bf_backend_sync_get_set_basic() {

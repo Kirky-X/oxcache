@@ -27,7 +27,7 @@ fn bench_recorder_overhead(c: &mut Criterion) {
 
     // 默认路径：全局 UnifiedMetricsRecorder（rc.6 起的默认行为）
     let default_cache = rt.block_on(async { Cache::builder().build().await.unwrap() });
-    // R9 service 维度：global_tagged 路径的逐操作标签归因税对照
+    // service 维度：global_tagged 路径的逐操作标签归因税对照
     let service_cache: Cache<String, String> = rt.block_on(async {
         Cache::builder()
             .service_name("bench_service")

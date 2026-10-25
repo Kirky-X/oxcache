@@ -56,8 +56,8 @@ pre-commit install
 
 项目使用以下工具进行代码质量审查：
 
-- **diting**：代码简化、架构优化、性能审查
-- **tiangang**：SAST 安全扫描（发布前必须 0 CRITICAL）
+- **代码质量审查**：代码简化、架构优化、性能审查
+- **SAST 安全扫描**：发布前必须 0 CRITICAL
 - **kueiku**：硬性 bug 分析与根因定位
 
 ## 📥 Pull Request 流程

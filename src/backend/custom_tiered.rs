@@ -48,7 +48,7 @@ use crate::core::CacheLayer as Layer;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY, MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
-    MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY, t,
+    MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY, MSG_DETAIL_BACKEND_UNKNOWN_TYPE, t,
 };
 
 /// 后端支持的层级限制
@@ -172,10 +172,9 @@ impl BackendType {
             ];
             available.push("custom:<name>");
 
-            Err(OxCacheError::InvalidInput(format!(
-                "Unknown backend type: '{}'. Available backends: {}",
-                s,
-                available.join(", ")
+            Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_BACKEND_UNKNOWN_TYPE,
+                &[("kind", s.to_string()), ("available", available.join(", "))],
             )))
         }
     }

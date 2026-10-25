@@ -545,7 +545,7 @@ mod prefill_tests {
     use super::*;
     use crate::backend::memory::DashMapMemoryBackend;
 
-    /// 审计 F01 验收：重启后（过滤器空、后端有数据）经 prefill_from_backend
+    /// 验收：重启后（过滤器空、后端有数据）经 prefill_from_backend
     /// 回灌，get 才能查到已有条目；未回灌的 key 假阴性短路返回 None。
     #[tokio::test]
     async fn prefill_from_backend_aligns_filter_with_inner() {

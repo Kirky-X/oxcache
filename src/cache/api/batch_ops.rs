@@ -25,8 +25,8 @@ where
         let mut batch_items = Vec::new();
         for (key, value) in items {
             let key_str = key.to_key_string();
-            // 经 UnifiedSerializer 序列化，与单条 set 同口径（审计 F13：
-            // 硬编码 JSON 会在二进制格式下与单条读写错配）
+            // 经 UnifiedSerializer 序列化，与单条 set 同口径
+            // （硬编码 JSON 会在二进制格式下与单条读写错配）
             let bytes = self.unified_serializer.serialize(value)?;
             batch_items.push((Arc::from(key_str), Arc::new(bytes), None));
         }
@@ -70,7 +70,7 @@ where
         let mut result = HashMap::with_capacity(values.len());
         for (key, value) in key_strings.into_iter().zip(values) {
             if let Some(bytes) = value {
-                // 经 UnifiedSerializer 反序列化，与单条 get 同口径（审计 F13）
+                // 经 UnifiedSerializer 反序列化，与单条 get 同口径
                 match self.unified_serializer.deserialize::<V>(&bytes) {
                     Ok(decoded) => {
                         result.insert(key, decoded);

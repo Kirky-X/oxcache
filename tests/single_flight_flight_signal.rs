@@ -7,7 +7,7 @@
 //!
 //! 钉住的核心行为：flight 完成信号具备**无丢失唤醒**语义——leader 的完成通知
 //! 先于 follower 订阅时，follower 仍必须立即醒来（旧 `Notify` + `notify_waiters`
-//! 实现下该场景为永久挂起，见审计 F03）。
+//! 实现下该场景为永久挂起）。
 
 use std::sync::Arc;
 use std::time::Duration;

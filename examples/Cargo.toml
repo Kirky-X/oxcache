@@ -16,25 +16,21 @@ publish = false
 workspace = true
 
 [dependencies]
-# Path dependency to the main oxcache project（full 已含 bloom/trait-kit，
-# 本包自有 redis/kit/bloom feature 仅作示例源码的 cfg 判定面）
-oxcache = { path = "..", version = "0.5.0-rc.10", default-features = false, features = [
-    "full",
-] }
+# full 已含 bloom/trait-kit；本包自有 redis/kit/bloom feature 仅作示例源码的 cfg 判定面
+oxcache = { version = "0.5.0-rc.10", path = "..", default-features = false, features = ["full"] }
 
 # 示例只用 tracing-subscriber；tracing facade 由 oxcache telemetry 持有
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 
-# Utilities needed by examples
-serde.workspace = true
-serde_json.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread"] }
 chrono = { workspace = true, features = ["serde"] }
-async-trait.workspace = true
+async-trait = { workspace = true }
 trait-kit = { version = "0.5.0-rc.10", default-features = false, features = ["async", "observer", "shutdown", "decorator"] }
 
 [dev-dependencies]
-criterion.workspace = true
+criterion = { workspace = true }
 
 [features]
 # 本包 default 仅作示例 cfg 判定面；实际能力由依赖行 features 固定

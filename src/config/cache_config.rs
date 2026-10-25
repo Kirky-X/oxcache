@@ -205,7 +205,7 @@ pub struct CacheConfig {
     pub circuit_breaker_failure_threshold: Option<u32>,
     /// 熔断器 Open → HalfOpen 恢复超时（当前由 Redis 后端构建消费）
     pub circuit_breaker_reset_timeout: Option<Duration>,
-    /// R9 service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
+    /// service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
     pub service_name: Option<String>,
 }
 
@@ -905,7 +905,7 @@ impl CacheConfigBuilder {
         self
     }
 
-    /// R9 service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
+    /// service 维度标签（空串在 validate 期显性拒绝；装配依赖 metrics feature）
     pub fn service_name(mut self, service: impl Into<String>) -> Self {
         self.config.service_name = Some(service.into());
         self

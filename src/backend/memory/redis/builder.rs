@@ -12,7 +12,8 @@ use crate::config::DistributedConfig;
 use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
-    MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED, MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT, t,
+    MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED, MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
+    MSG_DETAIL_REDIS_POOL_SIZE_ZERO, t,
 };
 use redis::Client;
 use std::sync::Arc;
@@ -210,9 +211,10 @@ impl RedisBackendBuilder {
     /// Build the Redis backend.
     pub async fn build(self) -> OxCacheResult<RedisBackend> {
         if self.pool_size == 0 {
-            return Err(OxCacheError::InvalidInput(
-                "Connection pool size must be at least 1".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_POOL_SIZE_ZERO,
+                &[],
+            )));
         }
 
         let mut connection_string = self.connection_string.ok_or_else(|| {

@@ -70,7 +70,7 @@ pub struct CacheBuilder<K, V> {
     /// Injected metrics recorder (metrics feature only).
     #[cfg(feature = "metrics")]
     metrics: Option<Arc<dyn crate::infra::MetricsRecorder>>,
-    /// R9 service 维度标签（metrics feature only）：设置后默认全局
+    /// service 维度标签（metrics feature only）：设置后默认全局
     /// recorder 换为 service 标签视图，op 计数带 `service` 维度；
     /// 默认 None = 维度关闭。显式 `.metrics()` 注入优先于本字段。
     #[cfg(feature = "metrics")]
@@ -91,7 +91,7 @@ pub struct CacheBuilder<K, V> {
     /// SWR stale 事件发布器（`stale` feature）。
     #[cfg(feature = "stale")]
     event_publisher: Option<Arc<dyn crate::core::events::EventPublisher>>,
-    /// 自适应 TTL 配置（R5，`adaptive-ttl` feature）。Some = 装饰器启用。
+    /// 自适应 TTL 配置（`adaptive-ttl` feature）。Some = 装饰器启用。
     #[cfg(feature = "adaptive-ttl")]
     adaptive_ttl: Option<crate::features::adaptive_ttl::AdaptiveTtlConfig>,
 }
@@ -284,7 +284,7 @@ where
         self
     }
 
-    /// R9 service 维度：为该缓存的操作计数附加 `service` 标签（显式启用）
+    /// service 维度：为该缓存的操作计数附加 `service` 标签（显式启用）
     ///
     /// 设置后默认全局 recorder 换为 service 标签视图
     /// （`UnifiedMetricsRecorder::global_tagged`）——JSON 导出出现
@@ -299,7 +299,7 @@ where
         self
     }
 
-    /// R5 自适应 TTL：按访问模式调整条目 TTL（hot 延长 / cold 缩短，
+    /// 自适应 TTL：按访问模式调整条目 TTL（hot 延长 / cold 缩短，
     /// 全部阈值显式见 [`AdaptiveTtlConfig`](crate::features::adaptive_ttl::AdaptiveTtlConfig)）。
     /// 与 `sync_mode(true)`、`stale_ttl` 互斥（构建期显性拒绝）。
     #[cfg(feature = "adaptive-ttl")]
@@ -380,7 +380,7 @@ where
     /// user-provided backend path are both fully synchronous, so this is
     /// equivalent to [`Self::build`] without an `async` boundary.
     pub fn build_sync(self) -> OxCacheResult<Cache<K, V>> {
-        // R9 service 维度显性化：空串会静默吞掉维度（record 层早退），
+        // service 维度显性化：空串会静默吞掉维度（record 层早退），
         // 构建期显性拒绝而非默认无维度
         #[cfg(feature = "metrics")]
         if self.service_name.as_deref() == Some("") {
@@ -424,7 +424,7 @@ where
                 #[cfg(feature = "metrics")]
                 {
                     // 显式 .metrics() 优先；service_name 装配默认全局 recorder
-                    // 的 service 标签视图（R9）
+                    // 的 service 标签视图
                     if let Some(recorder) = self.metrics {
                         cache.set_metrics_recorder(recorder);
                     } else if let Some(service) = self.service_name.clone() {
@@ -552,7 +552,7 @@ where
         #[cfg(feature = "metrics")]
         {
             // 显式 .metrics() 优先；service_name 装配默认全局 recorder
-            // 的 service 标签视图（R9）
+            // 的 service 标签视图
             if let Some(recorder) = self.metrics {
                 cache.set_metrics_recorder(recorder);
             } else if let Some(service) = self.service_name.clone() {

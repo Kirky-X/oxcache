@@ -24,7 +24,7 @@ use std::time::Duration;
 ///
 /// 本 trait 是 **object-safe 核心**（`Arc<dyn UnifiedCache>` 可用）：泛型
 /// 的 typed 读写已拆分到 [`TypedCacheExt`]（blanket impl 保持所有既有调用
-/// 点兼容），关闭 kit 模块记录的 dyn-safety 设计分歧（H1）。
+/// 点兼容），关闭 kit 模块记录的 dyn-safety 设计分歧。
 #[async_trait]
 pub trait UnifiedCache: Send + Sync + 'static {
     // Core byte-level operations (from CacheBackend)

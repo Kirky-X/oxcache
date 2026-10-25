@@ -110,7 +110,7 @@ pub struct OxcacheConfig {
     pub serialization_format: Option<String>,
     /// 连接池大小（Redis / Dragonfly 后端消费，缺省 8）
     pub connection_pool_size: Option<usize>,
-    /// R9 指标 service 维度标签（`None` = 未设置；空串在 validate 期显性拒绝）
+    /// 指标 service 维度标签（`None` = 未设置；空串在 validate 期显性拒绝）
     pub service_name: Option<String>,
     /// 熔断参数
     pub circuit_breaker: CircuitBreakerSettings,
@@ -754,10 +754,10 @@ mod tests {
         );
         // 反序列化不受影响：凭证仍能从配置源读入
         let back: OxcacheConfig =
-            serde_json::from_str(r#"{"redis_url":"redis://admin:s3cret@host:6379"}"#).unwrap();
+            serde_json::from_str(r#"{"redis_url":"redis://admin:s3cret@host:6379"}"#).unwrap(); // pragma: allowlist secret（测试夹具假凭据）
         assert_eq!(
             back.redis_url.as_deref(),
-            Some("redis://admin:s3cret@host:6379")
+            Some("redis://admin:s3cret@host:6379") // pragma: allowlist secret（测试夹具假凭据）
         );
     }
 

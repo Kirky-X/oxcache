@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 //! `#[cached]` 宏 single-flight 的共享支撑设施。
 //!
-//! 审计（2026-09-23，F04）发现宏生成的 single-flight 使用**单把全局锁**且无
+//! 审计（2026-09-23）发现宏生成的 single-flight 使用**单把全局锁**且无
 //! panic 守卫：leader panic 后注册表条目永久残留，该 key 的所有后续调用变为
 //! 等待已死信号的 follower——key 级永久死锁。本模块提供与
 //! `cache::api::basic_ops` 同源的修复设施：
@@ -10,7 +10,7 @@
 //! - **64 路分片**：`shard_index` 按 key hash 路由，消除单锁热点；
 //! - **watch flight 信号**：`tokio::sync::watch` 的版本比对语义使
 //!   "leader 先完成、follower 后订阅"仍立即返回（`Notify::notify_waiters`
-//!   在该时序下丢失唤醒，见审计 F03）；
+//!   在该时序下丢失唤醒）；
 //! - **panic 守卫**：[`AsyncSfGuard`] 的 `Drop` 兜底移除注册表条目并放行
 //!   等待者，leader panic / 早退不再产生 key 永久死锁。
 //!

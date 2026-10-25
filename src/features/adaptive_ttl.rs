@@ -1,6 +1,6 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! 自适应 TTL（R5，`adaptive-ttl` feature，默认关闭）。
+//! 自适应 TTL（`adaptive-ttl` feature，默认关闭）。
 //!
 //! 按访问模式调整条目 TTL 的装饰器后端：hot key 延长、cold key 缩短。
 //! 全部阈值均为显式配置常量（[`AdaptiveTtlConfig`]），无黑盒启发式。
@@ -138,7 +138,7 @@ impl AdaptiveTtlConfig {
     }
 }
 
-/// 自适应 TTL 统计（R5 验收口径：可观测、可清零）
+/// 自适应 TTL 统计（验收口径：可观测、可清零）
 #[derive(Debug, Default)]
 pub struct AdaptiveTtlStats {
     /// hot 延长执行次数（set 调整 + get 主动延长成功）

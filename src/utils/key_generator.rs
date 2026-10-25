@@ -10,7 +10,11 @@
 
 use crate::error::OxCacheError;
 #[cfg(feature = "integrity")]
-use crate::i18n::messages::{MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR, t};
+use crate::i18n::messages::MSG_DETAIL_KEY_GENERATOR_PART_CONTAINS_SEGMENT_SEPARATOR;
+use crate::i18n::messages::{
+    MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY, MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER,
+    MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG, t,
+};
 use crate::utils::MAX_CACHE_KEY_LENGTH;
 
 /// 默认命名空间
@@ -207,21 +211,22 @@ impl KeyGenerator {
     /// 验证键是否有效
     pub fn validate_key(&self, key: &str) -> Result<(), OxCacheError> {
         if key.is_empty() {
-            return Err(OxCacheError::InvalidInput(
-                "Cache key cannot be empty".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY,
+                &[],
+            )));
         }
         if key.len() > self.max_key_length {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Cache key exceeds maximum length of {} characters",
-                self.max_key_length
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG,
+                &[("max", self.max_key_length.to_string())],
             )));
         }
         for c in key.chars() {
             if !VALID_KEY_CHARS.contains(&c) {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "Cache key contains invalid character: '{}'",
-                    c
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER,
+                    &[("char", c.to_string())],
                 )));
             }
         }
