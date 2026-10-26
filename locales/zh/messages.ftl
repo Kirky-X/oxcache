@@ -192,6 +192,7 @@ detail-lua-infinite-loop-while-true = WHILE TRUE 循环
 detail-lua-infinite-loop-while-1 = WHILE 1 循环
 detail-lua-infinite-loop-repeat = REPEAT 循环
 detail-lua-infinite-loop-goto = GOTO 语句
+detail-lua-redis-command-non-literal = 非字面量 Redis 命令名（按拒绝处理）
 detail-backend-layer-restriction-l1-only = 仅支持 L1 层级
 detail-backend-layer-restriction-l2-and-l3-only = 仅支持 L2/L3 层级
 detail-backend-layer-restriction-any = 支持任意层级

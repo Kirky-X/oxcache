@@ -192,6 +192,7 @@ detail-lua-infinite-loop-while-true = WHILE TRUE loop
 detail-lua-infinite-loop-while-1 = WHILE 1 loop
 detail-lua-infinite-loop-repeat = REPEAT loop
 detail-lua-infinite-loop-goto = GOTO statement
+detail-lua-redis-command-non-literal = non-literal Redis command name (fail closed)
 detail-backend-layer-restriction-l1-only = L1 only
 detail-backend-layer-restriction-l2-and-l3-only = L2/L3 only
 detail-backend-layer-restriction-any = Any layer

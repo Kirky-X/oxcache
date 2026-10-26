@@ -1,6 +1,9 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
 //! 该模块定义了oxcache的宏实现，提供缓存注解功能。
+//!
+//! 宏展开期编译诊断（compile_error!）按 Display 轨契约保持英文硬编码，不接入
+//! i18n；运行期消息经生成代码中的 `::oxcache::i18n::messages::t` 查找。
 
 use proc_macro::TokenStream;
 use quote::quote;

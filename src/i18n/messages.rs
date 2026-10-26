@@ -265,6 +265,7 @@ pub const MSG_DETAIL_LUA_INFINITE_LOOP_WHILE_TRUE: &str = "detail.lua.infinite_l
 pub const MSG_DETAIL_LUA_INFINITE_LOOP_WHILE_1: &str = "detail.lua.infinite_loop_while_1";
 pub const MSG_DETAIL_LUA_INFINITE_LOOP_REPEAT: &str = "detail.lua.infinite_loop_repeat";
 pub const MSG_DETAIL_LUA_INFINITE_LOOP_GOTO: &str = "detail.lua.infinite_loop_goto";
+pub const MSG_DETAIL_LUA_REDIS_COMMAND_NON_LITERAL: &str = "detail.lua.redis_command_non_literal";
 pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY: &str =
     "detail.backend.layer_restriction_l1_only";
 pub const MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY: &str =
@@ -2170,6 +2171,7 @@ mod tests {
         MSG_DETAIL_LUA_INFINITE_LOOP_WHILE_1,
         MSG_DETAIL_LUA_INFINITE_LOOP_REPEAT,
         MSG_DETAIL_LUA_INFINITE_LOOP_GOTO,
+        MSG_DETAIL_LUA_REDIS_COMMAND_NON_LITERAL,
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L1_ONLY,
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_L2_AND_L3_ONLY,
         MSG_DETAIL_BACKEND_LAYER_RESTRICTION_ANY,
