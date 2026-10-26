@@ -38,7 +38,7 @@ homepage = "https://github.com/Kirky-X/oxcache"
 documentation = "https://docs.rs/oxcache"
 
 [workspace.dependencies]
-tokio = { version = "1.53", default-features = false }
+tokio = { version = "1.54", default-features = false }
 async-trait = { version = "0.1", default-features = false }
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false }
@@ -52,18 +52,18 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 
 [dependencies]
-oxcache_macros = { version = "0.5.0-rc.10", path = "macros", default-features = false, optional = true }
+oxcache_macros = { version = "0.5.0-rc.11", path = "macros", default-features = false, optional = true }
 # 包级不启用 rt-multi-thread（wasm32 仅支持 sync/macros/io-util/rt/time）；block_in_place 由 memory 启用
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 async-trait = { version = "0.1", default-features = false }
 once_cell = { version = "1.21", default-features = false, features = ["std"] }
-uuid = { version = "1.28", default-features = false, features = ["std", "v4"] }
+uuid = { version = "1.29", default-features = false, features = ["std", "v4"] }
 # trait-kit 集成：包装 CacheBackend，单开须隐含 memory 基线
 trait-kit = { version = "0.5.0-rc.10", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"], optional = true }
 # futures executor for sync health check in async context (trait-kit feature only)
 futures = { version = "0.3", default-features = false, features = ["executor"], optional = true }
 # ICU4X 常开：关闭 default 只留 compiled_data，裁掉未用的解析/迭代面
-icu = { version = "2.3", default-features = false, features = ["compiled_data"] }
+icu = { version = "2.4", default-features = false, features = ["compiled_data"] }
 writeable = { version = "0.6", default-features = false, features = ["alloc"] }
 # Fluent internationalization message catalog (always enabled)
 fluent-bundle = { version = "0.16", default-features = false }
@@ -72,9 +72,9 @@ unic-langid = { version = "0.9", default-features = false }
 moka = { version = "0.12", default-features = false, features = ["future", "atomic64"], optional = true }
 dashmap = { version = "6.2", default-features = false, optional = true }
 # redb 嵌入式键值存储（磁盘 L3 后端）；default 仅 std，显式声明同面关闭默认
-redb = { version = "4.3", default-features = false, features = ["std"], optional = true }
+redb = { version = "4.4", default-features = false, features = ["std"], optional = true }
 # Redis L2：裁 script/sentinel 与 default 面（Lua 走显式 EVAL）
-redis = { version = "1.7", default-features = false, features = ["aio", "tokio-comp", "connection-manager", "cluster-async"], optional = true }
+redis = { version = "1.8", default-features = false, features = ["aio", "tokio-comp", "connection-manager", "cluster-async"], optional = true }
 # Aerospike：仅 TCP 直连，裁 tls/dynamic-config/serialization
 aerospike = { version = "3.0", default-features = false, features = ["async", "rt-tokio"], optional = true }
 
@@ -98,13 +98,13 @@ sha2 = { version = "0.11", default-features = false, features = ["alloc"], optio
 bincode = { version = "2.0", default-features = false, features = ["std", "serde"], optional = true }
 postcard = { version = "1.1", default-features = false, features = ["use-std"], optional = true }
 # 配置驱动构建（confers watch 热重载）
-confers = { version = "0.6.0-rc.11", default-features = false, features = ["config-bus"], optional = true }
+confers = { version = "0.6.0-rc.12", default-features = false, features = ["config-bus"], optional = true }
 # 自适应压缩：只用 stream encode/decode，裁 legacy（旧格式解码）/arrays/zdict_builder（字典训练）
 zstd = { version = "0.14", default-features = false, optional = true }
 
 # wasm32 目标：uuid v4 需要显式随机源（js 特性仅对 wasm 生效，避免非 wasm 拉入 wasm-bindgen）
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-uuid = { version = "1.28", default-features = false, features = ["js", "v4", "std"] }
+uuid = { version = "1.29", default-features = false, features = ["js", "v4", "std"] }
 
 [dev-dependencies]
 # 测试实现 EventPublisher（#[async_trait] trait）所需，与主依赖版本一致
