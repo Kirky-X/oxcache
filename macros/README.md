@@ -27,7 +27,13 @@ oxcache = { features = ["macros"] }
 ```
 
 ```rust
+use oxcache::Cache;
 use oxcache::cached;
+
+// 宏要求先注册：register_for_macro 仅支持 Cache<String, Vec<u8>>，
+// 未注册的 service 会静默穿透、直接执行原函数
+let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
+cache.register_for_macro("user_cache").await?;
 
 #[cached(service = "user_cache", ttl = 600)]
 async fn load_user(id: u64) -> User {
@@ -35,7 +41,7 @@ async fn load_user(id: u64) -> User {
 }
 ```
 
-支持参数：`service` / `ttl` / `key` / `key_prefix` / `sync` / `single_flight` / `strict` / `condition` / `skip`。
+支持参数：`service` / `ttl` / `key` / `key_prefix` / `scope` / `sync` / `skip_cache_write` / `single_flight` / `strict` / `condition` / `skip` / `cache_none`。
 
 ## 版本与支持
 

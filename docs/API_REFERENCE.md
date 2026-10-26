@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.5.0-rc.10** 的 API。
+> 本文档描述 **Oxcache v0.5.0-rc.11** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -126,7 +126,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0-rc.10", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.0-rc.11", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
@@ -184,7 +184,8 @@ struct User { id: u64, name: String }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 默认 Moka 内存后端（容量 10000）
-    let cache: Cache<String, User> = Cache::builder().build().await?;
+    // register_for_macro 仅支持 Cache<String, Vec<u8>>（宏内部按字节读写）
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
     // 注册供 #[cached] 宏使用
     cache.register_for_macro("default").await?;
@@ -454,7 +455,6 @@ failover 后数据连接遇可恢复错误（断连/`READONLY`/`MASTERDOWN` 等�
 |------|------|------|
 | `ping().await` | `OxCacheResult<String>` | Ping 服务器（返回 `"PONG"`） |
 | `mode()` | `RedisMode` | 配置的 Redis 模式 |
-| `client()` | `&Client` | 底层 `redis::Client` |
 | `redact_connection_string(s)` | `String`（关联方法） | 脱敏连接字符串中的密码 |
 | `clear_namespace(ns).await` | `OxCacheResult<()>` | 删除单个命名空间的键（`ns:*`）：未以 `:` 结尾的命名空间自动补齐分隔符，`tenant1` 只删 `tenant1:*`，不碰 `tenant10:*` |
 | `clear_prefix(prefix).await` | `OxCacheResult<()>` | 按裸前缀删除（`prefix*`）：**无命名空间边界**，`tenant1` 连 `tenant10:*` 一并删除；仅在确需裸前缀语义时使用 |

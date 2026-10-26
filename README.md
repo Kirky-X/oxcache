@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.8）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.11）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -180,17 +180,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 </details>
 
-函数级缓存只需一行宏（完整版见 [`examples/src/01_basics/example_cached_macro.rs`](examples/src/01_basics/example_cached_macro.rs)）：
+函数级缓存只需一行宏——宏要求先注册缓存实例（完整版见 [`examples/src/01_basics/example_cached_macro.rs`](examples/src/01_basics/example_cached_macro.rs)）：
 
 <details>
 <summary>📄 代码 · rust</summary>
 
 ```rust
+use oxcache::Cache;
 use oxcache::macros::cached;
 
 #[cached(service = "user_cache", ttl = 600)]
 async fn get_user(id: u64) -> Result<User, String> {
-    Ok(User { id, name: format!("User {id}") })   // 首次执行后结果被缓存
+    Ok(User { id, name: format!("User {id}") })
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // register_for_macro 仅支持 Cache<String, Vec<u8>>；
+    // 未注册的 service 会静默穿透、直接执行原函数
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
+    cache.register_for_macro("user_cache").await?;
+
+    let user = get_user(1).await?;              // 首次执行后结果被缓存
+    let cached_user = get_user(1).await?;       // 第二次调用直接命中缓存
+    println!("{user:?} {cached_user:?}");
+    Ok(())
 }
 ```
 
@@ -554,7 +568,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 一致 |
 | **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | Aerospike 原生 TTL（秒级精度），亚秒 TTL 上取整 |
 | **RedbDiskBackend**（`disk`） | 存储 `(value, expiry epoch ms)` envelope；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true`（键不存在或已过期返回 `false`） | `set(ttl=None)` 沿用 `with_default_ttl` 的后端默认 TTL（未设置则永不过期） |
-| **MockBackend** | 存储 `(value, expiry Instant)`；懒过期 | 剩余 TTL | 更新 + 返回 `true` | 仅测试用，与 DashMap 语义对齐 |
 | **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
 | **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
 
@@ -573,11 +586,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1616 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1665 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
 | 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 153 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
-| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 21 |
+| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 24 |
 | 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
 | 混沌测试 | `--test chaos` | 后端故障注入、网络故障、随机故障 | 19 |
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
@@ -585,7 +598,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 </details>
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0-rc.8**（2026-10-11 复核）；合计 2337（`src/` 1616 + `tests/` 721）。分表按各测试目录 grep 计数（合计 638），差额 83 例来自未入表的 17 个顶层测试文件：14 个补齐测试文件（`tests/*_extra_test.rs` 等）共 75 例、`tests/single_flight_flight_signal.rs` 4 例、`tests/scenario_probe_172.rs` 与 `tests/scenario_probe_188.rs` 共 4 例。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0-rc.11**（2026-10-27 复核）；合计 2394（`src/` 1665 + `tests/` 729）。分表按各测试目录 grep 计数（合计 641），差额 88 例来自未入表的 19 个顶层测试文件：16 个补齐测试文件（`tests/*_extra_test.rs` 等）共 80 例、`tests/single_flight_flight_signal.rs` 4 例、`tests/scenario_probe_172.rs` 与 `tests/scenario_probe_188.rs` 共 4 例。
 
 ### 常用命令（与 CI 一致）
 

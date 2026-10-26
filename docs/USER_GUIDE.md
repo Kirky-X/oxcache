@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.8** 编写。
+> **⚠️ 版本说明**：本文档基于 **Oxcache v0.5.0-rc.11** 编写。
 
 ## 📋 目录
 
@@ -104,12 +104,12 @@ cargo --version
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.7"
+oxcache = "0.5.0-rc.11"
 ```
 
 > **注意**：`default = ["minimal"]`，默认仅包含 L1 内存缓存。要使用完整功能，请显式启用 `features = ["full"]`。
 
-> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.8", features = ["macros"] }`（`full` 已包含）。
+> **特性**：要使用 `#[cached]` 宏，需要启用 `macros` 特性：`oxcache = { version = "0.5.0-rc.11", features = ["macros"] }`（`full` 已包含）。
 
 #### 特性分层与依赖
 
@@ -119,7 +119,7 @@ oxcache = "0.5.0-rc.7"
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.8", default-features = false, features = ["redis-tier"] }
+oxcache = { version = "0.5.0-rc.11", default-features = false, features = ["redis-tier"] }
 ```
 
 或者使用命令行：
@@ -194,8 +194,8 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化缓存（默认 Moka 后端）
-    let cache: Cache<String, User> = Cache::builder().build().await?;
+    // 初始化缓存（默认 Moka 后端；register_for_macro 仅支持 Cache<String, Vec<u8>>）
+    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
     // 注册缓存实例到全局管理器（供宏通过 service 名查找）
     cache.register_for_macro("user_cache").await?;
@@ -597,7 +597,7 @@ let backend = RedisBackend::builder()
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.8", features = ["dragonfly"] }
+oxcache = { version = "0.5.0-rc.11", features = ["dragonfly"] }
 ```
 
 ```rust
@@ -618,7 +618,7 @@ let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0-rc.8", features = ["aerospike"] }
+oxcache = { version = "0.5.0-rc.11", features = ["aerospike"] }
 ```
 
 后端经 `AerospikeBackend::new(AerospikeConfig)` 构造，配置字段（`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`）见 [API 参考](API_REFERENCE.md#-aerospikebackend)。
