@@ -142,10 +142,14 @@ impl CacheReader for MokaMemoryBackend {
     }
 
     async fn len(&self) -> OxCacheResult<u64> {
+        // moka entry_count 为惰性维护的估计值，写入后直读可能拿到过期计数（甚至 0）；
+        // 读前先执行待维护任务保证最终一致（与 sync 侧 ByteWeightCache::entry_count 同口径）
+        self.cache.run_pending_tasks().await;
         Ok(self.cache.entry_count())
     }
 
     async fn is_empty(&self) -> OxCacheResult<bool> {
+        self.cache.run_pending_tasks().await;
         Ok(self.cache.entry_count() == 0)
     }
 
@@ -155,6 +159,7 @@ impl CacheReader for MokaMemoryBackend {
 
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
+        self.cache.run_pending_tasks().await;
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert(
@@ -352,6 +357,7 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
     }
 
     fn len(&self) -> OxCacheResult<u64> {
+        sync_block_on(self.cache.run_pending_tasks())?;
         Ok(self.cache.entry_count())
     }
 
@@ -361,6 +367,7 @@ impl crate::backend::interface::SyncCacheReader for MokaMemoryBackend {
 
     fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
         let mut stats = HashMap::new();
+        sync_block_on(self.cache.run_pending_tasks())?;
         stats.insert("type".to_string(), "moka".to_string());
         stats.insert("capacity".to_string(), self.capacity.to_string());
         stats.insert(
