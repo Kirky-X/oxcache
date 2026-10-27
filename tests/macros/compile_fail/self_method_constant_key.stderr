@@ -1,0 +1,5 @@
+error: `#[cached]` on a method with a `self` receiver requires the `key` template to reference the ownership dimension (e.g. `key = "user_{self.tenant_id}"`) or `scope = <expr>`; a constant template shares one cache entry across tenants/users
+  --> tests/macros/compile_fail/self_method_constant_key.rs:13:22
+   |
+13 |     async fn profile(&self) -> Result<u64, String> {
+   |                      ^

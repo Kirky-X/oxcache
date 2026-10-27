@@ -1,0 +1,5 @@
+error: `#[cached]` on a method with a `self` receiver requires `scope = <expr>` (e.g. `scope = self.tenant_id`) or an explicit `key = "..."` template; the default key carries no ownership dimension and would be shared across tenants/users
+  --> tests/macros/compile_fail/self_method_missing_ownership.rs:13:22
+   |
+13 |     async fn profile(&self, id: u64) -> Result<u64, String> {
+   |                      ^
