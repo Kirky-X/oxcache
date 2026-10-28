@@ -140,7 +140,9 @@ full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "t
 memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization", "tokio/rt-multi-thread"]
 # 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
 byte-weight = ["dep:moka", "moka/sync"]
-redis = ["dep:redis", "dep:regex", "serialization"]
+# redis backend 的 sync 桥接用 block_in_place：该 API 门在 tokio/rt-multi-thread
+# （feature-matrix 实测单独 --features redis 时 E0425），随 feature 显式拉入
+redis = ["dep:redis", "dep:regex", "serialization", "tokio/rt-multi-thread"]
 dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
 macros = ["dep:oxcache_macros", "minimal", "dep:sha2"]
