@@ -39,6 +39,10 @@ async fn start_container() -> Option<AerospikeConfig> {
         .args([
             "run",
             "-d",
+            // Aerospike 要求 ≥15000 个文件描述符（容器内 CRITICAL 日志：
+            // "1024 system file descriptors not enough, config specified 15000"）
+            "--ulimit",
+            "nofile=40000:40000",
             "--name",
             CONTAINER_NAME,
             "-p",
