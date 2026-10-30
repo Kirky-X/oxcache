@@ -96,6 +96,30 @@
 ### Changed
 
 - 跨仓自研依赖改为 `path` + `version` 双重声明：本地恒走工作树，发布时仍按 version 解析 registry。
+- **第十八跑依赖升级（2026-10-30 入库）**：自研依赖 `trait-kit` 0.5.0-rc.10 →
+  0.5.0-rc.11（crates.io 已发布，checksum `af81efe0…`；oxcache 侧仅动版本号，
+  `src/integrations/kit/` 集成面零源码改动，`AsyncKit` / `AsyncHealthCheck` /
+  `AsyncLifecycle` / `BuildObserver` / `AsyncShutdownCoordinator` 用法与 rc.10
+  一致）；`confers` 已是 0.6.0-rc.12，不动。三方依赖逐项核对 crates.io
+  `max_stable_version` 后确认全部已在最新稳定版（`cargo update` 空转），版本
+  约束与 `default-features = false` / 显式特性面均未改。`bincode` 保持 2.0.1
+  —— crates.io 3.0.0 的 `src/lib.rs` 是 `compile_error!("https://xkcd.com/2347/")`
+  占位，caret 误升即编译失败（与 `deny.toml` / `.cargo/audit.toml` 的
+  RUSTSEC-2025-0141 豁免同口径，迁移出路为已引入的 `postcard`）；`redis` 保持
+  1.8.0（2.0.0-rc.2 为预发布，不引入）。`cargo update` 另刷新 13 个传递依赖：
+  `ctutils` 0.4.6 → 0.4.7、`js-sys` 0.3.106 → 0.3.107、`rustix` 1.1.5 →
+  1.1.6、`tonic` / `tonic-prost` 0.14.6 → 0.14.9、`utf16_iter` 1.0.5 → 1.1.0、
+  `utf8_iter` 1.0.4 → 1.1.0、新增 `utf_types` 1.0.0、`wasm-bindgen` 系 0.2.129
+  → 0.2.130、`xattr` 1.6.1 → 1.7.0；锁文件未引入任何新预发布（既有预发布
+  `bollard-stubs` / `confers` / `toml` spec / `wasi` 快照保持不变）。CI actions：
+  `taiki-e/install-action` v2.87.32 → v2.88.0（SHA 同步）；`actions/checkout`
+  v7.0.1、`actions/upload-artifact` v7.0.2、`actions/github-script` v9.0.0、
+  `actions/dependency-review-action` v5.0.0、`github/codeql-action` v4.39.1、
+  `Swatinem/rust-cache` v2.9.3、`softprops/action-gh-release` v3.0.3、
+  `rust-lang/crates-io-auth-action` v1.0.6、`codecov/codecov-action` v7.1.1 经
+  GitHub API 核对已在最新，未动；`dtolnay/rust-toolchain` 钉的是工具链版本号
+  （与 `rust-toolchain.toml` 的 1.97.1 同源），不随 action 版本升。安全面：
+  `cargo audit --deny warnings` 与 `cargo deny check` 均通过，零漏洞零新豁免。
 
 ### 迁移指引
 

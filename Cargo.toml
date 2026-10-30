@@ -59,7 +59,7 @@ async-trait = { version = "0.1", default-features = false }
 once_cell = { version = "1.21", default-features = false, features = ["std"] }
 uuid = { version = "1.29", default-features = false, features = ["std", "v4"] }
 # trait-kit 集成：包装 CacheBackend，单开须隐含 memory 基线
-trait-kit = { version = "0.5.0-rc.10", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"], optional = true }
+trait-kit = { version = "0.5.0-rc.11", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator"], optional = true }
 # futures executor for sync health check in async context (trait-kit feature only)
 futures = { version = "0.3", default-features = false, features = ["executor"], optional = true }
 # ICU4X 常开：关闭 default 只留 compiled_data，裁掉未用的解析/迭代面
