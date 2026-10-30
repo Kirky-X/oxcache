@@ -28,7 +28,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0-rc.11"
+version = "0.5.0-rc.12"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -52,7 +52,7 @@ criterion = { version = "0.8", default-features = false, features = ["cargo_benc
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
 
 [dependencies]
-oxcache_macros = { version = "0.5.0-rc.11", path = "macros", default-features = false, optional = true }
+oxcache_macros = { version = "0.5.0-rc.12", path = "macros", default-features = false, optional = true }
 # 包级不启用 rt-multi-thread（wasm32 仅支持 sync/macros/io-util/rt/time）；block_in_place 由 memory 启用
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 async-trait = { version = "0.1", default-features = false }
