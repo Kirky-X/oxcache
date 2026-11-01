@@ -162,3 +162,6 @@ di.md
 
 # --- iFlow 本地配置(oxcache 原有条目) ---
 .iflow/
+
+# ZCode 工作区配置（agents/agents-catalog/rules 为指向工作区根的软链）
+.zcode/
