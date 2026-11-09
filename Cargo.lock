@@ -2730,9 +2730,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7acd809e80afa754c63f586955699d8990efe1c4b6613183ee5f027a11fbc8b5"
+checksum = "db7f3d75b5a3301746bff39a767bf4c5c42506b08513527308b3875bfb64a031"
 dependencies = [
  "arc-swap",
  "arcstr",
@@ -3749,9 +3749,9 @@ dependencies = [
 
 [[package]]
 name = "trait-kit"
-version = "0.5.0-rc.11"
+version = "0.5.0-rc.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af81efe05c217a17c4a09a5faeb3e8d202639e49781a0a3b1c5969d636e12e70"
+checksum = "0a9fa4c077e939f17a6f0bda0fc720ef1af104636f7da4ef2d5d29de9cd200ac"
 dependencies = [
  "fluent-bundle",
  "log",
