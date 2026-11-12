@@ -13,6 +13,13 @@ ignore = [
     # 下用于本地缓存条目序列化，无网络输入面。crates.io 3.0.0 为官方 compile_error
     # 占位不可升；迁移出路：postcard（已在依赖中）。与 .cargo/audit.toml 同口径。
     "RUSTSEC-2025-0141",
+    # RUSTSEC-2026-0440: astral-tokio-tar 全系停维（Astral 2026-11-03 公告，
+    # 官方建议迁移 tar-codec）。引入链：[dev-dependencies] testcontainers 0.28.0
+    # （已是 crates.io 最新版，advisory 明示 "No safe upgrade is available"）。
+    # 仅测试容器镜像层打包用，不进 lib 依赖面与发布产物，无生产输入面。
+    # 迁移出路：等 testcontainers 上游迁移 tar-codec 后移除本豁免。
+    # 与 .cargo/audit.toml 同口径。
+    "RUSTSEC-2026-0440",
 ]
 
 [licenses]

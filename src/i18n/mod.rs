@@ -1,20 +1,27 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! ICU4X-backed internationalization formatting for cache operations.
+//! Internationalization for cache operations: message catalog plus
+//! locale-aware formatting.
 //!
-//! Provides locale-aware number formatting, date formatting, plural rules,
-//! string collation, and localized message formatting via the `icu` crate
-//! (ICU4X 2.x). Useful for generating locale-sensitive cache keys, formatting
-//! cache statistics (e.g. "1 item" vs "2 items"), displaying expiry times,
-//! sorting cache entries by locale-specific collation rules, and rendering
-//! error messages in the user's preferred locale.
+//! Two layers with separate availability:
 //!
-//! This module is always enabled (included in the `minimal` feature tier).
+//! - **Message catalog** ([`messages`]): locale-aware error/status/log
+//!   message lookup backed by the embedded FTL sources. Always enabled
+//!   (included in the `minimal` feature tier), dependency-free, and — with
+//!   the `trait-kit` feature on — bridged into the trait-kit
+//!   `I18nManager` host-registration surface (see
+//!   [`messages`]'s module docs).
+//! - **Locale-aware formatting** ([`CacheI18nFormatter`]): number, date,
+//!   plural and collation formatting for cache statistics (e.g. "1 item"
+//!   vs "2 items"), locale-sensitive cache keys, expiry display and key
+//!   sorting. Backed by ICU4X **through the `trait-kit` `i18n` feature**,
+//!   so it is only available with the `trait-kit` cargo feature enabled
+//!   (which implies `trait-kit/i18n`).
 //!
 //! # Example
 //!
 //! ```rust,ignore
-//! use oxcache::i18n::CacheI18nFormatter;
+//! use oxcache::i18n::CacheI18nFormatter; // requires the `trait-kit` feature
 //!
 //! let fmt = CacheI18nFormatter::new("en-US")?;
 //! let key = fmt.format_cache_key("user", 1234)?;
@@ -23,14 +30,11 @@
 //! let msg = fmt.format_message("error.not_found", &[("key", "user:42")])?;
 //! ```
 
-use icu::collator::CollatorBorrowed;
-use icu::decimal::DecimalFormatter;
-use icu::locale::Locale;
-use icu::plurals::PluralRules;
 use once_cell::sync::Lazy;
 use std::fmt;
 use std::sync::RwLock;
 
+#[cfg(feature = "trait-kit")]
 mod i18n_impl;
 pub mod messages;
 
@@ -179,25 +183,20 @@ impl I18nError {
     }
 }
 
-/// Locale-aware formatter backed by ICU4X compiled data.
+/// Locale-aware formatter backed by ICU4X compiled data, provided through
+/// the `trait-kit` `i18n` feature.
 ///
 /// Construct with [`CacheI18nFormatter::new`] using a BCP-47 locale tag
 /// (e.g. `"en-US"`, `"zh-CN"`). All formatters are created eagerly so
 /// that repeated formatting calls are allocation-light.
+#[cfg(feature = "trait-kit")]
 pub struct CacheI18nFormatter {
-    locale: Locale,
     locale_tag: String,
-    decimal_formatter: DecimalFormatter,
-    plural_rules: PluralRules,
-    collator: CollatorBorrowed<'static>,
+    inner: trait_kit::i18n::I18nFormatter,
 }
 
+#[cfg(feature = "trait-kit")]
 impl CacheI18nFormatter {
-    /// Return a reference to the formatter's BCP-47 locale.
-    pub fn locale(&self) -> &Locale {
-        &self.locale
-    }
-
     /// Return the original BCP-47 locale tag string (e.g. `"en-US"`, `"zh-CN"`).
     pub fn locale_tag(&self) -> &str {
         &self.locale_tag
@@ -206,7 +205,7 @@ impl CacheI18nFormatter {
     /// Format a message from the catalog using the formatter's locale.
     ///
     /// Looks up `message_id` in the message catalog for the current locale,
-    /// then substitutes `{key}` placeholders with values from `params`.
+    /// then substitutes `{ $name }` placeholders with values from `params`.
     ///
     /// Falls back to English if the locale is not supported, and returns the
     /// raw `message_id` if the message is not found in any locale.
@@ -228,6 +227,5 @@ impl CacheI18nFormatter {
     }
 }
 
-#[cfg(test)]
 #[cfg(test)]
 mod tests;

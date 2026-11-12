@@ -2395,7 +2395,6 @@ dependencies = [
  "ctor",
  "dashmap",
  "flate2",
- "fluent-bundle",
  "futures",
  "getrandom 0.4.3",
  "hmac",
@@ -2730,9 +2729,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7acd809e80afa754c63f586955699d8990efe1c4b6613183ee5f027a11fbc8b5"
+checksum = "db7f3d75b5a3301746bff39a767bf4c5c42506b08513527308b3875bfb64a031"
 dependencies = [
  "arc-swap",
  "arcstr",
@@ -3749,13 +3748,20 @@ dependencies = [
 
 [[package]]
 name = "trait-kit"
-version = "0.5.0-rc.11"
+version = "0.5.0-rc.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af81efe05c217a17c4a09a5faeb3e8d202639e49781a0a3b1c5969d636e12e70"
+checksum = "d766fef13bfd0f12142df57477175307703b07d5596f1f1bb9c18cba194dc121"
 dependencies = [
  "fluent-bundle",
+ "icu_collator",
+ "icu_datetime",
+ "icu_decimal",
+ "icu_locale",
+ "icu_plurals",
  "log",
+ "sys-locale",
  "unic-langid",
+ "writeable",
 ]
 
 [[package]]

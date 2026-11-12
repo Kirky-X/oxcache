@@ -2,6 +2,7 @@
 #[allow(unused_imports)]
 pub use super::*;
 
+// 常开测试：消息目录、I18nError 渲染、locale 探测（不依赖 ICU）。
 #[cfg(test)]
 mod tests {
     // locale 探测测试操作进程级 env（LANG/LC_ALL/LC_MESSAGES），
@@ -11,245 +12,6 @@ mod tests {
     static LOCALE_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     use super::*;
-    use std::cmp::Ordering;
-
-    #[test]
-    fn test_locale_parsing_en() {
-        let fmt = CacheI18nFormatter::new("en-US");
-        assert!(fmt.is_ok(), "en-US should parse successfully");
-    }
-
-    #[test]
-    fn test_locale_parsing_zh() {
-        let fmt = CacheI18nFormatter::new("zh-CN");
-        assert!(fmt.is_ok(), "zh-CN should parse successfully");
-    }
-
-    #[test]
-    fn test_invalid_locale() {
-        let result = CacheI18nFormatter::new("not-a-valid-locale!!!");
-        assert!(result.is_err(), "invalid locale should return error");
-        match result.err().unwrap() {
-            I18nError::InvalidLocale { input, .. } => assert_eq!(input, "not-a-valid-locale!!!"),
-            other => panic!("expected InvalidLocale, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_format_count() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        assert_eq!(
-            fmt.format_count(1).expect("plural 1"),
-            "One",
-            "en: count=1 should be One"
-        );
-        assert_eq!(
-            fmt.format_count(2).expect("plural 2"),
-            "Other",
-            "en: count=2 should be Other"
-        );
-    }
-
-    #[test]
-    fn test_format_number_en() {
-        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
-        let result = fmt.format_number(1_234_567.89_f64).expect("format number");
-        // en-US: thousands separator is comma, decimal separator is period
-        assert!(
-            result.contains(','),
-            "en-US number should contain thousands separator: got '{result}'"
-        );
-        assert!(
-            result.contains('.'),
-            "en-US number should contain decimal point: got '{result}'"
-        );
-    }
-
-    #[test]
-    fn test_format_number_not_finite() {
-        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
-        assert!(fmt.format_number(f64::NAN).is_err());
-        assert!(fmt.format_number(f64::INFINITY).is_err());
-    }
-
-    #[test]
-    fn test_format_cache_key() {
-        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
-        let key = fmt.format_cache_key("user", 1234).expect("cache key");
-        assert!(
-            key.starts_with("user:"),
-            "cache key should start with namespace: got '{key}'"
-        );
-        assert!(
-            key.contains('1'),
-            "cache key should contain the count: got '{key}'"
-        );
-    }
-
-    #[test]
-    fn test_compare_keys() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        assert_eq!(
-            fmt.compare_keys("apple", "banana").expect("compare"),
-            Ordering::Less,
-            "apple < banana"
-        );
-        assert_eq!(
-            fmt.compare_keys("banana", "apple").expect("compare"),
-            Ordering::Greater,
-            "banana > apple"
-        );
-        assert_eq!(
-            fmt.compare_keys("apple", "apple").expect("compare"),
-            Ordering::Equal,
-            "apple == apple"
-        );
-    }
-
-    #[test]
-    fn test_format_expiry() {
-        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
-        let result = fmt.format_expiry(2026, 7, 11).expect("format expiry");
-        assert!(
-            result.contains("2026"),
-            "expiry should contain year: got '{result}'"
-        );
-        assert!(
-            !result.is_empty(),
-            "expiry should be non-empty: got '{result}'"
-        );
-    }
-
-    // Message catalog tests
-
-    #[test]
-    fn test_format_message_en_not_found() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        let msg = fmt
-            .format_message(messages::MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
-            .expect("format message");
-        assert!(
-            msg.contains("Key not found: user:42"),
-            "en message should contain 'Key not found: user:42': got '{msg}'"
-        );
-    }
-
-    #[test]
-    fn test_format_message_zh_not_found() {
-        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
-        let msg = fmt
-            .format_message(messages::MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
-            .expect("format message");
-        assert!(
-            msg.contains("键未找到：user:42"),
-            "zh message should contain '键未找到：user:42': got '{msg}'"
-        );
-    }
-
-    #[test]
-    fn test_format_message_en_key_too_long() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        let msg = fmt
-            .format_message(
-                messages::MSG_ERR_KEY_TOO_LONG,
-                &[("actual", "600"), ("max", "512")],
-            )
-            .expect("format message");
-        assert!(
-            msg.contains("600") && msg.contains("512"),
-            "en message should contain actual and max: got '{msg}'"
-        );
-    }
-
-    #[test]
-    fn test_format_message_zh_key_too_long() {
-        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
-        let msg = fmt
-            .format_message(
-                messages::MSG_ERR_KEY_TOO_LONG,
-                &[("actual", "600"), ("max", "512")],
-            )
-            .expect("format message");
-        assert!(
-            msg.contains("键过长") && msg.contains("600") && msg.contains("512"),
-            "zh message should contain '键过长' with values: got '{msg}'"
-        );
-    }
-
-    #[test]
-    fn test_format_message_unknown_id_returns_id() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        let msg = fmt
-            .format_message("unknown.message.id", &[])
-            .expect("format message");
-        assert_eq!(msg, "unknown.message.id", "unknown ID should return raw ID");
-    }
-
-    #[test]
-    fn test_format_message_unsupported_locale_falls_back_to_en() {
-        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
-        let msg = fmt
-            .format_message(messages::MSG_ERR_CONNECTION, &[("detail", "timeout")])
-            .expect("format message");
-        assert!(
-            msg.contains("Connection error: timeout"),
-            "unsupported locale should fall back to English: got '{msg}'"
-        );
-    }
-
-    #[test]
-    fn test_locale_getter() {
-        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
-        assert!(
-            fmt.locale_tag().starts_with("zh"),
-            "locale_tag should start with 'zh': got '{}'",
-            fmt.locale_tag()
-        );
-        let expected: icu::locale::Locale = "zh-CN".parse().expect("valid tag");
-        assert_eq!(fmt.locale(), &expected, "locale() returns the parsed tag");
-    }
-
-    /// 阿拉伯语复数规则覆盖 Zero/One/Two/Few/Many/Other 六类
-    /// （en 只有 One/Other，覆盖不到 plural_category_name 的全部分支）
-    #[test]
-    fn test_format_count_arabic_plural_categories() {
-        let fmt = CacheI18nFormatter::new("ar").expect("ar locale");
-        let cases = [
-            (0, "Zero"),
-            (1, "One"),
-            (2, "Two"),
-            (3, "Few"),
-            (11, "Many"),
-            (100, "Other"),
-        ];
-        for (count, expected) in cases {
-            assert_eq!(
-                fmt.format_count(count).expect("plural category"),
-                expected,
-                "ar: count={count} should be {expected}"
-            );
-        }
-    }
-
-    /// 有限但超出 FixedDecimal 容量的数值（f64::MAX 约 309 位十进制）
-    /// 必须返回 InvalidNumber 而非 panic
-    #[test]
-    fn test_format_number_finite_value_beyond_decimal_capacity() {
-        let fmt = CacheI18nFormatter::new("en").expect("en locale");
-        match fmt.format_number(f64::MAX) {
-            Err(I18nError::InvalidNumber { input, .. }) => {
-                assert!(!input.is_empty(), "input should echo the raw value");
-            }
-            Ok(formatted) => {
-                // 实现侧 FixedDecimal 若能承载该量级，则格式化必须无失真告警路径
-                assert!(
-                    formatted.len() >= 300,
-                    "unexpectedly short formatting of f64::MAX: '{formatted}'"
-                );
-            }
-            other => panic!("unexpected result for f64::MAX: {other:?}"),
-        }
-    }
 
     #[test]
     fn test_i18n_error_message_id() {
@@ -661,5 +423,260 @@ mod tests {
         assert!(!messages::is_supported("fr"));
         assert!(!messages::is_supported("ja"));
         assert!(!messages::is_supported("de"));
+    }
+}
+
+// ICU 格式化测试：CacheI18nFormatter 经 trait-kit/i18n（feature 门控）。
+#[cfg(all(test, feature = "trait-kit"))]
+mod formatter_tests {
+    use super::*;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn test_locale_parsing_en() {
+        let fmt = CacheI18nFormatter::new("en-US");
+        assert!(fmt.is_ok(), "en-US should parse successfully");
+    }
+
+    #[test]
+    fn test_locale_parsing_zh() {
+        let fmt = CacheI18nFormatter::new("zh-CN");
+        assert!(fmt.is_ok(), "zh-CN should parse successfully");
+    }
+
+    #[test]
+    fn test_invalid_locale() {
+        let result = CacheI18nFormatter::new("not-a-valid-locale!!!");
+        assert!(result.is_err(), "invalid locale should return error");
+        match result.err().unwrap() {
+            I18nError::InvalidLocale { input, .. } => assert_eq!(input, "not-a-valid-locale!!!"),
+            other => panic!("expected InvalidLocale, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_format_count() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        assert_eq!(
+            fmt.format_count(1).expect("plural 1"),
+            "One",
+            "en: count=1 should be One"
+        );
+        assert_eq!(
+            fmt.format_count(2).expect("plural 2"),
+            "Other",
+            "en: count=2 should be Other"
+        );
+    }
+
+    #[test]
+    fn test_format_number_en() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        let result = fmt.format_number(1_234_567.89_f64).expect("format number");
+        // en-US: thousands separator is comma, decimal separator is period
+        assert!(
+            result.contains(','),
+            "en-US number should contain thousands separator: got '{result}'"
+        );
+        assert!(
+            result.contains('.'),
+            "en-US number should contain decimal point: got '{result}'"
+        );
+    }
+
+    #[test]
+    fn test_format_number_not_finite() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        assert!(fmt.format_number(f64::NAN).is_err());
+        assert!(fmt.format_number(f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn test_format_cache_key() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        let key = fmt.format_cache_key("user", 1234).expect("cache key");
+        assert!(
+            key.starts_with("user:"),
+            "cache key should start with namespace: got '{key}'"
+        );
+        assert!(
+            key.contains('1'),
+            "cache key should contain the count: got '{key}'"
+        );
+    }
+
+    /// u64 超出 f64 精确域（> 2^53）时退化为无损非分组十进制（保真优先）
+    #[test]
+    fn test_format_cache_key_beyond_f64_precision_is_lossless() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        let huge: u64 = 9_007_199_254_740_993; // 2^53 + 1
+        let key = fmt.format_cache_key("user", huge).expect("cache key");
+        assert_eq!(
+            key, "user:9007199254740993",
+            "u64 beyond f64 precision must render losslessly"
+        );
+    }
+
+    #[test]
+    fn test_compare_keys() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        assert_eq!(
+            fmt.compare_keys("apple", "banana").expect("compare"),
+            Ordering::Less,
+            "apple < banana"
+        );
+        assert_eq!(
+            fmt.compare_keys("banana", "apple").expect("compare"),
+            Ordering::Greater,
+            "banana > apple"
+        );
+        assert_eq!(
+            fmt.compare_keys("apple", "apple").expect("compare"),
+            Ordering::Equal,
+            "apple == apple"
+        );
+    }
+
+    #[test]
+    fn test_format_expiry() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        let result = fmt.format_expiry(2026, 7, 11).expect("format expiry");
+        assert!(
+            result.contains("2026"),
+            "expiry should contain year: got '{result}'"
+        );
+        assert!(
+            !result.is_empty(),
+            "expiry should be non-empty: got '{result}'"
+        );
+    }
+
+    // Message catalog tests (via formatter)
+
+    #[test]
+    fn test_format_message_en_not_found() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        let msg = fmt
+            .format_message(messages::MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
+            .expect("format message");
+        assert!(
+            msg.contains("Key not found: user:42"),
+            "en message should contain 'Key not found: user:42': got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_format_message_zh_not_found() {
+        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
+        let msg = fmt
+            .format_message(messages::MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
+            .expect("format message");
+        assert!(
+            msg.contains("键未找到：user:42"),
+            "zh message should contain '键未找到：user:42': got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_format_message_en_key_too_long() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        let msg = fmt
+            .format_message(
+                messages::MSG_ERR_KEY_TOO_LONG,
+                &[("actual", "600"), ("max", "512")],
+            )
+            .expect("format message");
+        assert!(
+            msg.contains("600") && msg.contains("512"),
+            "en message should contain actual and max: got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_format_message_zh_key_too_long() {
+        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
+        let msg = fmt
+            .format_message(
+                messages::MSG_ERR_KEY_TOO_LONG,
+                &[("actual", "600"), ("max", "512")],
+            )
+            .expect("format message");
+        assert!(
+            msg.contains("键过长") && msg.contains("600") && msg.contains("512"),
+            "zh message should contain '键过长' with values: got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_format_message_unknown_id_returns_id() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        let msg = fmt
+            .format_message("unknown.message.id", &[])
+            .expect("format message");
+        assert_eq!(msg, "unknown.message.id", "unknown ID should return raw ID");
+    }
+
+    #[test]
+    fn test_format_message_unsupported_locale_falls_back_to_en() {
+        let fmt = CacheI18nFormatter::new("en-US").expect("en-US locale");
+        let msg = fmt
+            .format_message(messages::MSG_ERR_CONNECTION, &[("detail", "timeout")])
+            .expect("format message");
+        assert!(
+            msg.contains("Connection error: timeout"),
+            "unsupported locale should fall back to English: got '{msg}'"
+        );
+    }
+
+    #[test]
+    fn test_locale_getter() {
+        let fmt = CacheI18nFormatter::new("zh-CN").expect("zh-CN locale");
+        assert_eq!(
+            fmt.locale_tag(),
+            "zh-CN",
+            "locale_tag returns the constructor tag"
+        );
+    }
+
+    /// 阿拉伯语复数规则覆盖 Zero/One/Two/Few/Many/Other 六类
+    /// （en 只有 One/Other，覆盖不到 plural_category_name 的全部分支）
+    #[test]
+    fn test_format_count_arabic_plural_categories() {
+        let fmt = CacheI18nFormatter::new("ar").expect("ar locale");
+        let cases = [
+            (0, "Zero"),
+            (1, "One"),
+            (2, "Two"),
+            (3, "Few"),
+            (11, "Many"),
+            (100, "Other"),
+        ];
+        for (count, expected) in cases {
+            assert_eq!(
+                fmt.format_count(count).expect("plural category"),
+                expected,
+                "ar: count={count} should be {expected}"
+            );
+        }
+    }
+
+    /// 有限但超出 FixedDecimal 容量的数值（f64::MAX 约 309 位十进制）
+    /// 必须返回 InvalidNumber 而非 panic
+    #[test]
+    fn test_format_number_finite_value_beyond_decimal_capacity() {
+        let fmt = CacheI18nFormatter::new("en").expect("en locale");
+        match fmt.format_number(f64::MAX) {
+            Err(I18nError::InvalidNumber { input, .. }) => {
+                assert!(!input.is_empty(), "input should echo the raw value");
+            }
+            Ok(formatted) => {
+                // 实现侧 FixedDecimal 若能承载该量级，则格式化必须无失真告警路径
+                assert!(
+                    formatted.len() >= 300,
+                    "unexpectedly short formatting of f64::MAX: '{formatted}'"
+                );
+            }
+            other => panic!("unexpected result for f64::MAX: {other:?}"),
+        }
     }
 }

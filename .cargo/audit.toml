@@ -6,4 +6,8 @@ ignore = [
     # serde-bincode feature 下用于本地缓存条目序列化，无网络输入面。
     # 迁移出路：postcard（已在依赖中，见 serialization/binary.rs）。
     "RUSTSEC-2025-0141",
+    # RUSTSEC-2026-0440: astral-tokio-tar 全系停维。引入链：dev-only
+    # testcontainers 0.28.0（crates.io 最新版，无安全升级路径），不进
+    # 发布产物；等 testcontainers 上游迁移 tar-codec 后移除。
+    "RUSTSEC-2026-0440",
 ]

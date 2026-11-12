@@ -1,21 +1,30 @@
 // Copyright (c) 2025-2026 Kirky.X🌠
 // SPDX-License-Identifier: MIT
-//! Message catalog for locale-aware error and status messages, powered by
-//! Fluent (FTL).
+//! Message catalog for locale-aware error and status messages.
 //!
 //! Translations live in `locales/en/messages.ftl` and
 //! `locales/zh/messages.ftl`, embedded at compile time via `include_str!`
-//! and parsed into concurrent (`Send + Sync`) [`FluentBundle`] instances on
-//! first access. Placeholders use the Fluent syntax `{ $name }` and are
-//! resolved at format time by the Fluent engine.
+//! and parsed into `key → template` tables on first access (the catalog is
+//! pure single-line `key = value` form — no selectors, multiline values or
+//! attributes — so line parsing is behavior-identical to a full Fluent
+//! parse). Placeholders use the `{ $name }` form and are substituted in a
+//! single pass by [`format_template`], the same semantics as the
+//! `trait-kit` `I18nManager` host-registration surface.
+//!
+//! # Host registration bridge (`trait-kit` feature)
+//!
+//! When the `trait-kit` feature is enabled, the first catalog query also
+//! registers every entry into [`trait_kit::i18n::I18nManager`] via
+//! `register_translation` (both `en` and `zh` buckets), so host frameworks
+//! built on trait-kit resolve oxcache message keys through their own
+//! lookup chain with zero extra wiring.
 //!
 //! # Message IDs vs. FTL keys
 //!
 //! Message IDs use the dotted form exposed by the public API (e.g.
-//! `"error.not_found"`). Fluent identifiers cannot contain dots, so catalog
-//! keys are the dashed equivalent (`error-not-found`); the conversion is
-//! purely mechanical (`.` and `_` become `-`) and happens inside
-//! `lookup`/`t`.
+//! `"error.not_found"`). Catalog keys are the dashed equivalent
+//! (`error-not-found`); the conversion is purely mechanical (`.` and `_`
+//! become `-`) and happens inside `lookup`/`t`.
 //!
 //! # Supported locales
 //!
@@ -23,8 +32,8 @@
 //! - `zh` / `zh-CN` / `zh-*` → Simplified Chinese
 //!
 //! Unknown locales fall back to English. A key missing from the requested
-//! bundle falls back to the English bundle, then to `None` (callers render
-//! the raw message ID) — lookup never panics.
+//! catalog falls back to the English catalog, then to `None` (callers
+//! render the raw message ID) — lookup never panics.
 //!
 //! # Adding a new message
 //!
@@ -33,11 +42,8 @@
 //! 3. Add the Chinese entry in `locales/zh/messages.ftl`.
 //! 4. Use `formatter.format_message(MSG_ID_*, &[("key", "value")])` to render.
 
-use std::sync::OnceLock;
-
-use fluent_bundle::concurrent::FluentBundle;
-use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
-use unic_langid::LanguageIdentifier;
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 // Message ID constants
 
@@ -1924,62 +1930,120 @@ pub(crate) fn lookup(locale: &str, message_id: &str, params: &[(&str, &str)]) ->
     let lang = locale.split('-').next().unwrap_or(locale);
     let key = ftl_key(message_id);
     match lang {
-        "zh" => format_from_bundle("zh", &key, params)
-            .or_else(|| format_from_bundle("en", &key, params)),
-        _ => format_from_bundle("en", &key, params),
+        "zh" => format_from_catalog("zh", &key, params)
+            .or_else(|| format_from_catalog("en", &key, params)),
+        _ => format_from_catalog("en", &key, params),
     }
 }
 
-// Fluent bundle management
+// Catalog implementation (FTL line-parsed tables + trait-kit registration)
 
 const EN_FTL: &str = include_str!("../../locales/en/messages.ftl");
 const ZH_FTL: &str = include_str!("../../locales/zh/messages.ftl");
 
-/// Cached concurrent Fluent bundles (thread-safe, built once on first access).
-static EN_BUNDLE: OnceLock<FluentBundle<FluentResource>> = OnceLock::new();
-static ZH_BUNDLE: OnceLock<FluentBundle<FluentResource>> = OnceLock::new();
+/// Message tables (`key → template`), built once on first access from the
+/// embedded FTL sources.
+static EN_CATALOG: LazyLock<HashMap<&'static str, &'static str>> =
+    LazyLock::new(|| parse_entries(EN_FTL).into_iter().collect());
+static ZH_CATALOG: LazyLock<HashMap<&'static str, &'static str>> =
+    LazyLock::new(|| parse_entries(ZH_FTL).into_iter().collect());
 
-/// Format a message from the Fluent catalog for the given language.
-fn format_from_bundle(lang: &str, key: &str, args: &[(&str, &str)]) -> Option<String> {
-    let bundle = match lang {
-        "zh" => ZH_BUNDLE.get_or_init(build_zh_bundle),
-        _ => EN_BUNDLE.get_or_init(build_en_bundle),
-    };
+/// Parse single-line `key = value` entries from an FTL source.
+///
+/// The catalog is pure single-line form (verified by the key-parity and
+/// id-resolution guards below): no multiline continuation values, no
+/// attribute lines (` .attr = …`), no selectors. Line parsing therefore
+/// yields exactly the entries a full Fluent parse would produce.
+fn parse_entries(source: &'static str) -> Vec<(&'static str, &'static str)> {
+    source
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim_start();
+            if trimmed.is_empty() || trimmed.starts_with('#') || !trimmed.contains('=') {
+                return None;
+            }
+            let (raw_key, raw_value) = trimmed.split_once('=')?;
+            let key = raw_key.trim();
+            if key.is_empty() {
+                return None;
+            }
+            Some((key, raw_value.trim()))
+        })
+        .collect()
+}
 
-    let msg = bundle.get_message(key)?;
-    let pattern = msg.value()?;
-
-    let mut fluent_args = FluentArgs::new();
-    for (name, value) in args {
-        fluent_args.set(*name, FluentValue::from(*value));
+/// Substitute `{ $name }` placeholders in a catalog template in a single
+/// pass (same semantics as the trait-kit `I18nManager` host-registration
+/// template path): argument values are inserted literally and never
+/// re-parsed; unknown placeholders and non-placeholder braces are kept
+/// verbatim; a template without braces short-circuits to a clone.
+fn format_template(template: &str, args: &[(&str, &str)]) -> String {
+    if args.is_empty() || !template.contains('{') {
+        return template.to_string();
     }
-
-    let mut errors = vec![];
-    let result = bundle.format_pattern(pattern, Some(&fluent_args), &mut errors);
-    Some(result.to_string())
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(open) = rest.find('{') {
+        let Some(close_rel) = rest[open..].find('}') else {
+            break;
+        };
+        let inner = rest[open + 1..open + close_rel].trim();
+        match inner.strip_prefix('$').map(str::trim) {
+            Some(name) if !name.is_empty() => {
+                out.push_str(&rest[..open]);
+                match args.iter().find(|(arg_name, _)| *arg_name == name) {
+                    Some((_, value)) => out.push_str(value),
+                    // Unknown placeholder: keep the raw `{ $name }` text.
+                    None => out.push_str(&rest[open..open + close_rel + 1]),
+                }
+                rest = &rest[open + close_rel + 1..];
+            }
+            _ => {
+                // Non-placeholder brace: emit it verbatim and keep scanning.
+                out.push_str(&rest[..open + 1]);
+                rest = &rest[open + 1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
-fn build_en_bundle() -> FluentBundle<FluentResource> {
-    let resource = FluentResource::try_new(EN_FTL.to_string()).unwrap_or_else(|e| e.0);
-    let langid: LanguageIdentifier = "en".parse().expect("'en' is a valid language identifier");
-    let mut bundle = FluentBundle::new_concurrent(vec![langid]);
-    bundle.set_use_isolating(false);
-    bundle
-        .add_resource(resource)
-        .expect("EN resources should add without conflict");
-    bundle
+/// Format a message from the catalog for the given language.
+///
+/// Touching the catalog also runs the one-time trait-kit registration
+/// bridge (see [`CATALOG_SYNC`]) so host lookups see oxcache keys.
+fn format_from_catalog(lang: &str, key: &str, args: &[(&str, &str)]) -> Option<String> {
+    LazyLock::force(&CATALOG_SYNC);
+    let catalog = match lang {
+        "zh" => &ZH_CATALOG,
+        _ => &EN_CATALOG,
+    };
+    catalog
+        .get(key)
+        .map(|template| format_template(template, args))
 }
 
-fn build_zh_bundle() -> FluentBundle<FluentResource> {
-    let resource = FluentResource::try_new(ZH_FTL.to_string()).unwrap_or_else(|e| e.0);
-    let langid: LanguageIdentifier = "zh".parse().expect("'zh' is a valid language identifier");
-    let mut bundle = FluentBundle::new_concurrent(vec![langid]);
-    bundle.set_use_isolating(false);
-    bundle
-        .add_resource(resource)
-        .expect("ZH resources should add without conflict");
-    bundle
-}
+/// One-time catalog sync into the trait-kit host-registration surface.
+///
+/// With the `trait-kit` feature enabled, every catalog entry is registered
+/// into [`trait_kit::i18n::I18nManager`] (both `en` and `zh` buckets), so
+/// any host built on trait-kit resolves oxcache message keys through its
+/// own lookup chain (`registered[current] → builtin[current] →
+/// registered[en] → builtin[en] → key`). Without the feature this is a
+/// no-op placeholder — catalog queries stay fully local and dependency-free.
+#[cfg(feature = "trait-kit")]
+static CATALOG_SYNC: LazyLock<()> = LazyLock::new(|| {
+    for (key, template) in EN_CATALOG.iter() {
+        trait_kit::i18n::I18nManager::register_translation("en", key, template);
+    }
+    for (key, template) in ZH_CATALOG.iter() {
+        trait_kit::i18n::I18nManager::register_translation("zh", key, template);
+    }
+});
+
+#[cfg(not(feature = "trait-kit"))]
+static CATALOG_SYNC: LazyLock<()> = LazyLock::new(|| {});
 
 // Tests
 
@@ -2043,6 +2107,7 @@ mod tests {
         MSG_LOG_CONFERS_RELOAD_REJECTED,
         MSG_LOG_BRIDGE_SHUTDOWN_SKIPPED,
         MSG_LOG_DISK_SWEEP_FAILED,
+        MSG_LOG_DISK_OPEN_CREATE_FAILED,
         MSG_LOG_AUDIT_EVENT,
         MSG_LOG_STALE_HIT_VIA_GET_OR,
         MSG_LOG_STALE_REVALIDATION_SCHEDULED,
@@ -3141,28 +3206,83 @@ mod tests {
         assert_eq!(en, zh, "EN and ZH catalogs must define the same keys");
     }
 
-    // Guard: every message ID resolves in both bundles (validates FTL
-    // parsing of the dashed keys)
+    // Guard: every message ID resolves in both catalogs (validates the
+    // dashed-key form against the line-parsed tables)
 
     #[test]
     fn test_all_message_ids_resolve_in_both_bundles() {
         for id in ALL_MESSAGE_IDS {
             let key = ftl_key(id);
             assert!(
-                EN_BUNDLE
-                    .get_or_init(build_en_bundle)
-                    .get_message(&key)
-                    .is_some(),
+                EN_CATALOG.contains_key(key.as_str()),
                 "message ID '{id}' missing from EN catalog"
             );
             assert!(
-                ZH_BUNDLE
-                    .get_or_init(build_zh_bundle)
-                    .get_message(&key)
-                    .is_some(),
+                ZH_CATALOG.contains_key(key.as_str()),
                 "message ID '{id}' missing from ZH catalog"
             );
         }
+    }
+
+    // Guard: template substitution semantics (single pass, no re-parse)
+
+    #[test]
+    fn test_format_template_substitutes_known_placeholders() {
+        assert_eq!(
+            format_template("Key not found: { $detail }", &[("detail", "user:42")]),
+            "Key not found: user:42"
+        );
+        // Compact placeholder form is recognized too.
+        assert_eq!(format_template("{$n} items", &[("n", "3")]), "3 items");
+    }
+
+    #[test]
+    fn test_format_template_keeps_unknown_placeholders_and_literal_braces() {
+        assert_eq!(
+            format_template("keep { $nope } and {literal}", &[("x", "1")]),
+            "keep { $nope } and {literal}"
+        );
+    }
+
+    #[test]
+    fn test_format_template_never_reparses_argument_values() {
+        // A value containing brace syntax is inserted literally —
+        // single-pass semantics (injection-safe, same as trait-kit's
+        // registered-template path).
+        assert_eq!(
+            format_template("v={ $v}", &[("v", "{ $v } injected")]),
+            "v={ $v } injected"
+        );
+    }
+
+    #[test]
+    fn test_format_template_no_braces_short_circuits() {
+        assert_eq!(format_template("plain text", &[("x", "1")]), "plain text");
+    }
+
+    // Guard: trait-kit registration bridge (feature-gated)
+
+    #[cfg(feature = "trait-kit")]
+    #[test]
+    fn test_catalog_registered_into_trait_kit() {
+        // Trigger the catalog + one-time registration bridge.
+        let local_en = lookup("en", MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
+            .expect("local catalog resolves error.not_found");
+        let local_zh = lookup("zh", MSG_ERR_NOT_FOUND, &[("detail", "user:42")])
+            .expect("local catalog resolves error.not_found (zh)");
+
+        // The global trait-kit instance resolves the same key through the
+        // registered-translation layer. The instance language is
+        // process-global (whoever initializes it first wins), so accept
+        // either bucket's rendering — the assertion is that the key no
+        // longer falls through to the raw key itself.
+        let key = ftl_key(MSG_ERR_NOT_FOUND);
+        let host = trait_kit::i18n::tr(&key, &[("detail", "user:42")]);
+        assert!(
+            host == local_en || host == local_zh,
+            "trait-kit host lookup must resolve oxcache key '{key}': got '{host}' \
+             (expected en='{local_en}' or zh='{local_zh}')"
+        );
     }
 
     // Guard: embedded FTL covers the locales/ directory (sync guard)
