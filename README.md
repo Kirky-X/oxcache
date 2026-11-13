@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0-rc.11）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -130,7 +130,7 @@ cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 +
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.11"
+oxcache = "0.5.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -245,9 +245,9 @@ cargo build --lib --target wasm32-unknown-unknown --no-default-features --featur
 <summary>📄 代码 · toml</summary>
 
 ```toml
-oxcache = { version = "0.5.0-rc.11", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0-rc.11", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0-rc.11", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
 
 </details>
@@ -586,7 +586,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
 |------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1665 |
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1671 |
 | 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
 | 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 153 |
 | 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
@@ -598,7 +598,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 </details>
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0-rc.11**（2026-10-27 复核）；合计 2394（`src/` 1665 + `tests/` 729）。分表按各测试目录 grep 计数（合计 641），差额 88 例来自未入表的 19 个顶层测试文件：16 个补齐测试文件（`tests/*_extra_test.rs` 等）共 80 例、`tests/single_flight_flight_signal.rs` 4 例、`tests/scenario_probe_172.rs` 与 `tests/scenario_probe_188.rs` 共 4 例。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0**（2026-11-14 复核）；合计 2413（`src/` 1671 + `tests/` 742）。分表按各测试目录 grep 计数（合计 641），差额 110 例来自未入表的 26 个顶层测试文件（`tests/*_extra_test.rs` 等补齐文件、`scenario_probe_*.rs` 探针与 `*_test.rs` 顶层用例）。
 
 ### 常用命令（与 CI 一致）
 

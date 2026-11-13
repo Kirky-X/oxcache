@@ -8,8 +8,8 @@
 //! pure single-line `key = value` form — no selectors, multiline values or
 //! attributes — so line parsing is behavior-identical to a full Fluent
 //! parse). Placeholders use the `{ $name }` form and are substituted in a
-//! single pass by [`format_template`], the same semantics as the
-//! `trait-kit` `I18nManager` host-registration surface.
+//! single pass by the private [`format_template`](self) helper, the same
+//! semantics as the `trait-kit` `I18nManager` host-registration surface.
 //!
 //! # Host registration bridge (`trait-kit` feature)
 //!

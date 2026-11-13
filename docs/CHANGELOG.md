@@ -7,6 +7,27 @@
 
 > 本文件记录已发布版本；未发布变更见 [UNRELEASED.md](UNRELEASED.md)。
 
+## [0.5.0] - 2026-11-14
+
+0.5.0 正式版定版：API 与行为相对 0.5.0-rc.12 无变更，rc 系列变更见下方各节。
+
+### Changed
+
+- **依赖基线（自研依赖 minor 精度声明）**：`trait-kit` 自 `0.5.0-rc.11` 升至 `0.5`
+  （锁定 0.5.0，crates.io 已发布）、`confers` 自 `0.6.0-rc.12` 升至 `0.6`
+  （锁定 0.6.0）；`examples` 内部 path 依赖 version 字段与 `trait-kit` 声明同步对齐。
+- **`PluralCategory` 改经 trait-kit 重导出**：i18n 复数格式化所需的
+  `PluralCategory` 改由 `trait_kit::i18n::PluralCategory`（trait-kit rc.14 重导出）
+  取得；本仓随之移除直接依赖 `icu` 元 crate 与 `writeable`（零引用死依赖，
+  Cargo.toml 与 Cargo.lock 共减 145 行）。API 面不变：`oxcache::i18n` 对外
+  行为（`format_number` 复数类别、CLDR 类别名映射）与 rc.12 一致。
+
+### Security
+
+- 承接 rc.12 全量安全加固（宏默认键 sha256 摘要化、`#[cached]` 方法归属维度
+  编译期强制、`RedisBackend::client()` 门控移除、`inklog` 反向集成边移除），
+  内容详见下方 [0.5.0-rc.12] 各节，正式版号下无新增变更。
+
 ## [0.5.0-rc.12] - 2026-10-30
 
 ### Breaking Changes

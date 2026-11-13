@@ -79,7 +79,7 @@ One line of `#[cached]` enables it all; L1/L2 backends chain freely via ChainCac
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>Fault resilience</b><br><span style="color:#64748B">ChainCache per-link fault tolerance, <code>degradation</code> three-state auto-degradation and recovery, health checks, graceful shutdown</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>Engineering quality</b><br><span style="color:#64748B">2000+ test functions (as of 0.5.0-rc.8), chaos and security tests, three-platform CI matrix, coverage gate</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>Engineering quality</b><br><span style="color:#64748B">2000+ test functions (as of 0.5.0), chaos and security tests, three-platform CI matrix, coverage gate</span></td>
 </tr>
 </table>
 
@@ -130,7 +130,7 @@ Or add manually to `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0-rc.11"
+oxcache = "0.5.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
 ```
@@ -231,9 +231,9 @@ Tier presets (`default = ["minimal"]`, L1 only):
 <summary>📄 Code · toml</summary>
 
 ```toml
-oxcache = { version = "0.5.0-rc.11", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0-rc.11", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
-oxcache = { version = "0.5.0-rc.11", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
+oxcache = { version = "0.5.0", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.0", features = ["full"] }      # true full: every named capability feature (bloom / kit / encrypt / integrity / three backends included)
 ```
 
 </details>
@@ -575,11 +575,11 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 | Layer | Entry point | Coverage | Test functions¹ |
 |-------|-------------|----------|-----------------|
-| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1616 |
+| Library unit tests | `--lib` | `#[cfg(test)]` tests inside `src/` | 1671 |
 | Unit tests | `--test unit` | Backend interfaces, CacheBuilder, serialization, metrics, log redaction, etc. | 332 |
 | Integration tests | `--test integration` | Batch writes, chained cache, degradation & recovery, TTL, Redis Cluster / Sentinel (incl. failover re-discovery), distributed locks, etc. | 153 |
 | End-to-end tests | `--test e2e` | Basic operations, `#[cached]` macro, real-world scenarios, advanced scenarios | 65 |
-| Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 21 |
+| Macro tests | `--test macros` | `sync` / `skip_cache_write` modes and trybuild compile-fail cases | 24 |
 | Security tests | `--test security` | Security coverage and security validation | 20 |
 | Chaos tests | `--test chaos` | Backend failure injection, network failures, random failures | 19 |
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
@@ -587,7 +587,7 @@ The test suite is organized as described in [`tests/README.md`](tests/README.md)
 
 </details>
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.0-rc.8** (re-verified 2026-10-11); 2337 in total (`src/` 1616 + `tests/` 721). Per-layer rows are grep counts per test directory (638 in total); the remaining 83 come from 17 top-level test files not listed above: 14 supplementary files (`tests/*_extra_test.rs` etc., 75 in total), `tests/single_flight_flight_signal.rs` (4) and `tests/scenario_probe_172.rs` / `tests/scenario_probe_188.rs` (4).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.0** (re-verified 2026-11-14); 2413 in total (`src/` 1671 + `tests/` 742). Per-layer rows are grep counts per test directory (641 in total); the remaining 110 come from 26 top-level test files not listed above (`tests/*_extra_test.rs` supplementary files, `scenario_probe_*.rs` probes and top-level `*_test.rs` cases).
 
 ### Common Commands (same as CI)
 
