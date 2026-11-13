@@ -59,7 +59,7 @@ async-trait = { version = "0.1", default-features = false }
 once_cell = { version = "1.21", default-features = false, features = ["std"] }
 uuid = { version = "1.29", default-features = false, features = ["std", "v4"] }
 # trait-kit 集成：包装 CacheBackend，单开须隐含 memory 基线
-trait-kit = { version = "0.5.0-rc.13", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator", "i18n"], optional = true }
+trait-kit = { version = "0.5.0-rc.14", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator", "i18n"], optional = true }
 # futures executor for sync health check in async context (trait-kit feature only)
 futures = { version = "0.3", default-features = false, features = ["executor"], optional = true }
 # ICU4X 常开：关闭 default 只留 compiled_data，裁掉未用的解析/迭代面
@@ -99,7 +99,7 @@ sha2 = { version = "0.11", default-features = false, features = ["alloc"], optio
 bincode = { version = "2.0", default-features = false, features = ["std", "serde"], optional = true }
 postcard = { version = "1.1", default-features = false, features = ["use-std"], optional = true }
 # 配置驱动构建（confers watch 热重载）
-confers = { version = "0.6.0-rc.12", default-features = false, features = ["config-bus"], optional = true }
+confers = { version = "0.6.0-rc.13", default-features = false, features = ["config-bus"], optional = true }
 # 自适应压缩：只用 stream encode/decode，裁 legacy（旧格式解码）/arrays/zdict_builder（字典训练）
 zstd = { version = "0.14", default-features = false, optional = true }
 
