@@ -62,9 +62,6 @@ uuid = { version = "1.29", default-features = false, features = ["std", "v4"] }
 trait-kit = { version = "0.5.0-rc.14", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator", "i18n"], optional = true }
 # futures executor for sync health check in async context (trait-kit feature only)
 futures = { version = "0.3", default-features = false, features = ["executor"], optional = true }
-# ICU4X 常开：关闭 default 只留 compiled_data，裁掉未用的解析/迭代面
-icu = { version = "2.4", default-features = false, features = ["compiled_data"] }
-writeable = { version = "0.6", default-features = false, features = ["alloc"] }
 # Fluent internationalization message catalog (always enabled)
 # 消息解析/存储/查询已统一到 trait-kit i18n（I18nManager 注册面 + I18nFormatter 格式化），
 # 本仓不再直接依赖 fluent-bundle（零引用点，保留即为死依赖）

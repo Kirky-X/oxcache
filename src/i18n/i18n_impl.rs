@@ -5,11 +5,9 @@
 
 use std::cmp::Ordering;
 
-// PluralCategory 取自本仓已声明的 ICU4X 元 crate（`icu::plurals`，compiled_data）——
-// 不再依赖 Cargo 传递可见的 `icu_plurals` 直路径（resolver 2018+ 下不可直引用）。
-// trait-kit 侧将来重导出该类型后，可改为 `trait_kit::i18n::PluralCategory` 并删除本仓 icu 依赖。
-use icu::plurals::PluralCategory;
-use trait_kit::i18n::I18nFormatter;
+// PluralCategory 经 trait-kit rc.14 重导出（`trait_kit::i18n::PluralCategory`）取得，
+// 本仓不再自持 ICU4X 依赖面。
+use trait_kit::i18n::{I18nFormatter, PluralCategory};
 
 use super::I18nError;
 
