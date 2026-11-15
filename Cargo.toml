@@ -28,7 +28,7 @@ resolver = "2"
 members = [".", "macros", "examples"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 rust-version = "1.97.1"
 authors = ["Kirky-X <Kirky-X@outlook.com>"]
@@ -92,8 +92,6 @@ getrandom = { version = "0.4", default-features = false, optional = true }
 hmac = { version = "0.13", default-features = false, optional = true }
 # oid（DER 编码，PKI 场景）缓存完整性签名不需要
 sha2 = { version = "0.11", default-features = false, features = ["alloc"], optional = true }
-# bincode 钉 2.x：3.0.0 是 compile_error 占位，项目已停止开发
-bincode = { version = "2.0", default-features = false, features = ["std", "serde"], optional = true }
 postcard = { version = "1.1", default-features = false, features = ["use-std"], optional = true }
 # 配置驱动构建（confers watch 热重载）
 confers = { version = "0.6", default-features = false, features = ["config-bus"], optional = true }
@@ -174,7 +172,8 @@ pubsub = ["redis", "dep:futures", "dep:tracing"]
 # encrypt：加密/完整性装饰器，单开须隐含 memory；integrity 寄生 encryption
 encrypt = ["dep:chacha20poly1305", "dep:getrandom", "memory"]
 integrity = ["encrypt", "serialization", "dep:hmac", "dep:sha2"]
-serde-bincode = ["serialization", "dep:bincode"]
+# 兼容别名（0.5.1 起）：变体/配置名 bincode 保留，内部 postcard 编码 + 版本标签
+serde-bincode = ["serialization", "dep:postcard"]
 postcard = ["serialization", "dep:postcard"]
 config-confers = ["dep:confers", "serialization", "memory", "dep:futures"]
 # degradation 装饰 L2 后端（模块引用 crate::backend，backend 门控 any(memory,redis,disk)），单开须隐含最小 backend 基线方可编译

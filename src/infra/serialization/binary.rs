@@ -4,7 +4,8 @@
 //!
 //! [`SerializationFormat`] 提供 JSON 之外的可选传输格式：
 //!
-//! - `serde-bincode` feature → `SerializationFormat::Bincode`（bincode 2）；
+//! - `serde-bincode` feature → `SerializationFormat::Bincode`（兼容别名格式：
+//!   0.5.1 起内部为 postcard 编码 + 版本标签，上游 bincode 已停维不再携带）；
 //! - `postcard` feature → `SerializationFormat::Postcard`（postcard 1.x）。
 //!
 //! 二进制格式天然无嵌套 DoS（无深度递归文本解析），仍保留 5 MiB 大小上限
@@ -30,12 +31,23 @@ pub enum SerializationFormat {
     /// JSON（serde_json，默认；带深度防御解析）
     #[default]
     Json,
-    /// bincode 2（紧凑二进制，需 `serde-bincode` feature）
+    /// 兼容别名格式（变体与配置名 `bincode` 保留，需 `serde-bincode` feature）：
+    /// 0.5.1 起内部为 **postcard 编码 + 版本标签**——上游 bincode 全系停维
+    /// （RUSTSEC-2025-0141），本仓不再携带该依赖。wire：`[0xB1][postcard]`；
+    /// 0.5.1 前落盘的 bincode 2 字节流解码时被判定为 legacy 条目（显式错误，
+    /// 重写该键即重建）。
     #[cfg(feature = "serde-bincode")]
     Bincode,
     /// postcard 1.x（紧凑二进制，需 `postcard` feature）
     #[cfg(feature = "postcard")]
     Postcard,
+}
+
+impl SerializationFormat {
+    /// `Bincode` 别名格式 wire 首字节版本标签（0.5.1 起；用于区分 0.5.1 前
+    /// 落盘的 legacy bincode 2 字节流——后者不以本标签开头，解码判失效）
+    #[cfg(feature = "serde-bincode")]
+    const BINCODE_V1_TAG: u8 = 0xB1;
 }
 
 impl SerializationFormat {
@@ -89,8 +101,14 @@ pub fn serialize_with_format<T: Serialize>(
         }
         #[cfg(feature = "serde-bincode")]
         SerializationFormat::Bincode => {
-            bincode::serde::encode_to_vec(value, bincode::config::standard())
-                .map_err(|e| OxCacheError::Serialization(e.to_string()))?
+            // 0.5.1 起：版本标签 + postcard（见变体文档）；legacy bincode 2
+            // 已停维移除，新写入不再产生无标签字节流
+            let payload = postcard::to_allocvec(value)
+                .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
+            let mut bytes = Vec::with_capacity(payload.len() + 1);
+            bytes.push(SerializationFormat::BINCODE_V1_TAG);
+            bytes.extend_from_slice(&payload);
+            bytes
         }
         #[cfg(feature = "postcard")]
         SerializationFormat::Postcard => {
@@ -122,11 +140,17 @@ pub fn deserialize_with_format<T: DeserializeOwned>(
         )
         .map_err(|e| OxCacheError::Serialization(e.to_string())),
         #[cfg(feature = "serde-bincode")]
-        SerializationFormat::Bincode => {
-            bincode::serde::decode_from_slice(data, bincode::config::standard())
-                .map(|(value, _consumed): (T, usize)| value)
-                .map_err(|e| OxCacheError::Serialization(e.to_string()))
-        }
+        SerializationFormat::Bincode => match data.split_first() {
+            Some((tag, rest)) if *tag == SerializationFormat::BINCODE_V1_TAG => {
+                postcard::from_bytes(rest).map_err(|e| OxCacheError::Serialization(e.to_string()))
+            }
+            // 0.5.1 前的 bincode 2 字节流（或损坏数据）：显式判失效而非
+            // 盲解码——调用方按缓存错误处理，重写该键即以新格式重建
+            _ => Err(OxCacheError::Serialization(format!(
+                "bincode 格式条目缺失 0.5.1 版本标签（legacy bincode 2 字节流，已失效）——重写该键即重建（{} 字节）",
+                data.len()
+            ))),
+        },
         #[cfg(feature = "postcard")]
         SerializationFormat::Postcard => {
             postcard::from_bytes(data).map_err(|e| OxCacheError::Serialization(e.to_string()))
@@ -173,6 +197,39 @@ mod tests {
                 format.name()
             );
         }
+    }
+
+    /// 0.5.1 前落盘的 legacy bincode 2 字节流（bincode::config::standard 实测
+    /// 字节，结构同 `Sample`）：解码显式判失效——错误指向"重写即重建"，
+    /// 不盲解码、不 panic
+    #[cfg(feature = "serde-bincode")]
+    #[test]
+    fn legacy_bincode_entry_is_invalidated_with_explicit_error() {
+        const LEGACY_BINCODE_BYTES: &[u8] = &[
+            42, 11, 99, 97, 99, 104, 101, 45, 101, 110, 116, 114, 121, 3, 2, 108, 49, 2, 108, 50,
+            3, 116, 116, 108, 47, 221, 36, 6, 129, 149, 239, 63,
+        ];
+        let err =
+            deserialize_with_format::<Sample>(SerializationFormat::Bincode, LEGACY_BINCODE_BYTES)
+                .expect_err("legacy bincode 条目不得被解码");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("legacy bincode") && msg.contains("重建"),
+            "错误须显式指向 legacy 失效与重建: {msg}"
+        );
+    }
+
+    /// 新 wire 带版本标签首字节；无标签的裸 postcard 字节流对 Bincode 格式
+    /// 同样判 legacy（本 fixture 的 postcard 首字节 0x2A ≠ 0xB1，判定确定）
+    #[cfg(all(feature = "serde-bincode", feature = "postcard"))]
+    #[test]
+    fn bincode_alias_wire_is_tagged_and_rejects_untagged_streams() {
+        let bytes = serialize_with_format(SerializationFormat::Bincode, &sample()).unwrap();
+        assert_eq!(bytes.first(), Some(&SerializationFormat::BINCODE_V1_TAG));
+        let raw = postcard::to_allocvec(&sample()).unwrap();
+        let err = deserialize_with_format::<Sample>(SerializationFormat::Bincode, &raw)
+            .expect_err("无标签字节流不得被 Bincode 格式盲解码");
+        assert!(err.to_string().contains("legacy bincode"));
     }
 
     /// 互操作：JSON 与二进制格式表达同一值（各自独立可解）

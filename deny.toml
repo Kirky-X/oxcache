@@ -8,11 +8,6 @@ db-urls = ["https://github.com/RustSec/advisory-db"]
 yanked = "warn"
 # 传递依赖 RUSTSEC 豁免（每项须注释原因）
 ignore = [
-    # RUSTSEC-2025-0141: bincode 全系（含 2.x）被作者标记 unmaintained。已升至
-    # 2.0.1（停维前的重写版本，无已知漏洞）；oxcache 仅在 serde-bincode feature
-    # 下用于本地缓存条目序列化，无网络输入面。crates.io 3.0.0 为官方 compile_error
-    # 占位不可升；迁移出路：postcard（已在依赖中）。与 .cargo/audit.toml 同口径。
-    "RUSTSEC-2025-0141",
     # RUSTSEC-2026-0440: astral-tokio-tar 全系停维（Astral 2026-11-03 公告，
     # 官方建议迁移 tar-codec）。引入链：[dev-dependencies] testcontainers 0.28.0
     # （已是 crates.io 最新版，advisory 明示 "No safe upgrade is available"）。
