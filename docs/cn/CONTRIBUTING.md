@@ -39,7 +39,6 @@ pre-commit install
 | `check-merge-conflict` | 检测未解决的合并冲突标记 |
 | `detect-private-key` / `detect-secrets` | 检测私钥与密钥泄露 |
 | `typos` | 拼写检查 |
-| `no-commit-to-branch` | 禁止直接提交到 `master`（本仓工作流在 `main` 上提交，配置仅保护 `master`） |
 | `cargo-fmt` / `cargo-check` / `cargo-clippy` | Rust 格式、编译与 lint（`-D warnings`）检查 |
 
 **lefthook**（各阶段门禁）：

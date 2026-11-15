@@ -64,7 +64,7 @@ MSRV 为 **Rust 1.97.1**（根 `Cargo.toml` 的 `[workspace.package] rust-versio
 
 `.cargo/audit.toml` 与 `deny.toml` 同口径记录以下一条 RustSec 豁免，为**依赖树可达但不可利用/无升级路径**的形态：
 
-- `RUSTSEC-2025-0141`（bincode 被作者标记 unmaintained）：已升级至 2.0.1，仅在 `serde-bincode` 特性下用于本地缓存条目序列化，无网络输入面；出路为 `postcard`（已在依赖中）。
+- `RUSTSEC-2026-0440`（astral-tokio-tar 全系停维）：经 dev-only 的 `testcontainers` 0.28.0 引入（crates.io 最新版，advisory 明示 "No safe upgrade is available"）；仅用于测试容器镜像层打包，不进 lib 依赖面与发布产物；待 testcontainers 上游迁移 tar-codec 后移除本豁免。
 
 豁免不构成安全行为变更；依赖故障与降级语义见 [🏗️ 架构文档](ARCHITECTURE.md)。
 

@@ -29,7 +29,7 @@ This document describes the architecture, design decisions and technical details
 - [🔮 Future Enhancements](#-future-enhancements)
 - [📚 References](#-references)
 - [🌸 Bloom Filter & Penetration Guard](#-bloom-filter--penetration-guard)
-- [⏱️ TTL Behavior Reference](#️-ttl-behavior-reference)
+- [⏱️ TTL Behavior Reference](#-ttl-behavior-reference)
 
 </details>
 
@@ -64,12 +64,12 @@ Oxcache follows a layered design of "unified interface + pluggable backends". Ap
 
 ```mermaid
 flowchart TD
-    APP["应用代码"] --> CACHE
-    MACRO["oxcache_macros<br/>cached 属性宏"] --> REG["internal<br/>MACRO_CACHES 注册表"]
+    APP["application code"] --> CACHE
+    MACRO["oxcache_macros<br/>cached attribute macro"] --> REG["internal<br/>MACRO_CACHES registry"]
     REG --> CACHE["cache<br/>Cache / CacheBuilder / ChainCache"]
     CACHE --> BACKEND["backend<br/>CacheReader / CacheWriter / CacheConnector"]
     CACHE --> INFRA["infra<br/>serialization / metrics"]
-    CACHE --> SEC["security<br/>输入校验 / 脱敏"]
+    CACHE --> SEC["security<br/>input validation / redaction"]
     CACHE --> UTILS["utils<br/>KeyGenerator"]
     CACHE --> ERR["error<br/>OxCacheError"]
     BACKEND --> MEM["memory<br/>Moka / DashMap"]
@@ -110,16 +110,16 @@ Both are re-exported from `oxcache::internal`; `oxcache::__internal_get_cache` i
 ```rust
 use oxcache::Cache;
 
-// 构建缓存实例
+// Build the cache instance
 let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
-// 方式一：经 internal 模块注册（供 #[cached] 宏使用）
+// Option 1: register via the internal module (for the #[cached] macro)
 oxcache::internal::__internal_register_cache("my_service", Arc::new(cache.clone()));
 
-// 方式二：使用 Cache 上的便捷方法
+// Option 2: the convenience method on Cache
 cache.register_for_macro("my_service").await?;
 
-// 宏生成的代码从注册表获取缓存：
+// Macro-generated code fetches the cache from the registry:
 #[cached(service = "my_service", ttl = 300)]
 async fn get_user(id: u64) -> User { /* ... */ }
 ```
@@ -158,17 +158,17 @@ For the signatures of the key async methods (`get` / `set` / `set_with_ttl` / `g
 use oxcache::Cache;
 use std::time::Duration;
 
-// 1) 简单内存缓存（默认）
+// 1) Simple in-memory cache (default)
 let cache: Cache<String, User> = Cache::builder()
     .ttl(Duration::from_secs(3600))
     .capacity(10000)
     .build()
     .await?;
 
-// 2) Redis 缓存（强制 TLS，除非设置了 OXCACHE_ALLOW_INSECURE_REDIS）
+// 2) Redis cache (TLS enforced unless OXCACHE_ALLOW_INSECURE_REDIS is set)
 let cache: Cache<String, User> = Cache::redis("rediss://localhost:6379").await?;
 
-// 3) 注入任意自定义后端
+// 3) Inject any custom backend
 let backend: Arc<dyn oxcache::backend::CacheBackend> = /* ... */;
 let cache: Cache<String, User> = Cache::builder()
     .backend_arc(backend)
@@ -176,8 +176,8 @@ let cache: Cache<String, User> = Cache::builder()
     .build()
     .await?;
 
-// 4) 同步 API（默认 Moka 路径原生同步、运行时无关；backend_arc + sync_mode
-//    经 AsyncToSyncBridge 桥出，要求 multi_thread runtime）
+// 4) Sync API (the default Moka path is natively sync and runtime-independent; backend_arc + sync_mode
+//    is bridged out through AsyncToSyncBridge and requires a multi_thread runtime)
 let cache: Cache<String, String> = Cache::builder()
     .sync_mode(true)
     .build()
@@ -185,7 +185,7 @@ let cache: Cache<String, String> = Cache::builder()
 cache.set_sync(&"k".to_string(), &"v".to_string())?;
 let v = cache.get_sync(&"k".to_string())?;
 
-// 注册供 #[cached] 宏使用
+// Register for use by the #[cached] macro
 cache.register_for_macro("my_service").await?;
 ```
 
@@ -198,7 +198,7 @@ cache.register_for_macro("my_service").await?;
 **Module structure**:
 
 - `backend/mod.rs` — module root and re-exports
-- `backend/interface.rs` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` and their sync mirrors; `AtomicCacheWriter` / `SyncAtomicCacheWriter` for atomic operations; `CachePatternOps` for pattern-level counting / deletion
+- `backend/interface/` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` and their sync mirrors; `AtomicCacheWriter` / `SyncAtomicCacheWriter` for atomic operations; `CachePatternOps` for pattern-level counting / deletion
 - `backend/memory/` — in-memory backend implementations (Moka, DashMap) and the Redis/Valkey client
 - `backend/dragonfly/` — Dragonfly backend (wrapped over the Redis protocol)
 - `backend/aerospike/` — Aerospike backend (independent protocol, feature-gated)
@@ -220,7 +220,7 @@ cache.register_for_macro("my_service").await?;
 | `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom` | Negative-query filtering decorator |
 | `RedbDiskBackend` | `oxcache::backend::disk::RedbDiskBackend` | `disk` | L3 disk persistence (embedded redb, lazy expiry + `max_entries` sweep) |
 
-**Async trait hierarchy** (`backend/interface.rs`):
+**Async trait hierarchy** (`backend/interface/`):
 
 ```rust
 #[async_trait]
@@ -229,14 +229,14 @@ pub trait CacheReader: Send + Sync + 'static {
     async fn exists(&self, key: &str) -> OxCacheResult<bool>;
     async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>>;
     async fn len(&self) -> OxCacheResult<u64>;
-    async fn is_empty(&self) -> OxCacheResult<bool> { /* 默认实现 */ }
+    async fn is_empty(&self) -> OxCacheResult<bool> { /* default implementation */ }
     async fn capacity(&self) -> OxCacheResult<u64>;
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>>;
-    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* 默认 */ }
-    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> { /* 默认：空 Vec */ }
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> { /* default */ }
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> { /* default: empty Vec */ }
 }
 
-/// 批量写入条目类型：`(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
+/// Batch-write item type: `(Arc<str> key, Arc<Vec<u8>> value, Option<Duration> ttl)`
 pub type CacheSetItem = (Arc<str>, Arc<Vec<u8>>, Option<Duration>);
 
 #[async_trait]
@@ -245,8 +245,8 @@ pub trait CacheWriter: Send + Sync + 'static {
     async fn delete(&self, key: &str) -> OxCacheResult<()>;
     async fn clear(&self) -> OxCacheResult<()>;
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool>;
-    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> { /* 默认 */ }
-    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* 默认 */ }
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> { /* default */ }
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> { /* default */ }
 }
 
 #[async_trait]
@@ -265,7 +265,7 @@ pub trait CacheBackend: CacheReader + CacheWriter + CacheConnector + 'static {
     async fn delete_by_pattern(&self, pattern: &str) -> OxCacheResult<u64>;
     async fn count_by_pattern(&self, pattern: &str) -> OxCacheResult<u64>;
 }
-// blanket 实现：满足三个超级 trait 的任意 T 自动成为 CacheBackend。
+// Blanket impl: any T satisfying the three supertraits automatically becomes a CacheBackend.
 ```
 
 **CachePatternOps** (pattern-level operation capability, an independent trait): count / delete keys matching a glob pattern.
@@ -293,9 +293,9 @@ at once). The unified public entry points are `count_by_pattern` / `delete_by_pa
 **Sync trait hierarchy** (mirrors the async version, without `async`/`#[async_trait]`):
 
 ```rust
-pub trait SyncCacheReader: Send + Sync + 'static { /* 同步 fn */ }
-pub trait SyncCacheWriter: Send + Sync + 'static { /* 同步 fn */ }
-pub trait SyncCacheConnector: Send + Sync + 'static { /* 同步 fn */ }
+pub trait SyncCacheReader: Send + Sync + 'static { /* sync fn */ }
+pub trait SyncCacheWriter: Send + Sync + 'static { /* sync fn */ }
+pub trait SyncCacheConnector: Send + Sync + 'static { /* sync fn */ }
 pub trait SyncCacheBackend: SyncCacheReader + SyncCacheWriter + SyncCacheConnector + 'static {}
 ```
 
@@ -311,7 +311,7 @@ pub trait AtomicCacheWriter: Send + Sync + 'static {
     async fn set_if_absent(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> OxCacheResult<bool>;
 }
 
-pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* 同步镜像 */ }
+pub trait SyncAtomicCacheWriter: Send + Sync + 'static { /* sync mirror */ }
 ```
 
 Backends expose the atomic capability through `CacheConnector::as_atomic_writer()`. `Cache<K,V>::incr()` / `compare_and_swap()` / `set_if_absent()` delegate through this runtime-discovery method; when a backend lacks atomic support the calls return `Err(NotSupported)`. The `versioning` feature additionally provides `MemoryVersionedCache` / `RedisVersionedCache` (WATCH/MULTI/EXEC) with version envelopes.
@@ -321,13 +321,13 @@ Backends expose the atomic capability through `CacheConnector::as_atomic_writer(
 **ChainCache read path**:
 
 ```
-1. 从最高分（L1）到最低分（L2）遍历 ChainLink
-2. 命中 → 返回值
-3. 未命中（None 或 Err）→ 记录警告并继续下一个链接
-   （L1 读取失败优雅降级而非使请求失败）
-4. 在非最高分链接命中后，如启用回填，
-   顺序 await 写入更高分（更靠近 L1）的链接
-   （读路径等待回填完成后才返回；单链失败仅警告不传播）
+1. Walk the ChainLinks from the highest score (L1) down to the lowest (L2)
+2. Hit → return the value
+3. Miss (None or Err) → log a warning and continue with the next link
+   (an L1 read failure degrades gracefully instead of failing the request)
+4. After a hit on a non-top link, if backfill is enabled,
+   sequentially await writes to the higher-scored (closer to L1) links
+   (the read path waits for the backfill to finish before returning; a single-link failure only warns and does not propagate)
 ```
 
 With `enable_race_read()` (opt-in), the read path instead queries **all** backends **concurrently** (`JoinSet`), and once every query has finished the highest-scored hit (lowest link index) is returned;
@@ -343,10 +343,10 @@ priority, ties resolved by highest score; introduced by absorb-hitbox-features).
 **ChainCache write path**:
 
 ```
-1. 并发（JoinSet）写入所有链接（无阈值过滤，持久化后端亦在列）
-2. 单链接失败仅记录日志并容忍；仅当所有后端都失败时
-   写入才报错
-3. 无 WAL（持久性委托给 Redis 后端本身）
+1. Write to all links concurrently (JoinSet; no threshold filtering, persistent backends included)
+2. A single link failure is only logged and tolerated; only when all backends fail
+   does the write return an error
+3. No WAL (durability is delegated to the Redis backend itself)
 ```
 
 **ChainCache health check**: every link is pinged concurrently, 5-second timeout per backend; if any link fails (including timeouts) `health_check()` returns an error, and `Ok` is returned only when all links are healthy.
@@ -459,8 +459,8 @@ let generator = KeyGenerator::new()
     .with_prefix_str("cache:");
 
 let key = generator.generate_full("user:{id}", &[("id", "123")]);
-// 结果："myapp:cache:user:123"
-// 注意：前缀按原样直拼（无分隔符），需自带尾随冒号
+// Result: "myapp:cache:user:123"
+// Note: the prefix is concatenated as-is (no separator), so bring your own trailing colon
 ```
 
 ### 8. Event Module
@@ -502,29 +502,29 @@ The `#[cached]` macro achieves zero-boilerplate caching by handling cache lookup
 
 ```mermaid
 sequenceDiagram
-    participant App as 应用
-    participant Gen as 宏生成代码
-    participant Reg as MACRO_CACHES 注册表
+    participant App as Application
+    participant Gen as Macro-generated code
+    participant Reg as MACRO_CACHES registry
     participant Cache as Cache
     participant BE as CacheBackend
 
-    App->>Gen: 调用被标注函数
-    Gen->>Reg: 按服务名查找缓存
-    Reg-->>Gen: 返回缓存实例
-    Gen->>Gen: 生成缓存键
+    App->>Gen: call the annotated function
+    Gen->>Reg: look up the cache by service name
+    Reg-->>Gen: return the cache instance
+    Gen->>Gen: generate the cache key
     Gen->>Cache: get_bytes key
     Cache->>BE: get
     BE-->>Cache: Option bytes
-    alt 缓存命中
-        Cache-->>Gen: 字节值
-        Gen->>Gen: JSON 反序列化
-        Gen-->>App: 返回缓存值
-    else 缓存未命中
-        Gen->>Gen: 执行原函数
-        Gen->>Gen: JSON 序列化结果
+    alt cache hit
+        Cache-->>Gen: byte value
+        Gen->>Gen: JSON deserialization
+        Gen-->>App: return the cached value
+    else cache miss
+        Gen->>Gen: execute the original function
+        Gen->>Gen: JSON-serialize the result
         Gen->>Cache: set_bytes key bytes ttl
         Cache->>BE: set
-        Gen-->>App: 返回函数结果
+        Gen-->>App: return the function result
     end
 ```
 
@@ -533,7 +533,7 @@ sequenceDiagram
 ```rust
 #[cached(service = "my_service", ttl = 300)]
 async fn get_user(id: u64) -> OxCacheResult<User> {
-    // ... 原始函数体 ...
+    // ... original function body ...
 }
 ```
 
@@ -543,23 +543,23 @@ Roughly expands to:
 async fn get_user(id: u64) -> OxCacheResult<User> {
     let cache_key = format!("my_service:get_user:{:?}", id);
 
-    // 从注册表获取缓存（同步查找）
+    // Fetch the cache from the registry (synchronous lookup)
     let client = match oxcache::__internal_get_cache("my_service") {
         Some(c) => c,
-        None => return { /* 原始代码 */ }.await,
+        None => return { /* original code */ }.await,
     };
 
-    // 尝试缓存命中（JSON 反序列化为 User）
+    // Try a cache hit (JSON-deserialize into User)
     if let Ok(Some(bytes)) = client.get_bytes(&cache_key).await {
         if let Ok(val) = serde_json::from_slice::<User>(&bytes) {
             return Ok(val);
         }
     }
 
-    // 执行原始函数
-    let result = { /* 原始代码 */ }.await;
+    // Execute the original function
+    let result = { /* original code */ }.await;
 
-    // 成功时缓存结果
+    // Cache the result on success
     if let Ok(ref val) = result {
         if let Ok(bytes) = serde_json::to_vec(val) {
             let _ = client.set_bytes(&cache_key, bytes, Some(Duration::from_secs(300))).await;
@@ -576,15 +576,15 @@ Unregistered services silently pass through and execute the original function by
 
 ```mermaid
 flowchart TD
-    A["Cache 读请求"] --> B["ChainCache 从最高分链接开始"]
-    B --> C{"最高分链接命中？如 L1 Moka"}
-    C -->|命中| D["返回值"]
-    C -->|未命中或出错| E{"下一个链接命中？如 L2 Redis"}
-    E -->|命中| F{"已启用回填？"}
-    F -->|是| G["异步回填更高分链接"]
-    F -->|否| D
+    A["Cache read request"] --> B["ChainCache starts from the highest-scored link"]
+    B --> C{"hit on the highest-scored link? e.g. L1 Moka"}
+    C -->|hit| D["return the value"]
+    C -->|miss or error| E{"hit on the next link? e.g. L2 Redis"}
+    E -->|hit| F{"backfill enabled?"}
+    F -->|yes| G["asynchronously backfill the higher-scored links"]
+    F -->|no| D
     G --> D
-    E -->|未命中或出错| H["返回 None"]
+    E -->|miss or error| H["return None"]
 ```
 
 For the step-by-step semantics of reads, writes and backfill (including `enable_race_read()` race reads), see [the ChainCache paths in the backend layer](#3-backend-layer).
@@ -593,12 +593,12 @@ For the step-by-step semantics of reads, writes and backfill (including `enable_
 
 ```mermaid
 flowchart TD
-    A["应用<br/>cached 函数"] --> B["执行函数"]
-    B --> C{"结果 Ok？"}
-    C -->|否| D["返回错误"]
-    C -->|是| E["序列化结果"]
-    E --> F["set_bytes 到缓存<br/>带 TTL"]
-    F --> L["返回结果"]
+    A["application<br/>cached function"] --> B["execute the function"]
+    B --> C{"result Ok?"}
+    C -->|no| D["return the error"]
+    C -->|yes| E["serialize the result"]
+    E --> F["set_bytes to the cache<br/>with TTL"]
+    F --> L["return the result"]
 ```
 
 > **Note**: `#[cached]` calls `set_bytes` on the registered `Cache<String, Vec<u8>>`, which dispatches to the attached backend (memory, Redis, ChainCache or BloomFilterBackend). If the backend is a `ChainCache`, the chain handles the L1+L2 writes internally according to score/backfill policy.
@@ -698,13 +698,13 @@ use std::time::Duration;
 use oxcache::Cache;
 
 let cache: Cache<String, User> = Cache::builder()
-    .capacity(10_000)              // L1 最大条目数
-    .ttl(Duration::from_secs(600)) // 默认 TTL
-    .tti(Duration::from_secs(300)) // 空闲 TTL（Moka）
+    .capacity(10_000)              // max L1 entries
+    .ttl(Duration::from_secs(600)) // default TTL
+    .tti(Duration::from_secs(300)) // idle TTL (Moka)
     .build()
     .await?;
 
-// Redis 连接池大小：
+// Redis connection pool size:
 let redis = oxcache::backend::RedisBackend::with_pool(
     "rediss://localhost:6379", 16,
 ).await?;
@@ -739,7 +739,7 @@ Reproducible measured data (serialization sizes, compression ratios, hot-path Cr
 
 ### Defenses
 
-The threats above are mitigated by multiple layers of defense: single flight plus the null sentinel/TTL jitter (penetration & stampede guards), `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` input validation (with comment preprocessing against bypass), `Redacted` and the `redact_*` redaction family, `MAX_JSON_DEPTH` + `MAX_JSON_SIZE` (5 MB) caps + a 64 MiB decompressed-output cap + stack-based recursion, TLS enforcement, and the `encrypt` / `integrity` value protection. For the complete rules of each mechanism, see the [in-library defense overview](SECURITY.md#️-in-library-defense-overview) of the security document.
+The threats above are mitigated by multiple layers of defense: single flight plus the null sentinel/TTL jitter (penetration & stampede guards), `validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` input validation (with comment preprocessing against bypass), `Redacted` and the `redact_*` redaction family, `MAX_JSON_DEPTH` + `MAX_JSON_SIZE` (5 MB) caps + a 64 MiB decompressed-output cap + stack-based recursion, TLS enforcement, and the `encrypt` / `integrity` value protection. For the complete rules of each mechanism, see the [in-library defense overview](SECURITY.md#-in-library-defense-overview) of the security document.
 
 > **Note**: oxcache has **no built-in rate limiting**. Rate limiting is the application's or an upstream proxy's responsibility.
 
@@ -765,14 +765,14 @@ The `security` module (private; consumed through crate-root re-exports, see the 
 
 ```mermaid
 flowchart TD
-    subgraph 应用实例
-        I1["实例 1<br/>L1 Moka + L2 Redis"]
-        I2["实例 2<br/>L1 Moka + L2 Redis"]
-        I3["实例 3<br/>L1 Moka + L2 Redis"]
+    subgraph application instances
+        I1["instance 1<br/>L1 Moka + L2 Redis"]
+        I2["instance 2<br/>L1 Moka + L2 Redis"]
+        I3["instance 3<br/>L1 Moka + L2 Redis"]
     end
 
-    subgraph Redis层
-        R["Redis 集群<br/>共享 L2"]
+    subgraph Redis tier
+        R["Redis cluster<br/>shared L2"]
     end
 
     I1 --> R
@@ -844,10 +844,10 @@ The `bloom` feature (now part of `full`, and still available standalone) provide
 
 ```mermaid
 flowchart TD
-    A["backend.get key"] --> B{"布隆过滤器包含 key？"}
-    B -->|一定不存在| C["直接返回 None<br/>inner 后端未被触及"]
-    B -->|可能存在| D["查询 inner 后端"]
-    D --> E["返回结果"]
+    A["backend.get key"] --> B{"bloom filter contains the key?"}
+    B -->|definitely absent| C["return None directly<br/>inner backend untouched"]
+    B -->|possibly present| D["query the inner backend"]
+    D --> E["return the result"]
 ```
 
 ```rust
@@ -856,13 +856,13 @@ use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 独立 BloomFilter：容量 10_000，误判率 1%
+    // Standalone BloomFilter: capacity 10_000, false-positive rate 1%
     let bf = BloomFilter::new(10_000, 0.01);
     bf.insert("existing_key");
-    assert!(bf.contains("existing_key"));   // 无假阴性
-    assert!(!bf.contains("missing_key"));   // 可能有假阳性
+    assert!(bf.contains("existing_key"));   // no false negatives
+    assert!(!bf.contains("missing_key"));   // possible false positives
 
-    // 装饰器：包装任意 CacheBackend
+    // Decorator: wraps any CacheBackend
     let backend = BloomFilterBackend::builder()
         .capacity(10_000)
         .false_positive_rate(0.01)
@@ -871,7 +871,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     backend.set(Arc::from("user:1"), Arc::new(b"Alice".to_vec()), None).await?;
     assert!(backend.get("user:1").await?.is_some());
-    assert!(backend.get("user:999").await?.is_none());   // BF 过滤，inner 未触及
+    assert!(backend.get("user:999").await?.is_none());   // filtered by the BF, inner untouched
     Ok(())
 }
 ```

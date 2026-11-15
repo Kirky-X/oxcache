@@ -10,7 +10,7 @@
 
 </div>
 
-> **⚠️ Version note**: this document was written against **Oxcache v0.5.0**.
+> **⚠️ Version note**: this document was written against **Oxcache v0.5.1**.
 
 ## 📋 Table of Contents
 
@@ -89,13 +89,13 @@ Before starting, make sure you have installed the following tools:
 <summary><b>🔍 Verify the installation</b></summary>
 
 ```bash
-# 检查 Rust 版本
+# Check the Rust version
 rustc --version
-# 预期: rustc 1.97.1 (或更高)
+# Expected: rustc 1.97.1 (or newer)
 
-# 检查 Cargo 版本
+# Check the Cargo version
 cargo --version
-# 预期: cargo 1.97.1 (或更高)
+# Expected: cargo 1.97.1 (or newer)
 ```
 
 </details>
@@ -106,12 +106,12 @@ Add `oxcache` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oxcache = "0.5.0"
+oxcache = "0.5.1"
 ```
 
 > **Note**: `default = ["minimal"]`; by default only the L1 in-memory cache is included. To use the full feature set, explicitly enable `features = ["full"]`.
 
-> **Features**: to use the `#[cached]` macro, enable the `macros` feature: `oxcache = { version = "0.5.0", features = ["macros"] }` (already included in `full`).
+> **Features**: to use the `#[cached]` macro, enable the `macros` feature: `oxcache = { version = "0.5.1", features = ["macros"] }` (already included in `full`).
 
 #### Feature tiers and dependencies
 
@@ -121,7 +121,7 @@ If you need minimal dependencies or custom features:
 
 ```toml
 [dependencies]
-oxcache = { version = "0.5.0", default-features = false, features = ["redis-tier"] }
+oxcache = { version = "0.5.1", default-features = false, features = ["redis-tier"] }
 ```
 
 Or use the command line:
@@ -149,19 +149,19 @@ pub struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 使用 Cache::builder() 创建 L1 内存缓存（默认 Moka 后端）
+    // Create an L1 in-memory cache with Cache::builder() (default Moka backend)
     let cache: Cache<String, User> = Cache::builder()
         .capacity(10000)
         .ttl(Duration::from_secs(3600))
         .build()
         .await?;
 
-    // 第一次调用：写入缓存
+    // First call: writes to the cache
     let user = User { id: 1, name: "User 1".to_string() };
     cache.set(&"user:1".to_string(), &user).await?;
     println!("First call: {:?}", user);
 
-    // 第二次调用：从缓存读取
+    // Second call: reads from the cache
     let cached_user: Option<User> = cache.get(&"user:1".to_string()).await?;
     println!("Cached call: {:?}", cached_user);
 
@@ -172,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### Option 2: using the #[cached] macro
 
 ```rust
-use oxcache::cached;  // 宏在 crate 根重导出
+use oxcache::cached;  // re-exported at the crate root
 use oxcache::Cache;
 use serde::{Deserialize, Serialize};
 
@@ -182,11 +182,11 @@ pub struct User {
     name: String,
 }
 
-// 使用 #[cached] 宏一行代码启用缓存
-// 参数：service（注册名）、key（键模板）、ttl（秒）
+// Enable caching in one line via the #[cached] macro
+// Parameters: service (registered name), key (key template), ttl (seconds)
 #[cached(service = "user_cache", key = "user:{id}", ttl = 600)]
 async fn get_user(id: u64) -> Result<User, String> {
-    // 模拟耗时的数据库查询
+    // Simulate a slow database query
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     Ok(User {
         id,
@@ -196,17 +196,17 @@ async fn get_user(id: u64) -> Result<User, String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化缓存（默认 Moka 后端；register_for_macro 仅支持 Cache<String, Vec<u8>>）
+    // Initialize the cache (default Moka backend; register_for_macro only supports Cache<String, Vec<u8>>)
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
-    // 注册缓存实例到全局管理器（供宏通过 service 名查找）
+    // Register the cache instance in the global manager (the macro looks it up by service name)
     cache.register_for_macro("user_cache").await?;
 
-    // 第一次调用：执行函数逻辑 + 缓存结果（~100ms）
+    // First call: runs the function logic + caches the result (~100ms)
     let user = get_user(1).await?;
     println!("First call: {:?}", user);
 
-    // 第二次调用：直接从缓存返回（~0.1ms）
+    // Second call: returned directly from the cache (~0.1ms)
     let cached_user = get_user(1).await?;
     println!("Cached call: {:?}", cached_user);
 
@@ -223,11 +223,11 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建 Redis 后端（生产环境请使用 rediss:// TLS 连接）
-    // 开发环境需设置：OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
+    // Create the Redis backend (use a rediss:// TLS connection in production)
+    // For development, set: OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
     let redis = RedisBackend::new("rediss://127.0.0.1:6379").await?;
 
-    // 通过 backend_arc 注入后端
+    // Inject the backend via backend_arc
     let cache: Cache<String, String> = Cache::builder()
         .backend_arc(Arc::new(redis))
         .build()
@@ -284,7 +284,7 @@ All backends (Moka / DashMap / Redis / Valkey (via RedisBackend) / Dragonfly / A
 Use the `#[cached]` macro to add caching to functions (requires the `macros` feature):
 
 ```rust
-use oxcache::cached;  // crate 根重导出
+use oxcache::cached;  // re-exported at the crate root
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -293,11 +293,11 @@ pub struct User {
     name: String,
 }
 
-// 自动缓存结果，缓存键为 "user:{id}"
-// 参数：service（注册名）、key（键模板）、ttl（秒）
+// Cache results automatically, with cache key "user:{id}"
+// Parameters: service (registered name), key (key template), ttl (seconds)
 #[cached(service = "user_cache", key = "user:{id}", ttl = 300)]
 async fn get_user(id: u64) -> Result<User, String> {
-    // 这里写你的业务逻辑，比如数据库查询
+    // Your business logic goes here, e.g. a database query
     database::query_user(id).await
 }
 ```
@@ -323,30 +323,30 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 创建缓存实例（默认 Moka 后端）
+    // Create the cache instance (default Moka backend)
     let cache: Cache<String, String> = Cache::builder()
         .capacity(10000)
         .ttl(Duration::from_secs(3600))
         .build()
         .await?;
 
-    // 标准操作
+    // Standard operations
     cache.set(&"key".to_string(), &"value".to_string()).await?;
 
     let val: Option<String> = cache.get(&"key".to_string()).await?;
     assert_eq!(val, Some("value".to_string()));
 
-    // 带 per-entry TTL 的写入
+    // Write with a per-entry TTL
     cache.set_with_ttl(&"key2".to_string(), &"value2".to_string(), Some(Duration::from_secs(60))).await?;
 
-    // 删除缓存
+    // Delete from the cache
     cache.delete(&"key".to_string()).await?;
 
-    // 检查键是否存在
+    // Check whether a key exists
     let exists = cache.exists(&"key".to_string()).await?;
     println!("Key exists: {}", exists);
 
-    // 清空缓存
+    // Clear the cache
     cache.clear().await?;
 
     Ok(())
@@ -364,19 +364,19 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // L1：Moka 内存后端
+    // L1: Moka in-memory backend
     let l1 = MokaMemoryBackend::builder()
         .capacity(10000)
         .ttl(Duration::from_secs(60))
         .build();
 
-    // L2：Redis 后端
+    // L2: Redis backend
     let l2 = RedisBackend::new("rediss://127.0.0.1:6379").await?;
 
-    // 直接写入 L1（临时数据）
+    // Write directly to L1 (temporary data)
     l1.set(Arc::from("temp_key"), Arc::new(b"temp_data".to_vec()), Some(Duration::from_secs(60))).await?;
 
-    // 直接写入 L2（共享数据）
+    // Write directly to L2 (shared data)
     l2.set(Arc::from("shared_key"), Arc::new(b"shared_data".to_vec()), Some(Duration::from_secs(3600))).await?;
 
     Ok(())
@@ -397,7 +397,7 @@ The typed `Cache<K, V>`'s `get`/`set`/`set_with_ttl` all go through the serializ
 ```rust
 use oxcache::infra::serialization::SerializationFormat;
 
-// 需启用 serde-bincode / postcard 特性（serialization_format 方法需 serialization 或 full）
+// Requires the serde-bincode / postcard features (serialization_format needs serialization or full)
 let cache: Cache<String, User> = Cache::builder()
     .serialization_format(SerializationFormat::Postcard)
     .build()
@@ -425,20 +425,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let l2 = RedisBackend::new("rediss://127.0.0.1:6379").await?;
 
     let chain = ChainCache::builder()
-        .link(ChainLink::from_backend(l1))   // L1，score 100
-        .link(ChainLink::from_backend(l2))   // L2，score 50
-        .enable_backfill()                   // L2 命中时回填 L1
+        .link(ChainLink::from_backend(l1))   // L1, score 100
+        .link(ChainLink::from_backend(l2))   // L2, score 50
+        .enable_backfill()                   // backfills L1 on an L2 hit
         .default_time_to_live(Duration::from_secs(600))
-        .build();  // 同步构建
+        .build();  // synchronous build
 
-    // 写入所有后端（透传 TTL）
+    // Write to all backends (TTL passed through)
     chain.set("key", b"value".to_vec(), Some(Duration::from_secs(60))).await?;
 
-    // 读取：从 L1 开始，未命中查 L2，命中则（启用回填时）回填 L1
+    // Read: starts from L1, falls through to L2 on a miss, backfills L1 on a hit (when enabled)
     let v = chain.get("key").await?;
     println!("Value: {:?}", v);
 
-    // 删除所有后端
+    // Delete from all backends
     chain.delete("key").await?;
 
     Ok(())
@@ -459,7 +459,7 @@ use oxcache::Cache;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await?;
 
-    // 同步方法（无需 .await）
+    // Sync methods (no .await needed)
     cache.set_sync(&"k".to_string(), &"v".to_string())?;
     let v = cache.get_sync(&"k".to_string())?;
     assert_eq!(v, Some("v".to_string()));
@@ -482,9 +482,9 @@ decorates any `CacheBackend`, skipping the inner backend when the bloom filter s
 use oxcache::backend::MokaMemoryBackend;
 use oxcache::features::bloom_filter::{BloomFilterBackend, BloomFilter};
 
-let bf = BloomFilter::new(100_000, 0.01); // 容量 10 万，误判率 1%
+let bf = BloomFilter::new(100_000, 0.01); // capacity 100k, false-positive rate 1%
 let inner = MokaMemoryBackend::new();
-let backend = BloomFilterBackend::new(inner);  // 可作为 CacheBackend 使用
+let backend = BloomFilterBackend::new(inner);  // usable as a CacheBackend
 ```
 
 For the full method list, builder usage and semantics of `BloomFilter` and `BloomFilterBackend`, see the [API Reference](API_REFERENCE.md#-bloom-filter).
@@ -494,21 +494,21 @@ For the full method list, builder usage and semantics of `BloomFilter` and `Bloo
 ```rust
 use std::time::Duration;
 
-// 设置 per-entry TTL
+// Set a per-entry TTL
 cache.set_with_ttl(&"k".to_string(), &v, Some(Duration::from_secs(60))).await?;
 
-// 读取剩余 TTL（None 表示无 per-entry TTL 或 key 不存在）
+// Read the remaining TTL (None means no per-entry TTL or the key does not exist)
 let ttl = cache.ttl(&"k".to_string()).await?;
 
-// 修改已存在 key 的 TTL（不改动值），返回 true 表示成功
+// Modify an existing key's TTL (value untouched); returns true on success
 let ok = cache.expire(&"k".to_string(), Duration::from_secs(120)).await?;
 
-// 更新值但保留原 TTL
+// Update the value but keep the original TTL
 let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
-For the per-backend TTL behavior reference, see the [TTL Behavior Reference of the architecture documentation](ARCHITECTURE.md#️-ttl-behavior-reference).
+For the per-backend TTL behavior reference, see the [TTL Behavior Reference of the architecture documentation](ARCHITECTURE.md#-ttl-behavior-reference).
 
 ### Redis Mode Configuration
 
@@ -529,7 +529,7 @@ use oxcache::backend::{RedisBackend, RedisMode};
 
 let backend = RedisBackend::builder()
     .connection_string("rediss://127.0.0.1:6379")
-    .mode(RedisMode::Standalone)  // 或 Sentinel / Cluster / ValkeyStandalone
+    .mode(RedisMode::Standalone)  // or Sentinel / Cluster / ValkeyStandalone
     .build()
     .await?;
 ```
@@ -562,10 +562,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    // 你的应用逻辑
+    // Your application logic
     cache.set(&"key".to_string(), &"value".to_string()).await?;
 
-    // 优雅关闭（释放后端资源）
+    // Graceful shutdown (releases backend resources)
     cache.shutdown().await;
 
     Ok(())
@@ -582,8 +582,8 @@ The shutdown mechanism calls the backend's `shutdown()`, cleaning up connections
 ```rust
 use oxcache::backend::{RedisBackend, RedisMode};
 
-// Valkey 使用与 Redis 相同的 API，通过 RedisMode::ValkeyStandalone 标识
-// TLS 强制同样适用：须用 rediss://（开发豁免环境变量见上文「Redis 模式配置」一节）
+// Valkey uses the same API as Redis, identified via RedisMode::ValkeyStandalone
+// TLS enforcement applies here as well: rediss:// is required (for the development escape hatch see the "Redis Mode Configuration" section above)
 let backend = RedisBackend::builder()
     .connection_string("rediss://127.0.0.1:6379")
     .mode(RedisMode::ValkeyStandalone)
@@ -599,14 +599,14 @@ Enable with the `dragonfly` feature:
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0", features = ["dragonfly"] }
+oxcache = { version = "0.5.1", features = ["dragonfly"] }
 ```
 
 ```rust
 use oxcache::backend::DragonflyBackend;
 
-// 构造 Dragonfly 后端（复用 RedisBackend 的 TLS 强制：须用 rediss://，
-// 或开发环境设置 OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS）
+// Construct the Dragonfly backend (reuses RedisBackend's TLS enforcement: rediss:// required;
+// or set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS in development)
 let dragonfly = DragonflyBackend::new("rediss://127.0.0.1:6379", 8).await?;
 ```
 
@@ -620,7 +620,7 @@ Enable with the `aerospike` feature:
 ```toml
 # Cargo.toml
 [dependencies]
-oxcache = { version = "0.5.0", features = ["aerospike"] }
+oxcache = { version = "0.5.1", features = ["aerospike"] }
 ```
 
 The backend is constructed via `AerospikeBackend::new(AerospikeConfig)`; for the configuration fields (`seed_nodes` / `namespace` / `set_name` / `default_ttl` / `ip_map`), see the [API Reference](API_REFERENCE.md#-aerospikebackend).
@@ -655,10 +655,10 @@ oxcache ships multiple layers of built-in security protection; the following sec
 - **Store passwords in environment variables**: never hard-code passwords in configuration files
 
   ```toml
-  # ✅ 正确做法
+  # ✅ correct practice
   connection_string = "rediss://:${REDIS_PASSWORD}@localhost:6379/0"
 
-  # ❌ 错误做法
+  # ❌ wrong practice
   connection_string = "rediss://:mypassword123@localhost:6379/0"
   ```
 
@@ -669,10 +669,10 @@ oxcache ships multiple layers of built-in security protection; the following sec
 - **Use TLS encryption**: production must use `rediss://`, otherwise oxcache refuses the connection
 
   ```rust
-  // ✅ 生产环境
+  // ✅ production
   let backend = RedisBackend::new("rediss://:${REDIS_PASSWORD}@localhost:6380").await?;
 
-  // ❌ 开发环境需显式确认风险
+  // ❌ development requires explicit risk acknowledgement
   // OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
   let backend = RedisBackend::new("redis://127.0.0.1:6379").await?;
   ```

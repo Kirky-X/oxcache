@@ -39,7 +39,6 @@ The project uses pre-commit and lefthook, two layers of hooks, to carry the code
 | `check-merge-conflict` | Detects unresolved merge-conflict markers |
 | `detect-private-key` / `detect-secrets` | Detects private-key and secret leaks |
 | `typos` | Spell check |
-| `no-commit-to-branch` | Forbids committing directly to `master` (this repo's workflow commits on `main`; the configuration only protects `master`) |
 | `cargo-fmt` / `cargo-check` / `cargo-clippy` | Rust format, compile and lint (`-D warnings`) checks |
 
 **lefthook** (per-stage gates):

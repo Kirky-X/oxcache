@@ -39,7 +39,7 @@ English | [中文](README_CN.md)
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>Fault resilience</b><br><span style="color:#64748B">ChainCache per-link fault tolerance, <code>degradation</code> three-state auto-degradation and recovery, health checks, graceful shutdown</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>Engineering quality</b><br><span style="color:#64748B">2000+ test functions (as of 0.5.0), chaos and security tests, three-platform CI matrix, coverage gate</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>Engineering quality</b><br><span style="color:#64748B">2000+ test functions (as of 0.5.1), chaos and security tests, three-platform CI matrix, coverage gate</span></td>
 </tr>
 </table>
 
@@ -72,20 +72,20 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 默认 Moka L1 内存后端
+    // Default Moka L1 in-memory backend
     let cache: Cache<String, User> = Cache::builder().build().await?;
 
-    // 写入
+    // Write
     cache
         .set(&"user:1".to_string(), &User { id: 1, name: "Alice".into() })
         .await?;
 
-    // 读取
+    // Read
     if let Some(user) = cache.get(&"user:1".to_string()).await? {
         println!("命中: {}", user.name);
     }
 
-    // 删除
+    // Delete
     cache.delete(&"user:1".to_string()).await?;
     assert!(cache.get(&"user:1".to_string()).await?.is_none());
     Ok(())
@@ -101,9 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0", features = ["minimal"] }   # L1 only (default)
-oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
-oxcache = { version = "0.5.0", features = ["full"] }      # true full: every named capability feature
+oxcache = { version = "0.5.1", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.1", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.1", features = ["full"] }      # true full: every named capability feature
 ```
 
 For the complete feature-flag table (itemized descriptions and defaults), see the [API Reference](docs/en/API_REFERENCE.md#-feature-flags).
@@ -140,7 +140,7 @@ Oxcache follows a layered design of unified interface plus pluggable backends: a
 
 ## 🧪 Testing
 
-2000+ test functions (as of 0.5.0). For the test layers, function counts and common commands, see the [Test Scenario Matrix](docs/en/TEST_SCENARIOS.md#7-test-layers-and-common-commands); Redis-related tests depend on a local Docker environment (containers are started automatically via testcontainers).
+2000+ test functions (as of 0.5.1). For the test layers, function counts and common commands, see the [Test Scenario Matrix](docs/en/TEST_SCENARIOS.md#7-test-layers-and-common-commands); Redis-related tests depend on a local Docker environment (containers are started automatically via testcontainers).
 
 ---
 
@@ -152,7 +152,7 @@ The borrowed-key hot-path APIs (`get_by_str` / `set_by_str`) measure **-6.7%** f
 
 ## 🔒 Security
 
-Oxcache ships multiple layers of defense inside the library; for the defense overview, see the [Security document](docs/en/SECURITY.md#️-in-library-defense-overview). **Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues; use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) disclosure channel; the full policy lives in the [Security document](docs/en/SECURITY.md).
+Oxcache ships multiple layers of defense inside the library; for the defense overview, see the [Security document](docs/en/SECURITY.md#-in-library-defense-overview). **Reporting vulnerabilities**: please do not report security vulnerabilities through public GitHub Issues; use the private [GitHub Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) disclosure channel; the full policy lives in the [Security document](docs/en/SECURITY.md).
 
 ---
 

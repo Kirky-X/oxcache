@@ -64,7 +64,7 @@ The following gates are actually configured and enforced in the repository:
 
 `.cargo/audit.toml` and `deny.toml` record the following single RustSec exemption with the same policy, for a form that is **reachable in the dependency tree but not exploitable / without an upgrade path**:
 
-- `RUSTSEC-2025-0141` (bincode marked unmaintained by its authors): upgraded to 2.0.1, used only under the `serde-bincode` feature for local cache-entry serialization, with no network input surface; the migration path is `postcard` (already in the dependency tree).
+- `RUSTSEC-2026-0440` (astral-tokio-tar marked unmaintained across all versions): pulled in dev-only via `testcontainers` 0.28.0 (the latest crates.io release; the advisory states "No safe upgrade is available"); it only packages test-container image layers, never entering the lib dependency surface or published artifacts; the exemption will be removed once testcontainers migrates to tar-codec upstream.
 
 Exemptions do not constitute security behavior changes; dependency failure and degradation semantics are described in the [🏗️ Architecture documentation](ARCHITECTURE.md).
 

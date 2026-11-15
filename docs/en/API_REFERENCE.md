@@ -2,7 +2,7 @@
 
 > **⚠️ API version note**
 >
-> This document describes the API of **Oxcache v0.5.0**.
+> This document describes the API of **Oxcache v0.5.1**.
 
 This document provides the detailed API reference of the Oxcache library.
 
@@ -127,12 +127,12 @@ When the `sync` flag is used, the `Cache` must be built with `sync_mode(true)`.
 **Example (async):**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.1", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
 async fn fetch_user(user_id: &str) -> Result<User, String> {
-    // 函数体
+    // function body
     # Ok(User { /* ... */ })
 }
 ```
@@ -142,7 +142,7 @@ async fn fetch_user(user_id: &str) -> Result<User, String> {
 ```rust
 #[cached(service = "default", ttl = 3600, key = "user:{user_id}")]
 async fn fetch_user(user_id: &str) -> Result<User, String> {
-    // 函数体
+    // function body
     # Ok(User { /* ... */ })
 }
 ```
@@ -185,11 +185,11 @@ struct User { id: u64, name: String }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 默认 Moka 内存后端（容量 10000）
-    // register_for_macro 仅支持 Cache<String, Vec<u8>>（宏内部按字节读写）
+    // Default Moka in-memory backend (capacity 10000)
+    // register_for_macro only supports Cache<String, Vec<u8>> (the macro reads/writes bytes internally)
     let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
 
-    // 注册供 #[cached] 宏使用
+    // Register for use by the #[cached] macro
     cache.register_for_macro("default").await?;
     Ok(())
 }
@@ -321,7 +321,7 @@ Updates the TTL of an existing key without modifying its value. Returns `Ok(true
 use oxcache::{Cache, CacheBuilder};
 use std::time::Duration;
 
-// 仅 L1 内存缓存
+// L1 in-memory cache only
 let cache: Cache<String, String> = Cache::builder()
     .capacity(10000)
     .ttl(Duration::from_secs(3600))
@@ -334,7 +334,7 @@ let cache: Cache<String, String> = Cache::builder()
 use oxcache::{Cache, backend::RedisBackend};
 use std::sync::Arc;
 
-// 通过预构建后端实现 L2（Redis）缓存
+// L2 (Redis) cache via a pre-built backend
 let redis = RedisBackend::new("rediss://localhost:6379").await?;
 let cache: Cache<String, String> = Cache::builder()
     .backend_arc(Arc::new(redis))
@@ -419,13 +419,13 @@ unless the environment variable `OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_R
 ```rust
 use oxcache::backend::RedisBackend;
 
-// 从连接字符串构造（推荐使用 TLS）
+// Construct from a connection string (TLS recommended)
 let backend = RedisBackend::new("rediss://localhost:6379").await?;
 
-// 显式指定连接池大小（当前等价于 new()）
+// Specify the pool size explicitly (currently equivalent to new())
 let backend = RedisBackend::with_pool("rediss://localhost:6379", 8).await?;
 
-// 通过 builder 构造
+// Construct via the builder
 let backend = RedisBackend::builder()
     .connection_string("rediss://localhost:6379")
     .mode(oxcache::backend::RedisMode::Standalone)
@@ -464,13 +464,13 @@ re-discovered automatically and the operation retried once — the same backend 
 For high-throughput scenarios, using Redis pipeline (single round trip):
 
 ```rust
-// 批量 SET
+// Batch SET
 backend.set_many_pipeline(&[("k1", v1), ("k2", v2)], Some(Duration::from_secs(60))).await?;
 
-// 批量 GET
+// Batch GET
 let values: Vec<Option<Vec<u8>>> = backend.get_many_pipeline(&["k1", "k2"]).await?;
 
-// 批量 DEL
+// Batch DEL
 backend.delete_many_pipeline(&["k1", "k2"]).await?;
 ```
 
@@ -502,12 +502,12 @@ Dragonfly is Redis-protocol compatible, so it reuses all of Redis's read/write p
 use oxcache::backend::DragonflyBackend;
 use std::sync::Arc;
 
-// 构造 Dragonfly 后端（需要 dragonfly feature）
-// 构造复用 RedisBackend 的 TLS 强制：连接串须为 rediss://；
-// 开发环境确需 redis:// 时，须设置 OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
+// Construct the Dragonfly backend (requires the dragonfly feature)
+// Construction reuses RedisBackend's TLS enforcement: the connection string must be rediss://;
+// if redis:// is truly needed in development, set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS
 let backend = DragonflyBackend::new("rediss://localhost:6379", 8).await?;
 
-// 作为 ChainCache L2 使用
+// Use as the ChainCache L2
 use oxcache::backend::MokaMemoryBackend;
 use oxcache::cache::chain::{ChainCacheBuilder, ChainLink};
 let chain = ChainCacheBuilder::default()
@@ -533,7 +533,7 @@ let config = AerospikeConfig {
     namespace: "test".to_string(),
     set_name: "cache".to_string(),
     default_ttl: 3600,
-    ip_map: None, // Docker/NAT 环境设置 IP 转换表
+    ip_map: None, // set the IP translation table in Docker/NAT environments
 };
 let backend = AerospikeBackend::new(config).await?;
 ```
@@ -557,11 +557,11 @@ let l1 = MokaMemoryBackend::builder().capacity(10000).ttl(Duration::from_secs(30
 let l2 = RedisBackend::new("rediss://localhost:6379").await?;
 
 let chain = ChainCache::builder()
-    .link(ChainLink::from_backend(l1))   // L1，分数 100
-    .link(ChainLink::from_backend(l2))   // L2，分数 50
+    .link(ChainLink::from_backend(l1))   // L1, score 100
+    .link(ChainLink::from_backend(l2))   // L2, score 50
     .enable_backfill()
     .default_time_to_live(Duration::from_secs(600))
-    .build();  // 同步构建，返回 ChainCache
+    .build();  // synchronous build, returns ChainCache
 
 chain.set("key", b"value".to_vec(), None).await?;
 let v = chain.get("key").await?; // Some(Vec<u8>)
@@ -612,7 +612,7 @@ keys still unmatched after all layers (miss or all-layer failures) end as `None`
 does not return `Err`.
 
 ```rust
-// entries: Vec<(String, Option<Vec<u8>>)>，方法本身不返回 Err
+// entries: Vec<(String, Option<Vec<u8>>)>, the method itself does not return Err
 let entries = chain.iter_entries(&["k1", "k2", "k3"]).await;
 ```
 
@@ -694,7 +694,7 @@ Implementors: `MokaMemoryBackend`, `DashMapMemoryBackend`, `RedisBackend`.
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache: Cache<String, String> = Cache::builder().sync_mode(true).build().await?;
 
-    // 同步方法现在可用
+    // Sync methods are now available
     cache.set_sync(&"k".to_string(), &"v".to_string())?;
     let v = cache.get_sync(&"k".to_string())?; // Some("v")
     Ok(())
@@ -744,10 +744,10 @@ The `bloom` feature (now part of `full`, and still available standalone) provide
 ```rust
 use oxcache::features::bloom_filter::BloomFilter;
 
-let bf = BloomFilter::new(100_000, 0.01); // 容量、误判率
+let bf = BloomFilter::new(100_000, 0.01); // capacity, false-positive rate
 bf.insert("key1");
-assert!(bf.contains("key1"));     // 已插入的键始终返回 true
-assert!(!bf.contains("absent"));  // 通常为 false（可能误判）
+assert!(bf.contains("key1"));     // inserted keys always return true
+assert!(!bf.contains("absent"));  // usually false (possible false positive)
 ```
 
 **Methods:** `insert(&str)`, `contains(&str) -> bool`, `clear()`, `len() -> u64`,
@@ -764,9 +764,9 @@ use oxcache::backend::MokaMemoryBackend;
 use oxcache::features::bloom_filter::{BloomFilterBackend, BloomFilterBackendBuilder};
 
 let inner = MokaMemoryBackend::new();
-let backend = BloomFilterBackend::new(inner);  // 装饰器包装内部后端
+let backend = BloomFilterBackend::new(inner);  // the decorator wraps the inner backend
 
-// 或经 builder 配置容量与误判率
+// or configure capacity and false-positive rate via the builder
 let backend = BloomFilterBackend::builder()
     .capacity(10_000)
     .false_positive_rate(0.01)
@@ -788,7 +788,7 @@ All backends (Moka, DashMap, Redis, Valkey (via RedisBackend), Dragonfly, Aerosp
 - **Redis** uses `SET key value PX <ms>` (millisecond precision; `expire` is `PEXPIRE`).
 - **Disk (RedbDiskBackend)** uses lazy expiry (lazy read-path determination + physical deletion); `with_default_ttl` provides the backend default TTL, which `set(ttl=None)` follows.
 
-For the full per-backend behavior reference, see the [TTL Behavior Reference of the architecture documentation](ARCHITECTURE.md#️-ttl-behavior-reference).
+For the full per-backend behavior reference, see the [TTL Behavior Reference of the architecture documentation](ARCHITECTURE.md#-ttl-behavior-reference).
 
 ### TTL Methods
 
@@ -815,7 +815,7 @@ For the full per-backend behavior reference, see the [TTL Behavior Reference of 
 
 ## 💾 Disk-Persistent Backend (`disk`)
 
-- `RedbDiskBackend` (`oxcache::backend::disk`) — redb 4.3 embedded disk persistence (pure safe Rust, ACID + WAL); `create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
+- `RedbDiskBackend` (`oxcache::backend::disk`) — redb 4.4 embedded disk persistence (pure safe Rust, ACID + WAL); `create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
 - Lazy expiry: lazy read-path determination + physical deletion (same policy as DashMap); the `max_entries` sweep deletes expired entries first, then the oldest by ascending seq
 - `BackendKind::Disk`; `BackendScore`: score 85 (`Scores::REDB`) / persistent / name `"disk"`; chained as L3 via `ChainLink::from_arc` or `ChainBuilder::extra_backend`
 - `stats()` returns only the database **file name**, not the absolute path (the full path is available via `RedbDiskBackend::path()`)
@@ -847,7 +847,7 @@ Security functions are re-exported at the **crate root**, not under `oxcache::se
 use oxcache::{
     validate_redis_key, validate_lua_script, validate_scan_pattern, clamp_scan_count,
     redact_cache_key, redact_connection_string, redact_field, redact_value, Redacted,
-    // 安全日志辅助（需 `redis` 或 `full` 特性）：
+    // security logging helpers (require the `redis` or `full` feature):
     // log_cache_key, sanitize_message,
 };
 ```
@@ -870,7 +870,7 @@ Validates Redis key format and content.
 use oxcache::validate_redis_key;
 
 validate_redis_key("user:123").expect("合法的键");
-// 空、过长或包含危险字符的键返回 Err(OxCacheError::InvalidInput)
+// empty, over-long or dangerous-character keys return Err(OxCacheError::InvalidInput)
 ```
 
 The validation rules (512 KB length cap, `\r` / `\n` / `\0` and command-injection characters, control characters, SQL-injection and path-traversal pattern scans) live in the security document.
@@ -929,7 +929,7 @@ let stats: CacheStats = get_enhanced_stats();
 println!("L1 命中: {}", stats.l1_hits);
 println!("整体命中率: {:.2}%", stats.overall_hit_rate() * 100.0);
 
-// 导出为 Prometheus / JSON 文本（export_json_format 返回 Result）
+// Export as Prometheus / JSON text (export_json_format returns Result)
 let prometheus_text = export_prometheus_format();
 let json_text = export_json_format()?;
 ```
@@ -954,14 +954,14 @@ When a backend operation fails, `ChainCache` raises an event through the configu
 and the user decides how to handle it (logging, metrics, alerting, or ignoring).
 
 ```rust
-use oxcache::EventPublisher;  // crate 根重导出（core 模块为私有）
+use oxcache::EventPublisher;  // re-exported at the crate root (the core module is private)
 use std::sync::Arc;
 
-// 实现自定义事件发布器
+// Implement a custom event publisher
 struct MyPublisher;
 impl EventPublisher for MyPublisher { /* ... */ }
 
-// 配置到 ChainCache
+// Configure on ChainCache
 let chain = ChainCache::builder()
     .link(ChainLink::from_backend(l1))
     .event_publisher(Arc::new(MyPublisher))
@@ -996,7 +996,7 @@ programmatic builder, `OXCACHE_*` environment variables, and confers config sour
 use oxcache::config::CacheConfig;
 use std::time::Duration;
 
-// 程序化构建
+// Programmatic construction
 let config = CacheConfig::builder()
     .capacity(10_000)
     .ttl(Duration::from_secs(60))
@@ -1004,10 +1004,10 @@ let config = CacheConfig::builder()
     .redis_url("redis://127.0.0.1:6379")
     .build();
 
-// 一致性检查（值域 / 参数组合 / feature 可用性）
+// Consistency check (value ranges / parameter combinations / feature availability)
 config.validate()?;
 
-// 应用到既有构建器
+// Apply to an existing builder
 let builder = config.apply_to_cache_builder(oxcache::CacheBuilder::<String, String>::default()).await?;
 ```
 
@@ -1174,13 +1174,13 @@ kit.set_config(OxcacheConfig::default());
 kit.with_observer(Arc::new(OxcacheBuildObserver));
 kit.register::<OxcacheModule>().unwrap();
 
-// 注册装饰器
+// Register a decorator
 register_cache_decorator(&kit, |backend| backend);
 
 let built = kit.build().await.unwrap();
 let backend = built.require::<OxcacheModule>().unwrap();
 
-// 注册三阶段关闭
+// Register three-phase shutdown
 let coord = AsyncShutdownCoordinator::new();
 register_cache_shutdown(&coord, backend.clone()).unwrap();
 coord.shutdown().await.unwrap();
@@ -1221,9 +1221,9 @@ See the [examples/](../../examples/) directory for more usage examples:
 Tier presets (`default = ["minimal"]`, L1 only):
 
 ```toml
-oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.1", features = ["minimal"] }   # L1 only (default)
+oxcache = { version = "0.5.1", features = ["redis-tier"] } # L1 + L2 Redis (legacy `core` remains as a compat alias)
+oxcache = { version = "0.5.1", features = ["full"] }      # true full: every named capability feature (including bloom / kit / encrypt / integrity / the three backends etc.)
 ```
 
 | Flag | Description | Default |

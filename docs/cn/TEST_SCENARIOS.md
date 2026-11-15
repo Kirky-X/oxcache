@@ -120,8 +120,8 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
    相对挂载 `./configs/*.conf` 按 project dir 解析；工作流脚本无法 `cd`，以
    仓库根为 project dir 启动时挂载落到根 `configs/`——路径缺失被 docker 建成
    空目录，sentinel 无模板可 copy（`cp: -r not specified` 退出）、从节点无
-   `replicaof` 而失联。修复：仓库根 `configs` 改为指向 `tests/real_env/configs`
-   的符号链接，从仓库根与从 `tests/real_env` 两种启动目录均可解析。
+   `replicaof` 而失联。修复：仓库根 `configs` 目录与 `tests/real_env/configs` 内容一致
+   （两者均入库跟踪），从仓库根与从 `tests/real_env` 两种启动目录均可解析。
 
 ## 5. 分层特性组合矩阵（CI 口径复刻）
 
@@ -132,7 +132,7 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 由独立 Test / Clippy job 覆盖。快照验收时为 10 组合（含 `core,cli`，`cli` 特性
 自 rc.4 移除后该组合随之撤销；旧组合中的 `core` 即 `redis-tier` 的兼容别名，现按正名记）。
 口径 `cargo test --features "<组合>" --workspace`
-（叠加默认 minimal，与 CI 一致）。执行结果见 `reviews/acceptance-report.md` 台账。
+（叠加默认 minimal，与 CI 一致）。执行结果记录于验收台账（`reviews/acceptance-report.md`；`reviews/` 目录已 gitignore，不入库留存）。
 
 ## 6. 静态门槛
 
@@ -169,7 +169,7 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 | 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
 | Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0**（2026-11-14 复核）；合计 2413（`src/` 1671 + `tests/` 742）。分表按各测试目录 grep 计数（合计 641），差额 110 例来自未入表的 26 个顶层测试文件（`tests/*_extra_test.rs` 等补齐文件、`scenario_probe_*.rs` 探针与 `*_test.rs` 顶层用例）。
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.1**（2026-11-16 复核）；合计 2415（`src/` 1673 + `tests/` 742）。分表按各测试目录 grep 计数（合计 641），差额 101 例来自未入表的 22 个顶层测试文件（`tests/*_extra_test.rs` 等补齐文件、`scenario_probe_*.rs` 探针与 `*_test.rs` 顶层用例）。
 
 ### 常用命令（与 CI 一致）
 

@@ -120,8 +120,8 @@ Event contract assertions: each of the three failure paths produces exactly one 
    relative mount `./configs/*.conf` resolves against the project dir; workflow scripts cannot `cd`, so when started
    with the repo root as project dir the mounts land in the root `configs/` — the missing path is created as an empty
    directory by docker, sentinel has no template to copy (`cp: -r not specified` exit) and replicas lose `replicaof`
-   and disconnect. Fix: the root `configs` is now a symlink to `tests/real_env/configs`, so both the repo root and
-   `tests/real_env` start directories resolve.
+   and disconnect. Fix: the root `configs` directory now carries the same content as `tests/real_env/configs` (both
+   tracked in git), so both the repo root and `tests/real_env` start directories resolve.
 
 ## 5. Tiered Feature Combination Matrix (CI policy replica)
 
@@ -133,7 +133,7 @@ are covered by separate Test / Clippy jobs. At snapshot acceptance there were 10
 after the `cli` feature was removed in rc.4 that combination was withdrawn; `core` in the old combination is the
 compatibility alias of `redis-tier`, recorded here under the canonical name).
 Policy: `cargo test --features "<combination>" --workspace`
-(on top of the default minimal, same as CI). Execution results are recorded in the `reviews/acceptance-report.md` ledger.
+(on top of the default minimal, same as CI). Execution results were recorded in the acceptance ledger (`reviews/acceptance-report.md`; the `reviews/` directory is gitignored and not retained in the repository).
 
 ## 6. Static Gates
 
@@ -170,7 +170,7 @@ The test suite is organized as described in [`tests/README.md`](../../tests/READ
 | Performance tests | `--test performance` | Memory leak detection, Miri memory safety, pipeline performance | 19 |
 | Feature gating | `--test feature_test`; `--features "full,bloom" --test bloom_filter_integration` | Narrow feature combinations, bloom filter integration | 2 + 7 |
 
-> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.0** (re-verified 2026-11-14); 2413 in total (`src/` 1671 + `tests/` 742). Per-layer rows are grep counts per test directory (641 in total); the remaining 110 come from 26 top-level test files not listed above (`tests/*_extra_test.rs` supplementary files, `scenario_probe_*.rs` probes and top-level `*_test.rs` cases).
+> ¹ `#[test]` / `#[tokio::test]` function counts via grep (`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`), worktree counts as of **0.5.1** (re-verified 2026-11-16); 2415 in total (`src/` 1673 + `tests/` 742). Per-layer rows are grep counts per test directory (641 in total); the remaining 101 come from 22 top-level test files not listed above (`tests/*_extra_test.rs` supplementary files, `scenario_probe_*.rs` probes and top-level `*_test.rs` cases).
 
 ### Common Commands (same as CI)
 

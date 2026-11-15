@@ -196,7 +196,7 @@ cache.register_for_macro("my_service").await?;
 **模块结构**：
 
 - `backend/mod.rs` — 模块根和重导出
-- `backend/interface.rs` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作；`CachePatternOps` 用于模式级计数 / 删除
+- `backend/interface/` — `CacheReader` / `CacheWriter` / `CacheConnector` / `CacheBackend` 及其同步镜像；`AtomicCacheWriter` / `SyncAtomicCacheWriter` 用于原子操作；`CachePatternOps` 用于模式级计数 / 删除
 - `backend/memory/` — 内存后端实现（Moka、DashMap）及 Redis/Valkey 客户端
 - `backend/dragonfly/` — Dragonfly 后端（基于 Redis 协议包装）
 - `backend/aerospike/` — Aerospike 后端（独立协议，feature-gated）
@@ -218,7 +218,7 @@ cache.register_for_macro("my_service").await?;
 | `BloomFilterBackend` | `oxcache::features::bloom_filter::BloomFilterBackend` | `bloom` | 负查询过滤装饰器 |
 | `RedbDiskBackend` | `oxcache::backend::disk::RedbDiskBackend` | `disk` | L3 磁盘持久化（redb 嵌入式，懒过期 + `max_entries` 清扫） |
 
-**异步 Trait 层级**（`backend/interface.rs`）：
+**异步 Trait 层级**（`backend/interface/`）：
 
 ```rust
 #[async_trait]
@@ -738,7 +738,7 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 
 ### 防御措施
 
-上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见安全文档的[库内防线总览](SECURITY.md#️-库内防线总览)。
+上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见安全文档的[库内防线总览](SECURITY.md#-库内防线总览)。
 
 > **注意**：oxcache **无内置限流**。限流由应用或上游代理负责。
 

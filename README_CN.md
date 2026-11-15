@@ -39,7 +39,7 @@
 </tr>
 <tr>
 <td width="50%" style="vertical-align:top; padding: 12px">🧯 <b>故障韧性</b><br><span style="color:#64748B">ChainCache 单链路容错、<code>degradation</code> 三态自动降级与恢复、健康检查、优雅关闭</span></td>
-<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.0）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
+<td width="50%" style="vertical-align:top; padding: 12px">🧪 <b>工程化质量</b><br><span style="color:#64748B">2000+ 测试函数（截至 0.5.1）、混沌与安全测试、三平台 CI 矩阵、覆盖率门禁</span></td>
 </tr>
 </table>
 
@@ -101,9 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性
+oxcache = { version = "0.5.1", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.1", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.1", features = ["full"] }      # 真全量：全部具名能力特性
 ```
 
 完整特性标志表（逐项说明与默认值）见 [API 参考](docs/cn/API_REFERENCE.md#-特性标志)。
@@ -140,7 +140,7 @@ Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面
 
 ## 🧪 测试
 
-2000+ 测试函数（截至 0.5.0）。测试层级、函数计数与常用命令见[测试场景矩阵](docs/cn/TEST_SCENARIOS.md#7-测试层级与常用命令)；Redis 相关测试依赖本机 Docker（testcontainers 自动拉起容器）。
+2000+ 测试函数（截至 0.5.1）。测试层级、函数计数与常用命令见[测试场景矩阵](docs/cn/TEST_SCENARIOS.md#7-测试层级与常用命令)；Redis 相关测试依赖本机 Docker（testcontainers 自动拉起容器）。
 
 ---
 
@@ -152,7 +152,7 @@ Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面
 
 ## 🔒 安全
 
-Oxcache 在库层面内建多层防御，防线总览见[安全文档](docs/cn/SECURITY.md#️-库内防线总览)。**漏洞报告**：请勿通过公开 Issue 报告安全漏洞，请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道；完整政策见[安全文档](docs/cn/SECURITY.md)。
+Oxcache 在库层面内建多层防御，防线总览见[安全文档](docs/cn/SECURITY.md#-库内防线总览)。**漏洞报告**：请勿通过公开 Issue 报告安全漏洞，请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道；完整政策见[安全文档](docs/cn/SECURITY.md)。
 
 ---
 

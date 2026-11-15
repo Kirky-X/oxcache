@@ -2,7 +2,7 @@
 
 > **⚠️ API 版本说明**
 >
-> 本文档描述 **Oxcache v0.5.0** 的 API。
+> 本文档描述 **Oxcache v0.5.1** 的 API。
 
 本文档提供 Oxcache 库的详细 API 参考。
 
@@ -126,7 +126,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 **示例（异步）：**
 
 ```rust
-// Cargo.toml: oxcache = { version = "0.5.0", features = ["macros"] }
+// Cargo.toml: oxcache = { version = "0.5.1", features = ["macros"] }
 use oxcache::cached;
 
 #[cached(service = "default", ttl = 3600)]
@@ -788,7 +788,7 @@ let backend = BloomFilterBackend::builder()
 - **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
 - **Disk（RedbDiskBackend）** 使用懒过期（读路径惰性判定 + 物理删除）；`with_default_ttl` 提供后端默认 TTL，`set(ttl=None)` 沿用之。
 
-各后端的完整行为对照表见 [架构文档的 TTL 行为对照表](ARCHITECTURE.md#️-ttl-行为对照表)。
+各后端的完整行为对照表见 [架构文档的 TTL 行为对照表](ARCHITECTURE.md#-ttl-行为对照表)。
 
 ### TTL 方法
 
@@ -815,7 +815,7 @@ let backend = BloomFilterBackend::builder()
 
 ## 💾 磁盘持久化后端（`disk`）
 
-- `RedbDiskBackend`（`oxcache::backend::disk`）— redb 4.3 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
+- `RedbDiskBackend`（`oxcache::backend::disk`）— redb 4.4 嵌入式磁盘持久化（纯安全 Rust，ACID + WAL）；`create(path)` / `open(path)` / `with_default_ttl` / `with_max_entries`
 - 懒过期：读路径惰性判定 + 物理删除（与 DashMap 同口径）；`max_entries` 超限清扫先删过期、按 seq 升序删最旧
 - `BackendKind::Disk`；`BackendScore`：score 85（`Scores::REDB`）/ persistent / name `"disk"`；经 `ChainLink::from_arc` 或 `ChainBuilder::extra_backend` 挂链为 L3
 - `stats()` 只返回数据库**文件名**，不返回绝对路径（完整路径经 `RedbDiskBackend::path()` 取）
@@ -1223,9 +1223,9 @@ coord.shutdown().await.unwrap();
 层级预设（`default = ["minimal"]`，仅 L1）：
 
 ```toml
-oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
-oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.1", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.1", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.1", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
 ```
 
 | 标志 | 说明 | 默认 |
