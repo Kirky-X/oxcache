@@ -4,7 +4,7 @@
 
 ### 高性能 Rust 多级缓存库（L1+L2+可选 L3）完整使用指南
 
-[🏠 首页](../README.md) • [📚 文档中心](../README.md#-文档) • [🎯 示例](../examples/) • [📘 API 参考](API_REFERENCE.md)
+[🏠 首页](../../README_CN.md) • [📚 文档中心](../../README_CN.md#-文档) • [🎯 示例](../../examples/) • [📘 API 参考](API_REFERENCE.md)
 
 ---
 
@@ -42,6 +42,8 @@
 - [🌟 最佳实践](#-最佳实践)
 - [🔧 故障排除](#-故障排除)
 - [🎯 后续步骤](#-后续步骤)
+- [💻 示例总览](#-示例总览)
+- [🧩 wasm32 支持（实验性）](#-wasm32-支持实验性)
 
 </details>
 
@@ -113,7 +115,7 @@ oxcache = "0.5.0"
 
 #### 特性分层与依赖
 
-分层预设（`minimal` / `redis-tier` / `full`）与完整特性清单见 [README 特性标志](../README.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，也可单开）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
+分层预设（`minimal` / `redis-tier` / `full`）与完整特性清单见 [API 参考的特性标志表](API_REFERENCE.md#-特性标志)；特性前置依赖（如 `lua` 需 `redis`、`red-lock` 需 `lock`；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，也可单开）见 [API 参考的特性要求](API_REFERENCE.md#-特性要求)。
 
 如果需要最小依赖或自定义特性：
 
@@ -506,7 +508,7 @@ let original = cache.ttl(&"k".to_string()).await?;
 cache.set_with_ttl(&"k".to_string(), &new_value, original).await?;
 ```
 
-各后端 TTL 行为对照表见 [README](../README.md#️-ttl-行为对照表)。
+各后端 TTL 行为对照表见 [架构文档的 TTL 行为对照表](ARCHITECTURE.md#️-ttl-行为对照表)。
 
 ### Redis 模式配置
 
@@ -769,9 +771,103 @@ oxcache 内置多层安全防护机制，建议在生产环境中遵循以下安
 | [📘 API 参考](API_REFERENCE.md) | 详细的接口说明与错误码表 |
 | [🏗️ 架构设计](ARCHITECTURE.md) | 深入了解内部机制与数据流 |
 | [🧪 测试场景矩阵](TEST_SCENARIOS.md) | 功能域到测试落点的映射与执行口径 |
-| [💻 示例代码](../examples/) | 真实场景的代码样例 |
+| [💻 示例代码](../../examples/) | 真实场景的代码样例 |
 | [📊 性能基线](PERFORMANCE.md) | 序列化体积与热路径基准 |
 | 🔒 安全文档 | 威胁模型与安全配置 |
+
+---
+
+## 💻 示例总览
+
+> 本节内容迁自 README 示例章节，作为全部可运行示例的分组清单。
+
+`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **37 个示例**（默认特性下全部可运行）：
+
+```bash
+# 运行单个示例（在 examples/ 目录下）
+cd examples && cargo run --example example_basic_operations
+
+# 列出所有可用示例
+cd examples && ls src/*/*.rs
+```
+
+**入门（`examples/src/01_basics`）**
+
+| 示例 | 说明 |
+|------|------|
+| `example_basic_operations` | 基本 CRUD 操作（`get` / `set` / `delete` / `exists`） |
+| `example_new_api` | 现代 API 入门（`Cache::builder()` / `Cache::memory()`） |
+| `example_cache_builder` | CacheBuilder 配置（`capacity` / `ttl` / `tti` / `sync_mode`） |
+| `example_serialization` | JSON 序列化 |
+| `example_cache_key` | 自定义缓存键（`CacheKey` trait） |
+| `example_cached_macro` | `#[cached]` 宏（`service` / `ttl` / `key_prefix`） |
+| `example_explicit_init` | 显式初始化（`Cache::new()` / 全局缓存） |
+| `example_get_or` | 缓存未命中时计算（`get_or`，单飞） |
+| `example_sync_api` | 同步 API（`get_sync` / `set_sync` / `clear_sync` / `len_sync`） |
+| `example_byte_ops` | 字节级操作（`get_bytes` / `set_bytes` / `len` / `capacity` / `shutdown`） |
+| `example_comprehensive_usage` | 综合使用（全部功能概览） |
+
+**进阶（`examples/src/02_advanced`）**
+
+| 示例 | 说明 |
+|------|------|
+| `example_batch_write` | 批量操作（`set_many` / `get_many` / `delete_many`） |
+| `example_chain_cache` | 链式缓存（`ChainCache` / `ChainLink`） |
+| `example_invalidation` | 缓存失效策略（TTL / TTI / 手动失效） |
+| `example_warmup` | 缓存预热（批量预加载） |
+| `example_smart_strategy` | 缓存策略模式（Cache-Aside / Lazy Loading / TTL 分层） |
+| `example_cache_promotion` | 缓存提升（L2→L1 提升 / 热点分析） |
+| `example_error_handling` | 错误处理（`OxCacheError` / 重试 / 可恢复性） |
+| `example_custom_backend` | 自定义后端（`CacheReader` / `CacheWriter` / `CacheConnector`） |
+| `example_dashmap_backend` | DashMap 后端（`DashMapMemoryBackend`） |
+| `example_moka_ttl` | Moka per-entry TTL（`Expiry` trait） |
+| `example_redis_native` | Redis 原生操作（`RedisBackend`，需 Redis） |
+| `example_redis_modes` | Redis 部署模式（Standalone / Cluster / Sentinel，需 Redis） |
+| `example_redis_pipeline` | Pipeline 批量（`set_many_pipeline` / `get_many_pipeline`，需 Redis） |
+| `example_lua_script` | Lua 脚本执行（`eval_lua` / `script_load` / `eval_sha`，需 Redis） |
+
+**配置（`examples/src/03_config`）**
+
+| 示例 | 说明 |
+|------|------|
+| `example_dynamic_config` | 动态配置（运行时配置变更） |
+| `example_key_generator` | Key 生成器（`KeyGenerator`） |
+
+**数据库集成（`examples/src/05_database`）**
+
+| 示例 | 说明 |
+|------|------|
+| `example_database_integration` | 数据库集成（Cache-Aside 模式） |
+
+**特性展示（`examples/src/06_features`）**
+
+| 示例 | 说明 |
+|------|------|
+| `example_metrics` | 指标导出（`export_json_format` / `export_prometheus_format`） |
+| `example_compression` | 数据压缩（`JsonSerializer::with_compression()`） |
+| `example_security` | 安全脱敏（`redact_value` / `redact_connection_string`） |
+| `example_security_validation` | 安全验证（`validate_redis_key` / `validate_lua_script`） |
+| `example_bloom_filter` | 布隆过滤器（`BloomFilter` / `BloomFilterBackend`） |
+| `example_i18n` | 国际化（`CacheI18nFormatter`） |
+| `example_events` | 事件系统（`CacheEvent` / `CacheEventType`） |
+| `example_cli_usage` | CLI 场景（以代码方式获取缓存状态与指标） |
+| `example_kit_integration` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 三阶段关闭 / 装饰器） |
+
+> 标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
+
+---
+
+## 🧩 wasm32 支持（实验性）
+
+> 本节内容迁自 README 快速开始章节。
+
+wasm32-unknown-unknown 下仅支持 `byte-weight` + `serialization` 的最小组合（无 async/memory 后端）：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --no-default-features --features byte-weight,serialization
+```
+
+限制：`minimal`/`memory`/async/redis/batch 后端依赖多线程 Runtime 语义（`block_in_place`），不在 wasm 支持范围；CI 仅对上述最小组合执行构建与 clippy 门禁，不包含运行时行为测试。
 
 <div align="center">
 

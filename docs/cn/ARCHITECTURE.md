@@ -738,13 +738,13 @@ let redis = oxcache::backend::RedisBackend::with_pool(
 
 ### 防御措施
 
-上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见安全文档，README 安全章节提供防线速览。
+上述威胁由多层防御缓解：单飞与空值哨兵/TTL 抖动（穿透与击穿防护）、`validate_redis_key` / `validate_lua_script` / `validate_scan_pattern` / `clamp_scan_count` 输入校验（含注释预处理防绕过）、`Redacted` 与 `redact_*` 系列脱敏、`MAX_JSON_DEPTH` + `MAX_JSON_SIZE`（5 MB）上限 + 64 MiB 解压输出上限 + 基于栈的递归、TLS 强制、`encrypt` / `integrity` 值保护。各机制的完整规则与配置摘要见安全文档的[库内防线总览](SECURITY.md#️-库内防线总览)。
 
 > **注意**：oxcache **无内置限流**。限流由应用或上游代理负责。
 
 ### 布隆过滤器穿透防护
 
-`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回；机制图解、示例与穿透防护组合表见 [README 布隆过滤器章节](../README.md#-布隆过滤器与穿透防护)。
+`bloom` 特性的 `BloomFilterBackend` 在负查询到达内部后端前短路返回；机制图解、示例与穿透防护组合表见[文末附录「布隆过滤器与穿透防护」](#-布隆过滤器与穿透防护)。
 
 ### 输入校验
 
@@ -794,7 +794,7 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 
 ## 🎨 特性标志
 
-分层特性集（`minimal` / `redis-tier` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [README 特性标志](../README.md#-特性标志)。`bloom`、`trait-kit` 等选择加入特性已并入 `full`（`full` 为真全量：全部具名能力特性；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列），仍可通过 `features = ["bloom"]` 等单开；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
+分层特性集（`minimal` / `redis-tier` / `full` 预设）与组件特性逐项说明见 [API 参考的特性要求](API_REFERENCE.md#-特性要求) 与 [API 参考的特性标志表](API_REFERENCE.md#-特性标志)。`bloom`、`trait-kit` 等选择加入特性已并入 `full`（`full` 为真全量：全部具名能力特性；弃用别名 `core` / `kit` / `red-lock` / `testing` 不入列），仍可通过 `features = ["bloom"]` 等单开；`full` 的精确成员见 `Cargo.toml` 的 `[features]`。
 
 **隐含依赖口径**：`Cache<K, V>` 的 serde 泛型约束与 `UnifiedSerializer` 属核心面无条件编译路径，故 `memory` / `redis` 特性自本版起隐含 `serialization`（与 `minimal` / `disk` 预置既有口径一致）；`degradation` 装饰 L2 后端、`adaptive-ttl` 装饰任意后端，两者模块依赖 `crate::backend`，故隐含 `memory` 基线。开启这些特性的组合编译面相应扩大（引入 serde/serde_json 等），运行时行为不变。
 
@@ -833,3 +833,78 @@ oxcache 不内置分区配置。应用可以通过将键路由到不同的 `Cach
 - [布隆过滤器](https://en.wikipedia.org/wiki/Bloom_filter)
 - [ISP 合规 trait 设计](https://en.wikipedia.org/wiki/Interface_segregation_principle)
 - [📘 API 参考](API_REFERENCE.md) / [📖 用户指南](USER_GUIDE.md) / [📊 性能基线](PERFORMANCE.md)
+
+---
+
+## 🌸 布隆过滤器与穿透防护
+
+> 本节内容迁自 README 架构章节。
+
+`bloom` 特性（已并入 `full`，也可单独启用）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
+
+```mermaid
+flowchart TD
+    A["backend.get key"] --> B{"布隆过滤器包含 key？"}
+    B -->|一定不存在| C["直接返回 None<br/>inner 后端未被触及"]
+    B -->|可能存在| D["查询 inner 后端"]
+    D --> E["返回结果"]
+```
+
+```rust
+use oxcache::backend::MokaMemoryBackend;
+use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 独立 BloomFilter：容量 10_000，误判率 1%
+    let bf = BloomFilter::new(10_000, 0.01);
+    bf.insert("existing_key");
+    assert!(bf.contains("existing_key"));   // 无假阴性
+    assert!(!bf.contains("missing_key"));   // 可能有假阳性
+
+    // 装饰器：包装任意 CacheBackend
+    let backend = BloomFilterBackend::builder()
+        .capacity(10_000)
+        .false_positive_rate(0.01)
+        .inner(MokaMemoryBackend::new())
+        .build()?;
+
+    backend.set(Arc::from("user:1"), Arc::new(b"Alice".to_vec()), None).await?;
+    assert!(backend.get("user:1").await?.is_some());
+    assert!(backend.get("user:999").await?.is_none());   // BF 过滤，inner 未触及
+    Ok(())
+}
+```
+
+**语义**：无假阴性；`set` 同时更新 BF 与 inner，`delete` 只更新 inner（BF 不支持删除），`clear` 两者皆清，TTL 原样透传；inner 实现 `SyncCacheBackend` 时装饰器同样实现。
+
+**穿透与击穿防护组合**：
+
+| 机制 | 入口 | 作用 |
+|------|------|------|
+| 单飞去重 | `get_or` / `get_or_sync` / 宏 `single_flight` | 同 key 并发 miss 仅一个调用者回源，跟随者等待结果（异步 `watch` / 同步 `Condvar`，64 分片） |
+| 空值哨兵 | `get_or_option` + `null_cache_ttl` | 对 `None` 结果缓存哨兵，避免不存在的键反复打到存储 |
+| TTL 抖动 | builder `ttl_jitter(factor)` | 实际 TTL 在 `base * (1 ± factor)` 内随机，防止批量同时过期 |
+| 布隆过滤 | `BloomFilterBackend` | 负查询 O(1) 短路，inner 后端零请求 |
+
+---
+
+## ⏱️ TTL 行为对照表
+
+> 本节内容迁自 README 架构章节。
+
+所有后端统一遵守 per-entry `set(key, value, Some(ttl))`。行为汇总：
+
+| 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
+|---------|-----------------|------------|------------------------|-------|
+| **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
+| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期，条目在下次访问时移除；超容量时 FIFO O(1) 淘汰最旧条目 |
+| **RedisBackend** | `SET key value PX <ms>` | `TTL key`（Redis 原生） | `PEXPIRE key <ms>` | Redis 原生 TTL，毫秒精度（亚秒 TTL 不再被拒绝） |
+| **Valkey**（经 RedisBackend） | 同 Redis | 同 Redis | 同 Redis | Redis 协议兼容，使用 `ValkeyStandalone` 模式 |
+| **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 一致 |
+| **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | Aerospike 原生 TTL（秒级精度），亚秒 TTL 上取整 |
+| **RedbDiskBackend**（`disk`） | 存储 `(value, expiry epoch ms)` envelope；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true`（键不存在或已过期返回 `false`） | `set(ttl=None)` 沿用 `with_default_ttl` 的后端默认 TTL（未设置则永不过期） |
+| **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
+| **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
+
+**全局与 per-entry 的关系**：`builder.ttl(Duration)` 设置作用于每个条目的全局 TTL；`set(key, value, Some(ttl))` 覆盖该条目；`set(key, value, None)` 沿用全局 TTL（未设置则永不过期）。

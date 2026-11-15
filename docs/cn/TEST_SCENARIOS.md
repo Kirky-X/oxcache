@@ -8,7 +8,7 @@
 > 文档推测与实现不符时修正并注明依据。
 >
 > **快照口径**：本文数据为该轮验收时的实测快照；当前版本的测试函数数以
-> [README](../README.md#-测试) 与 CI 为准（快照之后移除的特性，如 `cli`，
+> [第 7 节](#7-测试层级与常用命令) 与 CI 为准（快照之后移除的特性，如 `cli`，
 > 对应行仅保留快照记录）。
 
 ## 1. 测试金字塔基线（all-features 实测）
@@ -149,4 +149,48 @@ examples：37/37 运行 rc=0（`error_handling`/`custom_backend`/`events` 三例
 - [📖 用户指南](USER_GUIDE.md)：功能行为的使用视角说明
 - [🤝 贡献指南](CONTRIBUTING.md)：TDD 工作流与静态门槛的日常执行方式
 - 🔒 安全文档：`tests/security.rs` 覆盖的安全机制说明
-- [README 测试章节](../README.md#-测试)：当前版本的测试函数数与常用命令
+- [第 7 节：测试层级与常用命令](#7-测试层级与常用命令)：当前版本的测试函数数与常用命令
+
+## 7. 测试层级与常用命令
+
+> 本节内容迁自 README 测试章节，为工作区 grep 口径的测试函数计数快照与 CI 一致的常用命令。
+
+测试套件按 [`tests/README.md`](../../tests/README.md) 组织，场景矩阵见上文第 2 节。
+
+| 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
+|------|----------|----------|------------|
+| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1671 |
+| 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
+| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 153 |
+| 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
+| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 24 |
+| 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
+| 混沌测试 | `--test chaos` | 后端故障注入、网络故障、随机故障 | 19 |
+| 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
+| Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
+
+> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0**（2026-11-14 复核）；合计 2413（`src/` 1671 + `tests/` 742）。分表按各测试目录 grep 计数（合计 641），差额 110 例来自未入表的 26 个顶层测试文件（`tests/*_extra_test.rs` 等补齐文件、`scenario_probe_*.rs` 探针与 `*_test.rs` 顶层用例）。
+
+### 常用命令（与 CI 一致）
+
+```bash
+# CI test 矩阵以 minimal / redis-tier / full 等档位运行
+cargo test --features full --workspace
+
+# 按测试二进制运行
+cargo test --features full --lib
+cargo test --features full --test integration
+cargo test --features full --test e2e
+
+# 窄特性组合检查（CI feature-redis-tier / feature-minimal job）
+cargo check -p oxcache --no-default-features --features redis-tier
+cargo check -p oxcache --no-default-features --features minimal
+
+# 跳过需要 Redis 的测试
+cargo test --features full -- --skip redis
+
+# 覆盖率（CI 与 pre-push 门禁：行覆盖 >= 90%）
+cargo llvm-cov --features full --workspace --fail-under-lines 90
+```
+
+> Redis 相关测试经 testcontainers 自动拉起 `redis:7-alpine` 容器，需要本机 Docker；集成 / E2E 禁用 test double，使用进程内真实实现与混沌式故障注入替身（口径见第 2 节）。

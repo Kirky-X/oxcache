@@ -45,7 +45,7 @@ Oxcache 使用特性门控来控制功能。以下是关键特性及其要求：
 
 ### 组件特性
 
-组件特性逐项说明（含默认值与是否包含在 `full` 中）见 [README 特性标志](../README.md#-特性标志)；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，仍可单开（`features = ["bloom"]`），配置示例同见该章节。
+组件特性逐项说明（含默认值与是否包含在 `full` 中）见[下方「🎨 特性标志」一节](#-特性标志)；`bloom` / `trait-kit` 等选择加入特性已并入 `full`，仍可单开（`features = ["bloom"]`），配置示例同见该章节。
 
 ### 特性依赖
 
@@ -788,7 +788,7 @@ let backend = BloomFilterBackend::builder()
 - **Redis** 使用 `SET key value PX <ms>`（毫秒精度，`expire` 为 `PEXPIRE`）。
 - **Disk（RedbDiskBackend）** 使用懒过期（读路径惰性判定 + 物理删除）；`with_default_ttl` 提供后端默认 TTL，`set(ttl=None)` 沿用之。
 
-各后端的完整行为对照表见 [README](../README.md#️-ttl-行为对照表)。
+各后端的完整行为对照表见 [架构文档的 TTL 行为对照表](ARCHITECTURE.md#️-ttl-行为对照表)。
 
 ### TTL 方法
 
@@ -1206,12 +1206,65 @@ coord.shutdown().await.unwrap();
 
 ## 💻 示例
 
-参见 [examples/](../examples/) 目录获取更多使用示例：
+参见 [examples/](../../examples/) 目录获取更多使用示例：
 
 | 目录 | 内容 |
 |------|------|
-| [01_basics](../examples/src/01_basics/) | 基础操作 |
-| [02_advanced](../examples/src/02_advanced/) | 高级特性 |
-| [03_config](../examples/src/03_config/) | 配置 |
-| [05_database](../examples/src/05_database/) | 数据库集成 |
-| [06_features](../examples/src/06_features/) | 特性演示 |
+| [01_basics](../../examples/src/01_basics/) | 基础操作 |
+| [02_advanced](../../examples/src/02_advanced/) | 高级特性 |
+| [03_config](../../examples/src/03_config/) | 配置 |
+| [05_database](../../examples/src/05_database/) | 数据库集成 |
+| [06_features](../../examples/src/06_features/) | 特性演示 |
+
+## 🎨 特性标志
+
+> 本节内容迁自 README 特性标志章节，为组件特性的逐项说明总表。
+
+层级预设（`default = ["minimal"]`，仅 L1）：
+
+```toml
+oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
+oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
+oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+```
+
+| 标志 | 说明 | 默认 |
+|------|------|:----:|
+| `minimal` | 预设：`memory` + `metrics` + `serialization` + `chrono`，仅 L1 | ✅ |
+| `redis-tier` | 预设：`minimal` + `redis`，L1 + L2（旧名 `core` 为兼容别名） | ❌ |
+| `full` | 真全量：`redis-tier` + 全部具名能力特性（宏/压缩/批量/Lua/锁/RedLock/三后端/bloom/kit/encrypt/integrity/config-confers 等） | ❌ |
+| `memory` | L1 内存后端（Moka + DashMap） | ❌ |
+| `redis` | L2 分布式缓存（Redis / Valkey，Standalone / Sentinel / Cluster） | ❌ |
+| `dragonfly` | Dragonfly 后端（Redis 协议兼容） | ❌ |
+| `aerospike` | Aerospike 后端（独立协议） | ❌ |
+| `macros` | `#[cached]` 属性宏（`oxcache_macros` crate） | ❌ |
+| `serialization` | JSON 序列化（serde + serde_json + serde_stacker 深度防护） | ❌ |
+| `metrics` | 内置指标：延迟直方图、操作计数、JSON / Prometheus 导出 | ❌ |
+| `batch` | `BatchWriter` 缓冲批量写入（容量 / 时间双阈值刷盘） | ❌ |
+| `lua` | Lua 脚本执行（依赖 `redis`） | ❌ |
+| `test-util` | 测试工具（暴露内部函数）；`testing` 为已弃用别名 | ❌ |
+| `bloom` | 布隆过滤器负查询过滤（`BloomFilter` + `BloomFilterBackend`） | ❌ |
+| `lock` | 分布式锁：TTL、watchdog 自动续期、可重入（依赖 `redis`） | ❌ |
+| `redlock` | RedLock 多节点多数派锁 + fencing token（依赖 `lock`）；`red-lock` 为已弃用别名 | ❌ |
+| `compression` | 自适应压缩：zstd 阈值触发，兼容旧 gzip 读取 | ❌ |
+| `telemetry` | `tracing` 门面：熔断 / 回填 / 宏穿透路径埋点，关闭时零开销 | ❌ |
+| `invalidation` | 跨实例失效总线：Redis Pub/Sub 广播 + 键空间通知通道 | ❌ |
+| `encrypt` | 值级加密装饰器（XChaCha20-Poly1305，AAD 绑定键名） | ❌ |
+| `integrity` | 值完整性装饰器（HMAC-SHA256，校验失败视为 miss） | ❌ |
+| `serde-bincode` | bincode 2 二进制序列化格式 | ❌ |
+| `postcard` | postcard 二进制序列化格式 | ❌ |
+| `config-confers` | confers 配置驱动构建 + `ConfigBus` watch 热更新 | ❌ |
+| `degradation` | 自动降级与恢复（Active / Degraded / HalfOpen 三态状态机） | ❌ |
+| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing） | ❌ |
+| `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
+| `trait-kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器）；`kit` 为已弃用别名 | ❌ |
+| `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
+| `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
+| `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
+| `adaptive-ttl` | 自适应 TTL：`AdaptiveTtlBackend` 按访问模式调整条目 TTL（hot 延长 / cold 缩短，显式常量配置） | ❌ |
+| `warmup` | 智能预热：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`（批量晋升 + 直供回填，去重/并发可控，报告显性计数） | ❌ |
+| `byte-weight` | 字节权重同步缓存（`ByteWeightCache`，tokio-free 直连 `moka::sync`） | ❌ |
+| `pubsub` | Redis Pub/Sub 广播组件 | ❌ |
+| `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
+
+> `bloom` 与 `trait-kit` 已并入 `full`；单开它们仍受支持（`--features bloom`）。
