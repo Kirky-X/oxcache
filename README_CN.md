@@ -1,56 +1,16 @@
+[English](README.md) | 中文
+
 <div align="center">
 
 <img src="docs/assets/oxcache.png" alt="Oxcache Logo" width="240">
 
 [![Rust 2024](https://img.shields.io/badge/Rust-2024-edded?logo=rust&style=for-the-badge)](https://www.rust-lang.org/) [![Rustc 1.97.1+](https://img.shields.io/badge/Rustc-1.97.1+-orange.svg?style=for-the-badge)](https://www.rust-lang.org/) [![crates.io](https://img.shields.io/crates/v/oxcache?style=for-the-badge)](https://crates.io/crates/oxcache) [![docs.rs](https://img.shields.io/docsrs/oxcache?style=for-the-badge)](https://docs.rs/oxcache) [![downloads](https://img.shields.io/crates/d/oxcache?style=for-the-badge)](https://crates.io/crates/oxcache) [![CI](https://img.shields.io/github/actions/workflow/status/Kirky-X/oxcache/ci.yml?branch=main&label=CI&style=for-the-badge)](https://github.com/Kirky-X/oxcache/actions/workflows/ci.yml) [![coverage](https://img.shields.io/codecov/c/github/Kirky-X/oxcache?style=for-the-badge)](https://codecov.io/gh/Kirky-X/oxcache) [![license](https://img.shields.io/crates/l/oxcache?style=for-the-badge)](LICENSE)
 
-**中文** | [English](README_EN.md)
-
 **Rust 多级缓存库：L1 内存 + L2 分布式 + 可选 L3 磁盘（redb）**
 
 [✨ 功能特性](#-功能特性) • [🚀 快速开始](#-快速开始) • [📚 文档](#-文档) • [💻 示例](#-示例) • [🤝 参与贡献](#-参与贡献)
 
 </div>
-
----
-
-<div align="center" style="padding: 32px; margin: 24px 0">
-
-### 🚀 多级缓存，纳秒级热路径
-
-`#[cached]` 宏一行启用，L1/L2 后端经 ChainCache 自由组链：
-
-<table style="width:100%; border-collapse: collapse">
-<tr><td align="center" width="25%" style="padding: 12px">🚀<br><b>极致性能</b><br><span style="color:#64748B">L1 纳秒级读写，借用键热路径 API</span></td><td align="center" width="25%" style="padding: 12px">🧩<br><b>多级后端</b><br><span style="color:#64748B">L1 Moka/DashMap + L2 Redis/Valkey/Dragonfly/Aerospike</span></td><td align="center" width="25%" style="padding: 12px">⚡<br><b>零侵入接入</b><br><span style="color:#64748B">#[cached] 宏一行启用，CacheBuilder 类型安全构建</span></td><td align="center" width="25%" style="padding: 12px">🛡️<br><b>生产就绪</b><br><span style="color:#64748B">输入校验与脱敏，可选自动降级，混沌测试</span></td></tr>
-</table>
-
-</div>
-
----
-
-## 📋 目录
-
-<details open>
-<summary>📑 目录</summary>
-
-- [✨ 功能特性](#-功能特性)
-- [🚀 快速开始](#-快速开始)
-- [🎨 特性标志](#-特性标志)
-- [📚 文档](#-文档)
-- [💻 示例](#-示例)
-- [🏗️ 架构](#️-架构)
-- [🧪 测试](#-测试)
-- [📊 性能](#-性能)
-- [🔒 安全](#-安全)
-- [🗺️ 开发路线图](#️-开发路线图)
-- [🤝 参与贡献](#-参与贡献)
-- [📋 更新日志](#-更新日志)
-- [📄 许可证](#-许可证)
-- [🙏 致谢](#-致谢)
-- [📞 联系与支持](#-联系与支持)
-- [⭐ Star 历史](#-star-历史)
-
-</details>
 
 ---
 
@@ -83,29 +43,7 @@
 </tr>
 </table>
 
-<details>
-<summary>🔎 进阶能力一览</summary>
-
-- **分布式锁**（`lock`）：Redis TTL 锁、watchdog 自动续期、可重入获取
-- **RedLock**（`red-lock`）：多节点多数派锁、`INCR` fencing token 单调防回退
-- **跨实例失效**（`invalidation`）：Redis Pub/Sub 广播失效事件，键空间通知第二通道
-- **值级加密**（`encrypt`）：XChaCha20-Poly1305 信封，AAD 绑定键名防换键移植
-- **值完整性**（`integrity`）：HMAC-SHA256 标签，校验失败视为 miss 并计数
-- **版本化 CAS**（`versioning`）：内存版与 Redis WATCH/MULTI/EXEC 版 `compare_and_swap`
-- **配置驱动**（`config-confers`）：confers 加载容量 / TTL / 熔断参数，`ConfigBus` watch 热更新
-- **自动降级**（`degradation`）：Active / Degraded / HalfOpen 三态状态机，探测成功自动恢复
-- **审计事件流**（`audit`）：结构化 hit / miss / set / delete / evict / expired 事件，键脱敏
-- **宏高级参数**：`single_flight` 并发 miss 去重、`strict` 未注册 panic、`condition` 谓词旁路
-- **SWR 三态过期**（`stale`）：过期条目在 stale 窗口内仍可返回旧值，`Return` / `Revalidate` / `OffloadRevalidate` 三策略（`CacheBuilder::stale_ttl()` + `stale_policy()`；后台刷新经 `Cache::get_or_refresh()`）
-- **后台任务子系统**（`offload`）：`OffloadManager` 同 key 去重、并发上限、超时 Cancel/Warn 策略
-- **磁盘持久化 L3**（`disk`）：`RedbDiskBackend`（redb 嵌入式），重启不冷启动，`max_entries` 超限自动清扫，挂链为 L3
-- **链路读策略**：`ChainReadStrategy`（Sequential / Race / `ParallelFreshest` 按剩余 TTL 择新），`enable_race_read()` 为兼容别名
-- **分层构建器**：`L1Builder` / `L2Builder` / `ChainBuilder` 链式组合
-- **生命周期集成**（`kit`）：trait-kit AsyncKit 的 `OxcacheModule`、健康检查、三阶段关闭、后端装饰器
-- **错误国际化**：基于 ICU4X 的错误消息 i18n 与系统语言自动检测
-- **穿透防护配置**：`null_cache_ttl` 空值哨兵 TTL、`ttl_jitter` TTL 抖动系数
-
-</details>
+> `lock` / `red-lock` / `invalidation` / `encrypt` / `integrity` / `versioning` / `config-confers` / `degradation` / `audit` / `stale` / `offload` / `disk` / `adaptive-ttl` / `warmup` 等进阶能力的逐项说明见 [API 参考](docs/cn/API_REFERENCE.md)。
 
 ---
 
@@ -113,38 +51,14 @@
 
 ### 📦 安装
 
-<details>
-<summary>📄 代码 · bash</summary>
-
 ```bash
 cargo add oxcache            # 默认 minimal：L1 内存缓存
 cargo add oxcache --features full   # 全量：L1 + L2 + 宏 + 压缩 + 批量 + Lua + 锁
 ```
 
-</details>
-
-或在 `Cargo.toml` 中手动添加：
-
-<details>
-<summary>📄 代码 · toml</summary>
-
-```toml
-[dependencies]
-oxcache = "0.5.0"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-serde = { version = "1", features = ["derive"] }
-```
-
-</details>
-
 **最低要求**：Rust 1.97.1+（edition 2024）。默认 `minimal` 特性仅启用 L1 内存缓存；使用 L2（Redis / Valkey / Dragonfly / Aerospike）需本地可达的对应服务，Redis 相关测试依赖 Docker（testcontainers 自动拉起容器）。
 
 ### 💡 最小可运行示例
-
-以下示例精简自 [`examples/src/01_basics/example_basic_operations.rs`](examples/src/01_basics/example_basic_operations.rs)：
-
-<details>
-<summary>📄 代码 · rust</summary>
 
 ```rust
 use oxcache::Cache;
@@ -178,62 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-</details>
-
-函数级缓存只需一行宏——宏要求先注册缓存实例（完整版见 [`examples/src/01_basics/example_cached_macro.rs`](examples/src/01_basics/example_cached_macro.rs)）：
-
-<details>
-<summary>📄 代码 · rust</summary>
-
-```rust
-use oxcache::Cache;
-use oxcache::macros::cached;
-
-#[cached(service = "user_cache", ttl = 600)]
-async fn get_user(id: u64) -> Result<User, String> {
-    Ok(User { id, name: format!("User {id}") })
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // register_for_macro 仅支持 Cache<String, Vec<u8>>；
-    // 未注册的 service 会静默穿透、直接执行原函数
-    let cache: Cache<String, Vec<u8>> = Cache::builder().build().await?;
-    cache.register_for_macro("user_cache").await?;
-
-    let user = get_user(1).await?;              // 首次执行后结果被缓存
-    let cached_user = get_user(1).await?;       // 第二次调用直接命中缓存
-    println!("{user:?} {cached_user:?}");
-    Ok(())
-}
-```
-
-</details>
-
-### 🧭 核心概念
-
-- **`Cache<K, V>`**：统一类型安全入口，`Cache::builder()` 配置 `capacity` / `ttl` / `tti` / `sync_mode`
-- **可插拔后端**：`MokaMemoryBackend` / `DashMapMemoryBackend` / `RedisBackend` / `DragonflyBackend` / `AerospikeBackend` 经 `.backend_arc(Arc::new(backend))` 注入
-- **`ChainCache`**：多后端按分数组链，自高向低读穿透，非最高分命中可异步回填更高分链接
-- **`#[cached]` 宏**：函数级缓存，经 `cache.register_for_macro("service")` 注册后由宏生成代码查找
-- **同步 API**：`.sync_mode(true)` 开启 `get_sync` / `set_sync` / `get_or_sync` 同步路径
-
----
-
-### 🧩 wasm32 支持（实验性）
-
-wasm32-unknown-unknown 下仅支持 `byte-weight` + `serialization` 的最小组合（无 async/memory 后端）：
-
-<details>
-<summary>📄 代码 · bash</summary>
-
-```bash
-cargo build --lib --target wasm32-unknown-unknown --no-default-features --features byte-weight,serialization
-```
-
-</details>
-
-限制：`minimal`/`memory`/async/redis/batch 后端依赖多线程 Runtime 语义（`block_in_place`），不在 wasm 支持范围；CI 仅对上述最小组合执行构建与 clippy 门禁，不包含运行时行为测试。
+- `#[cached]` 宏用法与核心概念见[用户指南](docs/cn/USER_GUIDE.md)；更多安装方式见[用户指南的安装章节](docs/cn/USER_GUIDE.md#安装)；wasm32 实验性支持见[用户指南的 wasm32 章节](docs/cn/USER_GUIDE.md#-wasm32-支持实验性)；完整示例清单见[用户指南的示例总览](docs/cn/USER_GUIDE.md#-示例总览)。
 
 ---
 
@@ -241,477 +100,77 @@ cargo build --lib --target wasm32-unknown-unknown --no-default-features --featur
 
 层级预设（`default = ["minimal"]`，仅 L1）：
 
-<details>
-<summary>📄 代码 · toml</summary>
-
 ```toml
 oxcache = { version = "0.5.0", features = ["minimal"] }   # 仅 L1（默认）
 oxcache = { version = "0.5.0", features = ["redis-tier"] } # L1 + L2 Redis（旧名 core 为兼容别名）
-oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性（含 bloom / kit / encrypt / integrity / 三种后端等）
+oxcache = { version = "0.5.0", features = ["full"] }      # 真全量：全部具名能力特性
 ```
 
-</details>
-
-<details>
-<summary>📋 表格</summary>
-
-| 标志 | 说明 | 默认 |
-|------|------|:----:|
-| `minimal` | 预设：`memory` + `metrics` + `serialization` + `chrono`，仅 L1 | ✅ |
-| `redis-tier` | 预设：`minimal` + `redis`，L1 + L2（旧名 `core` 为兼容别名） | ❌ |
-| `full` | 真全量：`redis-tier` + 全部具名能力特性（宏/压缩/批量/Lua/锁/RedLock/三后端/bloom/kit/encrypt/integrity/config-confers 等） | ❌ |
-| `memory` | L1 内存后端（Moka + DashMap） | ❌ |
-| `redis` | L2 分布式缓存（Redis / Valkey，Standalone / Sentinel / Cluster） | ❌ |
-| `dragonfly` | Dragonfly 后端（Redis 协议兼容） | ❌ |
-| `aerospike` | Aerospike 后端（独立协议） | ❌ |
-| `macros` | `#[cached]` 属性宏（`oxcache_macros` crate） | ❌ |
-| `serialization` | JSON 序列化（serde + serde_json + serde_stacker 深度防护） | ❌ |
-| `metrics` | 内置指标：延迟直方图、操作计数、JSON / Prometheus 导出 | ❌ |
-| `batch` | `BatchWriter` 缓冲批量写入（容量 / 时间双阈值刷盘） | ❌ |
-| `lua` | Lua 脚本执行（依赖 `redis`） | ❌ |
-| `test-util` | 测试工具（暴露内部函数）；`testing` 为已弃用别名 | ❌ |
-| `bloom` | 布隆过滤器负查询过滤（`BloomFilter` + `BloomFilterBackend`） | ❌ |
-| `lock` | 分布式锁：TTL、watchdog 自动续期、可重入（依赖 `redis`） | ❌ |
-| `redlock` | RedLock 多节点多数派锁 + fencing token（依赖 `lock`）；`red-lock` 为已弃用别名 | ❌ |
-| `compression` | 自适应压缩：zstd 阈值触发，兼容旧 gzip 读取 | ❌ |
-| `telemetry` | `tracing` 门面：熔断 / 回填 / 宏穿透路径埋点，关闭时零开销 | ❌ |
-| `invalidation` | 跨实例失效总线：Redis Pub/Sub 广播 + 键空间通知通道 | ❌ |
-| `encrypt` | 值级加密装饰器（XChaCha20-Poly1305，AAD 绑定键名） | ❌ |
-| `integrity` | 值完整性装饰器（HMAC-SHA256，校验失败视为 miss） | ❌ |
-| `serde-bincode` | bincode 2 二进制序列化格式 | ❌ |
-| `postcard` | postcard 二进制序列化格式 | ❌ |
-| `config-confers` | confers 配置驱动构建 + `ConfigBus` watch 热更新 | ❌ |
-| `degradation` | 自动降级与恢复（Active / Degraded / HalfOpen 三态状态机） | ❌ |
-| `audit` | 结构化审计事件流（NoOp / 有界内存环形 / tracing） | ❌ |
-| `versioning` | 版本化 CAS（内存实现 + Redis WATCH/MULTI/EXEC 实现） | ❌ |
-| `trait-kit` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 关闭 / 装饰器）；`kit` 为已弃用别名 | ❌ |
-| `disk` | 磁盘持久化 L3 后端（redb 嵌入式，懒过期 + `max_entries` 清扫，`Scores::REDB = 85`） | ❌ |
-| `stale` | SWR 三态过期：`StaleWhileRevalidateBackend` + `StalePolicy`（Return / Revalidate / OffloadRevalidate）（依赖 `offload`） | ❌ |
-| `offload` | 后台任务子系统：`OffloadManager` 去重 / 限并发 / 超时策略，`get_or_refresh` 后台重验证 | ❌ |
-| `adaptive-ttl` | 自适应 TTL：`AdaptiveTtlBackend` 按访问模式调整条目 TTL（hot 延长 / cold 缩短，显式常量配置） | ❌ |
-| `warmup` | 智能预热：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`（批量晋升 + 直供回填，去重/并发可控，报告显性计数） | ❌ |
-| `byte-weight` | 字节权重同步缓存（`ByteWeightCache`，tokio-free 直连 `moka::sync`） | ❌ |
-| `pubsub` | Redis Pub/Sub 广播组件 | ❌ |
-| `hotkey` | 热 key 采样观测（`HotKeyTracker` 分片计数 + 快照半衰 Top-K） | ❌ |
-
-</details>
-
-> `bloom` 与 `trait-kit` 已并入 `full`；单开它们仍受支持（`--features bloom`）。
+完整特性标志表（逐项说明与默认值）见 [API 参考](docs/cn/API_REFERENCE.md#-特性标志)。
 
 ---
 
 ## 📚 文档
 
-<details>
-<summary>📋 表格</summary>
-
 | 文档 | 说明 |
 |------|------|
-| [📖 用户指南](docs/USER_GUIDE.md) | 从安装到进阶的完整使用教程 |
-| [📘 API 参考](docs/API_REFERENCE.md) | 全部公开 API 的详细说明与错误码表 |
-| [🏗️ 架构文档](docs/ARCHITECTURE.md) | 设计理念、模块职责、数据流与故障处理 |
-| [📊 性能基线](docs/PERFORMANCE.md) | 序列化体积、压缩率、热路径基准与复现命令 |
-| [🧪 测试场景矩阵](docs/TEST_SCENARIOS.md) | 功能域到测试落点的映射与执行口径 |
-| [🤝 贡献指南](docs/CONTRIBUTING.md) | 开发环境、TDD 工作流与 PR 流程 |
-| [📋 更新日志](docs/CHANGELOG.md) | 每个版本的变更记录 |
+| [📖 用户指南](docs/cn/USER_GUIDE.md) | 从安装到进阶的完整使用教程 |
+| [📘 API 参考](docs/cn/API_REFERENCE.md) | 全部公开 API 的详细说明与错误码表 |
+| [🏗️ 架构文档](docs/cn/ARCHITECTURE.md) | 设计理念、模块职责、数据流与故障处理 |
+| [📊 性能基线](docs/cn/PERFORMANCE.md) | 序列化体积、压缩率、热路径基准与复现命令 |
+| [🧪 测试场景矩阵](docs/cn/TEST_SCENARIOS.md) | 功能域到测试落点的映射与执行口径 |
+| [🤝 贡献指南](docs/cn/CONTRIBUTING.md) | 开发环境、TDD 工作流与 PR 流程 |
+| [📋 更新日志](docs/cn/CHANGELOG.md) | 每个版本的变更记录 |
 | [📦 在线 API 文档](https://docs.rs/oxcache) | docs.rs 自动生成的最新文档 |
 | [📦 crates.io](https://crates.io/crates/oxcache) | 发布页面 |
-
-</details>
 
 ---
 
 ## 💻 示例
 
-`examples/` 目录（workspace 成员 `oxcache-examples`，已设 `publish = false`）包含 **37 个示例**（默认特性下全部可运行）：
-
-<details>
-<summary>📄 代码 · bash</summary>
-
-```bash
-# 运行单个示例（在 examples/ 目录下）
-cd examples && cargo run --example example_basic_operations
-
-# 列出所有可用示例
-cd examples && ls src/*/*.rs
-```
-
-</details>
-
-**入门（`examples/src/01_basics`）**
-
-<details>
-<summary>📋 表格</summary>
-
-| 示例 | 说明 |
-|------|------|
-| `example_basic_operations` | 基本 CRUD 操作（`get` / `set` / `delete` / `exists`） |
-| `example_new_api` | 现代 API 入门（`Cache::builder()` / `Cache::memory()`） |
-| `example_cache_builder` | CacheBuilder 配置（`capacity` / `ttl` / `tti` / `sync_mode`） |
-| `example_serialization` | JSON 序列化 |
-| `example_cache_key` | 自定义缓存键（`CacheKey` trait） |
-| `example_cached_macro` | `#[cached]` 宏（`service` / `ttl` / `key_prefix`） |
-| `example_explicit_init` | 显式初始化（`Cache::new()` / 全局缓存） |
-| `example_get_or` | 缓存未命中时计算（`get_or`，单飞） |
-| `example_sync_api` | 同步 API（`get_sync` / `set_sync` / `clear_sync` / `len_sync`） |
-| `example_byte_ops` | 字节级操作（`get_bytes` / `set_bytes` / `len` / `capacity` / `shutdown`） |
-| `example_comprehensive_usage` | 综合使用（全部功能概览） |
-
-</details>
-
-**进阶（`examples/src/02_advanced`）**
-
-<details>
-<summary>📋 表格</summary>
-
-| 示例 | 说明 |
-|------|------|
-| `example_batch_write` | 批量操作（`set_many` / `get_many` / `delete_many`） |
-| `example_chain_cache` | 链式缓存（`ChainCache` / `ChainLink`） |
-| `example_invalidation` | 缓存失效策略（TTL / TTI / 手动失效） |
-| `example_warmup` | 缓存预热（批量预加载） |
-| `example_smart_strategy` | 缓存策略模式（Cache-Aside / Lazy Loading / TTL 分层） |
-| `example_cache_promotion` | 缓存提升（L2→L1 提升 / 热点分析） |
-| `example_error_handling` | 错误处理（`OxCacheError` / 重试 / 可恢复性） |
-| `example_custom_backend` | 自定义后端（`CacheReader` / `CacheWriter` / `CacheConnector`） |
-| `example_dashmap_backend` | DashMap 后端（`DashMapMemoryBackend`） |
-| `example_moka_ttl` | Moka per-entry TTL（`Expiry` trait） |
-| `example_redis_native` | Redis 原生操作（`RedisBackend`，需 Redis） |
-| `example_redis_modes` | Redis 部署模式（Standalone / Cluster / Sentinel，需 Redis） |
-| `example_redis_pipeline` | Pipeline 批量（`set_many_pipeline` / `get_many_pipeline`，需 Redis） |
-| `example_lua_script` | Lua 脚本执行（`eval_lua` / `script_load` / `eval_sha`，需 Redis） |
-
-</details>
-
-**配置（`examples/src/03_config`）**
-
-| 示例 | 说明 |
-|------|------|
-| `example_dynamic_config` | 动态配置（运行时配置变更） |
-| `example_key_generator` | Key 生成器（`KeyGenerator`） |
-
-**数据库集成（`examples/src/05_database`）**
-
-| 示例 | 说明 |
-|------|------|
-| `example_database_integration` | 数据库集成（Cache-Aside 模式） |
-
-**特性展示（`examples/src/06_features`）**
-
-<details>
-<summary>📋 表格</summary>
-
-| 示例 | 说明 |
-|------|------|
-| `example_metrics` | 指标导出（`export_json_format` / `export_prometheus_format`） |
-| `example_compression` | 数据压缩（`JsonSerializer::with_compression()`） |
-| `example_security` | 安全脱敏（`redact_value` / `redact_connection_string`） |
-| `example_security_validation` | 安全验证（`validate_redis_key` / `validate_lua_script`） |
-| `example_bloom_filter` | 布隆过滤器（`BloomFilter` / `BloomFilterBackend`） |
-| `example_i18n` | 国际化（`CacheI18nFormatter`） |
-| `example_events` | 事件系统（`CacheEvent` / `CacheEventType`） |
-| `example_cli_usage` | CLI 场景（以代码方式获取缓存状态与指标） |
-| `example_kit_integration` | trait-kit AsyncKit 集成（`OxcacheModule` / 健康检查 / 生命周期 / 三阶段关闭 / 装饰器） |
-
-</details>
-
-> 标注"需 Redis"的示例需要运行中的 Redis 6.0+ 服务；其余示例使用内存后端，可独立运行。
-
-### 🔄 同步 API
-
-入门示例 `example_sync_api` 即同步 API 的完整可运行版本。在 builder 上启用 `sync_mode(true)` 后，异步 API 之外获得完整同步镜像（无需 `.await`）：
-
-<details>
-<summary>📄 代码 · rust</summary>
-
-```rust
-use oxcache::Cache;
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-struct User { id: u64, name: String }
-
-#[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cache: Cache<String, User> = Cache::builder().sync_mode(true).build().await?;
-
-    // 同步操作
-    cache.set_sync(&"user:1".to_string(), &User { id: 1, name: "Alice".into() })?;
-    let cached = cache.get_sync(&"user:1".to_string())?;
-    assert_eq!(cached, Some(User { id: 1, name: "Alice".into() }));
-
-    // per-entry TTL
-    cache.set_with_ttl_sync(
-        &"temp".to_string(),
-        &User { id: 2, name: "Temp".into() },
-        Some(std::time::Duration::from_secs(60)),
-    )?;
-
-    // 单飞 get_or_sync：并发调用共享一次 fallback 执行
-    let value = cache.get_or_sync(&"user:42".to_string(), || {
-        Ok(User { id: 42, name: "Bob".into() })
-    })?;
-
-    // sync 与 async API 在同一 Cache 上共存
-    cache.set(&"async_key".to_string(), &User { id: 99, name: "Async".into() }).await?;
-    let v = cache.get_sync(&"async_key".to_string())?;
-    Ok(())
-}
-```
-
-</details>
-
-**何时使用**：阻塞调用点（遗留代码、FFI、同步处理器）；调用方本身是同步的，避免运行时开销。
-
-**运行时注意**：
-
-- 默认 Moka 路径为原生同步、运行时无关：runtime 之外可直接调用（临时 current-thread runtime 兜底驱动），`multi_thread` runtime 上经 `block_in_place` 复用当前 runtime；`current_thread` runtime 的异步上下文内 tokio 禁止嵌套阻塞驱动，调用显性返回 `Err(OxCacheError::NotSupported)`（不 panic）
-- `sync_mode(true)` 与 `backend_arc(...)` 可组合：sync API 经 `AsyncToSyncBridge` 桥出（阻塞语义），要求调用时处于 `multi_thread` runtime（I/O 型后端需 ≥2 worker），runtime 之外或 `current_thread` runtime 上逐调用返回 `Err(OxCacheError::NotSupported)`；运行时无关的注入请改用 `sync_backend_arc(...)`
-- 未启用 `sync_mode(true)` 时调用任何 `*_sync` 方法返回 `Err(OxCacheError::NotSupported)`
-
-**`#[cached]` 宏参数**：完整参数表（含默认值与 `cache_none`）见 [API 参考的缓存宏章节](docs/API_REFERENCE.md#-缓存宏)；与同步路径相关的参数为 `sync`（生成同步函数，无需 async 运行时）。
+`examples/` 目录包含 **37 个示例**（默认特性下全部可运行）；分组清单与运行命令见[用户指南的示例总览](docs/cn/USER_GUIDE.md#-示例总览)。同步 API 的完整方法表与运行时要求见 [API 参考](docs/cn/API_REFERENCE.md#-同步-api)。
 
 ---
 
 ## 🏗️ 架构
 
-Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面对 `Cache<K, V>` 一个类型安全入口，读写落到实现 `CacheReader` / `CacheWriter` / `CacheConnector` 三个 trait 的后端上（blanket impl 组合为 `CacheBackend`）；L1（Moka / DashMap）与 L2（Redis / Valkey / Dragonfly / Aerospike）可单独使用，也可经 `ChainCache` 按分数组链并按需回填，`features` 模块以装饰器形态叠加布隆过滤器、分布式锁、加密等能力。分层架构图、模块职责与数据流见[架构文档](docs/ARCHITECTURE.md)；`batch`、`integrations::kit`、`i18n`、`config`、`traits`、`testing` 等模块按特性门控挂载。
-
-### 宏执行路径
-
-`#[cached]` 宏展开后：按服务名查注册表，命中即反序列化返回；未命中执行原函数并将 `Ok` 结果序列化回写。未注册服务默认静默穿透执行原函数，`strict` 模式改为 panic。完整时序图与展开代码见[架构文档的数据流章节](docs/ARCHITECTURE.md#cached-宏执行路径)。
-
-### 链式缓存读取路径
-
-读取自最高分链接起穿透；非最高分链接命中且启用回填时，顺序 await 写入更高分链接（读路径等待回填完成后才返回，流程图见[架构文档](docs/ARCHITECTURE.md#chaincache-读取路径)）。单链接失败仅记录警告并继续下一链接，仅当全部链接失败时读取才报错；写入并发下发到所有写入者链接，单链接写入失败被容忍。`enable_race_read()` 启用后改为并发查询全部链接，待全部查询结束后取分数最高（链接序最靠前）的命中返回。
-
-**可靠性要点**：
-
-- [x] 单飞去重（`get_or` / `get_or_sync`，64 分片降低锁竞争）
-- [x] ChainCache 链路容错（单链接故障不阻塞整体读写）
-- [x] 可选自动降级（`degradation` 特性，半开探测自动恢复）
-- [x] 健康检查（ChainCache 并发 ping，每链接 5 秒超时）
-- [x] 优雅关闭（`shutdown`；`trait-kit` 特性映射到三阶段关闭协调）
-
-### 🌸 布隆过滤器与穿透防护
-
-`bloom` 特性（已并入 `full`，也可单独启用）提供负查询过滤。`BloomFilterBackend` 装饰任意后端：布隆过滤器判定「一定不存在」时直接返回 `None`，inner 后端完全不被触及。
-
-<details>
-<summary>📄 代码 · mermaid</summary>
-
-```mermaid
-flowchart TD
-    A["backend.get key"] --> B{"布隆过滤器包含 key？"}
-    B -->|一定不存在| C["直接返回 None<br/>inner 后端未被触及"]
-    B -->|可能存在| D["查询 inner 后端"]
-    D --> E["返回结果"]
-```
-
-</details>
-
-<details>
-<summary>📄 代码 · rust</summary>
-
-```rust
-use oxcache::backend::MokaMemoryBackend;
-use oxcache::features::bloom_filter::{BloomFilter, BloomFilterBackend};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 独立 BloomFilter：容量 10_000，误判率 1%
-    let bf = BloomFilter::new(10_000, 0.01);
-    bf.insert("existing_key");
-    assert!(bf.contains("existing_key"));   // 无假阴性
-    assert!(!bf.contains("missing_key"));   // 可能有假阳性
-
-    // 装饰器：包装任意 CacheBackend
-    let backend = BloomFilterBackend::builder()
-        .capacity(10_000)
-        .false_positive_rate(0.01)
-        .inner(MokaMemoryBackend::new())
-        .build()?;
-
-    backend.set(Arc::from("user:1"), Arc::new(b"Alice".to_vec()), None).await?;
-    assert!(backend.get("user:1").await?.is_some());
-    assert!(backend.get("user:999").await?.is_none());   // BF 过滤，inner 未触及
-    Ok(())
-}
-```
-
-</details>
-
-**语义**：无假阴性；`set` 同时更新 BF 与 inner，`delete` 只更新 inner（BF 不支持删除），`clear` 两者皆清，TTL 原样透传；inner 实现 `SyncCacheBackend` 时装饰器同样实现。
-
-**穿透与击穿防护组合**：
-
-| 机制 | 入口 | 作用 |
-|------|------|------|
-| 单飞去重 | `get_or` / `get_or_sync` / 宏 `single_flight` | 同 key 并发 miss 仅一个调用者回源，跟随者等待结果（异步 `watch` / 同步 `Condvar`，64 分片） |
-| 空值哨兵 | `get_or_option` + `null_cache_ttl` | 对 `None` 结果缓存哨兵，避免不存在的键反复打到存储 |
-| TTL 抖动 | builder `ttl_jitter(factor)` | 实际 TTL 在 `base * (1 ± factor)` 内随机，防止批量同时过期 |
-| 布隆过滤 | `BloomFilterBackend` | 负查询 O(1) 短路，inner 后端零请求 |
-
-### ⏱️ TTL 行为对照表
-
-所有后端统一遵守 per-entry `set(key, value, Some(ttl))`。行为汇总：
-
-<details>
-<summary>📋 表格</summary>
-
-| 后端 | `set(ttl=Some)` | `ttl(key)` | `expire(key, new_ttl)` | 说明 |
-|---------|-----------------|------------|------------------------|-------|
-| **MokaMemoryBackend** | 通过 `moka::Expiry` 真实 per-entry TTL | 剩余 TTL | 更新 + 返回 `true` | 全局 TTL（`builder.ttl(...)`）被 per-entry TTL 覆盖 |
-| **DashMapMemoryBackend** | 存储 `(value, expiry Instant)`；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true` | 懒过期，条目在下次访问时移除；超容量时 FIFO O(1) 淘汰最旧条目 |
-| **RedisBackend** | `SET key value PX <ms>` | `TTL key`（Redis 原生） | `PEXPIRE key <ms>` | Redis 原生 TTL，毫秒精度（亚秒 TTL 不再被拒绝） |
-| **Valkey**（经 RedisBackend） | 同 Redis | 同 Redis | 同 Redis | Redis 协议兼容，使用 `ValkeyStandalone` 模式 |
-| **DragonflyBackend** | 委托内部 RedisBackend | 委托内部 RedisBackend | 委托内部 RedisBackend | Redis 协议兼容，TTL 行为与 Redis 一致 |
-| **AerospikeBackend** | `write_policy_with_ttl` → `Expiration::Seconds` | `record.time_to_live()` | `touch` + 新 `Expiration` | Aerospike 原生 TTL（秒级精度），亚秒 TTL 上取整 |
-| **RedbDiskBackend**（`disk`） | 存储 `(value, expiry epoch ms)` envelope；读取时懒过期 | 剩余 TTL（无 TTL 则 None） | 更新 + 返回 `true`（键不存在或已过期返回 `false`） | `set(ttl=None)` 沿用 `with_default_ttl` 的后端默认 TTL（未设置则永不过期） |
-| **ChainCache** | 将 `ttl` 透传到所有链接 | 从最高分起扫描返回的第一个 `Some(ttl)`（高分链接存在但无 TTL 时继续向低分链接查询） | 透传到所有链接 | 所有链接接收相同 TTL |
-| **BloomFilterBackend** | 将 `ttl` 透传到 inner（同时插入 key 到 BF） | 委托给 inner | 委托给 inner | BF 本身无 TTL 概念 |
-
-</details>
-
-**全局与 per-entry 的关系**：`builder.ttl(Duration)` 设置作用于每个条目的全局 TTL；`set(key, value, Some(ttl))` 覆盖该条目；`set(key, value, None)` 沿用全局 TTL（未设置则永不过期）。
+Oxcache 采用「统一接口 + 可插拔后端」的分层设计：应用只面对 `Cache<K, V>` 一个类型安全入口，L1/L2 后端可经 `ChainCache` 按分数组链并按需回填。分层架构图、模块职责、数据流、TTL 行为对照表与布隆过滤器穿透防护见[架构文档](docs/cn/ARCHITECTURE.md)。
 
 ---
 
 ## 🧪 测试
 
-测试套件按 [`tests/README.md`](tests/README.md) 组织，场景矩阵见 [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)。
-
-<details>
-<summary>📋 表格</summary>
-
-| 层级 | 运行入口 | 覆盖内容 | 测试函数数¹ |
-|------|----------|----------|------------|
-| 库单元测试 | `--lib` | `src/` 内 `#[cfg(test)]` 测试 | 1671 |
-| 单元测试 | `--test unit` | 后端接口、CacheBuilder、序列化、指标、日志脱敏等 | 332 |
-| 集成测试 | `--test integration` | 批量写入、链式缓存、降级与恢复、TTL、Redis Cluster / Sentinel（含 failover 重发现）、分布式锁等 | 153 |
-| 端到端测试 | `--test e2e` | 基础操作、`#[cached]` 宏、真实业务场景、高级场景 | 65 |
-| 宏测试 | `--test macros` | `sync` / `skip_cache_write` 模式与 trybuild 编译失败用例 | 24 |
-| 安全测试 | `--test security` | 安全覆盖与安全验证 | 20 |
-| 混沌测试 | `--test chaos` | 后端故障注入、网络故障、随机故障 | 19 |
-| 性能测试 | `--test performance` | 内存泄漏检测、Miri 内存安全、Pipeline 性能 | 19 |
-| Feature 门控 | `--test feature_test`；`--features "full,bloom" --test bloom_filter_integration` | 窄特性组合、布隆过滤器集成 | 2 + 7 |
-
-</details>
-
-> ¹ `#[test]` / `#[tokio::test]` 函数 grep 统计（`grep -rEo '#\[(tokio::)?test\]' --include='*.rs' src tests | wc -l`），工作区口径，截至 **0.5.0**（2026-11-14 复核）；合计 2413（`src/` 1671 + `tests/` 742）。分表按各测试目录 grep 计数（合计 641），差额 110 例来自未入表的 26 个顶层测试文件（`tests/*_extra_test.rs` 等补齐文件、`scenario_probe_*.rs` 探针与 `*_test.rs` 顶层用例）。
-
-### 常用命令（与 CI 一致）
-
-<details>
-<summary>📄 代码 · bash</summary>
-
-```bash
-# CI test 矩阵以 minimal / redis-tier / full 等档位运行
-cargo test --features full --workspace
-
-# 按测试二进制运行
-cargo test --features full --lib
-cargo test --features full --test integration
-cargo test --features full --test e2e
-
-# 窄特性组合检查（CI feature-redis-tier / feature-minimal job）
-cargo check -p oxcache --no-default-features --features redis-tier
-cargo check -p oxcache --no-default-features --features minimal
-
-# 跳过需要 Redis 的测试
-cargo test --features full -- --skip redis
-
-# 覆盖率（CI 与 pre-push 门禁：行覆盖 >= 90%）
-cargo llvm-cov --features full --workspace --fail-under-lines 90
-```
-
-</details>
-
-> Redis 相关测试经 testcontainers 自动拉起 `redis:7-alpine` 容器，需要本机 Docker；集成 / E2E 禁用 test double，使用进程内真实实现与混沌式故障注入替身（口径见 [docs/TEST_SCENARIOS.md](docs/TEST_SCENARIOS.md)）。
+2000+ 测试函数（截至 0.5.0）。测试层级、函数计数与常用命令见[测试场景矩阵](docs/cn/TEST_SCENARIOS.md#7-测试层级与常用命令)；Redis 相关测试依赖本机 Docker（testcontainers 自动拉起容器）。
 
 ---
 
 ## 📊 性能
 
-> 量级参考（L1/L2 吞吐与 P99 延迟，M1 Pro / 16GB RAM / macOS / Redis 7.0 基准环境；性能因硬件、网络条件和数据大小而异）见[架构文档的基准测试章节](docs/ARCHITECTURE.md#基准测试结果)。可复现实测数据（序列化体积、压缩率、热路径基准与复现命令）见[性能基线](docs/PERFORMANCE.md)。
-
-要点速览：热路径借用键 API（`get_by_str` / `set_by_str`）实测 get **-6.7%**、set **-12.7%**；序列化格式切换（`serde-bincode` / `postcard`）下 postcard 混合负载传输体积约为 JSON 的 **46%**。
-
-Criterion 基准代码位于 `benches/`：`modern_api_benchmark`、`hot_path_benchmark`、`redis_benchmark`、`serialization_benchmark`、`serialization_rkyv_probe`、`metrics_recorder_benchmark`、`sync_surface_benchmark`、`dashmap_benchmark`、`dragonfly_benchmark`，运行方式如 `cargo bench --bench hot_path_benchmark`。
+热路径借用键 API（`get_by_str` / `set_by_str`）实测 get **-6.7%**、set **-12.7%**；postcard 混合负载传输体积约为 JSON 的 **46%**。基准与复现命令见[性能基线](docs/cn/PERFORMANCE.md)。
 
 ---
 
 ## 🔒 安全
 
-Oxcache 在库层面内建多层防御。
-
-**漏洞报告**：请勿通过公开 Issue 报告安全漏洞。请优先使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道提交（仅当该通道不可用时再发送邮件至 Kirky-X@outlook.com，受理人 Kirky.X；48 小时内确认，7 天内给出初步评估，报告者可在修复发布前预览验证补丁）。完整政策见 [🔒 安全文档](docs/SECURITY.md)。
-
-<details>
-<summary>📋 表格</summary>
-
-| 防线 | 机制 |
-|------|------|
-| 键校验 | `validate_redis_key`：拒绝空键、超过 512 KB、含 `\r` / `\n` / `\0` 的键，扫描 SQL 注入与路径遍历模式 |
-| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令按**被调用命令名**判定（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等，空白与字符串拼接变体等价）、命令名不可静态确定时拒绝、注释与字符串预处理防绕过 |
-| SCAN 限制 | `validate_scan_pattern`（256 字符、10 个通配符上限）+ `clamp_scan_count`（钳制到 1-1000） |
-| TLS 强制 | `RedisBackend` 默认要求 `rediss://`，除非显式设置 `OXCACHE_ALLOW_INSECURE_REDIS` 开发豁免 |
-| 脱敏 | `redact_connection_string` / `redact_value` / `redact_cache_key` / `Redacted` 包装器，telemetry 埋点、审计事件与 `CacheEvent` 的键默认脱敏（键文本命中敏感词表时整键掩码；标识符形态的段——邮箱、纯数字 ID、UUID、长十六进制摘要——掩码为 `<id>`；审计事件与缓存事件共用同一格式） |
-| 内存安全 | crate 根 `#![deny(unsafe_code)]` |
-| 值保护 | `encrypt`（XChaCha20-Poly1305，AAD 绑定键名）与 `integrity`（HMAC-SHA256，标签绑定键名 + 值）装饰器 |
-| 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
-| 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
-
-</details>
-
-**安全 API（公共验证函数）**（需启用 `redis` 或 `full` 特性；默认 `minimal` 特性下这些函数不导出）：
-
-<details>
-<summary>📄 代码 · rust</summary>
-
-```rust
-use oxcache::{validate_lua_script, validate_redis_key, validate_scan_pattern};
-
-validate_redis_key("user:123").expect("无效的键");
-validate_lua_script("return redis.call('GET', KEYS[1])", 1).expect("无效的脚本");
-validate_scan_pattern("user:*").expect("无效的模式");
-```
-
-</details>
+Oxcache 在库层面内建多层防御，防线总览见[安全文档](docs/cn/SECURITY.md#️-库内防线总览)。**漏洞报告**：请勿通过公开 Issue 报告安全漏洞，请使用 GitHub [Security Advisories](https://github.com/Kirky-X/oxcache/security/policy) 私密披露通道；完整政策见[安全文档](docs/cn/SECURITY.md)。
 
 ---
 
 ## 🗺️ 开发路线图
 
-| 状态 | 事项 | 说明 |
-|:----:|------|------|
-| 📋 | **0.5.0 正式发布** | 版本随 `0.5.x` 发布线推进（以 `Cargo.toml` 为准）；完成发布流程后推送 tag 触发 `release.yml` 自动发布到 crates.io |
-| 📋 | **下游版本传导** | dbnexus、inklog、limiteron、sdforge 同步对 oxcache 的依赖要求至 0.5（path + version 双写） |
-| ✅ | **Valkey 集成测试环境门控** | 8 个 Valkey 与 6 个 Dragonfly 集成测试经 `container_or_skip` 门控：无 Docker 时带原因跳过，CI 置位 `OXCACHE_TEST_STRICT=1` 转 fail-closed；语义见 tests/README.md「容器可用性门控」 |
-| ✅ | **质量审查留档项跟进** | 5 项全部收口（2 Medium + 1 Low 当轮修复，其余项于 2026-09-30 待办修复轮收口） |
+当前路线图见 [UNRELEASED.md 的开发路线图](docs/cn/UNRELEASED.md#开发路线图)。
 
 ---
 
 ## 🤝 参与贡献
 
-欢迎提交 Pull Request 和 Issue！参与开发请先阅读 [贡献指南](docs/CONTRIBUTING.md)。
-
-- **工具链**：`rust-toolchain.toml` 固定 1.97.1（edition 2024）
-- **本地门禁**：pre-commit / lefthook hooks 覆盖 `cargo fmt --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo deny check`、私钥与密钥扫描；pre-push 追加 `cargo audit` 与行覆盖 ≥ 90% 门禁
-- **提交信息**：conventional commits（`feat` / `fix` / `refactor` / `docs` 等，commit-msg hook 校验）
-- **TDD 工作流**：定接口 → 写测试（red）→ 写实现（green）→ 提交 → 影响分析
+欢迎提交 Pull Request 和 Issue！开发环境、TDD 工作流、Git Hooks 与 PR 流程见[贡献指南](docs/cn/CONTRIBUTING.md)。
 
 ---
 
 ## 📋 更新日志
 
-完整版本历史见 [CHANGELOG.md](docs/CHANGELOG.md)，未发布变更见 [UNRELEASED.md](docs/UNRELEASED.md)。最近要点：
-
-- **0.5.0-rc.8**（2026-10-05）：智能预热（`warmup` 特性：`WarmupLoader` 端口拉热 key 集合异步回填 `ChainCache`，批量晋升 + 直供回填，去重/并发可控，报告显性计数）；自适应 TTL（`adaptive-ttl`）与指标 per-service 维度；统一配置中枢 `CacheConfig`（程序化 / `OXCACHE_*` 环境变量 / confers 三通路同一校验）与 `sync_backend_arc` / `AsyncToSyncBridge` 分层一等构建入口；热路径分配基线与削减；吸收 hitbox 六项能力（宏 `skip` / SWR 三态过期 / `offload` 后台任务 / `disk` 磁盘 L3 / 链路读策略 / 默认指标落地）；缓存审计加固（`hotkey` 热点统计、字节容量记账、single-flight 与穿透修复）；`BloomFilter` 泛型化、`iter_entries` 批量读取、invalidation 写路径失效链、degradation 降级观测桥；Valkey/Dragonfly 容器门控 STRICT fail-closed；治理复核与审查留档修复。本波次原定名 `0.5.0-rc.7`，发布裁决并入 rc.6 号位——仓库内无 rc.7 版本与 tag；号位 `0.5.0-rc.7` 曾于 2026-10-08 发布至 crates.io 并同日撤回（yanked），其内容随本波次入库（见 [CHANGELOG](docs/CHANGELOG.md) 号位说明）
-- **0.5.0-rc.5**（2026-09-21）：Redis Pub/Sub 广播组件；`ByteWeightCache` 字节权重缓存（`byte-weight` 特性）；sync 路径审计事件补齐；i18n 整改；Lua 块注释绕过修复与日志脱敏增强；CI/供应链加固
-- **0.5.0-rc.4**（2026-09-10）：`#[cached]` 宏高级参数（`single_flight` / `strict` / `condition`）；`telemetry` / `encrypt` / `integrity` / `serde-bincode` / `postcard` / `config-confers` / `degradation` / `audit` / `versioning` / `red-lock` / `invalidation` 特性落地；热路径借用键 API（get -6.7%、set -12.7%）；移除空壳 `cli` 特性
-- **0.5.0-rc.3**（2026-09-08）：熔断器状态转换竞态修复；Lua 注入校验与 Redis 密码脱敏加固；CI 供应链加固（58 处第三方 Action 引用 SHA 固定）
-- **0.4.3**（2026-08-06）：`kit` 特性扩展（构建观察者、`CacheBackend` 关闭映射三阶段协调、后端装饰器注册）
+完整版本历史见 [CHANGELOG.md](docs/cn/CHANGELOG.md)，未发布变更见 [UNRELEASED.md](docs/cn/UNRELEASED.md)。
 
 ---
 
