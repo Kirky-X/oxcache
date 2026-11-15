@@ -7,6 +7,23 @@
 
 > 本文件记录已发布版本；未发布变更见 [UNRELEASED.md](UNRELEASED.md)。
 
+## [0.5.1] - 2026-11-15
+
+### Security
+
+- **移除 bincode 依赖（RUSTSEC-2025-0141 全系停维）**：`serde-bincode` feature 与
+  `SerializationFormat::Bincode` 变体/配置名 `"bincode"` 全部保留（不破坏既有
+  配置与调用方），内部改用 **postcard 编码 + 版本标签**（wire 首字节 `0xB1`）。
+  `deny.toml` 与 `.cargo/audit.toml` 的 RUSTSEC-2025-0141 豁免同步移除，依赖树
+  中不再存在 bincode。
+
+### Changed
+
+- **`Bincode` 格式 wire 变更（同 feature 内）**：0.5.1 前落盘的 bincode 2 字节
+  流不含版本标签，解码时显式判定为 legacy 失效条目并返回指向"重写该键即重建"
+  的错误（不盲解码、不 panic）；重写后即以新格式落盘。`Postcard` 变体 wire
+  不变。金样验证：legacy 实测字节流拒绝、新格式 roundtrip、标签首字节断言。
+
 ## [0.5.0] - 2026-11-14
 
 0.5.0 正式版定版：API 与行为相对 0.5.0-rc.12 无变更，rc 系列变更见下方各节。
