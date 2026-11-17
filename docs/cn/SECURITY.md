@@ -64,7 +64,7 @@ MSRV 为 **Rust 1.97.1**（根 `Cargo.toml` 的 `[workspace.package] rust-versio
 
 `.cargo/audit.toml` 与 `deny.toml` 同口径记录以下一条 RustSec 豁免，为**依赖树可达但不可利用/无升级路径**的形态：
 
-- `RUSTSEC-2025-0141`（bincode 被作者标记 unmaintained）：已升级至 2.0.1，仅在 `serde-bincode` 特性下用于本地缓存条目序列化，无网络输入面；出路为 `postcard`（已在依赖中）。
+- `RUSTSEC-2026-0440`（astral-tokio-tar 全系停维）：经 dev-only 的 `testcontainers` 0.28.0 引入（crates.io 最新版，advisory 明示 "No safe upgrade is available"）；仅用于测试容器镜像层打包，不进 lib 依赖面与发布产物；待 testcontainers 上游迁移 tar-codec 后移除本豁免。
 
 豁免不构成安全行为变更；依赖故障与降级语义见 [🏗️ 架构文档](ARCHITECTURE.md)。
 
@@ -79,7 +79,23 @@ MSRV 为 **Rust 1.97.1**（根 `Cargo.toml` 的 `[workspace.package] rust-versio
 - [🤝 贡献指南](CONTRIBUTING.md) — 开发环境与提交流程
 - [📜 更新日志](CHANGELOG.md) — 安全修复记录
 - [📖 用户指南](USER_GUIDE.md) — 配置与安全用法
-- [🏠 README](../README.md) — 能力清单与安全内建说明
+- [🏠 README](../../README_CN.md) — 能力清单与安全内建说明
+
+## 🛡️ 库内防线总览
+
+> 本节内容迁自 README 安全章节，为库内建多层防御的防线速览。
+
+| 防线 | 机制 |
+|------|------|
+| 键校验 | `validate_redis_key`：拒绝空键、超过 512 KB、含 `\r` / `\n` / `\0` 的键，扫描 SQL 注入与路径遍历模式 |
+| Lua 沙箱 | `validate_lua_script`：10 KB 上限、100 键上限、危险命令按**被调用命令名**判定（`FLUSHALL` / `CONFIG` / `SHUTDOWN` 等，空白与字符串拼接变体等价）、命令名不可静态确定时拒绝、注释与字符串预处理防绕过 |
+| SCAN 限制 | `validate_scan_pattern`（256 字符、10 个通配符上限）+ `clamp_scan_count`（钳制到 1-1000） |
+| TLS 强制 | `RedisBackend` 默认要求 `rediss://`，除非显式设置 `OXCACHE_ALLOW_INSECURE_REDIS` 开发豁免 |
+| 脱敏 | `redact_connection_string` / `redact_value` / `redact_cache_key` / `Redacted` 包装器，telemetry 埋点、审计事件与 `CacheEvent` 的键默认脱敏（键文本命中敏感词表时整键掩码；标识符形态的段——邮箱、纯数字 ID、UUID、长十六进制摘要——掩码为 `<id>`；审计事件与缓存事件共用同一格式） |
+| 内存安全 | crate 根 `#![deny(unsafe_code)]` |
+| 值保护 | `encrypt`（XChaCha20-Poly1305，AAD 绑定键名）与 `integrity`（HMAC-SHA256，标签绑定键名 + 值）装饰器 |
+| 反序列化防 DoS | `MAX_JSON_DEPTH`（64 层）深度限制 + `MAX_JSON_SIZE`（5 MB）反序列化大小上限 + 64 MiB 解压输出上限（防解压炸弹）+ 基于栈的递归（`serde_stacker`） |
+| 供应链 | CI 全部第三方 Action 以 commit SHA 固定；`cargo deny check`（漏洞 / 许可证 / 重复依赖，配置见 `deny.toml`）与 `cargo audit` 常开 |
 
 ---
 

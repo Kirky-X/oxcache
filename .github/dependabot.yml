@@ -28,6 +28,11 @@ updates:
       minor-updates:
         update-types:
           - "minor"
+    # patch 级版本更新关闭自动 PR（2026-11-16）
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-patch"
 
 
   # GitHub Actions 版本更新
@@ -47,3 +52,8 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    # patch 级版本更新关闭自动 PR（2026-11-16）
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-patch"
