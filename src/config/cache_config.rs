@@ -556,7 +556,7 @@ impl CacheConfig {
     /// 有原生同步面的后端（Moka/DashMap）经私有方法 `build_backend_slot`
     /// 保留同步面，且 Dual 槽直接返回原生 async 面（运行时无关，零交接税）；
     /// 仅 sync 一等入口的场景经 `SyncBackendAdapter` 门面呈现 async 面
-    ///（门面的 async 方法完成于后端同步面，runtime 要求随后端）。
+    /// （门面的 async 方法完成于后端同步面，runtime 要求随后端）。
     #[cfg(any(feature = "memory", feature = "redis", feature = "disk"))]
     pub async fn build_backend(
         &self,

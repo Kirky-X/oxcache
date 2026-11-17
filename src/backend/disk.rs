@@ -783,7 +783,7 @@ mod tests {
         }
     }
 
-    // 基础 CRUD 与持久化（R-disk-001）
+    // 基础 CRUD 与持久化
 
     #[tokio::test]
     async fn set_get_delete_roundtrip() {
@@ -919,7 +919,7 @@ mod tests {
         assert!(matches!(backend.backend_kind(), BackendKind::Disk));
     }
 
-    // 有界性清扫（R-disk-003）
+    // 有界性清扫
 
     #[tokio::test]
     async fn max_entries_sweep_keeps_newest() {
@@ -1000,7 +1000,7 @@ mod tests {
         assert_eq!(backend.get("fresh-099").await.unwrap(), Some(vec![1]));
     }
 
-    // 分层接线与 BackendScore（R-disk-004）
+    // 分层接线与 BackendScore
 
     #[test]
     fn backend_score_is_l3_persistent() {

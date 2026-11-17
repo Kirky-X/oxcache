@@ -175,7 +175,7 @@ where
     }
 
     /// 借用键写入：键路径仅产生一次 `Arc<str>` 分配
-    ///（`set` 路径为 `String` + `Arc<str>` 两次）。
+    /// （`set` 路径为 `String` + `Arc<str>` 两次）。
     pub async fn set_by_str(
         &self,
         key: &str,
