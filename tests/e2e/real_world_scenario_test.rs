@@ -42,7 +42,7 @@ async fn test_web_application_cache_scenario() {
         id: 1,
         name: "Alice".to_string(),
         email: "alice@example.com".to_string(),
-        created_at: chrono::Utc::now().timestamp(),
+        created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
     };
 
     // 缓存用户数据
@@ -79,7 +79,7 @@ async fn test_session_storage_scenario() {
     let session = Session {
         session_id: "sess_123456".to_string(),
         user_id: 1,
-        expires_at: chrono::Utc::now().timestamp() + 3600,
+        expires_at: time::OffsetDateTime::now_utc().unix_timestamp() + 3600,
         data: std::collections::HashMap::from([
             ("theme".to_string(), "dark".to_string()),
             ("language".to_string(), "zh-CN".to_string()),
@@ -128,7 +128,7 @@ async fn test_api_response_cache_scenario() {
     let response = ApiResponse {
         status: 200,
         data: r#"{"users": [{"id": 1, "name": "Alice"}]}"#.to_string(),
-        cached_at: chrono::Utc::now().timestamp(),
+        cached_at: time::OffsetDateTime::now_utc().unix_timestamp(),
     };
 
     // 缓存 API 响应
@@ -150,7 +150,7 @@ async fn test_api_response_cache_scenario() {
             Ok(ApiResponse {
                 status: 200,
                 data: r#"{"products": []}"#.to_string(),
-                cached_at: chrono::Utc::now().timestamp(),
+                cached_at: time::OffsetDateTime::now_utc().unix_timestamp(),
             })
         })
         .await
@@ -253,7 +253,7 @@ async fn test_bulk_operations_scenario() {
                     id: i,
                     name: format!("User {}", i),
                     email: format!("user{}@example.com", i),
-                    created_at: chrono::Utc::now().timestamp(),
+                    created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
                 },
             )
         })
@@ -300,7 +300,7 @@ async fn test_concurrent_access_scenario() {
                     id: thread_id * 100 + i,
                     name: format!("User {}-{}", thread_id, i),
                     email: format!("user{}-{}@example.com", thread_id, i),
-                    created_at: chrono::Utc::now().timestamp(),
+                    created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
                 };
 
                 cache.lock().await.set(&key, &user).await.unwrap();
@@ -335,7 +335,7 @@ async fn test_cache_warming_scenario() {
                 id: 1,
                 name: "Hot User 1".to_string(),
                 email: "hot1@example.com".to_string(),
-                created_at: chrono::Utc::now().timestamp(),
+                created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
             },
         ),
         (
@@ -344,7 +344,7 @@ async fn test_cache_warming_scenario() {
                 id: 2,
                 name: "Hot User 2".to_string(),
                 email: "hot2@example.com".to_string(),
-                created_at: chrono::Utc::now().timestamp(),
+                created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
             },
         ),
     ];
@@ -380,7 +380,7 @@ async fn test_cache_invalidation_scenario() {
             &ApiResponse {
                 status: 200,
                 data: r#"{"id": 1, "name": "Alice"}"#.to_string(),
-                cached_at: chrono::Utc::now().timestamp(),
+                cached_at: time::OffsetDateTime::now_utc().unix_timestamp(),
             },
         )
         .await
@@ -393,7 +393,7 @@ async fn test_cache_invalidation_scenario() {
             &ApiResponse {
                 status: 200,
                 data: r#"{"users": [{"id": 1, "name": "Alice"}]}"#.to_string(),
-                cached_at: chrono::Utc::now().timestamp(),
+                cached_at: time::OffsetDateTime::now_utc().unix_timestamp(),
             },
         )
         .await
@@ -426,7 +426,7 @@ async fn test_long_running_stability() {
             id: i as u64,
             name: format!("User {}", i),
             email: format!("user{}@example.com", i),
-            created_at: chrono::Utc::now().timestamp(),
+            created_at: time::OffsetDateTime::now_utc().unix_timestamp(),
         };
 
         cache.set(&key, &user).await.unwrap();

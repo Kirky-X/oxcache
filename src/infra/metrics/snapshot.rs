@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::infra::MetricsSnapshot;
 
 /// 缓存统计快照
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CacheStats {
     pub l1_hits: u64,
     pub l1_misses: u64,
@@ -24,7 +24,30 @@ pub struct CacheStats {
     pub prefetch_count: u64,
     pub compression_count: u64,
     pub compression_bytes_saved: u64,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: time::OffsetDateTime,
+}
+
+// time::OffsetDateTime 未实现 Default；UNIX_EPOCH 与 chrono Default（1970-01-01）语义一致
+impl Default for CacheStats {
+    fn default() -> Self {
+        Self {
+            l1_hits: 0,
+            l1_misses: 0,
+            l2_hits: 0,
+            l2_misses: 0,
+            l1_sets: 0,
+            l2_sets: 0,
+            l1_deletes: 0,
+            l2_deletes: 0,
+            total_operations: 0,
+            l1_item_count: 0,
+            l1_capacity_used: 0,
+            prefetch_count: 0,
+            compression_count: 0,
+            compression_bytes_saved: 0,
+            timestamp: time::OffsetDateTime::UNIX_EPOCH,
+        }
+    }
 }
 
 #[cfg(feature = "metrics")]
@@ -46,9 +69,9 @@ impl From<MetricsSnapshot> for CacheStats {
             prefetch_count: snapshot.counters.prefetch_total,
             compression_count: snapshot.counters.compression_total,
             compression_bytes_saved: snapshot.counters.compression_bytes_saved,
-            // MetricsSnapshot.timestamp 是 Unix 秒级时间戳，转换为 DateTime 展示
-            timestamp: chrono::DateTime::from_timestamp(snapshot.timestamp as i64, 0)
-                .unwrap_or_else(chrono::Utc::now),
+            // MetricsSnapshot.timestamp 是 Unix 秒级时间戳，转换为 OffsetDateTime 展示
+            timestamp: time::OffsetDateTime::from_unix_timestamp(snapshot.timestamp as i64)
+                .unwrap_or_else(|_| time::OffsetDateTime::now_utc()),
         }
     }
 }

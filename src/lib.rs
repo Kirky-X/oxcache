@@ -83,7 +83,7 @@
 //!
 //! ## Tiered Feature Sets
 //!
-//! - `minimal`: L1 memory cache only (memory + metrics + serialization + chrono)
+//! - `minimal`: L1 memory cache only (memory + metrics + serialization + time)
 //! - `redis-tier` (deprecated alias: `core`): L1 + L2 Redis (minimal + redis)
 //! - `full`: true full = redis-tier + every named capability feature (macros,
 //!   byte-weight, compression, batch, lua, test-util, dragonfly, aerospike,

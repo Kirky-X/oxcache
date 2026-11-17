@@ -25,7 +25,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread"] }
-chrono = { workspace = true, features = ["serde"] }
+time = { workspace = true }
 async-trait = { workspace = true }
 trait-kit = { version = "0.5", default-features = false, features = ["async", "observer", "shutdown", "decorator"] }
 

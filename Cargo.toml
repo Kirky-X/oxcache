@@ -44,7 +44,7 @@ tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["std", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
-chrono = { version = "0.4", default-features = false }
+time = { version = "0.3", default-features = false, features = ["std", "serde"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
 
 [workspace.lints.rust]
@@ -82,7 +82,7 @@ serde_stacker = { version = "0.1", default-features = false, optional = true }
 bloomfilter = { version = "3.0", default-features = false, features = ["random"], optional = true }
 # Lua 注入防护模式含非 ASCII 空白（如 U+00A0），须保留 unicode 面（关闭后 \s 退化为 ASCII 匹配，绕过防护）
 regex = { version = "1.13", default-features = false, features = ["std", "perf", "unicode"], optional = true }
-chrono = { version = "0.4", default-features = false, features = ["serde", "clock"], optional = true }
+time = { version = "0.3", default-features = false, features = ["std", "serde"], optional = true }
 tracing = { version = "0.1", default-features = false, optional = true }
 # 值级加密（XChaCha20-Poly1305）：nonce 由顶层 getrandom::fill 生成，无需 aead 的 getrandom 特性
 chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"], optional = true }
@@ -122,7 +122,7 @@ testcontainers = { version = "0.28", default-features = false, features = ["watc
 
 [features]
 default = ["minimal"]
-minimal = ["memory", "metrics", "serialization", "dep:chrono"]
+minimal = ["memory", "metrics", "serialization", "dep:time"]
 # 正名：core 实为 minimal+redis 两级基线，名字反映网络层的存在
 redis-tier = ["minimal", "redis"]
 # 兼容别名：旧 feature 名 core 转发到 redis-tier
@@ -141,7 +141,7 @@ dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
 macros = ["dep:oxcache_macros", "minimal", "dep:sha2"]
 serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
-metrics = ["serialization", "dep:chrono", "dep:dashmap"]
+metrics = ["serialization", "dep:time", "dep:dashmap"]
 # BatchWriter 缓冲写（包装 Arc<dyn CacheBackend>，引用 crate::backend），单开须隐含 memory 基线（与 degradation 同口径）
 batch = ["memory"]
 lua = ["redis"]
