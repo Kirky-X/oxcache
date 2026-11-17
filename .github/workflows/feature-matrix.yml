@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.97.1
+      - uses: dtolnay/rust-toolchain@766a42937d994bd78bb4591385445c188ccb3f09 # 1.97.1
         with:
           toolchain: 1.97.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
