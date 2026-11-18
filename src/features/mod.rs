@@ -53,6 +53,9 @@ pub mod classification;
 #[cfg(feature = "provenance")]
 pub mod provenance;
 
+#[cfg(feature = "security-events")]
+pub mod security_events;
+
 #[cfg(feature = "hotkey")]
 pub use hotkey::HotKeyTracker;
 
@@ -115,6 +118,12 @@ pub use classification::{ClassifyingBackend, RuleSetClassifier, Sensitivity};
 
 #[cfg(feature = "provenance")]
 pub use provenance::{Provenance, ProvenanceBackend, ProvenancePolicy};
+
+#[cfg(feature = "security-events")]
+pub use security_events::{
+    SecurityEventBus, SecurityEventConfig, SecurityHook, SecurityResponder, SecuritySignal,
+    degradation_responder,
+};
 
 #[cfg(feature = "versioning")]
 pub use versioning::{MemoryVersionedCache, VersionedStore, VersionedValue};

@@ -243,6 +243,12 @@ pub use features::classification::{ClassifyingBackend, RuleSetClassifier, Sensit
 #[cfg(feature = "provenance")]
 pub use features::provenance::{Provenance, ProvenanceBackend, ProvenancePolicy};
 
+#[cfg(feature = "security-events")]
+pub use features::security_events::{
+    SecurityEventBus, SecurityEventConfig, SecurityHook, SecurityResponder, SecuritySignal,
+    degradation_responder,
+};
+
 // Namespace boundary guard (`namespace-guard` feature)
 #[cfg(feature = "namespace-guard")]
 pub use features::namespace_guard::{
