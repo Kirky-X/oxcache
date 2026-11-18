@@ -92,6 +92,8 @@ Some features require or imply other features:
 | `byte-weight` | `moka` | Byte-weighted capacity (moka sync surface) |
 | `adaptive-ttl` | `memory` | Adaptive TTL decorator (references `crate::backend`) |
 | `warmup` | `memory` | Smart warm-up (operates on `ChainCache`) |
+| `classification` | `encrypt`, `serialization` | Sensitive classification backend (selective encryption + TTL cap) |
+| `provenance` | `memory`, `serialization` | Provenance backend (source trust + freshness checks) |
 
 The "required features" column above lists only cargo features (`dep:` dependencies are not repeated; words like `dashmap`/`moka`/
 `hmac` denote activation of the corresponding optional dependencies, not features of this crate). The `default` preset is
@@ -839,6 +841,36 @@ For the full per-backend behavior reference, see the [TTL Behavior Reference of 
 - `Warmup::builder(chain).concurrency(n).build()` — the backfill write concurrency cap (default 8; 0 is treated as 1, serial); `run(loader)` executes asynchronously, writes go through `ChainCache::set` to all backends, and a Semaphore sliding window keeps in-flight tasks constant (in-flight ≤ the cap at any moment); `.max_value_bytes(n)` caps the size of one direct-supply value (default aligned with the serialization write surface's `MAX_JSON_SIZE`; 0 = unbounded), `.max_entries(n)` caps entries per round (default 100_000; 0 = unbounded, keeping the first N after dedup in loader order)
 - `WarmupReport` — full explicit result counts: `loader_entries` (before dedup) / `deduped` (first occurrence wins) / `warmed` (successful direct-supply backfill) / `promoted` (successful lower-layer promotion; the backfill forwards the chain's remaining TTL without resetting the source entry's expiry semantics) / `missing` (no value on the chain) / `failed` + `failures` (per-item write failure details, not interrupting the batch) / `peak_concurrency` (measured concurrency peak, ≤ the configured cap) / `dropped_value_too_large` (explicitly dropped over the single-value cap) / `dropped_over_entry_cap` (explicitly dropped over the entry cap)
 
+### Data classification & provenance (`classification` / `provenance` features)
+
+`RuleSetClassifier` assigns a `Sensitivity` per key glob (first declared rule wins). `ClassifyingBackend` encrypts `Sensitive` values and caps their TTL; `Public` / `Internal` values pass through unchanged.
+
+```rust
+use oxcache::{ClassifyingBackend, RuleSetClassifier, Sensitivity};
+
+let classifier = RuleSetClassifier::new(Sensitivity::Public)
+    .with_rule("credential:*", Sensitivity::Sensitive)
+    .with_sensitive_ttl_cap(std::time::Duration::from_secs(300));
+let backend = ClassifyingBackend::new(inner, classifier, encryption_key);
+```
+
+`ProvenanceBackend` writes a source envelope and rejects untrusted, stale, corrupt, or (optionally) unprovened entries on read. Envelope layout: `[version byte][meta_len u32 BE][meta JSON][payload]`.
+
+```rust
+use oxcache::{Provenance, ProvenanceBackend, ProvenancePolicy};
+
+let prov = ProvenanceBackend::new(inner, ProvenancePolicy {
+    trusted_sources: vec!["user-service".into()],
+    reject_unprovened: true,
+});
+prov.set_with_provenance(
+    key, value, ttl,
+    Provenance { source: "user-service".into(), fetched_at: SystemTime::now(), max_staleness: Duration::from_secs(30) },
+).await?;
+```
+
+Decorators compose through `CacheBuilder::backend_arc`; recommended order: `Classifying → Integrity → Provenance → backend`. Envelope version bytes may be equal across decorators; each layer parses only its own format.
+
 ## 🔒 Security Features
 
 Security functions are re-exported at the **crate root**, not under `oxcache::security`:
@@ -1287,6 +1319,8 @@ oxcache = { version = "0.5.1", features = ["full"] }      # true full: every nam
 | `integrity` | Value integrity decorator (HMAC-SHA256, verification failure counts as a miss) | ❌ |
 | `namespace-guard` | Namespace boundary decorator: key/pattern ownership checks + per-namespace quota (requires `memory`) | ❌ |
 | `doctor` | Security configuration self-audit API (`audit()` / `SecurityReport`); zero dependencies | ❌ |
+| `classification` | Data classification: `RuleSetClassifier` + `ClassifyingBackend` (Sensitive entries encrypted with a TTL cap) | ❌ |
+| `provenance` | Write provenance: `ProvenanceBackend` + `set_with_provenance` (trusted-source and staleness checks on read) | ❌ |
 | `serde-bincode` | bincode 2 binary serialization format | ❌ |
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | confers config-driven build + `ConfigBus` watch hot reload | ❌ |
