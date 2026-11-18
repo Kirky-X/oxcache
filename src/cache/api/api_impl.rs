@@ -5,7 +5,8 @@
 use super::*;
 use crate::backend::{CacheBackend, SyncCacheBackend};
 #[cfg(not(feature = "memory"))]
-use crate::i18n::messages::{MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE, t};
+use crate::i18n::messages::MSG_DETAIL_CACHE_MEMORY_REQUIRES_FEATURE;
+use crate::i18n::messages::{MSG_DETAIL_SYNC_MODE_REQUIRED, t};
 // UnifiedSerializer 仅在 serialization/full feature 下可用
 #[cfg(any(feature = "serialization", feature = "full"))]
 use crate::infra::UnifiedSerializer;
@@ -193,9 +194,7 @@ where
     /// Construct the `NotSupported` error for sync API calls when
     /// `backend_sync` is `None` (i.e. `sync_mode(true)` was not set).
     pub(crate) fn sync_mode_error() -> crate::error::OxCacheError {
-        crate::error::OxCacheError::NotSupported(
-            "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
-        )
+        crate::error::OxCacheError::NotSupported(t(MSG_DETAIL_SYNC_MODE_REQUIRED, &[]))
     }
 }
 

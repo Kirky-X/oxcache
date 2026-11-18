@@ -22,6 +22,7 @@
 
 use crate::backend::CacheBackend;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_BACKEND_UNKNOWN_KIND_AVAILABLE, t};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -148,10 +149,12 @@ impl BackendRegistry {
         };
         match factory {
             Some(factory) => factory.build(spec).await,
-            None => Err(OxCacheError::InvalidInput(format!(
-                "unknown backend kind '{}'; available: {}",
-                spec.kind,
-                self.registered().join(", ")
+            None => Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_BACKEND_UNKNOWN_KIND_AVAILABLE,
+                &[
+                    ("kind", spec.kind.to_string()),
+                    ("available", self.registered().join(", ")),
+                ],
             ))),
         }
     }

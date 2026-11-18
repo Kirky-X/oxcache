@@ -11,6 +11,11 @@
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_PROVENANCE_DESERIALIZE_FAILED, MSG_DETAIL_PROVENANCE_ENVELOPE_INVALID,
+    MSG_DETAIL_PROVENANCE_META_LEN_EXCEEDS, MSG_DETAIL_PROVENANCE_META_TOO_LARGE,
+    MSG_DETAIL_PROVENANCE_SERIALIZE_FAILED, t,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -72,11 +77,13 @@ impl ProvenanceMeta {
 /// 编码为 `[ver][meta_len u32 BE][meta JSON][payload]`
 fn encode_envelope(meta: &Provenance, payload: &[u8]) -> OxCacheResult<Vec<u8>> {
     let json = serde_json::to_vec(&ProvenanceMeta::from(meta)).map_err(|e| {
-        OxCacheError::Serialization(format!("provenance meta serialize failed: {e}"))
+        OxCacheError::Serialization(t(
+            MSG_DETAIL_PROVENANCE_SERIALIZE_FAILED,
+            &[("err", e.to_string())],
+        ))
     })?;
-    let meta_len = u32::try_from(json.len()).map_err(|_| {
-        OxCacheError::InvalidInput("provenance meta exceeds u32::MAX bytes".to_string())
-    })?;
+    let meta_len = u32::try_from(json.len())
+        .map_err(|_| OxCacheError::InvalidInput(t(MSG_DETAIL_PROVENANCE_META_TOO_LARGE, &[])))?;
     let mut out = Vec::with_capacity(1 + 4 + json.len() + payload.len());
     out.push(PROVENANCE_ENVELOPE_VERSION);
     out.extend_from_slice(&meta_len.to_be_bytes());
@@ -88,19 +95,24 @@ fn encode_envelope(meta: &Provenance, payload: &[u8]) -> OxCacheResult<Vec<u8>> 
 /// 解码信封，返回 `(元数据, payload)`；meta_len 与实际不符视为损坏
 fn decode_envelope(data: &[u8]) -> OxCacheResult<(Provenance, Vec<u8>)> {
     if data.len() < 5 || data[0] != PROVENANCE_ENVELOPE_VERSION {
-        return Err(OxCacheError::Serialization(
-            "provenance envelope missing or unknown version".to_string(),
-        ));
+        return Err(OxCacheError::Serialization(t(
+            MSG_DETAIL_PROVENANCE_ENVELOPE_INVALID,
+            &[],
+        )));
     }
     let meta_len = u32::from_be_bytes([data[1], data[2], data[3], data[4]]) as usize;
     let json_end = 5 + meta_len;
     if json_end > data.len() {
-        return Err(OxCacheError::Serialization(
-            "provenance envelope meta_len exceeds payload".to_string(),
-        ));
+        return Err(OxCacheError::Serialization(t(
+            MSG_DETAIL_PROVENANCE_META_LEN_EXCEEDS,
+            &[],
+        )));
     }
     let meta: ProvenanceMeta = serde_json::from_slice(&data[5..json_end]).map_err(|e| {
-        OxCacheError::Serialization(format!("provenance meta deserialize failed: {e}"))
+        OxCacheError::Serialization(t(
+            MSG_DETAIL_PROVENANCE_DESERIALIZE_FAILED,
+            &[("err", e.to_string())],
+        ))
     })?;
     Ok((meta.to_provenance(), data[json_end..].to_vec()))
 }

@@ -4,6 +4,9 @@
 
 use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY, MSG_DETAIL_LUA_REQUIRES_REDIS_BACKEND, t,
+};
 use crate::traits::CacheKey;
 use std::sync::Arc;
 
@@ -24,9 +27,10 @@ impl Cache<String, Vec<u8>> {
         use crate::internal::__internal_register_cache;
 
         if service_name.is_empty() {
-            return Err(OxCacheError::InvalidInput(
-                "service_name must not be empty".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_SERVICE_NAME_EMPTY,
+                &[],
+            )));
         }
 
         let backend = self.backend.clone();
@@ -63,9 +67,7 @@ where
         args: &[&str],
     ) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            OxCacheError::Operation(
-                "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
-            )
+            OxCacheError::Operation(t(MSG_DETAIL_LUA_REQUIRES_REDIS_BACKEND, &[]))
         })?;
         executor.eval_lua(script, keys, args).await
     }
@@ -78,9 +80,7 @@ where
         args: &[&str],
     ) -> OxCacheResult<redis::Value> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            OxCacheError::Operation(
-                "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
-            )
+            OxCacheError::Operation(t(MSG_DETAIL_LUA_REQUIRES_REDIS_BACKEND, &[]))
         })?;
         executor.eval_sha(sha, keys, args).await
     }
@@ -88,9 +88,7 @@ where
     #[cfg(feature = "lua")]
     pub async fn script_load(&self, script: &str) -> OxCacheResult<String> {
         let executor = self.backend.as_lua_executor().ok_or_else(|| {
-            OxCacheError::Operation(
-                "Lua scripts require a Redis backend. Current backend does not support Lua execution.".to_string(),
-            )
+            OxCacheError::Operation(t(MSG_DETAIL_LUA_REQUIRES_REDIS_BACKEND, &[]))
         })?;
         executor.script_load(script).await
     }

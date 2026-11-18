@@ -22,7 +22,6 @@
 //! ```rust,ignore
 //! use oxcache::batch::BatchWriter;
 //! use oxcache::backend::MokaMemoryBackend;
-//! use std::sync::Arc;
 //! use std::time::Duration;
 //!
 //! let backend = Arc::new(MokaMemoryBackend::builder().capacity(1000).build());
@@ -39,6 +38,7 @@
 
 use crate::backend::CacheBackend;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_BATCH_BUFFER_AT_CAPACITY, t};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, Notify};
@@ -84,9 +84,9 @@ impl BatchWriter {
         let should_flush = {
             let mut buf = self.buffer.lock().await;
             if self.reject_when_full && buf.len() >= self.capacity {
-                return Err(OxCacheError::BufferFull(format!(
-                    "batch writer buffer at capacity {}",
-                    self.capacity
+                return Err(OxCacheError::BufferFull(t(
+                    MSG_DETAIL_BATCH_BUFFER_AT_CAPACITY,
+                    &[("capacity", self.capacity.to_string())],
                 )));
             }
             buf.push(BatchEntry { key, value, ttl });

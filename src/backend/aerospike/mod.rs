@@ -32,6 +32,15 @@ use crate::backend::interface::{
 };
 use crate::backend::score::BackendScore;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_AEROSPIKE_BULK_DELETE_NOT_SUPPORTED, MSG_DETAIL_AEROSPIKE_CAPACITY_NOT_AVAILABLE,
+    MSG_DETAIL_AEROSPIKE_CLUSTER_NOT_CONNECTED, MSG_DETAIL_AEROSPIKE_CONNECT_FAILED,
+    MSG_DETAIL_AEROSPIKE_DELETE_FAILED, MSG_DETAIL_AEROSPIKE_DELETE_MANY_FAILED,
+    MSG_DETAIL_AEROSPIKE_EXISTS_CHECK_FAILED, MSG_DETAIL_AEROSPIKE_EXPIRE_FAILED,
+    MSG_DETAIL_AEROSPIKE_GET_FAILED, MSG_DETAIL_AEROSPIKE_KEY_COUNT_NOT_SUPPORTED,
+    MSG_DETAIL_AEROSPIKE_KEY_CREATION_FAILED, MSG_DETAIL_AEROSPIKE_PATTERN_LISTING_NOT_SUPPORTED,
+    MSG_DETAIL_AEROSPIKE_SET_FAILED, MSG_DETAIL_AEROSPIKE_TTL_CHECK_FAILED, t,
+};
 
 /// The bin name used to store cache values.
 const VALUE_BIN: &str = "value";
@@ -90,9 +99,12 @@ impl AerospikeBackend {
             ..ClientPolicy::default()
         };
 
-        let client = Client::new(&policy, &hosts)
-            .await
-            .map_err(|e| OxCacheError::Connection(format!("Aerospike connect failed: {}", e)))?;
+        let client = Client::new(&policy, &hosts).await.map_err(|e| {
+            OxCacheError::Connection(t(
+                MSG_DETAIL_AEROSPIKE_CONNECT_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
 
         let write_policy = WritePolicy {
             record_exists_action: RecordExistsAction::Replace,
@@ -114,7 +126,12 @@ impl AerospikeBackend {
             self.config.set_name.clone(),
             Value::from(key),
         )
-        .map_err(|e| OxCacheError::InvalidKey(format!("Aerospike key creation failed: {}", e)))
+        .map_err(|e| {
+            OxCacheError::InvalidKey(t(
+                MSG_DETAIL_AEROSPIKE_KEY_CREATION_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })
     }
 
     /// Build a WritePolicy with the given TTL.
@@ -161,9 +178,9 @@ impl CacheReader for AerospikeBackend {
         match self.client.get(&self.read_policy, &as_key, Bins::All).await {
             Ok(record) => Ok(Self::extract_value(&record)),
             Err(e) if is_key_not_found(&e) => Ok(None),
-            Err(e) => Err(OxCacheError::BackendError(format!(
-                "Aerospike get failed: {}",
-                e
+            Err(e) => Err(OxCacheError::BackendError(t(
+                MSG_DETAIL_AEROSPIKE_GET_FAILED,
+                &[("err", e.to_string())],
             ))),
         }
     }
@@ -178,9 +195,9 @@ impl CacheReader for AerospikeBackend {
         {
             Ok(_) => Ok(true),
             Err(e) if is_key_not_found(&e) => Ok(false),
-            Err(e) => Err(OxCacheError::BackendError(format!(
-                "Aerospike exists check failed: {}",
-                e
+            Err(e) => Err(OxCacheError::BackendError(t(
+                MSG_DETAIL_AEROSPIKE_EXISTS_CHECK_FAILED,
+                &[("err", e.to_string())],
             ))),
         }
     }
@@ -194,23 +211,25 @@ impl CacheReader for AerospikeBackend {
         {
             Ok(record) => Ok(record.time_to_live()),
             Err(e) if is_key_not_found(&e) => Ok(None),
-            Err(e) => Err(OxCacheError::BackendError(format!(
-                "Aerospike ttl check failed: {}",
-                e
+            Err(e) => Err(OxCacheError::BackendError(t(
+                MSG_DETAIL_AEROSPIKE_TTL_CHECK_FAILED,
+                &[("err", e.to_string())],
             ))),
         }
     }
 
     async fn len(&self) -> OxCacheResult<u64> {
-        Err(OxCacheError::NotSupported(
-            "Aerospike does not support efficient key counting".to_string(),
-        ))
+        Err(OxCacheError::NotSupported(t(
+            MSG_DETAIL_AEROSPIKE_KEY_COUNT_NOT_SUPPORTED,
+            &[],
+        )))
     }
 
     async fn capacity(&self) -> OxCacheResult<u64> {
-        Err(OxCacheError::NotSupported(
-            "Aerospike does not expose capacity information".to_string(),
-        ))
+        Err(OxCacheError::NotSupported(t(
+            MSG_DETAIL_AEROSPIKE_CAPACITY_NOT_AVAILABLE,
+            &[],
+        )))
     }
 
     async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
@@ -230,9 +249,10 @@ impl CacheReader for AerospikeBackend {
     }
 
     async fn keys(&self, _pattern: &str) -> OxCacheResult<Vec<String>> {
-        Err(OxCacheError::NotSupported(
-            "Aerospike does not support pattern-based key listing".to_string(),
-        ))
+        Err(OxCacheError::NotSupported(t(
+            MSG_DETAIL_AEROSPIKE_PATTERN_LISTING_NOT_SUPPORTED,
+            &[],
+        )))
     }
 }
 
@@ -251,10 +271,12 @@ impl CacheWriter for AerospikeBackend {
             Value::Blob((*value).clone()),
         )];
 
-        self.client
-            .put(&wp, &as_key, &bins)
-            .await
-            .map_err(|e| OxCacheError::BackendError(format!("Aerospike set failed: {}", e)))
+        self.client.put(&wp, &as_key, &bins).await.map_err(|e| {
+            OxCacheError::BackendError(t(
+                MSG_DETAIL_AEROSPIKE_SET_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
@@ -264,14 +286,20 @@ impl CacheWriter for AerospikeBackend {
             .client
             .delete(&self.write_policy, &as_key)
             .await
-            .map_err(|e| OxCacheError::BackendError(format!("Aerospike delete failed: {}", e)))?;
+            .map_err(|e| {
+                OxCacheError::BackendError(t(
+                    MSG_DETAIL_AEROSPIKE_DELETE_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         Ok(())
     }
 
     async fn clear(&self) -> OxCacheResult<()> {
-        Err(OxCacheError::NotSupported(
-            "Aerospike does not support bulk delete; use namespace truncation instead".to_string(),
-        ))
+        Err(OxCacheError::NotSupported(t(
+            MSG_DETAIL_AEROSPIKE_BULK_DELETE_NOT_SUPPORTED,
+            &[],
+        )))
     }
 
     async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
@@ -285,9 +313,9 @@ impl CacheWriter for AerospikeBackend {
         match self.client.touch(&wp, &as_key).await {
             Ok(()) => Ok(true),
             Err(e) if is_key_not_found(&e) => Ok(false),
-            Err(e) => Err(OxCacheError::BackendError(format!(
-                "Aerospike expire (touch) failed: {}",
-                e
+            Err(e) => Err(OxCacheError::BackendError(t(
+                MSG_DETAIL_AEROSPIKE_EXPIRE_FAILED,
+                &[("err", e.to_string())],
             ))),
         }
     }
@@ -316,11 +344,13 @@ impl CacheWriter for AerospikeBackend {
                 .iter()
                 .map(|(k, e)| format!("{}: {}", k, e))
                 .collect();
-            Err(OxCacheError::Operation(format!(
-                "Aerospike delete_many: {}/{} keys failed: {}",
-                failures.len(),
-                keys.len(),
-                details.join("; ")
+            Err(OxCacheError::Operation(t(
+                MSG_DETAIL_AEROSPIKE_DELETE_MANY_FAILED,
+                &[
+                    ("count", failures.len().to_string()),
+                    ("total", keys.len().to_string()),
+                    ("details", details.join("; ")),
+                ],
             )))
         }
     }
@@ -332,9 +362,10 @@ impl CacheConnector for AerospikeBackend {
         if self.client.is_connected() {
             Ok(())
         } else {
-            Err(OxCacheError::Connection(
-                "Aerospike cluster is not connected".to_string(),
-            ))
+            Err(OxCacheError::Connection(t(
+                MSG_DETAIL_AEROSPIKE_CLUSTER_NOT_CONNECTED,
+                &[],
+            )))
         }
     }
 

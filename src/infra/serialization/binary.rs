@@ -23,6 +23,7 @@
 //! ```
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_SERIALIZATION_BINCODE_MISSING_VERSION_TAG, t};
 use serde::{Serialize, de::DeserializeOwned};
 
 /// 序列化传输格式
@@ -146,9 +147,9 @@ pub fn deserialize_with_format<T: DeserializeOwned>(
             }
             // 0.5.1 前的 bincode 2 字节流（或损坏数据）：显式判失效而非
             // 盲解码——调用方按缓存错误处理，重写该键即以新格式重建
-            _ => Err(OxCacheError::Serialization(format!(
-                "bincode 格式条目缺失 0.5.1 版本标签（legacy bincode 2 字节流，已失效）——重写该键即重建（{} 字节）",
-                data.len()
+            _ => Err(OxCacheError::Serialization(t(
+                MSG_DETAIL_SERIALIZATION_BINCODE_MISSING_VERSION_TAG,
+                &[("bytes", data.len().to_string())],
             ))),
         },
         #[cfg(feature = "postcard")]

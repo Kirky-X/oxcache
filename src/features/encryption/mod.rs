@@ -31,6 +31,12 @@ pub mod integrity;
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_CIPHER_BAD_KEY, MSG_DETAIL_CIPHER_BAD_NONCE, MSG_DETAIL_CIPHER_DECRYPT_FAILED,
+    MSG_DETAIL_CIPHER_ENCRYPT_FAILED, MSG_DETAIL_CIPHER_ENVELOPE_TOO_SHORT,
+    MSG_DETAIL_CIPHER_KEY_LENGTH, MSG_DETAIL_CIPHER_OS_RNG_FAILED,
+    MSG_DETAIL_CIPHER_UNKNOWN_VERSION, t,
+};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use std::collections::HashMap;
@@ -70,9 +76,12 @@ impl ValueCipher {
     /// 从字节切片创建（长度错误返回 Err）
     pub fn from_slice(key: &[u8]) -> OxCacheResult<Self> {
         let arr: [u8; KEY_SIZE] = key.try_into().map_err(|_| {
-            OxCacheError::InvalidInput(format!(
-                "value cipher key must be exactly {KEY_SIZE} bytes, got {}",
-                key.len()
+            OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CIPHER_KEY_LENGTH,
+                &[
+                    ("expected", KEY_SIZE.to_string()),
+                    ("actual", key.len().to_string()),
+                ],
             ))
         })?;
         Ok(Self::new(arr))
@@ -81,14 +90,14 @@ impl ValueCipher {
     /// 加密：返回 `[ver][nonce][ciphertext+tag]` 信封
     pub fn encrypt(&self, plaintext: &[u8], aad: &[u8]) -> OxCacheResult<Vec<u8>> {
         let cipher = XChaCha20Poly1305::new_from_slice(self.key.as_ref())
-            .map_err(|_| OxCacheError::Operation("value cipher: bad key".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_BAD_KEY, &[])))?;
 
         let mut nonce_bytes = [0u8; NONCE_SIZE];
         // OS 熵源；失败必须显式报错而非降级
         getrandom::fill(&mut nonce_bytes)
-            .map_err(|_| OxCacheError::Operation("value cipher: os rng failed".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_OS_RNG_FAILED, &[])))?;
         let nonce = XNonce::try_from(&nonce_bytes[..])
-            .map_err(|_| OxCacheError::Operation("value cipher: bad nonce".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_BAD_NONCE, &[])))?;
 
         let ciphertext = cipher
             .encrypt(
@@ -98,7 +107,7 @@ impl ValueCipher {
                     aad,
                 },
             )
-            .map_err(|_| OxCacheError::Operation("value cipher: encryption failed".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_ENCRYPT_FAILED, &[])))?;
 
         let mut envelope = Vec::with_capacity(1 + NONCE_SIZE + ciphertext.len());
         envelope.push(ENVELOPE_VERSION);
@@ -110,25 +119,26 @@ impl ValueCipher {
     /// 解密：输入 `[ver][nonce][ciphertext+tag]` 信封
     pub fn decrypt(&self, envelope: &[u8], aad: &[u8]) -> OxCacheResult<Vec<u8>> {
         if envelope.is_empty() || envelope[0] != ENVELOPE_VERSION {
-            return Err(OxCacheError::Operation(format!(
-                "value cipher: unknown envelope version {:?}",
-                envelope.first().copied()
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CIPHER_UNKNOWN_VERSION,
+                &[("version", format!("{:?}", envelope.first().copied()))],
             )));
         }
         if envelope.len() < 1 + NONCE_SIZE {
-            return Err(OxCacheError::Operation(
-                "value cipher: envelope too short".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_CIPHER_ENVELOPE_TOO_SHORT,
+                &[],
+            )));
         }
         let nonce_bytes: [u8; NONCE_SIZE] = envelope[1..1 + NONCE_SIZE]
             .try_into()
-            .map_err(|_| OxCacheError::Operation("value cipher: bad nonce".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_BAD_NONCE, &[])))?;
         let ciphertext = &envelope[1 + NONCE_SIZE..];
 
         let cipher = XChaCha20Poly1305::new_from_slice(self.key.as_ref())
-            .map_err(|_| OxCacheError::Operation("value cipher: bad key".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_BAD_KEY, &[])))?;
         let nonce = XNonce::try_from(&nonce_bytes[..])
-            .map_err(|_| OxCacheError::Operation("value cipher: bad nonce".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_BAD_NONCE, &[])))?;
         cipher
             .decrypt(
                 &nonce,
@@ -137,7 +147,7 @@ impl ValueCipher {
                     aad,
                 },
             )
-            .map_err(|_| OxCacheError::Operation("value cipher: decryption failed".to_string()))
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_CIPHER_DECRYPT_FAILED, &[])))
     }
 }
 

@@ -8,7 +8,9 @@ use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "stale")]
 use crate::i18n::messages::MSG_PANIC_STALE_STATE_PAYLOAD;
 use crate::i18n::messages::{
-    MSG_DETAIL_GET_OR_LEADER_NOT_CACHED, MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED, t,
+    MSG_DETAIL_GET_OR_LEADER_NOT_CACHED, MSG_DETAIL_GET_OR_OPTION_LEADER_NOT_CACHED,
+    MSG_DETAIL_GET_OR_OPTION_SYNC_LEADER_FAILED, MSG_DETAIL_GET_OR_SYNC_LEADER_FAILED,
+    MSG_DETAIL_SYNC_MODE_REQUIRED, t,
 };
 #[cfg(all(feature = "stale", feature = "telemetry"))]
 use crate::i18n::messages::{MSG_LOG_STALE_HIT_VIA_GET_OR, MSG_LOG_STALE_REVALIDATION_SCHEDULED};
@@ -812,11 +814,9 @@ where
     /// Resolve the sync backend or return `Err(NotSupported)` when the cache
     /// was not built with `sync_mode(true)`.
     pub(super) fn sync_backend(&self) -> OxCacheResult<&Arc<dyn crate::backend::SyncCacheBackend>> {
-        self.backend_sync.as_ref().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "sync API requires CacheBuilder::sync_mode(true); backend_sync is None".to_string(),
-            )
-        })
+        self.backend_sync
+            .as_ref()
+            .ok_or_else(|| OxCacheError::NotSupported(t(MSG_DETAIL_SYNC_MODE_REQUIRED, &[])))
     }
 
     /// Synchronously get a value from the cache.
@@ -1010,9 +1010,7 @@ where
             // Leader has finished — re-check cache. If leader succeeded the
             // value is now cached; if leader failed, return an error.
             return self.get_sync(key)?.ok_or_else(|| {
-                OxCacheError::L1Error(
-                    "get_or_sync: concurrent fetch leader failed to cache result".to_string(),
-                )
+                OxCacheError::L1Error(t(MSG_DETAIL_GET_OR_SYNC_LEADER_FAILED, &[]))
             });
         }
 
@@ -1198,9 +1196,10 @@ where
                     return Ok(None);
                 }
             }
-            return Err(OxCacheError::L1Error(
-                "get_or_option_sync: concurrent fetch leader failed to cache result".to_string(),
-            ));
+            return Err(OxCacheError::L1Error(t(
+                MSG_DETAIL_GET_OR_OPTION_SYNC_LEADER_FAILED,
+                &[],
+            )));
         }
 
         let mut guard = GetOrSyncGuard {

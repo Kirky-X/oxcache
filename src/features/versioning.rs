@@ -24,6 +24,11 @@
 //! ```
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_VERSION_DEL_FAILED, MSG_DETAIL_VERSION_ENVELOPE_TOO_SHORT,
+    MSG_DETAIL_VERSION_EXEC_FAILED, MSG_DETAIL_VERSION_GET_FAILED, MSG_DETAIL_VERSION_MULTI_FAILED,
+    MSG_DETAIL_VERSION_STORE_POISONED, MSG_DETAIL_VERSION_WATCH_FAILED, t,
+};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -87,7 +92,7 @@ impl VersionedStore for MemoryVersionedCache {
         Ok(self
             .entries
             .lock()
-            .map_err(|_| OxCacheError::Operation("version store poisoned".to_string()))?
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_VERSION_STORE_POISONED, &[])))?
             .get(key)
             .map(|v| v.version))
     }
@@ -102,7 +107,7 @@ impl VersionedStore for MemoryVersionedCache {
         let mut map = self
             .entries
             .lock()
-            .map_err(|_| OxCacheError::Operation("version store poisoned".to_string()))?;
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_VERSION_STORE_POISONED, &[])))?;
         match map.get(key) {
             Some(current) if current.version == expect_version => {
                 let new_version = current.version + 1;
@@ -135,7 +140,7 @@ impl VersionedStore for MemoryVersionedCache {
         Ok(self
             .entries
             .lock()
-            .map_err(|_| OxCacheError::Operation("version store poisoned".to_string()))?
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_VERSION_STORE_POISONED, &[])))?
             .get(key)
             .cloned())
     }
@@ -143,7 +148,7 @@ impl VersionedStore for MemoryVersionedCache {
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
         self.entries
             .lock()
-            .map_err(|_| OxCacheError::Operation("version store poisoned".to_string()))?
+            .map_err(|_| OxCacheError::Operation(t(MSG_DETAIL_VERSION_STORE_POISONED, &[])))?
             .remove(key);
         Ok(())
     }
@@ -175,9 +180,10 @@ impl RedisVersionedCache {
 
     fn decode(raw: &[u8]) -> OxCacheResult<VersionedValue> {
         if raw.len() < 8 {
-            return Err(OxCacheError::Operation(
-                "versioned envelope too short".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_VERSION_ENVELOPE_TOO_SHORT,
+                &[],
+            )));
         }
         let mut version_bytes = [0u8; 8];
         version_bytes.copy_from_slice(&raw[..8]);
@@ -209,14 +215,21 @@ impl VersionedStore for RedisVersionedCache {
             .arg(key)
             .query_async::<()>(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("versioned WATCH failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_VERSION_WATCH_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
         // 2. 读当前信封，校验版本
         let current: Option<Vec<u8>> = redis::cmd("GET")
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("versioned GET failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(MSG_DETAIL_VERSION_GET_FAILED, &[("err", e.to_string())]))
+            })?;
         let current_version = match current.as_deref().map(Self::decode).transpose()? {
             Some(v) => v.version,
             None => 0,
@@ -237,7 +250,12 @@ impl VersionedStore for RedisVersionedCache {
         redis::cmd("MULTI")
             .query_async::<()>(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("versioned MULTI failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_VERSION_MULTI_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         let mut set_cmd = redis::cmd("SET");
         set_cmd.arg(key).arg(envelope);
         if let Some(ttl) = ttl {
@@ -250,8 +268,9 @@ impl VersionedStore for RedisVersionedCache {
             Ok(Some(_)) => Ok(Some(new_version)),
             // Nil = 事务被打断（键在 WATCH 后被他人修改）
             Ok(None) => Ok(None),
-            Err(e) => Err(OxCacheError::Operation(format!(
-                "versioned EXEC failed: {e}"
+            Err(e) => Err(OxCacheError::Operation(t(
+                MSG_DETAIL_VERSION_EXEC_FAILED,
+                &[("err", e.to_string())],
             ))),
         }
     }
@@ -262,7 +281,9 @@ impl VersionedStore for RedisVersionedCache {
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("versioned GET failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(MSG_DETAIL_VERSION_GET_FAILED, &[("err", e.to_string())]))
+            })?;
         match raw {
             Some(bytes) => Ok(Some(Self::decode(&bytes)?)),
             None => Ok(None),
@@ -275,7 +296,9 @@ impl VersionedStore for RedisVersionedCache {
             .arg(key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("versioned DEL failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(MSG_DETAIL_VERSION_DEL_FAILED, &[("err", e.to_string())]))
+            })?;
         Ok(())
     }
 }

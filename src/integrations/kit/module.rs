@@ -157,6 +157,15 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+#[cfg(not(feature = "redis"))]
+use crate::i18n::messages::{
+    MSG_DETAIL_KIT_CHAIN_FEATURE_REQUIRED, MSG_DETAIL_KIT_REDIS_FEATURE_REQUIRED,
+};
+use crate::i18n::messages::{
+    MSG_DETAIL_KIT_CHAIN_LINK_REDIS_CONFIG_REQUIRED, MSG_DETAIL_KIT_CHAIN_REDIS_CONFIG_REQUIRED,
+    MSG_DETAIL_KIT_HEALTH_CHECK_FAILED, MSG_DETAIL_KIT_NESTED_CHAIN_UNSUPPORTED,
+    MSG_DETAIL_KIT_READ_CONFIG_FAILED, MSG_DETAIL_KIT_REDIS_CONFIG_REQUIRED, t,
+};
 use trait_kit::prelude::*;
 
 use crate::backend::{CacheBackend, MokaMemoryBackend};
@@ -196,9 +205,12 @@ impl AsyncAutoBuilder for OxcacheModule {
         kit: &'a AsyncKit,
     ) -> Pin<Box<dyn Future<Output = Result<Self::Capability, Self::Error>> + Send + 'a>> {
         Box::pin(async move {
-            let config: OxcacheConfig = kit
-                .config()
-                .map_err(|e| OxCacheError::Internal(format!("OxcacheModule: read config: {e}")))?;
+            let config: OxcacheConfig = kit.config().map_err(|e| {
+                OxCacheError::Internal(t(
+                    MSG_DETAIL_KIT_READ_CONFIG_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
             match config.backend {
                 BackendType::Memory => build_memory_backend(&config),
@@ -231,9 +243,10 @@ fn build_memory_backend(
 async fn build_redis_backend(
     config: &OxcacheConfig,
 ) -> Result<Arc<dyn CacheBackend + Send + Sync>, OxCacheError> {
-    let rc = config.redis.as_ref().ok_or_else(|| {
-        OxCacheError::InvalidInput("OxcacheModule: backend=Redis requires `redis` config".into())
-    })?;
+    let rc = config
+        .redis
+        .as_ref()
+        .ok_or_else(|| OxCacheError::InvalidInput(t(MSG_DETAIL_KIT_REDIS_CONFIG_REQUIRED, &[])))?;
     let backend = apply_redis_config(RedisBackend::builder(), rc)
         .build()
         .await?;
@@ -244,9 +257,10 @@ async fn build_redis_backend(
 async fn build_redis_backend(
     _config: &OxcacheConfig,
 ) -> Result<Arc<dyn CacheBackend + Send + Sync>, OxCacheError> {
-    Err(OxCacheError::InvalidInput(
-        "OxcacheModule: backend=Redis requires the `redis` cargo feature to be enabled".into(),
-    ))
+    Err(OxCacheError::InvalidInput(t(
+        MSG_DETAIL_KIT_REDIS_FEATURE_REQUIRED,
+        &[],
+    )))
 }
 
 /// Build a ChainCache from `OxcacheConfig`.
@@ -279,9 +293,7 @@ async fn build_chain_cache(
         chain_builder = chain_builder.link(ChainLink::from_backend(l1));
 
         let rc = config.redis.as_ref().ok_or_else(|| {
-            OxCacheError::InvalidInput(
-                "OxcacheModule: backend=Chain (default mode) requires `redis` config".into(),
-            )
+            OxCacheError::InvalidInput(t(MSG_DETAIL_KIT_CHAIN_REDIS_CONFIG_REQUIRED, &[]))
         })?;
         let l2 = apply_redis_config(RedisBackend::builder(), rc)
             .build()
@@ -297,9 +309,10 @@ async fn build_chain_cache(
 async fn build_chain_cache(
     _config: &OxcacheConfig,
 ) -> Result<Arc<dyn CacheBackend + Send + Sync>, OxCacheError> {
-    Err(OxCacheError::InvalidInput(
-        "OxcacheModule: backend=Chain requires the `redis` cargo feature to be enabled".into(),
-    ))
+    Err(OxCacheError::InvalidInput(t(
+        MSG_DETAIL_KIT_CHAIN_FEATURE_REQUIRED,
+        &[],
+    )))
 }
 
 /// Build a single [`ChainLink`] from a [`ChainLinkConfig`].
@@ -326,18 +339,20 @@ async fn build_chain_link(
                 .as_ref()
                 .or(config.redis.as_ref())
                 .ok_or_else(|| {
-                    OxCacheError::InvalidInput(
-                        "OxcacheModule: chain link backend=Redis requires `redis` config".into(),
-                    )
+                    OxCacheError::InvalidInput(t(
+                        MSG_DETAIL_KIT_CHAIN_LINK_REDIS_CONFIG_REQUIRED,
+                        &[],
+                    ))
                 })?;
             let backend = apply_redis_config(RedisBackend::builder(), rc)
                 .build()
                 .await?;
             Ok(ChainLink::new(backend, link_cfg.score, true, "redis"))
         }
-        BackendType::Chain => Err(OxCacheError::InvalidInput(
-            "OxcacheModule: nested Chain inside Chain is not supported".into(),
-        )),
+        BackendType::Chain => Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_KIT_NESTED_CHAIN_UNSUPPORTED,
+            &[],
+        ))),
     }
 }
 
@@ -371,8 +386,9 @@ impl trait_kit::core::health::AsyncHealthCheck for OxcacheModule {
         // This is safe because health_check is a quick operation.
         match futures::executor::block_on(cap.health_check()) {
             Ok(()) => trait_kit::core::health::HealthStatus::Healthy,
-            Err(e) => trait_kit::core::health::HealthStatus::unhealthy(format!(
-                "cache backend health check failed: {e}"
+            Err(e) => trait_kit::core::health::HealthStatus::unhealthy(t(
+                MSG_DETAIL_KIT_HEALTH_CHECK_FAILED,
+                &[("err", e.to_string())],
             )),
         }
     }

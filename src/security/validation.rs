@@ -5,6 +5,10 @@
 //! 提供跨模块的字符串验证功能，避免代码重复
 
 use crate::error::OxCacheError;
+use crate::i18n::messages::{
+    MSG_DETAIL_CHAR_CARRIAGE_RETURN, MSG_DETAIL_CHAR_CONTROL, MSG_DETAIL_CHAR_NEWLINE,
+    MSG_DETAIL_DANGEROUS_CHAR, MSG_DETAIL_MAX_LENGTH_EXCEEDED, MSG_DETAIL_VALUE_EMPTY, t,
+};
 
 /// 验证字符串中是否包含危险字符
 ///
@@ -35,15 +39,18 @@ pub fn validate_no_dangerous_chars(
     for c in input.chars() {
         if dangerous_chars.contains(&c) {
             let char_name = match c {
-                '\n' => "'\\n' (newline)".to_string(),
-                '\r' => "'\\r' (carriage return)".to_string(),
+                '\n' => t(MSG_DETAIL_CHAR_NEWLINE, &[]),
+                '\r' => t(MSG_DETAIL_CHAR_CARRIAGE_RETURN, &[]),
                 '\0' => "NUL".to_string(),
-                _ if c.is_control() => format!("U+{:04X} (control character)", c as u32),
+                _ if c.is_control() => t(
+                    MSG_DETAIL_CHAR_CONTROL,
+                    &[("code", format!("{:04X}", c as u32))],
+                ),
                 _ => format!("U+{:04X}", c as u32),
             };
-            return Err(OxCacheError::InvalidInput(format!(
-                "{} contains dangerous character {}",
-                error_context, char_name
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_DANGEROUS_CHAR,
+                &[("context", error_context.to_string()), ("char", char_name)],
             )));
         }
     }
@@ -63,9 +70,9 @@ pub fn validate_no_dangerous_chars(
 /// * `Err(OxCacheError)` - 字符串为空
 pub fn validate_not_empty(input: &str, error_context: &str) -> crate::OxCacheResult<()> {
     if input.is_empty() {
-        return Err(OxCacheError::InvalidInput(format!(
-            "{} cannot be empty",
-            error_context
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_VALUE_EMPTY,
+            &[("context", error_context.to_string())],
         )));
     }
     Ok(())
@@ -89,11 +96,13 @@ pub fn validate_max_length(
     error_context: &str,
 ) -> crate::OxCacheResult<()> {
     if input.len() > max_length {
-        return Err(OxCacheError::InvalidInput(format!(
-            "{} exceeds maximum length of {} (got {})",
-            error_context,
-            max_length,
-            input.len()
+        return Err(OxCacheError::InvalidInput(t(
+            MSG_DETAIL_MAX_LENGTH_EXCEEDED,
+            &[
+                ("context", error_context.to_string()),
+                ("max", max_length.to_string()),
+                ("actual", input.len().to_string()),
+            ],
         )));
     }
     Ok(())

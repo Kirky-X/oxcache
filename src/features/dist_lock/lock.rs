@@ -5,6 +5,12 @@
 use crate::backend::RedisBackend;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_DIST_LOCK_ACQUIRE_FAILED, MSG_DETAIL_DIST_LOCK_ALREADY_HELD,
+    MSG_DETAIL_DIST_LOCK_EXTEND_FAILED, MSG_DETAIL_DIST_LOCK_FENCE_INCR_FAILED,
+    MSG_DETAIL_DIST_LOCK_IS_HELD_FAILED, MSG_DETAIL_DIST_LOCK_NOT_HELD,
+    MSG_DETAIL_DIST_LOCK_NOT_OWNER, MSG_DETAIL_DIST_LOCK_RELEASE_FAILED, t,
+};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
@@ -106,7 +112,12 @@ impl DistributedLock {
             .arg(ttl_ms)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("dist_lock acquire failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_ACQUIRE_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
         match result {
             Some(_) => {
@@ -133,9 +144,9 @@ impl DistributedLock {
             }
             None => {
                 // Lock is held by another owner
-                Err(OxCacheError::Operation(format!(
-                    "dist_lock '{}' is already held by another owner",
-                    self.key
+                Err(OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_ALREADY_HELD,
+                    &[("key", self.key.to_string())],
                 )))
             }
         }
@@ -148,7 +159,12 @@ impl DistributedLock {
             .arg(format!("{}:fence", self.key))
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("dist_lock fence incr failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_FENCE_INCR_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         Ok(u64::try_from(token).unwrap_or(0))
     }
 
@@ -168,9 +184,10 @@ impl DistributedLock {
     pub async fn release(&mut self) -> OxCacheResult<()> {
         let count = self.reentrant_count.load(Ordering::SeqCst);
         if count == 0 {
-            return Err(OxCacheError::Operation(
-                "dist_lock not held, cannot release".to_string(),
-            ));
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_DIST_LOCK_NOT_HELD,
+                &[],
+            )));
         }
 
         let new_count = count - 1;
@@ -191,12 +208,17 @@ impl DistributedLock {
             .arg(&self.owner_id)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("dist_lock release failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_RELEASE_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
         if result == 0 {
-            return Err(OxCacheError::Operation(format!(
-                "dist_lock '{}' not held by owner (already expired or stolen)",
-                self.key
+            return Err(OxCacheError::Operation(t(
+                MSG_DETAIL_DIST_LOCK_NOT_OWNER,
+                &[("key", self.key.to_string())],
             )));
         }
 
@@ -229,7 +251,12 @@ impl DistributedLock {
             .arg(&ttl_ms)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("dist_lock extend failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_EXTEND_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
         Ok(result == 1)
     }
@@ -241,7 +268,12 @@ impl DistributedLock {
             .arg(&self.key)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("dist_lock is_held check failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_DIST_LOCK_IS_HELD_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
 
         Ok(result.as_deref() == Some(&self.owner_id))
     }

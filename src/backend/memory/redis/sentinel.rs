@@ -10,6 +10,12 @@
 //! 应答者胜出），并对发现地址应用 [`SentinelDiscovery::addr_map`]。
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_SENTINEL_CONNECT_TIMEOUT, MSG_DETAIL_SENTINEL_MASTER_CONNECT_FAILED,
+    MSG_DETAIL_SENTINEL_MASTER_TIMEOUT, MSG_DETAIL_SENTINEL_MASTER_UNKNOWN,
+    MSG_DETAIL_SENTINEL_NO_ATTEMPT, MSG_DETAIL_SENTINEL_REDISCOVERY_FAILED,
+    MSG_DETAIL_SENTINEL_RESOLVE_FAILED, MSG_DETAIL_SENTINEL_URL_ERROR, t,
+};
 use redis::Client;
 use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
@@ -121,12 +127,18 @@ impl SentinelDiscovery {
         connect_timeout: Duration,
         database: Option<u16>,
     ) -> OxCacheResult<String> {
-        let mut last_err = String::from("no sentinel attempted");
+        let mut last_err = t(MSG_DETAIL_SENTINEL_NO_ATTEMPT, &[]);
         for url in &self.sentinels {
             let client = match Client::open(url.as_str()) {
                 Ok(c) => c,
                 Err(e) => {
-                    last_err = format!("{url}: {}", map_redis_error(e));
+                    last_err = t(
+                        MSG_DETAIL_SENTINEL_URL_ERROR,
+                        &[
+                            ("url", url.clone()),
+                            ("err", map_redis_error(e).to_string()),
+                        ],
+                    );
                     continue;
                 }
             };
@@ -138,11 +150,14 @@ impl SentinelDiscovery {
             {
                 Ok(Ok(c)) => c,
                 Ok(Err(e)) => {
-                    last_err = format!("{url}: {e}");
+                    last_err = t(
+                        MSG_DETAIL_SENTINEL_URL_ERROR,
+                        &[("url", url.clone()), ("err", e.to_string())],
+                    );
                     continue;
                 }
                 Err(_) => {
-                    last_err = format!("{url}: connect timeout");
+                    last_err = t(MSG_DETAIL_SENTINEL_CONNECT_TIMEOUT, &[("url", url.clone())]);
                     continue;
                 }
             };
@@ -156,17 +171,28 @@ impl SentinelDiscovery {
                     return Ok(self.build_master_url(&ip, port, database));
                 }
                 Ok(None) => {
-                    last_err = format!("{url}: master '{}' unknown", self.master_name);
+                    last_err = t(
+                        MSG_DETAIL_SENTINEL_MASTER_UNKNOWN,
+                        &[
+                            ("url", url.clone()),
+                            ("master", self.master_name.to_string()),
+                        ],
+                    );
                 }
                 Err(e) => {
-                    last_err = format!("{url}: {e}");
+                    last_err = t(
+                        MSG_DETAIL_SENTINEL_URL_ERROR,
+                        &[("url", url.clone()), ("err", e.to_string())],
+                    );
                 }
             }
         }
-        Err(OxCacheError::Connection(format!(
-            "Sentinel could not resolve master '{}': no sentinel answered successfully \
-             (last error: {last_err})",
-            self.master_name
+        Err(OxCacheError::Connection(t(
+            MSG_DETAIL_SENTINEL_RESOLVE_FAILED,
+            &[
+                ("master", self.master_name.to_string()),
+                ("last_err", last_err.clone()),
+            ],
         )))
     }
 }
@@ -215,12 +241,14 @@ impl SentinelConnection {
     ) -> OxCacheResult<ConnectionManager> {
         match tokio::time::timeout(connection_timeout, client.get_connection_manager()).await {
             Ok(Ok(mgr)) => Ok(mgr),
-            Ok(Err(e)) => Err(OxCacheError::Connection(format!(
-                "Failed to connect to the master resolved by sentinel: {e}"
+            Ok(Err(e)) => Err(OxCacheError::Connection(t(
+                MSG_DETAIL_SENTINEL_MASTER_CONNECT_FAILED,
+                &[("err", e.to_string())],
             ))),
-            Err(_) => Err(OxCacheError::Connection(
-                "Connection timeout - Redis master resolved by sentinel unavailable".to_string(),
-            )),
+            Err(_) => Err(OxCacheError::Connection(t(
+                MSG_DETAIL_SENTINEL_MASTER_TIMEOUT,
+                &[],
+            ))),
         }
     }
 
@@ -254,7 +282,10 @@ impl SentinelConnection {
             }
             Err(e) => Err(redis::make_extension_error(
                 "OXCACHE_SENTINEL".to_string(),
-                Some(format!("master rediscovery after '{trigger}' failed: {e}")),
+                Some(t(
+                    MSG_DETAIL_SENTINEL_REDISCOVERY_FAILED,
+                    &[("trigger", trigger.to_string()), ("err", e.to_string())],
+                )),
             )),
         }
     }

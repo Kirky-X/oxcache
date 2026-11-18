@@ -27,6 +27,11 @@
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "security-events")]
 use crate::features::security_events::{SecurityHook, SecuritySignal};
+use crate::i18n::messages::{
+    MSG_DETAIL_REDLOCK_ACQUIRE_FAILED, MSG_DETAIL_REDLOCK_FENCE_INCR_FAILED,
+    MSG_DETAIL_REDLOCK_FENCE_TOKEN_INVALID, MSG_DETAIL_REDLOCK_NODE_DOWN,
+    MSG_DETAIL_REDLOCK_RELEASE_FAILED, t,
+};
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -79,7 +84,10 @@ impl InMemoryLockNode {
         if self.available {
             Ok(())
         } else {
-            Err(OxCacheError::Connection("lock node is down".to_string()))
+            Err(OxCacheError::Connection(t(
+                MSG_DETAIL_REDLOCK_NODE_DOWN,
+                &[],
+            )))
         }
     }
 }
@@ -142,7 +150,12 @@ impl LockNode for RedisLockNode {
             .arg(ttl.as_millis() as u64)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("redlock node acquire failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_REDLOCK_ACQUIRE_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         Ok(result.is_some())
     }
 
@@ -158,7 +171,7 @@ impl LockNode for RedisLockNode {
             .arg(owner)
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("redlock node release failed: {e}")))?;
+            .map_err(|e| OxCacheError::Operation(t(MSG_DETAIL_REDLOCK_RELEASE_FAILED, &[("err", e.to_string())])))?;
         Ok(())
     }
 
@@ -168,11 +181,20 @@ impl LockNode for RedisLockNode {
             .arg(format!("{key}:fence"))
             .query_async(&mut conn)
             .await
-            .map_err(|e| OxCacheError::Operation(format!("redlock fence incr failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Operation(t(
+                    MSG_DETAIL_REDLOCK_FENCE_INCR_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         // 负值（如被外部 DECR 过的计数）不得静默折算为 0（0 会被下游
         // 视为「无 fencing 保护」）：显式报错，由 best-effort 调用方忽略
-        u64::try_from(token)
-            .map_err(|_| OxCacheError::Operation(format!("redlock fence token invalid: {token}")))
+        u64::try_from(token).map_err(|_| {
+            OxCacheError::Operation(t(
+                MSG_DETAIL_REDLOCK_FENCE_TOKEN_INVALID,
+                &[("token", token.to_string())],
+            ))
+        })
     }
 }
 

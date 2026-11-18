@@ -4,6 +4,7 @@
 
 use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_BATCH_DESERIALIZE_FAILED, t};
 use crate::traits::CacheKey;
 use std::collections::HashMap;
 // cache 模块门控 any(memory,redis,disk) 且三者均隐含 serialization，
@@ -76,9 +77,9 @@ where
                         result.insert(key, decoded);
                     }
                     Err(e) => {
-                        return Err(OxCacheError::Serialization(format!(
-                            "failed to deserialize value for key '{}': {}",
-                            key, e
+                        return Err(OxCacheError::Serialization(t(
+                            MSG_DETAIL_BATCH_DESERIALIZE_FAILED,
+                            &[("key", key.to_string()), ("err", e.to_string())],
                         )));
                     }
                 }

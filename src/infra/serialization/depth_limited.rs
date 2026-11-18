@@ -5,6 +5,9 @@
 // Provides safe JSON deserialization with depth limits to prevent
 // stack overflow attacks and excessive memory usage.
 
+use crate::i18n::messages::{
+    MSG_DETAIL_JSON_DEPTH_EXCEEDED, MSG_DETAIL_JSON_DEPTH_NESTING_EXCEEDED, t,
+};
 use serde::Deserialize;
 use std::fmt;
 
@@ -24,11 +27,13 @@ pub struct DepthLimitExceededError {
 
 impl std::fmt::Display for DepthLimitExceededError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "JSON nesting depth {} exceeds maximum allowed depth {}",
-            self.depth, self.max_depth
-        )
+        f.write_str(&t(
+            MSG_DETAIL_JSON_DEPTH_NESTING_EXCEEDED,
+            &[
+                ("depth", self.depth.to_string()),
+                ("max", self.max_depth.to_string()),
+            ],
+        ))
     }
 }
 
@@ -141,9 +146,9 @@ impl DepthLimited {
         if depth > max_depth {
             return Err(serde_json::Error::io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!(
-                    "JSON depth {} exceeds maximum allowed depth {}",
-                    depth, max_depth
+                t(
+                    MSG_DETAIL_JSON_DEPTH_EXCEEDED,
+                    &[("depth", depth.to_string()), ("max", max_depth.to_string())],
                 ),
             )));
         }
@@ -169,9 +174,12 @@ impl<'de> Deserialize<'de> for DepthLimited {
         let value = serde::Deserialize::deserialize(deserializer)?;
         let depth = calculate_depth(&value);
         if depth > MAX_DESERIALIZE_DEPTH {
-            return Err(serde::de::Error::custom(format!(
-                "JSON depth {} exceeds maximum allowed depth {}",
-                depth, MAX_DESERIALIZE_DEPTH
+            return Err(serde::de::Error::custom(t(
+                MSG_DETAIL_JSON_DEPTH_EXCEEDED,
+                &[
+                    ("depth", depth.to_string()),
+                    ("max", MAX_DESERIALIZE_DEPTH.to_string()),
+                ],
             )));
         }
         Ok(DepthLimited {
@@ -202,9 +210,9 @@ pub fn deserialize_safe<T: serde::de::DeserializeOwned>(
     if depth > max_depth {
         return Err(serde_json::Error::io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!(
-                "JSON depth {} exceeds maximum allowed depth {}",
-                depth, max_depth
+            t(
+                MSG_DETAIL_JSON_DEPTH_EXCEEDED,
+                &[("depth", depth.to_string()), ("max", max_depth.to_string())],
             ),
         )));
     }

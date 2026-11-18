@@ -35,6 +35,7 @@ use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::OxCacheResult;
 #[cfg(feature = "security-events")]
 use crate::features::security_events::{SecurityHook, SecuritySignal};
+use crate::i18n::messages::{MSG_DETAIL_HMAC_KEY_LENGTH, t};
 #[cfg(feature = "security-events")]
 use crate::security::redaction::redact_cache_key;
 use hmac::{Hmac, KeyInit, Mac};
@@ -77,9 +78,12 @@ impl HmacSigner {
     /// 从字节切片创建（长度错误返回 Err）
     pub fn from_slice(key: &[u8]) -> crate::error::OxCacheResult<Self> {
         let arr: [u8; TAG_SIZE] = key.try_into().map_err(|_| {
-            crate::error::OxCacheError::InvalidInput(format!(
-                "hmac signer key must be exactly {TAG_SIZE} bytes, got {}",
-                key.len()
+            crate::error::OxCacheError::InvalidInput(t(
+                MSG_DETAIL_HMAC_KEY_LENGTH,
+                &[
+                    ("expected", TAG_SIZE.to_string()),
+                    ("actual", key.len().to_string()),
+                ],
             ))
         })?;
         Ok(Self::new(arr))

@@ -12,6 +12,11 @@ use crate::error::{OxCacheError, OxCacheResult};
 use async_trait::async_trait;
 use std::time::Duration;
 
+/// Detect the "already held by another owner" contention error across locales.
+fn is_already_held(msg: &str) -> bool {
+    msg.contains("already held by another owner") || msg.contains("已被其他持有者")
+}
+
 /// Backend-agnostic distributed lock interface.
 ///
 /// # Contract
@@ -65,9 +70,7 @@ impl LockProvider for DistributedLock {
             // translate to Ok(false) per the LockProvider contract.
             // 仅识别 acquire 的争用错误变体（Operation + dist_lock 标记），
             // 其余错误原样透传，避免对任意错误文本做宽泛匹配误判
-            Err(OxCacheError::Operation(msg)) if msg.contains("already held by another owner") => {
-                Ok(false)
-            }
+            Err(OxCacheError::Operation(msg)) if is_already_held(&msg) => Ok(false),
             Err(e) => Err(e),
         }
     }

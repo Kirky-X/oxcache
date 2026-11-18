@@ -17,6 +17,7 @@ use super::sentinel::SentinelConnection;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
 #[cfg(feature = "metrics")]
+use crate::i18n::messages::{MSG_DETAIL_REDIS_CIRCUIT_OPEN, t};
 use crate::infra::metrics::unified::GLOBAL_UNIFIED_METRICS;
 use std::future::Future;
 use std::sync::Arc;
@@ -221,9 +222,10 @@ impl RedisBackend {
     /// 熔断器预检：Open 时返回 `Degraded`，Closed 放行。
     fn check_circuit(breaker: &CircuitBreaker) -> OxCacheResult<()> {
         if breaker.is_open() {
-            return Err(OxCacheError::Degraded(
-                "Redis circuit breaker is open".to_string(),
-            ));
+            return Err(OxCacheError::Degraded(t(
+                MSG_DETAIL_REDIS_CIRCUIT_OPEN,
+                &[],
+            )));
         }
         Ok(())
     }

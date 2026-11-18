@@ -4,6 +4,9 @@
 
 use super::Cache;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_ATOMIC_WRITER_NOT_IMPLEMENTED, MSG_DETAIL_SYNC_ATOMIC_WRITER_NOT_IMPLEMENTED, t,
+};
 use crate::traits::CacheKey;
 use std::time::Duration;
 
@@ -18,9 +21,10 @@ where
     /// 返回 `Err(NotSupported)`。
     pub async fn incr(&self, key: &K, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "incr: backend does not implement AtomicCacheWriter".to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "incr".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         writer.incr(&key_str, delta, ttl).await
@@ -38,9 +42,10 @@ where
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "compare_and_swap: backend does not implement AtomicCacheWriter".to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "compare_and_swap".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         writer
@@ -57,9 +62,10 @@ where
         ttl: Option<Duration>,
     ) -> OxCacheResult<bool> {
         let writer = self.backend.as_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "set_if_absent: backend does not implement AtomicCacheWriter".to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "set_if_absent".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         let bytes =
@@ -76,9 +82,10 @@ where
     pub fn incr_sync(&self, key: &K, delta: i64, ttl: Option<Duration>) -> OxCacheResult<i64> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "incr_sync: sync backend does not implement SyncAtomicCacheWriter".to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_SYNC_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "incr_sync".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         writer.incr(&key_str, delta, ttl)
@@ -96,10 +103,10 @@ where
     ) -> OxCacheResult<bool> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "compare_and_swap_sync: sync backend does not implement SyncAtomicCacheWriter"
-                    .to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_SYNC_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "compare_and_swap_sync".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         writer.compare_and_swap(&key_str, expected, new_bytes, ttl)
@@ -115,10 +122,10 @@ where
     ) -> OxCacheResult<bool> {
         let backend = self.sync_backend()?;
         let writer = backend.as_sync_atomic_writer().ok_or_else(|| {
-            OxCacheError::NotSupported(
-                "set_if_absent_sync: sync backend does not implement SyncAtomicCacheWriter"
-                    .to_string(),
-            )
+            OxCacheError::NotSupported(t(
+                MSG_DETAIL_SYNC_ATOMIC_WRITER_NOT_IMPLEMENTED,
+                &[("op", "set_if_absent_sync".to_string())],
+            ))
         })?;
         let key_str = key.to_key_string();
         let bytes =

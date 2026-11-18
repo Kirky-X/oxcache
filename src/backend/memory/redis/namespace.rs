@@ -6,6 +6,10 @@ use super::client::RedisBackend;
 use super::error::{is_connection_error, map_redis_error};
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_REDIS_NAMESPACE_PREFIX_EMPTY, MSG_DETAIL_REDIS_NAMESPACE_PREFIX_GLOB,
+    MSG_DETAIL_REDIS_NAMESPACE_PREFIX_WILDCARD, t,
+};
 use crate::security;
 
 /// 命名空间分隔符：命名空间段之间的边界
@@ -60,25 +64,27 @@ impl RedisBackend {
         // An empty prefix would match everything ("*"); refuse explicitly
         // instead of wiping the whole database.
         if prefix.is_empty() {
-            return Err(OxCacheError::InvalidInput(
-                "Namespace prefix must not be empty (empty prefix would delete the entire database)"
-                    .to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_NAMESPACE_PREFIX_EMPTY,
+                &[],
+            )));
         }
 
         // Validate that prefix doesn't contain wildcards
         if prefix.contains('*') || prefix.contains('?') {
-            return Err(OxCacheError::InvalidInput(
-                "Namespace prefix must not contain wildcard characters (* or ?)".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_NAMESPACE_PREFIX_WILDCARD,
+                &[],
+            )));
         }
 
         // Glob character classes and escapes would let the prefix match keys
         // outside the intended namespace.
         if prefix.contains('[') || prefix.contains(']') || prefix.contains('\\') {
-            return Err(OxCacheError::InvalidInput(
-                "Namespace prefix must not contain glob pattern characters ([, ], \\)".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_NAMESPACE_PREFIX_GLOB,
+                &[],
+            )));
         }
 
         Ok(prefix)

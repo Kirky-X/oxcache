@@ -5,6 +5,7 @@
 //! 提供序列化相关的共享工具函数。
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{MSG_DETAIL_DATA_TOO_LARGE, MSG_DETAIL_DECOMPRESSED_TOO_LARGE, t};
 
 /// 检查数据大小是否超过限制
 ///
@@ -20,11 +21,13 @@ use crate::error::{OxCacheError, OxCacheResult};
 /// * `Err(OxCacheError)` - 数据大小超过限制
 pub fn check_data_size(data: &[u8], max_size: usize, data_type: &str) -> OxCacheResult<()> {
     if data.len() > max_size {
-        return Err(OxCacheError::Serialization(format!(
-            "{} data too large: {} bytes (max: {} bytes)",
-            data_type,
-            data.len(),
-            max_size
+        return Err(OxCacheError::Serialization(t(
+            MSG_DETAIL_DATA_TOO_LARGE,
+            &[
+                ("type", data_type.to_string()),
+                ("size", data.len().to_string()),
+                ("max", max_size.to_string()),
+            ],
         )));
     }
     Ok(())
@@ -109,10 +112,12 @@ pub fn decompress_data_with_limit(data: &[u8], max_size: usize) -> OxCacheResult
         .read_to_end(&mut decoded)
         .map_err(|e| OxCacheError::Serialization(e.to_string()))?;
     if decoded.len() > max_size {
-        return Err(OxCacheError::Serialization(format!(
-            "decompressed data too large: {} bytes (max: {} bytes)",
-            decoded.len(),
-            max_size
+        return Err(OxCacheError::Serialization(t(
+            MSG_DETAIL_DECOMPRESSED_TOO_LARGE,
+            &[
+                ("size", decoded.len().to_string()),
+                ("max", max_size.to_string()),
+            ],
         )));
     }
     Ok(decoded)

@@ -10,6 +10,11 @@
 //! - [`RedisPubSubTransport`]：真实 Redis `PUBLISH`/`SUBSCRIBE` 实现。
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_INVALIDATION_PUBSUB_CONNECT_FAILED, MSG_DETAIL_INVALIDATION_PUBSUB_PUBLISH_FAILED,
+    MSG_DETAIL_PUBSUB_CONNECT_TIMEOUT, MSG_DETAIL_PUBSUB_INVALID_REDIS_URL,
+    MSG_DETAIL_PUBSUB_LOCK_POISONED, t,
+};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -97,9 +102,10 @@ impl PubSubTransport for InMemoryPubSubTransport {
                 map.entry(channel.to_string()).or_default().push(tx);
             }
             Err(_) => {
-                return Err(OxCacheError::Operation(
-                    "in-memory pubsub transport lock poisoned".to_string(),
-                ));
+                return Err(OxCacheError::Operation(t(
+                    MSG_DETAIL_PUBSUB_LOCK_POISONED,
+                    &[],
+                )));
             }
         }
         Ok(SubscriptionReceiver::new(rx))
@@ -124,15 +130,24 @@ pub struct RedisPubSubTransport {
 impl RedisPubSubTransport {
     /// 连接 Redis 并创建传输
     pub async fn new(connection_string: &str) -> OxCacheResult<Self> {
-        let client = redis::Client::open(connection_string)
-            .map_err(|e| OxCacheError::Connection(format!("invalid redis url: {e}")))?;
+        let client = redis::Client::open(connection_string).map_err(|e| {
+            OxCacheError::Connection(t(
+                MSG_DETAIL_PUBSUB_INVALID_REDIS_URL,
+                &[("err", e.to_string())],
+            ))
+        })?;
         let publish_conn = tokio::time::timeout(
             std::time::Duration::from_secs(5),
             client.get_connection_manager(),
         )
         .await
-        .map_err(|_| OxCacheError::Connection("redis pubsub connect timeout".to_string()))?
-        .map_err(|e| OxCacheError::Connection(format!("redis pubsub connect failed: {e}")))?;
+        .map_err(|_| OxCacheError::Connection(t(MSG_DETAIL_PUBSUB_CONNECT_TIMEOUT, &[])))?
+        .map_err(|e| {
+            OxCacheError::Connection(t(
+                MSG_DETAIL_INVALIDATION_PUBSUB_CONNECT_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         Ok(Self {
             client,
             publish_conn: tokio::sync::Mutex::new(publish_conn),
@@ -196,7 +211,12 @@ impl PubSubTransport for RedisPubSubTransport {
             .arg(payload)
             .query_async(&mut *conn)
             .await
-            .map_err(|e| OxCacheError::Connection(format!("redis PUBLISH failed: {e}")))?;
+            .map_err(|e| {
+                OxCacheError::Connection(t(
+                    MSG_DETAIL_INVALIDATION_PUBSUB_PUBLISH_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?;
         Ok(())
     }
 

@@ -4,6 +4,7 @@
 
 use super::signal::SecuritySignal;
 use crate::features::degradation::DegradationController;
+use crate::i18n::messages::{MSG_LOG_SECURITY_EVENTS_FENCING_ANOMALY, t};
 use std::sync::Arc;
 
 /// 同步安全信号回调；需异步动作时在实现内部 `tokio::spawn`
@@ -36,7 +37,7 @@ impl SecurityResponder for DegradationResponder {
                 #[cfg(feature = "telemetry")]
                 tracing::warn!(
                     target: "oxcache::security_events",
-                    "fencing anomaly observed: {:?}", signal
+                    "{}", t(MSG_LOG_SECURITY_EVENTS_FENCING_ANOMALY, &[("signal", format!("{:?}", signal))])
                 );
             }
         }

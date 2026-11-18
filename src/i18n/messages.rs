@@ -1897,6 +1897,176 @@ pub const MSG_EXAMPLE_SECURITY_VALIDATION_5_USE_LOG_CACHE: &str =
 // -- Bench diagnostics --
 pub const MSG_BENCH_SKIP_SERVICE_UNREACHABLE: &str = "bench.skip_service_unreachable";
 
+pub const MSG_LOG_SECURITY_EVENTS_PUBLISH_FAILED: &str = "log.security_events.publish_failed";
+pub const MSG_LOG_SECURITY_EVENTS_FENCING_ANOMALY: &str = "log.security_events.fencing_anomaly";
+// -- i18n remediation detail/security-doctor message IDs --
+pub const MSG_DETAIL_SERIALIZATION_BINCODE_MISSING_VERSION_TAG: &str =
+    "detail.serialization.bincode_missing_version_tag";
+pub const MSG_SECURITY_DOCTOR_READY: &str = "security.doctor.ready";
+pub const MSG_SECURITY_DOCTOR_NOT_READY: &str = "security.doctor.not_ready";
+pub const MSG_SECURITY_DOCTOR_SUMMARY: &str = "security.doctor.summary";
+pub const MSG_SECURITY_DOCTOR_MARKER_OK: &str = "security.doctor.marker_ok";
+pub const MSG_SECURITY_DOCTOR_MARKER_WARN: &str = "security.doctor.marker_warn";
+pub const MSG_SECURITY_DOCTOR_MARKER_CRIT: &str = "security.doctor.marker_crit";
+pub const MSG_SECURITY_DOCTOR_FINDING_LINE: &str = "security.doctor.finding_line";
+pub const MSG_SECURITY_DOCTOR_ENCRYPT_ON: &str = "security.doctor.encrypt_on";
+pub const MSG_SECURITY_DOCTOR_ENCRYPT_OFF: &str = "security.doctor.encrypt_off";
+pub const MSG_SECURITY_DOCTOR_INTEGRITY_ON: &str = "security.doctor.integrity_on";
+pub const MSG_SECURITY_DOCTOR_INTEGRITY_OFF: &str = "security.doctor.integrity_off";
+pub const MSG_SECURITY_DOCTOR_AUDIT_ON: &str = "security.doctor.audit_on";
+pub const MSG_SECURITY_DOCTOR_AUDIT_OFF: &str = "security.doctor.audit_off";
+pub const MSG_SECURITY_DOCTOR_BLOOM_ON: &str = "security.doctor.bloom_on";
+pub const MSG_SECURITY_DOCTOR_BLOOM_OFF: &str = "security.doctor.bloom_off";
+pub const MSG_SECURITY_DOCTOR_LUA_OFF_WITH_REDIS: &str = "security.doctor.lua_off_with_redis";
+pub const MSG_SECURITY_DOCTOR_LUA_ON: &str = "security.doctor.lua_on";
+pub const MSG_SECURITY_DOCTOR_TLS_NO_REDIS_FEATURE: &str = "security.doctor.tls_no_redis_feature";
+pub const MSG_SECURITY_DOCTOR_TLS_INSECURE_HATCH: &str = "security.doctor.tls_insecure_hatch";
+pub const MSG_SECURITY_DOCTOR_TLS_NO_REDISS: &str = "security.doctor.tls_no_rediss";
+pub const MSG_SECURITY_DOCTOR_TLS_OK: &str = "security.doctor.tls_ok";
+pub const MSG_SECURITY_DOCTOR_NULL_TTL_OFF: &str = "security.doctor.null_ttl_off";
+pub const MSG_SECURITY_DOCTOR_NULL_TTL_ON: &str = "security.doctor.null_ttl_on";
+pub const MSG_SECURITY_DOCTOR_TTL_JITTER_OFF: &str = "security.doctor.ttl_jitter_off";
+pub const MSG_SECURITY_DOCTOR_TTL_JITTER_ON: &str = "security.doctor.ttl_jitter_on";
+pub const MSG_SECURITY_DOCTOR_METRICS_OFF: &str = "security.doctor.metrics_off";
+pub const MSG_SECURITY_DOCTOR_METRICS_ON: &str = "security.doctor.metrics_on";
+pub const MSG_DETAIL_AEROSPIKE_CONNECT_FAILED: &str = "detail.aerospike.connect_failed";
+pub const MSG_DETAIL_AEROSPIKE_KEY_CREATION_FAILED: &str = "detail.aerospike.key_creation_failed";
+pub const MSG_DETAIL_AEROSPIKE_GET_FAILED: &str = "detail.aerospike.get_failed";
+pub const MSG_DETAIL_AEROSPIKE_EXISTS_CHECK_FAILED: &str = "detail.aerospike.exists_check_failed";
+pub const MSG_DETAIL_AEROSPIKE_TTL_CHECK_FAILED: &str = "detail.aerospike.ttl_check_failed";
+pub const MSG_DETAIL_AEROSPIKE_KEY_COUNT_NOT_SUPPORTED: &str =
+    "detail.aerospike.key_count_not_supported";
+pub const MSG_DETAIL_AEROSPIKE_CAPACITY_NOT_AVAILABLE: &str =
+    "detail.aerospike.capacity_not_available";
+pub const MSG_DETAIL_AEROSPIKE_PATTERN_LISTING_NOT_SUPPORTED: &str =
+    "detail.aerospike.pattern_listing_not_supported";
+pub const MSG_DETAIL_AEROSPIKE_SET_FAILED: &str = "detail.aerospike.set_failed";
+pub const MSG_DETAIL_AEROSPIKE_DELETE_FAILED: &str = "detail.aerospike.delete_failed";
+pub const MSG_DETAIL_AEROSPIKE_BULK_DELETE_NOT_SUPPORTED: &str =
+    "detail.aerospike.bulk_delete_not_supported";
+pub const MSG_DETAIL_AEROSPIKE_EXPIRE_FAILED: &str = "detail.aerospike.expire_failed";
+pub const MSG_DETAIL_AEROSPIKE_DELETE_MANY_FAILED: &str = "detail.aerospike.delete_many_failed";
+pub const MSG_DETAIL_AEROSPIKE_CLUSTER_NOT_CONNECTED: &str =
+    "detail.aerospike.cluster_not_connected";
+pub const MSG_DETAIL_CONFIG_INFO_QUERY_FAILED: &str = "detail.config.info_query_failed";
+pub const MSG_DETAIL_CONFIG_CUSTOM_NAME_EMPTY: &str = "detail.config.custom_name_empty";
+pub const MSG_DETAIL_CONFIG_CUSTOM_NAME_TOO_LONG: &str = "detail.config.custom_name_too_long";
+pub const MSG_DETAIL_CONFIG_CUSTOM_NAME_INVALID_CHAR: &str =
+    "detail.config.custom_name_invalid_char";
+pub const MSG_DETAIL_BACKEND_UNKNOWN_KIND_AVAILABLE: &str = "detail.backend.unknown_kind_available";
+pub const MSG_DETAIL_MOCK_GET_FAULT: &str = "detail.mock.get_fault";
+pub const MSG_DETAIL_MOCK_SET_FAULT: &str = "detail.mock.set_fault";
+pub const MSG_DETAIL_MOCK_EXPIRE_FAULT: &str = "detail.mock.expire_fault";
+pub const MSG_DETAIL_MOCK_HEALTH_FAULT: &str = "detail.mock.health_fault";
+pub const MSG_DETAIL_MOCK_INCR_INVALID_UTF8: &str = "detail.mock.incr_invalid_utf8";
+pub const MSG_DETAIL_MOCK_INCR_INVALID_INTEGER: &str = "detail.mock.incr_invalid_integer";
+pub const MSG_DETAIL_MOCK_INCR_OVERFLOW: &str = "detail.mock.incr_overflow";
+pub const MSG_DETAIL_REDIS_CONNECTION_STRING_REQUIRED: &str =
+    "detail.redis.connection_string_required";
+pub const MSG_DETAIL_REDIS_TLS_REQUIRED: &str = "detail.redis.tls_required";
+pub const MSG_DETAIL_REDIS_CONNECT_FAILED: &str = "detail.redis.connect_failed";
+pub const MSG_DETAIL_REDIS_CONNECT_TIMEOUT_UNAVAILABLE: &str =
+    "detail.redis.connect_timeout_unavailable";
+pub const MSG_DETAIL_REDIS_CIRCUIT_OPEN: &str = "detail.redis.circuit_open";
+pub const MSG_DETAIL_REDIS_LUA_TIMEOUT: &str = "detail.redis.lua_timeout";
+pub const MSG_DETAIL_REDIS_LUA_INVALID_SHA: &str = "detail.redis.lua_invalid_sha";
+pub const MSG_DETAIL_REDIS_LUA_NOSCRIPT: &str = "detail.redis.lua_noscript";
+pub const MSG_DETAIL_REDIS_NAMESPACE_PREFIX_EMPTY: &str = "detail.redis.namespace_prefix_empty";
+pub const MSG_DETAIL_REDIS_NAMESPACE_PREFIX_WILDCARD: &str =
+    "detail.redis.namespace_prefix_wildcard";
+pub const MSG_DETAIL_REDIS_NAMESPACE_PREFIX_GLOB: &str = "detail.redis.namespace_prefix_glob";
+pub const MSG_DETAIL_SENTINEL_NO_ATTEMPT: &str = "detail.sentinel.no_attempt";
+pub const MSG_DETAIL_SENTINEL_URL_ERROR: &str = "detail.sentinel.url_error";
+pub const MSG_DETAIL_SENTINEL_CONNECT_TIMEOUT: &str = "detail.sentinel.connect_timeout";
+pub const MSG_DETAIL_SENTINEL_MASTER_UNKNOWN: &str = "detail.sentinel.master_unknown";
+pub const MSG_DETAIL_SENTINEL_MASTER_CONNECT_FAILED: &str = "detail.sentinel.master_connect_failed";
+pub const MSG_DETAIL_SENTINEL_MASTER_TIMEOUT: &str = "detail.sentinel.master_timeout";
+pub const MSG_DETAIL_SENTINEL_REDISCOVERY_FAILED: &str = "detail.sentinel.rediscovery_failed";
+pub const MSG_DETAIL_SENTINEL_RESOLVE_FAILED: &str = "detail.sentinel.resolve_failed";
+pub const MSG_DETAIL_BATCH_BUFFER_AT_CAPACITY: &str = "detail.batch.buffer_at_capacity";
+pub const MSG_DETAIL_SYNC_MODE_REQUIRED: &str = "detail.api.sync_mode_required";
+pub const MSG_DETAIL_ATOMIC_WRITER_NOT_IMPLEMENTED: &str =
+    "detail.api.atomic_writer_not_implemented";
+pub const MSG_DETAIL_SYNC_ATOMIC_WRITER_NOT_IMPLEMENTED: &str =
+    "detail.api.sync_atomic_writer_not_implemented";
+pub const MSG_DETAIL_GET_OR_SYNC_LEADER_FAILED: &str = "detail.api.get_or_sync_leader_failed";
+pub const MSG_DETAIL_GET_OR_OPTION_SYNC_LEADER_FAILED: &str =
+    "detail.api.get_or_option_sync_leader_failed";
+pub const MSG_DETAIL_GET_OR_SYNC_GUARD_POISONED: &str = "detail.api.get_or_sync_guard_poisoned";
+pub const MSG_DETAIL_LUA_REQUIRES_REDIS_BACKEND: &str = "detail.api.lua_requires_redis_backend";
+pub const MSG_DETAIL_BATCH_DESERIALIZE_FAILED: &str = "detail.api.batch_deserialize_failed";
+pub const MSG_DETAIL_BLOOM_INNER_REQUIRED: &str = "detail.bloom.inner_required";
+pub const MSG_DETAIL_ZSTD_DECODE_FAILED: &str = "detail.compression.zstd_decode_failed";
+pub const MSG_DETAIL_ZSTD_ENCODE_FAILED: &str = "detail.compression.zstd_encode_failed";
+pub const MSG_DETAIL_ZSTD_TOO_LARGE: &str = "detail.compression.zstd_too_large";
+pub const MSG_DETAIL_DIST_LOCK_ACQUIRE_FAILED: &str = "detail.dist_lock.acquire_failed";
+pub const MSG_DETAIL_DIST_LOCK_ALREADY_HELD: &str = "detail.dist_lock.already_held";
+pub const MSG_DETAIL_DIST_LOCK_FENCE_INCR_FAILED: &str = "detail.dist_lock.fence_incr_failed";
+pub const MSG_DETAIL_DIST_LOCK_NOT_HELD: &str = "detail.dist_lock.not_held";
+pub const MSG_DETAIL_DIST_LOCK_RELEASE_FAILED: &str = "detail.dist_lock.release_failed";
+pub const MSG_DETAIL_DIST_LOCK_NOT_OWNER: &str = "detail.dist_lock.not_owner";
+pub const MSG_DETAIL_DIST_LOCK_EXTEND_FAILED: &str = "detail.dist_lock.extend_failed";
+pub const MSG_DETAIL_DIST_LOCK_IS_HELD_FAILED: &str = "detail.dist_lock.is_held_failed";
+pub const MSG_DETAIL_REDLOCK_NODE_DOWN: &str = "detail.redlock.node_down";
+pub const MSG_DETAIL_REDLOCK_ACQUIRE_FAILED: &str = "detail.redlock.acquire_failed";
+pub const MSG_DETAIL_REDLOCK_RELEASE_FAILED: &str = "detail.redlock.release_failed";
+pub const MSG_DETAIL_REDLOCK_FENCE_INCR_FAILED: &str = "detail.redlock.fence_incr_failed";
+pub const MSG_DETAIL_REDLOCK_FENCE_TOKEN_INVALID: &str = "detail.redlock.fence_token_invalid";
+pub const MSG_DETAIL_CIPHER_KEY_LENGTH: &str = "detail.encryption.cipher_key_length";
+pub const MSG_DETAIL_CIPHER_BAD_KEY: &str = "detail.encryption.cipher_bad_key";
+pub const MSG_DETAIL_CIPHER_OS_RNG_FAILED: &str = "detail.encryption.cipher_os_rng_failed";
+pub const MSG_DETAIL_CIPHER_BAD_NONCE: &str = "detail.encryption.cipher_bad_nonce";
+pub const MSG_DETAIL_CIPHER_ENCRYPT_FAILED: &str = "detail.encryption.cipher_encrypt_failed";
+pub const MSG_DETAIL_CIPHER_UNKNOWN_VERSION: &str = "detail.encryption.cipher_unknown_version";
+pub const MSG_DETAIL_CIPHER_ENVELOPE_TOO_SHORT: &str =
+    "detail.encryption.cipher_envelope_too_short";
+pub const MSG_DETAIL_CIPHER_DECRYPT_FAILED: &str = "detail.encryption.cipher_decrypt_failed";
+pub const MSG_DETAIL_HMAC_KEY_LENGTH: &str = "detail.encryption.hmac_key_length";
+pub const MSG_DETAIL_PUBSUB_LOCK_POISONED: &str = "detail.invalidation.pubsub_lock_poisoned";
+pub const MSG_DETAIL_PUBSUB_INVALID_REDIS_URL: &str =
+    "detail.invalidation.pubsub_invalid_redis_url";
+pub const MSG_DETAIL_PUBSUB_CONNECT_TIMEOUT: &str = "detail.invalidation.pubsub_connect_timeout";
+pub const MSG_DETAIL_INVALIDATION_PUBSUB_CONNECT_FAILED: &str =
+    "detail.invalidation.pubsub_connect_failed";
+pub const MSG_DETAIL_INVALIDATION_PUBSUB_PUBLISH_FAILED: &str =
+    "detail.invalidation.pubsub_publish_failed";
+pub const MSG_DETAIL_PROVENANCE_SERIALIZE_FAILED: &str = "detail.provenance.serialize_failed";
+pub const MSG_DETAIL_PROVENANCE_META_TOO_LARGE: &str = "detail.provenance.meta_too_large";
+pub const MSG_DETAIL_PROVENANCE_ENVELOPE_INVALID: &str = "detail.provenance.envelope_invalid";
+pub const MSG_DETAIL_PROVENANCE_META_LEN_EXCEEDS: &str = "detail.provenance.meta_len_exceeds";
+pub const MSG_DETAIL_PROVENANCE_DESERIALIZE_FAILED: &str = "detail.provenance.deserialize_failed";
+pub const MSG_DETAIL_SECURITY_SIGNAL_ENCODE_FAILED: &str = "detail.security_events.encode_failed";
+pub const MSG_DETAIL_SECURITY_SIGNAL_DECODE_FAILED: &str = "detail.security_events.decode_failed";
+pub const MSG_DETAIL_VERSION_STORE_POISONED: &str = "detail.versioning.store_poisoned";
+pub const MSG_DETAIL_VERSION_ENVELOPE_TOO_SHORT: &str = "detail.versioning.envelope_too_short";
+pub const MSG_DETAIL_VERSION_WATCH_FAILED: &str = "detail.versioning.watch_failed";
+pub const MSG_DETAIL_VERSION_GET_FAILED: &str = "detail.versioning.get_failed";
+pub const MSG_DETAIL_VERSION_MULTI_FAILED: &str = "detail.versioning.multi_failed";
+pub const MSG_DETAIL_VERSION_EXEC_FAILED: &str = "detail.versioning.exec_failed";
+pub const MSG_DETAIL_VERSION_DEL_FAILED: &str = "detail.versioning.del_failed";
+pub const MSG_DETAIL_JSON_DEPTH_NESTING_EXCEEDED: &str =
+    "detail.serialization.json_nesting_depth_exceeded";
+pub const MSG_DETAIL_JSON_DEPTH_EXCEEDED: &str = "detail.serialization.json_depth_exceeded";
+pub const MSG_DETAIL_DATA_TOO_LARGE: &str = "detail.serialization.data_too_large";
+pub const MSG_DETAIL_DECOMPRESSED_TOO_LARGE: &str = "detail.serialization.decompressed_too_large";
+pub const MSG_DETAIL_KIT_READ_CONFIG_FAILED: &str = "detail.kit.read_config_failed";
+pub const MSG_DETAIL_KIT_REDIS_CONFIG_REQUIRED: &str = "detail.kit.redis_config_required";
+pub const MSG_DETAIL_KIT_REDIS_FEATURE_REQUIRED: &str = "detail.kit.redis_feature_required";
+pub const MSG_DETAIL_KIT_CHAIN_REDIS_CONFIG_REQUIRED: &str =
+    "detail.kit.chain_redis_config_required";
+pub const MSG_DETAIL_KIT_CHAIN_FEATURE_REQUIRED: &str = "detail.kit.chain_feature_required";
+pub const MSG_DETAIL_KIT_CHAIN_LINK_REDIS_CONFIG_REQUIRED: &str =
+    "detail.kit.chain_link_redis_config_required";
+pub const MSG_DETAIL_KIT_NESTED_CHAIN_UNSUPPORTED: &str = "detail.kit.nested_chain_unsupported";
+pub const MSG_DETAIL_KIT_HEALTH_CHECK_FAILED: &str = "detail.kit.health_check_failed";
+pub const MSG_DETAIL_KIT_SHUTDOWN_REGISTER_FAILED: &str = "detail.kit.shutdown_register_failed";
+pub const MSG_DETAIL_CHAR_NEWLINE: &str = "detail.security.char_newline";
+pub const MSG_DETAIL_CHAR_CARRIAGE_RETURN: &str = "detail.security.char_carriage_return";
+pub const MSG_DETAIL_CHAR_CONTROL: &str = "detail.security.char_control";
+pub const MSG_DETAIL_DANGEROUS_CHAR: &str = "detail.security.dangerous_char";
+pub const MSG_DETAIL_VALUE_EMPTY: &str = "detail.security.value_empty";
+pub const MSG_DETAIL_MAX_LENGTH_EXCEEDED: &str = "detail.security.max_length_exceeded";
+
 // Catalog lookup
 
 /// Check whether a language code has a dedicated message catalog.

@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: MIT
 // MockBackend 实现 - 用于测试
 
+use crate::i18n::messages::{
+    MSG_DETAIL_MOCK_EXPIRE_FAULT, MSG_DETAIL_MOCK_GET_FAULT, MSG_DETAIL_MOCK_HEALTH_FAULT,
+    MSG_DETAIL_MOCK_INCR_INVALID_INTEGER, MSG_DETAIL_MOCK_INCR_INVALID_UTF8,
+    MSG_DETAIL_MOCK_INCR_OVERFLOW, MSG_DETAIL_MOCK_SET_FAULT, t,
+};
 #[cfg(test)]
 use std::collections::HashMap;
 #[cfg(test)]
@@ -104,9 +109,10 @@ impl crate::backend::BackendScore for MockBackend {
 impl crate::backend::CacheReader for MockBackend {
     async fn get(&self, key: &str) -> crate::error::OxCacheResult<Option<Vec<u8>>> {
         if self.fault.fail_get {
-            return Err(crate::error::OxCacheError::Operation(
-                "MockBackend get fault injected".to_string(),
-            ));
+            return Err(crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_GET_FAULT,
+                &[],
+            )));
         }
         let now = Instant::now();
         let mut data = self.data.write().await;
@@ -205,9 +211,10 @@ impl crate::backend::CacheWriter for MockBackend {
         ttl: Option<Duration>,
     ) -> crate::error::OxCacheResult<()> {
         if self.fault.fail_set {
-            return Err(crate::error::OxCacheError::Operation(
-                "MockBackend set fault injected".to_string(),
-            ));
+            return Err(crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_SET_FAULT,
+                &[],
+            )));
         }
         let mut data = self.data.write().await;
         let expires_at = ttl.map(|d| Instant::now() + d);
@@ -229,9 +236,10 @@ impl crate::backend::CacheWriter for MockBackend {
 
     async fn expire(&self, key: &str, ttl: Duration) -> crate::error::OxCacheResult<bool> {
         if self.fault.fail_expire {
-            return Err(crate::error::OxCacheError::Operation(
-                "mock expire failure injected".to_string(),
-            ));
+            return Err(crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_EXPIRE_FAULT,
+                &[],
+            )));
         }
         let mut data = self.data.write().await;
         // 单次查找：避免 contains_key + get_mut 的双重哈希探测
@@ -249,9 +257,10 @@ impl crate::backend::CacheWriter for MockBackend {
 impl crate::backend::CacheConnector for MockBackend {
     async fn health_check(&self) -> crate::error::OxCacheResult<()> {
         if self.fault.fail_health {
-            return Err(crate::error::OxCacheError::Operation(
-                "MockBackend health fault injected".to_string(),
-            ));
+            return Err(crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_HEALTH_FAULT,
+                &[],
+            )));
         }
         Ok(())
     }
@@ -320,24 +329,28 @@ impl crate::backend::AtomicCacheWriter for MockBackend {
         let current = match data.get(key) {
             Some((v, _)) => {
                 let s = String::from_utf8(v.clone()).map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!(
-                        "incr: invalid UTF-8 in stored value for key '{}': {}",
-                        key, e
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_MOCK_INCR_INVALID_UTF8,
+                        &[("key", key.to_string()), ("err", e.to_string())],
                     ))
                 })?;
                 s.parse::<i64>().map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!(
-                        "incr: invalid integer in stored value for key '{}': {}",
-                        key, e
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_MOCK_INCR_INVALID_INTEGER,
+                        &[("key", key.to_string()), ("err", e.to_string())],
                     ))
                 })?
             }
             None => 0,
         };
         let new_val = current.checked_add(delta).ok_or_else(|| {
-            crate::error::OxCacheError::Operation(format!(
-                "incr: i64 overflow for key '{}': {} + {}",
-                key, current, delta
+            crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_INCR_OVERFLOW,
+                &[
+                    ("key", key.to_string()),
+                    ("current", current.to_string()),
+                    ("delta", delta.to_string()),
+                ],
             ))
         })?;
         let expires_at = ttl.map(|d| Instant::now() + d);
@@ -408,24 +421,28 @@ impl crate::backend::SyncAtomicCacheWriter for MockBackend {
         let current = match data.get(key) {
             Some((v, _)) => {
                 let s = String::from_utf8(v.clone()).map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!(
-                        "incr: invalid UTF-8 in stored value for key '{}': {}",
-                        key, e
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_MOCK_INCR_INVALID_UTF8,
+                        &[("key", key.to_string()), ("err", e.to_string())],
                     ))
                 })?;
                 s.parse::<i64>().map_err(|e| {
-                    crate::error::OxCacheError::Operation(format!(
-                        "incr: invalid integer in stored value for key '{}': {}",
-                        key, e
+                    crate::error::OxCacheError::Operation(t(
+                        MSG_DETAIL_MOCK_INCR_INVALID_INTEGER,
+                        &[("key", key.to_string()), ("err", e.to_string())],
                     ))
                 })?
             }
             None => 0,
         };
         let new_val = current.checked_add(delta).ok_or_else(|| {
-            crate::error::OxCacheError::Operation(format!(
-                "incr: i64 overflow for key '{}': {} + {}",
-                key, current, delta
+            crate::error::OxCacheError::Operation(t(
+                MSG_DETAIL_MOCK_INCR_OVERFLOW,
+                &[
+                    ("key", key.to_string()),
+                    ("current", current.to_string()),
+                    ("delta", delta.to_string()),
+                ],
             ))
         })?;
         let expires_at = ttl.map(|d| Instant::now() + d);

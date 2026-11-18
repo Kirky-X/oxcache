@@ -21,6 +21,9 @@
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::OxCacheResult;
+use crate::i18n::messages::{
+    MSG_DETAIL_ZSTD_DECODE_FAILED, MSG_DETAIL_ZSTD_ENCODE_FAILED, MSG_DETAIL_ZSTD_TOO_LARGE, t,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -97,17 +100,27 @@ impl CompressingBackend {
     fn decode_zstd_with_limit(data: &[u8], max_size: usize) -> OxCacheResult<Vec<u8>> {
         use std::io::Read;
         let mut decoder = zstd::stream::Decoder::new(data)
-            .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?
+            .map_err(|e| {
+                crate::error::OxCacheError::Serialization(t(
+                    MSG_DETAIL_ZSTD_DECODE_FAILED,
+                    &[("err", e.to_string())],
+                ))
+            })?
             .take(max_size as u64 + 1);
         let mut out = Vec::new();
-        decoder
-            .read_to_end(&mut out)
-            .map_err(|e| crate::error::OxCacheError::Serialization(format!("zstd decode: {e}")))?;
+        decoder.read_to_end(&mut out).map_err(|e| {
+            crate::error::OxCacheError::Serialization(t(
+                MSG_DETAIL_ZSTD_DECODE_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         if out.len() > max_size {
-            return Err(crate::error::OxCacheError::Serialization(format!(
-                "zstd decompressed data too large: {} bytes (max: {} bytes)",
-                out.len(),
-                max_size
+            return Err(crate::error::OxCacheError::Serialization(t(
+                MSG_DETAIL_ZSTD_TOO_LARGE,
+                &[
+                    ("size", out.len().to_string()),
+                    ("max", max_size.to_string()),
+                ],
             )));
         }
         Ok(out)
@@ -160,7 +173,10 @@ impl CacheWriter for CompressingBackend {
         let stored: Arc<Vec<u8>> = if value.len() >= self.threshold {
             let compressed =
                 zstd::stream::encode_all(value.as_slice(), self.level).map_err(|e| {
-                    crate::error::OxCacheError::Serialization(format!("zstd encode: {e}"))
+                    crate::error::OxCacheError::Serialization(t(
+                        MSG_DETAIL_ZSTD_ENCODE_FAILED,
+                        &[("err", e.to_string())],
+                    ))
                 })?;
             Arc::new(compressed)
         } else {
@@ -187,7 +203,10 @@ impl CacheWriter for CompressingBackend {
             let stored: Arc<Vec<u8>> = if value.len() >= self.threshold {
                 let compressed =
                     zstd::stream::encode_all(value.as_slice(), self.level).map_err(|e| {
-                        crate::error::OxCacheError::Serialization(format!("zstd encode: {e}"))
+                        crate::error::OxCacheError::Serialization(t(
+                            MSG_DETAIL_ZSTD_ENCODE_FAILED,
+                            &[("err", e.to_string())],
+                        ))
                     })?;
                 Arc::new(compressed)
             } else {

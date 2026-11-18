@@ -27,6 +27,7 @@ use crate::backend::{
 use crate::error::{OxCacheError, OxCacheResult};
 
 use super::BloomFilter;
+use crate::i18n::messages::{MSG_DETAIL_BLOOM_INNER_REQUIRED, t};
 
 /// `CacheBackend` decorator wrapping an inner backend `B` with a Bloom filter
 /// for negative query filtering.
@@ -134,11 +135,9 @@ impl<B: CacheBackend> BloomFilterBackendBuilder<B> {
 
     /// Build the decorator. Returns `Err` if no inner backend was set.
     pub fn build(self) -> OxCacheResult<BloomFilterBackend<B>> {
-        let inner = self.inner.ok_or_else(|| {
-            OxCacheError::InvalidInput(
-                "inner backend is required for BloomFilterBackend".to_string(),
-            )
-        })?;
+        let inner = self
+            .inner
+            .ok_or_else(|| OxCacheError::InvalidInput(t(MSG_DETAIL_BLOOM_INNER_REQUIRED, &[])))?;
         Ok(BloomFilterBackend {
             inner,
             bloom: BloomFilter::new(self.capacity, self.false_positive_rate),

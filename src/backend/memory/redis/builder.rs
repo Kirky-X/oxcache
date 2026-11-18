@@ -13,7 +13,9 @@ use crate::core::RedisModeType;
 use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_REDIS_CLUSTER_CONNECT_FAILED, MSG_DETAIL_REDIS_CLUSTER_CONNECT_TIMEOUT,
-    MSG_DETAIL_REDIS_POOL_SIZE_ZERO, t,
+    MSG_DETAIL_REDIS_CONNECT_FAILED, MSG_DETAIL_REDIS_CONNECT_TIMEOUT_UNAVAILABLE,
+    MSG_DETAIL_REDIS_CONNECTION_STRING_REQUIRED, MSG_DETAIL_REDIS_POOL_SIZE_ZERO,
+    MSG_DETAIL_REDIS_TLS_REQUIRED, t,
 };
 use redis::Client;
 use std::sync::Arc;
@@ -218,7 +220,7 @@ impl RedisBackendBuilder {
         }
 
         let mut connection_string = self.connection_string.ok_or_else(|| {
-            OxCacheError::InvalidInput("Connection string is required".to_string())
+            OxCacheError::InvalidInput(t(MSG_DETAIL_REDIS_CONNECTION_STRING_REQUIRED, &[]))
         })?;
 
         // Append database index if specified. Sentinel 模式例外：db 追加到
@@ -238,12 +240,10 @@ impl RedisBackendBuilder {
                 .unwrap_or(false);
 
             if !allow_insecure {
-                return Err(OxCacheError::InvalidInput(
-                    "Redis connection must use TLS (rediss://) in production. \
-                     To allow insecure connections for development only, \
-                     set OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS"
-                        .to_string(),
-                ));
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_REDIS_TLS_REQUIRED,
+                    &[],
+                )));
             }
         }
 
@@ -271,15 +271,16 @@ impl RedisBackendBuilder {
             let mut connection_manager = match connection_result {
                 Ok(Ok(mgr)) => mgr,
                 Ok(Err(e)) => {
-                    return Err(OxCacheError::Connection(format!(
-                        "Failed to connect to Redis: {}",
-                        e
+                    return Err(OxCacheError::Connection(t(
+                        MSG_DETAIL_REDIS_CONNECT_FAILED,
+                        &[("err", e.to_string())],
                     )));
                 }
                 Err(_) => {
-                    return Err(OxCacheError::Connection(
-                        "Connection timeout - Redis server unavailable".to_string(),
-                    ));
+                    return Err(OxCacheError::Connection(t(
+                        MSG_DETAIL_REDIS_CONNECT_TIMEOUT_UNAVAILABLE,
+                        &[],
+                    )));
                 }
             };
 

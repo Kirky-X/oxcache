@@ -9,6 +9,10 @@ use super::error::map_redis_error;
 use crate::backend::interface::LuaExecutor;
 use crate::core::RedisCommand;
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_REDIS_LUA_INVALID_SHA, MSG_DETAIL_REDIS_LUA_NOSCRIPT, MSG_DETAIL_REDIS_LUA_TIMEOUT,
+    t,
+};
 use crate::security;
 use async_trait::async_trait;
 use std::future::Future;
@@ -32,8 +36,9 @@ async fn lua_timed<T>(
     }
     match tokio::time::timeout(timeout, fut).await {
         Ok(result) => result,
-        Err(_) => Err(OxCacheError::Timeout(format!(
-            "Lua command timed out after {timeout:?}"
+        Err(_) => Err(OxCacheError::Timeout(t(
+            MSG_DETAIL_REDIS_LUA_TIMEOUT,
+            &[("timeout", format!("{timeout:?}"))],
         ))),
     }
 }
@@ -91,9 +96,9 @@ impl LuaExecutor for RedisBackend {
     ) -> OxCacheResult<redis::Value> {
         // SHA format validation: must be exactly 40 hexadecimal characters
         if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(OxCacheError::InvalidInput(format!(
-                "Invalid SHA format: expected 40 hexadecimal characters, got {} characters",
-                sha.len()
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_REDIS_LUA_INVALID_SHA,
+                &[("count", sha.len().to_string())],
             )));
         }
 
@@ -114,24 +119,22 @@ impl LuaExecutor for RedisBackend {
                 cmd.arg(arg);
             }
 
-            lua_timed(
-                self.lua_timeout(),
-                async {
-                    match cmd.query_async(&mut conn).await {
-                        Ok(result) => Ok(result),
-                        Err(e) if is_noscript_error(&e) => {
-                            // NOSCRIPT: script not cached, but we can't fall back to eval_lua
-                            // without the original script source. Return the error.
-                            // In practice, callers should use `eval_lua` directly if they
-                            // have the source, or re-load the script via `script_load`.
-                            Err(OxCacheError::Operation(format!(
-                                "NOSCRIPT: script {sha} not cached. Re-load via script_load() or use eval_lua()"
-                            )))
-                        }
-                        Err(e) => Err(map_redis_error(e)),
+            lua_timed(self.lua_timeout(), async {
+                match cmd.query_async(&mut conn).await {
+                    Ok(result) => Ok(result),
+                    Err(e) if is_noscript_error(&e) => {
+                        // NOSCRIPT: script not cached, but we can't fall back to eval_lua
+                        // without the original script source. Return the error.
+                        // In practice, callers should use `eval_lua` directly if they
+                        // have the source, or re-load the script via `script_load`.
+                        Err(OxCacheError::Operation(t(
+                            MSG_DETAIL_REDIS_LUA_NOSCRIPT,
+                            &[("sha", sha.to_string())],
+                        )))
                     }
-                },
-            )
+                    Err(e) => Err(map_redis_error(e)),
+                }
+            })
             .await
         })
         .await

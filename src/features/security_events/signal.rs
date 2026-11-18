@@ -7,6 +7,9 @@
 //! （Pub/Sub 通道视为内网可信面）。
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_SECURITY_SIGNAL_DECODE_FAILED, MSG_DETAIL_SECURITY_SIGNAL_ENCODE_FAILED, t,
+};
 use serde::{Deserialize, Serialize};
 
 /// 跨实例安全信号
@@ -54,14 +57,22 @@ impl SecuritySignal {
 
     /// JSON 编码
     pub fn encode(&self) -> OxCacheResult<String> {
-        serde_json::to_string(self)
-            .map_err(|e| OxCacheError::Serialization(format!("security signal encode failed: {e}")))
+        serde_json::to_string(self).map_err(|e| {
+            OxCacheError::Serialization(t(
+                MSG_DETAIL_SECURITY_SIGNAL_ENCODE_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })
     }
 
     /// JSON 解码；未知 type tag 返回错误
     pub fn decode(raw: &str) -> OxCacheResult<Self> {
-        serde_json::from_str(raw)
-            .map_err(|e| OxCacheError::Serialization(format!("security signal decode failed: {e}")))
+        serde_json::from_str(raw).map_err(|e| {
+            OxCacheError::Serialization(t(
+                MSG_DETAIL_SECURITY_SIGNAL_DECODE_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })
     }
 }
 

@@ -10,6 +10,20 @@
 //! 本模块为纯函数：不写状态、不发网络请求、不改配置。
 
 use crate::config::CacheConfig;
+use crate::i18n::messages::{
+    MSG_SECURITY_DOCTOR_AUDIT_OFF, MSG_SECURITY_DOCTOR_AUDIT_ON, MSG_SECURITY_DOCTOR_BLOOM_OFF,
+    MSG_SECURITY_DOCTOR_BLOOM_ON, MSG_SECURITY_DOCTOR_ENCRYPT_OFF, MSG_SECURITY_DOCTOR_ENCRYPT_ON,
+    MSG_SECURITY_DOCTOR_FINDING_LINE, MSG_SECURITY_DOCTOR_INTEGRITY_OFF,
+    MSG_SECURITY_DOCTOR_INTEGRITY_ON, MSG_SECURITY_DOCTOR_LUA_OFF_WITH_REDIS,
+    MSG_SECURITY_DOCTOR_LUA_ON, MSG_SECURITY_DOCTOR_MARKER_CRIT, MSG_SECURITY_DOCTOR_MARKER_OK,
+    MSG_SECURITY_DOCTOR_MARKER_WARN, MSG_SECURITY_DOCTOR_METRICS_OFF,
+    MSG_SECURITY_DOCTOR_METRICS_ON, MSG_SECURITY_DOCTOR_NOT_READY,
+    MSG_SECURITY_DOCTOR_NULL_TTL_OFF, MSG_SECURITY_DOCTOR_NULL_TTL_ON, MSG_SECURITY_DOCTOR_READY,
+    MSG_SECURITY_DOCTOR_SUMMARY, MSG_SECURITY_DOCTOR_TLS_INSECURE_HATCH,
+    MSG_SECURITY_DOCTOR_TLS_NO_REDIS_FEATURE, MSG_SECURITY_DOCTOR_TLS_NO_REDISS,
+    MSG_SECURITY_DOCTOR_TLS_OK, MSG_SECURITY_DOCTOR_TTL_JITTER_OFF,
+    MSG_SECURITY_DOCTOR_TTL_JITTER_ON, t,
+};
 
 /// 审计发现级别
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,14 +90,17 @@ impl SecurityReport {
     pub fn render(&self) -> String {
         let mut lines = Vec::with_capacity(self.findings.len() + 1);
         let ready = if self.is_production_ready() {
-            "READY"
+            t(MSG_SECURITY_DOCTOR_READY, &[])
         } else {
-            "NOT READY"
+            t(MSG_SECURITY_DOCTOR_NOT_READY, &[])
         };
-        lines.push(format!(
-            "oxcache security audit: {ready} ({} critical, {} warnings)",
-            self.critical_count(),
-            self.warning_count()
+        lines.push(t(
+            MSG_SECURITY_DOCTOR_SUMMARY,
+            &[
+                ("ready", ready),
+                ("critical", self.critical_count().to_string()),
+                ("warnings", self.warning_count().to_string()),
+            ],
         ));
         let mut ordered: Vec<&SecurityFinding> = self.findings.iter().collect();
         ordered.sort_by_key(|f| match f.level {
@@ -93,13 +110,17 @@ impl SecurityReport {
         });
         for finding in ordered {
             let marker = match finding.level {
-                FindingLevel::Ok => "[OK]",
-                FindingLevel::Warning => "[WARN]",
-                FindingLevel::Critical => "[CRIT]",
+                FindingLevel::Ok => t(MSG_SECURITY_DOCTOR_MARKER_OK, &[]),
+                FindingLevel::Warning => t(MSG_SECURITY_DOCTOR_MARKER_WARN, &[]),
+                FindingLevel::Critical => t(MSG_SECURITY_DOCTOR_MARKER_CRIT, &[]),
             };
-            lines.push(format!(
-                "{marker} {}: {}",
-                finding.capability, finding.detail
+            lines.push(t(
+                MSG_SECURITY_DOCTOR_FINDING_LINE,
+                &[
+                    ("marker", marker),
+                    ("capability", finding.capability.to_string()),
+                    ("detail", finding.detail.clone()),
+                ],
             ));
         }
         lines.join("\n")
@@ -115,65 +136,65 @@ pub fn audit(config: &CacheConfig) -> SecurityReport {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "value-encryption",
-            "encrypt feature compiled; values can be encrypted at rest",
+            t(MSG_SECURITY_DOCTOR_ENCRYPT_ON, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Critical,
             "value-encryption",
-            "encrypt feature not compiled; values are stored in plaintext",
+            t(MSG_SECURITY_DOCTOR_ENCRYPT_OFF, &[]),
         ));
     }
     if cfg!(feature = "integrity") {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "tamper-detection",
-            "integrity feature compiled; value tampering is detectable",
+            t(MSG_SECURITY_DOCTOR_INTEGRITY_ON, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "tamper-detection",
-            "integrity feature not compiled; value tampering is undetectable",
+            t(MSG_SECURITY_DOCTOR_INTEGRITY_OFF, &[]),
         ));
     }
     if cfg!(feature = "audit") {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "audit-trail",
-            "audit feature compiled; security events can be traced",
+            t(MSG_SECURITY_DOCTOR_AUDIT_ON, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "audit-trail",
-            "audit feature not compiled; security events cannot be traced",
+            t(MSG_SECURITY_DOCTOR_AUDIT_OFF, &[]),
         ));
     }
     if cfg!(feature = "bloom") {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "negative-query-guard",
-            "bloom feature compiled; negative queries can be short-circuited",
+            t(MSG_SECURITY_DOCTOR_BLOOM_ON, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "negative-query-guard",
-            "bloom feature not compiled; negative queries lack a short-circuit guard",
+            t(MSG_SECURITY_DOCTOR_BLOOM_OFF, &[]),
         ));
     }
     if !cfg!(feature = "lua") && config.redis_url.is_some() {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "lua-sandbox",
-            "lua feature not compiled while Redis is configured; EVAL scripts are unguarded",
+            t(MSG_SECURITY_DOCTOR_LUA_OFF_WITH_REDIS, &[]),
         ));
     } else if cfg!(feature = "lua") {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "lua-sandbox",
-            "lua feature compiled; script validation is available",
+            t(MSG_SECURITY_DOCTOR_LUA_ON, &[]),
         ));
     }
 
@@ -184,25 +205,25 @@ pub fn audit(config: &CacheConfig) -> SecurityReport {
             findings.push(SecurityFinding::new(
                 FindingLevel::Critical,
                 "tls-enforcement",
-                "redis_url is set but the redis feature is not compiled",
+                t(MSG_SECURITY_DOCTOR_TLS_NO_REDIS_FEATURE, &[]),
             ));
         } else if std::env::var_os("OXCACHE_ALLOW_INSECURE_REDIS").is_some() {
             findings.push(SecurityFinding::new(
                 FindingLevel::Critical,
                 "tls-enforcement",
-                "OXCACHE_ALLOW_INSECURE_REDIS escape hatch is set; TLS enforcement is disabled",
+                t(MSG_SECURITY_DOCTOR_TLS_INSECURE_HATCH, &[]),
             ));
         } else if !url.starts_with("rediss://") {
             findings.push(SecurityFinding::new(
                 FindingLevel::Critical,
                 "tls-enforcement",
-                "redis_url does not use the rediss:// scheme; traffic is not TLS-enforced",
+                t(MSG_SECURITY_DOCTOR_TLS_NO_REDISS, &[]),
             ));
         } else {
             findings.push(SecurityFinding::new(
                 FindingLevel::Ok,
                 "tls-enforcement",
-                "redis_url uses rediss:// and the insecure escape hatch is unset",
+                t(MSG_SECURITY_DOCTOR_TLS_OK, &[]),
             ));
         }
     }
@@ -211,39 +232,39 @@ pub fn audit(config: &CacheConfig) -> SecurityReport {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "null-sentinel",
-            "null_cache_ttl is not set; cache-penetration guard is incomplete",
+            t(MSG_SECURITY_DOCTOR_NULL_TTL_OFF, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "null-sentinel",
-            "null_cache_ttl is set; cache-penetration guard is active",
+            t(MSG_SECURITY_DOCTOR_NULL_TTL_ON, &[]),
         ));
     }
     if config.ttl_jitter_factor.is_none() {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "ttl-jitter",
-            "ttl_jitter_factor is not set; synchronized expiry may cause stampede",
+            t(MSG_SECURITY_DOCTOR_TTL_JITTER_OFF, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "ttl-jitter",
-            "ttl_jitter_factor is set; expiry is jittered",
+            t(MSG_SECURITY_DOCTOR_TTL_JITTER_ON, &[]),
         ));
     }
     if config.metrics_enabled == Some(false) {
         findings.push(SecurityFinding::new(
             FindingLevel::Warning,
             "security-metrics",
-            "metrics are explicitly disabled; security counters are not observable",
+            t(MSG_SECURITY_DOCTOR_METRICS_OFF, &[]),
         ));
     } else {
         findings.push(SecurityFinding::new(
             FindingLevel::Ok,
             "security-metrics",
-            "metrics are enabled or left at default; security counters are observable",
+            t(MSG_SECURITY_DOCTOR_METRICS_ON, &[]),
         ));
     }
 

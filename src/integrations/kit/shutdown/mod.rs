@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use crate::i18n::messages::{MSG_DETAIL_KIT_SHUTDOWN_REGISTER_FAILED, t};
 use trait_kit::prelude::*;
 
 use crate::backend::CacheBackend;
@@ -33,7 +34,15 @@ pub fn register_cache_shutdown(
     // Phase 1: StopRequests — no-op for cache backends.
     coord
         .register_hook(ShutdownPhase::StopRequests, || Box::pin(async {}))
-        .map_err(|e| OxCacheError::Internal(format!("shutdown register StopRequests: {e}")))?;
+        .map_err(|e| {
+            OxCacheError::Internal(t(
+                MSG_DETAIL_KIT_SHUTDOWN_REGISTER_FAILED,
+                &[
+                    ("phase", "StopRequests".to_string()),
+                    ("err", e.to_string()),
+                ],
+            ))
+        })?;
 
     // Phase 2: DrainQueue — health-check probe.
     let drain_backend = Arc::clone(&backend);
@@ -43,7 +52,12 @@ pub fn register_cache_shutdown(
                 let _ = drain_backend.health_check().await;
             })
         })
-        .map_err(|e| OxCacheError::Internal(format!("shutdown register DrainQueue: {e}")))?;
+        .map_err(|e| {
+            OxCacheError::Internal(t(
+                MSG_DETAIL_KIT_SHUTDOWN_REGISTER_FAILED,
+                &[("phase", "DrainQueue".to_string()), ("err", e.to_string())],
+            ))
+        })?;
 
     // Phase 3: CloseConnections — actual shutdown.
     let close_backend = Arc::clone(&backend);
@@ -53,7 +67,15 @@ pub fn register_cache_shutdown(
                 close_backend.shutdown().await;
             })
         })
-        .map_err(|e| OxCacheError::Internal(format!("shutdown register CloseConnections: {e}")))?;
+        .map_err(|e| {
+            OxCacheError::Internal(t(
+                MSG_DETAIL_KIT_SHUTDOWN_REGISTER_FAILED,
+                &[
+                    ("phase", "CloseConnections".to_string()),
+                    ("err", e.to_string()),
+                ],
+            ))
+        })?;
 
     Ok(())
 }

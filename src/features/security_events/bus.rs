@@ -7,6 +7,7 @@ use super::signal::SecuritySignal;
 use super::{DEFAULT_CHANNEL, DEFAULT_SIGNAL_TTL};
 use crate::error::OxCacheResult;
 use crate::features::invalidation::{ListenerHandle, PubSubTransport};
+use crate::i18n::messages::{MSG_LOG_SECURITY_EVENTS_PUBLISH_FAILED, t};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -157,7 +158,7 @@ impl SecurityEventBus {
                     #[cfg(feature = "telemetry")]
                     tracing::warn!(
                         target: "oxcache::security_events",
-                        "publish security signal failed: {err}"
+                        "{}", t(MSG_LOG_SECURITY_EVENTS_PUBLISH_FAILED, &[("err", err.to_string())])
                     );
                     #[cfg(not(feature = "telemetry"))]
                     let _ = err;

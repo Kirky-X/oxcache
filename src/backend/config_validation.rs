@@ -3,6 +3,10 @@
 //! Configuration validation constants and utilities
 
 use crate::error::{OxCacheError, OxCacheResult};
+use crate::i18n::messages::{
+    MSG_DETAIL_CONFIG_CUSTOM_NAME_EMPTY, MSG_DETAIL_CONFIG_CUSTOM_NAME_INVALID_CHAR,
+    MSG_DETAIL_CONFIG_CUSTOM_NAME_TOO_LONG, MSG_DETAIL_CONFIG_INFO_QUERY_FAILED, t,
+};
 
 /// 配置验证常量
 #[derive(Debug, Clone, Copy)]
@@ -34,10 +38,12 @@ impl ConfigValidation {
     /// - `Err(OxCacheError::Connection)` — 连接失败或命令执行失败
     #[cfg(feature = "redis")]
     pub fn detect_valkey(conn: &mut redis::Connection) -> OxCacheResult<bool> {
-        let info: String = redis::cmd("INFO")
-            .arg("server")
-            .query(conn)
-            .map_err(|e| OxCacheError::Connection(format!("Failed to query INFO server: {}", e)))?;
+        let info: String = redis::cmd("INFO").arg("server").query(conn).map_err(|e| {
+            OxCacheError::Connection(t(
+                MSG_DETAIL_CONFIG_INFO_QUERY_FAILED,
+                &[("err", e.to_string())],
+            ))
+        })?;
         // Valkey INFO server 输出本身为小写，直接 contains 即可，无需 to_ascii_lowercase 分配
         Ok(info.contains("valkey"))
     }
@@ -52,23 +58,26 @@ impl ConfigValidation {
     /// 验证自定义名称（单遍扫描：同时检查长度和字符合法性）
     pub fn validate_custom_name(name: &str) -> OxCacheResult<String> {
         if name.is_empty() {
-            return Err(OxCacheError::InvalidInput(
-                "Custom backend name cannot be empty".to_string(),
-            ));
+            return Err(OxCacheError::InvalidInput(t(
+                MSG_DETAIL_CONFIG_CUSTOM_NAME_EMPTY,
+                &[],
+            )));
         }
 
         for (i, ch) in name.char_indices() {
             if i >= Self::MAX_CUSTOM_NAME_LENGTH {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "Custom backend name exceeds maximum length of {} characters",
-                    Self::MAX_CUSTOM_NAME_LENGTH
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_CUSTOM_NAME_TOO_LONG,
+                    &[("max", Self::MAX_CUSTOM_NAME_LENGTH.to_string())],
                 )));
             }
             if !Self::is_valid_name_char(ch) {
-                return Err(OxCacheError::InvalidInput(format!(
-                    "Custom backend name contains invalid character '{}'. Allowed characters: {}",
-                    ch,
-                    Self::VALID_NAME_CHARS
+                return Err(OxCacheError::InvalidInput(t(
+                    MSG_DETAIL_CONFIG_CUSTOM_NAME_INVALID_CHAR,
+                    &[
+                        ("ch", ch.to_string()),
+                        ("allowed", Self::VALID_NAME_CHARS.to_string()),
+                    ],
                 )));
             }
         }
