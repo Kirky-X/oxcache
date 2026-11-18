@@ -54,12 +54,16 @@ pub struct NamespaceQuota {
     pub overflow_policy: OverflowPolicy,
 }
 
+/// 配额登记表：键 → (字节数, 插入时刻)
+type QuotaLedger = dashmap::DashMap<Arc<str>, (u64, std::time::Instant)>;
+
 /// 命名空间边界守卫装饰器
 pub struct NamespaceGuardBackend {
     inner: Arc<dyn CacheBackend>,
     prefix: String,
     policy: NamespacePolicy,
     quota: Option<NamespaceQuota>,
+    ledger: QuotaLedger,
     denied_total: AtomicU64,
 }
 
@@ -91,8 +95,16 @@ impl NamespaceGuardBackend {
             prefix: normalize_prefix(namespace),
             policy,
             quota,
+            ledger: QuotaLedger::new(),
             denied_total: AtomicU64::new(0),
         }
+    }
+
+    /// 当前配额占用：(条目数, 字节数)
+    pub fn quota_usage(&self) -> (u64, u64) {
+        let entries = self.ledger.len() as u64;
+        let bytes = self.ledger.iter().map(|e| e.value().0).sum();
+        (entries, bytes)
     }
 
     /// 当前配额配置（无配额时为 `None`）
@@ -155,6 +167,110 @@ impl NamespaceGuardBackend {
             ],
         ))
     }
+
+    /// 写入前的配额准入检查；超限按策略拒绝或淘汰最旧条目。
+    async fn admit_write(&self, key: &Arc<str>, bytes: u64) -> OxCacheResult<()> {
+        let Some(quota) = self.quota.as_ref() else {
+            return Ok(());
+        };
+        // 已存在的键覆盖写不增加条目数，仅按字节差检查
+        let current = self.ledger.get(key).map(|e| (e.value().0, e.value().1));
+        let entries = self.ledger.len() as u64;
+        let existing_bytes = current.map(|(b, _)| b).unwrap_or(0);
+        let new_bytes = bytes;
+        let projected_bytes =
+            self.ledger.iter().map(|e| e.value().0).sum::<u64>() - existing_bytes + new_bytes;
+        let projected_entries = if current.is_some() {
+            entries
+        } else {
+            entries + 1
+        };
+
+        if projected_entries <= quota.max_entries && projected_bytes <= quota.max_bytes {
+            return Ok(());
+        }
+        match quota.overflow_policy {
+            OverflowPolicy::Reject => {
+                self.record_quota_rejected();
+                Err(self.deny_key(key))
+            }
+            OverflowPolicy::EvictOldestInNamespace => {
+                self.evict_oldest_until(projected_entries, projected_bytes, quota)
+                    .await
+            }
+        }
+    }
+
+    /// 按插入时间从旧到新淘汰，直至新写入可容纳
+    async fn evict_oldest_until(
+        &self,
+        mut projected_entries: u64,
+        mut projected_bytes: u64,
+        quota: &NamespaceQuota,
+    ) -> OxCacheResult<()> {
+        let mut victims: Vec<(Arc<str>, std::time::Instant)> = self
+            .ledger
+            .iter()
+            .map(|e| (e.key().clone(), e.value().1))
+            .collect();
+        victims.sort_by_key(|(_, at)| *at);
+        for (victim, _at) in victims {
+            if projected_entries <= quota.max_entries && projected_bytes <= quota.max_bytes {
+                break;
+            }
+            if let Some((victim_bytes, _)) = self.ledger.get(&victim).map(|e| *e.value()) {
+                self.inner.delete(&victim).await?;
+                self.ledger.remove(&victim);
+                projected_bytes -= victim_bytes;
+                projected_entries -= 1;
+                self.update_usage_gauges();
+                self.record_quota_evicted();
+            }
+        }
+        Ok(())
+    }
+
+    /// 删除后回收登记表并更新 gauge
+    fn release_key(&self, key: &str) {
+        if self.ledger.remove(key).is_some() {
+            self.update_usage_gauges();
+        }
+    }
+
+    /// 登记写入占用并更新 gauge
+    fn record_write(&self, key: Arc<str>, bytes: u64) {
+        self.ledger.insert(key, (bytes, std::time::Instant::now()));
+        self.update_usage_gauges();
+    }
+
+    #[cfg(feature = "metrics")]
+    fn update_usage_gauges(&self) {
+        let (entries, bytes) = self.quota_usage();
+        let metrics = &crate::infra::GLOBAL_UNIFIED_METRICS;
+        metrics.set_gauge("oxcache_namespace_entries", entries as f64);
+        metrics.set_gauge("oxcache_namespace_bytes", bytes as f64);
+    }
+
+    #[cfg(not(feature = "metrics"))]
+    fn update_usage_gauges(&self) {}
+
+    #[cfg(feature = "metrics")]
+    fn record_quota_rejected(&self) {
+        crate::infra::GLOBAL_UNIFIED_METRICS
+            .increment_counter("oxcache_namespace_quota_rejected_total", 1);
+    }
+
+    #[cfg(not(feature = "metrics"))]
+    fn record_quota_rejected(&self) {}
+
+    #[cfg(feature = "metrics")]
+    fn record_quota_evicted(&self) {
+        crate::infra::GLOBAL_UNIFIED_METRICS
+            .increment_counter("oxcache_namespace_quota_evicted_total", 1);
+    }
+
+    #[cfg(not(feature = "metrics"))]
+    fn record_quota_evicted(&self) {}
 }
 
 /// 把命名空间归一化为以 `':'` 结尾的前缀；已带尾冒号时不重复追加
@@ -229,14 +345,20 @@ impl CacheWriter for NamespaceGuardBackend {
         if !self.is_in_namespace(&key) {
             return Err(self.deny_key(&key));
         }
-        self.inner.set(key, value, ttl).await
+        let bytes = value.len() as u64;
+        self.admit_write(&key, bytes).await?;
+        self.inner.set(key.clone(), value, ttl).await?;
+        self.record_write(key, bytes);
+        Ok(())
     }
 
     async fn delete(&self, key: &str) -> OxCacheResult<()> {
         if !self.is_in_namespace(key) {
             return Err(self.deny_key(key));
         }
-        self.inner.delete(key).await
+        self.inner.delete(key).await?;
+        self.release_key(key);
+        Ok(())
     }
 
     async fn clear(&self) -> OxCacheResult<()> {
@@ -251,12 +373,17 @@ impl CacheWriter for NamespaceGuardBackend {
     }
 
     async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
-        for (key, _, _) in items {
+        for (key, value, _) in items {
             if !self.is_in_namespace(key) {
                 return Err(self.deny_key(key));
             }
+            self.admit_write(key, value.len() as u64).await?;
         }
-        self.inner.set_many(items).await
+        self.inner.set_many(items).await?;
+        for (key, value, _) in items {
+            self.record_write(key.clone(), value.len() as u64);
+        }
+        Ok(())
     }
 
     async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
@@ -265,7 +392,11 @@ impl CacheWriter for NamespaceGuardBackend {
                 return Err(self.deny_key(key));
             }
         }
-        self.inner.delete_many(keys).await
+        self.inner.delete_many(keys).await?;
+        for key in keys {
+            self.release_key(key);
+        }
+        Ok(())
     }
 }
 
@@ -450,5 +581,122 @@ mod tests {
         let (guard, _inner) = guarded();
         let result = guard.clear().await;
         assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+    }
+
+    fn quota_guard(
+        max_entries: u64,
+        max_bytes: u64,
+        policy: OverflowPolicy,
+    ) -> NamespaceGuardBackend {
+        NamespaceGuardBackend::with_quota(
+            Arc::new(MockBackend::new("mock", 100, false)),
+            "tenant:acme",
+            NamespacePolicy::Isolated,
+            NamespaceQuota {
+                max_entries,
+                max_bytes,
+                overflow_policy: policy,
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn quota_reject_at_entry_limit_and_release_after_delete() {
+        use crate::backend::CacheWriter;
+        let guard = quota_guard(2, 1000, OverflowPolicy::Reject);
+        guard
+            .set(Arc::from("tenant:acme:k1"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        guard
+            .set(Arc::from("tenant:acme:k2"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        assert_eq!(guard.quota_usage().0, 2);
+        let err = guard
+            .set(Arc::from("tenant:acme:k3"), Arc::new(vec![1u8; 10]), None)
+            .await;
+        assert!(matches!(err, Err(OxCacheError::AccessDenied(_))));
+        assert_eq!(guard.quota_usage().0, 2);
+        guard.delete("tenant:acme:k1").await.unwrap();
+        assert_eq!(guard.quota_usage().0, 1);
+        guard
+            .set(Arc::from("tenant:acme:k3"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        assert_eq!(guard.quota_usage().0, 2);
+    }
+
+    #[tokio::test]
+    async fn quota_reject_at_byte_limit() {
+        use crate::backend::CacheWriter;
+        let guard = quota_guard(10, 25, OverflowPolicy::Reject);
+        guard
+            .set(Arc::from("tenant:acme:k1"), Arc::new(vec![1u8; 20]), None)
+            .await
+            .unwrap();
+        let err = guard
+            .set(Arc::from("tenant:acme:k2"), Arc::new(vec![1u8; 10]), None)
+            .await;
+        assert!(matches!(err, Err(OxCacheError::AccessDenied(_))));
+    }
+
+    #[tokio::test]
+    async fn evict_oldest_frees_space_for_new_key() {
+        use crate::backend::{CacheReader, CacheWriter};
+        let guard = quota_guard(2, 1000, OverflowPolicy::EvictOldestInNamespace);
+        guard
+            .set(Arc::from("tenant:acme:old"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        guard
+            .set(Arc::from("tenant:acme:mid"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        guard
+            .set(Arc::from("tenant:acme:new"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        assert_eq!(guard.quota_usage().0, 2);
+        assert_eq!(guard.get("tenant:acme:old").await.unwrap(), None);
+        assert!(guard.get("tenant:acme:mid").await.unwrap().is_some());
+        assert!(guard.get("tenant:acme:new").await.unwrap().is_some());
+    }
+
+    #[cfg(feature = "metrics")]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn quota_usage_gauges_track_writes_and_deletes() {
+        use crate::backend::CacheWriter;
+        use crate::infra::metrics::MetricValue;
+        let guard = quota_guard(10, 10000, OverflowPolicy::Reject);
+        guard
+            .set(Arc::from("tenant:acme:k1"), Arc::new(vec![0u8; 100]), None)
+            .await
+            .unwrap();
+        guard
+            .set(Arc::from("tenant:acme:k2"), Arc::new(vec![0u8; 100]), None)
+            .await
+            .unwrap();
+        let snapshot = crate::infra::GLOBAL_UNIFIED_METRICS.snapshot();
+        assert!(matches!(
+            snapshot.dynamic_metrics.get("oxcache_namespace_entries"),
+            Some(MetricValue::Gauge(2.0))
+        ));
+        assert!(matches!(
+            snapshot.dynamic_metrics.get("oxcache_namespace_bytes"),
+            Some(MetricValue::Gauge(200.0))
+        ));
+        guard.delete("tenant:acme:k1").await.unwrap();
+        guard.delete("tenant:acme:k2").await.unwrap();
+        let snapshot = crate::infra::GLOBAL_UNIFIED_METRICS.snapshot();
+        assert!(matches!(
+            snapshot.dynamic_metrics.get("oxcache_namespace_entries"),
+            Some(MetricValue::Gauge(0.0))
+        ));
+        assert!(matches!(
+            snapshot.dynamic_metrics.get("oxcache_namespace_bytes"),
+            Some(MetricValue::Gauge(0.0))
+        ));
     }
 }
