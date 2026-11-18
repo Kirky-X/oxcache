@@ -427,6 +427,7 @@ where
     /// Constructs a [`Cache`] without awaiting. The default Moka path and the
     /// user-provided backend path are both fully synchronous, so this is
     /// equivalent to [`Self::build`] without an `async` boundary.
+    #[cfg_attr(not(feature = "namespace-guard"), allow(unused_mut))]
     pub fn build_sync(mut self) -> OxCacheResult<Cache<K, V>> {
         #[cfg(feature = "namespace-guard")]
         let ns_config = self.take_namespace_config();

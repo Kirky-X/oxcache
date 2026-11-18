@@ -39,6 +39,10 @@ pub mod pattern;
 #[cfg(feature = "redis")]
 pub mod validation;
 
+/// 安全配置自审计（`doctor` feature）：编译期能力盘点 + 运行时配置盘点
+#[cfg(feature = "doctor")]
+pub mod doctor;
+
 mod security_impl;
 
 // Re-exports for convenience (used by external tests via lib.rs re-exports)

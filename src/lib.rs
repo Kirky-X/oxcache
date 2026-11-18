@@ -366,6 +366,8 @@ pub use infra::{MetricsRecorder, NoOpMetricsRecorder, UnifiedMetricsRecorder};
 
 // Re-exports from security module (new brick architecture)
 // 脱敏助手不依赖 redis 后端，任何构建均可用（telemetry/stale/offload 埋点需要）
+#[cfg(feature = "doctor")]
+pub use crate::security::doctor::{FindingLevel, SecurityFinding, SecurityReport, audit};
 pub use crate::security::{
     Redacted, redact_cache_key, redact_connection_string, redact_field, redact_value,
 };
