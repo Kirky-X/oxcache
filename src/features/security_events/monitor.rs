@@ -94,6 +94,42 @@ mod tests {
         assert_eq!(controller.state(), DegradationState::Degraded);
     }
 
+    #[cfg(feature = "metrics")]
+    #[test]
+    #[serial_test::serial]
+    fn fencing_signal_increments_counter_without_degrading() {
+        use crate::infra::metrics::MetricValue;
+        let controller = Arc::new(DegradationController::new(3, Duration::from_secs(60)));
+        let responder = degradation_responder(controller.clone());
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_security_fencing_anomaly_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        responder.on_signal(&fencing());
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_security_fencing_anomaly_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        assert!(after > before, "before={before} after={after}");
+        assert_eq!(controller.state(), DegradationState::Active);
+    }
+
     #[test]
     fn fencing_signal_does_not_change_state() {
         let controller = Arc::new(DegradationController::new(3, Duration::from_secs(60)));
