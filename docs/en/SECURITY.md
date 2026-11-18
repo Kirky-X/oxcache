@@ -81,6 +81,43 @@ Exemptions do not constitute security behavior changes; dependency failure and d
 - [📖 User Guide](USER_GUIDE.md) — configuration and secure usage
 - [🏠 README](../../README.md) — capability list and built-in security notes
 
+## 🔍 Security self-audit (`doctor` feature)
+
+`audit()` checks two sources of truth: compiled-in capabilities (`cfg!` feature flags) and runtime configuration (`CacheConfig`). It returns a structured `SecurityReport` that CI or startup code can consume programmatically:
+
+```rust
+use oxcache::config::CacheConfig;
+use oxcache::audit;
+
+let report = audit(&CacheConfig::default());
+assert!(report.findings.iter().any(|f| f.capability == "value-encryption"));
+if !report.is_production_ready() {
+    eprintln!("{}", report.render());
+}
+```
+
+`render()` prints `[OK]` / `[WARN]` / `[CRIT]` per finding plus a summary line with critical/warning counts. An `AuditEventPublisher` injected at build time is not visible to `CacheConfig`, so the `audit-trail` finding checks only whether the `audit` feature was compiled.
+
+Finding list:
+
+| Capability | Trigger | Level |
+|------------|---------|:-----:|
+| `value-encryption` | `encrypt` feature absent | Critical |
+| `tamper-detection` | `integrity` feature absent | Warning |
+| `audit-trail` | `audit` feature absent | Warning |
+| `negative-query-guard` | `bloom` feature absent | Warning |
+| `lua-sandbox` | `lua` feature absent and `redis_url` set | Warning |
+| `tls-enforcement` | `redis_url` set without `rediss://`, escape hatch set, or `redis` feature absent | Critical |
+| `null-sentinel` | `null_cache_ttl` is `None` | Warning |
+| `ttl-jitter` | `ttl_jitter_factor` is `None` | Warning |
+| `security-metrics` | `metrics_enabled == Some(false)` | Warning |
+
+Run the reproducible example (default features report `[CRIT] value-encryption` and exit with code 1):
+
+```bash
+cargo run --example security_doctor --features doctor
+```
+
 ## 🛡️ In-Library Defense Overview
 
 > This section was migrated from the README security chapter: a quick overview of the multiple layers of defense built into the library.

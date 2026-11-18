@@ -856,6 +856,7 @@ cd examples && ls src/*/*.rs
 | `example_compression` | Data compression (`JsonSerializer::with_compression()`) |
 | `example_security` | Data redaction (`redact_value` / `redact_connection_string`) |
 | `example_security_validation` | Security validation (`validate_redis_key` / `validate_lua_script`) |
+| `security_doctor` | Security self-audit (`audit()` / `SecurityReport`; run with `cargo run --example security_doctor --features doctor`) |
 | `example_bloom_filter` | Bloom filter (`BloomFilter` / `BloomFilterBackend`) |
 | `example_i18n` | Internationalization (`CacheI18nFormatter`) |
 | `example_events` | Event system (`CacheEvent` / `CacheEventType`) |

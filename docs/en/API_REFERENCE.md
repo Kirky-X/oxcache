@@ -1286,6 +1286,7 @@ oxcache = { version = "0.5.1", features = ["full"] }      # true full: every nam
 | `encrypt` | Value-level encryption decorator (XChaCha20-Poly1305, key bound as AAD) | ❌ |
 | `integrity` | Value integrity decorator (HMAC-SHA256, verification failure counts as a miss) | ❌ |
 | `namespace-guard` | Namespace boundary decorator: key/pattern ownership checks + per-namespace quota (requires `memory`) | ❌ |
+| `doctor` | Security configuration self-audit API (`audit()` / `SecurityReport`); zero dependencies | ❌ |
 | `serde-bincode` | bincode 2 binary serialization format | ❌ |
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | confers config-driven build + `ConfigBus` watch hot reload | ❌ |
