@@ -24,6 +24,7 @@ use crate::i18n::messages::{
 use crate::security::redaction::redact_cache_key;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// 命名空间隔离策略。Isolated：命名空间前缀之外的键一律拒绝。
@@ -58,6 +59,7 @@ pub struct NamespaceGuardBackend {
     inner: Arc<dyn CacheBackend>,
     prefix: String,
     policy: NamespacePolicy,
+    denied_total: AtomicU64,
 }
 
 impl NamespaceGuardBackend {
@@ -67,6 +69,7 @@ impl NamespaceGuardBackend {
             inner,
             prefix: normalize_prefix(namespace),
             policy,
+            denied_total: AtomicU64::new(0),
         }
     }
 
@@ -78,6 +81,18 @@ impl NamespaceGuardBackend {
     /// 当前策略
     pub fn policy(&self) -> NamespacePolicy {
         self.policy
+    }
+
+    /// 累计拒绝次数
+    pub fn denied_total(&self) -> u64 {
+        self.denied_total.load(Ordering::Relaxed)
+    }
+
+    /// 记录一次拒绝并更新指标
+    fn record_denied(&self) {
+        self.denied_total.fetch_add(1, Ordering::Relaxed);
+        #[cfg(feature = "metrics")]
+        crate::infra::GLOBAL_UNIFIED_METRICS.increment_counter("oxcache_namespace_denied_total", 1);
     }
 
     /// 键是否属于本命名空间
@@ -92,6 +107,7 @@ impl NamespaceGuardBackend {
 
     /// 拒绝键访问的错误（键文本经脱敏）
     fn deny_key(&self, key: &str) -> OxCacheError {
+        self.record_denied();
         OxCacheError::AccessDenied(t(
             MSG_DETAIL_NAMESPACE_ACCESS_DENIED,
             &[
@@ -103,6 +119,7 @@ impl NamespaceGuardBackend {
 
     /// 拒绝模式访问的错误（模式文本经脱敏）
     fn deny_pattern(&self, pattern: &str) -> OxCacheError {
+        self.record_denied();
         OxCacheError::AccessDenied(t(
             MSG_DETAIL_NAMESPACE_PATTERN_ACCESS_DENIED,
             &[
@@ -313,6 +330,25 @@ mod tests {
         let guard =
             NamespaceGuardBackend::new(inner.clone(), "tenant:acme", NamespacePolicy::Isolated);
         (guard, inner)
+    }
+
+    #[tokio::test]
+    async fn denied_total_increments_for_each_rejection() {
+        use crate::backend::CacheReader;
+        let (guard, _inner) = guarded();
+        assert_eq!(guard.denied_total(), 0);
+        for _ in 0..3 {
+            assert!(guard.get("tenant:other:key").await.is_err());
+        }
+        assert_eq!(guard.denied_total(), 3);
+    }
+
+    #[tokio::test]
+    async fn in_namespace_access_does_not_increment_denied_total() {
+        use crate::backend::CacheReader;
+        let (guard, _inner) = guarded();
+        guard.get("tenant:acme:key").await.unwrap();
+        assert_eq!(guard.denied_total(), 0);
     }
 
     #[tokio::test]
