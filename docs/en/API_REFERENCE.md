@@ -94,6 +94,7 @@ Some features require or imply other features:
 | `warmup` | `memory` | Smart warm-up (operates on `ChainCache`) |
 | `classification` | `encrypt`, `serialization` | Sensitive classification backend (selective encryption + TTL cap) |
 | `provenance` | `memory`, `serialization` | Provenance backend (source trust + freshness checks) |
+| `security-events` | `invalidation`, `degradation` | Cross-instance security signal bus + degradation responder |
 
 The "required features" column above lists only cargo features (`dep:` dependencies are not repeated; words like `dashmap`/`moka`/
 `hmac` denote activation of the corresponding optional dependencies, not features of this crate). The `default` preset is
@@ -871,6 +872,27 @@ prov.set_with_provenance(
 
 Decorators compose through `CacheBuilder::backend_arc`; recommended order: `Classifying → Integrity → Provenance → backend`. Envelope version bytes may be equal across decorators; each layer parses only its own format.
 
+### Security event correlation (`security-events` feature)
+
+`SecurityEventBus` publishes and receives `SecuritySignal` values over the existing Pub/Sub transport. Receivers apply an instance-ID self-exemption and drop signals older than `signal_ttl` (default 30s). A pluggable `SecurityResponder` decides the action; the default `degradation_responder` degrades shared L2 on repeated integrity failures.
+
+```rust
+use oxcache::{
+    degradation_responder, SecurityEventBus, SecurityEventConfig,
+};
+
+let transport = std::sync::Arc::new(oxcache::features::invalidation::InMemoryPubSubTransport::new());
+let bus = std::sync::Arc::new(SecurityEventBus::new(
+    transport,
+    SecurityEventConfig::new("node-a"),
+));
+let responder = degradation_responder(controller.clone());
+let handle = bus.spawn_listener(responder).await?;
+// IntegrityBackend::new(inner, key).with_failure_threshold(3).with_security_hook(bus.hook())
+```
+
+Detection points: `IntegrityBackend` emits `IntegrityCompromised` after `failure_threshold` consecutive HMAC failures (default 3; key name redacted); `RedLock` emits `FencingAnomaly` when a node's fencing token regresses. Both hooks are cfg-gated. Pub/Sub is an internal trusted network — signals carry no authentication signature.
+
 ## 🔒 Security Features
 
 Security functions are re-exported at the **crate root**, not under `oxcache::security`:
@@ -1321,6 +1343,7 @@ oxcache = { version = "0.5.1", features = ["full"] }      # true full: every nam
 | `doctor` | Security configuration self-audit API (`audit()` / `SecurityReport`); zero dependencies | ❌ |
 | `classification` | Data classification: `RuleSetClassifier` + `ClassifyingBackend` (Sensitive entries encrypted with a TTL cap) | ❌ |
 | `provenance` | Write provenance: `ProvenanceBackend` + `set_with_provenance` (trusted-source and staleness checks on read) | ❌ |
+| `security-events` | Cross-instance security signals: `SecurityEventBus` + `SecuritySignal` + pluggable `SecurityResponder` (requires `invalidation`/`degradation`) | ❌ |
 | `serde-bincode` | bincode 2 binary serialization format | ❌ |
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | confers config-driven build + `ConfigBus` watch hot reload | ❌ |

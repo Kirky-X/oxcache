@@ -134,6 +134,7 @@ cargo run --example security_doctor --features doctor
 | Namespace boundary | `namespace-guard` decorator rejects keys/patterns outside the declared namespace with `AccessDenied`; `clear()` is rejected under `Isolated`; per-namespace quotas bound entries and bytes |
 | Data classification | `classification` decorator encrypts `Sensitive` keys (AAD binds key name) and caps their TTL; only a minority of keys carry protection cost |
 | Provenance constraint | `provenance` decorator rejects reads from untrusted or stale sources and deletes the entry; guards against poisoned writes that HMAC integrity cannot detect |
+| Cross-instance security signals | `security-events` broadcasts integrity/fencing signals over the internal Pub/Sub channel (trusted network boundary); signals older than `signal_ttl` (30s default) are dropped; the default responder degrades shared L2 as a transient mitigation — root cause still requires key rotation or data cleanup |
 | Deserialization DoS guard | `MAX_JSON_DEPTH` (64 levels) depth limit + `MAX_JSON_SIZE` (5 MB) deserialization size cap + 64 MiB decompressed-output cap (decompression-bomb guard) + stack-based recursion (`serde_stacker`) |
 | Supply chain | Every third-party GitHub Action pinned by commit SHA in CI; `cargo deny check` (advisories / licenses / duplicate deps, see `deny.toml`) and `cargo audit` always on |
 
