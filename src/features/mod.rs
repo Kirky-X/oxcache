@@ -109,3 +109,6 @@ pub use versioning::{MemoryVersionedCache, VersionedStore, VersionedValue};
 
 #[cfg(all(feature = "versioning", feature = "redis"))]
 pub use versioning::RedisVersionedCache;
+
+#[cfg(feature = "namespace-guard")]
+pub use namespace_guard::{NamespaceGuardBackend, NamespacePolicy, NamespaceQuota, OverflowPolicy};

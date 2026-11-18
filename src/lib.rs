@@ -237,6 +237,12 @@ pub use redis;
 #[cfg(feature = "encrypt")]
 pub use features::encryption;
 
+// Namespace boundary guard (`namespace-guard` feature)
+#[cfg(feature = "namespace-guard")]
+pub use features::namespace_guard::{
+    NamespaceGuardBackend, NamespacePolicy, NamespaceQuota, OverflowPolicy,
+};
+
 // Batch writer (optional, gated by `batch` feature)
 #[cfg(feature = "batch")]
 pub mod batch;
