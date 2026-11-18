@@ -207,6 +207,11 @@ name = "modern_api_benchmark"
 harness = false
 required-features = ["minimal"]
 
+[[example]]
+name = "security_doctor"
+path = "examples/src/06_features/example_security_doctor.rs"
+required-features = ["doctor"]
+
 [[bench]]
 name = "hot_path_benchmark"
 harness = false
