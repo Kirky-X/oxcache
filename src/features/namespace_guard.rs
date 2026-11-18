@@ -15,13 +15,16 @@
 //! // backend.get("tenant:other:key") → Err(OxCacheError::AccessDenied(..))
 //! ```
 
-use crate::backend::CacheBackend;
-use crate::error::OxCacheError;
+use crate::backend::interface::{BackendKind, CacheSetItem};
+use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
+use crate::error::{OxCacheError, OxCacheResult};
 use crate::i18n::messages::{
     MSG_DETAIL_NAMESPACE_ACCESS_DENIED, MSG_DETAIL_NAMESPACE_PATTERN_ACCESS_DENIED, t,
 };
 use crate::security::redaction::redact_cache_key;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 /// 命名空间隔离策略。Isolated：命名空间前缀之外的键一律拒绝。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,14 +54,12 @@ pub struct NamespaceQuota {
 }
 
 /// 命名空间边界守卫装饰器
-#[allow(dead_code)] // T004 将接入转发路径；中间态允许未使用的字段与 helper
 pub struct NamespaceGuardBackend {
     inner: Arc<dyn CacheBackend>,
     prefix: String,
     policy: NamespacePolicy,
 }
 
-#[allow(dead_code)] // T004 将接入转发路径；中间态允许未使用的 helper
 impl NamespaceGuardBackend {
     /// 包装内层后端，声明命名空间与策略
     pub fn new(inner: Arc<dyn CacheBackend>, namespace: &str, policy: NamespacePolicy) -> Self {
@@ -118,6 +119,129 @@ fn normalize_prefix(namespace: &str) -> String {
         namespace.to_string()
     } else {
         format!("{namespace}:")
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheReader for NamespaceGuardBackend {
+    async fn get(&self, key: &str) -> OxCacheResult<Option<Vec<u8>>> {
+        if !self.is_in_namespace(key) {
+            return Err(self.deny_key(key));
+        }
+        self.inner.get(key).await
+    }
+
+    async fn exists(&self, key: &str) -> OxCacheResult<bool> {
+        if !self.is_in_namespace(key) {
+            return Err(self.deny_key(key));
+        }
+        self.inner.exists(key).await
+    }
+
+    async fn ttl(&self, key: &str) -> OxCacheResult<Option<Duration>> {
+        if !self.is_in_namespace(key) {
+            return Err(self.deny_key(key));
+        }
+        self.inner.ttl(key).await
+    }
+
+    async fn len(&self) -> OxCacheResult<u64> {
+        self.inner.len().await
+    }
+
+    async fn capacity(&self) -> OxCacheResult<u64> {
+        self.inner.capacity().await
+    }
+
+    async fn stats(&self) -> OxCacheResult<HashMap<String, String>> {
+        self.inner.stats().await
+    }
+
+    async fn get_many(&self, keys: &[String]) -> OxCacheResult<Vec<Option<Vec<u8>>>> {
+        for key in keys {
+            if !self.is_in_namespace(key) {
+                return Err(self.deny_key(key));
+            }
+        }
+        self.inner.get_many(keys).await
+    }
+
+    async fn keys(&self, pattern: &str) -> OxCacheResult<Vec<String>> {
+        if !self.pattern_in_namespace(pattern) {
+            return Err(self.deny_pattern(pattern));
+        }
+        self.inner.keys(pattern).await
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheWriter for NamespaceGuardBackend {
+    async fn set(
+        &self,
+        key: Arc<str>,
+        value: Arc<Vec<u8>>,
+        ttl: Option<Duration>,
+    ) -> OxCacheResult<()> {
+        if !self.is_in_namespace(&key) {
+            return Err(self.deny_key(&key));
+        }
+        self.inner.set(key, value, ttl).await
+    }
+
+    async fn delete(&self, key: &str) -> OxCacheResult<()> {
+        if !self.is_in_namespace(key) {
+            return Err(self.deny_key(key));
+        }
+        self.inner.delete(key).await
+    }
+
+    async fn clear(&self) -> OxCacheResult<()> {
+        Err(self.deny_pattern("*"))
+    }
+
+    async fn expire(&self, key: &str, ttl: Duration) -> OxCacheResult<bool> {
+        if !self.is_in_namespace(key) {
+            return Err(self.deny_key(key));
+        }
+        self.inner.expire(key, ttl).await
+    }
+
+    async fn set_many(&self, items: &[CacheSetItem]) -> OxCacheResult<()> {
+        for (key, _, _) in items {
+            if !self.is_in_namespace(key) {
+                return Err(self.deny_key(key));
+            }
+        }
+        self.inner.set_many(items).await
+    }
+
+    async fn delete_many(&self, keys: &[String]) -> OxCacheResult<()> {
+        for key in keys {
+            if !self.is_in_namespace(key) {
+                return Err(self.deny_key(key));
+            }
+        }
+        self.inner.delete_many(keys).await
+    }
+}
+
+#[async_trait::async_trait]
+impl CacheConnector for NamespaceGuardBackend {
+    async fn health_check(&self) -> OxCacheResult<()> {
+        self.inner.health_check().await
+    }
+
+    async fn shutdown(&self) {
+        self.inner.shutdown().await;
+    }
+
+    fn backend_kind(&self) -> BackendKind {
+        self.inner.backend_kind()
+    }
+
+    fn as_pattern_ops(&self) -> Option<&dyn crate::backend::CachePatternOps> {
+        // 守卫自身接管模式校验，不委托内层的原生模式操作（否则越界模式会绕过校验）
+        None
     }
 }
 
@@ -182,5 +306,86 @@ mod tests {
     #[test]
     fn policy_is_exposed() {
         assert_eq!(guard("tenant:acme").policy(), NamespacePolicy::Isolated);
+    }
+
+    fn guarded() -> (NamespaceGuardBackend, Arc<MockBackend>) {
+        let inner = Arc::new(MockBackend::new("mock", 100, false));
+        let guard =
+            NamespaceGuardBackend::new(inner.clone(), "tenant:acme", NamespacePolicy::Isolated);
+        (guard, inner)
+    }
+
+    #[tokio::test]
+    async fn out_of_namespace_get_is_denied_without_touching_inner() {
+        let (guard, inner) = guarded();
+        inner
+            .set(Arc::from("tenant:other:key"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        let result = guard.get("tenant:other:key").await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+    }
+
+    #[tokio::test]
+    async fn out_of_namespace_set_is_denied_without_writing_inner() {
+        use crate::backend::CacheWriter;
+        let (guard, inner) = guarded();
+        let result = guard
+            .set(Arc::from("tenant:other:key"), Arc::new(b"v".to_vec()), None)
+            .await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+        assert!(!inner.exists("tenant:other:key").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn in_namespace_operations_pass_through() {
+        use crate::backend::CacheWriter;
+        let (guard, _inner) = guarded();
+        guard
+            .set(
+                Arc::from("tenant:acme:key"),
+                Arc::new(b"value".to_vec()),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            guard.get("tenant:acme:key").await.unwrap(),
+            Some(b"value".to_vec())
+        );
+        assert!(guard.exists("tenant:acme:key").await.unwrap());
+        guard.delete("tenant:acme:key").await.unwrap();
+        assert_eq!(guard.get("tenant:acme:key").await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn out_of_namespace_delete_is_denied() {
+        use crate::backend::CacheWriter;
+        let (guard, inner) = guarded();
+        inner
+            .set(Arc::from("tenant:other:key"), Arc::new(b"v".to_vec()), None)
+            .await
+            .unwrap();
+        let result = guard.delete("tenant:other:key").await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+        assert!(inner.exists("tenant:other:key").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn out_of_namespace_pattern_is_denied() {
+        use crate::backend::CacheReader;
+        let (guard, _inner) = guarded();
+        let result = guard.keys("tenant:other:*").await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+        let result = guard.delete_by_pattern("tenant:other:*").await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
+    }
+
+    #[tokio::test]
+    async fn clear_is_always_denied() {
+        use crate::backend::CacheWriter;
+        let (guard, _inner) = guarded();
+        let result = guard.clear().await;
+        assert!(matches!(result, Err(OxCacheError::AccessDenied(_))));
     }
 }
