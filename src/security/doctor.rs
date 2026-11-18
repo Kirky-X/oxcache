@@ -321,15 +321,26 @@ mod tests {
                 "missing {capability}"
             );
         }
+        let enc_level = if cfg!(feature = "encrypt") {
+            FindingLevel::Ok
+        } else {
+            FindingLevel::Critical
+        };
         assert_eq!(
             finding(&report, "value-encryption").unwrap().level,
-            FindingLevel::Critical
+            enc_level
         );
-        for capability in ["tamper-detection", "audit-trail", "negative-query-guard"] {
-            assert_eq!(
-                finding(&report, capability).unwrap().level,
+        for (capability, feature_on) in [
+            ("tamper-detection", cfg!(feature = "integrity")),
+            ("audit-trail", cfg!(feature = "audit")),
+            ("negative-query-guard", cfg!(feature = "bloom")),
+        ] {
+            let level = if feature_on {
+                FindingLevel::Ok
+            } else {
                 FindingLevel::Warning
-            );
+            };
+            assert_eq!(finding(&report, capability).unwrap().level, level);
         }
     }
 
@@ -350,7 +361,10 @@ mod tests {
                 finding(&report, "tls-enforcement").unwrap().level,
                 FindingLevel::Ok
             );
-            assert!(finding(&report, "lua-sandbox").is_none());
+            assert_eq!(
+                finding(&report, "lua-sandbox").map(|f| f.level),
+                Some(FindingLevel::Ok)
+            );
         }
         assert_eq!(
             finding(&report, "null-sentinel").unwrap().level,
