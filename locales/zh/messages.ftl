@@ -29,6 +29,7 @@ error-invalid-key = 无效键：{ $detail }。提供的键不符合所需格式�
 error-lock = 锁错误：{ $detail }。锁可能因之前的 panic 而被毒害。
 error-service-not-found = 服务未找到：{ $detail }。请求的服务配置在 UnifiedConfig 中不存在。
 error-internal = 内部错误：{ $detail }。
+error-access-denied = 命名空间访问被拒绝：{ $detail }。键或模式不属于当前命名空间，或超出命名空间配额。
 
 # -- OxCacheConfigError messages --
 config-missing-field = 缺少必需字段：{ $field }。
@@ -216,6 +217,8 @@ detail-key-generator-part-contains-segment-separator = json_hash_key 的 parts �
 detail-key-generator-key-empty = 缓存键不能为空
 detail-key-generator-key-too-long = 缓存键长度超过最大长度 { $max } 个字符
 detail-key-generator-key-invalid-character = 缓存键包含非法字符：'{ $char }'
+detail-namespace-access-denied = 键 '{ $key }' 不属于命名空间 '{ $namespace }' 或超出其配额
+detail-namespace-pattern-access-denied = 模式 '{ $pattern }' 不属于命名空间 '{ $namespace }'
 
 # -- Bench 诊断消息 --
 bench-skip-service-unreachable = [bench-skip] 所需服务不可达：{ $services }；请按 bench 模块文档启动服务后重跑（例如 docker run -d -p 6379:6379 redis:7-alpine）

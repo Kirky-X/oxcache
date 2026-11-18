@@ -94,6 +94,20 @@ fn test_cache_error_degraded_display() {
 
 #[test]
 #[serial_test::serial]
+fn test_cache_error_access_denied_display() {
+    let err = OxCacheError::AccessDenied("tenant:other:key".to_string());
+    let s = err.to_string();
+    assert!(s.contains("Namespace access denied"), "unexpected: {s}");
+    assert!(s.contains("tenant:other:key"), "unexpected: {s}");
+    assert_eq!(err.code(), "OXCACHE_025");
+    assert_eq!(
+        err.message_id(),
+        super::super::i18n::messages::MSG_ERR_ACCESS_DENIED
+    );
+}
+
+#[test]
+#[serial_test::serial]
 fn test_cache_error_l1_error_display() {
     let err = OxCacheError::L1Error("oom".to_string());
     let s = err.to_string();

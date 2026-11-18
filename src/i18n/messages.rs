@@ -71,6 +71,7 @@ pub const MSG_ERR_INVALID_KEY: &str = "error.invalid_key";
 pub const MSG_ERR_LOCK: &str = "error.lock";
 pub const MSG_ERR_SERVICE_NOT_FOUND: &str = "error.service_not_found";
 pub const MSG_ERR_INTERNAL: &str = "error.internal";
+pub const MSG_ERR_ACCESS_DENIED: &str = "error.access_denied";
 
 // -- OxCacheConfigError messages --
 pub const MSG_CFG_MISSING_FIELD: &str = "config.missing_field";
@@ -306,6 +307,11 @@ pub const MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY: &str = "detail.key_generator.key_e
 pub const MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG: &str = "detail.key_generator.key_too_long";
 pub const MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER: &str =
     "detail.key_generator.key_invalid_character";
+
+// -- 命名空间边界拒绝详情（namespace-guard）--
+pub const MSG_DETAIL_NAMESPACE_ACCESS_DENIED: &str = "detail.namespace.access_denied";
+pub const MSG_DETAIL_NAMESPACE_PATTERN_ACCESS_DENIED: &str =
+    "detail.namespace.pattern_access_denied";
 
 // -- Example binary output messages --
 pub const MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED: &str = "example.redis_modes.feature_disabled";
@@ -2086,6 +2092,7 @@ mod tests {
         MSG_ERR_LOCK,
         MSG_ERR_SERVICE_NOT_FOUND,
         MSG_ERR_INTERNAL,
+        MSG_ERR_ACCESS_DENIED,
         MSG_CFG_MISSING_FIELD,
         MSG_CFG_INVALID_VALUE,
         MSG_CFG_UNSUPPORTED_BACKEND,
@@ -2260,6 +2267,8 @@ mod tests {
         MSG_DETAIL_KEY_GENERATOR_KEY_EMPTY,
         MSG_DETAIL_KEY_GENERATOR_KEY_TOO_LONG,
         MSG_DETAIL_KEY_GENERATOR_KEY_INVALID_CHARACTER,
+        MSG_DETAIL_NAMESPACE_ACCESS_DENIED,
+        MSG_DETAIL_NAMESPACE_PATTERN_ACCESS_DENIED,
         MSG_EXAMPLE_REDIS_MODES_FEATURE_DISABLED,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_REDIS_FEATURE,
         MSG_EXAMPLE_REDIS_MODES_RUN_WITH_EXAMPLES_PACKAGE,

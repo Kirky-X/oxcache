@@ -29,6 +29,7 @@ error-invalid-key = Invalid key: { $detail }. The provided key does not meet the
 error-lock = Lock error: { $detail }. The lock may have been poisoned by a previous panic.
 error-service-not-found = Service not found: { $detail }. The requested service configuration does not exist in the UnifiedConfig.
 error-internal = Internal error: { $detail }.
+error-access-denied = Namespace access denied: { $detail }. The key or pattern is outside the current namespace, or the namespace quota is exceeded.
 
 # -- OxCacheConfigError messages --
 config-missing-field = Missing required field: { $field }.
@@ -216,6 +217,8 @@ detail-key-generator-part-contains-segment-separator = json_hash_key parts must 
 detail-key-generator-key-empty = Cache key cannot be empty
 detail-key-generator-key-too-long = Cache key exceeds maximum length of { $max } characters
 detail-key-generator-key-invalid-character = Cache key contains invalid character: '{ $char }'
+detail-namespace-access-denied = key '{ $key }' is outside namespace '{ $namespace }' or exceeds its quota
+detail-namespace-pattern-access-denied = pattern '{ $pattern }' is outside namespace '{ $namespace }'
 
 # -- Bench diagnostics --
 bench-skip-service-unreachable = [bench-skip] required service unreachable: { $services } — start it as the bench module docs describe and rerun (e.g. docker run -d -p 6379:6379 redis:7-alpine)

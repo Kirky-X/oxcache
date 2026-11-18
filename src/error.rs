@@ -229,6 +229,11 @@ pub enum OxCacheError {
     /// 请求的服务配置在 UnifiedConfig 中不存在
     ServiceNotFound(String),
 
+    /// 命名空间边界拒绝
+    ///
+    /// 键或模式不属于当前命名空间，或超出命名空间配额
+    AccessDenied(String),
+
     /// 内部错误
     ///
     /// 内部组件错误，通常表示不可恢复的内部状态异常
@@ -322,6 +327,7 @@ impl OxCacheError {
             OxCacheError::LockError(_) => "OXCACHE_022",
             OxCacheError::ServiceNotFound(_) => "OXCACHE_023",
             OxCacheError::Internal(_) => "OXCACHE_024",
+            OxCacheError::AccessDenied(_) => "OXCACHE_025",
         }
     }
 
@@ -453,6 +459,7 @@ impl OxCacheError {
             OxCacheError::LockError(_) => crate::i18n::messages::MSG_ERR_LOCK,
             OxCacheError::ServiceNotFound(_) => crate::i18n::messages::MSG_ERR_SERVICE_NOT_FOUND,
             OxCacheError::Internal(_) => crate::i18n::messages::MSG_ERR_INTERNAL,
+            OxCacheError::AccessDenied(_) => crate::i18n::messages::MSG_ERR_ACCESS_DENIED,
         }
     }
 
@@ -498,6 +505,7 @@ impl OxCacheError {
             | OxCacheError::InvalidKey(d)
             | OxCacheError::LockError(d)
             | OxCacheError::ServiceNotFound(d)
+            | OxCacheError::AccessDenied(d)
             | OxCacheError::Internal(d) => vec![("detail", d.clone())],
             OxCacheError::RedisError(e) => vec![("detail", e.to_string())],
             OxCacheError::IoError(e) => vec![("detail", e.to_string())],

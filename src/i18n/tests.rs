@@ -14,6 +14,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_namespace_denied_detail_messages_resolve() {
+        let args: [(&str, String); 2] = [
+            ("namespace", "tenant:acme".to_string()),
+            ("key", "tenant:other:key".to_string()),
+        ];
+        let borrowed: Vec<(&str, &str)> = args.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let msg = messages::lookup(
+            "en",
+            messages::MSG_DETAIL_NAMESPACE_ACCESS_DENIED,
+            &borrowed,
+        )
+        .expect("en namespace detail must resolve");
+        assert!(msg.contains("tenant:acme") && msg.contains("tenant:other:key"));
+        let args: [(&str, String); 2] = [
+            ("namespace", "tenant:acme".to_string()),
+            ("pattern", "other:*".to_string()),
+        ];
+        let borrowed: Vec<(&str, &str)> = args.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let msg = messages::lookup(
+            "zh",
+            messages::MSG_DETAIL_NAMESPACE_PATTERN_ACCESS_DENIED,
+            &borrowed,
+        )
+        .expect("zh namespace pattern detail must resolve");
+        assert!(msg.contains("tenant:acme") && msg.contains("other:*"));
+    }
+
+    #[test]
     fn test_i18n_error_message_id() {
         let err = I18nError::InvalidLocale {
             input: "bad".to_string(),
