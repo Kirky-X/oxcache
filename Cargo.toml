@@ -128,7 +128,12 @@ redis-tier = ["minimal", "redis"]
 # 兼容别名：旧 feature 名 core 转发到 redis-tier
 core = ["redis-tier"]
 # 真全量：全部具名能力 feature（弃用别名 core/red-lock/testing/kit 不入列，用正名）
-full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "test-util", "dragonfly", "aerospike", "lock", "redlock", "offload", "disk", "stale", "bloom", "trait-kit", "telemetry", "invalidation", "pubsub", "encrypt", "integrity", "serde-bincode", "postcard", "config-confers", "degradation", "audit", "versioning", "hotkey", "adaptive-ttl", "warmup", "namespace-guard", "doctor"]
+full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "test-util", "dragonfly", "aerospike", "lock", "redlock", "offload", "disk", "stale", "bloom", "trait-kit", "telemetry", "invalidation", "pubsub", "encrypt", "integrity", "serde-bincode", "postcard", "config-confers", "degradation", "audit", "versioning", "hotkey", "adaptive-ttl", "warmup", "namespace-guard", "doctor", "classification", "provenance"]
+
+# classification：按敏感级别选择性加密 + TTL 上限（复用 encrypt + serialization）
+classification = ["encrypt", "serialization"]
+# provenance：写入来源证明 + 信任/新鲜度读取校验
+provenance = ["memory", "serialization"]
 
 # doctor：安全配置自审计 API（零依赖，任何 feature 组合可编译）
 doctor = []
