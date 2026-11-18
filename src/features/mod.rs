@@ -44,6 +44,9 @@ pub mod adaptive_ttl;
 #[cfg(feature = "versioning")]
 pub mod versioning;
 
+#[cfg(feature = "namespace-guard")]
+pub mod namespace_guard;
+
 #[cfg(feature = "hotkey")]
 pub use hotkey::HotKeyTracker;
 
