@@ -119,11 +119,12 @@ impl ClassifyingBackend {
         &self.classifier
     }
 
-    /// 应用 Sensitive TTL 上限
+    /// 应用 Sensitive TTL 上限：cap-only 时以 cap 作为 TTL
     fn capped_ttl(&self, ttl: Option<Duration>) -> Option<Duration> {
         match (ttl, self.classifier.sensitive_ttl_cap()) {
             (Some(t), Some(cap)) => Some(t.min(cap)),
-            (t, _) => t,
+            (Some(t), None) => Some(t),
+            (None, cap) => cap,
         }
     }
 }
@@ -373,6 +374,85 @@ mod tests {
             .await
             .unwrap();
         assert!(decor.ttl("credential:key").await.unwrap() <= Some(Duration::from_secs(10)));
+    }
+
+    #[tokio::test]
+    async fn cap_only_without_ttl_sets_cap_as_ttl() {
+        let raw = Arc::new(MockBackend::new("mock", 100, false));
+        let c = classifier().with_sensitive_ttl_cap(Duration::from_secs(15));
+        let decor = ClassifyingBackend::new(raw, c, [7u8; 32]);
+        decor
+            .set(
+                Arc::from("credential:key"),
+                Arc::new(b"secret".to_vec()),
+                None,
+            )
+            .await
+            .unwrap();
+        let ttl = decor.ttl("credential:key").await.unwrap().unwrap();
+        assert!(ttl <= Duration::from_secs(15) && ttl > Duration::from_secs(14));
+    }
+
+    #[tokio::test]
+    async fn public_ttl_is_not_capped() {
+        let raw = Arc::new(MockBackend::new("mock", 100, false));
+        let c = classifier().with_sensitive_ttl_cap(Duration::from_secs(10));
+        let decor = ClassifyingBackend::new(raw, c, [7u8; 32]);
+        decor
+            .set(
+                Arc::from("public:key"),
+                Arc::new(b"plain".to_vec()),
+                Some(Duration::from_secs(3600)),
+            )
+            .await
+            .unwrap();
+        let ttl = decor.ttl("public:key").await.unwrap().unwrap();
+        assert!(ttl <= Duration::from_secs(3600) && ttl > Duration::from_secs(3599));
+    }
+
+    #[cfg(feature = "metrics")]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn sensitive_set_increments_classification_counter() {
+        use crate::infra::metrics::MetricValue;
+        let decor = backend();
+        decor
+            .set(Arc::from("public:key"), Arc::new(b"plain".to_vec()), None)
+            .await
+            .unwrap();
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_classification_sensitive_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        decor
+            .set(
+                Arc::from("credential:key"),
+                Arc::new(b"secret".to_vec()),
+                None,
+            )
+            .await
+            .unwrap();
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_classification_sensitive_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        assert_eq!(after, before + 1);
     }
 
     #[tokio::test]

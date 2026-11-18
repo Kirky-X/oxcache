@@ -408,6 +408,45 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "metrics")]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn rejected_read_increments_counter_and_deletes_entry() {
+        use crate::infra::metrics::MetricValue;
+        let decor = backend(true);
+        decor
+            .set(Arc::from("k"), Arc::new(b"plain".to_vec()), None)
+            .await
+            .unwrap();
+        let before = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_provenance_rejected_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        assert_eq!(decor.get("k").await.unwrap(), None);
+        assert!(!decor.exists("k").await.unwrap());
+        let after = crate::infra::GLOBAL_UNIFIED_METRICS
+            .snapshot()
+            .dynamic_metrics
+            .get("oxcache_provenance_rejected_total")
+            .and_then(|v| {
+                if let MetricValue::Counter(n) = v {
+                    Some(*n)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        assert!(after > before, "before={before} after={after}");
+    }
+
     #[tokio::test]
     async fn unprovened_entry_is_rejected_when_policy_denies() {
         let decor = backend(true);
