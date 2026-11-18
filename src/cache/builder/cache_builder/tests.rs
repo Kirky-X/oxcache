@@ -1164,4 +1164,33 @@ mod tests {
             "a cache without an injected publisher must not produce audit events"
         );
     }
+
+    #[cfg(feature = "namespace-guard")]
+    #[tokio::test]
+    async fn builder_namespace_guard_denies_cross_namespace_keys() {
+        use crate::error::OxCacheError;
+        use crate::features::namespace_guard::NamespacePolicy;
+
+        let cache: Cache<String, String> = Cache::builder()
+            .namespace("tenant:acme", NamespacePolicy::Isolated)
+            .build()
+            .await
+            .unwrap();
+
+        cache
+            .set(&"tenant:acme:key".to_string(), &"value".to_string())
+            .await
+            .unwrap();
+        assert_eq!(
+            cache.get(&"tenant:acme:key".to_string()).await.unwrap(),
+            Some("value".to_string())
+        );
+
+        let err = cache
+            .set(&"tenant:other:key".to_string(), &"value".to_string())
+            .await;
+        assert!(matches!(err, Err(OxCacheError::AccessDenied(_))));
+        let err = cache.get(&"tenant:other:key".to_string()).await;
+        assert!(matches!(err, Err(OxCacheError::AccessDenied(_))));
+    }
 }

@@ -59,18 +59,45 @@ pub struct NamespaceGuardBackend {
     inner: Arc<dyn CacheBackend>,
     prefix: String,
     policy: NamespacePolicy,
+    quota: Option<NamespaceQuota>,
     denied_total: AtomicU64,
 }
 
 impl NamespaceGuardBackend {
     /// 包装内层后端，声明命名空间与策略
     pub fn new(inner: Arc<dyn CacheBackend>, namespace: &str, policy: NamespacePolicy) -> Self {
+        Self::build(inner, namespace, policy, None)
+    }
+
+    /// 包装内层后端，并声明命名空间配额
+    pub fn with_quota(
+        inner: Arc<dyn CacheBackend>,
+        namespace: &str,
+        policy: NamespacePolicy,
+        quota: NamespaceQuota,
+    ) -> Self {
+        Self::build(inner, namespace, policy, Some(quota))
+    }
+
+    /// 内部构造器：配额可选，供 builder 与 `new`/`with_quota` 共用
+    fn build(
+        inner: Arc<dyn CacheBackend>,
+        namespace: &str,
+        policy: NamespacePolicy,
+        quota: Option<NamespaceQuota>,
+    ) -> Self {
         Self {
             inner,
             prefix: normalize_prefix(namespace),
             policy,
+            quota,
             denied_total: AtomicU64::new(0),
         }
+    }
+
+    /// 当前配额配置（无配额时为 `None`）
+    pub fn quota(&self) -> Option<&NamespaceQuota> {
+        self.quota.as_ref()
     }
 
     /// 归一化后的命名空间前缀（以 `':'` 结尾）

@@ -94,6 +94,12 @@ pub struct CacheBuilder<K, V> {
     /// 自适应 TTL 配置（`adaptive-ttl` feature）。Some = 装饰器启用。
     #[cfg(feature = "adaptive-ttl")]
     adaptive_ttl: Option<crate::features::adaptive_ttl::AdaptiveTtlConfig>,
+    /// 命名空间边界守卫（`namespace-guard` feature）：(namespace, policy)
+    #[cfg(feature = "namespace-guard")]
+    namespace: Option<(String, crate::features::namespace_guard::NamespacePolicy)>,
+    /// 命名空间配额（`namespace-guard` feature）
+    #[cfg(feature = "namespace-guard")]
+    namespace_quota: Option<crate::features::namespace_guard::NamespaceQuota>,
 }
 
 impl<K, V> std::fmt::Debug for CacheBuilder<K, V> {
@@ -128,6 +134,10 @@ impl<K, V> Default for CacheBuilder<K, V> {
             event_publisher: None,
             #[cfg(feature = "adaptive-ttl")]
             adaptive_ttl: None,
+            #[cfg(feature = "namespace-guard")]
+            namespace: None,
+            #[cfg(feature = "namespace-guard")]
+            namespace_quota: None,
             backends: Vec::new(),
             ttl: None,
             tti: None,
@@ -366,6 +376,44 @@ where
         self
     }
 
+    /// 声明命名空间边界守卫：命名空间前缀之外的键一律拒绝。
+    ///
+    /// 守卫位于装饰器栈最外层，越界请求零序列化开销。策略在构建期固定，
+    /// 变更需重建实例。
+    #[cfg(feature = "namespace-guard")]
+    pub fn namespace(
+        mut self,
+        namespace: impl Into<String>,
+        policy: crate::features::namespace_guard::NamespacePolicy,
+    ) -> Self {
+        self.namespace = Some((namespace.into(), policy));
+        self
+    }
+
+    /// 声明命名空间配额（需同时调用 [`Self::namespace`] 才生效）。
+    #[cfg(feature = "namespace-guard")]
+    pub fn namespace_quota(
+        mut self,
+        quota: crate::features::namespace_guard::NamespaceQuota,
+    ) -> Self {
+        self.namespace_quota = Some(quota);
+        self
+    }
+
+    /// 提取命名空间守卫配置供 build_sync 在无借用时使用
+    #[cfg(feature = "namespace-guard")]
+    fn take_namespace_config(
+        &mut self,
+    ) -> Option<(
+        String,
+        crate::features::namespace_guard::NamespacePolicy,
+        Option<crate::features::namespace_guard::NamespaceQuota>,
+    )> {
+        self.namespace
+            .take()
+            .map(|(ns, policy)| (ns, policy, self.namespace_quota.take()))
+    }
+
     /// Build the cache instance (async variant).
     ///
     /// Equivalent to [`Self::build_sync`]; kept as `async` for API stability.
@@ -379,7 +427,9 @@ where
     /// Constructs a [`Cache`] without awaiting. The default Moka path and the
     /// user-provided backend path are both fully synchronous, so this is
     /// equivalent to [`Self::build`] without an `async` boundary.
-    pub fn build_sync(self) -> OxCacheResult<Cache<K, V>> {
+    pub fn build_sync(mut self) -> OxCacheResult<Cache<K, V>> {
+        #[cfg(feature = "namespace-guard")]
+        let ns_config = self.take_namespace_config();
         // service 维度显性化：空串会静默吞掉维度（record 层早退），
         // 构建期显性拒绝而非默认无维度
         #[cfg(feature = "metrics")]
@@ -488,9 +538,31 @@ where
                 if let Some(format) = self.serialization_format {
                     cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
                 }
+                #[cfg(feature = "namespace-guard")]
+                let guarded_backend = ns_config.map(|(namespace, policy, quota)| {
+                    use crate::features::namespace_guard::NamespaceGuardBackend;
+                    let guard = match quota {
+                        Some(q) => NamespaceGuardBackend::with_quota(
+                            cache.backend.clone(),
+                            &namespace,
+                            policy,
+                            q,
+                        ),
+                        None => {
+                            NamespaceGuardBackend::new(cache.backend.clone(), &namespace, policy)
+                        }
+                    };
+                    Arc::new(guard) as Arc<dyn CacheBackend>
+                });
                 #[cfg(feature = "audit")]
                 if let Some(publisher) = self.audit {
                     cache.set_audit_publisher(publisher);
+                }
+                #[cfg(feature = "namespace-guard")]
+                if let Some(guarded) = guarded_backend {
+                    cache.backend = guarded;
+                    // sync 面直连原生 Moka（守卫只包 async 面）；sync API 的
+                    // 边界校验在 T008 后的集成中按设计仅覆盖 async 路径
                 }
                 return Ok(cache);
             }
@@ -615,9 +687,24 @@ where
         if let Some(format) = self.serialization_format {
             cache.unified_serializer = crate::infra::UnifiedSerializer::with_format(format);
         }
+        #[cfg(feature = "namespace-guard")]
+        let guarded_backend = ns_config.map(|(namespace, policy, quota)| {
+            use crate::features::namespace_guard::NamespaceGuardBackend;
+            let guard = match quota {
+                Some(q) => {
+                    NamespaceGuardBackend::with_quota(cache.backend.clone(), &namespace, policy, q)
+                }
+                None => NamespaceGuardBackend::new(cache.backend.clone(), &namespace, policy),
+            };
+            Arc::new(guard) as Arc<dyn CacheBackend>
+        });
         #[cfg(feature = "audit")]
         if let Some(publisher) = self.audit {
             cache.set_audit_publisher(publisher);
+        }
+        #[cfg(feature = "namespace-guard")]
+        if let Some(guarded) = guarded_backend {
+            cache.backend = guarded;
         }
         Ok(cache)
     }
