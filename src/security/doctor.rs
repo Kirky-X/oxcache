@@ -369,6 +369,24 @@ mod tests {
     #[test]
     #[serial_test::serial]
     #[allow(unsafe_code)]
+    fn insecure_escape_hatch_is_critical_even_with_rediss() {
+        // SAFETY: Rust 2024 edition — set_var 为 unsafe；本测试以 #[serial] 串行
+        unsafe { std::env::set_var("OXCACHE_ALLOW_INSECURE_REDIS", "I_UNDERSTAND_THE_RISKS") };
+        let config = CacheConfigBuilder::default()
+            .redis_url("rediss://cache.example.com:6379")
+            .build();
+        let report = audit(&config);
+        assert_eq!(
+            finding(&report, "tls-enforcement").unwrap().level,
+            FindingLevel::Critical
+        );
+        // SAFETY: 同上，串行清理进程级 env
+        unsafe { std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    #[allow(unsafe_code)]
     fn insecure_redis_url_is_critical() {
         // SAFETY: Rust 2024 edition — remove_var 为 unsafe；本测试以 #[serial] 串行，进程级 env 无并发读写
         unsafe { std::env::remove_var("OXCACHE_ALLOW_INSECURE_REDIS") };
