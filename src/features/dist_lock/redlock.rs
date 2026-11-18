@@ -25,6 +25,8 @@
 //! ```
 
 use crate::error::{OxCacheError, OxCacheResult};
+#[cfg(feature = "security-events")]
+use crate::features::security_events::{SecurityHook, SecuritySignal};
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -65,6 +67,12 @@ impl InMemoryLockNode {
             available: false,
             ..Default::default()
         }
+    }
+
+    /// 测试辅助：手工回拨 fencing 计数器（模拟计数器被重置）
+    #[cfg(test)]
+    pub fn set_fence(&self, key: &str, value: u64) {
+        self.fences.lock().unwrap().insert(key.to_string(), value);
     }
 
     fn ensure_available(&self) -> OxCacheResult<()> {
@@ -175,6 +183,8 @@ pub struct RedLock {
     owner: String,
     ttl: Duration,
     state: Mutex<RedLockState>,
+    #[cfg(feature = "security-events")]
+    security_hook: Option<SecurityHook>,
 }
 
 #[derive(Default)]
@@ -183,12 +193,21 @@ struct RedLockState {
     /// 成功获取的节点索引
     acquired_nodes: Vec<usize>,
     fencing_token: u64,
+    #[cfg(feature = "security-events")]
+    node_tokens: std::collections::HashMap<usize, u64>,
 }
 
 impl RedLock {
     /// 多数派阈值：`N/2 + 1`
     pub fn quorum_for(node_count: usize) -> usize {
         node_count / 2 + 1
+    }
+
+    /// 注入 fencing 异常信号钩子（`security-events` feature）
+    #[cfg(feature = "security-events")]
+    pub fn with_security_hook(mut self, hook: SecurityHook) -> Self {
+        self.security_hook = Some(hook);
+        self
     }
 
     /// 创建 RedLock（owner 自动生成 uuid）
@@ -204,6 +223,8 @@ impl RedLock {
             owner: uuid::Uuid::new_v4().to_string(),
             ttl,
             state: Mutex::new(RedLockState::default()),
+            #[cfg(feature = "security-events")]
+            security_hook: None,
         }
     }
 
@@ -214,6 +235,14 @@ impl RedLock {
         let quorum = Self::quorum_for(self.nodes.len());
         let mut acquired: Vec<usize> = Vec::new();
         let mut max_token: u64 = 0;
+        #[cfg(feature = "security-events")]
+        let last_tokens = self.state.lock().unwrap().node_tokens.clone();
+        #[cfg(feature = "security-events")]
+        let hook = self.security_hook.clone();
+        #[cfg(feature = "security-events")]
+        let lock_key = self.key.clone();
+        #[cfg(feature = "security-events")]
+        let mut observed_tokens: std::collections::HashMap<usize, u64> = last_tokens.clone();
 
         for (idx, node) in self.nodes.iter().enumerate() {
             match node.try_acquire(&self.key, &self.owner, self.ttl).await {
@@ -221,7 +250,30 @@ impl RedLock {
                     acquired.push(idx);
                     // 每个成功节点取 fence，取最大值作为全局 token
                     if let Ok(token) = node.incr_fence(&self.key).await {
+                        #[cfg(feature = "security-events")]
+                        if let Some(last) = last_tokens.get(&idx)
+                            && token <= *last
+                            && let Some(hook) = &hook
+                        {
+                            let signal = SecuritySignal::FencingAnomaly {
+                                instance_id: String::new(),
+                                lock_key: lock_key.clone(),
+                                node_index: idx,
+                                observed_token: token,
+                                last_token: *last,
+                                raised_at_unix_ms: std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis()
+                                    as u64,
+                            };
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                hook(signal);
+                            }));
+                        }
                         max_token = max_token.max(token);
+                        #[cfg(feature = "security-events")]
+                        observed_tokens.insert(idx, token);
                     }
                 }
                 Ok(false) => {}
@@ -236,6 +288,10 @@ impl RedLock {
             state.held = true;
             state.acquired_nodes = acquired;
             state.fencing_token = max_token;
+            #[cfg(feature = "security-events")]
+            {
+                state.node_tokens = observed_tokens;
+            }
             Ok(true)
         } else {
             // 不足多数派：回滚已获取节点
@@ -390,5 +446,75 @@ mod tests {
         let down = Arc::new(InMemoryLockNode::down());
         let mut lock = RedLock::with_ttl(vec![down], "k", Duration::from_secs(5));
         assert!(!lock.try_acquire().await.unwrap());
+    }
+
+    #[cfg(feature = "security-events")]
+    mod security_hook_tests {
+        use super::*;
+        use crate::features::security_events::SecuritySignal;
+        use std::sync::Mutex;
+
+        fn lock_with_hook(
+            nodes: Vec<Arc<dyn LockNode>>,
+            seen: Arc<Mutex<Vec<SecuritySignal>>>,
+        ) -> RedLock {
+            RedLock::with_ttl(nodes, "lease", Duration::from_secs(60)).with_security_hook(Arc::new(
+                move |signal| {
+                    seen.lock().unwrap().push(signal);
+                },
+            ))
+        }
+
+        #[tokio::test]
+        async fn token_regression_emits_fencing_anomaly() {
+            let node = Arc::new(InMemoryLockNode::healthy());
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let closure_seen = seen.clone();
+            let mut lock = RedLock::with_ttl(vec![node.clone()], "lease", Duration::from_secs(60))
+                .with_security_hook(Arc::new(move |signal| {
+                    closure_seen.lock().unwrap().push(signal);
+                }));
+            // 首轮建立历史 token = 1
+            assert!(lock.try_acquire().await.unwrap());
+            let _ = lock.release().await;
+            assert!(seen.lock().unwrap().is_empty());
+            // 回拨计数器：下一轮 incr 返回 1 <= last(1) → 发信号
+            node.set_fence("lease", 0);
+            assert!(lock.try_acquire().await.unwrap());
+            let signals = seen.lock().unwrap();
+            assert_eq!(signals.len(), 1);
+            match &signals[0] {
+                SecuritySignal::FencingAnomaly {
+                    node_index,
+                    observed_token,
+                    last_token,
+                    ..
+                } => {
+                    assert_eq!(*node_index, 0);
+                    assert_eq!(*observed_token, 1);
+                    assert_eq!(*last_token, 1);
+                }
+                other => panic!("unexpected signal: {other:?}"),
+            }
+        }
+
+        #[tokio::test]
+        async fn monotonic_token_does_not_signal() {
+            let node = Arc::new(InMemoryLockNode::healthy());
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let mut lock = lock_with_hook(vec![node], seen.clone());
+            assert!(lock.try_acquire().await.unwrap());
+            let _ = lock.release().await;
+            assert!(lock.try_acquire().await.unwrap());
+            assert!(seen.lock().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn no_hook_preserves_behavior() {
+            let node = Arc::new(InMemoryLockNode::healthy());
+            let mut lock = RedLock::with_ttl(vec![node], "lease", Duration::from_secs(60));
+            assert!(lock.try_acquire().await.unwrap());
+            assert_eq!(lock.fencing_token(), Some(1));
+        }
     }
 }
