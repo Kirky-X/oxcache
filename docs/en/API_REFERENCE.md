@@ -916,6 +916,42 @@ assert!(!safe.contains("secret"));
 `Redacted` is a wrapper type preventing the inner value from being accidentally logged.
 Use `redact_field` / `redact_value` to wrap sensitive data in logs.
 
+### Namespace boundary (`namespace-guard` feature)
+
+Shared caches can enforce a runtime key boundary. The guard rejects any key or glob pattern outside the declared namespace prefix with `OxCacheError::AccessDenied`; `clear()` is always rejected under `NamespacePolicy::Isolated`.
+
+```rust
+use oxcache::{Cache, NamespacePolicy};
+
+let cache: Cache<String, String> = Cache::builder()
+    .namespace("tenant:acme", NamespacePolicy::Isolated)
+    .build()
+    .await?;
+cache.set(&"tenant:acme:key".into(), &"value".into()).await?;
+// cache.get(&"tenant:other:key".into()).await → Err(OxCacheError::AccessDenied(..))
+```
+
+`AccessDenied` covers out-of-namespace access and quota overflow. The error detail redacts the key text, matching audit conventions.
+
+Per-namespace quotas are optional and apply to the number of entries and the serialized byte total:
+
+```rust
+use oxcache::{NamespaceQuota, OverflowPolicy};
+
+let quota = NamespaceQuota {
+    max_entries: 1_000,
+    max_bytes: 10 * 1024 * 1024,
+    overflow_policy: OverflowPolicy::Reject, // or EvictOldestInNamespace
+};
+let cache: Cache<String, String> = Cache::builder()
+    .namespace("tenant:acme", NamespacePolicy::Isolated)
+    .namespace_quota(quota)
+    .build()
+    .await?;
+```
+
+`Reject` denies the overflowing write; `EvictOldestInNamespace` deletes this namespace's oldest entries until the new write fits. Quota accounting is per guard instance (no cross-instance sync). Denials and quota evictions increment `oxcache_namespace_denied_total` and `oxcache_namespace_quota_rejected_total` / `oxcache_namespace_quota_evicted_total`; occupancy is reported via `oxcache_namespace_entries` and `oxcache_namespace_bytes` gauges.
+
 ## 📈 Observability
 
 ### Metrics (`metrics` feature)
@@ -1249,6 +1285,7 @@ oxcache = { version = "0.5.1", features = ["full"] }      # true full: every nam
 | `invalidation` | Cross-instance invalidation bus: Redis Pub/Sub broadcast + keyspace-notification channel | ❌ |
 | `encrypt` | Value-level encryption decorator (XChaCha20-Poly1305, key bound as AAD) | ❌ |
 | `integrity` | Value integrity decorator (HMAC-SHA256, verification failure counts as a miss) | ❌ |
+| `namespace-guard` | Namespace boundary decorator: key/pattern ownership checks + per-namespace quota (requires `memory`) | ❌ |
 | `serde-bincode` | bincode 2 binary serialization format | ❌ |
 | `postcard` | postcard binary serialization format | ❌ |
 | `config-confers` | confers config-driven build + `ConfigBus` watch hot reload | ❌ |

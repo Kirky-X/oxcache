@@ -94,6 +94,7 @@ Exemptions do not constitute security behavior changes; dependency failure and d
 | Redaction | `redact_connection_string` / `redact_value` / `redact_cache_key` / `Redacted` wrapper; keys in telemetry spans, audit events and `CacheEvent` are redacted by default (whole key masked when the key text matches the sensitive-word list; identifier-shaped segments — e-mail, numeric IDs, UUIDs, long hex digests — masked as `<id>`; audit events and cache events share one format) |
 | Memory safety | Crate-root `#![deny(unsafe_code)]` |
 | Value protection | `encrypt` (XChaCha20-Poly1305 with the key bound as AAD) and `integrity` (HMAC-SHA256 with the tag bound to key name + value) decorators |
+| Namespace boundary | `namespace-guard` decorator rejects keys/patterns outside the declared namespace with `AccessDenied`; `clear()` is rejected under `Isolated`; per-namespace quotas bound entries and bytes |
 | Deserialization DoS guard | `MAX_JSON_DEPTH` (64 levels) depth limit + `MAX_JSON_SIZE` (5 MB) deserialization size cap + 64 MiB decompressed-output cap (decompression-bomb guard) + stack-based recursion (`serde_stacker`) |
 | Supply chain | Every third-party GitHub Action pinned by commit SHA in CI; `cargo deny check` (advisories / licenses / duplicate deps, see `deny.toml`) and `cargo audit` always on |
 
