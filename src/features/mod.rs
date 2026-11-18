@@ -47,6 +47,12 @@ pub mod versioning;
 #[cfg(feature = "namespace-guard")]
 pub mod namespace_guard;
 
+#[cfg(feature = "classification")]
+pub mod classification;
+
+#[cfg(feature = "provenance")]
+pub mod provenance;
+
 #[cfg(feature = "hotkey")]
 pub use hotkey::HotKeyTracker;
 
@@ -103,6 +109,12 @@ pub use audit::TracingAuditPublisher;
 pub use compression::{
     CompressingBackend, DEFAULT_COMPRESSION_THRESHOLD, DEFAULT_ZSTD_LEVEL, ZSTD_MAGIC,
 };
+
+#[cfg(feature = "classification")]
+pub use classification::{ClassifyingBackend, RuleSetClassifier, Sensitivity};
+
+#[cfg(feature = "provenance")]
+pub use provenance::{Provenance, ProvenanceBackend, ProvenancePolicy};
 
 #[cfg(feature = "versioning")]
 pub use versioning::{MemoryVersionedCache, VersionedStore, VersionedValue};

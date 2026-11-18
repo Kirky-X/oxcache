@@ -237,6 +237,12 @@ pub use redis;
 #[cfg(feature = "encrypt")]
 pub use features::encryption;
 
+#[cfg(feature = "classification")]
+pub use features::classification::{ClassifyingBackend, RuleSetClassifier, Sensitivity};
+
+#[cfg(feature = "provenance")]
+pub use features::provenance::{Provenance, ProvenanceBackend, ProvenancePolicy};
+
 // Namespace boundary guard (`namespace-guard` feature)
 #[cfg(feature = "namespace-guard")]
 pub use features::namespace_guard::{
