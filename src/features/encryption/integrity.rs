@@ -33,10 +33,16 @@
 use crate::backend::interface::{BackendKind, CacheSetItem};
 use crate::backend::{CacheBackend, CacheConnector, CacheReader, CacheWriter};
 use crate::error::OxCacheResult;
+#[cfg(feature = "security-events")]
+use crate::features::security_events::{SecurityHook, SecuritySignal};
+#[cfg(feature = "security-events")]
+use crate::security::redaction::redact_cache_key;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::sync::Arc;
+#[cfg(feature = "security-events")]
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -114,6 +120,12 @@ fn update_with_key(mac: &mut HmacSha256, key: &str, message: &[u8]) {
 pub struct IntegrityBackend {
     inner: Arc<dyn CacheBackend>,
     signer: HmacSigner,
+    #[cfg(feature = "security-events")]
+    security_hook: Option<SecurityHook>,
+    #[cfg(feature = "security-events")]
+    failure_threshold: u32,
+    #[cfg(feature = "security-events")]
+    consecutive_failures: AtomicU32,
 }
 
 impl std::fmt::Debug for IntegrityBackend {
@@ -131,6 +143,12 @@ impl IntegrityBackend {
         Self {
             inner,
             signer: HmacSigner::new(key),
+            #[cfg(feature = "security-events")]
+            security_hook: None,
+            #[cfg(feature = "security-events")]
+            failure_threshold: 3,
+            #[cfg(feature = "security-events")]
+            consecutive_failures: AtomicU32::new(0),
         }
     }
 
@@ -142,6 +160,12 @@ impl IntegrityBackend {
         Ok(Self {
             inner,
             signer: HmacSigner::from_slice(key)?,
+            #[cfg(feature = "security-events")]
+            security_hook: None,
+            #[cfg(feature = "security-events")]
+            failure_threshold: 3,
+            #[cfg(feature = "security-events")]
+            consecutive_failures: AtomicU32::new(0),
         })
     }
 
@@ -150,8 +174,22 @@ impl IntegrityBackend {
         &self.signer
     }
 
+    /// 注入安全信号钩子（`security-events` feature）
+    #[cfg(feature = "security-events")]
+    pub fn with_security_hook(mut self, hook: SecurityHook) -> Self {
+        self.security_hook = Some(hook);
+        self
+    }
+
+    /// 设置连续失败阈值（0 = 不发信号，`security-events` feature）
+    #[cfg(feature = "security-events")]
+    pub fn with_failure_threshold(mut self, threshold: u32) -> Self {
+        self.failure_threshold = threshold;
+        self
+    }
+
     /// 校验失败的统一处理：计 miss + 计完整性失败，返回 None
-    fn record_integrity_failure(&self) -> Option<Vec<u8>> {
+    fn record_integrity_failure(&self, key: &str) -> Option<Vec<u8>> {
         #[cfg(feature = "metrics")]
         {
             use crate::infra::metrics::{CacheOpResult, CacheOpType, CacheOperation};
@@ -163,6 +201,32 @@ impl IntegrityBackend {
             crate::infra::GLOBAL_UNIFIED_METRICS
                 .increment_counter("oxcache_integrity_failures_total", 1);
         }
+        #[cfg(feature = "security-events")]
+        {
+            if self.failure_threshold > 0 {
+                let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
+                if count >= self.failure_threshold {
+                    self.consecutive_failures.store(0, Ordering::SeqCst);
+                    if let Some(hook) = &self.security_hook {
+                        let signal = SecuritySignal::IntegrityCompromised {
+                            instance_id: String::new(),
+                            key: redact_cache_key(key),
+                            consecutive_failures: count,
+                            raised_at_unix_ms: std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64,
+                        };
+                        let hook = hook.clone();
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            hook(signal);
+                        }));
+                    }
+                }
+            }
+        }
+        #[cfg(not(feature = "security-events"))]
+        let _ = key;
         None
     }
 }
@@ -174,17 +238,19 @@ impl CacheReader for IntegrityBackend {
             Some(envelope) => {
                 // 格式：[ver][tag 32B][payload]
                 if envelope.is_empty() || envelope[0] != HMAC_ENVELOPE_VERSION {
-                    return Ok(self.record_integrity_failure());
+                    return Ok(self.record_integrity_failure(key));
                 }
                 if envelope.len() < 1 + TAG_SIZE {
-                    return Ok(self.record_integrity_failure());
+                    return Ok(self.record_integrity_failure(key));
                 }
                 let tag = &envelope[1..1 + TAG_SIZE];
                 let payload = &envelope[1 + TAG_SIZE..];
                 if self.signer.verify(key, payload, tag) {
+                    #[cfg(feature = "security-events")]
+                    self.consecutive_failures.store(0, Ordering::SeqCst);
                     Ok(Some(payload.to_vec()))
                 } else {
-                    Ok(self.record_integrity_failure())
+                    Ok(self.record_integrity_failure(key))
                 }
             }
             None => Ok(None),
@@ -621,5 +687,78 @@ mod tests {
         let signer = HmacSigner::new(key32(3));
         assert_ne!(signer.sign("ab", b"c"), signer.sign("a", b"bc"));
         assert_ne!(signer.sign("k1", b"v"), signer.sign("k2", b"v"));
+    }
+
+    #[cfg(feature = "security-events")]
+    mod security_hook_tests {
+        use super::*;
+        use crate::backend::MockBackend;
+        use crate::features::security_events::SecuritySignal;
+        use std::sync::Mutex;
+
+        fn backend_with_hook(
+            threshold: u32,
+            seen: Arc<Mutex<Vec<SecuritySignal>>>,
+        ) -> IntegrityBackend {
+            IntegrityBackend::new(Arc::new(MockBackend::new("mock", 100, false)), [7u8; 32])
+                .with_failure_threshold(threshold)
+                .with_security_hook(Arc::new(move |signal| {
+                    seen.lock().unwrap().push(signal);
+                }))
+        }
+
+        async fn fail_once(backend: &IntegrityBackend, key: &str) {
+            // 损坏写入使 HMAC 校验失败
+            backend
+                .inner
+                .set(Arc::from(key), Arc::new(vec![HMAC_ENVELOPE_VERSION]), None)
+                .await
+                .unwrap();
+            let _ = backend.get(key).await;
+        }
+
+        #[tokio::test]
+        async fn single_failure_below_threshold_does_not_signal() {
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let backend = backend_with_hook(3, seen.clone());
+            fail_once(&backend, "k").await;
+            assert!(seen.lock().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn three_failures_signal_once_and_reset() {
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let backend = backend_with_hook(3, seen.clone());
+            for _ in 0..3 {
+                fail_once(&backend, "k").await;
+            }
+            assert_eq!(seen.lock().unwrap().len(), 1);
+            for _ in 0..3 {
+                fail_once(&backend, "k").await;
+            }
+            assert_eq!(seen.lock().unwrap().len(), 2);
+        }
+
+        #[tokio::test]
+        async fn successful_verify_resets_counter() {
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let backend = backend_with_hook(2, seen.clone());
+            fail_once(&backend, "k").await;
+            backend
+                .set(Arc::from("k"), Arc::new(b"v".to_vec()), None)
+                .await
+                .unwrap();
+            assert_eq!(backend.get("k").await.unwrap(), Some(b"v".to_vec()));
+            fail_once(&backend, "k").await;
+            assert!(seen.lock().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn no_hook_preserves_behavior() {
+            let backend =
+                IntegrityBackend::new(Arc::new(MockBackend::new("mock", 100, false)), [7u8; 32]);
+            fail_once(&backend, "k").await;
+            assert_eq!(backend.get("k").await.unwrap(), None);
+        }
     }
 }

@@ -119,9 +119,40 @@ impl SecurityEventBus {
     /// 供检测点持有：回调内 spawn 发布，失败仅记日志不 panic
     pub fn hook(self: &Arc<Self>) -> SecurityHook {
         let bus = self.clone();
+        let instance_id = self.config.instance_id.clone();
         Arc::new(move |signal: SecuritySignal| {
             let bus = bus.clone();
+            let instance_id = instance_id.clone();
             tokio::spawn(async move {
+                // 检测点不感知实例 ID；由总线在发布前补齐，供接收端自豁免
+                let signal = match signal {
+                    SecuritySignal::IntegrityCompromised {
+                        key,
+                        consecutive_failures,
+                        raised_at_unix_ms,
+                        ..
+                    } => SecuritySignal::IntegrityCompromised {
+                        instance_id,
+                        key,
+                        consecutive_failures,
+                        raised_at_unix_ms,
+                    },
+                    SecuritySignal::FencingAnomaly {
+                        lock_key,
+                        node_index,
+                        observed_token,
+                        last_token,
+                        raised_at_unix_ms,
+                        ..
+                    } => SecuritySignal::FencingAnomaly {
+                        instance_id,
+                        lock_key,
+                        node_index,
+                        observed_token,
+                        last_token,
+                        raised_at_unix_ms,
+                    },
+                };
                 if let Err(err) = bus.publish_signal(&signal).await {
                     #[cfg(feature = "telemetry")]
                     tracing::warn!(
