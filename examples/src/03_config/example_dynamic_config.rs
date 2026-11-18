@@ -47,25 +47,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             key: "app.mode".to_string(),
             value: "production".to_string(),
             config_type: "app".to_string(),
-            updated_at: chrono::Local::now().to_rfc3339(),
+            updated_at: time::OffsetDateTime::now_utc().unix_timestamp().to_string(),
         },
         ConfigValue {
             key: "app.theme".to_string(),
             value: "dark".to_string(),
             config_type: "app".to_string(),
-            updated_at: chrono::Local::now().to_rfc3339(),
+            updated_at: time::OffsetDateTime::now_utc().unix_timestamp().to_string(),
         },
         ConfigValue {
             key: "database.timeout".to_string(),
             value: "30".to_string(),
             config_type: "database".to_string(),
-            updated_at: chrono::Local::now().to_rfc3339(),
+            updated_at: time::OffsetDateTime::now_utc().unix_timestamp().to_string(),
         },
         ConfigValue {
             key: "cache.size".to_string(),
             value: "10000".to_string(),
             config_type: "cache".to_string(),
-            updated_at: chrono::Local::now().to_rfc3339(),
+            updated_at: time::OffsetDateTime::now_utc().unix_timestamp().to_string(),
         },
     ];
 
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         key: "app.theme".to_string(),
         value: "light".to_string(),
         config_type: "app".to_string(),
-        updated_at: chrono::Local::now().to_rfc3339(),
+        updated_at: time::OffsetDateTime::now_utc().unix_timestamp().to_string(),
     };
     cache.set(&updated_config.key, &updated_config).await?;
     println!(

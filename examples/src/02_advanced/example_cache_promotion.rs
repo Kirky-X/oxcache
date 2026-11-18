@@ -49,7 +49,7 @@ struct Session {
     id: String,
     user_id: u64,
     data: String,
-    last_accessed: chrono::DateTime<chrono::Utc>,
+    last_accessed: i64,
 }
 
 /// 模拟 L1 缓存（快速、容量小）
@@ -111,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id: format!("sess_{}", i),
             user_id: i,
             data: format!("session data {}", i),
-            last_accessed: chrono::Utc::now(),
+            last_accessed: time::OffsetDateTime::now_utc().unix_timestamp(),
         })
         .collect();
 
@@ -273,7 +273,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         id: "short:1".into(),
         user_id: 99,
         data: "short-lived".into(),
-        last_accessed: chrono::Utc::now(),
+        last_accessed: time::OffsetDateTime::now_utc().unix_timestamp(),
     };
     l2.set_with_ttl(
         &"short:1".into(),
