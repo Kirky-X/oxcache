@@ -128,7 +128,10 @@ redis-tier = ["minimal", "redis"]
 # 兼容别名：旧 feature 名 core 转发到 redis-tier
 core = ["redis-tier"]
 # 真全量：全部具名能力 feature（弃用别名 core/red-lock/testing/kit 不入列，用正名）
-full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "test-util", "dragonfly", "aerospike", "lock", "redlock", "offload", "disk", "stale", "bloom", "trait-kit", "telemetry", "invalidation", "pubsub", "encrypt", "integrity", "serde-bincode", "postcard", "config-confers", "degradation", "audit", "versioning", "hotkey", "adaptive-ttl", "warmup", "namespace-guard"]
+full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "test-util", "dragonfly", "aerospike", "lock", "redlock", "offload", "disk", "stale", "bloom", "trait-kit", "telemetry", "invalidation", "pubsub", "encrypt", "integrity", "serde-bincode", "postcard", "config-confers", "degradation", "audit", "versioning", "hotkey", "adaptive-ttl", "warmup", "namespace-guard", "doctor"]
+
+# doctor：安全配置自审计 API（零依赖，任何 feature 组合可编译）
+doctor = []
 
 # namespace-guard：命名空间边界装饰器（归属校验 + 配额），单开须隐含 memory 基线
 namespace-guard = ["memory"]
