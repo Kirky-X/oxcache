@@ -699,4 +699,25 @@ mod tests {
             Some(MetricValue::Gauge(0.0))
         ));
     }
+
+    #[tokio::test]
+    async fn overwrite_existing_key_is_not_quota_rejected() {
+        use crate::backend::{CacheReader, CacheWriter};
+        let guard = quota_guard(1, 1000, OverflowPolicy::Reject);
+        guard
+            .set(Arc::from("tenant:acme:k1"), Arc::new(vec![1u8; 10]), None)
+            .await
+            .unwrap();
+        // entries 已满，但覆盖 k1 不应被拒（R-namespace-quota-001）
+        guard
+            .set(Arc::from("tenant:acme:k1"), Arc::new(vec![1u8; 20]), None)
+            .await
+            .unwrap();
+        assert_eq!(guard.quota_usage().0, 1);
+        assert_eq!(guard.quota_usage().1, 20);
+        assert_eq!(
+            guard.get("tenant:acme:k1").await.unwrap(),
+            Some(vec![1u8; 20])
+        );
+    }
 }
