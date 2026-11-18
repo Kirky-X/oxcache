@@ -135,7 +135,11 @@ impl CacheReader for ClassifyingBackend {
             Some(bytes) => bytes,
             None => return Ok(None),
         };
-        if raw.first() != Some(&CLASSIFICATION_ENVELOPE_VERSION) {
+        // 仅 Sensitive 键会被本装饰器加密；其他键的首字节可能恰好是
+        // IntegrityBackend 信封版本（同为 1），不可误判为分级信封。
+        if self.classifier.classify(key) != Sensitivity::Sensitive
+            || raw.first() != Some(&CLASSIFICATION_ENVELOPE_VERSION)
+        {
             return Ok(Some(raw));
         }
         match self.cipher.decrypt(&raw[1..], key.as_bytes()) {

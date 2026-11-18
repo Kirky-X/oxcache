@@ -179,6 +179,9 @@ impl CacheReader for ProvenanceBackend {
                 Some(payload) => Ok(Some(payload)),
                 None => self.reject(key).await,
             },
+            // 信封版本字节与 IntegrityBackend 相同（=1）；组合链下本层可能读到
+            // 内层装饰器信封。reject_unprovened=false 时按无证明放行，不删除。
+            Err(_) if !self.policy.reject_unprovened => Ok(Some(raw)),
             Err(_) => self.reject(key).await,
         }
     }
@@ -379,6 +382,30 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(decor.get("k").await.unwrap(), Some(b"plain".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn corrupt_envelope_passes_through_when_policy_allows() {
+        let raw = Arc::new(MockBackend::new("mock", 100, false));
+        raw.set(
+            Arc::from("k"),
+            Arc::new(vec![PROVENANCE_ENVELOPE_VERSION, 1, 2, 3]),
+            None,
+        )
+        .await
+        .unwrap();
+        let inner: Arc<dyn CacheBackend> = raw;
+        let pass = ProvenanceBackend::new(
+            inner,
+            ProvenancePolicy {
+                trusted_sources: vec!["user-service".to_string()],
+                reject_unprovened: false,
+            },
+        );
+        assert_eq!(
+            pass.get("k").await.unwrap(),
+            Some(vec![PROVENANCE_ENVELOPE_VERSION, 1, 2, 3])
+        );
     }
 
     #[tokio::test]
