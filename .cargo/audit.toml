@@ -5,4 +5,8 @@ ignore = [
     # testcontainers 0.28.0（crates.io 最新版，无安全升级路径），不进
     # 发布产物；等 testcontainers 上游迁移 tar-codec 后移除。
     "RUSTSEC-2026-0440",
+    # RUSTSEC-2026-0543（2026-11-17 入库）：chrono 全版本 unmaintained（upstream
+    # chronotope/chrono#1768），patched=[] 无升级路径；依赖替换（jiff/time）归
+    # 依赖治理 change。与 deny.toml 同口径，家族级豁免。
+    "RUSTSEC-2026-0543",
 ]
