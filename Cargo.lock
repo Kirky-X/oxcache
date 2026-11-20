@@ -2213,7 +2213,6 @@ dependencies = [
  "async-trait",
  "bloomfilter",
  "chacha20poly1305",
- "chrono",
  "confers",
  "criterion",
  "ctor",
@@ -2238,6 +2237,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "testcontainers",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2253,11 +2253,11 @@ name = "oxcache-examples"
 version = "0.5.1"
 dependencies = [
  "async-trait",
- "chrono",
  "criterion",
  "oxcache",
  "serde",
  "serde_json",
+ "time",
  "tokio",
  "tracing-subscriber",
  "trait-kit",

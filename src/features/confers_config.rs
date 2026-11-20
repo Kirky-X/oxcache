@@ -4,7 +4,7 @@
 //!
 //! [`OxcacheConfig`] 经 confers 配置源加载，容量 / TTL / 熔断参数支持
 //! confers [`ConfigBus`](confers::ConfigBus) watch **热更新**（快照原子换装）。
-//! 层级合法：oxcache → confers（配置中枢，D3 端口方向）。
+//! 层级合法：oxcache → confers（配置中枢，端口方向）。
 //!
 //! # confers key 约定
 //!

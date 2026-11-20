@@ -220,7 +220,7 @@ async fn sf_multi_fn(id: u64) -> Result<u64, String> {
 }
 
 /// 分片活性行为：多 key 并发 single_flight 全部完成且各 key 恰执行一次
-///（防止回退为单把全局锁时引入的争用/死锁回归）。
+/// （防止回退为单把全局锁时引入的争用/死锁回归）。
 #[tokio::test]
 #[serial]
 async fn single_flight_concurrent_distinct_keys_all_complete() {

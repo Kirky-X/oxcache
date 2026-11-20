@@ -4,7 +4,7 @@
 //!
 //! [`BackendRegistry`] 按名注册/构建后端：字符串驱动的 `kind → factory`
 //! 映射，供 kit / sdforge / 配置层**动态选择**后端（替代已删 cli 的管理面
-//! 入口，架构决策见 change design D4）。各 feature 在全局注册中心自动
+//! 入口）。各 feature 在全局注册中心自动
 //! 注册自己的工厂（无 feature 时对应工厂不存在）。
 //!
 //! # Example

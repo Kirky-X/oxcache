@@ -44,7 +44,7 @@ tracing = { version = "0.1", default-features = false }
 tracing-subscriber = { version = "0.3", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["std", "derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["std"] }
-chrono = { version = "0.4", default-features = false }
+time = { version = "0.3", default-features = false, features = ["std", "serde"] }
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
 
 [workspace.lints.rust]
@@ -62,9 +62,8 @@ uuid = { version = "1.29", default-features = false, features = ["std", "v4"] }
 trait-kit = { version = "0.5", default-features = false, features = ["async", "lifecycle", "health", "observer", "shutdown", "decorator", "i18n"], optional = true }
 # futures executor for sync health check in async context (trait-kit feature only)
 futures = { version = "0.3", default-features = false, features = ["executor"], optional = true }
-# Fluent internationalization message catalog (always enabled)
-# 消息解析/存储/查询已统一到 trait-kit i18n（I18nManager 注册面 + I18nFormatter 格式化），
-# 本仓不再直接依赖 fluent-bundle（零引用点，保留即为死依赖）
+# Fluent 消息目录（常驻）：解析/存储/查询统一走 trait-kit i18n（I18nManager 注册 + I18nFormatter 格式化）
+# 本仓不再直接依赖 fluent-bundle（零引用，保留即死依赖）
 unic-langid = { version = "0.9", default-features = false }
 # atomic64：无 64 位原子操作的目标（wasm32）需要 moka 的替代实现
 moka = { version = "0.12", default-features = false, features = ["future", "atomic64"], optional = true }
@@ -83,7 +82,7 @@ serde_stacker = { version = "0.1", default-features = false, optional = true }
 bloomfilter = { version = "3.0", default-features = false, features = ["random"], optional = true }
 # Lua 注入防护模式含非 ASCII 空白（如 U+00A0），须保留 unicode 面（关闭后 \s 退化为 ASCII 匹配，绕过防护）
 regex = { version = "1.13", default-features = false, features = ["std", "perf", "unicode"], optional = true }
-chrono = { version = "0.4", default-features = false, features = ["serde", "clock"], optional = true }
+time = { version = "0.3", default-features = false, features = ["std", "serde"], optional = true }
 tracing = { version = "0.1", default-features = false, optional = true }
 # 值级加密（XChaCha20-Poly1305）：nonce 由顶层 getrandom::fill 生成，无需 aead 的 getrandom 特性
 chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"], optional = true }
@@ -117,14 +116,13 @@ rkyv = { version = "0.8", default-features = false, features = ["std", "bytechec
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 testcontainers = { version = "0.28", default-features = false }
 
-# watchdog：信号退出时回收 managed 容器；裁 default（本地 socket 无需 TLS）。
-# Windows 上 signal-hook 0.4 编译失败且无 POSIX 信号，仅 unix 启用。
+# watchdog：信号退出时回收 managed 容器；裁 default（本地 socket 无需 TLS）。Windows 上 signal-hook 0.4 编译失败且无 POSIX 信号，仅 unix 启用。
 [target.'cfg(unix)'.dev-dependencies]
 testcontainers = { version = "0.28", default-features = false, features = ["watchdog"] }
 
 [features]
 default = ["minimal"]
-minimal = ["memory", "metrics", "serialization", "dep:chrono"]
+minimal = ["memory", "metrics", "serialization", "dep:time"]
 # 正名：core 实为 minimal+redis 两级基线，名字反映网络层的存在
 redis-tier = ["minimal", "redis"]
 # 兼容别名：旧 feature 名 core 转发到 redis-tier
@@ -136,14 +134,14 @@ full = ["redis-tier", "macros", "byte-weight", "compression", "batch", "lua", "t
 memory = ["dep:moka", "dep:dashmap", "dep:serde", "serialization", "tokio/rt-multi-thread"]
 # 字节权重同步缓存（tokio-free 直连 moka::sync；moka 默认仅启用 future，需显式加 sync）
 byte-weight = ["dep:moka", "moka/sync"]
-# redis backend 的 sync 桥接用 block_in_place：该 API 门在 tokio/rt-multi-thread
-# （feature-matrix 实测单独 --features redis 时 E0425），随 feature 显式拉入
+# redis backend 的 sync 桥接用 block_in_place，API 门在 tokio/rt-multi-thread
+# 随 feature 显式拉入：单独 --features redis 实测报 E0425
 redis = ["dep:redis", "dep:regex", "serialization", "tokio/rt-multi-thread"]
 dragonfly = ["redis"]
 aerospike = ["dep:aerospike"]
 macros = ["dep:oxcache_macros", "minimal", "dep:sha2"]
 serialization = ["dep:serde", "dep:serde_json", "dep:serde_stacker"]
-metrics = ["serialization", "dep:chrono", "dep:dashmap"]
+metrics = ["serialization", "dep:time", "dep:dashmap"]
 # BatchWriter 缓冲写（包装 Arc<dyn CacheBackend>，引用 crate::backend），单开须隐含 memory 基线（与 degradation 同口径）
 batch = ["memory"]
 lua = ["redis"]

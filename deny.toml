@@ -15,6 +15,9 @@ ignore = [
     # 迁移出路：等 testcontainers 上游迁移 tar-codec 后移除本豁免。
     # 与 .cargo/audit.toml 同口径。
     "RUSTSEC-2026-0440",
+    # RUSTSEC-2026-0543（2026-11-17 入库）：chrono 全版本 unmaintained（upstream chronotope/chrono#1768），
+    # patched=[] 无升级路径；依赖替换（jiff/time）归依赖治理 change。家族级豁免（confers 2026-11-17 同日先行）。
+    "RUSTSEC-2026-0543",
 ]
 
 [licenses]

@@ -257,7 +257,7 @@ mod tests {
             prefetch_count: 0,
             compression_count: 0,
             compression_bytes_saved: 0,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::OffsetDateTime::now_utc(),
         };
 
         assert_eq!(stats.l1_hit_rate(), 0.7);
@@ -281,7 +281,7 @@ mod tests {
             prefetch_count: 0,
             compression_count: 0,
             compression_bytes_saved: 0,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::OffsetDateTime::now_utc(),
         };
 
         assert_eq!(stats.overall_hit_rate(), 0.8);
@@ -313,7 +313,7 @@ mod tests {
             prefetch_count: 0,
             compression_count: 0,
             compression_bytes_saved: 0,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::OffsetDateTime::now_utc(),
         };
 
         assert!(stats.l1_hit_rate_percent().contains("75"));
@@ -340,7 +340,7 @@ mod tests {
             prefetch_count: 10,
             compression_count: 5,
             compression_bytes_saved: 2000,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::OffsetDateTime::now_utc(),
         };
 
         let prometheus = stats.export_prometheus();
@@ -403,7 +403,7 @@ mod tests {
             prefetch_count: 3,
             compression_count: 2,
             compression_bytes_saved: 500,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::OffsetDateTime::now_utc(),
         };
 
         let json = stats.export_json().unwrap();
@@ -443,7 +443,7 @@ mod tests {
     #[test]
     fn test_get_enhanced_stats() {
         let stats = get_enhanced_stats();
-        assert!(stats.timestamp <= chrono::Utc::now());
+        assert!(stats.timestamp <= time::OffsetDateTime::now_utc());
     }
 
     // AtomicCounters Default test

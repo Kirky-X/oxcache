@@ -897,8 +897,8 @@ impl UnifiedMetrics {
 pub const OPERATION_LATENCY_HISTOGRAM: &str = "oxcache_operation_duration_seconds";
 
 /// Escape a label value for the Prometheus text exposition format
-///（`\\` → `\\\\`、`"` → `\"`、`\n` → `\n`）——标签值是自由表单字符串
-///（如 service 名），不转义会静默破坏格式或伪造额外序列
+/// （`\\` → `\\\\`、`"` → `\"`、`\n` → `\n`）——标签值是自由表单字符串
+/// （如 service 名），不转义会静默破坏格式或伪造额外序列
 pub(crate) fn escape_prometheus_label_value(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {

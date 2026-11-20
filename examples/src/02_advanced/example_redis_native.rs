@@ -10,8 +10,7 @@
 //! OXCACHE_ALLOW_INSECURE_REDIS=I_UNDERSTAND_THE_RISKS \
 //!   cargo run --example redis_native
 //! ```
-//!（连接本机 Redis 时同样需要上述环境变量）
-
+//! （连接本机 Redis 时同样需要上述环境变量）
 use oxcache::Cache;
 
 use oxcache::i18n::messages::{
